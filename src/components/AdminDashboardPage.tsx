@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { countryDisplayName } from "@/lib/geoip";
 import { teacherReviewNavPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
@@ -136,12 +137,12 @@ export function AdminDashboardPage() {
                   <tr key={row.id}>
                     <td>{row.id}</td>
                     <td>{row.ip}</td>
-                    <td>{countryDisplayName(row.country_code, locale)}</td>
+                    <td>{countryDisplayName(row.country_code, "zh")}</td>
                     <td className="admin-cell-wrap">{row.url_path}</td>
                     <td>{row.event_type}</td>
                     <td className="admin-cell-wrap">{row.event_detail ?? "—"}</td>
                     <td>{row.locale ?? "—"}</td>
-                    <td>{row.created_at}</td>
+                    <td>{formatBeijingDateTime(row.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -187,10 +188,10 @@ export function AdminDashboardPage() {
                     <td>{row.email}</td>
                     <td className="etr-remark-cell admin-cell-wrap">{row.content}</td>
                     <td>{row.ip}</td>
-                    <td>{countryDisplayName(row.country_code, locale)}</td>
+                    <td>{countryDisplayName(row.country_code, "zh")}</td>
                     <td className="admin-cell-wrap">{row.url_path ?? "—"}</td>
                     <td>{row.locale ?? "—"}</td>
-                    <td>{row.created_at}</td>
+                    <td>{formatBeijingDateTime(row.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
