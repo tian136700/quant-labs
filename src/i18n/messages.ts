@@ -48,6 +48,7 @@ export type Messages = {
       empty: string;
       id: string;
       ip: string;
+      ipVisitCount: string;
       country: string;
       url: string;
       eventType: string;
@@ -283,6 +284,7 @@ export const messages: Record<Locale, Messages> = {
         empty: "No visit logs yet.",
         id: "ID",
         ip: "IP",
+        ipVisitCount: "IP visits",
         country: "Country/Region",
         url: "URL",
         eventType: "Type",
@@ -567,6 +569,7 @@ export const messages: Record<Locale, Messages> = {
         empty: "暂无访问记录。",
         id: "ID",
         ip: "IP 地址",
+        ipVisitCount: "IP 访问总次数",
         country: "国家/地区",
         url: "访问网址",
         eventType: "类型",
