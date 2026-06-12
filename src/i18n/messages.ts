@@ -139,7 +139,7 @@ export const messages: Record<Locale, Messages> = {
       dailyDca: "Daily DCA",
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI threshold",
-      hint: "Both strategies receive $100 per trading day (same total capital). DCA buys every day; RSI only buys on trigger days and holds the rest as cash. Lines show stock value + cash.",
+      hint: "Both strategies deploy the same total amount into stock ($100 × trading days). DCA spreads it daily; RSI concentrates it on trigger days. Lines show stock value only (aligned with the table above).",
     },
   },
   zh: {
@@ -209,7 +209,7 @@ export const messages: Record<Locale, Messages> = {
       dailyDca: "每日定投",
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI 阈值",
-      hint: "两条策略每个交易日各分配 $100（总投入相同）。定投每天全买股票；RSI 仅在触发日买入，其余日期持有现金。曲线为股票市值 + 现金。",
+      hint: "两条策略投入股票的总资金相同（$100 × 交易日数）。定投每天分散买入；RSI 在触发日集中买入。曲线为股票市值（与上方表格口径一致，不含闲置现金）。",
     },
   },
 };
