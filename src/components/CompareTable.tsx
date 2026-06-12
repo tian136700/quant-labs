@@ -3,7 +3,7 @@
 import { useI18n } from "@/i18n/I18nProvider";
 import { strategyLabel } from "@/i18n/messages";
 import { chgClass, fmtMoney, fmtPct } from "@/lib/compare";
-import type { ComparePayload } from "@/lib/types";
+import type { ComparePayload, StrategyResult } from "@/lib/types";
 
 interface Props {
   data: ComparePayload;
@@ -23,7 +23,7 @@ export function CompareTable({ data }: Props) {
 
   return (
     <>
-      <p className="hint">
+      <p className="hint meta-line">
         {results.symbol}: <strong>{symbol}</strong> · {results.range}:{" "}
         <strong>
           {start} → {end}
@@ -31,47 +31,164 @@ export function CompareTable({ data }: Props) {
         ({yearsLabel}) · {results.currentPriceOn}{" "}
         <strong>{current_date}</strong>: ${fmtMoney(current_price)} USD
       </p>
-      <table className="compare-table">
-        <thead>
-          <tr>
-            <th>{table.strategy}</th>
-            <th>{table.buyDays}</th>
-            <th>{table.totalShares}</th>
-            <th>{table.avgBuy}</th>
-            <th>{table.currentPrice}</th>
-            <th>{table.perShareReturn}</th>
-            <th>{table.vsDca}</th>
-            <th>{table.totalPnl}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {strategies.map((it) => {
-            const deltaTxt =
-              it.key === "dca"
-                ? results.baseline
-                : it.delta_pct == null
-                  ? "—"
-                  : `${it.delta_pct >= 0 ? "+" : ""}${it.delta_pct.toFixed(2)}%`;
 
-            return (
-              <tr key={it.key}>
-                <td>{strategyLabel(locale, it.key, it.name)}</td>
-                <td>{it.buy_days || "0"}</td>
-                <td>{it.shares || "0"}</td>
-                <td>{fmtMoney(it.avg_cost)}</td>
-                <td>{fmtMoney(current_price)}</td>
-                <td className={chgClass(it.per_pct)}>{fmtPct(it.per_pct)}</td>
-                <td className={chgClass(it.delta_pct)}>{deltaTxt}</td>
-                <td className={chgClass(it.total_pnl)}>
-                  {it.total_pnl == null
-                    ? "—"
-                    : `${it.total_pnl >= 0 ? "+" : ""}${fmtMoney(it.total_pnl)}`}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="compare-cards lg:hidden">
+        {strategies.map((it) => (
+          <StrategyCard
+            key={it.key}
+            strategy={it}
+            currentPrice={current_price}
+            locale={locale}
+            table={table}
+            baselineLabel={results.baseline}
+          />
+        ))}
+      </div>
+
+      <div className="table-wrap hidden lg:block">
+        <table className="compare-table">
+          <thead>
+            <tr>
+              <th>{table.strategy}</th>
+              <th>{table.buyDays}</th>
+              <th>{table.totalShares}</th>
+              <th>{table.avgBuy}</th>
+              <th>{table.currentPrice}</th>
+              <th>{table.perShareReturn}</th>
+              <th>{table.vsDca}</th>
+              <th>{table.totalPnl}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {strategies.map((it) => (
+              <StrategyRow
+                key={it.key}
+                strategy={it}
+                currentPrice={current_price}
+                locale={locale}
+                baselineLabel={results.baseline}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
+}
+
+function StrategyRow({
+  strategy: it,
+  currentPrice,
+  locale,
+  baselineLabel,
+}: {
+  strategy: StrategyResult;
+  currentPrice: number;
+  locale: "en" | "zh";
+  baselineLabel: string;
+}) {
+  const deltaTxt = deltaLabel(it, baselineLabel);
+
+  return (
+    <tr>
+      <td>{strategyLabel(locale, it.key, it.name)}</td>
+      <td>{it.buy_days || "0"}</td>
+      <td>{it.shares || "0"}</td>
+      <td>{fmtMoney(it.avg_cost)}</td>
+      <td>{fmtMoney(currentPrice)}</td>
+      <td className={chgClass(it.per_pct)}>{fmtPct(it.per_pct)}</td>
+      <td className={chgClass(it.delta_pct)}>{deltaTxt}</td>
+      <td className={chgClass(it.total_pnl)}>
+        {it.total_pnl == null
+          ? "—"
+          : `${it.total_pnl >= 0 ? "+" : ""}${fmtMoney(it.total_pnl)}`}
+      </td>
+    </tr>
+  );
+}
+
+function StrategyCard({
+  strategy: it,
+  currentPrice,
+  locale,
+  table,
+  baselineLabel,
+}: {
+  strategy: StrategyResult;
+  currentPrice: number;
+  locale: "en" | "zh";
+  table: {
+    buyDays: string;
+    totalShares: string;
+    avgBuy: string;
+    currentPrice: string;
+    perShareReturn: string;
+    vsDca: string;
+    totalPnl: string;
+  };
+  baselineLabel: string;
+}) {
+  const deltaTxt = deltaLabel(it, baselineLabel);
+  const pnlTxt =
+    it.total_pnl == null
+      ? "—"
+      : `${it.total_pnl >= 0 ? "+" : ""}${fmtMoney(it.total_pnl)}`;
+
+  return (
+    <article className="strategy-card">
+      <h3 className="strategy-card-title">
+        {strategyLabel(locale, it.key, it.name)}
+      </h3>
+      <dl className="strategy-card-grid">
+        <CardItem label={table.buyDays} value={String(it.buy_days || "0")} />
+        <CardItem label={table.totalShares} value={String(it.shares || "0")} />
+        <CardItem label={table.avgBuy} value={`$${fmtMoney(it.avg_cost)}`} />
+        <CardItem
+          label={table.currentPrice}
+          value={`$${fmtMoney(currentPrice)}`}
+        />
+        <CardItem
+          label={table.perShareReturn}
+          value={fmtPct(it.per_pct)}
+          valueClass={chgClass(it.per_pct)}
+        />
+        <CardItem
+          label={table.vsDca}
+          value={deltaTxt}
+          valueClass={chgClass(it.delta_pct)}
+        />
+        <CardItem
+          label={table.totalPnl}
+          value={pnlTxt}
+          valueClass={chgClass(it.total_pnl)}
+          wide
+        />
+      </dl>
+    </article>
+  );
+}
+
+function CardItem({
+  label,
+  value,
+  valueClass = "",
+  wide = false,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`strategy-card-item${wide ? " strategy-card-item--wide" : ""}`}>
+      <dt>{label}</dt>
+      <dd className={valueClass}>{value}</dd>
+    </div>
+  );
+}
+
+function deltaLabel(strategy: StrategyResult, baselineLabel: string): string {
+  if (strategy.key === "dca") return baselineLabel;
+  if (strategy.delta_pct == null) return "—";
+  return `${strategy.delta_pct >= 0 ? "+" : ""}${strategy.delta_pct.toFixed(2)}%`;
 }

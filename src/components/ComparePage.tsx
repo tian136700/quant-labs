@@ -127,7 +127,7 @@ export function ComparePage() {
       <div className="section">
         <h2>{params.heading}</h2>
         <div className="row">
-          <div>
+          <div className="field field--grow">
             <label htmlFor="cmpSymbol">{params.ticker}</label>
             <input
               id="cmpSymbol"
@@ -139,7 +139,7 @@ export function ComparePage() {
               spellCheck={false}
             />
           </div>
-          <div>
+          <div className="field field--narrow">
             <label htmlFor="cmpYears">{params.years}</label>
             <input
               id="cmpYears"
@@ -150,7 +150,7 @@ export function ComparePage() {
               onChange={(e) => setYears(parseInt(e.target.value, 10) || 1)}
             />
           </div>
-          <div>
+          <div className="field field--action">
             <span className="rsi-filter-actions-label">{params.action}</span>
             <div className="rsi-filter-actions">
               <button
