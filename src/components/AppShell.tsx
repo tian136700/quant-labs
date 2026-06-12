@@ -1,14 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AdminNav } from "./AdminNav";
 import { LangSwitch } from "./LangSwitch";
+import { SiteNav } from "./SiteNav";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="page-wrap">
       <header className="page-header">
-        <AdminNav />
+        <SiteNav />
         <LangSwitch />
       </header>
       <main>{children}</main>

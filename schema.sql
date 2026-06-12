@@ -71,3 +71,32 @@ CREATE TABLE IF NOT EXISTS etr_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_user ON etr_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_expires ON etr_sessions (expires_at);
+
+-- 用户反馈（关于页面提交）
+CREATE TABLE IF NOT EXISTS user_feedback (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  email        TEXT    NOT NULL,
+  content      TEXT    NOT NULL,
+  ip           TEXT    NOT NULL,
+  country_code TEXT,
+  url_path     TEXT,
+  locale       TEXT,
+  created_at   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_feedback_created ON user_feedback (created_at);
+
+-- 访问与操作日志（后台分析）
+CREATE TABLE IF NOT EXISTS visit_logs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip           TEXT    NOT NULL,
+  country_code TEXT,
+  url_path     TEXT    NOT NULL,
+  event_type   TEXT    NOT NULL,
+  event_detail TEXT,
+  locale       TEXT,
+  created_at   TEXT    NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_visit_logs_created ON visit_logs (created_at);
+CREATE INDEX IF NOT EXISTS idx_visit_logs_ip ON visit_logs (ip);

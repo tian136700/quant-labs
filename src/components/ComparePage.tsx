@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
+import { trackEvent } from "@/lib/analytics-client";
 import type { ComparePayload } from "@/lib/types";
 import { CompareChart } from "./CompareChart";
 import { CompareTable } from "./CompareTable";
@@ -95,6 +96,11 @@ export function ComparePage() {
         setCacheHit(data.cache_hit ?? null);
         setStatus(data.cache_hit ? statusMsg.cacheHit : statusMsg.cacheMiss);
         setStatusKind("ok");
+        trackEvent({
+          event_type: "action",
+          event_detail: `run_compare:${sym}:${yearsInput}`,
+          locale,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setStatus(`${statusMsg.errorPrefix}: ${msg}`);
@@ -104,7 +110,7 @@ export function ComparePage() {
         setLoading(false);
       }
     },
-    [saveFilters, statusMsg, meta.title]
+    [saveFilters, statusMsg, meta.title, locale]
   );
 
   useEffect(() => {

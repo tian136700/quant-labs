@@ -243,6 +243,7 @@ label,
 }
 
 input[type="text"],
+input[type="email"],
 input[type="number"],
 input[type="date"],
 input[type="password"],
@@ -1001,4 +1002,23 @@ textarea:focus {
 
 .seo-faq-item dd {
   @apply text-xs text-muted m-0 leading-relaxed;
+}
+
+/* ── 后台管理表格（全端可横向滚动） ── */
+.admin-table-wrap {
+  @apply w-full overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+}
+
+.admin-table th,
+.admin-table td {
+  white-space: normal;
+  text-align: left;
+}
+
+.admin-cell-wrap {
+  max-width: 16rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }

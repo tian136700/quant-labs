@@ -38,3 +38,19 @@ export function isTeacherReviewPath(pathname: string): boolean {
     pathname === "/zh/english-teacher-review"
   );
 }
+
+export function aboutPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/about" : "/about";
+}
+
+export function isAboutPath(pathname: string): boolean {
+  return pathname === "/about" || pathname === "/zh/about";
+}
+
+export function adminPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin" : "/admin";
+}
+
+export function isAdminPath(pathname: string): boolean {
+  return pathname === "/admin" || pathname === "/zh/admin";
+}
