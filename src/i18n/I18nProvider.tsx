@@ -26,15 +26,45 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function readStoredLocale(): Locale {
-  if (typeof window === "undefined") return "en";
+function readStoredLocale(): Locale | null {
+  if (typeof window === "undefined") return null;
   try {
     const v = localStorage.getItem(LS_LOCALE);
     if (v === "zh" || v === "en") return v;
   } catch {
     /* ignore */
   }
-  return "en";
+  return null;
+}
+
+function persistLocale(next: Locale) {
+  try {
+    localStorage.setItem(LS_LOCALE, next);
+  } catch {
+    /* ignore */
+  }
+  document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
+}
+
+async function fetchIpLocale(): Promise<Locale | null> {
+  try {
+    const res = await fetch("/api/locale");
+    const data = (await res.json()) as { locale?: string | null };
+    if (data.locale === "zh" || data.locale === "en") return data.locale;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function saveIpLocale(next: Locale) {
+  void fetch("/api/locale", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ locale: next }),
+  }).catch(() => {
+    /* ignore */
+  });
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -42,18 +72,27 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setLocaleState(readStoredLocale());
-    setReady(true);
+    let cancelled = false;
+
+    void (async () => {
+      const ipLocale = await fetchIpLocale();
+      if (cancelled) return;
+
+      const next = ipLocale ?? readStoredLocale() ?? "en";
+      setLocaleState(next);
+      persistLocale(next);
+      setReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
-    try {
-      localStorage.setItem(LS_LOCALE, next);
-    } catch {
-      /* ignore */
-    }
-    document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
+    persistLocale(next);
+    saveIpLocale(next);
   }, []);
 
   useEffect(() => {

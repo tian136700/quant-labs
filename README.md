@@ -57,6 +57,7 @@ npx wrangler d1 create strategy-compare-db
 |------|------|
 | `daily_bars` | 缓存美股日线 OHLCV（主键 symbol + bar_date） |
 | `fetch_log` | 可选，记录抓取元数据 |
+| `locale_prefs` | 按 IP 记住语言偏好（zh / en） |
 
 ```bash
 # 本地 D1
