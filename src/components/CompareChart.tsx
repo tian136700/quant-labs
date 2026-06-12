@@ -39,10 +39,33 @@ function readStoredRsi(): ChartRsiThreshold {
   return 30;
 }
 
+function useChartLayout() {
+  const [layout, setLayout] = useState({ yAxisWidth: 44, tickFontSize: 10, minTickGap: 48 });
+
+  useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth;
+      if (w < 480) {
+        setLayout({ yAxisWidth: 36, tickFontSize: 9, minTickGap: 56 });
+      } else if (w < 768) {
+        setLayout({ yAxisWidth: 40, tickFontSize: 10, minTickGap: 48 });
+      } else {
+        setLayout({ yAxisWidth: 52, tickFontSize: 11, minTickGap: 40 });
+      }
+    };
+    update();
+    window.addEventListener("resize", update, { passive: true });
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  return layout;
+}
+
 export function CompareChart({ points, symbol }: Props) {
   const { t, tf } = useI18n();
   const chart = t("chart");
   const [rsiThr, setRsiThr] = useState<ChartRsiThreshold>(30);
+  const { yAxisWidth, tickFontSize, minTickGap } = useChartLayout();
 
   useEffect(() => {
     setRsiThr(readStoredRsi());
@@ -75,7 +98,11 @@ export function CompareChart({ points, symbol }: Props) {
         <h3>{tf(chart.title, { symbol })}</h3>
         <div className="chart-rsi-picker">
           <span className="chart-rsi-picker-label">{chart.rsiThreshold}</span>
-          <div className="chart-rsi-picker-btns" role="group" aria-label={chart.rsiThreshold}>
+          <div
+            className="chart-rsi-picker-btns"
+            role="group"
+            aria-label={chart.rsiThreshold}
+          >
             {CHART_RSI_THRESHOLDS.map((thr) => (
               <button
                 key={thr}
@@ -94,18 +121,21 @@ export function CompareChart({ points, symbol }: Props) {
       </div>
       <div className="chart-canvas">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={sampled} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+          <LineChart
+            data={sampled}
+            margin={{ top: 8, right: 4, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
             <XAxis
               dataKey="date"
-              tick={{ fill: "#8b9cb3", fontSize: 11 }}
-              tickMargin={8}
-              minTickGap={40}
+              tick={{ fill: "#8b9cb3", fontSize: tickFontSize }}
+              tickMargin={6}
+              minTickGap={minTickGap}
             />
             <YAxis
-              tick={{ fill: "#8b9cb3", fontSize: 11 }}
+              tick={{ fill: "#8b9cb3", fontSize: tickFontSize }}
               tickFormatter={(v) => `$${Math.round(Number(v) / 1000)}k`}
-              width={52}
+              width={yAxisWidth}
             />
             <Tooltip
               contentStyle={{
@@ -125,6 +155,7 @@ export function CompareChart({ points, symbol }: Props) {
               stroke="#3d8bfd"
               dot={false}
               strokeWidth={2}
+              isAnimationActive={false}
             />
             <Line
               type="monotone"
@@ -133,6 +164,7 @@ export function CompareChart({ points, symbol }: Props) {
               stroke="#3fb983"
               dot={false}
               strokeWidth={2}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

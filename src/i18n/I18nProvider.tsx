@@ -16,6 +16,7 @@ import {
   type Locale,
   type Messages,
 } from "./messages";
+import { localeHref } from "@/lib/locale-path";
 
 type I18nContextValue = {
   locale: Locale;
@@ -106,6 +107,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready) return;
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+
+    const target = localeHref(locale);
+    const current = window.location.pathname + window.location.search;
+    if (target !== current) {
+      window.history.replaceState(null, "", target);
+    }
   }, [locale, ready]);
 
   const value = useMemo<I18nContextValue>(
