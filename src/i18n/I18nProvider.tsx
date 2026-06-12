@@ -26,6 +26,13 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
+function readRouteLocale(): Locale | null {
+  if (typeof window === "undefined") return null;
+  const path = window.location.pathname;
+  if (path === "/zh" || path.startsWith("/zh/")) return "zh";
+  return null;
+}
+
 function readStoredLocale(): Locale | null {
   if (typeof window === "undefined") return null;
   try {
@@ -78,7 +85,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       const ipLocale = await fetchIpLocale();
       if (cancelled) return;
 
-      const next = ipLocale ?? readStoredLocale() ?? "en";
+      const next =
+        readStoredLocale() ?? readRouteLocale() ?? ipLocale ?? "en";
       setLocaleState(next);
       persistLocale(next);
       setReady(true);

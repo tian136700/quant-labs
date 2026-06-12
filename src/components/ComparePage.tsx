@@ -5,9 +5,30 @@ import { useI18n } from "@/i18n/I18nProvider";
 import type { ComparePayload } from "@/lib/types";
 import { CompareChart } from "./CompareChart";
 import { CompareTable } from "./CompareTable";
+import { SeoContent } from "./SeoContent";
 
 const LS_SYMBOL = "strategy_compare_symbol";
 const LS_YEARS = "strategy_compare_years";
+
+function readUrlFilters(): { sym: string; yrs: number } | null {
+  if (typeof window === "undefined") return null;
+  const sp = new URLSearchParams(window.location.search);
+  const sym = sp.get("symbol")?.trim().toUpperCase();
+  if (!sym) return null;
+  const rawYears = sp.get("years");
+  if (rawYears) {
+    const y = parseInt(rawYears, 10);
+    if (y >= 1 && y <= 10) return { sym, yrs: y };
+  }
+  return { sym, yrs: 2 };
+}
+
+function syncUrlFilters(sym: string, yrs: number) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("symbol", sym);
+  url.searchParams.set("years", String(yrs));
+  window.history.replaceState(null, "", url.toString());
+}
 
 export function ComparePage() {
   const { locale, t } = useI18n();
@@ -49,6 +70,7 @@ export function ComparePage() {
       }
 
       saveFilters(sym, yearsInput);
+      syncUrlFilters(sym, yearsInput);
       document.title = `${sym} · ${meta.title}`;
       setLoading(true);
       setStatus(statusMsg.loading);
@@ -86,18 +108,24 @@ export function ComparePage() {
   );
 
   useEffect(() => {
+    const fromUrl = readUrlFilters();
     let sym = "SPY";
     let yrs = 2;
-    try {
-      const lsSym = localStorage.getItem(LS_SYMBOL);
-      const lsYears = localStorage.getItem(LS_YEARS);
-      if (lsSym) sym = lsSym.toUpperCase();
-      if (lsYears) {
-        const y = parseInt(lsYears, 10);
-        if (y >= 1 && y <= 10) yrs = y;
+    if (fromUrl) {
+      sym = fromUrl.sym;
+      yrs = fromUrl.yrs;
+    } else {
+      try {
+        const lsSym = localStorage.getItem(LS_SYMBOL);
+        const lsYears = localStorage.getItem(LS_YEARS);
+        if (lsSym) sym = lsSym.toUpperCase();
+        if (lsYears) {
+          const y = parseInt(lsYears, 10);
+          if (y >= 1 && y <= 10) yrs = y;
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
     }
     setSymbol(sym);
     setYears(yrs);
@@ -186,6 +214,8 @@ export function ComparePage() {
           <CompareChart points={compare.chart_points} symbol={compare.symbol} />
         </div>
       ) : null}
+
+      <SeoContent />
     </>
   );
 }
