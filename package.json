@@ -1,0 +1,35 @@
+{
+  "name": "strategy-compare-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare build && wrangler pages dev .open-next/worker --compatibility-date=2024-09-23 --d1 DB",
+    "cf:deploy": "opennextjs-cloudflare build && wrangler pages deploy .open-next/assets --project-name=strategy-compare-cloud",
+    "db:migrate:local": "wrangler d1 execute strategy-compare-db --local --file=./schema.sql",
+    "db:migrate:remote": "wrangler d1 execute strategy-compare-db --remote --file=./schema.sql"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "^1.0.4",
+    "next": "^15.3.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^2.15.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "^15.3.2",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.16.0"
+  }
+}

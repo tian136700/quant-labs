@@ -1,0 +1,14 @@
+# Cloudflare Pages / Workers 配置
+# 部署前请在 Cloudflare Dashboard 创建 D1 数据库，并将下方 database_id 替换为真实 ID
+name = "strategy-compare-cloud"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "strategy-compare-db"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[vars]
+RSI_PERIOD = "6"
+PRICE_DECIMAL_PLACES = "3"
