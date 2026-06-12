@@ -2,11 +2,19 @@ import type { Config } from "tailwindcss";
 
 /**
  * 与原系统 theme.css / app.css 保持一致的设计令牌
- * 对应 web/static/css/theme.css 中的 CSS 变量
+ * 响应式断点：Mobile First（xs → 2xl）
  */
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
+    screens: {
+      xs: "320px",
+      sm: "480px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1440px",
+      "2xl": "1920px",
+    },
     extend: {
       colors: {
         bg: "#0f1419",
@@ -32,6 +40,10 @@ const config: Config = {
       borderRadius: {
         card: "10px",
         input: "8px",
+      },
+      maxWidth: {
+        content: "1440px",
+        readable: "1280px",
       },
     },
   },

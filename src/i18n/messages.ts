@@ -74,6 +74,80 @@ export type Messages = {
     intro: string;
     faq: { q: string; a: string }[];
   };
+  teacherReview: {
+    meta: { title: string; description: string };
+    page: { title: string; subtitle: string };
+    form: {
+      heading: string;
+      teacherName: string;
+      teacherNamePlaceholder: string;
+      classDate: string;
+      score: string;
+      scorePlaceholder: string;
+      scoreUnit: string;
+      remark: string;
+      remarkPlaceholder: string;
+      save: string;
+      saving: string;
+      reset: string;
+      required: string;
+    };
+    history: {
+      heading: string;
+      refresh: string;
+      sortHint: string;
+      empty: string;
+      id: string;
+      teacherName: string;
+      classDate: string;
+      score: string;
+      remark: string;
+      updatedAt: string;
+      actions: string;
+      edit: string;
+      delete: string;
+      confirmDelete: string;
+    };
+    status: {
+      saved: string;
+      deleted: string;
+      loadFailed: string;
+      saveFailed: string;
+      deleteFailed: string;
+      editLoaded: string;
+      resetDone: string;
+    };
+    auth: {
+      gateSubtitle: string;
+      loginTab: string;
+      registerTab: string;
+      loginHint: string;
+      registerHint: string;
+      saveCredentialsWarning: string;
+      username: string;
+      usernamePlaceholder: string;
+      password: string;
+      passwordPlaceholder: string;
+      passwordConfirm: string;
+      passwordConfirmPlaceholder: string;
+      loginSubmit: string;
+      registerSubmit: string;
+      submitting: string;
+      failed: string;
+      logout: string;
+      sessionExpires: string;
+      showPassword: string;
+      hidePassword: string;
+      close: string;
+    };
+    demo: {
+      banner: string;
+      sampleTag: string;
+      loginToManage: string;
+      loginToSave: string;
+      formPreviewHint: string;
+    };
+  };
 };
 
 export const messages: Record<Locale, Messages> = {
@@ -145,6 +219,95 @@ export const messages: Record<Locale, Messages> = {
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI threshold",
       hint: "Both strategies deploy the same total amount into stock ($100 × trading days). DCA spreads it daily; RSI concentrates it on trigger days. Lines show stock value only (aligned with the table above).",
+    },
+    teacherReview: {
+      meta: {
+        title: "English Teacher Review",
+        description:
+          "Record and review English teacher ratings after each class. Check history before booking to avoid poor matches.",
+      },
+      page: {
+        title: "English Teacher Review",
+        subtitle:
+          "Log a score (0–10) after each lesson so you can pick better teachers before your next booking.",
+      },
+      form: {
+        heading: "Add / Edit Review",
+        teacherName: "Teacher name",
+        teacherNamePlaceholder: "Enter teacher name",
+        classDate: "Class date",
+        score: "Score",
+        scorePlaceholder: "Select score (0–10)",
+        scoreUnit: "pts",
+        remark: "Notes",
+        remarkPlaceholder:
+          "Optional: class experience, strengths, areas to improve…",
+        save: "Save",
+        saving: "Saving…",
+        reset: "Clear form (new)",
+        required: "*",
+      },
+      history: {
+        heading: "Review history",
+        refresh: "Refresh",
+        sortHint:
+          "Tip: click column headers to sort (toggle ascending / descending).",
+        empty: "No reviews yet.",
+        id: "ID",
+        teacherName: "Teacher",
+        classDate: "Class date",
+        score: "Score",
+        remark: "Notes",
+        updatedAt: "Updated",
+        actions: "Actions",
+        edit: "Edit",
+        delete: "Delete",
+        confirmDelete: "Delete this review record?",
+      },
+      status: {
+        saved: "Saved.",
+        deleted: "Deleted.",
+        loadFailed: "Failed to load records.",
+        saveFailed: "Save failed.",
+        deleteFailed: "Delete failed.",
+        editLoaded: "Loaded for editing — change fields and save.",
+        resetDone: "Form cleared for a new entry.",
+      },
+      auth: {
+        gateSubtitle:
+          "Log in to view and manage teacher reviews. New users can register to add records.",
+        loginTab: "Log in",
+        registerTab: "Register",
+        loginHint: "Enter your username and password to sign in.",
+        registerHint:
+          "Register to add, edit, and delete reviews. Choose a username and password you will remember.",
+        saveCredentialsWarning:
+          "Important: save your username and password in a safe place. We cannot recover them if lost.",
+        username: "Username",
+        usernamePlaceholder: "Your username",
+        password: "Password",
+        passwordPlaceholder: "Your password",
+        passwordConfirm: "Confirm password",
+        passwordConfirmPlaceholder: "Enter password again",
+        loginSubmit: "Log in",
+        registerSubmit: "Register & enter",
+        submitting: "Please wait…",
+        failed: "Request failed. Please try again.",
+        logout: "Log out",
+        sessionExpires: "Session valid until",
+        showPassword: "Show password",
+        hidePassword: "Hide password",
+        close: "Close",
+      },
+      demo: {
+        banner:
+          "Sample data below — log in or register to save and manage your own teacher reviews.",
+        sampleTag: "Sample",
+        loginToManage: "Log in / Register",
+        loginToSave: "Please log in or register to save reviews.",
+        formPreviewHint:
+          "This is a preview of the form. Sign in to add your own records.",
+      },
     },
     seo: {
       heading: "About DCA vs RSI(6) backtesting",
@@ -238,6 +401,92 @@ export const messages: Record<Locale, Messages> = {
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI 阈值",
       hint: "两条策略投入股票的总资金相同（$100 × 交易日数）。定投每天分散买入；RSI 在触发日集中买入。曲线为股票市值（与上方表格口径一致，不含闲置现金）。",
+    },
+    teacherReview: {
+      meta: {
+        title: "英语老师评价",
+        description:
+          "记录每次上课对英语老师的评分，上课前查看历史评价，避免踩雷老师。",
+      },
+      page: {
+        title: "英语老师评价",
+        subtitle:
+          "记录每次上课对英语老师的评分（0～10 分），便于根据历史数据选择合适的老师。",
+      },
+      form: {
+        heading: "新增 / 编辑评价",
+        teacherName: "英语老师姓名",
+        teacherNamePlaceholder: "请输入老师姓名",
+        classDate: "上课日期",
+        score: "评分",
+        scorePlaceholder: "请选择评分（0～10 分）",
+        scoreUnit: "分",
+        remark: "备注",
+        remarkPlaceholder: "可选：记录本次上课体验、优缺点、需改进点等",
+        save: "保存",
+        saving: "保存中…",
+        reset: "清空表单（新增）",
+        required: "*",
+      },
+      history: {
+        heading: "评价记录",
+        refresh: "刷新",
+        sortHint: "提示：点击表头可按列排序（升序 / 降序切换）。",
+        empty: "暂无记录。",
+        id: "ID",
+        teacherName: "英语老师",
+        classDate: "上课日期",
+        score: "评分",
+        remark: "备注",
+        updatedAt: "更新时间",
+        actions: "操作",
+        edit: "编辑",
+        delete: "删除",
+        confirmDelete: "确认删除该条英语老师评价记录吗？",
+      },
+      status: {
+        saved: "保存成功。",
+        deleted: "已删除。",
+        loadFailed: "加载记录失败，请重试。",
+        saveFailed: "保存失败。",
+        deleteFailed: "删除失败，请重试。",
+        editLoaded: "已载入编辑，修改后点击保存。",
+        resetDone: "已切换为新增。",
+      },
+      auth: {
+        gateSubtitle:
+          "登录后可查看与管理英语老师评价。新用户请先注册后再新增记录。",
+        loginTab: "登录",
+        registerTab: "注册",
+        loginHint: "请输入用户名和密码登录。",
+        registerHint:
+          "注册后可新增、编辑、删除评价。请设置好用户名和密码并妥善保存。",
+        saveCredentialsWarning:
+          "重要提示：请务必保存好您的用户名和密码，遗失后无法找回。",
+        username: "用户名",
+        usernamePlaceholder: "请输入用户名",
+        password: "密码",
+        passwordPlaceholder: "请输入密码",
+        passwordConfirm: "确认密码",
+        passwordConfirmPlaceholder: "请再次输入密码",
+        loginSubmit: "登录",
+        registerSubmit: "注册并进入",
+        submitting: "处理中…",
+        failed: "请求失败，请重试。",
+        logout: "退出登录",
+        sessionExpires: "有效期至",
+        showPassword: "显示密码",
+        hidePassword: "隐藏密码",
+        close: "关闭",
+      },
+      demo: {
+        banner:
+          "以下为示例数据，仅供了解功能用法。登录或注册后可保存并管理您自己的评价记录。",
+        sampleTag: "示例",
+        loginToManage: "登录 / 注册",
+        loginToSave: "请先登录或注册后再保存评价。",
+        formPreviewHint: "这是表单预览，登录后可新增您自己的记录。",
+      },
     },
     seo: {
       heading: "关于定投 vs RSI(6) 策略对比",

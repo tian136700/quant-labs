@@ -21,8 +21,46 @@ export function CompareTable({ data }: Props) {
       ? tf(results.pastYears, { years })
       : tf(results.pastYear, { years });
 
+  const dcaStrategy = strategies.find((s) => s.key === "dca");
+  const bestRsi = strategies
+    .filter((s) => s.key !== "dca" && s.total_pnl != null)
+    .sort((a, b) => (b.total_pnl ?? 0) - (a.total_pnl ?? 0))[0];
+
   return (
     <>
+      <div className="results-overview" aria-label={results.heading}>
+        <div className="stat-card">
+          <p className="stat-card-label">{results.symbol}</p>
+          <p className="stat-card-value">{symbol}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-label">{results.currentPriceOn}</p>
+          <p className="stat-card-value">${fmtMoney(current_price)}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-label">{results.range}</p>
+          <p className="stat-card-value stat-card-value--sm">
+            {start} → {end}
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card-label">{yearsLabel}</p>
+          <p className="stat-card-value stat-card-value--sm">
+            {dcaStrategy ? `${dcaStrategy.buy_days} ${table.buyDays}` : "—"}
+          </p>
+        </div>
+        {bestRsi ? (
+          <div className="stat-card">
+            <p className="stat-card-label">{table.totalPnl}</p>
+            <p className={`stat-card-value ${chgClass(bestRsi.total_pnl)}`}>
+              {bestRsi.total_pnl == null
+                ? "—"
+                : `${bestRsi.total_pnl >= 0 ? "+" : ""}$${fmtMoney(bestRsi.total_pnl)}`}
+            </p>
+          </div>
+        ) : null}
+      </div>
+
       <p className="hint meta-line">
         {results.symbol}: <strong>{symbol}</strong> · {results.range}:{" "}
         <strong>
@@ -32,7 +70,7 @@ export function CompareTable({ data }: Props) {
         <strong>{current_date}</strong>: ${fmtMoney(current_price)} USD
       </p>
 
-      <div className="compare-cards lg:hidden">
+      <div className="compare-cards">
         {strategies.map((it) => (
           <StrategyCard
             key={it.key}
@@ -45,7 +83,7 @@ export function CompareTable({ data }: Props) {
         ))}
       </div>
 
-      <div className="table-wrap hidden lg:block">
+      <div className="table-wrap">
         <table className="compare-table">
           <thead>
             <tr>

@@ -63,4 +63,24 @@ export interface CloudflareEnv {
   DB: D1Database;
   RSI_PERIOD?: string;
   PRICE_DECIMAL_PLACES?: string;
+  /** 英语老师评价：管理员用户名（可公开，默认 Admin） */
+  ETR_ADMIN_USERNAME?: string;
+  /** 英语老师评价：管理员初始密码（仅环境变量/Secret，勿提交 Git） */
+  ETR_ADMIN_PASSWORD?: string;
 }
+
+export interface EnglishTeacherReviewRecord {
+  id: number;
+  teacher_name: string;
+  class_date: string;
+  score: number;
+  remark: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EnglishTeacherReviewSortField =
+  | "teacher_name"
+  | "class_date"
+  | "score"
+  | "updated_at";

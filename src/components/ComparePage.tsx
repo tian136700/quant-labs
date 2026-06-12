@@ -147,73 +147,90 @@ export function ComparePage() {
         ? "telegram-push-result telegram-push-result--err"
         : "telegram-push-result";
 
+  const runButton = (
+    <button
+      type="button"
+      className="btn-rsi-filter"
+      onClick={runCompare}
+      disabled={loading}
+    >
+      {loading ? params.computing : params.run}
+    </button>
+  );
+
   return (
     <>
-      <h1>{page.title}</h1>
-      <p className="sub">{page.subtitle}</p>
+      <div className="page-layout">
+        <div className="page-layout-primary">
+          <div className="page-hero">
+            <h1>{page.title}</h1>
+            <p className="sub">{page.subtitle}</p>
+          </div>
 
-      <div className="section">
-        <h2>{params.heading}</h2>
-        <div className="row">
-          <div className="field field--grow">
-            <label htmlFor="cmpSymbol">{params.ticker}</label>
-            <input
-              id="cmpSymbol"
-              type="text"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-              placeholder={params.tickerPlaceholder}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
-          <div className="field field--narrow">
-            <label htmlFor="cmpYears">{params.years}</label>
-            <input
-              id="cmpYears"
-              type="number"
-              min={1}
-              max={10}
-              value={years}
-              onChange={(e) => setYears(parseInt(e.target.value, 10) || 1)}
-            />
-          </div>
-          <div className="field field--action">
-            <span className="rsi-filter-actions-label">{params.action}</span>
-            <div className="rsi-filter-actions">
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={runCompare}
-                disabled={loading}
-              >
-                {loading ? params.computing : params.run}
-              </button>
+          <section className="section" aria-labelledby="params-heading">
+            <h2 id="params-heading">{params.heading}</h2>
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="cmpSymbol">{params.ticker}</label>
+                <input
+                  id="cmpSymbol"
+                  type="text"
+                  value={symbol}
+                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                  placeholder={params.tickerPlaceholder}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="cmpYears">{params.years}</label>
+                <input
+                  id="cmpYears"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={years}
+                  onChange={(e) => setYears(parseInt(e.target.value, 10) || 1)}
+                />
+              </div>
+              <div className="field field--action desktop-action">
+                <span className="rsi-filter-actions-label">{params.action}</span>
+                <div className="rsi-filter-actions">{runButton}</div>
+              </div>
             </div>
-          </div>
+            <p className={statusClass} role="status" aria-live="polite">
+              {status}
+              {cacheHit === true && statusKind === "ok" ? " ⚡" : null}
+            </p>
+          </section>
+
+          {compare ? (
+            <section className="section" aria-labelledby="chart-heading">
+              <h2 id="chart-heading">{t("chart").heading}</h2>
+              <CompareChart
+                points={compare.chart_points}
+                symbol={compare.symbol}
+              />
+            </section>
+          ) : null}
         </div>
-        <p className={statusClass} role="status" aria-live="polite">
-          {status}
-          {cacheHit === true && statusKind === "ok" ? " ⚡" : null}
-        </p>
+
+        <div className="page-layout-secondary">
+          <section className="section" aria-labelledby="results-heading">
+            <h2 id="results-heading">{results.heading}</h2>
+            <p className="hint">{results.hint}</p>
+            {!compare ? (
+              <p className="empty">{results.empty}</p>
+            ) : (
+              <CompareTable data={compare} />
+            )}
+          </section>
+        </div>
       </div>
 
-      <div className="section">
-        <h2>{results.heading}</h2>
-        <p className="hint">{results.hint}</p>
-        {!compare ? (
-          <p className="empty">{results.empty}</p>
-        ) : (
-          <CompareTable data={compare} />
-        )}
+      <div className="mobile-action-bar" role="toolbar" aria-label={params.action}>
+        {runButton}
       </div>
-
-      {compare ? (
-        <div className="section">
-          <h2>{t("chart").heading}</h2>
-          <CompareChart points={compare.chart_points} symbol={compare.symbol} />
-        </div>
-      ) : null}
 
       <SeoContent />
     </>
