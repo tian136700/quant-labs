@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
   TeacherReviewAuth,
-  type EtrAuthUser,
 } from "@/components/TeacherReviewAuth";
+import { TeacherReviewSeoContent } from "@/components/TeacherReviewSeoContent";
 import {
   getEtrDemoRecords,
   sortEtrDemoRecords,
@@ -48,8 +49,8 @@ export function TeacherReviewPage() {
   const demo = tr.demo;
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [authUser, setAuthUser] = useState<EtrAuthUser | null>(null);
-  const [authChecking, setAuthChecking] = useState(true);
+  const { user: authUser, checking: authChecking, setUser: setAuthUser, logout } =
+    useEtrAuth();
   const [authPanel, setAuthPanel] = useState<AuthPanelMode>(null);
 
   const [form, setForm] = useState<FormState>({
@@ -82,29 +83,6 @@ export function TeacherReviewPage() {
     document.title = tr.meta.title;
   }, [locale, tr.meta.title]);
 
-  const checkSession = useCallback(async () => {
-    setAuthChecking(true);
-    try {
-      const res = await fetch("/api/english-teacher-review/auth", {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (data.ok && data.authenticated && data.user) {
-        setAuthUser(data.user as EtrAuthUser);
-      } else {
-        setAuthUser(null);
-      }
-    } catch {
-      setAuthUser(null);
-    } finally {
-      setAuthChecking(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void checkSession();
-  }, [checkSession]);
-
   const openAuth = (mode: "login" | "register") => {
     setAuthPanel(mode);
     setStatus(demo.loginToSave);
@@ -118,17 +96,7 @@ export function TeacherReviewPage() {
   };
 
   const onLogout = async () => {
-    try {
-      await fetch("/api/english-teacher-review/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "logout" }),
-      });
-    } catch {
-      /* ignore */
-    }
-    setAuthUser(null);
+    await logout();
     setAuthPanel(null);
     setRecords([]);
     resetForm();
@@ -705,6 +673,8 @@ export function TeacherReviewPage() {
           </button>
         )}
       </div>
+
+      <TeacherReviewSeoContent />
     </div>
   );
 }

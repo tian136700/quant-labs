@@ -1,13 +1,15 @@
 import { TeacherReviewPage } from "@/components/TeacherReviewPage";
+import { TeacherReviewJsonLd } from "@/components/TeacherReviewJsonLd";
+import { buildTeacherReviewMetadata } from "@/lib/etr-seo";
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "English Teacher Review",
-  description:
-    "Record and review English teacher ratings after each class. Check history before booking to avoid poor matches.",
-  robots: { index: false, follow: false },
-};
+export const metadata: Metadata = buildTeacherReviewMetadata("en");
 
 export default function Page() {
-  return <TeacherReviewPage />;
+  return (
+    <>
+      <TeacherReviewJsonLd locale="en" />
+      <TeacherReviewPage />
+    </>
+  );
 }

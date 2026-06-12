@@ -28,7 +28,8 @@ export function CompareTable({ data }: Props) {
 
   return (
     <>
-      <div className="results-overview" aria-label={results.heading}>
+      {/* 手机 / 平板：统计卡片 + 策略卡片 */}
+      <div className="results-overview results-overview--mobile" aria-label={results.heading}>
         <div className="stat-card">
           <p className="stat-card-label">{results.symbol}</p>
           <p className="stat-card-value">{symbol}</p>
@@ -39,8 +40,9 @@ export function CompareTable({ data }: Props) {
         </div>
         <div className="stat-card">
           <p className="stat-card-label">{results.range}</p>
-          <p className="stat-card-value stat-card-value--sm">
-            {start} → {end}
+          <p className="stat-card-value stat-card-value--sm stat-card-value--range">
+            <span className="stat-card-range-line">{start}</span>
+            <span className="stat-card-range-line">→ {end}</span>
           </p>
         </div>
         <div className="stat-card">
@@ -61,7 +63,8 @@ export function CompareTable({ data }: Props) {
         ) : null}
       </div>
 
-      <p className="hint meta-line">
+      {/* PC：一行摘要 + 完整表格（与最初版本一致） */}
+      <p className="hint compare-summary-desktop">
         {results.symbol}: <strong>{symbol}</strong> · {results.range}:{" "}
         <strong>
           {start} → {end}
@@ -83,7 +86,7 @@ export function CompareTable({ data }: Props) {
         ))}
       </div>
 
-      <div className="table-wrap">
+      <div className="table-wrap compare-table-desktop">
         <table className="compare-table">
           <thead>
             <tr>

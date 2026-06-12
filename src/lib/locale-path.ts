@@ -19,3 +19,22 @@ export function localeHref(locale: Locale): string {
   url.pathname = localePathForPathname(url.pathname, locale);
   return url.pathname + url.search;
 }
+
+export function comparePath(locale: Locale): string {
+  return locale === "zh" ? "/zh" : "/";
+}
+
+export function teacherReviewNavPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/english-teacher-review" : "/english-teacher-review";
+}
+
+export function isComparePath(pathname: string): boolean {
+  return pathname === "/" || pathname === "/zh";
+}
+
+export function isTeacherReviewPath(pathname: string): boolean {
+  return (
+    pathname === "/english-teacher-review" ||
+    pathname === "/zh/english-teacher-review"
+  );
+}
