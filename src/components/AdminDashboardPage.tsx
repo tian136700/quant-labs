@@ -124,6 +124,7 @@ export function AdminDashboardPage() {
                 <tr>
                   <th>{adm.visits.id}</th>
                   <th>{adm.visits.ip}</th>
+                  <th>{adm.visits.ipVisitCount}</th>
                   <th>{adm.visits.country}</th>
                   <th>{adm.visits.url}</th>
                   <th>{adm.visits.eventType}</th>
@@ -137,6 +138,7 @@ export function AdminDashboardPage() {
                   <tr key={row.id}>
                     <td>{row.id}</td>
                     <td>{row.ip}</td>
+                    <td>{row.ip_visit_count ?? "—"}</td>
                     <td>{countryDisplayName(row.country_code, "zh")}</td>
                     <td className="admin-cell-wrap">{row.url_path}</td>
                     <td>{row.event_type}</td>

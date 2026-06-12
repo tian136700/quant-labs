@@ -105,4 +105,6 @@ export interface VisitLogRecord {
   event_detail: string | null;
   locale: string | null;
   created_at: string;
+  /** 该 IP 自首次访问以来的累计记录数（查询时计算） */
+  ip_visit_count?: number;
 }

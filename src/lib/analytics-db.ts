@@ -83,6 +83,17 @@ export async function trackVisit(
   };
 }
 
+function attachIpVisitCounts(records: VisitLogRecord[]): VisitLogRecord[] {
+  const counts = new Map<string, number>();
+  for (const row of devRecords) {
+    counts.set(row.ip, (counts.get(row.ip) ?? 0) + 1);
+  }
+  return records.map((row) => ({
+    ...row,
+    ip_visit_count: counts.get(row.ip) ?? 0,
+  }));
+}
+
 export async function listVisitLogs(
   db: D1Database,
   limit = 500
@@ -90,12 +101,13 @@ export async function listVisitLogs(
   const safeLimit = Math.min(Math.max(limit, 1), 2000);
 
   if (devStoreEnabled) {
-    return devRecords.slice(0, safeLimit);
+    return attachIpVisitCounts(devRecords.slice(0, safeLimit));
   }
 
   const { results } = await db
     .prepare(
-      `SELECT id, ip, country_code, url_path, event_type, event_detail, locale, created_at
+      `SELECT id, ip, country_code, url_path, event_type, event_detail, locale, created_at,
+              COUNT(*) OVER (PARTITION BY ip) AS ip_visit_count
        FROM visit_logs
        ORDER BY created_at DESC
        LIMIT ?1`
