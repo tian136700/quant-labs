@@ -92,9 +92,9 @@ export function CompareChart({ points, symbol }: Props) {
           </div>
         </div>
       </div>
-      <div style={{ width: "100%", height: 360 }}>
-        <ResponsiveContainer>
-          <LineChart data={sampled} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+      <div className="chart-canvas">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={sampled} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
             <XAxis
               dataKey="date"

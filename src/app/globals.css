@@ -23,12 +23,32 @@ html {
 body {
   @apply bg-bg text-text font-sans antialiased;
   margin: 0;
-  padding: 1.25rem 1.5rem 2rem;
+  padding: 0.875rem 1rem 1.5rem;
   line-height: 1.5;
+  overflow-x: hidden;
+}
+
+@media (min-width: 640px) {
+  body {
+    padding: 1rem 1.25rem 1.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  body {
+    padding: 1.25rem 1.5rem 2rem;
+  }
+}
+
+.page-wrap {
+  @apply w-full mx-auto;
+  max-width: 1200px;
 }
 
 .page-header {
-  @apply flex justify-end mb-2;
+  @apply flex justify-end mb-2 sticky top-0 z-10 py-1;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(6px);
 }
 
 .lang-switch {
@@ -53,11 +73,11 @@ body {
 }
 
 h1 {
-  @apply text-xl font-semibold m-0 mb-1;
+  @apply text-lg sm:text-xl font-semibold m-0 mb-1 leading-snug;
 }
 
 .sub {
-  @apply text-muted text-sm mb-5;
+  @apply text-muted text-sm mb-4 sm:mb-5 leading-relaxed;
 }
 
 .section {
@@ -69,7 +89,27 @@ h1 {
 }
 
 .row {
-  @apply flex flex-wrap gap-4 items-end mb-4;
+  @apply flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-end mb-4;
+}
+
+.field {
+  @apply min-w-0 w-full;
+}
+
+.field--grow {
+  @apply sm:flex-1 sm:min-w-[10rem] sm:max-w-[16rem];
+}
+
+.field--narrow {
+  @apply sm:w-auto sm:max-w-[8rem];
+}
+
+.field--action {
+  @apply sm:w-auto;
+}
+
+.field--action .btn-rsi-filter {
+  @apply w-full sm:w-auto min-h-[44px];
 }
 
 label {
@@ -78,8 +118,17 @@ label {
 
 input[type="text"],
 input[type="number"] {
-  @apply bg-panel text-text border border-border rounded-input px-3 py-2 text-sm min-w-[140px];
+  @apply bg-panel text-text border border-border rounded-input px-3 py-2.5 sm:py-2 text-base sm:text-sm w-full;
   color-scheme: dark;
+  min-height: 44px;
+}
+
+@media (min-width: 640px) {
+  input[type="text"],
+  input[type="number"] {
+    min-height: 0;
+    min-width: 0;
+  }
 }
 
 input:focus {
@@ -87,7 +136,14 @@ input:focus {
 }
 
 .btn-rsi-filter {
-  @apply bg-panel text-text border border-border rounded-input px-4 py-2 text-sm cursor-pointer;
+  @apply bg-panel text-text border border-border rounded-input px-4 py-2.5 sm:py-2 text-sm cursor-pointer;
+  min-height: 44px;
+}
+
+@media (min-width: 640px) {
+  .btn-rsi-filter {
+    min-height: 0;
+  }
 }
 
 .btn-rsi-filter:hover {
@@ -115,7 +171,11 @@ input:focus {
 }
 
 .hint {
-  @apply text-xs text-muted -mt-1 mb-3;
+  @apply text-xs text-muted -mt-1 mb-3 leading-relaxed;
+}
+
+.meta-line {
+  word-break: break-word;
 }
 
 .empty {
@@ -130,8 +190,46 @@ input:focus {
   color: var(--fall);
 }
 
+.table-wrap {
+  @apply w-full overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .compare-table {
   @apply w-full border-collapse text-sm bg-panel rounded-card overflow-hidden border border-border;
+  min-width: 860px;
+}
+
+.compare-cards {
+  @apply flex flex-col gap-3;
+}
+
+.strategy-card {
+  @apply bg-panel border border-border rounded-card p-3.5 sm:p-4;
+}
+
+.strategy-card-title {
+  @apply text-sm font-semibold text-text m-0 mb-3 pb-2 border-b border-border;
+}
+
+.strategy-card-grid {
+  @apply grid grid-cols-2 gap-x-3 gap-y-2.5 m-0;
+}
+
+.strategy-card-item {
+  @apply min-w-0;
+}
+
+.strategy-card-item--wide {
+  @apply col-span-2;
+}
+
+.strategy-card-item dt {
+  @apply text-[0.7rem] text-muted m-0 leading-snug;
+}
+
+.strategy-card-item dd {
+  @apply text-sm font-medium m-0 mt-0.5 break-words;
 }
 
 .compare-table th,
@@ -153,11 +251,28 @@ input:focus {
 }
 
 .chart-panel {
-  @apply bg-panel border border-border rounded-card p-4;
+  @apply bg-panel border border-border rounded-card p-3 sm:p-4;
 }
 
 .chart-panel-head {
-  @apply flex flex-wrap justify-between items-start gap-3 mb-3;
+  @apply flex flex-col sm:flex-row sm:flex-wrap justify-between items-stretch sm:items-start gap-3 mb-3;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 260px;
+}
+
+@media (min-width: 640px) {
+  .chart-canvas {
+    height: 320px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .chart-canvas {
+    height: 360px;
+  }
 }
 
 .chart-panel h3 {
@@ -177,7 +292,18 @@ input:focus {
 }
 
 .btn-rsi-filter--compact {
-  @apply px-2.5 py-1 text-xs min-w-0;
+  @apply px-2.5 py-2 sm:py-1 text-xs min-w-0;
+  min-height: 40px;
+}
+
+@media (min-width: 640px) {
+  .btn-rsi-filter--compact {
+    min-height: 0;
+  }
+}
+
+.chart-rsi-picker-btns {
+  @apply w-full sm:w-auto;
 }
 
 .btn-rsi-filter.is-active {
