@@ -16,6 +16,65 @@ export type Messages = {
     ariaLabel: string;
     strategyCompare: string;
     teacherReview: string;
+    about: string;
+    adminDashboard: string;
+  };
+  about: {
+    meta: { title: string; description: string };
+    page: { title: string; intro: string };
+    form: {
+      email: string;
+      emailPlaceholder: string;
+      content: string;
+      contentPlaceholder: string;
+      submit: string;
+      submitting: string;
+      required: string;
+    };
+    status: {
+      submitted: string;
+      submitFailed: string;
+      emailRequired: string;
+      emailInvalid: string;
+      contentRequired: string;
+    };
+  };
+  adminDashboard: {
+    meta: { title: string; description: string };
+    page: { title: string; subtitle: string };
+    visits: {
+      heading: string;
+      refresh: string;
+      empty: string;
+      id: string;
+      ip: string;
+      country: string;
+      url: string;
+      eventType: string;
+      eventDetail: string;
+      locale: string;
+      time: string;
+    };
+    feedback: {
+      heading: string;
+      refresh: string;
+      empty: string;
+      id: string;
+      email: string;
+      content: string;
+      ip: string;
+      country: string;
+      url: string;
+      locale: string;
+      time: string;
+    };
+    auth: {
+      required: string;
+      login: string;
+    };
+    status: {
+      loadFailed: string;
+    };
   };
   page: {
     title: string;
@@ -173,9 +232,84 @@ export const messages: Record<Locale, Messages> = {
       switchTo: "Switch language",
     },
     nav: {
-      ariaLabel: "Admin navigation",
+      ariaLabel: "Site navigation",
       strategyCompare: "DCA vs RSI",
       teacherReview: "Teacher Review",
+      about: "About",
+      adminDashboard: "Admin",
+    },
+    about: {
+      meta: {
+        title: "About & Feedback",
+        description:
+          "Share suggestions for Strategy Compare and English Teacher Review. Include page links so we can improve the right areas.",
+      },
+      page: {
+        title: "About & Feedback",
+        intro:
+          "If you have any suggestions for this site, we'd love to hear from you. Please include links to the relevant section (e.g. Strategy Compare or Teacher Review) in your message so we know what to improve.",
+      },
+      form: {
+        email: "Your email",
+        emailPlaceholder: "you@example.com",
+        content: "Your feedback",
+        contentPlaceholder:
+          "Describe your suggestion. Please paste the page URL or section name you are referring to…",
+        submit: "Submit feedback",
+        submitting: "Submitting…",
+        required: "*",
+      },
+      status: {
+        submitted: "Thank you! Your feedback has been submitted.",
+        submitFailed: "Submission failed. Please try again.",
+        emailRequired: "Please enter your email.",
+        emailInvalid: "Please enter a valid email address.",
+        contentRequired: "Please enter your feedback.",
+      },
+    },
+    adminDashboard: {
+      meta: {
+        title: "Admin Dashboard",
+        description: "View visit logs and user feedback submissions.",
+      },
+      page: {
+        title: "Admin Dashboard",
+        subtitle:
+          "Monitor visitor activity and feedback submissions. Admin login required.",
+      },
+      visits: {
+        heading: "Visit & action logs",
+        refresh: "Refresh",
+        empty: "No visit logs yet.",
+        id: "ID",
+        ip: "IP",
+        country: "Country/Region",
+        url: "URL",
+        eventType: "Type",
+        eventDetail: "Detail",
+        locale: "Locale",
+        time: "Time",
+      },
+      feedback: {
+        heading: "User feedback",
+        refresh: "Refresh",
+        empty: "No feedback yet.",
+        id: "ID",
+        email: "Email",
+        content: "Feedback",
+        ip: "IP",
+        country: "Country/Region",
+        url: "From page",
+        locale: "Locale",
+        time: "Time",
+      },
+      auth: {
+        required: "Please log in as admin to view this page.",
+        login: "Log in",
+      },
+      status: {
+        loadFailed: "Failed to load data. Please try again.",
+      },
     },
     page: {
       title: "Strategy Compare (DCA vs RSI)",
@@ -383,9 +517,83 @@ export const messages: Record<Locale, Messages> = {
       switchTo: "切换语言",
     },
     nav: {
-      ariaLabel: "管理员导航",
+      ariaLabel: "站点导航",
       strategyCompare: "定投 vs RSI",
       teacherReview: "英语老师评价",
+      about: "关于",
+      adminDashboard: "后台管理",
+    },
+    about: {
+      meta: {
+        title: "关于与反馈",
+        description:
+          "对本站（策略对比、英语老师评价等）提出建议。请尽量附上相关页面链接，便于我们改进。",
+      },
+      page: {
+        title: "关于与反馈",
+        intro:
+          "如果您对本系统有任何建议，欢迎告诉我们。请尽量在建议中填入相关板块的链接（例如策略对比页或英语老师评价页），方便我们定位问题。",
+      },
+      form: {
+        email: "您的邮箱",
+        emailPlaceholder: "you@example.com",
+        content: "您的建议",
+        contentPlaceholder:
+          "请描述您的建议，并尽量附上相关页面链接或板块名称…",
+        submit: "提交建议",
+        submitting: "提交中…",
+        required: "*",
+      },
+      status: {
+        submitted: "感谢您的反馈，我们已收到您的建议。",
+        submitFailed: "提交失败，请稍后重试。",
+        emailRequired: "请输入您的邮箱。",
+        emailInvalid: "请输入有效的邮箱格式。",
+        contentRequired: "请填写您的建议内容。",
+      },
+    },
+    adminDashboard: {
+      meta: {
+        title: "后台管理",
+        description: "查看访问日志与用户反馈。",
+      },
+      page: {
+        title: "后台管理",
+        subtitle: "查看访客操作记录与用户提交的建议。需管理员登录。",
+      },
+      visits: {
+        heading: "访问与操作日志",
+        refresh: "刷新",
+        empty: "暂无访问记录。",
+        id: "ID",
+        ip: "IP 地址",
+        country: "国家/地区",
+        url: "访问网址",
+        eventType: "类型",
+        eventDetail: "操作详情",
+        locale: "语言",
+        time: "时间",
+      },
+      feedback: {
+        heading: "用户反馈",
+        refresh: "刷新",
+        empty: "暂无反馈。",
+        id: "ID",
+        email: "邮箱",
+        content: "建议内容",
+        ip: "IP 地址",
+        country: "国家/地区",
+        url: "来源页面",
+        locale: "语言",
+        time: "时间",
+      },
+      auth: {
+        required: "请使用管理员账号登录后查看。",
+        login: "去登录",
+      },
+      status: {
+        loadFailed: "加载失败，请重试。",
+      },
     },
     page: {
       title: "策略对比（定投 vs RSI 触发买入）",

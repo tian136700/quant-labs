@@ -2,6 +2,7 @@
 
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/messages";
+import { trackEvent } from "@/lib/analytics-client";
 import { localeHref } from "@/lib/locale-path";
 
 export function LangSwitch() {
@@ -12,6 +13,11 @@ export function LangSwitch() {
     if (next === locale) return;
     setLocale(next);
     window.history.replaceState(null, "", localeHref(next));
+    trackEvent({
+      event_type: "action",
+      event_detail: `lang_switch_${next}`,
+      locale: next,
+    });
   };
 
   return (

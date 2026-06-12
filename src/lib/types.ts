@@ -84,3 +84,25 @@ export type EnglishTeacherReviewSortField =
   | "class_date"
   | "score"
   | "updated_at";
+
+export interface UserFeedbackRecord {
+  id: number;
+  email: string;
+  content: string;
+  ip: string;
+  country_code: string | null;
+  url_path: string | null;
+  locale: string | null;
+  created_at: string;
+}
+
+export interface VisitLogRecord {
+  id: number;
+  ip: string;
+  country_code: string | null;
+  url_path: string;
+  event_type: string;
+  event_detail: string | null;
+  locale: string | null;
+  created_at: string;
+}

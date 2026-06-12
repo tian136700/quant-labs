@@ -1,18 +1,30 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { Locale } from "@/i18n/messages";
+import { clientCountryCode, localeFromCountry } from "@/lib/geoip";
 import { clientIp, getLocalePref, setLocalePref } from "@/lib/locale-pref";
 import type { CloudflareEnv } from "@/lib/types";
 
 export async function GET(request: Request) {
   const ip = clientIp(request);
   if (!ip) {
-    return json({ ok: true, locale: null });
+    return json({ ok: true, locale: null, source: null });
   }
 
   try {
     const env = await getEnv();
-    const locale = await getLocalePref(env.DB, ip);
-    return json({ ok: true, locale });
+    const saved = await getLocalePref(env.DB, ip);
+    if (saved) {
+      return json({ ok: true, locale: saved, source: "saved" });
+    }
+
+    const countryCode = clientCountryCode(request);
+    const suggested = localeFromCountry(countryCode);
+    return json({
+      ok: true,
+      locale: suggested,
+      source: countryCode ? "geo" : "default",
+      country_code: countryCode,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return json({ ok: false, error: message, locale: null }, 500);

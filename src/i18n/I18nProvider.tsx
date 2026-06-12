@@ -20,6 +20,7 @@ import { localeHref } from "@/lib/locale-path";
 
 type I18nContextValue = {
   locale: Locale;
+  ready: boolean;
   setLocale: (locale: Locale) => void;
   t: <K extends keyof Messages>(section: K) => Messages[K];
   tf: (template: string, vars?: Record<string, string | number>) => string;
@@ -118,11 +119,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const value = useMemo<I18nContextValue>(
     () => ({
       locale,
+      ready,
       setLocale,
       t: (section) => messages[locale][section],
       tf: formatMsg,
     }),
-    [locale, setLocale]
+    [locale, ready, setLocale]
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
