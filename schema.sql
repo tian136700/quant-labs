@@ -29,3 +29,10 @@ CREATE TABLE IF NOT EXISTS fetch_log (
   source     TEXT    NOT NULL DEFAULT 'yahoo',
   created_at TEXT    NOT NULL
 );
+
+-- 按 IP 记住语言偏好（中文/英文）
+CREATE TABLE IF NOT EXISTS locale_prefs (
+  ip         TEXT    NOT NULL PRIMARY KEY,
+  locale     TEXT    NOT NULL,
+  updated_at TEXT    NOT NULL
+);
