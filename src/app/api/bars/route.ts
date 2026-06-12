@@ -4,8 +4,6 @@ import { getBarsWithCache, getLatestBarDate } from "@/lib/db";
 import { addYears, todayIso, warmupStartForRsi } from "@/lib/rsi";
 import type { BarsApiResponse, CloudflareEnv } from "@/lib/types";
 
-export const runtime = "edge";
-
 const MAX_YEARS = 10;
 
 /**

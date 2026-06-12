@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "strategy-compare-db"
-database_id = "fd580cfa-ba64-4f04-9a96-d49c621ef84b"
+database_id = "00000000-0000-0000-0000-000000000000"
 
 [vars]
 RSI_PERIOD = "6"

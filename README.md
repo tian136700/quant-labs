@@ -99,18 +99,32 @@ GET /api/bars?symbol=SPY&years=5
 
 ## 部署
 
-```bash
-npm run cf:build
-npm run cf:deploy
-```
+本项目使用 **OpenNext + Cloudflare Workers**（不是传统 Pages 静态托管）。
 
-或在 Cloudflare Pages 连接 GitHub 仓库，构建命令：
+### 本地 CLI 部署
 
 ```bash
-npm install && npx opennextjs-cloudflare build
+npm run cf:build    # 或 opennextjs-cloudflare build
+npm run cf:deploy   # 或 opennextjs-cloudflare deploy
 ```
 
-输出目录按 OpenNext Cloudflare 文档配置。
+### Cloudflare Workers Builds（GitHub 自动部署）
+
+在 Cloudflare Dashboard → Workers → 你的项目 → **Settings → Build**：
+
+| 字段 | 值 |
+|------|-----|
+| **Build command** | `npm install && npx opennextjs-cloudflare build` |
+| **Deploy command** | `npx opennextjs-cloudflare deploy` |
+
+注意：
+- 不要用单独的 `next build` 作为 Build command（会缺少 `.open-next` 产物）
+- 不要用裸 `npx wrangler deploy`（需先跑 OpenNext build）
+- `package.json` 里的 `"build": "next build"` 保持不变，OpenNext 会自动调用它
+
+### D1 绑定
+
+Workers 项目 → **Settings → Bindings** → D1 → 变量名 `DB`，数据库 `strategy-compare-db`。
 
 ## 目录结构
 
