@@ -1,16 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import type { EtrAuthUser } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import type { EtrUserRole } from "@/lib/etr-auth";
 
-export type EtrAuthUser = {
-  id: number;
-  username: string;
-  role: EtrUserRole;
-  expires_at: string;
-  expires_hint: string;
-};
+export type { EtrAuthUser };
 
 type AuthMode = "login" | "register";
 

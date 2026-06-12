@@ -12,6 +12,11 @@ export type Messages = {
     zh: string;
     switchTo: string;
   };
+  nav: {
+    ariaLabel: string;
+    strategyCompare: string;
+    teacherReview: string;
+  };
   page: {
     title: string;
     subtitle: string;
@@ -147,6 +152,11 @@ export type Messages = {
       loginToSave: string;
       formPreviewHint: string;
     };
+    seo: {
+      heading: string;
+      intro: string;
+      faq: { q: string; a: string }[];
+    };
   };
 };
 
@@ -161,6 +171,11 @@ export const messages: Record<Locale, Messages> = {
       en: "EN",
       zh: "中文",
       switchTo: "Switch language",
+    },
+    nav: {
+      ariaLabel: "Admin navigation",
+      strategyCompare: "DCA vs RSI",
+      teacherReview: "Teacher Review",
     },
     page: {
       title: "Strategy Compare (DCA vs RSI)",
@@ -222,14 +237,14 @@ export const messages: Record<Locale, Messages> = {
     },
     teacherReview: {
       meta: {
-        title: "English Teacher Review",
+        title: "English Teacher Review Tool — Rate & Track Online Tutors",
         description:
-          "Record and review English teacher ratings after each class. Check history before booking to avoid poor matches.",
+          "Free English teacher review tool: log scores (0–10), class dates, and notes after each online lesson. Check history before booking to avoid poor tutors.",
       },
       page: {
-        title: "English Teacher Review",
+        title: "English Teacher Review Tool",
         subtitle:
-          "Log a score (0–10) after each lesson so you can pick better teachers before your next booking.",
+          "Log a score (0–10) after each online English lesson — track tutor quality on iTalki, Preply, and more before your next booking.",
       },
       form: {
         heading: "Add / Edit Review",
@@ -308,6 +323,29 @@ export const messages: Record<Locale, Messages> = {
         formPreviewHint:
           "This is a preview of the form. Sign in to add your own records.",
       },
+      seo: {
+        heading: "About this English teacher review tool",
+        intro:
+          "Use this free online tutor rating tracker to record English teacher reviews after every lesson. Score each tutor from 0 to 10, add class dates and notes, then sort your history before booking on iTalki, Preply, Cambly, or any ESL platform. Avoid bad teachers by checking your private review log first — works on phone and desktop.",
+        faq: [
+          {
+            q: "Why keep an English teacher review log?",
+            a: "Online platforms show public ratings, but your own notes capture what mattered to you — accent, patience, punctuality, materials. A personal tracker helps you compare tutors you've actually tried.",
+          },
+          {
+            q: "Can I use this for iTalki or Preply tutors?",
+            a: "Yes. Enter any tutor name from iTalki, Preply, Verbling, Cambly, or offline teachers. The tool is platform-agnostic.",
+          },
+          {
+            q: "Is my data private?",
+            a: "Yes. Register to save records under your account. Sample rows on the page are demos only; your real reviews are not public.",
+          },
+          {
+            q: "What should I write in the notes field?",
+            a: "Pronunciation clarity, grammar corrections, conversation flow, homework, cancellations, or whether you'd book again — anything that helps you decide next time.",
+          },
+        ],
+      },
     },
     seo: {
       heading: "About DCA vs RSI(6) backtesting",
@@ -343,6 +381,11 @@ export const messages: Record<Locale, Messages> = {
       en: "EN",
       zh: "中文",
       switchTo: "切换语言",
+    },
+    nav: {
+      ariaLabel: "管理员导航",
+      strategyCompare: "定投 vs RSI",
+      teacherReview: "英语老师评价",
     },
     page: {
       title: "策略对比（定投 vs RSI 触发买入）",
@@ -404,14 +447,14 @@ export const messages: Record<Locale, Messages> = {
     },
     teacherReview: {
       meta: {
-        title: "英语老师评价",
+        title: "英语老师评价工具 — 在线外教评分记录 | 上课前查评价",
         description:
-          "记录每次上课对英语老师的评分，上课前查看历史评价，避免踩雷老师。",
+          "免费英语老师评价工具：记录每次在线外教课评分（0～10 分）、上课日期与备注，上课预约前查看历史评价，避开不合适的外教老师。",
       },
       page: {
-        title: "英语老师评价",
+        title: "英语老师评价工具",
         subtitle:
-          "记录每次上课对英语老师的评分（0～10 分），便于根据历史数据选择合适的老师。",
+          "记录每次在线英语课/外教私教评分（0～10 分），上课前查看历史评价，适用于 italki、Preply 等平台，帮你避开踩雷老师。",
       },
       form: {
         heading: "新增 / 编辑评价",
@@ -486,6 +529,29 @@ export const messages: Record<Locale, Messages> = {
         loginToManage: "登录 / 注册",
         loginToSave: "请先登录或注册后再保存评价。",
         formPreviewHint: "这是表单预览，登录后可新增您自己的记录。",
+      },
+      seo: {
+        heading: "关于英语老师评价工具",
+        intro:
+          "这是一款免费的在线外教评价工具，帮助您记录每次英语课后的老师评分。按 0～10 分打分，填写上课日期与备注，支持按老师、日期、分数排序。在 italki、Preply、Cambly 等平台预约新课之前，先查自己的评价记录，避开不合适的外教老师。手机与电脑均可使用，注册后数据保存在您的账户下。",
+        faq: [
+          {
+            q: "为什么要自己做英语老师评价记录？",
+            a: "平台公开展示的评分往往不够个性化。您自己的记录能记下发音、耐心、准时、课件质量等细节，方便对比上过的不同外教。",
+          },
+          {
+            q: "可以用于 italki、Preply 上的外教吗？",
+            a: "可以。填写任意平台或线下英语老师的姓名即可，本工具不绑定特定平台。",
+          },
+          {
+            q: "我的评价会公开吗？",
+            a: "不会。注册登录后，您的评价仅保存在个人账户中。页面上未登录时看到的示例数据仅供了解功能。",
+          },
+          {
+            q: "备注里可以写什么？",
+            a: "例如：发音是否清晰、纠错是否及时、对话引导如何、是否经常取消、是否愿意再约等，任何有助于下次选课的信息都可以写。",
+          },
+        ],
       },
     },
     seo: {

@@ -44,7 +44,7 @@ body {
 }
 
 .page-header {
-  @apply flex justify-end items-center z-20;
+  @apply flex justify-between items-center z-20 flex-wrap gap-2;
   position: sticky;
   top: 0;
   padding-block: 0.5rem;
@@ -59,30 +59,17 @@ body {
   }
 }
 
-/* ── 主布局：移动纵向 / 桌面左右分栏 ── */
+/* ── 主布局：全端纵向排列 ── */
 .page-layout {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--section-gap);
-  align-items: start;
-}
-
-@screen lg {
-  .page-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    gap: clamp(1.5rem, 3vw, 2.5rem);
-  }
-}
-
-@screen xl {
-  .page-layout {
-    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
-  }
+  align-items: stretch;
 }
 
 .page-layout-primary,
 .page-layout-secondary {
-  @apply min-w-0;
+  @apply min-w-0 w-full;
   display: flex;
   flex-direction: column;
   gap: var(--section-gap);
@@ -121,6 +108,41 @@ body {
   @apply text-accent font-medium;
 }
 
+/* ── Admin 导航（仅 Admin 登录后显示） ── */
+.admin-nav {
+  @apply min-w-0 flex-1;
+}
+
+.admin-nav-list {
+  @apply flex flex-wrap gap-1 m-0 p-0 list-none;
+}
+
+.admin-nav-link {
+  @apply inline-flex items-center text-xs text-muted no-underline rounded border border-transparent;
+  font: inherit;
+  min-height: var(--touch-min);
+  padding: 0.375rem 0.75rem;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+@screen md {
+  .admin-nav-link {
+    min-height: 0;
+    padding: 0.35rem 0.875rem;
+  }
+}
+
+.admin-nav-link:hover {
+  @apply text-text;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+.admin-nav-link.is-active {
+  @apply text-accent font-medium;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .lang-switch-sep {
   @apply text-border select-none;
 }
@@ -138,12 +160,40 @@ h1 {
 
 /* ── 区块 ── */
 .section {
-  @apply min-w-0;
+  @apply min-w-0 mb-7;
 }
 
 .section h2 {
   font-size: clamp(0.875rem, 1.2vw + 0.5rem, 1rem);
   @apply text-muted font-semibold m-0 mb-2.5;
+}
+
+.row {
+  @apply flex flex-wrap gap-4 items-end mb-4;
+}
+
+/* 参数行：手机纵向堆叠，PC（md+）恢复横向排列 */
+.cmp-params-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cmp-params-row input[type="text"],
+.cmp-params-row input[type="number"] {
+  @apply w-full;
+}
+
+@screen md {
+  .cmp-params-row {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .cmp-params-row input[type="text"],
+  .cmp-params-row input[type="number"] {
+    width: auto;
+    min-width: 140px;
+  }
 }
 
 /* ── 表单：≤480 单列 / 481–1024 两列 / >1024 最多三列 ── */
@@ -332,13 +382,13 @@ textarea:focus {
   @apply text-xs text-muted leading-relaxed;
 }
 
-.meta-line {
-  word-break: break-word;
+.compare-summary-desktop {
+  display: none;
 }
 
-@screen sm {
-  .meta-line {
-    display: none;
+@screen lg {
+  .compare-summary-desktop {
+    display: block;
   }
 }
 
@@ -354,8 +404,8 @@ textarea:focus {
   color: var(--fall);
 }
 
-/* ── 结果概览（统计卡片） ── */
-.results-overview {
+/* ── 结果概览（统计卡片，仅手机/平板） ── */
+.results-overview--mobile {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.625rem;
@@ -363,15 +413,15 @@ textarea:focus {
 }
 
 @screen sm {
-  .results-overview {
+  .results-overview--mobile {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.75rem;
   }
 }
 
 @screen lg {
-  .results-overview {
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  .results-overview--mobile {
+    display: none;
   }
 }
 
@@ -394,6 +444,17 @@ textarea:focus {
 
 .stat-card-value--sm {
   font-size: clamp(0.9375rem, 2vw, 1.25rem);
+}
+
+.stat-card-value--range {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.35;
+}
+
+.stat-card-range-line {
+  display: block;
 }
 
 /* ── 结果详细：卡片流 / 平板双列 / 桌面表格 ── */
@@ -459,18 +520,20 @@ textarea:focus {
 .table-wrap {
   @apply w-full overflow-x-auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.compare-table-desktop {
   display: none;
 }
 
 @screen lg {
-  .table-wrap {
+  .compare-table-desktop {
     display: block;
   }
 }
 
 .compare-table {
   @apply w-full border-collapse text-sm bg-panel rounded-card overflow-hidden border border-border;
-  min-width: min(100%, 52rem);
 }
 
 .compare-table th,
