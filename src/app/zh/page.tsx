@@ -12,16 +12,16 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const sp = await searchParams;
   return buildPageMetadata({
-    locale: "en",
+    locale: "zh",
     symbol: sp.symbol,
     years: sp.years,
   });
 }
 
-export default function Page() {
+export default function ZhPage() {
   return (
     <>
-      <JsonLd locale="en" />
+      <JsonLd locale="zh" />
       <ComparePage />
     </>
   );

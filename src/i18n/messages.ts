@@ -69,6 +69,11 @@ export type Messages = {
     rsiThreshold: string;
     hint: string;
   };
+  seo: {
+    heading: string;
+    intro: string;
+    faq: { q: string; a: string }[];
+  };
 };
 
 export const messages: Record<Locale, Messages> = {
@@ -141,6 +146,29 @@ export const messages: Record<Locale, Messages> = {
       rsiThreshold: "RSI threshold",
       hint: "Both strategies deploy the same total amount into stock ($100 × trading days). DCA spreads it daily; RSI concentrates it on trigger days. Lines show stock value only (aligned with the table above).",
     },
+    seo: {
+      heading: "About DCA vs RSI(6) backtesting",
+      intro:
+        "Compare dollar-cost averaging (DCA) with RSI(6) oversold buy signals for US stocks and ETFs. Enter any ticker — SPY, QQQ, AAPL, NVDA — and backtest 1–10 years of history. See whether RSI threshold buying (RSI < 20 / 25 / 30) beats daily DCA on average cost and total return.",
+      faq: [
+        {
+          q: "What is RSI(6)?",
+          a: "RSI (Relative Strength Index) with a 6-day period — more responsive than RSI 14 for short-term oversold signals on US equities.",
+        },
+        {
+          q: "How does this compare DCA and RSI strategies?",
+          a: "Both assume 1 total share split across buy days: DCA buys every trading day; RSI strategies buy only when RSI(6) drops below 20, 25, or 30.",
+        },
+        {
+          q: "Which tickers work?",
+          a: "Any US stock or ETF with Yahoo Finance history: SPY, QQQ, VOO, AAPL, MSFT, TSLA, and more.",
+        },
+        {
+          q: "Is this investment advice?",
+          a: "No. Historical backtests for research only. Past performance does not guarantee future results.",
+        },
+      ],
+    },
   },
   zh: {
     meta: {
@@ -210,6 +238,29 @@ export const messages: Record<Locale, Messages> = {
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI 阈值",
       hint: "两条策略投入股票的总资金相同（$100 × 交易日数）。定投每天分散买入；RSI 在触发日集中买入。曲线为股票市值（与上方表格口径一致，不含闲置现金）。",
+    },
+    seo: {
+      heading: "关于定投 vs RSI(6) 策略对比",
+      intro:
+        "免费美股/ETF 策略回测工具：对比每日定投（DCA）与 RSI(6) 超卖信号触发买入。输入 SPY、QQQ、AAPL、NVDA 等任意代码，回测 1–10 年历史，查看 RSI 低于 20/25/30 时买入是否优于定投的均价与收益。",
+      faq: [
+        {
+          q: "RSI(6) 是什么？",
+          a: "6 日周期的相对强弱指数（RSI），比常见的 RSI 14 更敏感，适合捕捉美股短期超卖信号。",
+        },
+        {
+          q: "定投和 RSI 策略怎么对比？",
+          a: "假设区间内总共买入 1 股、均分到各买入日：定投每个交易日买入；RSI 策略仅在 RSI(6) 低于 20、25 或 30 时买入。",
+        },
+        {
+          q: "支持哪些标的？",
+          a: "Yahoo Finance 有历史数据的任意美股或 ETF，如 SPY、QQQ、VOO、AAPL、MSFT、TSLA 等。",
+        },
+        {
+          q: "这是投资建议吗？",
+          a: "不是。仅为历史回测参考，过往表现不代表未来收益。",
+        },
+      ],
     },
   },
 };

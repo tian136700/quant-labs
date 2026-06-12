@@ -3,12 +3,20 @@
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/messages";
 
+function localePath(locale: Locale): string {
+  const url = new URL(window.location.href);
+  url.pathname = locale === "zh" ? "/zh" : "/";
+  return url.pathname + url.search;
+}
+
 export function LangSwitch() {
   const { locale, setLocale, t } = useI18n();
   const lang = t("lang");
 
   const pick = (next: Locale) => {
-    if (next !== locale) setLocale(next);
+    if (next === locale) return;
+    setLocale(next);
+    window.history.replaceState(null, "", localePath(next));
   };
 
   return (

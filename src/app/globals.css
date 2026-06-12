@@ -309,3 +309,31 @@ input:focus {
 .btn-rsi-filter.is-active {
   @apply border-accent text-accent bg-accent/10;
 }
+
+.seo-section {
+  @apply mt-8 pt-6 border-t border-border;
+}
+
+.seo-section h2 {
+  @apply text-sm font-semibold text-muted mb-2;
+}
+
+.seo-intro {
+  @apply text-xs text-muted leading-relaxed mb-4 max-w-3xl;
+}
+
+.seo-faq {
+  @apply m-0 grid gap-3 sm:grid-cols-2;
+}
+
+.seo-faq-item {
+  @apply m-0;
+}
+
+.seo-faq-item dt {
+  @apply text-xs font-medium text-text mb-1;
+}
+
+.seo-faq-item dd {
+  @apply text-xs text-muted m-0 leading-relaxed;
+}
