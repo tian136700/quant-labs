@@ -28,6 +28,11 @@ export function localeFromCountry(countryCode: string | null): Locale {
   return countryCode === "CN" ? "zh" : "en";
 }
 
+const regionDisplayNames: Record<Locale, Intl.DisplayNames> = {
+  zh: new Intl.DisplayNames(["zh-CN"], { type: "region" }),
+  en: new Intl.DisplayNames(["en"], { type: "region" }),
+};
+
 export function countryDisplayName(
   countryCode: string | null,
   locale: Locale
@@ -37,5 +42,11 @@ export function countryDisplayName(
   }
   const entry = COUNTRY_NAMES[countryCode];
   if (entry) return entry[locale];
+  try {
+    const name = regionDisplayNames[locale].of(countryCode);
+    if (name) return name;
+  } catch {
+    // invalid region code
+  }
   return countryCode;
 }
