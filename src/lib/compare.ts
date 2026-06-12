@@ -167,7 +167,12 @@ function pickLatestClose(rows: RowWithRsi[]) {
   return { bar_date: best.bar_date, price: best.close };
 }
 
-/** 累计资产曲线：每日 $100 定投 vs RSI 多阈值触发买入 */
+/**
+ * 累计资产曲线：每日各投入 $100（资金流入相同）。
+ * - 定投：每天 $100 全部买入股票
+ * - RSI：每天同样有 $100 预算；仅触发日买入，其余日持有现金
+ * 曲线 = 股票市值 + 现金，两条线总投入一致，便于对比。
+ */
 function buildChartSeries(rowsAsc: RowWithRsi[]): ChartPoint[] {
   const points: ChartPoint[] = [];
   let dcaShares = 0;
@@ -177,25 +182,33 @@ function buildChartSeries(rowsAsc: RowWithRsi[]): ChartPoint[] {
     25: 0,
     30: 0,
   };
+  const rsiCash: Record<15 | 20 | 25 | 30, number> = {
+    15: 0,
+    20: 0,
+    25: 0,
+    30: 0,
+  };
 
   for (const r of rowsAsc) {
     dcaShares += DAILY_INVEST / r.close;
 
-    if (r.rsi != null && !Number.isNaN(r.rsi)) {
-      for (const thr of [15, 20, 25, 30] as const) {
-        if (r.rsi < thr) {
-          rsiShares[thr] += DAILY_INVEST / r.close;
-        }
+    for (const thr of [15, 20, 25, 30] as const) {
+      const triggered =
+        r.rsi != null && !Number.isNaN(r.rsi) && r.rsi < thr;
+      if (triggered) {
+        rsiShares[thr] += DAILY_INVEST / r.close;
+      } else {
+        rsiCash[thr] += DAILY_INVEST;
       }
     }
 
     points.push({
       date: r.bar_date,
       dca_value: roundNum(dcaShares * r.close, 2),
-      rsi_15_value: roundNum(rsiShares[15] * r.close, 2),
-      rsi_20_value: roundNum(rsiShares[20] * r.close, 2),
-      rsi_25_value: roundNum(rsiShares[25] * r.close, 2),
-      rsi_30_value: roundNum(rsiShares[30] * r.close, 2),
+      rsi_15_value: roundNum(rsiShares[15] * r.close + rsiCash[15], 2),
+      rsi_20_value: roundNum(rsiShares[20] * r.close + rsiCash[20], 2),
+      rsi_25_value: roundNum(rsiShares[25] * r.close + rsiCash[25], 2),
+      rsi_30_value: roundNum(rsiShares[30] * r.close + rsiCash[30], 2),
     });
   }
 

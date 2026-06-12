@@ -139,7 +139,7 @@ export const messages: Record<Locale, Messages> = {
       dailyDca: "Daily DCA",
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI threshold",
-      hint: "Chart compares daily $100 DCA vs RSI(6) trigger buying. The RSI line only invests on days when RSI is below the selected threshold.",
+      hint: "Both strategies receive $100 per trading day (same total capital). DCA buys every day; RSI only buys on trigger days and holds the rest as cash. Lines show stock value + cash.",
     },
   },
   zh: {
@@ -209,7 +209,7 @@ export const messages: Record<Locale, Messages> = {
       dailyDca: "每日定投",
       rsiLt: "RSI < {thr}",
       rsiThreshold: "RSI 阈值",
-      hint: "图表对比「每日 $100 定投」与「RSI(6) 低于所选阈值时买入」。绿色曲线仅在 RSI 触发日投入。",
+      hint: "两条策略每个交易日各分配 $100（总投入相同）。定投每天全买股票；RSI 仅在触发日买入，其余日期持有现金。曲线为股票市值 + 现金。",
     },
   },
 };

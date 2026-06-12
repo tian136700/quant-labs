@@ -16,10 +16,28 @@
 ```bash
 cd strategy-compare-cloud
 npm install
+```
+
+**推荐：一键启动（端口 3002，改代码自动热更新）**
+
+```bash
+python3 start.py
+```
+
+或在 PyCharm 里直接运行根目录的 **`start.py`**。
+
+等价命令：
+
+```bash
 npm run dev
 ```
 
-打开 http://localhost:3000 。本地 `next dev` 无 D1 绑定时会直接走 Yahoo Finance（不写库）。
+打开 **http://127.0.0.1:3002** 。
+
+- 前端 / API 路由保存后会由 Next.js 自动热更新，无需手动重启
+- `start.py` 会在 dev 进程异常退出时自动重新拉起
+
+本地 `next dev` 无 D1 绑定时会直接走 Yahoo Finance（不写库）。
 
 ## Cloudflare D1 配置
 
