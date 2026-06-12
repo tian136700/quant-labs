@@ -117,6 +117,11 @@ npm run cf:deploy   # 或 opennextjs-cloudflare deploy
 | **Build command** | `npm install && npx opennextjs-cloudflare build` |
 | **Deploy command** | `npx opennextjs-cloudflare deploy` |
 
+若 Deploy 仍报 `Missing entry-point`，改用更稳妥的单步部署（Deploy 里重新 build 一次）：
+
+| **Build command** | `npm install` |
+| **Deploy command** | `npm run deploy` |
+
 注意：
 - 不要用单独的 `next build` 作为 Build command（会缺少 `.open-next` 产物）
 - 不要用裸 `npx wrangler deploy`（需先跑 OpenNext build）
