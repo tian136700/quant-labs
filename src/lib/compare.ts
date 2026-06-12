@@ -2,7 +2,7 @@
  * 策略对比计算（与原 web/static/js/compare.js 口径一致）
  * - 定投：1 股均分到每个交易日
  * - RSI：1 股均分到 RSI 低于阈值的触发日
- * 图表：每日 $100 定投 vs 可选 RSI 阈值触发买入
+ * 图表：相同总资金全部投入股票；定投每日 $100，RSI 在触发日集中买入
  */
 import type {
   BarRow,
@@ -168,21 +168,31 @@ function pickLatestClose(rows: RowWithRsi[]) {
 }
 
 /**
- * 累计资产曲线：每日各投入 $100（资金流入相同）。
- * - 定投：每天 $100 全部买入股票
- * - RSI：每天同样有 $100 预算；仅触发日买入，其余日持有现金
- * 曲线 = 股票市值 + 现金，两条线总投入一致，便于对比。
+ * 累计资产曲线：与上方表格口径一致——两条策略投入股票的总资金相同。
+ * - 定投：每个交易日投入 $100 买入
+ * - RSI：区间内总预算相同（交易日数 × $100），均分到各触发日一次性买入
+ * 曲线 = 股票市值（不含闲置现金），便于与「平均买入价 / 每股涨跌幅」对照。
  */
 function buildChartSeries(rowsAsc: RowWithRsi[]): ChartPoint[] {
-  const points: ChartPoint[] = [];
-  let dcaShares = 0;
-  const rsiShares: Record<15 | 20 | 25 | 30, number> = {
+  const totalBudget = rowsAsc.length * DAILY_INVEST;
+  const rsiPerTrigger: Record<15 | 20 | 25 | 30, number> = {
     15: 0,
     20: 0,
     25: 0,
     30: 0,
   };
-  const rsiCash: Record<15 | 20 | 25 | 30, number> = {
+
+  for (const thr of [15, 20, 25, 30] as const) {
+    const triggerDays = rowsAsc.filter(
+      (r) => r.rsi != null && !Number.isNaN(r.rsi) && r.rsi < thr
+    ).length;
+    rsiPerTrigger[thr] =
+      triggerDays > 0 ? totalBudget / triggerDays : 0;
+  }
+
+  const points: ChartPoint[] = [];
+  let dcaShares = 0;
+  const rsiShares: Record<15 | 20 | 25 | 30, number> = {
     15: 0,
     20: 0,
     25: 0,
@@ -195,20 +205,18 @@ function buildChartSeries(rowsAsc: RowWithRsi[]): ChartPoint[] {
     for (const thr of [15, 20, 25, 30] as const) {
       const triggered =
         r.rsi != null && !Number.isNaN(r.rsi) && r.rsi < thr;
-      if (triggered) {
-        rsiShares[thr] += DAILY_INVEST / r.close;
-      } else {
-        rsiCash[thr] += DAILY_INVEST;
+      if (triggered && rsiPerTrigger[thr] > 0) {
+        rsiShares[thr] += rsiPerTrigger[thr] / r.close;
       }
     }
 
     points.push({
       date: r.bar_date,
       dca_value: roundNum(dcaShares * r.close, 2),
-      rsi_15_value: roundNum(rsiShares[15] * r.close + rsiCash[15], 2),
-      rsi_20_value: roundNum(rsiShares[20] * r.close + rsiCash[20], 2),
-      rsi_25_value: roundNum(rsiShares[25] * r.close + rsiCash[25], 2),
-      rsi_30_value: roundNum(rsiShares[30] * r.close + rsiCash[30], 2),
+      rsi_15_value: roundNum(rsiShares[15] * r.close, 2),
+      rsi_20_value: roundNum(rsiShares[20] * r.close, 2),
+      rsi_25_value: roundNum(rsiShares[25] * r.close, 2),
+      rsi_30_value: roundNum(rsiShares[30] * r.close, 2),
     });
   }
 
