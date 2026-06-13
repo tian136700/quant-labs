@@ -44,12 +44,29 @@ body {
 }
 
 .page-header {
-  @apply flex justify-between items-center z-20 flex-wrap gap-2;
+  @apply flex z-20 gap-2;
+  flex-direction: column;
+  align-items: stretch;
   position: sticky;
   top: 0;
   padding-block: 0.5rem;
   margin-bottom: 0.25rem;
   background: color-mix(in srgb, var(--bg) 96%, transparent);
+}
+
+.page-header .lang-switch {
+  align-self: flex-end;
+}
+
+@screen md {
+  .page-header {
+    @apply justify-between items-center flex-wrap;
+    flex-direction: row;
+  }
+
+  .page-header .lang-switch {
+    align-self: auto;
+  }
 }
 
 @screen md {
@@ -111,10 +128,22 @@ body {
 /* ── Admin 导航（仅 Admin 登录后显示） ── */
 .admin-nav {
   @apply min-w-0 flex-1;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .admin-nav-list {
-  @apply flex flex-wrap gap-1 m-0 p-0 list-none;
+  @apply flex gap-1 m-0 p-0 list-none;
+  flex-wrap: nowrap;
+  width: max-content;
+  max-width: 100%;
+}
+
+@screen md {
+  .admin-nav-list {
+    flex-wrap: wrap;
+    width: auto;
+  }
 }
 
 .admin-nav-link {
@@ -1004,11 +1033,61 @@ textarea:focus {
   @apply text-xs text-muted m-0 leading-relaxed;
 }
 
-/* ── 后台管理表格（全端可横向滚动） ── */
+/* ── 后台管理 ── */
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-page--auth {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.admin-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@screen sm {
+  .admin-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@screen lg {
+  .admin-cards {
+    display: none;
+  }
+}
+
+.admin-card .strategy-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-card-meta {
+  @apply text-xs text-muted font-normal;
+  font-variant-numeric: tabular-nums;
+}
+
 .admin-table-wrap {
   @apply w-full overflow-x-auto;
   -webkit-overflow-scrolling: touch;
-  display: block;
+  display: none;
+}
+
+@screen lg {
+  .admin-table-wrap {
+    display: block;
+  }
 }
 
 .admin-table th,
@@ -1021,6 +1100,39 @@ textarea:focus {
   max-width: 16rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.admin-pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--border);
+}
+
+@screen sm {
+  .admin-pagination {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.admin-pagination-summary {
+  @apply text-xs text-muted m-0;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-pagination-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+@screen sm {
+  .admin-pagination-actions {
+    justify-content: flex-end;
+  }
 }
 
 /* ── 商店 / 外卖评价 ── */
