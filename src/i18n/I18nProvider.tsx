@@ -11,12 +11,16 @@ import {
 } from "react";
 import {
   formatMsg,
-  LS_LOCALE,
   messages,
   type Locale,
   type Messages,
 } from "./messages";
 import { localeHref } from "@/lib/locale-path";
+import {
+  needsGeoLocale,
+  persistLocale,
+  resolveClientLocale,
+} from "@/lib/locale-detect";
 
 type I18nContextValue = {
   locale: Locale;
@@ -27,33 +31,6 @@ type I18nContextValue = {
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
-
-function readRouteLocale(): Locale | null {
-  if (typeof window === "undefined") return null;
-  const path = window.location.pathname;
-  if (path === "/zh" || path.startsWith("/zh/")) return "zh";
-  return null;
-}
-
-function readStoredLocale(): Locale | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const v = localStorage.getItem(LS_LOCALE);
-    if (v === "zh" || v === "en") return v;
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
-
-function persistLocale(next: Locale) {
-  try {
-    localStorage.setItem(LS_LOCALE, next);
-  } catch {
-    /* ignore */
-  }
-  document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
-}
 
 async function fetchIpLocale(): Promise<Locale | null> {
   try {
@@ -76,19 +53,33 @@ function saveIpLocale(next: Locale) {
   });
 }
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("en");
-  const [ready, setReady] = useState(false);
+export function I18nProvider({
+  children,
+  serverLocale = null,
+}: {
+  children: ReactNode;
+  serverLocale?: Locale | null;
+}) {
+  const [locale, setLocaleState] = useState<Locale>(() =>
+    resolveClientLocale(serverLocale)
+  );
+  const [ready, setReady] = useState(() => !needsGeoLocale(serverLocale));
 
   useEffect(() => {
-    let cancelled = false;
+    const resolved = resolveClientLocale(serverLocale);
+    setLocaleState(resolved);
+    persistLocale(resolved);
 
+    if (!needsGeoLocale(serverLocale)) {
+      setReady(true);
+      return;
+    }
+
+    let cancelled = false;
     void (async () => {
       const ipLocale = await fetchIpLocale();
       if (cancelled) return;
-
-      const next =
-        readStoredLocale() ?? readRouteLocale() ?? ipLocale ?? "en";
+      const next = ipLocale ?? "en";
       setLocaleState(next);
       persistLocale(next);
       setReady(true);
@@ -97,7 +88,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [serverLocale]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
