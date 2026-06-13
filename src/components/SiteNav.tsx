@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
+import { useStoreReviewSubdomain } from "@/hooks/useStoreReviewSubdomain";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
   aboutPath,
@@ -11,9 +12,11 @@ import {
   isAboutPath,
   isAdminPath,
   isComparePath,
-  isStoreReviewPath,
+  isStoreReviewHomePath,
+  isStoreReviewPlazaPath,
   isTeacherReviewPath,
   storeReviewPath,
+  storeReviewPlazaPath,
   teacherReviewNavPath,
 } from "@/lib/locale-path";
 
@@ -22,38 +25,52 @@ export function SiteNav() {
   const { isAdmin, checking } = useEtrAuth();
   const pathname = usePathname() ?? "/";
   const nav = t("nav");
+  const onSubdomain = useStoreReviewSubdomain();
 
-  const items = [
-    ...(checking || !isAdmin
-      ? []
-      : [
-          {
-            href: comparePath(locale),
-            label: nav.strategyCompare,
-            active: isComparePath(pathname),
-          },
-          {
-            href: teacherReviewNavPath(locale),
-            label: nav.teacherReview,
-            active: isTeacherReviewPath(pathname),
-          },
-          {
-            href: adminPath(locale),
-            label: nav.adminDashboard,
-            active: isAdminPath(pathname),
-          },
-        ]),
-    {
-      href: storeReviewPath(locale),
-      label: nav.storeReview,
-      active: isStoreReviewPath(pathname),
-    },
-    {
-      href: aboutPath(locale),
-      label: nav.about,
-      active: isAboutPath(pathname),
-    },
-  ];
+  const items = onSubdomain
+    ? [
+        {
+          href: storeReviewPath(locale),
+          label: nav.storeReview,
+          active: isStoreReviewHomePath(pathname),
+        },
+        {
+          href: storeReviewPlazaPath(locale),
+          label: t("storeReview").plaza.title,
+          active: isStoreReviewPlazaPath(pathname),
+        },
+      ]
+    : [
+        ...(checking || !isAdmin
+          ? []
+          : [
+              {
+                href: comparePath(locale),
+                label: nav.strategyCompare,
+                active: isComparePath(pathname),
+              },
+              {
+                href: teacherReviewNavPath(locale),
+                label: nav.teacherReview,
+                active: isTeacherReviewPath(pathname),
+              },
+              {
+                href: adminPath(locale),
+                label: nav.adminDashboard,
+                active: isAdminPath(pathname),
+              },
+            ]),
+        {
+          href: storeReviewPath(locale),
+          label: nav.storeReview,
+          active: isStoreReviewHomePath(pathname),
+        },
+        {
+          href: aboutPath(locale),
+          label: nav.about,
+          active: isAboutPath(pathname),
+        },
+      ];
 
   return (
     <nav className="admin-nav" aria-label={nav.ariaLabel}>
