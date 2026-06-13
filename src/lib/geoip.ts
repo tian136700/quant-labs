@@ -7,9 +7,12 @@ export function clientCountryCode(request: Request): string | null {
   return cc.toUpperCase();
 }
 
-/** 首次访问时按 IP 国家建议默认语言（仅 CN 默认中文） */
+/** 首次访问时按 IP 国家建议默认语言（中国大陆、港、台、澳默认中文） */
+const ZH_GEO_COUNTRIES = new Set(["CN", "HK", "TW", "MO"]);
+
 export function localeFromCountry(countryCode: string | null): Locale {
-  return countryCode === "CN" ? "zh" : "en";
+  if (countryCode && ZH_GEO_COUNTRIES.has(countryCode)) return "zh";
+  return "en";
 }
 
 export function countryDisplayName(

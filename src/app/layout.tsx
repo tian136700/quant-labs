@@ -25,17 +25,15 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const headerStore = await headers();
-  const serverLocale: Locale | null = parseLocale(headerStore.get(LOCALE_HEADER));
+  const serverLocale: Locale =
+    parseLocale(headerStore.get(LOCALE_HEADER)) ?? "en";
 
   return (
-    <html
-      lang={serverLocale ? localeDocumentLang(serverLocale) : "en"}
-      suppressHydrationWarning
-    >
+    <html lang={localeDocumentLang(serverLocale)} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k=${JSON.stringify(LS_LOCALE)};var l=localStorage.getItem(k);var p=location.pathname;var z=l==="zh"||p==="/zh"||p.indexOf("/zh/")===0;if(z)document.documentElement.lang="zh-CN";}catch(e){}})();`,
+            __html: `(function(){try{var k=${JSON.stringify(LS_LOCALE)};var l=localStorage.getItem(k);var c=document.cookie.match(new RegExp("(?:^|; )"+k+"=([^;]*)"));var cv=c?decodeURIComponent(c[1]):"";var p=location.pathname;var z=l==="zh"||cv==="zh"||p==="/zh"||p.indexOf("/zh/")===0;if(z)document.documentElement.lang="zh-CN";}catch(e){}})();`,
           }}
         />
       </head>
