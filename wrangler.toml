@@ -17,3 +17,5 @@ database_id = "fd580cfa-ba64-4f04-9a96-d49c621ef84b"
 [vars]
 RSI_PERIOD = "6"
 PRICE_DECIMAL_PLACES = "3"
+# 外卖平台独立子域名（不含 https://），绑定 Custom Domain 后填真实值
+NEXT_PUBLIC_STORE_REVIEW_HOST = "food.info-quests.com"

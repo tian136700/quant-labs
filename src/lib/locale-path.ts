@@ -1,7 +1,30 @@
 import type { Locale } from "@/i18n/messages";
+import { isStoreReviewSubdomainHost } from "@/lib/store-review-host";
+
+function onStoreReviewSubdomain(): boolean {
+  if (typeof window === "undefined") return false;
+  return isStoreReviewSubdomainHost(window.location.hostname);
+}
+
+function localePathForSubdomain(pathname: string, locale: Locale): string {
+  const isPlaza =
+    pathname === "/plaza" ||
+    pathname === "/zh/plaza" ||
+    pathname === "/store-review/plaza" ||
+    pathname === "/zh/store-review/plaza";
+
+  if (locale === "zh") {
+    return isPlaza ? "/zh/plaza" : "/zh";
+  }
+  return isPlaza ? "/plaza" : "/";
+}
 
 /** 根据当前路径与目标语言生成 URL pathname（不含 query） */
 export function localePathForPathname(pathname: string, locale: Locale): string {
+  if (onStoreReviewSubdomain()) {
+    return localePathForSubdomain(pathname, locale);
+  }
+
   if (locale === "zh") {
     if (pathname === "/" || pathname === "") return "/zh";
     if (pathname === "/zh" || pathname.startsWith("/zh/")) return pathname;
@@ -29,14 +52,21 @@ export function teacherReviewNavPath(locale: Locale): string {
 }
 
 export function storeReviewPath(locale: Locale): string {
+  if (onStoreReviewSubdomain()) {
+    return locale === "zh" ? "/zh" : "/";
+  }
   return locale === "zh" ? "/zh/store-review" : "/store-review";
 }
 
 export function storeReviewPlazaPath(locale: Locale): string {
+  if (onStoreReviewSubdomain()) {
+    return locale === "zh" ? "/zh/plaza" : "/plaza";
+  }
   return locale === "zh" ? "/zh/store-review/plaza" : "/store-review/plaza";
 }
 
 export function isComparePath(pathname: string): boolean {
+  if (onStoreReviewSubdomain()) return false;
   return pathname === "/" || pathname === "/zh";
 }
 
@@ -47,13 +77,22 @@ export function isTeacherReviewPath(pathname: string): boolean {
   );
 }
 
+export function isStoreReviewHomePath(pathname: string): boolean {
+  if (onStoreReviewSubdomain()) {
+    return pathname === "/" || pathname === "/zh";
+  }
+  return pathname === "/store-review" || pathname === "/zh/store-review";
+}
+
+export function isStoreReviewPlazaPath(pathname: string): boolean {
+  if (onStoreReviewSubdomain()) {
+    return pathname === "/plaza" || pathname === "/zh/plaza";
+  }
+  return pathname === "/store-review/plaza" || pathname === "/zh/store-review/plaza";
+}
+
 export function isStoreReviewPath(pathname: string): boolean {
-  return (
-    pathname === "/store-review" ||
-    pathname === "/zh/store-review" ||
-    pathname === "/store-review/plaza" ||
-    pathname === "/zh/store-review/plaza"
-  );
+  return isStoreReviewHomePath(pathname) || isStoreReviewPlazaPath(pathname);
 }
 
 export function aboutPath(locale: Locale): string {
