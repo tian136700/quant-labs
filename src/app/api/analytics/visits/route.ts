@@ -20,9 +20,10 @@ export async function GET(request: Request) {
     }
 
     const url = new URL(request.url);
-    const limit = parseInt(url.searchParams.get("limit") || "500", 10);
-    const records = await listVisitLogs(env.DB, limit);
-    return jsonResponse({ ok: true, records });
+    const page = parseInt(url.searchParams.get("page") || "1", 10);
+    const pageSize = parseInt(url.searchParams.get("limit") || "50", 10);
+    const result = await listVisitLogs(env.DB, page, pageSize);
+    return jsonResponse({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

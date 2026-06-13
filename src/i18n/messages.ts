@@ -56,6 +56,11 @@ export type Messages = {
       eventDetail: string;
       locale: string;
       time: string;
+      pagination: {
+        prev: string;
+        next: string;
+        summary: string;
+      };
     };
     feedback: {
       heading: string;
@@ -391,6 +396,11 @@ export const messages: Record<Locale, Messages> = {
         eventDetail: "Detail",
         locale: "Locale",
         time: "Time",
+        pagination: {
+          prev: "Previous",
+          next: "Next",
+          summary: "Page {page} of {totalPages} ({total} records)",
+        },
       },
       feedback: {
         heading: "User feedback",
@@ -790,6 +800,11 @@ export const messages: Record<Locale, Messages> = {
         eventDetail: "操作详情",
         locale: "语言",
         time: "时间",
+        pagination: {
+          prev: "上一页",
+          next: "下一页",
+          summary: "第 {page} / {totalPages} 页，共 {total} 条",
+        },
       },
       feedback: {
         heading: "用户反馈",

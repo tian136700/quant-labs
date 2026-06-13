@@ -94,15 +94,54 @@ function attachIpVisitCounts(records: VisitLogRecord[]): VisitLogRecord[] {
   }));
 }
 
+export type VisitLogsPage = {
+  records: VisitLogRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function countVisitLogs(db: D1Database): Promise<number> {
+  if (devStoreEnabled) {
+    return devRecords.length;
+  }
+
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS total FROM visit_logs`)
+    .first<{ total: number }>();
+  return row?.total ?? 0;
+}
+
 export async function listVisitLogs(
   db: D1Database,
-  limit = 500
-): Promise<VisitLogRecord[]> {
-  const safeLimit = Math.min(Math.max(limit, 1), 2000);
+  page = 1,
+  pageSize = 50
+): Promise<VisitLogsPage> {
+  const safePageSize = Math.min(Math.max(pageSize, 1), 200);
+  const safePage = Math.max(page, 1);
 
   if (devStoreEnabled) {
-    return attachIpVisitCounts(devRecords.slice(0, safeLimit));
+    const total = devRecords.length;
+    const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+    const currentPage = Math.min(safePage, totalPages);
+    const offset = (currentPage - 1) * safePageSize;
+    const records = attachIpVisitCounts(
+      devRecords.slice(offset, offset + safePageSize)
+    );
+    return {
+      records,
+      total,
+      page: currentPage,
+      pageSize: safePageSize,
+      totalPages,
+    };
   }
+
+  const total = await countVisitLogs(db);
+  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+  const currentPage = Math.min(safePage, totalPages);
+  const offset = (currentPage - 1) * safePageSize;
 
   const { results } = await db
     .prepare(
@@ -110,10 +149,16 @@ export async function listVisitLogs(
               COUNT(*) OVER (PARTITION BY ip) AS ip_visit_count
        FROM visit_logs
        ORDER BY created_at DESC
-       LIMIT ?1`
+       LIMIT ?1 OFFSET ?2`
     )
-    .bind(safeLimit)
+    .bind(safePageSize, offset)
     .all<VisitLogRecord>();
 
-  return results ?? [];
+  return {
+    records: results ?? [],
+    total,
+    page: currentPage,
+    pageSize: safePageSize,
+    totalPages,
+  };
 }

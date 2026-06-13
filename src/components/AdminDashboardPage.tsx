@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
@@ -8,22 +8,50 @@ import { countryDisplayName } from "@/lib/geoip";
 import { teacherReviewNavPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 
+const VISIT_PAGE_SIZE = 50;
+
+function AdminCardField({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string;
+  value: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`strategy-card-item${wide ? " strategy-card-item--wide" : ""}`}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
 export function AdminDashboardPage() {
-  const { locale, t } = useI18n();
+  const { locale, t, tf } = useI18n();
   const adm = t("adminDashboard");
   const { isAdmin, checking } = useEtrAuth();
 
   const [visits, setVisits] = useState<VisitLogRecord[]>([]);
+  const [visitPage, setVisitPage] = useState(1);
+  const [visitTotal, setVisitTotal] = useState(0);
+  const [visitTotalPages, setVisitTotalPages] = useState(1);
   const [feedback, setFeedback] = useState<UserFeedbackRecord[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [status, setStatus] = useState("");
   const [statusKind, setStatusKind] = useState<"" | "err">("");
 
-  const loadVisits = useCallback(async () => {
+  const loadVisits = useCallback(async (page = 1) => {
     setLoadingVisits(true);
     try {
-      const res = await fetch("/api/analytics/visits", { credentials: "include" });
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(VISIT_PAGE_SIZE),
+      });
+      const res = await fetch(`/api/analytics/visits?${params}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       if (!data.ok) {
         setStatus(data.error || adm.status.loadFailed);
@@ -31,6 +59,9 @@ export function AdminDashboardPage() {
         return;
       }
       setVisits(data.records ?? []);
+      setVisitPage(data.page ?? page);
+      setVisitTotal(data.total ?? 0);
+      setVisitTotalPages(data.totalPages ?? 1);
     } catch {
       setStatus(adm.status.loadFailed);
       setStatusKind("err");
@@ -59,7 +90,7 @@ export function AdminDashboardPage() {
   }, [adm.status.loadFailed]);
 
   const loadAll = useCallback(async () => {
-    await Promise.all([loadVisits(), loadFeedback()]);
+    await Promise.all([loadVisits(1), loadFeedback()]);
   }, [loadVisits, loadFeedback]);
 
   useEffect(() => {
@@ -73,7 +104,7 @@ export function AdminDashboardPage() {
 
   if (!isAdmin) {
     return (
-      <div className="admin-page etr-page--auth">
+      <div className="admin-page admin-page--auth">
         <div className="page-hero etr-hero-center">
           <h1>{adm.page.title}</h1>
           <p className="sub">{adm.auth.required}</p>
@@ -108,17 +139,50 @@ export function AdminDashboardPage() {
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => void loadVisits()}
+            onClick={() => void loadVisits(visitPage)}
             disabled={loadingVisits}
           >
             {adm.visits.refresh}
           </button>
         </div>
 
-        {visits.length === 0 ? (
+        {!loadingVisits && visitTotal === 0 ? (
           <p className="hint">{adm.visits.empty}</p>
-        ) : (
-          <div className="admin-table-wrap">
+        ) : visitTotal > 0 ? (
+          <>
+            <div className="admin-cards">
+              {visits.map((row) => (
+                <article key={row.id} className="strategy-card admin-card">
+                  <h3 className="strategy-card-title">
+                    #{row.id}
+                    <span className="admin-card-meta">
+                      {formatBeijingDateTime(row.created_at)}
+                    </span>
+                  </h3>
+                  <dl className="strategy-card-grid">
+                    <AdminCardField label={adm.visits.ip} value={row.ip} />
+                    <AdminCardField
+                      label={adm.visits.ipVisitCount}
+                      value={row.ip_visit_count ?? "—"}
+                    />
+                    <AdminCardField
+                      label={adm.visits.country}
+                      value={countryDisplayName(row.country_code, "zh")}
+                    />
+                    <AdminCardField label={adm.visits.eventType} value={row.event_type} />
+                    <AdminCardField label={adm.visits.locale} value={row.locale ?? "—"} />
+                    <AdminCardField label={adm.visits.url} value={row.url_path} wide />
+                    <AdminCardField
+                      label={adm.visits.eventDetail}
+                      value={row.event_detail ?? "—"}
+                      wide
+                    />
+                  </dl>
+                </article>
+              ))}
+            </div>
+
+            <div className="admin-table-wrap">
             <table className="compare-table etr-table admin-table">
               <thead>
                 <tr>
@@ -150,7 +214,36 @@ export function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
-        )}
+
+            <nav className="admin-pagination" aria-label={adm.visits.heading}>
+              <p className="admin-pagination-summary">
+                {tf(adm.visits.pagination.summary, {
+                  page: visitPage,
+                  totalPages: visitTotalPages,
+                  total: visitTotal,
+                })}
+              </p>
+              <div className="admin-pagination-actions">
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact"
+                  onClick={() => void loadVisits(visitPage - 1)}
+                  disabled={loadingVisits || visitPage <= 1}
+                >
+                  {adm.visits.pagination.prev}
+                </button>
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact"
+                  onClick={() => void loadVisits(visitPage + 1)}
+                  disabled={loadingVisits || visitPage >= visitTotalPages}
+                >
+                  {adm.visits.pagination.next}
+                </button>
+              </div>
+            </nav>
+          </>
+        ) : null}
       </section>
 
       <section className="section etr-panel">
@@ -169,7 +262,38 @@ export function AdminDashboardPage() {
         {feedback.length === 0 ? (
           <p className="hint">{adm.feedback.empty}</p>
         ) : (
-          <div className="admin-table-wrap">
+          <>
+            <div className="admin-cards">
+              {feedback.map((row) => (
+                <article key={row.id} className="strategy-card admin-card">
+                  <h3 className="strategy-card-title">
+                    #{row.id}
+                    <span className="admin-card-meta">{row.email}</span>
+                  </h3>
+                  <dl className="strategy-card-grid">
+                    <AdminCardField label={adm.feedback.content} value={row.content} wide />
+                    <AdminCardField label={adm.feedback.ip} value={row.ip} />
+                    <AdminCardField
+                      label={adm.feedback.country}
+                      value={countryDisplayName(row.country_code, "zh")}
+                    />
+                    <AdminCardField label={adm.feedback.locale} value={row.locale ?? "—"} />
+                    <AdminCardField
+                      label={adm.feedback.url}
+                      value={row.url_path ?? "—"}
+                      wide
+                    />
+                    <AdminCardField
+                      label={adm.feedback.time}
+                      value={formatBeijingDateTime(row.created_at)}
+                      wide
+                    />
+                  </dl>
+                </article>
+              ))}
+            </div>
+
+            <div className="admin-table-wrap">
             <table className="compare-table etr-table admin-table">
               <thead>
                 <tr>
@@ -199,6 +323,7 @@ export function AdminDashboardPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
     </div>
