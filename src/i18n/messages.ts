@@ -688,7 +688,7 @@ export const messages: Record<Locale, Messages> = {
         search: "Search",
         listHeading: "Public reviews",
         usernameHint:
-          "Usernames are partially masked (first 2 + last 2 characters). Registration requires at least 6 characters.",
+          "Usernames are partially masked (first and last character only). Registration requires at least 6 characters.",
         loading: "Loading…",
         empty: "No public reviews match your filters yet.",
         loadFailed: "Failed to load public reviews.",
@@ -1082,7 +1082,7 @@ export const messages: Record<Locale, Messages> = {
         search: "搜索",
         listHeading: "公开评价",
         usernameHint:
-          "用户名仅显示前 2 位与后 2 位，中间用星号代替；注册时用户名至少 6 个字符。",
+          "用户名仅显示首尾各 1 个字符，中间用星号代替；注册时用户名至少 6 个字符。",
         loading: "加载中…",
         empty: "暂无符合条件的公开评价。",
         loadFailed: "加载公开评价失败。",

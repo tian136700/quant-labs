@@ -1,12 +1,11 @@
-/** 广场展示：前 2 位 + 星号 + 后 2 位（注册名至少 6 字符） */
+/** 广场展示：前 1 位 + 星号 + 后 1 位 */
 export function maskUsername(username: string): string {
   const name = username.trim();
   const len = name.length;
-  if (len <= 4) {
-    return "*".repeat(Math.max(len, 1));
-  }
-  const middleLen = Math.max(0, len - 4);
-  return `${name.slice(0, 2)}${"*".repeat(middleLen)}${name.slice(-2)}`;
+  if (len <= 1) return "*";
+  if (len === 2) return `${name[0]}*`;
+  const middleLen = len - 2;
+  return `${name.slice(0, 1)}${"*".repeat(middleLen)}${name.slice(-1)}`;
 }
 
 export const STORE_REVIEW_USERNAME_MIN = 6;
