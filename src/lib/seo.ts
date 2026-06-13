@@ -154,13 +154,27 @@ export function buildPageMetadata(input: PageMetaInput = {}): Metadata {
   };
 }
 
+function googleSiteVerificationCodes(): string[] {
+  const codes = [
+    process.env.GOOGLE_SITE_VERIFICATION,
+    process.env.FOOD_GOOGLE_SITE_VERIFICATION,
+  ]
+    .flatMap((raw) => (raw ? raw.split(/[,\s]+/) : []))
+    .map((code) => code.trim())
+    .filter(Boolean);
+  return [...new Set(codes)];
+}
+
 export const defaultMetadata: Metadata = {
   ...buildPageMetadata({ locale: "en" }),
   metadataBase: new URL(SITE_URL),
-  ...(process.env.GOOGLE_SITE_VERIFICATION
+  ...(googleSiteVerificationCodes().length
     ? {
         verification: {
-          google: process.env.GOOGLE_SITE_VERIFICATION,
+          google:
+            googleSiteVerificationCodes().length === 1
+              ? googleSiteVerificationCodes()[0]
+              : googleSiteVerificationCodes(),
         },
       }
     : {}),
