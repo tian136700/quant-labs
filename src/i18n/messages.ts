@@ -16,6 +16,7 @@ export type Messages = {
     ariaLabel: string;
     strategyCompare: string;
     teacherReview: string;
+    storeReview: string;
     about: string;
     adminDashboard: string;
   };
@@ -218,6 +219,104 @@ export type Messages = {
       faq: { q: string; a: string }[];
     };
   };
+  storeReview: {
+    meta: { title: string; description: string };
+    page: { title: string; subtitle: string; plazaLink: string };
+    form: {
+      heading: string;
+      platform: string;
+      platformPlaceholder: string;
+      platformGroupIntl: string;
+      platformGroupCn: string;
+      platformGroupMisc: string;
+      platformOther: string;
+      platformOtherPlaceholder: string;
+      platformRequired: string;
+      platformOtherRequired: string;
+      storeName: string;
+      storeNamePlaceholder: string;
+      storeNameRequired: string;
+      score: string;
+      scorePlaceholder: string;
+      scoreRequired: string;
+      scoreUnit: string;
+      remark: string;
+      remarkPlaceholder: string;
+      publicLabel: string;
+      publicHint: string;
+      goodDishes: string;
+      badDishes: string;
+      addDish: string;
+      removeDish: string;
+      dishEmptyHint: string;
+      dishNamePlaceholder: string;
+      dishRemarkPlaceholder: string;
+      badDishRemarkPlaceholder: string;
+      save: string;
+      saving: string;
+      reset: string;
+      required: string;
+    };
+    history: {
+      heading: string;
+      refresh: string;
+      sortHint: string;
+      empty: string;
+      loginHint: string;
+      id: string;
+      storeName: string;
+      platform: string;
+      score: string;
+      remark: string;
+      visibility: string;
+      public: string;
+      private: string;
+      goodDishes: string;
+      badDishes: string;
+      updatedAt: string;
+      actions: string;
+      edit: string;
+      delete: string;
+      confirmDelete: string;
+    };
+    status: {
+      saved: string;
+      deleted: string;
+      loadFailed: string;
+      saveFailed: string;
+      deleteFailed: string;
+      editLoaded: string;
+      resetDone: string;
+    };
+    auth: {
+      loginTab: string;
+      registerTab: string;
+      logout: string;
+    };
+    demo: {
+      banner: string;
+      loginToSave: string;
+    };
+    plaza: {
+      metaTitle: string;
+      title: string;
+      subtitle: string;
+      myReviewsLink: string;
+      filterHeading: string;
+      platform: string;
+      allPlatforms: string;
+      storeSearch: string;
+      storeSearchPlaceholder: string;
+      search: string;
+      listHeading: string;
+      usernameHint: string;
+      loading: string;
+      empty: string;
+      loadFailed: string;
+      goodDishes: string;
+      badDishes: string;
+    };
+  };
 };
 
 export const messages: Record<Locale, Messages> = {
@@ -236,6 +335,7 @@ export const messages: Record<Locale, Messages> = {
       ariaLabel: "Site navigation",
       strategyCompare: "DCA vs RSI",
       teacherReview: "Teacher Review",
+      storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
     },
@@ -483,6 +583,119 @@ export const messages: Record<Locale, Messages> = {
         ],
       },
     },
+    storeReview: {
+      meta: {
+        title: "Store & Delivery Review — Rate Shops, Dishes & Share Tips",
+        description:
+          "Log scores for Grab, Meituan, Uber Eats and offline stores. Mark good dishes and ones to avoid. Share public reviews on the plaza.",
+      },
+      page: {
+        title: "Store & Delivery Review",
+        subtitle:
+          "Rate shops on delivery apps or offline — score 1–10, note good dishes and ones to skip, optionally share on the public plaza.",
+        plazaLink: "Browse public reviews on the plaza →",
+      },
+      form: {
+        heading: "Add / Edit Review",
+        platform: "Platform",
+        platformPlaceholder: "Select platform",
+        platformGroupIntl: "International",
+        platformGroupCn: "China",
+        platformGroupMisc: "Other / Offline",
+        platformOther: "Platform name",
+        platformOtherPlaceholder: "Enter platform name",
+        platformRequired: "Please select a platform.",
+        platformOtherRequired: "Please enter the platform name.",
+        storeName: "Store name",
+        storeNamePlaceholder: "Enter store or restaurant name",
+        storeNameRequired: "Please enter the store name.",
+        score: "Score",
+        scorePlaceholder: "Select score (1–10)",
+        scoreRequired: "Please select a score.",
+        scoreUnit: "pts",
+        remark: "Notes",
+        remarkPlaceholder:
+          "Overall experience, delivery speed, packaging, service…",
+        publicLabel: "Share publicly on the plaza",
+        publicHint:
+          "When checked, others can see this review (username partially masked). Unchecked = private to you only.",
+        goodDishes: "Recommended dishes",
+        badDishes: "Dishes to avoid",
+        addDish: "+ Add dish",
+        removeDish: "Remove",
+        dishEmptyHint: "Click “+ Add dish” to list items.",
+        dishNamePlaceholder: "Dish name",
+        dishRemarkPlaceholder: "Optional note",
+        badDishRemarkPlaceholder: "Why to avoid (optional)",
+        save: "Save",
+        saving: "Saving…",
+        reset: "Clear form (new)",
+        required: "*",
+      },
+      history: {
+        heading: "My review history",
+        refresh: "Refresh",
+        sortHint:
+          "Tip: click column headers to sort (toggle ascending / descending).",
+        empty: "No reviews yet.",
+        loginHint: "Log in to view and manage your review history.",
+        id: "ID",
+        storeName: "Store",
+        platform: "Platform",
+        score: "Score",
+        remark: "Notes",
+        visibility: "Visibility",
+        public: "Public",
+        private: "Private",
+        goodDishes: "Good dishes",
+        badDishes: "Avoid",
+        updatedAt: "Updated",
+        actions: "Actions",
+        edit: "Edit",
+        delete: "Delete",
+        confirmDelete: "Delete this review?",
+      },
+      status: {
+        saved: "Saved.",
+        deleted: "Deleted.",
+        loadFailed: "Failed to load records.",
+        saveFailed: "Save failed.",
+        deleteFailed: "Delete failed.",
+        editLoaded: "Loaded for editing — change fields and save.",
+        resetDone: "Form cleared for a new entry.",
+      },
+      auth: {
+        loginTab: "Log in",
+        registerTab: "Register",
+        logout: "Log out",
+      },
+      demo: {
+        banner:
+          "Log in or register to save reviews. Public reviews appear on the plaza with a masked username.",
+        loginToSave: "Please log in or register to save reviews.",
+      },
+      plaza: {
+        metaTitle: "Store Review Plaza — Public Delivery & Shop Ratings",
+        title: "Store Review Plaza",
+        subtitle:
+          "Browse public shop reviews from delivery apps and offline stores — see scores, recommended dishes, and ones to avoid.",
+        myReviewsLink: "← Add or manage my reviews",
+        filterHeading: "Filter",
+        platform: "Platform",
+        allPlatforms: "All platforms",
+        storeSearch: "Store name",
+        storeSearchPlaceholder: "Search by store name…",
+        search: "Search",
+        listHeading: "Public reviews",
+        usernameHint:
+          "Usernames are partially masked (first 2 + last 2 characters). Registration requires at least 6 characters.",
+        loading: "Loading…",
+        empty: "No public reviews match your filters yet.",
+        loadFailed: "Failed to load public reviews.",
+        goodDishes: "Recommended",
+        badDishes: "Avoid",
+      },
+    },
     seo: {
       heading: "About DCA vs RSI(6) backtesting",
       intro:
@@ -522,6 +735,7 @@ export const messages: Record<Locale, Messages> = {
       ariaLabel: "站点导航",
       strategyCompare: "定投 vs RSI",
       teacherReview: "英语老师评价",
+      storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",
     },
@@ -763,6 +977,117 @@ export const messages: Record<Locale, Messages> = {
             a: "例如：发音是否清晰、纠错是否及时、对话引导如何、是否经常取消、是否愿意再约等，任何有助于下次选课的信息都可以写。",
           },
         ],
+      },
+    },
+    storeReview: {
+      meta: {
+        title: "商店 / 外卖评价 — 打分、避雷菜品、公开分享",
+        description:
+          "记录 Grab、美团、Uber Eats 及线下店铺评分，标注好吃与避雷菜品，可选公开到评价广场。",
+      },
+      page: {
+        title: "商店 / 外卖评价",
+        subtitle:
+          "给外卖平台或线下店铺打分（1～10 分），记录推荐菜与避雷菜，可选择公开到评价广场。",
+        plazaLink: "去评价广场看看大家的公开评价 →",
+      },
+      form: {
+        heading: "新增 / 编辑评价",
+        platform: "平台",
+        platformPlaceholder: "请选择平台",
+        platformGroupIntl: "国外平台",
+        platformGroupCn: "国内平台",
+        platformGroupMisc: "其他 / 线下",
+        platformOther: "平台名称",
+        platformOtherPlaceholder: "请输入平台名称",
+        platformRequired: "请选择平台。",
+        platformOtherRequired: "选择「其他平台」时请填写平台名称。",
+        storeName: "商店名称",
+        storeNamePlaceholder: "请输入店铺或餐厅名称",
+        storeNameRequired: "请输入商店名称。",
+        score: "评分",
+        scorePlaceholder: "请选择评分（1～10 分）",
+        scoreRequired: "请选择评分。",
+        scoreUnit: "分",
+        remark: "备注",
+        remarkPlaceholder: "整体体验、配送速度、包装、服务等…",
+        publicLabel: "公开到评价广场",
+        publicHint:
+          "勾选后其他人可在广场看到（用户名部分打码）；不勾选则仅自己可见。",
+        goodDishes: "推荐菜品",
+        badDishes: "避雷菜品",
+        addDish: "+ 添加菜品",
+        removeDish: "删除",
+        dishEmptyHint: "点击「+ 添加菜品」填写菜名。",
+        dishNamePlaceholder: "菜名",
+        dishRemarkPlaceholder: "备注（可选）",
+        badDishRemarkPlaceholder: "避雷原因（可选）",
+        save: "保存",
+        saving: "保存中…",
+        reset: "清空表单（新增）",
+        required: "*",
+      },
+      history: {
+        heading: "我的评价记录",
+        refresh: "刷新",
+        sortHint: "提示：点击表头可按列排序（升序 / 降序切换）。",
+        empty: "暂无记录。",
+        loginHint: "登录后可查看与管理您的评价记录。",
+        id: "ID",
+        storeName: "商店",
+        platform: "平台",
+        score: "评分",
+        remark: "备注",
+        visibility: "可见性",
+        public: "公开",
+        private: "私密",
+        goodDishes: "推荐菜",
+        badDishes: "避雷",
+        updatedAt: "更新时间",
+        actions: "操作",
+        edit: "编辑",
+        delete: "删除",
+        confirmDelete: "确认删除该条评价吗？",
+      },
+      status: {
+        saved: "保存成功。",
+        deleted: "已删除。",
+        loadFailed: "加载记录失败，请重试。",
+        saveFailed: "保存失败。",
+        deleteFailed: "删除失败，请重试。",
+        editLoaded: "已载入编辑，修改后点击保存。",
+        resetDone: "已切换为新增。",
+      },
+      auth: {
+        loginTab: "登录",
+        registerTab: "注册",
+        logout: "退出登录",
+      },
+      demo: {
+        banner:
+          "登录或注册后可保存评价。勾选公开的评价会出现在广场，用户名会部分打码显示。",
+        loginToSave: "请先登录或注册后再保存评价。",
+      },
+      plaza: {
+        metaTitle: "评价广场 — 公开的外卖 / 店铺评价",
+        title: "评价广场",
+        subtitle:
+          "浏览大家公开分享的店铺评价：平台、评分、推荐菜与避雷菜。",
+        myReviewsLink: "← 去新增或管理我的评价",
+        filterHeading: "筛选",
+        platform: "平台",
+        allPlatforms: "全部平台",
+        storeSearch: "商店名称",
+        storeSearchPlaceholder: "按店名搜索…",
+        search: "搜索",
+        listHeading: "公开评价",
+        usernameHint:
+          "用户名仅显示前 2 位与后 2 位，中间用星号代替；注册时用户名至少 6 个字符。",
+        loading: "加载中…",
+        empty: "暂无符合条件的公开评价。",
+        loadFailed: "加载公开评价失败。",
+        goodDishes: "推荐",
+        badDishes: "避雷",
       },
     },
     seo: {

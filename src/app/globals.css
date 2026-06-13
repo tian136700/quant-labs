@@ -1022,3 +1022,155 @@ textarea:focus {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ── 商店 / 外卖评价 ── */
+.svr-plaza-link-wrap {
+  margin-top: 0.5rem;
+}
+
+.svr-plaza-link {
+  @apply text-accent no-underline;
+}
+
+.svr-plaza-link:hover {
+  text-decoration: underline;
+}
+
+.svr-public-label {
+  @apply inline-flex items-center gap-2 cursor-pointer text-sm;
+}
+
+.svr-public-label input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.svr-dish-block {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.svr-dish-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.svr-dish-title {
+  @apply text-sm font-semibold text-muted m-0;
+}
+
+.svr-dish-empty {
+  margin: 0;
+}
+
+.svr-dish-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.svr-dish-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+@screen xs {
+  .svr-dish-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.svr-dish-tags {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.svr-dish-tags li {
+  @apply text-xs rounded px-2 py-0.5;
+}
+
+.svr-dish-tags--good li {
+  color: var(--fall);
+  background: color-mix(in srgb, var(--fall) 15%, transparent);
+}
+
+.svr-dish-tags--bad li {
+  color: var(--rise);
+  background: color-mix(in srgb, var(--rise) 15%, transparent);
+}
+
+.svr-plaza-filters {
+  align-items: end;
+}
+
+.svr-plaza-filter-action {
+  display: flex;
+  align-items: flex-end;
+}
+
+.svr-plaza-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+}
+
+@screen md {
+  .svr-plaza-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.svr-plaza-card {
+  @apply bg-panel border border-border rounded-card;
+  padding: clamp(0.875rem, 2vw, 1.125rem);
+}
+
+.svr-plaza-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.svr-plaza-store {
+  margin-bottom: 0.25rem !important;
+  border: none !important;
+  padding-bottom: 0 !important;
+}
+
+.svr-plaza-meta {
+  margin: 0;
+}
+
+.svr-plaza-remark {
+  @apply text-sm text-text m-0 mb-3;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.svr-plaza-dish-group {
+  margin-bottom: 0.75rem;
+}
+
+.svr-plaza-dish-group h4 {
+  @apply text-xs font-semibold text-muted m-0 mb-1;
+}
+
+.svr-plaza-time {
+  margin: 0;
+}

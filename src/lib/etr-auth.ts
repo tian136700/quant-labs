@@ -95,7 +95,7 @@ export function normalizeUsername(raw: string): string {
 }
 
 export function isValidUsername(username: string): boolean {
-  if (username.length < 2 || username.length > 32) return false;
+  if (username.length < 6 || username.length > 32) return false;
   return /^[\w\u4e00-\u9fff.-]+$/u.test(username);
 }
 

@@ -22,8 +22,8 @@ const AUTH_ERRORS: Record<string, Record<"en" | "zh", string>> = {
     zh: "用户名或密码错误。",
   },
   username_invalid: {
-    en: "Username must be 2–32 characters (letters, numbers, _ . -).",
-    zh: "用户名须为 2～32 个字符（字母、数字、下划线、点、横线）。",
+    en: "Username must be 6–32 characters (letters, numbers, _ . -).",
+    zh: "用户名须为 6～32 个字符（字母、数字、下划线、点、横线）。",
   },
   username_reserved: {
     en: "This username is reserved.",
