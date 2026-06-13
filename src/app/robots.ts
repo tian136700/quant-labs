@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { storeReviewSiteUrl } from "@/lib/store-review-seo";
 import { SITE_URL } from "@/lib/site";
 
 export default function robots(): MetadataRoute.Robots {
@@ -7,6 +8,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: `${SITE_URL}/sitemap.xml`,
+    sitemap: [`${SITE_URL}/sitemap.xml`, `${storeReviewSiteUrl()}/sitemap.xml`],
   };
 }
