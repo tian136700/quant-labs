@@ -11,7 +11,9 @@ import {
   isAboutPath,
   isAdminPath,
   isComparePath,
+  isStoreReviewPath,
   isTeacherReviewPath,
+  storeReviewPath,
   teacherReviewNavPath,
 } from "@/lib/locale-path";
 
@@ -41,6 +43,11 @@ export function SiteNav() {
             active: isAdminPath(pathname),
           },
         ]),
+    {
+      href: storeReviewPath(locale),
+      label: nav.storeReview,
+      active: isStoreReviewPath(pathname),
+    },
     {
       href: aboutPath(locale),
       label: nav.about,

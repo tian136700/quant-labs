@@ -28,6 +28,14 @@ export function teacherReviewNavPath(locale: Locale): string {
   return locale === "zh" ? "/zh/english-teacher-review" : "/english-teacher-review";
 }
 
+export function storeReviewPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/store-review" : "/store-review";
+}
+
+export function storeReviewPlazaPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/store-review/plaza" : "/store-review/plaza";
+}
+
 export function isComparePath(pathname: string): boolean {
   return pathname === "/" || pathname === "/zh";
 }
@@ -36,6 +44,15 @@ export function isTeacherReviewPath(pathname: string): boolean {
   return (
     pathname === "/english-teacher-review" ||
     pathname === "/zh/english-teacher-review"
+  );
+}
+
+export function isStoreReviewPath(pathname: string): boolean {
+  return (
+    pathname === "/store-review" ||
+    pathname === "/zh/store-review" ||
+    pathname === "/store-review/plaza" ||
+    pathname === "/zh/store-review/plaza"
   );
 }
 

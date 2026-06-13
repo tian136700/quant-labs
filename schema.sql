@@ -72,6 +72,36 @@ CREATE TABLE IF NOT EXISTS etr_sessions (
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_user ON etr_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_expires ON etr_sessions (expires_at);
 
+-- 商店 / 外卖评价（用户私有 + 可选公开到广场）
+CREATE TABLE IF NOT EXISTS store_review (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id        INTEGER NOT NULL,
+  platform       TEXT    NOT NULL,
+  platform_other TEXT,
+  store_name     TEXT    NOT NULL,
+  score          INTEGER NOT NULL,
+  remark         TEXT,
+  is_public      INTEGER NOT NULL DEFAULT 0,
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS store_review_dish (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  review_id  INTEGER NOT NULL,
+  kind       TEXT    NOT NULL,
+  dish_name  TEXT    NOT NULL,
+  remark     TEXT,
+  FOREIGN KEY (review_id) REFERENCES store_review(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_store_review_user ON store_review (user_id);
+CREATE INDEX IF NOT EXISTS idx_store_review_public ON store_review (is_public, updated_at);
+CREATE INDEX IF NOT EXISTS idx_store_review_platform ON store_review (platform);
+CREATE INDEX IF NOT EXISTS idx_store_review_store ON store_review (store_name);
+CREATE INDEX IF NOT EXISTS idx_store_review_dish_review ON store_review_dish (review_id);
+
 -- 用户反馈（关于页面提交）
 CREATE TABLE IF NOT EXISTS user_feedback (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,

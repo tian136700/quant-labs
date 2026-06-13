@@ -3,6 +3,7 @@ import { enableAnalyticsDevStore } from "@/lib/analytics-db";
 import { enableEtrAuthDevStore } from "@/lib/etr-auth-db";
 import { enableEnglishTeacherReviewDevStore } from "@/lib/english-teacher-review-db";
 import { enableFeedbackDevStore } from "@/lib/feedback-db";
+import { enableStoreReviewDevStore } from "@/store-review/db";
 import type { CloudflareEnv } from "@/lib/types";
 
 function withLocalAuthEnv(cfEnv: CloudflareEnv): CloudflareEnv {
@@ -26,6 +27,7 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
 
   enableEnglishTeacherReviewDevStore();
   enableEtrAuthDevStore();
+  enableStoreReviewDevStore();
   enableFeedbackDevStore();
   enableAnalyticsDevStore();
   return withLocalAuthEnv({
