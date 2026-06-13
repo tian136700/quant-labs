@@ -6,19 +6,14 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useStoreReviewSubdomain } from "@/hooks/useStoreReviewSubdomain";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
-  aboutPath,
-  adminPath,
-  comparePath,
   isAboutPath,
   isAdminPath,
   isComparePath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
   isTeacherReviewPath,
-  storeReviewPath,
-  storeReviewPlazaPath,
-  teacherReviewNavPath,
 } from "@/lib/locale-path";
+import { navHref } from "@/lib/nav-href";
 
 export function SiteNav() {
   const { locale, t } = useI18n();
@@ -26,49 +21,51 @@ export function SiteNav() {
   const pathname = usePathname() ?? "/";
   const nav = t("nav");
   const onSubdomain = useStoreReviewSubdomain();
+  const navOpts = { onSubdomain, isAdmin };
+  const showFullNav = !onSubdomain || isAdmin;
 
-  const items = onSubdomain
+  const items = showFullNav
     ? [
-        {
-          href: storeReviewPath(locale),
-          label: nav.storeReview,
-          active: isStoreReviewHomePath(pathname),
-        },
-        {
-          href: storeReviewPlazaPath(locale),
-          label: t("storeReview").plaza.title,
-          active: isStoreReviewPlazaPath(pathname),
-        },
-      ]
-    : [
         ...(checking || !isAdmin
           ? []
           : [
               {
-                href: comparePath(locale),
+                href: navHref("compare", locale, navOpts),
                 label: nav.strategyCompare,
                 active: isComparePath(pathname),
               },
               {
-                href: teacherReviewNavPath(locale),
+                href: navHref("teacherReview", locale, navOpts),
                 label: nav.teacherReview,
                 active: isTeacherReviewPath(pathname),
               },
               {
-                href: adminPath(locale),
+                href: navHref("admin", locale, navOpts),
                 label: nav.adminDashboard,
                 active: isAdminPath(pathname),
               },
             ]),
         {
-          href: storeReviewPath(locale),
+          href: navHref("storeReview", locale, navOpts),
           label: nav.storeReview,
           active: isStoreReviewHomePath(pathname),
         },
         {
-          href: aboutPath(locale),
+          href: navHref("about", locale, navOpts),
           label: nav.about,
           active: isAboutPath(pathname),
+        },
+      ]
+    : [
+        {
+          href: navHref("storeReview", locale, navOpts),
+          label: nav.storeReview,
+          active: isStoreReviewHomePath(pathname),
+        },
+        {
+          href: navHref("storeReviewPlaza", locale, navOpts),
+          label: t("storeReview").plaza.title,
+          active: isStoreReviewPlazaPath(pathname),
         },
       ];
 
