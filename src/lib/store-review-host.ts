@@ -2,6 +2,11 @@
 export const STORE_REVIEW_HOST =
   process.env.NEXT_PUBLIC_STORE_REVIEW_HOST?.trim().toLowerCase() || "";
 
+/** 外卖子域名完整站点 URL，如 https://food.info-quests.com */
+export const STORE_REVIEW_SITE_URL =
+  process.env.NEXT_PUBLIC_STORE_REVIEW_SITE_URL?.replace(/\/$/, "") ||
+  (STORE_REVIEW_HOST ? `https://${STORE_REVIEW_HOST}` : "");
+
 export function isStoreReviewSubdomainHost(host: string | null | undefined): boolean {
   if (!STORE_REVIEW_HOST || !host) return false;
   return host.split(":")[0].toLowerCase() === STORE_REVIEW_HOST;
