@@ -133,18 +133,58 @@ export function parseSessionCookie(cookieHeader: string | null): string | null {
   return null;
 }
 
+/** 跨子域名共享登录 Cookie（如 finance / food 共用 .info-quests.com） */
+export function authCookieDomain(): string {
+  const explicit = process.env.ETR_COOKIE_DOMAIN?.trim();
+  if (explicit) {
+    return explicit.startsWith(".") ? explicit : `.${explicit}`;
+  }
+
+  for (const raw of [
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.NEXT_PUBLIC_STORE_REVIEW_HOST,
+  ]) {
+    if (!raw) continue;
+    try {
+      const host = (
+        raw.startsWith("http") ? new URL(raw).hostname : raw.split(":")[0]
+      ).toLowerCase();
+      if (
+        !host ||
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        host.endsWith(".local")
+      ) {
+        continue;
+      }
+      const parts = host.split(".");
+      if (parts.length >= 2) {
+        return `.${parts.slice(-2).join(".")}`;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return "";
+}
+
+function cookieDomainPart(): string {
+  const domain = authCookieDomain();
+  return domain ? `; Domain=${domain}` : "";
+}
+
 export function sessionCookieHeader(token: string, expiresAt: Date): string {
   const maxAge = Math.max(
     0,
     Math.floor((expiresAt.getTime() - Date.now()) / 1000)
   );
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${ETR_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+  return `${ETR_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${cookieDomainPart()}${secure}`;
 }
 
 export function clearSessionCookieHeader(): string {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
+  return `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${cookieDomainPart()}${secure}`;
 }
 
 export function formatExpiresHint(role: EtrUserRole, locale: "en" | "zh"): string {

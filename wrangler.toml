@@ -19,3 +19,5 @@ RSI_PERIOD = "6"
 PRICE_DECIMAL_PLACES = "3"
 # 外卖平台独立子域名（不含 https://），绑定 Custom Domain 后填真实值
 NEXT_PUBLIC_STORE_REVIEW_HOST = "food.info-quests.com"
+# 登录 Cookie 共享到所有 *.info-quests.com 子域名
+ETR_COOKIE_DOMAIN = ".info-quests.com"
