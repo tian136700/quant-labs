@@ -22,7 +22,11 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const pageSize = parseInt(url.searchParams.get("limit") || "50", 10);
-    const result = await listVisitLogs(env.DB, page, pageSize);
+    const sortParam = url.searchParams.get("sort");
+    const orderParam = url.searchParams.get("order");
+    const sort = sortParam === "ip_visit_count" ? "ip_visit_count" : "created_at";
+    const order = orderParam === "asc" ? "asc" : "desc";
+    const result = await listVisitLogs(env.DB, page, pageSize, sort, order);
     return jsonResponse({ ok: true, ...result });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

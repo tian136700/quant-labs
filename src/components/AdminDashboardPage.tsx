@@ -7,8 +7,19 @@ import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { countryDisplayName } from "@/lib/geoip";
 import { teacherReviewNavPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
+import type { VisitLogSortField, VisitLogSortOrder } from "@/lib/analytics-db";
 
 const VISIT_PAGE_SIZE = 50;
+
+type VisitSortState = {
+  field: VisitLogSortField;
+  order: VisitLogSortOrder;
+};
+
+const DEFAULT_VISIT_SORT: VisitSortState = {
+  field: "created_at",
+  order: "desc",
+};
 
 function AdminCardField({
   label,
@@ -36,39 +47,49 @@ export function AdminDashboardPage() {
   const [visitPage, setVisitPage] = useState(1);
   const [visitTotal, setVisitTotal] = useState(0);
   const [visitTotalPages, setVisitTotalPages] = useState(1);
+  const [visitSort, setVisitSort] = useState<VisitSortState>(DEFAULT_VISIT_SORT);
   const [feedback, setFeedback] = useState<UserFeedbackRecord[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [status, setStatus] = useState("");
   const [statusKind, setStatusKind] = useState<"" | "err">("");
 
-  const loadVisits = useCallback(async (page = 1) => {
-    setLoadingVisits(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(VISIT_PAGE_SIZE),
-      });
-      const res = await fetch(`/api/analytics/visits?${params}`, {
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setStatus(data.error || adm.status.loadFailed);
+  const loadVisits = useCallback(
+    async (page = 1, sort: VisitSortState = DEFAULT_VISIT_SORT) => {
+      setLoadingVisits(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(page),
+          limit: String(VISIT_PAGE_SIZE),
+          sort: sort.field,
+          order: sort.order,
+        });
+        const res = await fetch(`/api/analytics/visits?${params}`, {
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          setStatus(data.error || adm.status.loadFailed);
+          setStatusKind("err");
+          return;
+        }
+        setVisits(data.records ?? []);
+        setVisitPage(data.page ?? page);
+        setVisitTotal(data.total ?? 0);
+        setVisitTotalPages(data.totalPages ?? 1);
+        setVisitSort({
+          field: data.sort === "ip_visit_count" ? "ip_visit_count" : "created_at",
+          order: data.order === "asc" ? "asc" : "desc",
+        });
+      } catch {
+        setStatus(adm.status.loadFailed);
         setStatusKind("err");
-        return;
+      } finally {
+        setLoadingVisits(false);
       }
-      setVisits(data.records ?? []);
-      setVisitPage(data.page ?? page);
-      setVisitTotal(data.total ?? 0);
-      setVisitTotalPages(data.totalPages ?? 1);
-    } catch {
-      setStatus(adm.status.loadFailed);
-      setStatusKind("err");
-    } finally {
-      setLoadingVisits(false);
-    }
-  }, [adm.status.loadFailed]);
+    },
+    [adm.status.loadFailed]
+  );
 
   const loadFeedback = useCallback(async () => {
     setLoadingFeedback(true);
@@ -90,8 +111,21 @@ export function AdminDashboardPage() {
   }, [adm.status.loadFailed]);
 
   const loadAll = useCallback(async () => {
-    await Promise.all([loadVisits(1), loadFeedback()]);
+    await Promise.all([loadVisits(1, DEFAULT_VISIT_SORT), loadFeedback()]);
   }, [loadVisits, loadFeedback]);
+
+  const handleIpVisitCountSort = () => {
+    let next: VisitSortState;
+    if (visitSort.field !== "ip_visit_count") {
+      next = { field: "ip_visit_count", order: "desc" };
+    } else if (visitSort.order === "desc") {
+      next = { field: "ip_visit_count", order: "asc" };
+    } else {
+      next = DEFAULT_VISIT_SORT;
+    }
+    setVisitSort(next);
+    void loadVisits(1, next);
+  };
 
   useEffect(() => {
     if (checking || !isAdmin) return;
@@ -139,7 +173,7 @@ export function AdminDashboardPage() {
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => void loadVisits(visitPage)}
+            onClick={() => void loadVisits(visitPage, visitSort)}
             disabled={loadingVisits}
           >
             {adm.visits.refresh}
@@ -188,7 +222,33 @@ export function AdminDashboardPage() {
                 <tr>
                   <th>{adm.visits.id}</th>
                   <th>{adm.visits.ip}</th>
-                  <th>{adm.visits.ipVisitCount}</th>
+                  <th>
+                    <button
+                      type="button"
+                      className={`admin-sort-btn${
+                        visitSort.field === "ip_visit_count"
+                          ? " admin-sort-btn--active"
+                          : ""
+                      }`}
+                      onClick={handleIpVisitCountSort}
+                      aria-sort={
+                        visitSort.field === "ip_visit_count"
+                          ? visitSort.order === "desc"
+                            ? "descending"
+                            : "ascending"
+                          : "none"
+                      }
+                    >
+                      {adm.visits.ipVisitCount}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {visitSort.field === "ip_visit_count"
+                          ? visitSort.order === "desc"
+                            ? "↓"
+                            : "↑"
+                          : "↕"}
+                      </span>
+                    </button>
+                  </th>
                   <th>{adm.visits.country}</th>
                   <th>{adm.visits.url}</th>
                   <th>{adm.visits.eventType}</th>
@@ -227,7 +287,7 @@ export function AdminDashboardPage() {
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void loadVisits(visitPage - 1)}
+                  onClick={() => void loadVisits(visitPage - 1, visitSort)}
                   disabled={loadingVisits || visitPage <= 1}
                 >
                   {adm.visits.pagination.prev}
@@ -235,7 +295,7 @@ export function AdminDashboardPage() {
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void loadVisits(visitPage + 1)}
+                  onClick={() => void loadVisits(visitPage + 1, visitSort)}
                   disabled={loadingVisits || visitPage >= visitTotalPages}
                 >
                   {adm.visits.pagination.next}

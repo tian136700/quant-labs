@@ -94,13 +94,36 @@ function attachIpVisitCounts(records: VisitLogRecord[]): VisitLogRecord[] {
   }));
 }
 
+export type VisitLogSortField = "created_at" | "ip_visit_count";
+export type VisitLogSortOrder = "asc" | "desc";
+
 export type VisitLogsPage = {
   records: VisitLogRecord[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
+  sort: VisitLogSortField;
+  order: VisitLogSortOrder;
 };
+
+function sortVisitRecords(
+  records: VisitLogRecord[],
+  sort: VisitLogSortField,
+  order: VisitLogSortOrder
+): VisitLogRecord[] {
+  const dir = order === "asc" ? 1 : -1;
+  return [...records].sort((a, b) => {
+    if (sort === "ip_visit_count") {
+      const countDiff =
+        ((a.ip_visit_count ?? 0) - (b.ip_visit_count ?? 0)) * dir;
+      if (countDiff !== 0) return countDiff;
+    }
+    return (
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  });
+}
 
 export async function countVisitLogs(db: D1Database): Promise<number> {
   if (devStoreEnabled) {
@@ -116,25 +139,35 @@ export async function countVisitLogs(db: D1Database): Promise<number> {
 export async function listVisitLogs(
   db: D1Database,
   page = 1,
-  pageSize = 50
+  pageSize = 50,
+  sort: VisitLogSortField = "created_at",
+  order: VisitLogSortOrder = "desc"
 ): Promise<VisitLogsPage> {
   const safePageSize = Math.min(Math.max(pageSize, 1), 200);
   const safePage = Math.max(page, 1);
+  const safeSort: VisitLogSortField =
+    sort === "ip_visit_count" ? "ip_visit_count" : "created_at";
+  const safeOrder: VisitLogSortOrder = order === "asc" ? "asc" : "desc";
 
   if (devStoreEnabled) {
-    const total = devRecords.length;
+    const sorted = sortVisitRecords(
+      attachIpVisitCounts([...devRecords]),
+      safeSort,
+      safeOrder
+    );
+    const total = sorted.length;
     const totalPages = Math.max(1, Math.ceil(total / safePageSize));
     const currentPage = Math.min(safePage, totalPages);
     const offset = (currentPage - 1) * safePageSize;
-    const records = attachIpVisitCounts(
-      devRecords.slice(offset, offset + safePageSize)
-    );
+    const records = sorted.slice(offset, offset + safePageSize);
     return {
       records,
       total,
       page: currentPage,
       pageSize: safePageSize,
       totalPages,
+      sort: safeSort,
+      order: safeOrder,
     };
   }
 
@@ -143,12 +176,17 @@ export async function listVisitLogs(
   const currentPage = Math.min(safePage, totalPages);
   const offset = (currentPage - 1) * safePageSize;
 
+  const orderBy =
+    safeSort === "ip_visit_count"
+      ? `ip_visit_count ${safeOrder.toUpperCase()}, created_at DESC`
+      : `created_at ${safeOrder.toUpperCase()}`;
+
   const { results } = await db
     .prepare(
       `SELECT id, ip, country_code, url_path, event_type, event_detail, locale, created_at,
               COUNT(*) OVER (PARTITION BY ip) AS ip_visit_count
        FROM visit_logs
-       ORDER BY created_at DESC
+       ORDER BY ${orderBy}
        LIMIT ?1 OFFSET ?2`
     )
     .bind(safePageSize, offset)
@@ -160,5 +198,7 @@ export async function listVisitLogs(
     page: currentPage,
     pageSize: safePageSize,
     totalPages,
+    sort: safeSort,
+    order: safeOrder,
   };
 }
