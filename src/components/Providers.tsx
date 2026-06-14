@@ -1,21 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { Locale } from "@/i18n/messages";
 import { EtrAuthProvider } from "@/contexts/EtrAuthProvider";
 import { I18nProvider } from "@/i18n/I18nProvider";
 import { ActivityTracker } from "./ActivityTracker";
 import { AppShell } from "./AppShell";
 
-export function Providers({
-  children,
-  serverLocale = null,
-}: {
-  children: ReactNode;
-  serverLocale?: Locale | null;
-}) {
+export function Providers({ children }: { children: ReactNode }) {
   return (
-    <I18nProvider serverLocale={serverLocale}>
+    <I18nProvider>
       <EtrAuthProvider>
         <ActivityTracker />
         <AppShell>{children}</AppShell>

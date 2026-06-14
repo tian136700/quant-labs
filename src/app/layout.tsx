@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
 import { Providers } from "@/components/Providers";
 import { LS_LOCALE } from "@/i18n/messages";
-import type { Locale } from "@/i18n/messages";
-import {
-  LOCALE_HEADER,
-  localeDocumentLang,
-  parseLocale,
-} from "@/lib/locale-detect";
 import { defaultMetadata } from "@/lib/seo";
 import "./globals.css";
 
@@ -19,17 +12,13 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = defaultMetadata;
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const headerStore = await headers();
-  const serverLocale: Locale =
-    parseLocale(headerStore.get(LOCALE_HEADER)) ?? "en";
-
   return (
-    <html lang={localeDocumentLang(serverLocale)} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -38,7 +27,7 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <Providers serverLocale={serverLocale}>{children}</Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
