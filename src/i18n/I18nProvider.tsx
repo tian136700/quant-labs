@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -15,7 +16,6 @@ import {
   type Locale,
   type Messages,
 } from "./messages";
-import { localeHref } from "@/lib/locale-path";
 import {
   needsGeoLocale,
   persistLocale,
@@ -60,17 +60,18 @@ export function I18nProvider({
   children: ReactNode;
   serverLocale?: Locale | null;
 }) {
+  const initialServerLocale = useRef(serverLocale).current;
   const [locale, setLocaleState] = useState<Locale>(() =>
-    resolveClientLocale(serverLocale)
+    resolveClientLocale(initialServerLocale)
   );
-  const [ready, setReady] = useState(() => !needsGeoLocale(serverLocale));
+  const [ready, setReady] = useState(() => !needsGeoLocale(initialServerLocale));
 
   useEffect(() => {
-    const resolved = resolveClientLocale(serverLocale);
+    const resolved = resolveClientLocale(initialServerLocale);
     setLocaleState(resolved);
     persistLocale(resolved);
 
-    if (!needsGeoLocale(serverLocale)) {
+    if (!needsGeoLocale(initialServerLocale)) {
       setReady(true);
       return;
     }
@@ -88,7 +89,7 @@ export function I18nProvider({
     return () => {
       cancelled = true;
     };
-  }, [serverLocale]);
+  }, [initialServerLocale]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);
@@ -99,12 +100,6 @@ export function I18nProvider({
   useEffect(() => {
     if (!ready) return;
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
-
-    const target = localeHref(locale);
-    const current = window.location.pathname + window.location.search;
-    if (target !== current) {
-      window.history.replaceState(null, "", target);
-    }
   }, [locale, ready]);
 
   const value = useMemo<I18nContextValue>(

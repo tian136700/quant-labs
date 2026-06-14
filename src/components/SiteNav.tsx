@@ -15,6 +15,13 @@ import {
 } from "@/lib/locale-path";
 import { navHref } from "@/lib/nav-href";
 
+type NavItem = {
+  id: string;
+  href: string;
+  label: string;
+  active: boolean;
+};
+
 export function SiteNav() {
   const { locale, t } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
@@ -24,33 +31,38 @@ export function SiteNav() {
   const navOpts = { onSubdomain, isAdmin };
   const showFullNav = !onSubdomain || isAdmin;
 
-  const items = showFullNav
+  const items: NavItem[] = showFullNav
     ? [
         ...(checking || !isAdmin
           ? []
           : [
               {
+                id: "compare",
                 href: navHref("compare", locale, navOpts),
                 label: nav.strategyCompare,
                 active: isComparePath(pathname),
               },
               {
+                id: "teacherReview",
                 href: navHref("teacherReview", locale, navOpts),
                 label: nav.teacherReview,
                 active: isTeacherReviewPath(pathname),
               },
               {
+                id: "admin",
                 href: navHref("admin", locale, navOpts),
                 label: nav.adminDashboard,
                 active: isAdminPath(pathname),
               },
             ]),
         {
+          id: "storeReview",
           href: navHref("storeReview", locale, navOpts),
           label: nav.storeReview,
           active: isStoreReviewHomePath(pathname),
         },
         {
+          id: "about",
           href: navHref("about", locale, navOpts),
           label: nav.about,
           active: isAboutPath(pathname),
@@ -58,11 +70,13 @@ export function SiteNav() {
       ]
     : [
         {
+          id: "storeReview",
           href: navHref("storeReview", locale, navOpts),
           label: nav.storeReview,
           active: isStoreReviewHomePath(pathname),
         },
         {
+          id: "storeReviewPlaza",
           href: navHref("storeReviewPlaza", locale, navOpts),
           label: t("storeReview").plaza.title,
           active: isStoreReviewPlazaPath(pathname),
@@ -73,7 +87,7 @@ export function SiteNav() {
     <nav className="admin-nav" aria-label={nav.ariaLabel}>
       <ul className="admin-nav-list">
         {items.map((item) => (
-          <li key={item.href}>
+          <li key={item.id}>
             <Link
               href={item.href}
               className={`admin-nav-link${item.active ? " is-active" : ""}`}
