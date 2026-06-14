@@ -1096,6 +1096,39 @@ textarea:focus {
   text-align: left;
 }
 
+.admin-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-sort-btn:hover {
+  color: var(--foreground);
+}
+
+.admin-sort-btn--active {
+  color: var(--foreground);
+}
+
+.admin-sort-indicator {
+  @apply text-xs text-muted;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.admin-sort-btn--active .admin-sort-indicator {
+  color: var(--foreground);
+}
+
 .admin-cell-wrap {
   max-width: 16rem;
   white-space: pre-wrap;
