@@ -20,9 +20,6 @@ PRICE_DECIMAL_PLACES = "3"
 # 外卖平台独立子域名（不含 https://），绑定 Custom Domain 后填真实值
 NEXT_PUBLIC_STORE_REVIEW_HOST = "food.info-quests.com"
 NEXT_PUBLIC_STORE_REVIEW_SITE_URL = "https://food.info-quests.com"
-# 日语听写独立子域名（Chrome Web Speech API · ja-JP）
-NEXT_PUBLIC_JAPANESE_RECOGNITION_HOST = "ja.info-quests.com"
-NEXT_PUBLIC_JAPANESE_RECOGNITION_SITE_URL = "https://ja.info-quests.com"
 # 登录 Cookie 共享到所有 *.info-quests.com 子域名
 ETR_COOKIE_DOMAIN = ".info-quests.com"
 # Google Search Console HTML 验证（填 meta content 值，部署后回 GSC 点「验证」）

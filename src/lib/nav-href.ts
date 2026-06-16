@@ -1,6 +1,9 @@
 import type { Locale } from "@/i18n/messages";
 import { SITE_URL } from "@/lib/site";
-import { STORE_REVIEW_SITE_URL } from "@/lib/store-review-host";
+import {
+  STORE_REVIEW_HOST,
+  STORE_REVIEW_SITE_URL,
+} from "@/lib/store-review-host";
 import {
   aboutPath,
   adminPath,
@@ -18,12 +21,15 @@ export type NavTarget =
   | "storeReviewPlaza"
   | "about";
 
-function storeReviewBaseUrl(): string {
-  return STORE_REVIEW_SITE_URL || SITE_URL;
-}
-
 function isStoreReviewTarget(target: NavTarget): boolean {
   return target === "storeReview" || target === "storeReviewPlaza";
+}
+
+/** food 子域名完整 URL；未配置时返回空字符串（不可回退到 finance 根路径） */
+function storeReviewBaseUrl(): string {
+  if (STORE_REVIEW_SITE_URL) return STORE_REVIEW_SITE_URL;
+  if (STORE_REVIEW_HOST) return `https://${STORE_REVIEW_HOST}`;
+  return "";
 }
 
 /** 主站 finance 域名下的 pathname */
@@ -75,7 +81,9 @@ function relativePath(target: NavTarget, locale: Locale): string {
 
 /**
  * 导航链接：普通用户沿用当前域名相对路径；
- * 管理员在 finance / food 之间切换时始终跳到对应子域名的正确 URL。
+ * 管理员在 finance / food 之间切换时跳到对应子域名的正确 URL。
+ * finance 上的商店评价使用 /store-review（由 middleware 整理到 food 子域名），
+ * 避免误链到 finance 根路径（定投对比页）。
  */
 export function navHref(
   target: NavTarget,
@@ -87,8 +95,19 @@ export function navHref(
   }
 
   if (isStoreReviewTarget(target)) {
-    return `${storeReviewBaseUrl()}${foodSubdomainPath(target, locale)}`;
+    if (opts.onSubdomain) {
+      return foodSubdomainPath(target, locale);
+    }
+    const foodBase = storeReviewBaseUrl();
+    if (foodBase) {
+      return `${foodBase}${foodSubdomainPath(target, locale)}`;
+    }
+    return mainSitePath(target, locale);
   }
 
-  return `${SITE_URL}${mainSitePath(target, locale)}`;
+  if (opts.onSubdomain) {
+    return `${SITE_URL}${mainSitePath(target, locale)}`;
+  }
+
+  return mainSitePath(target, locale);
 }
