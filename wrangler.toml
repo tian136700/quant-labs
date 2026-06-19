@@ -4,6 +4,12 @@ name = "strategy-compare-cloud"
 main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# 自定义域名须与 wrangler deploy 同步，否则 finance 可能仍跑旧版本
+[[routes]]
+pattern = "finance.info-quests.com"
+custom_domain = true
 
 [assets]
 directory = ".open-next/assets"

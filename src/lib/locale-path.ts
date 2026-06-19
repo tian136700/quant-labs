@@ -110,3 +110,11 @@ export function adminPath(locale: Locale): string {
 export function isAdminPath(pathname: string): boolean {
   return pathname === "/admin" || pathname === "/zh/admin";
 }
+
+export function jpReviewPath(): string {
+  return "/jp-review";
+}
+
+export function isJpReviewPath(pathname: string): boolean {
+  return pathname === "/jp-review";
+}
