@@ -8,3 +8,7 @@ dist/
 !.env.example
 *.log
 .DS_Store
+
+# 日语复习 Mac 同步（含 token，勿提交）
+scripts/.venv-jp-review/
+scripts/jp-review-sync.env
