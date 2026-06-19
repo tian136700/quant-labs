@@ -58,11 +58,33 @@ export async function readJpReviewMeta(
   }
 }
 
+/** 只保留最新一份：删除旧 PDF / meta，并清理桶内其它历史文件 */
+export async function clearPreviousJpReview(bucket: R2Bucket): Promise<number> {
+  const keysToDelete = new Set<string>([JP_REVIEW_LATEST_KEY, JP_REVIEW_META_KEY]);
+  let cursor: string | undefined;
+
+  do {
+    const listed = await bucket.list({ cursor, limit: 200 });
+    for (const obj of listed.objects) {
+      keysToDelete.add(obj.key);
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  const allKeys = [...keysToDelete];
+  if (!allKeys.length) return 0;
+
+  await bucket.delete(allKeys);
+  return allKeys.length;
+}
+
 export async function putJpReviewPdf(
   bucket: R2Bucket,
   pdfBytes: ArrayBuffer,
   meta: Omit<JpReviewMeta, "pdf_bytes"> & { pdf_bytes?: number }
-): Promise<void> {
+): Promise<{ removed_objects: number }> {
+  const removed_objects = await clearPreviousJpReview(bucket);
+
   const fullMeta: JpReviewMeta = {
     ...meta,
     pdf_bytes: meta.pdf_bytes ?? pdfBytes.byteLength,
@@ -78,4 +100,6 @@ export async function putJpReviewPdf(
   await bucket.put(JP_REVIEW_META_KEY, JSON.stringify(fullMeta), {
     httpMetadata: { contentType: "application/json" },
   });
+
+  return { removed_objects };
 }

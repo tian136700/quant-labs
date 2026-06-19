@@ -19,6 +19,11 @@ DEFAULT_FOLDER = (
     "/Users/Admin/Library/CloudStorage/坚果云-493701289@qq.com/我的坚果云/学习/日语口语"
 )
 DEFAULT_UPLOAD_URL = "https://finance.info-quests.com/api/jp-review/upload"
+# Cloudflare Bot 防护会拦截 Python 默认 UA（403 / error 1010）
+HTTP_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".heic", ".tif", ".tiff"}
 TAG_XATTR = "com.apple.metadata:_kMDItemUserTags"
 
@@ -138,6 +143,8 @@ def upload_pdf(pdf_path: Path, source_files: list[str], upload_url: str, token: 
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "User-Agent": HTTP_USER_AGENT,
+            "Accept": "application/json",
         },
     )
 

@@ -37,8 +37,25 @@ declare global {
   }
 
   interface R2Object {
+    key: string;
     httpEtag?: string;
     etag?: string;
+  }
+
+  interface R2ListedObject {
+    key: string;
+  }
+
+  interface R2ListOptions {
+    limit?: number;
+    prefix?: string;
+    cursor?: string;
+  }
+
+  interface R2Objects {
+    objects: R2ListedObject[];
+    truncated: boolean;
+    cursor?: string;
   }
 
   interface R2Bucket {
@@ -49,6 +66,8 @@ declare global {
       options?: R2PutOptions
     ): Promise<R2Object>;
     head(key: string): Promise<R2Object | null>;
+    list(options?: R2ListOptions): Promise<R2Objects>;
+    delete(keys: string | string[]): Promise<void>;
   }
 }
 
