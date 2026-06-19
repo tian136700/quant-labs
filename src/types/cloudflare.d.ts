@@ -19,6 +19,37 @@ declare global {
     success?: boolean;
     meta?: Record<string, unknown>;
   }
+
+  interface R2HTTPMetadata {
+    contentType?: string;
+    contentDisposition?: string;
+  }
+
+  interface R2PutOptions {
+    httpMetadata?: R2HTTPMetadata;
+  }
+
+  interface R2ObjectBody {
+    body: ReadableStream | null;
+    json<T>(): Promise<T>;
+    httpEtag?: string;
+    etag?: string;
+  }
+
+  interface R2Object {
+    httpEtag?: string;
+    etag?: string;
+  }
+
+  interface R2Bucket {
+    get(key: string): Promise<R2ObjectBody | null>;
+    put(
+      key: string,
+      value: ArrayBuffer | ArrayBufferView | string | ReadableStream | Blob,
+      options?: R2PutOptions
+    ): Promise<R2Object>;
+    head(key: string): Promise<R2Object | null>;
+  }
 }
 
 export {};

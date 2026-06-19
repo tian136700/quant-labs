@@ -61,12 +61,17 @@ export interface ChartPoint {
 
 export interface CloudflareEnv {
   DB: D1Database;
+  JP_REVIEW?: R2Bucket;
   RSI_PERIOD?: string;
   PRICE_DECIMAL_PLACES?: string;
   /** 英语老师评价：管理员用户名（可公开，默认 Admin） */
   ETR_ADMIN_USERNAME?: string;
   /** 英语老师评价：管理员初始密码（仅环境变量/Secret，勿提交 Git） */
   ETR_ADMIN_PASSWORD?: string;
+  /** 日语复习 PDF：Mac 脚本上传 Bearer Token（wrangler secret） */
+  JP_REVIEW_UPLOAD_TOKEN?: string;
+  /** 日语复习 PDF：下载可选 query key（留空则公开下载） */
+  JP_REVIEW_DOWNLOAD_KEY?: string;
 }
 
 export interface EnglishTeacherReviewRecord {
