@@ -16,6 +16,7 @@ export type Messages = {
     ariaLabel: string;
     strategyCompare: string;
     teacherReview: string;
+    jpReview: string;
     storeReview: string;
     about: string;
     adminDashboard: string;
@@ -340,6 +341,7 @@ export const messages: Record<Locale, Messages> = {
       ariaLabel: "Site navigation",
       strategyCompare: "DCA vs RSI",
       teacherReview: "Teacher Review",
+      jpReview: "Japanese Review",
       storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
@@ -745,6 +747,7 @@ export const messages: Record<Locale, Messages> = {
       ariaLabel: "站点导航",
       strategyCompare: "定投 vs RSI",
       teacherReview: "英语老师评价",
+      jpReview: "日语口语复习",
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",

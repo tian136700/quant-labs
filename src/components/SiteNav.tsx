@@ -9,6 +9,7 @@ import {
   isAboutPath,
   isAdminPath,
   isComparePath,
+  isJpReviewPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
   isTeacherReviewPath,
@@ -30,58 +31,84 @@ export function SiteNav() {
   const onSubdomain = useStoreReviewSubdomain();
   const navOpts = { onSubdomain, isAdmin };
   const showFullNav = !onSubdomain || isAdmin;
+  const onJpReview = isJpReviewPath(pathname);
 
-  const items: NavItem[] = showFullNav
-    ? [
-        ...(checking || !isAdmin
-          ? []
-          : [
-              {
-                id: "compare",
-                href: navHref("compare", locale, navOpts),
-                label: nav.strategyCompare,
-                active: isComparePath(pathname),
-              },
-              {
-                id: "teacherReview",
-                href: navHref("teacherReview", locale, navOpts),
-                label: nav.teacherReview,
-                active: isTeacherReviewPath(pathname),
-              },
-              {
-                id: "admin",
-                href: navHref("admin", locale, navOpts),
-                label: nav.adminDashboard,
-                active: isAdminPath(pathname),
-              },
-            ]),
-        {
-          id: "storeReview",
-          href: navHref("storeReview", locale, navOpts),
-          label: nav.storeReview,
-          active: isStoreReviewHomePath(pathname),
-        },
-        {
-          id: "about",
-          href: navHref("about", locale, navOpts),
-          label: nav.about,
-          active: isAboutPath(pathname),
-        },
-      ]
-    : [
-        {
-          id: "storeReview",
-          href: navHref("storeReview", locale, navOpts),
-          label: nav.storeReview,
-          active: isStoreReviewHomePath(pathname),
-        },
-        {
-          id: "storeReviewPlaza",
-          href: navHref("storeReviewPlaza", locale, navOpts),
-          label: t("storeReview").plaza.title,
-          active: isStoreReviewPlazaPath(pathname),
-        },
-      ];
+  let items: NavItem[];
+
+  if (onJpReview && !isAdmin) {
+    items = [
+      {
+        id: "jpReview",
+        href: navHref("jpReview", locale, navOpts),
+        label: nav.jpReview,
+        active: true,
+      },
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  } else if (showFullNav) {
+    items = [
+      ...(checking || !isAdmin
+        ? []
+        : [
+            {
+              id: "compare",
+              href: navHref("compare", locale, navOpts),
+              label: nav.strategyCompare,
+              active: isComparePath(pathname),
+            },
+            {
+              id: "teacherReview",
+              href: navHref("teacherReview", locale, navOpts),
+              label: nav.teacherReview,
+              active: isTeacherReviewPath(pathname),
+            },
+            {
+              id: "admin",
+              href: navHref("admin", locale, navOpts),
+              label: nav.adminDashboard,
+              active: isAdminPath(pathname),
+            },
+            {
+              id: "jpReview",
+              href: navHref("jpReview", locale, navOpts),
+              label: nav.jpReview,
+              active: isJpReviewPath(pathname),
+            },
+          ]),
+      {
+        id: "storeReview",
+        href: navHref("storeReview", locale, navOpts),
+        label: nav.storeReview,
+        active: isStoreReviewHomePath(pathname),
+      },
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  } else {
+    items = [
+      {
+        id: "storeReview",
+        href: navHref("storeReview", locale, navOpts),
+        label: nav.storeReview,
+        active: isStoreReviewHomePath(pathname),
+      },
+      {
+        id: "storeReviewPlaza",
+        href: navHref("storeReviewPlaza", locale, navOpts),
+        label: t("storeReview").plaza.title,
+        active: isStoreReviewPlazaPath(pathname),
+      },
+    ];
+  }
 
   return (
     <nav className="admin-nav" aria-label={nav.ariaLabel}>

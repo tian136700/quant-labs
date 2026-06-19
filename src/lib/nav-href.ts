@@ -8,6 +8,7 @@ import {
   aboutPath,
   adminPath,
   comparePath,
+  jpReviewPath,
   storeReviewPath,
   storeReviewPlazaPath,
   teacherReviewNavPath,
@@ -16,6 +17,7 @@ import {
 export type NavTarget =
   | "compare"
   | "teacherReview"
+  | "jpReview"
   | "admin"
   | "storeReview"
   | "storeReviewPlaza"
@@ -39,6 +41,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return locale === "zh" ? "/zh" : "/";
     case "teacherReview":
       return locale === "zh" ? "/zh/english-teacher-review" : "/english-teacher-review";
+    case "jpReview":
+      return "/jp-review";
     case "admin":
       return locale === "zh" ? "/zh/admin" : "/admin";
     case "storeReview":
@@ -68,6 +72,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return comparePath(locale);
     case "teacherReview":
       return teacherReviewNavPath(locale);
+    case "jpReview":
+      return jpReviewPath();
     case "admin":
       return adminPath(locale);
     case "storeReview":
