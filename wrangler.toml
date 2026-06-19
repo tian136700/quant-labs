@@ -14,6 +14,12 @@ binding = "DB"
 database_name = "strategy-compare-db"
 database_id = "fd580cfa-ba64-4f04-9a96-d49c621ef84b"
 
+# 日语口语复习 PDF（Mac 定时上传 → R2 → /jp-review 下载）
+# 首次使用：Dashboard 启用 R2 → npx wrangler r2 bucket create jp-review
+[[r2_buckets]]
+binding = "JP_REVIEW"
+bucket_name = "jp-review"
+
 [vars]
 RSI_PERIOD = "6"
 PRICE_DECIMAL_PLACES = "3"
