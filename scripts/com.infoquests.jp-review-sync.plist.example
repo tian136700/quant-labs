@@ -6,7 +6,7 @@
   <string>com.infoquests.jp-review-sync</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/python3</string>
+    <string>/Users/Admin/Documents/code/us_stock_monitor/strategy-compare-cloud/scripts/.venv-jp-review/bin/python3</string>
     <string>/Users/Admin/Documents/code/us_stock_monitor/strategy-compare-cloud/scripts/jp-review-sync.py</string>
   </array>
   <key>StartCalendarInterval</key>
