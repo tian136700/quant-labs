@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     }
 
     const updatedAt = new Date().toISOString();
-    await putJpReviewPdf(env.JP_REVIEW, pdfBytes, {
+    const { removed_objects } = await putJpReviewPdf(env.JP_REVIEW, pdfBytes, {
       updated_at: updatedAt,
       page_count: sourceFiles.length || 1,
       source_files: sourceFiles,
@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       updated_at: updatedAt,
       bytes: pdfBytes.byteLength,
       pages: sourceFiles.length || 1,
+      removed_objects,
       download_path: "/api/jp-review/latest",
     });
   } catch (err) {
