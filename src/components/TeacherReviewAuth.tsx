@@ -137,20 +137,20 @@ export function TeacherReviewAuth({
         </div>
       ) : null}
 
-      <div className="etr-auth-tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "login"}
-          className={`btn-rsi-filter btn-rsi-filter--compact${mode === "login" ? " is-active" : ""}`}
-          onClick={() => {
-            setMode("login");
-            setError("");
-          }}
-        >
-          {auth.loginTab}
-        </button>
-        {!loginOnly ? (
+      {!loginOnly ? (
+        <div className="etr-auth-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "login"}
+            className={`btn-rsi-filter btn-rsi-filter--compact${mode === "login" ? " is-active" : ""}`}
+            onClick={() => {
+              setMode("login");
+              setError("");
+            }}
+          >
+            {auth.loginTab}
+          </button>
           <button
             type="button"
             role="tab"
@@ -163,8 +163,8 @@ export function TeacherReviewAuth({
           >
             {auth.registerTab}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {mode === "register" && !loginOnly ? (
         <>
