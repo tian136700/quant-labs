@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { SITE_URL } from "@/lib/site";
@@ -41,80 +41,14 @@ function bumpWordLevel(word: JpVocabWord, level: JpVocabLevel): JpVocabWord {
   };
 }
 
-function decrementWordLevel(word: JpVocabWord, level: JpVocabLevel): JpVocabWord {
-  return {
-    ...word,
-    cnt_very: level === "very" ? Math.max(0, word.cnt_very - 1) : word.cnt_very,
-    cnt_normal:
-      level === "normal" ? Math.max(0, word.cnt_normal - 1) : word.cnt_normal,
-    cnt_weak: level === "weak" ? Math.max(0, word.cnt_weak - 1) : word.cnt_weak,
-  };
-}
-
-type SaveJob = { wordId: number; level: JpVocabLevel; attempts?: number };
-
-const SESSION_LEVEL_KEY = "jp-vocab-session-level";
-
-function sessionLevelStorageKey(userId: number): string {
-  return `${SESSION_LEVEL_KEY}:${userId}`;
-}
-
-function readStoredSessionLevel(
-  userId: number
-): Record<number, JpVocabLevel | undefined> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = sessionStorage.getItem(sessionLevelStorageKey(userId));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, JpVocabLevel>;
-    const out: Record<number, JpVocabLevel | undefined> = {};
-    for (const [id, level] of Object.entries(parsed)) {
-      const wordId = Number(id);
-      if (Number.isInteger(wordId) && wordId > 0) out[wordId] = level;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-function writeStoredSessionLevel(
-  userId: number,
-  levels: Record<number, JpVocabLevel | undefined>
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(
-      sessionLevelStorageKey(userId),
-      JSON.stringify(levels)
-    );
-  } catch {
-    /* quota / private mode */
-  }
-}
-
-function clearStoredSessionLevel(userId: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.removeItem(sessionLevelStorageKey(userId));
-  } catch {
-    /* ignore */
-  }
-}
-
-function isAuthSaveError(status: number, message: string): boolean {
-  if (status === 401) return true;
-  return /登录|log in/i.test(message);
-}
-
 export function JpVocabPage() {
-  const { user, checking, canAccessJpVocab, setUser, logout, refresh } =
-    useEtrAuth();
+  const { user, checking, canAccessJpVocab, setUser, logout } = useEtrAuth();
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -122,9 +56,6 @@ export function JpVocabPage() {
   const [sessionLevel, setSessionLevel] = useState<
     Record<number, JpVocabLevel | undefined>
   >({});
-  const saveQueueRef = useRef<SaveJob[]>([]);
-  const drainingRef = useRef(false);
-  const sessionUserIdRef = useRef<number | null>(null);
 
   const loadWords = useCallback(async () => {
     setLoading(true);
@@ -151,24 +82,6 @@ export function JpVocabPage() {
     void loadWords();
   }, [loadWords]);
 
-  useEffect(() => {
-    if (!user?.id || !canOperate) {
-      if (!user) {
-        sessionUserIdRef.current = null;
-        setSessionLevel({});
-      }
-      return;
-    }
-    if (sessionUserIdRef.current === user.id) return;
-    sessionUserIdRef.current = user.id;
-    setSessionLevel(readStoredSessionLevel(user.id));
-  }, [user, canOperate]);
-
-  useEffect(() => {
-    if (!user?.id || !canOperate) return;
-    writeStoredSessionLevel(user.id, sessionLevel);
-  }, [sessionLevel, user?.id, canOperate]);
-
   const reviewCandidates = useMemo(
     () => words.filter((w) => needsReview(w)),
     [words]
@@ -179,106 +92,58 @@ export function JpVocabPage() {
     [words, sessionLevel]
   );
 
-  const applyWordUpdate = useCallback((updated: JpVocabWord) => {
-    setWords((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
-  }, []);
+  const recordLevel = async (wordId: number, level: JpVocabLevel) => {
+    if (!canOperate) {
+      setStatus("请登录后再勾选熟悉程度。");
+      setShowAuth(true);
+      return;
+    }
+    if (savingId === wordId) return;
 
-  const drainSaveQueue = useCallback(async () => {
-    if (drainingRef.current) return;
-    drainingRef.current = true;
+    const snapshot = words.find((w) => w.id === wordId);
+    const prevLevel = sessionLevel[wordId];
+
+    setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
+    setHighlightId(wordId);
+    setStatus("");
+    setWords((prev) =>
+      prev.map((w) => (w.id === wordId ? bumpWordLevel(w, level) : w))
+    );
+    setSavingId(wordId);
 
     try {
-      while (saveQueueRef.current.length > 0) {
-        const job = saveQueueRef.current[0];
-        try {
-          const res = await fetch("/api/jp-vocab", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ word_id: job.wordId, level: job.level }),
-          });
-          const data = (await res.json()) as {
-            ok: boolean;
-            word?: JpVocabWord;
-            error?: string;
-          };
-          if (!res.ok || !data.ok || !data.word) {
-            const err = new Error(data.error || "保存失败") as Error & {
-              status?: number;
-            };
-            err.status = res.status;
-            throw err;
-          }
-          applyWordUpdate(data.word);
-          saveQueueRef.current.shift();
-        } catch (err) {
-          const attempts = (job.attempts ?? 0) + 1;
-          const message = err instanceof Error ? err.message : String(err);
-          const status =
-            err instanceof Error
-              ? (err as Error & { status?: number }).status ?? 0
-              : 0;
-
-          if (attempts < 2) {
-            saveQueueRef.current[0] = { ...job, attempts };
-            await new Promise((resolve) => setTimeout(resolve, 400));
-            continue;
-          }
-
-          saveQueueRef.current.shift();
-          setWords((prev) =>
-            prev.map((w) =>
-              w.id === job.wordId ? decrementWordLevel(w, job.level) : w
-            )
-          );
-          setSessionLevel((prev) => {
-            if (prev[job.wordId] !== job.level) return prev;
-            const next = { ...prev };
-            delete next[job.wordId];
-            return next;
-          });
-
-          if (isAuthSaveError(status, message)) {
-            void refresh();
-            setShowAuth(true);
-            setStatus("登录已失效，请重新登录后再勾选。");
-          } else {
-            setStatus(message);
-          }
-        }
+      const res = await fetch("/api/jp-vocab", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ word_id: wordId, level }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        word?: JpVocabWord;
+        error?: string;
+      };
+      if (!data.ok || !data.word) {
+        throw new Error(data.error || "保存失败");
       }
-    } finally {
-      drainingRef.current = false;
-      if (saveQueueRef.current.length > 0) {
-        void drainSaveQueue();
-      }
-    }
-  }, [applyWordUpdate, refresh]);
-
-  const recordLevel = useCallback(
-    (wordId: number, level: JpVocabLevel) => {
-      if (!canOperate) {
-        setStatus("请登录后再勾选熟悉程度。");
-        setShowAuth(true);
-        return;
-      }
-
-      setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
-      setHighlightId(wordId);
-      setStatus("");
       setWords((prev) =>
-        prev.map((w) => (w.id === wordId ? bumpWordLevel(w, level) : w))
+        prev.map((w) => (w.id === data.word!.id ? data.word! : w))
       );
-
-      saveQueueRef.current.push({ wordId, level });
-      void drainSaveQueue();
-    },
-    [canOperate, drainSaveQueue]
-  );
-
-  const waitForSaveQueueIdle = async () => {
-    while (drainingRef.current || saveQueueRef.current.length > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 30));
+    } catch (err) {
+      if (snapshot) {
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? snapshot : w))
+        );
+      }
+      setSessionLevel((prev) => {
+        const next = { ...prev };
+        if (prevLevel) next[wordId] = prevLevel;
+        else delete next[wordId];
+        return next;
+      });
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -293,9 +158,6 @@ export function JpVocabPage() {
       "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，开始新一轮复习。"
     );
     if (!ok) return;
-
-    await waitForSaveQueueIdle();
-    saveQueueRef.current = [];
 
     setResetting(true);
     setStatus("");
@@ -317,7 +179,6 @@ export function JpVocabPage() {
       }
       setWords(sortJpVocabWords(data.words));
       setSessionLevel({});
-      if (user?.id) clearStoredSessionLevel(user.id);
       setHighlightId(null);
       setStatus("已全部重置，可以开始新一轮复习。");
     } catch (err) {
@@ -519,6 +380,7 @@ export function JpVocabPage() {
                   const review = needsReview(w);
                   const isHighlight = highlightId === w.id;
                   const selected = sessionLevel[w.id];
+                  const isSaving = savingId === w.id;
 
                   return (
                     <tr
@@ -551,10 +413,16 @@ export function JpVocabPage() {
                                 }${
                                   lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                 }`}
-                                disabled={!canOperate}
-                                title={canOperate ? undefined : "登录后可勾选"}
+                                disabled={!canOperate || isSaving}
+                                title={
+                                  !canOperate
+                                    ? "登录后可勾选"
+                                    : isSaving
+                                      ? "保存中…"
+                                      : undefined
+                                }
                                 aria-pressed={checked}
-                                onClick={() => recordLevel(w.id, lv.key)}
+                                onClick={() => void recordLevel(w.id, lv.key)}
                               >
                                 <span className="jp-vocab-check-box" aria-hidden="true">
                                   {checked ? (
