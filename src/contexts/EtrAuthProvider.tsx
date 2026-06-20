@@ -67,6 +67,32 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  /** 切回页面时静默校验登录，避免 Cookie 过期后界面仍显示已登录 */
+  useEffect(() => {
+    const sync = () => {
+      if (document.visibilityState !== "visible") return;
+      const gen = ++refreshGenRef.current;
+      void (async () => {
+        try {
+          const res = await fetch("/api/english-teacher-review/auth", {
+            credentials: "include",
+          });
+          const data = await res.json();
+          if (gen !== refreshGenRef.current) return;
+          if (data.ok && data.authenticated && data.user) {
+            setUser(data.user as EtrAuthUser);
+          } else {
+            setUser(null);
+          }
+        } catch {
+          if (gen === refreshGenRef.current) setUser(null);
+        }
+      })();
+    };
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, []);
+
   /** 登录成功后写入用户，并作废进行中的 refresh，避免把刚登录的状态冲掉 */
   const applyUser = useCallback((next: EtrAuthUser | null) => {
     refreshGenRef.current += 1;

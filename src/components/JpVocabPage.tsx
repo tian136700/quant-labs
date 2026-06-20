@@ -51,10 +51,65 @@ function decrementWordLevel(word: JpVocabWord, level: JpVocabLevel): JpVocabWord
   };
 }
 
-type SaveJob = { wordId: number; level: JpVocabLevel };
+type SaveJob = { wordId: number; level: JpVocabLevel; attempts?: number };
+
+const SESSION_LEVEL_KEY = "jp-vocab-session-level";
+
+function sessionLevelStorageKey(userId: number): string {
+  return `${SESSION_LEVEL_KEY}:${userId}`;
+}
+
+function readStoredSessionLevel(
+  userId: number
+): Record<number, JpVocabLevel | undefined> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(sessionLevelStorageKey(userId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, JpVocabLevel>;
+    const out: Record<number, JpVocabLevel | undefined> = {};
+    for (const [id, level] of Object.entries(parsed)) {
+      const wordId = Number(id);
+      if (Number.isInteger(wordId) && wordId > 0) out[wordId] = level;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredSessionLevel(
+  userId: number,
+  levels: Record<number, JpVocabLevel | undefined>
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      sessionLevelStorageKey(userId),
+      JSON.stringify(levels)
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function clearStoredSessionLevel(userId: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(sessionLevelStorageKey(userId));
+  } catch {
+    /* ignore */
+  }
+}
+
+function isAuthSaveError(status: number, message: string): boolean {
+  if (status === 401) return true;
+  return /登录|log in/i.test(message);
+}
 
 export function JpVocabPage() {
-  const { user, checking, canAccessJpVocab, setUser, logout } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, setUser, logout, refresh } =
+    useEtrAuth();
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
@@ -69,6 +124,7 @@ export function JpVocabPage() {
   >({});
   const saveQueueRef = useRef<SaveJob[]>([]);
   const drainingRef = useRef(false);
+  const sessionUserIdRef = useRef<number | null>(null);
 
   const loadWords = useCallback(async () => {
     setLoading(true);
@@ -94,6 +150,24 @@ export function JpVocabPage() {
   useEffect(() => {
     void loadWords();
   }, [loadWords]);
+
+  useEffect(() => {
+    if (!user?.id || !canOperate) {
+      if (!user) {
+        sessionUserIdRef.current = null;
+        setSessionLevel({});
+      }
+      return;
+    }
+    if (sessionUserIdRef.current === user.id) return;
+    sessionUserIdRef.current = user.id;
+    setSessionLevel(readStoredSessionLevel(user.id));
+  }, [user, canOperate]);
+
+  useEffect(() => {
+    if (!user?.id || !canOperate) return;
+    writeStoredSessionLevel(user.id, sessionLevel);
+  }, [sessionLevel, user?.id, canOperate]);
 
   const reviewCandidates = useMemo(
     () => words.filter((w) => needsReview(w)),
@@ -128,12 +202,29 @@ export function JpVocabPage() {
             word?: JpVocabWord;
             error?: string;
           };
-          if (!data.ok || !data.word) {
-            throw new Error(data.error || "保存失败");
+          if (!res.ok || !data.ok || !data.word) {
+            const err = new Error(data.error || "保存失败") as Error & {
+              status?: number;
+            };
+            err.status = res.status;
+            throw err;
           }
           applyWordUpdate(data.word);
           saveQueueRef.current.shift();
         } catch (err) {
+          const attempts = (job.attempts ?? 0) + 1;
+          const message = err instanceof Error ? err.message : String(err);
+          const status =
+            err instanceof Error
+              ? (err as Error & { status?: number }).status ?? 0
+              : 0;
+
+          if (attempts < 2) {
+            saveQueueRef.current[0] = { ...job, attempts };
+            await new Promise((resolve) => setTimeout(resolve, 400));
+            continue;
+          }
+
           saveQueueRef.current.shift();
           setWords((prev) =>
             prev.map((w) =>
@@ -146,7 +237,14 @@ export function JpVocabPage() {
             delete next[job.wordId];
             return next;
           });
-          setStatus(err instanceof Error ? err.message : String(err));
+
+          if (isAuthSaveError(status, message)) {
+            void refresh();
+            setShowAuth(true);
+            setStatus("登录已失效，请重新登录后再勾选。");
+          } else {
+            setStatus(message);
+          }
         }
       }
     } finally {
@@ -155,7 +253,7 @@ export function JpVocabPage() {
         void drainSaveQueue();
       }
     }
-  }, [applyWordUpdate]);
+  }, [applyWordUpdate, refresh]);
 
   const recordLevel = useCallback(
     (wordId: number, level: JpVocabLevel) => {
@@ -219,6 +317,7 @@ export function JpVocabPage() {
       }
       setWords(sortJpVocabWords(data.words));
       setSessionLevel({});
+      if (user?.id) clearStoredSessionLevel(user.id);
       setHighlightId(null);
       setStatus("已全部重置，可以开始新一轮复习。");
     } catch (err) {
