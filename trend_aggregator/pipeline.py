@@ -10,6 +10,7 @@ import json
 import logging
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -29,6 +30,8 @@ from config import (
     OPENAI_API_BASE,
     OPENAI_API_KEY,
     OPENAI_MODEL,
+    REQUEST_RETRY_BACKOFF_SECONDS,
+    REQUEST_RETRY_COUNT,
     REQUEST_TIMEOUT_SECONDS,
     AggregatorConfig,
     get_default_config,
@@ -38,6 +41,285 @@ from fetchers import fetch_all_sources
 logger = logging.getLogger(__name__)
 
 MODULE_DIR = Path(__file__).resolve().parent
+
+# OpenAI 兼容 Chat Completions 的 System Prompt（英文输出）
+BLOG_SYSTEM_PROMPT = """You are a senior developer advocate and technical SEO editor.
+
+Your task: turn raw GitHub trending project data into a polished, SEO-friendly English technical blog post in Markdown.
+
+Requirements:
+1. Start with an HTML comment meta description: <!-- meta: one sentence under 160 chars -->
+2. Use a compelling H1 title, then H2/H3 sections (Overview, Top Projects, Use Cases, Prompt Examples, Conclusion)
+3. Length: 800–1200 words
+4. For each highlighted project, briefly explain what it does and who should use it
+5. Include at least 2 practical "Use Case" bullets and 1–2 copy-paste AI prompt examples readers can try
+6. Weave natural keywords: AI, LLM, GitHub trends, open source, prompts, agents
+7. Do NOT invent repositories, star counts, or features not present in the source data
+8. Output Markdown only — no preamble like "Here is the article"
+"""
+
+
+class BlogGenerationError(RuntimeError):
+    """大模型文章生成失败时抛出，携带可读错误信息。"""
+
+
+def _extract_github_items(json_data: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    从多种 JSON 结构中提取 GitHub 项目列表。
+
+    支持：项目 list、raw_trends.json 完整结构（raw.github / processed.github）。
+    """
+    if isinstance(json_data, list):
+        return [x for x in json_data if isinstance(x, dict)]
+
+    if not isinstance(json_data, dict):
+        raise ValueError("json_data 须为 dict 或 list")
+
+    for key_path in (
+        ("processed", "github"),
+        ("raw", "github"),
+        ("github",),
+    ):
+        node: Any = json_data
+        ok = True
+        for key in key_path:
+            if not isinstance(node, dict) or key not in node:
+                ok = False
+                break
+            node = node[key]
+        if ok and isinstance(node, list):
+            return [x for x in node if isinstance(x, dict)]
+
+    raise ValueError(
+        "无法从 JSON 中定位 GitHub 数据，期望 list 或含 raw.github / processed.github 的结构"
+    )
+
+
+def parse_github_json(json_data: dict[str, Any] | list[dict[str, Any]]) -> str:
+    """
+    从 GitHub JSON 提取项目名称、描述、Stars、Topics，拼接为供 LLM 使用的精简文本。
+
+    Args:
+        json_data: 完整 ``raw_trends.json`` 字典，或 GitHub 项目 dict 列表。
+            每条记录字段：id/title、description、stars、topics、url（可选）。
+
+    Returns:
+        多项目块用 ``---`` 分隔的精简英文汇总；无数据时返回空字符串。
+
+    Raises:
+        ValueError: JSON 结构无法解析时。
+    """
+    items = _extract_github_items(json_data)
+    if not items:
+        logger.warning("parse_github_json: 无 GitHub 项目")
+        return ""
+
+    blocks: list[str] = []
+    for idx, item in enumerate(items, start=1):
+        name = str(item.get("id") or item.get("title") or "unknown").strip()
+        desc = str(item.get("description") or "").strip() or "(no description)"
+        stars = item.get("stars", 0)
+        try:
+            stars_fmt = f"{int(stars):,}"
+        except (TypeError, ValueError):
+            stars_fmt = str(stars)
+
+        topics_raw = item.get("topics") or []
+        if isinstance(topics_raw, list):
+            topics = ", ".join(str(t).strip() for t in topics_raw if str(t).strip())
+        else:
+            topics = str(topics_raw).strip()
+        topics_line = topics if topics else "(none)"
+
+        url = str(item.get("url") or "").strip()
+        url_line = f"URL: {url}" if url else ""
+
+        block = (
+            f"#{idx} {name} | Stars: {stars_fmt}\n"
+            f"Description: {desc}\n"
+            f"Topics: {topics_line}"
+        )
+        if url_line:
+            block += f"\n{url_line}"
+        blocks.append(block)
+
+    parsed = "\n---\n".join(blocks)
+    logger.info("parse_github_json: 已解析 %d 个项目，文本长度 %d", len(items), len(parsed))
+    return parsed
+
+
+def _resolve_llm_credentials(
+    provider: str | None = None,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+) -> tuple[str, str, str, str]:
+    """
+    解析 LLM 调用凭证与端点。
+
+    Returns:
+        (provider, api_key, chat_completions_url, model)
+    """
+    chosen = (provider or LLM_PROVIDER).lower()
+
+    if chosen == "deepseek":
+        key = api_key or DEEPSEEK_API_KEY
+        base = (base_url or DEEPSEEK_API_BASE).rstrip("/")
+        mdl = model or DEEPSEEK_MODEL
+        url = f"{base}/v1/chat/completions"
+    elif chosen == "openai":
+        key = api_key or OPENAI_API_KEY
+        base = (base_url or OPENAI_API_BASE).rstrip("/")
+        mdl = model or OPENAI_MODEL
+        url = f"{base}/chat/completions"
+    else:
+        raise BlogGenerationError(f"不支持的 LLM provider: {chosen}")
+
+    if not key:
+        raise BlogGenerationError(
+            f"未配置 {chosen} API Key，请在 .env.local 设置 "
+            f"{'DEEPSEEK_API_KEY' if chosen == 'deepseek' else 'OPENAI_API_KEY'}"
+        )
+
+    return chosen, key, url, mdl
+
+
+def generate_blog_post(
+    parsed_text: str,
+    *,
+    provider: str | None = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = None,
+    timeout: float = REQUEST_TIMEOUT_SECONDS,
+    max_retries: int = REQUEST_RETRY_COUNT,
+) -> str:
+    """
+    调用 OpenAI 兼容 Chat Completions API，将 GitHub 精简文本生成 SEO 英文 Markdown 博客。
+
+    默认使用 config 中的 DeepSeek 配置（``DEEPSEEK_API_KEY`` / ``DEEPSEEK_API_BASE`` /
+    ``DEEPSEEK_MODEL``）；也可传入参数或切换 ``provider='openai'``。
+
+    Args:
+        parsed_text: ``parse_github_json`` 产出的项目汇总文本。
+        provider: ``deepseek`` 或 ``openai``；None 时使用 ``config.LLM_PROVIDER``。
+        api_key: 覆盖默认 API Key。
+        base_url: 覆盖默认 API Base URL。
+        model: 覆盖默认模型名。
+        timeout: 单次 HTTP 超时（秒）。
+        max_retries: 失败后额外重试次数（不含首次请求）。
+
+    Returns:
+        Markdown 格式博客正文。
+
+    Raises:
+        BlogGenerationError: 输入为空、未配置 Key、或重试耗尽仍失败。
+    """
+    text = (parsed_text or "").strip()
+    if not text:
+        raise BlogGenerationError("parsed_text 为空，无法生成文章")
+
+    _, key, url, mdl = _resolve_llm_credentials(
+        provider,
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
+    )
+
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": mdl,
+        "messages": [
+            {"role": "system", "content": BLOG_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": (
+                    "Transform the following GitHub trending AI project data into "
+                    "the blog post described in your instructions.\n\n"
+                    f"{text}"
+                ),
+            },
+        ],
+        "temperature": 0.7,
+    }
+
+    last_error: Exception | None = None
+    attempts = max_retries + 1
+
+    for attempt in range(1, attempts + 1):
+        try:
+            logger.info(
+                "generate_blog_post: 请求 %s (attempt %d/%d)",
+                url,
+                attempt,
+                attempts,
+            )
+            response = requests.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            )
+
+            if response.status_code in {429, 500, 502, 503, 504}:
+                raise requests.HTTPError(
+                    f"HTTP {response.status_code}: {response.text[:300]}",
+                    response=response,
+                )
+
+            response.raise_for_status()
+            data = response.json()
+
+            choices = data.get("choices") or []
+            if not choices:
+                raise BlogGenerationError("LLM 响应缺少 choices 字段")
+
+            message = choices[0].get("message") or {}
+            content = message.get("content")
+            if not content or not str(content).strip():
+                raise BlogGenerationError("LLM 响应 content 为空")
+
+            article = str(content).strip()
+            logger.info("generate_blog_post: 成功，文章长度 %d 字符", len(article))
+            return article
+
+        except requests.HTTPError as exc:
+            last_error = exc
+            status = exc.response.status_code if exc.response is not None else None
+            # 4xx（除 429）通常不可重试
+            if status is not None and 400 <= status < 500 and status != 429:
+                logger.error("generate_blog_post: 不可重试的 HTTP 错误 %s", status)
+                raise BlogGenerationError(f"LLM API 请求失败: {exc}") from exc
+            logger.warning("generate_blog_post: HTTP 错误 (attempt %d/%d): %s", attempt, attempts, exc)
+        except requests.RequestException as exc:
+            last_error = exc
+            logger.warning(
+                "generate_blog_post: 网络错误 (attempt %d/%d): %s",
+                attempt,
+                attempts,
+                exc,
+            )
+        except (ValueError, KeyError, TypeError) as exc:
+            last_error = exc
+            logger.warning(
+                "generate_blog_post: 响应解析失败 (attempt %d/%d): %s",
+                attempt,
+                attempts,
+                exc,
+            )
+
+        if attempt < attempts:
+            sleep_sec = REQUEST_RETRY_BACKOFF_SECONDS * attempt
+            logger.info("generate_blog_post: %s 秒后重试…", sleep_sec)
+            time.sleep(sleep_sec)
+
+    raise BlogGenerationError(
+        f"LLM API 在 {attempts} 次尝试后仍失败: {last_error}"
+    ) from last_error
 
 
 def _normalize_title(title: str) -> str:
@@ -164,162 +446,105 @@ def clean_and_deduplicate(
     }
 
 
-def _build_llm_prompt(items: list[dict[str, Any]], *, max_items: int = 25) -> str:
-    """
-    将结构化趋势数据压缩为 LLM 用户提示词。
-
-    Args:
-        items: 清洗去重后的 combined 列表。
-        max_items: 最多纳入条数，控制 token 用量。
-
-    Returns:
-        英文 prompt 字符串。
-    """
-    lines: list[str] = []
-    for idx, item in enumerate(items[:max_items], start=1):
-        source = item.get("source", "unknown")
-        title = item.get("title", "")
-        desc = item.get("description", "")
-        url = item.get("url", "")
-        extra = ""
-        if source == "github":
-            extra = f" | stars={item.get('stars', 0)} lang={item.get('language', '')}"
-        elif source == "reddit":
-            extra = f" | r/{item.get('subreddit', '')}"
-        lines.append(f"{idx}. [{source}] {title}{extra}\n   {desc}\n   {url}")
-
-    body = "\n".join(lines) if lines else "(no data)"
-    return (
-        "Below is today's aggregated AI / prompt engineering trend data from GitHub "
-        "and Reddit.\n\n"
-        f"{body}\n\n"
-        "Write a polished SEO-friendly English blog article (800–1200 words) that:\n"
-        "- Has a compelling H1 title and H2/H3 subheadings in Markdown\n"
-        "- Summarizes key themes and actionable takeaways for developers\n"
-        "- Naturally weaves in relevant keywords (AI, LLM, prompts, GitHub trends)\n"
-        "- Includes a short meta description at the top as HTML comment "
-        "<!-- meta: ... -->\n"
-        "- Does NOT invent facts not supported by the source list\n"
-    )
-
-
-def _call_chat_completions(
-    *,
-    provider: str,
-    prompt: str,
-    timeout: float = REQUEST_TIMEOUT_SECONDS,
-) -> str | None:
-    """
-    调用 OpenAI 兼容 Chat Completions API（DeepSeek / OpenAI）。
-
-    Args:
-        provider: "deepseek" 或 "openai"。
-        prompt: 用户消息内容。
-        timeout: HTTP 超时秒数。
-
-    Returns:
-        模型生成的正文；失败返回 None。
-    """
-    if provider == "deepseek":
-        api_key = DEEPSEEK_API_KEY
-        base = DEEPSEEK_API_BASE.rstrip("/")
-        model = DEEPSEEK_MODEL
-        url = f"{base}/v1/chat/completions"
-    elif provider == "openai":
-        api_key = OPENAI_API_KEY
-        base = OPENAI_API_BASE.rstrip("/")
-        model = OPENAI_MODEL
-        url = f"{base}/chat/completions"
-    else:
-        logger.error("未知 LLM provider: %s", provider)
-        return None
-
-    if not api_key:
-        logger.warning("未配置 %s API Key，跳过文章生成", provider)
-        return None
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are an expert tech editor specializing in AI trends "
-                    "and developer tooling. Output Markdown only."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.7,
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        response.raise_for_status()
-        data = response.json()
-        choices = data.get("choices") or []
-        if not choices:
-            logger.error("LLM 响应无 choices")
-            return None
-        message = choices[0].get("message") or {}
-        content = message.get("content")
-        if not content:
-            logger.error("LLM 响应 content 为空")
-            return None
-        return str(content).strip()
-    except requests.RequestException as exc:
-        logger.exception("LLM API 请求失败: %s", exc)
-        return None
-    except (ValueError, KeyError, TypeError) as exc:
-        logger.exception("LLM 响应解析失败: %s", exc)
-        return None
-
-
 def generate_seo_article(
-    items: list[dict[str, Any]],
+    github_json: dict[str, Any] | list[dict[str, Any]],
     *,
     provider: str | None = None,
     dry_run: bool = False,
 ) -> str | None:
     """
-    将原始趋势数据交给大模型，生成 SEO 英文 Markdown 文章。
-
-    此为 pipeline 对外预留的核心 LLM 接口；无 API Key 或 dry_run=True 时
-    仅记录日志并返回 None，不抛异常。
+    将 GitHub JSON 数据解析后交给大模型，生成 SEO 英文 Markdown 文章。
 
     Args:
-        items: clean_and_deduplicate 产出的 combined 列表。
-        provider: 覆盖 config.LLM_PROVIDER；支持 deepseek / openai。
-        dry_run: True 时不实际调用 API，只打印 prompt 摘要。
+        github_json: 完整 raw_trends.json、或 GitHub 项目 list、或含 processed/raw 的 dict。
+        provider: 覆盖 config.LLM_PROVIDER。
+        dry_run: True 时不调用 API，仅记录 prompt 长度。
 
     Returns:
-        Markdown 文章字符串；跳过或失败时返回 None。
+        Markdown 文章；dry_run 或失败时返回 None（失败会写日志，不抛异常）。
     """
-    if not items:
-        logger.warning("generate_seo_article: 无数据，跳过")
+    try:
+        parsed = parse_github_json(github_json)
+    except ValueError as exc:
+        logger.error("generate_seo_article: JSON 解析失败 — %s", exc)
+        return None
+
+    if not parsed:
+        logger.warning("generate_seo_article: 无 GitHub 数据，跳过")
         return None
 
     chosen = provider or LLM_PROVIDER
-    prompt = _build_llm_prompt(items)
-
     if dry_run:
         logger.info(
-            "dry_run: 将调用 %s，prompt 长度 %d 字符",
+            "dry_run: 将调用 %s 生成博客，parsed_text 长度 %d 字符",
             chosen,
-            len(prompt),
+            len(parsed),
         )
         return None
 
-    logger.info("调用 %s 生成 SEO 文章…", chosen)
+    logger.info("调用 %s 生成 SEO 博客…", chosen)
     try:
-        return _call_chat_completions(provider=chosen, prompt=prompt)
+        return generate_blog_post(parsed, provider=chosen)
+    except BlogGenerationError as exc:
+        logger.error("generate_seo_article: %s", exc)
+        return None
     except Exception as exc:  # noqa: BLE001
         logger.exception("generate_seo_article 未预期异常: %s", exc)
         return None
+
+
+def load_json_file(path: Path) -> dict[str, Any]:
+    """读取 JSON 文件；格式错误或 IO 失败时抛出异常。"""
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"JSON 格式无效: {path}") from exc
+    except OSError as exc:
+        raise ValueError(f"无法读取文件: {path}") from exc
+
+
+def generate_article_from_json_file(
+    json_path: Path,
+    *,
+    provider: str | None = None,
+    dry_run: bool = False,
+    article_output: Path | None = None,
+) -> dict[str, Any]:
+    """
+    从已抓取的 raw_trends.json 直接生成博客，无需重新 fetch。
+
+    Args:
+        json_path: JSON 文件路径。
+        provider: LLM 供应商标识。
+        dry_run: 是否仅预览不调用 API。
+        article_output: Markdown 输出路径。
+
+    Returns:
+        {"article": str | None, "paths": {"article": str | None}, "parsed_preview_len": int}
+    """
+    data = load_json_file(json_path)
+    parsed = parse_github_json(data)
+    art_path = article_output or (MODULE_DIR / DEFAULT_ARTICLE_OUTPUT_PATH)
+
+    article: str | None = None
+    if dry_run:
+        logger.info("dry_run: parsed_text 长度 %d，跳过 API", len(parsed))
+    else:
+        article = generate_seo_article(data, provider=provider, dry_run=False)
+
+    art_saved: str | None = None
+    if article:
+        try:
+            save_text(article, art_path)
+            art_saved = str(art_path)
+        except OSError as exc:
+            logger.exception("保存文章失败: %s", exc)
+
+    return {
+        "article": article,
+        "paths": {"article": art_saved},
+        "parsed_preview_len": len(parsed),
+    }
 
 
 def save_json(data: Any, path: Path) -> None:
@@ -385,7 +610,7 @@ def run_pipeline(
     article: str | None = None
     if generate_article:
         article = generate_seo_article(
-            processed["combined"],
+            {"raw": raw, "processed": processed},
             provider=cfg.llm_provider,
             dry_run=dry_run_llm,
         )
@@ -438,7 +663,9 @@ def _configure_logging(verbose: bool = False) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """
-    CLI 入口：python pipeline.py [--dry-run] [--no-llm] [-v]
+    CLI 入口：
+      python pipeline.py [--dry-run] [--no-llm] [-v]
+      python pipeline.py --from-json output/raw_trends.json [--dry-run]
 
     Returns:
         进程退出码，0 表示成功。
@@ -450,7 +677,35 @@ def main(argv: list[str] | None = None) -> int:
 
     _configure_logging(verbose)
 
+    from_json: Path | None = None
+    if "--from-json" in args:
+        idx = args.index("--from-json")
+        if idx + 1 >= len(args):
+            print("错误: --from-json 需要指定 JSON 文件路径", file=sys.stderr)
+            return 2
+        from_json = Path(args[idx + 1])
+        if not from_json.is_file():
+            print(f"错误: 文件不存在 — {from_json}", file=sys.stderr)
+            return 2
+
     try:
+        if from_json is not None:
+            result = generate_article_from_json_file(
+                from_json,
+                dry_run=dry_run,
+            )
+            if result["paths"]["article"]:
+                print(f"Article:  {result['paths']['article']}", flush=True)
+            elif dry_run:
+                print(
+                    f"Dry run OK. parsed_text length={result['parsed_preview_len']}",
+                    flush=True,
+                )
+            else:
+                print("Article:  (failed — check DEEPSEEK_API_KEY or logs)", flush=True)
+                return 1
+            return 0
+
         result = run_pipeline(
             generate_article=not no_llm,
             dry_run_llm=dry_run,
