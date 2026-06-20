@@ -169,14 +169,21 @@ export function resolveJpVocabBootstrap(env: {
 }
 
 export function parseSessionCookie(cookieHeader: string | null): string | null {
-  if (!cookieHeader) return null;
+  const tokens = parseAllSessionCookies(cookieHeader);
+  return tokens[0] ?? null;
+}
+
+/** 读取 Cookie 中全部 etr_session（普通浏览器可能残留多条冲突记录） */
+export function parseAllSessionCookies(cookieHeader: string | null): string[] {
+  if (!cookieHeader) return [];
+  const tokens: string[] = [];
   for (const part of cookieHeader.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === ETR_SESSION_COOKIE) {
-      return decodeURIComponent(rest.join("="));
-    }
+    if (name !== ETR_SESSION_COOKIE) continue;
+    const value = decodeURIComponent(rest.join("=")).trim();
+    if (value) tokens.push(value);
   }
-  return null;
+  return tokens;
 }
 
 /** 跨子域名共享登录 Cookie（如 finance / food 共用 .info-quests.com） */
@@ -231,6 +238,18 @@ export function sessionCookieHeader(token: string, expiresAt: Date): string {
 export function clearSessionCookieHeader(): string {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   return `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${cookieDomainPart()}${secure}`;
+}
+
+/** 清除 host-only 与跨子域两条 etr_session，避免旧 Cookie 干扰新登录 */
+export function clearAllSessionCookieHeaders(): string[] {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const base = `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  const headers = [`${base}${secure}`];
+  const domain = authCookieDomain();
+  if (domain) {
+    headers.push(`${base}; Domain=${domain}${secure}`);
+  }
+  return headers;
 }
 
 export function formatExpiresHint(role: EtrUserRole, locale: "en" | "zh"): string {

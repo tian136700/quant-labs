@@ -1,5 +1,4 @@
-import { getSessionUser } from "@/lib/etr-auth-db";
-import { parseSessionCookie } from "@/lib/etr-auth";
+import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
 import {
   getCloudflareEnv,
   jsonResponse,
@@ -61,8 +60,7 @@ function errMsg(key: string, locale: "en" | "zh"): string {
 
 async function requireAuth(request: Request) {
   const env = await getCloudflareEnv();
-  const token = parseSessionCookie(request.headers.get("cookie"));
-  const user = await getSessionUser(env, token);
+  const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
   return { env, user };
 }
 

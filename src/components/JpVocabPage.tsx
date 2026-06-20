@@ -50,9 +50,10 @@ const SAVE_ERR = {
 
 export function JpVocabPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, logout, refresh } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, logout, refresh, setUser } = useEtrAuth();
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
+  const [clearingLogin, setClearingLogin] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
@@ -216,6 +217,20 @@ export function JpVocabPage() {
     }
   };
 
+  const clearLoginState = async () => {
+    if (clearingLogin) return;
+    setClearingLogin(true);
+    setStatus("");
+    setError("");
+    try {
+      await logout();
+      setShowAuth(true);
+      setStatus("已清除旧登录缓存，请重新登录。");
+    } finally {
+      setClearingLogin(false);
+    }
+  };
+
   return (
     <main className="page-wrap" style={{ maxWidth: "1100px", paddingTop: "1.5rem" }}>
       <div
@@ -261,21 +276,34 @@ export function JpVocabPage() {
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-            onClick={() => setShowAuth((v) => !v)}
-            disabled={checking}
-          >
-            {checking ? "验证中…" : "登录后操作"}
-          </button>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+              onClick={() => setShowAuth((v) => !v)}
+              disabled={checking}
+            >
+              {checking ? "验证中…" : "登录后操作"}
+            </button>
+            {!checking ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact"
+                onClick={() => void clearLoginState()}
+                disabled={clearingLogin}
+                title="清除浏览器里残留的旧登录 Cookie"
+              >
+                {clearingLogin ? "清除中…" : "清除登录状态"}
+              </button>
+            ) : null}
+          </div>
         )}
       </div>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
         扫一眼单词表，学生回答后直接在右侧勾选熟悉程度；不熟悉次数多的词会标为需复习。
       </p>
 
-      {!canOperate ? (
+      {!canOperate && !checking ? (
         <p
           className="hint"
           role="note"
@@ -290,7 +318,7 @@ export function JpVocabPage() {
         >
           {user?.role === "user"
             ? "当前为浏览模式。您已登录的账号无权修改数据，请使用 LiLaoshi 或管理员账号。"
-            : "当前为浏览模式，可查看单词表；勾选熟悉程度与全部重置需登录。"}
+            : "当前为浏览模式，可查看单词表；勾选熟悉程度与全部重置需登录。若反复要求登录，请先点「清除登录状态」再重新登录。"}
         </p>
       ) : null}
 
@@ -302,10 +330,10 @@ export function JpVocabPage() {
             title="登录 · 日语单词"
             subtitle="使用 LiLaoshi（李老师）或管理员账号登录后可操作。"
             onClose={() => setShowAuth(false)}
-            onAuthenticated={() => {
+            onAuthenticated={(next) => {
+              setUser(next);
               setShowAuth(false);
               setStatus("");
-              void refresh();
             }}
           />
         </div>
