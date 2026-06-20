@@ -38,7 +38,6 @@ export function JpVocabPage() {
   const [showAuth, setShowAuth] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState<number | null>(null);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -89,38 +88,63 @@ export function JpVocabPage() {
     );
   };
 
-  const recordLevel = async (wordId: number, level: JpVocabLevel) => {
+  const bumpWordLevel = (word: JpVocabWord, level: JpVocabLevel): JpVocabWord => ({
+    ...word,
+    cnt_very: level === "very" ? word.cnt_very + 1 : word.cnt_very,
+    cnt_normal: level === "normal" ? word.cnt_normal + 1 : word.cnt_normal,
+    cnt_weak: level === "weak" ? word.cnt_weak + 1 : word.cnt_weak,
+  });
+
+  const recordLevel = (wordId: number, level: JpVocabLevel) => {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
       setShowAuth(true);
       return;
     }
-    if (savingId != null) return;
-    setSavingId(wordId);
+
+    const prevWord = words.find((w) => w.id === wordId);
+    const prevSession = sessionLevel[wordId];
+
+    setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
+    setHighlightId(wordId);
     setStatus("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ word_id: wordId, level }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: JpVocabWord;
-        error?: string;
-      };
-      if (!data.ok || !data.word) {
-        throw new Error(data.error || "保存失败");
-      }
-      applyWordUpdate(data.word);
-      setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
-      setHighlightId(wordId);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSavingId(null);
+    if (prevWord) {
+      applyWordUpdate(bumpWordLevel(prevWord, level));
     }
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/jp-vocab", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId, level }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        };
+        if (!data.ok || !data.word) {
+          throw new Error(data.error || "保存失败");
+        }
+        applyWordUpdate(data.word);
+      } catch (err) {
+        setSessionLevel((prev) => {
+          const next = { ...prev };
+          if (prevSession === undefined) {
+            delete next[wordId];
+          } else {
+            next[wordId] = prevSession;
+          }
+          return next;
+        });
+        if (prevWord) {
+          applyWordUpdate(prevWord);
+        }
+        setStatus(err instanceof Error ? err.message : String(err));
+      }
+    })();
   };
 
   const resetAll = async () => {
@@ -356,7 +380,6 @@ export function JpVocabPage() {
                   const review = needsReview(w);
                   const isHighlight = highlightId === w.id;
                   const selected = sessionLevel[w.id];
-                  const busy = savingId === w.id;
 
                   return (
                     <tr
@@ -389,10 +412,10 @@ export function JpVocabPage() {
                                 }${
                                   lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                 }`}
-                                disabled={busy || !canOperate}
+                                disabled={!canOperate}
                                 title={canOperate ? undefined : "登录后可勾选"}
                                 aria-pressed={checked}
-                                onClick={() => void recordLevel(w.id, lv.key)}
+                                onClick={() => recordLevel(w.id, lv.key)}
                               >
                                 <span className="jp-vocab-check-box" aria-hidden="true">
                                   {checked ? (
