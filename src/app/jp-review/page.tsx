@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** 每次请求从 R2 读取 meta，避免构建时静态化导致更新时间缺失 */
+export const dynamic = "force-dynamic";
+
 function downloadHref(): string {
   const key = process.env.JP_REVIEW_DOWNLOAD_KEY?.trim();
   const base = "/api/jp-review/latest";
@@ -34,18 +37,28 @@ export default async function JpReviewPage() {
       <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
         下载最新一课复习 PDF（由 Mac 每日自动同步）。
       </p>
-      {lastUpdated ? (
-        <p style={{ color: "var(--muted)", marginBottom: "1rem", fontSize: "0.875rem" }}>
-          最近一次更新时间：{lastUpdated}
-        </p>
-      ) : null}
-      <a
-        href={href}
-        className="btn-rsi-filter btn-rsi-filter--primary"
-        style={{ display: "inline-flex", minHeight: "var(--touch-min)" }}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "0.75rem 1rem",
+          marginBottom: "1.5rem",
+        }}
       >
-        下载最新 PDF
-      </a>
+        <a
+          href={href}
+          className="btn-rsi-filter btn-rsi-filter--primary"
+          style={{ display: "inline-flex", minHeight: "var(--touch-min)" }}
+        >
+          下载最新 PDF
+        </a>
+        {lastUpdated ? (
+          <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+            最近更新：{lastUpdated}
+          </span>
+        ) : null}
+      </div>
       <p style={{ color: "var(--muted)", marginTop: "1.5rem", fontSize: "0.875rem" }}>
         固定链接：
         <br />
