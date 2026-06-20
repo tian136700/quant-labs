@@ -1,4 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { LS_LOCALE } from "@/i18n/messages";
+import { LOCALE_HEADER, parseLocale } from "@/lib/locale-detect";
 import { enableAnalyticsDevStore } from "@/lib/analytics-db";
 import { enableEtrAuthDevStore } from "@/lib/etr-auth-db";
 import { enableEnglishTeacherReviewDevStore } from "@/lib/english-teacher-review-db";
@@ -67,6 +69,18 @@ export function jsonResponse(
 }
 
 export function localeFromRequest(request: Request): "en" | "zh" {
+  const headerLocale = parseLocale(request.headers.get(LOCALE_HEADER));
+  if (headerLocale) return headerLocale;
+
+  const cookieHeader = request.headers.get("cookie") || "";
+  for (const part of cookieHeader.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === LS_LOCALE) {
+      const saved = parseLocale(decodeURIComponent(rest.join("=")));
+      if (saved) return saved;
+    }
+  }
+
   const ref = request.headers.get("referer") || "";
   try {
     const path = new URL(ref).pathname;
@@ -74,5 +88,9 @@ export function localeFromRequest(request: Request): "en" | "zh" {
   } catch {
     /* ignore */
   }
+
+  const accept = request.headers.get("accept-language") || "";
+  if (/\bzh(-|;|,|$)/i.test(accept)) return "zh";
+
   return "en";
 }

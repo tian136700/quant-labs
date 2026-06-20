@@ -15,6 +15,7 @@ import {
   canUserOperateJpVocab,
   isJpVocabTeacherRole,
 } from "@/lib/etr-auth";
+import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
 
 export type EtrAuthUser = {
   id: number;
@@ -22,6 +23,8 @@ export type EtrAuthUser = {
   role: EtrUserRole;
   expires_at: string;
   expires_hint: string;
+  /** 服务端根据当前会话计算的日语单词操作权限 */
+  can_operate_jp_vocab?: boolean;
 };
 
 type EtrAuthContextValue = {
@@ -46,8 +49,10 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     const gen = ++refreshGenRef.current;
     setChecking(true);
     try {
+      const locale = readStoredLocale() ?? "en";
       const res = await fetch("/api/english-teacher-review/auth", {
         credentials: "include",
+        headers: { [LOCALE_HEADER]: locale },
       });
       const data = await res.json();
       if (gen !== refreshGenRef.current) return;
@@ -96,7 +101,10 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       checking,
       isAdmin: user?.role === "admin",
       isJpVocabTeacher: isJpVocabTeacherRole(user?.role),
-      canAccessJpVocab: canUserOperateJpVocab(user),
+      canAccessJpVocab:
+        user?.can_operate_jp_vocab === true ||
+        (user?.can_operate_jp_vocab === undefined &&
+          canUserOperateJpVocab(user)),
       refresh,
       setUser: applyUser,
       logout,

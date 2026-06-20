@@ -5,6 +5,7 @@ import {
   registerUser,
 } from "@/lib/etr-auth-db";
 import {
+  canUserOperateJpVocab,
   clearSessionCookieHeader,
   formatExpiresHint,
   parseSessionCookie,
@@ -79,6 +80,7 @@ export async function GET(request: Request) {
         role: user.role,
         expires_at: user.expires_at,
         expires_hint: formatExpiresHint(user.role, locale),
+        can_operate_jp_vocab: canUserOperateJpVocab(user),
       },
     });
   } catch (err) {
@@ -149,6 +151,7 @@ export async function POST(request: Request) {
             ...result.user,
             expires_at: result.expires_at,
             expires_hint: formatExpiresHint(result.user.role, locale),
+            can_operate_jp_vocab: canUserOperateJpVocab(result.user),
           },
         },
         200,

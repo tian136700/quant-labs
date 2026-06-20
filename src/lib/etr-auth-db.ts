@@ -1,4 +1,5 @@
 import {
+  ETR_DEFAULT_JP_VOCAB_USERNAME,
   encodePasswordStorage,
   hashPassword,
   isReservedUsername,
@@ -218,6 +219,28 @@ export type AuthResult =
   | { ok: true; user: EtrUser; token: string; expires_at: string }
   | { ok: false; error: string };
 
+async function ensureJpVocabTeacherRoleOnLogin(
+  env: CloudflareEnv,
+  user: EtrUser & { password_hash: string }
+): Promise<EtrUser & { password_hash: string }> {
+  const jpName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  if (user.username.toLowerCase() !== jpName.toLowerCase()) return user;
+  if (user.role === "jp_vocab") return user;
+
+  if (devAuthEnabled) {
+    const row = devUsers.find((u) => u.id === user.id);
+    if (row) row.role = "jp_vocab";
+    return { ...user, role: "jp_vocab" };
+  }
+
+  await env.DB
+    .prepare(`UPDATE etr_users SET role = 'jp_vocab' WHERE id = ?1`)
+    .bind(user.id)
+    .run();
+  return { ...user, role: "jp_vocab" };
+}
+
 export async function loginUser(
   env: CloudflareEnv,
   username: string,
@@ -225,12 +248,13 @@ export async function loginUser(
 ): Promise<AuthResult> {
   await ensureBootstrapUsers(env);
 
-  const user = await findUserByUsername(env.DB, username);
+  let user = await findUserByUsername(env.DB, username);
   if (!user) return { ok: false, error: "invalid_credentials" };
 
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) return { ok: false, error: "invalid_credentials" };
 
+  user = await ensureJpVocabTeacherRoleOnLogin(env, user);
   return createSession(env.DB, user);
 }
 
