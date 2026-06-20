@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import plistlib
@@ -104,6 +105,77 @@ def collect_tagged_images(folder: Path, indices: set[int]) -> list[Path]:
     return files
 
 
+def _load_page_font(size: int):
+    from PIL import ImageFont
+
+    candidates = [
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for path in candidates:
+        if Path(path).is_file():
+            try:
+                return ImageFont.truetype(path, size)
+            except OSError:
+                continue
+    return ImageFont.load_default()
+
+
+def _image_to_rgb(image_path: Path):
+    from PIL import Image
+
+    img = Image.open(image_path)
+    if img.mode in ("RGBA", "LA"):
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[-1])
+        img = background
+    elif img.mode == "P":
+        img = img.convert("RGBA")
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        background.paste(img, mask=img.split()[-1])
+        img = background
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
+    return img
+
+
+def add_page_number(image_path: Path, page_num: int) -> io.BytesIO:
+    from PIL import ImageDraw
+
+    img = _image_to_rgb(image_path)
+    try:
+        draw = ImageDraw.Draw(img)
+        text = str(page_num)
+        font_size = max(28, min(img.width, img.height) // 25)
+        font = _load_page_font(font_size)
+
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+        margin = max(16, font_size // 2)
+        x = (img.width - text_w) // 2
+        y = img.height - text_h - margin
+
+        pad = font_size // 3
+        draw.rounded_rectangle(
+            (x - pad, y - pad, x + text_w + pad, y + text_h + pad),
+            radius=pad,
+            fill=(255, 255, 255),
+            outline=(180, 180, 180),
+            width=max(1, font_size // 20),
+        )
+        draw.text((x, y), text, fill=(40, 40, 40), font=font)
+
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        buf.seek(0)
+        return buf
+    finally:
+        img.close()
+
+
 def build_pdf(image_paths: list[Path], out_path: Path) -> None:
     try:
         import img2pdf
@@ -112,8 +184,9 @@ def build_pdf(image_paths: list[Path], out_path: Path) -> None:
             "缺少 img2pdf。请运行：pip3 install -r scripts/jp-review-requirements.txt"
         ) from exc
 
+    pages = [add_page_number(path, page_num) for page_num, path in enumerate(image_paths, start=1)]
     with out_path.open("wb") as handle:
-        handle.write(img2pdf.convert([str(p) for p in image_paths]))
+        handle.write(img2pdf.convert(pages))
 
 
 def upload_pdf(pdf_path: Path, source_files: list[str], upload_url: str, token: str) -> dict:
