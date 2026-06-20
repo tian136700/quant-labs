@@ -1,14 +1,19 @@
 /** 默认管理员用户名（密码必须通过环境变量 ETR_ADMIN_PASSWORD 配置，勿写入 Git） */
 export const ETR_DEFAULT_ADMIN_USERNAME = "Admin";
 
+/** 日语单词模块专用账号（英文用户名，对应「李老师」） */
+export const ETR_DEFAULT_JP_VOCAB_USERNAME = "LiLaoshi";
+
 export const ETR_SESSION_COOKIE = "etr_session";
 
 /** Admin 登录有效期：半年 */
 export const ETR_ADMIN_SESSION_MS = 180 * 24 * 60 * 60 * 1000;
+/** 日语模块老师登录有效期：30 天 */
+export const ETR_JP_VOCAB_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 /** 普通用户登录有效期：7 天 */
 export const ETR_USER_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type EtrUserRole = "admin" | "user";
+export type EtrUserRole = "admin" | "user" | "jp_vocab";
 
 export interface EtrUser {
   id: number;
@@ -82,7 +87,17 @@ export function encodePasswordStorage(salt: string, hash: string): string {
 }
 
 export function sessionTtlMs(role: EtrUserRole): number {
-  return role === "admin" ? ETR_ADMIN_SESSION_MS : ETR_USER_SESSION_MS;
+  if (role === "admin") return ETR_ADMIN_SESSION_MS;
+  if (role === "jp_vocab") return ETR_JP_VOCAB_SESSION_MS;
+  return ETR_USER_SESSION_MS;
+}
+
+export function canAccessJpVocab(role: EtrUserRole | undefined): boolean {
+  return role === "admin" || role === "jp_vocab";
+}
+
+export function isJpVocabTeacherRole(role: EtrUserRole | undefined): boolean {
+  return role === "jp_vocab";
 }
 
 export function newSessionToken(): string {
@@ -101,15 +116,22 @@ export function isValidUsername(username: string): boolean {
 
 export function isReservedUsername(
   username: string,
-  adminUsername = ETR_DEFAULT_ADMIN_USERNAME
+  adminUsername = ETR_DEFAULT_ADMIN_USERNAME,
+  jpVocabUsername = ETR_DEFAULT_JP_VOCAB_USERNAME
 ): boolean {
-  return username.toLowerCase() === adminUsername.toLowerCase();
+  const lower = username.toLowerCase();
+  return (
+    lower === adminUsername.toLowerCase() ||
+    lower === jpVocabUsername.toLowerCase()
+  );
 }
 
 export type AdminBootstrap = {
   username: string;
   password: string;
 };
+
+export type JpVocabBootstrap = AdminBootstrap;
 
 /** 从 Worker 环境变量读取管理员初始化凭据（密码不得出现在源码或 Git 中） */
 export function resolveAdminBootstrap(env: {
@@ -119,6 +141,18 @@ export function resolveAdminBootstrap(env: {
   const password = env.ETR_ADMIN_PASSWORD?.trim();
   if (!password) return null;
   const username = env.ETR_ADMIN_USERNAME?.trim() || ETR_DEFAULT_ADMIN_USERNAME;
+  return { username, password };
+}
+
+/** 日语单词模块老师账号（密码不得出现在源码或 Git 中） */
+export function resolveJpVocabBootstrap(env: {
+  ETR_JP_VOCAB_USERNAME?: string;
+  ETR_JP_VOCAB_PASSWORD?: string;
+}): JpVocabBootstrap | null {
+  const password = env.ETR_JP_VOCAB_PASSWORD?.trim();
+  if (!password) return null;
+  const username =
+    env.ETR_JP_VOCAB_USERNAME?.trim() || ETR_DEFAULT_JP_VOCAB_USERNAME;
   return { username, password };
 }
 
@@ -190,6 +224,9 @@ export function clearSessionCookieHeader(): string {
 export function formatExpiresHint(role: EtrUserRole, locale: "en" | "zh"): string {
   if (role === "admin") {
     return locale === "zh" ? "登录有效期：6 个月" : "Session valid for 6 months";
+  }
+  if (role === "jp_vocab") {
+    return locale === "zh" ? "登录有效期：30 天" : "Session valid for 30 days";
   }
   return locale === "zh" ? "登录有效期：7 天" : "Session valid for 7 days";
 }

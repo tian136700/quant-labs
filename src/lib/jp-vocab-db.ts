@@ -4,20 +4,7 @@ import type {
   JpVocabWord,
 } from "@/lib/types";
 
-const SEED_WORDS: JpVocabUploadInput[] = [
-  { word: "こんにちは", reading: "konnichiwa", meaning: "你好" },
-  { word: "ありがとう", reading: "arigatou", meaning: "谢谢" },
-  { word: "すみません", reading: "sumimasen", meaning: "对不起 / 不好意思" },
-  { word: "おはよう", reading: "ohayou", meaning: "早上好" },
-  { word: "さようなら", reading: "sayounara", meaning: "再见" },
-  { word: "水", reading: "みず / mizu", meaning: "水" },
-  { word: "食べる", reading: "たべる / taberu", meaning: "吃" },
-  { word: "学校", reading: "がっこう / gakkou", meaning: "学校" },
-  { word: "先生", reading: "せんせい / sensei", meaning: "老师" },
-  { word: "勉強", reading: "べんきょう / benkyou", meaning: "学习" },
-  { word: "今日", reading: "きょう / kyou", meaning: "今天" },
-  { word: "明日", reading: "あした / ashita", meaning: "明天" },
-];
+const SEED_WORDS: JpVocabUploadInput[] = [];
 
 let devStoreEnabled = false;
 const devWords: JpVocabWord[] = [];
@@ -52,12 +39,17 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
   };
 }
 
+/** 复习优先级：不熟悉次数降序 → 一般次数降序 → 单词名 */
 function sortWords(words: JpVocabWord[]): JpVocabWord[] {
   return [...words].sort((a, b) => {
     if (b.cnt_weak !== a.cnt_weak) return b.cnt_weak - a.cnt_weak;
-    if (a.cnt_very !== b.cnt_very) return a.cnt_very - b.cnt_very;
+    if (b.cnt_normal !== a.cnt_normal) return b.cnt_normal - a.cnt_normal;
     return a.word.localeCompare(b.word, "ja");
   });
+}
+
+export function sortJpVocabWords(words: JpVocabWord[]): JpVocabWord[] {
+  return sortWords(words);
 }
 
 async function seedIfEmpty(db: D1Database): Promise<void> {
@@ -114,7 +106,7 @@ export async function listJpVocabWords(db: D1Database): Promise<JpVocabWord[]> {
     .prepare(
       `SELECT id, word, reading, meaning, cnt_very, cnt_normal, cnt_weak, created_at, updated_at
        FROM jp_vocab_word
-       ORDER BY cnt_weak DESC, cnt_very ASC, word COLLATE NOCASE ASC`
+       ORDER BY cnt_weak DESC, cnt_normal DESC, word COLLATE NOCASE ASC`
     )
     .all<Record<string, unknown>>();
 
@@ -191,6 +183,41 @@ export async function recordJpVocabReview(
 
   if (!row) return { ok: false, error: "not_found" };
   return { ok: true, word: mapRow(row) };
+}
+
+export type ResetJpVocabReviewsResult =
+  | { ok: true; words: JpVocabWord[] }
+  | { ok: false; error: string };
+
+export async function resetAllJpVocabReviews(
+  db: D1Database
+): Promise<ResetJpVocabReviewsResult> {
+  await seedIfEmpty(db);
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    for (let i = 0; i < devWords.length; i++) {
+      devWords[i] = {
+        ...devWords[i],
+        cnt_very: 0,
+        cnt_normal: 0,
+        cnt_weak: 0,
+        updated_at: ts,
+      };
+    }
+    return { ok: true, words: sortWords(devWords) };
+  }
+
+  await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET cnt_very = 0, cnt_normal = 0, cnt_weak = 0, updated_at = ?1`
+    )
+    .bind(ts)
+    .run();
+
+  const words = await listJpVocabWords(db);
+  return { ok: true, words };
 }
 
 export type UploadJpVocabWordsResult =

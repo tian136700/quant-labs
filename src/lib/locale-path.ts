@@ -126,3 +126,12 @@ export function jpVocabPath(): string {
 export function isJpVocabPath(pathname: string): boolean {
   return pathname === "/jp-vocab";
 }
+
+/** 日语模块老师可访问的页面（不含 API / 静态资源） */
+export function isJpVocabTeacherAllowedPath(pathname: string): boolean {
+  return (
+    isJpVocabPath(pathname) ||
+    isJpReviewPath(pathname) ||
+    isAboutPath(pathname)
+  );
+}

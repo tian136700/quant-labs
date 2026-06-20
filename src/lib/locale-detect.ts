@@ -28,6 +28,11 @@ export function readRouteLocale(): Locale | null {
   return localeFromPathname(window.location.pathname);
 }
 
+/** SSR / 首次 hydration：仅使用服务端已解析的语言，避免读 localStorage 导致不一致 */
+export function resolveHydrationLocale(serverLocale?: Locale | null): Locale {
+  return serverLocale ?? "en";
+}
+
 /** 优先级：localStorage > 当前路径 > 服务端预判 > 默认英文 */
 export function resolveClientLocale(serverLocale?: Locale | null): Locale {
   return readStoredLocale() ?? readRouteLocale() ?? serverLocale ?? "en";
@@ -43,7 +48,7 @@ export function resolveServerLocale(request: NextRequest): Locale {
 }
 
 export function needsGeoLocale(serverLocale?: Locale | null): boolean {
-  return !readStoredLocale() && !readRouteLocale() && !serverLocale;
+  return serverLocale == null;
 }
 
 function sharedCookieDomain(): string | undefined {

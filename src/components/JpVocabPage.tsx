@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { SITE_URL } from "@/lib/site";
+import { sortJpVocabWords } from "@/lib/jp-vocab-db";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
-const LEVEL_LABELS: Record<JpVocabLevel, string> = {
-  very: "非常熟悉",
-  normal: "一般",
-  weak: "不熟悉",
-};
+const LEVELS: { key: JpVocabLevel; label: string }[] = [
+  { key: "very", label: "非常熟悉" },
+  { key: "normal", label: "一般" },
+  { key: "weak", label: "不熟悉" },
+];
 
 function totalReviews(word: JpVocabWord): number {
   return word.cnt_very + word.cnt_normal + word.cnt_weak;
@@ -30,19 +33,26 @@ function pickRandomWord(words: JpVocabWord[], excludeId?: number): JpVocabWord |
 }
 
 export function JpVocabPage() {
+  const { user, checking, canAccessJpVocab, setUser, logout } = useEtrAuth();
+  const canOperate = canAccessJpVocab;
+  const [showAuth, setShowAuth] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
-  const [current, setCurrent] = useState<JpVocabWord | null>(null);
-  const [showAnswer, setShowAnswer] = useState(false);
   const [status, setStatus] = useState("");
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  /** 本轮复习：每词当前勾选（仅前端，重置后清空） */
+  const [sessionLevel, setSessionLevel] = useState<
+    Record<number, JpVocabLevel | undefined>
+  >({});
 
   const loadWords = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/jp-vocab");
+      const res = await fetch("/api/jp-vocab", { credentials: "include" });
       const data = (await res.json()) as {
         ok: boolean;
         words?: JpVocabWord[];
@@ -51,14 +61,7 @@ export function JpVocabPage() {
       if (!data.ok || !data.words) {
         throw new Error(data.error || "加载失败");
       }
-      setWords(data.words);
-      setCurrent((prev) => {
-        if (prev) {
-          const updated = data.words!.find((w) => w.id === prev.id);
-          return updated ?? pickRandomWord(data.words!);
-        }
-        return pickRandomWord(data.words!);
-      });
+      setWords(sortJpVocabWords(data.words));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -75,25 +78,32 @@ export function JpVocabPage() {
     [words]
   );
 
-  const nextWord = useCallback(
-    (preferReview = false) => {
-      const pool = preferReview && reviewCandidates.length ? reviewCandidates : words;
-      setCurrent(pickRandomWord(pool, current?.id));
-      setShowAnswer(false);
-      setStatus("");
-    },
-    [words, reviewCandidates, current?.id]
+  const unmarkedCount = useMemo(
+    () => words.filter((w) => !sessionLevel[w.id]).length,
+    [words, sessionLevel]
   );
 
-  const recordLevel = async (level: JpVocabLevel) => {
-    if (!current || saving) return;
-    setSaving(true);
+  const applyWordUpdate = (updated: JpVocabWord) => {
+    setWords((prev) =>
+      sortJpVocabWords(prev.map((w) => (w.id === updated.id ? updated : w)))
+    );
+  };
+
+  const recordLevel = async (wordId: number, level: JpVocabLevel) => {
+    if (!canOperate) {
+      setStatus("请登录后再勾选熟悉程度。");
+      setShowAuth(true);
+      return;
+    }
+    if (savingId != null) return;
+    setSavingId(wordId);
     setStatus("");
     try {
       const res = await fetch("/api/jp-vocab", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word_id: current.id, level }),
+        credentials: "include",
+        body: JSON.stringify({ word_id: wordId, level }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -103,31 +113,161 @@ export function JpVocabPage() {
       if (!data.ok || !data.word) {
         throw new Error(data.error || "保存失败");
       }
-      setWords((prev) =>
-        prev
-          .map((w) => (w.id === data.word!.id ? data.word! : w))
-          .sort((a, b) => {
-            if (b.cnt_weak !== a.cnt_weak) return b.cnt_weak - a.cnt_weak;
-            if (a.cnt_very !== b.cnt_very) return a.cnt_very - b.cnt_very;
-            return a.word.localeCompare(b.word, "ja");
-          })
-      );
-      setCurrent(data.word);
-      setStatus(`已记录：${LEVEL_LABELS[level]}`);
-      window.setTimeout(() => nextWord(true), 600);
+      applyWordUpdate(data.word);
+      setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
+      setHighlightId(wordId);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
-      setSaving(false);
+      setSavingId(null);
+    }
+  };
+
+  const resetAll = async () => {
+    if (!canOperate) {
+      setStatus("请登录后再重置。");
+      setShowAuth(true);
+      return;
+    }
+    if (resetting) return;
+    const ok = window.confirm(
+      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，开始新一轮复习。"
+    );
+    if (!ok) return;
+
+    setResetting(true);
+    setStatus("");
+    setError("");
+    try {
+      const res = await fetch("/api/jp-vocab", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "reset" }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        words?: JpVocabWord[];
+        error?: string;
+      };
+      if (!data.ok || !data.words) {
+        throw new Error(data.error || "重置失败");
+      }
+      setWords(sortJpVocabWords(data.words));
+      setSessionLevel({});
+      setHighlightId(null);
+      setStatus("已全部重置，可以开始新一轮复习。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const pickNext = () => {
+    const next = pickRandomWord(words, highlightId ?? undefined);
+    if (next) {
+      setHighlightId(next.id);
+      document
+        .getElementById(`jp-vocab-row-${next.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
 
   return (
-    <main className="page-wrap" style={{ maxWidth: "960px", paddingTop: "1.5rem" }}>
-      <h1 style={{ fontSize: "1.5rem", marginBottom: "0.35rem" }}>日语单词抽问</h1>
-      <p style={{ color: "var(--muted)", marginBottom: "1.25rem" }}>
-        老师抽问单词，学生回答后选择熟悉程度；不熟悉次数多的词优先复习。
+    <main className="page-wrap" style={{ maxWidth: "1100px", paddingTop: "1.5rem" }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "0.75rem",
+          marginBottom: "0.35rem",
+        }}
+      >
+        <h1 style={{ fontSize: "1.5rem", margin: 0 }}>日语单词抽问</h1>
+        {canOperate && user ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+              {user.username} · {user.expires_hint}
+            </span>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={() => void logout()}
+            >
+              退出登录
+            </button>
+          </div>
+        ) : user ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>{user.username}</span>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={() => void logout()}
+            >
+              退出登录
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+              onClick={() => setShowAuth(true)}
+            >
+              换账号登录
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+            onClick={() => setShowAuth((v) => !v)}
+            disabled={checking}
+          >
+            {checking ? "验证中…" : "登录后操作"}
+          </button>
+        )}
+      </div>
+      <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
+        扫一眼单词表，学生回答后直接在右侧勾选熟悉程度；不熟悉次数多的词会标为需复习。
       </p>
+
+      {!canOperate ? (
+        <p
+          className="hint"
+          role="note"
+          style={{
+            marginBottom: "1rem",
+            padding: "0.65rem 0.85rem",
+            borderRadius: "6px",
+            border: "1px solid var(--border)",
+            background: "var(--panel)",
+            fontSize: "0.875rem",
+          }}
+        >
+          {user?.role === "user"
+            ? "当前为浏览模式。您已登录的账号无权修改数据，请使用 LiLaoshi 或管理员账号。"
+            : "当前为浏览模式，可查看单词表；勾选熟悉程度与全部重置需登录。"}
+        </p>
+      ) : null}
+
+      {showAuth && !canOperate ? (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <TeacherReviewAuth
+            loginOnly
+            variant="inline"
+            title="登录 · 日语单词"
+            subtitle="使用 LiLaoshi（李老师）或管理员账号登录后可操作。"
+            onClose={() => setShowAuth(false)}
+            onAuthenticated={(next) => {
+              setUser(next);
+              setShowAuth(false);
+              setStatus("");
+            }}
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <p className="empty" role="alert" style={{ color: "var(--rise)" }}>
@@ -135,196 +275,160 @@ export function JpVocabPage() {
         </p>
       ) : null}
 
-      <section
-        className="section etr-panel"
-        style={{ marginBottom: "1.25rem" }}
-        aria-label="抽问区"
-      >
-        {loading ? (
-          <p style={{ color: "var(--muted)" }}>加载单词…</p>
-        ) : !current ? (
-          <p style={{ color: "var(--muted)" }}>暂无单词，请通过 API 上传。</p>
-        ) : (
-          <>
-            <div
-              style={{
-                textAlign: "center",
-                padding: "1.5rem 1rem",
-                marginBottom: "1rem",
-                borderRadius: "8px",
-                background: "var(--panel)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "clamp(2rem, 6vw, 3rem)",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                {current.word}
-              </div>
-              {showAnswer ? (
-                <div style={{ color: "var(--muted)", fontSize: "1rem" }}>
-                  {current.reading ? (
-                    <div style={{ marginBottom: "0.25rem" }}>{current.reading}</div>
-                  ) : null}
-                  {current.meaning ? <div>{current.meaning}</div> : null}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-rsi-filter"
-                  onClick={() => setShowAnswer(true)}
-                  style={{ marginTop: "0.5rem" }}
-                >
-                  显示读音 / 释义
-                </button>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                gap: "0.75rem",
-                marginBottom: "0.75rem",
-              }}
-            >
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--primary"
-                disabled={saving}
-                onClick={() => recordLevel("very")}
-                style={{ borderColor: "var(--rise)" }}
-              >
-                非常熟悉
-              </button>
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                disabled={saving}
-                onClick={() => recordLevel("normal")}
-              >
-                一般
-              </button>
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                disabled={saving}
-                onClick={() => recordLevel("weak")}
-                style={{ borderColor: "var(--fall)" }}
-              >
-                不熟悉
-              </button>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.5rem 0.75rem",
-                alignItems: "center",
-              }}
-            >
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={() => nextWord(false)}
-                disabled={saving || words.length < 2}
-              >
-                随机下一词
-              </button>
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={() => nextWord(true)}
-                disabled={saving || !reviewCandidates.length}
-              >
-                优先需复习 ({reviewCandidates.length})
-              </button>
-              {status ? (
-                <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-                  {status}
-                </span>
-              ) : null}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section className="section etr-panel" aria-label="单词统计">
+      <section className="section etr-panel" aria-label="单词表">
         <div
           style={{
             display: "flex",
             flexWrap: "wrap",
             justifyContent: "space-between",
-            alignItems: "baseline",
-            gap: "0.5rem",
+            alignItems: "center",
+            gap: "0.75rem",
             marginBottom: "0.75rem",
           }}
         >
-          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词统计</h2>
-          <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-            共 {words.length} 词 · 需复习 {reviewCandidates.length} 词
-          </span>
+          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词表</h2>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.5rem",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+              共 {words.length} 词 · 需复习 {reviewCandidates.length} 词
+              {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
+            </span>
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={() => pickNext()}
+              disabled={loading || words.length < 2}
+            >
+              随机高亮
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--danger"
+              onClick={() => void resetAll()}
+              disabled={loading || resetting || !words.length || !canOperate}
+              title={canOperate ? undefined : "登录后可重置"}
+            >
+              {resetting ? "重置中…" : "全部重置"}
+            </button>
+          </div>
         </div>
+
+        {status ? (
+          <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
+            {status}
+          </p>
+        ) : null}
 
         {loading ? (
           <p style={{ color: "var(--muted)" }}>加载中…</p>
         ) : !words.length ? (
-          <p style={{ color: "var(--muted)" }}>暂无数据</p>
+          <p style={{ color: "var(--muted)" }}>暂无单词，请通过 API 上传。</p>
         ) : (
           <div className="etr-table-wrap" style={{ display: "block" }}>
-            <table className="compare-table etr-table">
+            <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
-                  <th>单词</th>
-                  <th>读音</th>
-                  <th>释义</th>
+                  <th rowSpan={2}>单词</th>
+                  <th rowSpan={2}>释义</th>
+                  <th rowSpan={2} className="jp-vocab-level-col">
+                    熟悉程度
+                  </th>
+                  <th colSpan={4} className="jp-vocab-stats-group">
+                    复习次数统计
+                  </th>
+                  <th rowSpan={2}>状态</th>
+                </tr>
+                <tr>
                   <th>非常熟悉</th>
                   <th>一般</th>
                   <th>不熟悉</th>
                   <th>合计</th>
-                  <th>状态</th>
                 </tr>
               </thead>
               <tbody>
                 {words.map((w) => {
                   const review = needsReview(w);
-                  const isCurrent = current?.id === w.id;
+                  const isHighlight = highlightId === w.id;
+                  const selected = sessionLevel[w.id];
+                  const busy = savingId === w.id;
+
                   return (
                     <tr
                       key={w.id}
-                      onClick={() => {
-                        setCurrent(w);
-                        setShowAnswer(false);
-                        setStatus("");
-                      }}
+                      id={`jp-vocab-row-${w.id}`}
                       style={{
-                        cursor: "pointer",
-                        background:
-                          isCurrent
-                            ? "rgba(61, 139, 253, 0.12)"
-                            : undefined,
+                        background: isHighlight
+                          ? "rgba(61, 139, 253, 0.12)"
+                          : undefined,
                       }}
                     >
-                      <td>{w.word}</td>
-                      <td style={{ color: "var(--muted)" }}>{w.reading || "—"}</td>
+                      <td style={{ fontWeight: 500 }}>{w.word}</td>
                       <td style={{ color: "var(--muted)" }}>{w.meaning || "—"}</td>
-                      <td className="chg-up">{w.cnt_very}</td>
+                      <td className="jp-vocab-level-col">
+                        <div
+                          className="jp-vocab-levels"
+                          role="group"
+                          aria-label={`${w.word} 熟悉程度`}
+                        >
+                          {LEVELS.map((lv) => {
+                            const checked = selected === lv.key;
+                            return (
+                              <button
+                                key={lv.key}
+                                type="button"
+                                className={`jp-vocab-level-opt${
+                                  checked ? " is-checked" : ""
+                                }${!canOperate ? " jp-vocab-level-opt--readonly" : ""}${
+                                  lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                                }${
+                                  lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
+                                }`}
+                                disabled={busy || !canOperate}
+                                title={canOperate ? undefined : "登录后可勾选"}
+                                aria-pressed={checked}
+                                onClick={() => void recordLevel(w.id, lv.key)}
+                              >
+                                <span className="jp-vocab-check-box" aria-hidden="true">
+                                  {checked ? (
+                                    <svg viewBox="0 0 12 12" width="10" height="10">
+                                      <path
+                                        d="M2 6l3 3 5-5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  ) : null}
+                                </span>
+                                <span>{lv.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="chg-dn">{w.cnt_very}</td>
                       <td>{w.cnt_normal}</td>
-                      <td className="chg-dn">{w.cnt_weak}</td>
+                      <td className="chg-up">{w.cnt_weak}</td>
                       <td>{totalReviews(w)}</td>
                       <td>
-                        {review ? (
-                          <span className="chg-dn" style={{ fontSize: "0.8125rem" }}>
+                        {!selected ? (
+                          <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
+                            未勾选
+                          </span>
+                        ) : review ? (
+                          <span className="chg-up" style={{ fontSize: "0.8125rem" }}>
                             需复习
                           </span>
                         ) : (
-                          <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
+                          <span className="chg-dn" style={{ fontSize: "0.8125rem" }}>
                             良好
                           </span>
                         )}
@@ -363,8 +467,8 @@ export function JpVocabPage() {
 {`{
   "replace": false,
   "words": [
-    { "word": "こんにちは", "reading": "konnichiwa", "meaning": "你好" },
-    { "word": "勉強", "reading": "benkyou", "meaning": "学习" }
+    { "word": "こんにちは", "meaning": "你好" },
+    { "word": "勉強", "reading": "べんきょう", "meaning": "学习" }
   ]
 }`}
         </pre>
@@ -372,6 +476,87 @@ export function JpVocabPage() {
           <code>replace: true</code> 会清空现有单词后重新导入；默认跳过重复单词。
         </p>
       </details>
+
+      <style jsx>{`
+        .jp-vocab-levels {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: center;
+          gap: 0.35rem 0.5rem;
+          min-width: 12rem;
+        }
+        .jp-vocab-level-opt {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-size: 0.8125rem;
+          cursor: pointer;
+          white-space: nowrap;
+          padding: 0.2rem 0.4rem;
+          border-radius: 6px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--text);
+          font: inherit;
+          line-height: 1.3;
+        }
+        .jp-vocab-check-box {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 1rem;
+          height: 1rem;
+          flex-shrink: 0;
+          border: 1.5px solid var(--border);
+          border-radius: 3px;
+          background: var(--bg);
+          color: var(--accent);
+        }
+        .jp-vocab-level-opt.is-checked .jp-vocab-check-box {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+        }
+        .jp-vocab-level-opt--very.is-checked {
+          color: var(--fall);
+        }
+        .jp-vocab-level-opt--very.is-checked .jp-vocab-check-box {
+          border-color: var(--fall);
+          background: color-mix(in srgb, var(--fall) 18%, var(--bg));
+          color: var(--fall);
+        }
+        .jp-vocab-level-opt--weak.is-checked {
+          color: var(--rise);
+        }
+        .jp-vocab-level-opt--weak.is-checked .jp-vocab-check-box {
+          border-color: var(--rise);
+          background: color-mix(in srgb, var(--rise) 18%, var(--bg));
+          color: var(--rise);
+        }
+        .jp-vocab-level-opt.is-checked {
+          background: rgba(61, 139, 253, 0.08);
+        }
+        .jp-vocab-level-opt:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.04);
+        }
+        .jp-vocab-level-opt:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .jp-vocab-level-opt--readonly:disabled {
+          opacity: 0.72;
+        }
+        :global(.jp-vocab-table th),
+        :global(.jp-vocab-table td) {
+          white-space: normal;
+          vertical-align: middle;
+        }
+        :global(.jp-vocab-table .jp-vocab-level-col) {
+          text-align: center;
+        }
+        :global(.jp-vocab-table .jp-vocab-stats-group) {
+          text-align: center;
+        }
+      `}</style>
     </main>
   );
 }

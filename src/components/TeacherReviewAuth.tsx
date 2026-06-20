@@ -13,6 +13,10 @@ type Props = {
   variant?: "page" | "inline";
   initialMode?: AuthMode;
   onClose?: () => void;
+  /** 仅登录，不显示注册（如日语单词页） */
+  loginOnly?: boolean;
+  title?: string;
+  subtitle?: string;
 };
 
 function PasswordField({
@@ -72,6 +76,9 @@ export function TeacherReviewAuth({
   variant = "page",
   initialMode = "login",
   onClose,
+  loginOnly = false,
+  title,
+  subtitle,
 }: Props) {
   const { t } = useI18n();
   const auth = t("teacherReview").auth;
@@ -118,7 +125,7 @@ export function TeacherReviewAuth({
     >
       {variant === "inline" && onClose ? (
         <div className="etr-auth-inline-head">
-          <h2>{mode === "login" ? auth.loginTab : auth.registerTab}</h2>
+          <h2>{title ?? (mode === "login" ? auth.loginTab : auth.registerTab)}</h2>
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact"
@@ -143,27 +150,29 @@ export function TeacherReviewAuth({
         >
           {auth.loginTab}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === "register"}
-          className={`btn-rsi-filter btn-rsi-filter--compact${mode === "register" ? " is-active" : ""}`}
-          onClick={() => {
-            setMode("register");
-            setError("");
-          }}
-        >
-          {auth.registerTab}
-        </button>
+        {!loginOnly ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "register"}
+            className={`btn-rsi-filter btn-rsi-filter--compact${mode === "register" ? " is-active" : ""}`}
+            onClick={() => {
+              setMode("register");
+              setError("");
+            }}
+          >
+            {auth.registerTab}
+          </button>
+        ) : null}
       </div>
 
-      {mode === "register" ? (
+      {mode === "register" && !loginOnly ? (
         <>
           <p className="hint etr-auth-hint">{auth.registerHint}</p>
           <p className="hint etr-auth-warning">{auth.saveCredentialsWarning}</p>
         </>
       ) : (
-        <p className="hint etr-auth-hint">{auth.loginHint}</p>
+        <p className="hint etr-auth-hint">{subtitle ?? auth.loginHint}</p>
       )}
 
       <form
@@ -202,7 +211,7 @@ export function TeacherReviewAuth({
           required
         />
 
-        {mode === "register" ? (
+        {mode === "register" && !loginOnly ? (
           <PasswordField
             id="etr-auth-password-confirm"
             label={auth.passwordConfirm}
@@ -246,8 +255,8 @@ export function TeacherReviewAuth({
   return (
     <div className="etr-page etr-page--auth">
       <div className="page-hero etr-hero-center">
-        <h1>{t("teacherReview").page.title}</h1>
-        <p className="sub">{auth.gateSubtitle}</p>
+        <h1>{title ?? t("teacherReview").page.title}</h1>
+        <p className="sub">{subtitle ?? auth.gateSubtitle}</p>
       </div>
       {panel}
     </div>

@@ -9,6 +9,9 @@ dist/
 *.log
 .DS_Store
 
+# 本地开发工具（个人脚本，勿提交）
+kill-port.py
+
 # 日语复习 Mac 同步（含 token，勿提交）
 scripts/.venv-jp-review/
 scripts/jp-review-sync.env

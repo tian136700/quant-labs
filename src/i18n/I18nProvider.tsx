@@ -20,6 +20,7 @@ import {
   needsGeoLocale,
   persistLocale,
   resolveClientLocale,
+  resolveHydrationLocale,
 } from "@/lib/locale-detect";
 
 type I18nContextValue = {
@@ -62,9 +63,11 @@ export function I18nProvider({
 }) {
   const initialServerLocale = useRef(serverLocale).current;
   const [locale, setLocaleState] = useState<Locale>(() =>
-    resolveClientLocale(initialServerLocale)
+    resolveHydrationLocale(initialServerLocale)
   );
-  const [ready, setReady] = useState(() => !needsGeoLocale(initialServerLocale));
+  const [ready, setReady] = useState(
+    () => !needsGeoLocale(initialServerLocale)
+  );
 
   useEffect(() => {
     const resolved = resolveClientLocale(initialServerLocale);

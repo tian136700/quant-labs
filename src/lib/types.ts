@@ -68,6 +68,10 @@ export interface CloudflareEnv {
   ETR_ADMIN_USERNAME?: string;
   /** 英语老师评价：管理员初始密码（仅环境变量/Secret，勿提交 Git） */
   ETR_ADMIN_PASSWORD?: string;
+  /** 日语单词模块：老师用户名（默认 LiLaoshi） */
+  ETR_JP_VOCAB_USERNAME?: string;
+  /** 日语单词模块：老师密码（仅环境变量/Secret，勿提交 Git） */
+  ETR_JP_VOCAB_PASSWORD?: string;
   /** 日语复习 PDF / 单词列表：Mac 脚本与 API 上传共用 Bearer Token（wrangler secret） */
   JP_REVIEW_UPLOAD_TOKEN?: string;
   /** 日语复习 PDF：下载可选 query key（留空则公开下载） */
