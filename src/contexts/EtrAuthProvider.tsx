@@ -6,11 +6,15 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { EtrUserRole } from "@/lib/etr-auth";
-import { canAccessJpVocab, isJpVocabTeacherRole } from "@/lib/etr-auth";
+import {
+  canUserOperateJpVocab,
+  isJpVocabTeacherRole,
+} from "@/lib/etr-auth";
 
 export type EtrAuthUser = {
   id: number;
@@ -36,23 +40,26 @@ const EtrAuthContext = createContext<EtrAuthContextValue | null>(null);
 export function EtrAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<EtrAuthUser | null>(null);
   const [checking, setChecking] = useState(true);
+  const refreshGenRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const gen = ++refreshGenRef.current;
     setChecking(true);
     try {
       const res = await fetch("/api/english-teacher-review/auth", {
         credentials: "include",
       });
       const data = await res.json();
+      if (gen !== refreshGenRef.current) return;
       if (data.ok && data.authenticated && data.user) {
         setUser(data.user as EtrAuthUser);
       } else {
         setUser(null);
       }
     } catch {
-      setUser(null);
+      if (gen === refreshGenRef.current) setUser(null);
     } finally {
-      setChecking(false);
+      if (gen === refreshGenRef.current) setChecking(false);
     }
   }, []);
 
@@ -60,7 +67,15 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  /** 登录成功后写入用户，并作废进行中的 refresh，避免把刚登录的状态冲掉 */
+  const applyUser = useCallback((next: EtrAuthUser | null) => {
+    refreshGenRef.current += 1;
+    setUser(next);
+    setChecking(false);
+  }, []);
+
   const logout = useCallback(async () => {
+    refreshGenRef.current += 1;
     try {
       await fetch("/api/english-teacher-review/auth", {
         method: "POST",
@@ -72,6 +87,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     setUser(null);
+    setChecking(false);
   }, []);
 
   const value = useMemo(
@@ -80,12 +96,12 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       checking,
       isAdmin: user?.role === "admin",
       isJpVocabTeacher: isJpVocabTeacherRole(user?.role),
-      canAccessJpVocab: canAccessJpVocab(user?.role),
+      canAccessJpVocab: canUserOperateJpVocab(user),
       refresh,
-      setUser,
+      setUser: applyUser,
       logout,
     }),
-    [user, checking, refresh, logout]
+    [user, checking, refresh, applyUser, logout]
   );
 
   return (
