@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
+import { useI18n } from "@/i18n/I18nProvider";
+import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { SITE_URL } from "@/lib/site";
 import { sortJpVocabWords } from "@/lib/jp-vocab-db";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
@@ -41,8 +43,14 @@ function bumpWordLevel(word: JpVocabWord, level: JpVocabLevel): JpVocabWord {
   };
 }
 
+const SAVE_ERR = {
+  en: "Please log in to save changes.",
+  zh: "请登录后再操作。",
+};
+
 export function JpVocabPage() {
-  const { user, checking, canAccessJpVocab, setUser, logout } = useEtrAuth();
+  const { locale } = useI18n();
+  const { user, checking, canAccessJpVocab, logout, refresh } = useEtrAuth();
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
@@ -114,7 +122,10 @@ export function JpVocabPage() {
     try {
       const res = await fetch("/api/jp-vocab", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
         credentials: "include",
         body: JSON.stringify({ word_id: wordId, level }),
       });
@@ -123,8 +134,12 @@ export function JpVocabPage() {
         word?: JpVocabWord;
         error?: string;
       };
+      if (res.status === 401) {
+        await refresh();
+        throw new Error(SAVE_ERR[locale]);
+      }
       if (!data.ok || !data.word) {
-        throw new Error(data.error || "保存失败");
+        throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
       }
       setWords((prev) =>
         prev.map((w) => (w.id === data.word!.id ? data.word! : w))
@@ -165,7 +180,10 @@ export function JpVocabPage() {
     try {
       const res = await fetch("/api/jp-vocab", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
         credentials: "include",
         body: JSON.stringify({ action: "reset" }),
       });
@@ -284,10 +302,10 @@ export function JpVocabPage() {
             title="登录 · 日语单词"
             subtitle="使用 LiLaoshi（李老师）或管理员账号登录后可操作。"
             onClose={() => setShowAuth(false)}
-            onAuthenticated={(next) => {
-              setUser(next);
+            onAuthenticated={() => {
               setShowAuth(false);
               setStatus("");
+              void refresh();
             }}
           />
         </div>
