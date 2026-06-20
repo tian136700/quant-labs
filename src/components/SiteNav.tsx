@@ -10,6 +10,7 @@ import {
   isAdminPath,
   isComparePath,
   isJpReviewPath,
+  isJpVocabPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
   isTeacherReviewPath,
@@ -32,17 +33,33 @@ export function SiteNav() {
   const navOpts = { onSubdomain, isAdmin };
   const showFullNav = !onSubdomain || isAdmin;
   const onJpReview = isJpReviewPath(pathname);
+  const onJpVocab = isJpVocabPath(pathname);
+  const onHiddenJp = onJpReview || onJpVocab;
 
   let items: NavItem[];
 
-  if (onJpReview && !isAdmin) {
+  if (onHiddenJp && !isAdmin) {
     items = [
-      {
-        id: "jpReview",
-        href: navHref("jpReview", locale, navOpts),
-        label: nav.jpReview,
-        active: true,
-      },
+      ...(onJpReview
+        ? [
+            {
+              id: "jpReview",
+              href: navHref("jpReview", locale, navOpts),
+              label: nav.jpReview,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onJpVocab
+        ? [
+            {
+              id: "jpVocab",
+              href: navHref("jpVocab", locale, navOpts),
+              label: nav.jpVocab,
+              active: true,
+            },
+          ]
+        : []),
       {
         id: "about",
         href: navHref("about", locale, navOpts),
@@ -78,6 +95,12 @@ export function SiteNav() {
               href: navHref("jpReview", locale, navOpts),
               label: nav.jpReview,
               active: isJpReviewPath(pathname),
+            },
+            {
+              id: "jpVocab",
+              href: navHref("jpVocab", locale, navOpts),
+              label: nav.jpVocab,
+              active: isJpVocabPath(pathname),
             },
           ]),
       {

@@ -118,3 +118,11 @@ export function jpReviewPath(): string {
 export function isJpReviewPath(pathname: string): boolean {
   return pathname === "/jp-review";
 }
+
+export function jpVocabPath(): string {
+  return "/jp-vocab";
+}
+
+export function isJpVocabPath(pathname: string): boolean {
+  return pathname === "/jp-vocab";
+}

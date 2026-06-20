@@ -130,3 +130,19 @@ CREATE TABLE IF NOT EXISTS visit_logs (
 
 CREATE INDEX IF NOT EXISTS idx_visit_logs_created ON visit_logs (created_at);
 CREATE INDEX IF NOT EXISTS idx_visit_logs_ip ON visit_logs (ip);
+
+-- 日语单词抽问：单词列表 + 熟悉程度统计
+CREATE TABLE IF NOT EXISTS jp_vocab_word (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  word       TEXT    NOT NULL,
+  reading    TEXT,
+  meaning    TEXT,
+  cnt_very   INTEGER NOT NULL DEFAULT 0,
+  cnt_normal INTEGER NOT NULL DEFAULT 0,
+  cnt_weak   INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_word ON jp_vocab_word (word);
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_weak ON jp_vocab_word (cnt_weak DESC, cnt_normal ASC);

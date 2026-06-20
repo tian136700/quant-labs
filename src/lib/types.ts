@@ -68,7 +68,7 @@ export interface CloudflareEnv {
   ETR_ADMIN_USERNAME?: string;
   /** 英语老师评价：管理员初始密码（仅环境变量/Secret，勿提交 Git） */
   ETR_ADMIN_PASSWORD?: string;
-  /** 日语复习 PDF：Mac 脚本上传 Bearer Token（wrangler secret） */
+  /** 日语复习 PDF / 单词列表：Mac 脚本与 API 上传共用 Bearer Token（wrangler secret） */
   JP_REVIEW_UPLOAD_TOKEN?: string;
   /** 日语复习 PDF：下载可选 query key（留空则公开下载） */
   JP_REVIEW_DOWNLOAD_KEY?: string;
@@ -113,3 +113,23 @@ export interface VisitLogRecord {
   /** 该 IP 自首次访问以来的累计记录数（查询时计算） */
   ip_visit_count?: number;
 }
+
+export type JpVocabLevel = "very" | "normal" | "weak";
+
+export interface JpVocabWord {
+  id: number;
+  word: string;
+  reading: string | null;
+  meaning: string | null;
+  cnt_very: number;
+  cnt_normal: number;
+  cnt_weak: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type JpVocabUploadInput = {
+  word: string;
+  reading?: string | null;
+  meaning?: string | null;
+};
