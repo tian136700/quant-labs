@@ -1,14 +1,14 @@
 import {
-  getSessionUser,
+  getSessionUserFromRequest,
   loginUser,
   logoutSession,
   registerUser,
 } from "@/lib/etr-auth-db";
 import {
   canUserOperateJpVocab,
-  clearSessionCookieHeader,
+  clearAllSessionCookieHeaders,
   formatExpiresHint,
-  parseSessionCookie,
+  parseAllSessionCookies,
   sessionCookieHeader,
 } from "@/lib/etr-auth";
 import {
@@ -16,6 +16,31 @@ import {
   jsonResponse,
   localeFromRequest,
 } from "@/lib/cloudflare-env";
+
+function jsonWithSetCookies(
+  data: Record<string, unknown>,
+  status: number,
+  setCookies: string[]
+) {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  for (const cookie of setCookies) {
+    headers.append("Set-Cookie", cookie);
+  }
+  return new Response(JSON.stringify(data), { status, headers });
+}
+
+async function logoutAllSessions(
+  env: Awaited<ReturnType<typeof getCloudflareEnv>>,
+  cookieHeader: string | null
+) {
+  for (const token of parseAllSessionCookies(cookieHeader)) {
+    await logoutSession(env, token);
+  }
+}
+
+function authSuccessCookies(token: string, expiresAt: string): string[] {
+  return [...clearAllSessionCookieHeaders(), sessionCookieHeader(token, new Date(expiresAt))];
+}
 
 const AUTH_ERRORS: Record<string, Record<"en" | "zh", string>> = {
   invalid_credentials: {
@@ -63,10 +88,18 @@ function errMsg(key: string, locale: "en" | "zh"): string {
 export async function GET(request: Request) {
   try {
     const env = await getCloudflareEnv();
-    const token = parseSessionCookie(request.headers.get("cookie"));
-    const user = await getSessionUser(env, token);
+    const cookieHeader = request.headers.get("cookie");
+    const user = await getSessionUserFromRequest(env, cookieHeader);
 
     if (!user) {
+      const hadCookie = parseAllSessionCookies(cookieHeader).length > 0;
+      if (hadCookie) {
+        return jsonWithSetCookies(
+          { ok: true, authenticated: false, user: null, stale_cookie_cleared: true },
+          200,
+          clearAllSessionCookieHeaders()
+        );
+      }
       return jsonResponse({ ok: true, authenticated: false, user: null });
     }
 
@@ -112,13 +145,9 @@ export async function POST(request: Request) {
   if (action === "logout") {
     try {
       const env = await getCloudflareEnv();
-      const token = parseSessionCookie(request.headers.get("cookie"));
-      await logoutSession(env, token);
-      return jsonResponse(
-        { ok: true },
-        200,
-        { "Set-Cookie": clearSessionCookieHeader() }
-      );
+      const cookieHeader = request.headers.get("cookie");
+      await logoutAllSessions(env, cookieHeader);
+      return jsonWithSetCookies({ ok: true }, 200, clearAllSessionCookieHeaders());
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return jsonResponse({ ok: false, error: message }, 500);
@@ -144,7 +173,7 @@ export async function POST(request: Request) {
         );
       }
 
-      return jsonResponse(
+      return jsonWithSetCookies(
         {
           ok: true,
           user: {
@@ -155,12 +184,7 @@ export async function POST(request: Request) {
           },
         },
         200,
-        {
-          "Set-Cookie": sessionCookieHeader(
-            result.token,
-            new Date(result.expires_at)
-          ),
-        }
+        authSuccessCookies(result.token, result.expires_at)
       );
     }
 
@@ -181,7 +205,7 @@ export async function POST(request: Request) {
         );
       }
 
-      return jsonResponse(
+      return jsonWithSetCookies(
         {
           ok: true,
           user: {
@@ -191,12 +215,7 @@ export async function POST(request: Request) {
           },
         },
         200,
-        {
-          "Set-Cookie": sessionCookieHeader(
-            result.token,
-            new Date(result.expires_at)
-          ),
-        }
+        authSuccessCookies(result.token, result.expires_at)
       );
     }
 

@@ -6,6 +6,7 @@ import {
   isValidUsername,
   newSessionToken,
   normalizeUsername,
+  parseAllSessionCookies,
   resolveAdminBootstrap,
   resolveJpVocabBootstrap,
   sessionTtlMs,
@@ -338,6 +339,17 @@ async function createSession(
     .run();
 
   return { ok: true, user: publicUser, token, expires_at: expiresAt };
+}
+
+export async function getSessionUserFromRequest(
+  env: CloudflareEnv,
+  cookieHeader: string | null | undefined
+): Promise<EtrSessionUser | null> {
+  for (const token of parseAllSessionCookies(cookieHeader ?? null)) {
+    const user = await getSessionUser(env, token);
+    if (user) return user;
+  }
+  return null;
 }
 
 export async function getSessionUser(
