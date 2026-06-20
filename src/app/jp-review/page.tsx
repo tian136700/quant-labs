@@ -1,3 +1,6 @@
+import { getCloudflareEnv } from "@/lib/cloudflare-env";
+import { formatBeijingDateTime } from "@/lib/format-datetime";
+import { hasJpReviewBucket, readJpReviewMeta } from "@/lib/jp-review";
 import { SITE_URL } from "@/lib/site";
 import type { Metadata } from "next";
 
@@ -13,8 +16,17 @@ function downloadHref(): string {
   return `${base}?key=${encodeURIComponent(key)}`;
 }
 
-export default function JpReviewPage() {
+async function loadLastUpdated(): Promise<string | null> {
+  const env = await getCloudflareEnv();
+  if (!hasJpReviewBucket(env)) return null;
+  const meta = await readJpReviewMeta(env.JP_REVIEW);
+  if (!meta?.updated_at) return null;
+  return formatBeijingDateTime(meta.updated_at);
+}
+
+export default async function JpReviewPage() {
   const href = downloadHref();
+  const lastUpdated = await loadLastUpdated();
 
   return (
     <main className="page-wrap" style={{ maxWidth: "640px", paddingTop: "2rem" }}>
@@ -22,6 +34,11 @@ export default function JpReviewPage() {
       <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
         下载最新一课复习 PDF（由 Mac 每日自动同步）。
       </p>
+      {lastUpdated ? (
+        <p style={{ color: "var(--muted)", marginBottom: "1rem", fontSize: "0.875rem" }}>
+          最近一次更新时间：{lastUpdated}
+        </p>
+      ) : null}
       <a
         href={href}
         className="btn-rsi-filter btn-rsi-filter--primary"
