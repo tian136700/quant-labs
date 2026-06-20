@@ -26,7 +26,10 @@ export function hasJpReviewBucket(
 
 export function verifyUploadAuth(request: Request, env: CloudflareEnv): boolean {
   const expected = uploadToken(env);
-  if (!expected) return false;
+  if (!expected) {
+    const host = new URL(request.url).hostname;
+    return host === "127.0.0.1" || host === "localhost";
+  }
 
   const header = request.headers.get("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);

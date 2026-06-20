@@ -14,6 +14,10 @@ function withLocalAuthEnv(cfEnv: CloudflareEnv): CloudflareEnv {
       cfEnv.ETR_ADMIN_USERNAME ?? process.env.ETR_ADMIN_USERNAME,
     ETR_ADMIN_PASSWORD:
       cfEnv.ETR_ADMIN_PASSWORD ?? process.env.ETR_ADMIN_PASSWORD,
+    ETR_JP_VOCAB_USERNAME:
+      cfEnv.ETR_JP_VOCAB_USERNAME ?? process.env.ETR_JP_VOCAB_USERNAME,
+    ETR_JP_VOCAB_PASSWORD:
+      cfEnv.ETR_JP_VOCAB_PASSWORD ?? process.env.ETR_JP_VOCAB_PASSWORD,
     JP_REVIEW_UPLOAD_TOKEN:
       cfEnv.JP_REVIEW_UPLOAD_TOKEN ?? process.env.JP_REVIEW_UPLOAD_TOKEN,
     JP_REVIEW_DOWNLOAD_KEY:

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { EtrUserRole } from "@/lib/etr-auth";
+import { canAccessJpVocab, isJpVocabTeacherRole } from "@/lib/etr-auth";
 
 export type EtrAuthUser = {
   id: number;
@@ -23,6 +24,8 @@ type EtrAuthContextValue = {
   user: EtrAuthUser | null;
   checking: boolean;
   isAdmin: boolean;
+  isJpVocabTeacher: boolean;
+  canAccessJpVocab: boolean;
   refresh: () => Promise<void>;
   setUser: (user: EtrAuthUser | null) => void;
   logout: () => Promise<void>;
@@ -76,6 +79,8 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       user,
       checking,
       isAdmin: user?.role === "admin",
+      isJpVocabTeacher: isJpVocabTeacherRole(user?.role),
+      canAccessJpVocab: canAccessJpVocab(user?.role),
       refresh,
       setUser,
       logout,

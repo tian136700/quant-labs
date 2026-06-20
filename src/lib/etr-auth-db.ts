@@ -6,6 +6,7 @@ import {
   newSessionToken,
   normalizeUsername,
   resolveAdminBootstrap,
+  resolveJpVocabBootstrap,
   sessionTtlMs,
   verifyPassword,
   type AdminBootstrap,
@@ -96,6 +97,82 @@ export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> 
     .run();
 }
 
+export async function ensureJpVocabTeacherUser(env: CloudflareEnv): Promise<void> {
+  const bootstrap = resolveJpVocabBootstrap(env);
+  if (!bootstrap) return;
+
+  const db = env.DB;
+  const { username, password } = bootstrap;
+
+  if (devAuthEnabled) {
+    const existing = devUsers.find(
+      (u) => u.username.toLowerCase() === username.toLowerCase()
+    );
+    if (existing) {
+      if (existing.role !== "jp_vocab") {
+        existing.role = "jp_vocab";
+      }
+      const valid = await verifyPassword(password, existing.password_hash);
+      if (!valid) {
+        const { salt, hash } = await hashPassword(password);
+        existing.password_hash = encodePasswordStorage(salt, hash);
+      }
+      return;
+    }
+    const { salt, hash } = await hashPassword(password);
+    devUsers.push({
+      id: devUserIdSeq++,
+      username,
+      password_hash: encodePasswordStorage(salt, hash),
+      role: "jp_vocab",
+      created_at: nowIso(),
+    });
+    return;
+  }
+
+  const row = await db
+    .prepare(
+      `SELECT id, role FROM etr_users WHERE username = ?1 COLLATE NOCASE LIMIT 1`
+    )
+    .bind(username)
+    .first<{ id: number; role: string }>();
+
+  if (row?.id) {
+    const existing = await findUserByUsername(db, username);
+    if (existing) {
+      if (existing.role !== "jp_vocab") {
+        await db
+          .prepare(`UPDATE etr_users SET role = 'jp_vocab' WHERE id = ?1`)
+          .bind(existing.id)
+          .run();
+      }
+      const valid = await verifyPassword(password, existing.password_hash);
+      if (!valid) {
+        const { salt, hash } = await hashPassword(password);
+        await db
+          .prepare(`UPDATE etr_users SET password_hash = ?1 WHERE id = ?2`)
+          .bind(encodePasswordStorage(salt, hash), existing.id)
+          .run();
+      }
+    }
+    return;
+  }
+
+  const { salt, hash } = await hashPassword(password);
+  await db
+    .prepare(
+      `INSERT INTO etr_users (username, password_hash, role, created_at)
+       VALUES (?1, ?2, 'jp_vocab', ?3)`
+    )
+    .bind(username, encodePasswordStorage(salt, hash), nowIso())
+    .run();
+}
+
+async function ensureBootstrapUsers(env: CloudflareEnv): Promise<void> {
+  await ensureDefaultAdminUser(env);
+  await ensureJpVocabTeacherUser(env);
+}
+
 async function findUserByUsername(
   db: D1Database,
   username: string
@@ -146,7 +223,7 @@ export async function loginUser(
   username: string,
   password: string
 ): Promise<AuthResult> {
-  await ensureDefaultAdminUser(env);
+  await ensureBootstrapUsers(env);
 
   const user = await findUserByUsername(env.DB, username);
   if (!user) return { ok: false, error: "invalid_credentials" };
@@ -162,13 +239,14 @@ export async function registerUser(
   username: string,
   password: string
 ): Promise<AuthResult> {
-  await ensureDefaultAdminUser(env);
+  await ensureBootstrapUsers(env);
 
   const name = normalizeUsername(username);
-  const adminName =
-    resolveAdminBootstrap(env)?.username ?? "Admin";
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? "LiLaoshi";
   if (!isValidUsername(name)) return { ok: false, error: "username_invalid" };
-  if (isReservedUsername(name, adminName))
+  if (isReservedUsername(name, adminName, jpVocabName))
     return { ok: false, error: "username_reserved" };
   if (password.length < 6) return { ok: false, error: "password_too_short" };
 
@@ -243,7 +321,7 @@ export async function getSessionUser(
   token: string | null | undefined
 ): Promise<EtrSessionUser | null> {
   if (!token) return null;
-  await ensureDefaultAdminUser(env);
+  await ensureBootstrapUsers(env);
 
   const db = env.DB;
 

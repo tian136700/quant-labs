@@ -26,7 +26,7 @@ type NavItem = {
 
 export function SiteNav() {
   const { locale, t } = useI18n();
-  const { isAdmin, checking } = useEtrAuth();
+  const { isAdmin, isJpVocabTeacher, checking } = useEtrAuth();
   const pathname = usePathname() ?? "/";
   const nav = t("nav");
   const onSubdomain = useStoreReviewSubdomain();
@@ -38,7 +38,28 @@ export function SiteNav() {
 
   let items: NavItem[];
 
-  if (onHiddenJp && !isAdmin) {
+  if (isJpVocabTeacher && !isAdmin) {
+    items = [
+      {
+        id: "jpVocab",
+        href: navHref("jpVocab", locale, navOpts),
+        label: nav.jpVocab,
+        active: onJpVocab,
+      },
+      {
+        id: "jpReview",
+        href: navHref("jpReview", locale, navOpts),
+        label: nav.jpReview,
+        active: onJpReview,
+      },
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  } else if (onHiddenJp && !isAdmin) {
     items = [
       ...(onJpReview
         ? [
