@@ -92,12 +92,24 @@ export function sessionTtlMs(role: EtrUserRole): number {
   return ETR_USER_SESSION_MS;
 }
 
-export function canAccessJpVocab(role: EtrUserRole | undefined): boolean {
-  return role === "admin" || role === "jp_vocab";
+export function canAccessJpVocab(role: EtrUserRole | string | undefined): boolean {
+  const r = typeof role === "string" ? role.trim() : "";
+  return r === "admin" || r === "jp_vocab";
 }
 
-export function isJpVocabTeacherRole(role: EtrUserRole | undefined): boolean {
-  return role === "jp_vocab";
+export function isJpVocabTeacherRole(role: EtrUserRole | string | undefined): boolean {
+  const r = typeof role === "string" ? role.trim() : "";
+  return r === "jp_vocab";
+}
+
+/** 是否可在日语单词页勾选/重置（含李老师用户名兜底） */
+export function canUserOperateJpVocab(
+  user: { username?: string; role?: string } | null | undefined
+): boolean {
+  if (!user) return false;
+  if (canAccessJpVocab(user.role as EtrUserRole)) return true;
+  const name = user.username?.trim().toLowerCase();
+  return name === ETR_DEFAULT_JP_VOCAB_USERNAME.toLowerCase();
 }
 
 export function newSessionToken(): string {
