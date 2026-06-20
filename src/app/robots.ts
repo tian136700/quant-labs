@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/jp-review", "/api/jp-review/"],
+      disallow: ["/jp-review", "/api/jp-review/", "/jp-vocab", "/api/jp-vocab/"],
     },
     sitemap: [`${SITE_URL}/sitemap.xml`, `${storeReviewSiteUrl()}/sitemap.xml`],
   };

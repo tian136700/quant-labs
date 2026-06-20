@@ -3,6 +3,7 @@ import { enableAnalyticsDevStore } from "@/lib/analytics-db";
 import { enableEtrAuthDevStore } from "@/lib/etr-auth-db";
 import { enableEnglishTeacherReviewDevStore } from "@/lib/english-teacher-review-db";
 import { enableFeedbackDevStore } from "@/lib/feedback-db";
+import { enableJpVocabDevStore } from "@/lib/jp-vocab-db";
 import { enableStoreReviewDevStore } from "@/store-review/db";
 import type { CloudflareEnv } from "@/lib/types";
 
@@ -34,6 +35,7 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
   enableStoreReviewDevStore();
   enableFeedbackDevStore();
   enableAnalyticsDevStore();
+  enableJpVocabDevStore();
   return withLocalAuthEnv({
     DB: {
       prepare: () => ({

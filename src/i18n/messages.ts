@@ -17,6 +17,7 @@ export type Messages = {
     strategyCompare: string;
     teacherReview: string;
     jpReview: string;
+    jpVocab: string;
     storeReview: string;
     about: string;
     adminDashboard: string;
@@ -342,6 +343,7 @@ export const messages: Record<Locale, Messages> = {
       strategyCompare: "DCA vs RSI",
       teacherReview: "Teacher Review",
       jpReview: "Japanese Review",
+      jpVocab: "Japanese Vocab",
       storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
@@ -748,6 +750,7 @@ export const messages: Record<Locale, Messages> = {
       strategyCompare: "定投 vs RSI",
       teacherReview: "英语老师评价",
       jpReview: "日语口语复习",
+      jpVocab: "日语单词抽问",
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",
