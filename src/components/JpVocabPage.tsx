@@ -106,9 +106,7 @@ export function JpVocabPage() {
   );
 
   const applyWordUpdate = useCallback((updated: JpVocabWord) => {
-    setWords((prev) =>
-      sortJpVocabWords(prev.map((w) => (w.id === updated.id ? updated : w)))
-    );
+    setWords((prev) => prev.map((w) => (w.id === updated.id ? updated : w)));
   }, []);
 
   const drainSaveQueue = useCallback(async () => {
@@ -138,10 +136,8 @@ export function JpVocabPage() {
         } catch (err) {
           saveQueueRef.current.shift();
           setWords((prev) =>
-            sortJpVocabWords(
-              prev.map((w) =>
-                w.id === job.wordId ? decrementWordLevel(w, job.level) : w
-              )
+            prev.map((w) =>
+              w.id === job.wordId ? decrementWordLevel(w, job.level) : w
             )
           );
           setSessionLevel((prev) => {
@@ -173,9 +169,7 @@ export function JpVocabPage() {
       setHighlightId(wordId);
       setStatus("");
       setWords((prev) =>
-        sortJpVocabWords(
-          prev.map((w) => (w.id === wordId ? bumpWordLevel(w, level) : w))
-        )
+        prev.map((w) => (w.id === wordId ? bumpWordLevel(w, level) : w))
       );
 
       saveQueueRef.current.push({ wordId, level });
