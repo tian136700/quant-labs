@@ -35,7 +35,7 @@ function lessonShareCopyText(
   const link = lesson.ref_key
     ? `${origin}${refUrl(lesson.ref_key)}?id=${lesson.id}`
     : `${origin}/jp-lesson?id=${lesson.id}`;
-  return `学习内容：${lesson.content}\n链接：${link}`;
+  return `ID：${lesson.id}\n学习内容：${lesson.content}\n链接：${link}`;
 }
 
 export function JpLessonPage() {
