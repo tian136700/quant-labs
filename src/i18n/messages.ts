@@ -85,6 +85,54 @@ export type Messages = {
       loadFailed: string;
     };
   };
+  adminTrends: {
+    meta: { title: string; description: string };
+    page: {
+      title: string;
+      subtitle: string;
+      backToAdmin: string;
+    };
+    runs: {
+      heading: string;
+      refresh: string;
+      empty: string;
+      id: string;
+      fetchedAt: string;
+      github: string;
+      reddit: string;
+      selected: string;
+      actions: string;
+      view: string;
+    };
+    detail: {
+      heading: string;
+      selectedHint: string;
+      fullPrompt: string;
+      copy: string;
+    };
+    items: {
+      rank: string;
+      source: string;
+      title: string;
+      heat: string;
+      actions: string;
+      preview: string;
+    };
+    itemDetail: {
+      heading: string;
+      description: string;
+      url: string;
+      fullPrompt: string;
+    };
+    auth: {
+      required: string;
+      login: string;
+    };
+    status: {
+      loadFailed: string;
+      copied: string;
+    };
+  };
   page: {
     title: string;
     subtitle: string;
@@ -425,6 +473,59 @@ export const messages: Record<Locale, Messages> = {
       },
       status: {
         loadFailed: "Failed to load data. Please try again.",
+      },
+    },
+    adminTrends: {
+      meta: {
+        title: "Trend Aggregator",
+        description: "Review daily GitHub/Reddit fetches and AI prompts.",
+      },
+      page: {
+        title: "Trend Aggregator",
+        subtitle:
+          "Browse daily scraped trends, top-10 picks by popularity, and copy AI prompts for testing.",
+        backToAdmin: "← Back to admin dashboard",
+      },
+      runs: {
+        heading: "Fetch runs",
+        refresh: "Refresh",
+        empty: "No fetch runs yet. Run pipeline with --sync-db.",
+        id: "ID",
+        fetchedAt: "Fetched at",
+        github: "GitHub",
+        reddit: "Reddit",
+        selected: "Top picks",
+        actions: "Actions",
+        view: "View",
+      },
+      detail: {
+        heading: "Run #{id} · {date}",
+        selectedHint:
+          "One complete prompt below: Top-10 JSON embedded at the top + instructions. Copy all and paste into DeepSeek — no files or API fetch needed.",
+        fullPrompt: "Full AI prompt (Top 10 — copy to DeepSeek)",
+        copy: "Copy",
+      },
+      items: {
+        rank: "Rank",
+        source: "Source",
+        title: "Title",
+        heat: "Heat",
+        actions: "Actions",
+        preview: "Preview prompts",
+      },
+      itemDetail: {
+        heading: "Item detail & prompt",
+        description: "Description",
+        url: "URL",
+        fullPrompt: "Full AI prompt (single item — copy to DeepSeek)",
+      },
+      auth: {
+        required: "Please log in as admin to view this page.",
+        login: "Log in",
+      },
+      status: {
+        loadFailed: "Failed to load data. Please try again.",
+        copied: "Copied to clipboard.",
       },
     },
     page: {
@@ -831,6 +932,59 @@ export const messages: Record<Locale, Messages> = {
       },
       status: {
         loadFailed: "加载失败，请重试。",
+      },
+    },
+    adminTrends: {
+      meta: {
+        title: "趋势抓取",
+        description: "查看每日 GitHub/Reddit 抓取与 AI 提示词。",
+      },
+      page: {
+        title: "趋势抓取观测",
+        subtitle:
+          "查看每日抓取内容、按热度选出的 Top 10，以及可复制的 AI 提示词（便于手动试跑）。",
+        backToAdmin: "← 返回后台管理",
+      },
+      runs: {
+        heading: "抓取批次",
+        refresh: "刷新",
+        empty: "暂无记录。请运行 pipeline 并加 --sync-db 入库。",
+        id: "ID",
+        fetchedAt: "抓取时间",
+        github: "GitHub",
+        reddit: "Reddit",
+        selected: "Top 10",
+        actions: "操作",
+        view: "查看",
+      },
+      detail: {
+        heading: "批次 #{id} · {date}",
+        selectedHint:
+          "下方是一条完整提示词：顶部已嵌入 Top 10 的 JSON 数据 + 博客生成说明。整段复制粘贴到 DeepSeek 即可，无需读文件或调接口。",
+        fullPrompt: "完整 AI 提示词（Top 10，复制到 DeepSeek）",
+        copy: "复制",
+      },
+      items: {
+        rank: "排名",
+        source: "来源",
+        title: "标题",
+        heat: "热度",
+        actions: "操作",
+        preview: "查看提示词",
+      },
+      itemDetail: {
+        heading: "条目详情与提示词",
+        description: "描述",
+        url: "链接",
+        fullPrompt: "完整 AI 提示词（单条试跑，复制到 DeepSeek）",
+      },
+      auth: {
+        required: "请使用管理员账号登录后查看。",
+        login: "去登录",
+      },
+      status: {
+        loadFailed: "加载失败，请重试。",
+        copied: "已复制到剪贴板。",
       },
     },
     page: {

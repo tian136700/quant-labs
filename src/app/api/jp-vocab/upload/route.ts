@@ -1,7 +1,7 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import { uploadJpVocabWords } from "@/lib/jp-vocab-db";
-import type { JpVocabUploadInput } from "@/lib/types";
+import type { JpVocabRefUploadInput, JpVocabUploadInput } from "@/lib/types";
 
 export async function POST(request: Request) {
   try {
@@ -14,13 +14,16 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       replace?: boolean;
       words?: JpVocabUploadInput[];
+      refs?: JpVocabRefUploadInput[];
     };
 
     const words = Array.isArray(body.words) ? body.words : [];
+    const refs = Array.isArray(body.refs) ? body.refs : [];
     const result = await uploadJpVocabWords(
       env.DB,
       words,
-      Boolean(body.replace)
+      Boolean(body.replace),
+      refs
     );
 
     if (!result.ok) {

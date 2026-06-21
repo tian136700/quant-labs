@@ -15,6 +15,8 @@
     "cf:preview": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "db:migrate:local": "wrangler d1 execute strategy-compare-db --local --file=./schema.sql",
     "db:migrate:remote": "wrangler d1 execute strategy-compare-db --remote --file=./schema.sql",
+    "db:migrate-jp-vocab-refs:local": "wrangler d1 execute strategy-compare-db --local --file=./scripts/migrate-jp-vocab-refs.sql -y",
+    "db:migrate-jp-vocab-refs:remote": "wrangler d1 execute strategy-compare-db --remote --file=./scripts/migrate-jp-vocab-refs.sql -y",
     "db:import-etr:local": "python3 scripts/import-etr-from-stt.py --local",
     "db:import-etr:remote": "python3 scripts/import-etr-from-stt.py --remote"
   },

@@ -5,7 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { countryDisplayName } from "@/lib/geoip";
-import { teacherReviewNavPath } from "@/lib/locale-path";
+import { adminTrendsPath, teacherReviewNavPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import type { VisitLogSortField, VisitLogSortOrder } from "@/lib/analytics-db";
 
@@ -41,6 +41,7 @@ function AdminCardField({
 export function AdminDashboardPage() {
   const { locale, t, tf } = useI18n();
   const adm = t("adminDashboard");
+  const admTrends = t("adminTrends");
   const { isAdmin, checking } = useEtrAuth();
 
   const [visits, setVisits] = useState<VisitLogRecord[]>([]);
@@ -163,6 +164,9 @@ export function AdminDashboardPage() {
       <div className="page-hero">
         <h1>{adm.page.title}</h1>
         <p className="sub">{adm.page.subtitle}</p>
+        <p className="hint">
+          <a href={adminTrendsPath(locale)}>{admTrends.page.title} →</a>
+        </p>
       </div>
 
       {status ? <p className={statusClass}>{status}</p> : null}

@@ -6,8 +6,8 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { SITE_URL } from "@/lib/site";
-import { sortJpVocabWords } from "@/lib/jp-vocab-db";
-import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
+import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
@@ -55,6 +55,7 @@ export function JpVocabPage() {
   const [showAuth, setShowAuth] = useState(false);
   const [clearingLogin, setClearingLogin] = useState(false);
   const [words, setWords] = useState<JpVocabWord[]>([]);
+  const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -74,12 +75,14 @@ export function JpVocabPage() {
       const data = (await res.json()) as {
         ok: boolean;
         words?: JpVocabWord[];
+        refs?: Record<string, JpVocabRef>;
         error?: string;
       };
       if (!data.ok || !data.words) {
         throw new Error(data.error || "加载失败");
       }
       setWords(sortJpVocabWords(data.words));
+      setRefs(data.refs ?? {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -232,7 +235,7 @@ export function JpVocabPage() {
   };
 
   return (
-    <main className="page-wrap" style={{ maxWidth: "1100px", paddingTop: "1.5rem" }}>
+    <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <div
         style={{
           display: "flex",
@@ -243,7 +246,7 @@ export function JpVocabPage() {
           marginBottom: "0.35rem",
         }}
       >
-        <h1 style={{ fontSize: "1.5rem", margin: 0 }}>日语单词抽问</h1>
+        <h1 style={{ fontSize: "1.5rem", margin: 0 }}>日语单词 / 语法抽问</h1>
         {canOperate && user ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
@@ -300,7 +303,7 @@ export function JpVocabPage() {
         )}
       </div>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        扫一眼单词表，学生回答后直接在右侧勾选熟悉程度；不熟悉次数多的词会标为需复习。
+        扫一眼单词或语法表，学生回答后勾选熟悉程度；有教案的语法可直接点击语法名，在新标签页打开对照图片。
       </p>
 
       {!canOperate && !checking ? (
@@ -366,7 +369,7 @@ export function JpVocabPage() {
             }}
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              共 {words.length} 词 · 需复习 {reviewCandidates.length} 词
+              共 {words.length} 条 · 需复习 {reviewCandidates.length} 条
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
             </span>
             <button
@@ -398,13 +401,14 @@ export function JpVocabPage() {
         {loading ? (
           <p style={{ color: "var(--muted)" }}>加载中…</p>
         ) : !words.length ? (
-          <p style={{ color: "var(--muted)" }}>暂无单词，请通过 API 上传。</p>
+          <p style={{ color: "var(--muted)" }}>暂无条目，请通过 API 上传。</p>
         ) : (
           <div className="etr-table-wrap" style={{ display: "block" }}>
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
-                  <th rowSpan={2}>单词</th>
+                  <th rowSpan={2}>类型</th>
+                  <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
                   <th rowSpan={2} className="jp-vocab-level-col">
                     熟悉程度
@@ -427,6 +431,7 @@ export function JpVocabPage() {
                   const isHighlight = highlightId === w.id;
                   const selected = sessionLevel[w.id];
                   const isSaving = savingId === w.id;
+                  const ref = w.ref_key ? refs[w.ref_key] : undefined;
 
                   return (
                     <tr
@@ -438,7 +443,30 @@ export function JpVocabPage() {
                           : undefined,
                       }}
                     >
-                      <td style={{ fontWeight: 500 }}>{w.word}</td>
+                      <td>
+                        <span
+                          className={`jp-vocab-kind-badge${
+                            w.kind === "grammar" ? " jp-vocab-kind-badge--grammar" : ""
+                          }`}
+                        >
+                          {w.kind === "grammar" ? "语法" : "单词"}
+                        </span>
+                      </td>
+                      <td className="jp-vocab-word-col">
+                        {w.ref_key ? (
+                          <a
+                            href={`/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="jp-vocab-word-link"
+                            title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                          >
+                            {w.word}
+                          </a>
+                        ) : (
+                          <span className="jp-vocab-word-text">{w.word}</span>
+                        )}
+                      </td>
                       <td style={{ color: "var(--muted)" }}>{w.meaning || "—"}</td>
                       <td className="jp-vocab-level-col">
                         <div
@@ -542,24 +570,61 @@ export function JpVocabPage() {
         >
 {`{
   "replace": false,
+  "refs": [
+    {
+      "ref_key": "lesson3-grammar",
+      "title": "3つの大切な文法",
+      "media_type": "image"
+    }
+  ],
   "words": [
-    { "word": "こんにちは", "meaning": "你好" },
-    { "word": "勉強", "reading": "べんきょう", "meaning": "学习" }
+    { "word": "～ばかり", "meaning": "（刚刚，只是……）", "kind": "grammar", "ref_key": "lesson3-grammar" },
+    { "word": "～ようになる", "meaning": "（变得能够……）", "kind": "grammar", "ref_key": "lesson3-grammar" },
+    { "word": "～に来る", "meaning": "（来……做……）", "kind": "grammar", "ref_key": "lesson3-grammar" },
+    { "word": "勉強", "reading": "べんきょう", "meaning": "学习", "kind": "word" }
   ]
 }`}
         </pre>
+        <p>
+          多条语法共用一张图片时，填相同的 <code>ref_key</code> 即可。图片/PDF 单独上传：
+        </p>
+        <pre
+          style={{
+            overflow: "auto",
+            padding: "0.75rem",
+            background: "var(--panel)",
+            borderRadius: "6px",
+            border: "1px solid var(--border)",
+            fontSize: "0.8125rem",
+          }}
+        >
+{`POST /api/jp-vocab/ref/upload
+Content-Type: multipart/form-data
+Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+ref_key=lesson3-grammar
+title=3つの大切な文法
+media_type=image
+file=<图片或 PDF 文件>`}
+        </pre>
+        <p>
+          浏览教案：<code>GET /api/jp-vocab/ref/&lt;ref_key&gt;</code>
+        </p>
         <p>
           <code>replace: true</code> 会清空现有单词后重新导入；默认跳过重复单词。
         </p>
       </details>
 
       <style jsx>{`
+        :global(.page-wrap:has(.jp-vocab-page)) {
+          max-width: min(1480px, 96vw);
+        }
         .jp-vocab-levels {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
           gap: 0.35rem 0.5rem;
-          min-width: 12rem;
+          min-width: 14rem;
         }
         .jp-vocab-level-opt {
           display: inline-flex;
@@ -621,16 +686,48 @@ export function JpVocabPage() {
         .jp-vocab-level-opt--readonly:disabled {
           opacity: 0.72;
         }
+        .jp-vocab-kind-badge {
+          display: inline-block;
+          font-size: 0.75rem;
+          padding: 0.15rem 0.45rem;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          color: var(--muted);
+          white-space: nowrap;
+        }
+        .jp-vocab-kind-badge--grammar {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, transparent);
+        }
+        .jp-vocab-word-link {
+          font-weight: 500;
+          color: var(--accent);
+          text-decoration: none;
+        }
+        .jp-vocab-word-link:hover {
+          text-decoration: underline;
+        }
+        .jp-vocab-word-text {
+          font-weight: 500;
+        }
+        :global(.jp-vocab-page .etr-table-wrap) {
+          overflow-x: auto;
+        }
         :global(.jp-vocab-table th),
         :global(.jp-vocab-table td) {
           white-space: normal;
           vertical-align: middle;
+          padding: 0.55rem 0.75rem;
         }
         :global(.jp-vocab-table .jp-vocab-level-col) {
           text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-stats-group) {
           text-align: center;
+        }
+        :global(.jp-vocab-table .jp-vocab-word-col) {
+          font-size: 0.9375rem;
         }
       `}</style>
     </main>
