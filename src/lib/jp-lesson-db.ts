@@ -1,0 +1,311 @@
+import "server-only";
+
+import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
+import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
+import {
+  removeJpVocabLessonWords,
+  upsertJpVocabFromLesson,
+} from "@/lib/jp-vocab-db";
+
+const SEED_LESSONS: JpLessonUploadInput[] = [
+  {
+    kind: "grammar",
+    content: "～ばかり, ～ようになる, ～に来る",
+    ref_key: "lesson02-grammar",
+  },
+];
+
+let devStoreEnabled = false;
+const devLessons: JpLessonRecord[] = [];
+let devNextId = 1;
+let devSeeded = false;
+
+export function enableJpLessonDevStore() {
+  devStoreEnabled = true;
+}
+
+function nowIso(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function normalizeKind(raw?: JpLessonKind | null): JpLessonKind {
+  return raw === "grammar" ? "grammar" : "word";
+}
+
+export function parseLessonContent(raw: string): string[] {
+  return (raw || "")
+    .split(/[,，、]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function mapRow(row: Record<string, unknown>): JpLessonRecord {
+  return {
+    id: Number(row.id),
+    kind: row.kind === "grammar" ? "grammar" : "word",
+    content: String(row.content),
+    title: row.title != null ? String(row.title) : null,
+    ref_key: row.ref_key != null ? String(row.ref_key) : null,
+    completed: Number(row.completed) === 1,
+    status_updated_at:
+      row.status_updated_at != null ? String(row.status_updated_at) : null,
+    status_updated_by:
+      row.status_updated_by != null ? String(row.status_updated_by) : null,
+    uploaded_at: String(row.uploaded_at),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed,
+  status_updated_at, status_updated_by, uploaded_at, created_at, updated_at FROM jp_lesson`;
+
+async function seedIfEmpty(db: D1Database): Promise<void> {
+  if (devStoreEnabled) {
+    if (devSeeded || devLessons.length > 0) return;
+    const ts = nowIso();
+    for (const item of SEED_LESSONS) {
+      devLessons.push({
+        id: devNextId++,
+        kind: normalizeKind(item.kind),
+        content: item.content.trim(),
+        title: (item.title || "").trim() || null,
+        ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
+        completed: false,
+        status_updated_at: null,
+        status_updated_by: null,
+        uploaded_at: ts,
+        created_at: ts,
+        updated_at: ts,
+      });
+    }
+    devSeeded = true;
+    return;
+  }
+
+  const countRow = await db
+    .prepare("SELECT COUNT(*) AS c FROM jp_lesson")
+    .first<{ c: number }>();
+  if ((countRow?.c ?? 0) > 0) return;
+
+  const ts = nowIso();
+  for (const item of SEED_LESSONS) {
+    await db
+      .prepare(
+        `INSERT INTO jp_lesson (kind, content, title, ref_key, completed, uploaded_at, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?5)`
+      )
+      .bind(
+        normalizeKind(item.kind),
+        item.content.trim(),
+        (item.title || "").trim() || null,
+        item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
+        ts
+      )
+      .run();
+  }
+}
+
+export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    return [...devLessons].sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      const dateCmp = b.uploaded_at.localeCompare(a.uploaded_at);
+      if (dateCmp !== 0) return dateCmp;
+      return b.id - a.id;
+    });
+  }
+
+  const result = await db
+    .prepare(
+      `${LESSON_SELECT}
+       ORDER BY completed ASC, uploaded_at DESC, id DESC`
+    )
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(mapRow);
+}
+
+async function syncLessonToVocab(
+  db: D1Database,
+  lesson: JpLessonRecord
+): Promise<void> {
+  const items = parseLessonContent(lesson.content);
+  if (!items.length) return;
+
+  const refKey = lesson.ref_key;
+  const refs = refKey
+    ? [
+        {
+          ref_key: refKey,
+          title: lesson.title,
+          media_type: "image" as const,
+        },
+      ]
+    : [];
+
+  await upsertJpVocabFromLesson(
+    db,
+    items.map((word) => ({
+      word,
+      kind: lesson.kind,
+      ref_key: refKey,
+    })),
+    refs
+  );
+}
+
+async function unsyncLessonFromVocab(
+  db: D1Database,
+  lesson: JpLessonRecord
+): Promise<void> {
+  const items = parseLessonContent(lesson.content);
+  if (!items.length) return;
+  await removeJpVocabLessonWords(db, items, lesson.ref_key, lesson.kind);
+}
+
+export type CreateJpLessonResult =
+  | { ok: true; lesson: JpLessonRecord }
+  | { ok: false; error: string };
+
+export async function createJpLesson(
+  db: D1Database,
+  input: JpLessonUploadInput
+): Promise<CreateJpLessonResult> {
+  const content = (input.content || "").trim();
+  const items = parseLessonContent(content);
+  if (!items.length) {
+    return { ok: false, error: "content_empty" };
+  }
+
+  const kind = normalizeKind(input.kind);
+  const title = (input.title || "").trim() || null;
+  const refKey = input.ref_key
+    ? normalizeJpVocabRefKey(input.ref_key) || null
+    : null;
+  const ts = nowIso();
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const lesson: JpLessonRecord = {
+      id: devNextId++,
+      kind,
+      content: items.join(", "),
+      title,
+      ref_key: refKey,
+      completed: false,
+      status_updated_at: null,
+      status_updated_by: null,
+      uploaded_at: ts,
+      created_at: ts,
+      updated_at: ts,
+    };
+    devLessons.unshift(lesson);
+    return { ok: true, lesson };
+  }
+
+  const result = await db
+    .prepare(
+      `INSERT INTO jp_lesson (kind, content, title, ref_key, completed, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?5)`
+    )
+    .bind(kind, items.join(", "), title, refKey, ts)
+    .run();
+
+  const id = Number(result.meta?.last_row_id);
+  if (!id) return { ok: false, error: "insert_failed" };
+
+  const row = await db
+    .prepare(`${LESSON_SELECT} WHERE id = ?1`)
+    .bind(id)
+    .first<Record<string, unknown>>();
+
+  if (!row) return { ok: false, error: "insert_failed" };
+  return { ok: true, lesson: mapRow(row) };
+}
+
+export type UpdateJpLessonCompletedResult =
+  | { ok: true; lesson: JpLessonRecord }
+  | { ok: false; error: string };
+
+export async function updateJpLessonCompleted(
+  db: D1Database,
+  lessonId: number,
+  completed: boolean,
+  operatorUsername: string
+): Promise<UpdateJpLessonCompletedResult> {
+  const operator = operatorUsername.trim();
+  if (!operator) {
+    return { ok: false, error: "operator_invalid" };
+  }
+  if (!Number.isInteger(lessonId) || lessonId <= 0) {
+    return { ok: false, error: "lesson_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+
+  let before: JpLessonRecord | undefined;
+  if (devStoreEnabled) {
+    before = devLessons.find((l) => l.id === lessonId);
+  } else {
+    const prevRow = await db
+      .prepare(`${LESSON_SELECT} WHERE id = ?1`)
+      .bind(lessonId)
+      .first<Record<string, unknown>>();
+    before = prevRow ? mapRow(prevRow) : undefined;
+  }
+  if (!before) return { ok: false, error: "not_found" };
+
+  const ts = nowIso();
+  const flag = completed ? 1 : 0;
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    devLessons[idx] = {
+      ...devLessons[idx],
+      completed,
+      status_updated_at: ts,
+      status_updated_by: operator,
+      updated_at: ts,
+    };
+    const lesson = devLessons[idx];
+    if (completed && !before.completed) {
+      await syncLessonToVocab(db, lesson);
+    } else if (!completed && before.completed) {
+      await unsyncLessonFromVocab(db, before);
+    }
+    return { ok: true, lesson };
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE jp_lesson SET completed = ?1, status_updated_at = ?2, status_updated_by = ?3, updated_at = ?2 WHERE id = ?4`
+    )
+    .bind(flag, ts, operator, lessonId)
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const row = await db
+    .prepare(`${LESSON_SELECT} WHERE id = ?1`)
+    .bind(lessonId)
+    .first<Record<string, unknown>>();
+
+  if (!row) return { ok: false, error: "not_found" };
+  const lesson = mapRow(row);
+
+  if (completed && !before.completed) {
+    await syncLessonToVocab(db, lesson);
+  } else if (!completed && before.completed) {
+    await unsyncLessonFromVocab(db, before);
+  }
+
+  return { ok: true, lesson };
+}

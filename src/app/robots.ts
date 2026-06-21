@@ -7,7 +7,14 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/jp-review", "/api/jp-review/", "/jp-vocab", "/api/jp-vocab/"],
+      disallow: [
+        "/jp-review",
+        "/api/jp-review/",
+        "/jp-vocab",
+        "/api/jp-vocab/",
+        "/jp-lesson",
+        "/api/jp-lesson/",
+      ],
     },
     sitemap: [`${SITE_URL}/sitemap.xml`, `${storeReviewSiteUrl()}/sitemap.xml`],
   };

@@ -9,7 +9,7 @@ import {
   isAboutPath,
   isAdminPath,
   isComparePath,
-  isJpReviewPath,
+  isJpLessonPath,
   isJpVocabPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
@@ -32,9 +32,9 @@ export function SiteNav() {
   const onSubdomain = useStoreReviewSubdomain();
   const navOpts = { onSubdomain, isAdmin };
   const showFullNav = !onSubdomain || isAdmin;
-  const onJpReview = isJpReviewPath(pathname);
+  const onJpLesson = isJpLessonPath(pathname);
   const onJpVocab = isJpVocabPath(pathname);
-  const onHiddenJp = onJpReview || onJpVocab;
+  const onHiddenJp = onJpLesson || onJpVocab;
 
   let items: NavItem[];
 
@@ -47,10 +47,10 @@ export function SiteNav() {
         active: onJpVocab,
       },
       {
-        id: "jpReview",
-        href: navHref("jpReview", locale, navOpts),
-        label: nav.jpReview,
-        active: onJpReview,
+        id: "jpLesson",
+        href: navHref("jpLesson", locale, navOpts),
+        label: nav.jpLesson,
+        active: onJpLesson,
       },
       {
         id: "about",
@@ -61,22 +61,22 @@ export function SiteNav() {
     ];
   } else if (onHiddenJp && !isAdmin) {
     items = [
-      ...(onJpReview
-        ? [
-            {
-              id: "jpReview",
-              href: navHref("jpReview", locale, navOpts),
-              label: nav.jpReview,
-              active: true,
-            },
-          ]
-        : []),
       ...(onJpVocab
         ? [
             {
               id: "jpVocab",
               href: navHref("jpVocab", locale, navOpts),
               label: nav.jpVocab,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onJpLesson
+        ? [
+            {
+              id: "jpLesson",
+              href: navHref("jpLesson", locale, navOpts),
+              label: nav.jpLesson,
               active: true,
             },
           ]
@@ -112,16 +112,16 @@ export function SiteNav() {
               active: isAdminPath(pathname),
             },
             {
-              id: "jpReview",
-              href: navHref("jpReview", locale, navOpts),
-              label: nav.jpReview,
-              active: isJpReviewPath(pathname),
+              id: "jpLesson",
+              href: navHref("jpLesson", locale, navOpts),
+              label: nav.jpLesson,
+              active: onJpLesson,
             },
             {
               id: "jpVocab",
               href: navHref("jpVocab", locale, navOpts),
               label: nav.jpVocab,
-              active: isJpVocabPath(pathname),
+              active: onJpVocab,
             },
           ]),
       {

@@ -17,6 +17,12 @@
     "db:migrate:remote": "wrangler d1 execute strategy-compare-db --remote --file=./schema.sql",
     "db:migrate-jp-vocab-refs:local": "wrangler d1 execute strategy-compare-db --local --file=./scripts/migrate-jp-vocab-refs.sql -y",
     "db:migrate-jp-vocab-refs:remote": "wrangler d1 execute strategy-compare-db --remote --file=./scripts/migrate-jp-vocab-refs.sql -y",
+    "db:migrate-jp-vocab-refs-safe:local": "python3 scripts/migrate-jp-vocab-refs-safe.py --local",
+    "db:migrate-jp-vocab-refs-safe:remote": "python3 scripts/migrate-jp-vocab-refs-safe.py --remote",
+    "db:migrate-jp-lesson-safe:local": "python3 scripts/migrate-jp-lesson-safe.py --local",
+    "db:migrate-jp-lesson-safe:remote": "python3 scripts/migrate-jp-lesson-safe.py --remote",
+    "db:migrate-jp-lesson-completed:local": "python3 scripts/migrate-jp-lesson-completed.py --local",
+    "db:migrate-jp-lesson-completed:remote": "python3 scripts/migrate-jp-lesson-completed.py --remote",
     "db:import-etr:local": "python3 scripts/import-etr-from-stt.py --local",
     "db:import-etr:remote": "python3 scripts/import-etr-from-stt.py --remote"
   },

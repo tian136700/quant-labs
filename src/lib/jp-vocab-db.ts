@@ -573,3 +573,106 @@ export async function uploadJpVocabWords(
     total: totalRow?.c ?? 0,
   };
 }
+
+/** 新课标记完成时：仅写入尚不存在的词条（已存在则跳过）并带上教案 ref_key */
+export async function upsertJpVocabFromLesson(
+  db: D1Database,
+  items: { word: string; kind: JpVocabKind; ref_key: string | null }[],
+  refs: JpVocabRefUploadInput[] = []
+): Promise<void> {
+  if (!items.length) return;
+  if (refs.length) await upsertJpVocabRefMetadata(db, refs);
+
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    for (const item of items) {
+      const word = normalizeWord(item.word);
+      if (!word) continue;
+      const kind = normalizeKind(item.kind);
+      const refKey = item.ref_key;
+      const idx = devWords.findIndex((w) => w.word === word);
+      if (idx >= 0) {
+        continue;
+      }
+      devWords.push({
+          id: devNextId++,
+          word,
+          reading: null,
+          meaning: null,
+          kind,
+          ref_key: refKey,
+          cnt_very: 0,
+          cnt_normal: 0,
+          cnt_weak: 0,
+          created_at: ts,
+          updated_at: ts,
+        });
+    }
+    return;
+  }
+
+  for (const item of items) {
+    const word = normalizeWord(item.word);
+    if (!word) continue;
+    const kind = normalizeKind(item.kind);
+    const refKey = item.ref_key;
+
+    const existing = await db
+      .prepare("SELECT id FROM jp_vocab_word WHERE word = ?1 LIMIT 1")
+      .bind(word)
+      .first<{ id: number }>();
+
+    if (existing) continue;
+
+    await db
+      .prepare(
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, created_at, updated_at)
+         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, ?4, ?4)`
+      )
+      .bind(word, kind, refKey, ts)
+      .run();
+  }
+}
+
+/** 新课改回未完成时：移除本课同步的词条（按 ref_key 匹配） */
+export async function removeJpVocabLessonWords(
+  db: D1Database,
+  words: string[],
+  refKey: string | null,
+  kind: JpVocabKind
+): Promise<void> {
+  const cleaned = words.map(normalizeWord).filter(Boolean);
+  if (!cleaned.length) return;
+
+  const normalizedKind = normalizeKind(kind);
+
+  if (devStoreEnabled) {
+    for (let i = devWords.length - 1; i >= 0; i--) {
+      const w = devWords[i];
+      if (!cleaned.includes(w.word)) continue;
+      if (refKey) {
+        if (w.ref_key === refKey) devWords.splice(i, 1);
+      } else if (w.ref_key == null && w.kind === normalizedKind) {
+        devWords.splice(i, 1);
+      }
+    }
+    return;
+  }
+
+  for (const word of cleaned) {
+    if (refKey) {
+      await db
+        .prepare("DELETE FROM jp_vocab_word WHERE word = ?1 AND ref_key = ?2")
+        .bind(word, refKey)
+        .run();
+    } else {
+      await db
+        .prepare(
+          "DELETE FROM jp_vocab_word WHERE word = ?1 AND ref_key IS NULL AND kind = ?2"
+        )
+        .bind(word, normalizedKind)
+        .run();
+    }
+  }
+}
