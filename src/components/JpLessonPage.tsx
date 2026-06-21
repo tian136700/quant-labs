@@ -50,6 +50,7 @@ export function JpLessonPage() {
   const [status, setStatus] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const loadLessons = useCallback(async () => {
     setLoading(true);
@@ -80,11 +81,13 @@ export function JpLessonPage() {
 
   const sortedLessons = useMemo(() => sortJpLessons(lessons), [lessons]);
 
-  const copyText = async (text: string, label: string) => {
+  const copyLessonShare = async (lesson: JpLessonRecord) => {
     try {
-      await navigator.clipboard.writeText(text);
-      setStatus(`已复制${label}`);
-      window.setTimeout(() => setStatus(""), 2000);
+      await navigator.clipboard.writeText(
+        lessonShareCopyText(lesson, window.location.origin)
+      );
+      setCopiedId(lesson.id);
+      window.setTimeout(() => setCopiedId(null), 1000);
     } catch {
       setStatus("复制失败，请手动选择复制");
     }
@@ -331,17 +334,9 @@ export function JpLessonPage() {
                             <button
                               type="button"
                               className="jp-lesson-action-btn"
-                              onClick={() =>
-                                void copyText(
-                                  lessonShareCopyText(
-                                    lesson,
-                                    window.location.origin
-                                  ),
-                                  "学习内容与链接"
-                                )
-                              }
+                              onClick={() => void copyLessonShare(lesson)}
                             >
-                              复制
+                              {copiedId === lesson.id ? "已复制" : "复制"}
                             </button>
                           </div>
                         ) : (
