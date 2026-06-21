@@ -131,18 +131,85 @@ CREATE TABLE IF NOT EXISTS visit_logs (
 CREATE INDEX IF NOT EXISTS idx_visit_logs_created ON visit_logs (created_at);
 CREATE INDEX IF NOT EXISTS idx_visit_logs_ip ON visit_logs (ip);
 
--- 日语单词抽问：单词列表 + 熟悉程度统计
+-- 日语单词抽问：共用参考资料（图片/PDF，多条词条可指向同一 ref_key）
+CREATE TABLE IF NOT EXISTS jp_vocab_ref (
+  ref_key    TEXT    PRIMARY KEY,
+  title      TEXT,
+  media_type TEXT    NOT NULL DEFAULT 'image',
+  r2_key     TEXT    NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 日语单词抽问：单词/语法列表 + 熟悉程度统计
 CREATE TABLE IF NOT EXISTS jp_vocab_word (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   word       TEXT    NOT NULL,
   reading    TEXT,
   meaning    TEXT,
+  kind       TEXT    NOT NULL DEFAULT 'word',
+  ref_key    TEXT,
   cnt_very   INTEGER NOT NULL DEFAULT 0,
   cnt_normal INTEGER NOT NULL DEFAULT 0,
   cnt_weak   INTEGER NOT NULL DEFAULT 0,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (ref_key) REFERENCES jp_vocab_ref (ref_key) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_word ON jp_vocab_word (word);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_weak ON jp_vocab_word (cnt_weak DESC, cnt_normal ASC);
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
+
+-- 已有库升级（仅需执行一次）：
+-- CREATE TABLE IF NOT EXISTS jp_vocab_ref (...);  -- 同上
+-- ALTER TABLE jp_vocab_word ADD COLUMN kind TEXT NOT NULL DEFAULT 'word';
+-- ALTER TABLE jp_vocab_word ADD COLUMN ref_key TEXT;
+-- CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
+
+-- trend_aggregator：每日抓取批次 + 条目（含 AI 提示词，可溯源）
+CREATE TABLE IF NOT EXISTS trend_fetch_run (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  fetched_at          TEXT    NOT NULL,
+  github_count        INTEGER NOT NULL DEFAULT 0,
+  reddit_count        INTEGER NOT NULL DEFAULT 0,
+  combined_count      INTEGER NOT NULL DEFAULT 0,
+  selected_count      INTEGER NOT NULL DEFAULT 0,
+  raw_payload         TEXT    NOT NULL,
+  batch_system_prompt TEXT,
+  batch_user_prompt   TEXT,
+  batch_full_prompt   TEXT,
+  created_at          TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_trend_fetch_run_fetched ON trend_fetch_run (fetched_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trend_fetch_run_created ON trend_fetch_run (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS trend_item (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id          INTEGER NOT NULL,
+  source          TEXT    NOT NULL,
+  external_id     TEXT    NOT NULL,
+  title           TEXT    NOT NULL,
+  description     TEXT,
+  url             TEXT,
+  stars           INTEGER,
+  language        TEXT,
+  subreddit       TEXT,
+  topics_json     TEXT,
+  published_at    TEXT,
+  heat_score      REAL    NOT NULL DEFAULT 0,
+  selected        INTEGER NOT NULL DEFAULT 0,
+  selection_rank  INTEGER,
+  item_json       TEXT    NOT NULL,
+  system_prompt   TEXT,
+  user_prompt     TEXT,
+  full_prompt     TEXT,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (run_id) REFERENCES trend_fetch_run(id) ON DELETE CASCADE,
+  UNIQUE (run_id, source, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trend_item_run ON trend_item (run_id);
+CREATE INDEX IF NOT EXISTS idx_trend_item_selected ON trend_item (run_id, selected, selection_rank);
+CREATE INDEX IF NOT EXISTS idx_trend_item_heat ON trend_item (run_id, heat_score DESC);

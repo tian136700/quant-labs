@@ -1168,6 +1168,38 @@ textarea:focus {
   }
 }
 
+.trend-run-row--active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.trend-prompt-block {
+  @apply mt-4;
+}
+
+.trend-prompt-head {
+  @apply flex flex-wrap items-center justify-between gap-2 mb-2;
+}
+
+.trend-prompt-head h4 {
+  @apply text-sm font-semibold m-0;
+}
+
+.trend-prompt-textarea {
+  @apply w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-border bg-panel text-text;
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.trend-desc-preview {
+  @apply text-sm whitespace-pre-wrap break-words;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.trend-item-detail {
+  @apply mt-4;
+}
+
 /* ── 商店 / 外卖评价 ── */
 .svr-plaza-link-wrap {
   margin-top: 0.5rem;

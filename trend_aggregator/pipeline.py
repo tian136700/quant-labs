@@ -566,6 +566,7 @@ def run_pipeline(
     config: AggregatorConfig | None = None,
     generate_article: bool = True,
     dry_run_llm: bool = False,
+    sync_db: bool = False,
     raw_output: Path | None = None,
     article_output: Path | None = None,
 ) -> dict[str, Any]:
@@ -582,6 +583,7 @@ def run_pipeline(
         config: 运行时配置；None 使用 get_default_config()。
         generate_article: 是否调用 LLM 生成文章。
         dry_run_llm: True 时不调用 LLM，仅记录 prompt。
+        sync_db: True 时将抓取结果 + Top-10 提示词 POST 到 /api/trends/ingest。
         raw_output: 原始+清洗 JSON 输出路径；None 使用默认相对路径。
         article_output: Markdown 文章输出路径；None 使用默认相对路径。
 
@@ -598,6 +600,8 @@ def run_pipeline(
     art_path = article_output or (MODULE_DIR / DEFAULT_ARTICLE_OUTPUT_PATH)
 
     logger.info("=== trend_aggregator pipeline 开始 ===")
+
+    fetched_at = datetime.now(timezone.utc).isoformat()
 
     raw = fetch_all_sources(
         github_keywords=cfg.github_keywords,
@@ -618,7 +622,7 @@ def run_pipeline(
     try:
         save_json(
             {
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                "fetched_at": fetched_at,
                 "raw": raw,
                 "processed": processed,
             },
@@ -628,6 +632,15 @@ def run_pipeline(
     except OSError as exc:
         logger.exception("保存 raw JSON 失败: %s", exc)
         raw_saved = None
+
+    db_sync: dict[str, Any] | None = None
+    if sync_db:
+        try:
+            from sync_api import sync_pipeline_result
+
+            db_sync = sync_pipeline_result(raw, processed, fetched_at=fetched_at)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("同步数据库失败: %s", exc)
 
     art_saved: str | None = None
     if article:
@@ -649,6 +662,8 @@ def run_pipeline(
         "processed": processed,
         "article": article,
         "paths": {"raw": raw_saved, "article": art_saved},
+        "db_sync": db_sync,
+        "fetched_at": fetched_at,
     }
 
 
@@ -673,6 +688,7 @@ def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     dry_run = "--dry-run" in args
     no_llm = "--no-llm" in args
+    sync_db = "--sync-db" in args
     verbose = "-v" in args or "--verbose" in args
 
     _configure_logging(verbose)
@@ -709,6 +725,7 @@ def main(argv: list[str] | None = None) -> int:
         result = run_pipeline(
             generate_article=not no_llm,
             dry_run_llm=dry_run,
+            sync_db=sync_db,
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("pipeline 致命错误: %s", exc)
@@ -726,6 +743,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Article:  {result['paths']['article']}", flush=True)
     elif not no_llm and not dry_run:
         print("Article:  (skipped — check API key or logs)", flush=True)
+    if sync_db:
+        sync = result.get("db_sync")
+        if sync and sync.get("ok"):
+            print(f"DB sync:  run_id={sync.get('run_id')} selected={sync.get('selected_count')}", flush=True)
+        else:
+            print("DB sync:  (failed — check dev server / TREND_INGEST_URL / logs)", flush=True)
 
     return 0
 

@@ -107,8 +107,17 @@ export function adminPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin" : "/admin";
 }
 
+export function adminTrendsPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/trends" : "/admin/trends";
+}
+
 export function isAdminPath(pathname: string): boolean {
-  return pathname === "/admin" || pathname === "/zh/admin";
+  return (
+    pathname === "/admin" ||
+    pathname === "/zh/admin" ||
+    pathname === "/admin/trends" ||
+    pathname === "/zh/admin/trends"
+  );
 }
 
 export function jpReviewPath(): string {

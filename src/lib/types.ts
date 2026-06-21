@@ -119,12 +119,25 @@ export interface VisitLogRecord {
 }
 
 export type JpVocabLevel = "very" | "normal" | "weak";
+export type JpVocabKind = "word" | "grammar";
+export type JpVocabMediaType = "image" | "pdf";
+
+export interface JpVocabRef {
+  ref_key: string;
+  title: string | null;
+  media_type: JpVocabMediaType;
+  r2_key: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface JpVocabWord {
   id: number;
   word: string;
   reading: string | null;
   meaning: string | null;
+  kind: JpVocabKind;
+  ref_key: string | null;
   cnt_very: number;
   cnt_normal: number;
   cnt_weak: number;
@@ -136,4 +149,44 @@ export type JpVocabUploadInput = {
   word: string;
   reading?: string | null;
   meaning?: string | null;
+  kind?: JpVocabKind | null;
+  ref_key?: string | null;
 };
+
+export type JpVocabRefUploadInput = {
+  ref_key: string;
+  title?: string | null;
+  media_type?: JpVocabMediaType | null;
+};
+
+export interface TrendFetchRunRecord {
+  id: number;
+  fetched_at: string;
+  github_count: number;
+  reddit_count: number;
+  combined_count: number;
+  selected_count: number;
+  created_at: string;
+}
+
+export interface TrendItemRecord {
+  id: number;
+  run_id: number;
+  source: string;
+  external_id: string;
+  title: string;
+  description: string | null;
+  url: string | null;
+  stars: number | null;
+  language: string | null;
+  subreddit: string | null;
+  topics_json: string | null;
+  published_at: string | null;
+  heat_score: number;
+  selected: number;
+  selection_rank: number | null;
+  system_prompt: string | null;
+  user_prompt: string | null;
+  full_prompt: string | null;
+  created_at: string;
+}

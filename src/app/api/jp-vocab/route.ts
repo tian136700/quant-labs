@@ -1,6 +1,6 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
-  listJpVocabWords,
+  listJpVocabWordsWithRefs,
   recordJpVocabReview,
   resetAllJpVocabReviews,
 } from "@/lib/jp-vocab-db";
@@ -15,8 +15,8 @@ const AUTH_MSG = {
 export async function GET() {
   try {
     const env = await getCloudflareEnv();
-    const words = await listJpVocabWords(env.DB);
-    return jsonResponse({ ok: true, words });
+    const { words, refs } = await listJpVocabWordsWithRefs(env.DB);
+    return jsonResponse({ ok: true, words, refs });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
