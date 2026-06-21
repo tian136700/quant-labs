@@ -28,6 +28,16 @@ function refFilename(refKey: string, ref?: JpVocabRef): string {
   return `${refKey}.${ext}`;
 }
 
+function lessonShareCopyText(
+  lesson: JpLessonRecord,
+  origin: string
+): string {
+  const link = lesson.ref_key
+    ? `${origin}${refUrl(lesson.ref_key)}?id=${lesson.id}`
+    : `${origin}/jp-lesson?id=${lesson.id}`;
+  return `学习内容：${lesson.content}\n链接：${link}`;
+}
+
 export function JpLessonPage() {
   const { locale } = useI18n();
   const { user, checking, canAccessJpVocab, logout, setUser } = useEtrAuth();
@@ -323,8 +333,11 @@ export function JpLessonPage() {
                               className="jp-lesson-action-btn"
                               onClick={() =>
                                 void copyText(
-                                  `${window.location.origin}${viewUrl}`,
-                                  "教案链接"
+                                  lessonShareCopyText(
+                                    lesson,
+                                    window.location.origin
+                                  ),
+                                  "学习内容与链接"
                                 )
                               }
                             >
