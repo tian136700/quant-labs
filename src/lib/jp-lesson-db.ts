@@ -62,50 +62,35 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed,
   status_updated_at, status_updated_by, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
-async function seedIfEmpty(db: D1Database): Promise<void> {
-  if (devStoreEnabled) {
-    if (devSeeded || devLessons.length > 0) return;
-    const ts = nowIso();
-    for (const item of SEED_LESSONS) {
-      devLessons.push({
-        id: devNextId++,
-        kind: normalizeKind(item.kind),
-        content: item.content.trim(),
-        title: (item.title || "").trim() || null,
-        ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
-        completed: false,
-        status_updated_at: null,
-        status_updated_by: null,
-        uploaded_at: ts,
-        created_at: ts,
-        updated_at: ts,
-      });
-    }
-    devSeeded = true;
-    return;
-  }
+async function seedIfEmpty(_db: D1Database): Promise<void> {
+  if (!devStoreEnabled) return;
 
-  const countRow = await db
-    .prepare("SELECT COUNT(*) AS c FROM jp_lesson")
-    .first<{ c: number }>();
-  if ((countRow?.c ?? 0) > 0) return;
-
+  if (devSeeded || devLessons.length > 0) return;
   const ts = nowIso();
   for (const item of SEED_LESSONS) {
-    await db
-      .prepare(
-        `INSERT INTO jp_lesson (kind, content, title, ref_key, completed, uploaded_at, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?5)`
-      )
-      .bind(
-        normalizeKind(item.kind),
-        item.content.trim(),
-        (item.title || "").trim() || null,
-        item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
-        ts
-      )
-      .run();
+    devLessons.push({
+      id: devNextId++,
+      kind: normalizeKind(item.kind),
+      content: item.content.trim(),
+      title: (item.title || "").trim() || null,
+      ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
+      completed: false,
+      status_updated_at: null,
+      status_updated_by: null,
+      uploaded_at: ts,
+      created_at: ts,
+      updated_at: ts,
+    });
   }
+  devSeeded = true;
+}
+
+async function refKeyExists(db: D1Database, refKey: string): Promise<boolean> {
+  const row = await db
+    .prepare("SELECT 1 AS ok FROM jp_vocab_ref WHERE ref_key = ?1 LIMIT 1")
+    .bind(refKey)
+    .first<{ ok: number }>();
+  return Boolean(row?.ok);
 }
 
 export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
@@ -189,9 +174,8 @@ export async function createJpLesson(
     : null;
   const ts = nowIso();
 
-  await seedIfEmpty(db);
-
   if (devStoreEnabled) {
+    await seedIfEmpty(db);
     const lesson: JpLessonRecord = {
       id: devNextId++,
       kind,
@@ -207,6 +191,10 @@ export async function createJpLesson(
     };
     devLessons.unshift(lesson);
     return { ok: true, lesson };
+  }
+
+  if (refKey && !(await refKeyExists(db, refKey))) {
+    return { ok: false, error: "ref_key_not_found" };
   }
 
   const result = await db
