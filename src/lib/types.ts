@@ -159,6 +159,31 @@ export type JpVocabRefUploadInput = {
   media_type?: JpVocabMediaType | null;
 };
 
+export type JpLessonKind = "word" | "grammar";
+
+export interface JpLessonRecord {
+  id: number;
+  kind: JpLessonKind;
+  content: string;
+  title: string | null;
+  ref_key: string | null;
+  completed: boolean;
+  /** 最近一次切换「已完成 / 未完成」的时间；未操作过则为 null */
+  status_updated_at: string | null;
+  /** 最近一次切换完成状态的操作人用户名；未操作过则为 null */
+  status_updated_by: string | null;
+  uploaded_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type JpLessonUploadInput = {
+  kind: JpLessonKind;
+  content: string;
+  title?: string | null;
+  ref_key?: string | null;
+};
+
 export interface TrendFetchRunRecord {
   id: number;
   fetched_at: string;

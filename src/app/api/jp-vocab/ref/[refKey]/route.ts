@@ -9,12 +9,43 @@ import {
   jpVocabRefContentType,
 } from "@/lib/jp-vocab-ref-shared";
 
+function refResponseHeaders(
+  mediaType: "image" | "pdf",
+  filename: string,
+  asDownload: boolean,
+  byteLength?: number
+): Headers {
+  const headers = new Headers({
+    "Content-Type": jpVocabRefContentType(mediaType),
+    "X-Content-Type-Options": "nosniff",
+  });
+
+  if (asDownload) {
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`
+    );
+    headers.set("Cache-Control", "private, no-transform, max-age=0");
+    headers.set("Content-Encoding", "identity");
+  } else {
+    headers.set("Cache-Control", "public, max-age=3600, no-transform");
+  }
+
+  if (byteLength != null && byteLength > 0) {
+    headers.set("Content-Length", String(byteLength));
+  }
+
+  return headers;
+}
+
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ refKey: string }> }
 ) {
   try {
     const { refKey } = await context.params;
+    const url = new URL(request.url);
+    const asDownload = url.searchParams.get("download") === "1";
     const env = await getCloudflareEnv();
     const ref = await getJpVocabRef(env.DB, refKey);
 
@@ -22,16 +53,20 @@ export async function GET(
       return new Response("Not found", { status: 404 });
     }
 
-    const headers = new Headers({
-      "Content-Type": jpVocabRefContentType(ref.media_type),
-      "Cache-Control": "public, max-age=3600",
-    });
+    const ext = ref.media_type === "pdf" ? "pdf" : "png";
+    const filename = `${ref.ref_key}.${ext}`;
 
     if (isLocalJpVocabRefMarker(ref.r2_key)) {
       const bytes = await readLocalJpVocabRefFile(ref.ref_key, ref.media_type);
       if (!bytes) {
         return new Response("Reference file not uploaded yet", { status: 404 });
       }
+      const headers = refResponseHeaders(
+        ref.media_type,
+        filename,
+        asDownload,
+        bytes.byteLength
+      );
       return new Response(bytes, { headers });
     }
 
@@ -40,6 +75,7 @@ export async function GET(
       return new Response("Reference file not uploaded yet", { status: 404 });
     }
 
+    const headers = refResponseHeaders(ref.media_type, filename, asDownload);
     const etag = obj.httpEtag || obj.etag;
     if (etag) headers.set("ETag", etag);
 

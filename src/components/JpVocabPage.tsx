@@ -303,7 +303,7 @@ export function JpVocabPage() {
         )}
       </div>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        扫一眼单词或语法表，学生回答后勾选熟悉程度；有教案的语法可直接点击语法名，在新标签页打开对照图片。
+        扫一眼单词或语法表，学生回答后勾选熟悉程度；语法名旁带「（点击可进入教案）」的，点蓝色语法名可在新标签页打开教案图片。
       </p>
 
       {!canOperate && !checking ? (
@@ -403,7 +403,10 @@ export function JpVocabPage() {
         ) : !words.length ? (
           <p style={{ color: "var(--muted)" }}>暂无条目，请通过 API 上传。</p>
         ) : (
-          <div className="etr-table-wrap" style={{ display: "block" }}>
+          <div className="etr-table-wrap jp-vocab-table-wrap">
+            <p className="jp-vocab-scroll-hint" aria-hidden="true">
+              表格较宽时可左右滑动查看
+            </p>
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
@@ -419,10 +422,10 @@ export function JpVocabPage() {
                   <th rowSpan={2}>状态</th>
                 </tr>
                 <tr>
-                  <th>非常熟悉</th>
-                  <th>一般</th>
-                  <th>不熟悉</th>
-                  <th>合计</th>
+                  <th className="jp-vocab-stat-detail">非常熟悉</th>
+                  <th className="jp-vocab-stat-detail">一般</th>
+                  <th className="jp-vocab-stat-detail">不熟悉</th>
+                  <th className="jp-vocab-stat-total">合计</th>
                 </tr>
               </thead>
               <tbody>
@@ -443,7 +446,7 @@ export function JpVocabPage() {
                           : undefined,
                       }}
                     >
-                      <td>
+                      <td className="jp-vocab-kind-col" data-label="类型">
                         <span
                           className={`jp-vocab-kind-badge${
                             w.kind === "grammar" ? " jp-vocab-kind-badge--grammar" : ""
@@ -452,23 +455,30 @@ export function JpVocabPage() {
                           {w.kind === "grammar" ? "语法" : "单词"}
                         </span>
                       </td>
-                      <td className="jp-vocab-word-col">
-                        {w.ref_key ? (
-                          <a
-                            href={`/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="jp-vocab-word-link"
-                            title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                          >
-                            {w.word}
-                          </a>
-                        ) : (
-                          <span className="jp-vocab-word-text">{w.word}</span>
-                        )}
+                      <td className="jp-vocab-word-col" data-label="单词 / 语法">
+                        <div className="jp-vocab-word-cell">
+                          {w.ref_key ? (
+                            <>
+                              <a
+                                href={`/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="jp-vocab-word-link"
+                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                              >
+                                {w.word}
+                              </a>
+                              <span className="jp-vocab-ref-hint">（点击可进入教案）</span>
+                            </>
+                          ) : (
+                            <span className="jp-vocab-word-text">{w.word}</span>
+                          )}
+                        </div>
                       </td>
-                      <td style={{ color: "var(--muted)" }}>{w.meaning || "—"}</td>
-                      <td className="jp-vocab-level-col">
+                      <td className="jp-vocab-meaning-col" data-label="释义" style={{ color: "var(--muted)" }}>
+                        {w.meaning || "—"}
+                      </td>
+                      <td className="jp-vocab-level-col" data-label="熟悉程度">
                         <div
                           className="jp-vocab-levels"
                           role="group"
@@ -518,11 +528,19 @@ export function JpVocabPage() {
                           })}
                         </div>
                       </td>
-                      <td className="chg-dn">{w.cnt_very}</td>
-                      <td>{w.cnt_normal}</td>
-                      <td className="chg-up">{w.cnt_weak}</td>
-                      <td>{totalReviews(w)}</td>
-                      <td>
+                      <td className="jp-vocab-stat-detail chg-dn" data-label="非常熟悉">
+                        {w.cnt_very}
+                      </td>
+                      <td className="jp-vocab-stat-detail" data-label="一般">
+                        {w.cnt_normal}
+                      </td>
+                      <td className="jp-vocab-stat-detail chg-up" data-label="不熟悉">
+                        {w.cnt_weak}
+                      </td>
+                      <td className="jp-vocab-stat-total" data-label="复习合计">
+                        {totalReviews(w)}
+                      </td>
+                      <td className="jp-vocab-status-col" data-label="状态">
                         {!selected ? (
                           <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
                             未勾选
@@ -619,12 +637,18 @@ file=<图片或 PDF 文件>`}
         :global(.page-wrap:has(.jp-vocab-page)) {
           max-width: min(1480px, 96vw);
         }
+        .jp-vocab-scroll-hint {
+          display: none;
+          margin: 0 0 0.5rem;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
         .jp-vocab-levels {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
           gap: 0.35rem 0.5rem;
-          min-width: 14rem;
+          min-width: 0;
         }
         .jp-vocab-level-opt {
           display: inline-flex;
@@ -633,13 +657,14 @@ file=<图片或 PDF 文件>`}
           font-size: 0.8125rem;
           cursor: pointer;
           white-space: nowrap;
-          padding: 0.2rem 0.4rem;
+          padding: 0.35rem 0.5rem;
           border-radius: 6px;
           border: 1px solid transparent;
           background: transparent;
           color: var(--text);
           font: inherit;
           line-height: 1.3;
+          min-height: 2rem;
         }
         .jp-vocab-check-box {
           display: inline-flex;
@@ -700,10 +725,20 @@ file=<图片或 PDF 文件>`}
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, transparent);
         }
+        .jp-vocab-ref-hint {
+          display: block;
+          margin-left: 0;
+          margin-top: 0.2rem;
+          font-size: 0.75rem;
+          color: var(--muted);
+          text-align: center;
+        }
         .jp-vocab-word-link {
           font-weight: 500;
           color: var(--accent);
-          text-decoration: none;
+          text-decoration: underline;
+          text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+          text-underline-offset: 2px;
         }
         .jp-vocab-word-link:hover {
           text-decoration: underline;
@@ -711,14 +746,29 @@ file=<图片或 PDF 文件>`}
         .jp-vocab-word-text {
           font-weight: 500;
         }
-        :global(.jp-vocab-page .etr-table-wrap) {
+        .jp-vocab-word-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          flex: 1;
+          min-width: 0;
+        }
+        :global(.jp-vocab-page .jp-vocab-table-wrap) {
           overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        :global(.jp-vocab-table) {
+          width: 100%;
+          min-width: 720px;
         }
         :global(.jp-vocab-table th),
         :global(.jp-vocab-table td) {
           white-space: normal;
           vertical-align: middle;
           padding: 0.55rem 0.75rem;
+          text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-level-col) {
           text-align: center;
@@ -726,8 +776,135 @@ file=<图片或 PDF 文件>`}
         :global(.jp-vocab-table .jp-vocab-stats-group) {
           text-align: center;
         }
+        :global(.jp-vocab-table .jp-vocab-stat-detail),
+        :global(.jp-vocab-table .jp-vocab-stat-total),
+        :global(.jp-vocab-table .jp-vocab-status-col),
+        :global(.jp-vocab-table .jp-vocab-kind-col),
+        :global(.jp-vocab-table .jp-vocab-meaning-col) {
+          text-align: center;
+        }
         :global(.jp-vocab-table .jp-vocab-word-col) {
           font-size: 0.9375rem;
+          min-width: 8rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-meaning-col) {
+          min-width: 6rem;
+          max-width: 16rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-kind-col) {
+          white-space: nowrap;
+        }
+
+        /* 中等屏幕：隐藏分项统计，保留合计，减少横向滚动 */
+        @media (max-width: 1100px) {
+          .jp-vocab-scroll-hint {
+            display: block;
+          }
+          :global(.jp-vocab-table .jp-vocab-stat-detail) {
+            display: none;
+          }
+          :global(.jp-vocab-table thead tr:nth-child(2) .jp-vocab-stat-detail) {
+            display: none;
+          }
+        }
+
+        /* 手机 / 小屏：卡片布局，无需横向滚表格 */
+        @media (max-width: 768px) {
+          .jp-vocab-scroll-hint {
+            display: none;
+          }
+          :global(.jp-vocab-page) {
+            padding-top: 1rem !important;
+          }
+          :global(.jp-vocab-table) {
+            min-width: 0;
+          }
+          :global(.jp-vocab-table thead) {
+            display: none;
+          }
+          :global(.jp-vocab-table tbody tr) {
+            display: block;
+            margin-bottom: 0.85rem;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+          }
+          :global(.jp-vocab-table tbody td) {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.45rem 0;
+            border: none;
+            text-align: center;
+          }
+          :global(.jp-vocab-table tbody td::before) {
+            content: attr(data-label);
+            flex: 0 0 auto;
+            width: 100%;
+            max-width: none;
+            font-size: 0.8125rem;
+            color: var(--muted);
+            text-align: center;
+            padding-right: 0;
+          }
+          :global(.jp-vocab-table .jp-vocab-kind-col::before),
+          :global(.jp-vocab-table .jp-vocab-word-col::before) {
+            padding-top: 0;
+          }
+          :global(.jp-vocab-table .jp-vocab-word-col) {
+            flex-wrap: nowrap;
+          }
+          .jp-vocab-word-cell {
+            text-align: center;
+            width: 100%;
+          }
+          :global(.jp-vocab-table .jp-vocab-meaning-col) {
+            max-width: none;
+          }
+          :global(.jp-vocab-table .jp-vocab-level-col) {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+          }
+          :global(.jp-vocab-table .jp-vocab-level-col::before) {
+            margin-bottom: 0;
+          }
+          .jp-vocab-levels {
+            justify-content: center;
+            width: 100%;
+          }
+          .jp-vocab-level-opt {
+            min-height: var(--touch-min, 44px);
+            padding: 0.5rem 0.65rem;
+            flex: 1 1 calc(50% - 0.25rem);
+            justify-content: center;
+          }
+          :global(.jp-vocab-table .jp-vocab-stat-detail) {
+            display: flex;
+          }
+          :global(.jp-vocab-table .jp-vocab-status-col),
+          :global(.jp-vocab-table .jp-vocab-stat-total) {
+            align-items: center;
+          }
+          .jp-vocab-ref-hint {
+            display: block;
+            width: 100%;
+            margin-left: 0;
+            margin-top: 0.2rem;
+            text-align: center;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .jp-vocab-level-opt {
+            flex: 1 1 100%;
+          }
+          :global(.jp-vocab-table tbody tr) {
+            padding: 0.65rem;
+          }
         }
       `}</style>
     </main>

@@ -161,6 +161,25 @@ CREATE INDEX IF NOT EXISTS idx_jp_vocab_word ON jp_vocab_word (word);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_weak ON jp_vocab_word (cnt_weak DESC, cnt_normal ASC);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
 
+-- 日语新课：学习清单 + 教案（API 在此上传，逗号分隔学习内容）
+CREATE TABLE IF NOT EXISTS jp_lesson (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind        TEXT    NOT NULL DEFAULT 'word',
+  content     TEXT    NOT NULL,
+  title       TEXT,
+  ref_key     TEXT,
+  completed           INTEGER NOT NULL DEFAULT 0,
+  status_updated_at   TEXT,
+  status_updated_by   TEXT,
+  uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (ref_key) REFERENCES jp_vocab_ref (ref_key) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_uploaded ON jp_lesson (uploaded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_ref ON jp_lesson (ref_key);
+
 -- 已有库升级（仅需执行一次）：
 -- CREATE TABLE IF NOT EXISTS jp_vocab_ref (...);  -- 同上
 -- ALTER TABLE jp_vocab_word ADD COLUMN kind TEXT NOT NULL DEFAULT 'word';
