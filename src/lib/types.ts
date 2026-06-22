@@ -141,6 +141,8 @@ export interface JpVocabWord {
   cnt_very: number;
   cnt_normal: number;
   cnt_weak: number;
+  /** 来自日语新课的课堂笔记（标记完成时同步） */
+  class_notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -183,6 +185,17 @@ export type JpLessonUploadInput = {
   title?: string | null;
   ref_key?: string | null;
 };
+
+export interface JpLessonNote {
+  id: number;
+  lesson_id: number;
+  /** content 拆分后的单个单词/语法 */
+  item_word: string;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 export interface TrendFetchRunRecord {
   id: number;

@@ -20,6 +20,10 @@ import {
   putJpVocabRefFile,
 } from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import { listJpLessons } from "@/lib/jp-lesson-db";
+import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
+import type { JpLessonRecord } from "@/lib/types";
 
 const SEED_WORDS: JpVocabUploadInput[] = [
   {
@@ -100,13 +104,17 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
     cnt_very: Number(row.cnt_very) || 0,
     cnt_normal: Number(row.cnt_normal) || 0,
     cnt_weak: Number(row.cnt_weak) || 0,
+    class_notes:
+      row.class_notes != null && String(row.class_notes).trim()
+        ? String(row.class_notes)
+        : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
 }
 
 const WORD_SELECT = `SELECT id, word, reading, meaning, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, created_at, updated_at FROM jp_vocab_word`;
+  cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at FROM jp_vocab_word`;
 
 function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));
@@ -295,6 +303,7 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
         cnt_very: 0,
         cnt_normal: 0,
         cnt_weak: 0,
+        class_notes: null,
         created_at: ts,
         updated_at: ts,
       });
@@ -314,8 +323,8 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
   const stmts = SEED_WORDS.map((item) =>
     db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, ?6, ?6)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, NULL, ?6, ?6)`
       )
       .bind(
         item.word,
@@ -515,6 +524,7 @@ export async function uploadJpVocabWords(
         cnt_very: 0,
         cnt_normal: 0,
         cnt_weak: 0,
+        class_notes: null,
         created_at: ts,
         updated_at: ts,
       });
@@ -549,8 +559,8 @@ export async function uploadJpVocabWords(
     inserts.push(
       db
         .prepare(
-          `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, created_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, ?6, ?6)`
+          `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, NULL, ?6, ?6)`
         )
         .bind(
           item.word,
@@ -618,6 +628,7 @@ export async function addJpVocabWord(
       cnt_very: 0,
       cnt_normal: 0,
       cnt_weak: 0,
+      class_notes: null,
       created_at: ts,
       updated_at: ts,
     };
@@ -634,8 +645,8 @@ export async function addJpVocabWord(
 
   const insertResult = await db
     .prepare(
-      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, ?6, ?6)`
+      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, NULL, ?6, ?6)`
     )
     .bind(
       item.word,
@@ -724,6 +735,7 @@ export async function upsertJpVocabFromLesson(
           cnt_very: 0,
           cnt_normal: 0,
           cnt_weak: 0,
+          class_notes: null,
           created_at: ts,
           updated_at: ts,
         });
@@ -746,11 +758,75 @@ export async function upsertJpVocabFromLesson(
 
     await db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, created_at, updated_at)
-         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, ?4, ?4)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
+         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, NULL, ?4, ?4)`
       )
       .bind(word, kind, refKey, ts)
       .run();
+  }
+}
+
+function combineLessonNotes(notes: { body: string }[]): string | null {
+  const parts = notes.map((n) => n.body.trim()).filter(Boolean);
+  return parts.length ? parts.join("\n\n") : null;
+}
+
+/** 新课已完成时：把 jp_lesson_note 同步到 jp_vocab_word.class_notes */
+export async function syncLessonNotesToVocab(
+  db: D1Database,
+  lesson: JpLessonRecord
+): Promise<void> {
+  const items = parseLessonContent(lesson.content);
+  if (!items.length) return;
+
+  const notes = await listJpLessonNotesByLessonId(db, lesson.id);
+  const refKey = lesson.ref_key;
+  const kind = normalizeKind(lesson.kind);
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    for (const item of items) {
+      const combined = combineLessonNotes(
+        notes.filter((n) => n.item_word === item)
+      );
+      const idx = devWords.findIndex((w) => {
+        if (w.word !== item) return false;
+        if (refKey) return w.ref_key === refKey;
+        return w.ref_key == null && w.kind === kind;
+      });
+      if (idx >= 0) {
+        devWords[idx] = {
+          ...devWords[idx],
+          class_notes: combined,
+          updated_at: ts,
+        };
+      }
+    }
+    return;
+  }
+
+  for (const item of items) {
+    const combined = combineLessonNotes(
+      notes.filter((n) => n.item_word === item)
+    );
+
+    if (refKey) {
+      await db
+        .prepare(
+          `UPDATE jp_vocab_word SET class_notes = ?1, updated_at = ?2
+           WHERE word = ?3 AND ref_key = ?4`
+        )
+        .bind(combined, ts, item, refKey)
+        .run();
+    } else {
+      await db
+        .prepare(
+          `UPDATE jp_vocab_word SET class_notes = ?1, updated_at = ?2
+           WHERE word = ?3 AND ref_key IS NULL AND kind = ?4`
+        )
+        .bind(combined, ts, item, kind)
+        .run();
+    }
   }
 }
 
@@ -794,4 +870,79 @@ export async function removeJpVocabLessonWords(
         .run();
     }
   }
+}
+
+function lessonMatchesVocabWord(lesson: JpLessonRecord, word: JpVocabWord): boolean {
+  if (!lesson.completed) return false;
+  const items = parseLessonContent(lesson.content);
+  if (!items.includes(word.word)) return false;
+  if (word.ref_key) return lesson.ref_key === word.ref_key;
+  return lesson.ref_key == null && lesson.kind === word.kind;
+}
+
+export type UpdateJpVocabClassNotesResult =
+  | { ok: true; word: JpVocabWord }
+  | { ok: false; error: string };
+
+/** 更新单词复习页课堂笔记，并同步回关联的新课笔记 */
+export async function updateJpVocabClassNotes(
+  db: D1Database,
+  wordId: number,
+  classNotes: string | null,
+  operatorUsername: string
+): Promise<UpdateJpVocabClassNotesResult> {
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    return { ok: false, error: "word_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+  const normalized = (classNotes || "").trim() || null;
+  const ts = nowIso();
+
+  let word: JpVocabWord | undefined;
+
+  if (devStoreEnabled) {
+    const idx = devWords.findIndex((w) => w.id === wordId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    devWords[idx] = {
+      ...devWords[idx],
+      class_notes: normalized,
+      updated_at: ts,
+    };
+    word = devWords[idx];
+  } else {
+    const result = await db
+      .prepare(
+        `UPDATE jp_vocab_word SET class_notes = ?1, updated_at = ?2 WHERE id = ?3`
+      )
+      .bind(normalized, ts, wordId)
+      .run();
+
+    if (!result.meta?.changes) {
+      return { ok: false, error: "not_found" };
+    }
+
+    const row = await db
+      .prepare(`${WORD_SELECT} WHERE id = ?1`)
+      .bind(wordId)
+      .first<Record<string, unknown>>();
+
+    if (!row) return { ok: false, error: "not_found" };
+    word = mapRow(row);
+  }
+
+  const lessons = await listJpLessons(db);
+  for (const lesson of lessons) {
+    if (!lessonMatchesVocabWord(lesson, word)) continue;
+    const sync = await replaceLessonNotesForItem(
+      db,
+      lesson.id,
+      word.word,
+      normalized,
+      operatorUsername
+    );
+    if (!sync.ok) return sync;
+  }
+
+  return { ok: true, word };
 }

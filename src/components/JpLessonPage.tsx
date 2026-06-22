@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
+import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { SITE_URL } from "@/lib/site";
-import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
+import type { JpLessonNote, JpLessonRecord, JpVocabRef } from "@/lib/types";
 
 function refUrl(refKey: string, download = false): string {
   const base = `/api/jp-vocab/ref/${encodeURIComponent(refKey)}`;
@@ -44,6 +46,7 @@ export function JpLessonPage() {
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
   const [lessons, setLessons] = useState<JpLessonRecord[]>([]);
+  const [notes, setNotes] = useState<JpLessonNote[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,6 +54,7 @@ export function JpLessonPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [editingRefKey, setEditingRefKey] = useState<string | null>(null);
 
   const loadLessons = useCallback(async () => {
     setLoading(true);
@@ -61,12 +65,14 @@ export function JpLessonPage() {
         ok: boolean;
         lessons?: JpLessonRecord[];
         refs?: Record<string, JpVocabRef>;
+        notes?: JpLessonNote[];
         error?: string;
       };
       if (!data.ok || !data.lessons) {
         throw new Error(data.error || "加载失败");
       }
       setLessons(data.lessons);
+      setNotes(data.notes ?? []);
       setRefs(data.refs ?? {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -80,6 +86,14 @@ export function JpLessonPage() {
   }, [loadLessons]);
 
   const sortedLessons = useMemo(() => sortJpLessons(lessons), [lessons]);
+
+  const noteCountByLesson = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const note of notes) {
+      map.set(note.lesson_id, (map.get(note.lesson_id) ?? 0) + 1);
+    }
+    return map;
+  }, [notes]);
 
   const copyLessonShare = async (lesson: JpLessonRecord) => {
     try {
@@ -163,6 +177,19 @@ export function JpLessonPage() {
       setSavingId(null);
     }
   };
+
+  const handleRefUpdated = (ref: JpVocabRef) => {
+    setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
+    setLessons((prev) =>
+      prev.map((l) =>
+        l.ref_key === ref.ref_key ? { ...l, title: ref.title, updated_at: ref.updated_at } : l
+      )
+    );
+    setStatus("教案已更新，单词复习页将同步显示同一份文件。");
+    window.setTimeout(() => setStatus(""), 2500);
+  };
+
+  const editingRef = editingRefKey ? refs[editingRefKey] : undefined;
 
   return (
     <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
@@ -251,6 +278,7 @@ export function JpLessonPage() {
                   <th className="jp-lesson-status-at-col">最近操作</th>
                   <th className="jp-lesson-operator-col">操作人</th>
                   <th className="jp-lesson-complete-col">是否学习完成</th>
+                  <th className="jp-lesson-notes-col">课堂笔记</th>
                   <th className="jp-lesson-actions-col">教案操作</th>
                 </tr>
               </thead>
@@ -258,7 +286,12 @@ export function JpLessonPage() {
                 {sortedLessons.map((lesson) => {
                   const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
                   const hasRef = Boolean(lesson.ref_key && ref);
-                  const viewUrl = lesson.ref_key ? refUrl(lesson.ref_key) : "";
+                  const viewUrl = lesson.ref_key
+                    ? `${refUrl(lesson.ref_key)}${
+                        ref?.updated_at ? `?v=${encodeURIComponent(ref.updated_at)}` : ""
+                      }`
+                    : "";
+                  const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
 
                   return (
                     <tr key={lesson.id}>
@@ -310,6 +343,20 @@ export function JpLessonPage() {
                           </select>
                         </div>
                       </td>
+                      <td data-label="课堂笔记" className="jp-lesson-notes-col">
+                        <a
+                          href={`/jp-lesson/notes?id=${lesson.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="jp-lesson-notes-btn"
+                          title="在新标签页打开课堂笔记"
+                        >
+                          笔记
+                          {noteCount > 0 ? (
+                            <span className="jp-lesson-notes-count">{noteCount}</span>
+                          ) : null}
+                        </a>
+                      </td>
                       <td data-label="教案操作" className="jp-lesson-actions-col">
                         {hasRef ? (
                           <div className="jp-lesson-actions">
@@ -338,6 +385,12 @@ export function JpLessonPage() {
                             >
                               {copiedId === lesson.id ? "已复制" : "复制"}
                             </button>
+                            {canOperate ? (
+                              <JpEditIconButton
+                                title="编辑教案（弹窗）"
+                                onClick={() => setEditingRefKey(lesson.ref_key!)}
+                              />
+                            ) : null}
                           </div>
                         ) : (
                           <span style={{ color: "var(--muted)" }}>—</span>
@@ -351,6 +404,17 @@ export function JpLessonPage() {
           </div>
         )}
       </section>
+
+      <JpVocabRefEditModal
+        open={editingRefKey != null}
+        refKey={editingRefKey}
+        refMeta={editingRef}
+        locale={locale}
+        canEdit={canOperate}
+        onClose={() => setEditingRefKey(null)}
+        onUpdated={handleRefUpdated}
+        onNeedAuth={() => setShowAuth(true)}
+      />
 
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
         <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
@@ -422,6 +486,43 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-actions-col) {
           text-align: center;
+        }
+        :global(.jp-lesson-notes-col) {
+          text-align: center;
+        }
+        .jp-lesson-notes-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          min-height: 2rem;
+          padding: 0.25rem 0.55rem;
+          font-size: 0.8125rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--accent);
+          cursor: pointer;
+          font: inherit;
+          line-height: 1.3;
+          text-decoration: none;
+        }
+        .jp-lesson-notes-btn:hover {
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+          text-decoration: none;
+        }
+        .jp-lesson-notes-count {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 1.15rem;
+          height: 1.15rem;
+          padding: 0 0.25rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+          color: var(--accent);
+          font-size: 0.6875rem;
+          font-variant-numeric: tabular-nums;
         }
         .jp-lesson-kind {
           display: inline-block;
@@ -595,6 +696,18 @@ export function JpLessonPage() {
           }
           :global(.jp-lesson-table tbody td.jp-lesson-complete-col::before) {
             display: none;
+          }
+          :global(.jp-lesson-table tbody td.jp-lesson-notes-col) {
+            justify-content: center;
+            text-align: center;
+          }
+          :global(.jp-lesson-table tbody td.jp-lesson-notes-col::before) {
+            display: none;
+          }
+          .jp-lesson-notes-btn {
+            min-height: var(--touch-min, 44px);
+            width: 100%;
+            max-width: 8rem;
           }
           .jp-lesson-complete-select {
             min-height: var(--touch-min, 44px);

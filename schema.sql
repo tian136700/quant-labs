@@ -152,6 +152,7 @@ CREATE TABLE IF NOT EXISTS jp_vocab_word (
   cnt_very   INTEGER NOT NULL DEFAULT 0,
   cnt_normal INTEGER NOT NULL DEFAULT 0,
   cnt_weak   INTEGER NOT NULL DEFAULT 0,
+  class_notes TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (ref_key) REFERENCES jp_vocab_ref (ref_key) ON DELETE SET NULL
@@ -179,6 +180,20 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_uploaded ON jp_lesson (uploaded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_ref ON jp_lesson (ref_key);
+
+-- 日语新课：课堂笔记（每条笔记归属 content 中的某一单词/语法）
+CREATE TABLE IF NOT EXISTS jp_lesson_note (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  lesson_id  INTEGER NOT NULL,
+  item_word  TEXT    NOT NULL,
+  body       TEXT    NOT NULL,
+  created_by TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (lesson_id) REFERENCES jp_lesson (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_id);
 
 -- 已有库升级（仅需执行一次）：
 -- CREATE TABLE IF NOT EXISTS jp_vocab_ref (...);  -- 同上
