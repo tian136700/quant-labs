@@ -13,7 +13,21 @@ import {
 import { JpClassNotesCell } from "@/components/JpClassNotesCell";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
+import {
+  JP_VOCAB_CACHE_KEY,
+  parseJpVocabApi,
+  type JpVocabApiPayload,
+} from "@/lib/jp-api-cache";
+import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
+
+function readVocabCache(): JpVocabApiPayload | null {
+  return readClientCache<JpVocabApiPayload>(JP_VOCAB_CACHE_KEY);
+}
+
+function persistVocabCache(words: JpVocabWord[], refs: Record<string, JpVocabRef>) {
+  writeClientCache(JP_VOCAB_CACHE_KEY, { words, refs });
+}
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
@@ -63,9 +77,10 @@ export function JpVocabPage() {
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
   const [clearingLogin, setClearingLogin] = useState(false);
-  const [words, setWords] = useState<JpVocabWord[]>([]);
-  const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
-  const [loading, setLoading] = useState(true);
+  const [words, setWords] = useState<JpVocabWord[]>(() => readVocabCache()?.words ?? []);
+  const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readVocabCache()?.refs ?? {});
+  const [loading, setLoading] = useState(() => readVocabCache() == null);
+  const [refreshing, setRefreshing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -91,28 +106,37 @@ export function JpVocabPage() {
     });
   };
 
+  const applyVocabPayload = useCallback((payload: JpVocabApiPayload) => {
+    setWords(payload.words);
+    setRefs(payload.refs);
+  }, []);
+
   const loadWords = useCallback(async () => {
-    setLoading(true);
+    const hasCache = readVocabCache() != null;
+    if (hasCache) {
+      setRefreshing(true);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
-      const res = await fetch("/api/jp-vocab", { credentials: "include" });
-      const data = (await res.json()) as {
-        ok: boolean;
-        words?: JpVocabWord[];
-        refs?: Record<string, JpVocabRef>;
-        error?: string;
-      };
-      if (!data.ok || !data.words) {
-        throw new Error(data.error || "加载失败");
-      }
-      setWords(data.words);
-      setRefs(data.refs ?? {});
+      const payload = await fetchWithClientCache(
+        JP_VOCAB_CACHE_KEY,
+        "/api/jp-vocab",
+        parseJpVocabApi,
+        { onCached: applyVocabPayload }
+      );
+      applyVocabPayload(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!hasCache) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [applyVocabPayload]);
 
   useEffect(() => {
     void loadWords();
@@ -174,9 +198,11 @@ export function JpVocabPage() {
       if (!data.ok || !data.word) {
         throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
       }
-      setWords((prev) =>
-        prev.map((w) => (w.id === data.word!.id ? data.word! : w))
-      );
+      setWords((prev) => {
+        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+        persistVocabCache(next, refs);
+        return next;
+      });
     } catch (err) {
       if (snapshot) {
         setWords((prev) =>
@@ -229,6 +255,7 @@ export function JpVocabPage() {
         throw new Error(data.error || "重置失败");
       }
       setWords(data.words);
+      persistVocabCache(data.words, refs);
       setSessionLevel({});
       setStatSort(null);
       setHighlightId(null);
@@ -255,20 +282,22 @@ export function JpVocabPage() {
     ref?: JpVocabRef,
     refDeduped?: boolean
   ) => {
-    setWords((prev) => [...prev, added]);
-    if (ref) {
-      setRefs((prev) => ({
-        ...prev,
-        [ref.ref_key]: { ...prev[ref.ref_key], ...ref },
-      }));
-    }
+    const nextWords = [...words, added];
+    const nextRefs = ref
+      ? { ...refs, [ref.ref_key]: { ...refs[ref.ref_key], ...ref } }
+      : refs;
+    setWords(nextWords);
+    setRefs(nextRefs);
+    persistVocabCache(nextWords, nextRefs);
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
   };
 
   const handleNotesSaved = (word: JpVocabWord) => {
-    setWords((prev) => prev.map((w) => (w.id === word.id ? word : w)));
+    const nextWords = words.map((w) => (w.id === word.id ? word : w));
+    setWords(nextWords);
+    persistVocabCache(nextWords, refs);
     setStatus("课堂笔记已保存，已同步到日语新课。");
   };
 
@@ -423,6 +452,7 @@ export function JpVocabPage() {
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               共 {words.length} 条 · 需复习 {reviewCandidates.length} 条
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
+              {refreshing ? <> · 同步中…</> : null}
             </span>
             <button
               type="button"
