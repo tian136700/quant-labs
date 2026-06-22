@@ -1,6 +1,7 @@
 import "server-only";
 
 import type {
+  CloudflareEnv,
   JpVocabKind,
   JpVocabLevel,
   JpVocabMediaType,
@@ -10,9 +11,14 @@ import type {
   JpVocabWord,
 } from "@/lib/types";
 import {
+  jpVocabRefKeyFromBytes,
   jpVocabRefLocalMarker,
   normalizeJpVocabRefKey,
 } from "@/lib/jp-vocab-ref-shared";
+import {
+  jpVocabRefFileExists,
+  putJpVocabRefFile,
+} from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
 
 const SEED_WORDS: JpVocabUploadInput[] = [
@@ -572,6 +578,119 @@ export async function uploadJpVocabWords(
     skipped,
     total: totalRow?.c ?? 0,
   };
+}
+
+export type AddJpVocabWordResult =
+  | { ok: true; word: JpVocabWord }
+  | { ok: false; error: string };
+
+export async function addJpVocabWord(
+  db: D1Database,
+  input: JpVocabUploadInput
+): Promise<AddJpVocabWordResult> {
+  const word = normalizeWord(input.word);
+  if (!word) return { ok: false, error: "word_required" };
+
+  const item = {
+    word,
+    reading: (input.reading || "").trim() || null,
+    meaning: (input.meaning || "").trim() || null,
+    kind: normalizeKind(input.kind),
+    ref_key: input.ref_key
+      ? normalizeJpVocabRefKey(input.ref_key) || null
+      : null,
+  };
+
+  await seedIfEmpty(db);
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    if (devWords.some((w) => w.word === item.word)) {
+      return { ok: false, error: "word_duplicate" };
+    }
+    const created: JpVocabWord = {
+      id: devNextId++,
+      word: item.word,
+      reading: item.reading,
+      meaning: item.meaning,
+      kind: item.kind,
+      ref_key: item.ref_key,
+      cnt_very: 0,
+      cnt_normal: 0,
+      cnt_weak: 0,
+      created_at: ts,
+      updated_at: ts,
+    };
+    devWords.push(created);
+    return { ok: true, word: created };
+  }
+
+  const existing = await db
+    .prepare("SELECT id FROM jp_vocab_word WHERE word = ?1 LIMIT 1")
+    .bind(item.word)
+    .first<{ id: number }>();
+
+  if (existing) return { ok: false, error: "word_duplicate" };
+
+  const insertResult = await db
+    .prepare(
+      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, ?6, ?6)`
+    )
+    .bind(
+      item.word,
+      item.reading,
+      item.meaning,
+      item.kind,
+      item.ref_key,
+      ts
+    )
+    .run();
+
+  const newId = insertResult.meta?.last_row_id;
+  if (!newId) return { ok: false, error: "insert_failed" };
+
+  const row = await db
+    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .bind(newId)
+    .first<Record<string, unknown>>();
+
+  if (!row) return { ok: false, error: "insert_failed" };
+  return { ok: true, word: mapRow(row) };
+}
+
+/** 按图片内容 hash 去重：相同字节共用 ref_key，已存在则跳过上传 */
+export async function getOrUploadJpVocabRefByContent(
+  env: CloudflareEnv,
+  db: D1Database,
+  bytes: ArrayBuffer,
+  mediaType: JpVocabMediaType,
+  title: string | null
+): Promise<{ ref: JpVocabRef; deduped: boolean }> {
+  const refKey = await jpVocabRefKeyFromBytes(bytes);
+  const existing = await getJpVocabRef(db, refKey);
+
+  if (existing) {
+    const hasFile = await jpVocabRefFileExists(
+      env,
+      refKey,
+      existing.media_type,
+      existing.r2_key
+    );
+    if (hasFile) {
+      return { ref: existing, deduped: true };
+    }
+  }
+
+  const stored = await putJpVocabRefFile(env, refKey, mediaType, bytes);
+  const ref = await saveJpVocabRefFileMeta(
+    db,
+    refKey,
+    title,
+    mediaType,
+    stored.r2_key
+  );
+  return { ref, deduped: false };
 }
 
 /** 新课标记完成时：仅写入尚不存在的词条（已存在则跳过）并带上教案 ref_key */

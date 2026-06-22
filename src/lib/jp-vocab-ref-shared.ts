@@ -31,3 +31,16 @@ export function isLocalJpVocabRefMarker(r2Key: string): boolean {
 export function jpVocabRefPublicUrl(refKey: string): string {
   return `/jp-vocab-refs/${refKey}`;
 }
+
+export async function sha256HexBytes(bytes: ArrayBuffer): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(hash)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** 相同图片字节 → 相同 ref_key，便于多条词条共用教案 */
+export async function jpVocabRefKeyFromBytes(bytes: ArrayBuffer): Promise<string> {
+  const hex = await sha256HexBytes(bytes);
+  return normalizeJpVocabRefKey(`img-${hex.slice(0, 24)}`);
+}
