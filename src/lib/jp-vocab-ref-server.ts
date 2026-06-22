@@ -38,6 +38,20 @@ export async function getJpVocabRefR2Object(
   return obj ?? null;
 }
 
+export async function jpVocabRefFileExists(
+  env: CloudflareEnv,
+  refKey: string,
+  mediaType: JpVocabMediaType,
+  r2Key: string
+): Promise<boolean> {
+  if (isLocalJpVocabRefMarker(r2Key)) {
+    const bytes = await readLocalJpVocabRefFile(refKey, mediaType);
+    return Boolean(bytes?.byteLength);
+  }
+  const obj = await getJpVocabRefR2Object(env, r2Key);
+  return Boolean(obj);
+}
+
 export async function putJpVocabRefFile(
   env: CloudflareEnv,
   refKey: string,

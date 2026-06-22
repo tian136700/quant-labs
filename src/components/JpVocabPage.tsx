@@ -5,8 +5,8 @@ import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import { SITE_URL } from "@/lib/site";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -66,6 +66,7 @@ export function JpVocabPage() {
   const [sessionLevel, setSessionLevel] = useState<
     Record<number, JpVocabLevel | undefined>
   >({});
+  const [showManualAdd, setShowManualAdd] = useState(false);
 
   const loadWords = useCallback(async () => {
     setLoading(true);
@@ -218,6 +219,23 @@ export function JpVocabPage() {
         .getElementById(`jp-vocab-row-${next.id}`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+  };
+
+  const handleWordAdded = (
+    added: JpVocabWord,
+    ref?: JpVocabRef,
+    refDeduped?: boolean
+  ) => {
+    setWords((prev) => sortJpVocabWords([...prev, added]));
+    if (ref) {
+      setRefs((prev) => ({
+        ...prev,
+        [ref.ref_key]: { ...prev[ref.ref_key], ...ref },
+      }));
+    }
+    setStatus(
+      `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
+    );
   };
 
   const clearLoginState = async () => {
@@ -382,6 +400,22 @@ export function JpVocabPage() {
             </button>
             <button
               type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary"
+              onClick={() => {
+                if (!canOperate) {
+                  setStatus("请登录后再手动添加。");
+                  setShowAuth(true);
+                  return;
+                }
+                setShowManualAdd(true);
+              }}
+              disabled={loading}
+              title={canOperate ? undefined : "登录后可添加"}
+            >
+              手动添加
+            </button>
+            <button
+              type="button"
               className="btn-rsi-filter btn-rsi-filter--danger"
               onClick={() => void resetAll()}
               disabled={loading || resetting || !words.length || !canOperate}
@@ -401,7 +435,9 @@ export function JpVocabPage() {
         {loading ? (
           <p style={{ color: "var(--muted)" }}>加载中…</p>
         ) : !words.length ? (
-          <p style={{ color: "var(--muted)" }}>暂无条目，请通过 API 上传。</p>
+          <p style={{ color: "var(--muted)" }}>
+            暂无条目。复习词表由「日语新课」自动导入，也可登录后点「手动添加」补充。
+          </p>
         ) : (
           <div className="etr-table-wrap jp-vocab-table-wrap">
             <p className="jp-vocab-scroll-hint" aria-hidden="true">
@@ -564,74 +600,12 @@ export function JpVocabPage() {
         )}
       </section>
 
-      <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
-        <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>
-          API 上传说明
-        </summary>
-        <p style={{ marginTop: "0.5rem" }}>
-          固定链接：<code>{SITE_URL}/jp-vocab</code>
-        </p>
-        <p>
-          上传接口：<code>POST /api/jp-vocab/upload</code>，Header{" "}
-          <code>Authorization: Bearer &lt;JP_REVIEW_UPLOAD_TOKEN&gt;</code>
-          （与日语 PDF 上传共用）
-        </p>
-        <pre
-          style={{
-            overflow: "auto",
-            padding: "0.75rem",
-            background: "var(--panel)",
-            borderRadius: "6px",
-            border: "1px solid var(--border)",
-            fontSize: "0.8125rem",
-          }}
-        >
-{`{
-  "replace": false,
-  "refs": [
-    {
-      "ref_key": "lesson3-grammar",
-      "title": "3つの大切な文法",
-      "media_type": "image"
-    }
-  ],
-  "words": [
-    { "word": "～ばかり", "meaning": "（刚刚，只是……）", "kind": "grammar", "ref_key": "lesson3-grammar" },
-    { "word": "～ようになる", "meaning": "（变得能够……）", "kind": "grammar", "ref_key": "lesson3-grammar" },
-    { "word": "～に来る", "meaning": "（来……做……）", "kind": "grammar", "ref_key": "lesson3-grammar" },
-    { "word": "勉強", "reading": "べんきょう", "meaning": "学习", "kind": "word" }
-  ]
-}`}
-        </pre>
-        <p>
-          多条语法共用一张图片时，填相同的 <code>ref_key</code> 即可。图片/PDF 单独上传：
-        </p>
-        <pre
-          style={{
-            overflow: "auto",
-            padding: "0.75rem",
-            background: "var(--panel)",
-            borderRadius: "6px",
-            border: "1px solid var(--border)",
-            fontSize: "0.8125rem",
-          }}
-        >
-{`POST /api/jp-vocab/ref/upload
-Content-Type: multipart/form-data
-Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
-
-ref_key=lesson3-grammar
-title=3つの大切な文法
-media_type=image
-file=<图片或 PDF 文件>`}
-        </pre>
-        <p>
-          浏览教案：<code>GET /api/jp-vocab/ref/&lt;ref_key&gt;</code>
-        </p>
-        <p>
-          <code>replace: true</code> 会清空现有单词后重新导入；默认跳过重复单词。
-        </p>
-      </details>
+      <JpVocabManualAddModal
+        open={showManualAdd}
+        locale={locale}
+        onClose={() => setShowManualAdd(false)}
+        onAdded={handleWordAdded}
+      />
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-vocab-page)) {
