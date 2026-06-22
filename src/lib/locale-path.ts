@@ -141,7 +141,7 @@ export function jpLessonPath(): string {
 }
 
 export function isJpLessonPath(pathname: string): boolean {
-  return pathname === "/jp-lesson";
+  return pathname === "/jp-lesson" || pathname.startsWith("/jp-lesson/");
 }
 
 /** 日语模块老师可访问的页面（不含 API / 静态资源） */
