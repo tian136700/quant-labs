@@ -1,6 +1,6 @@
 # Cloudflare Workers + OpenNext 配置
 # database_id 请替换为你在 Dashboard 创建的 D1 真实 ID
-name = "strategy-compare-cloud"
+name = "quant-labs"
 main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
