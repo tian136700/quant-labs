@@ -16,6 +16,13 @@ import {
   isJpVocabTeacherRole,
 } from "@/lib/etr-auth";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
+import {
+  clearClientCache,
+  readClientCache,
+  writeClientCache,
+} from "@/lib/client-swr-cache";
+
+const AUTH_USER_CACHE_KEY = "etr-auth:user:v1";
 
 export type EtrAuthUser = {
   id: number;
@@ -41,13 +48,18 @@ type EtrAuthContextValue = {
 const EtrAuthContext = createContext<EtrAuthContextValue | null>(null);
 
 export function EtrAuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<EtrAuthUser | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [user, setUser] = useState<EtrAuthUser | null>(
+    () => readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY)
+  );
+  const [checking, setChecking] = useState(
+    () => readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY) == null
+  );
   const refreshGenRef = useRef(0);
 
   const refresh = useCallback(async () => {
     const gen = ++refreshGenRef.current;
-    setChecking(true);
+    const hasCache = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY) != null;
+    if (!hasCache) setChecking(true);
     try {
       const locale = readStoredLocale() ?? "en";
       const res = await fetch("/api/english-teacher-review/auth", {
@@ -57,9 +69,12 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       if (gen !== refreshGenRef.current) return;
       if (data.ok && data.authenticated && data.user) {
-        setUser(data.user as EtrAuthUser);
+        const next = data.user as EtrAuthUser;
+        setUser(next);
+        writeClientCache(AUTH_USER_CACHE_KEY, next);
       } else {
         setUser(null);
+        clearClientCache(AUTH_USER_CACHE_KEY);
       }
     } catch {
       if (gen === refreshGenRef.current) setUser(null);
@@ -77,6 +92,8 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     refreshGenRef.current += 1;
     setUser(next);
     setChecking(false);
+    if (next) writeClientCache(AUTH_USER_CACHE_KEY, next);
+    else clearClientCache(AUTH_USER_CACHE_KEY);
   }, []);
 
   const logout = useCallback(async () => {
@@ -92,6 +109,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     setUser(null);
+    clearClientCache(AUTH_USER_CACHE_KEY);
     setChecking(false);
   }, []);
 

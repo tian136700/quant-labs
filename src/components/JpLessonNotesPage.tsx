@@ -7,8 +7,39 @@ import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import {
+  JP_LESSON_CACHE_KEY,
+  parseJpLessonApi,
+  type JpLessonApiPayload,
+} from "@/lib/jp-api-cache";
+import {
+  fetchWithClientCache,
+  patchClientCache,
+  readClientCache,
+} from "@/lib/client-swr-cache";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import type { JpLessonKind, JpLessonNote, JpLessonRecord } from "@/lib/types";
+
+function readLessonCache(): JpLessonApiPayload | null {
+  return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
+}
+
+function pickLessonFromCache(lessonId: number): {
+  lesson: JpLessonRecord;
+  notes: JpLessonNote[];
+} | null {
+  const cached = readLessonCache();
+  if (!cached) return null;
+  const lesson = cached.lessons.find((l) => l.id === lessonId);
+  if (!lesson) return null;
+  return { lesson, notes: cached.notes };
+}
+
+function persistLessonNotesCache(nextNotes: JpLessonNote[]) {
+  patchClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY, (prev) =>
+    prev ? { ...prev, notes: nextNotes } : prev
+  );
+}
 
 type NoteField = {
   key: string;
@@ -75,10 +106,13 @@ export function JpLessonNotesPage() {
   const { user, checking, canAccessJpVocab, setUser } = useEtrAuth();
   const canEdit = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
-  const [lesson, setLesson] = useState<JpLessonRecord | null>(null);
-  const [notes, setNotes] = useState<JpLessonNote[]>([]);
+  const initialCached =
+    Number.isInteger(lessonId) && lessonId > 0 ? pickLessonFromCache(lessonId) : null;
+  const [lesson, setLesson] = useState<JpLessonRecord | null>(() => initialCached?.lesson ?? null);
+  const [notes, setNotes] = useState<JpLessonNote[]>(() => initialCached?.notes ?? []);
   const [itemFields, setItemFields] = useState<ItemFields>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => initialCached == null);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [submitting, setSubmitting] = useState(false);
@@ -120,30 +154,45 @@ export function JpLessonNotesPage() {
       return;
     }
 
-    setLoading(true);
+    const cachedEntry = pickLessonFromCache(lessonId);
+    if (cachedEntry) {
+      setLesson(cachedEntry.lesson);
+      setNotes(cachedEntry.notes);
+      setRefreshing(true);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
-      const res = await fetch("/api/jp-lesson", { credentials: "include" });
-      const data = (await res.json()) as {
-        ok: boolean;
-        lessons?: JpLessonRecord[];
-        notes?: JpLessonNote[];
-        error?: string;
-      };
-      if (!data.ok || !data.lessons) {
-        throw new Error(data.error || "加载失败");
-      }
-      const found = data.lessons.find((l) => l.id === lessonId);
+      const payload = await fetchWithClientCache(
+        JP_LESSON_CACHE_KEY,
+        "/api/jp-lesson",
+        parseJpLessonApi,
+        {
+          onCached: (data) => {
+            const found = data.lessons.find((l) => l.id === lessonId);
+            if (found) {
+              setLesson(found);
+              setNotes(data.notes);
+            }
+          },
+        }
+      );
+      const found = payload.lessons.find((l) => l.id === lessonId);
       if (!found) {
         throw new Error("未找到该课程");
       }
       setLesson(found);
-      setNotes(data.notes ?? []);
+      setNotes(payload.notes);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setLesson(null);
+      if (!cachedEntry) {
+        setError(err instanceof Error ? err.message : String(err));
+        setLesson(null);
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [lessonId]);
 
@@ -292,6 +341,7 @@ export function JpLessonNotesPage() {
 
         nextNotes = [...lessonResult, ...nextNotes];
         setNotes(nextNotes);
+        persistLessonNotesCache(nextNotes);
 
         if (lesson.completed) {
           const syncRes = await fetch("/api/jp-lesson/notes/sync", {

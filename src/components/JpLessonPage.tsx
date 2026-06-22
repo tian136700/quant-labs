@@ -8,8 +8,26 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import {
+  JP_LESSON_CACHE_KEY,
+  parseJpLessonApi,
+  type JpLessonApiPayload,
+} from "@/lib/jp-api-cache";
+import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { SITE_URL } from "@/lib/site";
 import type { JpLessonNote, JpLessonRecord, JpVocabRef } from "@/lib/types";
+
+function readLessonCache(): JpLessonApiPayload | null {
+  return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
+}
+
+function persistLessonCache(
+  lessons: JpLessonRecord[],
+  refs: Record<string, JpVocabRef>,
+  notes: JpLessonNote[]
+) {
+  writeClientCache(JP_LESSON_CACHE_KEY, { lessons, refs, notes });
+}
 
 function refUrl(refKey: string, download = false): string {
   const base = `/api/jp-vocab/ref/${encodeURIComponent(refKey)}`;
@@ -45,10 +63,11 @@ export function JpLessonPage() {
   const { user, checking, canAccessJpVocab, logout, setUser } = useEtrAuth();
   const canOperate = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
-  const [lessons, setLessons] = useState<JpLessonRecord[]>([]);
-  const [notes, setNotes] = useState<JpLessonNote[]>([]);
-  const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
-  const [loading, setLoading] = useState(true);
+  const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
+  const [notes, setNotes] = useState<JpLessonNote[]>(() => readLessonCache()?.notes ?? []);
+  const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readLessonCache()?.refs ?? {});
+  const [loading, setLoading] = useState(() => readLessonCache() == null);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -56,30 +75,38 @@ export function JpLessonPage() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [editingRefKey, setEditingRefKey] = useState<string | null>(null);
 
+  const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
+    setLessons(payload.lessons);
+    setNotes(payload.notes);
+    setRefs(payload.refs);
+  }, []);
+
   const loadLessons = useCallback(async () => {
-    setLoading(true);
+    const hasCache = readLessonCache() != null;
+    if (hasCache) {
+      setRefreshing(true);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
-      const res = await fetch("/api/jp-lesson", { credentials: "include" });
-      const data = (await res.json()) as {
-        ok: boolean;
-        lessons?: JpLessonRecord[];
-        refs?: Record<string, JpVocabRef>;
-        notes?: JpLessonNote[];
-        error?: string;
-      };
-      if (!data.ok || !data.lessons) {
-        throw new Error(data.error || "加载失败");
-      }
-      setLessons(data.lessons);
-      setNotes(data.notes ?? []);
-      setRefs(data.refs ?? {});
+      const payload = await fetchWithClientCache(
+        JP_LESSON_CACHE_KEY,
+        "/api/jp-lesson",
+        parseJpLessonApi,
+        { onCached: applyLessonPayload }
+      );
+      applyLessonPayload(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!hasCache) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [applyLessonPayload]);
 
   useEffect(() => {
     void loadLessons();
@@ -163,9 +190,11 @@ export function JpLessonPage() {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
-      setLessons((prev) =>
-        prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l))
-      );
+      setLessons((prev) => {
+        const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
+        persistLessonCache(next, refs, notes);
+        return next;
+      });
     } catch (err) {
       if (snapshot) {
         setLessons((prev) =>
@@ -179,12 +208,13 @@ export function JpLessonPage() {
   };
 
   const handleRefUpdated = (ref: JpVocabRef) => {
-    setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
-    setLessons((prev) =>
-      prev.map((l) =>
-        l.ref_key === ref.ref_key ? { ...l, title: ref.title, updated_at: ref.updated_at } : l
-      )
+    const nextRefs = { ...refs, [ref.ref_key]: ref };
+    const nextLessons = lessons.map((l) =>
+      l.ref_key === ref.ref_key ? { ...l, title: ref.title, updated_at: ref.updated_at } : l
     );
+    setRefs(nextRefs);
+    setLessons(nextLessons);
+    persistLessonCache(nextLessons, nextRefs, notes);
     setStatus("教案已更新，单词复习页将同步显示同一份文件。");
     window.setTimeout(() => setStatus(""), 2500);
   };
@@ -260,7 +290,9 @@ export function JpLessonPage() {
       ) : null}
 
       <section className="section etr-panel" aria-label="新课列表">
-        <h2 style={{ fontSize: "1.1rem", margin: "0 0 0.75rem" }}>学习清单</h2>
+        <h2 style={{ fontSize: "1.1rem", margin: "0 0 0.75rem" }}>
+          学习清单{refreshing ? <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: "0.875rem" }}> · 同步中…</span> : null}
+        </h2>
 
         {loading ? (
           <p style={{ color: "var(--muted)" }}>加载中…</p>
