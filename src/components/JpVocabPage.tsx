@@ -5,7 +5,11 @@ import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import {
+  jpVocabTotalReviews,
+  sortJpVocabWordsForDisplay,
+  type JpVocabStatSortKey,
+} from "@/lib/jp-vocab-shared";
 import { JpClassNotesCell } from "@/components/JpClassNotesCell";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
@@ -17,12 +21,15 @@ const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "weak", label: "不熟悉" },
 ];
 
-function totalReviews(word: JpVocabWord): number {
-  return word.cnt_very + word.cnt_normal + word.cnt_weak;
-}
+const STAT_SORT_COLUMNS: { key: JpVocabStatSortKey; label: string; className: string }[] = [
+  { key: "very", label: "非常熟悉", className: "jp-vocab-stat-detail" },
+  { key: "normal", label: "一般", className: "jp-vocab-stat-detail" },
+  { key: "weak", label: "不熟悉", className: "jp-vocab-stat-detail" },
+  { key: "total", label: "合计", className: "jp-vocab-stat-total" },
+];
 
 function needsReview(word: JpVocabWord): boolean {
-  const total = totalReviews(word);
+  const total = jpVocabTotalReviews(word);
   if (total === 0) return true;
   return word.cnt_weak >= word.cnt_very;
 }
@@ -70,6 +77,19 @@ export function JpVocabPage() {
   >({});
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingNotesWord, setEditingNotesWord] = useState<JpVocabWord | null>(null);
+  const [statSort, setStatSort] = useState<{
+    key: JpVocabStatSortKey;
+    dir: "asc" | "desc";
+  } | null>(null);
+
+  const toggleStatSort = (key: JpVocabStatSortKey) => {
+    setStatSort((prev) => {
+      if (prev?.key === key) {
+        return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
+      }
+      return { key, dir: "desc" };
+    });
+  };
 
   const loadWords = useCallback(async () => {
     setLoading(true);
@@ -85,7 +105,7 @@ export function JpVocabPage() {
       if (!data.ok || !data.words) {
         throw new Error(data.error || "加载失败");
       }
-      setWords(sortJpVocabWords(data.words));
+      setWords(data.words);
       setRefs(data.refs ?? {});
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -97,6 +117,11 @@ export function JpVocabPage() {
   useEffect(() => {
     void loadWords();
   }, [loadWords]);
+
+  const displayedWords = useMemo(
+    () => sortJpVocabWordsForDisplay(words, statSort),
+    [words, statSort]
+  );
 
   const reviewCandidates = useMemo(
     () => words.filter((w) => needsReview(w)),
@@ -203,8 +228,9 @@ export function JpVocabPage() {
       if (!data.ok || !data.words) {
         throw new Error(data.error || "重置失败");
       }
-      setWords(sortJpVocabWords(data.words));
+      setWords(data.words);
       setSessionLevel({});
+      setStatSort(null);
       setHighlightId(null);
       setStatus("已全部重置，可以开始新一轮复习。");
     } catch (err) {
@@ -229,7 +255,7 @@ export function JpVocabPage() {
     ref?: JpVocabRef,
     refDeduped?: boolean
   ) => {
-    setWords((prev) => sortJpVocabWords([...prev, added]));
+    setWords((prev) => [...prev, added]);
     if (ref) {
       setRefs((prev) => ({
         ...prev,
@@ -242,9 +268,7 @@ export function JpVocabPage() {
   };
 
   const handleNotesSaved = (word: JpVocabWord) => {
-    setWords((prev) =>
-      sortJpVocabWords(prev.map((w) => (w.id === word.id ? word : w)))
-    );
+    setWords((prev) => prev.map((w) => (w.id === word.id ? word : w)));
     setStatus("课堂笔记已保存，已同步到日语新课。");
   };
 
@@ -471,14 +495,34 @@ export function JpVocabPage() {
                   <th rowSpan={2}>状态</th>
                 </tr>
                 <tr>
-                  <th className="jp-vocab-stat-detail">非常熟悉</th>
-                  <th className="jp-vocab-stat-detail">一般</th>
-                  <th className="jp-vocab-stat-detail">不熟悉</th>
-                  <th className="jp-vocab-stat-total">合计</th>
+                  {STAT_SORT_COLUMNS.map((col) => {
+                    const active = statSort?.key === col.key;
+                    const ariaSort = active
+                      ? statSort.dir === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none";
+                    return (
+                      <th key={col.key} className={col.className}>
+                        <button
+                          type="button"
+                          className="jp-vocab-sort-btn"
+                          aria-sort={ariaSort}
+                          title={`按${col.label}排序`}
+                          onClick={() => toggleStatSort(col.key)}
+                        >
+                          <span>{col.label}</span>
+                          <span className="jp-vocab-sort-indicator" aria-hidden="true">
+                            {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
+                          </span>
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {words.map((w) => {
+                {displayedWords.map((w) => {
                   const review = needsReview(w);
                   const isHighlight = highlightId === w.id;
                   const selected = sessionLevel[w.id];
@@ -598,7 +642,7 @@ export function JpVocabPage() {
                         {w.cnt_weak}
                       </td>
                       <td className="jp-vocab-stat-total" data-label="复习合计">
-                        {totalReviews(w)}
+                        {jpVocabTotalReviews(w)}
                       </td>
                       <td className="jp-vocab-status-col" data-label="状态">
                         {!selected ? (
@@ -783,6 +827,33 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-stats-group) {
           text-align: center;
+        }
+        :global(.jp-vocab-table .jp-vocab-sort-btn) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.2rem;
+          width: 100%;
+          border: none;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          font-size: inherit;
+          cursor: pointer;
+          padding: 0;
+        }
+        :global(.jp-vocab-table .jp-vocab-sort-btn:hover) {
+          color: var(--accent);
+        }
+        :global(.jp-vocab-table .jp-vocab-sort-indicator) {
+          font-size: 0.6875rem;
+          opacity: 0.45;
+          line-height: 1;
+        }
+        :global(.jp-vocab-table .jp-vocab-sort-btn[aria-sort="ascending"] .jp-vocab-sort-indicator),
+        :global(.jp-vocab-table .jp-vocab-sort-btn[aria-sort="descending"] .jp-vocab-sort-indicator) {
+          opacity: 1;
+          color: var(--accent);
         }
         :global(.jp-vocab-table .jp-vocab-stat-detail),
         :global(.jp-vocab-table .jp-vocab-stat-total),
