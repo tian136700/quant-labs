@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { isJpVocabTeacherAllowedPath, jpVocabPath } from "@/lib/locale-path";
 
-/** 日语模块老师只能访问 jp-vocab / jp-review / about，其他页面重定向回单词页 */
+/** 日语模块老师只能访问 jp-vocab / jp-lesson（含笔记子页）/ about，其他页面重定向回单词页 */
 export function JpVocabTeacherRouteGuard() {
   const { isJpVocabTeacher, checking } = useEtrAuth();
   const pathname = usePathname() ?? "/";
