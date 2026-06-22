@@ -1,9 +1,11 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
+import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
+  syncLessonNotesToVocab,
   upsertJpVocabFromLesson,
 } from "@/lib/jp-vocab-db";
 
@@ -32,13 +34,6 @@ function nowIso(): string {
 
 function normalizeKind(raw?: JpLessonKind | null): JpLessonKind {
   return raw === "grammar" ? "grammar" : "word";
-}
-
-export function parseLessonContent(raw: string): string[] {
-  return (raw || "")
-    .split(/[,，、]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
 }
 
 function mapRow(row: Record<string, unknown>): JpLessonRecord {
@@ -142,6 +137,7 @@ async function syncLessonToVocab(
     })),
     refs
   );
+  await syncLessonNotesToVocab(db, lesson);
 }
 
 async function unsyncLessonFromVocab(
@@ -215,6 +211,17 @@ export async function createJpLesson(
 
   if (!row) return { ok: false, error: "insert_failed" };
   return { ok: true, lesson: mapRow(row) };
+}
+
+export async function syncLessonNotesToVocabIfCompleted(
+  db: D1Database,
+  lessonId: number
+): Promise<void> {
+  if (!Number.isInteger(lessonId) || lessonId <= 0) return;
+  const lessons = await listJpLessons(db);
+  const lesson = lessons.find((l) => l.id === lessonId);
+  if (!lesson?.completed) return;
+  await syncLessonNotesToVocab(db, lesson);
 }
 
 export type UpdateJpLessonCompletedResult =
@@ -296,4 +303,37 @@ export async function updateJpLessonCompleted(
   }
 
   return { ok: true, lesson };
+}
+
+/** 教案 ref 更新标题时，同步关联的新课记录 */
+export async function syncJpLessonTitleByRefKey(
+  db: D1Database,
+  refKey: string,
+  title: string | null
+): Promise<void> {
+  const key = normalizeJpVocabRefKey(refKey);
+  if (!key) return;
+
+  const ts = nowIso();
+  const trimmedTitle = title?.trim() || null;
+
+  if (devStoreEnabled) {
+    for (let i = 0; i < devLessons.length; i++) {
+      if (devLessons[i].ref_key === key) {
+        devLessons[i] = {
+          ...devLessons[i],
+          title: trimmedTitle,
+          updated_at: ts,
+        };
+      }
+    }
+    return;
+  }
+
+  await db
+    .prepare(
+      `UPDATE jp_lesson SET title = ?1, updated_at = ?2 WHERE ref_key = ?3`
+    )
+    .bind(trimmedTitle, ts, key)
+    .run();
 }

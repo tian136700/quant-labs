@@ -6,6 +6,8 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import { JpClassNotesCell } from "@/components/JpClassNotesCell";
+import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -67,6 +69,7 @@ export function JpVocabPage() {
     Record<number, JpVocabLevel | undefined>
   >({});
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const [editingNotesWord, setEditingNotesWord] = useState<JpVocabWord | null>(null);
 
   const loadWords = useCallback(async () => {
     setLoading(true);
@@ -236,6 +239,13 @@ export function JpVocabPage() {
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
+  };
+
+  const handleNotesSaved = (word: JpVocabWord) => {
+    setWords((prev) =>
+      sortJpVocabWords(prev.map((w) => (w.id === word.id ? word : w)))
+    );
+    setStatus("课堂笔记已保存，已同步到日语新课。");
   };
 
   const clearLoginState = async () => {
@@ -449,6 +459,9 @@ export function JpVocabPage() {
                   <th rowSpan={2}>类型</th>
                   <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
+                  <th rowSpan={2} className="jp-vocab-notes-col">
+                    课堂笔记
+                  </th>
                   <th rowSpan={2} className="jp-vocab-level-col">
                     熟悉程度
                   </th>
@@ -496,7 +509,11 @@ export function JpVocabPage() {
                           {w.ref_key ? (
                             <>
                               <a
-                                href={`/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}`}
+                                href={`/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}${
+                                  ref?.updated_at
+                                    ? `?v=${encodeURIComponent(ref.updated_at)}`
+                                    : ""
+                                }`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="jp-vocab-word-link"
@@ -513,6 +530,13 @@ export function JpVocabPage() {
                       </td>
                       <td className="jp-vocab-meaning-col" data-label="释义" style={{ color: "var(--muted)" }}>
                         {w.meaning || "—"}
+                      </td>
+                      <td className="jp-vocab-notes-col" data-label="课堂笔记">
+                        <JpClassNotesCell
+                          text={w.class_notes}
+                          canEdit={canOperate}
+                          onEdit={() => setEditingNotesWord(w)}
+                        />
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         <div
@@ -605,6 +629,16 @@ export function JpVocabPage() {
         locale={locale}
         onClose={() => setShowManualAdd(false)}
         onAdded={handleWordAdded}
+      />
+
+      <JpClassNotesEditModal
+        open={editingNotesWord != null}
+        word={editingNotesWord}
+        locale={locale}
+        canEdit={canOperate}
+        onClose={() => setEditingNotesWord(null)}
+        onSaved={handleNotesSaved}
+        onNeedAuth={() => setShowAuth(true)}
       />
 
       <style jsx>{`
@@ -735,7 +769,7 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table) {
           width: 100%;
-          min-width: 720px;
+          min-width: 840px;
         }
         :global(.jp-vocab-table th),
         :global(.jp-vocab-table td) {
@@ -754,7 +788,8 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-status-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
-        :global(.jp-vocab-table .jp-vocab-meaning-col) {
+        :global(.jp-vocab-table .jp-vocab-meaning-col),
+        :global(.jp-vocab-table .jp-vocab-notes-col) {
           text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-word-col) {
@@ -764,6 +799,11 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
           min-width: 6rem;
           max-width: 16rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-notes-col) {
+          text-align: center;
+          min-width: 9rem;
+          max-width: 20rem;
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;

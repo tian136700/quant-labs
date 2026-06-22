@@ -1,5 +1,6 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { listJpLessons, updateJpLessonCompleted } from "@/lib/jp-lesson-db";
+import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
 
@@ -11,12 +12,13 @@ const AUTH_MSG = {
 export async function GET() {
   try {
     const env = await getCloudflareEnv();
-    const [lessons, refs] = await Promise.all([
+    const [lessons, refs, notes] = await Promise.all([
       listJpLessons(env.DB),
       listJpVocabRefs(env.DB),
+      listJpLessonNotes(env.DB),
     ]);
     const refsMap = Object.fromEntries(refs.map((r) => [r.ref_key, r]));
-    return jsonResponse({ ok: true, lessons, refs: refsMap });
+    return jsonResponse({ ok: true, lessons, refs: refsMap, notes });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
