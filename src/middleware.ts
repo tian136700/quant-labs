@@ -13,9 +13,11 @@ import {
 import {
   isTrendBlogSubdomainHost,
   isTrendBlogStaticPath,
+  TREND_BLOG_INTERNAL_PREFIX,
   TREND_BLOG_SITE_URL,
   trendBlogInternalPath,
   trendBlogPublicPath,
+  trendBlogSubdomainHomePath,
 } from "@/lib/trend-blog-host";
 
 function nextWithLocale(request: NextRequest): NextResponse {
@@ -92,26 +94,45 @@ function handleTrendBlogSubdomain(request: NextRequest): NextResponse {
   if (internalPath) {
     const url = request.nextUrl.clone();
     url.pathname = internalPath;
-    return NextResponse.rewrite(url);
+    // OpenNext 上 rewrite 无法稳定命中 public 静态页；redirect 到 /trend-blog/ 已验证可用
+    return NextResponse.redirect(url, 308);
   }
 
   const url = request.nextUrl.clone();
-  url.pathname = "/";
+  url.pathname = trendBlogSubdomainHomePath();
   return NextResponse.redirect(url, 308);
 }
 
-/** finance 域名上的 /trend-blog 整理到博客子域名根路径 */
+function trendBlogFinanceRedirectPath(pathname: string): string | null {
+  if (
+    pathname === `/zh${TREND_BLOG_INTERNAL_PREFIX}` ||
+    pathname === `/zh${TREND_BLOG_INTERNAL_PREFIX}/`
+  ) {
+    return `${TREND_BLOG_INTERNAL_PREFIX}/zh/`;
+  }
+  if (pathname.startsWith(`/zh${TREND_BLOG_INTERNAL_PREFIX}/`)) {
+    return `${TREND_BLOG_INTERNAL_PREFIX}/zh${pathname.slice(`/zh${TREND_BLOG_INTERNAL_PREFIX}`.length)}`;
+  }
+  if (isTrendBlogStaticPath(pathname)) return pathname;
+  const publicPath = trendBlogPublicPath(pathname);
+  if (!publicPath) return null;
+  if (publicPath === "/") return `${TREND_BLOG_INTERNAL_PREFIX}/`;
+  if (publicPath === "/zh") return `${TREND_BLOG_INTERNAL_PREFIX}/zh/`;
+  return null;
+}
+
+/** finance 域名上的 /trend-blog 整理到博客子域名（保留可访问的静态路径） */
 function redirectTrendBlogToSubdomain(
   request: NextRequest
 ): NextResponse | null {
   const blogBase = trendBlogSiteBaseUrl();
   if (!blogBase) return null;
 
-  const publicPath = trendBlogPublicPath(request.nextUrl.pathname);
-  if (!publicPath) return null;
+  const blogPath = trendBlogFinanceRedirectPath(request.nextUrl.pathname);
+  if (!blogPath) return null;
 
   const url = new URL(blogBase);
-  url.pathname = publicPath;
+  url.pathname = blogPath;
   url.search = request.nextUrl.search;
   return NextResponse.redirect(url, 308);
 }

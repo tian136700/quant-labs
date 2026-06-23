@@ -3,11 +3,14 @@
 
   function resolvePaths() {
     var p = location.pathname;
-    if (p.indexOf("/zh/trend-blog") === 0 || p === "/zh/trend-blog") {
-      return { current: "zh", en: "/trend-blog", zh: "/zh/trend-blog" };
+    if (p.indexOf("/trend-blog/zh") === 0) {
+      return { current: "zh", en: "/trend-blog/", zh: "/trend-blog/zh/" };
     }
     if (p.indexOf("/trend-blog") === 0 || p === "/trend-blog") {
-      return { current: "en", en: "/trend-blog", zh: "/zh/trend-blog" };
+      return { current: "en", en: "/trend-blog/", zh: "/trend-blog/zh/" };
+    }
+    if (p.indexOf("/zh/trend-blog") === 0 || p === "/zh/trend-blog") {
+      return { current: "zh", en: "/trend-blog", zh: "/zh/trend-blog" };
     }
     if (p === "/zh" || p.indexOf("/zh/") === 0) {
       return { current: "zh", en: "/", zh: "/zh" };

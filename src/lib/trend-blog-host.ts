@@ -17,14 +17,24 @@ export function isTrendBlogSubdomainHost(
   return host.split(":")[0].toLowerCase() === TREND_BLOG_HOST;
 }
 
-/** 子域名对外短 pathname → 应用内静态博客路径 */
+/** 子域名对外短 pathname → 可访问的静态博客路径 */
 export function trendBlogInternalPath(pathname: string): string | null {
   const path = pathname.replace(/\/$/, "") || "/";
 
-  if (path === "/") return TREND_BLOG_INTERNAL_PREFIX;
-  if (path === "/zh") return `/zh${TREND_BLOG_INTERNAL_PREFIX}`;
+  if (path === "/") return `${TREND_BLOG_INTERNAL_PREFIX}/`;
+  if (path === "/zh") return `${TREND_BLOG_INTERNAL_PREFIX}/zh/`;
+  if (path === `/zh${TREND_BLOG_INTERNAL_PREFIX}`) {
+    return `${TREND_BLOG_INTERNAL_PREFIX}/zh/`;
+  }
 
   return null;
+}
+
+/** 博客子域名默认首页（静态文件真实路径） */
+export function trendBlogSubdomainHomePath(locale: "en" | "zh" = "en"): string {
+  return locale === "zh"
+    ? `${TREND_BLOG_INTERNAL_PREFIX}/zh/`
+    : `${TREND_BLOG_INTERNAL_PREFIX}/`;
 }
 
 /** 是否应直接交给静态资源处理（public/trend-blog） */
@@ -32,10 +42,7 @@ export function isTrendBlogStaticPath(pathname: string): boolean {
   return (
     pathname === TREND_BLOG_INTERNAL_PREFIX ||
     pathname === `${TREND_BLOG_INTERNAL_PREFIX}/` ||
-    pathname.startsWith(`${TREND_BLOG_INTERNAL_PREFIX}/`) ||
-    pathname === `/zh${TREND_BLOG_INTERNAL_PREFIX}` ||
-    pathname === `/zh${TREND_BLOG_INTERNAL_PREFIX}/` ||
-    pathname.startsWith(`/zh${TREND_BLOG_INTERNAL_PREFIX}/`)
+    pathname.startsWith(`${TREND_BLOG_INTERNAL_PREFIX}/`)
   );
 }
 
