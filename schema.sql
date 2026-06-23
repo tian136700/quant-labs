@@ -248,3 +248,24 @@ CREATE TABLE IF NOT EXISTS trend_item (
 CREATE INDEX IF NOT EXISTS idx_trend_item_run ON trend_item (run_id);
 CREATE INDEX IF NOT EXISTS idx_trend_item_selected ON trend_item (run_id, selected, selection_rank);
 CREATE INDEX IF NOT EXISTS idx_trend_item_heat ON trend_item (run_id, heat_score DESC);
+
+-- AI Trend Digest 博客：手动/API 发布的文章（按 locale + slug 唯一）
+CREATE TABLE IF NOT EXISTS trend_blog_publish (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  locale           TEXT    NOT NULL,
+  slug             TEXT    NOT NULL DEFAULT 'featured',
+  title            TEXT    NOT NULL,
+  meta_description TEXT,
+  headline         TEXT    NOT NULL,
+  author           TEXT,
+  published_at     TEXT    NOT NULL,
+  read_minutes     INTEGER,
+  tags_json        TEXT,
+  content_html     TEXT    NOT NULL,
+  is_published     INTEGER NOT NULL DEFAULT 1,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (locale, slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trend_blog_publish_locale ON trend_blog_publish (locale, slug, is_published, updated_at DESC);

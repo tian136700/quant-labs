@@ -12,6 +12,10 @@ workers_dev = true
 pattern = "finance.info-quests.com"
 custom_domain = true
 
+[[routes]]
+pattern = "blog.info-quests.com"
+custom_domain = true
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
@@ -33,6 +37,9 @@ PRICE_DECIMAL_PLACES = "3"
 # 外卖平台独立子域名（不含 https://），绑定 Custom Domain 后填真实值
 NEXT_PUBLIC_STORE_REVIEW_HOST = "food.info-quests.com"
 NEXT_PUBLIC_STORE_REVIEW_SITE_URL = "https://food.info-quests.com"
+# AI Trend Digest 博客子域名（与 finance 一样：wrangler deploy 自动绑 Custom Domain）
+NEXT_PUBLIC_TREND_BLOG_HOST = "blog.info-quests.com"
+NEXT_PUBLIC_TREND_BLOG_SITE_URL = "https://blog.info-quests.com"
 # 登录 Cookie 共享到所有 *.info-quests.com 子域名
 ETR_COOKIE_DOMAIN = ".info-quests.com"
 # Google Search Console HTML 验证（填 meta content 值，部署后回 GSC 点「验证」）

@@ -140,6 +140,19 @@ export function jpLessonPath(): string {
   return "/jp-lesson";
 }
 
+export function trendBlogPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/trend-blog" : "/trend-blog";
+}
+
+export function isTrendBlogPath(pathname: string): boolean {
+  return (
+    pathname === "/trend-blog" ||
+    pathname.startsWith("/trend-blog/") ||
+    pathname === "/zh/trend-blog" ||
+    pathname.startsWith("/zh/trend-blog/")
+  );
+}
+
 export function isJpLessonPath(pathname: string): boolean {
   return pathname === "/jp-lesson" || pathname.startsWith("/jp-lesson/");
 }
