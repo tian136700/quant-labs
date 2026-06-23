@@ -7,6 +7,7 @@
     "dev:watch": "python3 start.py",
     "build": "next build",
     "start": "next start",
+    "start:local": "next start --port 3002 --hostname 127.0.0.1",
     "lint": "next lint",
     "predeploy": "python3 scripts/predeploy-clean.py",
     "cf:build": "NODE_ENV=production opennextjs-cloudflare build",

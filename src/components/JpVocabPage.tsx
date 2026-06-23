@@ -44,6 +44,9 @@ const STAT_SORT_COLUMNS: { key: JpVocabStatSortKey; label: string; className: st
   { key: "total", label: "合计", className: "jp-vocab-stat-total" },
 ];
 
+/** 单词表「课堂笔记」列（暂时隐藏，改 true 可恢复） */
+const SHOW_CLASS_NOTES_COLUMN = false;
+
 function needsReview(word: JpVocabWord): boolean {
   const total = jpVocabTotalReviews(word);
   if (total === 0) return true;
@@ -549,9 +552,11 @@ export function JpVocabPage() {
                   <th rowSpan={2}>类型</th>
                   <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
-                  <th rowSpan={2} className="jp-vocab-notes-col">
-                    课堂笔记
-                  </th>
+                  {SHOW_CLASS_NOTES_COLUMN ? (
+                    <th rowSpan={2} className="jp-vocab-notes-col">
+                      课堂笔记
+                    </th>
+                  ) : null}
                   <th rowSpan={2} className="jp-vocab-level-col">
                     熟悉程度
                   </th>
@@ -641,13 +646,15 @@ export function JpVocabPage() {
                       <td className="jp-vocab-meaning-col" data-label="释义" style={{ color: "var(--muted)" }}>
                         {w.meaning || "—"}
                       </td>
-                      <td className="jp-vocab-notes-col" data-label="课堂笔记">
-                        <JpClassNotesCell
-                          text={w.class_notes}
-                          canEdit={canOperate}
-                          onEdit={() => setEditingNotesWord(w)}
-                        />
-                      </td>
+                      {SHOW_CLASS_NOTES_COLUMN ? (
+                        <td className="jp-vocab-notes-col" data-label="课堂笔记">
+                          <JpClassNotesCell
+                            text={w.class_notes}
+                            canEdit={canOperate}
+                            onEdit={() => setEditingNotesWord(w)}
+                          />
+                        </td>
+                      ) : null}
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         <div
                           className="jp-vocab-levels"
@@ -748,7 +755,7 @@ export function JpVocabPage() {
       />
 
       <JpClassNotesEditModal
-        open={editingNotesWord != null}
+        open={SHOW_CLASS_NOTES_COLUMN && editingNotesWord != null}
         word={editingNotesWord}
         locale={locale}
         canEdit={canOperate}

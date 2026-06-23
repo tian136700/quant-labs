@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""本地开发入口：启动 Next.js dev（端口 3002，改代码自动热更新）。"""
+"""本地开发入口：默认稳定模式（端口 3002，不热更新、不自动重启）。"""
 
 from scripts.dev import run_dev_server
 

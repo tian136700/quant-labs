@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import os
 import signal
 import subprocess
@@ -43,7 +44,21 @@ def ensure_deps() -> None:
     )
 
 
-def start_dev() -> subprocess.Popen:
+def has_build() -> bool:
+    return (ROOT / ".next" / "BUILD_ID").is_file()
+
+
+def run_build() -> None:
+    print("[dev] 正在构建（npm run build）…", flush=True)
+    subprocess.run(
+        [NPM, "run", "build"],
+        cwd=ROOT,
+        check=True,
+        shell=(os.name == "nt"),
+    )
+
+
+def start_hot_dev() -> subprocess.Popen:
     return subprocess.Popen(
         [NPM, "run", "dev"],
         cwd=ROOT,
@@ -52,8 +67,33 @@ def start_dev() -> subprocess.Popen:
     )
 
 
-def run_dev_server() -> None:
-    """启动 Next.js 开发服务器；崩溃时自动拉起；改代码由 Next 热更新。"""
+def start_stable_server() -> subprocess.Popen:
+    return subprocess.Popen(
+        [NPM, "run", "start:local"],
+        cwd=ROOT,
+        env=os.environ.copy(),
+        shell=(os.name == "nt"),
+    )
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="本地启动 strategy-compare-cloud")
+    parser.add_argument(
+        "--hot",
+        action="store_true",
+        help="启用 Next.js dev 热更新（默认关闭，改代码不会触发重启）",
+    )
+    parser.add_argument(
+        "--rebuild",
+        action="store_true",
+        help="稳定模式下强制重新 build 后再启动",
+    )
+    return parser.parse_args(argv)
+
+
+def run_dev_server(argv: list[str] | None = None) -> None:
+    """默认稳定模式：next build + next start，不监听文件、不自动重启。"""
+    args = parse_args(argv)
     ensure_deps()
 
     proc: subprocess.Popen | None = None
@@ -82,17 +122,31 @@ def run_dev_server() -> None:
         sys.exit(1)
 
     print(f"[dev] http://127.0.0.1:{DEV_PORT}", flush=True)
-    print("[dev] 保存代码后自动热更新（Next.js dev）", flush=True)
+    if args.hot:
+        print("[dev] 热更新模式（Next.js dev）", flush=True)
+    else:
+        print("[dev] 稳定模式：不热更新，保存代码不会触发重启", flush=True)
+        if args.rebuild or not has_build():
+            run_build()
+        else:
+            print("[dev] 使用已有 .next 构建；改代码后请 Ctrl+C 重启并加 --rebuild", flush=True)
     print("[dev] Ctrl+C 停止", flush=True)
 
     try:
-        while not stopping:
-            proc = start_dev()
+        if args.hot:
+            while not stopping:
+                proc = start_hot_dev()
+                rc = proc.wait()
+                if stopping or rc in (0, -2, 130, -15):
+                    break
+                print(f"[dev] 进程退出 (code {rc})，1.5s 后自动重启…", flush=True)
+                time.sleep(1.5)
+        else:
+            proc = start_stable_server()
             rc = proc.wait()
-            if stopping or rc in (0, -2, 130, -15):
-                break
-            print(f"[dev] 进程退出 (code {rc})，1.5s 后自动重启…", flush=True)
-            time.sleep(1.5)
+            if not stopping and rc not in (0, -2, 130, -15):
+                print(f"[dev] 进程异常退出 (code {rc})", flush=True)
+                sys.exit(rc if rc is not None else 1)
     finally:
         shutdown()
 
