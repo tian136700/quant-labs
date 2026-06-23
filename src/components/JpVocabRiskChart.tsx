@@ -61,9 +61,51 @@ function riskAxisTicks(max: number): number[] {
   return ticks;
 }
 
-function estimateYAxisWidth(names: string[], fontSize: number): number {
+function measureYAxisWidth(names: string[], fontSize: number): number {
+  if (!names.length) return 72;
+  const padding = 14;
+
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.font = `${fontSize}px "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif`;
+      let max = 0;
+      for (const name of names) {
+        max = Math.max(max, ctx.measureText(name).width);
+      }
+      return Math.ceil(max) + padding;
+    }
+  }
+
   const maxLen = names.reduce((m, n) => Math.max(m, n.length), 0);
-  return Math.min(200, Math.max(64, Math.ceil(maxLen * fontSize * 0.72) + 12));
+  return Math.ceil(maxLen * fontSize * 0.92) + padding;
+}
+
+function YAxisTick({
+  x,
+  y,
+  payload,
+  fontSize,
+}: {
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  fontSize: number;
+}) {
+  if (x == null || y == null || !payload) return null;
+  return (
+    <text
+      x={x - 6}
+      y={y}
+      dy={4}
+      textAnchor="end"
+      fill={CHART_INK}
+      fontSize={fontSize}
+    >
+      {payload.value}
+    </text>
+  );
 }
 
 function RiskTooltip({
@@ -119,9 +161,10 @@ export function JpVocabRiskChart({ words }: Props) {
   );
   const xTicks = useMemo(() => riskAxisTicks(xMax), [xMax]);
   const yAxisWidth = useMemo(
-    () => estimateYAxisWidth(rows.map((r) => r.name), tickFontSize),
+    () => measureYAxisWidth(rows.map((r) => r.name), tickFontSize),
     [rows, tickFontSize]
   );
+  const chartMinWidth = yAxisWidth + 280;
 
   const chartHeight = Math.max(
     240,
@@ -142,12 +185,12 @@ export function JpVocabRiskChart({ words }: Props) {
     <div className="jp-vocab-risk-chart">
       <div className="jp-vocab-risk-chart-frame" style={{ height: chartHeight }}>
         <h3 className="jp-vocab-risk-chart-title">知识点风险排行（越高越建议抽查）</h3>
-        <div className="jp-vocab-risk-chart-canvas">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="jp-vocab-risk-chart-canvas" style={{ minWidth: chartMinWidth }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={chartMinWidth}>
           <BarChart
             data={rows}
             layout="vertical"
-            margin={{ top: 12, right: 20, left: 4, bottom: 32 }}
+            margin={{ top: 12, right: 20, left: 8, bottom: 32 }}
             barCategoryGap="18%"
           >
             <XAxis
@@ -170,7 +213,7 @@ export function JpVocabRiskChart({ words }: Props) {
               type="category"
               dataKey="name"
               width={yAxisWidth}
-              tick={{ fill: CHART_INK, fontSize: tickFontSize }}
+              tick={(props) => <YAxisTick {...props} fontSize={tickFontSize} />}
               tickLine={{ stroke: CHART_INK }}
               axisLine={{ stroke: CHART_INK }}
             />
@@ -207,6 +250,7 @@ export function JpVocabRiskChart({ words }: Props) {
           box-sizing: border-box;
           display: flex;
           flex-direction: column;
+          overflow-x: auto;
         }
         .jp-vocab-risk-chart-title {
           margin: 0 0 0.5rem;

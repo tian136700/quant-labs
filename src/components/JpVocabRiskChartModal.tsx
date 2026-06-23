@@ -81,8 +81,8 @@ export function JpVocabRiskChartModal({ open, words, onClose }: Props) {
           backdrop-filter: blur(2px);
         }
         .jp-vocab-risk-modal {
-          width: min(920px, 100%);
-          max-height: min(92dvh, 720px);
+          width: min(1120px, 98vw);
+          max-height: min(92dvh, 780px);
           display: flex;
           flex-direction: column;
           background: var(--panel);
