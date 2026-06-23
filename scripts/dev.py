@@ -79,9 +79,9 @@ def start_stable_server() -> subprocess.Popen:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="本地启动 strategy-compare-cloud")
     parser.add_argument(
-        "--hot",
+        "--stable",
         action="store_true",
-        help="启用 Next.js dev 热更新（默认关闭，改代码不会触发重启）",
+        help="稳定模式：next build + next start，不热更新",
     )
     parser.add_argument(
         "--rebuild",
@@ -92,7 +92,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def run_dev_server(argv: list[str] | None = None) -> None:
-    """默认稳定模式：next build + next start，不监听文件、不自动重启。"""
+    """默认 Next.js dev 热更新；可选 --stable 走生产构建。"""
     args = parse_args(argv)
     ensure_deps()
 
@@ -122,18 +122,24 @@ def run_dev_server(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     print(f"[dev] http://127.0.0.1:{DEV_PORT}", flush=True)
-    if args.hot:
-        print("[dev] 热更新模式（Next.js dev）", flush=True)
-    else:
+    if args.stable:
         print("[dev] 稳定模式：不热更新，保存代码不会触发重启", flush=True)
         if args.rebuild or not has_build():
             run_build()
         else:
             print("[dev] 使用已有 .next 构建；改代码后请 Ctrl+C 重启并加 --rebuild", flush=True)
+    else:
+        print("[dev] 保存代码后自动热更新（Next.js dev）", flush=True)
     print("[dev] Ctrl+C 停止", flush=True)
 
     try:
-        if args.hot:
+        if args.stable:
+            proc = start_stable_server()
+            rc = proc.wait()
+            if not stopping and rc not in (0, -2, 130, -15):
+                print(f"[dev] 进程异常退出 (code {rc})", flush=True)
+                sys.exit(rc if rc is not None else 1)
+        else:
             while not stopping:
                 proc = start_hot_dev()
                 rc = proc.wait()
@@ -141,12 +147,6 @@ def run_dev_server(argv: list[str] | None = None) -> None:
                     break
                 print(f"[dev] 进程退出 (code {rc})，1.5s 后自动重启…", flush=True)
                 time.sleep(1.5)
-        else:
-            proc = start_stable_server()
-            rc = proc.wait()
-            if not stopping and rc not in (0, -2, 130, -15):
-                print(f"[dev] 进程异常退出 (code {rc})", flush=True)
-                sys.exit(rc if rc is not None else 1)
     finally:
         shutdown()
 

@@ -1,9 +1,15 @@
 import type { JpVocabWord } from "@/lib/types";
 
-export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total";
+export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk";
 
 export function jpVocabTotalReviews(word: JpVocabWord): number {
   return word.cnt_very + word.cnt_normal + word.cnt_weak;
+}
+
+/** risk = 一般×1 + 不熟悉×2 − 非常熟悉×0.3，保留 1 位小数 */
+export function jpVocabRiskIndex(word: JpVocabWord): number {
+  const raw = word.cnt_normal * 1 + word.cnt_weak * 2 - word.cnt_very * 0.3;
+  return Math.round(raw * 10) / 10;
 }
 
 function statSortValue(word: JpVocabWord, key: JpVocabStatSortKey): number {
@@ -16,6 +22,8 @@ function statSortValue(word: JpVocabWord, key: JpVocabStatSortKey): number {
       return word.cnt_weak;
     case "total":
       return jpVocabTotalReviews(word);
+    case "risk":
+      return jpVocabRiskIndex(word);
   }
 }
 

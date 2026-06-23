@@ -1,4 +1,4 @@
-import { jpVocabTotalReviews } from "@/lib/jp-vocab-shared";
+import { jpVocabRiskIndex, jpVocabTotalReviews } from "@/lib/jp-vocab-shared";
 import type { JpVocabKind, JpVocabWord } from "@/lib/types";
 
 export type JpVocabRiskRow = {
@@ -45,7 +45,7 @@ export function buildRiskData(words: JpVocabWord[]): JpVocabRiskRow[] {
         name: w.word,
         kind: w.kind,
         kindLabel: jpVocabKindLabel(w.kind),
-        risk: calcJpVocabRisk(familiar, normal, unknown),
+        risk: jpVocabRiskIndex(w),
         familiar,
         normal,
         unknown,

@@ -18,7 +18,7 @@ cd strategy-compare-cloud
 npm install
 ```
 
-**推荐：一键启动（端口 3002，稳定模式，不热更新）**
+**推荐：一键启动（端口 3002，改代码自动热更新）**
 
 ```bash
 python3 start.py
@@ -26,11 +26,17 @@ python3 start.py
 
 或在 PyCharm 里直接运行根目录的 **`start.py`**。
 
+等价命令：
+
+```bash
+npm run dev
+```
+
 打开 **http://127.0.0.1:3002** 。
 
-- 默认 `next build` + `next start`，保存代码**不会**触发重启
-- 改代码后：`Ctrl+C` 停掉，再 `python3 start.py --rebuild`
-- 若需要热更新：`python3 start.py --hot`（或 `npm run dev`）
+- 保存代码后由 Next.js 自动热更新，无需手动重启
+- `start.py` 会在 dev 进程异常退出时自动重新拉起
+- 若需要稳定模式（不热更新）：`python3 start.py --stable`
 
 本地无 D1 绑定时会直接走 Yahoo Finance（不写库）。
 
