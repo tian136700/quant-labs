@@ -19,6 +19,7 @@ import {
   type JpVocabApiPayload,
 } from "@/lib/jp-api-cache";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -96,6 +97,7 @@ export function JpVocabPage() {
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
   } | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
     setStatSort((prev) => {
@@ -301,6 +303,20 @@ export function JpVocabPage() {
     setStatus("课堂笔记已保存，已同步到日语新课。");
   };
 
+  const exportExcel = async () => {
+    if (exporting || !displayedWords.length) return;
+    setExporting(true);
+    setStatus("");
+    try {
+      await exportJpVocabToExcel(displayedWords, refs, sessionLevel);
+      setStatus(`已导出 ${displayedWords.length} 条到 Excel。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const clearLoginState = async () => {
     if (clearingLogin) return;
     setClearingLogin(true);
@@ -461,6 +477,15 @@ export function JpVocabPage() {
               disabled={loading || words.length < 2}
             >
               随机高亮
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={() => void exportExcel()}
+              disabled={loading || exporting || !words.length}
+              title="导出当前单词表为 Excel 文件"
+            >
+              {exporting ? "导出中…" : "导出 Excel"}
             </button>
             <button
               type="button"
