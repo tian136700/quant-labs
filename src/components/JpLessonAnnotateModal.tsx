@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { LOCALE_HEADER } from "@/lib/locale-detect";
+import { uploadFormWithProgress } from "@/lib/upload-form-progress";
+import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
 
 type Tool = "brush" | "line" | "text" | "zoom";
 
@@ -44,7 +47,11 @@ type Props = {
   refKey: string;
   lessonId: number;
   lessonContent: string;
+  locale: "en" | "zh";
+  canSave: boolean;
   onClose: () => void;
+  onSaved?: (ref: JpVocabRef, lesson: JpLessonRecord) => void;
+  onNeedAuth?: () => void;
 };
 
 const ANNOTATE_COLOR = "#e85d6f";
@@ -70,6 +77,40 @@ function pointerToCanvas(
     x: (e.clientX - rect.left) * scaleX,
     y: (e.clientY - rect.top) * scaleY,
   };
+}
+
+function screenToCanvasPoint(
+  screenX: number,
+  screenY: number,
+  canvas: HTMLCanvasElement
+) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (screenX - rect.left) * scaleX,
+    y: (screenY - rect.top) * scaleY,
+  };
+}
+
+async function renderAnnotatedBlob(
+  img: HTMLImageElement,
+  strokes: Stroke[]
+): Promise<Blob> {
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = img.naturalWidth;
+  exportCanvas.height = img.naturalHeight;
+  const ctx = exportCanvas.getContext("2d");
+  if (!ctx) throw new Error("无法导出图片");
+  ctx.drawImage(img, 0, 0);
+  for (const stroke of strokes) {
+    drawStroke(ctx, stroke);
+  }
+  const blob = await new Promise<Blob | null>((resolve) => {
+    exportCanvas.toBlob(resolve, "image/png");
+  });
+  if (!blob) throw new Error("导出失败");
+  return blob;
 }
 
 function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
@@ -186,7 +227,11 @@ export function JpLessonAnnotateModal({
   refKey,
   lessonId,
   lessonContent,
+  locale,
+  canSave,
   onClose,
+  onSaved,
+  onNeedAuth,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [imgReady, setImgReady] = useState(false);
@@ -206,6 +251,8 @@ export function JpLessonAnnotateModal({
     value: string;
   } | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
   const [fitScale, setFitScale] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [textFontSize, setTextFontSize] = useState(DEFAULT_TEXT_SIZE);
@@ -231,6 +278,13 @@ export function JpLessonAnnotateModal({
     offsetX: number;
     offsetY: number;
   } | null>(null);
+  const dragTextPopRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    origScreenX: number;
+    origScreenY: number;
+  } | null>(null);
 
   const resetSession = useCallback(() => {
     setImgReady(false);
@@ -246,6 +300,7 @@ export function JpLessonAnnotateModal({
     activeBrushRef.current = null;
     panSessionRef.current = null;
     dragTextRef.current = null;
+    dragTextPopRef.current = null;
   }, []);
 
   const displayScale = fitScale * zoom;
@@ -636,6 +691,51 @@ export function JpLessonAnnotateModal({
       });
     }
     setTextDraft(null);
+    dragTextPopRef.current = null;
+  };
+
+  const handleTextPopDragDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!textDraft) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragTextPopRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      origScreenX: textDraft.screenX,
+      origScreenY: textDraft.screenY,
+    };
+  };
+
+  const handleTextPopDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const session = dragTextPopRef.current;
+    const canvas = canvasRef.current;
+    if (!session || session.pointerId !== e.pointerId || !textDraft || !canvas) return;
+    const dx = e.clientX - session.startX;
+    const dy = e.clientY - session.startY;
+    const screenX = session.origScreenX + dx;
+    const screenY = session.origScreenY + dy;
+    const canvasPoint = screenToCanvasPoint(screenX, screenY, canvas);
+    setTextDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            screenX,
+            screenY,
+            x: canvasPoint.x,
+            y: canvasPoint.y,
+          }
+        : prev
+    );
+  };
+
+  const handleTextPopDragUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const session = dragTextPopRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    dragTextPopRef.current = null;
   };
 
   const undo = () => {
@@ -656,22 +756,10 @@ export function JpLessonAnnotateModal({
 
   const downloadAnnotated = async () => {
     const img = imgRef.current;
-    if (!img || !img.naturalWidth || downloading) return;
+    if (!img || !img.naturalWidth || downloading || saving) return;
     setDownloading(true);
     try {
-      const exportCanvas = document.createElement("canvas");
-      exportCanvas.width = img.naturalWidth;
-      exportCanvas.height = img.naturalHeight;
-      const ctx = exportCanvas.getContext("2d");
-      if (!ctx) throw new Error("无法导出图片");
-      ctx.drawImage(img, 0, 0);
-      for (const stroke of strokes) {
-        drawStroke(ctx, stroke);
-      }
-      const blob = await new Promise<Blob | null>((resolve) => {
-        exportCanvas.toBlob(resolve, "image/png");
-      });
-      if (!blob) throw new Error("导出失败");
+      const blob = await renderAnnotatedBlob(img, strokes);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -684,6 +772,64 @@ export function JpLessonAnnotateModal({
       window.alert("下载失败，请重试");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const saveAsLatestRef = async () => {
+    const img = imgRef.current;
+    if (!img || !img.naturalWidth || downloading || saving) return;
+    if (!canSave) {
+      onNeedAuth?.();
+      return;
+    }
+    if (
+      !window.confirm(
+        "将用当前批注覆盖线上教案图片，其他新课不受影响。确定保存吗？"
+      )
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setSaveStatus("");
+    try {
+      const blob = await renderAnnotatedBlob(img, strokes);
+      const file = new File([blob], `${refKey || `lesson-${lessonId}`}.png`, {
+        type: "image/png",
+      });
+      const form = new FormData();
+      form.append("lesson_id", String(lessonId));
+      form.append("file", file);
+      form.append("media_type", "image");
+
+      const result = await uploadFormWithProgress({
+        url: "/api/jp-lesson/ref/replace",
+        form,
+        headers: { [LOCALE_HEADER]: locale },
+      });
+
+      const data = result.data as {
+        ok?: boolean;
+        ref?: JpVocabRef;
+        lesson?: JpLessonRecord;
+        error?: string;
+      };
+
+      if (result.status === 401) {
+        onNeedAuth?.();
+        throw new Error("请登录后再保存教案。");
+      }
+      if (!result.ok || !data.ok || !data.ref || !data.lesson) {
+        throw new Error(data.error || "保存失败");
+      }
+
+      setSaveStatus("已保存为最新教案");
+      onSaved?.(data.ref, data.lesson);
+      window.setTimeout(() => setSaveStatus(""), 2500);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "保存失败，请重试");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -808,19 +954,30 @@ export function JpLessonAnnotateModal({
             <button
               type="button"
               className="jp-annotate-tool jp-annotate-tool--accent"
-              disabled={!imgReady || downloading}
+              disabled={!imgReady || downloading || saving}
               onClick={() => void downloadAnnotated()}
             >
               {downloading ? "下载中…" : "下载到本地"}
             </button>
+            <button
+              type="button"
+              className="jp-annotate-tool jp-annotate-tool--save"
+              disabled={!imgReady || downloading || saving}
+              onClick={() => void saveAsLatestRef()}
+            >
+              {saving ? "保存中…" : "保存为最新教案"}
+            </button>
           </div>
+          {saveStatus ? (
+            <span className="jp-annotate-save-status">{saveStatus}</span>
+          ) : null}
           <button type="button" className="jp-annotate-close" onClick={onClose} aria-label="关闭">
             ×
           </button>
         </div>
 
         <p className="jp-annotate-hint">
-          「文字」下点击空白添加文字，点击已有文字可拖动；字号滑条调节新文字或选中文字大小；批注关闭即消失。
+          「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可拖动；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
         </p>
 
         <div className="jp-annotate-stage" ref={stageRef}>
@@ -890,6 +1047,15 @@ export function JpLessonAnnotateModal({
             className="jp-annotate-text-pop"
             style={{ left: textDraft.screenX, top: textDraft.screenY }}
           >
+            <div
+              className="jp-annotate-text-pop-handle"
+              onPointerDown={handleTextPopDragDown}
+              onPointerMove={handleTextPopDragMove}
+              onPointerUp={handleTextPopDragUp}
+              onPointerCancel={handleTextPopDragUp}
+            >
+              拖动
+            </div>
             <input
               ref={textInputRef}
               type="text"
@@ -907,6 +1073,7 @@ export function JpLessonAnnotateModal({
                 if (e.key === "Escape") {
                   e.preventDefault();
                   setTextDraft(null);
+                  dragTextPopRef.current = null;
                 }
               }}
             />
@@ -917,7 +1084,10 @@ export function JpLessonAnnotateModal({
               <button
                 type="button"
                 className="jp-annotate-text-btn"
-                onClick={() => setTextDraft(null)}
+                onClick={() => {
+                  setTextDraft(null);
+                  dragTextPopRef.current = null;
+                }}
               >
                 取消
               </button>
@@ -1007,6 +1177,24 @@ export function JpLessonAnnotateModal({
 
         .jp-annotate-tool--accent {
           color: var(--accent);
+        }
+
+        .jp-annotate-tool--save {
+          color: var(--fall);
+          border-color: color-mix(in srgb, var(--fall) 50%, var(--border));
+          background: color-mix(in srgb, var(--fall) 10%, var(--panel));
+        }
+
+        .jp-annotate-tool--save:hover:not(:disabled) {
+          border-color: color-mix(in srgb, var(--fall) 65%, var(--border));
+          background: color-mix(in srgb, var(--fall) 16%, var(--panel));
+        }
+
+        .jp-annotate-save-status {
+          align-self: center;
+          font-size: 0.75rem;
+          color: var(--fall);
+          white-space: nowrap;
         }
 
         .jp-annotate-tool-sep {
@@ -1161,6 +1349,26 @@ export function JpLessonAnnotateModal({
           border: 1px solid var(--border);
           background: var(--panel);
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .jp-annotate-text-pop-handle {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 1.5rem;
+          padding: 0.1rem 0.35rem;
+          border-radius: 4px;
+          border: 1px dashed color-mix(in srgb, var(--border) 85%, var(--muted));
+          background: color-mix(in srgb, var(--muted) 8%, var(--panel));
+          color: var(--muted);
+          font-size: 0.6875rem;
+          cursor: grab;
+          touch-action: none;
+          user-select: none;
+        }
+
+        .jp-annotate-text-pop-handle:active {
+          cursor: grabbing;
         }
 
         .jp-annotate-text-input {

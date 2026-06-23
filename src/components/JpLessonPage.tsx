@@ -266,6 +266,19 @@ export function JpLessonPage() {
     window.setTimeout(() => setStatus(""), 2500);
   };
 
+  const handleAnnotateSaved = (ref: JpVocabRef, lesson: JpLessonRecord) => {
+    const nextRefs = { ...refs, [ref.ref_key]: ref };
+    const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
+    setRefs(nextRefs);
+    setLessons(nextLessons);
+    persistLessonCache(nextLessons, nextRefs, notes);
+    setAnnotatingLesson((prev) => {
+      if (!prev || prev.lesson.id !== lesson.id) return prev;
+      const viewUrl = `${refUrl(ref.ref_key)}?v=${encodeURIComponent(ref.updated_at)}`;
+      return { lesson, ref, viewUrl };
+    });
+  };
+
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
   const renderLessonTable = (lessonList: JpLessonRecord[]) => (
@@ -558,7 +571,11 @@ export function JpLessonPage() {
         refKey={annotatingLesson?.lesson.ref_key ?? ""}
         lessonId={annotatingLesson?.lesson.id ?? 0}
         lessonContent={annotatingLesson?.lesson.content ?? ""}
+        locale={locale}
+        canSave={canOperate}
         onClose={() => setAnnotatingLesson(null)}
+        onSaved={handleAnnotateSaved}
+        onNeedAuth={() => setShowAuth(true)}
       />
 
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
@@ -643,7 +660,7 @@ export function JpLessonPage() {
         .jp-lesson-status-card--completed .jp-lesson-status-card-title {
           color: var(--fall);
         }
-        .jp-lesson-table-wrap {
+        :global(.jp-lesson-table-wrap) {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
         }
@@ -680,7 +697,7 @@ export function JpLessonPage() {
         :global(.jp-lesson-notes-col) {
           text-align: center;
         }
-        .jp-lesson-notes-btn {
+        :global(.jp-lesson-notes-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -697,11 +714,11 @@ export function JpLessonPage() {
           line-height: 1.3;
           text-decoration: none;
         }
-        .jp-lesson-notes-btn:hover {
+        :global(.jp-lesson-notes-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
           text-decoration: none;
         }
-        .jp-lesson-notes-count {
+        :global(.jp-lesson-notes-count) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -714,7 +731,7 @@ export function JpLessonPage() {
           font-size: 0.6875rem;
           font-variant-numeric: tabular-nums;
         }
-        .jp-lesson-kind {
+        :global(.jp-lesson-kind) {
           display: inline-block;
           font-size: 0.75rem;
           padding: 0.15rem 0.45rem;
@@ -722,7 +739,7 @@ export function JpLessonPage() {
           border: 1px solid var(--border);
           color: var(--muted);
         }
-        .jp-lesson-kind--grammar {
+        :global(.jp-lesson-kind--grammar) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -730,7 +747,7 @@ export function JpLessonPage() {
         :global(.jp-lesson-complete-col) {
           text-align: center;
         }
-        .jp-lesson-complete-wrap {
+        :global(.jp-lesson-complete-wrap) {
           position: relative;
           display: inline-flex;
           align-items: center;
@@ -744,27 +761,27 @@ export function JpLessonPage() {
             background 0.15s ease,
             box-shadow 0.15s ease;
         }
-        .jp-lesson-complete-wrap.is-done {
+        :global(.jp-lesson-complete-wrap.is-done) {
           color: var(--fall);
           border-color: color-mix(in srgb, var(--fall) 50%, var(--border));
           background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
-        .jp-lesson-complete-wrap.is-learning {
+        :global(.jp-lesson-complete-wrap.is-learning) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
           background: color-mix(in srgb, var(--accent) 12%, var(--panel));
         }
-        .jp-lesson-complete-wrap:not(.is-readonly):not(.is-saving):hover {
+        :global(.jp-lesson-complete-wrap:not(.is-readonly):not(.is-saving):hover) {
           border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
         }
-        .jp-lesson-complete-wrap.is-done:not(.is-readonly):not(.is-saving):hover {
+        :global(.jp-lesson-complete-wrap.is-done:not(.is-readonly):not(.is-saving):hover) {
           border-color: color-mix(in srgb, var(--fall) 65%, var(--border));
           background: color-mix(in srgb, var(--fall) 16%, var(--panel));
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 22%, transparent);
         }
-        .jp-lesson-complete-wrap::after {
+        :global(.jp-lesson-complete-wrap::after) {
           content: "";
           position: absolute;
           right: 0.55rem;
@@ -777,13 +794,13 @@ export function JpLessonPage() {
           pointer-events: none;
           opacity: 0.72;
         }
-        .jp-lesson-complete-wrap.is-readonly {
+        :global(.jp-lesson-complete-wrap.is-readonly) {
           opacity: 0.72;
         }
-        .jp-lesson-complete-wrap.is-saving {
+        :global(.jp-lesson-complete-wrap.is-saving) {
           opacity: 0.55;
         }
-        .jp-lesson-complete-select {
+        :global(.jp-lesson-complete-select) {
           display: block;
           min-height: 2rem;
           width: 6.5rem;
@@ -803,24 +820,24 @@ export function JpLessonPage() {
           -webkit-appearance: none;
           -moz-appearance: none;
         }
-        .jp-lesson-complete-select:focus-visible {
+        :global(.jp-lesson-complete-select:focus-visible) {
           outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
           outline-offset: 1px;
         }
-        .jp-lesson-complete-select:disabled {
+        :global(.jp-lesson-complete-select:disabled) {
           cursor: not-allowed;
         }
-        .jp-lesson-complete-wrap.is-readonly .jp-lesson-complete-select:disabled,
-        .jp-lesson-complete-wrap.is-saving .jp-lesson-complete-select:disabled {
+        :global(.jp-lesson-complete-wrap.is-readonly .jp-lesson-complete-select:disabled),
+        :global(.jp-lesson-complete-wrap.is-saving .jp-lesson-complete-select:disabled) {
           cursor: not-allowed;
         }
-        .jp-lesson-actions {
+        :global(.jp-lesson-actions) {
           display: inline-flex;
           flex-wrap: wrap;
           gap: 0.35rem;
           justify-content: center;
         }
-        .jp-lesson-action-btn {
+        :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -836,7 +853,7 @@ export function JpLessonPage() {
           font: inherit;
           line-height: 1.3;
         }
-        .jp-lesson-action-btn:hover {
+        :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
         @media (max-width: 768px) {
@@ -877,11 +894,11 @@ export function JpLessonPage() {
           :global(.jp-lesson-table tbody td.jp-lesson-actions-col::before) {
             display: none;
           }
-          .jp-lesson-actions {
+          :global(.jp-lesson-actions) {
             justify-content: center;
             width: 100%;
           }
-          .jp-lesson-action-btn {
+          :global(.jp-lesson-action-btn) {
             min-height: var(--touch-min, 44px);
             flex: 1 1 auto;
           }
@@ -899,12 +916,12 @@ export function JpLessonPage() {
           :global(.jp-lesson-table tbody td.jp-lesson-notes-col::before) {
             display: none;
           }
-          .jp-lesson-notes-btn {
+          :global(.jp-lesson-notes-btn) {
             min-height: var(--touch-min, 44px);
             width: 100%;
             max-width: 8rem;
           }
-          .jp-lesson-complete-select {
+          :global(.jp-lesson-complete-select) {
             min-height: var(--touch-min, 44px);
             width: 5.75rem;
             min-width: 5.75rem;
