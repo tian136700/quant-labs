@@ -110,6 +110,59 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
   return (result.results || []).map(mapRow);
 }
 
+export async function getJpLessonById(
+  db: D1Database,
+  lessonId: number
+): Promise<JpLessonRecord | null> {
+  if (!Number.isInteger(lessonId) || lessonId <= 0) return null;
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    return devLessons.find((l) => l.id === lessonId) ?? null;
+  }
+
+  const row = await db
+    .prepare(`${LESSON_SELECT} WHERE id = ?1`)
+    .bind(lessonId)
+    .first<Record<string, unknown>>();
+
+  return row ? mapRow(row) : null;
+}
+
+export async function updateJpLessonRefKey(
+  db: D1Database,
+  lessonId: number,
+  refKey: string
+): Promise<JpLessonRecord | null> {
+  const key = normalizeJpVocabRefKey(refKey);
+  if (!key || !Number.isInteger(lessonId) || lessonId <= 0) return null;
+
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    if (idx < 0) return null;
+    devLessons[idx] = {
+      ...devLessons[idx],
+      ref_key: key,
+      updated_at: ts,
+    };
+    return devLessons[idx];
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE jp_lesson SET ref_key = ?1, updated_at = ?2 WHERE id = ?3`
+    )
+    .bind(key, ts, lessonId)
+    .run();
+
+  if (!result.meta?.changes) return null;
+
+  return getJpLessonById(db, lessonId);
+}
+
 async function syncLessonToVocab(
   db: D1Database,
   lesson: JpLessonRecord

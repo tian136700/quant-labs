@@ -1,8 +1,8 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
-import { createJpLesson } from "@/lib/jp-lesson-db";
+import { createJpLesson, updateJpLessonRefKey } from "@/lib/jp-lesson-db";
 import { saveJpVocabRefFileMeta } from "@/lib/jp-vocab-db";
 import { putJpVocabRefFile } from "@/lib/jp-vocab-ref-server";
-import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
+import { jpLessonRefKey, normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import type { JpLessonKind, JpVocabMediaType } from "@/lib/types";
 
@@ -60,32 +60,48 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "content_required" }, 400);
     }
 
-    if (fileBytes?.byteLength && refKey) {
-      const stored = await putJpVocabRefFile(env, refKey, mediaType, fileBytes);
-      await saveJpVocabRefFileMeta(
-        env.DB,
-        refKey,
-        title,
-        mediaType,
-        stored.r2_key
-      );
-    }
+    const hasFile = Boolean(fileBytes?.byteLength);
 
     const result = await createJpLesson(env.DB, {
       kind,
       content,
       title,
-      ref_key: refKey || null,
+      ref_key: hasFile ? null : refKey || null,
     });
 
     if (!result.ok) {
       return jsonResponse({ ok: false, error: result.error }, 400);
     }
 
+    let lesson = result.lesson;
+    let assignedRefKey: string | null = lesson.ref_key;
+
+    if (hasFile && fileBytes) {
+      assignedRefKey = jpLessonRefKey(lesson.id);
+      const stored = await putJpVocabRefFile(
+        env,
+        assignedRefKey,
+        mediaType,
+        fileBytes
+      );
+      await saveJpVocabRefFileMeta(
+        env.DB,
+        assignedRefKey,
+        title,
+        mediaType,
+        stored.r2_key
+      );
+      const updated = await updateJpLessonRefKey(env.DB, lesson.id, assignedRefKey);
+      if (updated) lesson = updated;
+    }
+
     return jsonResponse({
       ok: true,
-      lesson: result.lesson,
-      ref_view_path: refKey ? `/api/jp-vocab/ref/${refKey}` : null,
+      lesson,
+      ref_key: assignedRefKey,
+      ref_view_path: assignedRefKey
+        ? `/api/jp-vocab/ref/${assignedRefKey}`
+        : null,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

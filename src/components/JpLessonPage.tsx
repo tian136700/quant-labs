@@ -73,7 +73,7 @@ export function JpLessonPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [editingRefKey, setEditingRefKey] = useState<string | null>(null);
+  const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
 
   const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
     setLessons(payload.lessons);
@@ -207,19 +207,17 @@ export function JpLessonPage() {
     }
   };
 
-  const handleRefUpdated = (ref: JpVocabRef) => {
+  const handleRefUpdated = (ref: JpVocabRef, lesson: JpLessonRecord) => {
     const nextRefs = { ...refs, [ref.ref_key]: ref };
-    const nextLessons = lessons.map((l) =>
-      l.ref_key === ref.ref_key ? { ...l, title: ref.title, updated_at: ref.updated_at } : l
-    );
+    const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
     setRefs(nextRefs);
     setLessons(nextLessons);
     persistLessonCache(nextLessons, nextRefs, notes);
-    setStatus("教案已更新，单词复习页将同步显示同一份文件。");
+    setStatus("教案已更新，仅影响本条新课。");
     window.setTimeout(() => setStatus(""), 2500);
   };
 
-  const editingRef = editingRefKey ? refs[editingRefKey] : undefined;
+  const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
   return (
     <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
@@ -420,10 +418,18 @@ export function JpLessonPage() {
                             {canOperate ? (
                               <JpEditIconButton
                                 title="编辑教案（弹窗）"
-                                onClick={() => setEditingRefKey(lesson.ref_key!)}
+                                onClick={() => setEditingLesson(lesson)}
                               />
                             ) : null}
                           </div>
+                        ) : canOperate ? (
+                          <button
+                            type="button"
+                            className="jp-lesson-action-btn"
+                            onClick={() => setEditingLesson(lesson)}
+                          >
+                            上传教案
+                          </button>
                         ) : (
                           <span style={{ color: "var(--muted)" }}>—</span>
                         )}
@@ -438,12 +444,13 @@ export function JpLessonPage() {
       </section>
 
       <JpVocabRefEditModal
-        open={editingRefKey != null}
-        refKey={editingRefKey}
+        open={editingLesson != null}
+        lessonId={editingLesson?.id ?? null}
+        refKey={editingLesson?.ref_key ?? null}
         refMeta={editingRef}
         locale={locale}
         canEdit={canOperate}
-        onClose={() => setEditingRefKey(null)}
+        onClose={() => setEditingLesson(null)}
         onUpdated={handleRefUpdated}
         onNeedAuth={() => setShowAuth(true)}
       />
@@ -471,12 +478,13 @@ export function JpLessonPage() {
   -H "Authorization: Bearer <TOKEN>" \\
   -F "kind=grammar" \\
   -F "content=～ばかり, ～ようになる, ～に来る" \\
-  -F "ref_key=lesson02-grammar" \\
   -F "media_type=image" \\
   -F "file=@lesson02.png"`}
         </pre>
         <p>
-          <code>content</code> 中多个单词/语法用英文或中文逗号分隔。上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
+          <code>content</code> 中多个单词/语法用英文或中文逗号分隔。
+          上传带 <code>file</code> 时，系统会自动生成教案标识（如 <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
+          上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
           日语单词抽问并带上教案链接。
         </p>
       </details>

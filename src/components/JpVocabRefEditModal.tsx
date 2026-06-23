@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import type { JpVocabRef } from "@/lib/types";
+import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
 
 type Props = {
   open: boolean;
+  lessonId: number | null;
   refKey: string | null;
   refMeta?: JpVocabRef;
   locale: "en" | "zh";
   canEdit: boolean;
   onClose: () => void;
-  onUpdated: (ref: JpVocabRef) => void;
+  onUpdated: (ref: JpVocabRef, lesson: JpLessonRecord) => void;
   onNeedAuth: () => void;
 };
 
@@ -33,6 +34,7 @@ const ERR = {
 
 export function JpVocabRefEditModal({
   open,
+  lessonId,
   refKey,
   refMeta,
   locale,
@@ -99,7 +101,7 @@ export function JpVocabRefEditModal({
   };
 
   const submit = async () => {
-    if (!refKey) return;
+    if (!lessonId) return;
     if (!canEdit) {
       onNeedAuth();
       return;
@@ -114,12 +116,12 @@ export function JpVocabRefEditModal({
 
     try {
       const form = new FormData();
-      form.append("ref_key", refKey);
+      form.append("lesson_id", String(lessonId));
       form.append("file", file);
       if (title.trim()) form.append("title", title.trim());
       if (file.type === "application/pdf") form.append("media_type", "pdf");
 
-      const res = await fetch("/api/jp-vocab/ref/replace", {
+      const res = await fetch("/api/jp-lesson/ref/replace", {
         method: "POST",
         headers: { [LOCALE_HEADER]: locale },
         credentials: "include",
@@ -128,6 +130,7 @@ export function JpVocabRefEditModal({
       const data = (await res.json()) as {
         ok: boolean;
         ref?: JpVocabRef;
+        lesson?: JpLessonRecord;
         error?: string;
       };
 
@@ -135,7 +138,7 @@ export function JpVocabRefEditModal({
         onNeedAuth();
         throw new Error(locale === "zh" ? "请登录后再编辑教案。" : "Please log in.");
       }
-      if (!data.ok || !data.ref) {
+      if (!data.ok || !data.ref || !data.lesson) {
         const msg =
           (data.error && ERR[locale][data.error as keyof (typeof ERR)["zh"]]) ||
           data.error ||
@@ -143,7 +146,7 @@ export function JpVocabRefEditModal({
         throw new Error(msg);
       }
 
-      onUpdated(data.ref);
+      onUpdated(data.ref, data.lesson);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
@@ -152,11 +155,13 @@ export function JpVocabRefEditModal({
     }
   };
 
-  if (!open || !mounted || !refKey) return null;
+  if (!open || !mounted || !lessonId) return null;
 
-  const currentViewUrl = `/api/jp-vocab/ref/${encodeURIComponent(refKey)}${
-    refMeta?.updated_at ? `?v=${encodeURIComponent(refMeta.updated_at)}` : ""
-  }`;
+  const currentViewUrl = refKey
+    ? `/api/jp-vocab/ref/${encodeURIComponent(refKey)}${
+        refMeta?.updated_at ? `?v=${encodeURIComponent(refMeta.updated_at)}` : ""
+      }`
+    : "";
 
   return createPortal(
     <>
@@ -180,7 +185,7 @@ export function JpVocabRefEditModal({
                 编辑教案
               </h2>
               <p className="jp-ref-edit-subtitle">
-                更换文件后，日语新课与单词复习将共用同一份教案（ref: {refKey}）
+                教案仅绑定本条新课（ID {lessonId}），不会影响其他记录
               </p>
             </div>
             <button
@@ -209,14 +214,18 @@ export function JpVocabRefEditModal({
 
             <div className="jp-ref-edit-current">
               <span className="jp-ref-edit-label-text">当前教案</span>
-              <a
-                href={currentViewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="jp-ref-edit-view-link"
-              >
-                在新标签页查看
-              </a>
+              {refKey ? (
+                <a
+                  href={currentViewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="jp-ref-edit-view-link"
+                >
+                  在新标签页查看
+                </a>
+              ) : (
+                <span style={{ color: "var(--muted)" }}>尚未上传</span>
+              )}
             </div>
 
             <label className="jp-ref-edit-label">

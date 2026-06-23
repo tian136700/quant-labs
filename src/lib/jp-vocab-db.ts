@@ -830,6 +830,42 @@ export async function syncLessonNotesToVocab(
   }
 }
 
+/** 新课教案 ref 变更时，同步更新已写入单词复习的 ref_key */
+export async function updateJpVocabWordsRefKey(
+  db: D1Database,
+  words: string[],
+  kind: JpVocabKind,
+  oldRefKey: string,
+  newRefKey: string
+): Promise<void> {
+  const cleaned = words.map(normalizeWord).filter(Boolean);
+  const fromKey = normalizeJpVocabRefKey(oldRefKey);
+  const toKey = normalizeJpVocabRefKey(newRefKey);
+  if (!cleaned.length || !fromKey || !toKey || fromKey === toKey) return;
+
+  const normalizedKind = normalizeKind(kind);
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    for (let i = 0; i < devWords.length; i++) {
+      const w = devWords[i];
+      if (!cleaned.includes(w.word) || w.ref_key !== fromKey) continue;
+      devWords[i] = { ...w, ref_key: toKey, updated_at: ts };
+    }
+    return;
+  }
+
+  for (const word of cleaned) {
+    await db
+      .prepare(
+        `UPDATE jp_vocab_word SET ref_key = ?1, updated_at = ?2
+         WHERE word = ?3 AND ref_key = ?4 AND kind = ?5`
+      )
+      .bind(toKey, ts, word, fromKey, normalizedKind)
+      .run();
+  }
+}
+
 /** 新课改回未完成时：移除本课同步的词条（按 ref_key 匹配） */
 export async function removeJpVocabLessonWords(
   db: D1Database,

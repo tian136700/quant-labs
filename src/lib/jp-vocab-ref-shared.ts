@@ -10,6 +10,11 @@ export function normalizeJpVocabRefKey(raw: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/** 新课教案：每条 lesson 独占一个 ref_key，由系统生成，不依赖用户输入 */
+export function jpLessonRefKey(lessonId: number): string {
+  return `lesson-${lessonId}`;
+}
+
 export function jpVocabRefR2Key(refKey: string, mediaType: JpVocabMediaType): string {
   const ext = mediaType === "pdf" ? ".pdf" : ".png";
   return `${JP_VOCAB_REF_R2_PREFIX}${refKey}${ext}`;
