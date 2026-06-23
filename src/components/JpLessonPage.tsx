@@ -625,26 +625,19 @@ export function JpLessonPage() {
           margin: 0;
         }
         .jp-lesson-status-card-head {
-          position: relative;
           display: flex;
-          justify-content: center;
           align-items: center;
-          min-height: 2.25rem;
-          padding: 0.15rem 3.5rem 0.15rem 0;
+          justify-content: space-between;
+          gap: 0.75rem;
           margin-bottom: 0.75rem;
         }
         .jp-lesson-status-card-title {
           font-size: 1.375rem;
           font-weight: 600;
           margin: 0;
-          text-align: center;
           letter-spacing: 0.02em;
         }
         .jp-lesson-status-card-count {
-          position: absolute;
-          right: 0;
-          top: 50%;
-          transform: translateY(-50%);
           font-size: 0.8125rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
