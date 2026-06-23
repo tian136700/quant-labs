@@ -22,6 +22,7 @@ export type Messages = {
     storeReview: string;
     about: string;
     adminDashboard: string;
+    adminTrends: string;
   };
   about: {
     meta: { title: string; description: string };
@@ -96,6 +97,8 @@ export type Messages = {
     runs: {
       heading: string;
       refresh: string;
+      fetch: string;
+      fetching: string;
       empty: string;
       id: string;
       fetchedAt: string;
@@ -132,6 +135,8 @@ export type Messages = {
     status: {
       loadFailed: string;
       copied: string;
+      fetchSuccess: string;
+      fetchFailed: string;
     };
   };
   page: {
@@ -397,6 +402,7 @@ export const messages: Record<Locale, Messages> = {
       storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
+      adminTrends: "AI Prompts",
     },
     about: {
       meta: {
@@ -491,7 +497,9 @@ export const messages: Record<Locale, Messages> = {
       runs: {
         heading: "Fetch runs",
         refresh: "Refresh",
-        empty: "No fetch runs yet. Run pipeline with --sync-db.",
+        fetch: "Fetch & generate prompts",
+        fetching: "Fetching…",
+        empty: "No fetch runs yet. Click the button above to fetch GitHub/Reddit and generate AI prompts.",
         id: "ID",
         fetchedAt: "Fetched at",
         github: "GitHub",
@@ -528,6 +536,9 @@ export const messages: Record<Locale, Messages> = {
       status: {
         loadFailed: "Failed to load data. Please try again.",
         copied: "Copied to clipboard.",
+        fetchSuccess:
+          "Fetch complete. Top-10 AI prompt is ready — select the new run below.",
+        fetchFailed: "Fetch failed. Please try again.",
       },
     },
     page: {
@@ -858,6 +869,7 @@ export const messages: Record<Locale, Messages> = {
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",
+      adminTrends: "AI 提示词",
     },
     about: {
       meta: {
@@ -951,7 +963,9 @@ export const messages: Record<Locale, Messages> = {
       runs: {
         heading: "抓取批次",
         refresh: "刷新",
-        empty: "暂无记录。请运行 pipeline 并加 --sync-db 入库。",
+        fetch: "一键抓取并生成 AI 提示词",
+        fetching: "抓取中…",
+        empty: "暂无记录。点击上方按钮即可抓取 GitHub/Reddit 并生成 AI 提示词。",
         id: "ID",
         fetchedAt: "抓取时间",
         github: "GitHub",
@@ -988,6 +1002,8 @@ export const messages: Record<Locale, Messages> = {
       status: {
         loadFailed: "加载失败，请重试。",
         copied: "已复制到剪贴板。",
+        fetchSuccess: "抓取完成，Top 10 AI 提示词已生成，请在下方选择新批次查看。",
+        fetchFailed: "抓取失败，请稍后重试。",
       },
     },
     page: {

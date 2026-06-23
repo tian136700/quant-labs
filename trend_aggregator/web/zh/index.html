@@ -138,7 +138,7 @@
 
   <header class="sans border-b border-gray-200 sticky top-0 bg-white/95 backdrop-blur z-50">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
-      <a href="#" class="flex items-center gap-2 no-underline hover:no-underline">
+      <a href="/trend-blog/zh/" class="flex items-center gap-2 no-underline hover:no-underline">
         <span class="text-xl font-semibold text-gray-900 tracking-tight">AI 趋势精选</span>
       </a>
       <form class="flex-1 max-w-md hidden sm:flex" role="search" onsubmit="return false;">
@@ -151,9 +151,7 @@
         />
       </form>
       <nav class="sans hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
-        <a href="#" class="no-underline hover:text-gray-900">趋势</a>
-        <a href="#" class="no-underline hover:text-gray-900">提示词</a>
-        <a href="#" class="no-underline hover:text-gray-900">GitHub</a>
+        <a href="https://github.com/trending" target="_blank" rel="noopener noreferrer" class="no-underline hover:text-gray-900">GitHub Trending</a>
       </nav>
       <div id="lang-switch" class="lang-switch sans shrink-0" role="group"></div>
       <button type="button" class="sm:hidden sans text-sm text-blue-600 font-medium" aria-label="打开搜索">搜索</button>
@@ -174,195 +172,41 @@
             <span aria-hidden="true"> · </span>
             <span id="article-read-minutes">约 8 分钟阅读</span>
           </p>
-          <div id="article-tags" class="not-prose flex flex-wrap gap-1 mb-5">
-            <span class="tag">大语言模型</span>
-            <span class="tag">开源</span>
-            <span class="tag">智能体</span>
-          </div>
-          <h1 itemprop="headline">今日 GitHub 最火 AI 仓库：智能体、RAG 与提示词工具</h1>
+          <div id="article-tags" class="not-prose flex flex-wrap gap-1 mb-5"></div>
+          <h1 itemprop="headline">AI 趋势精选</h1>
 
           <div id="content-area" itemprop="articleBody">
-            <p itemprop="description">
-              开发者正涌向开源 AI 智能体与工作流构建工具。以下是涨星最快的仓库精选，以及本周如何把它们用起来。
-            </p>
-
-            <h2>概览</h2>
-            <p>
-              AI 工具生态变化极快。个人助手、编程智能体、可视化工作流构建器占据今日 GitHub 趋势榜。每个项目瞄准不同痛点：本地隐私、企业级 RAG，或无代码原型验证。
-            </p>
-
-            <blockquote>
-              「最好的 AI 技术栈，是你能审查、能 fork、能按自己的条件部署的那一套。」
-            </blockquote>
-
-            <h2>值得关注的重点项目</h2>
-            <ul>
-              <li><strong>个人 AI 助手</strong> — 自托管、跨平台、隐私优先。</li>
-              <li><strong>智能体框架</strong> — 类 LangChain 编排，支持多智能体协作。</li>
-              <li><strong>网页抓取 API</strong> — 为 RAG 流水线与搜索增强 LLM 提供数据燃料。</li>
-            </ul>
-
-            <h2>提示词示例：仓库速览</h2>
-            <p>用下面这条提示词，让任意 LLM 帮你总结 trending 仓库：</p>
-            <pre><code>你是一名资深开发者布道师。给定这个 GitHub 仓库：
-名称：{{repo_name}}
-描述：{{description}}
-Star 数：{{stars}}
-
-写 3 句面向开发者的摘要，列出 2 个使用场景，
-并说明谁不适合用这个工具。</code></pre>
-
-            <h2>结语</h2>
-            <p>
-              先选一个与你技术栈匹配的仓库，在本地跑起来，并记录你的提示词。持续深耕比追逐每一颗新星更重要。收藏本精选，每周来看更新。
-            </p>
-            <hr />
+            <p class="sans text-gray-500 not-prose">正在加载文章…</p>
           </div>
         </article>
-
-        <section class="sans mt-4" aria-label="更多文章">
-          <h2 class="text-lg font-semibold text-gray-900 mb-6 tracking-tight">AI 趋势精选 · 更多文章</h2>
-          <div class="space-y-6">
-
-            <article class="card-hover border border-gray-200 rounded-xl p-5 transition-shadow">
-              <div class="flex flex-wrap gap-1 mb-2">
-                <span class="tag">提示词工程</span>
-                <span class="tag">ChatGPT</span>
-              </div>
-              <h3 class="font-serif text-xl font-bold text-gray-900 mb-1">
-                <a href="#" class="no-underline hover:underline text-gray-900">5 条思维链提示词，真能改善 Code Review</a>
-              </h3>
-              <p class="text-sm text-gray-500 mb-2">Sarah Kim · 2026 年 6 月 19 日</p>
-              <p class="text-gray-600 text-sm leading-relaxed">
-                结构化推理提示词帮助 LLM 发现 PR 中的边界情况。可直接复制到 CI 机器人或 IDE 插件。
-              </p>
-            </article>
-
-            <article class="card-hover border border-gray-200 rounded-xl p-5 transition-shadow">
-              <div class="flex flex-wrap gap-1 mb-2">
-                <span class="tag">RAG</span>
-                <span class="tag">向量数据库</span>
-                <span class="tag">Python</span>
-              </div>
-              <h3 class="font-serif text-xl font-bold text-gray-900 mb-1">
-                <a href="#" class="no-underline hover:underline text-gray-900">100 行以内搭建生产级 RAG 流水线</a>
-              </h3>
-              <p class="text-sm text-gray-500 mb-2">Marcus Rivera · 2026 年 6 月 18 日</p>
-              <p class="text-gray-600 text-sm leading-relaxed">
-                从文档入库到混合检索——用开源嵌入模型与轻量向量库的最小可扩展模式。
-              </p>
-            </article>
-
-            <article class="card-hover border border-gray-200 rounded-xl p-5 transition-shadow">
-              <div class="flex flex-wrap gap-1 mb-2">
-                <span class="tag">本地 LLM</span>
-                <span class="tag">Ollama</span>
-              </div>
-              <h3 class="font-serif text-xl font-bold text-gray-900 mb-1">
-                <a href="#" class="no-underline hover:underline text-gray-900">本地跑 Llama 3：2026 硬件指南</a>
-              </h3>
-              <p class="text-sm text-gray-500 mb-2">Priya Patel · 2026 年 6 月 17 日</p>
-              <p class="text-gray-600 text-sm leading-relaxed">
-                显存需求、量化取舍，以及 MacBook 与入门 GPU 主机分别适合多大模型。
-              </p>
-            </article>
-
-            <article class="card-hover border border-gray-200 rounded-xl p-5 transition-shadow">
-              <div class="flex flex-wrap gap-1 mb-2">
-                <span class="tag">AI 智能体</span>
-                <span class="tag">自动化</span>
-              </div>
-              <h3 class="font-serif text-xl font-bold text-gray-900 mb-1">
-                <a href="#" class="no-underline hover:underline text-gray-900">什么时候该用智能体，而不是简单 API 调用</a>
-              </h3>
-              <p class="text-sm text-gray-500 mb-2">Alex Chen · 2026 年 6 月 16 日</p>
-              <p class="text-gray-600 text-sm leading-relaxed">
-                并非每个任务都需要自主性。在工具调用、工作流与完整智能体之间做选择的决策框架。
-              </p>
-            </article>
-
-          </div>
-        </section>
       </div>
 
       <aside class="layout-sidebar sans lg:col-span-1 w-full space-y-8">
 
-        <div class="border border-gray-200 rounded-xl p-5">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">正在热议</h2>
-          <ol class="space-y-4 list-none m-0 p-0">
-            <li class="flex gap-3">
-              <span class="text-2xl font-bold text-gray-300 leading-none">1</span>
-              <div>
-                <a href="#" class="font-medium text-gray-900 text-sm leading-snug no-underline hover:underline block">开源编程智能体在 GitHub 上激增</a>
-                <span class="text-xs text-gray-400">2.4k 分享</span>
-              </div>
-            </li>
-            <li class="flex gap-3">
-              <span class="text-2xl font-bold text-gray-300 leading-none">2</span>
-              <div>
-                <a href="#" class="font-medium text-gray-900 text-sm leading-snug no-underline hover:underline block">RAG 应用的新型提示词注入防御</a>
-                <span class="text-xs text-gray-400">1.8k 分享</span>
-              </div>
-            </li>
-            <li class="flex gap-3">
-              <span class="text-2xl font-bold text-gray-300 leading-none">3</span>
-              <div>
-                <a href="#" class="font-medium text-gray-900 text-sm leading-snug no-underline hover:underline block">DeepSeek vs GPT-4o mini：开发工作流对比</a>
-                <span class="text-xs text-gray-400">1.2k 分享</span>
-              </div>
-            </li>
-            <li class="flex gap-3">
-              <span class="text-2xl font-bold text-gray-300 leading-none">4</span>
-              <div>
-                <a href="#" class="font-medium text-gray-900 text-sm leading-snug no-underline hover:underline block">LangGraph 多智能体模式详解</a>
-                <span class="text-xs text-gray-400">980 分享</span>
-              </div>
-            </li>
-            <li class="flex gap-3">
-              <span class="text-2xl font-bold text-gray-300 leading-none">5</span>
-              <div>
-                <a href="#" class="font-medium text-gray-900 text-sm leading-snug no-underline hover:underline block">自托管 AI 助手横向对比</a>
-                <span class="text-xs text-gray-400">760 分享</span>
-              </div>
-            </li>
-          </ol>
-        </div>
-
         <div class="border border-gray-200 rounded-xl p-5 bg-gray-50">
           <h2 class="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-4">AI 工具导航</h2>
           <nav class="space-y-1">
-            <a href="#" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
+            <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
               <span>ChatGPT</span>
               <span class="text-gray-400">→</span>
             </a>
-            <a href="#" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
+            <a href="https://claude.ai/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
               <span>Claude</span>
               <span class="text-gray-400">→</span>
             </a>
-            <a href="#" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
+            <a href="https://chat.deepseek.com/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
               <span>DeepSeek</span>
               <span class="text-gray-400">→</span>
             </a>
-            <a href="#" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
+            <a href="https://github.com/trending" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
               <span>GitHub Trending</span>
               <span class="text-gray-400">→</span>
             </a>
-            <a href="#" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
+            <a href="https://huggingface.co/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
               <span>Hugging Face</span>
               <span class="text-gray-400">→</span>
             </a>
-            <a href="#" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
-              <span>PromptBase</span>
-              <span class="text-gray-400">→</span>
-            </a>
           </nav>
-        </div>
-
-        <div class="border border-blue-200 rounded-xl p-5 bg-blue-50">
-          <h2 class="text-sm font-semibold text-gray-900 mb-2">每周 AI 精选邮件</h2>
-          <p class="text-sm text-gray-600 mb-4 leading-relaxed">每周一收到 trending 仓库与提示词，无垃圾邮件。</p>
-          <input type="email" placeholder="you@email.com" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-          <button type="button" class="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">订阅</button>
         </div>
       </aside>
     </div>
@@ -371,12 +215,6 @@ Star 数：{{stars}}
   <footer class="sans border-t border-gray-200 mt-12">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500">
       <p>© 2026 AI 趋势精选。保留所有权利。</p>
-      <nav class="flex gap-6">
-        <a href="#" class="no-underline hover:text-gray-900">关于</a>
-        <a href="#" class="no-underline hover:text-gray-900">隐私</a>
-        <a href="#" class="no-underline hover:text-gray-900">RSS</a>
-        <a href="#" class="no-underline hover:text-gray-900">联系</a>
-      </nav>
     </div>
   </footer>
 

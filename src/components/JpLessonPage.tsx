@@ -15,7 +15,6 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import {
-  compareJpLessonsByProgress,
   getJpLessonProgressStatus,
   jpLessonProgressToFields,
   type JpLessonProgressStatus,
@@ -41,8 +40,39 @@ function refUrl(refKey: string, download = false): string {
   return download ? `${base}?download=1` : base;
 }
 
-function sortJpLessons(lessons: JpLessonRecord[]): JpLessonRecord[] {
-  return [...lessons].sort(compareJpLessonsByProgress);
+const LESSON_STATUS_SECTIONS: {
+  status: JpLessonProgressStatus;
+  title: string;
+  emptyHint: string;
+}[] = [
+  { status: "learning", title: "学习中", emptyHint: "暂无学习中的新课" },
+  { status: "pending", title: "未完成", emptyHint: "暂无未完成的新课" },
+  { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
+];
+
+function sortLessonsWithinStatus(lessons: JpLessonRecord[]): JpLessonRecord[] {
+  return [...lessons].sort((a, b) => {
+    const dateCmp = b.uploaded_at.localeCompare(a.uploaded_at);
+    if (dateCmp !== 0) return dateCmp;
+    return b.id - a.id;
+  });
+}
+
+function groupLessonsByStatus(
+  lessons: JpLessonRecord[]
+): Record<JpLessonProgressStatus, JpLessonRecord[]> {
+  const groups: Record<JpLessonProgressStatus, JpLessonRecord[]> = {
+    learning: [],
+    pending: [],
+    completed: [],
+  };
+  for (const lesson of lessons) {
+    groups[getJpLessonProgressStatus(lesson)].push(lesson);
+  }
+  for (const status of Object.keys(groups) as JpLessonProgressStatus[]) {
+    groups[status] = sortLessonsWithinStatus(groups[status]);
+  }
+  return groups;
 }
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
@@ -119,7 +149,7 @@ export function JpLessonPage() {
     void loadLessons();
   }, [loadLessons]);
 
-  const sortedLessons = useMemo(() => sortJpLessons(lessons), [lessons]);
+  const lessonsByStatus = useMemo(() => groupLessonsByStatus(lessons), [lessons]);
 
   const noteCountByLesson = useMemo(() => {
     const map = new Map<number, number>();
@@ -238,6 +268,166 @@ export function JpLessonPage() {
 
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
+  const renderLessonTable = (lessonList: JpLessonRecord[]) => (
+    <div className="jp-lesson-table-wrap">
+      <table className="compare-table etr-table jp-lesson-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>学习类型</th>
+            <th>学习内容</th>
+            <th className="jp-lesson-uploaded-col">上传日期</th>
+            <th className="jp-lesson-status-at-col">最近操作</th>
+            <th className="jp-lesson-operator-col">操作人</th>
+            <th className="jp-lesson-complete-col">学习状态</th>
+            <th className="jp-lesson-notes-col">课堂笔记</th>
+            <th className="jp-lesson-actions-col">教案操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lessonList.map((lesson) => {
+            const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
+            const hasRef = Boolean(lesson.ref_key && ref);
+            const viewUrl = lesson.ref_key
+              ? `${refUrl(lesson.ref_key)}${
+                  ref?.updated_at ? `?v=${encodeURIComponent(ref.updated_at)}` : ""
+                }`
+              : "";
+            const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
+            const progressStatus = getJpLessonProgressStatus(lesson);
+
+            return (
+              <tr key={lesson.id}>
+                <td data-label="ID" className="jp-lesson-id-col">
+                  {lesson.id}
+                </td>
+                <td data-label="学习类型">
+                  <span
+                    className={`jp-lesson-kind${
+                      lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                    }`}
+                  >
+                    {lesson.kind === "grammar" ? "语法" : "单词"}
+                  </span>
+                </td>
+                <td data-label="学习内容" className="jp-lesson-content-col">
+                  {lesson.content}
+                </td>
+                <td data-label="上传日期" className="jp-lesson-uploaded-col">
+                  {formatBeijingDateTime(lesson.uploaded_at)}
+                </td>
+                <td data-label="最近操作" className="jp-lesson-status-at-col">
+                  {lesson.status_updated_at
+                    ? formatBeijingDateTime(lesson.status_updated_at)
+                    : "—"}
+                </td>
+                <td data-label="操作人" className="jp-lesson-operator-col">
+                  {lesson.status_updated_by ?? "—"}
+                </td>
+                <td data-label="学习状态" className="jp-lesson-complete-col">
+                  <div
+                    className={`jp-lesson-complete-wrap${
+                      progressStatus === "completed" ? " is-done" : ""
+                    }${progressStatus === "learning" ? " is-learning" : ""}${
+                      !canOperate ? " is-readonly" : ""
+                    }${savingId === lesson.id ? " is-saving" : ""}`}
+                  >
+                    <select
+                      className="jp-lesson-complete-select"
+                      value={progressStatus}
+                      disabled={!canOperate || savingId === lesson.id}
+                      aria-label={`${lesson.content} 学习状态`}
+                      onChange={(e) =>
+                        void setLessonProgress(
+                          lesson.id,
+                          e.target.value as JpLessonProgressStatus
+                        )
+                      }
+                    >
+                      <option value="pending">未完成</option>
+                      <option value="learning">学习中</option>
+                      <option value="completed">已完成</option>
+                    </select>
+                  </div>
+                </td>
+                <td data-label="课堂笔记" className="jp-lesson-notes-col">
+                  <a
+                    href={`/jp-lesson/notes?id=${lesson.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="jp-lesson-notes-btn"
+                    title="在新标签页打开课堂笔记"
+                  >
+                    笔记
+                    {noteCount > 0 ? (
+                      <span className="jp-lesson-notes-count">{noteCount}</span>
+                    ) : null}
+                  </a>
+                </td>
+                <td data-label="教案操作" className="jp-lesson-actions-col">
+                  {hasRef ? (
+                    <div className="jp-lesson-actions">
+                      <a
+                        href={viewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="jp-lesson-action-btn"
+                      >
+                        查看
+                      </a>
+                      {ref?.media_type === "image" ? (
+                        <button
+                          type="button"
+                          className="jp-lesson-action-btn"
+                          onClick={() =>
+                            setAnnotatingLesson({ lesson, ref: ref!, viewUrl })
+                          }
+                        >
+                          随手画
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="jp-lesson-action-btn"
+                        disabled={downloadingKey === lesson.ref_key}
+                        onClick={() => void downloadRef(lesson.ref_key!, ref)}
+                      >
+                        {downloadingKey === lesson.ref_key ? "下载中…" : "下载"}
+                      </button>
+                      <button
+                        type="button"
+                        className="jp-lesson-action-btn"
+                        onClick={() => void copyLessonShare(lesson)}
+                      >
+                        {copiedId === lesson.id ? "已复制" : "复制"}
+                      </button>
+                      {canOperate ? (
+                        <JpEditIconButton
+                          title="编辑教案（弹窗）"
+                          onClick={() => setEditingLesson(lesson)}
+                        />
+                      ) : null}
+                    </div>
+                  ) : canOperate ? (
+                    <button
+                      type="button"
+                      className="jp-lesson-action-btn"
+                      onClick={() => setEditingLesson(lesson)}
+                    >
+                      上传教案
+                    </button>
+                  ) : (
+                    <span style={{ color: "var(--muted)" }}>—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <div
@@ -306,179 +496,49 @@ export function JpLessonPage() {
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>{status}</p>
       ) : null}
 
-      <section className="section etr-panel" aria-label="新课列表">
-        <h2 style={{ fontSize: "1.1rem", margin: "0 0 0.75rem" }}>
-          学习清单{refreshing ? <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: "0.875rem" }}> · 同步中…</span> : null}
-        </h2>
-
-        {loading ? (
-          <p style={{ color: "var(--muted)" }}>加载中…</p>
-        ) : !lessons.length ? (
-          <p style={{ color: "var(--muted)" }}>暂无新课，请通过 API 上传。</p>
-        ) : (
-          <div className="jp-lesson-table-wrap">
-            <table className="compare-table etr-table jp-lesson-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>学习类型</th>
-                  <th>学习内容</th>
-                  <th className="jp-lesson-uploaded-col">上传日期</th>
-                  <th className="jp-lesson-status-at-col">最近操作</th>
-                  <th className="jp-lesson-operator-col">操作人</th>
-                  <th className="jp-lesson-complete-col">学习状态</th>
-                  <th className="jp-lesson-notes-col">课堂笔记</th>
-                  <th className="jp-lesson-actions-col">教案操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedLessons.map((lesson) => {
-                  const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
-                  const hasRef = Boolean(lesson.ref_key && ref);
-                  const viewUrl = lesson.ref_key
-                    ? `${refUrl(lesson.ref_key)}${
-                        ref?.updated_at ? `?v=${encodeURIComponent(ref.updated_at)}` : ""
-                      }`
-                    : "";
-                  const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
-                  const progressStatus = getJpLessonProgressStatus(lesson);
-
-                  return (
-                    <tr key={lesson.id}>
-                      <td data-label="ID" className="jp-lesson-id-col">
-                        {lesson.id}
-                      </td>
-                      <td data-label="学习类型">
-                        <span
-                          className={`jp-lesson-kind${
-                            lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
-                          }`}
-                        >
-                          {lesson.kind === "grammar" ? "语法" : "单词"}
-                        </span>
-                      </td>
-                      <td data-label="学习内容" className="jp-lesson-content-col">
-                        {lesson.content}
-                      </td>
-                      <td data-label="上传日期" className="jp-lesson-uploaded-col">
-                        {formatBeijingDateTime(lesson.uploaded_at)}
-                      </td>
-                      <td data-label="最近操作" className="jp-lesson-status-at-col">
-                        {lesson.status_updated_at
-                          ? formatBeijingDateTime(lesson.status_updated_at)
-                          : "—"}
-                      </td>
-                      <td data-label="操作人" className="jp-lesson-operator-col">
-                        {lesson.status_updated_by ?? "—"}
-                      </td>
-                      <td data-label="学习状态" className="jp-lesson-complete-col">
-                        <div
-                          className={`jp-lesson-complete-wrap${
-                            progressStatus === "completed" ? " is-done" : ""
-                          }${
-                            progressStatus === "learning" ? " is-learning" : ""
-                          }${!canOperate ? " is-readonly" : ""}${
-                            savingId === lesson.id ? " is-saving" : ""
-                          }`}
-                        >
-                          <select
-                            className="jp-lesson-complete-select"
-                            value={progressStatus}
-                            disabled={!canOperate || savingId === lesson.id}
-                            aria-label={`${lesson.content} 学习状态`}
-                            onChange={(e) =>
-                              void setLessonProgress(
-                                lesson.id,
-                                e.target.value as JpLessonProgressStatus
-                              )
-                            }
-                          >
-                            <option value="pending">未完成</option>
-                            <option value="learning">学习中</option>
-                            <option value="completed">已完成</option>
-                          </select>
-                        </div>
-                      </td>
-                      <td data-label="课堂笔记" className="jp-lesson-notes-col">
-                        <a
-                          href={`/jp-lesson/notes?id=${lesson.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="jp-lesson-notes-btn"
-                          title="在新标签页打开课堂笔记"
-                        >
-                          笔记
-                          {noteCount > 0 ? (
-                            <span className="jp-lesson-notes-count">{noteCount}</span>
-                          ) : null}
-                        </a>
-                      </td>
-                      <td data-label="教案操作" className="jp-lesson-actions-col">
-                        {hasRef ? (
-                          <div className="jp-lesson-actions">
-                            <a
-                              href={viewUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="jp-lesson-action-btn"
-                            >
-                              查看
-                            </a>
-                            {ref?.media_type === "image" ? (
-                              <button
-                                type="button"
-                                className="jp-lesson-action-btn"
-                                onClick={() =>
-                                  setAnnotatingLesson({ lesson, ref: ref!, viewUrl })
-                                }
-                              >
-                                随手画
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="jp-lesson-action-btn"
-                              disabled={downloadingKey === lesson.ref_key}
-                              onClick={() =>
-                                void downloadRef(lesson.ref_key!, ref)
-                              }
-                            >
-                              {downloadingKey === lesson.ref_key ? "下载中…" : "下载"}
-                            </button>
-                            <button
-                              type="button"
-                              className="jp-lesson-action-btn"
-                              onClick={() => void copyLessonShare(lesson)}
-                            >
-                              {copiedId === lesson.id ? "已复制" : "复制"}
-                            </button>
-                            {canOperate ? (
-                              <JpEditIconButton
-                                title="编辑教案（弹窗）"
-                                onClick={() => setEditingLesson(lesson)}
-                              />
-                            ) : null}
-                          </div>
-                        ) : canOperate ? (
-                          <button
-                            type="button"
-                            className="jp-lesson-action-btn"
-                            onClick={() => setEditingLesson(lesson)}
-                          >
-                            上传教案
-                          </button>
-                        ) : (
-                          <span style={{ color: "var(--muted)" }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {loading ? (
+        <p style={{ color: "var(--muted)" }}>加载中…</p>
+      ) : !lessons.length ? (
+        <section className="section etr-panel" aria-label="学习清单">
+          <p style={{ color: "var(--muted)", margin: 0 }}>暂无新课，请通过 API 上传。</p>
+        </section>
+      ) : (
+        <div className="jp-lesson-cards">
+          {refreshing ? (
+            <p
+              style={{
+                color: "var(--muted)",
+                fontSize: "0.875rem",
+                margin: "0 0 0.25rem",
+              }}
+            >
+              同步中…
+            </p>
+          ) : null}
+          {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
+            const sectionLessons = lessonsByStatus[status];
+            return (
+              <section
+                key={status}
+                className={`section etr-panel jp-lesson-status-card jp-lesson-status-card--${status}`}
+                aria-label={`${title}新课`}
+              >
+                <div className="jp-lesson-status-card-head">
+                  <h2 className="jp-lesson-status-card-title">{title}</h2>
+                  <span className="jp-lesson-status-card-count">
+                    {sectionLessons.length} 条
+                  </span>
+                </div>
+                {sectionLessons.length ? (
+                  renderLessonTable(sectionLessons)
+                ) : (
+                  <p className="jp-lesson-status-card-empty">{emptyHint}</p>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
 
       <JpVocabRefEditModal
         open={editingLesson != null}
@@ -538,6 +598,50 @@ export function JpLessonPage() {
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
           max-width: min(1480px, 96vw);
+        }
+        .jp-lesson-cards {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+        .jp-lesson-status-card {
+          margin: 0;
+        }
+        .jp-lesson-status-card-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+        }
+        .jp-lesson-status-card-title {
+          font-size: 1.1rem;
+          margin: 0;
+        }
+        .jp-lesson-status-card-count {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-lesson-status-card-empty {
+          margin: 0;
+          color: var(--muted);
+          font-size: 0.875rem;
+        }
+        .jp-lesson-status-card--learning {
+          border-left: 3px solid color-mix(in srgb, var(--accent) 70%, var(--border));
+        }
+        .jp-lesson-status-card--learning .jp-lesson-status-card-title {
+          color: var(--accent);
+        }
+        .jp-lesson-status-card--pending {
+          border-left: 3px solid var(--border);
+        }
+        .jp-lesson-status-card--completed {
+          border-left: 3px solid color-mix(in srgb, var(--fall) 70%, var(--border));
+        }
+        .jp-lesson-status-card--completed .jp-lesson-status-card-title {
+          color: var(--fall);
         }
         .jp-lesson-table-wrap {
           overflow-x: auto;

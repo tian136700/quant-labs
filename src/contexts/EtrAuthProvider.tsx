@@ -48,12 +48,9 @@ type EtrAuthContextValue = {
 const EtrAuthContext = createContext<EtrAuthContextValue | null>(null);
 
 export function EtrAuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<EtrAuthUser | null>(
-    () => readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY)
-  );
-  const [checking, setChecking] = useState(
-    () => readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY) == null
-  );
+  // SSR / 首次 hydration 必须与服务器一致，不可读 localStorage（见 I18nProvider）
+  const [user, setUser] = useState<EtrAuthUser | null>(null);
+  const [checking, setChecking] = useState(true);
   const refreshGenRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -84,6 +81,11 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const cached = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY);
+    if (cached) {
+      setUser(cached);
+      setChecking(false);
+    }
     void refresh();
   }, [refresh]);
 

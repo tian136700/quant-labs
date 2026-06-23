@@ -795,6 +795,13 @@ textarea:focus {
   margin-bottom: 0;
 }
 
+.etr-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .etr-remark-field {
   @screen lg {
     grid-column: span 3;

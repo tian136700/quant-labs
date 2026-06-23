@@ -7,6 +7,7 @@ import {
 import {
   aboutPath,
   adminPath,
+  adminTrendsPath,
   comparePath,
   jpReviewPath,
   jpLessonPath,
@@ -23,6 +24,7 @@ export type NavTarget =
   | "jpLesson"
   | "jpVocab"
   | "admin"
+  | "adminTrends"
   | "storeReview"
   | "storeReviewPlaza"
   | "about";
@@ -53,6 +55,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return "/jp-vocab";
     case "admin":
       return locale === "zh" ? "/zh/admin" : "/admin";
+    case "adminTrends":
+      return locale === "zh" ? "/zh/admin/trends" : "/admin/trends";
     case "storeReview":
       return locale === "zh" ? "/zh/store-review" : "/store-review";
     case "storeReviewPlaza":
@@ -88,6 +92,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return jpVocabPath();
     case "admin":
       return adminPath(locale);
+    case "adminTrends":
+      return adminTrendsPath(locale);
     case "storeReview":
       return storeReviewPath(locale);
     case "storeReviewPlaza":

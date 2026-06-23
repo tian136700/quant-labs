@@ -56,6 +56,7 @@ export function AdminTrendsPage() {
 
   const [runs, setRuns] = useState<TrendFetchRunRecord[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [selectedRun, setSelectedRun] = useState<TrendRunDetail | null>(null);
   const [loadingRun, setLoadingRun] = useState(false);
   const [activeItem, setActiveItem] = useState<TrendItemRecord | null>(null);
@@ -105,6 +106,40 @@ export function AdminTrendsPage() {
     },
     [tr.status.loadFailed]
   );
+
+  const runFetch = useCallback(async () => {
+    setFetching(true);
+    setStatus("");
+    setStatusKind("");
+    try {
+      const res = await fetch("/api/trends/fetch", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(data.error || tr.status.fetchFailed);
+        setStatusKind("err");
+        return;
+      }
+      setStatus(tr.status.fetchSuccess);
+      setStatusKind("ok");
+      await loadRuns();
+      if (typeof data.run_id === "number") {
+        await loadRun(data.run_id);
+      }
+    } catch {
+      setStatus(tr.status.fetchFailed);
+      setStatusKind("err");
+    } finally {
+      setFetching(false);
+    }
+  }, [
+    loadRun,
+    loadRuns,
+    tr.status.fetchFailed,
+    tr.status.fetchSuccess,
+  ]);
 
   useEffect(() => {
     if (checking || !isAdmin) return;
@@ -157,14 +192,24 @@ export function AdminTrendsPage() {
       <section className="section etr-panel">
         <div className="etr-history-head">
           <h2>{tr.runs.heading}</h2>
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => void loadRuns()}
-            disabled={loadingRuns}
-          >
-            {tr.runs.refresh}
-          </button>
+          <div className="etr-history-actions">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
+              onClick={() => void runFetch()}
+              disabled={fetching || loadingRuns}
+            >
+              {fetching ? tr.runs.fetching : tr.runs.fetch}
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={() => void loadRuns()}
+              disabled={loadingRuns || fetching}
+            >
+              {tr.runs.refresh}
+            </button>
+          </div>
         </div>
 
         {runs.length === 0 && !loadingRuns ? (

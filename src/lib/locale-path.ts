@@ -111,13 +111,16 @@ export function adminTrendsPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/trends" : "/admin/trends";
 }
 
+export function isAdminDashboardPath(pathname: string): boolean {
+  return pathname === "/admin" || pathname === "/zh/admin";
+}
+
+export function isAdminTrendsPath(pathname: string): boolean {
+  return pathname === "/admin/trends" || pathname === "/zh/admin/trends";
+}
+
 export function isAdminPath(pathname: string): boolean {
-  return (
-    pathname === "/admin" ||
-    pathname === "/zh/admin" ||
-    pathname === "/admin/trends" ||
-    pathname === "/zh/admin/trends"
-  );
+  return isAdminDashboardPath(pathname) || isAdminTrendsPath(pathname);
 }
 
 export function jpReviewPath(): string {

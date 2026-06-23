@@ -7,7 +7,8 @@ import { useStoreReviewSubdomain } from "@/hooks/useStoreReviewSubdomain";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
   isAboutPath,
-  isAdminPath,
+  isAdminDashboardPath,
+  isAdminTrendsPath,
   isComparePath,
   isJpLessonPath,
   isJpVocabPath,
@@ -109,7 +110,13 @@ export function SiteNav() {
               id: "admin",
               href: navHref("admin", locale, navOpts),
               label: nav.adminDashboard,
-              active: isAdminPath(pathname),
+              active: isAdminDashboardPath(pathname),
+            },
+            {
+              id: "adminTrends",
+              href: navHref("adminTrends", locale, navOpts),
+              label: nav.adminTrends,
+              active: isAdminTrendsPath(pathname),
             },
             {
               id: "jpLesson",

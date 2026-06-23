@@ -16,6 +16,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS))
+from trend_blog_markdown import parse_trend_blog_markdown
 DEFAULT_PUBLISH_URL = os.getenv(
     "TREND_BLOG_PUBLISH_URL",
     "http://127.0.0.1:3002/api/trend-blog/publish",
@@ -52,14 +55,32 @@ def build_payload(args: argparse.Namespace) -> dict:
             raise SystemExit("payload JSON must be an object")
         return data
 
+    headline = (args.headline or "").strip()
+    meta_description = (args.meta_description or "").strip()
     content_html = ""
-    if args.content_file:
+
+    if args.content_markdown:
+        parsed = parse_trend_blog_markdown(
+            args.content_markdown.read_text(encoding="utf-8")
+        )
+        content_html = parsed["content_html"]
+        if not headline:
+            headline = parsed["headline"]
+        if not meta_description:
+            meta_description = parsed["meta_description"]
+    elif args.content_file:
         content_html = args.content_file.read_text(encoding="utf-8").strip()
     elif args.content_html:
         content_html = args.content_html.strip()
 
     if not content_html:
-        raise SystemExit("Provide --content-file or --content-html")
+        raise SystemExit(
+            "Provide --content-markdown, --content-file, or --content-html"
+        )
+    if not headline:
+        raise SystemExit(
+            "--headline is required unless --content-markdown provides an H1"
+        )
 
     tags: list[str] | None = None
     if args.tags:
@@ -69,8 +90,8 @@ def build_payload(args: argparse.Namespace) -> dict:
         "locale": args.locale,
         "slug": args.slug,
         "title": args.title,
-        "headline": args.headline,
-        "meta_description": args.meta_description,
+        "headline": headline,
+        "meta_description": meta_description,
         "author": args.author,
         "published_at": args.published_at,
         "content_html": content_html,
@@ -113,6 +134,11 @@ def main() -> int:
     parser.add_argument("--slug", default="featured")
     parser.add_argument("--title", default="AI Trend Digest — Tech Blog")
     parser.add_argument("--headline", required=False, help="Article H1 headline")
+    parser.add_argument(
+        "--content-markdown",
+        type=Path,
+        help="Markdown article (extracts <!-- meta -->, # title, body HTML)",
+    )
     parser.add_argument("--meta-description", dest="meta_description", default="")
     parser.add_argument("--author", default="Alex Chen")
     parser.add_argument("--published-at", dest="published_at", default="")
@@ -122,8 +148,14 @@ def main() -> int:
     parser.add_argument("--content-html", help="Inline HTML fragment")
     args = parser.parse_args()
 
-    if not args.payload and not args.headline:
-        parser.error("--headline is required unless --payload is used")
+    if (
+        not args.payload
+        and not args.headline
+        and not args.content_markdown
+    ):
+        parser.error(
+            "--headline or --content-markdown is required unless --payload is used"
+        )
 
     payload = build_payload(args)
     token = upload_token()
