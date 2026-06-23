@@ -11,7 +11,6 @@ import {
   sortJpVocabWordsForDisplay,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
-import { jpVocabRiskColor } from "@/lib/jp-vocab-risk";
 import { JpClassNotesCell } from "@/components/JpClassNotesCell";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
@@ -541,11 +540,7 @@ export function JpVocabPage() {
           <p className="jp-vocab-risk-hint" role="note">
             <strong>风险指数</strong>：根据「复习次数统计」估算每个单词/语法的遗忘风险，数值越高越建议优先抽查复习。
             计算公式：一般 × 1 + 不熟悉 × 2 − 非常熟悉 × 0.3（保留 1 位小数）。
-            <span className="jp-vocab-risk-legend">
-              <span className="jp-vocab-risk-legend-item jp-vocab-risk-legend-item--high">≥ 3 高风险</span>
-              <span className="jp-vocab-risk-legend-item jp-vocab-risk-legend-item--mid">≥ 1 中风险</span>
-              <span className="jp-vocab-risk-legend-item jp-vocab-risk-legend-item--low">&lt; 1 低风险</span>
-            </span>
+            ≥ 3 为高风险，≥ 1 为中风险，&lt; 1 为低风险；
             指数为 0 或更低表示尚未复习，或多次勾选「非常熟悉」、掌握较好。
           </p>
         ) : null}
@@ -696,12 +691,7 @@ export function JpVocabPage() {
                         </td>
                       ) : null}
                       <td className="jp-vocab-risk-col" data-label="风险指数">
-                        <span
-                          className="jp-vocab-risk-value"
-                          style={{ color: jpVocabRiskColor(risk) }}
-                        >
-                          {risk.toFixed(1)}
-                        </span>
+                        <span className="jp-vocab-risk-value">{risk.toFixed(1)}</span>
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         <div
@@ -834,26 +824,6 @@ export function JpVocabPage() {
         }
         .jp-vocab-risk-hint strong {
           color: var(--text);
-        }
-        .jp-vocab-risk-legend {
-          display: inline-flex;
-          flex-wrap: wrap;
-          gap: 0.35rem 0.65rem;
-          margin: 0 0.35rem;
-          vertical-align: baseline;
-        }
-        .jp-vocab-risk-legend-item {
-          font-weight: 600;
-          white-space: nowrap;
-        }
-        .jp-vocab-risk-legend-item--high {
-          color: var(--rise);
-        }
-        .jp-vocab-risk-legend-item--mid {
-          color: #d4a017;
-        }
-        .jp-vocab-risk-legend-item--low {
-          color: var(--fall);
         }
         .jp-vocab-levels {
           display: flex;
