@@ -110,7 +110,9 @@ export function normalizeTrendBlogPublishInput(
 
   const slug = String(body.slug || "featured").trim() || "featured";
   const tags = Array.isArray(body.tags)
-    ? body.tags.filter((x): x is string => typeof x === "string" && x.trim()).map((x) => x.trim())
+    ? body.tags
+        .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+        .map((x) => x.trim())
     : undefined;
 
   let readMinutes: number | null = null;
