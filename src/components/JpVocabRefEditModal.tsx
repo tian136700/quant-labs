@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import { uploadFormWithProgress } from "@/lib/upload-form-progress";
+import { uploadFormWithProgress, formatUploadBytes, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
 
 type Props = {
@@ -34,9 +34,23 @@ const ERR = {
 };
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return formatUploadBytes(bytes);
+}
+
+function uploadProgressLabel(event: UploadProgressEvent): string {
+  if (event.phase === "processing") {
+    return "文件已传完，服务器保存中…";
+  }
+  if (event.phase === "done") {
+    return "上传完成";
+  }
+  if (event.total > 0) {
+    return `正在上传 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
+  }
+  if (event.loaded > 0) {
+    return `正在上传 ${formatUploadBytes(event.loaded)}…`;
+  }
+  return "准备上传…";
 }
 
 export function JpVocabRefEditModal({
@@ -54,8 +68,8 @@ export function JpVocabRefEditModal({
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadPhase, setUploadPhase] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressEvent | null>(null);
+  const [previewZoomOpen, setPreviewZoomOpen] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -66,8 +80,8 @@ export function JpVocabRefEditModal({
       if (prev) URL.revokeObjectURL(prev);
       return null;
     });
-    setUploadProgress(0);
-    setUploadPhase("");
+    setUploadProgress(null);
+    setPreviewZoomOpen(false);
     setError("");
   }, []);
 
@@ -83,11 +97,15 @@ export function JpVocabRefEditModal({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || submitting) return;
+      if (previewZoomOpen) {
+        setPreviewZoomOpen(false);
+        return;
+      }
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, submitting, onClose]);
+  }, [open, submitting, onClose, previewZoomOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,14 +118,26 @@ export function JpVocabRefEditModal({
 
   const applyFile = (next: File) => {
     setError("");
+    setPreviewZoomOpen(false);
     setFile(next);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      if (next.type.startsWith("image/")) {
+      if (next.type.startsWith("image/") || next.type === "application/pdf") {
         return URL.createObjectURL(next);
       }
       return null;
     });
+  };
+
+  const openFilePreview = () => {
+    if (!file || !previewUrl) return;
+    if (file.type.startsWith("image/")) {
+      setPreviewZoomOpen(true);
+      return;
+    }
+    if (file.type === "application/pdf") {
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const clearFile = () => {
@@ -132,8 +162,7 @@ export function JpVocabRefEditModal({
 
     setSubmitting(true);
     setError("");
-    setUploadProgress(0);
-    setUploadPhase("准备上传…");
+    setUploadProgress({ phase: "uploading", percent: 0, loaded: 0, total: file.size });
 
     try {
       const form = new FormData();
@@ -145,14 +174,8 @@ export function JpVocabRefEditModal({
         url: "/api/jp-lesson/ref/replace",
         form,
         headers: { [LOCALE_HEADER]: locale },
-        onProgress: (pct) => {
-          setUploadProgress(pct);
-          setUploadPhase(`正在上传 ${pct}%`);
-        },
+        onProgress: setUploadProgress,
       });
-
-      setUploadProgress(100);
-      setUploadPhase("服务器处理中…");
 
       const data = result.data as {
         ok?: boolean;
@@ -173,13 +196,12 @@ export function JpVocabRefEditModal({
         throw new Error(msg);
       }
 
-      setUploadPhase("上传完成");
+      setUploadProgress({ phase: "done", percent: 100, loaded: file.size, total: file.size });
       onUpdated(data.ref, data.lesson);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
-      setUploadPhase("");
-      setUploadProgress(0);
+      setUploadProgress(null);
     } finally {
       setSubmitting(false);
     }
@@ -271,9 +293,29 @@ export function JpVocabRefEditModal({
               >
                 {file ? (
                   <div className="jp-ref-edit-picked">
-                    {previewUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={previewUrl} alt="新教案预览" className="jp-ref-edit-preview" />
+                    {previewUrl && file.type.startsWith("image/") ? (
+                      <button
+                        type="button"
+                        className="jp-ref-edit-preview-btn"
+                        disabled={submitting}
+                        title="点击放大预览"
+                        aria-label="放大预览所选图片"
+                        onClick={() => setPreviewZoomOpen(true)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={previewUrl} alt="新教案预览" className="jp-ref-edit-preview" />
+                        <span className="jp-ref-edit-preview-hint">点击放大</span>
+                      </button>
+                    ) : previewUrl && file.type === "application/pdf" ? (
+                      <button
+                        type="button"
+                        className="jp-ref-edit-pdf-icon jp-ref-edit-pdf-btn"
+                        disabled={submitting}
+                        title="在新标签页预览 PDF"
+                        onClick={() => openFilePreview()}
+                      >
+                        PDF
+                      </button>
                     ) : (
                       <div className="jp-ref-edit-pdf-icon" aria-hidden>
                         PDF
@@ -284,6 +326,15 @@ export function JpVocabRefEditModal({
                       <span className="jp-ref-edit-picked-size">
                         {formatFileSize(file.size)}
                       </span>
+                      {!submitting && previewUrl ? (
+                        <button
+                          type="button"
+                          className="jp-ref-edit-preview-link"
+                          onClick={() => openFilePreview()}
+                        >
+                          {file.type.startsWith("image/") ? "放大预览" : "预览 PDF"}
+                        </button>
+                      ) : null}
                     </div>
                     {!submitting ? (
                       <button
@@ -336,16 +387,31 @@ export function JpVocabRefEditModal({
               </div>
             </div>
 
-            {submitting ? (
+            {submitting && uploadProgress ? (
               <div className="jp-ref-edit-progress" aria-live="polite">
                 <div className="jp-ref-edit-progress-head">
-                  <span>{uploadPhase || "上传中…"}</span>
-                  <span>{uploadProgress}%</span>
+                  <span>{uploadProgressLabel(uploadProgress)}</span>
+                  <span>
+                    {uploadProgress.phase === "uploading" && uploadProgress.total > 0
+                      ? `${uploadProgress.percent}%`
+                      : uploadProgress.phase === "processing"
+                        ? "处理中"
+                        : "100%"}
+                  </span>
                 </div>
-                <div className="jp-ref-edit-progress-track">
+                <div
+                  className={`jp-ref-edit-progress-track${
+                    uploadProgress.phase === "processing" ? " is-processing" : ""
+                  }`}
+                >
                   <div
                     className="jp-ref-edit-progress-bar"
-                    style={{ width: `${uploadProgress}%` }}
+                    style={{
+                      width:
+                        uploadProgress.phase === "processing"
+                          ? "100%"
+                          : `${uploadProgress.percent}%`,
+                    }}
                   />
                 </div>
               </div>
@@ -376,6 +442,36 @@ export function JpVocabRefEditModal({
           </div>
         </div>
       </div>
+
+      {previewZoomOpen && previewUrl && file?.type.startsWith("image/") ? (
+        <div
+          className="jp-ref-edit-zoom"
+          role="dialog"
+          aria-modal="true"
+          aria-label="所选教案大图预览"
+          onClick={() => setPreviewZoomOpen(false)}
+        >
+          <div className="jp-ref-edit-zoom-bar">
+            <span>确认图片是否正确 · 点击空白处或按 Esc 关闭</span>
+            <button
+              type="button"
+              className="jp-ref-edit-close"
+              onClick={() => setPreviewZoomOpen(false)}
+              aria-label="关闭大图预览"
+            >
+              ×
+            </button>
+          </div>
+          <div className="jp-ref-edit-zoom-stage">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="所选教案大图预览"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <style jsx>{`
         .jp-ref-edit-overlay {
@@ -567,14 +663,67 @@ export function JpVocabRefEditModal({
           gap: 0.75rem;
         }
 
+        .jp-ref-edit-preview-btn {
+          position: relative;
+          flex-shrink: 0;
+          padding: 0;
+          border: none;
+          background: none;
+          cursor: pointer;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .jp-ref-edit-preview-btn:disabled {
+          cursor: not-allowed;
+        }
+
         .jp-ref-edit-preview {
+          display: block;
           width: 4.5rem;
           height: 4.5rem;
           object-fit: cover;
           border-radius: 8px;
           border: 1px solid var(--border);
           background: var(--bg);
-          flex-shrink: 0;
+        }
+
+        .jp-ref-edit-preview-hint {
+          position: absolute;
+          inset: auto 0 0 0;
+          padding: 0.15rem 0.25rem;
+          font-size: 0.625rem;
+          line-height: 1.2;
+          text-align: center;
+          color: #fff;
+          background: rgba(0, 0, 0, 0.55);
+        }
+
+        .jp-ref-edit-preview-btn:hover .jp-ref-edit-preview {
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        }
+
+        .jp-ref-edit-pdf-btn {
+          cursor: pointer;
+          font: inherit;
+        }
+
+        .jp-ref-edit-pdf-btn:hover:not(:disabled) {
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        }
+
+        .jp-ref-edit-preview-link {
+          align-self: flex-start;
+          margin-top: 0.15rem;
+          padding: 0;
+          border: none;
+          background: none;
+          color: var(--accent);
+          font: inherit;
+          font-size: 0.75rem;
+          cursor: pointer;
+          text-decoration: underline;
+          text-underline-offset: 2px;
         }
 
         .jp-ref-edit-pdf-icon {
@@ -641,10 +790,28 @@ export function JpVocabRefEditModal({
         }
 
         .jp-ref-edit-progress-track {
+          position: relative;
           height: 0.45rem;
           border-radius: 999px;
           overflow: hidden;
           background: color-mix(in srgb, var(--border) 70%, transparent);
+        }
+
+        .jp-ref-edit-progress-track.is-processing .jp-ref-edit-progress-bar {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 35% !important;
+          animation: jp-ref-upload-indeterminate 1.1s ease-in-out infinite;
+        }
+
+        @keyframes jp-ref-upload-indeterminate {
+          0% {
+            transform: translateX(-120%);
+          }
+          100% {
+            transform: translateX(320%);
+          }
         }
 
         .jp-ref-edit-progress-bar {
@@ -655,7 +822,47 @@ export function JpVocabRefEditModal({
             color-mix(in srgb, var(--accent) 85%, white),
             var(--accent)
           );
-          transition: width 0.15s ease;
+          transition: width 0.08s linear;
+        }
+
+        .jp-ref-edit-zoom {
+          position: fixed;
+          inset: 0;
+          z-index: 1100;
+          display: flex;
+          flex-direction: column;
+          background: rgba(8, 12, 18, 0.88);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+        }
+
+        .jp-ref-edit-zoom-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.75rem 1rem;
+          color: var(--muted);
+          font-size: 0.8125rem;
+          border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+        }
+
+        .jp-ref-edit-zoom-stage {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          overflow: auto;
+        }
+
+        .jp-ref-edit-zoom-stage :global(img) {
+          max-width: min(96vw, 1200px);
+          max-height: calc(100vh - 4rem);
+          object-fit: contain;
+          border-radius: 8px;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
         }
 
         .jp-ref-edit-error {

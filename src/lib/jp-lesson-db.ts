@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, type JpLessonProgressStatus, jpLessonProgressToFields } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -94,18 +94,20 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
   await seedIfEmpty(db);
 
   if (devStoreEnabled) {
-    return [...devLessons].sort((a, b) => {
-      if (a.completed !== b.completed) return a.completed ? 1 : -1;
-      const dateCmp = b.uploaded_at.localeCompare(a.uploaded_at);
-      if (dateCmp !== 0) return dateCmp;
-      return b.id - a.id;
-    });
+    return [...devLessons].sort(compareJpLessonsByProgress);
   }
 
   const result = await db
     .prepare(
       `${LESSON_SELECT}
-       ORDER BY completed ASC, uploaded_at DESC, id DESC`
+       ORDER BY
+         CASE
+           WHEN completed = 1 THEN 2
+           WHEN learning = 1 THEN 0
+           ELSE 1
+         END ASC,
+         uploaded_at DESC,
+         id DESC`
     )
     .all<Record<string, unknown>>();
 

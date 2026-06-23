@@ -14,6 +14,7 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import {
+  compareJpLessonsByProgress,
   getJpLessonProgressStatus,
   jpLessonProgressToFields,
   type JpLessonProgressStatus,
@@ -40,12 +41,7 @@ function refUrl(refKey: string, download = false): string {
 }
 
 function sortJpLessons(lessons: JpLessonRecord[]): JpLessonRecord[] {
-  return [...lessons].sort((a, b) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    const dateCmp = b.uploaded_at.localeCompare(a.uploaded_at);
-    if (dateCmp !== 0) return dateCmp;
-    return b.id - a.id;
-  });
+  return [...lessons].sort(compareJpLessonsByProgress);
 }
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
