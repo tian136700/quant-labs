@@ -364,13 +364,9 @@ export function JpLessonAnnotateModal({
 
   const deleteSelectedStroke = useCallback(() => {
     if (selectedTextIndex == null) return;
-    setStrokes((prev) => {
-      const next = prev.filter((_, index) => index !== selectedTextIndex);
-      redraw(next, previewLine, null);
-      return next;
-    });
+    setStrokes((prev) => prev.filter((_, index) => index !== selectedTextIndex));
     setSelectedTextIndex(null);
-  }, [selectedTextIndex, previewLine, redraw]);
+  }, [selectedTextIndex]);
 
   useEffect(() => {
     if (!open) return;
@@ -383,7 +379,6 @@ export function JpLessonAnnotateModal({
         }
         if (selectedTextIndex != null) {
           setSelectedTextIndex(null);
-          redraw(strokes, previewLine, null);
           return;
         }
         onClose();
@@ -402,16 +397,7 @@ export function JpLessonAnnotateModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [
-    open,
-    onClose,
-    textDraft,
-    selectedTextIndex,
-    strokes,
-    previewLine,
-    redraw,
-    deleteSelectedStroke,
-  ]);
+  }, [open, onClose, textDraft, selectedTextIndex, deleteSelectedStroke]);
 
   useEffect(() => {
     if (!open) return;
