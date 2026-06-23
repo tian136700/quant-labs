@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "predeploy": "python3 kill-port.py 3002 2>/dev/null || true && rm -rf .next .open-next",
+    "predeploy": "python3 scripts/predeploy-clean.py",
     "cf:build": "NODE_ENV=production opennextjs-cloudflare build",
     "cf:deploy": "opennextjs-cloudflare deploy",
     "deploy": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare deploy",
