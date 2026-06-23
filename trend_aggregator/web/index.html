@@ -3,12 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Daily AI trends, GitHub hot repos, and practical prompt engineering guides for developers." />
-  <meta name="keywords" content="AI, LLM, GitHub trends, prompt engineering, open source" />
-  <meta property="og:title" content="AI Trend Digest — Tech Blog" />
-  <meta property="og:description" content="SEO-friendly AI tech insights, trending repos, and copy-paste prompts." />
+  <meta name="description" content="Daily 2026 AI trends and news: ChatGPT, Gemini, GPT updates, GitHub trending repos, prompt engineering tips, and open-source tools — for developers worldwide." />
+  <meta name="keywords" content="AI trends 2026, 2026 AI news, ChatGPT, chat gpt, GPT, Gemini, Google Gemini, AI, LLM, GitHub trending, prompt engineering, open source AI, AI tools, Claude, DeepSeek, AI趋势, Gemini AI, GPT模型, GitHub热门, 提示词工程, 2026人工智能" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="AI Trend Digest" />
+  <link rel="canonical" href="https://blog.info-quests.com/" />
+  <meta property="og:title" content="AI Trend Digest 2026 — ChatGPT, Gemini &amp; GitHub Trends Daily" />
+  <meta property="og:description" content="Daily 2026 AI trends: ChatGPT, Gemini, GPT, GitHub hot repos, and prompt engineering for developers." />
   <meta property="og:type" content="website" />
-  <title>AI Trend Digest — Tech Blog</title>
+  <meta property="og:url" content="https://blog.info-quests.com/" />
+  <meta property="og:site_name" content="AI Trend Digest" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="zh_CN" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="AI Trend Digest 2026 — ChatGPT, Gemini &amp; GitHub Trends Daily" />
+  <meta name="twitter:description" content="Daily 2026 AI trends: ChatGPT, Gemini, GPT, GitHub hot repos, and prompt engineering for developers." />
+  <title>AI Trend Digest 2026 — ChatGPT, Gemini &amp; GitHub Trends Daily</title>
+  <script type="application/ld+json" id="jsonld-website">
+  {"@context":"https://schema.org","@type":"WebSite","name":"AI Trend Digest","description":"Daily 2026 AI trends and news: ChatGPT, Gemini, GPT updates, GitHub trending repos, and prompt engineering tips.","url":"https://blog.info-quests.com/","inLanguage":["en","zh-CN"],"keywords":"AI trends 2026, ChatGPT, Gemini, GPT, GitHub trending, prompt engineering"}
+  </script>
+  <script type="application/ld+json" id="jsonld-faq">
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What are the top AI trends in 2026?","acceptedAnswer":{"@type":"Answer","text":"AI Trend Digest tracks daily shifts in ChatGPT, Google Gemini, GPT models, open-source GitHub repos, and prompt engineering — updated every day for developers."}},{"@type":"Question","name":"Where can I find GitHub trending AI repositories?","acceptedAnswer":{"@type":"Answer","text":"AI Trend Digest highlights hot open-source AI projects from GitHub Trending, with summaries, use cases, and copy-paste prompts for ChatGPT and Gemini."}},{"@type":"Question","name":"What's new with ChatGPT and Gemini?","acceptedAnswer":{"@type":"Answer","text":"We cover ChatGPT, GPT, and Google Gemini updates alongside practical prompt tips so you can apply the latest AI tools in your workflow."}},{"@type":"Question","name":"2026 年 AI 趋势有哪些？","acceptedAnswer":{"@type":"Answer","text":"AI Trend Digest 每日汇总 ChatGPT、Gemini、GPT 与 GitHub 热门 AI 开源项目，面向开发者提供 2026 年人工智能趋势解读。"}}]}
+  </script>
+  <script type="application/ld+json" id="jsonld-article">
+  {"@context":"https://schema.org","@type":"BlogPosting","headline":"AI Trend Digest 2026: ChatGPT, Gemini & GitHub Trends","description":"Daily 2026 AI trends and news: ChatGPT, Gemini, GPT updates, GitHub trending repos, and prompt engineering tips.","author":{"@type":"Person","name":"Alex Chen"},"publisher":{"@type":"Organization","name":"AI Trend Digest"},"datePublished":"2026-06-20","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.info-quests.com/"},"keywords":"AI trends 2026, ChatGPT, Gemini, GPT, GitHub trending"}
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -104,35 +123,6 @@
       .layout-sidebar { order: 2; width: 100%; }
     }
 
-    .lang-switch {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.75rem;
-      color: var(--muted);
-    }
-
-    .lang-switch-btn {
-      background: transparent;
-      border: 0;
-      color: var(--muted);
-      cursor: pointer;
-      border-radius: 4px;
-      font: inherit;
-      padding: 0.25rem 0.5rem;
-    }
-
-    .lang-switch-btn:hover { color: var(--ink); }
-
-    .lang-switch-btn.is-active {
-      color: var(--link);
-      font-weight: 500;
-    }
-
-    .lang-switch-sep {
-      color: var(--border);
-      user-select: none;
-    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -151,14 +141,13 @@
         <input
           id="search"
           type="search"
-          placeholder="Search AI trends, prompts, repos…"
+          placeholder="Search ChatGPT, Gemini, AI trends, GitHub repos…"
           class="w-full px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
         />
       </form>
       <nav class="sans hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
         <a href="https://github.com/trending" target="_blank" rel="noopener noreferrer" class="no-underline hover:text-gray-900">GitHub Trending</a>
       </nav>
-      <div id="lang-switch" class="lang-switch sans shrink-0" role="group"></div>
       <button type="button" class="sm:hidden sans text-sm text-blue-600 font-medium" aria-label="Open search">Search</button>
     </div>
   </header>
@@ -181,7 +170,8 @@
             <span id="article-read-minutes">8 min read</span>
           </p>
           <div id="article-tags" class="not-prose flex flex-wrap gap-1 mb-5"></div>
-          <h1 itemprop="headline">AI Trend Digest</h1>
+          <h1 itemprop="headline">AI Trend Digest 2026: ChatGPT, Gemini &amp; GitHub Trends</h1>
+          <p id="article-deck" class="sans text-lg text-gray-600 not-prose -mt-2 mb-6">Daily coverage of ChatGPT, Gemini, GPT, and GitHub trending AI repos — your 2026 developer briefing.</p>
 
           <div id="content-area" itemprop="articleBody">
             <p class="sans text-gray-500 not-prose">Loading article…</p>
@@ -198,6 +188,10 @@
           <nav class="space-y-1">
             <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
               <span>ChatGPT</span>
+              <span class="text-gray-400">→</span>
+            </a>
+            <a href="https://gemini.google.com/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
+              <span>Google Gemini</span>
               <span class="text-gray-400">→</span>
             </a>
             <a href="https://claude.ai/" target="_blank" rel="noopener noreferrer" class="flex items-center justify-between py-2 px-3 rounded-lg text-sm text-gray-700 no-underline hover:bg-white hover:shadow-sm transition">
@@ -230,7 +224,7 @@
     </div>
   </footer>
 
-  <script src="/trend-blog/lang-switch.js"></script>
+  <script src="/trend-blog/seo-config.js"></script>
   <script src="/trend-blog/fetch-content.js"></script>
   <script>
     (function () {

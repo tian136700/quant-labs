@@ -158,6 +158,7 @@ function googleSiteVerificationCodes(): string[] {
   const codes = [
     process.env.GOOGLE_SITE_VERIFICATION,
     process.env.FOOD_GOOGLE_SITE_VERIFICATION,
+    process.env.BLOG_GOOGLE_SITE_VERIFICATION,
   ]
     .flatMap((raw) => (raw ? raw.split(/[,\s]+/) : []))
     .map((code) => code.trim())

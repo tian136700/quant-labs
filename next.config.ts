@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
         destination: "/trend-blog/index.html",
       },
       {
+        source: "/trend-blog/zh",
+        destination: "/trend-blog/zh/index.html",
+      },
+      {
         source: "/zh/trend-blog",
         destination: "/trend-blog/zh/index.html",
       },

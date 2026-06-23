@@ -3,12 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="每日 AI 趋势、GitHub 热门仓库与实用提示词指南，面向开发者。" />
-  <meta name="keywords" content="AI, 大语言模型, GitHub 趋势, 提示词工程, 开源" />
-  <meta property="og:title" content="AI 趋势精选 — 技术博客" />
-  <meta property="og:description" content="SEO 友好的 AI 技术洞察、热门仓库与可复制提示词。" />
+  <meta name="description" content="2026 年 AI 趋势与新闻：ChatGPT、Gemini、GPT 动态、GitHub 热门 AI 仓库与提示词工程，面向全球开发者（正文英文，可用浏览器翻译）。" />
+  <meta name="keywords" content="AI趋势, 2026人工智能, ChatGPT, Gemini, GPT, 大语言模型, GitHub热门, GitHub趋势, 提示词工程, 开源AI, AI工具, AI news, ChatGPT教程" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://blog.info-quests.com/zh" />
+  <meta property="og:title" content="AI 趋势精选 2026 — ChatGPT、Gemini 与 GitHub 热点" />
+  <meta property="og:description" content="每日 2026 AI 趋势：ChatGPT、Gemini、GPT、GitHub 热门仓库与提示词工程。" />
   <meta property="og:type" content="website" />
-  <title>AI 趋势精选 — 技术博客</title>
+  <meta property="og:url" content="https://blog.info-quests.com/zh" />
+  <meta property="og:locale" content="zh_CN" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <title>AI 趋势精选 2026 — ChatGPT、Gemini 与 GitHub 热点</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -101,35 +106,6 @@
       .layout-sidebar { order: 2; width: 100%; }
     }
 
-    .lang-switch {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.75rem;
-      color: var(--muted);
-    }
-
-    .lang-switch-btn {
-      background: transparent;
-      border: 0;
-      color: var(--muted);
-      cursor: pointer;
-      border-radius: 4px;
-      font: inherit;
-      padding: 0.25rem 0.5rem;
-    }
-
-    .lang-switch-btn:hover { color: var(--ink); }
-
-    .lang-switch-btn.is-active {
-      color: var(--link);
-      font-weight: 500;
-    }
-
-    .lang-switch-sep {
-      color: var(--border);
-      user-select: none;
-    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -153,7 +129,6 @@
       <nav class="sans hidden md:flex items-center gap-6 text-sm font-medium text-gray-600">
         <a href="https://github.com/trending" target="_blank" rel="noopener noreferrer" class="no-underline hover:text-gray-900">GitHub Trending</a>
       </nav>
-      <div id="lang-switch" class="lang-switch sans shrink-0" role="group"></div>
       <button type="button" class="sm:hidden sans text-sm text-blue-600 font-medium" aria-label="打开搜索">搜索</button>
     </div>
   </header>
@@ -218,7 +193,7 @@
     </div>
   </footer>
 
-  <script src="/trend-blog/lang-switch.js"></script>
+  <script src="/trend-blog/seo-config.js"></script>
   <script src="/trend-blog/fetch-content.js"></script>
   <script>
     (function () {

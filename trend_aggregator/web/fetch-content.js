@@ -1,4 +1,16 @@
 (function () {
+  var seo = (typeof TREND_BLOG_SEO !== "undefined" && TREND_BLOG_SEO) || {
+    siteUrl: "https://blog.info-quests.com",
+    title: "AI Trend Digest 2026 — ChatGPT, Gemini & GitHub Trends Daily",
+    description:
+      "Daily 2026 AI trends and news: ChatGPT, Gemini, GPT updates, GitHub trending repos, prompt engineering tips, and open-source tools.",
+    keywords:
+      "AI trends 2026, ChatGPT, Gemini, GPT, GitHub trending, prompt engineering",
+    headline: "AI Trend Digest 2026: ChatGPT, Gemini & GitHub Trends",
+    deck:
+      "Daily coverage of ChatGPT, Gemini, GPT, and GitHub trending AI repos — your 2026 developer briefing.",
+  };
+
   function pageLocale() {
     var lang = (document.documentElement.lang || "en").toLowerCase();
     return lang.indexOf("zh") === 0 ? "zh" : "en";
@@ -14,6 +26,12 @@
     if (!content) return;
     var el = document.querySelector('meta[property="' + property + '"]');
     if (el) el.setAttribute("content", content);
+  }
+
+  function setJsonLd(id, data) {
+    var el = document.getElementById(id);
+    if (!el || !data) return;
+    el.textContent = JSON.stringify(data);
   }
 
   function formatDate(isoDate, locale) {
@@ -54,13 +72,24 @@
   function applyPost(post) {
     if (!post) return;
 
-    if (post.title) document.title = post.title;
-    setMeta("description", post.meta_description || "");
-    setMetaProperty("og:title", post.title || "");
-    setMetaProperty("og:description", post.meta_description || post.headline || "");
+    var title = post.title || seo.title;
+    var description = post.meta_description || seo.description;
+    var headline = post.headline || seo.headline;
+    var pageUrl = seo.siteUrl.replace(/\/$/, "") + "/";
 
-    var headline = document.querySelector("h1[itemprop='headline']");
-    if (headline && post.headline) headline.textContent = post.headline;
+    document.title = title;
+    setMeta("description", description);
+    setMetaProperty("og:title", title);
+    setMetaProperty("og:description", description);
+    setMetaProperty("og:url", pageUrl);
+    setMeta("twitter:title", title);
+    setMeta("twitter:description", description);
+
+    var headlineEl = document.querySelector("h1[itemprop='headline']");
+    if (headlineEl && headline) headlineEl.textContent = headline;
+
+    var deckEl = document.getElementById("article-deck");
+    if (deckEl && post.meta_description) deckEl.textContent = post.meta_description;
 
     var content = document.getElementById("content-area");
     if (content && post.content_html) content.innerHTML = post.content_html;
@@ -89,6 +118,20 @@
     if (publishedMeta && post.published_at) {
       publishedMeta.setAttribute("content", post.published_at);
     }
+
+    var keywords = (post.tags || []).concat(seo.keywords.split(", ")).slice(0, 24).join(", ");
+    setJsonLd("jsonld-article", {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: headline,
+      description: description,
+      author: { "@type": "Person", name: post.author || "Alex Chen" },
+      publisher: { "@type": "Organization", name: "AI Trend Digest" },
+      datePublished: post.published_at || undefined,
+      dateModified: post.updated_at || post.published_at || undefined,
+      mainEntityOfPage: { "@type": "WebPage", "@id": pageUrl },
+      keywords: keywords,
+    });
   }
 
   var locale = pageLocale();
@@ -100,6 +143,6 @@
       if (data && data.ok && data.post) applyPost(data.post);
     })
     .catch(function () {
-      /* 保留页面内置占位内容 */
+      /* 保留页面内置占位内容与默认 SEO */
     });
 })();

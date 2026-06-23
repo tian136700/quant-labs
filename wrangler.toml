@@ -44,3 +44,4 @@ NEXT_PUBLIC_TREND_BLOG_SITE_URL = "https://blog.info-quests.com"
 ETR_COOKIE_DOMAIN = ".info-quests.com"
 # Google Search Console HTML 验证（填 meta content 值，部署后回 GSC 点「验证」）
 # FOOD_GOOGLE_SITE_VERIFICATION = "在这里粘贴 Google 给你的验证码"
+# BLOG_GOOGLE_SITE_VERIFICATION = "blog 子域名验证码（也可 DNS 验证 blog.info-quests.com）"
