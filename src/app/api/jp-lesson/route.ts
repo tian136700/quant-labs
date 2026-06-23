@@ -1,5 +1,6 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { listJpLessons, updateJpLessonCompleted } from "@/lib/jp-lesson-db";
+import { listJpLessons, updateJpLessonProgress } from "@/lib/jp-lesson-db";
+import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
@@ -8,6 +9,28 @@ const AUTH_MSG = {
   en: "Please log in to save changes.",
   zh: "请登录后再操作。",
 };
+
+const VALID_PROGRESS: JpLessonProgressStatus[] = [
+  "pending",
+  "learning",
+  "completed",
+];
+
+function parseProgressStatus(body: {
+  progress_status?: unknown;
+  completed?: unknown;
+}): JpLessonProgressStatus | null {
+  if (
+    typeof body.progress_status === "string" &&
+    VALID_PROGRESS.includes(body.progress_status as JpLessonProgressStatus)
+  ) {
+    return body.progress_status as JpLessonProgressStatus;
+  }
+  if (typeof body.completed === "boolean") {
+    return body.completed ? "completed" : "pending";
+  }
+  return null;
+}
 
 export async function GET() {
   try {
@@ -36,6 +59,7 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as {
       lesson_id?: number;
+      progress_status?: JpLessonProgressStatus;
       completed?: boolean;
     };
 
@@ -43,14 +67,16 @@ export async function POST(request: Request) {
     if (!Number.isInteger(lessonId) || lessonId <= 0) {
       return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
     }
-    if (typeof body.completed !== "boolean") {
-      return jsonResponse({ ok: false, error: "completed_invalid" }, 400);
+
+    const progressStatus = parseProgressStatus(body);
+    if (!progressStatus) {
+      return jsonResponse({ ok: false, error: "progress_status_invalid" }, 400);
     }
 
-    const result = await updateJpLessonCompleted(
+    const result = await updateJpLessonProgress(
       env.DB,
       lessonId,
-      body.completed,
+      progressStatus,
       user.username
     );
 

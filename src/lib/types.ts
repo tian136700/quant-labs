@@ -170,9 +170,11 @@ export interface JpLessonRecord {
   title: string | null;
   ref_key: string | null;
   completed: boolean;
-  /** 最近一次切换「已完成 / 未完成」的时间；未操作过则为 null */
+  /** 学习中：与未完成一样不同步到单词复习 */
+  learning: boolean;
+  /** 最近一次切换学习状态的时间；未操作过则为 null */
   status_updated_at: string | null;
-  /** 最近一次切换完成状态的操作人用户名；未操作过则为 null */
+  /** 最近一次切换学习状态的操作人用户名；未操作过则为 null */
   status_updated_by: string | null;
   uploaded_at: string;
   created_at: string;

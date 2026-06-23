@@ -1,7 +1,7 @@
 import type { JpLessonNote, JpLessonRecord, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v1";
-export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v1";
+export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v2";
 
 export type JpVocabApiPayload = {
   words: JpVocabWord[];
@@ -39,7 +39,10 @@ export function parseJpLessonApi(json: unknown): JpLessonApiPayload {
     throw new Error(data.error || "加载失败");
   }
   return {
-    lessons: data.lessons,
+    lessons: data.lessons.map((lesson) => ({
+      ...lesson,
+      learning: Boolean(lesson.learning),
+    })),
     refs: data.refs ?? {},
     notes: data.notes ?? [],
   };

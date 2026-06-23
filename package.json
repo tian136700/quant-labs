@@ -23,6 +23,8 @@
     "db:migrate-jp-lesson-safe:remote": "python3 scripts/migrate-jp-lesson-safe.py --remote",
     "db:migrate-jp-lesson-completed:local": "python3 scripts/migrate-jp-lesson-completed.py --local",
     "db:migrate-jp-lesson-completed:remote": "python3 scripts/migrate-jp-lesson-completed.py --remote",
+    "db:migrate-jp-lesson-learning:local": "python3 scripts/migrate-jp-lesson-learning.py --local",
+    "db:migrate-jp-lesson-learning:remote": "python3 scripts/migrate-jp-lesson-learning.py --remote",
     "db:migrate-jp-lesson-note-safe:local": "python3 scripts/migrate-jp-lesson-note-safe.py --local",
     "db:migrate-jp-lesson-note-safe:remote": "python3 scripts/migrate-jp-lesson-note-safe.py --remote",
     "db:migrate-jp-vocab-class-notes:local": "python3 scripts/migrate-jp-vocab-class-notes.py --local",

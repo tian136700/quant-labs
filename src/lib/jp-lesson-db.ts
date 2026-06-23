@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, type JpLessonProgressStatus, jpLessonProgressToFields } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -44,6 +44,7 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
+    learning: Number(row.learning) === 1,
     status_updated_at:
       row.status_updated_at != null ? String(row.status_updated_at) : null,
     status_updated_by:
@@ -54,7 +55,7 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
   };
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed,
+const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -70,6 +71,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
       completed: false,
+      learning: false,
       status_updated_at: null,
       status_updated_by: null,
       uploaded_at: ts,
@@ -232,6 +234,7 @@ export async function createJpLesson(
       title,
       ref_key: refKey,
       completed: false,
+      learning: false,
       status_updated_at: null,
       status_updated_by: null,
       uploaded_at: ts,
@@ -248,8 +251,8 @@ export async function createJpLesson(
 
   const result = await db
     .prepare(
-      `INSERT INTO jp_lesson (kind, content, title, ref_key, completed, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, 0, ?5, ?5, ?5)`
+      `INSERT INTO jp_lesson (kind, content, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?5, ?5)`
     )
     .bind(kind, items.join(", "), title, refKey, ts)
     .run();
@@ -277,16 +280,16 @@ export async function syncLessonNotesToVocabIfCompleted(
   await syncLessonNotesToVocab(db, lesson);
 }
 
-export type UpdateJpLessonCompletedResult =
+export type UpdateJpLessonProgressResult =
   | { ok: true; lesson: JpLessonRecord }
   | { ok: false; error: string };
 
-export async function updateJpLessonCompleted(
+export async function updateJpLessonProgress(
   db: D1Database,
   lessonId: number,
-  completed: boolean,
+  progressStatus: JpLessonProgressStatus,
   operatorUsername: string
-): Promise<UpdateJpLessonCompletedResult> {
+): Promise<UpdateJpLessonProgressResult> {
   const operator = operatorUsername.trim();
   if (!operator) {
     return { ok: false, error: "operator_invalid" };
@@ -294,6 +297,8 @@ export async function updateJpLessonCompleted(
   if (!Number.isInteger(lessonId) || lessonId <= 0) {
     return { ok: false, error: "lesson_id_invalid" };
   }
+
+  const { completed, learning } = jpLessonProgressToFields(progressStatus);
 
   await seedIfEmpty(db);
 
@@ -310,13 +315,15 @@ export async function updateJpLessonCompleted(
   if (!before) return { ok: false, error: "not_found" };
 
   const ts = nowIso();
-  const flag = completed ? 1 : 0;
+  const completedFlag = completed ? 1 : 0;
+  const learningFlag = learning ? 1 : 0;
 
   if (devStoreEnabled) {
     const idx = devLessons.findIndex((l) => l.id === lessonId);
     devLessons[idx] = {
       ...devLessons[idx],
       completed,
+      learning,
       status_updated_at: ts,
       status_updated_by: operator,
       updated_at: ts,
@@ -332,9 +339,9 @@ export async function updateJpLessonCompleted(
 
   const result = await db
     .prepare(
-      `UPDATE jp_lesson SET completed = ?1, status_updated_at = ?2, status_updated_by = ?3, updated_at = ?2 WHERE id = ?4`
+      `UPDATE jp_lesson SET completed = ?1, learning = ?2, status_updated_at = ?3, status_updated_by = ?4, updated_at = ?3 WHERE id = ?5`
     )
-    .bind(flag, ts, operator, lessonId)
+    .bind(completedFlag, learningFlag, ts, operator, lessonId)
     .run();
 
   if (!result.meta?.changes) {
@@ -356,6 +363,21 @@ export async function updateJpLessonCompleted(
   }
 
   return { ok: true, lesson };
+}
+
+/** @deprecated 使用 updateJpLessonProgress */
+export async function updateJpLessonCompleted(
+  db: D1Database,
+  lessonId: number,
+  completed: boolean,
+  operatorUsername: string
+): Promise<UpdateJpLessonProgressResult> {
+  return updateJpLessonProgress(
+    db,
+    lessonId,
+    completed ? "completed" : "pending",
+    operatorUsername
+  );
 }
 
 /** 教案 ref 更新标题时，同步关联的新课记录 */

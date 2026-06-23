@@ -13,6 +13,11 @@ import {
   parseJpLessonApi,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
+import {
+  getJpLessonProgressStatus,
+  jpLessonProgressToFields,
+  type JpLessonProgressStatus,
+} from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { SITE_URL } from "@/lib/site";
 import type { JpLessonNote, JpLessonRecord, JpVocabRef } from "@/lib/types";
@@ -159,7 +164,10 @@ export function JpLessonPage() {
     }
   };
 
-  const setCompleted = async (lessonId: number, completed: boolean) => {
+  const setLessonProgress = async (
+    lessonId: number,
+    progressStatus: JpLessonProgressStatus
+  ) => {
     if (!canOperate) {
       setShowAuth(true);
       return;
@@ -167,9 +175,18 @@ export function JpLessonPage() {
     if (savingId === lessonId) return;
 
     const snapshot = lessons.find((l) => l.id === lessonId);
+    const optimistic = jpLessonProgressToFields(progressStatus);
     setSavingId(lessonId);
     setLessons((prev) =>
-      prev.map((l) => (l.id === lessonId ? { ...l, completed } : l))
+      prev.map((l) =>
+        l.id === lessonId
+          ? {
+              ...l,
+              completed: optimistic.completed,
+              learning: optimistic.learning,
+            }
+          : l
+      )
     );
 
     try {
@@ -180,7 +197,7 @@ export function JpLessonPage() {
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
-        body: JSON.stringify({ lesson_id: lessonId, completed }),
+        body: JSON.stringify({ lesson_id: lessonId, progress_status: progressStatus }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -254,7 +271,7 @@ export function JpLessonPage() {
       </div>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；李老师 / 管理员登录后可将学习状态改为「已完成」，词条会自动进入
+        新课学习清单与教案管理。访客可浏览；李老师 / 管理员登录后可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
         <a href="/jp-vocab" style={{ color: "var(--accent)" }}>
           日语单词抽问
         </a>
@@ -307,7 +324,7 @@ export function JpLessonPage() {
                   <th className="jp-lesson-uploaded-col">上传日期</th>
                   <th className="jp-lesson-status-at-col">最近操作</th>
                   <th className="jp-lesson-operator-col">操作人</th>
-                  <th className="jp-lesson-complete-col">是否学习完成</th>
+                  <th className="jp-lesson-complete-col">学习状态</th>
                   <th className="jp-lesson-notes-col">课堂笔记</th>
                   <th className="jp-lesson-actions-col">教案操作</th>
                 </tr>
@@ -322,6 +339,7 @@ export function JpLessonPage() {
                       }`
                     : "";
                   const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
+                  const progressStatus = getJpLessonProgressStatus(lesson);
 
                   return (
                     <tr key={lesson.id}>
@@ -351,25 +369,31 @@ export function JpLessonPage() {
                       <td data-label="操作人" className="jp-lesson-operator-col">
                         {lesson.status_updated_by ?? "—"}
                       </td>
-                      <td data-label="是否学习完成" className="jp-lesson-complete-col">
+                      <td data-label="学习状态" className="jp-lesson-complete-col">
                         <div
                           className={`jp-lesson-complete-wrap${
-                            lesson.completed ? " is-done" : ""
+                            progressStatus === "completed" ? " is-done" : ""
+                          }${
+                            progressStatus === "learning" ? " is-learning" : ""
                           }${!canOperate ? " is-readonly" : ""}${
                             savingId === lesson.id ? " is-saving" : ""
                           }`}
                         >
                           <select
                             className="jp-lesson-complete-select"
-                            value={lesson.completed ? "done" : "pending"}
+                            value={progressStatus}
                             disabled={!canOperate || savingId === lesson.id}
-                            aria-label={`${lesson.content} 学习完成状态`}
+                            aria-label={`${lesson.content} 学习状态`}
                             onChange={(e) =>
-                              void setCompleted(lesson.id, e.target.value === "done")
+                              void setLessonProgress(
+                                lesson.id,
+                                e.target.value as JpLessonProgressStatus
+                              )
                             }
                           >
                             <option value="pending">未完成</option>
-                            <option value="done">已完成</option>
+                            <option value="learning">学习中</option>
+                            <option value="completed">已完成</option>
                           </select>
                         </div>
                       </td>
@@ -599,6 +623,11 @@ export function JpLessonPage() {
           border-color: color-mix(in srgb, var(--fall) 50%, var(--border));
           background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
+        .jp-lesson-complete-wrap.is-learning {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+        }
         .jp-lesson-complete-wrap:not(.is-readonly):not(.is-saving):hover {
           border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
@@ -631,8 +660,8 @@ export function JpLessonPage() {
         .jp-lesson-complete-select {
           display: block;
           min-height: 2rem;
-          width: 5.75rem;
-          min-width: 5.75rem;
+          width: 6.5rem;
+          min-width: 6.5rem;
           max-width: 100%;
           padding: 0.25rem 1.35rem 0.25rem 0.45rem;
           font-size: 0.8125rem;

@@ -170,6 +170,7 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   title       TEXT,
   ref_key     TEXT,
   completed           INTEGER NOT NULL DEFAULT 0,
+  learning            INTEGER NOT NULL DEFAULT 0,
   status_updated_at   TEXT,
   status_updated_by   TEXT,
   uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
