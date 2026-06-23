@@ -69,7 +69,7 @@ export function JpVocabRefEditModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressEvent | null>(null);
-  const [previewZoomOpen, setPreviewZoomOpen] = useState(false);
+  const [zoomTarget, setZoomTarget] = useState<"current" | "new" | null>(null);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -81,7 +81,7 @@ export function JpVocabRefEditModal({
       return null;
     });
     setUploadProgress(null);
-    setPreviewZoomOpen(false);
+    setZoomTarget(null);
     setError("");
   }, []);
 
@@ -97,15 +97,15 @@ export function JpVocabRefEditModal({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || submitting) return;
-      if (previewZoomOpen) {
-        setPreviewZoomOpen(false);
+      if (zoomTarget) {
+        setZoomTarget(null);
         return;
       }
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, submitting, onClose, previewZoomOpen]);
+  }, [open, submitting, onClose, zoomTarget]);
 
   useEffect(() => {
     if (!open) return;
@@ -118,7 +118,7 @@ export function JpVocabRefEditModal({
 
   const applyFile = (next: File) => {
     setError("");
-    setPreviewZoomOpen(false);
+    setZoomTarget(null);
     setFile(next);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -132,7 +132,7 @@ export function JpVocabRefEditModal({
   const openFilePreview = () => {
     if (!file || !previewUrl) return;
     if (file.type.startsWith("image/")) {
-      setPreviewZoomOpen(true);
+      setZoomTarget("new");
       return;
     }
     if (file.type === "application/pdf") {
@@ -215,6 +215,28 @@ export function JpVocabRefEditModal({
       }`
     : "";
 
+  const currentIsPdf = refMeta?.media_type === "pdf";
+  const hasCurrentRef = Boolean(refKey);
+  const zoomUrl =
+    zoomTarget === "current"
+      ? currentViewUrl
+      : zoomTarget === "new"
+        ? previewUrl
+        : null;
+  const zoomHint =
+    zoomTarget === "current"
+      ? "当前教案 · 点击空白处或按 Esc 关闭"
+      : "确认新图片是否正确 · 点击空白处或按 Esc 关闭";
+
+  const openCurrentPreview = () => {
+    if (!refKey || !currentViewUrl) return;
+    if (currentIsPdf) {
+      window.open(currentViewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setZoomTarget("current");
+  };
+
   return createPortal(
     <>
       <div
@@ -252,19 +274,52 @@ export function JpVocabRefEditModal({
           </div>
 
           <div className="jp-ref-edit-body">
-            <div className="jp-ref-edit-current">
-              <span className="jp-ref-edit-label-text">当前教案</span>
-              {refKey ? (
-                <a
-                  href={currentViewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="jp-ref-edit-view-link"
-                >
-                  在新标签页查看
-                </a>
+            <div className="jp-ref-edit-current-block">
+              <div className="jp-ref-edit-current-head">
+                <span className="jp-ref-edit-label-text">当前教案</span>
+                {hasCurrentRef ? (
+                  <a
+                    href={currentViewUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="jp-ref-edit-view-link"
+                  >
+                    新标签页打开
+                  </a>
+                ) : null}
+              </div>
+
+              {hasCurrentRef ? (
+                currentIsPdf ? (
+                  <button
+                    type="button"
+                    className="jp-ref-edit-current-card jp-ref-edit-current-card--pdf"
+                    disabled={submitting}
+                    onClick={() => openCurrentPreview()}
+                  >
+                    <span className="jp-ref-edit-current-pdf-badge">PDF</span>
+                    <span className="jp-ref-edit-current-card-title">当前 PDF 教案</span>
+                    <span className="jp-ref-edit-current-card-hint">点击预览</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="jp-ref-edit-current-card"
+                    disabled={submitting}
+                    title="点击放大预览当前教案"
+                    onClick={() => openCurrentPreview()}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={currentViewUrl}
+                      alt="当前教案预览"
+                      className="jp-ref-edit-current-img"
+                    />
+                    <span className="jp-ref-edit-current-overlay">点击放大预览</span>
+                  </button>
+                )
               ) : (
-                <span className="jp-ref-edit-muted">尚未上传</span>
+                <div className="jp-ref-edit-current-empty">尚未上传教案</div>
               )}
             </div>
 
@@ -300,7 +355,7 @@ export function JpVocabRefEditModal({
                         disabled={submitting}
                         title="点击放大预览"
                         aria-label="放大预览所选图片"
-                        onClick={() => setPreviewZoomOpen(true)}
+                        onClick={() => setZoomTarget("new")}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={previewUrl} alt="新教案预览" className="jp-ref-edit-preview" />
@@ -443,20 +498,22 @@ export function JpVocabRefEditModal({
         </div>
       </div>
 
-      {previewZoomOpen && previewUrl && file?.type.startsWith("image/") ? (
+      {zoomTarget &&
+      zoomUrl &&
+      (zoomTarget === "new" ? file?.type.startsWith("image/") : !currentIsPdf) ? (
         <div
           className="jp-ref-edit-zoom"
           role="dialog"
           aria-modal="true"
-          aria-label="所选教案大图预览"
-          onClick={() => setPreviewZoomOpen(false)}
+          aria-label="教案大图预览"
+          onClick={() => setZoomTarget(null)}
         >
           <div className="jp-ref-edit-zoom-bar">
-            <span>确认图片是否正确 · 点击空白处或按 Esc 关闭</span>
+            <span>{zoomHint}</span>
             <button
               type="button"
               className="jp-ref-edit-close"
-              onClick={() => setPreviewZoomOpen(false)}
+              onClick={() => setZoomTarget(null)}
               aria-label="关闭大图预览"
             >
               ×
@@ -465,8 +522,8 @@ export function JpVocabRefEditModal({
           <div className="jp-ref-edit-zoom-stage">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={previewUrl}
-              alt="所选教案大图预览"
+              src={zoomUrl}
+              alt="教案大图预览"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
@@ -554,17 +611,108 @@ export function JpVocabRefEditModal({
           color: var(--muted);
         }
 
-        .jp-ref-edit-muted {
-          font-size: 0.8125rem;
-          color: var(--muted);
+        .jp-ref-edit-current-block {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
         }
 
-        .jp-ref-edit-current {
+        .jp-ref-edit-current-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 0.5rem;
+        }
+
+        .jp-ref-edit-current-card {
+          position: relative;
+          display: block;
+          width: 100%;
+          padding: 0;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: var(--bg);
+          cursor: pointer;
+          overflow: hidden;
+          text-align: left;
+        }
+
+        .jp-ref-edit-current-card:disabled {
+          cursor: not-allowed;
+          opacity: 0.72;
+        }
+
+        .jp-ref-edit-current-card:hover:not(:disabled) {
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+        }
+
+        .jp-ref-edit-current-img {
+          display: block;
+          width: 100%;
+          max-height: 11rem;
+          object-fit: contain;
+          background: color-mix(in srgb, var(--bg) 88%, var(--panel));
+        }
+
+        .jp-ref-edit-current-overlay {
+          display: block;
+          padding: 0.45rem 0.65rem;
+          font-size: 0.75rem;
+          color: var(--muted);
+          text-align: center;
+          border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--panel) 92%, transparent);
+        }
+
+        .jp-ref-edit-current-card--pdf {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          min-height: 7rem;
+          padding: 1rem;
+        }
+
+        .jp-ref-edit-current-pdf-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 3rem;
+          padding: 0.35rem 0.55rem;
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--rise) 14%, var(--panel));
+          color: var(--rise);
           font-size: 0.8125rem;
+          font-weight: 700;
+        }
+
+        .jp-ref-edit-current-card-title {
+          font-size: 0.875rem;
+          color: var(--text);
+        }
+
+        .jp-ref-edit-current-card-hint {
+          font-size: 0.75rem;
+          color: var(--accent);
+        }
+
+        .jp-ref-edit-current-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 5.5rem;
+          border: 1px dashed var(--border);
+          border-radius: 10px;
+          color: var(--muted);
+          font-size: 0.8125rem;
+          background: color-mix(in srgb, var(--bg) 70%, var(--panel));
+        }
+
+        .jp-ref-edit-muted {
+          font-size: 0.8125rem;
+          color: var(--muted);
         }
 
         .jp-ref-edit-view-link {
