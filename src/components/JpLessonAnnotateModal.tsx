@@ -57,7 +57,7 @@ type Props = {
 const ANNOTATE_COLOR = "#e85d6f";
 const BRUSH_WIDTH = 4;
 const LINE_WIDTH = 3;
-const DEFAULT_TEXT_SIZE = 28;
+const DEFAULT_TEXT_SIZE = 16;
 const TEXT_SIZE_MIN = 12;
 const TEXT_SIZE_MAX = 96;
 const TEXT_SIZE_STEP = 4;
@@ -362,20 +362,56 @@ export function JpLessonAnnotateModal({
     if (open) resetSession();
   }, [open, imageUrl, resetSession]);
 
+  const deleteSelectedStroke = useCallback(() => {
+    if (selectedTextIndex == null) return;
+    setStrokes((prev) => {
+      const next = prev.filter((_, index) => index !== selectedTextIndex);
+      redraw(next, previewLine, null);
+      return next;
+    });
+    setSelectedTextIndex(null);
+  }, [selectedTextIndex, previewLine, redraw]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (textDraft) {
           setTextDraft(null);
+          dragTextPopRef.current = null;
+          return;
+        }
+        if (selectedTextIndex != null) {
+          setSelectedTextIndex(null);
+          redraw(strokes, previewLine, null);
           return;
         }
         onClose();
+        return;
+      }
+
+      if (textDraft) return;
+
+      if (
+        (e.key === "Backspace" || e.key === "Delete") &&
+        selectedTextIndex != null
+      ) {
+        e.preventDefault();
+        deleteSelectedStroke();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, textDraft]);
+  }, [
+    open,
+    onClose,
+    textDraft,
+    selectedTextIndex,
+    strokes,
+    previewLine,
+    redraw,
+    deleteSelectedStroke,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -977,7 +1013,7 @@ export function JpLessonAnnotateModal({
         </div>
 
         <p className="jp-annotate-hint">
-          「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可拖动；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
+          「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
         </p>
 
         <div className="jp-annotate-stage" ref={stageRef}>
