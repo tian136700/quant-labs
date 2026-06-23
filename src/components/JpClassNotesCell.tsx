@@ -17,6 +17,18 @@ function isLongNote(text: string): boolean {
   return text.split("\n").length > SHORT_MAX_LINES;
 }
 
+function previewNote(text: string, expanded: boolean): string {
+  if (expanded) return text;
+  const lines = text.split("\n");
+  if (lines.length > SHORT_MAX_LINES) {
+    return `${lines.slice(0, SHORT_MAX_LINES).join("\n")}…`;
+  }
+  if (text.length > SHORT_MAX_CHARS) {
+    return `${text.slice(0, SHORT_MAX_CHARS).replace(/\s+$/, "")}…`;
+  }
+  return text;
+}
+
 export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -28,9 +40,7 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
   ) : isLongNote(trimmed) ? (
     <div className="jp-class-notes-cell">
       <p className={`jp-class-notes-text${expanded ? " is-expanded" : ""}`}>
-        {expanded
-          ? trimmed
-          : trimmed.slice(0, SHORT_MAX_CHARS).replace(/\s+$/, "") + "…"}
+        {previewNote(trimmed, expanded)}
       </p>
       <button
         type="button"
@@ -41,7 +51,7 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
       </button>
     </div>
   ) : (
-    <span className="jp-class-notes-text">{trimmed}</span>
+    <p className="jp-class-notes-text">{trimmed}</p>
   );
 
   return (
@@ -53,26 +63,28 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
 
       <style jsx>{`
         .jp-class-notes-row {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
           gap: 0.35rem;
+          width: 100%;
           max-width: 100%;
-          margin: 0 auto;
         }
 
         .jp-class-notes-content {
+          flex: 1;
           min-width: 0;
-          text-align: center;
+          text-align: left;
         }
 
         .jp-class-notes-cell {
           display: flex;
           flex-direction: column;
-          align-items: center;
+          align-items: flex-start;
           gap: 0.25rem;
-          max-width: 18rem;
-          text-align: center;
+          width: 100%;
+          max-width: 100%;
+          text-align: left;
         }
 
         .jp-class-notes-text {
@@ -82,7 +94,7 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
           font-size: 0.8125rem;
           color: var(--text);
           word-break: break-word;
-          text-align: center;
+          text-align: left;
         }
 
         .jp-class-notes-text.is-expanded {

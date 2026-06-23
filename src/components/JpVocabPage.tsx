@@ -889,8 +889,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-status-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
-        :global(.jp-vocab-table .jp-vocab-meaning-col),
-        :global(.jp-vocab-table .jp-vocab-notes-col) {
+        :global(.jp-vocab-table .jp-vocab-meaning-col) {
           text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-word-col) {
@@ -902,7 +901,8 @@ export function JpVocabPage() {
           max-width: 16rem;
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
-          text-align: center;
+          text-align: left;
+          vertical-align: top;
           min-width: 9rem;
           max-width: 20rem;
         }
