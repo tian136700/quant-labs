@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
+import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -75,6 +76,11 @@ export function JpLessonPage() {
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
+  const [annotatingLesson, setAnnotatingLesson] = useState<{
+    lesson: JpLessonRecord;
+    ref: JpVocabRef;
+    viewUrl: string;
+  } | null>(null);
 
   const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
     setLessons(payload.lessons);
@@ -418,6 +424,17 @@ export function JpLessonPage() {
                             >
                               查看
                             </a>
+                            {ref?.media_type === "image" ? (
+                              <button
+                                type="button"
+                                className="jp-lesson-action-btn"
+                                onClick={() =>
+                                  setAnnotatingLesson({ lesson, ref: ref!, viewUrl })
+                                }
+                              >
+                                随手画
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="jp-lesson-action-btn"
@@ -473,6 +490,15 @@ export function JpLessonPage() {
         onClose={() => setEditingLesson(null)}
         onUpdated={handleRefUpdated}
         onNeedAuth={() => setShowAuth(true)}
+      />
+
+      <JpLessonAnnotateModal
+        open={annotatingLesson != null}
+        imageUrl={annotatingLesson?.viewUrl ?? ""}
+        refKey={annotatingLesson?.lesson.ref_key ?? ""}
+        lessonId={annotatingLesson?.lesson.id ?? 0}
+        lessonContent={annotatingLesson?.lesson.content ?? ""}
+        onClose={() => setAnnotatingLesson(null)}
       />
 
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
