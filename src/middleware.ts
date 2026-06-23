@@ -12,6 +12,7 @@ import {
 } from "@/lib/store-review-host";
 import {
   isTrendBlogSubdomainHost,
+  isTrendBlogStaticPath,
   TREND_BLOG_SITE_URL,
   trendBlogInternalPath,
   trendBlogPublicPath,
@@ -83,11 +84,8 @@ function handleTrendBlogSubdomain(request: NextRequest): NextResponse {
     return NextResponse.next();
   }
 
-  const publicPath = trendBlogPublicPath(pathname);
-  if (publicPath) {
-    const url = request.nextUrl.clone();
-    url.pathname = publicPath;
-    return NextResponse.redirect(url, 308);
+  if (isTrendBlogStaticPath(pathname)) {
+    return NextResponse.next();
   }
 
   const internalPath = trendBlogInternalPath(pathname);
@@ -156,6 +154,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|html|js|css)$).*)",
   ],
 };
