@@ -13,6 +13,7 @@ import {
 import { JpClassNotesCell } from "@/components/JpClassNotesCell";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
+import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
 import {
   JP_VOCAB_CACHE_KEY,
   parseJpVocabApi,
@@ -98,6 +99,7 @@ export function JpVocabPage() {
     dir: "asc" | "desc";
   } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [showRiskChart, setShowRiskChart] = useState(false);
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
     setStatSort((prev) => {
@@ -489,6 +491,15 @@ export function JpVocabPage() {
             </button>
             <button
               type="button"
+              className="btn-rsi-filter"
+              onClick={() => setShowRiskChart(true)}
+              disabled={loading || !words.length}
+              title="按风险指数查看知识点排行，辅助下节课抽查"
+            >
+              风险排行
+            </button>
+            <button
+              type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
               onClick={() => {
                 if (!canOperate) {
@@ -728,6 +739,12 @@ export function JpVocabPage() {
         locale={locale}
         onClose={() => setShowManualAdd(false)}
         onAdded={handleWordAdded}
+      />
+
+      <JpVocabRiskChartModal
+        open={showRiskChart}
+        words={words}
+        onClose={() => setShowRiskChart(false)}
       />
 
       <JpClassNotesEditModal
