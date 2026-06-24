@@ -52,6 +52,9 @@ const STAT_SORT_COLUMNS: { key: JpVocabStatSortKey; label: string; className: st
 /** 单词表「备注」列 */
 const SHOW_REMARKS_COLUMN = true;
 
+/** 暂时隐藏「随机高亮」按钮 */
+const SHOW_RANDOM_HIGHLIGHT = false;
+
 function needsReview(word: JpVocabWord): boolean {
   const total = jpVocabTotalReviews(word);
   if (total === 0) return true;
@@ -400,14 +403,16 @@ export function JpVocabPage() {
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 同步中…</> : null}
             </span>
-            <button
-              type="button"
-              className="btn-rsi-filter"
-              onClick={() => pickNext()}
-              disabled={loading || words.length < 2}
-            >
-              随机高亮
-            </button>
+            {SHOW_RANDOM_HIGHLIGHT ? (
+              <button
+                type="button"
+                className="btn-rsi-filter"
+                onClick={() => pickNext()}
+                disabled={loading || words.length < 2}
+              >
+                随机高亮
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn-rsi-filter"
