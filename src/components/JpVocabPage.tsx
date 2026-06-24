@@ -12,8 +12,8 @@ import {
   sortJpVocabWordsForDisplay,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
-import { JpClassNotesCell } from "@/components/JpClassNotesCell";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
+import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
 import {
@@ -113,6 +113,7 @@ export function JpVocabPage() {
   >({});
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
+  const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
@@ -685,7 +686,15 @@ export function JpVocabPage() {
                       </td>
                       {SHOW_REMARKS_COLUMN ? (
                         <td className="jp-vocab-notes-col" data-label="备注">
-                          <JpClassNotesCell text={w.class_notes} />
+                          {(w.class_notes || "").trim() ? (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact"
+                              onClick={() => setViewingRemarksWord(w)}
+                            >
+                              查看
+                            </button>
+                          ) : null}
                         </td>
                       ) : null}
                       <td className="jp-vocab-action-col" data-label="操作">
@@ -719,6 +728,12 @@ export function JpVocabPage() {
         open={showRiskChart}
         words={words}
         onClose={() => setShowRiskChart(false)}
+      />
+
+      <JpVocabRemarksViewModal
+        open={viewingRemarksWord != null}
+        word={viewingRemarksWord}
+        onClose={() => setViewingRemarksWord(null)}
       />
 
       <JpVocabEditModal
@@ -952,16 +967,17 @@ export function JpVocabPage() {
           max-width: 10rem;
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
-          min-width: 9rem;
-          max-width: 20rem;
+          min-width: 4.5rem;
+          max-width: 5.5rem;
+          white-space: nowrap;
         }
         :global(.jp-vocab-table thead .jp-vocab-notes-col) {
           text-align: center;
           vertical-align: middle;
         }
         :global(.jp-vocab-table tbody .jp-vocab-notes-col) {
-          text-align: left;
-          vertical-align: top;
+          text-align: center;
+          vertical-align: middle;
         }
         :global(.jp-vocab-table .jp-vocab-action-col) {
           white-space: nowrap;
