@@ -106,6 +106,8 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
     word: String(row.word),
     reading: row.reading != null ? String(row.reading) : null,
     meaning: row.meaning != null ? String(row.meaning) : null,
+    pos:
+      row.pos != null && String(row.pos).trim() ? String(row.pos) : null,
     kind: row.kind === "grammar" ? "grammar" : "word",
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     cnt_very: Number(row.cnt_very) || 0,
@@ -125,7 +127,7 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
   };
 }
 
-async function ensureDailyCheckSchema(db: D1Database): Promise<void> {
+async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (devStoreEnabled) return;
   const info = await db
     .prepare(`PRAGMA table_info(jp_vocab_word)`)
@@ -143,9 +145,12 @@ async function ensureDailyCheckSchema(db: D1Database): Promise<void> {
       .prepare(`ALTER TABLE jp_vocab_word ADD COLUMN today_check_date TEXT`)
       .run();
   }
+  if (!cols.has("pos")) {
+    await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT`).run();
+  }
 }
 
-const WORD_SELECT = `SELECT id, word, reading, meaning, kind, ref_key,
+const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at FROM jp_vocab_word`;
 
 function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
@@ -328,6 +333,7 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
         word: item.word,
         reading: item.reading?.trim() || null,
         meaning: item.meaning?.trim() || null,
+        pos: null,
         kind: normalizeKind(item.kind),
         ref_key: item.ref_key
           ? normalizeJpVocabRefKey(item.ref_key) || null
@@ -374,7 +380,7 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
 
 export async function listJpVocabWords(db: D1Database): Promise<JpVocabWord[]> {
   await seedIfEmpty(db);
-  await ensureDailyCheckSchema(db);
+  await ensureVocabWordSchema(db);
 
   if (devStoreEnabled) {
     return sortJpVocabWords(devWords);
@@ -429,7 +435,7 @@ export async function recordJpVocabReview(
   }
 
   await seedIfEmpty(db);
-  await ensureDailyCheckSchema(db);
+  await ensureVocabWordSchema(db);
   const col = levelColumn(level);
   const ts = nowIso();
   const today = beijingDateString();
@@ -570,6 +576,7 @@ export async function uploadJpVocabWords(
         word: item.word,
         reading: item.reading,
         meaning: item.meaning,
+        pos: null,
         kind: item.kind,
         ref_key: item.ref_key,
         cnt_very: 0,
@@ -676,6 +683,7 @@ export async function addJpVocabWord(
       word: item.word,
       reading: item.reading,
       meaning: item.meaning,
+      pos: null,
       kind: item.kind,
       ref_key: item.ref_key,
       cnt_very: 0,
@@ -785,6 +793,7 @@ export async function upsertJpVocabFromLesson(
           word,
           reading: null,
           meaning: null,
+          pos: null,
           kind,
           ref_key: refKey,
           cnt_very: 0,
@@ -1038,4 +1047,237 @@ export async function updateJpVocabClassNotes(
   }
 
   return { ok: true, word };
+}
+
+export type UpdateJpVocabWordFieldsResult =
+  | { ok: true; word: JpVocabWord }
+  | { ok: false; error: string };
+
+/** 更新单词表中的词条文本、释义或词性 */
+export async function updateJpVocabWordFields(
+  db: D1Database,
+  wordId: number,
+  fields: { word?: string; meaning?: string | null; pos?: string | null }
+): Promise<UpdateJpVocabWordFieldsResult> {
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    return { ok: false, error: "word_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+  const ts = nowIso();
+
+  let current: JpVocabWord | undefined;
+
+  if (devStoreEnabled) {
+    current = devWords.find((w) => w.id === wordId);
+  } else {
+    const row = await db
+      .prepare(`${WORD_SELECT} WHERE id = ?1`)
+      .bind(wordId)
+      .first<Record<string, unknown>>();
+    if (row) current = mapRow(row);
+  }
+
+  if (!current) return { ok: false, error: "not_found" };
+
+  const nextWord =
+    fields.word !== undefined ? normalizeWord(fields.word) : current.word;
+  const nextMeaning =
+    fields.meaning !== undefined
+      ? (fields.meaning || "").trim() || null
+      : current.meaning;
+  const nextPos =
+    fields.pos !== undefined
+      ? (fields.pos || "").trim() || null
+      : current.pos;
+
+  if (fields.word !== undefined && !nextWord) {
+    return { ok: false, error: "word_required" };
+  }
+
+  if (nextWord !== current.word) {
+    if (devStoreEnabled) {
+      if (devWords.some((w) => w.id !== wordId && w.word === nextWord)) {
+        return { ok: false, error: "word_duplicate" };
+      }
+    } else {
+      const dup = await db
+        .prepare("SELECT id FROM jp_vocab_word WHERE word = ?1 AND id != ?2 LIMIT 1")
+        .bind(nextWord, wordId)
+        .first<{ id: number }>();
+      if (dup) return { ok: false, error: "word_duplicate" };
+    }
+  }
+
+  if (devStoreEnabled) {
+    const idx = devWords.findIndex((w) => w.id === wordId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    devWords[idx] = {
+      ...devWords[idx],
+      word: nextWord,
+      meaning: nextMeaning,
+      pos: nextPos,
+      updated_at: ts,
+    };
+    return { ok: true, word: devWords[idx] };
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word SET word = ?1, meaning = ?2, pos = ?3, updated_at = ?4 WHERE id = ?5`
+    )
+    .bind(nextWord, nextMeaning, nextPos, ts, wordId)
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const row = await db
+    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .bind(wordId)
+    .first<Record<string, unknown>>();
+
+  if (!row) return { ok: false, error: "not_found" };
+  return { ok: true, word: mapRow(row) };
+}
+
+export type JpVocabWordEntryInput = {
+  kind?: JpVocabKind;
+  word?: string;
+  reading?: string | null;
+  meaning?: string | null;
+  pos?: string | null;
+  class_notes?: string | null;
+};
+
+/** 一次性更新词条可编辑字段，并同步备注到关联新课 */
+export async function updateJpVocabWordEntry(
+  db: D1Database,
+  wordId: number,
+  input: JpVocabWordEntryInput,
+  operatorUsername: string
+): Promise<UpdateJpVocabWordFieldsResult> {
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    return { ok: false, error: "word_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+  const ts = nowIso();
+
+  let current: JpVocabWord | undefined;
+
+  if (devStoreEnabled) {
+    current = devWords.find((w) => w.id === wordId);
+  } else {
+    const row = await db
+      .prepare(`${WORD_SELECT} WHERE id = ?1`)
+      .bind(wordId)
+      .first<Record<string, unknown>>();
+    if (row) current = mapRow(row);
+  }
+
+  if (!current) return { ok: false, error: "not_found" };
+
+  const nextKind =
+    input.kind !== undefined ? normalizeKind(input.kind) : current.kind;
+  const nextWord =
+    input.word !== undefined ? normalizeWord(input.word) : current.word;
+  const nextReading =
+    nextKind === "grammar"
+      ? null
+      : input.reading !== undefined
+        ? (input.reading || "").trim() || null
+        : current.reading;
+  const nextMeaning =
+    input.meaning !== undefined
+      ? (input.meaning || "").trim() || null
+      : current.meaning;
+  const nextPos =
+    input.pos !== undefined
+      ? (input.pos || "").trim() || null
+      : current.pos;
+  const nextNotes =
+    input.class_notes !== undefined
+      ? (input.class_notes || "").trim() || null
+      : current.class_notes;
+
+  if (!nextWord) return { ok: false, error: "word_required" };
+
+  if (nextWord !== current.word) {
+    if (devStoreEnabled) {
+      if (devWords.some((w) => w.id !== wordId && w.word === nextWord)) {
+        return { ok: false, error: "word_duplicate" };
+      }
+    } else {
+      const dup = await db
+        .prepare("SELECT id FROM jp_vocab_word WHERE word = ?1 AND id != ?2 LIMIT 1")
+        .bind(nextWord, wordId)
+        .first<{ id: number }>();
+      if (dup) return { ok: false, error: "word_duplicate" };
+    }
+  }
+
+  if (devStoreEnabled) {
+    const idx = devWords.findIndex((w) => w.id === wordId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    devWords[idx] = {
+      ...devWords[idx],
+      kind: nextKind,
+      word: nextWord,
+      reading: nextReading,
+      meaning: nextMeaning,
+      pos: nextPos,
+      class_notes: nextNotes,
+      updated_at: ts,
+    };
+    current = devWords[idx];
+  } else {
+    const result = await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, pos = ?5, class_notes = ?6, updated_at = ?7
+         WHERE id = ?8`
+      )
+      .bind(
+        nextKind,
+        nextWord,
+        nextReading,
+        nextMeaning,
+        nextPos,
+        nextNotes,
+        ts,
+        wordId
+      )
+      .run();
+
+    if (!result.meta?.changes) {
+      return { ok: false, error: "not_found" };
+    }
+
+    const row = await db
+      .prepare(`${WORD_SELECT} WHERE id = ?1`)
+      .bind(wordId)
+      .first<Record<string, unknown>>();
+
+    if (!row) return { ok: false, error: "not_found" };
+    current = mapRow(row);
+  }
+
+  if (input.class_notes !== undefined) {
+    const lessons = await listJpLessons(db);
+    for (const lesson of lessons) {
+      if (!lessonMatchesVocabWord(lesson, current)) continue;
+      const sync = await replaceLessonNotesForItem(
+        db,
+        lesson.id,
+        current.word,
+        nextNotes,
+        operatorUsername
+      );
+      if (!sync.ok) return sync;
+    }
+  }
+
+  return { ok: true, word: current };
 }

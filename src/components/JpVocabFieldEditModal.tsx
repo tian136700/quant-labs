@@ -5,9 +5,12 @@ import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabWord } from "@/lib/types";
 
+type Field = "word" | "meaning" | "pos";
+
 type Props = {
   open: boolean;
   word: JpVocabWord | null;
+  field: Field | null;
   locale: "en" | "zh";
   canEdit: boolean;
   onClose: () => void;
@@ -15,9 +18,34 @@ type Props = {
   onNeedAuth: () => void;
 };
 
-export function JpClassNotesEditModal({
+const FIELD_META: Record<
+  Field,
+  { title: string; label: string; placeholder: string; rows: number }
+> = {
+  word: {
+    title: "编辑单词 / 语法",
+    label: "单词 / 语法",
+    placeholder: "例如：～ばかり",
+    rows: 2,
+  },
+  meaning: {
+    title: "编辑释义",
+    label: "释义",
+    placeholder: "例如：不用了 / 可以了",
+    rows: 2,
+  },
+  pos: {
+    title: "编辑词性",
+    label: "词性",
+    placeholder: "例如：名词、动词、形容词",
+    rows: 2,
+  },
+};
+
+export function JpVocabFieldEditModal({
   open,
   word,
+  field,
   locale,
   canEdit,
   onClose,
@@ -29,16 +57,24 @@ export function JpClassNotesEditModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const meta = field ? FIELD_META[field] : null;
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open && word) {
-      setBody(word.class_notes || "");
+    if (open && word && field) {
+      setBody(
+        field === "word"
+          ? word.word
+          : field === "meaning"
+            ? word.meaning || ""
+            : word.pos || ""
+      );
       setError("");
     }
-  }, [open, word]);
+  }, [open, word, field]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,7 +96,7 @@ export function JpClassNotesEditModal({
   }, [open]);
 
   const save = async () => {
-    if (!word) return;
+    if (!word || !field) return;
     if (!canEdit) {
       onNeedAuth();
       return;
@@ -70,17 +106,21 @@ export function JpClassNotesEditModal({
     setError("");
 
     try {
-      const res = await fetch("/api/jp-vocab/class-notes", {
+      const payload =
+        field === "word"
+          ? { word_id: word.id, word: body.trim() }
+          : field === "meaning"
+            ? { word_id: word.id, meaning: body.trim() || null }
+            : { word_id: word.id, pos: body.trim() || null };
+
+      const res = await fetch("/api/jp-vocab/fields", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
-        body: JSON.stringify({
-          word_id: word.id,
-          class_notes: body.trim() || null,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -93,7 +133,9 @@ export function JpClassNotesEditModal({
         throw new Error(locale === "zh" ? "请登录后再编辑。" : "Please log in.");
       }
       if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
+        throw new Error(
+          data.error || (locale === "zh" ? "保存失败" : "Save failed")
+        );
       }
 
       onSaved(data.word);
@@ -105,34 +147,33 @@ export function JpClassNotesEditModal({
     }
   };
 
-  if (!open || !mounted || !word) return null;
+  if (!open || !mounted || !word || !field || !meta) return null;
 
   return createPortal(
     <>
       <div
-        className="jp-notes-edit-overlay"
+        className="jp-field-edit-overlay"
         role="presentation"
         onClick={() => {
           if (!submitting) onClose();
         }}
       >
         <div
-          className="jp-notes-edit-modal"
+          className="jp-field-edit-modal"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="jp-notes-edit-title"
+          aria-labelledby="jp-field-edit-title"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="jp-notes-edit-header">
+          <div className="jp-field-edit-header">
             <div>
-              <h2 id="jp-notes-edit-title" className="jp-notes-edit-title">
-                编辑备注
+              <h2 id="jp-field-edit-title" className="jp-field-edit-title">
+                {meta.title}
               </h2>
-              <p className="jp-notes-edit-subtitle">{word.word}</p>
             </div>
             <button
               type="button"
-              className="jp-notes-edit-close"
+              className="jp-field-edit-close"
               onClick={onClose}
               disabled={submitting}
               aria-label="关闭"
@@ -141,22 +182,23 @@ export function JpClassNotesEditModal({
             </button>
           </div>
 
-          <div className="jp-notes-edit-body">
+          <div className="jp-field-edit-body">
+            <label htmlFor="jp-field-edit-input" className="jp-field-edit-label">
+              {meta.label}
+            </label>
             <textarea
-              className="jp-notes-edit-textarea"
-              rows={4}
+              id="jp-field-edit-input"
+              className="jp-field-edit-textarea"
+              rows={meta.rows}
               value={body}
               disabled={!canEdit || submitting}
-              placeholder="记录例句、用法、易错点…"
+              placeholder={meta.placeholder}
               onChange={(e) => setBody(e.target.value)}
             />
-            <p className="jp-notes-edit-hint">
-              保存后同步到日语新课。
-            </p>
-            {error ? <p className="jp-notes-edit-error">{error}</p> : null}
+            {error ? <p className="jp-field-edit-error">{error}</p> : null}
           </div>
 
-          <div className="jp-notes-edit-footer">
+          <div className="jp-field-edit-footer">
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
@@ -180,7 +222,7 @@ export function JpClassNotesEditModal({
       </div>
 
       <style jsx>{`
-        .jp-notes-edit-overlay {
+        .jp-field-edit-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -193,17 +235,17 @@ export function JpClassNotesEditModal({
           -webkit-backdrop-filter: blur(3px);
         }
 
-        .jp-notes-edit-modal {
+        .jp-field-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(480px, 100%);
+          width: min(420px, 100%);
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
-        .jp-notes-edit-header {
+        .jp-field-edit-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -212,19 +254,13 @@ export function JpClassNotesEditModal({
           border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
         }
 
-        .jp-notes-edit-title {
+        .jp-field-edit-title {
           margin: 0;
           font-size: 1.0625rem;
           font-weight: 600;
         }
 
-        .jp-notes-edit-subtitle {
-          margin: 0.3rem 0 0;
-          font-size: 0.8125rem;
-          color: var(--accent);
-        }
-
-        .jp-notes-edit-close {
+        .jp-field-edit-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
@@ -237,14 +273,19 @@ export function JpClassNotesEditModal({
           cursor: pointer;
         }
 
-        .jp-notes-edit-body {
+        .jp-field-edit-body {
           padding: 1rem 1.1rem;
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: 0.45rem;
         }
 
-        .jp-notes-edit-textarea {
+        .jp-field-edit-label {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+
+        .jp-field-edit-textarea {
           width: 100%;
           box-sizing: border-box;
           border: 1px solid var(--border);
@@ -255,17 +296,11 @@ export function JpClassNotesEditModal({
           font-size: 0.875rem;
           padding: 0.55rem 0.65rem;
           resize: vertical;
-          min-height: 5.5rem;
+          min-height: 3.2rem;
           line-height: 1.45;
         }
 
-        .jp-notes-edit-hint {
-          margin: 0;
-          font-size: 0.75rem;
-          color: var(--muted);
-        }
-
-        .jp-notes-edit-error {
+        .jp-field-edit-error {
           margin: 0;
           padding: 0.55rem 0.7rem;
           border-radius: 8px;
@@ -275,7 +310,7 @@ export function JpClassNotesEditModal({
           font-size: 0.8125rem;
         }
 
-        .jp-notes-edit-footer {
+        .jp-field-edit-footer {
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;

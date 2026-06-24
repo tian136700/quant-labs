@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS jp_vocab_word (
   word       TEXT    NOT NULL,
   reading    TEXT,
   meaning    TEXT,
+  pos        TEXT,
   kind       TEXT    NOT NULL DEFAULT 'word',
   ref_key    TEXT,
   cnt_very   INTEGER NOT NULL DEFAULT 0,
@@ -235,6 +236,7 @@ CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_i
 -- ALTER TABLE jp_vocab_word ADD COLUMN kind TEXT NOT NULL DEFAULT 'word';
 -- ALTER TABLE jp_vocab_word ADD COLUMN ref_key TEXT;
 -- CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
+-- ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT;
 
 -- trend_aggregator：每日抓取批次 + 条目（含 AI 提示词，可溯源）
 CREATE TABLE IF NOT EXISTS trend_fetch_run (

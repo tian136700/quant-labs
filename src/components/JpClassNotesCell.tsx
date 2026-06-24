@@ -35,9 +35,7 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
   const trimmed = useMemo(() => (text || "").trim(), [text]);
   const showEdit = Boolean(canEdit && onEdit);
 
-  const content = !trimmed ? (
-    <span className="jp-class-notes-empty">—</span>
-  ) : isLongNote(trimmed) ? (
+  const content = !trimmed ? null : isLongNote(trimmed) ? (
     <div className="jp-class-notes-cell">
       <p className={`jp-class-notes-text${expanded ? " is-expanded" : ""}`}>
         {previewNote(trimmed, expanded)}
@@ -58,7 +56,7 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
     <div className="jp-class-notes-row">
       <div className="jp-class-notes-content">{content}</div>
       {showEdit ? (
-        <JpEditIconButton title="编辑课堂笔记" onClick={onEdit!} />
+        <JpEditIconButton title="编辑备注" onClick={onEdit!} />
       ) : null}
 
       <style jsx>{`
@@ -99,10 +97,6 @@ export function JpClassNotesCell({ text, canEdit, onEdit }: Props) {
 
         .jp-class-notes-text.is-expanded {
           max-width: 100%;
-        }
-
-        .jp-class-notes-empty {
-          color: var(--muted);
         }
 
         .jp-class-notes-toggle {

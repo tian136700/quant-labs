@@ -28,6 +28,7 @@ export async function exportJpVocabToExcel(
       "单词 / 语法": w.word,
       读音: w.reading ?? "",
       释义: w.meaning ?? "",
+      词性: w.pos ?? "",
       课堂笔记: w.class_notes ?? "",
       本轮熟悉程度: selected ? LEVEL_LABELS[selected] : "",
       非常熟悉: w.cnt_very,

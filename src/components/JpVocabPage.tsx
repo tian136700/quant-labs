@@ -13,7 +13,7 @@ import {
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
 import { JpClassNotesCell } from "@/components/JpClassNotesCell";
-import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
+import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
 import {
@@ -47,8 +47,8 @@ const STAT_SORT_COLUMNS: { key: JpVocabStatSortKey; label: string; className: st
   { key: "total", label: "合计", className: "jp-vocab-stat-total" },
 ];
 
-/** 单词表「课堂笔记」列（暂时隐藏，改 true 可恢复） */
-const SHOW_CLASS_NOTES_COLUMN = false;
+/** 单词表「备注」列 */
+const SHOW_REMARKS_COLUMN = true;
 
 function needsReview(word: JpVocabWord): boolean {
   const total = jpVocabTotalReviews(word);
@@ -98,9 +98,9 @@ export function JpVocabPage() {
       subtitle: "登录用户方可修改数据。",
     });
   }, [openAuthPanel]);
-  const [words, setWords] = useState<JpVocabWord[]>(() => readVocabCache()?.words ?? []);
-  const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readVocabCache()?.refs ?? {});
-  const [loading, setLoading] = useState(() => readVocabCache() == null);
+  const [words, setWords] = useState<JpVocabWord[]>([]);
+  const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
@@ -112,7 +112,7 @@ export function JpVocabPage() {
     Record<number, JpVocabLevel | undefined>
   >({});
   const [showManualAdd, setShowManualAdd] = useState(false);
-  const [editingNotesWord, setEditingNotesWord] = useState<JpVocabWord | null>(null);
+  const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
@@ -135,8 +135,10 @@ export function JpVocabPage() {
   }, []);
 
   const loadWords = useCallback(async () => {
-    const hasCache = readVocabCache() != null;
+    const cached = readVocabCache();
+    const hasCache = cached != null;
     if (hasCache) {
+      applyVocabPayload(cached);
       setRefreshing(true);
       setLoading(false);
     } else {
@@ -317,11 +319,11 @@ export function JpVocabPage() {
     );
   };
 
-  const handleNotesSaved = (word: JpVocabWord) => {
+  const handleWordSaved = (word: JpVocabWord) => {
     const nextWords = words.map((w) => (w.id === word.id ? word : w));
     setWords(nextWords);
     persistVocabCache(nextWords, refs);
-    setStatus("课堂笔记已保存，已同步到日语新课。");
+    setStatus("词条已保存。");
   };
 
   const exportExcel = async () => {
@@ -483,11 +485,9 @@ export function JpVocabPage() {
                   <th rowSpan={2}>类型</th>
                   <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
-                  {SHOW_CLASS_NOTES_COLUMN ? (
-                    <th rowSpan={2} className="jp-vocab-notes-col">
-                      课堂笔记
-                    </th>
-                  ) : null}
+                  <th rowSpan={2} className="jp-vocab-pos-col">
+                    词性
+                  </th>
                   <th rowSpan={2} className="jp-vocab-risk-col">
                     <button
                       type="button"
@@ -520,6 +520,14 @@ export function JpVocabPage() {
                   </th>
                   <th rowSpan={2} className="jp-vocab-today-check-col">
                     今日抽查次数
+                  </th>
+                  {SHOW_REMARKS_COLUMN ? (
+                    <th rowSpan={2} className="jp-vocab-notes-col">
+                      备注
+                    </th>
+                  ) : null}
+                  <th rowSpan={2} className="jp-vocab-action-col">
+                    操作
                   </th>
                 </tr>
                 <tr>
@@ -602,17 +610,11 @@ export function JpVocabPage() {
                         </div>
                       </td>
                       <td className="jp-vocab-meaning-col" data-label="释义" style={{ color: "var(--muted)" }}>
-                        {w.meaning || "—"}
+                        {w.meaning || ""}
                       </td>
-                      {SHOW_CLASS_NOTES_COLUMN ? (
-                        <td className="jp-vocab-notes-col" data-label="课堂笔记">
-                          <JpClassNotesCell
-                            text={w.class_notes}
-                            canEdit={canOperate}
-                            onEdit={() => setEditingNotesWord(w)}
-                          />
-                        </td>
-                      ) : null}
+                      <td className="jp-vocab-pos-col" data-label="词性" style={{ color: "var(--muted)" }}>
+                        {w.pos || ""}
+                      </td>
                       <td className="jp-vocab-risk-col" data-label={jpVocabPriorityLabel(locale)}>
                         <span className="jp-vocab-risk-value">{risk.toFixed(1)}</span>
                       </td>
@@ -681,6 +683,22 @@ export function JpVocabPage() {
                       <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
                         <span className="jp-vocab-today-check-value">{todayChecks}</span>
                       </td>
+                      {SHOW_REMARKS_COLUMN ? (
+                        <td className="jp-vocab-notes-col" data-label="备注">
+                          <JpClassNotesCell text={w.class_notes} />
+                        </td>
+                      ) : null}
+                      <td className="jp-vocab-action-col" data-label="操作">
+                        {canOperate ? (
+                          <button
+                            type="button"
+                            className="btn-rsi-filter btn-rsi-filter--compact"
+                            onClick={() => setEditingWord(w)}
+                          >
+                            编辑
+                          </button>
+                        ) : null}
+                      </td>
                     </tr>
                   );
                 })}
@@ -703,13 +721,13 @@ export function JpVocabPage() {
         onClose={() => setShowRiskChart(false)}
       />
 
-      <JpClassNotesEditModal
-        open={SHOW_CLASS_NOTES_COLUMN && editingNotesWord != null}
-        word={editingNotesWord}
+      <JpVocabEditModal
+        open={editingWord != null}
+        word={editingWord}
         locale={locale}
         canEdit={canOperate}
-        onClose={() => setEditingNotesWord(null)}
-        onSaved={handleNotesSaved}
+        onClose={() => setEditingWord(null)}
+        onSaved={handleWordSaved}
         onNeedAuth={openJpAuth}
       />
 
@@ -901,6 +919,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-today-check-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
         :global(.jp-vocab-table .jp-vocab-meaning-col),
+        :global(.jp-vocab-table .jp-vocab-pos-col),
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           text-align: center;
         }
@@ -928,11 +947,25 @@ export function JpVocabPage() {
           min-width: 6rem;
           max-width: 16rem;
         }
+        :global(.jp-vocab-table .jp-vocab-pos-col) {
+          min-width: 5rem;
+          max-width: 10rem;
+        }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
-          text-align: left;
-          vertical-align: top;
           min-width: 9rem;
           max-width: 20rem;
+        }
+        :global(.jp-vocab-table thead .jp-vocab-notes-col) {
+          text-align: center;
+          vertical-align: middle;
+        }
+        :global(.jp-vocab-table tbody .jp-vocab-notes-col) {
+          text-align: left;
+          vertical-align: top;
+        }
+        :global(.jp-vocab-table .jp-vocab-action-col) {
+          white-space: nowrap;
+          min-width: 4.5rem;
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;

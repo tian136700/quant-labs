@@ -140,6 +140,8 @@ export interface JpVocabWord {
   word: string;
   reading: string | null;
   meaning: string | null;
+  /** 词性，如：名词、动词、形容词 */
+  pos: string | null;
   kind: JpVocabKind;
   ref_key: string | null;
   cnt_very: number;
