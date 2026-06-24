@@ -606,3 +606,78 @@ export async function logoutSession(
 
   await env.DB.prepare(`DELETE FROM etr_sessions WHERE token = ?1`).bind(token).run();
 }
+
+export type CreateUserByAdminResult =
+  | { ok: true; user: EtrUser }
+  | { ok: false; error: string };
+
+/** 管理员在后台创建用户（不自动登录） */
+export async function createUserByAdmin(
+  env: CloudflareEnv,
+  username: string,
+  password: string,
+  role: EtrUserRole
+): Promise<CreateUserByAdminResult> {
+  await ensureBootstrapUsers(env);
+
+  if (role === "admin") return { ok: false, error: "cannot_create_admin" };
+  if (role !== "user" && role !== "jp_vocab") {
+    return { ok: false, error: "role_invalid" };
+  }
+
+  const name = normalizeUsername(username);
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+
+  if (!isValidUsername(name)) return { ok: false, error: "username_invalid" };
+  if (isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name)) {
+    return { ok: false, error: "username_reserved" };
+  }
+  if (password.length < 6) return { ok: false, error: "password_too_short" };
+  if (role === "jp_vocab" && password.length < 10) {
+    return { ok: false, error: "password_too_weak" };
+  }
+
+  const existing = await findUserByUsername(env.DB, name);
+  if (existing) return { ok: false, error: "username_taken" };
+
+  const { salt, hash } = await hashPassword(password);
+  const ts = nowIso();
+
+  if (devAuthEnabled) {
+    const created: DevUser = {
+      id: devUserIdSeq++,
+      username: name,
+      password_hash: encodePasswordStorage(salt, hash),
+      role,
+      disabled: 0,
+      created_at: ts,
+    };
+    devUsers.push(created);
+    const { password_hash: _, ...user } = created;
+    return { ok: true, user };
+  }
+
+  const result = await env.DB
+    .prepare(
+      `INSERT INTO etr_users (username, password_hash, role, created_at)
+       VALUES (?1, ?2, ?3, ?4)`
+    )
+    .bind(name, encodePasswordStorage(salt, hash), role, ts)
+    .run();
+
+  const userId = Number(result.meta?.last_row_id ?? 0);
+  if (!userId) return { ok: false, error: "create_failed" };
+
+  const user = await findUserById(env.DB, userId);
+  if (!user) return { ok: false, error: "create_failed" };
+  return { ok: true, user };
+}
+
+/** 将环境变量 / Secret 中的 bootstrap 账号写入 D1（已存在则同步密码） */
+export async function syncBootstrapUsersFromEnv(env: CloudflareEnv): Promise<void> {
+  await ensureBootstrapUsers(env);
+}

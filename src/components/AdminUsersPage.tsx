@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
@@ -27,6 +27,10 @@ export function AdminUsersPage() {
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [linkGeneratingId, setLinkGeneratingId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"user" | "jp_vocab">("user");
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
 
@@ -81,6 +85,49 @@ export function AdminUsersPage() {
       setStatusErr(true);
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const createUser = async (e: FormEvent) => {
+    e.preventDefault();
+    setCreating(true);
+    setStatus("");
+    setStatusErr(false);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: newUsername.trim(),
+          password: newPassword,
+          role: newRole,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(String(data.error || "create failed"));
+        setStatusErr(true);
+        return;
+      }
+      setUsers((prev) =>
+        [...prev, data.user as UserRow].sort((a, b) =>
+          a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
+        )
+      );
+      setNewUsername("");
+      setNewPassword("");
+      setNewRole("user");
+      setStatus(
+        locale === "zh"
+          ? `已创建用户：${data.user.username}`
+          : `Created user: ${data.user.username}`
+      );
+    } catch {
+      setStatus(locale === "zh" ? "创建失败" : "Create failed");
+      setStatusErr(true);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -149,8 +196,8 @@ export function AdminUsersPage() {
         <h1>{locale === "zh" ? "用户管理" : "User management"}</h1>
         <p className="sub">
           {locale === "zh"
-            ? "禁用账号后，该用户登录或访问时将看到「你所访问的功能正在维护中，请稍后再试」。可为老师与普通用户生成一次性登录链接（30 天免登录）；Admin 账号仅自用，请直接密码登录。"
-            : "Disabled accounts see a feature maintenance message. One-time login links are for teachers and regular users (30-day session). Admin accounts sign in with password only."}
+            ? "打开本页时会自动把 Cloudflare Secret / 环境变量里的 Admin、李老师、user1 同步到数据库。也可手动添加用户名与密码；禁用账号后用户将看到维护提示。"
+            : "Opening this page syncs Admin / teacher bootstrap accounts from env secrets into D1. You can also add users manually."}
         </p>
         <p className="hint">
           <a href={adminPath(locale)}>{locale === "zh" ? "← 返回后台管理" : "← Back to admin"}</a>
@@ -167,14 +214,75 @@ export function AdminUsersPage() {
         </p>
       ) : null}
 
+      <section className="section etr-panel admin-rbac-section admin-user-add-section">
+        <h2 className="admin-user-add-title">
+          {locale === "zh" ? "添加用户" : "Add user"}
+        </h2>
+        <form className="admin-user-add-form" onSubmit={(e) => void createUser(e)}>
+          <label className="admin-user-add-field">
+            <span>{locale === "zh" ? "用户名" : "Username"}</span>
+            <input
+              type="text"
+              value={newUsername}
+              disabled={creating}
+              placeholder={locale === "zh" ? "6–32 个字符" : "6–32 characters"}
+              autoComplete="off"
+              onChange={(e) => setNewUsername(e.target.value)}
+            />
+          </label>
+          <label className="admin-user-add-field">
+            <span>{locale === "zh" ? "密码" : "Password"}</span>
+            <input
+              type="password"
+              value={newPassword}
+              disabled={creating}
+              placeholder={locale === "zh" ? "至少 6 位" : "Min 6 chars"}
+              autoComplete="new-password"
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </label>
+          <label className="admin-user-add-field">
+            <span>{locale === "zh" ? "角色" : "Role"}</span>
+            <select
+              value={newRole}
+              disabled={creating}
+              onChange={(e) => setNewRole(e.target.value as "user" | "jp_vocab")}
+            >
+              <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
+              <option value="jp_vocab">
+                {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
+              </option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
+            disabled={creating || !newUsername.trim() || !newPassword}
+          >
+            {creating
+              ? locale === "zh"
+                ? "创建中…"
+                : "Creating…"
+              : locale === "zh"
+                ? "添加用户"
+                : "Add user"}
+          </button>
+        </form>
+        <p className="hint admin-user-add-hint">
+          {locale === "zh"
+            ? "教师角色密码建议至少 10 位。系统保留名 Admin、LiLaoshi、user1 不可重复创建。"
+            : "Teacher passwords should be at least 10 characters. Admin, LiLaoshi and user1 are reserved."}
+        </p>
+      </section>
+
       <section className="section etr-panel admin-rbac-section">
         {loading ? (
           <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
         ) : users.length === 0 ? (
           <p className="hint">
             {locale === "zh"
-              ? "暂无用户记录。账号首次登录后会出现在此表中。"
-              : "No users yet. Accounts appear here after first login."}
+              ? "暂无其他用户。可使用上方表单添加，或确认 Cloudflare Secret 已配置后刷新本页。"
+              : "No users yet. Add one above or refresh after configuring env secrets."}
           </p>
         ) : (
           <div className="admin-rbac-table-wrap">
@@ -249,8 +357,6 @@ export function AdminUsersPage() {
                                     ? "禁用"
                                     : "Disable"}
                             </button>
-                          ) : !canGenerateLink ? (
-                            <span className="hint">—</span>
                           ) : null}
                         </div>
                       </td>
@@ -264,6 +370,46 @@ export function AdminUsersPage() {
       </section>
 
       <style jsx>{`
+        .admin-user-add-section {
+          margin-bottom: 1.25rem;
+        }
+        .admin-user-add-title {
+          margin: 0 0 0.85rem;
+          font-size: 1rem;
+          font-weight: 600;
+        }
+        .admin-user-add-form {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+          gap: 0.75rem 1rem;
+          align-items: end;
+        }
+        .admin-user-add-field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .admin-user-add-field input,
+        .admin-user-add-field select {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          padding: 0.5rem 0.6rem;
+        }
+        .admin-user-add-submit {
+          justify-self: start;
+          min-height: 2.35rem;
+        }
+        .admin-user-add-hint {
+          margin: 0.75rem 0 0;
+        }
         .admin-rbac-section {
           margin-bottom: 1.25rem;
         }
