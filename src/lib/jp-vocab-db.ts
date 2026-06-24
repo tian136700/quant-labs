@@ -20,6 +20,11 @@ import {
   putJpVocabRefFile,
 } from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import {
+  beijingDateString,
+  effectiveTodayCheckCount,
+  nextTodayCheckCount,
+} from "@/lib/jp-vocab-daily-check";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
@@ -94,6 +99,8 @@ function mapRefRow(row: Record<string, unknown>): JpVocabRef {
 }
 
 function mapRow(row: Record<string, unknown>): JpVocabWord {
+  const todayCheckDate =
+    row.today_check_date != null ? String(row.today_check_date) : null;
   return {
     id: Number(row.id),
     word: String(row.word),
@@ -104,6 +111,11 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
     cnt_very: Number(row.cnt_very) || 0,
     cnt_normal: Number(row.cnt_normal) || 0,
     cnt_weak: Number(row.cnt_weak) || 0,
+    today_check_count: effectiveTodayCheckCount(
+      Number(row.today_check_count) || 0,
+      todayCheckDate
+    ),
+    today_check_date: todayCheckDate,
     class_notes:
       row.class_notes != null && String(row.class_notes).trim()
         ? String(row.class_notes)
@@ -113,8 +125,28 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
   };
 }
 
+async function ensureDailyCheckSchema(db: D1Database): Promise<void> {
+  if (devStoreEnabled) return;
+  const info = await db
+    .prepare(`PRAGMA table_info(jp_vocab_word)`)
+    .all<{ name: string }>();
+  const cols = new Set((info.results ?? []).map((row) => row.name));
+  if (!cols.has("today_check_count")) {
+    await db
+      .prepare(
+        `ALTER TABLE jp_vocab_word ADD COLUMN today_check_count INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+  if (!cols.has("today_check_date")) {
+    await db
+      .prepare(`ALTER TABLE jp_vocab_word ADD COLUMN today_check_date TEXT`)
+      .run();
+  }
+}
+
 const WORD_SELECT = `SELECT id, word, reading, meaning, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at FROM jp_vocab_word`;
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at FROM jp_vocab_word`;
 
 function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));
@@ -303,6 +335,8 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
         cnt_very: 0,
         cnt_normal: 0,
         cnt_weak: 0,
+        today_check_count: 0,
+        today_check_date: null,
         class_notes: null,
         created_at: ts,
         updated_at: ts,
@@ -323,8 +357,8 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
   const stmts = SEED_WORDS.map((item) =>
     db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, NULL, ?6, ?6)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?6)`
       )
       .bind(
         item.word,
@@ -340,6 +374,7 @@ async function seedIfEmpty(db: D1Database): Promise<void> {
 
 export async function listJpVocabWords(db: D1Database): Promise<JpVocabWord[]> {
   await seedIfEmpty(db);
+  await ensureDailyCheckSchema(db);
 
   if (devStoreEnabled) {
     return sortJpVocabWords(devWords);
@@ -394,19 +429,27 @@ export async function recordJpVocabReview(
   }
 
   await seedIfEmpty(db);
+  await ensureDailyCheckSchema(db);
   const col = levelColumn(level);
   const ts = nowIso();
+  const today = beijingDateString();
 
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
     const current = devWords[idx];
+    const daily = nextTodayCheckCount(
+      current.today_check_count ?? 0,
+      current.today_check_date
+    );
     const updated: JpVocabWord = {
       ...current,
       cnt_very: level === "very" ? current.cnt_very + 1 : current.cnt_very,
       cnt_normal:
         level === "normal" ? current.cnt_normal + 1 : current.cnt_normal,
       cnt_weak: level === "weak" ? current.cnt_weak + 1 : current.cnt_weak,
+      today_check_count: daily.count,
+      today_check_date: daily.date,
       updated_at: ts,
     };
     devWords[idx] = updated;
@@ -416,10 +459,16 @@ export async function recordJpVocabReview(
   const result = await db
     .prepare(
       `UPDATE jp_vocab_word
-       SET ${col} = ${col} + 1, updated_at = ?1
-       WHERE id = ?2`
+       SET ${col} = ${col} + 1,
+           today_check_count = CASE
+             WHEN today_check_date = ?1 THEN today_check_count + 1
+             ELSE 1
+           END,
+           today_check_date = ?1,
+           updated_at = ?2
+       WHERE id = ?3`
     )
-    .bind(ts, wordId)
+    .bind(today, ts, wordId)
     .run();
 
   if (!result.meta?.changes) {
@@ -452,6 +501,8 @@ export async function resetAllJpVocabReviews(
         cnt_very: 0,
         cnt_normal: 0,
         cnt_weak: 0,
+        today_check_count: 0,
+        today_check_date: null,
         updated_at: ts,
       };
     }
@@ -524,6 +575,8 @@ export async function uploadJpVocabWords(
         cnt_very: 0,
         cnt_normal: 0,
         cnt_weak: 0,
+        today_check_count: 0,
+        today_check_date: null,
         class_notes: null,
         created_at: ts,
         updated_at: ts,
@@ -559,8 +612,8 @@ export async function uploadJpVocabWords(
     inserts.push(
       db
         .prepare(
-          `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, NULL, ?6, ?6)`
+          `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?6)`
         )
         .bind(
           item.word,
@@ -628,6 +681,8 @@ export async function addJpVocabWord(
       cnt_very: 0,
       cnt_normal: 0,
       cnt_weak: 0,
+      today_check_count: 0,
+      today_check_date: null,
       class_notes: null,
       created_at: ts,
       updated_at: ts,
@@ -645,8 +700,8 @@ export async function addJpVocabWord(
 
   const insertResult = await db
     .prepare(
-      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, NULL, ?6, ?6)`
+      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?6)`
     )
     .bind(
       item.word,
@@ -735,6 +790,8 @@ export async function upsertJpVocabFromLesson(
           cnt_very: 0,
           cnt_normal: 0,
           cnt_weak: 0,
+          today_check_count: 0,
+          today_check_date: null,
           class_notes: null,
           created_at: ts,
           updated_at: ts,
@@ -758,8 +815,8 @@ export async function upsertJpVocabFromLesson(
 
     await db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, class_notes, created_at, updated_at)
-         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, NULL, ?4, ?4)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, 0, NULL, NULL, ?4, ?4)`
       )
       .bind(word, kind, refKey, ts)
       .run();

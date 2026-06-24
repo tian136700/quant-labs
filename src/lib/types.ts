@@ -145,6 +145,10 @@ export interface JpVocabWord {
   cnt_very: number;
   cnt_normal: number;
   cnt_weak: number;
+  /** 今日抽查次数（北京时间 0 点归零） */
+  today_check_count: number;
+  /** 今日抽查次数对应的北京时间日期 YYYY-MM-DD（服务端持久化用） */
+  today_check_date?: string | null;
   /** 来自日语新课的课堂笔记（标记完成时同步） */
   class_notes: string | null;
   created_at: string;

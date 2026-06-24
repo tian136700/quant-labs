@@ -1,3 +1,4 @@
+import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { jpVocabTotalReviews } from "@/lib/jp-vocab-shared";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -6,21 +7,6 @@ const LEVEL_LABELS: Record<JpVocabLevel, string> = {
   normal: "一般",
   weak: "不熟悉",
 };
-
-function needsReview(word: JpVocabWord): boolean {
-  const total = jpVocabTotalReviews(word);
-  if (total === 0) return true;
-  return word.cnt_weak >= word.cnt_very;
-}
-
-function reviewStatus(
-  word: JpVocabWord,
-  sessionLevel?: Record<number, JpVocabLevel | undefined>
-): string {
-  const selected = sessionLevel?.[word.id];
-  if (!selected) return "未勾选";
-  return needsReview(word) ? "需复习" : "良好";
-}
 
 export async function exportJpVocabToExcel(
   words: JpVocabWord[],
@@ -48,7 +34,10 @@ export async function exportJpVocabToExcel(
       一般: w.cnt_normal,
       不熟悉: w.cnt_weak,
       复习合计: jpVocabTotalReviews(w),
-      状态: reviewStatus(w, sessionLevel),
+      今日抽查次数: effectiveTodayCheckCount(
+        w.today_check_count ?? 0,
+        w.today_check_date
+      ),
       教案标题: ref?.title ?? "",
       教案链接: refUrl,
     };

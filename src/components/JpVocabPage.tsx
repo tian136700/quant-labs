@@ -23,6 +23,7 @@ import {
 } from "@/lib/jp-api-cache";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
+import { nextTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -64,12 +65,18 @@ function pickRandomWord(words: JpVocabWord[], excludeId?: number): JpVocabWord |
   return pool[Math.floor(Math.random() * pool.length)] ?? null;
 }
 
-function bumpWordLevel(word: JpVocabWord, level: JpVocabLevel): JpVocabWord {
+function bumpWordReview(word: JpVocabWord, level: JpVocabLevel): JpVocabWord {
+  const daily = nextTodayCheckCount(
+    word.today_check_count ?? 0,
+    word.today_check_date
+  );
   return {
     ...word,
     cnt_very: level === "very" ? word.cnt_very + 1 : word.cnt_very,
     cnt_normal: level === "normal" ? word.cnt_normal + 1 : word.cnt_normal,
     cnt_weak: level === "weak" ? word.cnt_weak + 1 : word.cnt_weak,
+    today_check_count: daily.count,
+    today_check_date: daily.date,
   };
 }
 
@@ -188,7 +195,7 @@ export function JpVocabPage() {
     setHighlightId(wordId);
     setStatus("");
     setWords((prev) =>
-      prev.map((w) => (w.id === wordId ? bumpWordLevel(w, level) : w))
+      prev.map((w) => (w.id === wordId ? bumpWordReview(w, level) : w))
     );
     setSavingId(wordId);
 
@@ -455,6 +462,7 @@ export function JpVocabPage() {
             计算公式：一般 × 1 + 不熟悉 × 2 − 非常熟悉 × 0.3（保留 1 位小数）。
             ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
             为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
+            「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零。
           </p>
         ) : null}
 
@@ -510,7 +518,9 @@ export function JpVocabPage() {
                   <th colSpan={4} className="jp-vocab-stats-group">
                     复习次数统计
                   </th>
-                  <th rowSpan={2}>状态</th>
+                  <th rowSpan={2} className="jp-vocab-today-check-col">
+                    今日抽查次数
+                  </th>
                 </tr>
                 <tr>
                   {STAT_SORT_COLUMNS.map((col) => {
@@ -541,12 +551,12 @@ export function JpVocabPage() {
               </thead>
               <tbody>
                 {displayedWords.map((w) => {
-                  const review = needsReview(w);
                   const isHighlight = highlightId === w.id;
                   const selected = sessionLevel[w.id];
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
+                  const todayChecks = w.today_check_count ?? 0;
 
                   return (
                     <tr
@@ -668,20 +678,8 @@ export function JpVocabPage() {
                       <td className="jp-vocab-stat-total" data-label="复习合计">
                         {jpVocabTotalReviews(w)}
                       </td>
-                      <td className="jp-vocab-status-col" data-label="状态">
-                        {!selected ? (
-                          <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
-                            未勾选
-                          </span>
-                        ) : review ? (
-                          <span className="chg-up" style={{ fontSize: "0.8125rem" }}>
-                            需复习
-                          </span>
-                        ) : (
-                          <span className="chg-dn" style={{ fontSize: "0.8125rem" }}>
-                            良好
-                          </span>
-                        )}
+                      <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
+                        <span className="jp-vocab-today-check-value">{todayChecks}</span>
                       </td>
                     </tr>
                   );
@@ -900,7 +898,7 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-stat-detail),
         :global(.jp-vocab-table .jp-vocab-stat-total),
-        :global(.jp-vocab-table .jp-vocab-status-col),
+        :global(.jp-vocab-table .jp-vocab-today-check-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
         :global(.jp-vocab-table .jp-vocab-meaning-col),
         :global(.jp-vocab-table .jp-vocab-risk-col) {
@@ -911,6 +909,14 @@ export function JpVocabPage() {
           min-width: 4.5rem;
         }
         :global(.jp-vocab-table .jp-vocab-risk-value) {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        :global(.jp-vocab-table .jp-vocab-today-check-col) {
+          white-space: nowrap;
+          min-width: 5.5rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-today-check-value) {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
         }
@@ -1022,7 +1028,7 @@ export function JpVocabPage() {
           :global(.jp-vocab-table .jp-vocab-stat-detail) {
             display: flex;
           }
-          :global(.jp-vocab-table .jp-vocab-status-col),
+          :global(.jp-vocab-table .jp-vocab-today-check-col),
           :global(.jp-vocab-table .jp-vocab-stat-total) {
             align-items: center;
           }

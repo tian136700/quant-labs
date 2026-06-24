@@ -24,7 +24,13 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
   if (!data.ok || !Array.isArray(data.words)) {
     throw new Error(data.error || "加载失败");
   }
-  return { words: data.words, refs: data.refs ?? {} };
+  return {
+    words: data.words.map((word) => ({
+      ...word,
+      today_check_count: word.today_check_count ?? 0,
+    })),
+    refs: data.refs ?? {},
+  };
 }
 
 export function parseJpLessonApi(json: unknown): JpLessonApiPayload {

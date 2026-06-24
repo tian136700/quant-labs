@@ -184,6 +184,8 @@ CREATE TABLE IF NOT EXISTS jp_vocab_word (
   cnt_very   INTEGER NOT NULL DEFAULT 0,
   cnt_normal INTEGER NOT NULL DEFAULT 0,
   cnt_weak   INTEGER NOT NULL DEFAULT 0,
+  today_check_count INTEGER NOT NULL DEFAULT 0,
+  today_check_date  TEXT,
   class_notes TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
