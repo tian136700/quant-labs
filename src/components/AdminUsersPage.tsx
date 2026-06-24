@@ -156,8 +156,8 @@ export function AdminUsersPage() {
       }
       setStatus(
         locale === "zh"
-          ? `已为 ${row.username} 生成一次性登录链接（30 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
-          : `One-time login link for ${row.username} (${data.session_days ?? 30}-day session)${copied ? ", copied" : ""}: ${url}`
+          ? `已为 ${row.username} 生成永久登录链接（每次登录后 30 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
+          : `Permanent login link for ${row.username} (${data.session_days ?? 30}-day session after each sign-in)${copied ? ", copied" : ""}: ${url}`
       );
     } catch {
       setStatus(locale === "zh" ? "生成链接失败" : "Failed to generate link");

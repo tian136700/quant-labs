@@ -1,6 +1,6 @@
 import {
+  ETR_LOGIN_LINK_PERMANENT_EXPIRES_AT,
   ETR_LOGIN_LINK_SESSION_MS,
-  ETR_LOGIN_LINK_TTL_MS,
 } from "./etr-auth";
 import {
   createSessionForUser,
@@ -33,10 +33,6 @@ function nowIso(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function isExpired(iso: string): boolean {
-  return new Date(iso).getTime() <= Date.now();
 }
 
 async function ensureLoginLinkSchema(db: D1Database): Promise<void> {
@@ -81,6 +77,27 @@ async function loginLinkExists(db: D1Database, token: string): Promise<boolean> 
   return Boolean(row?.token);
 }
 
+async function findLoginLinkForUser(
+  db: D1Database,
+  userId: number
+): Promise<{ token: string; link_expires_at: string } | null> {
+  if (devEnabled) {
+    const row = devLinks.find((item) => item.user_id === userId);
+    return row ? { token: row.token, link_expires_at: row.link_expires_at } : null;
+  }
+  const row = await db
+    .prepare(
+      `SELECT token, link_expires_at
+       FROM etr_login_links
+       WHERE user_id = ?1
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .bind(userId)
+    .first<{ token: string; link_expires_at: string }>();
+  return row ?? null;
+}
+
 async function allocateLoginLinkToken(db: D1Database): Promise<string> {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const token = newLoginLinkSlug();
@@ -104,8 +121,18 @@ export async function createLoginLink(
     return { ok: false, error: "user_disabled" };
   }
 
+  const existing = await findLoginLinkForUser(db, userId);
+  if (existing) {
+    return {
+      ok: true,
+      token: existing.token,
+      link_expires_at: existing.link_expires_at,
+      session_days: Math.round(ETR_LOGIN_LINK_SESSION_MS / (24 * 60 * 60 * 1000)),
+    };
+  }
+
   const token = await allocateLoginLinkToken(db);
-  const linkExpiresAt = new Date(Date.now() + ETR_LOGIN_LINK_TTL_MS).toISOString();
+  const linkExpiresAt = ETR_LOGIN_LINK_PERMANENT_EXPIRES_AT;
   const ts = nowIso();
 
   if (devEnabled) {
@@ -135,6 +162,7 @@ export async function createLoginLink(
   };
 }
 
+/** 通过永久登录链接创建会话（可重复使用；停用账号后失效） */
 export async function consumeLoginLink(
   env: CloudflareEnv,
   token: string
@@ -143,47 +171,24 @@ export async function consumeLoginLink(
   if (!trimmed) return { ok: false, error: "link_invalid" };
 
   await ensureLoginLinkSchema(env.DB);
-  const ts = nowIso();
 
   if (devEnabled) {
     const row = devLinks.find((item) => item.token === trimmed);
     if (!row) return { ok: false, error: "link_invalid" };
-    if (row.consumed_at) return { ok: false, error: "link_used" };
-    if (isExpired(row.link_expires_at)) return { ok: false, error: "link_expired" };
-    row.consumed_at = ts;
     return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS);
   }
 
   const row = await env.DB
     .prepare(
-      `SELECT user_id, link_expires_at, consumed_at
+      `SELECT user_id
        FROM etr_login_links
        WHERE token = ?1
        LIMIT 1`
     )
     .bind(trimmed)
-    .first<{
-      user_id: number;
-      link_expires_at: string;
-      consumed_at: string | null;
-    }>();
+    .first<{ user_id: number }>();
 
   if (!row) return { ok: false, error: "link_invalid" };
-  if (row.consumed_at) return { ok: false, error: "link_used" };
-  if (isExpired(row.link_expires_at)) return { ok: false, error: "link_expired" };
-
-  const updated = await env.DB
-    .prepare(
-      `UPDATE etr_login_links
-       SET consumed_at = ?1
-       WHERE token = ?2 AND consumed_at IS NULL`
-    )
-    .bind(ts, trimmed)
-    .run();
-
-  if ((updated.meta?.changes ?? 0) === 0) {
-    return { ok: false, error: "link_used" };
-  }
 
   return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS);
 }

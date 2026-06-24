@@ -9,12 +9,16 @@ const LINK_ERR: Record<string, { zh: string; en: string }> = {
     en: "This login link is invalid. Please ask an admin for a new one.",
   },
   link_used: {
-    zh: "该登录链接已使用，请联系管理员重新生成。",
-    en: "This login link has already been used. Please ask an admin for a new one.",
+    zh: "该登录链接已失效，请联系管理员。",
+    en: "This login link is no longer valid. Please contact an admin.",
   },
   link_expired: {
-    zh: "登录链接已过期，请联系管理员重新生成。",
-    en: "This login link has expired. Please ask an admin for a new one.",
+    zh: "该登录链接已失效，请联系管理员。",
+    en: "This login link is no longer valid. Please contact an admin.",
+  },
+  maintenance: {
+    zh: "该账号已停用，暂无法登录。",
+    en: "This account has been disabled and cannot sign in.",
   },
 };
 
