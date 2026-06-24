@@ -16,6 +16,25 @@ export function jpVocabTotalReviews(word: JpVocabWord): number {
   return word.cnt_very + word.cnt_normal + word.cnt_weak;
 }
 
+/** 合计列展示：0 次时显示「未抽查」等短文案，避免裸数字 0 */
+export function formatJpVocabTotalReviewsDisplay(
+  word: JpVocabWord,
+  locale: "zh" | "en" = "zh"
+): { label: string; isZero: boolean } {
+  const total = jpVocabTotalReviews(word);
+  if (total === 0) {
+    return {
+      label: locale === "zh" ? "未抽查" : "Never",
+      isZero: true,
+    };
+  }
+  return { label: String(total), isZero: false };
+}
+
+export function jpVocabTotalReviewsZeroHint(locale: "zh" | "en" = "zh"): string {
+  return locale === "zh" ? "从未抽查过" : "Never checked";
+}
+
 /** 抽查优先级 = 一般×1 + 不熟悉×2 − 非常熟悉×0.3，保留 1 位小数 */
 export function jpVocabRiskIndex(word: JpVocabWord): number {
   const raw = word.cnt_normal * 1 + word.cnt_weak * 2 - word.cnt_very * 0.3;

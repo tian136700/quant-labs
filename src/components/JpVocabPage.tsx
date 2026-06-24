@@ -9,6 +9,8 @@ import {
   jpVocabPriorityLabel,
   jpVocabRiskIndex,
   jpVocabTotalReviews,
+  formatJpVocabTotalReviewsDisplay,
+  jpVocabTotalReviewsZeroHint,
   sortJpVocabWordsForDisplay,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
@@ -679,7 +681,20 @@ export function JpVocabPage() {
                         {w.cnt_weak}
                       </td>
                       <td className="jp-vocab-stat-total" data-label="复习合计">
-                        {jpVocabTotalReviews(w)}
+                        {(() => {
+                          const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
+                          if (totalDisplay.isZero) {
+                            return (
+                              <span
+                                className="jp-vocab-total-never"
+                                title={jpVocabTotalReviewsZeroHint(locale)}
+                              >
+                                {totalDisplay.label}
+                              </span>
+                            );
+                          }
+                          return totalDisplay.label;
+                        })()}
                       </td>
                       <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
                         <span className="jp-vocab-today-check-value">{todayChecks}</span>
@@ -945,6 +960,15 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-risk-value) {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
+        }
+        :global(.jp-vocab-table .jp-vocab-stat-total) {
+          white-space: nowrap;
+          min-width: 3.25rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-total-never) {
+          color: var(--muted);
+          font-size: 0.8125rem;
+          letter-spacing: 0.02em;
         }
         :global(.jp-vocab-table .jp-vocab-today-check-col) {
           white-space: nowrap;
