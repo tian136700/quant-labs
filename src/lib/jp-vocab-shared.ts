@@ -2,11 +2,21 @@ import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk";
 
+/** 单词表默认排序：抽查优先级降序（越高越建议先抽查） */
+export const JP_VOCAB_DEFAULT_STAT_SORT: {
+  key: JpVocabStatSortKey;
+  dir: "asc" | "desc";
+} = { key: "risk", dir: "desc" };
+
+export function jpVocabPriorityLabel(locale: "zh" | "en" = "zh"): string {
+  return locale === "zh" ? "抽查优先级" : "Check priority";
+}
+
 export function jpVocabTotalReviews(word: JpVocabWord): number {
   return word.cnt_very + word.cnt_normal + word.cnt_weak;
 }
 
-/** risk = 一般×1 + 不熟悉×2 − 非常熟悉×0.3，保留 1 位小数 */
+/** 抽查优先级 = 一般×1 + 不熟悉×2 − 非常熟悉×0.3，保留 1 位小数 */
 export function jpVocabRiskIndex(word: JpVocabWord): number {
   const raw = word.cnt_normal * 1 + word.cnt_weak * 2 - word.cnt_very * 0.3;
   return Math.round(raw * 10) / 10;
@@ -54,6 +64,6 @@ export function sortJpVocabWordsForDisplay(
   words: JpVocabWord[],
   statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null
 ): JpVocabWord[] {
-  if (!statSort) return sortJpVocabWords(words);
-  return sortJpVocabWordsByStat(words, statSort.key, statSort.dir);
+  const effective = statSort ?? JP_VOCAB_DEFAULT_STAT_SORT;
+  return sortJpVocabWordsByStat(words, effective.key, effective.dir);
 }

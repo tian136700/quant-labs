@@ -74,7 +74,7 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
       inserts.push(
         db
           .prepare(
-            `INSERT INTO etr_role_permissions (role, permission_key, created_at)
+            `INSERT OR IGNORE INTO etr_role_permissions (role, permission_key, created_at)
              VALUES (?1, ?2, ?3)`
           )
           .bind(role, permission, ts)
@@ -197,10 +197,12 @@ export async function updateRolePermissions(
   }
 
   const ts = nowIso();
-  await db.prepare(`DELETE FROM etr_role_permissions WHERE role = ?1`).bind(role).run();
+  const statements: D1PreparedStatement[] = [
+    db.prepare(`DELETE FROM etr_role_permissions WHERE role = ?1`).bind(role),
+  ];
 
-  if (cleaned.length) {
-    const inserts = cleaned.map((permission) =>
+  for (const permission of cleaned) {
+    statements.push(
       db
         .prepare(
           `INSERT INTO etr_role_permissions (role, permission_key, created_at)
@@ -208,8 +210,9 @@ export async function updateRolePermissions(
         )
         .bind(role, permission, ts)
     );
-    await db.batch(inserts);
   }
+
+  if (statements.length) await db.batch(statements);
 
   return { ok: true, role, permissions: cleaned };
 }

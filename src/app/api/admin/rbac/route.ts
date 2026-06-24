@@ -1,6 +1,7 @@
 import { requirePermission } from "@/lib/admin-auth";
 import {
   catalogForClient,
+  ensureRbacSeeded,
   listRbacMatrix,
   listUsersWithPermissions,
   updateRolePermissions,
@@ -44,6 +45,7 @@ export async function GET(request: Request) {
     }
 
     const env = await getCloudflareEnv();
+    await ensureRbacSeeded(env.DB);
     const [matrix, catalog, users] = await Promise.all([
       listRbacMatrix(env.DB),
       Promise.resolve(catalogForClient()),

@@ -5,6 +5,8 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
+  JP_VOCAB_DEFAULT_STAT_SORT,
+  jpVocabPriorityLabel,
   jpVocabRiskIndex,
   jpVocabTotalReviews,
   sortJpVocabWordsForDisplay,
@@ -107,7 +109,7 @@ export function JpVocabPage() {
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
-  } | null>(null);
+  }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
 
@@ -271,7 +273,7 @@ export function JpVocabPage() {
       setWords(data.words);
       persistVocabCache(data.words, refs);
       setSessionLevel({});
-      setStatSort(null);
+      setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
       setHighlightId(null);
       setStatus("已全部重置，可以开始新一轮复习。");
     } catch (err) {
@@ -408,9 +410,9 @@ export function JpVocabPage() {
               className="btn-rsi-filter"
               onClick={() => setShowRiskChart(true)}
               disabled={loading || !words.length}
-              title="按风险指数查看知识点排行，辅助下节课抽查"
+              title="按抽查优先级查看知识点排行，辅助下节课抽查"
             >
-              风险排行
+              抽查排行
             </button>
             <button
               type="button"
@@ -448,10 +450,11 @@ export function JpVocabPage() {
 
         {!loading && words.length ? (
           <p className="jp-vocab-risk-hint" role="note">
-            <strong>风险指数</strong>：根据「复习次数统计」估算每个单词/语法的遗忘风险，数值越高越建议优先抽查复习。
+            <strong>{jpVocabPriorityLabel(locale)}</strong>
+            ：根据「复习次数统计」估算每个单词/语法下节课该先抽查谁，数值越高越建议优先提问。
             计算公式：一般 × 1 + 不熟悉 × 2 − 非常熟悉 × 0.3（保留 1 位小数）。
-            ≥ 3 为高风险，≥ 1 为中风险，&lt; 1 为低风险；
-            指数为 0 或更低表示尚未复习，或多次勾选「非常熟悉」、掌握较好。
+            ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
+            为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
           </p>
         ) : null}
 
@@ -488,10 +491,10 @@ export function JpVocabPage() {
                             : "descending"
                           : "none"
                       }
-                      title="按风险指数排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）"
+                      title={`按${jpVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）`}
                       onClick={() => toggleStatSort("risk")}
                     >
-                      <span>风险指数</span>
+                      <span>{jpVocabPriorityLabel(locale)}</span>
                       <span className="jp-vocab-sort-indicator" aria-hidden="true">
                         {statSort?.key === "risk"
                           ? statSort.dir === "asc"
@@ -600,7 +603,7 @@ export function JpVocabPage() {
                           />
                         </td>
                       ) : null}
-                      <td className="jp-vocab-risk-col" data-label="风险指数">
+                      <td className="jp-vocab-risk-col" data-label={jpVocabPriorityLabel(locale)}>
                         <span className="jp-vocab-risk-value">{risk.toFixed(1)}</span>
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">

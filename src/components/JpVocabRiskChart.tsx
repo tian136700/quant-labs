@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { buildRiskChartData, countExcludedRiskRows, type JpVocabRiskRow } from "@/lib/jp-vocab-risk";
+import { jpVocabPriorityLabel } from "@/lib/jp-vocab-shared";
 import type { JpVocabWord } from "@/lib/types";
 import {
   Bar,
@@ -144,7 +145,7 @@ function RiskTooltip({
         {row.reviewCount}
       </p>
       <p>
-        <span className="jp-vocab-risk-tooltip-label">风险指数：</span>
+        <span className="jp-vocab-risk-tooltip-label">{jpVocabPriorityLabel()}：</span>
         {row.risk}
       </p>
     </div>
@@ -175,8 +176,8 @@ export function JpVocabRiskChart({ words }: Props) {
     return (
       <p className="hint">
         {excludedCount > 0
-          ? `当前 ${excludedCount} 个知识点风险指数为 0 或更低，暂无需要优先抽查的条目。`
-          : "暂无知识点数据，无法生成风险排行。"}
+          ? `当前 ${excludedCount} 个知识点抽查优先级为 0 或更低，暂无需要优先抽查的条目。`
+          : "暂无知识点数据，无法生成抽查排行。"}
       </p>
     );
   }
@@ -184,7 +185,7 @@ export function JpVocabRiskChart({ words }: Props) {
   return (
     <div className="jp-vocab-risk-chart">
       <div className="jp-vocab-risk-chart-frame" style={{ height: chartHeight }}>
-        <h3 className="jp-vocab-risk-chart-title">知识点风险排行（越高越建议抽查）</h3>
+        <h3 className="jp-vocab-risk-chart-title">知识点抽查优先级（越高越建议先问）</h3>
         <div className="jp-vocab-risk-chart-canvas" style={{ minWidth: chartMinWidth }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={chartMinWidth}>
           <BarChart
@@ -203,7 +204,7 @@ export function JpVocabRiskChart({ words }: Props) {
               tickFormatter={(v) => Number(v).toFixed(1)}
             >
               <Label
-                value="风险指数"
+                value={jpVocabPriorityLabel()}
                 position="insideBottom"
                 offset={-18}
                 style={{ fill: CHART_INK, fontSize: tickFontSize + 1, textAnchor: "middle" }}
@@ -233,7 +234,7 @@ export function JpVocabRiskChart({ words }: Props) {
       </div>
       {excludedCount > 0 ? (
         <p className="jp-vocab-risk-chart-note">
-          另有 {excludedCount} 个知识点风险指数为 0 或更低（未复习，或仅勾选「非常熟悉」），未列入上图。
+          另有 {excludedCount} 个知识点抽查优先级为 0 或更低（未复习，或仅勾选「非常熟悉」），未列入上图。
         </p>
       ) : null}
       <style jsx>{`
