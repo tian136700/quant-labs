@@ -37,6 +37,19 @@ function formatFileSize(bytes: number): string {
   return formatUploadBytes(bytes);
 }
 
+function pickClipboardImage(items: DataTransferItemList): File | null {
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const blob = item.getAsFile();
+      if (blob) {
+        const ext = item.type.split("/")[1] || "png";
+        return new File([blob], `pasted.${ext}`, { type: item.type });
+      }
+    }
+  }
+  return null;
+}
+
 function uploadProgressLabel(event: UploadProgressEvent): string {
   if (event.phase === "processing") {
     return "文件已传完，服务器保存中…";
@@ -127,6 +140,14 @@ export function JpVocabRefEditModal({
       }
       return null;
     });
+  };
+
+  const onPaste = (e: React.ClipboardEvent) => {
+    if (submitting || !canEdit) return;
+    const picked = pickClipboardImage(e.clipboardData.items);
+    if (!picked) return;
+    e.preventDefault();
+    applyFile(picked);
   };
 
   const openFilePreview = () => {
@@ -252,6 +273,7 @@ export function JpVocabRefEditModal({
           aria-modal="true"
           aria-labelledby="jp-ref-edit-title"
           onClick={(e) => e.stopPropagation()}
+          onPaste={onPaste}
         >
           <div className="jp-ref-edit-header">
             <div>
@@ -331,6 +353,7 @@ export function JpVocabRefEditModal({
                   submitting ? " is-disabled" : ""
                 }`}
                 tabIndex={0}
+                onPaste={onPaste}
                 onDragOver={(e) => {
                   e.preventDefault();
                   if (!submitting) e.currentTarget.classList.add("is-dragover");
@@ -414,8 +437,10 @@ export function JpVocabRefEditModal({
                         />
                       </svg>
                     </div>
-                    <p className="jp-ref-edit-drop-title">拖拽图片或 PDF 到此处</p>
-                    <p className="jp-ref-edit-drop-hint">支持 PNG / JPG / PDF，最大 20MB</p>
+                    <p className="jp-ref-edit-drop-title">拖拽、粘贴或选择图片 / PDF</p>
+                    <p className="jp-ref-edit-drop-hint">
+                      支持 PNG / JPG / PDF，最大 20MB；弹窗内可按 Ctrl+V / ⌘V 粘贴截图
+                    </p>
                     {canEdit ? (
                       <button
                         type="button"
