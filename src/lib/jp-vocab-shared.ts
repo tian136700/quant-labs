@@ -2,7 +2,7 @@ import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk";
 
-/** 单词表默认排序：抽查优先级降序（越高越建议先抽查） */
+/** 单词表默认排序：合计为 0 的置顶，其余按抽查优先级降序 */
 export const JP_VOCAB_DEFAULT_STAT_SORT: {
   key: JpVocabStatSortKey;
   dir: "asc" | "desc";
@@ -46,6 +46,13 @@ export function sortJpVocabWords(words: JpVocabWord[]): JpVocabWord[] {
   });
 }
 
+function compareZeroTotalFirst(a: JpVocabWord, b: JpVocabWord): number {
+  const aZero = jpVocabTotalReviews(a) === 0;
+  const bZero = jpVocabTotalReviews(b) === 0;
+  if (aZero === bZero) return 0;
+  return aZero ? -1 : 1;
+}
+
 /** 按复习次数单列排序（同值按单词名） */
 export function sortJpVocabWordsByStat(
   words: JpVocabWord[],
@@ -65,5 +72,17 @@ export function sortJpVocabWordsForDisplay(
   statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null
 ): JpVocabWord[] {
   const effective = statSort ?? JP_VOCAB_DEFAULT_STAT_SORT;
+
+  if (effective.key === "risk") {
+    const mul = effective.dir === "asc" ? 1 : -1;
+    return [...words].sort((a, b) => {
+      const zeroCmp = compareZeroTotalFirst(a, b);
+      if (zeroCmp !== 0) return zeroCmp;
+      const diff = jpVocabRiskIndex(a) - jpVocabRiskIndex(b);
+      if (diff !== 0) return diff * mul;
+      return a.word.localeCompare(b.word, "ja");
+    });
+  }
+
   return sortJpVocabWordsByStat(words, effective.key, effective.dir);
 }
