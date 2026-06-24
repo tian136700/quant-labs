@@ -17,7 +17,7 @@ import {
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
-import { isMaintenancePath, aboutPath } from "@/lib/locale-path";
+import { aboutPath, isMaintenancePath, maintenancePath } from "@/lib/locale-path";
 import {
   clearClientCache,
   readClientCache,
