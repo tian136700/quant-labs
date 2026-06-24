@@ -24,6 +24,7 @@ export async function exportJpVocabToExcel(
     const selected = sessionLevel?.[w.id];
 
     return {
+      ID: w.id,
       类型: w.kind === "grammar" ? "语法" : "单词",
       "单词 / 语法": w.word,
       读音: w.reading ?? "",

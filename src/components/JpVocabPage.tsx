@@ -485,6 +485,9 @@ export function JpVocabPage() {
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
+                  <th rowSpan={2} className="jp-vocab-id-col">
+                    ID
+                  </th>
                   <th rowSpan={2}>类型</th>
                   <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
@@ -579,6 +582,9 @@ export function JpVocabPage() {
                           : undefined,
                       }}
                     >
+                      <td className="jp-vocab-id-col" data-label="ID">
+                        {w.id}
+                      </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
                           className={`jp-vocab-kind-badge${
@@ -944,6 +950,7 @@ export function JpVocabPage() {
           opacity: 1;
           color: var(--accent);
         }
+        :global(.jp-vocab-table .jp-vocab-id-col),
         :global(.jp-vocab-table .jp-vocab-stat-detail),
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
@@ -956,6 +963,12 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           white-space: nowrap;
           min-width: 4.5rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-id-col) {
+          white-space: nowrap;
+          min-width: 2.75rem;
+          font-variant-numeric: tabular-nums;
+          color: var(--muted);
         }
         :global(.jp-vocab-table .jp-vocab-risk-value) {
           font-weight: 600;
