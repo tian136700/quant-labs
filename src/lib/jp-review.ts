@@ -1,7 +1,21 @@
 import type { CloudflareEnv } from "@/lib/types";
+import { JP_VOCAB_REF_R2_PREFIX } from "@/lib/jp-vocab-ref-shared";
 
-export const JP_REVIEW_LATEST_KEY = "latest.pdf";
-export const JP_REVIEW_META_KEY = "meta.json";
+/** Review PDF 与教案共用 JP_REVIEW 桶；review 文件必须放在 review/ 前缀下，禁止整桶清理 */
+export const JP_REVIEW_R2_PREFIX = "review/";
+export const JP_REVIEW_LATEST_KEY = `${JP_REVIEW_R2_PREFIX}latest.pdf`;
+export const JP_REVIEW_META_KEY = `${JP_REVIEW_R2_PREFIX}meta.json`;
+
+/** 旧版 key（桶根目录）；仅用于读取/清理，新上传写入 review/ */
+const JP_REVIEW_LATEST_KEY_LEGACY = "latest.pdf";
+const JP_REVIEW_META_KEY_LEGACY = "meta.json";
+
+const JP_REVIEW_OWNED_KEYS = new Set([
+  JP_REVIEW_LATEST_KEY,
+  JP_REVIEW_META_KEY,
+  JP_REVIEW_LATEST_KEY_LEGACY,
+  JP_REVIEW_META_KEY_LEGACY,
+]);
 
 export interface JpReviewMeta {
   updated_at: string;
@@ -49,10 +63,36 @@ export function verifyDownloadAccess(
   return key === required;
 }
 
+/** 仅允许删除 review 自身对象；vocab-ref/ 与其它 key 一律拒绝 */
+function assertReviewOwnedKeys(keys: string[]): void {
+  for (const key of keys) {
+    if (key.startsWith(JP_VOCAB_REF_R2_PREFIX)) {
+      throw new Error(`Refusing to delete protected vocab ref object: ${key}`);
+    }
+    if (!JP_REVIEW_OWNED_KEYS.has(key)) {
+      throw new Error(`Refusing to delete unknown R2 key in JP_REVIEW bucket: ${key}`);
+    }
+  }
+}
+
+async function getReviewObject(
+  bucket: R2Bucket,
+  primaryKey: string,
+  legacyKey: string
+): Promise<R2ObjectBody | null> {
+  const primary = await bucket.get(primaryKey);
+  if (primary) return primary;
+  return bucket.get(legacyKey);
+}
+
 export async function readJpReviewMeta(
   bucket: R2Bucket
 ): Promise<JpReviewMeta | null> {
-  const obj = await bucket.get(JP_REVIEW_META_KEY);
+  const obj = await getReviewObject(
+    bucket,
+    JP_REVIEW_META_KEY,
+    JP_REVIEW_META_KEY_LEGACY
+  );
   if (!obj) return null;
   try {
     return (await obj.json()) as JpReviewMeta;
@@ -61,11 +101,27 @@ export async function readJpReviewMeta(
   }
 }
 
-/** 只删除 review 自身的 PDF / meta；教案文件在 vocab-ref/ 下，必须保留 */
+/** 上传新 review 前，只删 review 自己的 PDF / meta（含旧版根目录 key） */
 export async function clearPreviousJpReview(bucket: R2Bucket): Promise<number> {
-  const keysToDelete = [JP_REVIEW_LATEST_KEY, JP_REVIEW_META_KEY];
+  const keysToDelete = [
+    JP_REVIEW_LATEST_KEY,
+    JP_REVIEW_META_KEY,
+    JP_REVIEW_LATEST_KEY_LEGACY,
+    JP_REVIEW_META_KEY_LEGACY,
+  ];
+  assertReviewOwnedKeys(keysToDelete);
   await bucket.delete(keysToDelete);
   return keysToDelete.length;
+}
+
+export async function getJpReviewLatestPdf(
+  bucket: R2Bucket
+): Promise<R2ObjectBody | null> {
+  return getReviewObject(
+    bucket,
+    JP_REVIEW_LATEST_KEY,
+    JP_REVIEW_LATEST_KEY_LEGACY
+  );
 }
 
 export async function putJpReviewPdf(

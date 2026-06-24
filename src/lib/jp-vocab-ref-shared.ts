@@ -1,5 +1,6 @@
 import type { JpVocabMediaType } from "@/lib/types";
 
+/** 教案文件 R2 前缀；与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
 export const JP_VOCAB_REF_R2_PREFIX = "vocab-ref/";
 
 export function normalizeJpVocabRefKey(raw: string): string {

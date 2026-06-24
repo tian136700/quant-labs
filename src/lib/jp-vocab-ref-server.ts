@@ -60,6 +60,7 @@ export async function putJpVocabRefFile(
 ): Promise<{ r2_key: string; storage: "r2" | "local" }> {
   const r2Key = jpVocabRefR2Key(refKey, mediaType);
 
+  // 与 jp-review PDF 共用 JP_REVIEW 桶；桶内删除逻辑见 jp-review.ts，禁止整桶清理
   if (hasJpReviewBucket(env)) {
     await env.JP_REVIEW.put(r2Key, bytes, {
       httpMetadata: { contentType: jpVocabRefContentType(mediaType) },

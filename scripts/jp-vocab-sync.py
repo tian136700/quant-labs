@@ -402,6 +402,11 @@ def main() -> int:
         help="仅写入本地 dev API（http://127.0.0.1:3002/api/jp-vocab/upload）",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="清空全部单词及复习计数后再上传（默认仅追加新词，保留已有进度）",
+    )
     args = parser.parse_args()
 
     folder = Path(args.folder).expanduser()
@@ -443,7 +448,7 @@ def main() -> int:
         print("未找到 JP_REVIEW_UPLOAD_TOKEN（与 PDF 上传共用）", file=sys.stderr)
         return 1
 
-    result = upload_words(words, upload_url, token, replace=True)
+    result = upload_words(words, upload_url, token, replace=args.replace)
     if not result.get("ok"):
         raise SystemExit(f"上传失败: {result.get('error', result)}")
 

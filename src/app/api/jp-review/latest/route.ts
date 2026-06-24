@@ -1,6 +1,6 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
-  JP_REVIEW_LATEST_KEY,
+  getJpReviewLatestPdf,
   hasJpReviewBucket,
   readJpReviewMeta,
   verifyDownloadAccess,
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: true, meta });
     }
 
-    const obj = await env.JP_REVIEW.get(JP_REVIEW_LATEST_KEY);
+    const obj = await getJpReviewLatestPdf(env.JP_REVIEW);
     if (!obj) {
       return jsonResponse({ ok: false, error: "No review PDF yet" }, 404);
     }
