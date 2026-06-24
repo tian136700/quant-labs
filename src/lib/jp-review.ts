@@ -61,24 +61,11 @@ export async function readJpReviewMeta(
   }
 }
 
-/** 只保留最新一份：删除旧 PDF / meta，并清理桶内其它历史文件 */
+/** 只删除 review 自身的 PDF / meta；教案文件在 vocab-ref/ 下，必须保留 */
 export async function clearPreviousJpReview(bucket: R2Bucket): Promise<number> {
-  const keysToDelete = new Set<string>([JP_REVIEW_LATEST_KEY, JP_REVIEW_META_KEY]);
-  let cursor: string | undefined;
-
-  do {
-    const listed = await bucket.list({ cursor, limit: 200 });
-    for (const obj of listed.objects) {
-      keysToDelete.add(obj.key);
-    }
-    cursor = listed.truncated ? listed.cursor : undefined;
-  } while (cursor);
-
-  const allKeys = [...keysToDelete];
-  if (!allKeys.length) return 0;
-
-  await bucket.delete(allKeys);
-  return allKeys.length;
+  const keysToDelete = [JP_REVIEW_LATEST_KEY, JP_REVIEW_META_KEY];
+  await bucket.delete(keysToDelete);
+  return keysToDelete.length;
 }
 
 export async function putJpReviewPdf(
