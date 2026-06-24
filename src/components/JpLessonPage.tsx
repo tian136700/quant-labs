@@ -476,7 +476,7 @@ export function JpLessonPage() {
       </div>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；李老师 / 管理员登录后可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
+        新课学习清单与教案管理。访客可浏览；李老师 / user1 / 管理员登录后可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
         <a href="/jp-vocab" style={{ color: "var(--accent)" }}>
           日语单词抽问
         </a>
@@ -489,7 +489,7 @@ export function JpLessonPage() {
             loginOnly
             variant="inline"
             title="登录 · 日语新课"
-            subtitle="使用 LiLaoshi 或管理员账号登录。"
+            subtitle="使用 LiLaoshi、user1 或管理员账号登录。"
             onClose={() => setShowAuth(false)}
             onAuthenticated={(next) => {
               setUser(next);

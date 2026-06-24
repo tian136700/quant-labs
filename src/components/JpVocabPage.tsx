@@ -423,7 +423,7 @@ export function JpVocabPage() {
           }}
         >
           {user?.role === "user"
-            ? "当前为浏览模式。您已登录的账号无权修改数据，请使用 LiLaoshi 或管理员账号。"
+            ? "当前为浏览模式。您已登录的账号无权修改数据，请使用 LiLaoshi、user1 或管理员账号。"
             : "当前为浏览模式，可查看单词表；勾选熟悉程度与全部重置需登录。若反复要求登录，请先点「清除登录状态」再重新登录。"}
         </p>
       ) : null}
@@ -434,7 +434,7 @@ export function JpVocabPage() {
             loginOnly
             variant="inline"
             title="登录 · 日语单词"
-            subtitle="使用 LiLaoshi（李老师）或管理员账号登录后可操作。"
+            subtitle="使用 LiLaoshi（李老师）、user1 或管理员账号登录后可操作。"
             onClose={() => setShowAuth(false)}
             onAuthenticated={(next) => {
               setUser(next);

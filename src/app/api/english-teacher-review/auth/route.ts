@@ -12,6 +12,11 @@ import {
   sessionCookieHeader,
 } from "@/lib/etr-auth";
 import {
+  checkLoginRateLimit,
+  clearLoginFailures,
+  recordLoginFailure,
+} from "@/lib/etr-login-guard";
+import {
   getCloudflareEnv,
   jsonResponse,
   localeFromRequest,
@@ -78,6 +83,10 @@ const AUTH_ERRORS: Record<string, Record<"en" | "zh", string>> = {
   fields_required: {
     en: "Please fill in all required fields.",
     zh: "请填写所有必填项。",
+  },
+  rate_limited: {
+    en: "Too many failed login attempts. Please try again later.",
+    zh: "登录失败次数过多，请稍后再试。",
   },
 };
 
@@ -165,13 +174,28 @@ export async function POST(request: Request) {
     const env = await getCloudflareEnv();
 
     if (action === "login") {
+      const rate = await checkLoginRateLimit(env.DB, request);
+      if (!rate.ok) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: errMsg("rate_limited", locale),
+            retry_after_sec: rate.retryAfterSec,
+          },
+          429
+        );
+      }
+
       const result = await loginUser(env, username, password);
       if (!result.ok) {
+        await recordLoginFailure(env.DB, request);
         return jsonResponse(
           { ok: false, error: errMsg(result.error, locale) },
           401
         );
       }
+
+      await clearLoginFailures(env.DB, request);
 
       return jsonWithSetCookies(
         {

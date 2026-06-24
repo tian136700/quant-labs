@@ -72,6 +72,14 @@ CREATE TABLE IF NOT EXISTS etr_sessions (
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_user ON etr_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_expires ON etr_sessions (expires_at);
 
+-- 登录失败限速（按 IP 撞库防护）
+CREATE TABLE IF NOT EXISTS etr_login_guard (
+  client_key   TEXT    NOT NULL PRIMARY KEY,
+  fail_count   INTEGER NOT NULL DEFAULT 0,
+  window_start TEXT    NOT NULL,
+  updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 商店 / 外卖评价（用户私有 + 可选公开到广场）
 CREATE TABLE IF NOT EXISTS store_review (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

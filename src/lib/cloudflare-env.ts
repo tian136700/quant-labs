@@ -3,6 +3,7 @@ import { LS_LOCALE } from "@/i18n/messages";
 import { LOCALE_HEADER, parseLocale } from "@/lib/locale-detect";
 import { enableAnalyticsDevStore } from "@/lib/analytics-db";
 import { enableEtrAuthDevStore } from "@/lib/etr-auth-db";
+import { enableEtrLoginGuardDevStore } from "@/lib/etr-login-guard";
 import { enableEnglishTeacherReviewDevStore } from "@/lib/english-teacher-review-db";
 import { enableFeedbackDevStore } from "@/lib/feedback-db";
 import { enableJpLessonDevStore } from "@/lib/jp-lesson-db";
@@ -23,6 +24,12 @@ function withLocalAuthEnv(cfEnv: CloudflareEnv): CloudflareEnv {
       cfEnv.ETR_JP_VOCAB_USERNAME ?? process.env.ETR_JP_VOCAB_USERNAME,
     ETR_JP_VOCAB_PASSWORD:
       cfEnv.ETR_JP_VOCAB_PASSWORD ?? process.env.ETR_JP_VOCAB_PASSWORD,
+    ETR_JP_VOCAB_USER1_USERNAME:
+      cfEnv.ETR_JP_VOCAB_USER1_USERNAME ??
+      process.env.ETR_JP_VOCAB_USER1_USERNAME,
+    ETR_JP_VOCAB_USER1_PASSWORD:
+      cfEnv.ETR_JP_VOCAB_USER1_PASSWORD ??
+      process.env.ETR_JP_VOCAB_USER1_PASSWORD,
     JP_REVIEW_UPLOAD_TOKEN:
       cfEnv.JP_REVIEW_UPLOAD_TOKEN ?? process.env.JP_REVIEW_UPLOAD_TOKEN,
     JP_REVIEW_DOWNLOAD_KEY:
@@ -41,6 +48,7 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
 
   enableEnglishTeacherReviewDevStore();
   enableEtrAuthDevStore();
+  enableEtrLoginGuardDevStore();
   enableStoreReviewDevStore();
   enableFeedbackDevStore();
   enableAnalyticsDevStore();

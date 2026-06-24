@@ -1,4 +1,5 @@
 import {
+  ETR_DEFAULT_JP_VOCAB_USER1_USERNAME,
   ETR_DEFAULT_JP_VOCAB_USERNAME,
   encodePasswordStorage,
   hashPassword,
@@ -9,6 +10,7 @@ import {
   parseAllSessionCookies,
   resolveAdminBootstrap,
   resolveJpVocabBootstrap,
+  resolveJpVocabUser1Bootstrap,
   sessionTtlMs,
   verifyPassword,
   type AdminBootstrap,
@@ -100,7 +102,17 @@ export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> 
 }
 
 export async function ensureJpVocabTeacherUser(env: CloudflareEnv): Promise<void> {
-  const bootstrap = resolveJpVocabBootstrap(env);
+  await ensureJpVocabRoleUser(env, resolveJpVocabBootstrap(env));
+}
+
+export async function ensureJpVocabUser1(env: CloudflareEnv): Promise<void> {
+  await ensureJpVocabRoleUser(env, resolveJpVocabUser1Bootstrap(env));
+}
+
+async function ensureJpVocabRoleUser(
+  env: CloudflareEnv,
+  bootstrap: AdminBootstrap | null
+): Promise<void> {
   if (!bootstrap) return;
 
   const db = env.DB;
@@ -173,6 +185,7 @@ export async function ensureJpVocabTeacherUser(env: CloudflareEnv): Promise<void
 async function ensureBootstrapUsers(env: CloudflareEnv): Promise<void> {
   await ensureDefaultAdminUser(env);
   await ensureJpVocabTeacherUser(env);
+  await ensureJpVocabUser1(env);
 }
 
 async function findUserByUsername(
@@ -270,8 +283,10 @@ export async function registerUser(
   const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
   const jpVocabName =
     resolveJpVocabBootstrap(env)?.username ?? "LiLaoshi";
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
   if (!isValidUsername(name)) return { ok: false, error: "username_invalid" };
-  if (isReservedUsername(name, adminName, jpVocabName))
+  if (isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name))
     return { ok: false, error: "username_reserved" };
   if (password.length < 6) return { ok: false, error: "password_too_short" };
 

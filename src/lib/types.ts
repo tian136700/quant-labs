@@ -72,6 +72,10 @@ export interface CloudflareEnv {
   ETR_JP_VOCAB_USERNAME?: string;
   /** 日语单词模块：老师密码（仅环境变量/Secret，勿提交 Git） */
   ETR_JP_VOCAB_PASSWORD?: string;
+  /** 日语单词模块：user1 用户名（默认 user1） */
+  ETR_JP_VOCAB_USER1_USERNAME?: string;
+  /** 日语单词模块：user1 密码（仅环境变量/Secret，至少 10 位，勿提交 Git） */
+  ETR_JP_VOCAB_USER1_PASSWORD?: string;
   /** 日语复习 PDF / 单词列表：Mac 脚本与 API 上传共用 Bearer Token（wrangler secret） */
   JP_REVIEW_UPLOAD_TOKEN?: string;
   /** 日语复习 PDF：下载可选 query key（留空则公开下载） */

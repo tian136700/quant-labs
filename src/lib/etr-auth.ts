@@ -4,6 +4,9 @@ export const ETR_DEFAULT_ADMIN_USERNAME = "Admin";
 /** 日语单词模块专用账号（英文用户名，对应「李老师」） */
 export const ETR_DEFAULT_JP_VOCAB_USERNAME = "LiLaoshi";
 
+/** 日语单词模块第二账号（登录名 user1） */
+export const ETR_DEFAULT_JP_VOCAB_USER1_USERNAME = "user1";
+
 export const ETR_SESSION_COOKIE = "etr_session";
 
 /** Admin 登录有效期：半年 */
@@ -129,12 +132,14 @@ export function isValidUsername(username: string): boolean {
 export function isReservedUsername(
   username: string,
   adminUsername = ETR_DEFAULT_ADMIN_USERNAME,
-  jpVocabUsername = ETR_DEFAULT_JP_VOCAB_USERNAME
+  jpVocabUsername = ETR_DEFAULT_JP_VOCAB_USERNAME,
+  jpVocabUser1Username = ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
 ): boolean {
   const lower = username.toLowerCase();
   return (
     lower === adminUsername.toLowerCase() ||
-    lower === jpVocabUsername.toLowerCase()
+    lower === jpVocabUsername.toLowerCase() ||
+    lower === jpVocabUser1Username.toLowerCase()
   );
 }
 
@@ -165,6 +170,37 @@ export function resolveJpVocabBootstrap(env: {
   if (!password) return null;
   const username =
     env.ETR_JP_VOCAB_USERNAME?.trim() || ETR_DEFAULT_JP_VOCAB_USERNAME;
+  return { username, password };
+}
+
+/** 老师 / 管理员 bootstrap 密码最低要求（仅环境变量配置，不写进源码） */
+export function isBootstrapPasswordAcceptable(password: string): boolean {
+  if (password.length < 10) return false;
+  const weak = new Set([
+    "123456",
+    "12345678",
+    "123456789",
+    "1234567890",
+    "password",
+    "password1",
+    "admin123",
+    "admin1234",
+    "qwerty123",
+    "user123456",
+  ]);
+  return !weak.has(password.toLowerCase());
+}
+
+/** 日语单词模块 user1 账号（与李老师同 jp_vocab 权限；密码仅环境变量/Secret，至少 10 位） */
+export function resolveJpVocabUser1Bootstrap(env: {
+  ETR_JP_VOCAB_USER1_USERNAME?: string;
+  ETR_JP_VOCAB_USER1_PASSWORD?: string;
+}): JpVocabBootstrap | null {
+  const password = env.ETR_JP_VOCAB_USER1_PASSWORD?.trim();
+  if (!password || !isBootstrapPasswordAcceptable(password)) return null;
+  const username =
+    env.ETR_JP_VOCAB_USER1_USERNAME?.trim() ||
+    ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
   return { username, password };
 }
 

@@ -488,7 +488,7 @@ export function JpLessonNotesPage() {
             loginOnly
             variant="inline"
             title="登录 · 课堂笔记"
-            subtitle="使用 LiLaoshi 或管理员账号登录。"
+            subtitle="使用 LiLaoshi、user1 或管理员账号登录。"
             onClose={() => setShowAuth(false)}
             onAuthenticated={(next) => {
               setUser(next);
