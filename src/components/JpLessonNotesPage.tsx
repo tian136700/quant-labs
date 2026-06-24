@@ -103,7 +103,7 @@ export function JpLessonNotesPage() {
   const searchParams = useSearchParams();
   const lessonId = Number(searchParams.get("id"));
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, setUser } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, logout, setUser } = useEtrAuth();
   const canEdit = canAccessJpVocab;
   const [showAuth, setShowAuth] = useState(false);
   const initialCached =
@@ -460,6 +460,17 @@ export function JpLessonNotesPage() {
         </div>
         {canEdit && user ? (
           <span className="jp-lesson-notes-user">{user.username}</span>
+        ) : user ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+            <span className="jp-lesson-notes-user">{user.username}</span>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={() => void logout()}
+            >
+              退出登录
+            </button>
+          </div>
         ) : (
           <button
             type="button"
@@ -474,7 +485,9 @@ export function JpLessonNotesPage() {
 
       {!canEdit ? (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-          访客可浏览笔记；登录后可编辑，输入后会自动保存。
+          {user
+            ? "当前账号仅可浏览；编辑笔记需登录用户权限。"
+            : "当前为浏览模式；编辑笔记需登录。"}
         </p>
       ) : (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
@@ -488,7 +501,7 @@ export function JpLessonNotesPage() {
             loginOnly
             variant="inline"
             title="登录 · 课堂笔记"
-            subtitle="使用 LiLaoshi、user1 或管理员账号登录。"
+            subtitle="登录用户方可修改数据。"
             onClose={() => setShowAuth(false)}
             onAuthenticated={(next) => {
               setUser(next);

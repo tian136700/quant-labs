@@ -353,7 +353,7 @@ export function JpVocabPage() {
         {canOperate && user ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              {user.username} · {user.expires_hint}
+              {user.username}
             </span>
             <button
               type="button"
@@ -372,13 +372,6 @@ export function JpVocabPage() {
               onClick={() => void logout()}
             >
               退出登录
-            </button>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              onClick={() => setShowAuth(true)}
-            >
-              换账号登录
             </button>
           </div>
         ) : (
@@ -423,8 +416,8 @@ export function JpVocabPage() {
           }}
         >
           {user?.role === "user"
-            ? "当前为浏览模式。您已登录的账号无权修改数据，请使用 LiLaoshi、user1 或管理员账号。"
-            : "当前为浏览模式，可查看单词表；勾选熟悉程度与全部重置需登录。若反复要求登录，请先点「清除登录状态」再重新登录。"}
+            ? "当前账号仅可浏览；修改数据需登录用户权限。"
+            : "当前为浏览模式；修改数据需登录。"}
         </p>
       ) : null}
 
@@ -434,7 +427,7 @@ export function JpVocabPage() {
             loginOnly
             variant="inline"
             title="登录 · 日语单词"
-            subtitle="使用 LiLaoshi（李老师）、user1 或管理员账号登录后可操作。"
+            subtitle="登录用户方可修改数据。"
             onClose={() => setShowAuth(false)}
             onAuthenticated={(next) => {
               setUser(next);
