@@ -24,7 +24,7 @@ export function formatJpVocabTotalReviewsDisplay(
   const total = jpVocabTotalReviews(word);
   if (total === 0) {
     return {
-      label: locale === "zh" ? "未抽查" : "Never",
+      label: locale === "zh" ? "从未抽查" : "Never",
       isZero: true,
     };
   }

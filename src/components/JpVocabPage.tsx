@@ -963,7 +963,7 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-stat-total) {
           white-space: nowrap;
-          min-width: 3.25rem;
+          min-width: 4rem;
         }
         :global(.jp-vocab-table .jp-vocab-total-never) {
           color: var(--muted);
