@@ -23,6 +23,8 @@ export type Messages = {
     about: string;
     adminDashboard: string;
     adminTrends: string;
+    adminRbac: string;
+    adminUsers: string;
   };
   about: {
     meta: { title: string; description: string };
@@ -259,6 +261,8 @@ export type Messages = {
       passwordConfirmPlaceholder: string;
       loginSubmit: string;
       registerSubmit: string;
+      registerLink: string;
+      switchToLogin: string;
       submitting: string;
       failed: string;
       logout: string;
@@ -403,6 +407,8 @@ export const messages: Record<Locale, Messages> = {
       about: "About",
       adminDashboard: "Admin",
       adminTrends: "AI Prompts",
+      adminRbac: "Roles",
+      adminUsers: "Users",
     },
     about: {
       meta: {
@@ -670,6 +676,8 @@ export const messages: Record<Locale, Messages> = {
         passwordConfirmPlaceholder: "Enter password again",
         loginSubmit: "Log in",
         registerSubmit: "Register & enter",
+        registerLink: "Sign up",
+        switchToLogin: "Log in",
         submitting: "Please wait…",
         failed: "Request failed. Please try again.",
         logout: "Log out",
@@ -870,6 +878,8 @@ export const messages: Record<Locale, Messages> = {
       about: "关于",
       adminDashboard: "后台管理",
       adminTrends: "AI 提示词",
+      adminRbac: "角色权限",
+      adminUsers: "用户管理",
     },
     about: {
       meta: {
@@ -1133,6 +1143,8 @@ export const messages: Record<Locale, Messages> = {
         passwordConfirmPlaceholder: "请再次输入密码",
         loginSubmit: "登录",
         registerSubmit: "注册并进入",
+        registerLink: "网上注册",
+        switchToLogin: "返回登录",
         submitting: "处理中…",
         failed: "请求失败，请重试。",
         logout: "退出登录",

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -103,9 +102,17 @@ export function JpLessonNotesPage() {
   const searchParams = useSearchParams();
   const lessonId = Number(searchParams.get("id"));
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, logout, setUser } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
   const canEdit = canAccessJpVocab;
-  const [showAuth, setShowAuth] = useState(false);
+
+  const openJpAuth = useCallback(() => {
+    openAuthPanel({
+      mode: "login",
+      loginOnly: true,
+      title: "登录 · 课堂笔记",
+      subtitle: "登录用户方可修改数据。",
+    });
+  }, [openAuthPanel]);
   const initialCached =
     Number.isInteger(lessonId) && lessonId > 0 ? pickLessonFromCache(lessonId) : null;
   const [lesson, setLesson] = useState<JpLessonRecord | null>(() => initialCached?.lesson ?? null);
@@ -216,7 +223,7 @@ export function JpLessonNotesPage() {
       if (!lesson) return;
       if (!canEdit) {
         if (!opts?.auto) {
-          setShowAuth(true);
+          openJpAuth();
         }
         return;
       }
@@ -405,7 +412,7 @@ export function JpLessonNotesPage() {
 
   const addField = (item: string) => {
     if (!canEdit) {
-      setShowAuth(true);
+      openJpAuth();
       return;
     }
     setItemFields((prev) => ({
@@ -416,7 +423,7 @@ export function JpLessonNotesPage() {
 
   const removeField = (item: string, key: string) => {
     if (!canEdit) {
-      setShowAuth(true);
+      openJpAuth();
       return;
     }
     setItemFields((prev) => {
@@ -458,29 +465,6 @@ export function JpLessonNotesPage() {
             </p>
           ) : null}
         </div>
-        {canEdit && user ? (
-          <span className="jp-lesson-notes-user">{user.username}</span>
-        ) : user ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <span className="jp-lesson-notes-user">{user.username}</span>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              onClick={() => void logout()}
-            >
-              退出登录
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-            onClick={() => setShowAuth(true)}
-            disabled={checking}
-          >
-            {checking ? "验证中…" : "登录后编辑"}
-          </button>
-        )}
       </div>
 
       {!canEdit ? (
@@ -494,22 +478,6 @@ export function JpLessonNotesPage() {
           输入后会自动保存；也可随时点「保存笔记」手动保存。
         </p>
       )}
-
-      {showAuth && !canEdit ? (
-        <div style={{ marginBottom: "1.25rem" }}>
-          <TeacherReviewAuth
-            loginOnly
-            variant="inline"
-            title="登录 · 课堂笔记"
-            subtitle="登录用户方可修改数据。"
-            onClose={() => setShowAuth(false)}
-            onAuthenticated={(next) => {
-              setUser(next);
-              setShowAuth(false);
-            }}
-          />
-        </div>
-      ) : null}
 
       {loading ? (
         <p style={{ color: "var(--muted)" }}>加载中…</p>

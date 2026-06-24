@@ -1,5 +1,5 @@
 import { trackVisit } from "@/lib/analytics-db";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import {
   getCloudflareEnv,
   jsonResponse,
@@ -49,8 +49,8 @@ export async function GET(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requirePermission(request, "admin:dashboard");
+    if (!allowed) {
       return jsonResponse(
         { ok: false, error: errMsg("auth_required", locale), auth_required: true },
         401

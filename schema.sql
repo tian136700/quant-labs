@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS etr_users (
   username      TEXT    NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT    NOT NULL,
   role          TEXT    NOT NULL DEFAULT 'user',
+  disabled      INTEGER NOT NULL DEFAULT 0,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -71,6 +72,29 @@ CREATE TABLE IF NOT EXISTS etr_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_user ON etr_sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_etr_sessions_expires ON etr_sessions (expires_at);
+
+-- 一次性登录链接（管理员生成，兑换后 30 天会话）
+CREATE TABLE IF NOT EXISTS etr_login_links (
+  token               TEXT    NOT NULL PRIMARY KEY,
+  user_id             INTEGER NOT NULL,
+  link_expires_at     TEXT    NOT NULL,
+  consumed_at         TEXT,
+  created_by_admin_id INTEGER NOT NULL,
+  created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_login_links_user ON etr_login_links (user_id);
+
+-- RBAC：角色 → 权限（admin 在代码层始终拥有全部权限）
+CREATE TABLE IF NOT EXISTS etr_role_permissions (
+  role           TEXT    NOT NULL,
+  permission_key TEXT    NOT NULL,
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (role, permission_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_role_permissions_role ON etr_role_permissions (role);
 
 -- 登录失败限速（按 IP 撞库防护）
 CREATE TABLE IF NOT EXISTS etr_login_guard (

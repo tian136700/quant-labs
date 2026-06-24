@@ -111,6 +111,18 @@ export function adminTrendsPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/trends" : "/admin/trends";
 }
 
+export function adminRbacPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/rbac" : "/admin/rbac";
+}
+
+export function adminUsersPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/users" : "/admin/users";
+}
+
+export function maintenancePath(locale: Locale): string {
+  return locale === "zh" ? "/zh/maintenance" : "/maintenance";
+}
+
 export function isAdminDashboardPath(pathname: string): boolean {
   return pathname === "/admin" || pathname === "/zh/admin";
 }
@@ -119,8 +131,25 @@ export function isAdminTrendsPath(pathname: string): boolean {
   return pathname === "/admin/trends" || pathname === "/zh/admin/trends";
 }
 
+export function isAdminRbacPath(pathname: string): boolean {
+  return pathname === "/admin/rbac" || pathname === "/zh/admin/rbac";
+}
+
+export function isAdminUsersPath(pathname: string): boolean {
+  return pathname === "/admin/users" || pathname === "/zh/admin/users";
+}
+
+export function isMaintenancePath(pathname: string): boolean {
+  return pathname === "/maintenance" || pathname === "/zh/maintenance";
+}
+
 export function isAdminPath(pathname: string): boolean {
-  return isAdminDashboardPath(pathname) || isAdminTrendsPath(pathname);
+  return (
+    isAdminDashboardPath(pathname) ||
+    isAdminTrendsPath(pathname) ||
+    isAdminRbacPath(pathname) ||
+    isAdminUsersPath(pathname)
+  );
 }
 
 export function jpReviewPath(): string {

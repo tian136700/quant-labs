@@ -4,6 +4,8 @@ import { LOCALE_HEADER, parseLocale } from "@/lib/locale-detect";
 import { enableAnalyticsDevStore } from "@/lib/analytics-db";
 import { enableEtrAuthDevStore } from "@/lib/etr-auth-db";
 import { enableEtrLoginGuardDevStore } from "@/lib/etr-login-guard";
+import { enableEtrLoginLinkDevStore } from "@/lib/etr-login-link-db";
+import { enableRbacDevStore } from "@/lib/rbac-db";
 import { enableEnglishTeacherReviewDevStore } from "@/lib/english-teacher-review-db";
 import { enableFeedbackDevStore } from "@/lib/feedback-db";
 import { enableJpLessonDevStore } from "@/lib/jp-lesson-db";
@@ -49,6 +51,8 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
   enableEnglishTeacherReviewDevStore();
   enableEtrAuthDevStore();
   enableEtrLoginGuardDevStore();
+  enableEtrLoginLinkDevStore();
+  enableRbacDevStore();
   enableStoreReviewDevStore();
   enableFeedbackDevStore();
   enableAnalyticsDevStore();

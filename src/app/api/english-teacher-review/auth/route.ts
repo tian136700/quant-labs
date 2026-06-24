@@ -3,9 +3,9 @@ import {
   loginUser,
   logoutSession,
   registerUser,
+  resolveAuthSession,
 } from "@/lib/etr-auth-db";
 import {
-  canUserOperateJpVocab,
   clearAllSessionCookieHeaders,
   formatExpiresHint,
   parseAllSessionCookies,
@@ -16,6 +16,7 @@ import {
   clearLoginFailures,
   recordLoginFailure,
 } from "@/lib/etr-login-guard";
+import { enrichSessionUser } from "@/lib/rbac-db";
 import {
   getCloudflareEnv,
   jsonResponse,
@@ -94,37 +95,54 @@ function errMsg(key: string, locale: "en" | "zh"): string {
   return AUTH_ERRORS[key]?.[locale] ?? AUTH_ERRORS[key]?.en ?? key;
 }
 
+async function publicAuthUser(
+  env: Awaited<ReturnType<typeof getCloudflareEnv>>,
+  user: NonNullable<Awaited<ReturnType<typeof getSessionUserFromRequest>>>,
+  locale: "en" | "zh"
+) {
+  const enriched = await enrichSessionUser(env.DB, user);
+  return {
+    id: enriched.id,
+    username: enriched.username,
+    role: enriched.role,
+    expires_at: enriched.expires_at,
+    expires_hint: formatExpiresHint(enriched.role, locale),
+    permissions: enriched.permissions,
+    can_operate_jp_vocab: enriched.can_operate_jp_vocab,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const env = await getCloudflareEnv();
     const cookieHeader = request.headers.get("cookie");
-    const user = await getSessionUserFromRequest(env, cookieHeader);
+    const resolved = await resolveAuthSession(env, cookieHeader);
 
-    if (!user) {
-      const hadCookie = parseAllSessionCookies(cookieHeader).length > 0;
-      if (hadCookie) {
-        return jsonWithSetCookies(
-          { ok: true, authenticated: false, user: null, stale_cookie_cleared: true },
-          200,
-          clearAllSessionCookieHeaders()
-        );
-      }
-      return jsonResponse({ ok: true, authenticated: false, user: null });
+    if (resolved.status === "maintenance") {
+      return jsonResponse(
+        { ok: true, authenticated: false, user: null, maintenance: true },
+        200
+      );
     }
 
-    const locale = localeFromRequest(request);
-    return jsonResponse({
-      ok: true,
-      authenticated: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        expires_at: user.expires_at,
-        expires_hint: formatExpiresHint(user.role, locale),
-        can_operate_jp_vocab: canUserOperateJpVocab(user),
-      },
-    });
+    if (resolved.status === "authenticated") {
+      const locale = localeFromRequest(request);
+      return jsonResponse({
+        ok: true,
+        authenticated: true,
+        user: await publicAuthUser(env, resolved.user, locale),
+      });
+    }
+
+    if (resolved.staleCookie) {
+      return jsonWithSetCookies(
+        { ok: true, authenticated: false, user: null, stale_cookie_cleared: true },
+        200,
+        clearAllSessionCookieHeaders()
+      );
+    }
+
+    return jsonResponse({ ok: true, authenticated: false, user: null });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message, authenticated: false }, 500);
@@ -188,6 +206,9 @@ export async function POST(request: Request) {
 
       const result = await loginUser(env, username, password);
       if (!result.ok) {
+        if (result.error === "maintenance") {
+          return jsonResponse({ ok: false, maintenance: true }, 503);
+        }
         await recordLoginFailure(env.DB, request);
         return jsonResponse(
           { ok: false, error: errMsg(result.error, locale) },
@@ -197,15 +218,11 @@ export async function POST(request: Request) {
 
       await clearLoginFailures(env.DB, request);
 
+      const sessionUser = { ...result.user, expires_at: result.expires_at };
       return jsonWithSetCookies(
         {
           ok: true,
-          user: {
-            ...result.user,
-            expires_at: result.expires_at,
-            expires_hint: formatExpiresHint(result.user.role, locale),
-            can_operate_jp_vocab: canUserOperateJpVocab(result.user),
-          },
+          user: await publicAuthUser(env, sessionUser, locale),
         },
         200,
         authSuccessCookies(result.token, result.expires_at)
@@ -229,14 +246,11 @@ export async function POST(request: Request) {
         );
       }
 
+      const sessionUser = { ...result.user, expires_at: result.expires_at };
       return jsonWithSetCookies(
         {
           ok: true,
-          user: {
-            ...result.user,
-            expires_at: result.expires_at,
-            expires_hint: formatExpiresHint(result.user.role, locale),
-          },
+          user: await publicAuthUser(env, sessionUser, locale),
         },
         200,
         authSuccessCookies(result.token, result.expires_at)

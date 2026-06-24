@@ -5,17 +5,23 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { isJpVocabTeacherAllowedPath, jpVocabPath } from "@/lib/locale-path";
 
-/** 日语模块老师只能访问 jp-vocab / jp-lesson（含笔记子页）/ about，其他页面重定向回单词页 */
+/** 仅「日语教师导航」且非完整导航的用户，限制在日语相关页面 */
 export function JpVocabTeacherRouteGuard() {
-  const { isJpVocabTeacher, checking } = useEtrAuth();
+  const { hasPermission, isAdmin, checking } = useEtrAuth();
   const pathname = usePathname() ?? "/";
   const router = useRouter();
 
+  const restricted =
+    !checking &&
+    !isAdmin &&
+    hasPermission("nav:jp_teacher") &&
+    !hasPermission("nav:full");
+
   useEffect(() => {
-    if (checking || !isJpVocabTeacher) return;
+    if (!restricted) return;
     if (isJpVocabTeacherAllowedPath(pathname)) return;
     router.replace(jpVocabPath());
-  }, [checking, isJpVocabTeacher, pathname, router]);
+  }, [restricted, pathname, router]);
 
   return null;
 }

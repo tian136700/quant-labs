@@ -64,6 +64,20 @@ function writeDevFailure(key: string): void {
   });
 }
 
+async function ensureLoginGuardSchema(db: D1Database): Promise<void> {
+  if (devGuardEnabled) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS etr_login_guard (
+         client_key   TEXT NOT NULL PRIMARY KEY,
+         fail_count   INTEGER NOT NULL DEFAULT 0,
+         window_start TEXT NOT NULL,
+         updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+       )`
+    )
+    .run();
+}
+
 export async function checkLoginRateLimit(
   db: D1Database,
   request: Request
@@ -73,6 +87,8 @@ export async function checkLoginRateLimit(
   if (devGuardEnabled) {
     return checkRow(readDevRow(key));
   }
+
+  await ensureLoginGuardSchema(db);
 
   const row = await db
     .prepare(
@@ -102,6 +118,8 @@ export async function recordLoginFailure(
     writeDevFailure(key);
     return;
   }
+
+  await ensureLoginGuardSchema(db);
 
   const ts = new Date(nowMs()).toISOString();
   const row = await db
@@ -142,6 +160,9 @@ export async function clearLoginFailures(
 ): Promise<void> {
   const key = clientKey(request);
   devFailures.delete(key);
+  if (devGuardEnabled) return;
+
+  await ensureLoginGuardSchema(db);
   await db
     .prepare(`DELETE FROM etr_login_guard WHERE client_key = ?1`)
     .bind(key)

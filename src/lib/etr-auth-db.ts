@@ -23,6 +23,15 @@ import type { CloudflareEnv } from "./types";
 type DevUser = EtrUser & { password_hash: string };
 type DevSession = { token: string; user_id: number; expires_at: string; created_at: string };
 
+export type AuthSessionResolve =
+  | { status: "authenticated"; user: EtrSessionUser }
+  | { status: "maintenance" }
+  | { status: "anonymous"; staleCookie: boolean };
+
+function isUserDisabled(user: Pick<EtrUser, "disabled"> | null | undefined): boolean {
+  return (user?.disabled ?? 0) !== 0;
+}
+
 let devAuthEnabled = false;
 const devUsers: DevUser[] = [];
 const devSessions: DevSession[] = [];
@@ -46,6 +55,19 @@ function isExpired(expiresAt: string): boolean {
   return new Date(expiresAt).getTime() <= Date.now();
 }
 
+async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
+  if (devAuthEnabled) return;
+  const info = await db.prepare(`PRAGMA table_info(etr_users)`).all<{ name: string }>();
+  const hasDisabled = (info.results ?? []).some((row) => row.name === "disabled");
+  if (!hasDisabled) {
+    await db
+      .prepare(
+        `ALTER TABLE etr_users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+}
+
 export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> {
   const bootstrap = resolveAdminBootstrap(env);
   if (!bootstrap) return;
@@ -64,6 +86,7 @@ export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> 
       username,
       password_hash: encodePasswordStorage(salt, hash),
       role: "admin",
+      disabled: 0,
       created_at: nowIso(),
     });
     return;
@@ -71,7 +94,7 @@ export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> 
 
   const row = await db
     .prepare(
-      `SELECT id FROM etr_users WHERE username = ?1 COLLATE NOCASE LIMIT 1`
+      `SELECT id FROM etr_users WHERE username = ?1 LIMIT 1`
     )
     .bind(username)
     .first<{ id: number }>();
@@ -139,6 +162,7 @@ async function ensureJpVocabRoleUser(
       username,
       password_hash: encodePasswordStorage(salt, hash),
       role: "jp_vocab",
+      disabled: 0,
       created_at: nowIso(),
     });
     return;
@@ -146,7 +170,7 @@ async function ensureJpVocabRoleUser(
 
   const row = await db
     .prepare(
-      `SELECT id, role FROM etr_users WHERE username = ?1 COLLATE NOCASE LIMIT 1`
+      `SELECT id, role FROM etr_users WHERE username = ?1 LIMIT 1`
     )
     .bind(username)
     .first<{ id: number; role: string }>();
@@ -183,6 +207,9 @@ async function ensureJpVocabRoleUser(
 }
 
 async function ensureBootstrapUsers(env: CloudflareEnv): Promise<void> {
+  if (!devAuthEnabled) {
+    await ensureEtrUsersSchema(env.DB);
+  }
   await ensureDefaultAdminUser(env);
   await ensureJpVocabTeacherUser(env);
   await ensureJpVocabUser1(env);
@@ -203,15 +230,15 @@ async function findUserByUsername(
   return (
     (await db
       .prepare(
-        `SELECT id, username, password_hash, role, created_at
-         FROM etr_users WHERE username = ?1 COLLATE NOCASE LIMIT 1`
+        `SELECT id, username, password_hash, role, disabled, created_at
+         FROM etr_users WHERE username = ?1 LIMIT 1`
       )
       .bind(name)
       .first<EtrUser & { password_hash: string }>()) ?? null
   );
 }
 
-async function findUserById(db: D1Database, userId: number): Promise<EtrUser | null> {
+export async function findUserById(db: D1Database, userId: number): Promise<EtrUser | null> {
   if (devAuthEnabled) {
     const u = devUsers.find((x) => x.id === userId);
     if (!u) return null;
@@ -222,7 +249,7 @@ async function findUserById(db: D1Database, userId: number): Promise<EtrUser | n
   return (
     (await db
       .prepare(
-        `SELECT id, username, role, created_at FROM etr_users WHERE id = ?1 LIMIT 1`
+        `SELECT id, username, role, disabled, created_at FROM etr_users WHERE id = ?1 LIMIT 1`
       )
       .bind(userId)
       .first<EtrUser>()) ?? null
@@ -269,7 +296,9 @@ export async function loginUser(
   if (!valid) return { ok: false, error: "invalid_credentials" };
 
   user = await ensureJpVocabTeacherRoleOnLogin(env, user);
-  return createSession(env.DB, user);
+  if (isUserDisabled(user)) return { ok: false, error: "maintenance" };
+  const { password_hash: _ph, ...publicUser } = user;
+  return createSession(env.DB, publicUser);
 }
 
 export async function registerUser(
@@ -302,11 +331,12 @@ export async function registerUser(
       username: name,
       password_hash: encodePasswordStorage(salt, hash),
       role: "user",
+      disabled: 0,
       created_at: ts,
     };
     devUsers.push(created);
     const { password_hash: _, ...user } = created;
-    return createSession(env.DB, { ...user, password_hash: created.password_hash });
+    return createSession(env.DB, user);
   }
 
   const result = await env.DB
@@ -323,17 +353,19 @@ export async function registerUser(
   const user = await findUserById(env.DB, userId);
   if (!user) return { ok: false, error: "register_failed" };
 
-  return createSession(env.DB, { ...user, password_hash: encodePasswordStorage(salt, hash) });
+  return createSession(env.DB, user);
 }
 
 async function createSession(
   db: D1Database,
-  user: EtrUser & { password_hash: string }
+  user: EtrUser,
+  ttlMs?: number
 ): Promise<AuthResult> {
   const token = newSessionToken();
-  const expiresAt = expiresIso(sessionTtlMs(user.role as EtrUserRole));
+  const expiresAt = expiresIso(
+    ttlMs ?? sessionTtlMs(user.role as EtrUserRole)
+  );
   const ts = nowIso();
-  const { password_hash: _, ...publicUser } = user;
 
   if (devAuthEnabled) {
     devSessions.push({
@@ -342,7 +374,7 @@ async function createSession(
       expires_at: expiresAt,
       created_at: ts,
     });
-    return { ok: true, user: publicUser, token, expires_at: expiresAt };
+    return { ok: true, user, token, expires_at: expiresAt };
   }
 
   await db
@@ -353,18 +385,131 @@ async function createSession(
     .bind(token, user.id, expiresAt, ts)
     .run();
 
-  return { ok: true, user: publicUser, token, expires_at: expiresAt };
+  return { ok: true, user, token, expires_at: expiresAt };
+}
+
+export async function createSessionForUser(
+  env: CloudflareEnv,
+  userId: number,
+  ttlMs: number
+): Promise<AuthResult> {
+  await ensureBootstrapUsers(env);
+
+  const user = await findUserById(env.DB, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (isUserDisabled(user)) return { ok: false, error: "maintenance" };
+
+  return createSession(env.DB, user, ttlMs);
 }
 
 export async function getSessionUserFromRequest(
   env: CloudflareEnv,
   cookieHeader: string | null | undefined
 ): Promise<EtrSessionUser | null> {
-  for (const token of parseAllSessionCookies(cookieHeader ?? null)) {
-    const user = await getSessionUser(env, token);
-    if (user) return user;
-  }
+  const resolved = await resolveAuthSession(env, cookieHeader);
+  if (resolved.status === "authenticated") return resolved.user;
   return null;
+}
+
+export async function resolveAuthSession(
+  env: CloudflareEnv,
+  cookieHeader: string | null | undefined
+): Promise<AuthSessionResolve> {
+  await ensureBootstrapUsers(env);
+
+  const tokens = parseAllSessionCookies(cookieHeader ?? null);
+  if (!tokens.length) {
+    return { status: "anonymous", staleCookie: false };
+  }
+
+  let staleCookie = false;
+  for (const token of tokens) {
+    const result = await lookupSession(env, token);
+    if (result.kind === "valid") {
+      return { status: "authenticated", user: result.user };
+    }
+    if (result.kind === "maintenance") {
+      return { status: "maintenance" };
+    }
+    if (result.kind === "expired") staleCookie = true;
+  }
+
+  return { status: "anonymous", staleCookie };
+}
+
+type SessionLookupResult =
+  | { kind: "valid"; user: EtrSessionUser }
+  | { kind: "maintenance" }
+  | { kind: "expired" }
+  | { kind: "missing" };
+
+async function lookupSession(
+  env: CloudflareEnv,
+  token: string
+): Promise<SessionLookupResult> {
+  if (!token) return { kind: "missing" };
+
+  const db = env.DB;
+
+  if (devAuthEnabled) {
+    const session = devSessions.find((s) => s.token === token);
+    if (!session) return { kind: "missing" };
+    if (isExpired(session.expires_at)) {
+      const idx = devSessions.indexOf(session);
+      if (idx >= 0) devSessions.splice(idx, 1);
+      return { kind: "expired" };
+    }
+    const user = devUsers.find((u) => u.id === session.user_id);
+    if (!user) return { kind: "missing" };
+    if (isUserDisabled(user)) {
+      return { kind: "maintenance" };
+    }
+    return {
+      kind: "valid",
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        disabled: user.disabled ?? 0,
+        created_at: user.created_at,
+        expires_at: session.expires_at,
+      },
+    };
+  }
+
+  const row = await db
+    .prepare(
+      `SELECT u.id, u.username, u.role, u.disabled, u.created_at, s.expires_at
+       FROM etr_sessions s
+       JOIN etr_users u ON u.id = s.user_id
+       WHERE s.token = ?1
+       LIMIT 1`
+    )
+    .bind(token)
+    .first<EtrSessionUser & { disabled: number }>();
+
+  if (!row) return { kind: "missing" };
+
+  if (isExpired(row.expires_at)) {
+    await db.prepare(`DELETE FROM etr_sessions WHERE token = ?1`).bind(token).run();
+    return { kind: "expired" };
+  }
+
+  if (isUserDisabled(row)) {
+    return { kind: "maintenance" };
+  }
+
+  return {
+    kind: "valid",
+    user: {
+      id: row.id,
+      username: row.username,
+      role: row.role,
+      disabled: row.disabled ?? 0,
+      created_at: row.created_at,
+      expires_at: row.expires_at,
+    },
+  };
 }
 
 export async function getSessionUser(
@@ -372,49 +517,79 @@ export async function getSessionUser(
   token: string | null | undefined
 ): Promise<EtrSessionUser | null> {
   if (!token) return null;
-  await ensureBootstrapUsers(env);
+  const result = await lookupSession(env, token);
+  if (result.kind === "valid") return result.user;
+  return null;
+}
 
-  const db = env.DB;
+export async function listEtrUsers(db: D1Database): Promise<EtrUser[]> {
+  if (devAuthEnabled) {
+    return devUsers
+      .map(({ password_hash: _, ...user }) => user)
+      .sort((a, b) => a.username.localeCompare(b.username, undefined, { sensitivity: "base" }));
+  }
+
+  await ensureEtrUsersSchema(db);
+
+  const result = await db
+    .prepare(
+      `SELECT id, username, role, disabled, created_at
+       FROM etr_users
+       ORDER BY role ASC, username COLLATE NOCASE ASC`
+    )
+    .all<EtrUser>();
+
+  return result.results ?? [];
+}
+
+export async function revokeUserSessions(db: D1Database, userId: number): Promise<void> {
+  if (devAuthEnabled) {
+    for (let i = devSessions.length - 1; i >= 0; i -= 1) {
+      if (devSessions[i].user_id === userId) devSessions.splice(i, 1);
+    }
+    return;
+  }
+
+  await db.prepare(`DELETE FROM etr_sessions WHERE user_id = ?1`).bind(userId).run();
+}
+
+export type SetUserDisabledResult =
+  | { ok: true; user: EtrUser }
+  | { ok: false; error: string };
+
+export async function setUserDisabled(
+  db: D1Database,
+  userId: number,
+  disabled: boolean,
+  actorUserId: number
+): Promise<SetUserDisabledResult> {
+  if (userId === actorUserId) {
+    return { ok: false, error: "cannot_disable_self" };
+  }
+
+  const user = await findUserById(db, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (user.role === "admin") return { ok: false, error: "cannot_disable_admin" };
+
+  const flag = disabled ? 1 : 0;
 
   if (devAuthEnabled) {
-    const session = devSessions.find((s) => s.token === token);
-    if (!session || isExpired(session.expires_at)) {
-      if (session) {
-        const idx = devSessions.indexOf(session);
-        if (idx >= 0) devSessions.splice(idx, 1);
-      }
-      return null;
-    }
-    const user = devUsers.find((u) => u.id === session.user_id);
-    if (!user) return null;
-    return {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      created_at: user.created_at,
-      expires_at: session.expires_at,
-    };
+    const row = devUsers.find((u) => u.id === userId);
+    if (!row) return { ok: false, error: "user_not_found" };
+    row.disabled = flag;
+    const { password_hash: _, ...publicUser } = row;
+    return { ok: true, user: publicUser };
   }
 
-  const row = await db
-    .prepare(
-      `SELECT u.id, u.username, u.role, u.created_at, s.expires_at
-       FROM etr_sessions s
-       JOIN etr_users u ON u.id = s.user_id
-       WHERE s.token = ?1
-       LIMIT 1`
-    )
-    .bind(token)
-    .first<EtrSessionUser>();
+  await ensureEtrUsersSchema(db);
+  await db
+    .prepare(`UPDATE etr_users SET disabled = ?1 WHERE id = ?2`)
+    .bind(flag, userId)
+    .run();
 
-  if (!row || isExpired(row.expires_at)) {
-    if (row) {
-      await db.prepare(`DELETE FROM etr_sessions WHERE token = ?1`).bind(token).run();
-    }
-    return null;
-  }
-
-  return row;
+  const updated = await findUserById(db, userId);
+  if (!updated) return { ok: false, error: "user_not_found" };
+  return { ok: true, user: updated };
 }
 
 export async function logoutSession(

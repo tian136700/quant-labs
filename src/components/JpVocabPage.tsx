@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -79,10 +78,17 @@ const SAVE_ERR = {
 
 export function JpVocabPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, logout, refresh, setUser } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, refresh, openAuthPanel } = useEtrAuth();
   const canOperate = canAccessJpVocab;
-  const [showAuth, setShowAuth] = useState(false);
-  const [clearingLogin, setClearingLogin] = useState(false);
+
+  const openJpAuth = useCallback(() => {
+    openAuthPanel({
+      mode: "login",
+      loginOnly: true,
+      title: "登录 · 日语单词",
+      subtitle: "登录用户方可修改数据。",
+    });
+  }, [openAuthPanel]);
   const [words, setWords] = useState<JpVocabWord[]>(() => readVocabCache()?.words ?? []);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readVocabCache()?.refs ?? {});
   const [loading, setLoading] = useState(() => readVocabCache() == null);
@@ -168,7 +174,7 @@ export function JpVocabPage() {
   const recordLevel = async (wordId: number, level: JpVocabLevel) => {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
-      setShowAuth(true);
+      openJpAuth();
       return;
     }
     if (savingId === wordId) return;
@@ -232,7 +238,7 @@ export function JpVocabPage() {
   const resetAll = async () => {
     if (!canOperate) {
       setStatus("请登录后再重置。");
-      setShowAuth(true);
+      openJpAuth();
       return;
     }
     if (resetting) return;
@@ -323,81 +329,9 @@ export function JpVocabPage() {
     }
   };
 
-  const clearLoginState = async () => {
-    if (clearingLogin) return;
-    setClearingLogin(true);
-    setStatus("");
-    setError("");
-    try {
-      await logout();
-      setShowAuth(true);
-      setStatus("已清除旧登录缓存，请重新登录。");
-    } finally {
-      setClearingLogin(false);
-    }
-  };
-
   return (
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "0.75rem",
-          marginBottom: "0.35rem",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", margin: 0 }}>日语单词 / 语法抽问</h1>
-        {canOperate && user ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              {user.username}
-            </span>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              onClick={() => void logout()}
-            >
-              退出登录
-            </button>
-          </div>
-        ) : user ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>{user.username}</span>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              onClick={() => void logout()}
-            >
-              退出登录
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              onClick={() => setShowAuth((v) => !v)}
-              disabled={checking}
-            >
-              {checking ? "验证中…" : "登录后操作"}
-            </button>
-            {!checking ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact"
-                onClick={() => void clearLoginState()}
-                disabled={clearingLogin}
-                title="清除浏览器里残留的旧登录 Cookie"
-              >
-                {clearingLogin ? "清除中…" : "清除登录状态"}
-              </button>
-            ) : null}
-          </div>
-        )}
-      </div>
+      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
         扫一眼单词或语法表，学生回答后勾选熟悉程度；语法名旁带「（点击可进入教案）」的，点蓝色语法名可在新标签页打开教案图片。
       </p>
@@ -419,23 +353,6 @@ export function JpVocabPage() {
             ? "当前账号仅可浏览；修改数据需登录用户权限。"
             : "当前为浏览模式；修改数据需登录。"}
         </p>
-      ) : null}
-
-      {showAuth && !canOperate ? (
-        <div style={{ marginBottom: "1.25rem" }}>
-          <TeacherReviewAuth
-            loginOnly
-            variant="inline"
-            title="登录 · 日语单词"
-            subtitle="登录用户方可修改数据。"
-            onClose={() => setShowAuth(false)}
-            onAuthenticated={(next) => {
-              setUser(next);
-              setShowAuth(false);
-              setStatus("");
-            }}
-          />
-        </div>
       ) : null}
 
       {error ? (
@@ -501,7 +418,7 @@ export function JpVocabPage() {
               onClick={() => {
                 if (!canOperate) {
                   setStatus("请登录后再手动添加。");
-                  setShowAuth(true);
+                  openJpAuth();
                   return;
                 }
                 setShowManualAdd(true);
@@ -792,7 +709,7 @@ export function JpVocabPage() {
         canEdit={canOperate}
         onClose={() => setEditingNotesWord(null)}
         onSaved={handleNotesSaved}
-        onNeedAuth={() => setShowAuth(true)}
+        onNeedAuth={openJpAuth}
       />
 
       <style jsx>{`

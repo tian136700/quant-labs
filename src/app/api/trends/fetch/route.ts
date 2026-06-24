@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { ingestTrendFetch } from "@/lib/trend-db";
 import { runTrendFetchPipeline } from "@/lib/trend-pipeline";
@@ -20,8 +20,8 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requirePermission(request, "admin:trends");
+    if (!allowed) {
       return jsonResponse(
         { ok: false, error: ERROR_MSG[locale].auth, auth_required: true },
         401

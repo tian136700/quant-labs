@@ -13,6 +13,10 @@ export const ETR_SESSION_COOKIE = "etr_session";
 export const ETR_ADMIN_SESSION_MS = 180 * 24 * 60 * 60 * 1000;
 /** 日语模块老师登录有效期：30 天 */
 export const ETR_JP_VOCAB_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
+/** 一次性登录链接兑换后的会话有效期：30 天 */
+export const ETR_LOGIN_LINK_SESSION_MS = ETR_JP_VOCAB_SESSION_MS;
+/** 一次性登录链接本身有效期：7 天（未使用则失效） */
+export const ETR_LOGIN_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** 普通用户登录有效期：7 天 */
 export const ETR_USER_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -23,6 +27,8 @@ export interface EtrUser {
   username: string;
   role: EtrUserRole;
   created_at: string;
+  /** 1 = 已禁用（登录与已登录会话均视为维护中） */
+  disabled?: number;
 }
 
 export interface EtrSessionUser extends EtrUser {

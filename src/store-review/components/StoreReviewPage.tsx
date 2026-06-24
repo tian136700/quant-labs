@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { storeReviewPlazaPath } from "@/lib/locale-path";
@@ -17,7 +16,6 @@ import type {
 } from "@/store-review/types";
 
 type SortOrder = "asc" | "desc";
-type AuthPanelMode = "login" | "register" | null;
 
 type DishRow = {
   key: string;
@@ -84,9 +82,8 @@ export function StoreReviewPage() {
   const sr = t("storeReview");
   const formRef = useRef<HTMLFormElement>(null);
 
-  const { user: authUser, checking: authChecking, setUser: setAuthUser, logout } =
+  const { user: authUser, checking: authChecking, openAuthPanel, setUser: setAuthUser } =
     useEtrAuth();
-  const [authPanel, setAuthPanel] = useState<AuthPanelMode>(null);
 
   const [form, setForm] = useState<FormState>(defaultForm);
   const [records, setRecords] = useState<StoreReviewWithDishes[]>([]);
@@ -111,25 +108,16 @@ export function StoreReviewPage() {
   }, [locale, sr.meta.title]);
 
   const openAuth = (mode: "login" | "register") => {
-    setAuthPanel(mode);
+    openAuthPanel({ mode });
     setStatus(sr.demo.loginToSave);
     setStatusKind("err");
-    window.setTimeout(() => {
-      document.getElementById("etr-auth-panel")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 50);
   };
 
-  const onLogout = async () => {
-    await logout();
-    setAuthPanel(null);
+  useEffect(() => {
+    if (authChecking || authUser) return;
     setRecords([]);
     setForm(defaultForm());
-    setStatus("");
-    setStatusKind("");
-  };
+  }, [authUser, authChecking]);
 
   const setField = useCallback(
     <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -437,70 +425,19 @@ export function StoreReviewPage() {
   return (
     <div className="etr-page svr-page">
       <div className="page-hero">
-        <div className="etr-top-bar">
-          <div className="etr-top-bar-main">
-            <h1>{sr.page.title}</h1>
-            <p className="sub">{sr.page.subtitle}</p>
-            <p className="hint svr-plaza-link-wrap">
-              <Link href={storeReviewPlazaPath(locale)} className="svr-plaza-link">
-                {sr.page.plazaLink}
-              </Link>
-            </p>
-          </div>
-          <div className="etr-top-bar-actions">
-            {authUser ? (
-              <>
-                <p className="hint etr-user-line">{authUser.expires_hint}</p>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void onLogout()}
-                >
-                  {sr.auth.logout}
-                </button>
-              </>
-            ) : (
-              <div className="etr-guest-actions">
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => openAuth("login")}
-                >
-                  {sr.auth.loginTab}
-                </button>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                  onClick={() => openAuth("register")}
-                >
-                  {sr.auth.registerTab}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <h1>{sr.page.title}</h1>
+        <p className="sub">{sr.page.subtitle}</p>
+        <p className="hint svr-plaza-link-wrap">
+          <Link href={storeReviewPlazaPath(locale)} className="svr-plaza-link">
+            {sr.page.plazaLink}
+          </Link>
+        </p>
       </div>
 
       {isGuest ? (
         <p className="etr-demo-banner hint" role="note">
           {sr.demo.banner}
         </p>
-      ) : null}
-
-      {authPanel ? (
-        <div id="etr-auth-panel">
-          <TeacherReviewAuth
-            variant="inline"
-            initialMode={authPanel}
-            onClose={() => setAuthPanel(null)}
-            onAuthenticated={(user) => {
-              setAuthUser(user);
-              setAuthPanel(null);
-              setStatus("");
-              setStatusKind("");
-            }}
-          />
-        </div>
       ) : null}
 
       <section className="section etr-panel" aria-labelledby="svr-form-heading">

@@ -3,9 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import {
-  TeacherReviewAuth,
-} from "@/components/TeacherReviewAuth";
 import { TeacherReviewSeoContent } from "@/components/TeacherReviewSeoContent";
 import {
   getEtrDemoRecords,
@@ -17,7 +14,6 @@ import type {
 } from "@/lib/types";
 
 type SortOrder = "asc" | "desc";
-type AuthPanelMode = "login" | "register" | null;
 
 function todayYmd(): string {
   const d = new Date();
@@ -49,9 +45,8 @@ export function TeacherReviewPage() {
   const demo = tr.demo;
   const formRef = useRef<HTMLFormElement>(null);
 
-  const { user: authUser, checking: authChecking, setUser: setAuthUser, logout } =
+  const { user: authUser, checking: authChecking, openAuthPanel, setUser: setAuthUser } =
     useEtrAuth();
-  const [authPanel, setAuthPanel] = useState<AuthPanelMode>(null);
 
   const [form, setForm] = useState<FormState>({
     id: "",
@@ -84,24 +79,9 @@ export function TeacherReviewPage() {
   }, [locale, tr.meta.title]);
 
   const openAuth = (mode: "login" | "register") => {
-    setAuthPanel(mode);
+    openAuthPanel({ mode });
     setStatus(demo.loginToSave);
     setStatusKind("err");
-    window.setTimeout(() => {
-      document.getElementById("etr-auth-panel")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 50);
-  };
-
-  const onLogout = async () => {
-    await logout();
-    setAuthPanel(null);
-    setRecords([]);
-    resetForm();
-    setStatus("");
-    setStatusKind("");
   };
 
   const setField = useCallback(
@@ -120,6 +100,12 @@ export function TeacherReviewPage() {
       remark: "",
     });
   }, []);
+
+  useEffect(() => {
+    if (authChecking || authUser) return;
+    setRecords([]);
+    resetForm();
+  }, [authUser, authChecking, resetForm]);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -316,65 +302,14 @@ export function TeacherReviewPage() {
   return (
     <div className="etr-page">
       <div className="page-hero">
-        <div className="etr-top-bar">
-          <div className="etr-top-bar-main">
-            <h1>{tr.page.title}</h1>
-            <p className="sub">{tr.page.subtitle}</p>
-          </div>
-          <div className="etr-top-bar-actions">
-            {authUser ? (
-              <>
-                <p className="hint etr-user-line">{authUser.expires_hint}</p>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void onLogout()}
-                >
-                  {tr.auth.logout}
-                </button>
-              </>
-            ) : (
-              <div className="etr-guest-actions">
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => openAuth("login")}
-                >
-                  {tr.auth.loginTab}
-                </button>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                  onClick={() => openAuth("register")}
-                >
-                  {tr.auth.registerTab}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        <h1>{tr.page.title}</h1>
+        <p className="sub">{tr.page.subtitle}</p>
       </div>
 
       {isDemo ? (
         <p className="etr-demo-banner hint" role="note">
           {demo.banner}
         </p>
-      ) : null}
-
-      {authPanel ? (
-        <div id="etr-auth-panel">
-          <TeacherReviewAuth
-            variant="inline"
-            initialMode={authPanel}
-            onClose={() => setAuthPanel(null)}
-            onAuthenticated={(user) => {
-              setAuthUser(user);
-              setAuthPanel(null);
-              setStatus("");
-              setStatusKind("");
-            }}
-          />
-        </div>
       ) : null}
 
       <section className="section etr-panel" aria-labelledby="etr-form-heading">

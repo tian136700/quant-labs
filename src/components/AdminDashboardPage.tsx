@@ -5,7 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { countryDisplayName } from "@/lib/geoip";
-import { adminTrendsPath, teacherReviewNavPath } from "@/lib/locale-path";
+import { adminTrendsPath, adminRbacPath, adminUsersPath, teacherReviewNavPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import type { VisitLogSortField, VisitLogSortOrder } from "@/lib/analytics-db";
 
@@ -42,7 +42,8 @@ export function AdminDashboardPage() {
   const { locale, t, tf } = useI18n();
   const adm = t("adminDashboard");
   const admTrends = t("adminTrends");
-  const { isAdmin, checking } = useEtrAuth();
+  const { isAdmin, hasPermission, checking } = useEtrAuth();
+  const canViewRbac = isAdmin || hasPermission("admin:rbac");
 
   const [visits, setVisits] = useState<VisitLogRecord[]>([]);
   const [visitPage, setVisitPage] = useState(1);
@@ -166,6 +167,22 @@ export function AdminDashboardPage() {
         <p className="sub">{adm.page.subtitle}</p>
         <p className="hint">
           <a href={adminTrendsPath(locale)}>{admTrends.page.title} →</a>
+          {canViewRbac ? (
+            <>
+              {" · "}
+              <a href={adminRbacPath(locale)}>
+                {locale === "zh" ? "角色权限管理 →" : "Role permissions →"}
+              </a>
+            </>
+          ) : null}
+          {isAdmin ? (
+            <>
+              {" · "}
+              <a href={adminUsersPath(locale)}>
+                {locale === "zh" ? "用户管理 →" : "User management →"}
+              </a>
+            </>
+          ) : null}
         </p>
       </div>
 

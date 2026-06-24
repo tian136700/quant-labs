@@ -15,7 +15,9 @@ import {
   canUserOperateJpVocab,
   isJpVocabTeacherRole,
 } from "@/lib/etr-auth";
+import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
+import { isMaintenancePath, maintenancePath } from "@/lib/locale-path";
 import {
   clearClientCache,
   readClientCache,
@@ -30,28 +32,50 @@ export type EtrAuthUser = {
   role: EtrUserRole;
   expires_at: string;
   expires_hint: string;
-  /** 服务端根据当前会话计算的日语单词操作权限 */
+  permissions?: string[];
+  /** 服务端根据 RBAC 计算的日语单词操作权限 */
   can_operate_jp_vocab?: boolean;
+};
+
+type AuthPanelState = {
+  mode: "login" | "register";
+  loginOnly?: boolean;
+  title?: string;
+  subtitle?: string;
 };
 
 type EtrAuthContextValue = {
   user: EtrAuthUser | null;
   checking: boolean;
+  maintenance: boolean;
+  authPanel: AuthPanelState | null;
   isAdmin: boolean;
   isJpVocabTeacher: boolean;
   canAccessJpVocab: boolean;
+  permissions: string[];
+  hasPermission: (key: string) => boolean;
   refresh: () => Promise<void>;
   setUser: (user: EtrAuthUser | null) => void;
+  openAuthPanel: (opts: AuthPanelState) => void;
+  closeAuthPanel: () => void;
   logout: () => Promise<void>;
 };
 
 const EtrAuthContext = createContext<EtrAuthContextValue | null>(null);
 
 export function EtrAuthProvider({ children }: { children: ReactNode }) {
-  // SSR / 首次 hydration 必须与服务器一致，不可读 localStorage（见 I18nProvider）
   const [user, setUser] = useState<EtrAuthUser | null>(null);
   const [checking, setChecking] = useState(true);
+  const [maintenance, setMaintenance] = useState(false);
+  const [authPanel, setAuthPanel] = useState<AuthPanelState | null>(null);
   const refreshGenRef = useRef(0);
+
+  const redirectMaintenance = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (isMaintenancePath(window.location.pathname)) return;
+    const locale = readStoredLocale() ?? "en";
+    window.location.href = maintenancePath(locale);
+  }, []);
 
   const refresh = useCallback(async () => {
     const gen = ++refreshGenRef.current;
@@ -65,6 +89,14 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       });
       const data = await res.json();
       if (gen !== refreshGenRef.current) return;
+      if (data.maintenance) {
+        setUser(null);
+        setMaintenance(true);
+        clearClientCache(AUTH_USER_CACHE_KEY);
+        redirectMaintenance();
+        return;
+      }
+      setMaintenance(false);
       if (data.ok && data.authenticated && data.user) {
         const next = data.user as EtrAuthUser;
         setUser(next);
@@ -78,7 +110,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     } finally {
       if (gen === refreshGenRef.current) setChecking(false);
     }
-  }, []);
+  }, [redirectMaintenance]);
 
   useEffect(() => {
     const cached = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY);
@@ -89,13 +121,22 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  /** 登录成功后写入用户，并作废进行中的 refresh，避免把刚登录的状态冲掉 */
   const applyUser = useCallback((next: EtrAuthUser | null) => {
     refreshGenRef.current += 1;
     setUser(next);
+    setMaintenance(false);
+    setAuthPanel(null);
     setChecking(false);
     if (next) writeClientCache(AUTH_USER_CACHE_KEY, next);
     else clearClientCache(AUTH_USER_CACHE_KEY);
+  }, []);
+
+  const openAuthPanel = useCallback((opts: AuthPanelState) => {
+    setAuthPanel(opts);
+  }, []);
+
+  const closeAuthPanel = useCallback(() => {
+    setAuthPanel(null);
   }, []);
 
   const logout = useCallback(async () => {
@@ -111,25 +152,45 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     setUser(null);
+    setMaintenance(false);
+    setAuthPanel(null);
     clearClientCache(AUTH_USER_CACHE_KEY);
     setChecking(false);
   }, []);
+
+  const permissions = user?.permissions ?? [];
+  const isAdmin = isAdminSuperuser(user?.role);
+
+  const hasPermission = useCallback(
+    (key: string) => {
+      if (!user) return false;
+      if (isAdmin) return true;
+      return permissions.includes(key);
+    },
+    [user, isAdmin, permissions]
+  );
 
   const value = useMemo(
     () => ({
       user,
       checking,
-      isAdmin: user?.role === "admin",
+      maintenance,
+      authPanel,
+      isAdmin,
       isJpVocabTeacher: isJpVocabTeacherRole(user?.role),
       canAccessJpVocab:
         user?.can_operate_jp_vocab === true ||
         (user?.can_operate_jp_vocab === undefined &&
           canUserOperateJpVocab(user)),
+      permissions,
+      hasPermission,
       refresh,
       setUser: applyUser,
+      openAuthPanel,
+      closeAuthPanel,
       logout,
     }),
-    [user, checking, refresh, applyUser, logout]
+    [user, checking, maintenance, authPanel, isAdmin, permissions, hasPermission, refresh, applyUser, openAuthPanel, closeAuthPanel, logout]
   );
 
   return (

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
-import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -92,9 +91,17 @@ function lessonShareCopyText(
 
 export function JpLessonPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, logout, setUser } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
   const canOperate = canAccessJpVocab;
-  const [showAuth, setShowAuth] = useState(false);
+
+  const openJpAuth = useCallback(() => {
+    openAuthPanel({
+      mode: "login",
+      loginOnly: true,
+      title: "登录 · 日语新课",
+      subtitle: "登录用户方可修改数据。",
+    });
+  }, [openAuthPanel]);
   const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
   const [notes, setNotes] = useState<JpLessonNote[]>(() => readLessonCache()?.notes ?? []);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readLessonCache()?.refs ?? {});
@@ -201,7 +208,7 @@ export function JpLessonPage() {
     progressStatus: JpLessonProgressStatus
   ) => {
     if (!canOperate) {
-      setShowAuth(true);
+      openJpAuth();
       return;
     }
     if (savingId === lessonId) return;
@@ -443,44 +450,7 @@ export function JpLessonPage() {
 
   return (
     <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: "0.75rem",
-          marginBottom: "0.35rem",
-        }}
-      >
-        <h1 style={{ fontSize: "1.5rem", margin: 0 }}>日语新课</h1>
-        {canOperate && user ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              {user.username}
-            </span>
-            <button type="button" className="btn-rsi-filter btn-rsi-filter--compact" onClick={() => void logout()}>
-              退出登录
-            </button>
-          </div>
-        ) : user ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>{user.username}</span>
-            <button type="button" className="btn-rsi-filter btn-rsi-filter--compact" onClick={() => void logout()}>
-              退出登录
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-            onClick={() => setShowAuth(true)}
-            disabled={checking}
-          >
-            {checking ? "验证中…" : "登录后操作"}
-          </button>
-        )}
-      </div>
+      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
         新课学习清单与教案管理。访客可浏览；登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
@@ -489,22 +459,6 @@ export function JpLessonPage() {
         </a>
         并带上教案链接。
       </p>
-
-      {showAuth && !canOperate ? (
-        <div style={{ marginBottom: "1.25rem" }}>
-          <TeacherReviewAuth
-            loginOnly
-            variant="inline"
-            title="登录 · 日语新课"
-            subtitle="登录用户方可修改数据。"
-            onClose={() => setShowAuth(false)}
-            onAuthenticated={(next) => {
-              setUser(next);
-              setShowAuth(false);
-            }}
-          />
-        </div>
-      ) : null}
 
       {error ? (
         <p className="empty" role="alert" style={{ color: "var(--rise)" }}>
@@ -569,7 +523,7 @@ export function JpLessonPage() {
         canEdit={canOperate}
         onClose={() => setEditingLesson(null)}
         onUpdated={handleRefUpdated}
-        onNeedAuth={() => setShowAuth(true)}
+        onNeedAuth={openJpAuth}
       />
 
       <JpLessonAnnotateModal
@@ -582,7 +536,7 @@ export function JpLessonPage() {
         canSave={canOperate}
         onClose={() => setAnnotatingLesson(null)}
         onSaved={handleAnnotateSaved}
-        onNeedAuth={() => setShowAuth(true)}
+        onNeedAuth={openJpAuth}
       />
 
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>

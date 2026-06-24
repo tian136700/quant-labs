@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { EtrAuthUser } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import { readStoredLocale } from "@/lib/locale-detect";
+import { maintenancePath } from "@/lib/locale-path";
 
 export type { EtrAuthUser };
 
@@ -90,6 +92,17 @@ export function TeacherReviewAuth({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    setMode(initialMode);
+    setError("");
+  }, [initialMode]);
+
+  const switchMode = (next: AuthMode) => {
+    setMode(next);
+    setError("");
+    setPasswordConfirm("");
+  };
+
   const submit = async () => {
     setError("");
     setLoading(true);
@@ -106,6 +119,11 @@ export function TeacherReviewAuth({
         }),
       });
       const data = await res.json();
+      if (data.maintenance) {
+        const locale = readStoredLocale() ?? "en";
+        window.location.href = maintenancePath(locale);
+        return;
+      }
       if (!data.ok) {
         setError(data.error || auth.failed);
         return;
@@ -133,35 +151,6 @@ export function TeacherReviewAuth({
             aria-label={auth.close}
           >
             ×
-          </button>
-        </div>
-      ) : null}
-
-      {!loginOnly ? (
-        <div className="etr-auth-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "login"}
-            className={`btn-rsi-filter btn-rsi-filter--compact${mode === "login" ? " is-active" : ""}`}
-            onClick={() => {
-              setMode("login");
-              setError("");
-            }}
-          >
-            {auth.loginTab}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "register"}
-            className={`btn-rsi-filter btn-rsi-filter--compact${mode === "register" ? " is-active" : ""}`}
-            onClick={() => {
-              setMode("register");
-              setError("");
-            }}
-          >
-            {auth.registerTab}
           </button>
         </div>
       ) : null}
@@ -231,7 +220,7 @@ export function TeacherReviewAuth({
           </p>
         ) : null}
 
-        <div className="etr-form-actions etr-form-actions--center">
+        <div className="etr-auth-form-actions">
           <button
             type="submit"
             className="btn-rsi-filter btn-rsi-filter--primary etr-auth-submit"
@@ -243,6 +232,24 @@ export function TeacherReviewAuth({
                 ? auth.loginSubmit
                 : auth.registerSubmit}
           </button>
+          {!loginOnly && mode === "login" ? (
+            <button
+              type="button"
+              className="etr-auth-switch-link"
+              onClick={() => switchMode("register")}
+            >
+              {auth.registerLink}
+            </button>
+          ) : null}
+          {!loginOnly && mode === "register" ? (
+            <button
+              type="button"
+              className="etr-auth-switch-link"
+              onClick={() => switchMode("login")}
+            >
+              {auth.switchToLogin}
+            </button>
+          ) : null}
         </div>
       </form>
     </section>

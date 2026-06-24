@@ -1,5 +1,5 @@
 import { listVisitLogs } from "@/lib/analytics-db";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requirePermission } from "@/lib/admin-auth";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 
 const ERROR_MSG: Record<"en" | "zh", string> = {
@@ -11,8 +11,8 @@ export async function GET(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requirePermission(request, "admin:dashboard");
+    if (!allowed) {
       return jsonResponse(
         { ok: false, error: ERROR_MSG[locale], auth_required: true },
         401
