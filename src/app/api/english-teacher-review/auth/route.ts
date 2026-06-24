@@ -22,6 +22,7 @@ import {
   jsonResponse,
   localeFromRequest,
 } from "@/lib/cloudflare-env";
+import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 
 function jsonWithSetCookies(
   data: Record<string, unknown>,
@@ -88,6 +89,10 @@ const AUTH_ERRORS: Record<string, Record<"en" | "zh", string>> = {
   rate_limited: {
     en: "Too many failed login attempts. Please try again later.",
     zh: "登录失败次数过多，请稍后再试。",
+  },
+  registration_disabled: {
+    en: "Registration is temporarily unavailable.",
+    zh: "暂不开放网上注册。",
   },
 };
 
@@ -230,6 +235,13 @@ export async function POST(request: Request) {
     }
 
     if (action === "register") {
+      if (!PUBLIC_REGISTRATION_ENABLED) {
+        return jsonResponse(
+          { ok: false, error: errMsg("registration_disabled", locale) },
+          403
+        );
+      }
+
       const confirm = body.password_confirm || "";
       if (password !== confirm) {
         return jsonResponse(

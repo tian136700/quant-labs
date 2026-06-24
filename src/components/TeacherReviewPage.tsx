@@ -12,6 +12,7 @@ import type {
   EnglishTeacherReviewRecord,
   EnglishTeacherReviewSortField,
 } from "@/lib/types";
+import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 
 type SortOrder = "asc" | "desc";
 
@@ -602,9 +603,9 @@ export function TeacherReviewPage() {
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--primary"
-            onClick={() => openAuth("register")}
+            onClick={() => openAuth(PUBLIC_REGISTRATION_ENABLED ? "register" : "login")}
           >
-            {demo.loginToManage}
+            {PUBLIC_REGISTRATION_ENABLED ? demo.loginToManage : tr.auth.loginTab}
           </button>
         )}
       </div>

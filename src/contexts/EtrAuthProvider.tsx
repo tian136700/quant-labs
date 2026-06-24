@@ -23,6 +23,7 @@ import {
   readClientCache,
   writeClientCache,
 } from "@/lib/client-swr-cache";
+import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 
 const AUTH_USER_CACHE_KEY = "etr-auth:user:v1";
 
@@ -132,6 +133,10 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openAuthPanel = useCallback((opts: AuthPanelState) => {
+    if (!PUBLIC_REGISTRATION_ENABLED) {
+      setAuthPanel({ ...opts, mode: "login", loginOnly: true });
+      return;
+    }
     setAuthPanel(opts);
   }, []);
 

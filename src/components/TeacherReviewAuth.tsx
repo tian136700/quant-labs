@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { EtrAuthUser } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { readStoredLocale } from "@/lib/locale-detect";
+import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 import { maintenancePath } from "@/lib/locale-path";
 
 export type { EtrAuthUser };
@@ -129,10 +130,14 @@ export function TeacherReviewAuth({
 }: Props) {
   const { t } = useI18n();
   const auth = t("teacherReview").auth;
+  const showRegister = PUBLIC_REGISTRATION_ENABLED && !loginOnly;
+
+  const resolveMode = (m: AuthMode): AuthMode =>
+    m === "register" && !showRegister ? "login" : m;
 
   const [mode, setMode] = useState<AuthMode>(() => {
-    if (variant !== "inline") return initialMode;
-    return readAuthDraft()?.mode ?? initialMode;
+    if (variant !== "inline") return resolveMode(initialMode);
+    return resolveMode(readAuthDraft()?.mode ?? initialMode);
   });
   const [username, setUsername] = useState(() =>
     variant === "inline" ? (readAuthDraft()?.username ?? "") : ""
@@ -145,9 +150,9 @@ export function TeacherReviewAuth({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setMode(initialMode);
+    setMode(resolveMode(initialMode));
     setError("");
-  }, [initialMode]);
+  }, [initialMode, showRegister]);
 
   useEffect(() => {
     if (variant !== "inline") return;
@@ -213,7 +218,7 @@ export function TeacherReviewAuth({
         </div>
       ) : null}
 
-      {mode === "register" && !loginOnly ? (
+      {mode === "register" && showRegister ? (
         <>
           <p className="hint etr-auth-hint">{auth.registerHint}</p>
           <p className="hint etr-auth-warning">{auth.saveCredentialsWarning}</p>
@@ -258,7 +263,7 @@ export function TeacherReviewAuth({
           required
         />
 
-        {mode === "register" && !loginOnly ? (
+        {mode === "register" && showRegister ? (
           <PasswordField
             id="etr-auth-password-confirm"
             label={auth.passwordConfirm}
@@ -290,7 +295,7 @@ export function TeacherReviewAuth({
                 ? auth.loginSubmit
                 : auth.registerSubmit}
           </button>
-          {!loginOnly && mode === "login" ? (
+          {showRegister && mode === "login" ? (
             <button
               type="button"
               className="etr-auth-switch-link"
@@ -299,7 +304,7 @@ export function TeacherReviewAuth({
               {auth.registerLink}
             </button>
           ) : null}
-          {!loginOnly && mode === "register" ? (
+          {showRegister && mode === "register" ? (
             <button
               type="button"
               className="etr-auth-switch-link"
