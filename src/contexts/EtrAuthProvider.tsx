@@ -17,7 +17,7 @@ import {
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
-import { isMaintenancePath, maintenancePath } from "@/lib/locale-path";
+import { isMaintenancePath, aboutPath } from "@/lib/locale-path";
 import {
   clearClientCache,
   readClientCache,
@@ -156,6 +156,10 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     setAuthPanel(null);
     clearClientCache(AUTH_USER_CACHE_KEY);
     setChecking(false);
+    if (typeof window !== "undefined") {
+      const locale = readStoredLocale() ?? "zh";
+      window.location.href = aboutPath(locale);
+    }
   }, []);
 
   const permissions = user?.permissions ?? [];

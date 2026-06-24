@@ -29,9 +29,10 @@ type NavItem = {
 
 export function SiteNav() {
   const { locale, t } = useI18n();
-  const { isAdmin, hasPermission, checking } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking } = useEtrAuth();
+  const loggedIn = Boolean(user);
   const jpTeacherNav =
-    hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
+    loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
   const pathname = usePathname() ?? "/";
   const nav = t("nav");
   const onSubdomain = useStoreReviewSubdomain();
@@ -43,7 +44,16 @@ export function SiteNav() {
 
   let items: NavItem[];
 
-  if (jpTeacherNav) {
+  if (!loggedIn && !checking) {
+    items = [
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  } else if (jpTeacherNav) {
     items = [
       {
         id: "jpVocab",
@@ -64,7 +74,7 @@ export function SiteNav() {
         active: isAboutPath(pathname),
       },
     ];
-  } else if (onHiddenJp && !hasPermission("nav:full")) {
+  } else if (onHiddenJp && loggedIn && !hasPermission("nav:full")) {
     items = [
       ...(onJpVocab
         ? [
@@ -177,12 +187,16 @@ export function SiteNav() {
                 ]
               : []),
           ]),
-      {
-        id: "storeReview",
-        href: navHref("storeReview", locale, navOpts),
-        label: nav.storeReview,
-        active: isStoreReviewHomePath(pathname),
-      },
+      ...(hasPermission("store_review:use")
+        ? [
+            {
+              id: "storeReview",
+              href: navHref("storeReview", locale, navOpts),
+              label: nav.storeReview,
+              active: isStoreReviewHomePath(pathname),
+            },
+          ]
+        : []),
       {
         id: "about",
         href: navHref("about", locale, navOpts),
@@ -191,20 +205,29 @@ export function SiteNav() {
       },
     ];
   } else {
-    items = [
-      {
-        id: "storeReview",
-        href: navHref("storeReview", locale, navOpts),
-        label: nav.storeReview,
-        active: isStoreReviewHomePath(pathname),
-      },
-      {
-        id: "storeReviewPlaza",
-        href: navHref("storeReviewPlaza", locale, navOpts),
-        label: t("storeReview").plaza.title,
-        active: isStoreReviewPlazaPath(pathname),
-      },
-    ];
+    items = loggedIn
+      ? [
+          {
+            id: "storeReview",
+            href: navHref("storeReview", locale, navOpts),
+            label: nav.storeReview,
+            active: isStoreReviewHomePath(pathname),
+          },
+          {
+            id: "storeReviewPlaza",
+            href: navHref("storeReviewPlaza", locale, navOpts),
+            label: t("storeReview").plaza.title,
+            active: isStoreReviewPlazaPath(pathname),
+          },
+        ]
+      : [
+          {
+            id: "about",
+            href: navHref("about", locale, navOpts),
+            label: nav.about,
+            active: isAboutPath(pathname),
+          },
+        ];
   }
 
   return (
