@@ -10,6 +10,51 @@ export type { EtrAuthUser };
 
 type AuthMode = "login" | "register";
 
+const AUTH_DRAFT_KEY = "etr-auth:draft:v1";
+
+type AuthDraft = {
+  username: string;
+  password: string;
+  mode: AuthMode;
+};
+
+function readAuthDraft(): AuthDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(AUTH_DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthDraft>;
+    if (typeof parsed.username !== "string" || typeof parsed.password !== "string") {
+      return null;
+    }
+    return {
+      username: parsed.username,
+      password: parsed.password,
+      mode: parsed.mode === "register" ? "register" : "login",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeAuthDraft(draft: AuthDraft) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(AUTH_DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function clearAuthDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(AUTH_DRAFT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 type Props = {
   onAuthenticated: (user: EtrAuthUser) => void;
   variant?: "page" | "inline";
@@ -85,9 +130,16 @@ export function TeacherReviewAuth({
   const { t } = useI18n();
   const auth = t("teacherReview").auth;
 
-  const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<AuthMode>(() => {
+    if (variant !== "inline") return initialMode;
+    return readAuthDraft()?.mode ?? initialMode;
+  });
+  const [username, setUsername] = useState(() =>
+    variant === "inline" ? (readAuthDraft()?.username ?? "") : ""
+  );
+  const [password, setPassword] = useState(() =>
+    variant === "inline" ? (readAuthDraft()?.password ?? "") : ""
+  );
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -96,6 +148,11 @@ export function TeacherReviewAuth({
     setMode(initialMode);
     setError("");
   }, [initialMode]);
+
+  useEffect(() => {
+    if (variant !== "inline") return;
+    writeAuthDraft({ username, password, mode });
+  }, [variant, username, password, mode]);
 
   const switchMode = (next: AuthMode) => {
     setMode(next);
@@ -128,6 +185,7 @@ export function TeacherReviewAuth({
         setError(data.error || auth.failed);
         return;
       }
+      if (variant === "inline") clearAuthDraft();
       onAuthenticated(data.user as EtrAuthUser);
     } catch {
       setError(auth.failed);

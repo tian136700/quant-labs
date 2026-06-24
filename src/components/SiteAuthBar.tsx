@@ -48,16 +48,13 @@ export function SiteAuthBar() {
       </div>
 
       {authPanel && !user ? (
-        <div
-          className="site-auth-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label={authPanel.mode === "register" ? auth.registerTab : auth.loginTab}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeAuthPanel();
-          }}
-        >
-          <div className="site-auth-dialog">
+        <div className="site-auth-overlay">
+          <div
+            className="site-auth-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={authPanel.mode === "register" ? auth.registerTab : auth.loginTab}
+          >
             <TeacherReviewAuth
               variant="inline"
               initialMode={authPanel.mode}
