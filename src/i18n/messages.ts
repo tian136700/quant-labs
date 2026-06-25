@@ -1071,7 +1071,7 @@ export const messages: Record<Locale, Messages> = {
       teacherReview: "英语老师评价",
       jpReview: "日语口语复习",
       jpLesson: "日语新课",
-      jpVocab: "日语单词抽问",
+      jpVocab: "日语抽问",
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",
