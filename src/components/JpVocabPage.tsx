@@ -15,6 +15,8 @@ import {
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
+import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
+import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
@@ -164,6 +166,7 @@ export function JpVocabPage() {
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
@@ -1010,15 +1013,23 @@ export function JpVocabPage() {
                       </td>
                       {SHOW_REMARKS_COLUMN ? (
                         <td className="jp-vocab-notes-col" data-label="备注">
-                          {(w.class_notes || "").trim() ? (
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact"
-                              onClick={() => setViewingRemarksWord(w)}
-                            >
-                              查看
-                            </button>
-                          ) : null}
+                          <div className="jp-vocab-notes-actions">
+                            {(w.class_notes || "").trim() ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact"
+                                onClick={() => setViewingRemarksWord(w)}
+                              >
+                                查看
+                              </button>
+                            ) : null}
+                            {canOperate ? (
+                              <JpEditIconButton
+                                title="编辑备注"
+                                onClick={() => setEditingRemarksWord(w)}
+                              />
+                            ) : null}
+                          </div>
                         </td>
                       ) : null}
                       <td className="jp-vocab-action-col" data-label="操作">
@@ -1058,6 +1069,16 @@ export function JpVocabPage() {
         open={viewingRemarksWord != null}
         word={viewingRemarksWord}
         onClose={() => setViewingRemarksWord(null)}
+      />
+
+      <JpClassNotesEditModal
+        open={editingRemarksWord != null}
+        word={editingRemarksWord}
+        locale={locale}
+        canEdit={canOperate}
+        onClose={() => setEditingRemarksWord(null)}
+        onSaved={handleWordSaved}
+        onNeedAuth={openJpAuth}
       />
 
       <JpVocabEditModal
@@ -1429,6 +1450,13 @@ export function JpVocabPage() {
         :global(.jp-vocab-table tbody .jp-vocab-notes-col) {
           text-align: center;
           vertical-align: middle;
+        }
+        .jp-vocab-notes-actions {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          flex-wrap: wrap;
         }
         :global(.jp-vocab-table .jp-vocab-action-col) {
           white-space: nowrap;
