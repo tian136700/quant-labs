@@ -305,3 +305,18 @@ CREATE TABLE IF NOT EXISTS trend_blog_publish (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trend_blog_publish_locale ON trend_blog_publish (locale, slug, is_published, updated_at DESC);
+
+-- 在线工具站（tool.info-quests.com）：兑换码，一码一次
+CREATE TABLE IF NOT EXISTS tool_dot_codes (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  code                 TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+  tool_type            TEXT    NOT NULL,
+  label                TEXT,
+  consumed_at          TEXT,
+  consumed_ip          TEXT,
+  consumed_filename    TEXT,
+  created_by_admin_id  INTEGER,
+  created_at           TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_dot_codes_consumed ON tool_dot_codes (consumed_at);

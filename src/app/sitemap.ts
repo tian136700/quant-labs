@@ -5,6 +5,7 @@ import { storeReviewSitemapEntries } from "@/lib/store-review-seo";
 import { isStoreReviewSubdomainHost } from "@/lib/store-review-host";
 import { isTrendBlogSubdomainHost } from "@/lib/trend-blog-host";
 import { trendBlogSitemapEntries } from "@/lib/trend-blog-seo";
+import { toolDotSitemapEntries } from "@/lib/tool-dot-seo";
 import { sitemapEntries } from "@/lib/seo";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -21,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...teacherReviewSitemapEntries(),
       ...storeReviewSitemapEntries(),
       ...trendBlogSitemapEntries(),
+      ...toolDotSitemapEntries(),
     ];
   }
 

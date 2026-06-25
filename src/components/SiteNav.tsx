@@ -10,6 +10,7 @@ import {
   isAdminDashboardPath,
   isAdminRbacPath,
   isAdminTrendsPath,
+  isAdminToolCodesPath,
   isAdminUsersPath,
   isComparePath,
   isJpLessonPath,
@@ -161,6 +162,12 @@ export function SiteNav() {
                     href: navHref("adminUsers", locale, navOpts),
                     label: nav.adminUsers,
                     active: isAdminUsersPath(pathname),
+                  },
+                  {
+                    id: "adminToolCodes",
+                    href: navHref("adminToolCodes", locale, navOpts),
+                    label: nav.adminToolCodes,
+                    active: isAdminToolCodesPath(pathname),
                   },
                 ]
               : []),

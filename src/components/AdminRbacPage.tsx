@@ -12,7 +12,7 @@ import {
   type RbacPermissionCategory,
   type RbacPermissionDef,
 } from "@/lib/rbac";
-import { adminPath, adminTrendsPath, adminUsersPath, teacherReviewNavPath } from "@/lib/locale-path";
+import { adminPath, adminTrendsPath, adminUsersPath, adminToolCodesPath, teacherReviewNavPath } from "@/lib/locale-path";
 
 type RoleMatrix = {
   role: EtrUserRole;
@@ -190,6 +190,8 @@ export function AdminRbacPage() {
           <a href={adminTrendsPath(locale)}>{locale === "zh" ? "趋势抓取" : "Trends"}</a>
           {" · "}
           <a href={adminUsersPath(locale)}>{locale === "zh" ? "用户管理" : "Users"}</a>
+          {" · "}
+          <a href={adminToolCodesPath(locale)}>{locale === "zh" ? "工具发码" : "Tool codes"}</a>
         </p>
       </div>
 

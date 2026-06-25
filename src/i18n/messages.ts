@@ -25,6 +25,7 @@ export type Messages = {
     adminTrends: string;
     adminRbac: string;
     adminUsers: string;
+    adminToolCodes: string;
   };
   about: {
     meta: { title: string; description: string };
@@ -382,6 +383,89 @@ export type Messages = {
       badDishes: string;
     };
   };
+  toolDot: {
+    meta: { title: string; description: string };
+    page: {
+      title: string;
+      subtitle: string;
+      codeHint: string;
+      toolsHeading: string;
+      openTool: string;
+      footerNote: string;
+    };
+    tools: {
+      "pdf-to-word": { title: string; desc: string; pageTitle: string; fileHint: string };
+      "pdf-to-excel": { title: string; desc: string; pageTitle: string; fileHint: string };
+      "word-to-pdf": { title: string; desc: string; pageTitle: string; fileHint: string };
+    };
+    converter: {
+      backHome: string;
+      codeLabel: string;
+      codePlaceholder: string;
+      codeHint: string;
+      codeRequired: string;
+      fileLabel: string;
+      fileRequired: string;
+      fileTooLarge: string;
+      convert: string;
+      working: string;
+      claiming: string;
+      converting: string;
+      claimFailed: string;
+      convertFailed: string;
+      done: string;
+      disclaimer: string;
+    };
+    admin: {
+      meta: { title: string };
+      page: { title: string; subtitle: string };
+      backHome: string;
+      confirmDelete: string;
+      auth: {
+        checking: string;
+        required: string;
+        login: string;
+      };
+      generate: {
+        heading: string;
+        toolType: string;
+        count: string;
+        label: string;
+        labelPlaceholder: string;
+        submit: string;
+        generating: string;
+        result: string;
+        copyAll: string;
+      };
+      list: {
+        heading: string;
+        filterAll: string;
+        filterUnused: string;
+        filterUsed: string;
+        refresh: string;
+        loading: string;
+        empty: string;
+        code: string;
+        toolType: string;
+        label: string;
+        status: string;
+        used: string;
+        unused: string;
+        usedAt: string;
+        actions: string;
+        delete: string;
+      };
+      toolTypes: Record<string, string>;
+      status: {
+        loadFailed: string;
+        generateFailed: string;
+        generated: string;
+        copied: string;
+        copyFailed: string;
+        deleteFailed: string;
+      };
+    };
+  };
 };
 
 export const messages: Record<Locale, Messages> = {
@@ -409,6 +493,7 @@ export const messages: Record<Locale, Messages> = {
       adminTrends: "AI Prompts",
       adminRbac: "Roles",
       adminUsers: "Users",
+      adminToolCodes: "Tool codes",
     },
     about: {
       meta: {
@@ -832,6 +917,119 @@ export const messages: Record<Locale, Messages> = {
         badDishes: "Avoid",
       },
     },
+    toolDot: {
+      meta: {
+        title: "Online Tools — PDF & Word Converters",
+        description:
+          "Convert PDF to Word, PDF to Excel, or Word to PDF with a one-time redemption code.",
+      },
+      page: {
+        title: "Online Tools",
+        subtitle: "Simple document converters — one redemption code, one conversion.",
+        codeHint:
+          "Each tool requires a unique code from the administrator. One code = one conversion.",
+        toolsHeading: "Choose a tool",
+        openTool: "Open →",
+        footerNote:
+          "Files are converted in your browser when possible. Complex layouts may need manual adjustment.",
+      },
+      tools: {
+        "pdf-to-word": {
+          title: "PDF → Word",
+          desc: "Extract text from PDF and download as .docx",
+          pageTitle: "PDF to Word",
+          fileHint: "Upload a .pdf file (max 20 MB)",
+        },
+        "pdf-to-excel": {
+          title: "PDF → Excel",
+          desc: "Extract text lines into a spreadsheet (.xlsx)",
+          pageTitle: "PDF to Excel",
+          fileHint: "Upload a .pdf file (max 20 MB)",
+        },
+        "word-to-pdf": {
+          title: "Word → PDF",
+          desc: "Convert .docx to PDF for sharing or printing",
+          pageTitle: "Word to PDF",
+          fileHint: "Upload a .docx file (max 20 MB)",
+        },
+      },
+      converter: {
+        backHome: "All tools",
+        codeLabel: "Redemption code",
+        codePlaceholder: "e.g. ABCD-1234-WXYZ",
+        codeHint: "Enter the one-time code you received.",
+        codeRequired: "Please enter your redemption code.",
+        fileLabel: "File",
+        fileRequired: "Please choose a file to convert.",
+        fileTooLarge: "File is too large (max {max} MB).",
+        convert: "Convert & Download",
+        working: "Working…",
+        claiming: "Verifying code…",
+        converting: "Converting…",
+        claimFailed: "Code verification failed.",
+        convertFailed: "Conversion failed. If your code was used, contact the administrator.",
+        done: "Done! Your file has been downloaded.",
+        disclaimer:
+          "Scanned PDFs and complex layouts may not convert perfectly. Your code is consumed when conversion starts.",
+      },
+      admin: {
+        meta: { title: "Tool Redemption Codes" },
+        page: {
+          title: "Tool Code Manager",
+          subtitle: "Generate one-time codes for PDF/Word converters.",
+        },
+        backHome: "Tools home",
+        confirmDelete: "Delete this unused code?",
+        auth: {
+          checking: "Checking login…",
+          required: "Admin login required to manage redemption codes.",
+          login: "Log in",
+        },
+        generate: {
+          heading: "Generate codes",
+          toolType: "Tool type",
+          count: "Quantity (1–50)",
+          label: "Note (optional)",
+          labelPlaceholder: "e.g. for Zhang — PDF to Word",
+          submit: "Generate",
+          generating: "Generating…",
+          result: "New codes",
+          copyAll: "Copy all",
+        },
+        list: {
+          heading: "Code list",
+          filterAll: "All",
+          filterUnused: "Unused",
+          filterUsed: "Used",
+          refresh: "Refresh",
+          loading: "Loading…",
+          empty: "No codes yet.",
+          code: "Code",
+          toolType: "Tool",
+          label: "Note",
+          status: "Status",
+          used: "Used",
+          unused: "Unused",
+          usedAt: "Used at",
+          actions: "Actions",
+          delete: "Delete",
+        },
+        toolTypes: {
+          any: "Any tool",
+          "pdf-to-word": "PDF → Word",
+          "pdf-to-excel": "PDF → Excel",
+          "word-to-pdf": "Word → PDF",
+        },
+        status: {
+          loadFailed: "Failed to load codes.",
+          generateFailed: "Failed to generate codes.",
+          generated: "Codes generated.",
+          copied: "Copied to clipboard.",
+          copyFailed: "Copy failed.",
+          deleteFailed: "Delete failed.",
+        },
+      },
+    },
     seo: {
       heading: "About DCA vs RSI(6) backtesting",
       intro:
@@ -880,6 +1078,7 @@ export const messages: Record<Locale, Messages> = {
       adminTrends: "AI 提示词",
       adminRbac: "角色权限",
       adminUsers: "用户管理",
+      adminToolCodes: "工具发码",
     },
     about: {
       meta: {
@@ -1294,6 +1493,115 @@ export const messages: Record<Locale, Messages> = {
         loadFailed: "加载公开评价失败。",
         goodDishes: "推荐",
         badDishes: "避雷",
+      },
+    },
+    toolDot: {
+      meta: {
+        title: "在线工具 — PDF / Word 转换",
+        description: "使用兑换码进行 PDF 转 Word、PDF 转 Excel、Word 转 PDF，一码一次。",
+      },
+      page: {
+        title: "在线工具",
+        subtitle: "简单易用的文档转换，一个兑换码对应一次转换。",
+        codeHint: "每次转换需输入管理员发放的唯一兑换码，一码只能用一次。",
+        toolsHeading: "选择工具",
+        openTool: "进入 →",
+        footerNote: "文件尽量在浏览器内转换；扫描版 PDF 或复杂排版可能需要手动调整。",
+      },
+      tools: {
+        "pdf-to-word": {
+          title: "PDF → Word",
+          desc: "从 PDF 提取文字并下载为 .docx",
+          pageTitle: "PDF 转 Word",
+          fileHint: "上传 .pdf 文件（最大 20 MB）",
+        },
+        "pdf-to-excel": {
+          title: "PDF → Excel",
+          desc: "将 PDF 文字逐行导出为表格 (.xlsx)",
+          pageTitle: "PDF 转 Excel",
+          fileHint: "上传 .pdf 文件（最大 20 MB）",
+        },
+        "word-to-pdf": {
+          title: "Word → PDF",
+          desc: "将 .docx 转为 PDF，便于分享或打印",
+          pageTitle: "Word 转 PDF",
+          fileHint: "上传 .docx 文件（最大 20 MB）",
+        },
+      },
+      converter: {
+        backHome: "全部工具",
+        codeLabel: "兑换码",
+        codePlaceholder: "例如 ABCD-1234-WXYZ",
+        codeHint: "请输入管理员发给您的兑换码。",
+        codeRequired: "请输入兑换码。",
+        fileLabel: "文件",
+        fileRequired: "请选择要转换的文件。",
+        fileTooLarge: "文件过大（最大 {max} MB）。",
+        convert: "转换并下载",
+        working: "处理中…",
+        claiming: "正在验证兑换码…",
+        converting: "正在转换…",
+        claimFailed: "兑换码验证失败。",
+        convertFailed: "转换失败。若兑换码已被使用，请联系管理员重新发码。",
+        done: "完成！文件已开始下载。",
+        disclaimer: "扫描版 PDF 或复杂排版可能无法完美转换。开始转换时会消耗兑换码。",
+      },
+      admin: {
+        meta: { title: "工具兑换码管理" },
+        page: {
+          title: "兑换码管理",
+          subtitle: "为 PDF / Word 转换工具生成一次性兑换码。",
+        },
+        backHome: "工具首页",
+        confirmDelete: "确定删除该未使用的兑换码？",
+        auth: {
+          checking: "正在检查登录…",
+          required: "需要管理员登录才能管理兑换码。",
+          login: "登录",
+        },
+        generate: {
+          heading: "生成兑换码",
+          toolType: "适用工具",
+          count: "数量（1–50）",
+          label: "备注（可选）",
+          labelPlaceholder: "例如：给张三 — PDF 转 Word",
+          submit: "生成",
+          generating: "生成中…",
+          result: "新生成的兑换码",
+          copyAll: "复制全部",
+        },
+        list: {
+          heading: "兑换码列表",
+          filterAll: "全部",
+          filterUnused: "未使用",
+          filterUsed: "已使用",
+          refresh: "刷新",
+          loading: "加载中…",
+          empty: "暂无兑换码。",
+          code: "兑换码",
+          toolType: "工具",
+          label: "备注",
+          status: "状态",
+          used: "已使用",
+          unused: "未使用",
+          usedAt: "使用时间",
+          actions: "操作",
+          delete: "删除",
+        },
+        toolTypes: {
+          any: "任意工具",
+          "pdf-to-word": "PDF → Word",
+          "pdf-to-excel": "PDF → Excel",
+          "word-to-pdf": "Word → PDF",
+        },
+        status: {
+          loadFailed: "加载失败。",
+          generateFailed: "生成失败。",
+          generated: "兑换码已生成。",
+          copied: "已复制到剪贴板。",
+          copyFailed: "复制失败。",
+          deleteFailed: "删除失败。",
+        },
       },
     },
     seo: {

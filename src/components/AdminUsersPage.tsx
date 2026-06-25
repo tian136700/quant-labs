@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import {
   adminPath,
   adminRbacPath,
+  adminToolCodesPath,
   adminTrendsPath,
   teacherReviewNavPath,
 } from "@/lib/locale-path";
@@ -205,6 +206,8 @@ export function AdminUsersPage() {
           <a href={adminTrendsPath(locale)}>{locale === "zh" ? "趋势抓取" : "Trends"}</a>
           {" · "}
           <a href={adminRbacPath(locale)}>{locale === "zh" ? "角色权限" : "Roles"}</a>
+          {" · "}
+          <a href={adminToolCodesPath(locale)}>{locale === "zh" ? "工具发码" : "Tool codes"}</a>
         </p>
       </div>
 

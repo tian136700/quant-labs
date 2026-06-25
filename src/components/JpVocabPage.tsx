@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -54,6 +54,36 @@ const SHOW_REMARKS_COLUMN = true;
 
 /** 暂时隐藏「随机高亮」按钮 */
 const SHOW_RANDOM_HIGHLIGHT = false;
+
+/** 末次勾选后多久再自动重排（老师勾选过程中列表不跳动） */
+const JP_VOCAB_SORT_IDLE_MS = 60 * 60 * 1000;
+
+function jpVocabSortedIds(
+  words: JpVocabWord[],
+  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" }
+): number[] {
+  return sortJpVocabWordsForDisplay(words, statSort).map((w) => w.id);
+}
+
+function jpVocabWordsInOrder(
+  words: JpVocabWord[],
+  order: number[]
+): JpVocabWord[] {
+  const byId = new Map(words.map((w) => [w.id, w]));
+  const seen = new Set<number>();
+  const ordered: JpVocabWord[] = [];
+  for (const id of order) {
+    const word = byId.get(id);
+    if (word) {
+      ordered.push(word);
+      seen.add(id);
+    }
+  }
+  for (const word of words) {
+    if (!seen.has(word.id)) ordered.push(word);
+  }
+  return ordered;
+}
 
 function needsReview(word: JpVocabWord): boolean {
   const total = jpVocabTotalReviews(word);
@@ -123,10 +153,63 @@ export function JpVocabPage() {
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
   }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
+  /** 勾选期间冻结的行顺序（id 列表），避免抽查优先级变化导致行跳动 */
+  const [frozenOrder, setFrozenOrder] = useState<number[]>([]);
+  const [isOrderFrozen, setIsOrderFrozen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
 
+  const wordsRef = useRef(words);
+  const statSortRef = useRef(statSort);
+  const sortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isOrderFrozenRef = useRef(isOrderFrozen);
+  const frozenOrderRef = useRef(frozenOrder);
+
+  useEffect(() => {
+    wordsRef.current = words;
+  }, [words]);
+  useEffect(() => {
+    statSortRef.current = statSort;
+  }, [statSort]);
+  useEffect(() => {
+    isOrderFrozenRef.current = isOrderFrozen;
+  }, [isOrderFrozen]);
+  useEffect(() => {
+    frozenOrderRef.current = frozenOrder;
+  }, [frozenOrder]);
+
+  const clearDeferredSort = useCallback(() => {
+    if (sortTimerRef.current != null) {
+      clearTimeout(sortTimerRef.current);
+      sortTimerRef.current = null;
+    }
+  }, []);
+
+  const applyLiveSort = useCallback(() => {
+    const nextOrder = jpVocabSortedIds(wordsRef.current, statSortRef.current);
+    setFrozenOrder(nextOrder);
+    setIsOrderFrozen(false);
+  }, []);
+
+  const scheduleDeferredSort = useCallback(() => {
+    clearDeferredSort();
+    sortTimerRef.current = setTimeout(() => {
+      sortTimerRef.current = null;
+      applyLiveSort();
+    }, JP_VOCAB_SORT_IDLE_MS);
+  }, [applyLiveSort, clearDeferredSort]);
+
+  useEffect(() => () => clearDeferredSort(), [clearDeferredSort]);
+
+  const freezeDisplayOrder = useCallback((order: number[]) => {
+    setFrozenOrder(order);
+    setIsOrderFrozen(true);
+    scheduleDeferredSort();
+  }, [scheduleDeferredSort]);
+
   const toggleStatSort = (key: JpVocabStatSortKey) => {
+    clearDeferredSort();
+    setIsOrderFrozen(false);
     setStatSort((prev) => {
       if (prev?.key === key) {
         return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
@@ -173,10 +256,12 @@ export function JpVocabPage() {
     void loadWords();
   }, [loadWords]);
 
-  const displayedWords = useMemo(
-    () => sortJpVocabWordsForDisplay(words, statSort),
-    [words, statSort]
-  );
+  const displayedWords = useMemo(() => {
+    if (isOrderFrozen && frozenOrder.length > 0) {
+      return jpVocabWordsInOrder(words, frozenOrder);
+    }
+    return sortJpVocabWordsForDisplay(words, statSort);
+  }, [words, statSort, isOrderFrozen, frozenOrder]);
 
   const reviewCandidates = useMemo(
     () => words.filter((w) => needsReview(w)),
@@ -198,6 +283,16 @@ export function JpVocabPage() {
 
     const snapshot = words.find((w) => w.id === wordId);
     const prevLevel = sessionLevel[wordId];
+
+    if (!isOrderFrozenRef.current) {
+      const currentOrder =
+        frozenOrderRef.current.length > 0
+          ? frozenOrderRef.current
+          : jpVocabSortedIds(wordsRef.current, statSortRef.current);
+      freezeDisplayOrder(currentOrder);
+    } else {
+      scheduleDeferredSort();
+    }
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setHighlightId(wordId);
@@ -288,7 +383,10 @@ export function JpVocabPage() {
       setWords(data.words);
       persistVocabCache(data.words, refs);
       setSessionLevel({});
+      clearDeferredSort();
+      setIsOrderFrozen(false);
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
+      setFrozenOrder(jpVocabSortedIds(data.words, JP_VOCAB_DEFAULT_STAT_SORT));
       setHighlightId(null);
       setStatus("已全部重置，可以开始新一轮复习。");
     } catch (err) {

@@ -5,7 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { countryDisplayName } from "@/lib/geoip";
-import { adminTrendsPath, adminRbacPath, adminUsersPath, teacherReviewNavPath } from "@/lib/locale-path";
+import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, teacherReviewNavPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import type { VisitLogSortField, VisitLogSortOrder } from "@/lib/analytics-db";
 
@@ -180,6 +180,10 @@ export function AdminDashboardPage() {
               {" · "}
               <a href={adminUsersPath(locale)}>
                 {locale === "zh" ? "用户管理 →" : "User management →"}
+              </a>
+              {" · "}
+              <a href={adminToolCodesPath(locale)}>
+                {locale === "zh" ? "工具发码 →" : "Tool codes →"}
               </a>
             </>
           ) : null}

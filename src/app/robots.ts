@@ -18,6 +18,8 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
       "/api/jp-vocab/",
       "/jp-lesson",
       "/api/jp-lesson/",
+      "/tool-dot/admin",
+      "/zh/tool-dot/admin",
     ],
   };
 

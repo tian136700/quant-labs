@@ -119,6 +119,10 @@ export function adminUsersPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/users" : "/admin/users";
 }
 
+export function adminToolCodesPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/tool-codes" : "/admin/tool-codes";
+}
+
 export function maintenancePath(locale: Locale): string {
   return locale === "zh" ? "/zh/maintenance" : "/maintenance";
 }
@@ -139,6 +143,10 @@ export function isAdminUsersPath(pathname: string): boolean {
   return pathname === "/admin/users" || pathname === "/zh/admin/users";
 }
 
+export function isAdminToolCodesPath(pathname: string): boolean {
+  return pathname === "/admin/tool-codes" || pathname === "/zh/admin/tool-codes";
+}
+
 export function isMaintenancePath(pathname: string): boolean {
   return pathname === "/maintenance" || pathname === "/zh/maintenance";
 }
@@ -148,7 +156,8 @@ export function isAdminPath(pathname: string): boolean {
     isAdminDashboardPath(pathname) ||
     isAdminTrendsPath(pathname) ||
     isAdminRbacPath(pathname) ||
-    isAdminUsersPath(pathname)
+    isAdminUsersPath(pathname) ||
+    isAdminToolCodesPath(pathname)
   );
 }
 
@@ -187,6 +196,29 @@ export function isTrendBlogPath(pathname: string): boolean {
 
 export function isJpLessonPath(pathname: string): boolean {
   return pathname === "/jp-lesson" || pathname.startsWith("/jp-lesson/");
+}
+
+const TOOL_SLUGS = ["pdf-to-word", "pdf-to-excel", "word-to-pdf"] as const;
+
+export function toolDotHomePath(locale: Locale): string {
+  return locale === "zh" ? "/zh/tool-dot" : "/tool-dot";
+}
+
+export function toolDotAdminPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/tool-dot/admin" : "/tool-dot/admin";
+}
+
+export function toolDotToolPath(locale: Locale, toolId: string): string {
+  return locale === "zh" ? `/zh/tool-dot/${toolId}` : `/tool-dot/${toolId}`;
+}
+
+export function isToolDotPath(pathname: string): boolean {
+  return (
+    pathname === "/tool-dot" ||
+    pathname === "/zh/tool-dot" ||
+    pathname.startsWith("/tool-dot/") ||
+    pathname.startsWith("/zh/tool-dot/")
+  );
 }
 
 /** 日语模块老师可访问的页面（不含 API / 静态资源） */

@@ -16,6 +16,11 @@ custom_domain = true
 pattern = "blog.info-quests.com"
 custom_domain = true
 
+# 在线工具：暂用 finance 路径 /tool-dot，子域名以后再说
+# [[routes]]
+# pattern = "tool.info-quests.com"
+# custom_domain = true
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"

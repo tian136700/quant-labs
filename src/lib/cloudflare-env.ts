@@ -13,6 +13,7 @@ import { enableJpVocabDevStore } from "@/lib/jp-vocab-db";
 import { enableStoreReviewDevStore } from "@/store-review/db";
 import { enableTrendDevStore } from "@/lib/trend-db";
 import { enableTrendBlogDevStore } from "@/lib/trend-blog-db";
+import { enableToolDotDevStore } from "@/tool-dot/db";
 import type { CloudflareEnv } from "@/lib/types";
 
 function withLocalAuthEnv(cfEnv: CloudflareEnv): CloudflareEnv {
@@ -60,6 +61,7 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
   enableJpLessonDevStore();
   enableTrendDevStore();
   enableTrendBlogDevStore();
+  enableToolDotDevStore();
   return withLocalAuthEnv({
     DB: {
       prepare: () => ({
