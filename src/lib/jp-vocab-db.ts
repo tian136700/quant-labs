@@ -21,10 +21,9 @@ import {
 } from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
 import {
-  beijingDateString,
   effectiveTodayCheckCount,
-  nextTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
+import { applyJpVocabReview } from "@/lib/jp-vocab-review";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
@@ -122,6 +121,14 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.class_notes != null && String(row.class_notes).trim()
         ? String(row.class_notes)
         : null,
+    last_review_level:
+      row.last_review_level === "very" ||
+      row.last_review_level === "normal" ||
+      row.last_review_level === "weak"
+        ? row.last_review_level
+        : null,
+    last_review_at:
+      row.last_review_at != null ? String(row.last_review_at) : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -148,10 +155,17 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("pos")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT`).run();
   }
+  if (!cols.has("last_review_level")) {
+    await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN last_review_level TEXT`).run();
+  }
+  if (!cols.has("last_review_at")) {
+    await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN last_review_at TEXT`).run();
+  }
 }
 
 const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at FROM jp_vocab_word`;
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes,
+  last_review_level, last_review_at, created_at, updated_at FROM jp_vocab_word`;
 
 function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));
@@ -407,17 +421,6 @@ export async function listJpVocabWordsWithRefs(db: D1Database): Promise<{
   return { words, refs: refsRecord(refs) };
 }
 
-function levelColumn(level: JpVocabLevel): string {
-  switch (level) {
-    case "very":
-      return "cnt_very";
-    case "normal":
-      return "cnt_normal";
-    case "weak":
-      return "cnt_weak";
-  }
-}
-
 export type RecordJpVocabReviewResult =
   | { ok: true; word: JpVocabWord }
   | { ok: false; error: string };
@@ -436,49 +439,13 @@ export async function recordJpVocabReview(
 
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
-  const col = levelColumn(level);
-  const ts = nowIso();
-  const today = beijingDateString();
 
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
-    const current = devWords[idx];
-    const daily = nextTodayCheckCount(
-      current.today_check_count ?? 0,
-      current.today_check_date
-    );
-    const updated: JpVocabWord = {
-      ...current,
-      cnt_very: level === "very" ? current.cnt_very + 1 : current.cnt_very,
-      cnt_normal:
-        level === "normal" ? current.cnt_normal + 1 : current.cnt_normal,
-      cnt_weak: level === "weak" ? current.cnt_weak + 1 : current.cnt_weak,
-      today_check_count: daily.count,
-      today_check_date: daily.date,
-      updated_at: ts,
-    };
+    const { word: updated } = applyJpVocabReview(devWords[idx], level);
     devWords[idx] = updated;
     return { ok: true, word: updated };
-  }
-
-  const result = await db
-    .prepare(
-      `UPDATE jp_vocab_word
-       SET ${col} = ${col} + 1,
-           today_check_count = CASE
-             WHEN today_check_date = ?1 THEN today_check_count + 1
-             ELSE 1
-           END,
-           today_check_date = ?1,
-           updated_at = ?2
-       WHERE id = ?3`
-    )
-    .bind(today, ts, wordId)
-    .run();
-
-  if (!result.meta?.changes) {
-    return { ok: false, error: "not_found" };
   }
 
   const row = await db
@@ -487,7 +454,41 @@ export async function recordJpVocabReview(
     .first<Record<string, unknown>>();
 
   if (!row) return { ok: false, error: "not_found" };
-  return { ok: true, word: mapRow(row) };
+
+  const current = mapRow(row);
+  const { word: updated } = applyJpVocabReview(current, level);
+
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET cnt_very = ?1,
+           cnt_normal = ?2,
+           cnt_weak = ?3,
+           today_check_count = ?4,
+           today_check_date = ?5,
+           last_review_level = ?6,
+           last_review_at = ?7,
+           updated_at = ?8
+       WHERE id = ?9`
+    )
+    .bind(
+      updated.cnt_very,
+      updated.cnt_normal,
+      updated.cnt_weak,
+      updated.today_check_count,
+      updated.today_check_date,
+      updated.last_review_level,
+      updated.last_review_at,
+      updated.updated_at,
+      wordId
+    )
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "not_found" };
+  }
+
+  return { ok: true, word: updated };
 }
 
 export type ResetJpVocabReviewsResult =
@@ -509,6 +510,8 @@ export async function resetAllJpVocabReviews(
         cnt_weak: 0,
         today_check_count: 0,
         today_check_date: null,
+        last_review_level: null,
+        last_review_at: null,
         updated_at: ts,
       };
     }
@@ -518,7 +521,10 @@ export async function resetAllJpVocabReviews(
   await db
     .prepare(
       `UPDATE jp_vocab_word
-       SET cnt_very = 0, cnt_normal = 0, cnt_weak = 0, updated_at = ?1`
+       SET cnt_very = 0, cnt_normal = 0, cnt_weak = 0,
+           today_check_count = 0, today_check_date = NULL,
+           last_review_level = NULL, last_review_at = NULL,
+           updated_at = ?1`
     )
     .bind(ts)
     .run();

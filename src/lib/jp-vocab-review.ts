@@ -1,0 +1,119 @@
+import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
+import { nextTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+
+/** 同一单词在此时间内改选熟悉程度，视为修正上次判断，不重复计次 */
+export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
+
+export function reviewTimestampMs(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const normalized = iso.includes("T") ? iso : iso.replace(" ", "T");
+  const ms = Date.parse(normalized);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function isJpVocabReviewCorrection(
+  lastLevel: JpVocabLevel | null | undefined,
+  lastAt: string | null | undefined,
+  nowMs = Date.now()
+): lastLevel is JpVocabLevel {
+  if (!lastLevel || !lastAt) return false;
+  const t = reviewTimestampMs(lastAt);
+  if (t == null) return false;
+  return nowMs - t <= JP_VOCAB_REVIEW_CORRECTION_MS;
+}
+
+export function formatReviewIso(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+function adjustLevelCount(
+  word: JpVocabWord,
+  level: JpVocabLevel,
+  delta: number
+): Pick<JpVocabWord, "cnt_very" | "cnt_normal" | "cnt_weak"> {
+  const bump = (n: number) => Math.max(0, n + delta);
+  return {
+    cnt_very: level === "very" ? bump(word.cnt_very) : word.cnt_very,
+    cnt_normal: level === "normal" ? bump(word.cnt_normal) : word.cnt_normal,
+    cnt_weak: level === "weak" ? bump(word.cnt_weak) : word.cnt_weak,
+  };
+}
+
+export function resolveJpVocabPreviousLevel(
+  word: JpVocabWord,
+  opts: {
+    sessionLevel?: JpVocabLevel;
+    sessionReviewAtMs?: number;
+    nowMs?: number;
+  } = {}
+): JpVocabLevel | null {
+  const nowMs = opts.nowMs ?? Date.now();
+  if (
+    opts.sessionLevel &&
+    opts.sessionReviewAtMs != null &&
+    nowMs - opts.sessionReviewAtMs <= JP_VOCAB_REVIEW_CORRECTION_MS
+  ) {
+    return opts.sessionLevel;
+  }
+  if (isJpVocabReviewCorrection(word.last_review_level, word.last_review_at, nowMs)) {
+    return word.last_review_level ?? null;
+  }
+  return null;
+}
+
+/** 应用一次熟悉程度勾选（新抽查 or 15 秒内改选修正） */
+export function applyJpVocabReview(
+  word: JpVocabWord,
+  level: JpVocabLevel,
+  now = new Date(),
+  previousLevel?: JpVocabLevel | null
+): { word: JpVocabWord; isCorrection: boolean } {
+  const ts = formatReviewIso(now);
+  const prev =
+    previousLevel ??
+    resolveJpVocabPreviousLevel(word, { nowMs: now.getTime() });
+
+  if (prev) {
+    if (prev === level) {
+      return {
+        word: {
+          ...word,
+          last_review_level: level,
+          last_review_at: ts,
+          updated_at: ts,
+        },
+        isCorrection: true,
+      };
+    }
+    const afterPrev = { ...word, ...adjustLevelCount(word, prev, -1) };
+    return {
+      word: {
+        ...afterPrev,
+        ...adjustLevelCount(afterPrev, level, 1),
+        last_review_level: level,
+        last_review_at: ts,
+        updated_at: ts,
+      },
+      isCorrection: true,
+    };
+  }
+
+  const daily = nextTodayCheckCount(
+    word.today_check_count ?? 0,
+    word.today_check_date,
+    now
+  );
+  return {
+    word: {
+      ...word,
+      ...adjustLevelCount(word, level, 1),
+      today_check_count: daily.count,
+      today_check_date: daily.date,
+      last_review_level: level,
+      last_review_at: ts,
+      updated_at: ts,
+    },
+    isCorrection: false,
+  };
+}

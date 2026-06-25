@@ -188,6 +188,8 @@ CREATE TABLE IF NOT EXISTS jp_vocab_word (
   today_check_count INTEGER NOT NULL DEFAULT 0,
   today_check_date  TEXT,
   class_notes TEXT,
+  last_review_level TEXT,
+  last_review_at TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (ref_key) REFERENCES jp_vocab_ref (ref_key) ON DELETE SET NULL
