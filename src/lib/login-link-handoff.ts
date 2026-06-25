@@ -6,9 +6,14 @@ import {
   type EtrUserRole,
 } from "@/lib/etr-auth";
 import { getCloudflareEnv, localeFromRequest } from "@/lib/cloudflare-env";
+import { localeCookieHeader } from "@/lib/locale-detect";
+import { clientIp, setLocalePref } from "@/lib/locale-pref";
 import { jpVocabPath } from "@/lib/locale-path";
 import { getPermissionsForRole } from "@/lib/rbac-db";
 import { isAdminSuperuser } from "@/lib/rbac";
+
+/** 永久登录链接兑换后默认使用中文界面 */
+const LOGIN_LINK_DEFAULT_LOCALE = "zh" as const;
 
 function errorRedirect(request: Request, code: string): Response {
   const locale = localeFromRequest(request);
@@ -54,7 +59,7 @@ export async function handleLoginLinkHandoff(
     return errorRedirect(request, result.error);
   }
 
-  const locale = localeFromRequest(request);
+  const locale = LOGIN_LINK_DEFAULT_LOCALE;
   const redirectUrl = new URL(request.url);
   redirectUrl.pathname = await resolveLoginLinkLandingPath(
     env.DB,
@@ -62,6 +67,11 @@ export async function handleLoginLinkHandoff(
     locale
   );
   redirectUrl.search = "";
+
+  const ip = clientIp(request);
+  if (ip) {
+    await setLocalePref(env.DB, ip, locale);
+  }
 
   const headers = new Headers({ Location: redirectUrl.toString() });
   for (const cookie of clearAllSessionCookieHeaders()) {
@@ -71,6 +81,7 @@ export async function handleLoginLinkHandoff(
     "Set-Cookie",
     sessionCookieHeader(result.token, new Date(result.expires_at))
   );
+  headers.append("Set-Cookie", localeCookieHeader(locale));
 
   return new Response(null, { status: 302, headers });
 }

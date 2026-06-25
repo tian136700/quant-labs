@@ -23,6 +23,21 @@ export function readStoredLocale(): Locale | null {
   }
 }
 
+export function readCookieLocale(): Locale | null {
+  if (typeof document === "undefined") return null;
+  try {
+    for (const part of document.cookie.split(";")) {
+      const [name, ...rest] = part.trim().split("=");
+      if (name === LS_LOCALE) {
+        return parseLocale(decodeURIComponent(rest.join("=")));
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 export function readRouteLocale(): Locale | null {
   if (typeof window === "undefined") return null;
   return localeFromPathname(window.location.pathname);
@@ -33,9 +48,15 @@ export function resolveHydrationLocale(serverLocale?: Locale | null): Locale {
   return serverLocale ?? "en";
 }
 
-/** 优先级：localStorage > 当前路径 > 服务端预判 > 默认英文 */
+/** 优先级：Cookie > localStorage > 当前路径 > 服务端预判 > 默认英文 */
 export function resolveClientLocale(serverLocale?: Locale | null): Locale {
-  return readStoredLocale() ?? readRouteLocale() ?? serverLocale ?? "en";
+  return (
+    readCookieLocale() ??
+    readStoredLocale() ??
+    readRouteLocale() ??
+    serverLocale ??
+    "en"
+  );
 }
 
 /** Cookie > URL 路径 > Cloudflare 国家码 > 英文 */
@@ -77,4 +98,19 @@ export function persistLocale(next: Locale) {
 
 export function localeDocumentLang(locale: Locale): "zh-CN" | "en" {
   return locale === "zh" ? "zh-CN" : "en";
+}
+
+function serverLocaleCookieDomainPart(): string {
+  const explicit = process.env.ETR_COOKIE_DOMAIN?.trim();
+  if (explicit) {
+    const domain = explicit.startsWith(".") ? explicit : `.${explicit}`;
+    return `; Domain=${domain}`;
+  }
+  return "";
+}
+
+/** 服务端 Set-Cookie：与 persistLocale 使用同一 key，供登录链接等场景预设语言 */
+export function localeCookieHeader(locale: Locale): string {
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  return `${LS_LOCALE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax${serverLocaleCookieDomainPart()}${secure}`;
 }
