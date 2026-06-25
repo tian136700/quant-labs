@@ -28,6 +28,7 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
+import { applyJpVocabReview } from "@/lib/jp-vocab-review";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
