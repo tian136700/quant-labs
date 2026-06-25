@@ -1,10 +1,17 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
+  getJpVocabDailyQuizStyle,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
   resetAllJpVocabReviews,
+  setJpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireAdmin } from "@/lib/admin-auth";
+import {
+  normalizeJpVocabDailyQuizStyle,
+  type JpVocabDailyQuizStyle,
+} from "@/lib/jp-vocab-daily-quiz-style";
 import type { JpVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -15,8 +22,11 @@ const AUTH_MSG = {
 export async function GET() {
   try {
     const env = await getCloudflareEnv();
-    const { words, refs } = await listJpVocabWordsWithRefs(env.DB);
-    return jsonResponse({ ok: true, words, refs });
+    const [{ words, refs }, daily_quiz_style] = await Promise.all([
+      listJpVocabWordsWithRefs(env.DB),
+      getJpVocabDailyQuizStyle(env.DB),
+    ]);
+    return jsonResponse({ ok: true, words, refs, daily_quiz_style });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
@@ -36,7 +46,20 @@ export async function POST(request: Request) {
       action?: string;
       word_id?: number;
       level?: JpVocabLevel;
+      daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
     };
+
+    if (body.action === "daily_quiz_style") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+      const daily_quiz_style = await setJpVocabDailyQuizStyle(
+        env.DB,
+        normalizeJpVocabDailyQuizStyle(body.daily_quiz_style)
+      );
+      return jsonResponse({ ok: true, daily_quiz_style });
+    }
 
     if (body.action === "reset") {
       const result = await resetAllJpVocabReviews(env.DB);

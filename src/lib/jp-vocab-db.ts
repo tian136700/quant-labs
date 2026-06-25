@@ -23,7 +23,11 @@ import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
 import {
   effectiveTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
-import { applyJpVocabReview } from "@/lib/jp-vocab-review";
+import {
+  JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
+  normalizeJpVocabDailyQuizStyle,
+  type JpVocabDailyQuizStyle,
+} from "@/lib/jp-vocab-daily-quiz-style";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
@@ -63,6 +67,11 @@ const devWords: JpVocabWord[] = [];
 const devRefs = new Map<string, JpVocabRef>();
 let devNextId = 1;
 let devSeeded = false;
+let devDailyQuizStyle: JpVocabDailyQuizStyle = {
+  ...JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
+};
+
+const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
@@ -1286,4 +1295,73 @@ export async function updateJpVocabWordEntry(
   }
 
   return { ok: true, word: current };
+}
+
+async function ensureJpVocabSettingSchema(db: D1Database): Promise<void> {
+  if (devStoreEnabled) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS jp_vocab_setting (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    )
+    .run();
+}
+
+export async function getJpVocabDailyQuizStyle(
+  db: D1Database
+): Promise<JpVocabDailyQuizStyle> {
+  if (devStoreEnabled) {
+    return normalizeJpVocabDailyQuizStyle(devDailyQuizStyle);
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_DAILY_QUIZ_STYLE_KEY)
+    .first<{ value: string }>();
+
+  if (!row?.value) {
+    return JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT;
+  }
+
+  try {
+    return normalizeJpVocabDailyQuizStyle(
+      JSON.parse(row.value) as Partial<JpVocabDailyQuizStyle>
+    );
+  } catch {
+    return JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT;
+  }
+}
+
+export async function setJpVocabDailyQuizStyle(
+  db: D1Database,
+  style: JpVocabDailyQuizStyle
+): Promise<JpVocabDailyQuizStyle> {
+  const normalized = normalizeJpVocabDailyQuizStyle(style);
+
+  if (devStoreEnabled) {
+    devDailyQuizStyle = normalized;
+    return normalized;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(
+      JP_VOCAB_DAILY_QUIZ_STYLE_KEY,
+      JSON.stringify(normalized),
+      nowIso()
+    )
+    .run();
+
+  return normalized;
 }

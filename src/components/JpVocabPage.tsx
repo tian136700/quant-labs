@@ -23,15 +23,13 @@ import {
   parseJpVocabApi,
   type JpVocabApiPayload,
 } from "@/lib/jp-api-cache";
-import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import { fetchWithClientCache, patchClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { applyJpVocabReview } from "@/lib/jp-vocab-review";
 import {
   JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
   jpVocabDailyQuizStyleVars,
-  readJpVocabDailyQuizStyle,
-  writeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
@@ -40,8 +38,12 @@ function readVocabCache(): JpVocabApiPayload | null {
   return readClientCache<JpVocabApiPayload>(JP_VOCAB_CACHE_KEY);
 }
 
-function persistVocabCache(words: JpVocabWord[], refs: Record<string, JpVocabRef>) {
-  writeClientCache(JP_VOCAB_CACHE_KEY, { words, refs });
+function persistVocabCache(
+  words: JpVocabWord[],
+  refs: Record<string, JpVocabRef>,
+  daily_quiz_style: JpVocabDailyQuizStyle
+) {
+  writeClientCache(JP_VOCAB_CACHE_KEY, { words, refs, daily_quiz_style });
 }
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -176,20 +178,54 @@ export function JpVocabPage() {
   const [dailyQuizStyle, setDailyQuizStyle] = useState<JpVocabDailyQuizStyle>(
     JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT
   );
+  const dailyQuizStyleRef = useRef(dailyQuizStyle);
 
   useEffect(() => {
-    setDailyQuizStyle(readJpVocabDailyQuizStyle());
-  }, []);
+    dailyQuizStyleRef.current = dailyQuizStyle;
+  }, [dailyQuizStyle]);
+
+  const saveDailyQuizStyle = useCallback(
+    async (style: JpVocabDailyQuizStyle) => {
+      if (!isAdmin) return;
+      try {
+        const res = await fetch("/api/jp-vocab", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ action: "daily_quiz_style", daily_quiz_style: style }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          daily_quiz_style?: JpVocabDailyQuizStyle;
+          error?: string;
+        };
+        if (!res.ok || !data.ok || !data.daily_quiz_style) {
+          throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
+        }
+        setDailyQuizStyle(data.daily_quiz_style);
+        patchClientCache<JpVocabApiPayload>(JP_VOCAB_CACHE_KEY, (prev) => ({
+          ...prev,
+          daily_quiz_style: data.daily_quiz_style!,
+        }));
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [isAdmin, locale]
+  );
 
   const patchDailyQuizStyle = useCallback(
     (patch: Partial<JpVocabDailyQuizStyle>) => {
       setDailyQuizStyle((prev) => {
         const next = { ...prev, ...patch };
-        writeJpVocabDailyQuizStyle(next);
+        void saveDailyQuizStyle(next);
         return next;
       });
     },
-    []
+    [saveDailyQuizStyle]
   );
 
   const dailyQuizStyleCssVars = useMemo(
@@ -259,6 +295,7 @@ export function JpVocabPage() {
   const applyVocabPayload = useCallback((payload: JpVocabApiPayload) => {
     setWords(payload.words);
     setRefs(payload.refs);
+    setDailyQuizStyle(payload.daily_quiz_style);
   }, []);
 
   const loadWords = useCallback(async () => {
@@ -383,7 +420,7 @@ export function JpVocabPage() {
       }
       setWords((prev) => {
         const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(next, refs);
+        persistVocabCache(next, refs, dailyQuizStyleRef.current);
         return next;
       });
     } catch (err) {
@@ -444,7 +481,7 @@ export function JpVocabPage() {
         throw new Error(data.error || "重置失败");
       }
       setWords(data.words);
-      persistVocabCache(data.words, refs);
+      persistVocabCache(data.words, refs, dailyQuizStyleRef.current);
       setSessionLevel({});
       setSessionReviewAt({});
       clearDeferredSort();
@@ -481,7 +518,7 @@ export function JpVocabPage() {
       : refs;
     setWords(nextWords);
     setRefs(nextRefs);
-    persistVocabCache(nextWords, nextRefs);
+    persistVocabCache(nextWords, nextRefs, dailyQuizStyleRef.current);
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
@@ -490,7 +527,7 @@ export function JpVocabPage() {
   const handleWordSaved = (word: JpVocabWord) => {
     const nextWords = words.map((w) => (w.id === word.id ? word : w));
     setWords(nextWords);
-    persistVocabCache(nextWords, refs);
+    persistVocabCache(nextWords, refs, dailyQuizStyleRef.current);
     setStatus("词条已保存。");
   };
 
@@ -604,7 +641,7 @@ export function JpVocabPage() {
                 className="btn-rsi-filter"
                 onClick={() => setShowDailyQuizStylePanel((v) => !v)}
                 disabled={loading || !words.length}
-                title="调节「当前排序前 20 条」标记背景的颜色与深浅"
+                title="调节「当前排序前 20 条」标记背景的颜色与深浅（全站统一，仅管理员可改）"
                 aria-expanded={showDailyQuizStylePanel}
               >
                 {showDailyQuizStylePanel ? "收起标记样式" : "标记样式"}
@@ -668,7 +705,7 @@ export function JpVocabPage() {
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
                 <strong>今日待抽查前 {JP_VOCAB_DAILY_QUIZ_TOP} 条</strong>：按<strong>当前表格排序</strong>（默认抽查优先级）取最前面的 {JP_VOCAB_DAILY_QUIZ_TOP} 条，今日尚未勾选的会显示标记背景；勾选后背景消失。
-                样式可在上方「标记样式」里自行调节，设置保存在本浏览器。
+                样式由管理员在上方「标记样式」里统一设置，所有老师看到相同背景。
               </p>
             ) : null}
           </div>
@@ -679,7 +716,7 @@ export function JpVocabPage() {
             <div className="jp-vocab-daily-quiz-style-panel__head">
               <strong>今日前 {JP_VOCAB_DAILY_QUIZ_TOP} 条 · 标记样式</strong>
               <span className="jp-vocab-daily-quiz-style-panel__note">
-                标记范围 = 当前排序下的前 {JP_VOCAB_DAILY_QUIZ_TOP} 条（与表头排序一致，勾选过程中顺序不跳）
+                标记范围 = 当前排序下的前 {JP_VOCAB_DAILY_QUIZ_TOP} 条（与表头排序一致，勾选过程中顺序不跳）；保存后所有老师看到相同背景
               </span>
             </div>
             <label className="jp-vocab-daily-quiz-style-toggle">
@@ -718,8 +755,8 @@ export function JpVocabPage() {
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact"
                 onClick={() => {
-                  writeJpVocabDailyQuizStyle(JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT);
                   setDailyQuizStyle(JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT);
+                  void saveDailyQuizStyle(JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT);
                 }}
               >
                 恢复默认
@@ -783,7 +820,7 @@ export function JpVocabPage() {
                     </button>
                   </th>
                   <th rowSpan={2} className="jp-vocab-level-col">
-                    熟悉程度（老师打分）
+                    熟悉程度（老师勾选）
                   </th>
                   <th colSpan={4} className="jp-vocab-stats-group">
                     复习次数统计
@@ -893,7 +930,7 @@ export function JpVocabPage() {
                       <td className="jp-vocab-risk-col" data-label={jpVocabPriorityLabel(locale)}>
                         <span className="jp-vocab-risk-value">{risk.toFixed(1)}</span>
                       </td>
-                      <td className="jp-vocab-level-col" data-label="熟悉程度（老师打分）">
+                      <td className="jp-vocab-level-col" data-label="熟悉程度（老师勾选）">
                         <div
                           className="jp-vocab-levels"
                           role="group"

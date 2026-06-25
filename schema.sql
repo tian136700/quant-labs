@@ -199,6 +199,13 @@ CREATE INDEX IF NOT EXISTS idx_jp_vocab_word ON jp_vocab_word (word);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_weak ON jp_vocab_word (cnt_weak DESC, cnt_normal ASC);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
 
+-- 日语单词抽问：站点级配置（如今日前 20 条标记样式，管理员统一设置）
+CREATE TABLE IF NOT EXISTS jp_vocab_setting (
+  key        TEXT    PRIMARY KEY,
+  value      TEXT    NOT NULL,
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
 -- 日语新课：学习清单 + 教案（API 在此上传，逗号分隔学习内容）
 CREATE TABLE IF NOT EXISTS jp_lesson (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,6 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_i
 -- ALTER TABLE jp_vocab_word ADD COLUMN ref_key TEXT;
 -- CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
 -- ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT;
+-- CREATE TABLE IF NOT EXISTS jp_vocab_setting (...);  -- 同上
 
 -- trend_aggregator：每日抓取批次 + 条目（含 AI 提示词，可溯源）
 CREATE TABLE IF NOT EXISTS trend_fetch_run (
