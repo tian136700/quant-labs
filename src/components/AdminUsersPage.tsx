@@ -10,6 +10,7 @@ import {
   adminTrendsPath,
   teacherReviewNavPath,
 } from "@/lib/locale-path";
+import { AdminUserEditModal } from "@/components/AdminUserEditModal";
 
 type UserRow = {
   id: number;
@@ -33,6 +34,7 @@ export function AdminUsersPage() {
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"user" | "jp_vocab">("user");
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
 
@@ -342,6 +344,7 @@ export function AdminUsersPage() {
                   const isSelf = currentUser?.id === row.id;
                   const isAdminUser = row.role === "admin";
                   const canToggle = !isSelf && !isAdminUser;
+                  const canEdit = !isAdminUser;
                   const canDelete = !isSelf && !isAdminUser;
                   const canGenerateLink = !row.disabled && !isAdminUser;
                   const busy =
@@ -363,6 +366,16 @@ export function AdminUsersPage() {
                       </td>
                       <td>
                         <div className="admin-user-actions">
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+                              disabled={busy}
+                              onClick={() => setEditingUser(row)}
+                            >
+                              {locale === "zh" ? "编辑" : "Edit"}
+                            </button>
+                          ) : null}
                           {canGenerateLink ? (
                             <button
                               type="button"
@@ -429,6 +442,29 @@ export function AdminUsersPage() {
           </div>
         )}
       </section>
+
+      <AdminUserEditModal
+        open={editingUser != null}
+        user={editingUser}
+        locale={locale}
+        onClose={() => setEditingUser(null)}
+        onSaved={(updated) => {
+          setUsers((prev) => {
+            const next = prev.map((item) =>
+              item.id === updated.id ? { ...item, ...updated } : item
+            );
+            return next.sort((a, b) =>
+              a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
+            );
+          });
+          setStatus(
+            locale === "zh"
+              ? `已更新用户：${updated.username}`
+              : `Updated user: ${updated.username}`
+          );
+          setStatusErr(false);
+        }}
+      />
 
       <style jsx>{`
         .admin-user-add-section {

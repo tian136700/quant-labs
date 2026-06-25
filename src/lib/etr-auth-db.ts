@@ -721,6 +721,101 @@ export async function createUserByAdmin(
   return { ok: true, user };
 }
 
+export type UpdateUserByAdminInput = {
+  username?: string;
+  password?: string;
+  role?: EtrUserRole;
+};
+
+export type UpdateUserByAdminResult = CreateUserByAdminResult;
+
+/** 管理员编辑用户（用户名 / 密码 / 角色） */
+export async function updateUserByAdmin(
+  env: CloudflareEnv,
+  userId: number,
+  input: UpdateUserByAdminInput
+): Promise<UpdateUserByAdminResult> {
+  await ensureBootstrapUsers(env);
+
+  const user = await findUserById(env.DB, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
+
+  const hasUsername = input.username !== undefined;
+  const hasPassword =
+    typeof input.password === "string" && input.password.length > 0;
+  const hasRole = input.role !== undefined;
+
+  if (!hasUsername && !hasPassword && !hasRole) {
+    return { ok: true, user };
+  }
+
+  const nextRole = (hasRole ? input.role : user.role) as EtrUserRole;
+  if (nextRole === "admin") return { ok: false, error: "cannot_create_admin" };
+  if (nextRole !== "user" && nextRole !== "jp_vocab") {
+    return { ok: false, error: "role_invalid" };
+  }
+
+  const name = hasUsername ? normalizeUsername(input.username!) : user.username;
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+
+  if (!isValidUsername(name)) return { ok: false, error: "username_invalid" };
+  if (isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name)) {
+    return { ok: false, error: "username_reserved" };
+  }
+
+  if (name.toLowerCase() !== user.username.toLowerCase()) {
+    const existing = await findUserByUsername(env.DB, name);
+    if (existing && existing.id !== userId) {
+      return { ok: false, error: "username_taken" };
+    }
+  }
+
+  let passwordHash: string | undefined;
+  if (hasPassword) {
+    const password = input.password!;
+    if (password.length < 6) return { ok: false, error: "password_too_short" };
+    if (nextRole === "jp_vocab" && password.length < 10) {
+      return { ok: false, error: "password_too_weak" };
+    }
+    const { salt, hash } = await hashPassword(password);
+    passwordHash = encodePasswordStorage(salt, hash);
+    await revokeUserSessions(env.DB, userId);
+  }
+
+  if (devAuthEnabled) {
+    const row = devUsers.find((u) => u.id === userId);
+    if (!row) return { ok: false, error: "user_not_found" };
+    row.username = name;
+    row.role = nextRole;
+    if (passwordHash) row.password_hash = passwordHash;
+    const { password_hash: _, ...publicUser } = row;
+    return { ok: true, user: publicUser };
+  }
+
+  if (passwordHash) {
+    await env.DB
+      .prepare(
+        `UPDATE etr_users SET username = ?1, role = ?2, password_hash = ?3 WHERE id = ?4`
+      )
+      .bind(name, nextRole, passwordHash, userId)
+      .run();
+  } else {
+    await env.DB
+      .prepare(`UPDATE etr_users SET username = ?1, role = ?2 WHERE id = ?3`)
+      .bind(name, nextRole, userId)
+      .run();
+  }
+
+  const updated = await findUserById(env.DB, userId);
+  if (!updated) return { ok: false, error: "user_not_found" };
+  return { ok: true, user: updated };
+}
+
 /** 将环境变量 / Secret 中的 bootstrap 账号写入 D1（已存在则同步密码） */
 export async function syncBootstrapUsersFromEnv(env: CloudflareEnv): Promise<void> {
   await ensureBootstrapUsers(env);

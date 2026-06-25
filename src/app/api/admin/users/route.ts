@@ -5,6 +5,7 @@ import {
   listEtrUsers,
   setUserDisabled,
   syncBootstrapUsersFromEnv,
+  updateUserByAdmin,
 } from "@/lib/etr-auth-db";
 import { RBAC_ROLE_LABELS } from "@/lib/rbac";
 import type { EtrUserRole } from "@/lib/etr-auth";
@@ -34,6 +35,10 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
   cannot_delete_admin: {
     en: "Admin accounts cannot be deleted.",
     zh: "不能删除管理员账号。",
+  },
+  cannot_edit_admin: {
+    en: "Admin accounts cannot be edited here.",
+    zh: "不能编辑管理员账号。",
   },
   delete_failed: {
     en: "Failed to delete user.",
@@ -173,7 +178,13 @@ export async function PATCH(request: Request) {
       return jsonResponse({ ok: false, error: errMsg("forbidden", locale) }, 403);
     }
 
-    let body: { user_id?: unknown; disabled?: unknown };
+    let body: {
+      user_id?: unknown;
+      disabled?: unknown;
+      username?: unknown;
+      password?: unknown;
+      role?: unknown;
+    };
     try {
       body = (await request.json()) as typeof body;
     } catch {
@@ -184,6 +195,42 @@ export async function PATCH(request: Request) {
     if (!Number.isFinite(userId) || userId <= 0) {
       return jsonResponse({ ok: false, error: errMsg("payload_invalid", locale) }, 400);
     }
+
+    const hasEdit =
+      body.username !== undefined ||
+      body.password !== undefined ||
+      body.role !== undefined;
+
+    if (hasEdit) {
+      const input: {
+        username?: string;
+        password?: string;
+        role?: EtrUserRole;
+      } = {};
+      if (body.username !== undefined) {
+        input.username = String(body.username).trim();
+      }
+      if (body.password !== undefined) {
+        input.password = String(body.password);
+      }
+      if (body.role !== undefined) {
+        input.role = String(body.role).trim() as EtrUserRole;
+      }
+
+      const result = await updateUserByAdmin(env, userId, input);
+      if (!result.ok) {
+        return jsonResponse(
+          { ok: false, error: errMsg(result.error, locale) },
+          400
+        );
+      }
+
+      return jsonResponse({
+        ok: true,
+        user: serializeUser(result.user, locale),
+      });
+    }
+
     if (typeof body.disabled !== "boolean") {
       return jsonResponse({ ok: false, error: errMsg("payload_invalid", locale) }, 400);
     }
