@@ -132,7 +132,8 @@ const SAVE_ERR = {
 
 export function JpVocabPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, refresh, openAuthPanel } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, refresh, openAuthPanel, isAdmin } =
+    useEtrAuth();
   const canOperate = canAccessJpVocab;
 
   const openJpAuth = useCallback(() => {
@@ -511,7 +512,7 @@ export function JpVocabPage() {
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        扫一眼单词或语法表，学生回答后勾选熟悉程度；语法名旁带「（点击可进入教案）」的，点蓝色语法名可在新标签页打开教案图片。
+        扫一眼单词或语法表，学生回答后勾选熟悉程度。
       </p>
 
       {!canOperate && !checking ? (
@@ -577,15 +578,17 @@ export function JpVocabPage() {
                 随机高亮
               </button>
             ) : null}
-            <button
-              type="button"
-              className="btn-rsi-filter"
-              onClick={() => void exportExcel()}
-              disabled={loading || exporting || !words.length}
-              title="导出当前单词表为 Excel 文件"
-            >
-              {exporting ? "导出中…" : "导出 Excel"}
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn-rsi-filter"
+                onClick={() => void exportExcel()}
+                disabled={loading || exporting || !words.length}
+                title="导出当前单词表为 Excel 文件"
+              >
+                {exporting ? "导出中…" : "导出 Excel"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn-rsi-filter"
@@ -595,16 +598,18 @@ export function JpVocabPage() {
             >
               抽查排行
             </button>
-            <button
-              type="button"
-              className="btn-rsi-filter"
-              onClick={() => setShowDailyQuizStylePanel((v) => !v)}
-              disabled={loading || !words.length}
-              title="调节「当前排序前 20 条」标记背景的颜色与深浅"
-              aria-expanded={showDailyQuizStylePanel}
-            >
-              {showDailyQuizStylePanel ? "收起标记样式" : "标记样式"}
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn-rsi-filter"
+                onClick={() => setShowDailyQuizStylePanel((v) => !v)}
+                disabled={loading || !words.length}
+                title="调节「当前排序前 20 条」标记背景的颜色与深浅"
+                aria-expanded={showDailyQuizStylePanel}
+              >
+                {showDailyQuizStylePanel ? "收起标记样式" : "标记样式"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
@@ -621,15 +626,17 @@ export function JpVocabPage() {
             >
               手动添加
             </button>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--danger"
-              onClick={() => void resetAll()}
-              disabled={loading || resetting || !words.length || !canOperate}
-              title={canOperate ? undefined : "登录后可重置"}
-            >
-              {resetting ? "重置中…" : "全部重置"}
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--danger"
+                onClick={() => void resetAll()}
+                disabled={loading || resetting || !words.length || !canOperate}
+                title={canOperate ? undefined : "登录后可重置"}
+              >
+                {resetting ? "重置中…" : "全部重置"}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -667,7 +674,7 @@ export function JpVocabPage() {
           </div>
         ) : null}
 
-        {showDailyQuizStylePanel && !loading && words.length ? (
+        {isAdmin && showDailyQuizStylePanel && !loading && words.length ? (
           <div className="jp-vocab-daily-quiz-style-panel" role="region" aria-label="今日前20条标记样式">
             <div className="jp-vocab-daily-quiz-style-panel__head">
               <strong>今日前 {JP_VOCAB_DAILY_QUIZ_TOP} 条 · 标记样式</strong>
@@ -745,9 +752,6 @@ export function JpVocabPage() {
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
-                  <th rowSpan={2} className="jp-vocab-id-col">
-                    ID
-                  </th>
                   <th rowSpan={2}>类型</th>
                   <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
@@ -847,9 +851,6 @@ export function JpVocabPage() {
                           : undefined,
                       }}
                     >
-                      <td className="jp-vocab-id-col" data-label="ID">
-                        {w.id}
-                      </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
                           className={`jp-vocab-kind-badge${
@@ -1333,7 +1334,6 @@ export function JpVocabPage() {
           opacity: 1;
           color: var(--accent);
         }
-        :global(.jp-vocab-table .jp-vocab-id-col),
         :global(.jp-vocab-table .jp-vocab-stat-detail),
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
@@ -1346,12 +1346,6 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           white-space: nowrap;
           min-width: 4.5rem;
-        }
-        :global(.jp-vocab-table .jp-vocab-id-col) {
-          white-space: nowrap;
-          min-width: 2.75rem;
-          font-variant-numeric: tabular-nums;
-          color: var(--muted);
         }
         :global(.jp-vocab-table .jp-vocab-risk-value) {
           font-weight: 600;
