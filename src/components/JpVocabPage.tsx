@@ -8,7 +8,6 @@ import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   jpVocabPriorityLabel,
   jpVocabRiskIndex,
-  jpVocabTotalReviews,
   formatJpVocabTotalReviewsDisplay,
   jpVocabTotalReviewsZeroHint,
   sortJpVocabWordsForDisplay,
@@ -104,12 +103,6 @@ function jpVocabWordsInOrder(
     if (!seen.has(word.id)) ordered.push(word);
   }
   return ordered;
-}
-
-function needsReview(word: JpVocabWord): boolean {
-  const total = jpVocabTotalReviews(word);
-  if (total === 0) return true;
-  return word.cnt_weak >= word.cnt_very;
 }
 
 function pickRandomWord(words: JpVocabWord[], excludeId?: number): JpVocabWord | null {
@@ -354,11 +347,6 @@ export function JpVocabPage() {
     [displayedWords]
   );
 
-  const reviewCandidates = useMemo(
-    () => words.filter((w) => needsReview(w)),
-    [words]
-  );
-
   const unmarkedCount = useMemo(
     () => words.filter((w) => !sessionLevel[w.id]).length,
     [words, sessionLevel]
@@ -601,7 +589,7 @@ export function JpVocabPage() {
             }}
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              共 {words.length} 条 · 需复习 {reviewCandidates.length} 条
+              共 {words.length} 条
               {words.length ? (
                 <> · 今日待抽查 {dailyQuizPendingCount}/{Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length)}</>
               ) : null}
