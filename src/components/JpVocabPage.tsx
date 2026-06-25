@@ -779,7 +779,7 @@ export function JpVocabPage() {
                     </button>
                   </th>
                   <th rowSpan={2} className="jp-vocab-level-col">
-                    熟悉程度
+                    熟悉程度（老师打分）
                   </th>
                   <th colSpan={4} className="jp-vocab-stats-group">
                     复习次数统计
@@ -892,7 +892,7 @@ export function JpVocabPage() {
                       <td className="jp-vocab-risk-col" data-label={jpVocabPriorityLabel(locale)}>
                         <span className="jp-vocab-risk-value">{risk.toFixed(1)}</span>
                       </td>
-                      <td className="jp-vocab-level-col" data-label="熟悉程度">
+                      <td className="jp-vocab-level-col" data-label="熟悉程度（老师打分）">
                         <div
                           className="jp-vocab-levels"
                           role="group"

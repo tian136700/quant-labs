@@ -79,16 +79,6 @@ function refFilename(refKey: string, ref?: JpVocabRef): string {
   return `${refKey}.${ext}`;
 }
 
-function lessonShareCopyText(
-  lesson: JpLessonRecord,
-  origin: string
-): string {
-  const link = lesson.ref_key
-    ? `${origin}${refUrl(lesson.ref_key)}?id=${lesson.id}`
-    : `${origin}/jp-lesson?id=${lesson.id}`;
-  return `ID：${lesson.id}\n学习内容：${lesson.content}\n链接：${link}`;
-}
-
 export function JpLessonPage() {
   const { locale } = useI18n();
   const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
@@ -166,12 +156,10 @@ export function JpLessonPage() {
     return map;
   }, [notes]);
 
-  const copyLessonShare = async (lesson: JpLessonRecord) => {
+  const copyLessonViewLink = async (lessonId: number, viewUrl: string) => {
     try {
-      await navigator.clipboard.writeText(
-        lessonShareCopyText(lesson, window.location.origin)
-      );
-      setCopiedId(lesson.id);
+      await navigator.clipboard.writeText(`${window.location.origin}${viewUrl}`);
+      setCopiedId(lessonId);
       window.setTimeout(() => setCopiedId(null), 1000);
     } catch {
       setStatus("复制失败，请手动选择复制");
@@ -417,7 +405,7 @@ export function JpLessonPage() {
                       <button
                         type="button"
                         className="jp-lesson-action-btn"
-                        onClick={() => void copyLessonShare(lesson)}
+                        onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
                       >
                         {copiedId === lesson.id ? "已复制" : "复制"}
                       </button>
