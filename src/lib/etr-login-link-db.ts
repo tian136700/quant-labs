@@ -192,3 +192,16 @@ export async function consumeLoginLink(
 
   return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS);
 }
+
+export async function deleteUserLoginLinks(
+  db: D1Database,
+  userId: number
+): Promise<void> {
+  if (devEnabled) {
+    for (let i = devLinks.length - 1; i >= 0; i -= 1) {
+      if (devLinks[i].user_id === userId) devLinks.splice(i, 1);
+    }
+    return;
+  }
+  await db.prepare(`DELETE FROM etr_login_links WHERE user_id = ?1`).bind(userId).run();
+}

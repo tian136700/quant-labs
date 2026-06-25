@@ -592,6 +592,50 @@ export async function setUserDisabled(
   return { ok: true, user: updated };
 }
 
+export type DeleteUserByAdminResult =
+  | { ok: true; username: string }
+  | { ok: false; error: string };
+
+/** 管理员删除用户（同时清除会话与登录链接） */
+export async function deleteUserByAdmin(
+  db: D1Database,
+  userId: number,
+  actorUserId: number
+): Promise<DeleteUserByAdminResult> {
+  if (userId === actorUserId) {
+    return { ok: false, error: "cannot_delete_self" };
+  }
+
+  const user = await findUserById(db, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (user.role === "admin") return { ok: false, error: "cannot_delete_admin" };
+
+  const username = user.username;
+  const { deleteUserLoginLinks } = await import("./etr-login-link-db");
+
+  if (devAuthEnabled) {
+    const idx = devUsers.findIndex((u) => u.id === userId);
+    if (idx < 0) return { ok: false, error: "user_not_found" };
+    await revokeUserSessions(db, userId);
+    await deleteUserLoginLinks(db, userId);
+    devUsers.splice(idx, 1);
+    return { ok: true, username };
+  }
+
+  await revokeUserSessions(db, userId);
+  await deleteUserLoginLinks(db, userId);
+  const result = await db
+    .prepare(`DELETE FROM etr_users WHERE id = ?1`)
+    .bind(userId)
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "user_not_found" };
+  }
+
+  return { ok: true, username };
+}
+
 export async function logoutSession(
   env: CloudflareEnv,
   token: string | null | undefined

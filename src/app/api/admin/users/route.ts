@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   createUserByAdmin,
+  deleteUserByAdmin,
   listEtrUsers,
   setUserDisabled,
   syncBootstrapUsersFromEnv,
@@ -25,6 +26,18 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
   cannot_disable_self: {
     en: "You cannot disable your own account.",
     zh: "不能禁用当前登录的管理员账号。",
+  },
+  cannot_delete_self: {
+    en: "You cannot delete your own account.",
+    zh: "不能删除当前登录的管理员账号。",
+  },
+  cannot_delete_admin: {
+    en: "Admin accounts cannot be deleted.",
+    zh: "不能删除管理员账号。",
+  },
+  delete_failed: {
+    en: "Failed to delete user.",
+    zh: "删除用户失败。",
   },
   payload_invalid: {
     en: "Invalid request payload.",
@@ -187,6 +200,41 @@ export async function PATCH(request: Request) {
       ok: true,
       user: serializeUser(result.user, locale),
     });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return jsonResponse({ ok: false, error: message }, 500);
+  }
+}
+
+export async function DELETE(request: Request) {
+  const locale = localeFromRequest(request);
+  try {
+    const { env, user, isAdmin } = await requireAdmin(request);
+    if (!isAdmin || !user) {
+      return jsonResponse({ ok: false, error: errMsg("forbidden", locale) }, 403);
+    }
+
+    let body: { user_id?: unknown };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return jsonResponse({ ok: false, error: errMsg("payload_invalid", locale) }, 400);
+    }
+
+    const userId = Number(body.user_id);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return jsonResponse({ ok: false, error: errMsg("payload_invalid", locale) }, 400);
+    }
+
+    const result = await deleteUserByAdmin(env.DB, userId, user.id);
+    if (!result.ok) {
+      return jsonResponse(
+        { ok: false, error: errMsg(result.error, locale) },
+        400
+      );
+    }
+
+    return jsonResponse({ ok: true, username: result.username });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

@@ -27,6 +27,7 @@ export function AdminUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [linkGeneratingId, setLinkGeneratingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [newUsername, setNewUsername] = useState("");
@@ -168,6 +169,44 @@ export function AdminUsersPage() {
     }
   };
 
+  const deleteUser = async (row: UserRow) => {
+    const ok = window.confirm(
+      locale === "zh"
+        ? `确定删除用户「${row.username}」？将同时清除其登录会话与登录链接，此操作不可恢复。`
+        : `Delete user "${row.username}"? This removes their sessions and login links and cannot be undone.`
+    );
+    if (!ok) return;
+
+    setDeletingId(row.id);
+    setStatus("");
+    setStatusErr(false);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: row.id }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(String(data.error || "delete failed"));
+        setStatusErr(true);
+        return;
+      }
+      setUsers((prev) => prev.filter((item) => item.id !== row.id));
+      setStatus(
+        locale === "zh"
+          ? `已删除用户：${data.username ?? row.username}`
+          : `Deleted user: ${data.username ?? row.username}`
+      );
+    } catch {
+      setStatus(locale === "zh" ? "删除失败" : "Delete failed");
+      setStatusErr(true);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (checking) return null;
 
   if (!isAdmin) {
@@ -303,9 +342,12 @@ export function AdminUsersPage() {
                   const isSelf = currentUser?.id === row.id;
                   const isAdminUser = row.role === "admin";
                   const canToggle = !isSelf && !isAdminUser;
+                  const canDelete = !isSelf && !isAdminUser;
                   const canGenerateLink = !row.disabled && !isAdminUser;
                   const busy =
-                    savingId === row.id || linkGeneratingId === row.id;
+                    savingId === row.id ||
+                    deletingId === row.id ||
+                    linkGeneratingId === row.id;
                   return (
                     <tr key={row.id}>
                       <td className="admin-rbac-username">{row.username}</td>
@@ -359,6 +401,22 @@ export function AdminUsersPage() {
                                   : locale === "zh"
                                     ? "禁用"
                                     : "Disable"}
+                            </button>
+                          ) : null}
+                          {canDelete ? (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger admin-user-btn"
+                              disabled={busy}
+                              onClick={() => void deleteUser(row)}
+                            >
+                              {deletingId === row.id
+                                ? locale === "zh"
+                                  ? "删除中…"
+                                  : "Deleting…"
+                                : locale === "zh"
+                                  ? "删除"
+                                  : "Delete"}
                             </button>
                           ) : null}
                         </div>
