@@ -38,6 +38,37 @@ export function jpVocabRefPublicUrl(refKey: string): string {
   return `/jp-vocab-refs/${refKey}`;
 }
 
+export function jpVocabRefFilename(
+  refKey: string,
+  mediaType: JpVocabMediaType
+): string {
+  const ext = mediaType === "pdf" ? "pdf" : "png";
+  return `${refKey}.${ext}`;
+}
+
+/** 教案文件 API（inline 预览或 ?download=1 附件下载） */
+export function jpVocabRefApiPath(
+  refKey: string,
+  opts?: { download?: boolean; v?: string | null }
+): string {
+  const base = `/api/jp-vocab/ref/${encodeURIComponent(refKey)}`;
+  const params = new URLSearchParams();
+  if (opts?.download) params.set("download", "1");
+  if (opts?.v) params.set("v", opts.v);
+  const q = params.toString();
+  return q ? `${base}?${q}` : base;
+}
+
+/** 教案查看页（带下载按钮） */
+export function jpVocabRefViewerPath(
+  refKey: string,
+  v?: string | null
+): string {
+  const base = `/jp-vocab/ref/${encodeURIComponent(refKey)}`;
+  if (v) return `${base}?v=${encodeURIComponent(v)}`;
+  return base;
+}
+
 export async function sha256HexBytes(bytes: ArrayBuffer): Promise<string> {
   const hash = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(hash)]

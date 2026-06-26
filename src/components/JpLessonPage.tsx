@@ -19,6 +19,11 @@ import {
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import {
+  jpVocabRefApiPath,
+  jpVocabRefFilename,
+  jpVocabRefViewerPath,
+} from "@/lib/jp-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
 import type { JpLessonNote, JpLessonRecord, JpVocabRef } from "@/lib/types";
 
@@ -34,9 +39,12 @@ function persistLessonCache(
   writeClientCache(JP_LESSON_CACHE_KEY, { lessons, refs, notes });
 }
 
-function refUrl(refKey: string, download = false): string {
-  const base = `/api/jp-vocab/ref/${encodeURIComponent(refKey)}`;
-  return download ? `${base}?download=1` : base;
+function refDownloadUrl(refKey: string): string {
+  return jpVocabRefApiPath(refKey, { download: true });
+}
+
+function refViewUrl(refKey: string, updatedAt?: string | null): string {
+  return jpVocabRefViewerPath(refKey, updatedAt);
 }
 
 const LESSON_STATUS_SECTIONS: {
@@ -75,8 +83,7 @@ function groupLessonsByStatus(
 }
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
-  const ext = ref?.media_type === "pdf" ? "pdf" : "png";
-  return `${refKey}.${ext}`;
+  return jpVocabRefFilename(refKey, ref?.media_type === "pdf" ? "pdf" : "image");
 }
 
 export function JpLessonPage() {
@@ -171,7 +178,7 @@ export function JpLessonPage() {
     setDownloadingKey(refKey);
     setStatus("");
     try {
-      const res = await fetch(refUrl(refKey, true), { credentials: "include" });
+      const res = await fetch(refDownloadUrl(refKey), { credentials: "include" });
       if (!res.ok) throw new Error("下载失败");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -269,7 +276,7 @@ export function JpLessonPage() {
     persistLessonCache(nextLessons, nextRefs, notes);
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
-      const viewUrl = `${refUrl(ref.ref_key)}?v=${encodeURIComponent(ref.updated_at)}`;
+      const viewUrl = refViewUrl(ref.ref_key, ref.updated_at);
       return { lesson, ref, viewUrl };
     });
   };
@@ -297,9 +304,7 @@ export function JpLessonPage() {
             const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
             const hasRef = Boolean(lesson.ref_key && ref);
             const viewUrl = lesson.ref_key
-              ? `${refUrl(lesson.ref_key)}${
-                  ref?.updated_at ? `?v=${encodeURIComponent(ref.updated_at)}` : ""
-                }`
+              ? refViewUrl(lesson.ref_key, ref?.updated_at)
               : "";
             const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
             const progressStatus = getJpLessonProgressStatus(lesson);

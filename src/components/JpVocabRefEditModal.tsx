@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import {
+  jpVocabRefApiPath,
+  jpVocabRefViewerPath,
+} from "@/lib/jp-vocab-ref-shared";
 import { uploadFormWithProgress, formatUploadBytes, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
 
@@ -230,17 +234,18 @@ export function JpVocabRefEditModal({
 
   if (!open || !mounted || !lessonId) return null;
 
-  const currentViewUrl = refKey
-    ? `/api/jp-vocab/ref/${encodeURIComponent(refKey)}${
-        refMeta?.updated_at ? `?v=${encodeURIComponent(refMeta.updated_at)}` : ""
-      }`
+  const currentMediaUrl = refKey
+    ? jpVocabRefApiPath(refKey, { v: refMeta?.updated_at })
+    : "";
+  const currentViewerUrl = refKey
+    ? jpVocabRefViewerPath(refKey, refMeta?.updated_at)
     : "";
 
   const currentIsPdf = refMeta?.media_type === "pdf";
   const hasCurrentRef = Boolean(refKey);
   const zoomUrl =
     zoomTarget === "current"
-      ? currentViewUrl
+      ? currentMediaUrl
       : zoomTarget === "new"
         ? previewUrl
         : null;
@@ -250,11 +255,14 @@ export function JpVocabRefEditModal({
       : "确认新图片是否正确 · 点击空白处或按 Esc 关闭";
 
   const openCurrentPreview = () => {
-    if (!refKey || !currentViewUrl) return;
+    if (!refKey) return;
     if (currentIsPdf) {
-      window.open(currentViewUrl, "_blank", "noopener,noreferrer");
+      if (currentViewerUrl) {
+        window.open(currentViewerUrl, "_blank", "noopener,noreferrer");
+      }
       return;
     }
+    if (!currentMediaUrl) return;
     setZoomTarget("current");
   };
 
@@ -301,7 +309,7 @@ export function JpVocabRefEditModal({
                 <span className="jp-ref-edit-label-text">当前教案</span>
                 {hasCurrentRef ? (
                   <a
-                    href={currentViewUrl}
+                    href={currentViewerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="jp-ref-edit-view-link"
@@ -333,7 +341,7 @@ export function JpVocabRefEditModal({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={currentViewUrl}
+                      src={currentMediaUrl}
                       alt="当前教案预览"
                       className="jp-ref-edit-current-img"
                     />

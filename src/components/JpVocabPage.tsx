@@ -32,6 +32,7 @@ import { fetchWithClientCache, patchClientCache, readClientCache, writeClientCac
 import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { applyJpVocabReview } from "@/lib/jp-vocab-review";
+import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import {
   JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
   jpVocabDailyQuizStyleVars,
@@ -937,6 +938,7 @@ export function JpVocabPage() {
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
                   const todayChecks = w.today_check_count ?? 0;
+                  const checkedToday = jpVocabCheckedToday(w);
 
                   return (
                     <tr
@@ -950,7 +952,27 @@ export function JpVocabPage() {
                       }}
                     >
                       <td className="jp-vocab-seq-col" data-label="序号">
-                        {rowIndex + 1}
+                        <span className="jp-vocab-seq-cell">
+                          <span className="jp-vocab-seq-num">{rowIndex + 1}</span>
+                          {checkedToday ? (
+                            <span
+                              className="jp-vocab-seq-checked"
+                              title={`今日已抽查 ${todayChecks} 次`}
+                              aria-label={`序号 ${rowIndex + 1}，今日已抽查`}
+                            >
+                              <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                                <path
+                                  d="M2 6l3 3 5-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
@@ -966,11 +988,7 @@ export function JpVocabPage() {
                           {w.ref_key ? (
                             <>
                               <a
-                                href={`/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}${
-                                  ref?.updated_at
-                                    ? `?v=${encodeURIComponent(ref.updated_at)}`
-                                    : ""
-                                }`}
+                                href={jpVocabRefViewerPath(w.ref_key, ref?.updated_at)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="jp-vocab-word-link"
@@ -1601,9 +1619,31 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-seq-col) {
           white-space: nowrap;
-          min-width: 2.25rem;
+          min-width: 2.5rem;
           color: var(--muted);
+        }
+        :global(.jp-vocab-table .jp-vocab-seq-cell) {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.12rem;
+          min-height: 1.75rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-seq-checked) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 1rem;
+          height: 1rem;
+          border-radius: 999px;
+          color: var(--fall);
+          background: color-mix(in srgb, var(--fall) 18%, transparent);
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 35%, transparent);
+        }
+        :global(.jp-vocab-table .jp-vocab-seq-num) {
           font-variant-numeric: tabular-nums;
+          line-height: 1;
         }
 
         /* 中等屏幕：隐藏分项统计，保留合计，减少横向滚动 */
