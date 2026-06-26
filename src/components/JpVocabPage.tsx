@@ -53,10 +53,15 @@ const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "weak", label: "不熟悉" },
 ];
 
-const STAT_SORT_COLUMNS: { key: JpVocabStatSortKey; label: string; className: string }[] = [
-  { key: "very", label: "非常熟悉", className: "jp-vocab-stat-detail" },
+const STAT_SORT_COLUMNS: {
+  key: JpVocabStatSortKey;
+  label: string;
+  labelLines?: [string, string];
+  className: string;
+}[] = [
+  { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"], className: "jp-vocab-stat-detail" },
   { key: "normal", label: "一般", className: "jp-vocab-stat-detail" },
-  { key: "weak", label: "不熟悉", className: "jp-vocab-stat-detail" },
+  { key: "weak", label: "不熟悉", labelLines: ["不", "熟悉"], className: "jp-vocab-stat-detail" },
   { key: "total", label: "合计", className: "jp-vocab-stat-total" },
 ];
 
@@ -796,9 +801,15 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-seq-col">
                     序号
                   </th>
-                  <th rowSpan={2}>类型</th>
-                  <th rowSpan={2}>单词 / 语法</th>
-                  <th rowSpan={2}>释义</th>
+                  <th rowSpan={2} className="jp-vocab-kind-col">
+                    类型
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-word-col">
+                    单词 / 语法
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-meaning-col">
+                    释义
+                  </th>
                   <th rowSpan={2} className="jp-vocab-pos-col">
                     词性
                   </th>
@@ -816,7 +827,10 @@ export function JpVocabPage() {
                       title={`按${jpVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）`}
                       onClick={() => toggleStatSort("risk")}
                     >
-                      <span>{jpVocabPriorityLabel(locale)}</span>
+                      <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                        <span>抽查</span>
+                        <span>优先级</span>
+                      </span>
                       <span className="jp-vocab-sort-indicator" aria-hidden="true">
                         {statSort?.key === "risk"
                           ? statSort.dir === "asc"
@@ -827,13 +841,19 @@ export function JpVocabPage() {
                     </button>
                   </th>
                   <th rowSpan={2} className="jp-vocab-level-col">
-                    熟悉程度（老师勾选）
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                      <span>熟悉程度</span>
+                      <span className="jp-vocab-th-multiline__sub">老师勾选</span>
+                    </span>
                   </th>
                   <th colSpan={4} className="jp-vocab-stats-group">
                     复习次数统计
                   </th>
-                  <th rowSpan={2} className="jp-vocab-today-check-col">
-                    今日抽查次数
+                  <th rowSpan={2} className="jp-vocab-today-check-col" title="今日抽查次数">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                      <span>今日</span>
+                      <span>抽查次数</span>
+                    </span>
                   </th>
                   {SHOW_REMARKS_COLUMN ? (
                     <th rowSpan={2} className="jp-vocab-notes-col">
@@ -861,7 +881,14 @@ export function JpVocabPage() {
                           title={`按${col.label}排序`}
                           onClick={() => toggleStatSort(col.key)}
                         >
-                          <span>{col.label}</span>
+                          {col.labelLines ? (
+                            <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                              <span>{col.labelLines[0]}</span>
+                              <span>{col.labelLines[1]}</span>
+                            </span>
+                          ) : (
+                            <span>{col.label}</span>
+                          )}
                           <span className="jp-vocab-sort-indicator" aria-hidden="true">
                             {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
                           </span>
@@ -1017,7 +1044,14 @@ export function JpVocabPage() {
                         })()}
                       </td>
                       <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
-                        <span className="jp-vocab-today-check-value">{todayChecks}</span>
+                        <span
+                          className={`jp-vocab-today-check-value${
+                            todayChecks > 0 ? " jp-vocab-today-check-value--active" : ""
+                          }`}
+                          title={todayChecks > 0 ? `今日已抽查 ${todayChecks} 次` : "今日尚未抽查"}
+                        >
+                          {todayChecks}
+                        </span>
                       </td>
                       {SHOW_REMARKS_COLUMN ? (
                         <td className="jp-vocab-notes-col" data-label="备注">
@@ -1358,17 +1392,50 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table) {
           width: 100%;
-          min-width: 840px;
+          min-width: 900px;
         }
         :global(.jp-vocab-table th),
         :global(.jp-vocab-table td) {
           white-space: normal;
           vertical-align: middle;
-          padding: 0.55rem 0.75rem;
+          padding: 0.5rem 0.55rem;
           text-align: center;
+        }
+        :global(.jp-vocab-table thead th) {
+          font-size: 0.8125rem;
+          line-height: 1.3;
+          overflow: hidden;
+        }
+        :global(.jp-vocab-table .jp-vocab-th-multiline) {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.05rem;
+          line-height: 1.2;
+          max-width: 100%;
+        }
+        :global(.jp-vocab-table .jp-vocab-th-multiline--compact) {
+          font-size: 0.8125rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-th-multiline__sub) {
+          font-size: 0.8125em;
+          color: var(--muted);
+        }
+        :global(.jp-vocab-table .jp-vocab-seq-col),
+        :global(.jp-vocab-table .jp-vocab-kind-col),
+        :global(.jp-vocab-table .jp-vocab-risk-col),
+        :global(.jp-vocab-table .jp-vocab-stat-detail),
+        :global(.jp-vocab-table .jp-vocab-stat-total),
+        :global(.jp-vocab-table .jp-vocab-today-check-col),
+        :global(.jp-vocab-table .jp-vocab-notes-col),
+        :global(.jp-vocab-table .jp-vocab-action-col) {
+          padding-left: 0.35rem;
+          padding-right: 0.35rem;
         }
         :global(.jp-vocab-table .jp-vocab-level-col) {
           text-align: center;
+          min-width: 8.75rem;
         }
         :global(.jp-vocab-table .jp-vocab-stats-group) {
           text-align: center;
@@ -1377,8 +1444,10 @@ export function JpVocabPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.2rem;
+          gap: 0.15rem;
           width: 100%;
+          max-width: 100%;
+          min-width: 0;
           border: none;
           background: transparent;
           color: inherit;
@@ -1412,15 +1481,19 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           white-space: nowrap;
-          min-width: 4.5rem;
+          min-width: 3.5rem;
         }
         :global(.jp-vocab-table .jp-vocab-risk-value) {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
         }
+        :global(.jp-vocab-table .jp-vocab-stat-detail) {
+          min-width: 2.85rem;
+          font-variant-numeric: tabular-nums;
+        }
         :global(.jp-vocab-table .jp-vocab-stat-total) {
           white-space: nowrap;
-          min-width: 4rem;
+          min-width: 2.75rem;
         }
         :global(.jp-vocab-table .jp-vocab-total-never) {
           color: var(--muted);
@@ -1429,27 +1502,45 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-today-check-col) {
           white-space: nowrap;
-          min-width: 5.5rem;
+          min-width: 3.75rem;
         }
         :global(.jp-vocab-table .jp-vocab-today-check-value) {
-          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 1.35rem;
+          font-weight: 500;
           font-variant-numeric: tabular-nums;
+          color: var(--muted);
+        }
+        :global(.jp-vocab-table .jp-vocab-today-check-value--active) {
+          min-width: 1.5rem;
+          padding: 0.12rem 0.4rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--accent) 22%, transparent);
+          color: var(--accent);
+          font-weight: 700;
+          font-size: 0.9375rem;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
         }
         :global(.jp-vocab-table .jp-vocab-word-col) {
           font-size: 0.9375rem;
-          min-width: 8rem;
+          min-width: 7rem;
+          padding-left: 0.65rem;
+          padding-right: 0.65rem;
         }
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
-          min-width: 6rem;
-          max-width: 16rem;
+          min-width: 6.5rem;
+          padding-left: 0.65rem;
+          padding-right: 0.65rem;
+          word-break: break-word;
+          line-height: 1.45;
         }
         :global(.jp-vocab-table .jp-vocab-pos-col) {
-          min-width: 5rem;
-          max-width: 10rem;
+          min-width: 4rem;
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
-          min-width: 4.5rem;
-          max-width: 5.5rem;
+          min-width: 4.25rem;
           white-space: nowrap;
         }
         :global(.jp-vocab-table thead .jp-vocab-notes-col) {
@@ -1469,15 +1560,15 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-action-col) {
           white-space: nowrap;
-          min-width: 4.5rem;
+          min-width: 3.75rem;
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;
+          min-width: 3rem;
         }
         :global(.jp-vocab-table .jp-vocab-seq-col) {
           white-space: nowrap;
-          min-width: 2.5rem;
-          width: 2.5rem;
+          min-width: 2.25rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
         }
