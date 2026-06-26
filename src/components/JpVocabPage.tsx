@@ -66,6 +66,9 @@ const SHOW_REMARKS_COLUMN = true;
 /** 暂时隐藏「随机高亮」按钮 */
 const SHOW_RANDOM_HIGHLIGHT = false;
 
+/** 暂时隐藏「今日待抽查」行背景标记（及管理员样式面板） */
+const SHOW_DAILY_QUIZ_ROW_STYLE = false;
+
 /** 末次勾选后多久再自动重排（老师勾选过程中列表不跳动） */
 const JP_VOCAB_SORT_IDLE_MS = 60 * 60 * 1000;
 
@@ -590,7 +593,7 @@ export function JpVocabPage() {
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               共 {words.length} 条
-              {words.length ? (
+              {SHOW_DAILY_QUIZ_ROW_STYLE && words.length ? (
                 <> · 今日待抽查 {dailyQuizPendingCount}/{Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length)}</>
               ) : null}
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
@@ -626,7 +629,7 @@ export function JpVocabPage() {
             >
               抽查排行
             </button>
-            {isAdmin ? (
+            {SHOW_DAILY_QUIZ_ROW_STYLE && isAdmin ? (
               <button
                 type="button"
                 className="btn-rsi-filter"
@@ -695,14 +698,18 @@ export function JpVocabPage() {
                 ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
-                <strong>今日待抽查前 {JP_VOCAB_DAILY_QUIZ_TOP} 条</strong>：按<strong>当前表格排序</strong>（默认抽查优先级）取最前面的 {JP_VOCAB_DAILY_QUIZ_TOP} 条，今日尚未勾选的会显示标记背景；勾选后背景消失。
-                样式由管理员在上方「标记样式」里统一设置，所有老师看到相同背景。
+                {SHOW_DAILY_QUIZ_ROW_STYLE ? (
+                  <>
+                    <strong>今日待抽查前 {JP_VOCAB_DAILY_QUIZ_TOP} 条</strong>：按<strong>当前表格排序</strong>（默认抽查优先级）取最前面的 {JP_VOCAB_DAILY_QUIZ_TOP} 条，今日尚未勾选的会显示标记背景；勾选后背景消失。
+                    样式由管理员在上方「标记样式」里统一设置，所有老师看到相同背景。
+                  </>
+                ) : null}
               </p>
             ) : null}
           </div>
         ) : null}
 
-        {isAdmin && showDailyQuizStylePanel && !loading && words.length ? (
+        {SHOW_DAILY_QUIZ_ROW_STYLE && isAdmin && showDailyQuizStylePanel && !loading && words.length ? (
           <div className="jp-vocab-daily-quiz-style-panel" role="region" aria-label="今日前20条标记样式">
             <div className="jp-vocab-daily-quiz-style-panel__head">
               <strong>今日前 {JP_VOCAB_DAILY_QUIZ_TOP} 条 · 标记样式</strong>
@@ -771,8 +778,14 @@ export function JpVocabPage() {
           </p>
         ) : (
           <div
-            className="etr-table-wrap jp-vocab-table-wrap jp-vocab-daily-quiz-wrap"
-            style={dailyQuizStyleCssVars as CSSProperties}
+            className={`etr-table-wrap jp-vocab-table-wrap${
+              SHOW_DAILY_QUIZ_ROW_STYLE ? " jp-vocab-daily-quiz-wrap" : ""
+            }`}
+            style={
+              SHOW_DAILY_QUIZ_ROW_STYLE
+                ? (dailyQuizStyleCssVars as CSSProperties)
+                : undefined
+            }
           >
             <p className="jp-vocab-scroll-hint" aria-hidden="true">
               表格较宽时可左右滑动查看
@@ -780,6 +793,9 @@ export function JpVocabPage() {
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
+                  <th rowSpan={2} className="jp-vocab-seq-col">
+                    序号
+                  </th>
                   <th rowSpan={2}>类型</th>
                   <th rowSpan={2}>单词 / 语法</th>
                   <th rowSpan={2}>释义</th>
@@ -856,9 +872,10 @@ export function JpVocabPage() {
                 </tr>
               </thead>
               <tbody>
-                {displayedWords.map((w) => {
+                {displayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
                   const isDailyQuiz =
+                    SHOW_DAILY_QUIZ_ROW_STYLE &&
                     dailyQuizStyle.enabled &&
                     dailyQuizTopIds.has(w.id) &&
                     !jpVocabCheckedToday(w);
@@ -879,6 +896,9 @@ export function JpVocabPage() {
                           : undefined,
                       }}
                     >
+                      <td className="jp-vocab-seq-col" data-label="序号">
+                        {rowIndex + 1}
+                      </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
                           className={`jp-vocab-kind-badge${
@@ -1383,6 +1403,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-stat-detail),
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
+        :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
         :global(.jp-vocab-table .jp-vocab-meaning-col),
         :global(.jp-vocab-table .jp-vocab-pos-col),
@@ -1452,6 +1473,13 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;
+        }
+        :global(.jp-vocab-table .jp-vocab-seq-col) {
+          white-space: nowrap;
+          min-width: 2.5rem;
+          width: 2.5rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
         }
 
         /* 中等屏幕：隐藏分项统计，保留合计，减少横向滚动 */
