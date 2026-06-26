@@ -20,6 +20,10 @@ import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
 import {
+  JpVocabDailyQuizIntroModal,
+  shouldShowJpVocabDailyIntro,
+} from "@/components/JpVocabDailyQuizIntroModal";
+import {
   JP_VOCAB_CACHE_KEY,
   parseJpVocabApi,
   type JpVocabApiPayload,
@@ -177,6 +181,7 @@ export function JpVocabPage() {
   const [isOrderFrozen, setIsOrderFrozen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
+  const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showDailyQuizStylePanel, setShowDailyQuizStylePanel] = useState(false);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   const [dailyQuizStyle, setDailyQuizStyle] = useState<JpVocabDailyQuizStyle>(
@@ -354,6 +359,27 @@ export function JpVocabPage() {
         .filter((w) => !jpVocabCheckedToday(w)).length,
     [displayedWords]
   );
+
+  const dailyTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length);
+
+  const dailyCheckedCount = useMemo(() => {
+    if (!displayedWords.length) return 0;
+    return displayedWords
+      .slice(0, dailyTarget)
+      .filter((w) => jpVocabCheckedToday(w)).length;
+  }, [displayedWords, dailyTarget]);
+
+  const anyCheckedToday = useMemo(
+    () => words.some((w) => jpVocabCheckedToday(w)),
+    [words]
+  );
+
+  useEffect(() => {
+    if (loading || checking || !canOperate || !words.length) return;
+    if (anyCheckedToday) return;
+    if (!shouldShowJpVocabDailyIntro()) return;
+    setShowDailyIntro(true);
+  }, [loading, checking, canOperate, words.length, anyCheckedToday]);
 
   const unmarkedCount = useMemo(
     () => words.filter((w) => !sessionLevel[w.id]).length,
@@ -1105,6 +1131,13 @@ export function JpVocabPage() {
         open={showRiskChart}
         words={words}
         onClose={() => setShowRiskChart(false)}
+      />
+
+      <JpVocabDailyQuizIntroModal
+        open={showDailyIntro}
+        dailyTarget={dailyTarget}
+        dailyCheckedCount={dailyCheckedCount}
+        onClose={() => setShowDailyIntro(false)}
       />
 
       <JpVocabRemarksViewModal
