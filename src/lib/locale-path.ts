@@ -174,7 +174,7 @@ export function jpVocabPath(): string {
 }
 
 export function isJpVocabPath(pathname: string): boolean {
-  return pathname === "/jp-vocab";
+  return pathname === "/jp-vocab" || pathname.startsWith("/jp-vocab/");
 }
 
 export function jpLessonPath(): string {
