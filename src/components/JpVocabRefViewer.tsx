@@ -8,11 +8,11 @@ import {
 import type { JpVocabRef } from "@/lib/types";
 
 type Props = {
-  ref: JpVocabRef;
+  refMeta: JpVocabRef;
   cacheVersion?: string | null;
 };
 
-export function JpVocabRefViewer({ ref: refMeta, cacheVersion }: Props) {
+export function JpVocabRefViewer({ refMeta, cacheVersion }: Props) {
   const [downloading, setDownloading] = useState(false);
   const v = cacheVersion ?? refMeta.updated_at;
   const mediaUrl = jpVocabRefApiPath(refMeta.ref_key, { v });

@@ -33,5 +33,5 @@ export default async function JpVocabRefViewerPage({
   const ref = await getJpVocabRef(env.DB, refKey);
   if (!ref) notFound();
 
-  return <JpVocabRefViewer ref={ref} cacheVersion={v ?? null} />;
+  return <JpVocabRefViewer refMeta={ref} cacheVersion={v ?? null} />;
 }
