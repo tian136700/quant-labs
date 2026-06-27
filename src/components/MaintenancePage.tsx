@@ -16,17 +16,17 @@ const LINK_ERR: Record<string, { zh: string; en: string }> = {
     zh: "该登录链接已失效，请联系管理员。",
     en: "This login link is no longer valid. Please contact an admin.",
   },
-  maintenance: {
-    zh: "该账号已停用，暂无法登录。",
-    en: "This account has been disabled and cannot sign in.",
-  },
 };
 
 export function MaintenancePage() {
   const { locale } = useI18n();
   const searchParams = useSearchParams();
   const loginLinkError = searchParams.get("login_link");
-  const linkMsg = loginLinkError ? LINK_ERR[loginLinkError] : null;
+  // Disabled accounts redirect with login_link=maintenance — show generic maintenance copy.
+  const linkMsg =
+    loginLinkError && loginLinkError !== "maintenance"
+      ? LINK_ERR[loginLinkError]
+      : null;
 
   return (
     <div className="maintenance-page">
@@ -37,7 +37,7 @@ export function MaintenancePage() {
               ? "无法登录"
               : "Sign-in unavailable"
             : locale === "zh"
-              ? "你所访问的功能正在维护中"
+              ? "该系统功能正在维护中"
               : "This feature is under maintenance"}
         </h1>
         <p>
