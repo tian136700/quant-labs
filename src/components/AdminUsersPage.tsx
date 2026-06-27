@@ -59,9 +59,9 @@ export function AdminUsersPage() {
   }, [locale]);
 
   useEffect(() => {
-    if (checking || !isAdmin) return;
+    if (checking || !isAdmin || editingUser != null) return;
     void load();
-  }, [checking, isAdmin, load]);
+  }, [checking, isAdmin, load, editingUser]);
 
   const toggleDisabled = async (row: UserRow) => {
     setSavingId(row.id);
@@ -262,15 +262,22 @@ export function AdminUsersPage() {
         <h2 className="admin-user-add-title">
           {locale === "zh" ? "添加用户" : "Add user"}
         </h2>
-        <form className="admin-user-add-form" onSubmit={(e) => void createUser(e)}>
+        <form
+          className="admin-user-add-form"
+          autoComplete="off"
+          onSubmit={(e) => void createUser(e)}
+        >
           <label className="admin-user-add-field">
             <span>{locale === "zh" ? "用户名" : "Username"}</span>
             <input
               type="text"
+              name="admin-user-new-username"
               value={newUsername}
               disabled={creating}
               placeholder={locale === "zh" ? "6–32 个字符" : "6–32 characters"}
               autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
               onChange={(e) => setNewUsername(e.target.value)}
             />
           </label>
@@ -278,10 +285,13 @@ export function AdminUsersPage() {
             <span>{locale === "zh" ? "密码" : "Password"}</span>
             <input
               type="password"
+              name="admin-user-new-password"
               value={newPassword}
               disabled={creating}
               placeholder={locale === "zh" ? "至少 6 位" : "Min 6 chars"}
               autoComplete="new-password"
+              data-1p-ignore
+              data-lpignore="true"
               onChange={(e) => setNewPassword(e.target.value)}
             />
           </label>
@@ -449,6 +459,7 @@ export function AdminUsersPage() {
         locale={locale}
         onClose={() => setEditingUser(null)}
         onSaved={(updated) => {
+          setEditingUser(null);
           setUsers((prev) => {
             const next = prev.map((item) =>
               item.id === updated.id ? { ...item, ...updated } : item

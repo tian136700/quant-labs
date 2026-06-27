@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 
 export type AdminUserEditRow = {
@@ -31,24 +31,26 @@ export function AdminUserEditModal({
   const [role, setRole] = useState<"user" | "jp_vocab">("user");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open && user) {
+    if (open && !wasOpenRef.current && user) {
       setUsername(user.username);
       setPassword("");
       setRole(user.role === "jp_vocab" ? "jp_vocab" : "user");
       setError("");
     }
+    wasOpenRef.current = open;
   }, [open, user]);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || submitting) return;
+      if (e.key !== "Escape" || submitting || e.isComposing) return;
       onClose();
     };
     window.addEventListener("keydown", onKey);
@@ -99,13 +101,19 @@ export function AdminUserEditModal({
   if (!mounted || !open || !user) return null;
 
   return createPortal(
-    <div className="admin-user-edit-overlay" onClick={() => !submitting && onClose()}>
+    <div
+      className="admin-user-edit-overlay"
+      onMouseDown={(e) => {
+        if (e.target !== e.currentTarget || submitting) return;
+        onClose();
+      }}
+    >
       <div
         className="admin-user-edit-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-user-edit-title"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="admin-user-edit-header">
           <div>
@@ -129,14 +137,28 @@ export function AdminUserEditModal({
           </button>
         </div>
 
-        <form className="admin-user-edit-body" onSubmit={(e) => void save(e)}>
+        <form
+          className="admin-user-edit-body"
+          autoComplete="off"
+          onSubmit={(e) => void save(e)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.isComposing) return;
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === "INPUT" || tag === "SELECT") e.preventDefault();
+          }}
+        >
           <label className="admin-user-edit-field">
             <span>{locale === "zh" ? "用户名" : "Username"}</span>
             <input
               type="text"
+              name="admin-user-edit-username"
               value={username}
               disabled={submitting}
+              readOnly
               autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
+              onFocus={(e) => e.currentTarget.removeAttribute("readonly")}
               onChange={(e) => setUsername(e.target.value)}
             />
           </label>
@@ -144,10 +166,13 @@ export function AdminUserEditModal({
             <span>{locale === "zh" ? "新密码（可选）" : "New password (optional)"}</span>
             <input
               type="password"
+              name="admin-user-edit-password"
               value={password}
               disabled={submitting}
               placeholder={locale === "zh" ? "不修改请留空" : "Leave blank to keep"}
               autoComplete="new-password"
+              data-1p-ignore
+              data-lpignore="true"
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 
 const STORAGE_KEY = "jp-vocab-daily-intro-v1";
+const FOREVER_VALUE = "forever";
 
 export function readJpVocabDailyIntroDismissedDate(): string | null {
   if (typeof window === "undefined") return null;
@@ -24,8 +25,19 @@ export function markJpVocabDailyIntroDismissed(): void {
   }
 }
 
+export function markJpVocabDailyIntroDismissedForever(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, FOREVER_VALUE);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function shouldShowJpVocabDailyIntro(): boolean {
-  return readJpVocabDailyIntroDismissedDate() !== beijingDateString();
+  const stored = readJpVocabDailyIntroDismissedDate();
+  if (stored === FOREVER_VALUE) return false;
+  return stored !== beijingDateString();
 }
 
 type Props = {
@@ -42,6 +54,7 @@ export function JpVocabDailyQuizIntroModal({
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -49,8 +62,13 @@ export function JpVocabDailyQuizIntroModal({
 
   useEffect(() => {
     if (!open) return;
+    setDontShowAgain(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -67,8 +85,12 @@ export function JpVocabDailyQuizIntroModal({
 
   if (!open || !mounted) return null;
 
-  const handleClose = () => {
-    markJpVocabDailyIntroDismissed();
+  const handleClose = (honorNever = false) => {
+    if (honorNever && dontShowAgain) {
+      markJpVocabDailyIntroDismissedForever();
+    } else {
+      markJpVocabDailyIntroDismissed();
+    }
     onClose();
   };
 
@@ -76,7 +98,7 @@ export function JpVocabDailyQuizIntroModal({
     <div
       className="jp-vocab-intro-modal-overlay"
       role="presentation"
-      onClick={handleClose}
+      onClick={() => handleClose(false)}
     >
       <div
         className="jp-vocab-intro-modal"
@@ -92,7 +114,7 @@ export function JpVocabDailyQuizIntroModal({
           <button
             type="button"
             className="jp-vocab-intro-modal-close"
-            onClick={handleClose}
+            onClick={() => handleClose(false)}
             aria-label="关闭"
           >
             ×
@@ -110,12 +132,20 @@ export function JpVocabDailyQuizIntroModal({
           </ol>
         </div>
         <div className="jp-vocab-intro-modal-footer">
+          <label className="jp-vocab-intro-modal-never">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+            />
+            <span>不再显示此说明</span>
+          </label>
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--primary"
-            onClick={handleClose}
+            onClick={() => handleClose(true)}
           >
-            知道了
+            确定
           </button>
         </div>
       </div>
@@ -189,8 +219,29 @@ export function JpVocabDailyQuizIntroModal({
         }
         .jp-vocab-intro-modal-footer {
           display: flex;
-          justify-content: flex-end;
+          justify-content: space-between;
+          align-items: center;
+          gap: 0.75rem;
           padding: 0 1rem 1rem;
+        }
+        .jp-vocab-intro-modal-never {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          margin: 0;
+          font-size: 0.75rem;
+          line-height: 1.4;
+          color: var(--muted);
+          cursor: pointer;
+          user-select: none;
+        }
+        .jp-vocab-intro-modal-never input {
+          width: 0.875rem;
+          height: 0.875rem;
+          margin: 0;
+          flex-shrink: 0;
+          accent-color: var(--accent);
+          cursor: pointer;
         }
         @media (max-width: 480px) {
           .jp-vocab-intro-modal-overlay {
