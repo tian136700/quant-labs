@@ -19,10 +19,33 @@ function localePathForSubdomain(pathname: string, locale: Locale): string {
   return isPlaza ? "/plaza" : "/";
 }
 
+function stripZhPrefix(pathname: string): string {
+  if (pathname === "/zh" || pathname === "/zh/") return "/";
+  if (pathname.startsWith("/zh/")) return pathname.slice(3) || "/";
+  return pathname;
+}
+
+/** 日语模块：URL 不带 /zh 前缀，语言仅存于 cookie / localStorage */
+function isLocaleNeutralPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return (
+    path === "/jp-lesson" ||
+    path.startsWith("/jp-lesson/") ||
+    path === "/jp-vocab" ||
+    path.startsWith("/jp-vocab/") ||
+    path === "/jp-review" ||
+    path.startsWith("/jp-review/")
+  );
+}
+
 /** 根据当前路径与目标语言生成 URL pathname（不含 query） */
 export function localePathForPathname(pathname: string, locale: Locale): string {
   if (onStoreReviewSubdomain()) {
     return localePathForSubdomain(pathname, locale);
+  }
+
+  if (isLocaleNeutralPath(pathname)) {
+    return stripZhPrefix(pathname);
   }
 
   if (locale === "zh") {
@@ -123,6 +146,10 @@ export function adminToolCodesPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/tool-codes" : "/admin/tool-codes";
 }
 
+export function adminJpLessonTeachersPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
+}
+
 export function maintenancePath(locale: Locale): string {
   return locale === "zh" ? "/zh/maintenance" : "/maintenance";
 }
@@ -147,6 +174,13 @@ export function isAdminToolCodesPath(pathname: string): boolean {
   return pathname === "/admin/tool-codes" || pathname === "/zh/admin/tool-codes";
 }
 
+export function isAdminJpLessonTeachersPath(pathname: string): boolean {
+  return (
+    pathname === "/admin/jp-lesson-teachers" ||
+    pathname === "/zh/admin/jp-lesson-teachers"
+  );
+}
+
 export function isMaintenancePath(pathname: string): boolean {
   return pathname === "/maintenance" || pathname === "/zh/maintenance";
 }
@@ -157,7 +191,8 @@ export function isAdminPath(pathname: string): boolean {
     isAdminTrendsPath(pathname) ||
     isAdminRbacPath(pathname) ||
     isAdminUsersPath(pathname) ||
-    isAdminToolCodesPath(pathname)
+    isAdminToolCodesPath(pathname) ||
+    isAdminJpLessonTeachersPath(pathname)
   );
 }
 
@@ -166,7 +201,8 @@ export function jpReviewPath(): string {
 }
 
 export function isJpReviewPath(pathname: string): boolean {
-  return pathname === "/jp-review";
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-review" || path.startsWith("/jp-review/");
 }
 
 export function jpVocabPath(): string {
@@ -174,7 +210,8 @@ export function jpVocabPath(): string {
 }
 
 export function isJpVocabPath(pathname: string): boolean {
-  return pathname === "/jp-vocab" || pathname.startsWith("/jp-vocab/");
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-vocab" || path.startsWith("/jp-vocab/");
 }
 
 export function jpLessonPath(): string {
@@ -195,7 +232,8 @@ export function isTrendBlogPath(pathname: string): boolean {
 }
 
 export function isJpLessonPath(pathname: string): boolean {
-  return pathname === "/jp-lesson" || pathname.startsWith("/jp-lesson/");
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-lesson" || path.startsWith("/jp-lesson/");
 }
 
 const TOOL_SLUGS = ["pdf-to-word", "pdf-to-excel", "word-to-pdf"] as const;

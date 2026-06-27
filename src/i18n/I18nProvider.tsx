@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
   formatMsg,
   messages,
@@ -17,6 +18,7 @@ import {
   type Messages,
 } from "./messages";
 import {
+  localeFromPathname,
   needsGeoLocale,
   persistLocale,
   resolveClientLocale,
@@ -61,6 +63,7 @@ export function I18nProvider({
   children: ReactNode;
   serverLocale?: Locale | null;
 }) {
+  const pathname = usePathname() ?? "/";
   const initialServerLocale = useRef(serverLocale).current;
   const [locale, setLocaleState] = useState<Locale>(() =>
     resolveHydrationLocale(initialServerLocale)
@@ -93,6 +96,16 @@ export function I18nProvider({
       cancelled = true;
     };
   }, [initialServerLocale]);
+
+  useEffect(() => {
+    const routeLocale = localeFromPathname(pathname);
+    if (!routeLocale) return;
+    setLocaleState((prev) => {
+      if (prev === routeLocale) return prev;
+      persistLocale(routeLocale);
+      return routeLocale;
+    });
+  }, [pathname]);
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next);

@@ -8,6 +8,7 @@ import {
   syncLessonNotesToVocab,
   upsertJpVocabFromLesson,
 } from "@/lib/jp-vocab-db";
+import { getLessonTeacherIdsByLessonIds, replaceLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 
 const SEED_LESSONS: JpLessonUploadInput[] = [
   {
@@ -49,10 +50,26 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.status_updated_at != null ? String(row.status_updated_at) : null,
     status_updated_by:
       row.status_updated_by != null ? String(row.status_updated_by) : null,
+    teacher_ids: [],
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
+}
+
+async function attachTeacherIds(
+  db: D1Database,
+  lessons: JpLessonRecord[]
+): Promise<JpLessonRecord[]> {
+  if (!lessons.length) return lessons;
+  const linkMap = await getLessonTeacherIdsByLessonIds(
+    db,
+    lessons.map((l) => l.id)
+  );
+  return lessons.map((lesson) => ({
+    ...lesson,
+    teacher_ids: linkMap.get(lesson.id) ?? [],
+  }));
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
@@ -74,6 +91,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       learning: false,
       status_updated_at: null,
       status_updated_by: null,
+      teacher_ids: [],
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -94,7 +112,7 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
   await seedIfEmpty(db);
 
   if (devStoreEnabled) {
-    return [...devLessons].sort(compareJpLessonsByProgress);
+    return attachTeacherIds(db, [...devLessons].sort(compareJpLessonsByProgress));
   }
 
   const result = await db
@@ -111,7 +129,7 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
     )
     .all<Record<string, unknown>>();
 
-  return (result.results || []).map(mapRow);
+  return attachTeacherIds(db, (result.results || []).map(mapRow));
 }
 
 export async function getJpLessonById(
@@ -123,7 +141,10 @@ export async function getJpLessonById(
   await seedIfEmpty(db);
 
   if (devStoreEnabled) {
-    return devLessons.find((l) => l.id === lessonId) ?? null;
+    const lesson = devLessons.find((l) => l.id === lessonId) ?? null;
+    if (!lesson) return null;
+    const [withTeachers] = await attachTeacherIds(db, [lesson]);
+    return withTeachers;
   }
 
   const row = await db
@@ -131,7 +152,9 @@ export async function getJpLessonById(
     .bind(lessonId)
     .first<Record<string, unknown>>();
 
-  return row ? mapRow(row) : null;
+  if (!row) return null;
+  const [lesson] = await attachTeacherIds(db, [mapRow(row)]);
+  return lesson;
 }
 
 export async function updateJpLessonRefKey(
@@ -239,6 +262,7 @@ export async function createJpLesson(
       learning: false,
       status_updated_at: null,
       status_updated_by: null,
+      teacher_ids: [],
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -380,6 +404,39 @@ export async function updateJpLessonCompleted(
     completed ? "completed" : "pending",
     operatorUsername
   );
+}
+
+export type UpdateJpLessonTeacherResult =
+  | { ok: true; lesson: JpLessonRecord }
+  | { ok: false; error: string };
+
+export async function updateJpLessonTeacherAssignment(
+  db: D1Database,
+  lessonId: number,
+  teacherIds: number[]
+): Promise<UpdateJpLessonTeacherResult> {
+  await seedIfEmpty(db);
+
+  const existing = await getJpLessonById(db, lessonId);
+  if (!existing) return { ok: false, error: "not_found" };
+
+  const linkResult = await replaceLessonTeachers(db, lessonId, teacherIds);
+  if (!linkResult.ok) return linkResult;
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    const ts = nowIso();
+    devLessons[idx] = {
+      ...devLessons[idx],
+      teacher_ids: linkResult.teacher_ids,
+      updated_at: ts,
+    };
+    return { ok: true, lesson: devLessons[idx] };
+  }
+
+  const lesson = await getJpLessonById(db, lessonId);
+  if (!lesson) return { ok: false, error: "not_found" };
+  return { ok: true, lesson };
 }
 
 /** 教案 ref 更新标题时，同步关联的新课记录 */

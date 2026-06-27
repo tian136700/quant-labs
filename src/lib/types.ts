@@ -176,6 +176,14 @@ export type JpVocabRefUploadInput = {
 
 export type JpLessonKind = "word" | "grammar";
 
+export interface JpLessonTeacher {
+  id: number;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JpLessonRecord {
   id: number;
   kind: JpLessonKind;
@@ -189,6 +197,8 @@ export interface JpLessonRecord {
   status_updated_at: string | null;
   /** 最近一次切换学习状态的操作人用户名；未操作过则为 null */
   status_updated_by: string | null;
+  /** 上课老师 ID 列表；仅管理员可见与编辑 */
+  teacher_ids: number[];
   uploaded_at: string;
   created_at: string;
   updated_at: string;

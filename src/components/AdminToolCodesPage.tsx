@@ -9,6 +9,7 @@ import {
   adminRbacPath,
   adminTrendsPath,
   adminUsersPath,
+  adminJpLessonTeachersPath,
   teacherReviewNavPath,
 } from "@/lib/locale-path";
 import type { ToolDotCodeRecord, ToolDotType } from "@/tool-dot/types";
@@ -176,6 +177,10 @@ export function AdminToolCodesPage() {
           <a href={adminTrendsPath(locale)}>{locale === "zh" ? "趋势抓取" : "Trends"}</a>
           {" · "}
           <a href={adminRbacPath(locale)}>{locale === "zh" ? "角色权限" : "Roles"}</a>
+          {" · "}
+          <a href={adminJpLessonTeachersPath(locale)}>
+            {locale === "zh" ? "上课老师" : "Lesson teachers"}
+          </a>
         </p>
       </div>
 

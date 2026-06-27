@@ -48,23 +48,26 @@ export function resolveHydrationLocale(serverLocale?: Locale | null): Locale {
   return serverLocale ?? "en";
 }
 
-/** 优先级：Cookie > localStorage > 当前路径 > 服务端预判 > 默认英文 */
+/** /zh 路径 > Cookie > localStorage > 服务端预判 > 默认英文 */
 export function resolveClientLocale(serverLocale?: Locale | null): Locale {
+  const routeLocale = readRouteLocale();
+  if (routeLocale) return routeLocale;
   return (
     readCookieLocale() ??
     readStoredLocale() ??
-    readRouteLocale() ??
     serverLocale ??
     "en"
   );
 }
 
-/** Cookie > URL 路径 > Cloudflare 国家码 > 英文 */
+/** /zh 路径 > Cookie > Cloudflare 国家码 > 英文 */
 export function resolveServerLocale(request: NextRequest): Locale {
+  const routeLocale = localeFromPathname(request.nextUrl.pathname);
+  if (routeLocale) return routeLocale;
   return (
     parseLocale(request.cookies.get(LS_LOCALE)?.value) ??
-    localeFromPathname(request.nextUrl.pathname) ??
-    localeFromCountry(clientCountryCode(request))
+    localeFromCountry(clientCountryCode(request)) ??
+    "en"
   );
 }
 

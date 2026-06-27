@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
+import { JpLessonTeacherEditModal } from "@/components/JpLessonTeacherEditModal";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -19,13 +20,14 @@ import {
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import { adminJpLessonTeachersPath } from "@/lib/locale-path";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
   jpVocabRefViewerPath,
 } from "@/lib/jp-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
-import type { JpLessonNote, JpLessonRecord, JpVocabRef } from "@/lib/types";
+import type { JpLessonNote, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 
 function readLessonCache(): JpLessonApiPayload | null {
   return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
@@ -34,9 +36,10 @@ function readLessonCache(): JpLessonApiPayload | null {
 function persistLessonCache(
   lessons: JpLessonRecord[],
   refs: Record<string, JpVocabRef>,
-  notes: JpLessonNote[]
+  notes: JpLessonNote[],
+  teachers?: JpLessonTeacher[]
 ) {
-  writeClientCache(JP_LESSON_CACHE_KEY, { lessons, refs, notes });
+  writeClientCache(JP_LESSON_CACHE_KEY, { lessons, refs, notes, teachers });
 }
 
 function refDownloadUrl(refKey: string): string {
@@ -86,9 +89,19 @@ function refFilename(refKey: string, ref?: JpVocabRef): string {
   return jpVocabRefFilename(refKey, ref?.media_type === "pdf" ? "pdf" : "image");
 }
 
+function formatLessonTeacherNames(
+  lesson: JpLessonRecord,
+  teacherNameById: Map<number, string>
+): string {
+  const names = (lesson.teacher_ids ?? [])
+    .map((id) => teacherNameById.get(id))
+    .filter((name): name is string => Boolean(name));
+  return names.length ? names.join("、") : "—";
+}
+
 export function JpLessonPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, openAuthPanel, isAdmin } = useEtrAuth();
   const canOperate = canAccessJpVocab;
 
   const openJpAuth = useCallback(() => {
@@ -102,14 +115,19 @@ export function JpLessonPage() {
   const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
   const [notes, setNotes] = useState<JpLessonNote[]>(() => readLessonCache()?.notes ?? []);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readLessonCache()?.refs ?? {});
+  const [teachers, setTeachers] = useState<JpLessonTeacher[]>(
+    () => readLessonCache()?.teachers ?? []
+  );
   const [loading, setLoading] = useState(() => readLessonCache() == null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [savingTeacherId, setSavingTeacherId] = useState<number | null>(null);
   const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
+  const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -120,6 +138,9 @@ export function JpLessonPage() {
     setLessons(payload.lessons);
     setNotes(payload.notes);
     setRefs(payload.refs);
+    if (payload.teachers) {
+      setTeachers(payload.teachers);
+    }
   }, []);
 
   const loadLessons = useCallback(async () => {
@@ -162,6 +183,14 @@ export function JpLessonPage() {
     }
     return map;
   }, [notes]);
+
+  const teacherNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const teacher of teachers) {
+      map.set(teacher.id, teacher.name);
+    }
+    return map;
+  }, [teachers]);
 
   const copyLessonViewLink = async (lessonId: number, viewUrl: string) => {
     try {
@@ -243,7 +272,7 @@ export function JpLessonPage() {
       }
       setLessons((prev) => {
         const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
-        persistLessonCache(next, refs, notes);
+        persistLessonCache(next, refs, notes, teachers);
         return next;
       });
     } catch (err) {
@@ -258,12 +287,63 @@ export function JpLessonPage() {
     }
   };
 
+  const setLessonTeachers = async (lessonId: number, teacherIds: number[]) => {
+    if (!isAdmin || savingTeacherId === lessonId) return;
+
+    const snapshot = lessons.find((l) => l.id === lessonId);
+    setSavingTeacherId(lessonId);
+    setLessons((prev) =>
+      prev.map((l) => (l.id === lessonId ? { ...l, teacher_ids: teacherIds } : l))
+    );
+
+    try {
+      const res = await fetch("/api/jp-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "set_teacher",
+          lesson_id: lessonId,
+          teacher_ids: teacherIds,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        lesson?: JpLessonRecord;
+        error?: string;
+      };
+      if (!data.ok || !data.lesson) {
+        throw new Error(data.error || "保存失败");
+      }
+      setLessons((prev) => {
+        const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
+        persistLessonCache(next, refs, notes, teachers);
+        return next;
+      });
+      setEditingTeacherLesson(null);
+      setStatus("上课老师已更新");
+      window.setTimeout(() => setStatus(""), 2500);
+    } catch (err) {
+      if (snapshot) {
+        setLessons((prev) =>
+          prev.map((l) => (l.id === lessonId ? snapshot : l))
+        );
+      }
+      setStatus(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSavingTeacherId(null);
+    }
+  };
+
   const handleRefUpdated = (ref: JpVocabRef, lesson: JpLessonRecord) => {
     const nextRefs = { ...refs, [ref.ref_key]: ref };
     const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
     setRefs(nextRefs);
     setLessons(nextLessons);
-    persistLessonCache(nextLessons, nextRefs, notes);
+    persistLessonCache(nextLessons, nextRefs, notes, teachers);
     setStatus("教案已更新，仅影响本条新课。");
     window.setTimeout(() => setStatus(""), 2500);
   };
@@ -273,7 +353,7 @@ export function JpLessonPage() {
     const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
     setRefs(nextRefs);
     setLessons(nextLessons);
-    persistLessonCache(nextLessons, nextRefs, notes);
+    persistLessonCache(nextLessons, nextRefs, notes, teachers);
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
       const viewUrl = refViewUrl(ref.ref_key, ref.updated_at);
@@ -294,6 +374,7 @@ export function JpLessonPage() {
             <th className="jp-lesson-uploaded-col">上传日期</th>
             <th className="jp-lesson-status-at-col">最近操作</th>
             <th className="jp-lesson-operator-col">操作人</th>
+            {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
             <th className="jp-lesson-complete-col">学习状态</th>
             <th className="jp-lesson-notes-col">课堂笔记</th>
             <th className="jp-lesson-actions-col">教案操作</th>
@@ -337,6 +418,18 @@ export function JpLessonPage() {
                 <td data-label="操作人" className="jp-lesson-operator-col">
                   {lesson.status_updated_by ?? "—"}
                 </td>
+                {isAdmin ? (
+                  <td data-label="上课老师" className="jp-lesson-teacher-col">
+                    <div className="jp-lesson-teacher-cell">
+                      <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
+                      <JpEditIconButton
+                        title="设置上课老师（可多选）"
+                        disabled={savingTeacherId === lesson.id}
+                        onClick={() => setEditingTeacherLesson(lesson)}
+                      />
+                    </div>
+                  </td>
+                ) : null}
                 <td data-label="学习状态" className="jp-lesson-complete-col">
                   <div
                     className={`jp-lesson-complete-wrap${
@@ -453,6 +546,15 @@ export function JpLessonPage() {
         并带上教案链接。
       </p>
 
+      {isAdmin ? (
+        <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
+          <a href={adminJpLessonTeachersPath(locale)} style={{ color: "var(--accent)" }}>
+            上课老师管理
+          </a>
+          （仅管理员可见）
+        </p>
+      ) : null}
+
       {error ? (
         <p className="empty" role="alert" style={{ color: "var(--rise)" }}>
           {error}
@@ -506,6 +608,19 @@ export function JpLessonPage() {
           })}
         </div>
       )}
+
+      <JpLessonTeacherEditModal
+        open={editingTeacherLesson != null}
+        lesson={editingTeacherLesson}
+        teachers={teachers}
+        saving={savingTeacherId === editingTeacherLesson?.id}
+        onClose={() => setEditingTeacherLesson(null)}
+        onSave={(teacherIds) => {
+          if (editingTeacherLesson) {
+            void setLessonTeachers(editingTeacherLesson.id, teacherIds);
+          }
+        }}
+      />
 
       <JpVocabRefEditModal
         open={editingLesson != null}
@@ -646,6 +761,15 @@ export function JpLessonPage() {
           white-space: nowrap;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        :global(.jp-lesson-teacher-col) {
+          font-size: 0.8125rem;
+          min-width: 6.5rem;
+        }
+        :global(.jp-lesson-teacher-cell) {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
         }
         :global(.jp-lesson-actions-col) {
           text-align: center;

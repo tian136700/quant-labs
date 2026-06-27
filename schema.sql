@@ -206,6 +206,17 @@ CREATE TABLE IF NOT EXISTS jp_vocab_setting (
   updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 日语新课：上课老师（管理员维护，仅管理员可见）
+CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL UNIQUE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_sort ON jp_lesson_teacher (sort_order ASC, id ASC);
+
 -- 日语新课：学习清单 + 教案（API 在此上传，逗号分隔学习内容）
 CREATE TABLE IF NOT EXISTS jp_lesson (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -225,6 +236,18 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_uploaded ON jp_lesson (uploaded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_ref ON jp_lesson (ref_key);
+
+-- 日语新课：课程与上课老师（多对多，仅管理员可见）
+CREATE TABLE IF NOT EXISTS jp_lesson_teacher_link (
+  lesson_id  INTEGER NOT NULL,
+  teacher_id INTEGER NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (lesson_id, teacher_id),
+  FOREIGN KEY (lesson_id) REFERENCES jp_lesson (id) ON DELETE CASCADE,
+  FOREIGN KEY (teacher_id) REFERENCES jp_lesson_teacher (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_link_teacher ON jp_lesson_teacher_link (teacher_id);
 
 -- 日语新课：课堂笔记（每条笔记归属 content 中的某一单词/语法）
 CREATE TABLE IF NOT EXISTS jp_lesson_note (
