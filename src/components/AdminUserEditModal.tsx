@@ -142,7 +142,7 @@ export function AdminUserEditModal({
           autoComplete="off"
           onSubmit={(e) => void save(e)}
           onKeyDown={(e) => {
-            if (e.key !== "Enter" || e.isComposing) return;
+            if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
             const tag = (e.target as HTMLElement).tagName;
             if (tag === "INPUT" || tag === "SELECT") e.preventDefault();
           }}
