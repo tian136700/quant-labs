@@ -30,7 +30,10 @@ import {
 } from "@/lib/jp-api-cache";
 import { fetchWithClientCache, patchClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
-import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import {
+  effectiveTodayCheckCount,
+  jpVocabTodayCheckStats,
+} from "@/lib/jp-vocab-daily-check";
 import { applyJpVocabReview } from "@/lib/jp-vocab-review";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import {
@@ -387,6 +390,11 @@ export function JpVocabPage() {
     [words, sessionLevel]
   );
 
+  const todayCheckStats = useMemo(
+    () => jpVocabTodayCheckStats(words),
+    [words]
+  );
+
   const recordLevel = async (wordId: number, level: JpVocabLevel) => {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
@@ -625,6 +633,29 @@ export function JpVocabPage() {
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               共 {words.length} 条
+              {words.length ? (
+                <>
+                  {" "}
+                  · 今日抽查{" "}
+                  <span
+                    className={
+                      todayCheckStats.totalActions > 0
+                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
+                        : "jp-vocab-today-summary-value"
+                    }
+                    title={
+                      todayCheckStats.totalActions > 0
+                        ? `今日已抽查 ${todayCheckStats.wordCount} 个词条，共 ${todayCheckStats.totalActions} 次（北京时间 0 点归零）`
+                        : "今日尚未抽查（北京时间 0 点归零）"
+                    }
+                  >
+                    {todayCheckStats.wordCount} 个
+                    {todayCheckStats.totalActions > todayCheckStats.wordCount
+                      ? ` · ${todayCheckStats.totalActions} 次`
+                      : null}
+                  </span>
+                </>
+              ) : null}
               {SHOW_DAILY_QUIZ_ROW_STYLE && words.length ? (
                 <> · 今日待抽查 {dailyQuizPendingCount}/{Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length)}</>
               ) : null}
@@ -1193,6 +1224,14 @@ export function JpVocabPage() {
           margin: 0 0 0.5rem;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-vocab-today-summary-value {
+          font-variant-numeric: tabular-nums;
+          font-weight: 500;
+        }
+        .jp-vocab-today-summary-value--active {
+          color: var(--accent);
+          font-weight: 700;
         }
         .jp-vocab-help {
           margin-bottom: 0.75rem;

@@ -1,3 +1,5 @@
+import type { JpVocabWord } from "@/lib/types";
+
 /** 当前北京时间日期 YYYY-MM-DD（用于今日抽查次数按日归零） */
 export function beijingDateString(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -27,4 +29,25 @@ export function nextTodayCheckCount(
   const count =
     storedDate === today ? Math.max(0, storedCount) + 1 : 1;
   return { count, date: today };
+}
+
+/** 全表今日抽查汇总（北京时间 0 点归零） */
+export function jpVocabTodayCheckStats(
+  words: JpVocabWord[],
+  now = new Date()
+): { totalActions: number; wordCount: number } {
+  let totalActions = 0;
+  let wordCount = 0;
+  for (const w of words) {
+    const n = effectiveTodayCheckCount(
+      w.today_check_count ?? 0,
+      w.today_check_date,
+      now
+    );
+    if (n > 0) {
+      wordCount += 1;
+      totalActions += n;
+    }
+  }
+  return { totalActions, wordCount };
 }
