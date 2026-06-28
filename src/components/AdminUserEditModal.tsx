@@ -2,12 +2,17 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
+import { RBAC_ROLE_LABELS } from "@/lib/rbac";
+import type { EtrUserRole } from "@/lib/etr-auth";
+import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 
 export type AdminUserEditRow = {
   id: number;
   username: string;
   role: string;
   role_label: string;
+  disabled?: boolean;
+  created_at?: string;
 };
 
 type Props = {
@@ -16,7 +21,27 @@ type Props = {
   locale: "en" | "zh";
   onClose: () => void;
   onSaved: (user: AdminUserEditRow) => void;
+  onSaveFailed: (userId: number, snapshot: AdminUserEditRow, message: string) => void;
 };
+
+function adminUserRoleLabel(role: "user" | "jp_vocab", locale: "en" | "zh"): string {
+  const item = RBAC_ROLE_LABELS[role as EtrUserRole];
+  return locale === "zh" ? item.zh : item.en;
+}
+
+function buildOptimisticAdminUser(
+  base: AdminUserEditRow,
+  username: string,
+  role: "user" | "jp_vocab",
+  locale: "en" | "zh"
+): AdminUserEditRow {
+  return {
+    ...base,
+    username,
+    role,
+    role_label: adminUserRoleLabel(role, locale),
+  };
+}
 
 export function AdminUserEditModal({
   open,
@@ -24,12 +49,12 @@ export function AdminUserEditModal({
   locale,
   onClose,
   onSaved,
+  onSaveFailed,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"user" | "jp_vocab">("user");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const wasOpenRef = useRef(false);
 
@@ -50,12 +75,12 @@ export function AdminUserEditModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || submitting || e.isComposing) return;
+      if (e.key !== "Escape" || e.isComposing) return;
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, submitting, onClose]);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -66,36 +91,64 @@ export function AdminUserEditModal({
     };
   }, [open]);
 
-  const save = async (e: FormEvent) => {
+  const save = (e: FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
-    setSubmitting(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: user.id,
-          username: username.trim(),
-          role,
-          ...(password ? { password } : {}),
-        }),
-      });
-      const data = await res.json();
-      if (!data.ok || !data.user) {
-        setError(String(data.error || (locale === "zh" ? "保存失败" : "Save failed")));
-        return;
-      }
-      onSaved(data.user as AdminUserEditRow);
-      onClose();
-    } catch {
-      setError(locale === "zh" ? "保存失败" : "Save failed");
-    } finally {
-      setSubmitting(false);
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError(locale === "zh" ? "请填写用户名。" : "Username is required.");
+      return;
     }
+
+    setError("");
+    const snapshot = user;
+    const optimistic = buildOptimisticAdminUser(
+      snapshot,
+      trimmedUsername,
+      role,
+      locale
+    );
+
+    onSaved(optimistic);
+    onClose();
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: snapshot.id,
+            username: trimmedUsername,
+            role,
+            ...(password ? { password } : {}),
+          }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          user?: AdminUserEditRow;
+          error?: string;
+        };
+        if (!data.ok || !data.user) {
+          throw new Error(
+            String(data.error || (locale === "zh" ? "保存失败" : "Save failed"))
+          );
+        }
+        onSaved(data.user);
+      } catch (err) {
+        onSaveFailed(
+          snapshot.id,
+          snapshot,
+          err instanceof Error
+            ? err.message
+            : locale === "zh"
+              ? "保存失败"
+              : "Save failed"
+        );
+      }
+    })();
   };
 
   if (!mounted || !open || !user) return null;
@@ -103,10 +156,7 @@ export function AdminUserEditModal({
   return createPortal(
     <div
       className="admin-user-edit-overlay"
-      onMouseDown={(e) => {
-        if (e.target !== e.currentTarget || submitting) return;
-        onClose();
-      }}
+      onMouseDown={(e) => closeModalOnBackdropMouseDown(e, onClose)}
     >
       <div
         className="admin-user-edit-modal"
@@ -129,7 +179,6 @@ export function AdminUserEditModal({
           <button
             type="button"
             className="admin-user-edit-close"
-            disabled={submitting}
             aria-label={locale === "zh" ? "关闭" : "Close"}
             onClick={onClose}
           >
@@ -140,7 +189,7 @@ export function AdminUserEditModal({
         <form
           className="admin-user-edit-body"
           autoComplete="off"
-          onSubmit={(e) => void save(e)}
+          onSubmit={save}
           onKeyDown={(e) => {
             if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
             const tag = (e.target as HTMLElement).tagName;
@@ -153,7 +202,6 @@ export function AdminUserEditModal({
               type="text"
               name="admin-user-edit-username"
               value={username}
-              disabled={submitting}
               readOnly
               autoComplete="off"
               data-1p-ignore
@@ -168,7 +216,6 @@ export function AdminUserEditModal({
               type="password"
               name="admin-user-edit-password"
               value={password}
-              disabled={submitting}
               placeholder={locale === "zh" ? "不修改请留空" : "Leave blank to keep"}
               autoComplete="new-password"
               data-1p-ignore
@@ -180,7 +227,6 @@ export function AdminUserEditModal({
             <span>{locale === "zh" ? "角色" : "Role"}</span>
             <select
               value={role}
-              disabled={submitting}
               onChange={(e) => setRole(e.target.value as "user" | "jp_vocab")}
             >
               <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
@@ -196,7 +242,6 @@ export function AdminUserEditModal({
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
-              disabled={submitting}
               onClick={onClose}
             >
               {locale === "zh" ? "取消" : "Cancel"}
@@ -204,15 +249,9 @@ export function AdminUserEditModal({
             <button
               type="submit"
               className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              disabled={submitting || !username.trim()}
+              disabled={!username.trim()}
             >
-              {submitting
-                ? locale === "zh"
-                  ? "保存中…"
-                  : "Saving…"
-                : locale === "zh"
-                  ? "保存"
-                  : "Save"}
+              {locale === "zh" ? "保存" : "Save"}
             </button>
           </div>
         </form>

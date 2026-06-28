@@ -10,7 +10,7 @@ import {
   adminTrendsPath,
   teacherReviewNavPath,
 } from "@/lib/locale-path";
-import { AdminUserEditModal } from "@/components/AdminUserEditModal";
+import { AdminUserEditModal, type AdminUserEditRow } from "@/components/AdminUserEditModal";
 
 type UserRow = {
   id: number;
@@ -208,6 +208,48 @@ export function AdminUsersPage() {
       setDeletingId(null);
     }
   };
+
+  const applyUserUpdate = useCallback(
+    (updated: AdminUserEditRow) => {
+      setUsers((prev) =>
+        prev
+          .map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
+          .sort((a, b) =>
+            a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
+          )
+      );
+      setStatus(
+        locale === "zh"
+          ? `已更新用户：${updated.username}`
+          : `Updated user: ${updated.username}`
+      );
+      setStatusErr(false);
+    },
+    [locale]
+  );
+
+  const handleUserSaveFailed = useCallback(
+    (userId: number, snapshot: AdminUserEditRow, message: string) => {
+      setUsers((prev) =>
+        prev
+          .map((item) => {
+            if (item.id !== userId) return item;
+            return {
+              ...item,
+              ...snapshot,
+              disabled: snapshot.disabled ?? item.disabled,
+              created_at: snapshot.created_at ?? item.created_at,
+            };
+          })
+          .sort((a, b) =>
+            a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
+          )
+      );
+      setStatus(message);
+      setStatusErr(true);
+    },
+    []
+  );
 
   if (checking) return null;
 
@@ -460,21 +502,9 @@ export function AdminUsersPage() {
         onClose={() => setEditingUser(null)}
         onSaved={(updated) => {
           setEditingUser(null);
-          setUsers((prev) => {
-            const next = prev.map((item) =>
-              item.id === updated.id ? { ...item, ...updated } : item
-            );
-            return next.sort((a, b) =>
-              a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-            );
-          });
-          setStatus(
-            locale === "zh"
-              ? `已更新用户：${updated.username}`
-              : `Updated user: ${updated.username}`
-          );
-          setStatusErr(false);
+          applyUserUpdate(updated);
         }}
+        onSaveFailed={handleUserSaveFailed}
       />
 
       <style jsx>{`
