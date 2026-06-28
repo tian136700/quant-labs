@@ -17,15 +17,7 @@ export function trackEvent(payload: TrackPayload) {
     locale: payload.locale,
   });
 
-  try {
-    if (navigator.sendBeacon) {
-      const blob = new Blob([body], { type: "application/json" });
-      if (navigator.sendBeacon("/api/analytics/track", blob)) return;
-    }
-  } catch {
-    /* fall through */
-  }
-
+  // 必须带 Cookie 才能记录登录用户名；sendBeacon 在部分浏览器不携带 Cookie，故优先 fetch
   void fetch("/api/analytics/track", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
