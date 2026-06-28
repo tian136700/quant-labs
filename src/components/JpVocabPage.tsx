@@ -13,6 +13,10 @@ import {
   sortJpVocabWordsForDisplay,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
+import {
+  isJpVocabDefaultStatSort,
+  type JpVocabDailyDisplayOrder,
+} from "@/lib/jp-vocab-daily-order";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
@@ -50,9 +54,10 @@ function readVocabCache(): JpVocabApiPayload | null {
 function persistVocabCache(
   words: JpVocabWord[],
   refs: Record<string, JpVocabRef>,
-  daily_quiz_style: JpVocabDailyQuizStyle
+  daily_quiz_style: JpVocabDailyQuizStyle,
+  display_order: JpVocabDailyDisplayOrder
 ) {
-  writeClientCache(JP_VOCAB_CACHE_KEY, { words, refs, daily_quiz_style });
+  writeClientCache(JP_VOCAB_CACHE_KEY, { words, refs, daily_quiz_style, display_order });
 }
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -82,9 +87,6 @@ const SHOW_RANDOM_HIGHLIGHT = false;
 /** 暂时隐藏「今日待抽查」行背景标记（及管理员样式面板） */
 const SHOW_DAILY_QUIZ_ROW_STYLE = false;
 
-/** 末次勾选后多久再自动重排（老师勾选过程中列表不跳动） */
-const JP_VOCAB_SORT_IDLE_MS = 60 * 60 * 1000;
-
 /** 按当前排序，每日建议优先抽查的前 N 条（淡色背景标记） */
 const JP_VOCAB_DAILY_QUIZ_TOP = 20;
 
@@ -92,13 +94,6 @@ function jpVocabCheckedToday(word: JpVocabWord): boolean {
   return (
     effectiveTodayCheckCount(word.today_check_count ?? 0, word.today_check_date) > 0
   );
-}
-
-function jpVocabSortedIds(
-  words: JpVocabWord[],
-  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" }
-): number[] {
-  return sortJpVocabWordsForDisplay(words, statSort).map((w) => w.id);
 }
 
 function jpVocabWordsInOrder(
@@ -180,9 +175,11 @@ export function JpVocabPage() {
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
   }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
-  /** 勾选期间冻结的行顺序（id 列表），避免抽查优先级变化导致行跳动 */
-  const [frozenOrder, setFrozenOrder] = useState<number[]>([]);
-  const [isOrderFrozen, setIsOrderFrozen] = useState(false);
+  /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
+  const [displayOrder, setDisplayOrder] = useState<JpVocabDailyDisplayOrder>({
+    date: "",
+    ids: [],
+  });
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -192,10 +189,14 @@ export function JpVocabPage() {
     JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT
   );
   const dailyQuizStyleRef = useRef(dailyQuizStyle);
+  const displayOrderRef = useRef(displayOrder);
 
   useEffect(() => {
     dailyQuizStyleRef.current = dailyQuizStyle;
   }, [dailyQuizStyle]);
+  useEffect(() => {
+    displayOrderRef.current = displayOrder;
+  }, [displayOrder]);
 
   const saveDailyQuizStyle = useCallback(
     async (style: JpVocabDailyQuizStyle) => {
@@ -246,57 +247,7 @@ export function JpVocabPage() {
     [dailyQuizStyle]
   );
 
-  const wordsRef = useRef(words);
-  const statSortRef = useRef(statSort);
-  const sortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isOrderFrozenRef = useRef(isOrderFrozen);
-  const frozenOrderRef = useRef(frozenOrder);
-
-  useEffect(() => {
-    wordsRef.current = words;
-  }, [words]);
-  useEffect(() => {
-    statSortRef.current = statSort;
-  }, [statSort]);
-  useEffect(() => {
-    isOrderFrozenRef.current = isOrderFrozen;
-  }, [isOrderFrozen]);
-  useEffect(() => {
-    frozenOrderRef.current = frozenOrder;
-  }, [frozenOrder]);
-
-  const clearDeferredSort = useCallback(() => {
-    if (sortTimerRef.current != null) {
-      clearTimeout(sortTimerRef.current);
-      sortTimerRef.current = null;
-    }
-  }, []);
-
-  const applyLiveSort = useCallback(() => {
-    const nextOrder = jpVocabSortedIds(wordsRef.current, statSortRef.current);
-    setFrozenOrder(nextOrder);
-    setIsOrderFrozen(false);
-  }, []);
-
-  const scheduleDeferredSort = useCallback(() => {
-    clearDeferredSort();
-    sortTimerRef.current = setTimeout(() => {
-      sortTimerRef.current = null;
-      applyLiveSort();
-    }, JP_VOCAB_SORT_IDLE_MS);
-  }, [applyLiveSort, clearDeferredSort]);
-
-  useEffect(() => () => clearDeferredSort(), [clearDeferredSort]);
-
-  const freezeDisplayOrder = useCallback((order: number[]) => {
-    setFrozenOrder(order);
-    setIsOrderFrozen(true);
-    scheduleDeferredSort();
-  }, [scheduleDeferredSort]);
-
   const toggleStatSort = (key: JpVocabStatSortKey) => {
-    clearDeferredSort();
-    setIsOrderFrozen(false);
     setStatSort((prev) => {
       if (prev?.key === key) {
         return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
@@ -309,6 +260,7 @@ export function JpVocabPage() {
     setWords(payload.words);
     setRefs(payload.refs);
     setDailyQuizStyle(payload.daily_quiz_style);
+    setDisplayOrder(payload.display_order);
   }, []);
 
   const loadWords = useCallback(async () => {
@@ -345,11 +297,11 @@ export function JpVocabPage() {
   }, [loadWords]);
 
   const displayedWords = useMemo(() => {
-    if (isOrderFrozen && frozenOrder.length > 0) {
-      return jpVocabWordsInOrder(words, frozenOrder);
+    if (isJpVocabDefaultStatSort(statSort) && displayOrder.ids.length > 0) {
+      return jpVocabWordsInOrder(words, displayOrder.ids);
     }
     return sortJpVocabWordsForDisplay(words, statSort);
-  }, [words, statSort, isOrderFrozen, frozenOrder]);
+  }, [words, statSort, displayOrder.ids]);
 
   const dailyQuizTopIds = useMemo(
     () => new Set(displayedWords.slice(0, JP_VOCAB_DAILY_QUIZ_TOP).map((w) => w.id)),
@@ -409,16 +361,6 @@ export function JpVocabPage() {
     const prevReviewAt = sessionReviewAt[wordId];
     const nowMs = Date.now();
 
-    if (!isOrderFrozenRef.current) {
-      const currentOrder =
-        frozenOrderRef.current.length > 0
-          ? frozenOrderRef.current
-          : jpVocabSortedIds(wordsRef.current, statSortRef.current);
-      freezeDisplayOrder(currentOrder);
-    } else {
-      scheduleDeferredSort();
-    }
-
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
     setHighlightId(wordId);
@@ -454,7 +396,12 @@ export function JpVocabPage() {
       }
       setWords((prev) => {
         const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(next, refs, dailyQuizStyleRef.current);
+        persistVocabCache(
+          next,
+          refs,
+          dailyQuizStyleRef.current,
+          displayOrderRef.current
+        );
         return next;
       });
     } catch (err) {
@@ -509,19 +456,23 @@ export function JpVocabPage() {
       const data = (await res.json()) as {
         ok: boolean;
         words?: JpVocabWord[];
+        display_order?: JpVocabDailyDisplayOrder;
         error?: string;
       };
-      if (!data.ok || !data.words) {
+      if (!data.ok || !data.words || !data.display_order) {
         throw new Error(data.error || "重置失败");
       }
       setWords(data.words);
-      persistVocabCache(data.words, refs, dailyQuizStyleRef.current);
+      setDisplayOrder(data.display_order);
+      persistVocabCache(
+        data.words,
+        refs,
+        dailyQuizStyleRef.current,
+        data.display_order
+      );
       setSessionLevel({});
       setSessionReviewAt({});
-      clearDeferredSort();
-      setIsOrderFrozen(false);
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
-      setFrozenOrder(jpVocabSortedIds(data.words, JP_VOCAB_DEFAULT_STAT_SORT));
       setHighlightId(null);
       setStatus("已全部重置，可以开始新一轮复习。");
     } catch (err) {
@@ -550,9 +501,20 @@ export function JpVocabPage() {
     const nextRefs = ref
       ? { ...refs, [ref.ref_key]: { ...refs[ref.ref_key], ...ref } }
       : refs;
+    const nextDisplayOrder: JpVocabDailyDisplayOrder = displayOrder.ids.includes(
+      added.id
+    )
+      ? displayOrder
+      : { ...displayOrder, ids: [...displayOrder.ids, added.id] };
     setWords(nextWords);
     setRefs(nextRefs);
-    persistVocabCache(nextWords, nextRefs, dailyQuizStyleRef.current);
+    setDisplayOrder(nextDisplayOrder);
+    persistVocabCache(
+      nextWords,
+      nextRefs,
+      dailyQuizStyleRef.current,
+      nextDisplayOrder
+    );
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
@@ -561,7 +523,12 @@ export function JpVocabPage() {
   const handleWordSaved = (word: JpVocabWord) => {
     const nextWords = words.map((w) => (w.id === word.id ? word : w));
     setWords(nextWords);
-    persistVocabCache(nextWords, refs, dailyQuizStyleRef.current);
+    persistVocabCache(
+      nextWords,
+      refs,
+      dailyQuizStyleRef.current,
+      displayOrderRef.current
+    );
     setStatus("词条已保存。");
   };
 
@@ -761,6 +728,7 @@ export function JpVocabPage() {
                 ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
+                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。
                 {SHOW_DAILY_QUIZ_ROW_STYLE ? (
                   <>
                     <strong>今日待抽查前 {JP_VOCAB_DAILY_QUIZ_TOP} 条</strong>：按<strong>当前表格排序</strong>（默认抽查优先级）取最前面的 {JP_VOCAB_DAILY_QUIZ_TOP} 条，今日尚未勾选的会显示标记背景；勾选后背景消失。
@@ -777,7 +745,7 @@ export function JpVocabPage() {
             <div className="jp-vocab-daily-quiz-style-panel__head">
               <strong>今日前 {JP_VOCAB_DAILY_QUIZ_TOP} 条 · 标记样式</strong>
               <span className="jp-vocab-daily-quiz-style-panel__note">
-                标记范围 = 当前排序下的前 {JP_VOCAB_DAILY_QUIZ_TOP} 条（与表头排序一致，勾选过程中顺序不跳）；保存后所有老师看到相同背景
+                标记范围 = 当日固定顺序下的前 {JP_VOCAB_DAILY_QUIZ_TOP} 条（默认抽查优先级，每天 0 点重排）；保存后所有老师看到相同背景
               </span>
             </div>
             <label className="jp-vocab-daily-quiz-style-toggle">

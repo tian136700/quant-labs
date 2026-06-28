@@ -21,8 +21,15 @@ import {
 } from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
 import {
+  beijingDateString,
   effectiveTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
+import {
+  appendJpVocabDailyDisplayOrderId,
+  computeJpVocabDailyDisplayOrder,
+  mergeJpVocabDailyDisplayOrder,
+  type JpVocabDailyDisplayOrder,
+} from "@/lib/jp-vocab-daily-order";
 import {
   JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
   normalizeJpVocabDailyQuizStyle,
@@ -71,8 +78,10 @@ let devSeeded = false;
 let devDailyQuizStyle: JpVocabDailyQuizStyle = {
   ...JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
 };
+let devDailyDisplayOrder: JpVocabDailyDisplayOrder = { date: "", ids: [] };
 
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
+const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
@@ -502,7 +511,7 @@ export async function recordJpVocabReview(
 }
 
 export type ResetJpVocabReviewsResult =
-  | { ok: true; words: JpVocabWord[] }
+  | { ok: true; words: JpVocabWord[]; display_order: JpVocabDailyDisplayOrder }
   | { ok: false; error: string };
 
 export async function resetAllJpVocabReviews(
@@ -525,7 +534,9 @@ export async function resetAllJpVocabReviews(
         updated_at: ts,
       };
     }
-    return { ok: true, words: sortJpVocabWords(devWords) };
+    const words = sortJpVocabWords(devWords);
+    devDailyDisplayOrder = await refreshJpVocabDailyDisplayOrder(db, words);
+    return { ok: true, words, display_order: devDailyDisplayOrder };
   }
 
   await db
@@ -540,7 +551,8 @@ export async function resetAllJpVocabReviews(
     .run();
 
   const words = await listJpVocabWords(db);
-  return { ok: true, words };
+  const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
+  return { ok: true, words, display_order };
 }
 
 export type UploadJpVocabWordsResult =
@@ -712,6 +724,10 @@ export async function addJpVocabWord(
       updated_at: ts,
     };
     devWords.push(created);
+    devDailyDisplayOrder = appendJpVocabDailyDisplayOrderId(
+      devDailyDisplayOrder,
+      created.id
+    );
     return { ok: true, word: created };
   }
 
@@ -746,7 +762,10 @@ export async function addJpVocabWord(
     .first<Record<string, unknown>>();
 
   if (!row) return { ok: false, error: "insert_failed" };
-  return { ok: true, word: mapRow(row) };
+
+  const created = mapRow(row);
+  await appendJpVocabWordToDailyDisplayOrder(db, created.id);
+  return { ok: true, word: created };
 }
 
 /** 按图片内容 hash 去重：相同字节共用 ref_key，已存在则跳过上传 */
@@ -1296,6 +1315,106 @@ export async function updateJpVocabWordEntry(
   }
 
   return { ok: true, word: current };
+}
+
+async function readJpVocabDailyDisplayOrderRaw(
+  db: D1Database
+): Promise<JpVocabDailyDisplayOrder | null> {
+  if (devStoreEnabled) {
+    return devDailyDisplayOrder.ids.length ? devDailyDisplayOrder : null;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_DAILY_DISPLAY_ORDER_KEY)
+    .first<{ value: string }>();
+
+  if (!row?.value) return null;
+
+  try {
+    const parsed = JSON.parse(row.value) as Partial<JpVocabDailyDisplayOrder>;
+    if (!parsed.date || !Array.isArray(parsed.ids)) return null;
+    return {
+      date: parsed.date,
+      ids: parsed.ids.map((id) => Number(id)).filter((id) => id > 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function saveJpVocabDailyDisplayOrder(
+  db: D1Database,
+  order: JpVocabDailyDisplayOrder
+): Promise<void> {
+  if (devStoreEnabled) {
+    devDailyDisplayOrder = order;
+    return;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(JP_VOCAB_DAILY_DISPLAY_ORDER_KEY, JSON.stringify(order), nowIso())
+    .run();
+}
+
+/** 当日已有顺序则沿用（仅合并增删词条）；跨日则按抽查优先级重排 */
+export async function ensureJpVocabDailyDisplayOrder(
+  db: D1Database,
+  words: JpVocabWord[]
+): Promise<JpVocabDailyDisplayOrder> {
+  const today = beijingDateString();
+  const stored = await readJpVocabDailyDisplayOrderRaw(db);
+
+  if (stored?.date === today && stored.ids.length > 0) {
+    const merged = mergeJpVocabDailyDisplayOrder(stored.ids, words);
+    const order = { date: today, ids: merged };
+    if (merged.length !== stored.ids.length || merged.some((id, i) => id !== stored.ids[i])) {
+      await saveJpVocabDailyDisplayOrder(db, order);
+    }
+    return order;
+  }
+
+  const order = { date: today, ids: computeJpVocabDailyDisplayOrder(words) };
+  await saveJpVocabDailyDisplayOrder(db, order);
+  return order;
+}
+
+/** 强制按当前数据重算当日顺序（如全部重置后） */
+export async function refreshJpVocabDailyDisplayOrder(
+  db: D1Database,
+  words: JpVocabWord[]
+): Promise<JpVocabDailyDisplayOrder> {
+  const order = {
+    date: beijingDateString(),
+    ids: computeJpVocabDailyDisplayOrder(words),
+  };
+  await saveJpVocabDailyDisplayOrder(db, order);
+  return order;
+}
+
+export async function appendJpVocabWordToDailyDisplayOrder(
+  db: D1Database,
+  wordId: number
+): Promise<void> {
+  const stored = await readJpVocabDailyDisplayOrderRaw(db);
+  const today = beijingDateString();
+  const base =
+    stored?.date === today
+      ? stored
+      : { date: today, ids: [] as number[] };
+  const next = appendJpVocabDailyDisplayOrderId(base, wordId);
+  if (next.ids.length !== base.ids.length) {
+    await saveJpVocabDailyDisplayOrder(db, next);
+  }
 }
 
 async function ensureJpVocabSettingSchema(db: D1Database): Promise<void> {

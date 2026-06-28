@@ -1,5 +1,6 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
+  ensureJpVocabDailyDisplayOrder,
   getJpVocabDailyQuizStyle,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
@@ -26,7 +27,8 @@ export async function GET() {
       listJpVocabWordsWithRefs(env.DB),
       getJpVocabDailyQuizStyle(env.DB),
     ]);
-    return jsonResponse({ ok: true, words, refs, daily_quiz_style });
+    const display_order = await ensureJpVocabDailyDisplayOrder(env.DB, words);
+    return jsonResponse({ ok: true, words, refs, daily_quiz_style, display_order });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
@@ -66,7 +68,11 @@ export async function POST(request: Request) {
       if (!result.ok) {
         return jsonResponse({ ok: false, error: result.error }, 400);
       }
-      return jsonResponse({ ok: true, words: result.words });
+      return jsonResponse({
+        ok: true,
+        words: result.words,
+        display_order: result.display_order,
+      });
     }
 
     const wordId = Number(body.word_id);

@@ -4,14 +4,20 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
+import {
+  computeJpVocabDailyDisplayOrder,
+  type JpVocabDailyDisplayOrder,
+} from "@/lib/jp-vocab-daily-order";
+import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 
-export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v2";
+export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v3";
 export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v4";
 
 export type JpVocabApiPayload = {
   words: JpVocabWord[];
   refs: Record<string, JpVocabRef>;
   daily_quiz_style: JpVocabDailyQuizStyle;
+  display_order: JpVocabDailyDisplayOrder;
 };
 
 export type JpLessonApiPayload = {
@@ -27,20 +33,33 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     words?: JpVocabWord[];
     refs?: Record<string, JpVocabRef>;
     daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
+    display_order?: Partial<JpVocabDailyDisplayOrder>;
     error?: string;
   };
   if (!data.ok || !Array.isArray(data.words)) {
     throw new Error(data.error || "加载失败");
   }
+  const words = data.words.map((word) => ({
+    ...word,
+    today_check_count: word.today_check_count ?? 0,
+  }));
+  const display_order =
+    data.display_order?.date && Array.isArray(data.display_order.ids)
+      ? {
+          date: data.display_order.date,
+          ids: data.display_order.ids.map((id) => Number(id)).filter((id) => id > 0),
+        }
+      : {
+          date: beijingDateString(),
+          ids: computeJpVocabDailyDisplayOrder(words),
+        };
   return {
-    words: data.words.map((word) => ({
-      ...word,
-      today_check_count: word.today_check_count ?? 0,
-    })),
+    words,
     refs: data.refs ?? {},
     daily_quiz_style: normalizeJpVocabDailyQuizStyle(
       data.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT
     ),
+    display_order,
   };
 }
 
