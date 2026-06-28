@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabWord } from "@/lib/types";
+import {
+  buildOptimisticJpVocabWord,
+  syncJpVocabEditResponse,
+} from "@/lib/jp-vocab-optimistic-save";
 
 type Props = {
   open: boolean;
@@ -12,6 +16,7 @@ type Props = {
   canEdit: boolean;
   onClose: () => void;
   onSaved: (word: JpVocabWord) => void;
+  onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
   onNeedAuth: () => void;
 };
 
@@ -22,11 +27,11 @@ export function JpClassNotesEditModal({
   canEdit,
   onClose,
   onSaved,
+  onSaveFailed,
   onNeedAuth,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [body, setBody] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -43,12 +48,12 @@ export function JpClassNotesEditModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || submitting) return;
+      if (e.key !== "Escape") return;
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, submitting, onClose]);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -59,50 +64,55 @@ export function JpClassNotesEditModal({
     };
   }, [open]);
 
-  const save = async () => {
+  const save = () => {
     if (!word) return;
     if (!canEdit) {
       onNeedAuth();
       return;
     }
 
-    setSubmitting(true);
     setError("");
+    const snapshot = word;
+    const notes = body.trim() || null;
+    const optimistic = buildOptimisticJpVocabWord(snapshot, {
+      class_notes: notes,
+    });
 
-    try {
-      const res = await fetch("/api/jp-vocab/class-notes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          word_id: word.id,
-          class_notes: body.trim() || null,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: JpVocabWord;
-        error?: string;
-      };
+    onSaved(optimistic);
+    onClose();
 
-      if (res.status === 401) {
-        onNeedAuth();
-        throw new Error(locale === "zh" ? "请登录后再编辑。" : "Please log in.");
+    void (async () => {
+      try {
+        const res = await fetch("/api/jp-vocab/class-notes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            word_id: snapshot.id,
+            class_notes: notes,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        };
+        await syncJpVocabEditResponse(res, data, locale, {
+          onSaved,
+          onSaveFailed,
+          onNeedAuth,
+        });
+      } catch (err) {
+        onSaveFailed(
+          snapshot.id,
+          snapshot,
+          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed"
+        );
       }
-      if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
-      }
-
-      onSaved(data.word);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setSubmitting(false);
-    }
+    })();
   };
 
   if (!open || !mounted || !word) return null;
@@ -113,7 +123,7 @@ export function JpClassNotesEditModal({
         className="jp-notes-edit-overlay"
         role="presentation"
         onClick={() => {
-          if (!submitting) onClose();
+          onClose();
         }}
       >
         <div
@@ -134,7 +144,6 @@ export function JpClassNotesEditModal({
               type="button"
               className="jp-notes-edit-close"
               onClick={onClose}
-              disabled={submitting}
               aria-label="关闭"
             >
               ×
@@ -146,7 +155,7 @@ export function JpClassNotesEditModal({
               className="jp-notes-edit-textarea"
               rows={4}
               value={body}
-              disabled={!canEdit || submitting}
+              disabled={!canEdit}
               placeholder="记录例句、用法、易错点…"
               onChange={(e) => setBody(e.target.value)}
             />
@@ -160,7 +169,6 @@ export function JpClassNotesEditModal({
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
-              disabled={submitting}
               onClick={onClose}
             >
               取消
@@ -169,10 +177,9 @@ export function JpClassNotesEditModal({
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                disabled={submitting}
-                onClick={() => void save()}
+                onClick={save}
               >
-                {submitting ? "保存中…" : "保存"}
+                保存
               </button>
             ) : null}
           </div>

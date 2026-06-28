@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabKind, JpVocabWord } from "@/lib/types";
+import {
+  buildOptimisticJpVocabWord,
+  syncJpVocabEditResponse,
+} from "@/lib/jp-vocab-optimistic-save";
 
 type Props = {
   open: boolean;
@@ -12,6 +16,7 @@ type Props = {
   canEdit: boolean;
   onClose: () => void;
   onSaved: (word: JpVocabWord) => void;
+  onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
   onNeedAuth: () => void;
 };
 
@@ -27,6 +32,7 @@ export function JpVocabEditModal({
   canEdit,
   onClose,
   onSaved,
+  onSaveFailed,
   onNeedAuth,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -36,7 +42,6 @@ export function JpVocabEditModal({
   const [meaning, setMeaning] = useState("");
   const [pos, setPos] = useState("");
   const [classNotes, setClassNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -58,12 +63,12 @@ export function JpVocabEditModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || submitting) return;
+      if (e.key !== "Escape") return;
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, submitting, onClose]);
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,57 +79,70 @@ export function JpVocabEditModal({
     };
   }, [open]);
 
-  const save = async () => {
+  const save = () => {
     if (!word) return;
     if (!canEdit) {
       onNeedAuth();
       return;
     }
 
-    setSubmitting(true);
+    const trimmedWord = wordText.trim();
+    if (!trimmedWord) {
+      setError(locale === "zh" ? "请填写单词或语法。" : "Word is required.");
+      return;
+    }
+
     setError("");
+    const snapshot = word;
+    const optimistic = buildOptimisticJpVocabWord(snapshot, {
+      kind,
+      word: trimmedWord,
+      reading: kind === "word" ? reading.trim() || null : null,
+      meaning: meaning.trim() || null,
+      pos: pos.trim() || null,
+      class_notes: classNotes.trim() || null,
+    });
 
-    try {
-      const res = await fetch("/api/jp-vocab/edit", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          word_id: word.id,
-          kind,
-          word: wordText.trim(),
-          reading: kind === "word" ? reading.trim() || null : null,
-          meaning: meaning.trim() || null,
-          pos: pos.trim() || null,
-          class_notes: classNotes.trim() || null,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: JpVocabWord;
-        error?: string;
-      };
+    onSaved(optimistic);
+    onClose();
 
-      if (res.status === 401) {
-        onNeedAuth();
-        throw new Error(locale === "zh" ? "请登录后再编辑。" : "Please log in.");
-      }
-      if (!data.ok || !data.word) {
-        throw new Error(
-          data.error || (locale === "zh" ? "保存失败" : "Save failed")
+    void (async () => {
+      try {
+        const res = await fetch("/api/jp-vocab/edit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            word_id: snapshot.id,
+            kind,
+            word: trimmedWord,
+            reading: kind === "word" ? reading.trim() || null : null,
+            meaning: meaning.trim() || null,
+            pos: pos.trim() || null,
+            class_notes: classNotes.trim() || null,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        };
+        await syncJpVocabEditResponse(res, data, locale, {
+          onSaved,
+          onSaveFailed,
+          onNeedAuth,
+        });
+      } catch (err) {
+        onSaveFailed(
+          snapshot.id,
+          snapshot,
+          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed"
         );
       }
-
-      onSaved(data.word);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setSubmitting(false);
-    }
+    })();
   };
 
   if (!open || !mounted || !word) return null;
@@ -135,7 +153,7 @@ export function JpVocabEditModal({
         className="jp-vocab-edit-overlay"
         role="presentation"
         onClick={() => {
-          if (!submitting) onClose();
+          onClose();
         }}
       >
         <div
@@ -158,7 +176,6 @@ export function JpVocabEditModal({
               type="button"
               className="jp-vocab-edit-close"
               onClick={onClose}
-              disabled={submitting}
               aria-label="关闭"
             >
               ×
@@ -174,7 +191,7 @@ export function JpVocabEditModal({
                 id="jp-vocab-edit-kind"
                 className="jp-vocab-edit-select"
                 value={kind}
-                disabled={!canEdit || submitting}
+                disabled={!canEdit}
                 onChange={(e) => setKind(e.target.value as JpVocabKind)}
               >
                 {KIND_OPTIONS.map((opt) => (
@@ -195,7 +212,7 @@ export function JpVocabEditModal({
                 className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
                 rows={2}
                 value={wordText}
-                disabled={!canEdit || submitting}
+                disabled={!canEdit}
                 placeholder={kind === "grammar" ? "例如：～ばかり" : "例如：勉強"}
                 onChange={(e) => setWordText(e.target.value)}
               />
@@ -211,7 +228,7 @@ export function JpVocabEditModal({
                   type="text"
                   className="jp-vocab-edit-input"
                   value={reading}
-                  disabled={!canEdit || submitting}
+                  disabled={!canEdit}
                   placeholder="例如：べんきょう"
                   onChange={(e) => setReading(e.target.value)}
                 />
@@ -227,7 +244,7 @@ export function JpVocabEditModal({
                 className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
                 rows={2}
                 value={meaning}
-                disabled={!canEdit || submitting}
+                disabled={!canEdit}
                 placeholder="例如：学习"
                 onChange={(e) => setMeaning(e.target.value)}
               />
@@ -242,7 +259,7 @@ export function JpVocabEditModal({
                 className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
                 rows={2}
                 value={pos}
-                disabled={!canEdit || submitting}
+                disabled={!canEdit}
                 placeholder="例如：名词、动词、形容词"
                 onChange={(e) => setPos(e.target.value)}
               />
@@ -257,7 +274,7 @@ export function JpVocabEditModal({
                 className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
                 rows={4}
                 value={classNotes}
-                disabled={!canEdit || submitting}
+                disabled={!canEdit}
                 placeholder="记录例句、用法、易错点…"
                 onChange={(e) => setClassNotes(e.target.value)}
               />
@@ -271,7 +288,6 @@ export function JpVocabEditModal({
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
-              disabled={submitting}
               onClick={onClose}
             >
               取消
@@ -280,10 +296,9 @@ export function JpVocabEditModal({
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                disabled={submitting}
-                onClick={() => void save()}
+                onClick={save}
               >
-                {submitting ? "保存中…" : "保存"}
+                保存
               </button>
             ) : null}
           </div>

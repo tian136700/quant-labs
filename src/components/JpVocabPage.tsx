@@ -529,17 +529,39 @@ export function JpVocabPage() {
     );
   };
 
-  const handleWordSaved = (word: JpVocabWord) => {
-    const nextWords = words.map((w) => (w.id === word.id ? word : w));
-    setWords(nextWords);
-    persistVocabCache(
-      nextWords,
-      refs,
-      dailyQuizStyleRef.current,
-      displayOrderRef.current
-    );
-    setStatus("词条已保存。");
-  };
+  const handleWordSaved = useCallback(
+    (word: JpVocabWord) => {
+      setWords((prev) => {
+        const next = prev.map((w) => (w.id === word.id ? word : w));
+        persistVocabCache(
+          next,
+          refs,
+          dailyQuizStyleRef.current,
+          displayOrderRef.current
+        );
+        return next;
+      });
+      setStatus("词条已保存。");
+    },
+    [refs]
+  );
+
+  const handleWordSaveFailed = useCallback(
+    (wordId: number, snapshot: JpVocabWord, message: string) => {
+      setWords((prev) => {
+        const next = prev.map((w) => (w.id === wordId ? snapshot : w));
+        persistVocabCache(
+          next,
+          refs,
+          dailyQuizStyleRef.current,
+          displayOrderRef.current
+        );
+        return next;
+      });
+      setStatus(message);
+    },
+    [refs]
+  );
 
   const exportExcel = async () => {
     if (exporting || !displayedWords.length) return;
@@ -1218,6 +1240,7 @@ export function JpVocabPage() {
         canEdit={canOperate}
         onClose={() => setEditingRemarksWord(null)}
         onSaved={handleWordSaved}
+        onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
       />
 
@@ -1228,6 +1251,7 @@ export function JpVocabPage() {
         canEdit={canOperate}
         onClose={() => setEditingWord(null)}
         onSaved={handleWordSaved}
+        onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
       />
 
