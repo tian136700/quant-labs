@@ -22,6 +22,7 @@ type Props = {
   onClose: () => void;
   onSaved: (user: AdminUserEditRow) => void;
   onSaveFailed: (userId: number, snapshot: AdminUserEditRow, message: string) => void;
+  onCredentialsStored?: (userId: number, password: string) => void;
 };
 
 function adminUserRoleLabel(role: "user" | "jp_vocab", locale: "en" | "zh"): string {
@@ -50,6 +51,7 @@ export function AdminUserEditModal({
   onClose,
   onSaved,
   onSaveFailed,
+  onCredentialsStored,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
@@ -112,6 +114,9 @@ export function AdminUserEditModal({
 
     onSaved(optimistic);
     onClose();
+    if (password.trim()) {
+      onCredentialsStored?.(snapshot.id, password);
+    }
 
     void (async () => {
       try {

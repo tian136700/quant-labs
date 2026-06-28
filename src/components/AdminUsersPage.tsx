@@ -11,6 +11,17 @@ import {
   teacherReviewNavPath,
 } from "@/lib/locale-path";
 import { AdminUserEditModal, type AdminUserEditRow } from "@/components/AdminUserEditModal";
+import {
+  formatAdminUserCredentials,
+  readAdminUserPassword,
+  rememberAdminUserPassword,
+  forgetAdminUserPassword,
+} from "@/lib/admin-user-credentials";
+import {
+  parseAdminUsersApi,
+  readAdminUsersCache,
+  writeAdminUsersCache,
+} from "@/lib/admin-users-cache";
 
 type UserRow = {
   id: number;
@@ -27,9 +38,10 @@ export function AdminUsersPage() {
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
-  const [savingId, setSavingId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [linkGeneratingId, setLinkGeneratingId] = useState<number | null>(null);
+  const [copyingId, setCopyingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,58 +50,100 @@ export function AdminUsersPage() {
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
 
+  const persistUsers = useCallback((next: UserRow[]) => {
+    writeAdminUsersCache(next);
+  }, []);
+
   const load = useCallback(async () => {
-    setLoading(true);
+    const cached = readAdminUsersCache();
+    const hasCache = cached != null;
+    if (hasCache) {
+      setUsers(cached);
+      setLoading(false);
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setStatus("");
     try {
       const res = await fetch("/api/admin/users", { credentials: "include" });
       const data = await res.json();
-      if (!data.ok) {
-        setStatus(String(data.error || "load failed"));
-        setStatusErr(true);
-        return;
-      }
-      setUsers(data.users ?? []);
+      const next = parseAdminUsersApi(data);
+      setUsers(next);
+      persistUsers(next);
     } catch {
-      setStatus(locale === "zh" ? "加载失败" : "Load failed");
-      setStatusErr(true);
+      if (!hasCache) {
+        setStatus(locale === "zh" ? "加载失败" : "Load failed");
+        setStatusErr(true);
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [locale]);
+  }, [locale, persistUsers]);
 
   useEffect(() => {
     if (checking || !isAdmin || editingUser != null) return;
     void load();
   }, [checking, isAdmin, load, editingUser]);
 
-  const toggleDisabled = async (row: UserRow) => {
-    setSavingId(row.id);
+  const toggleDisabled = (row: UserRow) => {
+    const snapshot = row;
+    const nextDisabled = !row.disabled;
     setStatus("");
     setStatusErr(false);
-    try {
-      const res = await fetch("/api/admin/users", {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: row.id, disabled: !row.disabled }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setStatus(String(data.error || "save failed"));
-        setStatusErr(true);
-        return;
-      }
-      setUsers((prev) =>
-        prev.map((item) => (item.id === row.id ? { ...item, ...data.user } : item))
+    setUsers((prev) => {
+      const next = prev.map((item) =>
+        item.id === row.id ? { ...item, disabled: nextDisabled } : item
       );
-      setStatus(locale === "zh" ? "已更新" : "Updated");
-    } catch {
-      setStatus(locale === "zh" ? "操作失败" : "Update failed");
-      setStatusErr(true);
-    } finally {
-      setSavingId(null);
-    }
+      persistUsers(next);
+      return next;
+    });
+    setStatus(
+      locale === "zh"
+        ? nextDisabled
+          ? `已禁用：${row.username}`
+          : `已启用：${row.username}`
+        : nextDisabled
+          ? `Disabled: ${row.username}`
+          : `Enabled: ${row.username}`
+    );
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: row.id, disabled: nextDisabled }),
+        });
+        const data = await res.json();
+        if (!data.ok || !data.user) {
+          throw new Error(String(data.error || "save failed"));
+        }
+        setUsers((prev) => {
+          const next = prev.map((item) =>
+            item.id === row.id ? { ...item, ...data.user } : item
+          );
+          persistUsers(next);
+          return next;
+        });
+      } catch (err) {
+        setUsers((prev) => {
+          const next = prev.map((item) => (item.id === row.id ? snapshot : item));
+          persistUsers(next);
+          return next;
+        });
+        setStatus(
+          err instanceof Error
+            ? err.message
+            : locale === "zh"
+              ? "操作失败"
+              : "Update failed"
+        );
+        setStatusErr(true);
+      }
+    })();
   };
 
   const createUser = async (e: FormEvent) => {
@@ -114,11 +168,14 @@ export function AdminUsersPage() {
         setStatusErr(true);
         return;
       }
-      setUsers((prev) =>
-        [...prev, data.user as UserRow].sort((a, b) =>
+      setUsers((prev) => {
+        const next = [...prev, data.user as UserRow].sort((a, b) =>
           a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-        )
-      );
+        );
+        persistUsers(next);
+        return next;
+      });
+      rememberAdminUserPassword(data.user.id, newPassword);
       setNewUsername("");
       setNewPassword("");
       setNewRole("user");
@@ -171,6 +228,85 @@ export function AdminUsersPage() {
     }
   };
 
+  const copyUserCredentials = async (row: UserRow) => {
+    setStatus("");
+    setStatusErr(false);
+
+    let password = readAdminUserPassword(row.id);
+    const username = row.username;
+
+    if (!password) {
+      const ok = window.confirm(
+        locale === "zh"
+          ? `本地未保存用户「${username}」的密码。\n是否重置为新密码并复制？（旧密码将失效）`
+          : `No saved password for "${username}". Reset to a new password and copy? (The old password will stop working.)`
+      );
+      if (!ok) return;
+
+      setCopyingId(row.id);
+      try {
+        const res = await fetch("/api/admin/users/reset-password", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: row.id }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          password?: string;
+          user?: UserRow;
+          error?: string;
+        };
+        if (!data.ok || !data.password) {
+          throw new Error(String(data.error || "reset failed"));
+        }
+        password = data.password;
+        rememberAdminUserPassword(row.id, password);
+        if (data.user) {
+          setUsers((prev) => {
+            const next = prev.map((item) =>
+              item.id === row.id ? { ...item, ...data.user! } : item
+            );
+            persistUsers(next);
+            return next;
+          });
+        }
+      } catch (err) {
+        setStatus(
+          err instanceof Error
+            ? err.message
+            : locale === "zh"
+              ? "重置密码失败"
+              : "Failed to reset password"
+        );
+        setStatusErr(true);
+        return;
+      } finally {
+        setCopyingId(null);
+      }
+    }
+
+    const text = formatAdminUserCredentials(username, password!, locale);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      setStatus(
+        locale === "zh"
+          ? `已复制 ${username} 的用户名与密码`
+          : `Copied username and password for ${username}`
+      );
+      setStatusErr(false);
+    } catch {
+      setStatus(
+        locale === "zh"
+          ? `复制失败，请手动复制：\n${text}`
+          : `Copy failed. Manual copy:\n${text}`
+      );
+      setStatusErr(true);
+    }
+  };
+
   const deleteUser = async (row: UserRow) => {
     const ok = window.confirm(
       locale === "zh"
@@ -179,9 +315,23 @@ export function AdminUsersPage() {
     );
     if (!ok) return;
 
-    setDeletingId(row.id);
+    const snapshot = users;
+    const savedPassword = readAdminUserPassword(row.id);
     setStatus("");
     setStatusErr(false);
+    setUsers((prev) => {
+      const next = prev.filter((item) => item.id !== row.id);
+      persistUsers(next);
+      return next;
+    });
+    forgetAdminUserPassword(row.id);
+    setStatus(
+      locale === "zh"
+        ? `已删除用户：${row.username}`
+        : `Deleted user: ${row.username}`
+    );
+
+    setDeletingId(row.id);
     try {
       const res = await fetch("/api/admin/users", {
         method: "DELETE",
@@ -191,18 +341,19 @@ export function AdminUsersPage() {
       });
       const data = await res.json();
       if (!data.ok) {
-        setStatus(String(data.error || "delete failed"));
-        setStatusErr(true);
-        return;
+        throw new Error(String(data.error || "delete failed"));
       }
-      setUsers((prev) => prev.filter((item) => item.id !== row.id));
+    } catch (err) {
+      setUsers(snapshot);
+      persistUsers(snapshot);
+      if (savedPassword) rememberAdminUserPassword(row.id, savedPassword);
       setStatus(
-        locale === "zh"
-          ? `已删除用户：${data.username ?? row.username}`
-          : `Deleted user: ${data.username ?? row.username}`
+        err instanceof Error
+          ? err.message
+          : locale === "zh"
+            ? "删除失败"
+            : "Delete failed"
       );
-    } catch {
-      setStatus(locale === "zh" ? "删除失败" : "Delete failed");
       setStatusErr(true);
     } finally {
       setDeletingId(null);
@@ -211,13 +362,15 @@ export function AdminUsersPage() {
 
   const applyUserUpdate = useCallback(
     (updated: AdminUserEditRow) => {
-      setUsers((prev) =>
-        prev
+      setUsers((prev) => {
+        const next = prev
           .map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
           .sort((a, b) =>
             a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-          )
-      );
+          );
+        persistUsers(next);
+        return next;
+      });
       setStatus(
         locale === "zh"
           ? `已更新用户：${updated.username}`
@@ -225,13 +378,13 @@ export function AdminUsersPage() {
       );
       setStatusErr(false);
     },
-    [locale]
+    [locale, persistUsers]
   );
 
   const handleUserSaveFailed = useCallback(
     (userId: number, snapshot: AdminUserEditRow, message: string) => {
-      setUsers((prev) =>
-        prev
+      setUsers((prev) => {
+        const next = prev
           .map((item) => {
             if (item.id !== userId) return item;
             return {
@@ -243,12 +396,14 @@ export function AdminUsersPage() {
           })
           .sort((a, b) =>
             a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-          )
-      );
+          );
+        persistUsers(next);
+        return next;
+      });
       setStatus(message);
       setStatusErr(true);
     },
-    []
+    [persistUsers]
   );
 
   if (checking) return null;
@@ -381,6 +536,12 @@ export function AdminUsersPage() {
               : "No users yet. Add one above or refresh after configuring env secrets."}
           </p>
         ) : (
+          <>
+            {refreshing ? (
+              <p className="hint" style={{ marginBottom: "0.65rem" }}>
+                {locale === "zh" ? "同步中…" : "Syncing…"}
+              </p>
+            ) : null}
           <div className="admin-rbac-table-wrap">
             <table className="admin-rbac-table">
               <thead>
@@ -399,10 +560,11 @@ export function AdminUsersPage() {
                   const canEdit = !isAdminUser;
                   const canDelete = !isSelf && !isAdminUser;
                   const canGenerateLink = !row.disabled && !isAdminUser;
+                  const canCopyCredentials = !isAdminUser;
                   const busy =
-                    savingId === row.id ||
                     deletingId === row.id ||
-                    linkGeneratingId === row.id;
+                    linkGeneratingId === row.id ||
+                    copyingId === row.id;
                   return (
                     <tr key={row.id}>
                       <td className="admin-rbac-username">{row.username}</td>
@@ -426,6 +588,27 @@ export function AdminUsersPage() {
                               onClick={() => setEditingUser(row)}
                             >
                               {locale === "zh" ? "编辑" : "Edit"}
+                            </button>
+                          ) : null}
+                          {canCopyCredentials ? (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+                              disabled={busy}
+                              onClick={() => void copyUserCredentials(row)}
+                              title={
+                                locale === "zh"
+                                  ? "复制用户名与密码（密码来自本机缓存；若无则重置后复制）"
+                                  : "Copy username and password (from local cache, or reset first)"
+                              }
+                            >
+                              {copyingId === row.id
+                                ? locale === "zh"
+                                  ? "处理中…"
+                                  : "Working…"
+                                : locale === "zh"
+                                  ? "复制账号密码"
+                                  : "Copy credentials"}
                             </button>
                           ) : null}
                           {canGenerateLink ? (
@@ -453,19 +636,15 @@ export function AdminUsersPage() {
                                   : " btn-rsi-filter--danger"
                               }`}
                               disabled={busy}
-                              onClick={() => void toggleDisabled(row)}
+                              onClick={() => toggleDisabled(row)}
                             >
-                              {savingId === row.id
+                              {row.disabled
                                 ? locale === "zh"
-                                  ? "处理中…"
-                                  : "Saving…"
-                                : row.disabled
-                                  ? locale === "zh"
-                                    ? "启用"
-                                    : "Enable"
-                                  : locale === "zh"
-                                    ? "禁用"
-                                    : "Disable"}
+                                  ? "启用"
+                                  : "Enable"
+                                : locale === "zh"
+                                  ? "禁用"
+                                  : "Disable"}
                             </button>
                           ) : null}
                           {canDelete ? (
@@ -492,6 +671,7 @@ export function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -505,6 +685,7 @@ export function AdminUsersPage() {
           applyUserUpdate(updated);
         }}
         onSaveFailed={handleUserSaveFailed}
+        onCredentialsStored={rememberAdminUserPassword}
       />
 
       <style jsx>{`

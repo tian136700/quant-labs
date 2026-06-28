@@ -816,6 +816,54 @@ export async function updateUserByAdmin(
   return { ok: true, user: updated };
 }
 
+function generateAdminResetPassword(minLength: number): string {
+  const chars =
+    "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const length = Math.max(minLength, 12);
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+export type ResetUserPasswordByAdminResult =
+  | { ok: true; user: EtrUser; password: string }
+  | { ok: false; error: string };
+
+/** 管理员重置用户密码并返回明文（仅本次响应，供复制账号密码） */
+export async function resetUserPasswordByAdmin(
+  env: CloudflareEnv,
+  userId: number
+): Promise<ResetUserPasswordByAdminResult> {
+  await ensureBootstrapUsers(env);
+
+  const user = await findUserById(env.DB, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
+
+  const minLength = user.role === "jp_vocab" ? 10 : 6;
+  const password = generateAdminResetPassword(minLength);
+  const { salt, hash } = await hashPassword(password);
+  const passwordHash = encodePasswordStorage(salt, hash);
+
+  if (devAuthEnabled) {
+    const row = devUsers.find((u) => u.id === userId);
+    if (!row) return { ok: false, error: "user_not_found" };
+    row.password_hash = passwordHash;
+    const { password_hash: _, ...publicUser } = row;
+    return { ok: true, user: publicUser, password };
+  }
+
+  await revokeUserSessions(env.DB, userId);
+  await env.DB
+    .prepare(`UPDATE etr_users SET password_hash = ?1 WHERE id = ?2`)
+    .bind(passwordHash, userId)
+    .run();
+
+  const updated = await findUserById(env.DB, userId);
+  if (!updated) return { ok: false, error: "user_not_found" };
+  return { ok: true, user: updated, password };
+}
+
 /** 将环境变量 / Secret 中的 bootstrap 账号写入 D1（已存在则同步密码） */
 export async function syncBootstrapUsersFromEnv(env: CloudflareEnv): Promise<void> {
   await ensureBootstrapUsers(env);
