@@ -7,6 +7,7 @@ import {
 } from "@/lib/cloudflare-env";
 import { isValidEmail } from "@/lib/email-validation";
 import { listUserFeedback, saveUserFeedback } from "@/lib/feedback-db";
+import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
 import { clientGeoFromRequest } from "@/lib/geoip";
 import { clientIp } from "@/lib/locale-pref";
 
@@ -101,6 +102,10 @@ export async function POST(request: Request) {
   try {
     const env = await getCloudflareEnv();
     const geo = clientGeoFromRequest(request);
+    const sessionUser = await getSessionUserFromRequest(
+      env,
+      request.headers.get("cookie")
+    );
     const urlPath = (body.url_path || "").trim() || null;
     const userLocale =
       body.locale === "zh" || body.locale === "en" ? body.locale : locale;
@@ -130,6 +135,7 @@ export async function POST(request: Request) {
       geo_region: geo.region,
       geo_region_code: geo.region_code,
       geo_city: geo.city,
+      username: sessionUser?.username ?? null,
       url_path: urlPath || "/about",
       event_type: "action",
       event_detail: "feedback_submit",

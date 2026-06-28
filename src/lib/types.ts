@@ -119,6 +119,8 @@ export interface VisitLogRecord {
   geo_region?: string | null;
   geo_region_code?: string | null;
   geo_city?: string | null;
+  /** 访问时已登录的用户名；未登录为 null */
+  username?: string | null;
   url_path: string;
   event_type: string;
   event_detail: string | null;

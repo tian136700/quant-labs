@@ -57,6 +57,7 @@ export type Messages = {
       id: string;
       ip: string;
       ipVisitCount: string;
+      username: string;
       country: string;
       url: string;
       eventType: string;
@@ -544,6 +545,7 @@ export const messages: Record<Locale, Messages> = {
         id: "ID",
         ip: "IP",
         ipVisitCount: "IP visits",
+        username: "Signed-in user",
         country: "Region",
         url: "URL",
         eventType: "Type",
@@ -1131,6 +1133,7 @@ export const messages: Record<Locale, Messages> = {
         id: "ID",
         ip: "IP 地址",
         ipVisitCount: "IP 访问总次数",
+        username: "登录用户",
         country: "地区",
         url: "访问网址",
         eventType: "类型",

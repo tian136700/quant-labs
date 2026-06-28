@@ -5,6 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { geoLocationDisplay } from "@/lib/geoip";
+import { visitLogUsernameDisplay } from "@/lib/visit-log-display";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
 import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
@@ -221,6 +222,10 @@ export function AdminDashboardPage() {
                       value={row.ip_visit_count ?? "—"}
                     />
                     <AdminCardField
+                      label={adm.visits.username}
+                      value={visitLogUsernameDisplay(row.username, locale)}
+                    />
+                    <AdminCardField
                       label={adm.visits.country}
                       value={geoLocationDisplay(row, locale)}
                     />
@@ -270,6 +275,7 @@ export function AdminDashboardPage() {
                       </span>
                     </button>
                   </th>
+                  <th>{adm.visits.username}</th>
                   <th>{adm.visits.country}</th>
                   <th>{adm.visits.url}</th>
                   <th>{adm.visits.eventType}</th>
@@ -284,6 +290,7 @@ export function AdminDashboardPage() {
                     <td>{row.id}</td>
                     <td>{row.ip}</td>
                     <td>{row.ip_visit_count ?? "—"}</td>
+                    <td>{visitLogUsernameDisplay(row.username, locale)}</td>
                     <td>{geoLocationDisplay(row, locale)}</td>
                     <td className="admin-cell-wrap">{row.url_path}</td>
                     <td>{row.event_type}</td>
