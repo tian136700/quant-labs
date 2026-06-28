@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
+import { AdminAuthGate } from "@/components/AdminAuthGate";
 import {
   adminPath,
   adminRbacPath,
   adminTrendsPath,
   adminUsersPath,
   adminJpLessonTeachersPath,
-  teacherReviewNavPath,
 } from "@/lib/locale-path";
 import type { ToolDotCodeRecord, ToolDotType } from "@/tool-dot/types";
 import { TOOL_DOT_TYPES } from "@/tool-dot/types";
@@ -143,24 +143,14 @@ export function AdminToolCodesPage() {
 
   const toolLabel = (type: ToolDotType) => adm.toolTypes[type] ?? type;
 
-  if (checking) return null;
-
-  if (!isAdmin) {
+  if (checking || !isAdmin) {
     return (
-      <div className="admin-page admin-page--auth">
-        <div className="page-hero etr-hero-center">
-          <h1>{adm.page.title}</h1>
-          <p className="sub">{adm.auth.required}</p>
-          <div className="etr-form-actions etr-form-actions--center">
-            <a
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              href={teacherReviewNavPath(locale)}
-            >
-              {adm.auth.login}
-            </a>
-          </div>
-        </div>
-      </div>
+      <AdminAuthGate
+        title={adm.page.title}
+        required={adm.auth.required}
+        login={adm.auth.login}
+        registered={!checking && isAdmin}
+      />
     );
   }
 

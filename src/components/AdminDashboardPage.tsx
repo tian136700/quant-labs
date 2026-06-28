@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
-import { countryDisplayName } from "@/lib/geoip";
-import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath, teacherReviewNavPath } from "@/lib/locale-path";
+import { geoLocationDisplay } from "@/lib/geoip";
+import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
+import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import type { VisitLogSortField, VisitLogSortOrder } from "@/lib/analytics-db";
 
@@ -43,6 +45,7 @@ export function AdminDashboardPage() {
   const adm = t("adminDashboard");
   const admTrends = t("adminTrends");
   const { isAdmin, hasPermission, checking } = useEtrAuth();
+  const canAccess = isAdmin || hasPermission("admin:dashboard");
   const canViewRbac = isAdmin || hasPermission("admin:rbac");
 
   const [visits, setVisits] = useState<VisitLogRecord[]>([]);
@@ -130,30 +133,18 @@ export function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    if (checking || !isAdmin) return;
+    if (checking || !canAccess) return;
     void loadAll();
-  }, [checking, isAdmin, loadAll]);
+  }, [checking, canAccess, loadAll]);
 
-  if (checking) {
-    return null;
-  }
-
-  if (!isAdmin) {
+  if (checking || !canAccess) {
     return (
-      <div className="admin-page admin-page--auth">
-        <div className="page-hero etr-hero-center">
-          <h1>{adm.page.title}</h1>
-          <p className="sub">{adm.auth.required}</p>
-          <div className="etr-form-actions etr-form-actions--center">
-            <a
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              href={teacherReviewNavPath(locale)}
-            >
-              {adm.auth.login}
-            </a>
-          </div>
-        </div>
-      </div>
+      <AdminAuthGate
+        title={adm.page.title}
+        required={adm.auth.required}
+        login={adm.auth.login}
+        registered={!checking && canAccess}
+      />
     );
   }
 
@@ -164,6 +155,7 @@ export function AdminDashboardPage() {
     <div className="admin-page">
       <div className="page-hero">
         <h1>{adm.page.title}</h1>
+        <AdminAuthUserStatus registered={canAccess} />
         <p className="sub">{adm.page.subtitle}</p>
         <p className="hint">
           <a href={adminTrendsPath(locale)}>{admTrends.page.title} →</a>
@@ -230,7 +222,7 @@ export function AdminDashboardPage() {
                     />
                     <AdminCardField
                       label={adm.visits.country}
-                      value={countryDisplayName(row.country_code, "zh")}
+                      value={geoLocationDisplay(row, locale)}
                     />
                     <AdminCardField label={adm.visits.eventType} value={row.event_type} />
                     <AdminCardField label={adm.visits.locale} value={row.locale ?? "—"} />
@@ -292,7 +284,7 @@ export function AdminDashboardPage() {
                     <td>{row.id}</td>
                     <td>{row.ip}</td>
                     <td>{row.ip_visit_count ?? "—"}</td>
-                    <td>{countryDisplayName(row.country_code, "zh")}</td>
+                    <td>{geoLocationDisplay(row, locale)}</td>
                     <td className="admin-cell-wrap">{row.url_path}</td>
                     <td>{row.event_type}</td>
                     <td className="admin-cell-wrap">{row.event_detail ?? "—"}</td>
@@ -364,7 +356,7 @@ export function AdminDashboardPage() {
                     <AdminCardField label={adm.feedback.ip} value={row.ip} />
                     <AdminCardField
                       label={adm.feedback.country}
-                      value={countryDisplayName(row.country_code, "zh")}
+                      value={geoLocationDisplay(row, locale)}
                     />
                     <AdminCardField label={adm.feedback.locale} value={row.locale ?? "—"} />
                     <AdminCardField
@@ -403,7 +395,7 @@ export function AdminDashboardPage() {
                     <td>{row.email}</td>
                     <td className="etr-remark-cell admin-cell-wrap">{row.content}</td>
                     <td>{row.ip}</td>
-                    <td>{countryDisplayName(row.country_code, "zh")}</td>
+                    <td>{geoLocationDisplay(row, locale)}</td>
                     <td className="admin-cell-wrap">{row.url_path ?? "—"}</td>
                     <td>{row.locale ?? "—"}</td>
                     <td>{formatBeijingDateTime(row.created_at)}</td>

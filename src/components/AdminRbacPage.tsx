@@ -12,7 +12,8 @@ import {
   type RbacPermissionCategory,
   type RbacPermissionDef,
 } from "@/lib/rbac";
-import { adminPath, adminTrendsPath, adminUsersPath, adminToolCodesPath, teacherReviewNavPath } from "@/lib/locale-path";
+import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { adminPath, adminTrendsPath, adminUsersPath, adminToolCodesPath } from "@/lib/locale-path";
 
 type RoleMatrix = {
   role: EtrUserRole;
@@ -152,26 +153,14 @@ export function AdminRbacPage() {
     }
   };
 
-  if (checking) return null;
-
-  if (!canManage) {
+  if (checking || !canManage) {
     return (
-      <div className="admin-page admin-page--auth">
-        <div className="page-hero etr-hero-center">
-          <h1>{locale === "zh" ? "角色权限管理" : "Role permissions"}</h1>
-          <p className="sub">
-            {locale === "zh" ? "请使用管理员账号登录。" : "Please log in as admin."}
-          </p>
-          <div className="etr-form-actions etr-form-actions--center">
-            <a
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              href={teacherReviewNavPath(locale)}
-            >
-              {locale === "zh" ? "去登录" : "Log in"}
-            </a>
-          </div>
-        </div>
-      </div>
+      <AdminAuthGate
+        title={locale === "zh" ? "角色权限管理" : "Role permissions"}
+        required={locale === "zh" ? "请使用管理员账号登录。" : "Please log in as admin."}
+        login={locale === "zh" ? "去登录" : "Log in"}
+        registered={!checking && canManage}
+      />
     );
   }
 

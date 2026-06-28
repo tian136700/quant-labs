@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
-import { adminPath, teacherReviewNavPath } from "@/lib/locale-path";
+import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { adminPath } from "@/lib/locale-path";
 import type { TrendFetchRunRecord, TrendItemRecord } from "@/lib/types";
 import type { TrendRunDetail } from "@/lib/trend-db";
 import { resolveItemFullPrompt } from "@/lib/trend-db";
@@ -52,7 +53,8 @@ function PromptBlock({
 export function AdminTrendsPage() {
   const { locale, t, tf } = useI18n();
   const tr = t("adminTrends");
-  const { isAdmin, checking } = useEtrAuth();
+  const { isAdmin, hasPermission, checking } = useEtrAuth();
+  const canAccess = isAdmin || hasPermission("admin:trends");
 
   const [runs, setRuns] = useState<TrendFetchRunRecord[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
@@ -142,28 +144,18 @@ export function AdminTrendsPage() {
   ]);
 
   useEffect(() => {
-    if (checking || !isAdmin) return;
+    if (checking || !canAccess) return;
     void loadRuns();
-  }, [checking, isAdmin, loadRuns]);
+  }, [checking, canAccess, loadRuns]);
 
-  if (checking) return null;
-
-  if (!isAdmin) {
+  if (checking || !canAccess) {
     return (
-      <div className="admin-page admin-page--auth">
-        <div className="page-hero etr-hero-center">
-          <h1>{tr.page.title}</h1>
-          <p className="sub">{tr.auth.required}</p>
-          <div className="etr-form-actions etr-form-actions--center">
-            <a
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              href={teacherReviewNavPath(locale)}
-            >
-              {tr.auth.login}
-            </a>
-          </div>
-        </div>
-      </div>
+      <AdminAuthGate
+        title={tr.page.title}
+        required={tr.auth.required}
+        login={tr.auth.login}
+        registered={!checking && canAccess}
+      />
     );
   }
 

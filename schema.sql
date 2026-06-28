@@ -141,6 +141,9 @@ CREATE TABLE IF NOT EXISTS user_feedback (
   content      TEXT    NOT NULL,
   ip           TEXT    NOT NULL,
   country_code TEXT,
+  geo_region   TEXT,
+  geo_region_code TEXT,
+  geo_city     TEXT,
   url_path     TEXT,
   locale       TEXT,
   created_at   TEXT    NOT NULL
@@ -153,6 +156,9 @@ CREATE TABLE IF NOT EXISTS visit_logs (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   ip           TEXT    NOT NULL,
   country_code TEXT,
+  geo_region   TEXT,
+  geo_region_code TEXT,
+  geo_city     TEXT,
   url_path     TEXT    NOT NULL,
   event_type   TEXT    NOT NULL,
   event_detail TEXT,
@@ -264,6 +270,12 @@ CREATE TABLE IF NOT EXISTS jp_lesson_note (
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_id);
 
 -- 已有库升级（仅需执行一次）：
+-- ALTER TABLE user_feedback ADD COLUMN geo_region TEXT;
+-- ALTER TABLE user_feedback ADD COLUMN geo_region_code TEXT;
+-- ALTER TABLE user_feedback ADD COLUMN geo_city TEXT;
+-- ALTER TABLE visit_logs ADD COLUMN geo_region TEXT;
+-- ALTER TABLE visit_logs ADD COLUMN geo_region_code TEXT;
+-- ALTER TABLE visit_logs ADD COLUMN geo_city TEXT;
 -- CREATE TABLE IF NOT EXISTS jp_vocab_ref (...);  -- 同上
 -- ALTER TABLE jp_vocab_word ADD COLUMN kind TEXT NOT NULL DEFAULT 'word';
 -- ALTER TABLE jp_vocab_word ADD COLUMN ref_key TEXT;

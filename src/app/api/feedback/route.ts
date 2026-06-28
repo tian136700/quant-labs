@@ -7,7 +7,7 @@ import {
 } from "@/lib/cloudflare-env";
 import { isValidEmail } from "@/lib/email-validation";
 import { listUserFeedback, saveUserFeedback } from "@/lib/feedback-db";
-import { clientCountryCode } from "@/lib/geoip";
+import { clientGeoFromRequest } from "@/lib/geoip";
 import { clientIp } from "@/lib/locale-pref";
 
 const ERROR_MSG: Record<string, Record<"en" | "zh", string>> = {
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
   try {
     const env = await getCloudflareEnv();
-    const countryCode = clientCountryCode(request);
+    const geo = clientGeoFromRequest(request);
     const urlPath = (body.url_path || "").trim() || null;
     const userLocale =
       body.locale === "zh" || body.locale === "en" ? body.locale : locale;
@@ -109,7 +109,10 @@ export async function POST(request: Request) {
       email,
       content,
       ip,
-      country_code: countryCode,
+      country_code: geo.country_code,
+      geo_region: geo.region,
+      geo_region_code: geo.region_code,
+      geo_city: geo.city,
       url_path: urlPath,
       locale: userLocale,
     });
@@ -123,7 +126,10 @@ export async function POST(request: Request) {
 
     await trackVisit(env.DB, {
       ip,
-      country_code: countryCode,
+      country_code: geo.country_code,
+      geo_region: geo.region,
+      geo_region_code: geo.region_code,
+      geo_city: geo.city,
       url_path: urlPath || "/about",
       event_type: "action",
       event_detail: "feedback_submit",

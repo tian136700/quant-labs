@@ -17,6 +17,9 @@ export type SaveFeedbackInput = {
   content: string;
   ip: string;
   country_code: string | null;
+  geo_region?: string | null;
+  geo_region_code?: string | null;
+  geo_city?: string | null;
   url_path: string | null;
   locale: string | null;
 };
@@ -45,6 +48,9 @@ export async function saveUserFeedback(
       content,
       ip: input.ip,
       country_code: input.country_code,
+      geo_region: input.geo_region ?? null,
+      geo_region_code: input.geo_region_code ?? null,
+      geo_city: input.geo_city ?? null,
       url_path: input.url_path,
       locale: input.locale,
       created_at: createdAt,
@@ -55,14 +61,17 @@ export async function saveUserFeedback(
 
   await db
     .prepare(
-      `INSERT INTO user_feedback (email, content, ip, country_code, url_path, locale, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+      `INSERT INTO user_feedback (email, content, ip, country_code, geo_region, geo_region_code, geo_city, url_path, locale, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
     )
     .bind(
       email,
       content,
       input.ip,
       input.country_code,
+      input.geo_region ?? null,
+      input.geo_region_code ?? null,
+      input.geo_city ?? null,
       input.url_path,
       input.locale,
       createdAt
@@ -81,6 +90,9 @@ export async function saveUserFeedback(
     content,
     ip: input.ip,
     country_code: input.country_code,
+    geo_region: input.geo_region ?? null,
+    geo_region_code: input.geo_region_code ?? null,
+    geo_city: input.geo_city ?? null,
     url_path: input.url_path,
     locale: input.locale,
     created_at: createdAt,
@@ -100,7 +112,7 @@ export async function listUserFeedback(
 
   const { results } = await db
     .prepare(
-      `SELECT id, email, content, ip, country_code, url_path, locale, created_at
+      `SELECT id, email, content, ip, country_code, geo_region, geo_region_code, geo_city, url_path, locale, created_at
        FROM user_feedback
        ORDER BY created_at DESC
        LIMIT ?1`

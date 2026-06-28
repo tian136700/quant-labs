@@ -1,6 +1,6 @@
 import { trackVisit } from "@/lib/analytics-db";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
-import { clientCountryCode } from "@/lib/geoip";
+import { clientGeoFromRequest } from "@/lib/geoip";
 import { clientIp } from "@/lib/locale-pref";
 
 export async function POST(request: Request) {
@@ -29,9 +29,13 @@ export async function POST(request: Request) {
 
   try {
     const env = await getCloudflareEnv();
+    const geo = clientGeoFromRequest(request);
     await trackVisit(env.DB, {
       ip,
-      country_code: clientCountryCode(request),
+      country_code: geo.country_code,
+      geo_region: geo.region,
+      geo_region_code: geo.region_code,
+      geo_city: geo.city,
       url_path: urlPath,
       event_type: eventType,
       event_detail: eventDetail,

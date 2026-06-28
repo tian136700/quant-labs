@@ -104,6 +104,9 @@ export interface UserFeedbackRecord {
   content: string;
   ip: string;
   country_code: string | null;
+  geo_region?: string | null;
+  geo_region_code?: string | null;
+  geo_city?: string | null;
   url_path: string | null;
   locale: string | null;
   created_at: string;
@@ -113,6 +116,9 @@ export interface VisitLogRecord {
   id: number;
   ip: string;
   country_code: string | null;
+  geo_region?: string | null;
+  geo_region_code?: string | null;
+  geo_city?: string | null;
   url_path: string;
   event_type: string;
   event_detail: string | null;

@@ -15,6 +15,9 @@ function nowIso(): string {
 export type TrackVisitInput = {
   ip: string;
   country_code: string | null;
+  geo_region?: string | null;
+  geo_region_code?: string | null;
+  geo_city?: string | null;
   url_path: string;
   event_type: string;
   event_detail: string | null;
@@ -37,6 +40,9 @@ export async function trackVisit(
       id: devNextId++,
       ip: input.ip,
       country_code: input.country_code,
+      geo_region: input.geo_region ?? null,
+      geo_region_code: input.geo_region_code ?? null,
+      geo_city: input.geo_city ?? null,
       url_path: urlPath,
       event_type: eventType,
       event_detail: eventDetail,
@@ -49,12 +55,15 @@ export async function trackVisit(
 
   await db
     .prepare(
-      `INSERT INTO visit_logs (ip, country_code, url_path, event_type, event_detail, locale, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`
+      `INSERT INTO visit_logs (ip, country_code, geo_region, geo_region_code, geo_city, url_path, event_type, event_detail, locale, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`
     )
     .bind(
       input.ip,
       input.country_code,
+      input.geo_region ?? null,
+      input.geo_region_code ?? null,
+      input.geo_city ?? null,
       urlPath,
       eventType,
       eventDetail,
@@ -75,6 +84,9 @@ export async function trackVisit(
     id,
     ip: input.ip,
     country_code: input.country_code,
+    geo_region: input.geo_region ?? null,
+    geo_region_code: input.geo_region_code ?? null,
+    geo_city: input.geo_city ?? null,
     url_path: urlPath,
     event_type: eventType,
     event_detail: eventDetail,
@@ -183,7 +195,7 @@ export async function listVisitLogs(
 
   const { results } = await db
     .prepare(
-      `SELECT id, ip, country_code, url_path, event_type, event_detail, locale, created_at,
+      `SELECT id, ip, country_code, geo_region, geo_region_code, geo_city, url_path, event_type, event_detail, locale, created_at,
               COUNT(*) OVER (PARTITION BY ip) AS ip_visit_count
        FROM visit_logs
        ORDER BY ${orderBy}

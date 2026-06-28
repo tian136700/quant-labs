@@ -85,6 +85,9 @@ export type Messages = {
     auth: {
       required: string;
       login: string;
+      checking: string;
+      currentUser: string;
+      unregistered: string;
     };
     status: {
       loadFailed: string;
@@ -541,7 +544,7 @@ export const messages: Record<Locale, Messages> = {
         id: "ID",
         ip: "IP",
         ipVisitCount: "IP visits",
-        country: "Country/Region",
+        country: "Region",
         url: "URL",
         eventType: "Type",
         eventDetail: "Detail",
@@ -561,7 +564,7 @@ export const messages: Record<Locale, Messages> = {
         email: "Email",
         content: "Feedback",
         ip: "IP",
-        country: "Country/Region",
+        country: "Region",
         url: "From page",
         locale: "Locale",
         time: "Time",
@@ -569,6 +572,9 @@ export const messages: Record<Locale, Messages> = {
       auth: {
         required: "Please log in as admin to view this page.",
         login: "Log in",
+        checking: "Checking…",
+        currentUser: "Signed in:",
+        unregistered: "Unregistered user",
       },
       status: {
         loadFailed: "Failed to load data. Please try again.",
@@ -1125,7 +1131,7 @@ export const messages: Record<Locale, Messages> = {
         id: "ID",
         ip: "IP 地址",
         ipVisitCount: "IP 访问总次数",
-        country: "国家/地区",
+        country: "地区",
         url: "访问网址",
         eventType: "类型",
         eventDetail: "操作详情",
@@ -1145,7 +1151,7 @@ export const messages: Record<Locale, Messages> = {
         email: "邮箱",
         content: "建议内容",
         ip: "IP 地址",
-        country: "国家/地区",
+        country: "地区",
         url: "来源页面",
         locale: "语言",
         time: "时间",
@@ -1153,6 +1159,9 @@ export const messages: Record<Locale, Messages> = {
       auth: {
         required: "请使用管理员账号登录后查看。",
         login: "去登录",
+        checking: "验证中…",
+        currentUser: "登录用户：",
+        unregistered: "未注册用户",
       },
       status: {
         loadFailed: "加载失败，请重试。",

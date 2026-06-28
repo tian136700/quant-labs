@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
+import { AdminAuthGate } from "@/components/AdminAuthGate";
 import {
   adminPath,
   adminRbacPath,
@@ -11,7 +12,6 @@ import {
   adminTrendsPath,
   adminUsersPath,
   jpLessonPath,
-  teacherReviewNavPath,
 } from "@/lib/locale-path";
 import type { JpLessonTeacher } from "@/lib/types";
 
@@ -167,24 +167,14 @@ export function AdminJpLessonTeachersPage() {
     }
   };
 
-  if (checking) return null;
-
-  if (!isAdmin) {
+  if (checking || !isAdmin) {
     return (
-      <div className="admin-page admin-page--auth">
-        <div className="page-hero etr-hero-center">
-          <h1>{locale === "zh" ? "上课老师管理" : "Lesson teachers"}</h1>
-          <p className="sub">{locale === "zh" ? "需要管理员权限" : "Admin access required"}</p>
-          <div className="etr-form-actions etr-form-actions--center">
-            <a
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              href={teacherReviewNavPath(locale)}
-            >
-              {locale === "zh" ? "登录" : "Log in"}
-            </a>
-          </div>
-        </div>
-      </div>
+      <AdminAuthGate
+        title={locale === "zh" ? "上课老师管理" : "Lesson teachers"}
+        required={locale === "zh" ? "需要管理员权限" : "Admin access required"}
+        login={locale === "zh" ? "登录" : "Log in"}
+        registered={!checking && isAdmin}
+      />
     );
   }
 

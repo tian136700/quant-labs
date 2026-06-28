@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import { AdminAuthGate } from "@/components/AdminAuthGate";
 import {
   adminPath,
   adminRbacPath,
   adminToolCodesPath,
   adminTrendsPath,
-  teacherReviewNavPath,
 } from "@/lib/locale-path";
 import { AdminUserEditModal, type AdminUserEditRow } from "@/components/AdminUserEditModal";
 import {
@@ -406,26 +406,14 @@ export function AdminUsersPage() {
     [persistUsers]
   );
 
-  if (checking) return null;
-
-  if (!isAdmin) {
+  if (checking || !isAdmin) {
     return (
-      <div className="admin-page admin-page--auth">
-        <div className="page-hero etr-hero-center">
-          <h1>{locale === "zh" ? "用户管理" : "User management"}</h1>
-          <p className="sub">
-            {locale === "zh" ? "请使用管理员账号登录。" : "Please log in as admin."}
-          </p>
-          <div className="etr-form-actions etr-form-actions--center">
-            <a
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              href={teacherReviewNavPath(locale)}
-            >
-              {locale === "zh" ? "去登录" : "Log in"}
-            </a>
-          </div>
-        </div>
-      </div>
+      <AdminAuthGate
+        title={locale === "zh" ? "用户管理" : "User management"}
+        required={locale === "zh" ? "请使用管理员账号登录。" : "Please log in as admin."}
+        login={locale === "zh" ? "去登录" : "Log in"}
+        registered={!checking && isAdmin}
+      />
     );
   }
 

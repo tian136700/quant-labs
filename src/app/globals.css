@@ -1138,6 +1138,41 @@ textarea:focus {
   margin-inline: auto;
 }
 
+.admin-auth-user-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.admin-auth-user-status--checking {
+  @apply text-muted;
+}
+
+.admin-auth-user-status--guest {
+  @apply text-muted;
+}
+
+.admin-auth-user-status--registered {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.admin-auth-user-label {
+  @apply text-muted;
+}
+
+.admin-auth-user-role {
+  font-weight: 600;
+  color: var(--rise);
+}
+
+.admin-auth-user-name {
+  font-weight: 600;
+}
+
 .admin-cards {
   display: grid;
   grid-template-columns: 1fr;
