@@ -7,6 +7,10 @@ compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+# 自动将 Worker 部署在离 D1/R2 等后端更近的节点，降低数据库往返延迟
+[placement]
+mode = "smart"
+
 # 自定义域名须与 wrangler deploy 同步，否则 finance 可能仍跑旧版本
 [[routes]]
 pattern = "finance.info-quests.com"

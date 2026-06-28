@@ -1180,7 +1180,7 @@ export function JpVocabPage() {
               </tbody>
             </table>
           </div>
-            )}
+            ) : null}
           </>
         )}
       </section>
