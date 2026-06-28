@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -45,7 +46,7 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
       <div
         className="jp-remarks-view-overlay"
         role="presentation"
-        onClick={onClose}
+        onMouseDown={(e) => closeModalOnBackdropMouseDown(e, onClose)}
       >
         <div
           className="jp-remarks-view-modal"

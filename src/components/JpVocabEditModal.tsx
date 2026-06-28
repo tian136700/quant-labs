@@ -8,6 +8,7 @@ import {
   buildOptimisticJpVocabWord,
   syncJpVocabEditResponse,
 } from "@/lib/jp-vocab-optimistic-save";
+import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 
 type Props = {
   open: boolean;
@@ -152,9 +153,7 @@ export function JpVocabEditModal({
       <div
         className="jp-vocab-edit-overlay"
         role="presentation"
-        onClick={() => {
-          onClose();
-        }}
+        onMouseDown={(e) => closeModalOnBackdropMouseDown(e, onClose)}
       >
         <div
           className="jp-vocab-edit-modal"
