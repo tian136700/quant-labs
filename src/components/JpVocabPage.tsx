@@ -17,6 +17,7 @@ import {
   isJpVocabDefaultStatSort,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
+import { filterJpVocabWordsBySearch } from "@/lib/jp-vocab-search";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
@@ -180,6 +181,7 @@ export function JpVocabPage() {
     date: "",
     ids: [],
   });
+  const [searchQuery, setSearchQuery] = useState("");
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -302,6 +304,13 @@ export function JpVocabPage() {
     }
     return sortJpVocabWordsForDisplay(words, statSort);
   }, [words, statSort, displayOrder.ids]);
+
+  const filteredDisplayedWords = useMemo(
+    () => filterJpVocabWordsBySearch(displayedWords, searchQuery),
+    [displayedWords, searchQuery]
+  );
+
+  const searchActive = searchQuery.trim().length > 0;
 
   const dailyQuizTopIds = useMemo(
     () => new Set(displayedWords.slice(0, JP_VOCAB_DAILY_QUIZ_TOP).map((w) => w.id)),
@@ -729,6 +738,7 @@ export function JpVocabPage() {
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
                 单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。
+                搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）。
                 {SHOW_DAILY_QUIZ_ROW_STYLE ? (
                   <>
                     <strong>今日待抽查前 {JP_VOCAB_DAILY_QUIZ_TOP} 条</strong>：按<strong>当前表格排序</strong>（默认抽查优先级）取最前面的 {JP_VOCAB_DAILY_QUIZ_TOP} 条，今日尚未勾选的会显示标记背景；勾选后背景消失。
@@ -808,6 +818,42 @@ export function JpVocabPage() {
             暂无条目。复习词表由「日语新课」自动导入，也可登录后点「手动添加」补充。
           </p>
         ) : (
+          <>
+            <div className="jp-vocab-search" role="search">
+              <label htmlFor="jp-vocab-search" className="jp-vocab-search__label">
+                搜索
+              </label>
+              <input
+                id="jp-vocab-search"
+                type="search"
+                className="jp-vocab-search__input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="单词、读音、释义、词性…（本地即时搜索）"
+                disabled={loading}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {searchActive ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-search__clear"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    清除
+                  </button>
+                  <span className="jp-vocab-search__meta">
+                    匹配 {filteredDisplayedWords.length} / {displayedWords.length} 条
+                  </span>
+                </>
+              ) : null}
+            </div>
+            {searchActive && !filteredDisplayedWords.length ? (
+              <p className="jp-vocab-search__empty">
+                没有匹配「{searchQuery.trim()}」的词条，请换个关键词试试。
+              </p>
+            ) : filteredDisplayedWords.length ? (
           <div
             className={`etr-table-wrap jp-vocab-table-wrap${
               SHOW_DAILY_QUIZ_ROW_STYLE ? " jp-vocab-daily-quiz-wrap" : ""
@@ -925,7 +971,7 @@ export function JpVocabPage() {
                 </tr>
               </thead>
               <tbody>
-                {displayedWords.map((w, rowIndex) => {
+                {filteredDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
                   const isDailyQuiz =
                     SHOW_DAILY_QUIZ_ROW_STYLE &&
@@ -1134,6 +1180,8 @@ export function JpVocabPage() {
               </tbody>
             </table>
           </div>
+            )}
+          </>
         )}
       </section>
 
@@ -1235,6 +1283,51 @@ export function JpVocabPage() {
         }
         .jp-vocab-risk-hint strong {
           color: var(--text);
+        }
+        .jp-vocab-search {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem 0.75rem;
+          margin: 0 0 0.75rem;
+        }
+        .jp-vocab-search__label {
+          font-size: 0.875rem;
+          color: var(--muted);
+          flex-shrink: 0;
+        }
+        .jp-vocab-search__input {
+          flex: 1 1 14rem;
+          min-width: 0;
+          max-width: 28rem;
+          padding: 0.45rem 0.65rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+        }
+        .jp-vocab-search__input:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+        }
+        .jp-vocab-search__input:disabled {
+          opacity: 0.6;
+        }
+        .jp-vocab-search__meta {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-search__empty {
+          margin: 0 0 0.75rem;
+          padding: 0.65rem 0.85rem;
+          border-radius: 6px;
+          border: 1px dashed var(--border);
+          color: var(--muted);
+          font-size: 0.875rem;
         }
         :global(.jp-vocab-daily-quiz-wrap) {
           --jq-bg-rgb: 255, 196, 87;
