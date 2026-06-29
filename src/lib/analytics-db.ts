@@ -1,3 +1,4 @@
+import { ipKey, normalizeClientIp } from "@/lib/client-ip";
 import type { VisitLogRecord } from "./types";
 
 let devStoreEnabled = false;
@@ -36,10 +37,12 @@ export async function trackVisit(
     ? input.event_detail.slice(0, 512)
     : null;
 
+  const ip = normalizeClientIp(input.ip) ?? input.ip;
+
   if (devStoreEnabled) {
     const record: VisitLogRecord = {
       id: devNextId++,
-      ip: input.ip,
+      ip,
       country_code: input.country_code,
       geo_region: input.geo_region ?? null,
       geo_region_code: input.geo_region_code ?? null,
@@ -61,7 +64,7 @@ export async function trackVisit(
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
     )
     .bind(
-      input.ip,
+      ip,
       input.country_code,
       input.geo_region ?? null,
       input.geo_region_code ?? null,
@@ -85,7 +88,7 @@ export async function trackVisit(
 
   return {
     id,
-    ip: input.ip,
+    ip,
     country_code: input.country_code,
     geo_region: input.geo_region ?? null,
     geo_region_code: input.geo_region_code ?? null,
@@ -102,11 +105,39 @@ export async function trackVisit(
 function attachIpVisitCounts(records: VisitLogRecord[]): VisitLogRecord[] {
   const counts = new Map<string, number>();
   for (const row of devRecords) {
-    counts.set(row.ip, (counts.get(row.ip) ?? 0) + 1);
+    const key = ipKey(row.ip);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return records.map((row) => ({
     ...row,
-    ip_visit_count: counts.get(row.ip) ?? 0,
+    ip: normalizeClientIp(row.ip) ?? row.ip,
+    ip_visit_count: counts.get(ipKey(row.ip)) ?? 0,
+  }));
+}
+
+async function loadNormalizedIpVisitCounts(
+  db: D1Database
+): Promise<Map<string, number>> {
+  const { results } = await db
+    .prepare(`SELECT ip FROM visit_logs`)
+    .all<{ ip: string }>();
+
+  const counts = new Map<string, number>();
+  for (const row of results ?? []) {
+    const key = ipKey(row.ip);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function decorateVisitRecords(
+  records: VisitLogRecord[],
+  ipVisitCounts: Map<string, number>
+): VisitLogRecord[] {
+  return records.map((row) => ({
+    ...row,
+    ip: normalizeClientIp(row.ip) ?? row.ip,
+    ip_visit_count: ipVisitCounts.get(ipKey(row.ip)) ?? row.ip_visit_count ?? 0,
   }));
 }
 
@@ -192,24 +223,34 @@ export async function listVisitLogs(
   const currentPage = Math.min(safePage, totalPages);
   const offset = (currentPage - 1) * safePageSize;
 
-  const orderBy =
-    safeSort === "ip_visit_count"
-      ? `ip_visit_count ${safeOrder.toUpperCase()}, created_at DESC`
-      : `created_at ${safeOrder.toUpperCase()}`;
+  const ipVisitCounts = await loadNormalizedIpVisitCounts(db);
 
-  const { results } = await db
-    .prepare(
-      `SELECT id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at,
-              COUNT(*) OVER (PARTITION BY ip) AS ip_visit_count
-       FROM visit_logs
-       ORDER BY ${orderBy}
-       LIMIT ?1 OFFSET ?2`
-    )
-    .bind(safePageSize, offset)
-    .all<VisitLogRecord>();
+  let records: VisitLogRecord[];
+  if (safeSort === "ip_visit_count") {
+    const { results } = await db
+      .prepare(
+        `SELECT id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at
+         FROM visit_logs`
+      )
+      .all<VisitLogRecord>();
+    const decorated = decorateVisitRecords(results ?? [], ipVisitCounts);
+    const sorted = sortVisitRecords(decorated, safeSort, safeOrder);
+    records = sorted.slice(offset, offset + safePageSize);
+  } else {
+    const { results } = await db
+      .prepare(
+        `SELECT id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at
+         FROM visit_logs
+         ORDER BY created_at ${safeOrder.toUpperCase()}
+         LIMIT ?1 OFFSET ?2`
+      )
+      .bind(safePageSize, offset)
+      .all<VisitLogRecord>();
+    records = decorateVisitRecords(results ?? [], ipVisitCounts);
+  }
 
   return {
-    records: results ?? [],
+    records,
     total,
     page: currentPage,
     pageSize: safePageSize,

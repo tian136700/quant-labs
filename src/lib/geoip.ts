@@ -258,7 +258,7 @@ export function geoLocationDisplay(record: GeoRecord, locale: Locale): string {
 
   if (cc === "CN" || cc === "HK" || cc === "TW" || cc === "MO") {
     if (hasDetail) return formatCnLocation(record);
-    return locale === "zh" ? "未知地区" : "Unknown region";
+    return countryDisplayName(cc, locale);
   }
 
   if (hasDetail) return formatIntlLocation(record, locale);

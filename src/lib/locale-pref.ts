@@ -1,4 +1,5 @@
 import type { Locale } from "@/i18n/messages";
+import { normalizeClientIp } from "@/lib/client-ip";
 
 export async function getLocalePref(
   db: D1Database,
@@ -33,8 +34,8 @@ export async function setLocalePref(
 
 export function clientIp(request: Request): string | null {
   const cf = request.headers.get("CF-Connecting-IP");
-  if (cf) return cf.trim();
+  if (cf) return normalizeClientIp(cf);
   const xff = request.headers.get("X-Forwarded-For");
-  if (xff) return xff.split(",")[0]?.trim() || null;
+  if (xff) return normalizeClientIp(xff.split(",")[0]);
   return null;
 }

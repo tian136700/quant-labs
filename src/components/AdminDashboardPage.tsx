@@ -5,7 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { geoLocationDisplay } from "@/lib/geoip";
-import { visitLogUsernameDisplay } from "@/lib/visit-log-display";
+import { visitLogIpDisplay, visitLogUsernameDisplay } from "@/lib/visit-log-display";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
 import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
@@ -216,7 +216,7 @@ export function AdminDashboardPage() {
                     </span>
                   </h3>
                   <dl className="strategy-card-grid">
-                    <AdminCardField label={adm.visits.ip} value={row.ip} />
+                    <AdminCardField label={adm.visits.ip} value={visitLogIpDisplay(row.ip)} />
                     <AdminCardField
                       label={adm.visits.ipVisitCount}
                       value={row.ip_visit_count ?? "—"}
@@ -288,7 +288,9 @@ export function AdminDashboardPage() {
                 {visits.map((row) => (
                   <tr key={row.id}>
                     <td>{row.id}</td>
-                    <td>{row.ip}</td>
+                    <td className="admin-cell-ip" title={row.ip}>
+                      {visitLogIpDisplay(row.ip)}
+                    </td>
                     <td>{row.ip_visit_count ?? "—"}</td>
                     <td>{visitLogUsernameDisplay(row.username, locale)}</td>
                     <td>{geoLocationDisplay(row, locale)}</td>
@@ -360,7 +362,7 @@ export function AdminDashboardPage() {
                   </h3>
                   <dl className="strategy-card-grid">
                     <AdminCardField label={adm.feedback.content} value={row.content} wide />
-                    <AdminCardField label={adm.feedback.ip} value={row.ip} />
+                    <AdminCardField label={adm.feedback.ip} value={visitLogIpDisplay(row.ip)} />
                     <AdminCardField
                       label={adm.feedback.country}
                       value={geoLocationDisplay(row, locale)}
@@ -401,7 +403,9 @@ export function AdminDashboardPage() {
                     <td>{row.id}</td>
                     <td>{row.email}</td>
                     <td className="etr-remark-cell admin-cell-wrap">{row.content}</td>
-                    <td>{row.ip}</td>
+                    <td className="admin-cell-ip" title={row.ip}>
+                      {visitLogIpDisplay(row.ip)}
+                    </td>
                     <td>{geoLocationDisplay(row, locale)}</td>
                     <td className="admin-cell-wrap">{row.url_path ?? "—"}</td>
                     <td>{row.locale ?? "—"}</td>

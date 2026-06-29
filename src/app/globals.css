@@ -1261,6 +1261,16 @@ textarea:focus {
   word-break: break-word;
 }
 
+.admin-cell-ip {
+  min-width: 9.5rem;
+  max-width: 14rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
 .admin-pagination {
   display: flex;
   flex-direction: column;
