@@ -1,22 +1,10 @@
 import { ComparePage } from "@/components/ComparePage";
 import { JsonLd } from "@/components/JsonLd";
 import { buildPageMetadata } from "@/lib/seo";
-import type { Metadata } from "next";
 
-type PageProps = {
-  searchParams: Promise<{ symbol?: string; years?: string }>;
-};
+export const dynamic = "force-static";
 
-export async function generateMetadata({
-  searchParams,
-}: PageProps): Promise<Metadata> {
-  const sp = await searchParams;
-  return buildPageMetadata({
-    locale: "en",
-    symbol: sp.symbol,
-    years: sp.years,
-  });
-}
+export const metadata = buildPageMetadata({ locale: "en" });
 
 export default function Page() {
   return (

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { MaintenancePage } from "@/components/MaintenancePage";
 import type { Metadata } from "next";
 
@@ -8,5 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <MaintenancePage />;
+  return (
+    <Suspense fallback={null}>
+      <MaintenancePage />
+    </Suspense>
+  );
 }

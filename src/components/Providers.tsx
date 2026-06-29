@@ -9,10 +9,10 @@ import { AppShell } from "./AppShell";
 
 export function Providers({
   children,
-  serverLocale,
+  serverLocale = null,
 }: {
   children: ReactNode;
-  serverLocale: Locale;
+  serverLocale?: Locale | null;
 }) {
   return (
     <I18nProvider serverLocale={serverLocale}>
