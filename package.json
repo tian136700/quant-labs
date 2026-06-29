@@ -30,6 +30,8 @@
     "db:migrate-jp-lesson-note-safe:remote": "python3 scripts/migrate-jp-lesson-note-safe.py --remote",
     "db:migrate-jp-lesson-teachers:local": "python3 scripts/migrate-jp-lesson-teachers.py --local",
     "db:migrate-jp-lesson-teachers:remote": "python3 scripts/migrate-jp-lesson-teachers.py --remote",
+    "db:migrate-jp-lesson-teacher-other:local": "python3 scripts/migrate-jp-lesson-teacher-other.py --local",
+    "db:migrate-jp-lesson-teacher-other:remote": "python3 scripts/migrate-jp-lesson-teacher-other.py --remote",
     "db:migrate-jp-vocab-class-notes:local": "python3 scripts/migrate-jp-vocab-class-notes.py --local",
     "db:migrate-jp-vocab-class-notes:remote": "python3 scripts/migrate-jp-vocab-class-notes.py --remote",
     "db:migrate-rbac:local": "wrangler d1 execute strategy-compare-db --local --command \"CREATE TABLE IF NOT EXISTS etr_role_permissions (role TEXT NOT NULL, permission_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (role, permission_key)); CREATE INDEX IF NOT EXISTS idx_etr_role_permissions_role ON etr_role_permissions (role);\" -y",
