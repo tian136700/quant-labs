@@ -10,7 +10,41 @@ export type JpVocabDailyDisplayOrder = {
   /** 北京时间 YYYY-MM-DD，当日有效 */
   date: string;
   ids: number[];
+  /** 当前排序轮次内已抽查（序号列勾）；今日重置或跨日重排时清空 */
+  round_checked_ids?: number[];
 };
+
+export function normalizeJpVocabRoundCheckedIds(
+  ids: unknown
+): number[] {
+  if (!Array.isArray(ids)) return [];
+  return ids.map((id) => Number(id)).filter((id) => id > 0);
+}
+
+export function isJpVocabRoundChecked(
+  order: JpVocabDailyDisplayOrder,
+  wordId: number
+): boolean {
+  return (order.round_checked_ids ?? []).includes(wordId);
+}
+
+export function markJpVocabRoundChecked(
+  order: JpVocabDailyDisplayOrder,
+  wordId: number
+): JpVocabDailyDisplayOrder {
+  const checked = order.round_checked_ids ?? [];
+  if (checked.includes(wordId)) return order;
+  return { ...order, round_checked_ids: [...checked, wordId] };
+}
+
+export function clearJpVocabRoundChecked(
+  order: JpVocabDailyDisplayOrder
+): JpVocabDailyDisplayOrder {
+  if (!order.round_checked_ids?.length) {
+    return { ...order, round_checked_ids: [] };
+  }
+  return { ...order, round_checked_ids: [] };
+}
 
 export function computeJpVocabDailyDisplayOrder(words: JpVocabWord[]): number[] {
   return sortJpVocabWordsForDisplay(words, JP_VOCAB_DEFAULT_STAT_SORT).map(

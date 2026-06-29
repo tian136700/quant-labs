@@ -114,8 +114,48 @@ MEANING_CORRECTIONS: dict[str, str] = {
     "あさって": "后天",
 }
 
+# OCR 易错读音人工校正（按 word 字段）
+READING_CORRECTIONS: dict[str, str | None] = {
+    "初めまして": "はじめまして",
+    "ドイツ": "ドイツ",
+    "失礼ですが": "しつれいですが",
+    "だれ": "だれ",
+    "なんぷん": None,
+    "土曜日": "どようび",
+    "火曜日": "かようび",
+    "水曜日": "すいようび",
+    "休み": "やすみ",
+    "今朝": "けさ",
+    "明後日": "あさって",
+}
+
 # 与だれ重复，保留假名词条即可
 _SKIP_WORDS = {"ことば", "ことは", "番", "徳国", "水曜日", "誰"}
+
+
+def _has_kanji(text: str) -> bool:
+    return bool(re.search(r"[\u4E00-\u9FFF]", text))
+
+
+def _is_primarily_kana(text: str) -> bool:
+    kana = sum(
+        1
+        for ch in text
+        if "\u3040" <= ch <= "\u309F" or "\u30A0" <= ch <= "\u30FF"
+    )
+    kanji = sum(1 for ch in text if "\u4E00" <= ch <= "\u9FFF")
+    return kana > 0 and kana >= kanji
+
+
+def _maybe_swap_word_reading(
+    word: str, reading: str | None
+) -> tuple[str, str | None]:
+    """假名在前、汉字在括号内时 OCR 常把二者写反。"""
+    if not reading:
+        return word, reading
+    if _is_primarily_kana(word) and _has_kanji(reading):
+        return reading, word
+    return word, reading
 
 
 def _clean_reading(raw: str | None) -> str | None:
@@ -210,24 +250,19 @@ def parse_today_words(lines: list[str]) -> list[dict[str, str | None]]:
             if not _has_japanese(word):
                 continue
             meaning: str | None = None
-            reading = _clean_reading(wr.group(2))
-            if re.search(r"[\u4e00-\u9fff]", wr.group(2)):
-                parts = re.split(r"[。．.]", wr.group(2))
+            reading_raw = wr.group(2).strip()
+            reading = _clean_reading(reading_raw)
+            if re.search(r"[\u4e00-\u9fff]", reading_raw):
+                parts = re.split(r"[。．.]", reading_raw)
                 if len(parts) >= 2 and re.search(r"[\u4e00-\u9fff]", parts[-1]):
                     reading = _clean_reading(parts[0])
                     meaning = parts[-1].strip()
+            word, reading = _maybe_swap_word_reading(
+                word, reading or (_clean_reading(reading_raw) if reading_raw else None)
+            )
             item = {"word": word, "reading": reading, "meaning": meaning}
             if _is_valid_vocab(item):
                 words.append(item)
-            else:
-                # 读音可能是汉字表记：すいようび（水曜日）
-                alt_reading = wr.group(2).strip()
-                if re.search(r"[\u3040-\u309F\u30A0-\u30FF]", word) and _has_japanese(
-                    alt_reading
-                ):
-                    item["reading"] = alt_reading if _JP_READING_RE.match(alt_reading) else None
-                    if _is_valid_vocab(item):
-                        words.append(item)
             pending = None
             continue
 
@@ -301,8 +336,18 @@ def apply_meaning_corrections(
         word = (item.get("word") or "").strip()
         if not word:
             continue
-        meaning = MEANING_CORRECTIONS.get(word, item.get("meaning"))
-        out.append({**item, "word": word, "meaning": meaning})
+        original_word = word
+        word, reading = _maybe_swap_word_reading(word, item.get("reading"))
+        meaning = (
+            MEANING_CORRECTIONS.get(word)
+            or MEANING_CORRECTIONS.get(original_word)
+            or item.get("meaning")
+        )
+        if word in READING_CORRECTIONS:
+            reading = READING_CORRECTIONS[word]
+        elif original_word in READING_CORRECTIONS and word == original_word:
+            reading = READING_CORRECTIONS[original_word]
+        out.append({**item, "word": word, "reading": reading, "meaning": meaning})
     return out
 
 

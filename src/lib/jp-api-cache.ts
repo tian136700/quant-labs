@@ -6,9 +6,10 @@ import {
 } from "@/lib/jp-vocab-daily-quiz-style";
 import {
   computeJpVocabDailyDisplayOrder,
+  normalizeJpVocabRoundCheckedIds,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 
 export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v3";
 export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v4";
@@ -48,10 +49,27 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
       ? {
           date: data.display_order.date,
           ids: data.display_order.ids.map((id) => Number(id)).filter((id) => id > 0),
+          round_checked_ids: Object.prototype.hasOwnProperty.call(
+            data.display_order,
+            "round_checked_ids"
+          )
+            ? normalizeJpVocabRoundCheckedIds(
+                data.display_order.round_checked_ids
+              )
+            : words
+                .filter(
+                  (w) =>
+                    effectiveTodayCheckCount(
+                      w.today_check_count ?? 0,
+                      w.today_check_date
+                    ) > 0
+                )
+                .map((w) => w.id),
         }
       : {
           date: beijingDateString(),
           ids: computeJpVocabDailyDisplayOrder(words),
+          round_checked_ids: [],
         };
   return {
     words,

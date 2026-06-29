@@ -15,6 +15,8 @@ import {
 } from "@/lib/jp-vocab-shared";
 import {
   isJpVocabDefaultStatSort,
+  isJpVocabRoundChecked,
+  markJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
 import { filterJpVocabWordsBySearch } from "@/lib/jp-vocab-search";
@@ -28,6 +30,7 @@ import {
   JpVocabDailyQuizIntroModal,
   shouldShowJpVocabDailyIntro,
 } from "@/components/JpVocabDailyQuizIntroModal";
+import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import {
   JP_VOCAB_CACHE_KEY,
   parseJpVocabApi,
@@ -91,10 +94,11 @@ const SHOW_DAILY_QUIZ_ROW_STYLE = false;
 /** 按当前排序，每日建议优先抽查的前 N 条（淡色背景标记） */
 const JP_VOCAB_DAILY_QUIZ_TOP = 20;
 
-function jpVocabCheckedToday(word: JpVocabWord): boolean {
-  return (
-    effectiveTodayCheckCount(word.today_check_count ?? 0, word.today_check_date) > 0
-  );
+function jpVocabCheckedInRound(
+  order: JpVocabDailyDisplayOrder,
+  word: JpVocabWord
+): boolean {
+  return isJpVocabRoundChecked(order, word.id);
 }
 
 function jpVocabWordsInOrder(
@@ -158,6 +162,7 @@ export function JpVocabPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showResetChoice, setShowResetChoice] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -180,6 +185,7 @@ export function JpVocabPage() {
   const [displayOrder, setDisplayOrder] = useState<JpVocabDailyDisplayOrder>({
     date: "",
     ids: [],
+    round_checked_ids: [],
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -321,8 +327,8 @@ export function JpVocabPage() {
     () =>
       displayedWords
         .slice(0, JP_VOCAB_DAILY_QUIZ_TOP)
-        .filter((w) => !jpVocabCheckedToday(w)).length,
-    [displayedWords]
+        .filter((w) => !jpVocabCheckedInRound(displayOrder, w)).length,
+    [displayedWords, displayOrder]
   );
 
   const dailyTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length);
@@ -331,20 +337,20 @@ export function JpVocabPage() {
     if (!displayedWords.length) return 0;
     return displayedWords
       .slice(0, dailyTarget)
-      .filter((w) => jpVocabCheckedToday(w)).length;
-  }, [displayedWords, dailyTarget]);
+      .filter((w) => jpVocabCheckedInRound(displayOrder, w)).length;
+  }, [displayedWords, dailyTarget, displayOrder]);
 
-  const anyCheckedToday = useMemo(
-    () => words.some((w) => jpVocabCheckedToday(w)),
-    [words]
+  const anyCheckedInRound = useMemo(
+    () => (displayOrder.round_checked_ids ?? []).length > 0,
+    [displayOrder.round_checked_ids]
   );
 
   useEffect(() => {
     if (loading || checking || !canOperate || !words.length) return;
-    if (anyCheckedToday) return;
+    if (anyCheckedInRound) return;
     if (!shouldShowJpVocabDailyIntro()) return;
     setShowDailyIntro(true);
-  }, [loading, checking, canOperate, words.length, anyCheckedToday]);
+  }, [loading, checking, canOperate, words.length, anyCheckedInRound]);
 
   const unmarkedCount = useMemo(
     () => words.filter((w) => !sessionLevel[w.id]).length,
@@ -368,10 +374,12 @@ export function JpVocabPage() {
     if (!snapshot) return;
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
+    const displayOrderSnapshot = displayOrderRef.current;
     const nowMs = Date.now();
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
+    setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
     setHighlightId(wordId);
     setStatus("");
     setWords((prev) =>
@@ -419,6 +427,7 @@ export function JpVocabPage() {
           prev.map((w) => (w.id === wordId ? snapshot : w))
         );
       }
+      setDisplayOrder(displayOrderSnapshot);
       setSessionLevel((prev) => {
         const next = { ...prev };
         if (prevLevel) next[wordId] = prevLevel;
@@ -437,18 +446,7 @@ export function JpVocabPage() {
     }
   };
 
-  const resetAll = async () => {
-    if (!canOperate) {
-      setStatus("请登录后再重置。");
-      openJpAuth();
-      return;
-    }
-    if (resetting) return;
-    const ok = window.confirm(
-      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，开始新一轮复习。"
-    );
-    if (!ok) return;
-
+  const runReset = async (action: "reset_today" | "reset") => {
     setResetting(true);
     setStatus("");
     setError("");
@@ -460,7 +458,7 @@ export function JpVocabPage() {
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
-        body: JSON.stringify({ action: "reset" }),
+        body: JSON.stringify({ action }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -483,12 +481,37 @@ export function JpVocabPage() {
       setSessionReviewAt({});
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
       setHighlightId(null);
-      setStatus("已全部重置，可以开始新一轮复习。");
+      setShowResetChoice(false);
+      setStatus(
+        action === "reset_today"
+          ? "已今日重置：单词顺序已更新，当前轮次勾选已清空，统计次数保持不变。"
+          : "已全部重置，可以开始新一轮复习。"
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setResetting(false);
     }
+  };
+
+  const openResetChoice = () => {
+    if (!canOperate) {
+      setStatus("请登录后再重置。");
+      openJpAuth();
+      return;
+    }
+    if (resetting) return;
+    setShowResetChoice(true);
+  };
+
+  const resetToday = () => void runReset("reset_today");
+
+  const resetAll = () => {
+    const ok = window.confirm(
+      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，开始新一轮复习。"
+    );
+    if (!ok) return;
+    void runReset("reset");
   };
 
   const pickNext = () => {
@@ -722,11 +745,11 @@ export function JpVocabPage() {
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--danger"
-                onClick={() => void resetAll()}
+                onClick={openResetChoice}
                 disabled={loading || resetting || !words.length || !canOperate}
                 title={canOperate ? undefined : "登录后可重置"}
               >
-                {resetting ? "重置中…" : "全部重置"}
+                {resetting ? "重置中…" : "重置"}
               </button>
             ) : null}
           </div>
@@ -759,7 +782,7 @@ export function JpVocabPage() {
                 ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
-                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。
+                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
                 搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）。
                 {SHOW_DAILY_QUIZ_ROW_STYLE ? (
                   <>
@@ -1002,13 +1025,16 @@ export function JpVocabPage() {
                     SHOW_DAILY_QUIZ_ROW_STYLE &&
                     dailyQuizStyle.enabled &&
                     dailyQuizTopIds.has(w.id) &&
-                    !jpVocabCheckedToday(w);
+                    !jpVocabCheckedInRound(displayOrder, w);
                   const selected = sessionLevel[w.id];
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
-                  const todayChecks = w.today_check_count ?? 0;
-                  const checkedToday = jpVocabCheckedToday(w);
+                  const todayChecks = effectiveTodayCheckCount(
+                    w.today_check_count ?? 0,
+                    w.today_check_date
+                  );
+                  const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
 
                   return (
                     <tr
@@ -1024,11 +1050,11 @@ export function JpVocabPage() {
                       <td className="jp-vocab-seq-col" data-label="序号">
                         <span className="jp-vocab-seq-cell">
                           <span className="jp-vocab-seq-num">{rowIndex + 1}</span>
-                          {checkedToday ? (
+                          {checkedInRound ? (
                             <span
                               className="jp-vocab-seq-checked"
-                              title={`今日已抽查 ${todayChecks} 次`}
-                              aria-label={`序号 ${rowIndex + 1}，今日已抽查`}
+                              title="当前轮次已抽查"
+                              aria-label={`序号 ${rowIndex + 1}，当前轮次已抽查`}
                             >
                               <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
                                 <path
@@ -1212,6 +1238,14 @@ export function JpVocabPage() {
           </>
         )}
       </section>
+
+      <JpVocabResetChoiceModal
+        open={showResetChoice}
+        busy={resetting}
+        onClose={() => setShowResetChoice(false)}
+        onResetToday={resetToday}
+        onResetAll={resetAll}
+      />
 
       <JpVocabManualAddModal
         open={showManualAdd}

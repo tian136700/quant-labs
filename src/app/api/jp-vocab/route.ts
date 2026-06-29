@@ -5,6 +5,7 @@ import {
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
   resetAllJpVocabReviews,
+  resetTodayJpVocabRound,
   setJpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
@@ -65,6 +66,18 @@ export async function POST(request: Request) {
 
     if (body.action === "reset") {
       const result = await resetAllJpVocabReviews(env.DB);
+      if (!result.ok) {
+        return jsonResponse({ ok: false, error: result.error }, 400);
+      }
+      return jsonResponse({
+        ok: true,
+        words: result.words,
+        display_order: result.display_order,
+      });
+    }
+
+    if (body.action === "reset_today") {
+      const result = await resetTodayJpVocabRound(env.DB);
       if (!result.ok) {
         return jsonResponse({ ok: false, error: result.error }, 400);
       }
