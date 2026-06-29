@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabWord } from "@/lib/types";
@@ -9,6 +9,7 @@ import {
   syncJpVocabEditResponse,
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { jpVocabSaveQueue } from "@/lib/request-queue";
 
 type Props = {
   open: boolean;
@@ -20,6 +21,10 @@ type Props = {
   onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
   onNeedAuth: () => void;
 };
+
+type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
+const AUTO_SAVE_MS = 1_000;
 
 export function JpClassNotesEditModal({
   open,
@@ -34,6 +39,15 @@ export function JpClassNotesEditModal({
   const [mounted, setMounted] = useState(false);
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const dirtyRef = useRef(false);
+  const lastSavedRef = useRef("");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wordRef = useRef(word);
+
+  useEffect(() => {
+    wordRef.current = word;
+  }, [word]);
 
   useEffect(() => {
     setMounted(true);
@@ -41,10 +55,21 @@ export function JpClassNotesEditModal({
 
   useEffect(() => {
     if (open && word) {
-      setBody(word.class_notes || "");
+      const notes = word.class_notes || "";
+      setBody(notes);
+      lastSavedRef.current = notes;
+      dirtyRef.current = false;
       setError("");
+      setSaveStatus("idle");
     }
-  }, [open, word]);
+  }, [open, word?.id]);
+
+  useEffect(() => {
+    if (!open || !word || dirtyRef.current) return;
+    const notes = word.class_notes || "";
+    setBody(notes);
+    lastSavedRef.current = notes;
+  }, [open, word?.id, word?.class_notes, word?.updated_at, word]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,56 +90,102 @@ export function JpClassNotesEditModal({
     };
   }, [open]);
 
-  const save = () => {
-    if (!word) return;
-    if (!canEdit) {
-      onNeedAuth();
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  const flushSave = useCallback(
+    async (notesRaw: string) => {
+      const current = wordRef.current;
+      if (!current || !canEdit) return;
+
+      const notes = notesRaw.trim() || null;
+      const lastSaved = lastSavedRef.current.trim() || null;
+      if (notes === lastSaved) {
+        setSaveStatus("saved");
+        return;
+      }
+
+      setSaveStatus("saving");
+      const snapshot = current;
+      const optimistic = buildOptimisticJpVocabWord(snapshot, {
+        class_notes: notes,
+      });
+      onSaved(optimistic);
+      lastSavedRef.current = notesRaw;
+      dirtyRef.current = false;
+
+      try {
+        await jpVocabSaveQueue.enqueue(async () => {
+          const res = await fetch("/api/jp-vocab/class-notes", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              word_id: snapshot.id,
+              class_notes: notes,
+            }),
+          });
+          const data = (await res.json()) as {
+            ok: boolean;
+            word?: JpVocabWord;
+            error?: string;
+          };
+          await syncJpVocabEditResponse(res, data, locale, {
+            onSaved,
+            onSaveFailed,
+            onNeedAuth,
+          });
+        });
+        setSaveStatus("saved");
+        setError("");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed";
+        setSaveStatus("error");
+        setError(message);
+        onSaveFailed(snapshot.id, snapshot, message);
+      }
+    },
+    [canEdit, locale, onNeedAuth, onSaveFailed, onSaved]
+  );
+
+  useEffect(() => {
+    if (!open || !canEdit || !word) return;
+
+    const notes = body.trim() || null;
+    const lastSaved = lastSavedRef.current.trim() || null;
+    if (notes === lastSaved) {
+      setSaveStatus((s) => (s === "pending" ? "saved" : s));
       return;
     }
 
-    setError("");
-    const snapshot = word;
-    const notes = body.trim() || null;
-    const optimistic = buildOptimisticJpVocabWord(snapshot, {
-      class_notes: notes,
-    });
+    setSaveStatus("pending");
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      void flushSave(body);
+    }, AUTO_SAVE_MS);
 
-    onSaved(optimistic);
-    onClose();
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [body, open, canEdit, word, flushSave]);
 
-    void (async () => {
-      try {
-        const res = await fetch("/api/jp-vocab/class-notes", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            word_id: snapshot.id,
-            class_notes: notes,
-          }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: JpVocabWord;
-          error?: string;
-        };
-        await syncJpVocabEditResponse(res, data, locale, {
-          onSaved,
-          onSaveFailed,
-          onNeedAuth,
-        });
-      } catch (err) {
-        onSaveFailed(
-          snapshot.id,
-          snapshot,
-          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed"
-        );
-      }
-    })();
-  };
+  const statusLabel =
+    saveStatus === "pending"
+      ? "待保存…"
+      : saveStatus === "saving"
+        ? "保存中…"
+        : saveStatus === "saved"
+          ? "已同步"
+          : saveStatus === "error"
+            ? "保存失败"
+            : "输入后约 1 秒自动保存";
 
   if (!open || !mounted || !word) return null;
 
@@ -152,14 +223,26 @@ export function JpClassNotesEditModal({
           <div className="jp-notes-edit-body">
             <textarea
               className="jp-notes-edit-textarea"
-              rows={4}
+              rows={12}
               value={body}
               disabled={!canEdit}
               placeholder="记录例句、用法、易错点…"
-              onChange={(e) => setBody(e.target.value)}
+              onChange={(e) => {
+                dirtyRef.current = true;
+                setBody(e.target.value);
+              }}
             />
-            <p className="jp-notes-edit-hint">
-              保存后同步到日语新课。
+            <p
+              className={`jp-notes-edit-hint${
+                saveStatus === "saved"
+                  ? " jp-notes-edit-hint--ok"
+                  : saveStatus === "error"
+                    ? " jp-notes-edit-hint--err"
+                    : ""
+              }`}
+              aria-live="polite"
+            >
+              {statusLabel}
             </p>
             {error ? <p className="jp-notes-edit-error">{error}</p> : null}
           </div>
@@ -167,20 +250,11 @@ export function JpClassNotesEditModal({
           <div className="jp-notes-edit-footer">
             <button
               type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
+              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
               onClick={onClose}
             >
-              取消
+              完成
             </button>
-            {canEdit ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                onClick={save}
-              >
-                保存
-              </button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -202,7 +276,8 @@ export function JpClassNotesEditModal({
         .jp-notes-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(480px, 100%);
+          width: min(760px, 100%);
+          max-height: min(88vh, 720px);
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
@@ -214,8 +289,9 @@ export function JpClassNotesEditModal({
           align-items: flex-start;
           justify-content: space-between;
           gap: 0.75rem;
-          padding: 1rem 1.1rem 0.85rem;
+          padding: 1rem 1.25rem 0.85rem;
           border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          flex-shrink: 0;
         }
 
         .jp-notes-edit-title {
@@ -244,31 +320,42 @@ export function JpClassNotesEditModal({
         }
 
         .jp-notes-edit-body {
-          padding: 1rem 1.1rem;
+          padding: 1rem 1.25rem;
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
+          flex: 1;
+          min-height: 0;
         }
 
         .jp-notes-edit-textarea {
           width: 100%;
           box-sizing: border-box;
           border: 1px solid var(--border);
-          border-radius: 6px;
+          border-radius: 8px;
           background: var(--bg);
           color: var(--text);
           font: inherit;
-          font-size: 0.875rem;
-          padding: 0.55rem 0.65rem;
+          font-size: 0.9375rem;
+          padding: 0.75rem 0.85rem;
           resize: vertical;
-          min-height: 5.5rem;
-          line-height: 1.45;
+          min-height: 16rem;
+          line-height: 1.55;
+          flex: 1;
         }
 
         .jp-notes-edit-hint {
           margin: 0;
           font-size: 0.75rem;
           color: var(--muted);
+        }
+
+        .jp-notes-edit-hint--ok {
+          color: var(--fall);
+        }
+
+        .jp-notes-edit-hint--err {
+          color: var(--rise);
         }
 
         .jp-notes-edit-error {
@@ -285,8 +372,9 @@ export function JpClassNotesEditModal({
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
-          padding: 0.85rem 1.1rem 1rem;
+          padding: 0.85rem 1.25rem 1rem;
           border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          flex-shrink: 0;
         }
       `}</style>
     </>,

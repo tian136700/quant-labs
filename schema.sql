@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS jp_vocab_word (
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_word ON jp_vocab_word (word);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_weak ON jp_vocab_word (cnt_weak DESC, cnt_normal ASC);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_updated_at ON jp_vocab_word (updated_at);
 
 -- 日语单词抽问：站点级配置（如今日前 20 条标记样式，管理员统一设置）
 CREATE TABLE IF NOT EXISTS jp_vocab_setting (

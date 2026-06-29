@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -33,10 +33,24 @@ import {
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import {
   JP_VOCAB_CACHE_KEY,
+  JP_VOCAB_REFRESH_TTL_MS,
   parseJpVocabApi,
   type JpVocabApiPayload,
 } from "@/lib/jp-api-cache";
-import { fetchWithClientCache, patchClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import {
+  fetchWithClientCache,
+  readClientCache,
+  readClientCacheAge,
+  writeClientCache,
+} from "@/lib/client-swr-cache";
+import { jpVocabSaveQueue } from "@/lib/request-queue";
+import {
+  JP_VOCAB_POLL_MS,
+  JP_VOCAB_POLL_HIDDEN_MS,
+  maxJpVocabUpdatedAt,
+  mergeJpVocabSyncPatches,
+} from "@/lib/jp-vocab-sync";
+import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/jp-vocab-daily-quiz-style";
 import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
 import {
   effectiveTodayCheckCount,
@@ -44,11 +58,6 @@ import {
 } from "@/lib/jp-vocab-daily-check";
 import { applyJpVocabReview } from "@/lib/jp-vocab-review";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
-import {
-  JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
-  jpVocabDailyQuizStyleVars,
-  type JpVocabDailyQuizStyle,
-} from "@/lib/jp-vocab-daily-quiz-style";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -58,10 +67,15 @@ function readVocabCache(): JpVocabApiPayload | null {
 function persistVocabCache(
   words: JpVocabWord[],
   refs: Record<string, JpVocabRef>,
-  daily_quiz_style: JpVocabDailyQuizStyle,
   display_order: JpVocabDailyDisplayOrder
 ) {
-  writeClientCache(JP_VOCAB_CACHE_KEY, { words, refs, daily_quiz_style, display_order });
+  const prev = readVocabCache();
+  writeClientCache(JP_VOCAB_CACHE_KEY, {
+    words,
+    refs,
+    daily_quiz_style: prev?.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
+    display_order,
+  });
 }
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -88,10 +102,7 @@ const SHOW_REMARKS_COLUMN = true;
 /** 暂时隐藏「随机高亮」按钮 */
 const SHOW_RANDOM_HIGHLIGHT = false;
 
-/** 暂时隐藏「今日待抽查」行背景标记（及管理员样式面板） */
-const SHOW_DAILY_QUIZ_ROW_STYLE = false;
-
-/** 按当前排序，每日建议优先抽查的前 N 条（淡色背景标记） */
+/** 按当前排序，每日建议优先抽查的前 N 条 */
 const JP_VOCAB_DAILY_QUIZ_TOP = 20;
 
 function jpVocabCheckedInRound(
@@ -191,69 +202,29 @@ export function JpVocabPage() {
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
-  const [showDailyQuizStylePanel, setShowDailyQuizStylePanel] = useState(false);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
-  const [dailyQuizStyle, setDailyQuizStyle] = useState<JpVocabDailyQuizStyle>(
-    JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT
-  );
-  const dailyQuizStyleRef = useRef(dailyQuizStyle);
   const displayOrderRef = useRef(displayOrder);
+  const wordsRef = useRef(words);
+  const refsRef = useRef(refs);
+  const editingRemarksIdRef = useRef<number | null>(null);
+  const editingWordIdRef = useRef<number | null>(null);
+  const pollInFlightRef = useRef(false);
 
-  useEffect(() => {
-    dailyQuizStyleRef.current = dailyQuizStyle;
-  }, [dailyQuizStyle]);
   useEffect(() => {
     displayOrderRef.current = displayOrder;
   }, [displayOrder]);
-
-  const saveDailyQuizStyle = useCallback(
-    async (style: JpVocabDailyQuizStyle) => {
-      if (!isAdmin) return;
-      try {
-        const res = await fetch("/api/jp-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ action: "daily_quiz_style", daily_quiz_style: style }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          daily_quiz_style?: JpVocabDailyQuizStyle;
-          error?: string;
-        };
-        if (!res.ok || !data.ok || !data.daily_quiz_style) {
-          throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
-        }
-        setDailyQuizStyle(data.daily_quiz_style);
-        patchClientCache<JpVocabApiPayload>(JP_VOCAB_CACHE_KEY, (prev) => ({
-          ...prev,
-          daily_quiz_style: data.daily_quiz_style!,
-        }));
-      } catch (err) {
-        setStatus(err instanceof Error ? err.message : String(err));
-      }
-    },
-    [isAdmin, locale]
-  );
-
-  const patchDailyQuizStyle = useCallback(
-    (patch: Partial<JpVocabDailyQuizStyle>) => {
-      setDailyQuizStyle((prev) => {
-        const next = { ...prev, ...patch };
-        void saveDailyQuizStyle(next);
-        return next;
-      });
-    },
-    [saveDailyQuizStyle]
-  );
-
-  const dailyQuizStyleCssVars = useMemo(
-    () => jpVocabDailyQuizStyleVars(dailyQuizStyle),
-    [dailyQuizStyle]
-  );
+  useEffect(() => {
+    wordsRef.current = words;
+  }, [words]);
+  useEffect(() => {
+    refsRef.current = refs;
+  }, [refs]);
+  useEffect(() => {
+    editingRemarksIdRef.current = editingRemarksWord?.id ?? null;
+  }, [editingRemarksWord?.id]);
+  useEffect(() => {
+    editingWordIdRef.current = editingWord?.id ?? null;
+  }, [editingWord?.id]);
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
     setStatSort((prev) => {
@@ -267,17 +238,23 @@ export function JpVocabPage() {
   const applyVocabPayload = useCallback((payload: JpVocabApiPayload) => {
     setWords(payload.words);
     setRefs(payload.refs);
-    setDailyQuizStyle(payload.daily_quiz_style);
     setDisplayOrder(payload.display_order);
   }, []);
 
-  const loadWords = useCallback(async () => {
+  const loadWords = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readVocabCache();
     const hasCache = cached != null;
+    const cacheAge = readClientCacheAge(JP_VOCAB_CACHE_KEY);
+    const cacheFresh =
+      !opts?.force &&
+      hasCache &&
+      cacheAge != null &&
+      cacheAge < JP_VOCAB_REFRESH_TTL_MS;
+
     if (hasCache) {
       applyVocabPayload(cached);
-      setRefreshing(true);
       setLoading(false);
+      if (!cacheFresh) setRefreshing(true);
     } else {
       setLoading(true);
     }
@@ -287,7 +264,11 @@ export function JpVocabPage() {
         JP_VOCAB_CACHE_KEY,
         "/api/jp-vocab",
         parseJpVocabApi,
-        { onCached: applyVocabPayload }
+        {
+          onCached: applyVocabPayload,
+          ttlMs: JP_VOCAB_REFRESH_TTL_MS,
+          force: opts?.force,
+        }
       );
       applyVocabPayload(payload);
     } catch (err) {
@@ -304,6 +285,92 @@ export function JpVocabPage() {
     void loadWords();
   }, [loadWords]);
 
+  const applySyncPatches = useCallback((patches: JpVocabWord[]) => {
+    if (!patches.length) return;
+    setWords((prev) => {
+      const next = mergeJpVocabSyncPatches(prev, patches);
+      persistVocabCache(next, refsRef.current, displayOrderRef.current);
+      return next;
+    });
+    setViewingRemarksWord((prev) => {
+      if (!prev) return prev;
+      const patch = patches.find((w) => w.id === prev.id);
+      if (!patch || patch.updated_at <= prev.updated_at) return prev;
+      return { ...prev, ...patch };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (loading || !words.length) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () =>
+      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS;
+
+    const schedule = (delayMs: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => void poll(), delayMs);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+
+      if (document.hidden || editingRemarksIdRef.current || editingWordIdRef.current) {
+        schedule(pollDelay());
+        return;
+      }
+
+      const since = maxJpVocabUpdatedAt(wordsRef.current);
+      if (!since) {
+        schedule(pollDelay());
+        return;
+      }
+
+      if (pollInFlightRef.current) {
+        schedule(pollDelay());
+        return;
+      }
+
+      pollInFlightRef.current = true;
+      try {
+        const res = await fetch(
+          `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
+          { credentials: "include" }
+        );
+        const data = (await res.json()) as {
+          ok: boolean;
+          words?: JpVocabWord[];
+        };
+        if (data.ok && Array.isArray(data.words) && data.words.length) {
+          applySyncPatches(data.words);
+        }
+      } catch {
+        /* 轮询失败静默，下轮再试 */
+      } finally {
+        pollInFlightRef.current = false;
+        if (!cancelled) schedule(pollDelay());
+      }
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden && !cancelled) {
+        if (timer) clearTimeout(timer);
+        schedule(300);
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    schedule(JP_VOCAB_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loading, words.length, applySyncPatches]);
+
   const displayedWords = useMemo(() => {
     if (isJpVocabDefaultStatSort(statSort) && displayOrder.ids.length > 0) {
       return jpVocabWordsInOrder(words, displayOrder.ids);
@@ -317,11 +384,6 @@ export function JpVocabPage() {
   );
 
   const searchActive = searchQuery.trim().length > 0;
-
-  const dailyQuizTopIds = useMemo(
-    () => new Set(displayedWords.slice(0, JP_VOCAB_DAILY_QUIZ_TOP).map((w) => w.id)),
-    [displayedWords]
-  );
 
   const dailyQuizPendingCount = useMemo(
     () =>
@@ -390,36 +452,33 @@ export function JpVocabPage() {
     setSavingId(wordId);
 
     try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_id: wordId, level }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: JpVocabWord;
-        error?: string;
-      };
-      if (res.status === 401) {
-        await refresh();
-        throw new Error(SAVE_ERR[locale]);
-      }
-      if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
-      }
-      setWords((prev) => {
-        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(
-          next,
-          refs,
-          dailyQuizStyleRef.current,
-          displayOrderRef.current
-        );
-        return next;
+      await jpVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/jp-vocab", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId, level }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        };
+        if (res.status === 401) {
+          await refresh();
+          throw new Error(SAVE_ERR[locale]);
+        }
+        if (!data.ok || !data.word) {
+          throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
+        }
+        setWords((prev) => {
+          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+          persistVocabCache(next, refs, displayOrderRef.current);
+          return next;
+        });
       });
     } catch (err) {
       if (snapshot) {
@@ -471,12 +530,7 @@ export function JpVocabPage() {
       }
       setWords(data.words);
       setDisplayOrder(data.display_order);
-      persistVocabCache(
-        data.words,
-        refs,
-        dailyQuizStyleRef.current,
-        data.display_order
-      );
+      persistVocabCache(data.words, refs, data.display_order);
       setSessionLevel({});
       setSessionReviewAt({});
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
@@ -541,12 +595,7 @@ export function JpVocabPage() {
     setWords(nextWords);
     setRefs(nextRefs);
     setDisplayOrder(nextDisplayOrder);
-    persistVocabCache(
-      nextWords,
-      nextRefs,
-      dailyQuizStyleRef.current,
-      nextDisplayOrder
-    );
+    persistVocabCache(nextWords, nextRefs, nextDisplayOrder);
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
@@ -556,15 +605,13 @@ export function JpVocabPage() {
     (word: JpVocabWord) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === word.id ? word : w));
-        persistVocabCache(
-          next,
-          refs,
-          dailyQuizStyleRef.current,
-          displayOrderRef.current
-        );
+        persistVocabCache(next, refs, displayOrderRef.current);
         return next;
       });
-      setStatus("词条已保存。");
+      setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+      if (editingRemarksIdRef.current !== word.id) {
+        setStatus("词条已保存。");
+      }
     },
     [refs]
   );
@@ -573,12 +620,7 @@ export function JpVocabPage() {
     (wordId: number, snapshot: JpVocabWord, message: string) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === wordId ? snapshot : w));
-        persistVocabCache(
-          next,
-          refs,
-          dailyQuizStyleRef.current,
-          displayOrderRef.current
-        );
+        persistVocabCache(next, refs, displayOrderRef.current);
         return next;
       });
       setStatus(message);
@@ -677,11 +719,11 @@ export function JpVocabPage() {
                   </span>
                 </>
               ) : null}
-              {SHOW_DAILY_QUIZ_ROW_STYLE && words.length ? (
+              {words.length ? (
                 <> · 今日待抽查 {dailyQuizPendingCount}/{Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length)}</>
               ) : null}
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
-              {refreshing ? <> · 同步中…</> : null}
+              {refreshing ? <> · 加载中…</> : null}
             </span>
             {SHOW_RANDOM_HIGHLIGHT ? (
               <button
@@ -713,18 +755,6 @@ export function JpVocabPage() {
             >
               抽查排行
             </button>
-            {SHOW_DAILY_QUIZ_ROW_STYLE && isAdmin ? (
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={() => setShowDailyQuizStylePanel((v) => !v)}
-                disabled={loading || !words.length}
-                title="调节「当前排序前 20 条」标记背景的颜色与深浅（全站统一，仅管理员可改）"
-                aria-expanded={showDailyQuizStylePanel}
-              >
-                {showDailyQuizStylePanel ? "收起标记样式" : "标记样式"}
-              </button>
-            ) : null}
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
@@ -784,75 +814,9 @@ export function JpVocabPage() {
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
                 单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
                 搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）。
-                {SHOW_DAILY_QUIZ_ROW_STYLE ? (
-                  <>
-                    <strong>今日待抽查前 {JP_VOCAB_DAILY_QUIZ_TOP} 条</strong>：按<strong>当前表格排序</strong>（默认抽查优先级）取最前面的 {JP_VOCAB_DAILY_QUIZ_TOP} 条，今日尚未勾选的会显示标记背景；勾选后背景消失。
-                    样式由管理员在上方「标记样式」里统一设置，所有老师看到相同背景。
-                  </>
-                ) : null}
+                备注编辑后约 1 秒自动保存并写入数据库；其他端约 1 秒自动拉取变更（标签页在后台时会降频）。
               </p>
             ) : null}
-          </div>
-        ) : null}
-
-        {SHOW_DAILY_QUIZ_ROW_STYLE && isAdmin && showDailyQuizStylePanel && !loading && words.length ? (
-          <div className="jp-vocab-daily-quiz-style-panel" role="region" aria-label="今日前20条标记样式">
-            <div className="jp-vocab-daily-quiz-style-panel__head">
-              <strong>今日前 {JP_VOCAB_DAILY_QUIZ_TOP} 条 · 标记样式</strong>
-              <span className="jp-vocab-daily-quiz-style-panel__note">
-                标记范围 = 当日固定顺序下的前 {JP_VOCAB_DAILY_QUIZ_TOP} 条（默认抽查优先级，每天 0 点重排）；保存后所有老师看到相同背景
-              </span>
-            </div>
-            <label className="jp-vocab-daily-quiz-style-toggle">
-              <input
-                type="checkbox"
-                checked={dailyQuizStyle.enabled}
-                onChange={(e) => patchDailyQuizStyle({ enabled: e.target.checked })}
-              />
-              <span>启用标记背景</span>
-            </label>
-            <div className="jp-vocab-daily-quiz-style-row">
-              <label className="jp-vocab-daily-quiz-style-color">
-                <span>背景颜色</span>
-                <input
-                  type="color"
-                  value={dailyQuizStyle.bgColor}
-                  onChange={(e) => patchDailyQuizStyle({ bgColor: e.target.value })}
-                  title="选择标记背景颜色"
-                />
-              </label>
-              <label className="jp-vocab-daily-quiz-style-opacity">
-                <span>深浅 {dailyQuizStyle.bgOpacity}%</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={80}
-                  value={dailyQuizStyle.bgOpacity}
-                  onChange={(e) =>
-                    patchDailyQuizStyle({ bgOpacity: Number(e.target.value) })
-                  }
-                />
-              </label>
-            </div>
-            <div className="jp-vocab-daily-quiz-style-actions">
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact"
-                onClick={() => {
-                  setDailyQuizStyle(JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT);
-                  void saveDailyQuizStyle(JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT);
-                }}
-              >
-                恢复默认
-              </button>
-              <div
-                className="jp-vocab-daily-quiz-style-preview jp-vocab-daily-quiz-wrap"
-                style={dailyQuizStyleCssVars as CSSProperties}
-                aria-hidden="true"
-              >
-                <div className="jp-vocab-daily-quiz-style-preview__row">预览：待抽查词条行</div>
-              </div>
-            </div>
           </div>
         ) : null}
 
@@ -899,16 +863,7 @@ export function JpVocabPage() {
                 没有匹配「{searchQuery.trim()}」的词条，请换个关键词试试。
               </p>
             ) : filteredDisplayedWords.length ? (
-          <div
-            className={`etr-table-wrap jp-vocab-table-wrap${
-              SHOW_DAILY_QUIZ_ROW_STYLE ? " jp-vocab-daily-quiz-wrap" : ""
-            }`}
-            style={
-              SHOW_DAILY_QUIZ_ROW_STYLE
-                ? (dailyQuizStyleCssVars as CSSProperties)
-                : undefined
-            }
-          >
+          <div className="etr-table-wrap jp-vocab-table-wrap">
             <p className="jp-vocab-scroll-hint" aria-hidden="true">
               表格较宽时可左右滑动查看
             </p>
@@ -1021,11 +976,6 @@ export function JpVocabPage() {
               <tbody>
                 {filteredDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const isDailyQuiz =
-                    SHOW_DAILY_QUIZ_ROW_STYLE &&
-                    dailyQuizStyle.enabled &&
-                    dailyQuizTopIds.has(w.id) &&
-                    !jpVocabCheckedInRound(displayOrder, w);
                   const selected = sessionLevel[w.id];
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
@@ -1040,7 +990,6 @@ export function JpVocabPage() {
                     <tr
                       key={w.id}
                       id={`jp-vocab-row-${w.id}`}
-                      className={isDailyQuiz ? "jp-vocab-daily-quiz-row" : undefined}
                       style={{
                         background: isHighlight
                           ? "rgba(61, 139, 253, 0.12)"
@@ -1393,102 +1342,6 @@ export function JpVocabPage() {
           color: var(--muted);
           font-size: 0.875rem;
         }
-        :global(.jp-vocab-daily-quiz-wrap) {
-          --jq-bg-rgb: 255, 196, 87;
-          --jq-bg-o: 0.18;
-          --jq-bg-hover-o: 0.24;
-        }
-        :global(.jp-vocab-table tbody tr.jp-vocab-daily-quiz-row) {
-          background: rgba(var(--jq-bg-rgb), var(--jq-bg-o));
-        }
-        :global(.jp-vocab-table tbody tr.jp-vocab-daily-quiz-row:hover) {
-          background: rgba(var(--jq-bg-rgb), var(--jq-bg-hover-o));
-        }
-        .jp-vocab-daily-quiz-style-panel {
-          margin: 0 0 0.85rem;
-          padding: 0.75rem 0.9rem;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: color-mix(in srgb, var(--panel) 94%, var(--bg));
-        }
-        .jp-vocab-daily-quiz-style-panel__head {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-          margin-bottom: 0.65rem;
-        }
-        .jp-vocab-daily-quiz-style-panel__head strong {
-          color: var(--text);
-          font-size: 0.875rem;
-        }
-        .jp-vocab-daily-quiz-style-panel__note {
-          color: var(--muted);
-          font-size: 0.8125rem;
-          line-height: 1.45;
-        }
-        .jp-vocab-daily-quiz-style-toggle {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.45rem;
-          margin-bottom: 0.65rem;
-          font-size: 0.875rem;
-          cursor: pointer;
-        }
-        .jp-vocab-daily-quiz-style-row {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: flex-end;
-          gap: 1rem 1.25rem;
-          margin-bottom: 0.75rem;
-        }
-        .jp-vocab-daily-quiz-style-color {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.55rem;
-          font-size: 0.875rem;
-          color: var(--text);
-          cursor: pointer;
-        }
-        .jp-vocab-daily-quiz-style-color input[type="color"] {
-          width: 2.75rem;
-          height: 2rem;
-          padding: 0.15rem;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          background: var(--bg);
-          cursor: pointer;
-        }
-        .jp-vocab-daily-quiz-style-opacity {
-          display: flex;
-          flex-direction: column;
-          gap: 0.35rem;
-          flex: 1 1 10rem;
-          min-width: 8rem;
-          max-width: 16rem;
-          font-size: 0.8125rem;
-          color: var(--muted);
-        }
-        .jp-vocab-daily-quiz-style-opacity input[type="range"] {
-          width: 100%;
-          accent-color: var(--accent);
-        }
-        .jp-vocab-daily-quiz-style-actions {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        .jp-vocab-daily-quiz-style-preview {
-          flex: 1 1 12rem;
-          min-width: 0;
-        }
-        .jp-vocab-daily-quiz-style-preview__row {
-          padding: 0.55rem 0.75rem;
-          border-radius: 6px;
-          font-size: 0.8125rem;
-          color: var(--text);
-          background: rgba(var(--jq-bg-rgb), var(--jq-bg-o));
-        }
         .jp-vocab-levels {
           display: flex;
           flex-wrap: wrap;
@@ -1763,7 +1616,7 @@ export function JpVocabPage() {
           min-width: 4rem;
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
-          min-width: 4.25rem;
+          min-width: 6.5rem;
           white-space: nowrap;
         }
         :global(.jp-vocab-table thead .jp-vocab-notes-col) {
@@ -1852,10 +1705,6 @@ export function JpVocabPage() {
             border: 1px solid var(--border);
             border-radius: 8px;
             background: color-mix(in srgb, var(--panel) 88%, var(--bg));
-          }
-          :global(.jp-vocab-table tbody tr.jp-vocab-daily-quiz-row) {
-            background: rgba(var(--jq-bg-rgb), var(--jq-bg-o));
-            border-color: rgba(var(--jq-bg-rgb), calc(var(--jq-bg-o) + 0.12));
           }
           :global(.jp-vocab-table tbody td) {
             display: flex;

@@ -109,8 +109,8 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
         .jp-remarks-view-modal {
           display: flex;
           flex-direction: column;
-          width: min(520px, 100%);
-          max-height: min(80vh, 560px);
+          width: min(760px, 100%);
+          max-height: min(88vh, 720px);
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
@@ -153,18 +153,18 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
         }
 
         .jp-remarks-view-body {
-          padding: 1rem 1.1rem;
+          padding: 1.1rem 1.25rem;
           overflow-y: auto;
           flex: 1;
-          min-height: 0;
+          min-height: 12rem;
         }
 
         .jp-remarks-view-text {
           margin: 0;
           white-space: pre-wrap;
           word-break: break-word;
-          line-height: 1.55;
-          font-size: 0.875rem;
+          line-height: 1.6;
+          font-size: 0.9375rem;
           color: var(--text);
         }
 

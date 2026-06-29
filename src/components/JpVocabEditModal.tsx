@@ -9,6 +9,7 @@ import {
   syncJpVocabEditResponse,
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { jpVocabSaveQueue } from "@/lib/request-queue";
 
 type Props = {
   open: boolean;
@@ -107,7 +108,7 @@ export function JpVocabEditModal({
     onSaved(optimistic);
     onClose();
 
-    void (async () => {
+    void jpVocabSaveQueue.enqueue(async () => {
       try {
         const res = await fetch("/api/jp-vocab/edit", {
           method: "POST",
@@ -143,7 +144,7 @@ export function JpVocabEditModal({
           err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed"
         );
       }
-    })();
+    });
   };
 
   if (!open || !mounted || !word) return null;

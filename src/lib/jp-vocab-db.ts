@@ -446,6 +446,33 @@ export async function listJpVocabWordsWithRefs(db: D1Database): Promise<{
   return { words, refs: refsRecord(refs) };
 }
 
+/** 增量同步：仅返回 updated_at 晚于 since 的词条（轻量轮询用） */
+export async function listJpVocabWordsChangedSince(
+  db: D1Database,
+  since: string
+): Promise<JpVocabWord[]> {
+  const marker = since.trim();
+  if (!marker) return [];
+
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+
+  if (devStoreEnabled) {
+    return devWords
+      .filter((w) => w.updated_at > marker)
+      .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+  }
+
+  const result = await db
+    .prepare(
+      `${WORD_SELECT} WHERE updated_at > ?1 ORDER BY updated_at ASC LIMIT 200`
+    )
+    .bind(marker)
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(mapRow);
+}
+
 export type RecordJpVocabReviewResult =
   | { ok: true; word: JpVocabWord }
   | { ok: false; error: string };
