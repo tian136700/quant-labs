@@ -901,6 +901,9 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-word-col">
                     单词 / 语法
                   </th>
+                  <th rowSpan={2} className="jp-vocab-reading-col">
+                    读音
+                  </th>
                   <th rowSpan={2} className="jp-vocab-meaning-col">
                     释义
                   </th>
@@ -1069,6 +1072,9 @@ export function JpVocabPage() {
                             <span className="jp-vocab-word-text">{w.word}</span>
                           )}
                         </div>
+                      </td>
+                      <td className="jp-vocab-reading-col" data-label="读音" style={{ color: "var(--muted)" }}>
+                        {w.reading || ""}
                       </td>
                       <td className="jp-vocab-meaning-col" data-label="释义" style={{ color: "var(--muted)" }}>
                         {w.meaning || ""}
@@ -1649,6 +1655,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-today-check-col),
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
+        :global(.jp-vocab-table .jp-vocab-reading-col),
         :global(.jp-vocab-table .jp-vocab-meaning-col),
         :global(.jp-vocab-table .jp-vocab-pos-col),
         :global(.jp-vocab-table .jp-vocab-risk-col) {
@@ -1703,6 +1710,13 @@ export function JpVocabPage() {
           min-width: 7rem;
           padding-left: 0.65rem;
           padding-right: 0.65rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-reading-col) {
+          min-width: 5rem;
+          padding-left: 0.65rem;
+          padding-right: 0.65rem;
+          word-break: break-word;
+          line-height: 1.45;
         }
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
           min-width: 6.5rem;
