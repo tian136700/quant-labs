@@ -36,6 +36,8 @@ let devAuthEnabled = false;
 const devUsers: DevUser[] = [];
 const devSessions: DevSession[] = [];
 let devUserIdSeq = 1;
+/** 同一 Worker 实例内只 bootstrap 一次，避免每次鉴权都跑 PBKDF2 */
+let bootstrapUsersDone = false;
 
 export function enableEtrAuthDevStore() {
   devAuthEnabled = true;
@@ -99,20 +101,7 @@ export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> 
     .bind(username)
     .first<{ id: number }>();
 
-  if (row?.id) {
-    const existing = await findUserByUsername(db, username);
-    if (existing) {
-      const valid = await verifyPassword(password, existing.password_hash);
-      if (!valid) {
-        const { salt, hash } = await hashPassword(password);
-        await db
-          .prepare(`UPDATE etr_users SET password_hash = ?1 WHERE id = ?2`)
-          .bind(encodePasswordStorage(salt, hash), existing.id)
-          .run();
-      }
-    }
-    return;
-  }
+  if (row?.id) return;
 
   const { salt, hash } = await hashPassword(password);
   await db
@@ -176,22 +165,11 @@ async function ensureJpVocabRoleUser(
     .first<{ id: number; role: string }>();
 
   if (row?.id) {
-    const existing = await findUserByUsername(db, username);
-    if (existing) {
-      if (existing.role !== "jp_vocab") {
-        await db
-          .prepare(`UPDATE etr_users SET role = 'jp_vocab' WHERE id = ?1`)
-          .bind(existing.id)
-          .run();
-      }
-      const valid = await verifyPassword(password, existing.password_hash);
-      if (!valid) {
-        const { salt, hash } = await hashPassword(password);
-        await db
-          .prepare(`UPDATE etr_users SET password_hash = ?1 WHERE id = ?2`)
-          .bind(encodePasswordStorage(salt, hash), existing.id)
-          .run();
-      }
+    if (row.role !== "jp_vocab") {
+      await db
+        .prepare(`UPDATE etr_users SET role = 'jp_vocab' WHERE id = ?1`)
+        .bind(row.id)
+        .run();
     }
     return;
   }
@@ -207,12 +185,14 @@ async function ensureJpVocabRoleUser(
 }
 
 async function ensureBootstrapUsers(env: CloudflareEnv): Promise<void> {
+  if (bootstrapUsersDone) return;
   if (!devAuthEnabled) {
     await ensureEtrUsersSchema(env.DB);
   }
   await ensureDefaultAdminUser(env);
   await ensureJpVocabTeacherUser(env);
   await ensureJpVocabUser1(env);
+  bootstrapUsersDone = true;
 }
 
 async function findUserByUsername(
@@ -415,8 +395,6 @@ export async function resolveAuthSession(
   env: CloudflareEnv,
   cookieHeader: string | null | undefined
 ): Promise<AuthSessionResolve> {
-  await ensureBootstrapUsers(env);
-
   const tokens = parseAllSessionCookies(cookieHeader ?? null);
   if (!tokens.length) {
     return { status: "anonymous", staleCookie: false };

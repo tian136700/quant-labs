@@ -11,6 +11,7 @@ import {
 
 let devRbacEnabled = false;
 const devRolePermissions = new Map<EtrUserRole, Set<string>>();
+let rbacSeededDone = false;
 
 export function enableRbacDevStore() {
   devRbacEnabled = true;
@@ -60,12 +61,17 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
     return;
   }
 
+  if (rbacSeededDone) return;
+
   await ensureRbacSchema(db);
 
   const row = await db
     .prepare(`SELECT COUNT(*) AS c FROM etr_role_permissions`)
     .first<{ c: number }>();
-  if ((row?.c ?? 0) > 0) return;
+  if ((row?.c ?? 0) > 0) {
+    rbacSeededDone = true;
+    return;
+  }
 
   const ts = nowIso();
   const inserts: D1PreparedStatement[] = [];
@@ -82,6 +88,7 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
     }
   }
   if (inserts.length) await db.batch(inserts);
+  rbacSeededDone = true;
 }
 
 export async function getPermissionsForRole(

@@ -77,6 +77,7 @@ const devWords: JpVocabWord[] = [];
 const devRefs = new Map<string, JpVocabRef>();
 let devNextId = 1;
 let devSeeded = false;
+let vocabWordSchemaReady = false;
 let devDailyQuizStyle: JpVocabDailyQuizStyle = {
   ...JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
 };
@@ -160,7 +161,7 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
 }
 
 async function ensureVocabWordSchema(db: D1Database): Promise<void> {
-  if (devStoreEnabled) return;
+  if (devStoreEnabled || vocabWordSchemaReady) return;
   const info = await db
     .prepare(`PRAGMA table_info(jp_vocab_word)`)
     .all<{ name: string }>();
@@ -186,6 +187,7 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("last_review_at")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN last_review_at TEXT`).run();
   }
+  vocabWordSchemaReady = true;
 }
 
 const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,

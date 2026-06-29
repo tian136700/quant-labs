@@ -1,7 +1,7 @@
 import type { JpVocabWord } from "@/lib/types";
 
 /** 页面可见时增量拉取间隔（备注等多端实时同步） */
-export const JP_VOCAB_POLL_MS = 1_000;
+export const JP_VOCAB_POLL_MS = 3_000;
 
 /** 标签页在后台时降频，避免浪费 Worker 配额 */
 export const JP_VOCAB_POLL_HIDDEN_MS = 10_000;
