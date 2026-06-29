@@ -105,6 +105,10 @@ export function parseJpLessonApi(json: unknown): JpLessonApiPayload {
         ...lesson,
         learning: Boolean(lesson.learning),
         teacher_ids: teacherIds,
+        teacher_other:
+          lesson.teacher_other != null && String(lesson.teacher_other).trim()
+            ? String(lesson.teacher_other).trim()
+            : null,
       };
     }),
     refs: data.refs ?? {},

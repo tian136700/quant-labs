@@ -43,6 +43,7 @@ function stripTeacherFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] {
   return lessons.map((lesson) => ({
     ...lesson,
     teacher_ids: [],
+    teacher_other: null,
   }));
 }
 
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
       completed?: boolean;
       teacher_id?: number | null;
       teacher_ids?: number[];
+      teacher_other?: string | null;
     };
 
     if (body.action === "set_teacher") {
@@ -110,10 +112,18 @@ export async function POST(request: Request) {
             ? []
             : [Number(body.teacher_id)];
 
+      const teacherOther =
+        body.teacher_other === undefined
+          ? undefined
+          : body.teacher_other === null
+            ? null
+            : String(body.teacher_other);
+
       const result = await updateJpLessonTeacherAssignment(
         env.DB,
         lessonId,
-        teacherIds
+        teacherIds,
+        teacherOther
       );
 
       if (!result.ok) {

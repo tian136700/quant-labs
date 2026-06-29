@@ -235,6 +235,7 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   learning            INTEGER NOT NULL DEFAULT 0,
   status_updated_at   TEXT,
   status_updated_by   TEXT,
+  teacher_other       TEXT,
   uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -284,6 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_i
 -- CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
 -- ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT;
 -- CREATE TABLE IF NOT EXISTS jp_vocab_setting (...);  -- 同上
+-- ALTER TABLE jp_lesson ADD COLUMN teacher_other TEXT;
 
 -- trend_aggregator：每日抓取批次 + 条目（含 AI 提示词，可溯源）
 CREATE TABLE IF NOT EXISTS trend_fetch_run (

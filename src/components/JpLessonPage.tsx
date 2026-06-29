@@ -96,6 +96,9 @@ function formatLessonTeacherNames(
   const names = (lesson.teacher_ids ?? [])
     .map((id) => teacherNameById.get(id))
     .filter((name): name is string => Boolean(name));
+  if (lesson.teacher_other?.trim()) {
+    names.push(lesson.teacher_other.trim());
+  }
   return names.length ? names.join("、") : "—";
 }
 
@@ -287,13 +290,19 @@ export function JpLessonPage() {
     }
   };
 
-  const setLessonTeachers = async (lessonId: number, teacherIds: number[]) => {
+  const setLessonTeachers = async (
+    lessonId: number,
+    teacherIds: number[],
+    teacherOther: string | null
+  ) => {
     if (!isAdmin || savingTeacherId === lessonId) return;
 
     const snapshot = lessons.find((l) => l.id === lessonId);
     setSavingTeacherId(lessonId);
     setLessons((prev) =>
-      prev.map((l) => (l.id === lessonId ? { ...l, teacher_ids: teacherIds } : l))
+      prev.map((l) =>
+        l.id === lessonId ? { ...l, teacher_ids: teacherIds, teacher_other: teacherOther } : l
+      )
     );
 
     try {
@@ -308,6 +317,7 @@ export function JpLessonPage() {
           action: "set_teacher",
           lesson_id: lessonId,
           teacher_ids: teacherIds,
+          teacher_other: teacherOther,
         }),
       });
       const data = (await res.json()) as {
@@ -615,9 +625,9 @@ export function JpLessonPage() {
         teachers={teachers}
         saving={savingTeacherId === editingTeacherLesson?.id}
         onClose={() => setEditingTeacherLesson(null)}
-        onSave={(teacherIds) => {
+        onSave={(teacherIds, teacherOther) => {
           if (editingTeacherLesson) {
-            void setLessonTeachers(editingTeacherLesson.id, teacherIds);
+            void setLessonTeachers(editingTeacherLesson.id, teacherIds, teacherOther);
           }
         }}
       />

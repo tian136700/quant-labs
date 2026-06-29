@@ -51,6 +51,10 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
     status_updated_by:
       row.status_updated_by != null ? String(row.status_updated_by) : null,
     teacher_ids: [],
+    teacher_other:
+      row.teacher_other != null && String(row.teacher_other).trim()
+        ? String(row.teacher_other).trim()
+        : null,
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -73,7 +77,7 @@ async function attachTeacherIds(
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
-  status_updated_at, status_updated_by, uploaded_at, created_at, updated_at FROM jp_lesson`;
+  status_updated_at, status_updated_by, teacher_other, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (!devStoreEnabled) return;
@@ -92,6 +96,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       status_updated_at: null,
       status_updated_by: null,
       teacher_ids: [],
+      teacher_other: null,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -263,6 +268,7 @@ export async function createJpLesson(
       status_updated_at: null,
       status_updated_by: null,
       teacher_ids: [],
+      teacher_other: null,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -413,7 +419,8 @@ export type UpdateJpLessonTeacherResult =
 export async function updateJpLessonTeacherAssignment(
   db: D1Database,
   lessonId: number,
-  teacherIds: number[]
+  teacherIds: number[],
+  teacherOther?: string | null
 ): Promise<UpdateJpLessonTeacherResult> {
   await seedIfEmpty(db);
 
@@ -423,16 +430,27 @@ export async function updateJpLessonTeacherAssignment(
   const linkResult = await replaceLessonTeachers(db, lessonId, teacherIds);
   if (!linkResult.ok) return linkResult;
 
+  const normalizedOther =
+    teacherOther === undefined
+      ? existing.teacher_other
+      : teacherOther?.trim() || null;
+  const ts = nowIso();
+
   if (devStoreEnabled) {
     const idx = devLessons.findIndex((l) => l.id === lessonId);
-    const ts = nowIso();
     devLessons[idx] = {
       ...devLessons[idx],
       teacher_ids: linkResult.teacher_ids,
+      teacher_other: normalizedOther,
       updated_at: ts,
     };
     return { ok: true, lesson: devLessons[idx] };
   }
+
+  await db
+    .prepare(`UPDATE jp_lesson SET teacher_other = ?1, updated_at = ?2 WHERE id = ?3`)
+    .bind(normalizedOther, ts, lessonId)
+    .run();
 
   const lesson = await getJpLessonById(db, lessonId);
   if (!lesson) return { ok: false, error: "not_found" };

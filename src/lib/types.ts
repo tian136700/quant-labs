@@ -207,6 +207,8 @@ export interface JpLessonRecord {
   status_updated_by: string | null;
   /** 上课老师 ID 列表；仅管理员可见与编辑 */
   teacher_ids: number[];
+  /** 未维护在系统中的其他上课老师姓名；仅管理员可见与编辑 */
+  teacher_other: string | null;
   uploaded_at: string;
   created_at: string;
   updated_at: string;

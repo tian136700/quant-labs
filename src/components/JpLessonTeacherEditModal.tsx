@@ -10,7 +10,7 @@ type Props = {
   teachers: JpLessonTeacher[];
   saving?: boolean;
   onClose: () => void;
-  onSave: (teacherIds: number[]) => void;
+  onSave: (teacherIds: number[], teacherOther: string | null) => void;
 };
 
 export function JpLessonTeacherEditModal({
@@ -23,6 +23,8 @@ export function JpLessonTeacherEditModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [otherChecked, setOtherChecked] = useState(false);
+  const [otherName, setOtherName] = useState("");
 
   const sortedTeachers = useMemo(
     () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
@@ -36,6 +38,9 @@ export function JpLessonTeacherEditModal({
   useEffect(() => {
     if (!open || !lesson) return;
     setSelectedIds([...(lesson.teacher_ids ?? [])]);
+    const other = lesson.teacher_other?.trim() ?? "";
+    setOtherChecked(Boolean(other));
+    setOtherName(other);
   }, [open, lesson]);
 
   const toggleTeacher = (teacherId: number) => {
@@ -44,6 +49,11 @@ export function JpLessonTeacherEditModal({
         ? prev.filter((id) => id !== teacherId)
         : [...prev, teacherId]
     );
+  };
+
+  const handleSave = () => {
+    const teacherOther = otherChecked ? otherName.trim() || null : null;
+    onSave(selectedIds, teacherOther);
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -83,24 +93,39 @@ export function JpLessonTeacherEditModal({
 
         <fieldset className="jp-lesson-teacher-fieldset" disabled={saving}>
           <legend>上课老师（可多选）</legend>
-          {sortedTeachers.length ? (
-            <div className="jp-lesson-teacher-options">
-              {sortedTeachers.map((teacher) => (
-                <label key={teacher.id} className="jp-lesson-teacher-option">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(teacher.id)}
-                    onChange={() => toggleTeacher(teacher.id)}
-                  />
-                  <span>{teacher.name}</span>
-                </label>
-              ))}
-            </div>
-          ) : (
+          <div className="jp-lesson-teacher-options">
+            {sortedTeachers.map((teacher) => (
+              <label key={teacher.id} className="jp-lesson-teacher-option">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(teacher.id)}
+                  onChange={() => toggleTeacher(teacher.id)}
+                />
+                <span>{teacher.name}</span>
+              </label>
+            ))}
+            <label className="jp-lesson-teacher-option jp-lesson-teacher-option--other">
+              <input
+                type="checkbox"
+                checked={otherChecked}
+                onChange={() => setOtherChecked((prev) => !prev)}
+              />
+              <span>其他老师</span>
+              <input
+                type="text"
+                className="jp-lesson-teacher-other-input"
+                value={otherName}
+                placeholder="手动输入姓名"
+                disabled={!otherChecked || saving}
+                onChange={(e) => setOtherName(e.target.value)}
+              />
+            </label>
+          </div>
+          {!sortedTeachers.length ? (
             <p className="jp-lesson-teacher-hint">
-              暂无老师，请先在后台「上课老师管理」中添加。
+              暂无系统老师；可在下方勾选「其他老师」并手动填写。
             </p>
-          )}
+          ) : null}
         </fieldset>
 
         <div className="jp-lesson-teacher-actions">
@@ -116,7 +141,7 @@ export function JpLessonTeacherEditModal({
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
             disabled={saving}
-            onClick={() => onSave(selectedIds)}
+            onClick={handleSave}
           >
             {saving ? "保存中…" : "保存"}
           </button>
@@ -212,12 +237,32 @@ export function JpLessonTeacherEditModal({
           cursor: pointer;
         }
 
-        .jp-lesson-teacher-option input {
+        .jp-lesson-teacher-option input[type="checkbox"] {
           flex-shrink: 0;
         }
 
+        .jp-lesson-teacher-option--other {
+          flex-wrap: wrap;
+        }
+
+        .jp-lesson-teacher-other-input {
+          flex: 1 1 8rem;
+          min-width: 0;
+          padding: 0.35rem 0.5rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--panel);
+          color: inherit;
+          font-size: 0.8125rem;
+        }
+
+        .jp-lesson-teacher-other-input:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
         .jp-lesson-teacher-hint {
-          margin: 0;
+          margin: 0.45rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
         }
