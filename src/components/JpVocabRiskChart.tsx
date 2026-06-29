@@ -214,6 +214,8 @@ export function JpVocabRiskChart({ words }: Props) {
               type="category"
               dataKey="name"
               width={yAxisWidth}
+              allowDuplicatedCategory
+              interval={0}
               tick={(props) => <YAxisTick {...props} fontSize={tickFontSize} />}
               tickLine={{ stroke: CHART_INK }}
               axisLine={{ stroke: CHART_INK }}
