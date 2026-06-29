@@ -385,14 +385,6 @@ export function JpVocabPage() {
 
   const searchActive = searchQuery.trim().length > 0;
 
-  const dailyQuizPendingCount = useMemo(
-    () =>
-      displayedWords
-        .slice(0, JP_VOCAB_DAILY_QUIZ_TOP)
-        .filter((w) => !jpVocabCheckedInRound(displayOrder, w)).length,
-    [displayedWords, displayOrder]
-  );
-
   const dailyTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length);
 
   const dailyCheckedCount = useMemo(() => {
@@ -718,9 +710,6 @@ export function JpVocabPage() {
                       : null}
                   </span>
                 </>
-              ) : null}
-              {words.length ? (
-                <> · 今日待抽查 {dailyQuizPendingCount}/{Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length)}</>
               ) : null}
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
