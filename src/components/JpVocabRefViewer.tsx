@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
@@ -13,34 +13,11 @@ type Props = {
 };
 
 export function JpVocabRefViewer({ refMeta, cacheVersion }: Props) {
-  const [downloading, setDownloading] = useState(false);
   const v = cacheVersion ?? refMeta.updated_at;
   const mediaUrl = jpVocabRefApiPath(refMeta.ref_key, { v });
   const downloadUrl = jpVocabRefApiPath(refMeta.ref_key, { download: true, v });
   const filename = jpVocabRefFilename(refMeta.ref_key, refMeta.media_type);
   const title = refMeta.title?.trim() || refMeta.ref_key;
-
-  const handleDownload = useCallback(async () => {
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      const res = await fetch(downloadUrl, { credentials: "include" });
-      if (!res.ok) throw new Error("下载失败");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      window.open(downloadUrl, "_blank", "noopener,noreferrer");
-    } finally {
-      setDownloading(false);
-    }
-  }, [downloadUrl, downloading, filename]);
 
   return (
     <div className="jp-ref-viewer">
@@ -49,14 +26,13 @@ export function JpVocabRefViewer({ refMeta, cacheVersion }: Props) {
           <h1 className="jp-ref-viewer-title">{title}</h1>
           <p className="jp-ref-viewer-subtitle">教案预览</p>
         </div>
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--primary jp-ref-viewer-download"
-          onClick={() => void handleDownload()}
-          disabled={downloading}
-        >
-          {downloading ? "下载中…" : "下载"}
-        </button>
+        <JpVocabRefDownloadMenu
+          downloadUrl={downloadUrl}
+          mediaUrl={mediaUrl}
+          filename={filename}
+          mediaType={refMeta.media_type}
+          className="jp-ref-viewer-download"
+        />
       </header>
       <div className="jp-ref-viewer-content">
         {refMeta.media_type === "pdf" ? (
