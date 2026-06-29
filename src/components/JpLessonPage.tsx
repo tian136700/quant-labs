@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpLessonTeacherEditModal } from "@/components/JpLessonTeacherEditModal";
+import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -40,10 +41,6 @@ function persistLessonCache(
   teachers?: JpLessonTeacher[]
 ) {
   writeClientCache(JP_LESSON_CACHE_KEY, { lessons, refs, notes, teachers });
-}
-
-function refDownloadUrl(refKey: string): string {
-  return jpVocabRefApiPath(refKey, { download: true });
 }
 
 function refViewUrl(refKey: string, updatedAt?: string | null): string {
@@ -127,7 +124,6 @@ export function JpLessonPage() {
   const [status, setStatus] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTeacherId, setSavingTeacherId] = useState<number | null>(null);
-  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
@@ -202,31 +198,6 @@ export function JpLessonPage() {
       window.setTimeout(() => setCopiedId(null), 1000);
     } catch {
       setStatus("复制失败，请手动选择复制");
-    }
-  };
-
-  const downloadRef = async (refKey: string, ref?: JpVocabRef) => {
-    if (downloadingKey === refKey) return;
-    setDownloadingKey(refKey);
-    setStatus("");
-    try {
-      const res = await fetch(refDownloadUrl(refKey), { credentials: "include" });
-      if (!res.ok) throw new Error("下载失败");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = refFilename(refKey, ref);
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setStatus("教案已按原图下载");
-      window.setTimeout(() => setStatus(""), 2000);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "下载失败");
-    } finally {
-      setDownloadingKey(null);
     }
   };
 
@@ -502,14 +473,18 @@ export function JpLessonPage() {
                           随手画
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        className="jp-lesson-action-btn"
-                        disabled={downloadingKey === lesson.ref_key}
-                        onClick={() => void downloadRef(lesson.ref_key!, ref)}
-                      >
-                        {downloadingKey === lesson.ref_key ? "下载中…" : "下载"}
-                      </button>
+                      <JpVocabRefDownloadMenu
+                        downloadUrl={jpVocabRefApiPath(lesson.ref_key!, {
+                          download: true,
+                        })}
+                        mediaUrl={jpVocabRefApiPath(lesson.ref_key!, {
+                          v: ref?.updated_at,
+                        })}
+                        filename={refFilename(lesson.ref_key!, ref)}
+                        mediaType={ref?.media_type ?? "image"}
+                        primaryClassName="jp-lesson-action-btn"
+                        fixedPanel
+                      />
                       <button
                         type="button"
                         className="jp-lesson-action-btn"

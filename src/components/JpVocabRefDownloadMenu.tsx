@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   downloadBlobAsFile,
   exportJpVocabRefPaginatedPdf,
@@ -14,6 +14,8 @@ type Props = {
   mediaType: JpVocabMediaType;
   className?: string;
   primaryClassName?: string;
+  /** 表格等滚动容器内用 fixed 定位，避免下拉被裁切 */
+  fixedPanel?: boolean;
 };
 
 export function JpVocabRefDownloadMenu({
@@ -23,10 +25,28 @@ export function JpVocabRefDownloadMenu({
   mediaType,
   className = "",
   primaryClassName = "btn-rsi-filter btn-rsi-filter--primary",
+  fixedPanel = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<"image" | "pdf" | null>(null);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const toggleOpen = useCallback(() => {
+    setOpen((prev) => {
+      const next = !prev;
+      if (next && fixedPanel && wrapRef.current) {
+        const rect = wrapRef.current.getBoundingClientRect();
+        setPanelStyle({
+          position: "fixed",
+          top: rect.bottom + 4,
+          right: Math.max(8, window.innerWidth - rect.right),
+          left: "auto",
+        });
+      }
+      return next;
+    });
+  }, [fixedPanel]);
 
   useEffect(() => {
     if (!open) return;
@@ -101,7 +121,7 @@ export function JpVocabRefDownloadMenu({
       <button
         type="button"
         className={`${primaryClassName} jp-ref-download-trigger ${className}`.trim()}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         disabled={busy != null}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -112,7 +132,11 @@ export function JpVocabRefDownloadMenu({
         </span>
       </button>
       {open ? (
-        <div className="jp-ref-download-panel" role="menu">
+        <div
+          className={`jp-ref-download-panel${fixedPanel ? " is-fixed" : ""}`}
+          style={fixedPanel ? panelStyle : undefined}
+          role="menu"
+        >
           <button
             type="button"
             role="menuitem"
@@ -160,6 +184,9 @@ export function JpVocabRefDownloadMenu({
           background: var(--panel);
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
           z-index: 30;
+        }
+        .jp-ref-download-panel.is-fixed {
+          z-index: 1000;
         }
         .jp-ref-download-item {
           display: flex;
