@@ -52,13 +52,39 @@ export function jpLessonProgressSortRank(lesson: {
   }
 }
 
+export function jpLessonRecentOperationAt(lesson: {
+  status_updated_at?: string | null;
+  uploaded_at: string;
+}): string {
+  return lesson.status_updated_at ?? lesson.uploaded_at;
+}
+
+export function compareJpLessonsByRecentOperation(
+  a: { status_updated_at?: string | null; uploaded_at: string; id: number },
+  b: { status_updated_at?: string | null; uploaded_at: string; id: number }
+): number {
+  const dateCmp = jpLessonRecentOperationAt(b).localeCompare(jpLessonRecentOperationAt(a));
+  if (dateCmp !== 0) return dateCmp;
+  return b.id - a.id;
+}
+
 export function compareJpLessonsByProgress(
-  a: { completed: boolean; learning?: boolean; uploaded_at: string; id: number },
-  b: { completed: boolean; learning?: boolean; uploaded_at: string; id: number }
+  a: {
+    completed: boolean;
+    learning?: boolean;
+    status_updated_at?: string | null;
+    uploaded_at: string;
+    id: number;
+  },
+  b: {
+    completed: boolean;
+    learning?: boolean;
+    status_updated_at?: string | null;
+    uploaded_at: string;
+    id: number;
+  }
 ): number {
   const rankCmp = jpLessonProgressSortRank(a) - jpLessonProgressSortRank(b);
   if (rankCmp !== 0) return rankCmp;
-  const dateCmp = b.uploaded_at.localeCompare(a.uploaded_at);
-  if (dateCmp !== 0) return dateCmp;
-  return b.id - a.id;
+  return compareJpLessonsByRecentOperation(a, b);
 }

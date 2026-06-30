@@ -16,6 +16,7 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import {
+  compareJpLessonsByRecentOperation,
   getJpLessonProgressStatus,
   jpLessonProgressToFields,
   type JpLessonProgressStatus,
@@ -58,11 +59,7 @@ const LESSON_STATUS_SECTIONS: {
 ];
 
 function sortLessonsWithinStatus(lessons: JpLessonRecord[]): JpLessonRecord[] {
-  return [...lessons].sort((a, b) => {
-    const dateCmp = b.uploaded_at.localeCompare(a.uploaded_at);
-    if (dateCmp !== 0) return dateCmp;
-    return b.id - a.id;
-  });
+  return [...lessons].sort(compareJpLessonsByRecentOperation);
 }
 
 function groupLessonsByStatus(

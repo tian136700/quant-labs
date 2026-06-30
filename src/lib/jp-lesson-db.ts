@@ -129,7 +129,7 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
            WHEN learning = 1 THEN 0
            ELSE 1
          END ASC,
-         uploaded_at DESC,
+         COALESCE(status_updated_at, uploaded_at) DESC,
          id DESC`
     )
     .all<Record<string, unknown>>();
