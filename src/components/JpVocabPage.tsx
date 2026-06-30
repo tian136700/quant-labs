@@ -826,29 +826,31 @@ export function JpVocabPage() {
               <label htmlFor="jp-vocab-search" className="jp-vocab-search__label">
                 搜索
               </label>
-              <select
-                id="jp-vocab-kind-filter"
-                className="jp-vocab-search__kind"
-                value={kindFilter}
-                onChange={(e) => setKindFilter(e.target.value as JpVocabKindFilter)}
-                disabled={loading}
-                aria-label="类型筛选"
-              >
-                <option value="all">全部</option>
-                <option value="word">单词</option>
-                <option value="grammar">语法</option>
-              </select>
-              <input
-                id="jp-vocab-search"
-                type="search"
-                className="jp-vocab-search__input"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="单词、读音、释义、词性…（本地即时搜索）"
-                disabled={loading}
-                autoComplete="off"
-                spellCheck={false}
-              />
+              <div className="jp-vocab-search__row">
+                <input
+                  id="jp-vocab-search"
+                  type="search"
+                  className="jp-vocab-search__input"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="单词、读音、释义、词性…（本地即时搜索）"
+                  disabled={loading}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <select
+                  id="jp-vocab-kind-filter"
+                  className="jp-vocab-search__kind"
+                  value={kindFilter}
+                  onChange={(e) => setKindFilter(e.target.value as JpVocabKindFilter)}
+                  disabled={loading}
+                  aria-label="类型筛选"
+                >
+                  <option value="all">全部</option>
+                  <option value="word">单词</option>
+                  <option value="grammar">语法</option>
+                </select>
+              </div>
               {filterActive ? (
                 <>
                   <button
@@ -1314,7 +1316,7 @@ export function JpVocabPage() {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 0.5rem 0.75rem;
+          gap: 0.5rem 0.65rem;
           margin: 0 0 0.75rem;
         }
         .jp-vocab-search__label {
@@ -1322,16 +1324,25 @@ export function JpVocabPage() {
           color: var(--muted);
           flex-shrink: 0;
         }
+        .jp-vocab-search__row {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: 24rem;
+        }
         .jp-vocab-search__kind {
           flex: 0 0 auto;
-          min-width: 5.5rem;
-          padding: 0.45rem 1.75rem 0.45rem 0.65rem;
+          width: 3.4rem;
+          min-width: 3.4rem;
+          padding: 0.45rem 1.15rem 0.45rem 0.35rem;
           border-radius: 6px;
           border: 1px solid var(--border);
-          background: var(--panel);
+          background-color: var(--panel);
           color: var(--text);
           font: inherit;
-          font-size: 0.875rem;
+          font-size: 0.8125rem;
           cursor: pointer;
           appearance: none;
           -webkit-appearance: none;
@@ -1339,10 +1350,12 @@ export function JpVocabPage() {
           background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
             linear-gradient(135deg, var(--muted) 50%, transparent 50%);
           background-position:
-            calc(100% - 0.95rem) calc(50% + 0.12rem),
-            calc(100% - 0.65rem) calc(50% + 0.12rem);
-          background-size: 0.35rem 0.35rem;
+            calc(100% - 0.55rem) calc(50% + 0.12rem),
+            calc(100% - 0.35rem) calc(50% + 0.12rem);
+          background-size: 0.3rem 0.3rem;
           background-repeat: no-repeat;
+          text-align: center;
+          text-align-last: center;
         }
         .jp-vocab-search__kind:focus {
           outline: none;
@@ -1354,9 +1367,10 @@ export function JpVocabPage() {
           cursor: not-allowed;
         }
         .jp-vocab-search__input {
-          flex: 1 1 12rem;
+          flex: 1 1 auto;
           min-width: 0;
-          max-width: 20rem;
+          width: auto;
+          max-width: none;
           padding: 0.45rem 0.65rem;
           border-radius: 6px;
           border: 1px solid var(--border);

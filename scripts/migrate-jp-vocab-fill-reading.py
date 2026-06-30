@@ -36,9 +36,6 @@ MANUAL_READINGS: dict[str, str] = {
     "手": "て",
     "鍵屋": "かぎや",
     "綺麗だ": "きれいだ",
-    "～に来る": "～にくる",
-    "て形变形": "てけいへんけい",
-    "ない形变形": "ないけいへんけい",
 }
 
 _KANA_OR_MARK = re.compile(
@@ -70,8 +67,9 @@ def run_wrangler(remote: bool, sql: str) -> list:
 def fetch_missing(remote: bool) -> list[dict]:
     result = run_wrangler(
         remote,
-        "SELECT id, word FROM jp_vocab_word "
-        "WHERE reading IS NULL OR TRIM(reading) = '' "
+        "SELECT id, word, kind FROM jp_vocab_word "
+        "WHERE kind != 'grammar' "
+        "AND (reading IS NULL OR TRIM(reading) = '') "
         "ORDER BY id;",
     )
     if isinstance(result, list) and result:
