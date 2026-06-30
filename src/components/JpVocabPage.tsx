@@ -19,7 +19,10 @@ import {
   markJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
-import { filterJpVocabWordsBySearch } from "@/lib/jp-vocab-search";
+import {
+  filterJpVocabWordsBySearch,
+  type JpVocabKindFilter,
+} from "@/lib/jp-vocab-search";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
@@ -199,6 +202,7 @@ export function JpVocabPage() {
     round_checked_ids: [],
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -379,11 +383,12 @@ export function JpVocabPage() {
   }, [words, statSort, displayOrder.ids]);
 
   const filteredDisplayedWords = useMemo(
-    () => filterJpVocabWordsBySearch(displayedWords, searchQuery),
-    [displayedWords, searchQuery]
+    () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
+    [displayedWords, searchQuery, kindFilter]
   );
 
   const searchActive = searchQuery.trim().length > 0;
+  const filterActive = searchActive || kindFilter !== "all";
 
   const dailyTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, words.length);
 
@@ -802,7 +807,7 @@ export function JpVocabPage() {
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
                 单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
-                搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）。
+                搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）；旁边可按「全部 / 单词 / 语法」筛选类型。
                 备注编辑后约 1 秒自动保存并写入数据库；其他端约 1 秒自动拉取变更（标签页在后台时会降频）。
               </p>
             ) : null}
@@ -821,6 +826,18 @@ export function JpVocabPage() {
               <label htmlFor="jp-vocab-search" className="jp-vocab-search__label">
                 搜索
               </label>
+              <select
+                id="jp-vocab-kind-filter"
+                className="jp-vocab-search__kind"
+                value={kindFilter}
+                onChange={(e) => setKindFilter(e.target.value as JpVocabKindFilter)}
+                disabled={loading}
+                aria-label="类型筛选"
+              >
+                <option value="all">全部</option>
+                <option value="word">单词</option>
+                <option value="grammar">语法</option>
+              </select>
               <input
                 id="jp-vocab-search"
                 type="search"
@@ -832,12 +849,15 @@ export function JpVocabPage() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              {searchActive ? (
+              {filterActive ? (
                 <>
                   <button
                     type="button"
                     className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-search__clear"
-                    onClick={() => setSearchQuery("")}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setKindFilter("all");
+                    }}
                   >
                     清除
                   </button>
@@ -847,9 +867,13 @@ export function JpVocabPage() {
                 </>
               ) : null}
             </div>
-            {searchActive && !filteredDisplayedWords.length ? (
+            {filterActive && !filteredDisplayedWords.length ? (
               <p className="jp-vocab-search__empty">
-                没有匹配「{searchQuery.trim()}」的词条，请换个关键词试试。
+                {searchActive
+                  ? `没有匹配「${searchQuery.trim()}」的词条，请换个关键词试试。`
+                  : kindFilter === "grammar"
+                    ? "当前没有语法条目。"
+                    : "当前没有单词条目。"}
               </p>
             ) : filteredDisplayedWords.length ? (
           <div className="etr-table-wrap jp-vocab-table-wrap">
@@ -1298,10 +1322,41 @@ export function JpVocabPage() {
           color: var(--muted);
           flex-shrink: 0;
         }
+        .jp-vocab-search__kind {
+          flex: 0 0 auto;
+          min-width: 5.5rem;
+          padding: 0.45rem 1.75rem 0.45rem 0.65rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          cursor: pointer;
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+            linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+          background-position:
+            calc(100% - 0.95rem) calc(50% + 0.12rem),
+            calc(100% - 0.65rem) calc(50% + 0.12rem);
+          background-size: 0.35rem 0.35rem;
+          background-repeat: no-repeat;
+        }
+        .jp-vocab-search__kind:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+        }
+        .jp-vocab-search__kind:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
         .jp-vocab-search__input {
-          flex: 1 1 14rem;
+          flex: 1 1 12rem;
           min-width: 0;
-          max-width: 28rem;
+          max-width: 20rem;
           padding: 0.45rem 0.65rem;
           border-radius: 6px;
           border: 1px solid var(--border);
