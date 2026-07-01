@@ -40,6 +40,8 @@
     "db:migrate-user-disabled:remote": "python3 scripts/migrate-user-disabled-safe.py --remote",
     "db:migrate-login-guard:local": "python3 scripts/migrate-login-guard-safe.py --local",
     "db:migrate-login-guard:remote": "python3 scripts/migrate-login-guard-safe.py --remote",
+    "db:migrate-login-link-templates:local": "python3 scripts/migrate-login-link-templates.py --local",
+    "db:migrate-login-link-templates:remote": "python3 scripts/migrate-login-link-templates.py --remote",
     "db:migrate-login-link:local": "python3 scripts/migrate-login-link-safe.py --local",
     "db:migrate-login-link:remote": "python3 scripts/migrate-login-link-safe.py --remote",
     "db:migrate-jp-vocab-daily-check:local": "python3 scripts/migrate-jp-vocab-daily-check-safe.py --local",

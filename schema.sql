@@ -86,6 +86,18 @@ CREATE TABLE IF NOT EXISTS etr_login_links (
 
 CREATE INDEX IF NOT EXISTS idx_etr_login_links_user ON etr_login_links (user_id);
 
+-- 管理员：复制登录链接时可选附带的文字模板（支持 {login_url} 占位符）
+CREATE TABLE IF NOT EXISTS etr_login_link_templates (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL,
+  body       TEXT    NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_login_link_templates_sort ON etr_login_link_templates (sort_order ASC, id ASC);
+
 -- RBAC：角色 → 权限（admin 在代码层始终拥有全部权限）
 CREATE TABLE IF NOT EXISTS etr_role_permissions (
   role           TEXT    NOT NULL,

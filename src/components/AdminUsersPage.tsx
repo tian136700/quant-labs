@@ -22,6 +22,35 @@ import {
   readAdminUsersCache,
   writeAdminUsersCache,
 } from "@/lib/admin-users-cache";
+import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
+import type { LoginLinkTemplate } from "@/lib/types";
+
+const LOGIN_LINK_TEMPLATE_STORAGE_KEY = "admin_login_link_template_id";
+
+function readSelectedTemplateId(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(LOGIN_LINK_TEMPLATE_STORAGE_KEY);
+    if (!raw) return null;
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberSelectedTemplateId(id: number | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (id == null) {
+      localStorage.removeItem(LOGIN_LINK_TEMPLATE_STORAGE_KEY);
+    } else {
+      localStorage.setItem(LOGIN_LINK_TEMPLATE_STORAGE_KEY, String(id));
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 type UserRow = {
   id: number;
@@ -41,8 +70,18 @@ export function AdminUsersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [linkGeneratingId, setLinkGeneratingId] = useState<number | null>(null);
+  const [linkGeneratingWithTemplate, setLinkGeneratingWithTemplate] = useState(false);
   const [copyingId, setCopyingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [templates, setTemplates] = useState<LoginLinkTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [newTemplateBody, setNewTemplateBody] = useState("");
+  const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState("");
+  const [editTemplateBody, setEditTemplateBody] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"user" | "jp_vocab">("user");
@@ -86,6 +125,177 @@ export function AdminUsersPage() {
     if (checking || !isAdmin || editingUser != null) return;
     void load();
   }, [checking, isAdmin, load, editingUser]);
+
+  const loadTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    try {
+      const res = await fetch("/api/admin/login-link-templates", {
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        templates?: LoginLinkTemplate[];
+        error?: string;
+      };
+      if (!data.ok) return;
+      const next = data.templates ?? [];
+      setTemplates(next);
+      setSelectedTemplateId((prev) => {
+        const stored = prev ?? readSelectedTemplateId();
+        if (stored != null && next.some((item) => item.id === stored)) {
+          return stored;
+        }
+        return next[0]?.id ?? null;
+      });
+    } catch {
+      /* ignore */
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (checking || !isAdmin) return;
+    void loadTemplates();
+  }, [checking, isAdmin, loadTemplates]);
+
+  useEffect(() => {
+    rememberSelectedTemplateId(selectedTemplateId);
+  }, [selectedTemplateId]);
+
+  const selectedTemplate =
+    selectedTemplateId != null
+      ? templates.find((item) => item.id === selectedTemplateId) ?? null
+      : null;
+
+  const createTemplate = async () => {
+    setTemplateSaving(true);
+    setStatus("");
+    setStatusErr(false);
+    try {
+      const res = await fetch("/api/admin/login-link-templates", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newTemplateName,
+          body: newTemplateBody,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        template?: LoginLinkTemplate;
+        error?: string;
+      };
+      if (!data.ok) {
+        setStatus(
+          data.error === "name_empty" || data.error === "body_empty"
+            ? locale === "zh"
+              ? "请填写模板名称与正文"
+              : "Name and body are required"
+            : String(data.error || "failed")
+        );
+        setStatusErr(true);
+        return;
+      }
+      setNewTemplateName("");
+      setNewTemplateBody("");
+      setStatus(locale === "zh" ? "已添加文字模板" : "Template added");
+      if (data.template) {
+        setSelectedTemplateId(data.template.id);
+      }
+      void loadTemplates();
+    } catch {
+      setStatus(locale === "zh" ? "添加模板失败" : "Failed to add template");
+      setStatusErr(true);
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const startEditTemplate = (template: LoginLinkTemplate) => {
+    setEditingTemplateId(template.id);
+    setEditTemplateName(template.name);
+    setEditTemplateBody(template.body);
+  };
+
+  const cancelEditTemplate = () => {
+    setEditingTemplateId(null);
+    setEditTemplateName("");
+    setEditTemplateBody("");
+  };
+
+  const saveEditTemplate = async () => {
+    if (editingTemplateId == null) return;
+    setTemplateSaving(true);
+    setStatus("");
+    setStatusErr(false);
+    try {
+      const res = await fetch("/api/admin/login-link-templates", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          id: editingTemplateId,
+          name: editTemplateName,
+          body: editTemplateBody,
+        }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!data.ok) {
+        setStatus(
+          data.error === "name_empty" || data.error === "body_empty"
+            ? locale === "zh"
+              ? "请填写模板名称与正文"
+              : "Name and body are required"
+            : String(data.error || "failed")
+        );
+        setStatusErr(true);
+        return;
+      }
+      cancelEditTemplate();
+      setStatus(locale === "zh" ? "已保存文字模板" : "Template saved");
+      void loadTemplates();
+    } catch {
+      setStatus(locale === "zh" ? "保存模板失败" : "Failed to save template");
+      setStatusErr(true);
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
+  const deleteTemplate = async (template: LoginLinkTemplate) => {
+    const ok = window.confirm(
+      locale === "zh"
+        ? `确定删除模板「${template.name}」？`
+        : `Delete template "${template.name}"?`
+    );
+    if (!ok) return;
+    try {
+      const res = await fetch(
+        `/api/admin/login-link-templates?id=${template.id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!data.ok) {
+        setStatus(String(data.error || "failed"));
+        setStatusErr(true);
+        return;
+      }
+      if (selectedTemplateId === template.id) {
+        setSelectedTemplateId(null);
+      }
+      setStatus(locale === "zh" ? "已删除文字模板" : "Template deleted");
+      void loadTemplates();
+    } catch {
+      setStatus(locale === "zh" ? "删除模板失败" : "Failed to delete template");
+      setStatusErr(true);
+    }
+  };
 
   const toggleDisabled = (row: UserRow) => {
     const snapshot = row;
@@ -192,8 +402,19 @@ export function AdminUsersPage() {
     }
   };
 
-  const generateLoginLink = async (row: UserRow) => {
+  const generateLoginLink = async (row: UserRow, withTemplate: boolean) => {
+    if (withTemplate && !selectedTemplate) {
+      setStatus(
+        locale === "zh"
+          ? "请先添加并选择文字模板，再使用「带模板复制」"
+          : "Add and select a template before copying with template"
+      );
+      setStatusErr(true);
+      return;
+    }
+
     setLinkGeneratingId(row.id);
+    setLinkGeneratingWithTemplate(withTemplate);
     setStatus("");
     setStatusErr(false);
     try {
@@ -210,21 +431,30 @@ export function AdminUsersPage() {
         return;
       }
       const url = String(data.url || "");
+      const copyText =
+        withTemplate && selectedTemplate
+          ? renderLoginLinkTemplate(selectedTemplate.body, url)
+          : url;
       let copied = false;
-      if (url && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
+      if (copyText && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(copyText);
         copied = true;
       }
       setStatus(
         locale === "zh"
-          ? `已为 ${row.username} 生成永久登录链接（每次登录后 30 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
-          : `Permanent login link for ${row.username} (${data.session_days ?? 30}-day session after each sign-in)${copied ? ", copied" : ""}: ${url}`
+          ? withTemplate
+            ? `已为 ${row.username} 生成登录链接并带模板复制${copied ? "到剪贴板" : ""}（每次登录后 30 天免登录）`
+            : `已为 ${row.username} 生成永久登录链接（每次登录后 30 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
+          : withTemplate
+            ? `Login link for ${row.username} copied with template${copied ? "" : " (copy failed)"} (${data.session_days ?? 30}-day session after each sign-in)`
+            : `Permanent login link for ${row.username} (${data.session_days ?? 30}-day session after each sign-in)${copied ? ", copied" : ""}: ${url}`
       );
     } catch {
       setStatus(locale === "zh" ? "生成链接失败" : "Failed to generate link");
       setStatusErr(true);
     } finally {
       setLinkGeneratingId(null);
+      setLinkGeneratingWithTemplate(false);
     }
   };
 
@@ -514,6 +744,169 @@ export function AdminUsersPage() {
         </p>
       </section>
 
+      <section className="section etr-panel admin-rbac-section admin-login-link-templates-section">
+        <h2 className="admin-user-add-title">
+          {locale === "zh" ? "登录链接文字模板" : "Login link message templates"}
+        </h2>
+        <p className="hint admin-login-link-templates-hint">
+          {locale === "zh"
+            ? "复制登录链接时可选择「仅链接」或「带模板复制」。模板正文会放在链接前面；也可在正文中写 {login_url} 指定链接位置。"
+            : "When copying a login link, choose plain URL or copy with template text before the link. Use {login_url} to place the link inline."}
+        </p>
+
+        {templates.length > 0 ? (
+          <label className="admin-login-link-template-select">
+            <span>{locale === "zh" ? "当前选用模板" : "Active template"}</span>
+            <select
+              value={selectedTemplateId ?? ""}
+              disabled={templatesLoading || templateSaving}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                setSelectedTemplateId(Number.isInteger(id) && id > 0 ? id : null);
+              }}
+            >
+              {templates.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {templatesLoading ? (
+          <p className="hint">{locale === "zh" ? "加载模板…" : "Loading templates…"}</p>
+        ) : templates.length === 0 ? (
+          <p className="hint">
+            {locale === "zh" ? "暂无模板，可在下方添加。" : "No templates yet. Add one below."}
+          </p>
+        ) : (
+          <div className="admin-login-link-templates-list">
+            {templates.map((template) => (
+              <div key={template.id} className="admin-login-link-template-card">
+                {editingTemplateId === template.id ? (
+                  <>
+                    <label className="admin-login-link-template-field">
+                      <span>{locale === "zh" ? "名称" : "Name"}</span>
+                      <input
+                        type="text"
+                        value={editTemplateName}
+                        disabled={templateSaving}
+                        onChange={(e) => setEditTemplateName(e.target.value)}
+                      />
+                    </label>
+                    <label className="admin-login-link-template-field">
+                      <span>{locale === "zh" ? "正文" : "Body"}</span>
+                      <textarea
+                        rows={4}
+                        value={editTemplateBody}
+                        disabled={templateSaving}
+                        onChange={(e) => setEditTemplateBody(e.target.value)}
+                      />
+                    </label>
+                    <div className="admin-login-link-template-actions">
+                      <button
+                        type="button"
+                        className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+                        disabled={templateSaving || !editTemplateName.trim() || !editTemplateBody.trim()}
+                        onClick={() => void saveEditTemplate()}
+                      >
+                        {templateSaving
+                          ? locale === "zh"
+                            ? "保存中…"
+                            : "Saving…"
+                          : locale === "zh"
+                            ? "保存"
+                            : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-rsi-filter btn-rsi-filter--compact"
+                        disabled={templateSaving}
+                        onClick={cancelEditTemplate}
+                      >
+                        {locale === "zh" ? "取消" : "Cancel"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="admin-login-link-template-head">
+                      <strong>{template.name}</strong>
+                      <div className="admin-login-link-template-actions">
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+                          disabled={templateSaving}
+                          onClick={() => startEditTemplate(template)}
+                        >
+                          {locale === "zh" ? "编辑" : "Edit"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger admin-user-btn"
+                          disabled={templateSaving}
+                          onClick={() => void deleteTemplate(template)}
+                        >
+                          {locale === "zh" ? "删除" : "Delete"}
+                        </button>
+                      </div>
+                    </div>
+                    <pre className="admin-login-link-template-body">{template.body}</pre>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="admin-login-link-template-add">
+          <h3 className="admin-login-link-template-add-title">
+            {locale === "zh" ? "添加模板" : "Add template"}
+          </h3>
+          <label className="admin-login-link-template-field">
+            <span>{locale === "zh" ? "名称" : "Name"}</span>
+            <input
+              type="text"
+              value={newTemplateName}
+              disabled={templateSaving}
+              placeholder={locale === "zh" ? "例如：日语课提醒" : "e.g. Japanese class reminder"}
+              onChange={(e) => setNewTemplateName(e.target.value)}
+            />
+          </label>
+          <label className="admin-login-link-template-field">
+            <span>{locale === "zh" ? "正文" : "Body"}</span>
+            <textarea
+              rows={4}
+              value={newTemplateBody}
+              disabled={templateSaving}
+              placeholder={
+                locale === "zh"
+                  ? "例如：老师请在上课前十几二十分钟，抽查前 20 个单词。"
+                  : "e.g. Please review the first 20 words 15–20 minutes before class."
+              }
+              onChange={(e) => setNewTemplateBody(e.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--primary"
+            disabled={
+              templateSaving || !newTemplateName.trim() || !newTemplateBody.trim()
+            }
+            onClick={() => void createTemplate()}
+          >
+            {templateSaving
+              ? locale === "zh"
+                ? "添加中…"
+                : "Adding…"
+              : locale === "zh"
+                ? "添加模板"
+                : "Add template"}
+          </button>
+        </div>
+      </section>
+
       <section className="section etr-panel admin-rbac-section">
         {loading ? (
           <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
@@ -600,20 +993,50 @@ export function AdminUsersPage() {
                             </button>
                           ) : null}
                           {canGenerateLink ? (
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-btn"
-                              disabled={busy}
-                              onClick={() => void generateLoginLink(row)}
-                            >
-                              {linkGeneratingId === row.id
-                                ? locale === "zh"
-                                  ? "生成中…"
-                                  : "Generating…"
-                                : locale === "zh"
-                                  ? "生成登录链接"
-                                  : "Login link"}
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-btn"
+                                disabled={busy}
+                                onClick={() => void generateLoginLink(row, false)}
+                                title={
+                                  locale === "zh"
+                                    ? "生成并复制登录链接（不含模板文字）"
+                                    : "Generate and copy login link only"
+                                }
+                              >
+                                {linkGeneratingId === row.id && !linkGeneratingWithTemplate
+                                  ? locale === "zh"
+                                    ? "生成中…"
+                                    : "Generating…"
+                                  : locale === "zh"
+                                    ? "复制链接"
+                                    : "Copy link"}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+                                disabled={busy || !selectedTemplate}
+                                onClick={() => void generateLoginLink(row, true)}
+                                title={
+                                  locale === "zh"
+                                    ? selectedTemplate
+                                      ? `带模板「${selectedTemplate.name}」复制登录链接`
+                                      : "请先在上方添加并选择文字模板"
+                                    : selectedTemplate
+                                      ? `Copy login link with template "${selectedTemplate.name}"`
+                                      : "Add and select a template above first"
+                                }
+                              >
+                                {linkGeneratingId === row.id && linkGeneratingWithTemplate
+                                  ? locale === "zh"
+                                    ? "复制中…"
+                                    : "Copying…"
+                                  : locale === "zh"
+                                    ? "带模板复制"
+                                    : "Copy with template"}
+                              </button>
+                            </>
                           ) : null}
                           {canToggle ? (
                             <button
@@ -755,6 +1178,99 @@ export function AdminUsersPage() {
         }
         .admin-user-btn {
           white-space: nowrap;
+        }
+        .admin-login-link-templates-section {
+          margin-bottom: 1.25rem;
+        }
+        .admin-login-link-templates-hint {
+          margin: 0 0 0.85rem;
+        }
+        .admin-login-link-template-select {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          max-width: 20rem;
+          margin-bottom: 0.85rem;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .admin-login-link-template-select select {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          padding: 0.5rem 0.6rem;
+        }
+        .admin-login-link-templates-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+        }
+        .admin-login-link-template-card {
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.75rem 0.85rem;
+          background: rgba(255, 255, 255, 0.02);
+        }
+        .admin-login-link-template-head {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 0.5rem;
+        }
+        .admin-login-link-template-body {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-family: inherit;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          line-height: 1.5;
+        }
+        .admin-login-link-template-add {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          padding-top: 0.85rem;
+          border-top: 1px solid var(--border);
+        }
+        .admin-login-link-template-add-title {
+          margin: 0;
+          font-size: 0.9375rem;
+          font-weight: 600;
+        }
+        .admin-login-link-template-field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .admin-login-link-template-field input,
+        .admin-login-link-template-field textarea {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          padding: 0.5rem 0.6rem;
+          resize: vertical;
+        }
+        .admin-login-link-template-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.45rem;
+          align-items: center;
         }
       `}</style>
     </div>

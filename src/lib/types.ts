@@ -192,6 +192,16 @@ export interface JpLessonTeacher {
   updated_at: string;
 }
 
+/** 管理员复制登录链接时可选附带的文字模板 */
+export interface LoginLinkTemplate {
+  id: number;
+  name: string;
+  body: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JpLessonRecord {
   id: number;
   kind: JpLessonKind;
