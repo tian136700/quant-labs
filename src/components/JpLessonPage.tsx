@@ -481,6 +481,7 @@ export function JpLessonPage() {
                         mediaType={ref?.media_type ?? "image"}
                         primaryClassName="jp-lesson-action-btn"
                         fixedPanel
+                        allowOriginalDownload={isAdmin}
                       />
                       <button
                         type="button"

@@ -16,6 +16,8 @@ type Props = {
   primaryClassName?: string;
   /** 表格等滚动容器内用 fixed 定位，避免下拉被裁切 */
   fixedPanel?: boolean;
+  /** 管理员可下载原图；非管理员仅提供分页 PDF */
+  allowOriginalDownload?: boolean;
 };
 
 export function JpVocabRefDownloadMenu({
@@ -26,6 +28,7 @@ export function JpVocabRefDownloadMenu({
   className = "",
   primaryClassName = "btn-rsi-filter btn-rsi-filter--primary",
   fixedPanel = false,
+  allowOriginalDownload = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<"image" | "pdf" | null>(null);
@@ -101,7 +104,22 @@ export function JpVocabRefDownloadMenu({
       ? "下载中…"
       : busy === "pdf"
         ? "生成 PDF…"
-        : "下载";
+        : isImage && !allowOriginalDownload
+          ? "下载 PDF"
+          : "下载";
+
+  if (isImage && !allowOriginalDownload) {
+    return (
+      <button
+        type="button"
+        className={`${primaryClassName} ${className}`.trim()}
+        onClick={() => void downloadPaginatedPdf()}
+        disabled={busy != null}
+      >
+        {label}
+      </button>
+    );
+  }
 
   if (!isImage) {
     return (

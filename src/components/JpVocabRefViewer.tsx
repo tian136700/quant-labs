@@ -1,6 +1,7 @@
 "use client";
 
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function JpVocabRefViewer({ refMeta, cacheVersion }: Props) {
+  const { isAdmin } = useEtrAuth();
   const v = cacheVersion ?? refMeta.updated_at;
   const mediaUrl = jpVocabRefApiPath(refMeta.ref_key, { v });
   const downloadUrl = jpVocabRefApiPath(refMeta.ref_key, { download: true, v });
@@ -32,6 +34,7 @@ export function JpVocabRefViewer({ refMeta, cacheVersion }: Props) {
           filename={filename}
           mediaType={refMeta.media_type}
           className="jp-ref-viewer-download"
+          allowOriginalDownload={isAdmin}
         />
       </header>
       <div className="jp-ref-viewer-content">

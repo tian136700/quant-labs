@@ -1,5 +1,7 @@
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
+import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
 import { getJpVocabRef } from "@/lib/jp-vocab-db";
+import { isAdminSuperuser } from "@/lib/rbac";
 import {
   getJpVocabRefR2Object,
   readLocalJpVocabRefFile,
@@ -51,6 +53,13 @@ export async function GET(
 
     if (!ref) {
       return new Response("Not found", { status: 404 });
+    }
+
+    if (asDownload && ref.media_type === "image") {
+      const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
+      if (!isAdminSuperuser(user?.role)) {
+        return new Response("Forbidden", { status: 403 });
+      }
     }
 
     const ext = ref.media_type === "pdf" ? "pdf" : "png";
