@@ -184,10 +184,13 @@ export async function exportJpVocabRefPaginatedDocx(
   const [
     {
       AlignmentType,
+      convertMillimetersToTwip,
       Document,
+      Footer,
       ImageRun,
       Packer,
       PageBreak,
+      PageNumber,
       Paragraph,
       TextRun,
     },
@@ -232,23 +235,41 @@ export async function exportJpVocabRefPaginatedDocx(
         ],
       })
     );
-
-    children.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 480 },
-        children: [
-          new TextRun({
-            text: `${i + 1} / ${sections.length}`,
-            size: 20,
-            color: "828282",
-          }),
-        ],
-      })
-    );
   }
 
-  const doc = new Document({ sections: [{ children }] });
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: convertMillimetersToTwip(12),
+              bottom: convertMillimetersToTwip(12),
+              left: convertMillimetersToTwip(12),
+              right: convertMillimetersToTwip(12),
+            },
+          },
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({
+                    children: [PageNumber.CURRENT, " / ", PageNumber.TOTAL_PAGES],
+                    size: 20,
+                    color: "828282",
+                  }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children,
+      },
+    ],
+  });
   const blob = await Packer.toBlob(doc);
   await downloadBlobAsFile(
     blob,
