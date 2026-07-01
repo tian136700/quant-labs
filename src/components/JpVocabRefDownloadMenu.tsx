@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   downloadBlobAsFile,
+  exportJpVocabRefPaginatedDocx,
   exportJpVocabRefPaginatedPdf,
 } from "@/lib/jp-vocab-ref-pdf-export";
 import type { JpVocabMediaType } from "@/lib/types";
@@ -16,9 +17,121 @@ type Props = {
   primaryClassName?: string;
   /** 表格等滚动容器内用 fixed 定位，避免下拉被裁切 */
   fixedPanel?: boolean;
-  /** 管理员可下载原图；非管理员仅提供分页 PDF */
+  /** 管理员可下载原图；非管理员仅提供分页 PDF / Word */
   allowOriginalDownload?: boolean;
 };
+
+type BusyKind = "image" | "pdf" | "word";
+
+function PaginatedFormatMenu({
+  onPdf,
+  onWord,
+  busy,
+  className,
+  primaryClassName,
+  fixedPanel,
+}: {
+  onPdf: () => void;
+  onWord: () => void;
+  busy: BusyKind | null;
+  className?: string;
+  primaryClassName: string;
+  fixedPanel: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const toggleOpen = useCallback(() => {
+    setOpen((prev) => {
+      const next = !prev;
+      if (next && fixedPanel && wrapRef.current) {
+        const rect = wrapRef.current.getBoundingClientRect();
+        setPanelStyle({
+          position: "fixed",
+          top: rect.bottom + 4,
+          right: Math.max(8, window.innerWidth - rect.right),
+          left: "auto",
+        });
+      }
+      return next;
+    });
+  }, [fixedPanel]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const label =
+    busy === "pdf"
+      ? "生成 PDF…"
+      : busy === "word"
+        ? "生成 Word…"
+        : "下载";
+
+  return (
+    <div className={`jp-ref-download-menu${open ? " is-open" : ""}`} ref={wrapRef}>
+      <button
+        type="button"
+        className={`${primaryClassName} jp-ref-download-trigger ${className ?? ""}`.trim()}
+        onClick={toggleOpen}
+        disabled={busy != null}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {label}
+        <span className="jp-ref-download-caret" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div
+          className={`jp-ref-download-panel${fixedPanel ? " is-fixed" : ""}`}
+          style={fixedPanel ? panelStyle : undefined}
+          role="menu"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => {
+              setOpen(false);
+              onPdf();
+            }}
+          >
+            <span className="jp-ref-download-item-title">分页 PDF</span>
+            <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => {
+              setOpen(false);
+              onWord();
+            }}
+          >
+            <span className="jp-ref-download-item-title">分页 Word</span>
+            <span className="jp-ref-download-item-desc">与 PDF 同排版，便于编辑</span>
+          </button>
+        </div>
+      ) : null}
+      <style jsx>{downloadMenuStyles}</style>
+    </div>
+  );
+}
 
 export function JpVocabRefDownloadMenu({
   downloadUrl,
@@ -31,7 +144,7 @@ export function JpVocabRefDownloadMenu({
   allowOriginalDownload = false,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState<"image" | "pdf" | null>(null);
+  const [busy, setBusy] = useState<BusyKind | null>(null);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -98,26 +211,41 @@ export function JpVocabRefDownloadMenu({
     }
   }, [busy, mediaUrl, filename]);
 
+  const downloadPaginatedWord = useCallback(async () => {
+    if (busy) return;
+    setBusy("word");
+    setOpen(false);
+    try {
+      await exportJpVocabRefPaginatedDocx(mediaUrl, filename);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "分页 Word 生成失败，请稍后重试"
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [busy, mediaUrl, filename]);
+
   const isImage = mediaType === "image";
   const label =
     busy === "image"
       ? "下载中…"
       : busy === "pdf"
         ? "生成 PDF…"
-        : isImage && !allowOriginalDownload
-          ? "下载 PDF"
+        : busy === "word"
+          ? "生成 Word…"
           : "下载";
 
   if (isImage && !allowOriginalDownload) {
     return (
-      <button
-        type="button"
-        className={`${primaryClassName} ${className}`.trim()}
-        onClick={() => void downloadPaginatedPdf()}
-        disabled={busy != null}
-      >
-        {label}
-      </button>
+      <PaginatedFormatMenu
+        onPdf={() => void downloadPaginatedPdf()}
+        onWord={() => void downloadPaginatedWord()}
+        busy={busy}
+        className={className}
+        primaryClassName={primaryClassName}
+        fixedPanel={fixedPanel}
+      />
     );
   }
 
@@ -171,68 +299,77 @@ export function JpVocabRefDownloadMenu({
             onClick={() => void downloadPaginatedPdf()}
           >
             <span className="jp-ref-download-item-title">分页 PDF</span>
-            <span className="jp-ref-download-item-desc">
-              按部分分页，留白供备注
-            </span>
+            <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => void downloadPaginatedWord()}
+          >
+            <span className="jp-ref-download-item-title">分页 Word</span>
+            <span className="jp-ref-download-item-desc">与 PDF 同排版，便于编辑</span>
           </button>
         </div>
       ) : null}
-      <style jsx>{`
-        .jp-ref-download-menu {
-          position: relative;
-          flex-shrink: 0;
-        }
-        .jp-ref-download-trigger {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-        }
-        .jp-ref-download-caret {
-          font-size: 0.75rem;
-          opacity: 0.85;
-        }
-        .jp-ref-download-panel {
-          position: absolute;
-          top: calc(100% + 0.35rem);
-          right: 0;
-          min-width: 11.5rem;
-          padding: 0.35rem;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--panel);
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-          z-index: 30;
-        }
-        .jp-ref-download-panel.is-fixed {
-          z-index: 1000;
-        }
-        .jp-ref-download-item {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.1rem;
-          width: 100%;
-          padding: 0.55rem 0.65rem;
-          border: none;
-          border-radius: 6px;
-          background: transparent;
-          color: var(--text);
-          text-align: left;
-          cursor: pointer;
-        }
-        .jp-ref-download-item:hover {
-          background: color-mix(in srgb, var(--accent) 12%, transparent);
-        }
-        .jp-ref-download-item-title {
-          font-size: 0.875rem;
-          font-weight: 600;
-        }
-        .jp-ref-download-item-desc {
-          font-size: 0.75rem;
-          color: var(--muted);
-          line-height: 1.35;
-        }
-      `}</style>
+      <style jsx>{downloadMenuStyles}</style>
     </div>
   );
 }
+
+const downloadMenuStyles = `
+  .jp-ref-download-menu {
+    position: relative;
+    flex-shrink: 0;
+  }
+  .jp-ref-download-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .jp-ref-download-caret {
+    font-size: 0.75rem;
+    opacity: 0.85;
+  }
+  .jp-ref-download-panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    min-width: 11.5rem;
+    padding: 0.35rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    z-index: 30;
+  }
+  .jp-ref-download-panel.is-fixed {
+    z-index: 1000;
+  }
+  .jp-ref-download-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .jp-ref-download-item:hover {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .jp-ref-download-item-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .jp-ref-download-item-desc {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+`;
