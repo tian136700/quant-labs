@@ -1,7 +1,7 @@
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
-  sortJpVocabWordsForDisplay,
+  sortJpVocabWordsForDailyOrder,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
 import type { JpVocabWord } from "@/lib/types";
@@ -47,9 +47,7 @@ export function clearJpVocabRoundChecked(
 }
 
 export function computeJpVocabDailyDisplayOrder(words: JpVocabWord[]): number[] {
-  return sortJpVocabWordsForDisplay(words, JP_VOCAB_DEFAULT_STAT_SORT).map(
-    (w) => w.id
-  );
+  return sortJpVocabWordsForDailyOrder(words).map((w) => w.id);
 }
 
 /** 保留当日已有顺序，新词条追加到末尾，已删词条去掉 */

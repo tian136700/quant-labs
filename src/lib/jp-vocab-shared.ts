@@ -86,22 +86,22 @@ export function sortJpVocabWordsByStat(
   });
 }
 
+/** 每日固定序号用：从未抽查置顶，其余按抽查优先级降序 */
+export function sortJpVocabWordsForDailyOrder(words: JpVocabWord[]): JpVocabWord[] {
+  return [...words].sort((a, b) => {
+    const zeroCmp = compareZeroTotalFirst(a, b);
+    if (zeroCmp !== 0) return zeroCmp;
+    const diff = jpVocabRiskIndex(b) - jpVocabRiskIndex(a);
+    if (diff !== 0) return diff;
+    return a.word.localeCompare(b.word, "ja");
+  });
+}
+
+/** 列头点击排序：纯数值升序/降序，不受「从未抽查置顶」影响 */
 export function sortJpVocabWordsForDisplay(
   words: JpVocabWord[],
   statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null
 ): JpVocabWord[] {
   const effective = statSort ?? JP_VOCAB_DEFAULT_STAT_SORT;
-
-  if (effective.key === "risk") {
-    const mul = effective.dir === "asc" ? 1 : -1;
-    return [...words].sort((a, b) => {
-      const zeroCmp = compareZeroTotalFirst(a, b);
-      if (zeroCmp !== 0) return zeroCmp;
-      const diff = jpVocabRiskIndex(a) - jpVocabRiskIndex(b);
-      if (diff !== 0) return diff * mul;
-      return a.word.localeCompare(b.word, "ja");
-    });
-  }
-
   return sortJpVocabWordsByStat(words, effective.key, effective.dir);
 }
