@@ -15,7 +15,6 @@ import {
 } from "@/lib/jp-vocab-shared";
 import {
   buildJpVocabDailySeqMap,
-  isJpVocabDefaultStatSort,
   isJpVocabRoundChecked,
   markJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
@@ -196,6 +195,8 @@ export function JpVocabPage() {
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
   }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
+  /** 未手动点列头排序时，行顺序用当日固定 display_order；点过后按列头数值排序 */
+  const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
   /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
   const [displayOrder, setDisplayOrder] = useState<JpVocabDailyDisplayOrder>({
     date: "",
@@ -232,6 +233,7 @@ export function JpVocabPage() {
   }, [editingWord?.id]);
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
+    setUseDailyRowOrder(false);
     setStatSort((prev) => {
       if (prev?.key === key) {
         return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
@@ -377,11 +379,11 @@ export function JpVocabPage() {
   }, [loading, words.length, applySyncPatches]);
 
   const displayedWords = useMemo(() => {
-    if (isJpVocabDefaultStatSort(statSort) && displayOrder.ids.length > 0) {
+    if (useDailyRowOrder && displayOrder.ids.length > 0) {
       return jpVocabWordsInOrder(words, displayOrder.ids);
     }
     return sortJpVocabWordsForDisplay(words, statSort);
-  }, [words, statSort, displayOrder.ids]);
+  }, [words, statSort, displayOrder.ids, useDailyRowOrder]);
 
   const filteredDisplayedWords = useMemo(
     () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
@@ -537,6 +539,7 @@ export function JpVocabPage() {
       persistVocabCache(data.words, refs, data.display_order);
       setSessionLevel({});
       setSessionReviewAt({});
+      setUseDailyRowOrder(true);
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
       setHighlightId(null);
       setShowResetChoice(false);
