@@ -605,20 +605,7 @@ export function JpLessonPage() {
                         );
                       }
 
-                      const actionRows: ReactNode[][] = [];
-                      for (let i = 0; i < actionItems.length; i += 3) {
-                        actionRows.push(actionItems.slice(i, i + 3));
-                      }
-
-                      return (
-                        <div className="jp-lesson-actions">
-                          {actionRows.map((row, rowIdx) => (
-                            <div key={rowIdx} className="jp-lesson-actions-row">
-                              {row}
-                            </div>
-                          ))}
-                        </div>
-                      );
+                      return <div className="jp-lesson-actions">{actionItems}</div>;
                     })()
                   ) : canOperate ? (
                     <button
@@ -1062,16 +1049,11 @@ export function JpLessonPage() {
           cursor: not-allowed;
         }
         :global(.jp-lesson-actions) {
-          display: flex;
-          flex-direction: column;
+          display: grid;
+          grid-template-columns: repeat(3, max-content);
+          justify-content: center;
           align-items: center;
           gap: 0.35rem;
-        }
-        :global(.jp-lesson-actions-row) {
-          display: inline-flex;
-          flex-wrap: nowrap;
-          gap: 0.35rem;
-          justify-content: center;
         }
         :global(.jp-lesson-action-btn) {
           display: inline-flex;
@@ -1132,9 +1114,7 @@ export function JpLessonPage() {
           }
           :global(.jp-lesson-actions) {
             width: 100%;
-          }
-          :global(.jp-lesson-actions-row) {
-            width: 100%;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
           }
           :global(.jp-lesson-action-btn) {
             min-height: var(--touch-min, 44px);
