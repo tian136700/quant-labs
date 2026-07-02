@@ -91,3 +91,10 @@ export function isJpVocabDefaultStatSort(statSort: {
     statSort.dir === JP_VOCAB_DEFAULT_STAT_SORT.dir
   );
 }
+
+/** 当日固定序号（1-based）；仅 reset / 跨日重排时变化，列头排序不影响 */
+export function buildJpVocabDailySeqMap(ids: number[]): Map<number, number> {
+  const map = new Map<number, number>();
+  ids.forEach((id, index) => map.set(id, index + 1));
+  return map;
+}

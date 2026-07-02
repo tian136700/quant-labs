@@ -14,6 +14,7 @@ import {
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
 import {
+  buildJpVocabDailySeqMap,
   isJpVocabDefaultStatSort,
   isJpVocabRoundChecked,
   markJpVocabRoundChecked,
@@ -385,6 +386,12 @@ export function JpVocabPage() {
   const filteredDisplayedWords = useMemo(
     () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
     [displayedWords, searchQuery, kindFilter]
+  );
+
+  /** 当日固定序号：来自服务端 display_order，不随列头排序变化 */
+  const dailySeqByWordId = useMemo(
+    () => buildJpVocabDailySeqMap(displayOrder.ids),
+    [displayOrder.ids]
   );
 
   const searchActive = searchQuery.trim().length > 0;
@@ -1000,6 +1007,7 @@ export function JpVocabPage() {
                     w.today_check_date
                   );
                   const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
+                  const dailySeq = dailySeqByWordId.get(w.id) ?? rowIndex + 1;
 
                   return (
                     <tr
@@ -1013,12 +1021,12 @@ export function JpVocabPage() {
                     >
                       <td className="jp-vocab-seq-col" data-label="序号">
                         <span className="jp-vocab-seq-cell">
-                          <span className="jp-vocab-seq-num">{rowIndex + 1}</span>
+                          <span className="jp-vocab-seq-num">{dailySeq}</span>
                           {checkedInRound ? (
                             <span
                               className="jp-vocab-seq-checked"
                               title="当前轮次已抽查"
-                              aria-label={`序号 ${rowIndex + 1}，当前轮次已抽查`}
+                              aria-label={`序号 ${dailySeq}，当前轮次已抽查`}
                             >
                               <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
                                 <path
