@@ -6,6 +6,17 @@ export function parseLessonContent(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** 将学习内容按每行若干项拆成多行（默认每行 3 个） */
+export function formatLessonContentLines(raw: string, perLine = 3): string[] {
+  const items = parseLessonContent(raw);
+  if (!items.length) return raw.trim() ? [raw.trim()] : [""];
+  const lines: string[] = [];
+  for (let i = 0; i < items.length; i += perLine) {
+    lines.push(items.slice(i, i + perLine).join(", "));
+  }
+  return lines;
+}
+
 export type JpLessonProgressStatus = "pending" | "learning" | "completed";
 
 export function getJpLessonProgressStatus(lesson: {
@@ -179,10 +190,10 @@ export function formatNextClassAtLabel(
   now = new Date()
 ): string {
   if (progressStatus === "completed") return "已上完课";
-  if (!nextClassAt?.trim()) return "未定义日期";
+  if (!nextClassAt?.trim()) return "未定义";
 
   const target = parseBeijingDateTime(nextClassAt);
-  if (!target) return "未定义日期";
+  if (!target) return "未定义";
 
   const timeStr = beijingTimeHm(target);
   const todayStr = beijingDateStringFromDate(now);
@@ -211,10 +222,52 @@ export function nextClassAtToDatetimeLocalValue(raw: string | null | undefined):
   return match ? `${match[1]}T${match[2]}` : "";
 }
 
+/** 上课时间可选刻度：整点 / 半点（共 48 项） */
+export function listNextClassHalfHourTimes(): string[] {
+  const slots: string[] = [];
+  for (let h = 0; h < 24; h += 1) {
+    const hh = String(h).padStart(2, "0");
+    slots.push(`${hh}:00`, `${hh}:30`);
+  }
+  return slots;
+}
+
+export function formatNextClassHalfHourLabel(time: string): string {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return time;
+  const hour = Number(match[1]);
+  return match[2] === "30" ? `${hour} 点半` : `${hour} 点`;
+}
+
+/** 将任意 HH:mm 吸附到最近的整点/半点 */
+export function snapNextClassTimeToHalfHour(time: string): string {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "09:00";
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (minute < 15) return `${String(hour).padStart(2, "0")}:00`;
+  if (minute < 45) return `${String(hour).padStart(2, "0")}:30`;
+  const nextHour = (hour + 1) % 24;
+  return `${String(nextHour).padStart(2, "0")}:00`;
+}
+
+export function splitNextClassAtLocalValue(
+  local: string
+): { date: string; time: string } | null {
+  const trimmed = local.trim();
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (!match) return null;
+  return {
+    date: match[1],
+    time: snapNextClassTimeToHalfHour(match[2]),
+  };
+}
+
 export function nextClassAtFromDatetimeLocalValue(local: string): string | null {
   const trimmed = local.trim();
   if (!trimmed) return null;
   const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
   if (!match) return null;
-  return `${match[1]} ${match[2]}:00`;
+  const time = snapNextClassTimeToHalfHour(match[2]);
+  return `${match[1]} ${time}:00`;
 }

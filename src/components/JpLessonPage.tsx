@@ -18,6 +18,7 @@ import {
 } from "@/lib/jp-api-cache";
 import {
   compareJpLessonsByRecentOperation,
+  formatLessonContentLines,
   formatNextClassAtLabel,
   getJpLessonProgressStatus,
   jpLessonProgressToFields,
@@ -447,7 +448,13 @@ export function JpLessonPage() {
                   </span>
                 </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">
-                  {lesson.content}
+                  <div className="jp-lesson-content-lines">
+                    {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
+                      <span key={lineIdx} className="jp-lesson-content-line">
+                        {line}
+                      </span>
+                    ))}
+                  </div>
                 </td>
                 <td data-label="上传日期" className="jp-lesson-uploaded-col">
                   {formatBeijingDateTime(lesson.uploaded_at)}
@@ -831,6 +838,19 @@ export function JpLessonPage() {
           color: var(--muted);
           font-variant-numeric: tabular-nums;
           text-align: center;
+        }
+        :global(.jp-lesson-content-col) {
+          min-width: 9rem;
+          max-width: 14rem;
+        }
+        :global(.jp-lesson-content-lines) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          line-height: 1.45;
+        }
+        :global(.jp-lesson-content-line) {
+          display: block;
         }
         :global(.jp-lesson-uploaded-col),
         :global(.jp-lesson-status-at-col) {

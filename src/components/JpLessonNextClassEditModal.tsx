@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { nextClassAtToDatetimeLocalValue } from "@/lib/jp-lesson-shared";
+import {
+  formatNextClassHalfHourLabel,
+  listNextClassHalfHourTimes,
+  nextClassAtToDatetimeLocalValue,
+  splitNextClassAtLocalValue,
+} from "@/lib/jp-lesson-shared";
 import type { JpLessonRecord } from "@/lib/types";
 
 type Props = {
@@ -13,6 +18,8 @@ type Props = {
   onSave: (nextClassAt: string | null) => void;
 };
 
+const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
+
 export function JpLessonNextClassEditModal({
   open,
   lesson,
@@ -21,7 +28,17 @@ export function JpLessonNextClassEditModal({
   onSave,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [value, setValue] = useState("");
+  const [dateValue, setDateValue] = useState("");
+  const [timeValue, setTimeValue] = useState("");
+
+  const timeOptions = useMemo(
+    () =>
+      HALF_HOUR_OPTIONS.map((value) => ({
+        value,
+        label: formatNextClassHalfHourLabel(value),
+      })),
+    []
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -29,15 +46,33 @@ export function JpLessonNextClassEditModal({
 
   useEffect(() => {
     if (!open || !lesson) return;
-    setValue(nextClassAtToDatetimeLocalValue(lesson.next_class_at));
+    const local = nextClassAtToDatetimeLocalValue(lesson.next_class_at);
+    if (!local) {
+      setDateValue("");
+      setTimeValue("");
+      return;
+    }
+    const parts = splitNextClassAtLocalValue(local);
+    if (!parts) {
+      setDateValue("");
+      setTimeValue("");
+      return;
+    }
+    setDateValue(parts.date);
+    setTimeValue(parts.time);
   }, [open, lesson]);
 
   const handleSave = () => {
-    onSave(value.trim() ? value : null);
+    if (!dateValue.trim() || !timeValue.trim()) {
+      onSave(null);
+      return;
+    }
+    onSave(`${dateValue}T${timeValue}`);
   };
 
   const handleClear = () => {
-    setValue("");
+    setDateValue("");
+    setTimeValue("");
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -59,7 +94,7 @@ export function JpLessonNextClassEditModal({
       >
         <div className="jp-lesson-next-class-header">
           <div>
-            <h2 id="jp-lesson-next-class-modal-title">设置下次上课时间</h2>
+            <h2 id="jp-lesson-next-class-modal-title">设置上课时间</h2>
             <p className="jp-lesson-next-class-modal-lesson">
               课程 #{lesson.id} · {lesson.content}
             </p>
@@ -76,15 +111,35 @@ export function JpLessonNextClassEditModal({
         </div>
 
         <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
-          <legend>下次上课时间（北京时间）</legend>
-          <input
-            type="datetime-local"
-            className="jp-lesson-next-class-input"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-          />
+          <legend>上课时间（北京时间，整点 / 半点）</legend>
+          <div className="jp-lesson-next-class-fields">
+            <label className="jp-lesson-next-class-field">
+              <span>日期</span>
+              <input
+                type="date"
+                className="jp-lesson-next-class-input"
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
+              />
+            </label>
+            <label className="jp-lesson-next-class-field">
+              <span>时间</span>
+              <select
+                className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+                value={timeValue}
+                onChange={(e) => setTimeValue(e.target.value)}
+              >
+                <option value="">请选择</option>
+                {timeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <p className="jp-lesson-next-class-hint">
-            留空表示未定义日期；已完成课程在列表中会显示「已上完课」。
+            仅可选整点或半点（如 13 点、13 点半）；留空表示未定义。
           </p>
         </fieldset>
 
@@ -185,6 +240,21 @@ export function JpLessonNextClassEditModal({
           margin-bottom: 0.5rem;
         }
 
+        .jp-lesson-next-class-fields {
+          display: grid;
+          gap: 0.65rem;
+        }
+
+        .jp-lesson-next-class-field {
+          display: grid;
+          gap: 0.35rem;
+        }
+
+        .jp-lesson-next-class-field span {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+
         .jp-lesson-next-class-input {
           width: 100%;
           box-sizing: border-box;
@@ -194,6 +264,10 @@ export function JpLessonNextClassEditModal({
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
           color: inherit;
           font-size: 0.875rem;
+        }
+
+        .jp-lesson-next-class-time-select {
+          cursor: pointer;
         }
 
         .jp-lesson-next-class-hint {
