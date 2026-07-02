@@ -2,6 +2,7 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   listJpLessons,
+  updateJpLessonNextClassAt,
   updateJpLessonProgress,
   updateJpLessonTeacherAssignment,
 } from "@/lib/jp-lesson-db";
@@ -39,11 +40,12 @@ function parseProgressStatus(body: {
   return null;
 }
 
-function stripTeacherFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] {
+function stripAdminOnlyFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] {
   return lessons.map((lesson) => ({
     ...lesson,
     teacher_ids: [],
     teacher_other: null,
+    next_class_at: null,
   }));
 }
 
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
 
     return jsonResponse({
       ok: true,
-      lessons: stripTeacherFromLessons(lessons),
+      lessons: stripAdminOnlyFromLessons(lessons),
       refs: refsMap,
       notes,
     });
@@ -92,7 +94,41 @@ export async function POST(request: Request) {
       teacher_id?: number | null;
       teacher_ids?: number[];
       teacher_other?: string | null;
+      next_class_at?: string | null;
     };
+
+    if (body.action === "set_next_class_at") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      const nextClassAt =
+        body.next_class_at === undefined
+          ? null
+          : body.next_class_at === null
+            ? null
+            : String(body.next_class_at);
+
+      const result = await updateJpLessonNextClassAt(env.DB, lessonId, nextClassAt);
+
+      if (!result.ok) {
+        const status =
+          result.error === "not_found"
+            ? 404
+            : result.error === "next_class_at_invalid"
+              ? 400
+              : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+
+      return jsonResponse({ ok: true, lesson: result.lesson });
+    }
 
     if (body.action === "set_teacher") {
       const { isAdmin } = await requireAdmin(request);

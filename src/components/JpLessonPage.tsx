@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
+import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonTeacherEditModal } from "@/components/JpLessonTeacherEditModal";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
@@ -17,8 +18,10 @@ import {
 } from "@/lib/jp-api-cache";
 import {
   compareJpLessonsByRecentOperation,
+  formatNextClassAtLabel,
   getJpLessonProgressStatus,
   jpLessonProgressToFields,
+  nextClassAtFromDatetimeLocalValue,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
@@ -121,9 +124,11 @@ export function JpLessonPage() {
   const [status, setStatus] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTeacherId, setSavingTeacherId] = useState<number | null>(null);
+  const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
+  const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: JpLessonRecord;
     ref: JpVocabRef;
@@ -316,6 +321,64 @@ export function JpLessonPage() {
     }
   };
 
+  const setLessonNextClassAt = async (lessonId: number, nextClassAt: string | null) => {
+    if (!isAdmin || savingNextClassId === lessonId) return;
+
+    const normalized =
+      nextClassAt == null ? null : nextClassAtFromDatetimeLocalValue(nextClassAt);
+    if (nextClassAt != null && nextClassAt.trim() && normalized == null) {
+      setStatus("日期时间格式无效");
+      return;
+    }
+
+    const snapshot = lessons.find((l) => l.id === lessonId);
+    setSavingNextClassId(lessonId);
+    setLessons((prev) =>
+      prev.map((l) => (l.id === lessonId ? { ...l, next_class_at: normalized } : l))
+    );
+
+    try {
+      const res = await fetch("/api/jp-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "set_next_class_at",
+          lesson_id: lessonId,
+          next_class_at: normalized,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        lesson?: JpLessonRecord;
+        error?: string;
+      };
+      if (!data.ok || !data.lesson) {
+        throw new Error(data.error || "保存失败");
+      }
+      setLessons((prev) => {
+        const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
+        persistLessonCache(next, refs, notes, teachers);
+        return next;
+      });
+      setEditingNextClassLesson(null);
+      setStatus("下次上课时间已更新");
+      window.setTimeout(() => setStatus(""), 2500);
+    } catch (err) {
+      if (snapshot) {
+        setLessons((prev) =>
+          prev.map((l) => (l.id === lessonId ? snapshot : l))
+        );
+      }
+      setStatus(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setSavingNextClassId(null);
+    }
+  };
+
   const handleRefUpdated = (ref: JpVocabRef, lesson: JpLessonRecord) => {
     const nextRefs = { ...refs, [ref.ref_key]: ref };
     const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
@@ -353,6 +416,7 @@ export function JpLessonPage() {
             <th className="jp-lesson-status-at-col">最近操作</th>
             <th className="jp-lesson-operator-col">操作人</th>
             {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
+            {isAdmin ? <th className="jp-lesson-next-class-col">上课时间</th> : null}
             <th className="jp-lesson-complete-col">学习状态</th>
             <th className="jp-lesson-notes-col">课堂笔记</th>
             <th className="jp-lesson-actions-col">教案操作</th>
@@ -404,6 +468,28 @@ export function JpLessonPage() {
                         title="设置上课老师（可多选）"
                         disabled={savingTeacherId === lesson.id}
                         onClick={() => setEditingTeacherLesson(lesson)}
+                      />
+                    </div>
+                  </td>
+                ) : null}
+                {isAdmin ? (
+                  <td data-label="上课时间" className="jp-lesson-next-class-col">
+                    <div className="jp-lesson-next-class-cell">
+                      <span
+                        className={
+                          progressStatus === "completed"
+                            ? "jp-lesson-next-class-label is-done"
+                            : lesson.next_class_at
+                              ? "jp-lesson-next-class-label"
+                              : "jp-lesson-next-class-label is-undefined"
+                        }
+                      >
+                        {formatNextClassAtLabel(lesson.next_class_at, progressStatus)}
+                      </span>
+                      <JpEditIconButton
+                        title="设置下次上课时间"
+                        disabled={savingNextClassId === lesson.id}
+                        onClick={() => setEditingNextClassLesson(lesson)}
                       />
                     </div>
                   </td>
@@ -605,6 +691,18 @@ export function JpLessonPage() {
         }}
       />
 
+      <JpLessonNextClassEditModal
+        open={editingNextClassLesson != null}
+        lesson={editingNextClassLesson}
+        saving={savingNextClassId === editingNextClassLesson?.id}
+        onClose={() => setEditingNextClassLesson(null)}
+        onSave={(nextClassAt) => {
+          if (editingNextClassLesson) {
+            void setLessonNextClassAt(editingNextClassLesson.id, nextClassAt);
+          }
+        }}
+      />
+
       <JpVocabRefEditModal
         open={editingLesson != null}
         lessonId={editingLesson?.id ?? null}
@@ -753,6 +851,25 @@ export function JpLessonPage() {
           display: inline-flex;
           align-items: center;
           gap: 0.35rem;
+        }
+        :global(.jp-lesson-next-class-col) {
+          font-size: 0.8125rem;
+          min-width: 7.5rem;
+          white-space: nowrap;
+        }
+        :global(.jp-lesson-next-class-cell) {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+        :global(.jp-lesson-next-class-label) {
+          color: var(--accent);
+        }
+        :global(.jp-lesson-next-class-label.is-undefined) {
+          color: var(--muted);
+        }
+        :global(.jp-lesson-next-class-label.is-done) {
+          color: var(--fall);
         }
         :global(.jp-lesson-actions-col) {
           text-align: center;

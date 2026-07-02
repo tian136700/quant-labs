@@ -219,6 +219,8 @@ export interface JpLessonRecord {
   teacher_ids: number[];
   /** 未维护在系统中的其他上课老师姓名；仅管理员可见与编辑 */
   teacher_other: string | null;
+  /** 下次上课时间（北京时间；仅管理员可见与编辑） */
+  next_class_at: string | null;
   uploaded_at: string;
   created_at: string;
   updated_at: string;

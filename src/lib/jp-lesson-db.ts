@@ -55,6 +55,10 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.teacher_other != null && String(row.teacher_other).trim()
         ? String(row.teacher_other).trim()
         : null,
+    next_class_at:
+      row.next_class_at != null && String(row.next_class_at).trim()
+        ? String(row.next_class_at).trim()
+        : null,
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -77,7 +81,7 @@ async function attachTeacherIds(
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
-  status_updated_at, status_updated_by, teacher_other, uploaded_at, created_at, updated_at FROM jp_lesson`;
+  status_updated_at, status_updated_by, teacher_other, next_class_at, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (!devStoreEnabled) return;
@@ -97,6 +101,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       status_updated_by: null,
       teacher_ids: [],
       teacher_other: null,
+      next_class_at: null,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -269,6 +274,7 @@ export async function createJpLesson(
       status_updated_by: null,
       teacher_ids: [],
       teacher_other: null,
+      next_class_at: null,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -450,6 +456,57 @@ export async function updateJpLessonTeacherAssignment(
   await db
     .prepare(`UPDATE jp_lesson SET teacher_other = ?1, updated_at = ?2 WHERE id = ?3`)
     .bind(normalizedOther, ts, lessonId)
+    .run();
+
+  const lesson = await getJpLessonById(db, lessonId);
+  if (!lesson) return { ok: false, error: "not_found" };
+  return { ok: true, lesson };
+}
+
+export type UpdateJpLessonNextClassAtResult =
+  | { ok: true; lesson: JpLessonRecord }
+  | { ok: false; error: string };
+
+function normalizeNextClassAt(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed.length === 16 ? `${trimmed}:00` : trimmed;
+}
+
+export async function updateJpLessonNextClassAt(
+  db: D1Database,
+  lessonId: number,
+  nextClassAt: string | null
+): Promise<UpdateJpLessonNextClassAtResult> {
+  await seedIfEmpty(db);
+
+  const existing = await getJpLessonById(db, lessonId);
+  if (!existing) return { ok: false, error: "not_found" };
+
+  const normalized = normalizeNextClassAt(nextClassAt);
+  if (nextClassAt != null && nextClassAt.trim() && normalized == null) {
+    return { ok: false, error: "next_class_at_invalid" };
+  }
+
+  const ts = nowIso();
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    devLessons[idx] = {
+      ...devLessons[idx],
+      next_class_at: normalized,
+      updated_at: ts,
+    };
+    return { ok: true, lesson: devLessons[idx] };
+  }
+
+  await db
+    .prepare(`UPDATE jp_lesson SET next_class_at = ?1, updated_at = ?2 WHERE id = ?3`)
+    .bind(normalized, ts, lessonId)
     .run();
 
   const lesson = await getJpLessonById(db, lessonId);
