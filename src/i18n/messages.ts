@@ -69,6 +69,10 @@ export type Messages = {
         next: string;
         summary: string;
       };
+      filterLabel: string;
+      filterAll: string;
+      filterUnregistered: string;
+      filterSearch: string;
     };
     feedback: {
       heading: string;
@@ -557,6 +561,10 @@ export const messages: Record<Locale, Messages> = {
           next: "Next",
           summary: "Page {page} of {totalPages} ({total} records)",
         },
+        filterLabel: "Signed-in user",
+        filterAll: "All users",
+        filterUnregistered: "Unregistered",
+        filterSearch: "Search",
       },
       feedback: {
         heading: "User feedback",
@@ -1145,6 +1153,10 @@ export const messages: Record<Locale, Messages> = {
           next: "下一页",
           summary: "第 {page} / {totalPages} 页，共 {total} 条",
         },
+        filterLabel: "登录用户",
+        filterAll: "全部",
+        filterUnregistered: "未注册用户",
+        filterSearch: "搜索",
       },
       feedback: {
         heading: "用户反馈",

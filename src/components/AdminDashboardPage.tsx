@@ -10,7 +10,11 @@ import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
 import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
-import type { VisitLogSortField, VisitLogSortOrder } from "@/lib/analytics-db";
+import {
+  VISIT_LOG_USERNAME_UNREGISTERED,
+  type VisitLogSortField,
+  type VisitLogSortOrder,
+} from "@/lib/analytics-db";
 
 const VISIT_PAGE_SIZE = 50;
 
@@ -54,6 +58,9 @@ export function AdminDashboardPage() {
   const [visitTotal, setVisitTotal] = useState(0);
   const [visitTotalPages, setVisitTotalPages] = useState(1);
   const [visitSort, setVisitSort] = useState<VisitSortState>(DEFAULT_VISIT_SORT);
+  const [visitUsernameDraft, setVisitUsernameDraft] = useState("");
+  const [visitUsernameFilter, setVisitUsernameFilter] = useState("");
+  const [visitUsernameOptions, setVisitUsernameOptions] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<UserFeedbackRecord[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [loadingFeedback, setLoadingFeedback] = useState(false);
@@ -61,7 +68,11 @@ export function AdminDashboardPage() {
   const [statusKind, setStatusKind] = useState<"" | "err">("");
 
   const loadVisits = useCallback(
-    async (page = 1, sort: VisitSortState = DEFAULT_VISIT_SORT) => {
+    async (
+      page = 1,
+      sort: VisitSortState = DEFAULT_VISIT_SORT,
+      usernameFilter = visitUsernameFilter
+    ) => {
       setLoadingVisits(true);
       try {
         const params = new URLSearchParams({
@@ -70,6 +81,9 @@ export function AdminDashboardPage() {
           sort: sort.field,
           order: sort.order,
         });
+        if (usernameFilter) {
+          params.set("username", usernameFilter);
+        }
         const res = await fetch(`/api/analytics/visits?${params}`, {
           credentials: "include",
         });
@@ -87,6 +101,11 @@ export function AdminDashboardPage() {
           field: data.sort === "ip_visit_count" ? "ip_visit_count" : "created_at",
           order: data.order === "asc" ? "asc" : "desc",
         });
+        setVisitUsernameOptions(data.usernames ?? []);
+        const applied =
+          typeof data.usernameFilter === "string" ? data.usernameFilter : "";
+        setVisitUsernameFilter(applied);
+        setVisitUsernameDraft(applied);
       } catch {
         setStatus(adm.status.loadFailed);
         setStatusKind("err");
@@ -94,7 +113,7 @@ export function AdminDashboardPage() {
         setLoadingVisits(false);
       }
     },
-    [adm.status.loadFailed]
+    [adm.status.loadFailed, visitUsernameFilter]
   );
 
   const loadFeedback = useCallback(async () => {
@@ -130,7 +149,11 @@ export function AdminDashboardPage() {
       next = DEFAULT_VISIT_SORT;
     }
     setVisitSort(next);
-    void loadVisits(1, next);
+    void loadVisits(1, next, visitUsernameFilter);
+  };
+
+  const handleVisitUsernameSearch = () => {
+    void loadVisits(1, visitSort, visitUsernameDraft);
   };
 
   useEffect(() => {
@@ -190,16 +213,45 @@ export function AdminDashboardPage() {
       {status ? <p className={statusClass}>{status}</p> : null}
 
       <section className="section etr-panel">
-        <div className="etr-history-head">
+        <div className="etr-history-head admin-visits-head">
           <h2>{adm.visits.heading}</h2>
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => void loadVisits(visitPage, visitSort)}
-            disabled={loadingVisits}
-          >
-            {adm.visits.refresh}
-          </button>
+          <div className="admin-visits-toolbar">
+            <label className="admin-visits-filter">
+              <span className="admin-visits-filter-label">{adm.visits.filterLabel}</span>
+              <select
+                className="admin-visits-filter-select"
+                value={visitUsernameDraft}
+                onChange={(event) => setVisitUsernameDraft(event.target.value)}
+                disabled={loadingVisits}
+              >
+                <option value="">{adm.visits.filterAll}</option>
+                <option value={VISIT_LOG_USERNAME_UNREGISTERED}>
+                  {adm.visits.filterUnregistered}
+                </option>
+                {visitUsernameOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+              onClick={handleVisitUsernameSearch}
+              disabled={loadingVisits}
+            >
+              {adm.visits.filterSearch}
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={() => void loadVisits(visitPage, visitSort, visitUsernameFilter)}
+              disabled={loadingVisits}
+            >
+              {adm.visits.refresh}
+            </button>
+          </div>
         </div>
 
         {!loadingVisits && visitTotal === 0 ? (
@@ -317,7 +369,7 @@ export function AdminDashboardPage() {
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void loadVisits(visitPage - 1, visitSort)}
+                  onClick={() => void loadVisits(visitPage - 1, visitSort, visitUsernameFilter)}
                   disabled={loadingVisits || visitPage <= 1}
                 >
                   {adm.visits.pagination.prev}
@@ -325,7 +377,7 @@ export function AdminDashboardPage() {
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void loadVisits(visitPage + 1, visitSort)}
+                  onClick={() => void loadVisits(visitPage + 1, visitSort, visitUsernameFilter)}
                   disabled={loadingVisits || visitPage >= visitTotalPages}
                 >
                   {adm.visits.pagination.next}

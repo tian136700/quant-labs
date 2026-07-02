@@ -1804,3 +1804,36 @@ textarea:focus {
   font-size: 0.875rem;
   min-height: 2.25rem;
 }
+
+.admin-visits-head {
+  align-items: flex-start;
+}
+
+.admin-visits-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.admin-visits-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-visits-filter-label {
+  @apply text-muted;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.admin-visits-filter-select {
+  @apply bg-bg border border-border rounded-input text-text;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+  min-height: 2.25rem;
+  min-width: 9rem;
+  max-width: 14rem;
+}

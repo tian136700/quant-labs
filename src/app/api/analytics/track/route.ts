@@ -1,7 +1,7 @@
 import { trackVisit } from "@/lib/analytics-db";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
-import { clientGeoFromRequest } from "@/lib/geoip";
+import { resolveClientGeo } from "@/lib/geoip-lookup";
 import { clientIp } from "@/lib/locale-pref";
 
 export async function POST(request: Request) {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   try {
     const env = await getCloudflareEnv();
-    const geo = clientGeoFromRequest(request);
+    const geo = await resolveClientGeo(request, ip, env.DB);
     const sessionUser = await getSessionUserFromRequest(
       env,
       request.headers.get("cookie")

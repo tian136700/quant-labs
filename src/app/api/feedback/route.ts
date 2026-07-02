@@ -8,7 +8,7 @@ import {
 import { isValidEmail } from "@/lib/email-validation";
 import { listUserFeedback, saveUserFeedback } from "@/lib/feedback-db";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
-import { clientGeoFromRequest } from "@/lib/geoip";
+import { resolveClientGeo } from "@/lib/geoip-lookup";
 import { clientIp } from "@/lib/locale-pref";
 
 const ERROR_MSG: Record<string, Record<"en" | "zh", string>> = {
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 
   try {
     const env = await getCloudflareEnv();
-    const geo = clientGeoFromRequest(request);
+    const geo = await resolveClientGeo(request, ip, env.DB);
     const sessionUser = await getSessionUserFromRequest(
       env,
       request.headers.get("cookie")

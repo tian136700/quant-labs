@@ -26,6 +26,58 @@ export type TrackVisitInput = {
   locale: string | null;
 };
 
+export type CachedGeo = Pick<
+  TrackVisitInput,
+  "country_code" | "geo_region" | "geo_region_code" | "geo_city"
+>;
+
+/** 同一 IP 曾写入过省市则复用，避免重复调外部 IP 库 */
+export async function findCachedGeoForIp(
+  db: D1Database,
+  ip: string
+): Promise<CachedGeo | null> {
+  const normalized = normalizeClientIp(ip) ?? ip;
+
+  if (devStoreEnabled) {
+    const hit = devRecords.find(
+      (row) =>
+        ipKey(row.ip) === ipKey(normalized) &&
+        (row.geo_region?.trim() ||
+          row.geo_city?.trim() ||
+          row.geo_region_code?.trim())
+    );
+    if (!hit) return null;
+    return {
+      country_code: hit.country_code,
+      geo_region: hit.geo_region ?? null,
+      geo_region_code: hit.geo_region_code ?? null,
+      geo_city: hit.geo_city ?? null,
+    };
+  }
+
+  const row = await db
+    .prepare(
+      `SELECT country_code, geo_region, geo_region_code, geo_city
+       FROM visit_logs
+       WHERE ip = ?1
+         AND (geo_region IS NOT NULL OR geo_city IS NOT NULL OR geo_region_code IS NOT NULL)
+       ORDER BY created_at DESC
+       LIMIT 1`
+    )
+    .bind(normalized)
+    .first<CachedGeo>();
+
+  if (!row) return null;
+  if (
+    !row.geo_region?.trim() &&
+    !row.geo_city?.trim() &&
+    !row.geo_region_code?.trim()
+  ) {
+    return null;
+  }
+  return row;
+}
+
 export async function trackVisit(
   db: D1Database,
   input: TrackVisitInput
@@ -144,6 +196,9 @@ function decorateVisitRecords(
 export type VisitLogSortField = "created_at" | "ip_visit_count";
 export type VisitLogSortOrder = "asc" | "desc";
 
+/** 访问日志筛选：未注册用户（username 为空） */
+export const VISIT_LOG_USERNAME_UNREGISTERED = "__unregistered__";
+
 export type VisitLogsPage = {
   records: VisitLogRecord[];
   total: number;
@@ -152,7 +207,64 @@ export type VisitLogsPage = {
   totalPages: number;
   sort: VisitLogSortField;
   order: VisitLogSortOrder;
+  usernameFilter: string | null;
 };
+
+function matchesUsernameFilter(
+  row: VisitLogRecord,
+  usernameFilter: string | null | undefined
+): boolean {
+  const filter = usernameFilter?.trim();
+  if (!filter) return true;
+  const name = row.username?.trim() ?? "";
+  if (filter === VISIT_LOG_USERNAME_UNREGISTERED) return !name;
+  return name.localeCompare(filter, undefined, { sensitivity: "base" }) === 0;
+}
+
+function usernameFilterSql(usernameFilter: string | null | undefined): {
+  clause: string;
+  bind: string | null;
+} {
+  const filter = usernameFilter?.trim();
+  if (!filter) return { clause: "", bind: null };
+  if (filter === VISIT_LOG_USERNAME_UNREGISTERED) {
+    return {
+      clause: "WHERE (username IS NULL OR TRIM(username) = '')",
+      bind: null,
+    };
+  }
+  return {
+    clause: "WHERE username = ?1 COLLATE NOCASE",
+    bind: filter,
+  };
+}
+
+function sortUsernames(names: Iterable<string>): string[] {
+  return [...new Set([...names].map((name) => name.trim()).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })
+  );
+}
+
+export async function listDistinctVisitUsernames(
+  db: D1Database
+): Promise<string[]> {
+  if (devStoreEnabled) {
+    return sortUsernames(
+      devRecords.map((row) => row.username?.trim() ?? "").filter(Boolean)
+    );
+  }
+
+  const { results } = await db
+    .prepare(
+      `SELECT DISTINCT username
+       FROM visit_logs
+       WHERE username IS NOT NULL AND TRIM(username) != ''
+       ORDER BY username COLLATE NOCASE ASC`
+    )
+    .all<{ username: string }>();
+
+  return sortUsernames((results ?? []).map((row) => row.username));
+}
 
 function sortVisitRecords(
   records: VisitLogRecord[],
@@ -172,14 +284,21 @@ function sortVisitRecords(
   });
 }
 
-export async function countVisitLogs(db: D1Database): Promise<number> {
+export async function countVisitLogs(
+  db: D1Database,
+  usernameFilter?: string | null
+): Promise<number> {
   if (devStoreEnabled) {
-    return devRecords.length;
+    return devRecords.filter((row) =>
+      matchesUsernameFilter(row, usernameFilter)
+    ).length;
   }
 
-  const row = await db
-    .prepare(`SELECT COUNT(*) AS total FROM visit_logs`)
-    .first<{ total: number }>();
+  const { clause, bind } = usernameFilterSql(usernameFilter);
+  const stmt = db.prepare(`SELECT COUNT(*) AS total FROM visit_logs ${clause}`);
+  const row = bind
+    ? await stmt.bind(bind).first<{ total: number }>()
+    : await stmt.first<{ total: number }>();
   return row?.total ?? 0;
 }
 
@@ -188,17 +307,22 @@ export async function listVisitLogs(
   page = 1,
   pageSize = 50,
   sort: VisitLogSortField = "created_at",
-  order: VisitLogSortOrder = "desc"
+  order: VisitLogSortOrder = "desc",
+  usernameFilter?: string | null
 ): Promise<VisitLogsPage> {
   const safePageSize = Math.min(Math.max(pageSize, 1), 200);
   const safePage = Math.max(page, 1);
   const safeSort: VisitLogSortField =
     sort === "ip_visit_count" ? "ip_visit_count" : "created_at";
   const safeOrder: VisitLogSortOrder = order === "asc" ? "asc" : "desc";
+  const safeUsernameFilter = usernameFilter?.trim() || null;
 
   if (devStoreEnabled) {
+    const filtered = devRecords.filter((row) =>
+      matchesUsernameFilter(row, safeUsernameFilter)
+    );
     const sorted = sortVisitRecords(
-      attachIpVisitCounts([...devRecords]),
+      attachIpVisitCounts(filtered),
       safeSort,
       safeOrder
     );
@@ -215,37 +339,41 @@ export async function listVisitLogs(
       totalPages,
       sort: safeSort,
       order: safeOrder,
+      usernameFilter: safeUsernameFilter,
     };
   }
 
-  const total = await countVisitLogs(db);
+  const { clause, bind } = usernameFilterSql(safeUsernameFilter);
+  const total = await countVisitLogs(db, safeUsernameFilter);
   const totalPages = Math.max(1, Math.ceil(total / safePageSize));
   const currentPage = Math.min(safePage, totalPages);
   const offset = (currentPage - 1) * safePageSize;
 
   const ipVisitCounts = await loadNormalizedIpVisitCounts(db);
+  const selectCols = `id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at`;
 
   let records: VisitLogRecord[];
   if (safeSort === "ip_visit_count") {
-    const { results } = await db
-      .prepare(
-        `SELECT id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at
-         FROM visit_logs`
-      )
-      .all<VisitLogRecord>();
+    const stmt = db.prepare(
+      `SELECT ${selectCols} FROM visit_logs ${clause}`
+    );
+    const { results } = bind
+      ? await stmt.bind(bind).all<VisitLogRecord>()
+      : await stmt.all<VisitLogRecord>();
     const decorated = decorateVisitRecords(results ?? [], ipVisitCounts);
     const sorted = sortVisitRecords(decorated, safeSort, safeOrder);
     records = sorted.slice(offset, offset + safePageSize);
   } else {
-    const { results } = await db
-      .prepare(
-        `SELECT id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at
-         FROM visit_logs
-         ORDER BY created_at ${safeOrder.toUpperCase()}
-         LIMIT ?1 OFFSET ?2`
-      )
-      .bind(safePageSize, offset)
-      .all<VisitLogRecord>();
+    const stmt = db.prepare(
+      `SELECT ${selectCols}
+       FROM visit_logs
+       ${clause}
+       ORDER BY created_at ${safeOrder.toUpperCase()}
+       LIMIT ?${bind ? 2 : 1} OFFSET ?${bind ? 3 : 2}`
+    );
+    const { results } = bind
+      ? await stmt.bind(bind, safePageSize, offset).all<VisitLogRecord>()
+      : await stmt.bind(safePageSize, offset).all<VisitLogRecord>();
     records = decorateVisitRecords(results ?? [], ipVisitCounts);
   }
 
@@ -257,5 +385,6 @@ export async function listVisitLogs(
     totalPages,
     sort: safeSort,
     order: safeOrder,
+    usernameFilter: safeUsernameFilter,
   };
 }
