@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
@@ -543,53 +543,83 @@ export function JpLessonPage() {
                 </td>
                 <td data-label="教案操作" className="jp-lesson-actions-col">
                   {hasRef ? (
-                    <div className="jp-lesson-actions">
-                      <a
-                        href={viewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="jp-lesson-action-btn"
-                      >
-                        查看
-                      </a>
-                      {ref?.media_type === "image" ? (
+                    (() => {
+                      const actionItems: ReactNode[] = [
+                        <a
+                          key="view"
+                          href={viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="jp-lesson-action-btn"
+                        >
+                          查看
+                        </a>,
+                      ];
+                      if (ref?.media_type === "image") {
+                        actionItems.push(
+                          <button
+                            key="annotate"
+                            type="button"
+                            className="jp-lesson-action-btn"
+                            onClick={() =>
+                              setAnnotatingLesson({ lesson, ref: ref!, viewUrl })
+                            }
+                          >
+                            随手画
+                          </button>
+                        );
+                      }
+                      actionItems.push(
+                        <JpVocabRefDownloadMenu
+                          key="download"
+                          downloadUrl={jpVocabRefApiPath(lesson.ref_key!, {
+                            download: true,
+                          })}
+                          mediaUrl={jpVocabRefApiPath(lesson.ref_key!, {
+                            v: ref?.updated_at,
+                          })}
+                          filename={refFilename(lesson.ref_key!, ref)}
+                          mediaType={ref?.media_type ?? "image"}
+                          primaryClassName="jp-lesson-action-btn"
+                          fixedPanel
+                          allowOriginalDownload={isAdmin}
+                        />
+                      );
+                      actionItems.push(
                         <button
+                          key="copy"
                           type="button"
                           className="jp-lesson-action-btn"
-                          onClick={() =>
-                            setAnnotatingLesson({ lesson, ref: ref!, viewUrl })
-                          }
+                          onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
                         >
-                          随手画
+                          {copiedId === lesson.id ? "已复制" : "复制"}
                         </button>
-                      ) : null}
-                      <JpVocabRefDownloadMenu
-                        downloadUrl={jpVocabRefApiPath(lesson.ref_key!, {
-                          download: true,
-                        })}
-                        mediaUrl={jpVocabRefApiPath(lesson.ref_key!, {
-                          v: ref?.updated_at,
-                        })}
-                        filename={refFilename(lesson.ref_key!, ref)}
-                        mediaType={ref?.media_type ?? "image"}
-                        primaryClassName="jp-lesson-action-btn"
-                        fixedPanel
-                        allowOriginalDownload={isAdmin}
-                      />
-                      <button
-                        type="button"
-                        className="jp-lesson-action-btn"
-                        onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
-                      >
-                        {copiedId === lesson.id ? "已复制" : "复制"}
-                      </button>
-                      {canOperate ? (
-                        <JpEditIconButton
-                          title="编辑教案（弹窗）"
-                          onClick={() => setEditingLesson(lesson)}
-                        />
-                      ) : null}
-                    </div>
+                      );
+                      if (canOperate) {
+                        actionItems.push(
+                          <JpEditIconButton
+                            key="edit"
+                            title="编辑教案（弹窗）"
+                            onClick={() => setEditingLesson(lesson)}
+                          />
+                        );
+                      }
+
+                      const actionRows: ReactNode[][] = [];
+                      for (let i = 0; i < actionItems.length; i += 3) {
+                        actionRows.push(actionItems.slice(i, i + 3));
+                      }
+
+                      return (
+                        <div className="jp-lesson-actions">
+                          {actionRows.map((row, rowIdx) => (
+                            <div key={rowIdx} className="jp-lesson-actions-row">
+                              {row}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()
                   ) : canOperate ? (
                     <button
                       type="button"
@@ -1032,8 +1062,14 @@ export function JpLessonPage() {
           cursor: not-allowed;
         }
         :global(.jp-lesson-actions) {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.35rem;
+        }
+        :global(.jp-lesson-actions-row) {
           display: inline-flex;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
           gap: 0.35rem;
           justify-content: center;
         }
@@ -1095,12 +1131,14 @@ export function JpLessonPage() {
             display: none;
           }
           :global(.jp-lesson-actions) {
-            justify-content: center;
+            width: 100%;
+          }
+          :global(.jp-lesson-actions-row) {
             width: 100%;
           }
           :global(.jp-lesson-action-btn) {
             min-height: var(--touch-min, 44px);
-            flex: 1 1 auto;
+            flex: 1 1 0;
           }
           :global(.jp-lesson-table tbody td.jp-lesson-complete-col) {
             justify-content: center;
