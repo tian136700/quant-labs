@@ -266,7 +266,7 @@ export function splitNextClassAtLocalValue(
 export function nextClassAtFromDatetimeLocalValue(local: string): string | null {
   const trimmed = local.trim();
   if (!trimmed) return null;
-  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
   if (!match) return null;
   const time = snapNextClassTimeToHalfHour(match[2]);
   return `${match[1]} ${time}:00`;
