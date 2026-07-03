@@ -256,32 +256,17 @@ export function getLessonClassDate(lesson: JpLessonClassScheduleLike): string | 
   return beijingDateOnlyFromClassAt(classAt);
 }
 
-/** 为「学习中」各上课日分配色阶（按日期从早到晚；今天固定为淡红） */
+/** 为「学习中」各上课日分配色阶（按日期从早到晚循环，同一天同色） */
 export function buildLearningClassDayToneMap<T extends JpLessonClassScheduleLike>(
-  groups: Array<{ lessons: T[] }>,
-  today = beijingTodayDateString()
+  groups: Array<{ lessons: T[] }>
 ): Map<string, number> {
   const dates = new Set<string>();
   for (const group of groups) {
     const date = getLessonClassDate(group.lessons[0]);
     if (date) dates.add(date);
   }
-  const sorted = [...dates].sort();
   const map = new Map<string, number>();
-  if (!sorted.length) return map;
-
-  if (sorted.includes(today)) {
-    map.set(today, 0);
-    let tone = 1;
-    for (const date of sorted) {
-      if (date === today) continue;
-      map.set(date, tone % JP_LESSON_LEARNING_DAY_TONE_COUNT);
-      tone += 1;
-    }
-    return map;
-  }
-
-  sorted.forEach((date, index) => {
+  [...dates].sort().forEach((date, index) => {
     map.set(date, index % JP_LESSON_LEARNING_DAY_TONE_COUNT);
   });
   return map;
@@ -419,6 +404,9 @@ export function formatNextClassAtLabel(
   const targetStr = beijingDateStringFromDate(target);
 
   if (targetStr === todayStr) return `今天 ${timeStr}`;
+
+  const yesterdayStr = beijingDateStringFromDate(addBeijingDays(now, -1));
+  if (targetStr === yesterdayStr) return `昨天 ${timeStr}`;
 
   const tomorrowStr = beijingDateStringFromDate(addBeijingDays(now, 1));
   if (targetStr === tomorrowStr) return `明天 ${timeStr}`;

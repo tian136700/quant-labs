@@ -21,7 +21,6 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import {
-  beijingTodayDateString,
   buildJpLessonDisplayGroups,
   buildLearningClassDayToneMap,
   compareJpLessonsByClassTime,
@@ -710,12 +709,10 @@ export function JpLessonPage() {
             const classDate = getLessonClassDate(group.lessons[0]);
             const dayTone =
               classDate != null ? dayToneByDate?.get(classDate) : undefined;
-            const isClassToday = classDate === beijingTodayDateString();
             const rowClassName = [
               "jp-lesson-row",
               merged ? "jp-lesson-row--merged" : "",
               dayTone != null ? `jp-lesson-row--day-tone-${dayTone}` : "",
-              isClassToday && dayTone != null ? "jp-lesson-row--day-today" : "",
             ]
               .filter(Boolean)
               .join(" ");
@@ -1152,44 +1149,59 @@ export function JpLessonPage() {
         :global(.jp-lesson-row--merged) {
           background: color-mix(in srgb, var(--accent) 4%, transparent);
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-0) {
-          background: color-mix(in srgb, var(--rise) 9%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0) {
+          background: color-mix(in srgb, #c9b86a 10%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-1) {
-          background: color-mix(in srgb, #e894b8 10%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1) {
+          background: color-mix(in srgb, var(--fall) 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-2) {
-          background: color-mix(in srgb, #e8b890 9%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2) {
+          background: color-mix(in srgb, #6ab8c8 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-3) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3) {
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-4) {
-          background: color-mix(in srgb, #d4b870 8%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4) {
+          background: color-mix(in srgb, #9a8fbf 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-5) {
-          background: color-mix(in srgb, #b898c8 9%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5) {
+          background: color-mix(in srgb, #c8a882 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-today) {
-          box-shadow: inset 3px 0 0 color-mix(in srgb, var(--rise) 55%, transparent);
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0:hover) {
+          background: color-mix(in srgb, #c9b86a 13%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-0) {
-          background: color-mix(in srgb, var(--rise) 12%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1:hover) {
+          background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-1) {
-          background: color-mix(in srgb, #e894b8 13%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2:hover) {
+          background: color-mix(in srgb, #6ab8c8 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-2) {
-          background: color-mix(in srgb, #e8b890 12%, var(--panel));
-        }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-3) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3:hover) {
           background: color-mix(in srgb, var(--accent) 11%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-4) {
-          background: color-mix(in srgb, #d4b870 11%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4:hover) {
+          background: color-mix(in srgb, #9a8fbf 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-5) {
-          background: color-mix(in srgb, #b898c8 12%, var(--panel));
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5:hover) {
+          background: color-mix(in srgb, #c8a882 12%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-0) {
+          background: color-mix(in srgb, #c9b86a 12%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-1) {
+          background: color-mix(in srgb, var(--fall) 11%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-2) {
+          background: color-mix(in srgb, #6ab8c8 11%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-3) {
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-4) {
+          background: color-mix(in srgb, #9a8fbf 11%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-5) {
+          background: color-mix(in srgb, #c8a882 11%, var(--panel));
         }
         :global(.jp-lesson-merged-edit-stack) {
           display: inline-flex;
