@@ -35,17 +35,11 @@ type ViewMode = "day" | "week" | "month";
 const TIMELINE_MINUTES = 24 * 60;
 const SLOT_MINUTES = 30;
 const SLOT_COUNT = TIMELINE_MINUTES / SLOT_MINUTES;
-/** 连续空闲 ≥ 此格数（3 小时）时默认折叠 */
-const MIN_COLLAPSE_FREE_SLOTS = 6;
 
 type DayScheduleEvent = JpLessonScheduleEvent & {
   lesson: JpLessonRecord;
   teachers: string;
 };
-
-type DayTimelineSegment =
-  | { kind: "slot"; slotIndex: number }
-  | { kind: "collapsed"; startSlot: number; endSlot: number; key: string };
 
 function formatSlotTime(slotIndex: number): string {
   const totalMinutes = slotIndex * SLOT_MINUTES;
@@ -74,31 +68,6 @@ function isFirstSlotForEvent(event: DayScheduleEvent, slotIndex: number): boolea
   return slotIndexFromMinutes(beijingMinutesFromMidnight(event.start)) === slotIndex;
 }
 
-function isSlotFree(dayEvents: DayScheduleEvent[], slotIndex: number): boolean {
-  return !findEventForSlot(dayEvents, slotIndex);
-}
-
-function formatSlotEndTime(slotIndex: number): string {
-  const totalMinutes = (slotIndex + 1) * SLOT_MINUTES;
-  const hour = Math.floor(totalMinutes / 60);
-  const minute = totalMinutes % 60;
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
-function collapsedFreeRangeLabel(startSlot: number, endSlot: number): string {
-  const startMinutes = startSlot * SLOT_MINUTES;
-  const endMinutes = (endSlot + 1) * SLOT_MINUTES;
-  const period =
-    startMinutes < 12 * 60 && endMinutes <= 12 * 60
-      ? "上午"
-      : startMinutes >= 12 * 60 && endMinutes <= 18 * 60
-        ? "下午"
-        : startMinutes >= 18 * 60
-          ? "晚间"
-          : "时段";
-  return `${period}空闲 ${formatSlotTime(startSlot)} - ${formatSlotEndTime(endSlot)}`;
-}
-
 function getDayBusySlotRange(dayEvents: DayScheduleEvent[]): { start: number; end: number } | null {
   if (!dayEvents.length) return null;
   let start = SLOT_COUNT;
@@ -114,71 +83,16 @@ function getDayBusySlotRange(dayEvents: DayScheduleEvent[]): { start: number; en
   return { start, end };
 }
 
-function buildDayTimelineSegments(
-  dayEvents: DayScheduleEvent[],
-  expandedKeys: Set<string>,
-  nowSlotIndex: number | null,
-  autoExpandAroundNow: boolean,
+/** 首末节课之间的全部半小时格（含空闲），默认全部展开 */
+function buildDayTimelineSlotIndices(
   busyRange: { start: number; end: number } | null
-): DayTimelineSegment[] {
+): number[] {
   if (!busyRange) return [];
-
-  const segments: DayTimelineSegment[] = [];
-  let slotIndex = busyRange.start;
-
-  while (slotIndex <= busyRange.end) {
-    if (!isSlotFree(dayEvents, slotIndex)) {
-      segments.push({ kind: "slot", slotIndex });
-      slotIndex += 1;
-      continue;
-    }
-
-    let endSlot = slotIndex;
-    while (endSlot + 1 <= busyRange.end && isSlotFree(dayEvents, endSlot + 1)) {
-      endSlot += 1;
-    }
-
-    const runLength = endSlot - slotIndex + 1;
-    const key = `${slotIndex}-${endSlot}`;
-    const containsNow =
-      autoExpandAroundNow &&
-      nowSlotIndex != null &&
-      nowSlotIndex >= slotIndex &&
-      nowSlotIndex <= endSlot;
-    const shouldCollapse =
-      runLength >= MIN_COLLAPSE_FREE_SLOTS && !expandedKeys.has(key) && !containsNow;
-
-    if (shouldCollapse) {
-      segments.push({ kind: "collapsed", startSlot: slotIndex, endSlot, key });
-      slotIndex = endSlot + 1;
-      continue;
-    }
-
-    for (let index = slotIndex; index <= endSlot; index += 1) {
-      segments.push({ kind: "slot", slotIndex: index });
-    }
-    slotIndex = endSlot + 1;
+  const indices: number[] = [];
+  for (let slotIndex = busyRange.start; slotIndex <= busyRange.end; slotIndex += 1) {
+    indices.push(slotIndex);
   }
-
-  return segments;
-}
-
-function timelineRowIndexForSlot(segments: DayTimelineSegment[], slotIndex: number): number {
-  let row = 0;
-  for (const segment of segments) {
-    if (segment.kind === "collapsed") {
-      if (slotIndex >= segment.startSlot && slotIndex <= segment.endSlot) {
-        return row;
-      }
-      row += 1;
-      continue;
-    }
-    if (segment.slotIndex === slotIndex) {
-      return row;
-    }
-    row += 1;
-  }
-  return row;
+  return indices;
 }
 
 function eventTimelinePrimaryLabel(status: JpLessonScheduleEventStatus): string {
@@ -271,15 +185,8 @@ export function JpLessonSchedulePage() {
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const [expandedFreeRanges, setExpandedFreeRanges] = useState<Set<string>>(
-    () => new Set()
-  );
   const sidebarPanelsRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    setExpandedFreeRanges(new Set());
-  }, [selectedDate]);
 
   useEffect(() => {
     document.title = "日程管理 · 日语新课";
@@ -466,28 +373,15 @@ export function JpLessonSchedulePage() {
     nowSlotIndex >= dayBusyRange.start &&
     nowSlotIndex <= dayBusyRange.end;
 
-  const dayTimelineSegments = useMemo(() => {
+  const dayTimelineSlotIndices = useMemo(() => {
     if (viewMode !== "day") return [];
-    return buildDayTimelineSegments(
-      dayEvents,
-      expandedFreeRanges,
-      showNowLine ? nowSlotIndex : null,
-      showNowLine,
-      dayBusyRange
-    );
-  }, [
-    dayBusyRange,
-    dayEvents,
-    expandedFreeRanges,
-    nowSlotIndex,
-    showNowLine,
-    viewMode,
-  ]);
+    return buildDayTimelineSlotIndices(dayBusyRange);
+  }, [dayBusyRange, viewMode]);
 
-  const dayTimelineRowCount = dayTimelineSegments.length;
+  const dayTimelineRowCount = dayTimelineSlotIndices.length;
   const nowTopPct =
-    dayTimelineRowCount > 0
-      ? ((timelineRowIndexForSlot(dayTimelineSegments, nowSlotIndex) +
+    dayTimelineRowCount > 0 && dayBusyRange
+      ? ((nowSlotIndex - dayBusyRange.start +
           (nowMinutes % SLOT_MINUTES) / SLOT_MINUTES) /
           dayTimelineRowCount) *
         100
@@ -643,32 +537,7 @@ export function JpLessonSchedulePage() {
               </div>
               {dayBusyRange ? (
               <div className="jpls-slot-grid">
-                {dayTimelineSegments.map((segment) => {
-                  if (segment.kind === "collapsed") {
-                    return (
-                      <div key={segment.key} className="jpls-slot-row jpls-slot-row--collapsed">
-                        <div className="jpls-slot-time">{formatSlotTime(segment.startSlot)}</div>
-                        <button
-                          type="button"
-                          className="jpls-slot-cell jpls-slot-cell--collapsed"
-                          onClick={() =>
-                            setExpandedFreeRanges((prev) => {
-                              const next = new Set(prev);
-                              next.add(segment.key);
-                              return next;
-                            })
-                          }
-                        >
-                          <span className="jpls-slot-collapsed-label">
-                            {collapsedFreeRangeLabel(segment.startSlot, segment.endSlot)}
-                          </span>
-                          <span className="jpls-slot-collapsed-action">点击展开</span>
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  const slotIndex = segment.slotIndex;
+                {dayTimelineSlotIndices.map((slotIndex) => {
                   const event = findEventForSlot(dayEvents, slotIndex);
                   const isHourSlot = slotIndex % 2 === 0;
                   const status = event ? getJpLessonScheduleEventStatus(event, now) : null;
@@ -1083,10 +952,6 @@ export function JpLessonSchedulePage() {
           flex: 1 1 0;
           min-height: 1.5rem;
         }
-        .jpls-calendar--day-sync .jpls-slot-row--collapsed {
-          flex: 0 0 auto;
-          min-height: 2.1rem;
-        }
         .jpls-calendar--day-sync .jpls-slot-row.is-event-start {
           flex: 1.35 1 0;
           min-height: 2rem;
@@ -1136,9 +1001,6 @@ export function JpLessonSchedulePage() {
         }
         .jpls-slot-row.is-event-start {
           min-height: 2.35rem;
-        }
-        .jpls-slot-row--collapsed {
-          min-height: 2.1rem;
         }
         .jpls-slot-row.is-hour {
           border-bottom-color: color-mix(in srgb, var(--border) 100%, transparent);
@@ -1209,28 +1071,6 @@ export function JpLessonSchedulePage() {
         }
         .jpls-slot-cell--ongoing {
           box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 65%, #fff);
-        }
-        .jpls-slot-cell--collapsed {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          background: color-mix(in srgb, var(--fall) 8%, var(--panel));
-          cursor: pointer;
-          min-height: 2.1rem;
-        }
-        .jpls-slot-cell--collapsed:hover {
-          background: color-mix(in srgb, var(--fall) 14%, var(--panel));
-        }
-        .jpls-slot-collapsed-label {
-          font-size: 0.75rem;
-          color: var(--muted);
-        }
-        .jpls-slot-collapsed-action {
-          flex-shrink: 0;
-          font-size: 0.75rem;
-          color: var(--accent);
-          font-weight: 600;
         }
         .jpls-slot-free-label {
           font-size: 0.6875rem;
