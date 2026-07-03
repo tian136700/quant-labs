@@ -9,6 +9,18 @@ dist/
 *.log
 .DS_Store
 
+# 本地 D1 导出 / 同步缓存（含线上数据副本，勿提交）
+tmp/
+*-dump.sql
+remote-inserts.sql
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Python
+__pycache__/
+*.pyc
+
 # 本地开发工具（个人脚本，勿提交）
 kill-port.py
 local-src/
