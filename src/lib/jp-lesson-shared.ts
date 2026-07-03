@@ -100,6 +100,193 @@ export function compareJpLessonsByProgress(
   return compareJpLessonsByRecentOperation(a, b);
 }
 
+type JpLessonClassScheduleLike = {
+  class_schedules?: Array<{
+    id: number;
+    class_at: string;
+    duration_minutes: number | null;
+  }>;
+  next_class_at?: string | null;
+  class_duration_minutes?: number | null;
+};
+
+/** 将上课时间规范化为 YYYY-MM-DD HH:mm:00，便于排序与合并比对 */
+export function normalizeClassAtForCompare(classAt: string): string {
+  const parsed = parseBeijingDateTime(classAt);
+  if (!parsed) return classAt.trim();
+  const dateStr = beijingDateStringFromDate(parsed);
+  const timeStr = snapNextClassTimeToHalfHour(beijingTimeHm(parsed));
+  return `${dateStr} ${timeStr}:00`;
+}
+
+/** 取课程最早一条预约上课时间（用于列表排序与合并） */
+export function getLessonEarliestClassAt(lesson: JpLessonClassScheduleLike): string | null {
+  const primary = getLessonPrimaryClassSchedule(lesson);
+  return primary?.class_at ?? null;
+}
+
+/** 取课程最早一条预约时段（用于列表排序与合并） */
+export function getLessonPrimaryClassSchedule(lesson: JpLessonClassScheduleLike): {
+  id: number;
+  class_at: string;
+  duration_minutes: number | null;
+} | null {
+  const schedules = getLessonClassSchedules(lesson);
+  if (!schedules.length) return null;
+  let primary = schedules[0];
+  for (let i = 1; i < schedules.length; i += 1) {
+    if (schedules[i].class_at < primary.class_at) primary = schedules[i];
+  }
+  return primary;
+}
+
+/** 列表内排序：上课时间升序；未设置时间的排到最后 */
+export function compareJpLessonsByClassTime(
+  a: {
+    class_schedules?: Array<{
+      class_at: string;
+      duration_minutes: number | null;
+      id: number;
+    }>;
+    next_class_at?: string | null;
+    class_duration_minutes?: number | null;
+    status_updated_at?: string | null;
+    uploaded_at: string;
+    id: number;
+  },
+  b: {
+    class_schedules?: Array<{
+      class_at: string;
+      duration_minutes: number | null;
+      id: number;
+    }>;
+    next_class_at?: string | null;
+    class_duration_minutes?: number | null;
+    status_updated_at?: string | null;
+    uploaded_at: string;
+    id: number;
+  }
+): number {
+  const aAt = getLessonEarliestClassAt(a);
+  const bAt = getLessonEarliestClassAt(b);
+  if (!aAt && !bAt) return compareJpLessonsByRecentOperation(a, b);
+  if (!aAt) return 1;
+  if (!bAt) return -1;
+  const cmp = normalizeClassAtForCompare(aAt).localeCompare(normalizeClassAtForCompare(bAt));
+  if (cmp !== 0) return cmp;
+  return compareJpLessonsByRecentOperation(a, b);
+}
+
+/** 同一老师、同一开始时间可合并展示（同一小时内的多个教材） */
+export function buildLessonClassSlotMergeKey(lesson: {
+  teacher_ids?: number[];
+  teacher_other?: string | null;
+  class_schedules?: Array<{
+    class_at: string;
+    duration_minutes: number | null;
+    id: number;
+  }>;
+  next_class_at?: string | null;
+  class_duration_minutes?: number | null;
+}): string | null {
+  const primary = getLessonPrimaryClassSchedule(lesson);
+  if (!primary) return null;
+  const teacherIds = [...(lesson.teacher_ids ?? [])].sort((a, b) => a - b).join(",");
+  const teacherOther = (lesson.teacher_other ?? "").trim();
+  return `${teacherIds}|${teacherOther}|${normalizeClassAtForCompare(primary.class_at)}`;
+}
+
+export type JpLessonDisplayGroup<T extends { id: number }> = {
+  key: string;
+  mergeKey: string | null;
+  lessons: T[];
+};
+
+/** 按上课时间排序，并将同老师同档期的多条新课合并为一组 */
+export function buildJpLessonDisplayGroups<T extends {
+  id: number;
+  teacher_ids?: number[];
+  teacher_other?: string | null;
+  class_schedules?: Array<{
+    class_at: string;
+    duration_minutes: number | null;
+    id: number;
+  }>;
+  next_class_at?: string | null;
+  class_duration_minutes?: number | null;
+  status_updated_at?: string | null;
+  uploaded_at: string;
+}>(lessons: T[]): JpLessonDisplayGroup<T>[] {
+  const sorted = [...lessons].sort(compareJpLessonsByClassTime);
+  const groups: JpLessonDisplayGroup<T>[] = [];
+  const mergeIndexByKey = new Map<string, number>();
+
+  for (const lesson of sorted) {
+    const mergeKey = buildLessonClassSlotMergeKey(lesson);
+    if (mergeKey != null) {
+      const existingIdx = mergeIndexByKey.get(mergeKey);
+      if (existingIdx != null) {
+        groups[existingIdx].lessons.push(lesson);
+        continue;
+      }
+    }
+    const group: JpLessonDisplayGroup<T> = {
+      key: mergeKey ?? `solo-${lesson.id}`,
+      mergeKey,
+      lessons: [lesson],
+    };
+    groups.push(group);
+    if (mergeKey != null) {
+      mergeIndexByKey.set(mergeKey, groups.length - 1);
+    }
+  }
+
+  return groups;
+}
+
+/** 「学习中」列表按上课日区分背景色时的色阶数量 */
+export const JP_LESSON_LEARNING_DAY_TONE_COUNT = 6;
+
+/** 取课程最早一条预约的上课日期（北京时间 YYYY-MM-DD） */
+export function getLessonClassDate(lesson: JpLessonClassScheduleLike): string | null {
+  const classAt = getLessonEarliestClassAt(lesson);
+  if (!classAt) return null;
+  const parsed = parseBeijingDateTime(classAt);
+  if (parsed) return beijingDateStringFromDate(parsed);
+  return beijingDateOnlyFromClassAt(classAt);
+}
+
+/** 为「学习中」各上课日分配色阶（按日期从早到晚；今天固定为淡红） */
+export function buildLearningClassDayToneMap<T extends JpLessonClassScheduleLike>(
+  groups: Array<{ lessons: T[] }>,
+  today = beijingTodayDateString()
+): Map<string, number> {
+  const dates = new Set<string>();
+  for (const group of groups) {
+    const date = getLessonClassDate(group.lessons[0]);
+    if (date) dates.add(date);
+  }
+  const sorted = [...dates].sort();
+  const map = new Map<string, number>();
+  if (!sorted.length) return map;
+
+  if (sorted.includes(today)) {
+    map.set(today, 0);
+    let tone = 1;
+    for (const date of sorted) {
+      if (date === today) continue;
+      map.set(date, tone % JP_LESSON_LEARNING_DAY_TONE_COUNT);
+      tone += 1;
+    }
+    return map;
+  }
+
+  sorted.forEach((date, index) => {
+    map.set(date, index % JP_LESSON_LEARNING_DAY_TONE_COUNT);
+  });
+  return map;
+}
+
 const BEIJING_TZ = "Asia/Shanghai";
 const WEEKDAY_SHORT = ["日", "一", "二", "三", "四", "五", "六"] as const;
 

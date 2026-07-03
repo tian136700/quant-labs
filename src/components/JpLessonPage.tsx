@@ -21,14 +21,19 @@ import {
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
 import {
-  compareJpLessonsByRecentOperation,
+  beijingTodayDateString,
+  buildJpLessonDisplayGroups,
+  buildLearningClassDayToneMap,
+  compareJpLessonsByClassTime,
   formatClassDurationLabel,
   formatLessonContentLines,
   formatNextClassAtLabel,
   getJpLessonProgressStatus,
+  getLessonClassDate,
   getLessonClassSchedules,
   jpLessonProgressToFields,
   normalizeClassDurationMinutes,
+  type JpLessonDisplayGroup,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
@@ -78,24 +83,13 @@ const LESSON_STATUS_SECTIONS: {
 ];
 
 function sortLessonsWithinStatus(lessons: JpLessonRecord[]): JpLessonRecord[] {
-  return [...lessons].sort(compareJpLessonsByRecentOperation);
+  return [...lessons].sort(compareJpLessonsByClassTime);
 }
 
-function groupLessonsByStatus(
+function groupLessonsForDisplay(
   lessons: JpLessonRecord[]
-): Record<JpLessonProgressStatus, JpLessonRecord[]> {
-  const groups: Record<JpLessonProgressStatus, JpLessonRecord[]> = {
-    learning: [],
-    pending: [],
-    completed: [],
-  };
-  for (const lesson of lessons) {
-    groups[getJpLessonProgressStatus(lesson)].push(lesson);
-  }
-  for (const status of Object.keys(groups) as JpLessonProgressStatus[]) {
-    groups[status] = sortLessonsWithinStatus(groups[status]);
-  }
-  return groups;
+): JpLessonDisplayGroup<JpLessonRecord>[] {
+  return buildJpLessonDisplayGroups(sortLessonsWithinStatus(lessons));
 }
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
@@ -191,7 +185,31 @@ export function JpLessonPage() {
     void loadLessons();
   }, [loadLessons]);
 
-  const lessonsByStatus = useMemo(() => groupLessonsByStatus(lessons), [lessons]);
+  const lessonsByStatus = useMemo(() => {
+    const buckets: Record<JpLessonProgressStatus, JpLessonRecord[]> = {
+      learning: [],
+      pending: [],
+      completed: [],
+    };
+    for (const lesson of lessons) {
+      buckets[getJpLessonProgressStatus(lesson)].push(lesson);
+    }
+    return buckets;
+  }, [lessons]);
+
+  const displayGroupsByStatus = useMemo(() => {
+    const groups: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]> = {
+      learning: groupLessonsForDisplay(lessonsByStatus.learning),
+      pending: groupLessonsForDisplay(lessonsByStatus.pending),
+      completed: groupLessonsForDisplay(lessonsByStatus.completed),
+    };
+    return groups;
+  }, [lessonsByStatus]);
+
+  const learningDayToneByDate = useMemo(
+    () => buildLearningClassDayToneMap(displayGroupsByStatus.learning),
+    [displayGroupsByStatus.learning]
+  );
 
   const noteCountByLesson = useMemo(() => {
     const map = new Map<number, number>();
@@ -513,7 +531,154 @@ export function JpLessonPage() {
 
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
-  const renderLessonTable = (lessonList: JpLessonRecord[]) => (
+  const renderLessonActions = (lesson: JpLessonRecord) => {
+    const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
+    const hasRef = Boolean(lesson.ref_key && ref);
+    const viewUrl = lesson.ref_key ? refViewUrl(lesson.ref_key, ref?.updated_at) : "";
+
+    if (!hasRef) {
+      return canOperate ? (
+        <button
+          type="button"
+          className="jp-lesson-action-btn"
+          onClick={() => setEditingLesson(lesson)}
+        >
+          上传教案
+        </button>
+      ) : (
+        <span style={{ color: "var(--muted)" }}>—</span>
+      );
+    }
+
+    const actionItems: ReactNode[] = [
+      <a
+        key="view"
+        href={viewUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="jp-lesson-action-btn"
+      >
+        查看
+      </a>,
+    ];
+    if (ref?.media_type === "image") {
+      actionItems.push(
+        <button
+          key="annotate"
+          type="button"
+          className="jp-lesson-action-btn"
+          onClick={() => setAnnotatingLesson({ lesson, ref: ref!, viewUrl })}
+        >
+          随手画
+        </button>
+      );
+    }
+    actionItems.push(
+      <JpVocabRefDownloadMenu
+        key="download"
+        downloadUrl={jpVocabRefApiPath(lesson.ref_key!, { download: true })}
+        mediaUrl={jpVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })}
+        filename={refFilename(lesson.ref_key!, ref)}
+        mediaType={ref?.media_type ?? "image"}
+        primaryClassName="jp-lesson-action-btn"
+        fixedPanel
+        allowOriginalDownload={isAdmin}
+      />
+    );
+    actionItems.push(
+      <button
+        key="copy"
+        type="button"
+        className="jp-lesson-action-btn"
+        onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
+      >
+        {copiedId === lesson.id ? "已复制" : "复制"}
+      </button>
+    );
+    if (canOperate) {
+      actionItems.push(
+        <JpEditIconButton
+          key="edit"
+          title="编辑教案（弹窗）"
+          onClick={() => setEditingLesson(lesson)}
+        />
+      );
+    }
+    return <div className="jp-lesson-actions">{actionItems}</div>;
+  };
+
+  const renderSharedTeacherCell = (groupLessons: JpLessonRecord[]) => {
+    const lesson = groupLessons[0];
+    return (
+      <td data-label="上课老师" className="jp-lesson-teacher-col">
+        <div className="jp-lesson-teacher-cell">
+          <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
+          <div className="jp-lesson-merged-edit-stack">
+            {groupLessons.map((item) => (
+              <JpEditIconButton
+                key={item.id}
+                title={`设置 #${item.id} 上课老师`}
+                disabled={savingTeacherId === item.id}
+                onClick={() => setEditingTeacherLesson(item)}
+              />
+            ))}
+          </div>
+        </div>
+      </td>
+    );
+  };
+
+  const renderSharedClassTimeCell = (groupLessons: JpLessonRecord[]) => {
+    const lesson = groupLessons[0];
+    const progressStatus = getJpLessonProgressStatus(lesson);
+    const classSchedules = getLessonClassSchedules(lesson);
+
+    return (
+      <td data-label="上课时间" className="jp-lesson-next-class-col">
+        <div className="jp-lesson-next-class-cell">
+          <div className="jp-lesson-next-class-lines">
+            {progressStatus === "completed" ? (
+              <span className="jp-lesson-next-class-label is-done">已上完课</span>
+            ) : classSchedules.length === 0 ? (
+              <span className="jp-lesson-next-class-label is-undefined">未定义</span>
+            ) : (
+              classSchedules.map((schedule, scheduleIdx) => {
+                const durationLabel = formatClassDurationLabel(schedule.duration_minutes);
+                return (
+                  <div
+                    key={schedule.id || scheduleIdx}
+                    className="jp-lesson-next-class-entry"
+                  >
+                    <span className="jp-lesson-next-class-label">
+                      {formatNextClassAtLabel(schedule.class_at, progressStatus)}
+                    </span>
+                    {durationLabel ? (
+                      <span className="jp-lesson-class-duration-label">{durationLabel}</span>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="jp-lesson-merged-edit-stack">
+            {groupLessons.map((item) => (
+              <JpEditIconButton
+                key={item.id}
+                title={`设置 #${item.id} 上课时间`}
+                disabled={savingNextClassId === item.id}
+                onClick={() => setEditingNextClassLesson(item)}
+              />
+            ))}
+          </div>
+        </div>
+      </td>
+    );
+  };
+
+  const renderLessonTable = (
+    displayGroups: JpLessonDisplayGroup<JpLessonRecord>[],
+    dayToneByDate?: Map<string, number>
+  ) => (
     <div className="jp-lesson-table-wrap">
       <table className="compare-table etr-table jp-lesson-table">
         <thead>
@@ -525,232 +690,183 @@ export function JpLessonPage() {
             <th className="jp-lesson-status-at-col">最近操作</th>
             <th className="jp-lesson-operator-col">操作人</th>
             {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
-            {isAdmin ? <th className="jp-lesson-next-class-col">上课时间</th> : null}
+            {isAdmin ? (
+              <th
+                className="jp-lesson-next-class-col jp-lesson-next-class-col--sorted"
+                title="默认按上课时间从早到晚排序；同一老师同一时段的多条教材会合并为一行"
+              >
+                上课时间 ↑
+              </th>
+            ) : null}
             <th className="jp-lesson-complete-col">学习状态</th>
             <th className="jp-lesson-notes-col">课堂笔记</th>
             <th className="jp-lesson-actions-col">教案操作</th>
           </tr>
         </thead>
         <tbody>
-          {lessonList.map((lesson) => {
-            const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
-            const hasRef = Boolean(lesson.ref_key && ref);
-            const viewUrl = lesson.ref_key
-              ? refViewUrl(lesson.ref_key, ref?.updated_at)
-              : "";
-            const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
-            const progressStatus = getJpLessonProgressStatus(lesson);
-            const classSchedules = getLessonClassSchedules(lesson);
+          {displayGroups.map((group) => {
+            const merged = group.lessons.length > 1;
+            const stackClass = merged ? " jp-lesson-merged-stack" : "";
+            const classDate = getLessonClassDate(group.lessons[0]);
+            const dayTone =
+              classDate != null ? dayToneByDate?.get(classDate) : undefined;
+            const isClassToday = classDate === beijingTodayDateString();
+            const rowClassName = [
+              "jp-lesson-row",
+              merged ? "jp-lesson-row--merged" : "",
+              dayTone != null ? `jp-lesson-row--day-tone-${dayTone}` : "",
+              isClassToday && dayTone != null ? "jp-lesson-row--day-today" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
 
             return (
-              <tr key={lesson.id}>
+              <tr key={group.key} className={rowClassName || undefined}>
                 <td data-label="ID" className="jp-lesson-id-col">
-                  {lesson.id}
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        {lesson.id}
+                      </div>
+                    ))}
+                  </div>
                 </td>
                 <td data-label="学习类型">
-                  <span
-                    className={`jp-lesson-kind${
-                      lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
-                    }`}
-                  >
-                    {lesson.kind === "grammar" ? "语法" : "单词"}
-                  </span>
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        <span
+                          className={`jp-lesson-kind${
+                            lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                          }`}
+                        >
+                          {lesson.kind === "grammar" ? "语法" : "单词"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">
-                  <div className="jp-lesson-content-lines">
-                    {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
-                      <span key={lineIdx} className="jp-lesson-content-line">
-                        {line}
-                      </span>
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        <div className="jp-lesson-content-lines">
+                          {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
+                            <span key={lineIdx} className="jp-lesson-content-line">
+                              {line}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </td>
                 <td data-label="上传日期" className="jp-lesson-uploaded-col">
-                  {formatBeijingDateTime(lesson.uploaded_at)}
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        {formatBeijingDateTime(lesson.uploaded_at)}
+                      </div>
+                    ))}
+                  </div>
                 </td>
                 <td data-label="最近操作" className="jp-lesson-status-at-col">
-                  {lesson.status_updated_at
-                    ? formatBeijingDateTime(lesson.status_updated_at)
-                    : "—"}
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        {lesson.status_updated_at
+                          ? formatBeijingDateTime(lesson.status_updated_at)
+                          : "—"}
+                      </div>
+                    ))}
+                  </div>
                 </td>
                 <td data-label="操作人" className="jp-lesson-operator-col">
-                  {lesson.status_updated_by ?? "—"}
-                </td>
-                {isAdmin ? (
-                  <td data-label="上课老师" className="jp-lesson-teacher-col">
-                    <div className="jp-lesson-teacher-cell">
-                      <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
-                      <JpEditIconButton
-                        title="设置上课老师（可多选）"
-                        disabled={savingTeacherId === lesson.id}
-                        onClick={() => setEditingTeacherLesson(lesson)}
-                      />
-                    </div>
-                  </td>
-                ) : null}
-                {isAdmin ? (
-                  <td data-label="上课时间" className="jp-lesson-next-class-col">
-                    <div className="jp-lesson-next-class-cell">
-                      <div className="jp-lesson-next-class-lines">
-                        {progressStatus === "completed" ? (
-                          <span className="jp-lesson-next-class-label is-done">
-                            已上完课
-                          </span>
-                        ) : classSchedules.length === 0 ? (
-                          <span className="jp-lesson-next-class-label is-undefined">
-                            未定义
-                          </span>
-                        ) : (
-                          classSchedules.map((schedule, scheduleIdx) => {
-                            const durationLabel = formatClassDurationLabel(
-                              schedule.duration_minutes
-                            );
-                            return (
-                              <div
-                                key={schedule.id || scheduleIdx}
-                                className="jp-lesson-next-class-entry"
-                              >
-                                <span className="jp-lesson-next-class-label">
-                                  {formatNextClassAtLabel(
-                                    schedule.class_at,
-                                    progressStatus
-                                  )}
-                                </span>
-                                {durationLabel ? (
-                                  <span className="jp-lesson-class-duration-label">
-                                    {durationLabel}
-                                  </span>
-                                ) : null}
-                              </div>
-                            );
-                          })
-                        )}
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        {lesson.status_updated_by ?? "—"}
                       </div>
-                      <JpEditIconButton
-                        title="设置上课时间（可多条预约）"
-                        disabled={savingNextClassId === lesson.id}
-                        onClick={() => setEditingNextClassLesson(lesson)}
-                      />
-                    </div>
-                  </td>
-                ) : null}
+                    ))}
+                  </div>
+                </td>
+                {isAdmin ? renderSharedTeacherCell(group.lessons) : null}
+                {isAdmin ? renderSharedClassTimeCell(group.lessons) : null}
                 <td data-label="学习状态" className="jp-lesson-complete-col">
-                  <div
-                    className={`jp-lesson-complete-wrap${
-                      progressStatus === "completed" ? " is-done" : ""
-                    }${progressStatus === "learning" ? " is-learning" : ""}${
-                      !canOperate ? " is-readonly" : ""
-                    }${savingId === lesson.id ? " is-saving" : ""}`}
-                  >
-                    <select
-                      className="jp-lesson-complete-select"
-                      value={progressStatus}
-                      disabled={!canOperate || savingId === lesson.id}
-                      aria-label={`${lesson.content} 学习状态`}
-                      onChange={(e) =>
-                        void setLessonProgress(
-                          lesson.id,
-                          e.target.value as JpLessonProgressStatus
-                        )
-                      }
-                    >
-                      <option value="pending">未完成</option>
-                      <option value="learning">学习中</option>
-                      <option value="completed">已完成</option>
-                    </select>
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => {
+                      const progressStatus = getJpLessonProgressStatus(lesson);
+                      return (
+                        <div
+                          key={lesson.id}
+                          className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                        >
+                          <div
+                            className={`jp-lesson-complete-wrap${
+                              progressStatus === "completed" ? " is-done" : ""
+                            }${progressStatus === "learning" ? " is-learning" : ""}${
+                              !canOperate ? " is-readonly" : ""
+                            }${savingId === lesson.id ? " is-saving" : ""}`}
+                          >
+                            <select
+                              className="jp-lesson-complete-select"
+                              value={progressStatus}
+                              disabled={!canOperate || savingId === lesson.id}
+                              aria-label={`${lesson.content} 学习状态`}
+                              onChange={(e) =>
+                                void setLessonProgress(
+                                  lesson.id,
+                                  e.target.value as JpLessonProgressStatus
+                                )
+                              }
+                            >
+                              <option value="pending">未完成</option>
+                              <option value="learning">学习中</option>
+                              <option value="completed">已完成</option>
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </td>
                 <td data-label="课堂笔记" className="jp-lesson-notes-col">
-                  <a
-                    href={`/jp-lesson/notes?id=${lesson.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="jp-lesson-notes-btn"
-                    title="在新标签页打开课堂笔记"
-                  >
-                    笔记
-                    {noteCount > 0 ? (
-                      <span className="jp-lesson-notes-count">{noteCount}</span>
-                    ) : null}
-                  </a>
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => {
+                      const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
+                      return (
+                        <div
+                          key={lesson.id}
+                          className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                        >
+                          <a
+                            href={`/jp-lesson/notes?id=${lesson.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="jp-lesson-notes-btn"
+                            title="在新标签页打开课堂笔记"
+                          >
+                            笔记
+                            {noteCount > 0 ? (
+                              <span className="jp-lesson-notes-count">{noteCount}</span>
+                            ) : null}
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </td>
                 <td data-label="教案操作" className="jp-lesson-actions-col">
-                  {hasRef ? (
-                    (() => {
-                      const actionItems: ReactNode[] = [
-                        <a
-                          key="view"
-                          href={viewUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="jp-lesson-action-btn"
-                        >
-                          查看
-                        </a>,
-                      ];
-                      if (ref?.media_type === "image") {
-                        actionItems.push(
-                          <button
-                            key="annotate"
-                            type="button"
-                            className="jp-lesson-action-btn"
-                            onClick={() =>
-                              setAnnotatingLesson({ lesson, ref: ref!, viewUrl })
-                            }
-                          >
-                            随手画
-                          </button>
-                        );
-                      }
-                      actionItems.push(
-                        <JpVocabRefDownloadMenu
-                          key="download"
-                          downloadUrl={jpVocabRefApiPath(lesson.ref_key!, {
-                            download: true,
-                          })}
-                          mediaUrl={jpVocabRefApiPath(lesson.ref_key!, {
-                            v: ref?.updated_at,
-                          })}
-                          filename={refFilename(lesson.ref_key!, ref)}
-                          mediaType={ref?.media_type ?? "image"}
-                          primaryClassName="jp-lesson-action-btn"
-                          fixedPanel
-                          allowOriginalDownload={isAdmin}
-                        />
-                      );
-                      actionItems.push(
-                        <button
-                          key="copy"
-                          type="button"
-                          className="jp-lesson-action-btn"
-                          onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
-                        >
-                          {copiedId === lesson.id ? "已复制" : "复制"}
-                        </button>
-                      );
-                      if (canOperate) {
-                        actionItems.push(
-                          <JpEditIconButton
-                            key="edit"
-                            title="编辑教案（弹窗）"
-                            onClick={() => setEditingLesson(lesson)}
-                          />
-                        );
-                      }
-
-                      return <div className="jp-lesson-actions">{actionItems}</div>;
-                    })()
-                  ) : canOperate ? (
-                    <button
-                      type="button"
-                      className="jp-lesson-action-btn"
-                      onClick={() => setEditingLesson(lesson)}
-                    >
-                      上传教案
-                    </button>
-                  ) : (
-                    <span style={{ color: "var(--muted)" }}>—</span>
-                  )}
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        {renderLessonActions(lesson)}
+                      </div>
+                    ))}
+                  </div>
                 </td>
               </tr>
             );
@@ -822,7 +938,8 @@ export function JpLessonPage() {
             </p>
           ) : null}
           {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
-            const sectionLessons = lessonsByStatus[status];
+            const sectionGroups = displayGroupsByStatus[status];
+            const sectionCount = lessonsByStatus[status].length;
             return (
               <section
                 key={status}
@@ -832,11 +949,14 @@ export function JpLessonPage() {
                 <div className="jp-lesson-status-card-head">
                   <h2 className="jp-lesson-status-card-title">{title}</h2>
                   <span className="jp-lesson-status-card-count">
-                    {sectionLessons.length} 条
+                    {sectionCount} 条
                   </span>
                 </div>
-                {sectionLessons.length ? (
-                  renderLessonTable(sectionLessons)
+                {sectionCount ? (
+                  renderLessonTable(
+                    sectionGroups,
+                    status === "learning" ? learningDayToneByDate : undefined
+                  )
                 ) : (
                   <p className="jp-lesson-status-card-empty">{emptyHint}</p>
                 )}
@@ -1018,6 +1138,63 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-content-line) {
           display: block;
+        }
+        :global(.jp-lesson-merged-stack) {
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+        :global(.jp-lesson-merged-stack-item + .jp-lesson-merged-stack-item) {
+          margin-top: 0.65rem;
+          padding-top: 0.65rem;
+          border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+        }
+        :global(.jp-lesson-row--merged) {
+          background: color-mix(in srgb, var(--accent) 4%, transparent);
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-0) {
+          background: color-mix(in srgb, var(--rise) 9%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-1) {
+          background: color-mix(in srgb, #e894b8 10%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-2) {
+          background: color-mix(in srgb, #e8b890 9%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-3) {
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-4) {
+          background: color-mix(in srgb, #d4b870 8%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-5) {
+          background: color-mix(in srgb, #b898c8 9%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--day-today) {
+          box-shadow: inset 3px 0 0 color-mix(in srgb, var(--rise) 55%, transparent);
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-0) {
+          background: color-mix(in srgb, var(--rise) 12%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-1) {
+          background: color-mix(in srgb, #e894b8 13%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-2) {
+          background: color-mix(in srgb, #e8b890 12%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-3) {
+          background: color-mix(in srgb, var(--accent) 11%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-4) {
+          background: color-mix(in srgb, #d4b870 11%, var(--panel));
+        }
+        :global(.jp-lesson-status-card--learning .jp-lesson-row--merged.jp-lesson-row--day-tone-5) {
+          background: color-mix(in srgb, #b898c8 12%, var(--panel));
+        }
+        :global(.jp-lesson-merged-edit-stack) {
+          display: inline-flex;
+          flex-direction: column;
+          gap: 0.25rem;
         }
         :global(.jp-lesson-uploaded-col),
         :global(.jp-lesson-status-at-col) {
