@@ -281,10 +281,10 @@ export function JpLessonNextClassEditModal({
         }
 
         .jp-lesson-next-class-modal {
-          width: min(560px, 100%);
-          max-height: min(90vh, 720px);
+          width: min(720px, 100%);
+          max-height: min(94vh, 900px);
           overflow: auto;
-          padding: 1rem 1.1rem;
+          padding: 1.15rem 1.25rem;
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);

@@ -128,22 +128,14 @@ export function JpLessonHalfHourTimeGridPicker({
         }
 
         .jp-lesson-time-grid-panel {
-          position: absolute;
-          z-index: 2;
-          top: calc(100% + 0.35rem);
-          left: 50%;
-          transform: translateX(-50%);
-          width: min(100vw - 2rem, 22rem);
+          margin-top: 0.45rem;
           display: grid;
-          grid-template-columns: repeat(6, minmax(0, 1fr));
-          gap: 0.35rem;
-          max-height: min(16rem, 50vh);
-          overflow-y: auto;
-          padding: 0.55rem;
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+          gap: 0.4rem;
+          padding: 0.6rem;
           border: 1px solid var(--border);
           border-radius: 10px;
-          background: var(--panel);
-          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+          background: color-mix(in srgb, var(--bg) 18%, var(--panel));
         }
 
         .jp-lesson-time-grid-tile {
@@ -151,13 +143,13 @@ export function JpLessonHalfHourTimeGridPicker({
           align-items: center;
           justify-content: center;
           aspect-ratio: 1;
-          min-height: 2.5rem;
+          min-height: 2.35rem;
           padding: 0.15rem;
           border: 1px solid var(--border);
           border-radius: 8px;
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
           color: inherit;
-          font-size: 0.72rem;
+          font-size: 0.75rem;
           line-height: 1.1;
           text-align: center;
           cursor: pointer;
