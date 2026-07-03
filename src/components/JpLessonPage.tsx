@@ -23,7 +23,6 @@ import {
 import {
   buildJpLessonDisplayGroups,
   buildLearningClassDayToneMap,
-  compareJpLessonsByClassTime,
   formatClassDurationLabel,
   formatLessonContentLines,
   formatNextClassAtLabel,
@@ -33,6 +32,7 @@ import {
   jpLessonProgressToFields,
   normalizeClassDurationMinutes,
   type JpLessonDisplayGroup,
+  type JpLessonClassTimeSortOrder,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
@@ -81,14 +81,11 @@ const LESSON_STATUS_SECTIONS: {
   { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
 ];
 
-function sortLessonsWithinStatus(lessons: JpLessonRecord[]): JpLessonRecord[] {
-  return [...lessons].sort(compareJpLessonsByClassTime);
-}
-
 function groupLessonsForDisplay(
-  lessons: JpLessonRecord[]
+  lessons: JpLessonRecord[],
+  classTimeSortOrder: JpLessonClassTimeSortOrder
 ): JpLessonDisplayGroup<JpLessonRecord>[] {
-  return buildJpLessonDisplayGroups(sortLessonsWithinStatus(lessons));
+  return buildJpLessonDisplayGroups(lessons, classTimeSortOrder);
 }
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
@@ -143,6 +140,12 @@ export function JpLessonPage() {
     ref: JpVocabRef;
     viewUrl: string;
   } | null>(null);
+  const [classTimeSortOrder, setClassTimeSortOrder] =
+    useState<JpLessonClassTimeSortOrder>("asc");
+
+  const toggleClassTimeSortOrder = useCallback(() => {
+    setClassTimeSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  }, []);
 
   const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
     setLessons(payload.lessons);
@@ -198,12 +201,12 @@ export function JpLessonPage() {
 
   const displayGroupsByStatus = useMemo(() => {
     const groups: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]> = {
-      learning: groupLessonsForDisplay(lessonsByStatus.learning),
-      pending: groupLessonsForDisplay(lessonsByStatus.pending),
-      completed: groupLessonsForDisplay(lessonsByStatus.completed),
+      learning: groupLessonsForDisplay(lessonsByStatus.learning, classTimeSortOrder),
+      pending: groupLessonsForDisplay(lessonsByStatus.pending, classTimeSortOrder),
+      completed: groupLessonsForDisplay(lessonsByStatus.completed, classTimeSortOrder),
     };
     return groups;
-  }, [lessonsByStatus]);
+  }, [lessonsByStatus, classTimeSortOrder]);
 
   const learningDayToneByDate = useMemo(
     () => buildLearningClassDayToneMap(displayGroupsByStatus.learning),
@@ -691,10 +694,32 @@ export function JpLessonPage() {
             {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
             {isAdmin ? (
               <th
-                className="jp-lesson-next-class-col jp-lesson-next-class-col--sorted"
-                title="默认按上课时间从早到晚排序；同一老师同一时段的多条教材会合并为一行"
+                className={`jp-lesson-next-class-col jp-lesson-next-class-col--sortable${
+                  classTimeSortOrder === "asc"
+                    ? " jp-lesson-next-class-col--sorted-asc"
+                    : " jp-lesson-next-class-col--sorted-desc"
+                }`}
               >
-                上课时间 ↑
+                <button
+                  type="button"
+                  className="jp-lesson-sort-btn"
+                  title={
+                    classTimeSortOrder === "asc"
+                      ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
+                      : "按上课时间从晚到早排序；点击切换为从早到晚。同一老师同一时段的多条教材会合并为一行"
+                  }
+                  aria-label={
+                    classTimeSortOrder === "asc"
+                      ? "上课时间升序，点击切换为降序"
+                      : "上课时间降序，点击切换为升序"
+                  }
+                  onClick={toggleClassTimeSortOrder}
+                >
+                  上课时间
+                  <span className="jp-lesson-sort-indicator" aria-hidden="true">
+                    {classTimeSortOrder === "asc" ? "↑" : "↓"}
+                  </span>
+                </button>
               </th>
             ) : null}
             <th className="jp-lesson-complete-col">学习状态</th>
@@ -1231,6 +1256,43 @@ export function JpLessonPage() {
         :global(.jp-lesson-next-class-col) {
           font-size: 0.8125rem;
           min-width: 7.5rem;
+        }
+        :global(.jp-lesson-next-class-col--sortable) {
+          padding: 0;
+        }
+        :global(.jp-lesson-sort-btn) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.25rem;
+          width: 100%;
+          min-height: 2.5rem;
+          padding: 0.6rem 0.75rem;
+          border: none;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          font-weight: 500;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: color 0.15s ease, background 0.15s ease;
+        }
+        :global(.jp-lesson-sort-btn:hover) {
+          color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 8%, transparent);
+        }
+        :global(.jp-lesson-sort-btn:focus-visible) {
+          outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+          outline-offset: -2px;
+        }
+        :global(.jp-lesson-next-class-col--sorted-asc .jp-lesson-sort-btn),
+        :global(.jp-lesson-next-class-col--sorted-desc .jp-lesson-sort-btn) {
+          color: var(--accent);
+        }
+        :global(.jp-lesson-sort-indicator) {
+          font-size: 0.75rem;
+          line-height: 1;
+          opacity: 0.9;
         }
         :global(.jp-lesson-next-class-cell) {
           display: inline-flex;

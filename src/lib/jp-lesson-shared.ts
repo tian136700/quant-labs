@@ -177,6 +177,29 @@ export function compareJpLessonsByClassTime(
   return compareJpLessonsByRecentOperation(a, b);
 }
 
+/** 列表内排序：上课时间降序；未设置时间的仍排最后 */
+export function compareJpLessonsByClassTimeDesc(
+  a: Parameters<typeof compareJpLessonsByClassTime>[0],
+  b: Parameters<typeof compareJpLessonsByClassTime>[1]
+): number {
+  const aAt = getLessonEarliestClassAt(a);
+  const bAt = getLessonEarliestClassAt(b);
+  if (!aAt && !bAt) return compareJpLessonsByRecentOperation(a, b);
+  if (!aAt) return 1;
+  if (!bAt) return -1;
+  const cmp = normalizeClassAtForCompare(bAt).localeCompare(normalizeClassAtForCompare(aAt));
+  if (cmp !== 0) return cmp;
+  return compareJpLessonsByRecentOperation(a, b);
+}
+
+export type JpLessonClassTimeSortOrder = "asc" | "desc";
+
+export function compareJpLessonsByClassTimeOrder(
+  order: JpLessonClassTimeSortOrder
+): typeof compareJpLessonsByClassTime {
+  return order === "asc" ? compareJpLessonsByClassTime : compareJpLessonsByClassTimeDesc;
+}
+
 /** 同一老师、同一开始时间可合并展示（同一小时内的多个教材） */
 export function buildLessonClassSlotMergeKey(lesson: {
   teacher_ids?: number[];
@@ -216,8 +239,8 @@ export function buildJpLessonDisplayGroups<T extends {
   class_duration_minutes?: number | null;
   status_updated_at?: string | null;
   uploaded_at: string;
-}>(lessons: T[]): JpLessonDisplayGroup<T>[] {
-  const sorted = [...lessons].sort(compareJpLessonsByClassTime);
+}>(lessons: T[], sortOrder: JpLessonClassTimeSortOrder = "asc"): JpLessonDisplayGroup<T>[] {
+  const sorted = [...lessons].sort(compareJpLessonsByClassTimeOrder(sortOrder));
   const groups: JpLessonDisplayGroup<T>[] = [];
   const mergeIndexByKey = new Map<string, number>();
 
