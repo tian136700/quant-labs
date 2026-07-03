@@ -32,7 +32,6 @@ export function AdminJpLessonTeachersPage() {
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newSortOrder, setNewSortOrder] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editSortOrder, setEditSortOrder] = useState(0);
@@ -118,7 +117,7 @@ export function AdminJpLessonTeachersPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName, sort_order: newSortOrder }),
+        body: JSON.stringify({ name: newName }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!data.ok) {
@@ -129,7 +128,6 @@ export function AdminJpLessonTeachersPage() {
         return;
       }
       setNewName("");
-      setNewSortOrder(0);
       setStatus("已添加");
       setStatusErr(false);
       void loadTeachers();
@@ -275,15 +273,6 @@ export function AdminJpLessonTeachersPage() {
               onChange={(e) => setNewName(e.target.value)}
             />
           </label>
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "排序" : "Sort order"}</span>
-            <input
-              type="number"
-              value={newSortOrder}
-              disabled={saving}
-              onChange={(e) => setNewSortOrder(Number(e.target.value))}
-            />
-          </label>
           <button
             type="submit"
             className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
@@ -324,7 +313,6 @@ export function AdminJpLessonTeachersPage() {
                 <tr>
                   <th className="col-id">ID</th>
                   <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
-                  <th className="col-sort">{locale === "zh" ? "排序" : "Sort"}</th>
                   <th className="col-score">{locale === "zh" ? "平均评分" : "Avg"}</th>
                   <th className="col-remark">{locale === "zh" ? "最近备注" : "Latest note"}</th>
                   <th className="col-updated">{locale === "zh" ? "更新时间" : "Updated"}</th>
@@ -350,19 +338,6 @@ export function AdminJpLessonTeachersPage() {
                           />
                         ) : (
                           teacher.name
-                        )}
-                      </td>
-                      <td className="col-sort">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            value={editSortOrder}
-                            disabled={saving}
-                            className="admin-jpl-sort-input"
-                            onChange={(e) => setEditSortOrder(Number(e.target.value))}
-                          />
-                        ) : (
-                          teacher.sort_order
                         )}
                       </td>
                       <td className="col-score">

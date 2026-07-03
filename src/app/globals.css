@@ -1006,8 +1006,8 @@ textarea:focus {
 .admin-jpl-teachers-table th,
 .admin-jpl-teachers-table td {
   padding: 0.7rem 0.85rem;
-  vertical-align: top;
-  text-align: left;
+  vertical-align: middle;
+  text-align: center;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
 }
 
@@ -1055,18 +1055,6 @@ textarea:focus {
   vertical-align: middle;
 }
 
-.admin-jpl-teachers-table .col-sort {
-  width: 4rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-  vertical-align: middle;
-}
-
-.admin-jpl-teachers-table thead .col-sort {
-  text-align: center;
-}
-
 .admin-jpl-teachers-table .col-score {
   width: 6.5rem;
   white-space: nowrap;
@@ -1101,7 +1089,7 @@ textarea:focus {
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -1139,10 +1127,11 @@ textarea:focus {
 
 .admin-jpl-teachers-table .col-actions .etr-form-actions {
   gap: 0.35rem;
+  justify-content: center;
 }
 
-.admin-jpl-sort-input {
-  width: 3.5rem;
+.admin-jpl-teachers-table td input[type="text"],
+.admin-jpl-teachers-table td input[type="number"] {
   text-align: center;
 }
 
