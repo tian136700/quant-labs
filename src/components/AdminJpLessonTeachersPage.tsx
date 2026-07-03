@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
+import {
+  formatAdminUserCredentials,
+  rememberAdminUserPassword,
+} from "@/lib/admin-user-credentials";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { JpLessonTeacherReviewModal } from "@/components/JpLessonTeacherReviewModal";
 import {
@@ -119,7 +123,16 @@ export function AdminJpLessonTeachersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newName }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        user_account?: {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        };
+      };
       if (!data.ok) {
         setStatus(
           data.error === "name_duplicate" ? "老师名称已存在" : data.error || "添加失败"
@@ -128,7 +141,24 @@ export function AdminJpLessonTeachersPage() {
         return;
       }
       setNewName("");
-      setStatus("已添加");
+      if (data.user_account) {
+        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
+        setStatus(
+          locale === "zh"
+            ? `已添加。已自动创建禁用账号：${formatAdminUserCredentials(
+                data.user_account.username,
+                data.user_account.password,
+                "zh"
+              )}（请在用户管理中启用后再登录）`
+            : `Added. Auto-created disabled account: ${formatAdminUserCredentials(
+                data.user_account.username,
+                data.user_account.password,
+                "en"
+              )} (enable in Users before login)`
+        );
+      } else {
+        setStatus(locale === "zh" ? "已添加" : "Added");
+      }
       setStatusErr(false);
       void loadTeachers();
     } catch {
@@ -269,7 +299,7 @@ export function AdminJpLessonTeachersPage() {
               type="text"
               value={newName}
               disabled={saving}
-              placeholder={locale === "zh" ? "例如：A老师" : "e.g. Teacher A"}
+              placeholder={locale === "zh" ? "例如：周老师 或 周老师-备注" : "e.g. Teacher Zhou or Teacher Zhou - note"}
               onChange={(e) => setNewName(e.target.value)}
             />
           </label>
@@ -287,6 +317,11 @@ export function AdminJpLessonTeachersPage() {
                 : "Add"}
           </button>
         </form>
+        <p className="hint admin-user-add-hint">
+          {locale === "zh"
+            ? "添加后将自动在用户管理中创建禁用的日语教师账号（用户名取自横杠前称呼的拼音，随机密码）。启用账号后老师方可登录。"
+            : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin before “-”, random password). Enable it before the teacher can log in."}
+        </p>
       </section>
 
       <section className="section etr-panel admin-rbac-section">

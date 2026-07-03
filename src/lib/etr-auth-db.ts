@@ -633,12 +633,18 @@ export type CreateUserByAdminResult =
   | { ok: true; user: EtrUser }
   | { ok: false; error: string };
 
+export type CreateUserByAdminOptions = {
+  /** 1 = 已禁用，默认 0 */
+  disabled?: boolean;
+};
+
 /** 管理员在后台创建用户（不自动登录） */
 export async function createUserByAdmin(
   env: CloudflareEnv,
   username: string,
   password: string,
-  role: EtrUserRole
+  role: EtrUserRole,
+  options?: CreateUserByAdminOptions
 ): Promise<CreateUserByAdminResult> {
   await ensureBootstrapUsers(env);
 
@@ -668,6 +674,7 @@ export async function createUserByAdmin(
 
   const { salt, hash } = await hashPassword(password);
   const ts = nowIso();
+  const disabledFlag = options?.disabled ? 1 : 0;
 
   if (devAuthEnabled) {
     const created: DevUser = {
@@ -675,7 +682,7 @@ export async function createUserByAdmin(
       username: name,
       password_hash: encodePasswordStorage(salt, hash),
       role,
-      disabled: 0,
+      disabled: disabledFlag,
       created_at: ts,
     };
     devUsers.push(created);
@@ -683,12 +690,14 @@ export async function createUserByAdmin(
     return { ok: true, user };
   }
 
+  await ensureEtrUsersSchema(env.DB);
+
   const result = await env.DB
     .prepare(
-      `INSERT INTO etr_users (username, password_hash, role, created_at)
-       VALUES (?1, ?2, ?3, ?4)`
+      `INSERT INTO etr_users (username, password_hash, role, disabled, created_at)
+       VALUES (?1, ?2, ?3, ?4, ?5)`
     )
-    .bind(name, encodePasswordStorage(salt, hash), role, ts)
+    .bind(name, encodePasswordStorage(salt, hash), role, disabledFlag, ts)
     .run();
 
   const userId = Number(result.meta?.last_row_id ?? 0);
@@ -697,6 +706,76 @@ export async function createUserByAdmin(
   const user = await findUserById(env.DB, userId);
   if (!user) return { ok: false, error: "create_failed" };
   return { ok: true, user };
+}
+
+export type ProvisionJpLessonTeacherUserResult =
+  | { ok: true; created: true; user: EtrUser; password: string }
+  | { ok: true; created: false; reason: "user_exists" | "username_unavailable" }
+  | { ok: false; error: string };
+
+/** 添加日语上课老师时，自动创建禁用的 jp_vocab 账号（用户名取自横杠前的称呼拼音） */
+export async function provisionJpLessonTeacherUser(
+  env: CloudflareEnv,
+  teacherName: string
+): Promise<ProvisionJpLessonTeacherUserResult> {
+  const { teacherNameToUsername } = await import("./teacher-name-username");
+  const baseUsername = teacherNameToUsername(teacherName);
+  if (!baseUsername) {
+    return { ok: false, error: "username_invalid" };
+  }
+
+  await ensureBootstrapUsers(env);
+
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+
+  const candidates = [baseUsername];
+  for (let i = 2; i <= 99; i += 1) {
+    candidates.push(`${baseUsername}${i}`);
+  }
+
+  let username: string | null = null;
+  for (const candidate of candidates) {
+    const name = normalizeUsername(candidate);
+    if (!isValidUsername(name)) continue;
+    if (isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name)) {
+      continue;
+    }
+    const existing = await findUserByUsername(env.DB, name);
+    if (existing) {
+      if (candidate === baseUsername) {
+        return { ok: true, created: false, reason: "user_exists" };
+      }
+      continue;
+    }
+    username = name;
+    break;
+  }
+
+  if (!username) {
+    return { ok: true, created: false, reason: "username_unavailable" };
+  }
+
+  const password = generateAdminResetPassword(10);
+  const result = await createUserByAdmin(env, username, password, "jp_vocab", {
+    disabled: true,
+  });
+  if (!result.ok) {
+    if (result.error === "username_taken") {
+      return { ok: true, created: false, reason: "user_exists" };
+    }
+    return { ok: false, error: result.error };
+  }
+
+  return {
+    ok: true,
+    created: true,
+    user: result.user,
+    password,
+  };
 }
 
 export type UpdateUserByAdminInput = {

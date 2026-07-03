@@ -10,6 +10,10 @@ import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
+import {
+  formatAdminUserCredentials,
+  rememberAdminUserPassword,
+} from "@/lib/admin-user-credentials";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
@@ -359,6 +363,12 @@ export function JpLessonPage() {
         ok?: boolean;
         teacher?: JpLessonTeacher;
         error?: string;
+        user_account?: {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        };
       };
       if (!data.ok || !data.teacher) {
         if (data.error === "name_duplicate") {
@@ -366,6 +376,16 @@ export function JpLessonPage() {
           return existing ?? null;
         }
         return null;
+      }
+      if (data.user_account) {
+        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
+        setStatus(
+          `已添加老师，并自动创建禁用账号：${formatAdminUserCredentials(
+            data.user_account.username,
+            data.user_account.password,
+            "zh"
+          )}`
+        );
       }
       setTeachers((prev) => {
         const next = [...prev, data.teacher!].sort(
