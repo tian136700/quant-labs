@@ -264,40 +264,6 @@ export function JpLessonSchedulePage() {
   }, [selectedDate]);
 
   useEffect(() => {
-    if (viewMode !== "day") {
-      if (calendarRef.current) calendarRef.current.style.height = "";
-      return;
-    }
-
-    const panels = sidebarPanelsRef.current;
-    const calendar = calendarRef.current;
-    if (!panels || !calendar) return;
-
-    const mq = window.matchMedia("(max-width: 960px)");
-
-    const syncCalendarHeight = () => {
-      if (mq.matches) {
-        calendar.style.height = "";
-        return;
-      }
-      calendar.style.height = `${panels.offsetHeight}px`;
-    };
-
-    syncCalendarHeight();
-    const observer = new ResizeObserver(syncCalendarHeight);
-    observer.observe(panels);
-    mq.addEventListener("change", syncCalendarHeight);
-    window.addEventListener("resize", syncCalendarHeight);
-
-    return () => {
-      observer.disconnect();
-      mq.removeEventListener("change", syncCalendarHeight);
-      window.removeEventListener("resize", syncCalendarHeight);
-      calendar.style.height = "";
-    };
-  }, [viewMode, selectedEventKey, dayEvents.length, loading]);
-
-  useEffect(() => {
     document.title = "日程管理 · 日语新课";
   }, []);
 
@@ -381,6 +347,40 @@ export function JpLessonSchedulePage() {
   );
 
   const dayEvents = useMemo(() => eventsForDate(selectedDate), [eventsForDate, selectedDate]);
+
+  useEffect(() => {
+    if (viewMode !== "day") {
+      if (calendarRef.current) calendarRef.current.style.height = "";
+      return;
+    }
+
+    const panels = sidebarPanelsRef.current;
+    const calendar = calendarRef.current;
+    if (!panels || !calendar) return;
+
+    const mq = window.matchMedia("(max-width: 960px)");
+
+    const syncCalendarHeight = () => {
+      if (mq.matches) {
+        calendar.style.height = "";
+        return;
+      }
+      calendar.style.height = `${panels.offsetHeight}px`;
+    };
+
+    syncCalendarHeight();
+    const observer = new ResizeObserver(syncCalendarHeight);
+    observer.observe(panels);
+    mq.addEventListener("change", syncCalendarHeight);
+    window.addEventListener("resize", syncCalendarHeight);
+
+    return () => {
+      observer.disconnect();
+      mq.removeEventListener("change", syncCalendarHeight);
+      window.removeEventListener("resize", syncCalendarHeight);
+      calendar.style.height = "";
+    };
+  }, [viewMode, selectedEventKey, dayEvents.length, loading]);
 
   const weekEvents = useMemo(() => {
     const set = new Set(weekDates);
