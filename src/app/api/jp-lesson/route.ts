@@ -46,6 +46,7 @@ function stripAdminOnlyFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] 
     teacher_ids: [],
     teacher_other: null,
     next_class_at: null,
+    class_duration_minutes: null,
   }));
 }
 
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
       teacher_ids?: number[];
       teacher_other?: string | null;
       next_class_at?: string | null;
+      class_duration_minutes?: number | null;
     };
 
     if (body.action === "set_next_class_at") {
@@ -115,13 +117,26 @@ export async function POST(request: Request) {
             ? null
             : String(body.next_class_at);
 
-      const result = await updateJpLessonNextClassAt(env.DB, lessonId, nextClassAt);
+      const classDurationMinutes =
+        body.class_duration_minutes === undefined
+          ? undefined
+          : body.class_duration_minutes === null
+            ? null
+            : Number(body.class_duration_minutes);
+
+      const result = await updateJpLessonNextClassAt(
+        env.DB,
+        lessonId,
+        nextClassAt,
+        classDurationMinutes
+      );
 
       if (!result.ok) {
         const status =
           result.error === "not_found"
             ? 404
-            : result.error === "next_class_at_invalid"
+            : result.error === "next_class_at_invalid" ||
+                result.error === "class_duration_minutes_invalid"
               ? 400
               : 400;
         return jsonResponse({ ok: false, error: result.error }, status);

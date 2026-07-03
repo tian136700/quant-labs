@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   formatNextClassHalfHourLabel,
+  JP_LESSON_CLASS_DURATION_MINUTES,
   listNextClassHalfHourTimes,
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
@@ -15,10 +16,14 @@ type Props = {
   lesson: JpLessonRecord | null;
   saving?: boolean;
   onClose: () => void;
-  onSave: (nextClassAt: string | null) => void;
+  onSave: (nextClassAt: string | null, classDurationMinutes: number | null) => void;
 };
 
 const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
+const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
+  value: String(minutes),
+  label: minutes === 60 ? "1小时" : `${minutes}分钟`,
+}));
 
 export function JpLessonNextClassEditModal({
   open,
@@ -30,6 +35,7 @@ export function JpLessonNextClassEditModal({
   const [mounted, setMounted] = useState(false);
   const [dateValue, setDateValue] = useState("");
   const [timeValue, setTimeValue] = useState("");
+  const [durationValue, setDurationValue] = useState("");
 
   const timeOptions = useMemo(
     () =>
@@ -50,29 +56,36 @@ export function JpLessonNextClassEditModal({
     if (!local) {
       setDateValue("");
       setTimeValue("");
+      setDurationValue("");
       return;
     }
     const parts = splitNextClassAtLocalValue(local);
     if (!parts) {
       setDateValue("");
       setTimeValue("");
+      setDurationValue("");
       return;
     }
     setDateValue(parts.date);
     setTimeValue(parts.time);
+    setDurationValue(
+      lesson.class_duration_minutes != null ? String(lesson.class_duration_minutes) : ""
+    );
   }, [open, lesson]);
 
   const handleSave = () => {
     if (!dateValue.trim() || !timeValue.trim()) {
-      onSave(null);
+      onSave(null, null);
       return;
     }
-    onSave(`${dateValue}T${timeValue}`);
+    const durationMinutes = durationValue ? Number(durationValue) : null;
+    onSave(`${dateValue}T${timeValue}`, durationMinutes);
   };
 
   const handleClear = () => {
     setDateValue("");
     setTimeValue("");
+    setDurationValue("");
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -140,6 +153,28 @@ export function JpLessonNextClassEditModal({
           </div>
           <p className="jp-lesson-next-class-hint">
             仅可选整点或半点（如 13 点、13 点半）；留空表示未定义。
+          </p>
+        </fieldset>
+
+        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
+          <legend>上课时长</legend>
+          <label className="jp-lesson-next-class-field">
+            <span>时长</span>
+            <select
+              className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+              value={durationValue}
+              onChange={(e) => setDurationValue(e.target.value)}
+            >
+              <option value="">请选择</option>
+              {DURATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="jp-lesson-next-class-hint">
+            可选 30 分钟、45 分钟或 1 小时；保存后在列表「上课时间」下方显示。
           </p>
         </fieldset>
 

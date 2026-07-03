@@ -271,3 +271,27 @@ export function nextClassAtFromDatetimeLocalValue(local: string): string | null 
   const time = snapNextClassTimeToHalfHour(match[2]);
   return `${match[1]} ${time}:00`;
 }
+
+export const JP_LESSON_CLASS_DURATION_MINUTES = [30, 45, 60] as const;
+
+export type JpLessonClassDurationMinutes =
+  (typeof JP_LESSON_CLASS_DURATION_MINUTES)[number];
+
+export function normalizeClassDurationMinutes(
+  raw: number | null | undefined
+): number | null {
+  if (raw == null) return null;
+  const n = Number(raw);
+  return JP_LESSON_CLASS_DURATION_MINUTES.includes(n as JpLessonClassDurationMinutes)
+    ? n
+    : null;
+}
+
+export function formatClassDurationLabel(
+  minutes: number | null | undefined
+): string | null {
+  const normalized = normalizeClassDurationMinutes(minutes);
+  if (normalized == null) return null;
+  if (normalized === 60) return "1小时";
+  return `${normalized}分钟`;
+}

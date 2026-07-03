@@ -18,11 +18,13 @@ import {
 } from "@/lib/jp-api-cache";
 import {
   compareJpLessonsByRecentOperation,
+  formatClassDurationLabel,
   formatLessonContentLines,
   formatNextClassAtLabel,
   getJpLessonProgressStatus,
   jpLessonProgressToFields,
   nextClassAtFromDatetimeLocalValue,
+  normalizeClassDurationMinutes,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
@@ -258,6 +260,8 @@ export function JpLessonPage() {
               : (l.teacher_ids ?? []),
             teacher_other: server.teacher_other ?? l.teacher_other,
             next_class_at: server.next_class_at ?? l.next_class_at,
+            class_duration_minutes:
+              server.class_duration_minutes ?? l.class_duration_minutes,
           };
         });
         persistLessonCache(next, refs, notes, teachers);
@@ -333,7 +337,11 @@ export function JpLessonPage() {
     }
   };
 
-  const setLessonNextClassAt = async (lessonId: number, nextClassAt: string | null) => {
+  const setLessonNextClassAt = async (
+    lessonId: number,
+    nextClassAt: string | null,
+    classDurationMinutes: number | null = null
+  ) => {
     if (!isAdmin || savingNextClassId === lessonId) return;
 
     const normalized =
@@ -342,11 +350,21 @@ export function JpLessonPage() {
       setStatus("日期时间格式无效");
       return;
     }
+    const normalizedDuration =
+      normalized == null ? null : normalizeClassDurationMinutes(classDurationMinutes);
 
     const snapshot = lessons.find((l) => l.id === lessonId);
     setSavingNextClassId(lessonId);
     setLessons((prev) =>
-      prev.map((l) => (l.id === lessonId ? { ...l, next_class_at: normalized } : l))
+      prev.map((l) =>
+        l.id === lessonId
+          ? {
+              ...l,
+              next_class_at: normalized,
+              class_duration_minutes: normalizedDuration,
+            }
+          : l
+      )
     );
 
     try {
@@ -361,6 +379,7 @@ export function JpLessonPage() {
           action: "set_next_class_at",
           lesson_id: lessonId,
           next_class_at: normalized,
+          class_duration_minutes: normalizedDuration,
         }),
       });
       const data = (await res.json()) as {
@@ -443,6 +462,7 @@ export function JpLessonPage() {
               : "";
             const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
             const progressStatus = getJpLessonProgressStatus(lesson);
+            const classDurationLabel = formatClassDurationLabel(lesson.class_duration_minutes);
 
             return (
               <tr key={lesson.id}>
@@ -493,17 +513,24 @@ export function JpLessonPage() {
                 {isAdmin ? (
                   <td data-label="上课时间" className="jp-lesson-next-class-col">
                     <div className="jp-lesson-next-class-cell">
-                      <span
-                        className={
-                          progressStatus === "completed"
-                            ? "jp-lesson-next-class-label is-done"
-                            : lesson.next_class_at
-                              ? "jp-lesson-next-class-label"
-                              : "jp-lesson-next-class-label is-undefined"
-                        }
-                      >
-                        {formatNextClassAtLabel(lesson.next_class_at, progressStatus)}
-                      </span>
+                      <div className="jp-lesson-next-class-lines">
+                        <span
+                          className={
+                            progressStatus === "completed"
+                              ? "jp-lesson-next-class-label is-done"
+                              : lesson.next_class_at
+                                ? "jp-lesson-next-class-label"
+                                : "jp-lesson-next-class-label is-undefined"
+                          }
+                        >
+                          {formatNextClassAtLabel(lesson.next_class_at, progressStatus)}
+                        </span>
+                        {classDurationLabel ? (
+                          <span className="jp-lesson-class-duration-label">
+                            {classDurationLabel}
+                          </span>
+                        ) : null}
+                      </div>
                       <JpEditIconButton
                         title="设置下次上课时间"
                         disabled={savingNextClassId === lesson.id}
@@ -731,9 +758,13 @@ export function JpLessonPage() {
         lesson={editingNextClassLesson}
         saving={savingNextClassId === editingNextClassLesson?.id}
         onClose={() => setEditingNextClassLesson(null)}
-        onSave={(nextClassAt) => {
+        onSave={(nextClassAt, classDurationMinutes) => {
           if (editingNextClassLesson) {
-            void setLessonNextClassAt(editingNextClassLesson.id, nextClassAt);
+            void setLessonNextClassAt(
+              editingNextClassLesson.id,
+              nextClassAt,
+              classDurationMinutes
+            );
           }
         }}
       />
@@ -903,15 +934,26 @@ export function JpLessonPage() {
         :global(.jp-lesson-next-class-col) {
           font-size: 0.8125rem;
           min-width: 7.5rem;
-          white-space: nowrap;
         }
         :global(.jp-lesson-next-class-cell) {
           display: inline-flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 0.35rem;
+        }
+        :global(.jp-lesson-next-class-lines) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.12rem;
+          line-height: 1.35;
         }
         :global(.jp-lesson-next-class-label) {
           color: var(--accent);
+          white-space: nowrap;
+        }
+        :global(.jp-lesson-class-duration-label) {
+          color: var(--muted);
+          font-size: 0.75rem;
+          white-space: nowrap;
         }
         :global(.jp-lesson-next-class-label.is-undefined) {
           color: var(--muted);

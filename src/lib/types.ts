@@ -221,6 +221,8 @@ export interface JpLessonRecord {
   teacher_other: string | null;
   /** 下次上课时间（北京时间；仅管理员可见与编辑） */
   next_class_at: string | null;
+  /** 上课时长（分钟：30 / 45 / 60；仅管理员可见与编辑） */
+  class_duration_minutes: number | null;
   uploaded_at: string;
   created_at: string;
   updated_at: string;

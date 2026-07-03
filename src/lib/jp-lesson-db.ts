@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -59,6 +59,9 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.next_class_at != null && String(row.next_class_at).trim()
         ? String(row.next_class_at).trim()
         : null,
+    class_duration_minutes: normalizeClassDurationMinutes(
+      row.class_duration_minutes != null ? Number(row.class_duration_minutes) : null
+    ),
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -81,7 +84,7 @@ async function attachTeacherIds(
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
-  status_updated_at, status_updated_by, teacher_other, next_class_at, uploaded_at, created_at, updated_at FROM jp_lesson`;
+  status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (!devStoreEnabled) return;
@@ -102,6 +105,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       teacher_ids: [],
       teacher_other: null,
       next_class_at: null,
+      class_duration_minutes: null,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -275,6 +279,7 @@ export async function createJpLesson(
       teacher_ids: [],
       teacher_other: null,
       next_class_at: null,
+      class_duration_minutes: null,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -475,7 +480,8 @@ function normalizeNextClassAt(raw: string | null | undefined): string | null {
 export async function updateJpLessonNextClassAt(
   db: D1Database,
   lessonId: number,
-  nextClassAt: string | null
+  nextClassAt: string | null,
+  classDurationMinutes?: number | null
 ): Promise<UpdateJpLessonNextClassAtResult> {
   await seedIfEmpty(db);
 
@@ -487,6 +493,18 @@ export async function updateJpLessonNextClassAt(
     return { ok: false, error: "next_class_at_invalid" };
   }
 
+  let durationValue: number | null;
+  if (normalized == null) {
+    durationValue = null;
+  } else if (classDurationMinutes === undefined) {
+    durationValue = existing.class_duration_minutes ?? null;
+  } else {
+    durationValue = normalizeClassDurationMinutes(classDurationMinutes);
+    if (classDurationMinutes != null && durationValue == null) {
+      return { ok: false, error: "class_duration_minutes_invalid" };
+    }
+  }
+
   const ts = nowIso();
 
   if (devStoreEnabled) {
@@ -494,14 +512,17 @@ export async function updateJpLessonNextClassAt(
     devLessons[idx] = {
       ...devLessons[idx],
       next_class_at: normalized,
+      class_duration_minutes: durationValue,
       updated_at: ts,
     };
     return { ok: true, lesson: devLessons[idx] };
   }
 
   await db
-    .prepare(`UPDATE jp_lesson SET next_class_at = ?1, updated_at = ?2 WHERE id = ?3`)
-    .bind(normalized, ts, lessonId)
+    .prepare(
+      `UPDATE jp_lesson SET next_class_at = ?1, class_duration_minutes = ?2, updated_at = ?3 WHERE id = ?4`
+    )
+    .bind(normalized, durationValue, ts, lessonId)
     .run();
 
   const lesson = await getJpLessonById(db, lessonId);

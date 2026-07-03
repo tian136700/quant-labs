@@ -251,6 +251,8 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   teacher_other       TEXT,
   /** 下次上课时间（北京时间 YYYY-MM-DD HH:mm:ss；仅管理员可见与编辑） */
   next_class_at       TEXT,
+  /** 上课时长（分钟：30 / 45 / 60；仅管理员可见与编辑） */
+  class_duration_minutes INTEGER,
   uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -302,6 +304,7 @@ CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_i
 -- CREATE TABLE IF NOT EXISTS jp_vocab_setting (...);  -- 同上
 -- ALTER TABLE jp_lesson ADD COLUMN teacher_other TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN next_class_at TEXT;
+-- ALTER TABLE jp_lesson ADD COLUMN class_duration_minutes INTEGER;
 
 -- trend_aggregator：每日抓取批次 + 条目（含 AI 提示词，可溯源）
 CREATE TABLE IF NOT EXISTS trend_fetch_run (
