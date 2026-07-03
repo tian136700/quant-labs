@@ -23,6 +23,7 @@ __pycache__/
 
 # 本地开发工具（个人脚本，勿提交）
 kill-port.py
+git-quick-commit.py
 local-src/
 
 # 本地 D1 同步（仅本机预览真实数据，勿提交）
