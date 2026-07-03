@@ -208,6 +208,10 @@ export interface JpLessonTeacherReviewSummary {
   teacher_id: number;
   review_count: number;
   avg_score: number | null;
+  /** 最近一次评价的备注 */
+  latest_remark: string | null;
+  /** 最近一次评价的上课日期 */
+  latest_class_date: string | null;
 }
 
 /** 管理员复制登录链接时可选附带的文字模板 */

@@ -243,21 +243,40 @@ export async function deleteJpLessonTeacherReviewRecords(
   return { deleted: Number.isFinite(deleted) ? deleted : 0 };
 }
 
+function pickLatestRemarkReview(
+  current: JpLessonTeacherReviewRecord | null,
+  candidate: JpLessonTeacherReviewRecord
+): JpLessonTeacherReviewRecord | null {
+  const candidateRemark = candidate.remark?.trim();
+  if (!candidateRemark) return current;
+
+  if (!current?.remark?.trim()) return candidate;
+  if (candidate.updated_at > current.updated_at) return candidate;
+  if (candidate.updated_at < current.updated_at) return current;
+  return candidate.id > current.id ? candidate : current;
+}
+
 export async function listJpLessonTeacherReviewSummaries(
   db: D1Database
 ): Promise<JpLessonTeacherReviewSummary[]> {
   if (devStoreEnabled) {
-    const map = new Map<number, { total: number; count: number }>();
+    const map = new Map<
+      number,
+      { total: number; count: number; latestRemark: JpLessonTeacherReviewRecord | null }
+    >();
     for (const r of devRecords) {
-      const current = map.get(r.teacher_id) ?? { total: 0, count: 0 };
+      const current = map.get(r.teacher_id) ?? { total: 0, count: 0, latestRemark: null };
       current.total += r.score;
       current.count += 1;
+      current.latestRemark = pickLatestRemarkReview(current.latestRemark, r);
       map.set(r.teacher_id, current);
     }
-    return [...map.entries()].map(([teacher_id, { total, count }]) => ({
+    return [...map.entries()].map(([teacher_id, { total, count, latestRemark }]) => ({
       teacher_id,
       review_count: count,
       avg_score: count > 0 ? Math.round((total / count) * 10) / 10 : null,
+      latest_remark: latestRemark?.remark?.trim() ? latestRemark.remark.trim() : null,
+      latest_class_date: latestRemark?.class_date ?? null,
     }));
   }
 
@@ -265,22 +284,47 @@ export async function listJpLessonTeacherReviewSummaries(
     .prepare(
       `SELECT teacher_id,
               COUNT(*) AS review_count,
-              ROUND(AVG(score), 1) AS avg_score
-       FROM jp_lesson_teacher_review
+              ROUND(AVG(score), 1) AS avg_score,
+              (
+                SELECT remark FROM jp_lesson_teacher_review r2
+                WHERE r2.teacher_id = r.teacher_id
+                  AND r2.remark IS NOT NULL AND TRIM(r2.remark) != ''
+                ORDER BY r2.updated_at DESC, r2.id DESC
+                LIMIT 1
+              ) AS latest_remark,
+              (
+                SELECT class_date FROM jp_lesson_teacher_review r2
+                WHERE r2.teacher_id = r.teacher_id
+                  AND r2.remark IS NOT NULL AND TRIM(r2.remark) != ''
+                ORDER BY r2.updated_at DESC, r2.id DESC
+                LIMIT 1
+              ) AS latest_class_date
+       FROM jp_lesson_teacher_review r
        GROUP BY teacher_id`
     )
     .all<{
       teacher_id: number;
       review_count: number;
       avg_score: number | null;
+      latest_remark: string | null;
+      latest_class_date: string | null;
     }>();
 
-  return (results ?? []).map((row) => ({
-    teacher_id: Number(row.teacher_id),
-    review_count: Number(row.review_count) || 0,
-    avg_score:
-      row.avg_score != null && Number.isFinite(Number(row.avg_score))
-        ? Number(row.avg_score)
-        : null,
-  }));
+  return (results ?? []).map((row) => {
+    const remark =
+      row.latest_remark != null && String(row.latest_remark).trim()
+        ? String(row.latest_remark).trim()
+        : null;
+    return {
+      teacher_id: Number(row.teacher_id),
+      review_count: Number(row.review_count) || 0,
+      avg_score:
+        row.avg_score != null && Number.isFinite(Number(row.avg_score))
+          ? Number(row.avg_score)
+          : null,
+      latest_remark: remark,
+      latest_class_date:
+        row.latest_class_date != null ? String(row.latest_class_date) : null,
+    };
+  });
 }

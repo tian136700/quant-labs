@@ -987,6 +987,165 @@ textarea:focus {
   opacity: 0.75;
 }
 
+.admin-jpl-teachers-table-wrap {
+  @apply w-full overflow-x-auto;
+  margin-top: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 96%, var(--bg) 4%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 60%, transparent);
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-jpl-teachers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-jpl-teachers-table th,
+.admin-jpl-teachers-table td {
+  padding: 0.7rem 0.85rem;
+  vertical-align: top;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.admin-jpl-teachers-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.admin-jpl-teachers-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.admin-jpl-teachers-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+}
+
+.admin-jpl-teachers-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.admin-jpl-teachers-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-jpl-teachers-table .col-id {
+  width: 3rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-name {
+  min-width: 9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-sort {
+  width: 4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table thead .col-sort {
+  text-align: center;
+}
+
+.admin-jpl-teachers-table .col-score {
+  width: 6.5rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-remark {
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.admin-jpl-teachers-table .col-updated {
+  width: 9.5rem;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-actions {
+  width: 11rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.admin-jpl-remark-box {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.admin-jpl-remark-box:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.admin-jpl-remark-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.admin-jpl-remark-date {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-jpl-teachers-table .col-remark--empty {
+  color: var(--muted);
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-actions .etr-form-actions {
+  gap: 0.35rem;
+}
+
+.admin-jpl-sort-input {
+  width: 3.5rem;
+  text-align: center;
+}
+
 .etr-auth-panel--inline {
   max-width: none;
   margin-inline: 0;

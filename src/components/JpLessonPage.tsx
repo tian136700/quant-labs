@@ -198,7 +198,9 @@ export function JpLessonPage() {
 
   const copyLessonViewLink = async (lessonId: number, viewUrl: string) => {
     try {
-      await navigator.clipboard.writeText(`上课内容：${SITE_URL}${viewUrl}`);
+      await navigator.clipboard.writeText(
+        `老师，这是咱们需要上课内容，麻烦你有时间的时候抽空看一下：${SITE_URL}${viewUrl}`
+      );
       setCopiedId(lessonId);
       window.setTimeout(() => setCopiedId(null), 1000);
     } catch {

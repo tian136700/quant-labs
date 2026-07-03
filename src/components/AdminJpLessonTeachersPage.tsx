@@ -318,26 +318,29 @@ export function AdminJpLessonTeachersPage() {
         ) : teachers.length === 0 ? (
           <p className="hint">{locale === "zh" ? "暂无老师" : "No teachers yet"}</p>
         ) : (
-          <div className="admin-rbac-table-wrap">
-            <table className="admin-rbac-table">
+          <div className="admin-jpl-teachers-table-wrap">
+            <table className="admin-jpl-teachers-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>{locale === "zh" ? "名称" : "Name"}</th>
-                  <th>{locale === "zh" ? "排序" : "Sort"}</th>
-                  <th>{locale === "zh" ? "平均评分" : "Avg score"}</th>
-                  <th>{locale === "zh" ? "更新时间" : "Updated"}</th>
-                  <th>{locale === "zh" ? "操作" : "Actions"}</th>
+                  <th className="col-id">ID</th>
+                  <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
+                  <th className="col-sort">{locale === "zh" ? "排序" : "Sort"}</th>
+                  <th className="col-score">{locale === "zh" ? "平均评分" : "Avg"}</th>
+                  <th className="col-remark">{locale === "zh" ? "最近备注" : "Latest note"}</th>
+                  <th className="col-updated">{locale === "zh" ? "更新时间" : "Updated"}</th>
+                  <th className="col-actions">{locale === "zh" ? "操作" : "Actions"}</th>
                 </tr>
               </thead>
               <tbody>
                 {teachers.map((teacher) => {
                   const isEditing = editingId === teacher.id;
                   const summary = reviewSummaries.get(teacher.id);
+                  const latestRemark = summary?.latest_remark ?? null;
+                  const latestClassDate = summary?.latest_class_date ?? null;
                   return (
                     <tr key={teacher.id}>
-                      <td>{teacher.id}</td>
-                      <td>
+                      <td className="col-id">{teacher.id}</td>
+                      <td className="col-name">
                         {isEditing ? (
                           <input
                             type="text"
@@ -349,19 +352,20 @@ export function AdminJpLessonTeachersPage() {
                           teacher.name
                         )}
                       </td>
-                      <td>
+                      <td className="col-sort">
                         {isEditing ? (
                           <input
                             type="number"
                             value={editSortOrder}
                             disabled={saving}
+                            className="admin-jpl-sort-input"
                             onChange={(e) => setEditSortOrder(Number(e.target.value))}
                           />
                         ) : (
                           teacher.sort_order
                         )}
                       </td>
-                      <td>
+                      <td className="col-score">
                         {summary && summary.review_count > 0 && summary.avg_score != null ? (
                           <span
                             className={`etr-score-badge ${scoreClass(summary.avg_score)}`}
@@ -377,11 +381,31 @@ export function AdminJpLessonTeachersPage() {
                             </span>
                           </span>
                         ) : (
+                          <span className="col-remark--empty">—</span>
+                        )}
+                      </td>
+                      <td
+                        className={`col-remark${!latestRemark ? " col-remark--empty" : ""}`}
+                        title={latestRemark ?? undefined}
+                      >
+                        {latestRemark ? (
+                          <button
+                            type="button"
+                            className="admin-jpl-remark-box"
+                            title={locale === "zh" ? "点击查看全部评价" : "View all reviews"}
+                            onClick={() => setReviewTeacher(teacher)}
+                          >
+                            {latestClassDate ? (
+                              <span className="admin-jpl-remark-date">{latestClassDate}</span>
+                            ) : null}
+                            <span className="admin-jpl-remark-preview">{latestRemark}</span>
+                          </button>
+                        ) : (
                           "—"
                         )}
                       </td>
-                      <td>{formatBeijingDateTime(teacher.updated_at)}</td>
-                      <td>
+                      <td className="col-updated">{formatBeijingDateTime(teacher.updated_at)}</td>
+                      <td className="col-actions">
                         <div className="etr-form-actions etr-form-actions--inline">
                           {isEditing ? (
                             <>
@@ -406,7 +430,7 @@ export function AdminJpLessonTeachersPage() {
                             <>
                               <button
                                 type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
+                                className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
                                 onClick={() => setReviewTeacher(teacher)}
                               >
                                 {locale === "zh" ? "评价" : "Review"}
