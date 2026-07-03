@@ -292,6 +292,5 @@ export function formatClassDurationLabel(
 ): string | null {
   const normalized = normalizeClassDurationMinutes(minutes);
   if (normalized == null) return null;
-  if (normalized === 60) return "1小时";
-  return `${normalized}分钟`;
+  return `时长：${normalized}min`;
 }
