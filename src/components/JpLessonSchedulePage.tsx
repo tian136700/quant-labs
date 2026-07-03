@@ -551,13 +551,6 @@ export function JpLessonSchedulePage() {
           >
             ›
           </button>
-          <button
-            type="button"
-            className="jpls-today-btn"
-            onClick={() => setSelectedDate(beijingTodayDateString())}
-          >
-            今天
-          </button>
         </div>
 
         <div className="jpls-view-tabs" role="tablist" aria-label="视图切换">
@@ -949,7 +942,6 @@ export function JpLessonSchedulePage() {
           gap: 0.35rem;
         }
         .jpls-icon-btn,
-        .jpls-today-btn,
         .jpls-export-btn,
         .jpls-view-tab {
           border: 1px solid var(--border);
@@ -974,7 +966,6 @@ export function JpLessonSchedulePage() {
           padding: 0.35rem 0.55rem;
           font-size: 0.875rem;
         }
-        .jpls-today-btn,
         .jpls-export-btn {
           padding: 0.35rem 0.75rem;
         }
