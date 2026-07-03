@@ -174,7 +174,7 @@ export function JpLessonNextClassEditModal({
             </select>
           </label>
           <p className="jp-lesson-next-class-hint">
-            可选 30 分钟、45 分钟或 1 小时；保存后在列表「上课时间」下方显示。
+            可选 30 分钟、45 分钟、55 分钟或 1 小时；保存后在列表「上课时间」下方显示。
           </p>
         </fieldset>
 

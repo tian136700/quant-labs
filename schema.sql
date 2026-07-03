@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   teacher_other       TEXT,
   /** 下次上课时间（北京时间 YYYY-MM-DD HH:mm:ss；仅管理员可见与编辑） */
   next_class_at       TEXT,
-  /** 上课时长（分钟：30 / 45 / 60；仅管理员可见与编辑） */
+  /** 上课时长（分钟：30 / 45 / 55 / 60；仅管理员可见与编辑） */
   class_duration_minutes INTEGER,
   uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
