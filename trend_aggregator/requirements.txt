@@ -1,3 +1,0 @@
-# trend_aggregator 独立依赖（建议在子目录 venv 中安装）
-requests>=2.31.0
-feedparser>=6.0.11
