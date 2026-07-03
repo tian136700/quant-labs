@@ -286,7 +286,8 @@ export function JpLessonPage() {
   const setLessonTeachers = async (
     lessonId: number,
     teacherIds: number[],
-    teacherOther: string | null
+    teacherOther: string | null,
+    options?: { keepOpen?: boolean }
   ) => {
     if (!isAdmin || savingTeacherId === lessonId) return;
 
@@ -326,7 +327,9 @@ export function JpLessonPage() {
         persistLessonCache(next, refs, notes, teachers);
         return next;
       });
-      setEditingTeacherLesson(null);
+      if (!options?.keepOpen) {
+        setEditingTeacherLesson(null);
+      }
       setStatus("上课老师已更新");
       window.setTimeout(() => setStatus(""), 2500);
     } catch (err) {
@@ -336,8 +339,44 @@ export function JpLessonPage() {
         );
       }
       setStatus(err instanceof Error ? err.message : "保存失败");
+      throw err;
     } finally {
       setSavingTeacherId(null);
+    }
+  };
+
+  const addLessonTeacher = async (name: string): Promise<JpLessonTeacher | null> => {
+    if (!isAdmin) return null;
+
+    try {
+      const res = await fetch("/api/admin/jp-lesson-teachers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teacher?: JpLessonTeacher;
+        error?: string;
+      };
+      if (!data.ok || !data.teacher) {
+        if (data.error === "name_duplicate") {
+          const existing = teachers.find((t) => t.name === name.trim());
+          return existing ?? null;
+        }
+        return null;
+      }
+      setTeachers((prev) => {
+        const next = [...prev, data.teacher!].sort(
+          (a, b) => a.sort_order - b.sort_order || a.id - b.id
+        );
+        persistLessonCache(lessons, refs, notes, next);
+        return next;
+      });
+      return data.teacher;
+    } catch {
+      return null;
     }
   };
 
@@ -758,9 +797,15 @@ export function JpLessonPage() {
         teachers={teachers}
         saving={savingTeacherId === editingTeacherLesson?.id}
         onClose={() => setEditingTeacherLesson(null)}
-        onSave={(teacherIds, teacherOther) => {
+        onAddTeacher={addLessonTeacher}
+        onSave={(teacherIds, teacherOther, options) => {
           if (editingTeacherLesson) {
-            void setLessonTeachers(editingTeacherLesson.id, teacherIds, teacherOther);
+            return setLessonTeachers(
+              editingTeacherLesson.id,
+              teacherIds,
+              teacherOther,
+              options
+            );
           }
         }}
       />

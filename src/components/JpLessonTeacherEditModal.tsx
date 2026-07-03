@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 
@@ -10,7 +10,12 @@ type Props = {
   teachers: JpLessonTeacher[];
   saving?: boolean;
   onClose: () => void;
-  onSave: (teacherIds: number[], teacherOther: string | null) => void;
+  onSave: (
+    teacherIds: number[],
+    teacherOther: string | null,
+    options?: { keepOpen?: boolean }
+  ) => void | Promise<void>;
+  onAddTeacher: (name: string) => Promise<JpLessonTeacher | null>;
 };
 
 export function JpLessonTeacherEditModal({
@@ -20,11 +25,14 @@ export function JpLessonTeacherEditModal({
   saving = false,
   onClose,
   onSave,
+  onAddTeacher,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [otherChecked, setOtherChecked] = useState(false);
-  const [otherName, setOtherName] = useState("");
+  const [addName, setAddName] = useState("");
+  const [addingTeacher, setAddingTeacher] = useState(false);
+  const [addError, setAddError] = useState("");
+  const skipAddBlurRef = useRef(false);
 
   const sortedTeachers = useMemo(
     () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
@@ -38,9 +46,8 @@ export function JpLessonTeacherEditModal({
   useEffect(() => {
     if (!open || !lesson) return;
     setSelectedIds([...(lesson.teacher_ids ?? [])]);
-    const other = lesson.teacher_other?.trim() ?? "";
-    setOtherChecked(Boolean(other));
-    setOtherName(other);
+    setAddName("");
+    setAddError("");
   }, [open, lesson]);
 
   const toggleTeacher = (teacherId: number) => {
@@ -51,9 +58,52 @@ export function JpLessonTeacherEditModal({
     );
   };
 
+  const resolveExistingTeacher = (name: string): JpLessonTeacher | undefined =>
+    sortedTeachers.find((t) => t.name === name);
+
+  const handleAddTeacher = async () => {
+    const trimmed = addName.trim();
+    if (!trimmed || addingTeacher || saving) return;
+
+    skipAddBlurRef.current = true;
+    setAddError("");
+
+    const existing = resolveExistingTeacher(trimmed);
+    if (existing) {
+      const nextIds = selectedIds.includes(existing.id)
+        ? selectedIds
+        : [...selectedIds, existing.id];
+      setSelectedIds(nextIds);
+      setAddName("");
+      if (!selectedIds.includes(existing.id)) {
+        await onSave(nextIds, null, { keepOpen: true });
+      }
+      skipAddBlurRef.current = false;
+      return;
+    }
+
+    setAddingTeacher(true);
+    try {
+      const teacher = await onAddTeacher(trimmed);
+      if (!teacher) {
+        setAddError("添加失败，请重试");
+        skipAddBlurRef.current = false;
+        return;
+      }
+      const nextIds = selectedIds.includes(teacher.id)
+        ? selectedIds
+        : [...selectedIds, teacher.id];
+      setSelectedIds(nextIds);
+      setAddName("");
+      await onSave(nextIds, null, { keepOpen: true });
+    } finally {
+      setAddingTeacher(false);
+      skipAddBlurRef.current = false;
+    }
+  };
+
   const handleSave = () => {
-    const teacherOther = otherChecked ? otherName.trim() || null : null;
-    onSave(selectedIds, teacherOther);
+    onSave(selectedIds, null);
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -104,27 +154,41 @@ export function JpLessonTeacherEditModal({
                 <span>{teacher.name}</span>
               </label>
             ))}
-            <label className="jp-lesson-teacher-option jp-lesson-teacher-option--other">
+            <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
               <input
                 type="checkbox"
-                checked={otherChecked}
-                onChange={() => setOtherChecked((prev) => !prev)}
+                checked={false}
+                readOnly
+                tabIndex={-1}
+                aria-hidden="true"
               />
-              <span>其他老师</span>
+              <span className="jp-lesson-teacher-add-label">添加老师</span>
               <input
                 type="text"
-                className="jp-lesson-teacher-other-input"
-                value={otherName}
-                placeholder="手动输入姓名"
-                disabled={!otherChecked || saving}
-                onChange={(e) => setOtherName(e.target.value)}
+                className="jp-lesson-teacher-add-input"
+                value={addName}
+                placeholder="输入姓名后回车保存"
+                disabled={addingTeacher || saving}
+                onChange={(e) => {
+                  setAddName(e.target.value);
+                  if (addError) setAddError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleAddTeacher();
+                  }
+                }}
+                onBlur={() => {
+                  if (skipAddBlurRef.current) return;
+                  if (addName.trim()) void handleAddTeacher();
+                }}
               />
-            </label>
+            </div>
           </div>
+          {addError ? <p className="jp-lesson-teacher-add-error">{addError}</p> : null}
           {!sortedTeachers.length ? (
-            <p className="jp-lesson-teacher-hint">
-              暂无系统老师；可在下方勾选「其他老师」并手动填写。
-            </p>
+            <p className="jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
           ) : null}
         </fieldset>
 
@@ -163,7 +227,7 @@ export function JpLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-modal {
-          width: min(420px, 100%);
+          width: min(540px, 100%);
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -221,7 +285,7 @@ export function JpLessonTeacherEditModal({
           display: flex;
           flex-direction: column;
           gap: 0.45rem;
-          max-height: min(40vh, 260px);
+          max-height: min(55vh, 380px);
           overflow-y: auto;
           padding: 0.65rem 0.75rem;
           border: 1px solid var(--border);
@@ -241,12 +305,17 @@ export function JpLessonTeacherEditModal({
           flex-shrink: 0;
         }
 
-        .jp-lesson-teacher-option--other {
+        .jp-lesson-teacher-option--add {
           flex-wrap: wrap;
         }
 
-        .jp-lesson-teacher-other-input {
-          flex: 1 1 8rem;
+        .jp-lesson-teacher-add-label {
+          color: var(--muted);
+          flex-shrink: 0;
+        }
+
+        .jp-lesson-teacher-add-input {
+          flex: 1 1 10rem;
           min-width: 0;
           padding: 0.35rem 0.5rem;
           border: 1px solid var(--border);
@@ -256,9 +325,15 @@ export function JpLessonTeacherEditModal({
           font-size: 0.8125rem;
         }
 
-        .jp-lesson-teacher-other-input:disabled {
+        .jp-lesson-teacher-add-input:disabled {
           opacity: 0.55;
           cursor: not-allowed;
+        }
+
+        .jp-lesson-teacher-add-error {
+          margin: 0.45rem 0 0;
+          font-size: 0.8125rem;
+          color: var(--rise);
         }
 
         .jp-lesson-teacher-hint {
