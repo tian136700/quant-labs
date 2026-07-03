@@ -9,6 +9,8 @@
     "start": "next start",
     "start:local": "next start --port 3002 --hostname 127.0.0.1",
     "lint": "next lint",
+    "commit-push": "python3 git-quick-commit.py",
+    "commit-push-deploy": "python3 git-quick-commit.py --deploy",
     "predeploy": "python3 scripts/predeploy-clean.py",
     "cf:build": "NODE_ENV=production opennextjs-cloudflare build",
     "cf:deploy": "opennextjs-cloudflare deploy",
