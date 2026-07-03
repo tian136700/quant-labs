@@ -391,7 +391,15 @@ export function JpLessonPage() {
         throw new Error(data.error || "保存失败");
       }
       setLessons((prev) => {
-        const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
+        const next = prev.map((l) => {
+          if (l.id !== data.lesson!.id) return l;
+          const server = data.lesson!;
+          return {
+            ...server,
+            class_duration_minutes:
+              server.class_duration_minutes ?? l.class_duration_minutes ?? null,
+          };
+        });
         persistLessonCache(next, refs, notes, teachers);
         return next;
       });
