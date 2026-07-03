@@ -981,6 +981,12 @@ textarea:focus {
   background: color-mix(in srgb, var(--rise) 18%, transparent);
 }
 
+.admin-jpl-review-count {
+  margin-left: 0.2rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
 .etr-auth-panel--inline {
   max-width: none;
   margin-inline: 0;

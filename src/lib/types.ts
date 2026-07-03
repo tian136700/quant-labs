@@ -192,6 +192,24 @@ export interface JpLessonTeacher {
   updated_at: string;
 }
 
+export interface JpLessonTeacherReviewRecord {
+  id: number;
+  teacher_id: number;
+  class_date: string;
+  score: number;
+  remark: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type JpLessonTeacherReviewSortField = "class_date" | "score" | "updated_at";
+
+export interface JpLessonTeacherReviewSummary {
+  teacher_id: number;
+  review_count: number;
+  avg_score: number | null;
+}
+
 /** 管理员复制登录链接时可选附带的文字模板 */
 export interface LoginLinkTemplate {
   id: number;

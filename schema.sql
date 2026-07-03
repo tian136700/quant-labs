@@ -274,6 +274,22 @@ CREATE TABLE IF NOT EXISTS jp_lesson_teacher_link (
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_link_teacher ON jp_lesson_teacher_link (teacher_id);
 
+-- 日语新课：上课老师评价（管理员维护，参照英语老师评价：0～10 分 + 备注）
+CREATE TABLE IF NOT EXISTS jp_lesson_teacher_review (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  teacher_id  INTEGER NOT NULL,
+  class_date  TEXT    NOT NULL,
+  score       INTEGER NOT NULL,
+  remark      TEXT,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (teacher_id) REFERENCES jp_lesson_teacher (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_review_teacher ON jp_lesson_teacher_review (teacher_id);
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_review_class_date ON jp_lesson_teacher_review (class_date);
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_review_updated_at ON jp_lesson_teacher_review (updated_at);
+
 -- 日语新课：课堂笔记（每条笔记归属 content 中的某一单词/语法）
 CREATE TABLE IF NOT EXISTS jp_lesson_note (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

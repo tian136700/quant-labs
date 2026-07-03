@@ -5,6 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { JpLessonTeacherReviewModal } from "@/components/JpLessonTeacherReviewModal";
 import {
   adminPath,
   adminRbacPath,
@@ -13,7 +14,13 @@ import {
   adminUsersPath,
   jpLessonPath,
 } from "@/lib/locale-path";
-import type { JpLessonTeacher } from "@/lib/types";
+import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
+
+function scoreClass(score: number): string {
+  if (score >= 8) return "etr-score--high";
+  if (score <= 3) return "etr-score--low";
+  return "etr-score--mid";
+}
 
 export function AdminJpLessonTeachersPage() {
   const { locale } = useI18n();
@@ -29,18 +36,45 @@ export function AdminJpLessonTeachersPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editSortOrder, setEditSortOrder] = useState(0);
+  const [reviewSummaries, setReviewSummaries] = useState<
+    Map<number, JpLessonTeacherReviewSummary>
+  >(new Map());
+  const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
 
   useEffect(() => {
     document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
   }, [locale]);
 
-  const loadTeachers = useCallback(async () => {
-    setLoading(true);
+  const loadReviewSummaries = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/jp-lesson-teachers", {
+      const res = await fetch("/api/admin/jp-lesson-teacher-review?summary=1", {
         credentials: "include",
       });
       const data = (await res.json()) as {
+        ok?: boolean;
+        summaries?: JpLessonTeacherReviewSummary[];
+      };
+      if (!data.ok) return;
+      const map = new Map<number, JpLessonTeacherReviewSummary>();
+      for (const item of data.summaries ?? []) {
+        map.set(item.teacher_id, item);
+      }
+      setReviewSummaries(map);
+    } catch {
+      /* summary is optional; ignore load errors */
+    }
+  }, []);
+
+  const loadTeachers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [teachersRes, summariesRes] = await Promise.all([
+        fetch("/api/admin/jp-lesson-teachers", { credentials: "include" }),
+        fetch("/api/admin/jp-lesson-teacher-review?summary=1", {
+          credentials: "include",
+        }),
+      ]);
+      const data = (await teachersRes.json()) as {
         ok?: boolean;
         teachers?: JpLessonTeacher[];
         error?: string;
@@ -51,6 +85,18 @@ export function AdminJpLessonTeachersPage() {
         return;
       }
       setTeachers(data.teachers ?? []);
+
+      const summaryData = (await summariesRes.json()) as {
+        ok?: boolean;
+        summaries?: JpLessonTeacherReviewSummary[];
+      };
+      if (summaryData.ok) {
+        const map = new Map<number, JpLessonTeacherReviewSummary>();
+        for (const item of summaryData.summaries ?? []) {
+          map.set(item.teacher_id, item);
+        }
+        setReviewSummaries(map);
+      }
     } catch {
       setStatus("加载失败");
       setStatusErr(true);
@@ -279,6 +325,7 @@ export function AdminJpLessonTeachersPage() {
                   <th>ID</th>
                   <th>{locale === "zh" ? "名称" : "Name"}</th>
                   <th>{locale === "zh" ? "排序" : "Sort"}</th>
+                  <th>{locale === "zh" ? "平均评分" : "Avg score"}</th>
                   <th>{locale === "zh" ? "更新时间" : "Updated"}</th>
                   <th>{locale === "zh" ? "操作" : "Actions"}</th>
                 </tr>
@@ -286,6 +333,7 @@ export function AdminJpLessonTeachersPage() {
               <tbody>
                 {teachers.map((teacher) => {
                   const isEditing = editingId === teacher.id;
+                  const summary = reviewSummaries.get(teacher.id);
                   return (
                     <tr key={teacher.id}>
                       <td>{teacher.id}</td>
@@ -311,6 +359,25 @@ export function AdminJpLessonTeachersPage() {
                           />
                         ) : (
                           teacher.sort_order
+                        )}
+                      </td>
+                      <td>
+                        {summary && summary.review_count > 0 && summary.avg_score != null ? (
+                          <span
+                            className={`etr-score-badge ${scoreClass(summary.avg_score)}`}
+                            title={
+                              locale === "zh"
+                                ? `${summary.review_count} 条评价`
+                                : `${summary.review_count} review(s)`
+                            }
+                          >
+                            {summary.avg_score} {locale === "zh" ? "分" : "pts"}
+                            <span className="admin-jpl-review-count">
+                              ({summary.review_count})
+                            </span>
+                          </span>
+                        ) : (
+                          "—"
                         )}
                       </td>
                       <td>{formatBeijingDateTime(teacher.updated_at)}</td>
@@ -340,6 +407,13 @@ export function AdminJpLessonTeachersPage() {
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact"
+                                onClick={() => setReviewTeacher(teacher)}
+                              >
+                                {locale === "zh" ? "评价" : "Review"}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact"
                                 onClick={() => startEdit(teacher)}
                               >
                                 {locale === "zh" ? "编辑" : "Edit"}
@@ -363,6 +437,14 @@ export function AdminJpLessonTeachersPage() {
           </div>
         )}
       </section>
+
+      <JpLessonTeacherReviewModal
+        open={reviewTeacher != null}
+        teacher={reviewTeacher}
+        locale={locale}
+        onClose={() => setReviewTeacher(null)}
+        onChanged={() => void loadReviewSummaries()}
+      />
     </div>
   );
 }
