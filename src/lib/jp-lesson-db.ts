@@ -9,6 +9,11 @@ import {
   upsertJpVocabFromLesson,
 } from "@/lib/jp-vocab-db";
 import { getLessonTeacherIdsByLessonIds, replaceLessonTeachers } from "@/lib/jp-lesson-teacher-db";
+import {
+  getClassSchedulesByLessonIds,
+  replaceLessonClassSchedules,
+} from "@/lib/jp-lesson-class-schedule-db";
+import type { JpLessonClassScheduleInput } from "@/lib/types";
 
 const SEED_LESSONS: JpLessonUploadInput[] = [
   {
@@ -38,6 +43,14 @@ function normalizeKind(raw?: JpLessonKind | null): JpLessonKind {
 }
 
 function mapRow(row: Record<string, unknown>): JpLessonRecord {
+  const nextClassAt =
+    row.next_class_at != null && String(row.next_class_at).trim()
+      ? String(row.next_class_at).trim()
+      : null;
+  const classDurationMinutes = normalizeClassDurationMinutes(
+    row.class_duration_minutes != null ? Number(row.class_duration_minutes) : null
+  );
+
   return {
     id: Number(row.id),
     kind: row.kind === "grammar" ? "grammar" : "word",
@@ -55,13 +68,9 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.teacher_other != null && String(row.teacher_other).trim()
         ? String(row.teacher_other).trim()
         : null,
-    next_class_at:
-      row.next_class_at != null && String(row.next_class_at).trim()
-        ? String(row.next_class_at).trim()
-        : null,
-    class_duration_minutes: normalizeClassDurationMinutes(
-      row.class_duration_minutes != null ? Number(row.class_duration_minutes) : null
-    ),
+    class_schedules: [],
+    next_class_at: nextClassAt,
+    class_duration_minutes: classDurationMinutes,
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -77,10 +86,33 @@ async function attachTeacherIds(
     db,
     lessons.map((l) => l.id)
   );
-  return lessons.map((lesson) => ({
-    ...lesson,
-    teacher_ids: linkMap.get(lesson.id) ?? [],
-  }));
+  const scheduleMap = await getClassSchedulesByLessonIds(
+    db,
+    lessons.map((l) => l.id)
+  );
+  return lessons.map((lesson) => {
+    const schedules = scheduleMap.get(lesson.id) ?? [];
+    const legacySchedules =
+      schedules.length > 0
+        ? schedules
+        : lesson.next_class_at
+          ? [
+              {
+                id: 0,
+                class_at: lesson.next_class_at,
+                duration_minutes: lesson.class_duration_minutes,
+              },
+            ]
+          : [];
+    const first = legacySchedules[0];
+    return {
+      ...lesson,
+      teacher_ids: linkMap.get(lesson.id) ?? [],
+      class_schedules: legacySchedules,
+      next_class_at: first?.class_at ?? null,
+      class_duration_minutes: first?.duration_minutes ?? null,
+    };
+  });
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
@@ -104,6 +136,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       status_updated_by: null,
       teacher_ids: [],
       teacher_other: null,
+      class_schedules: [],
       next_class_at: null,
       class_duration_minutes: null,
       uploaded_at: ts,
@@ -278,6 +311,7 @@ export async function createJpLesson(
       status_updated_by: null,
       teacher_ids: [],
       teacher_other: null,
+      class_schedules: [],
       next_class_at: null,
       class_duration_minutes: null,
       uploaded_at: ts,
@@ -463,55 +497,34 @@ export async function updateJpLessonTeacherAssignment(
   return { ok: true, lesson };
 }
 
-export type UpdateJpLessonNextClassAtResult =
+export type UpdateJpLessonClassSchedulesResult =
   | { ok: true; lesson: JpLessonRecord }
   | { ok: false; error: string };
 
-function normalizeNextClassAt(raw: string | null | undefined): string | null {
-  if (raw == null) return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
-    return null;
-  }
-  return trimmed.length === 16 ? `${trimmed}:00` : trimmed;
-}
-
-export async function updateJpLessonNextClassAt(
+export async function updateJpLessonClassSchedules(
   db: D1Database,
   lessonId: number,
-  nextClassAt: string | null,
-  classDurationMinutes?: number | null
-): Promise<UpdateJpLessonNextClassAtResult> {
+  schedules: JpLessonClassScheduleInput[]
+): Promise<UpdateJpLessonClassSchedulesResult> {
   await seedIfEmpty(db);
 
   const existing = await getJpLessonById(db, lessonId);
   if (!existing) return { ok: false, error: "not_found" };
 
-  const normalized = normalizeNextClassAt(nextClassAt);
-  if (nextClassAt != null && nextClassAt.trim() && normalized == null) {
-    return { ok: false, error: "next_class_at_invalid" };
-  }
+  const replaceResult = await replaceLessonClassSchedules(db, lessonId, schedules);
+  if (!replaceResult.ok) return replaceResult;
 
-  let durationValue: number | null;
-  if (normalized == null) {
-    durationValue = null;
-  } else if (classDurationMinutes === undefined) {
-    durationValue = existing.class_duration_minutes ?? null;
-  } else {
-    durationValue = normalizeClassDurationMinutes(classDurationMinutes);
-    if (classDurationMinutes != null && durationValue == null) {
-      return { ok: false, error: "class_duration_minutes_invalid" };
-    }
-  }
-
+  const first = replaceResult.schedules[0];
+  const nextClassAt = first?.class_at ?? null;
+  const durationValue = first?.duration_minutes ?? null;
   const ts = nowIso();
 
   if (devStoreEnabled) {
     const idx = devLessons.findIndex((l) => l.id === lessonId);
     devLessons[idx] = {
       ...devLessons[idx],
-      next_class_at: normalized,
+      class_schedules: replaceResult.schedules,
+      next_class_at: nextClassAt,
       class_duration_minutes: durationValue,
       updated_at: ts,
     };
@@ -522,12 +535,31 @@ export async function updateJpLessonNextClassAt(
     .prepare(
       `UPDATE jp_lesson SET next_class_at = ?1, class_duration_minutes = ?2, updated_at = ?3 WHERE id = ?4`
     )
-    .bind(normalized, durationValue, ts, lessonId)
+    .bind(nextClassAt, durationValue, ts, lessonId)
     .run();
 
   const lesson = await getJpLessonById(db, lessonId);
   if (!lesson) return { ok: false, error: "not_found" };
   return { ok: true, lesson };
+}
+
+/** @deprecated 使用 updateJpLessonClassSchedules */
+export async function updateJpLessonNextClassAt(
+  db: D1Database,
+  lessonId: number,
+  nextClassAt: string | null,
+  classDurationMinutes?: number | null
+): Promise<UpdateJpLessonClassSchedulesResult> {
+  if (nextClassAt == null || !nextClassAt.trim()) {
+    return updateJpLessonClassSchedules(db, lessonId, []);
+  }
+  return updateJpLessonClassSchedules(db, lessonId, [
+    {
+      class_at: nextClassAt,
+      duration_minutes:
+        classDurationMinutes === undefined ? null : classDurationMinutes,
+    },
+  ]);
 }
 
 /** 教案 ref 更新标题时，同步关联的新课记录 */

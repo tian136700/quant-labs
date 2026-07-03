@@ -4,19 +4,28 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   formatNextClassHalfHourLabel,
+  getLessonClassSchedules,
   JP_LESSON_CLASS_DURATION_MINUTES,
   listNextClassHalfHourTimes,
+  nextClassAtFromDatetimeLocalValue,
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
 } from "@/lib/jp-lesson-shared";
-import type { JpLessonRecord } from "@/lib/types";
+import type { JpLessonClassScheduleInput, JpLessonRecord } from "@/lib/types";
 
 type Props = {
   open: boolean;
   lesson: JpLessonRecord | null;
   saving?: boolean;
   onClose: () => void;
-  onSave: (nextClassAt: string | null, classDurationMinutes: number | null) => void;
+  onSave: (schedules: JpLessonClassScheduleInput[]) => void;
+};
+
+type ScheduleRow = {
+  key: string;
+  date: string;
+  time: string;
+  duration: string;
 };
 
 const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
@@ -24,6 +33,31 @@ const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   value: String(minutes),
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
 }));
+
+function createRowKey(): string {
+  return `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function emptyRow(): ScheduleRow {
+  return { key: createRowKey(), date: "", time: "", duration: "" };
+}
+
+function rowsFromLesson(lesson: JpLessonRecord): ScheduleRow[] {
+  const schedules = getLessonClassSchedules(lesson);
+  if (!schedules.length) return [emptyRow()];
+
+  return schedules.map((schedule) => {
+    const local = nextClassAtToDatetimeLocalValue(schedule.class_at);
+    const parts = local ? splitNextClassAtLocalValue(local) : null;
+    return {
+      key: createRowKey(),
+      date: parts?.date ?? "",
+      time: parts?.time ?? "",
+      duration:
+        schedule.duration_minutes != null ? String(schedule.duration_minutes) : "",
+    };
+  });
+}
 
 export function JpLessonNextClassEditModal({
   open,
@@ -33,9 +67,7 @@ export function JpLessonNextClassEditModal({
   onSave,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [dateValue, setDateValue] = useState("");
-  const [timeValue, setTimeValue] = useState("");
-  const [durationValue, setDurationValue] = useState("");
+  const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
 
   const timeOptions = useMemo(
     () =>
@@ -52,40 +84,49 @@ export function JpLessonNextClassEditModal({
 
   useEffect(() => {
     if (!open || !lesson) return;
-    const local = nextClassAtToDatetimeLocalValue(lesson.next_class_at);
-    if (!local) {
-      setDateValue("");
-      setTimeValue("");
-      setDurationValue("");
-      return;
-    }
-    const parts = splitNextClassAtLocalValue(local);
-    if (!parts) {
-      setDateValue("");
-      setTimeValue("");
-      setDurationValue("");
-      return;
-    }
-    setDateValue(parts.date);
-    setTimeValue(parts.time);
-    setDurationValue(
-      lesson.class_duration_minutes != null ? String(lesson.class_duration_minutes) : ""
-    );
+    setRows(rowsFromLesson(lesson));
   }, [open, lesson]);
 
+  const updateRow = (key: string, patch: Partial<Omit<ScheduleRow, "key">>) => {
+    setRows((prev) =>
+      prev.map((row) => (row.key === key ? { ...row, ...patch } : row))
+    );
+  };
+
+  const addRow = () => {
+    setRows((prev) => [...prev, emptyRow()]);
+  };
+
+  const removeRow = (key: string) => {
+    setRows((prev) => {
+      const next = prev.filter((row) => row.key !== key);
+      return next.length ? next : [emptyRow()];
+    });
+  };
+
   const handleSave = () => {
-    if (!dateValue.trim() || !timeValue.trim()) {
-      onSave(null, null);
-      return;
+    const schedules: JpLessonClassScheduleInput[] = [];
+
+    for (const row of rows) {
+      const hasDate = row.date.trim();
+      const hasTime = row.time.trim();
+      if (!hasDate && !hasTime) continue;
+      if (!hasDate || !hasTime) continue;
+
+      const classAt = nextClassAtFromDatetimeLocalValue(`${row.date}T${row.time}`);
+      if (!classAt) continue;
+
+      schedules.push({
+        class_at: classAt,
+        duration_minutes: row.duration ? Number(row.duration) : null,
+      });
     }
-    const durationMinutes = durationValue ? Number(durationValue) : null;
-    onSave(`${dateValue}T${timeValue}`, durationMinutes);
+
+    onSave(schedules);
   };
 
   const handleClear = () => {
-    setDateValue("");
-    setTimeValue("");
-    setDurationValue("");
+    setRows([emptyRow()]);
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -125,56 +166,80 @@ export function JpLessonNextClassEditModal({
 
         <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
           <legend>上课时间（北京时间，整点 / 半点）</legend>
-          <div className="jp-lesson-next-class-fields">
-            <label className="jp-lesson-next-class-field">
-              <span>日期</span>
-              <input
-                type="date"
-                className="jp-lesson-next-class-input"
-                value={dateValue}
-                onChange={(e) => setDateValue(e.target.value)}
-              />
-            </label>
-            <label className="jp-lesson-next-class-field">
-              <span>时间</span>
-              <select
-                className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
-                value={timeValue}
-                onChange={(e) => setTimeValue(e.target.value)}
-              >
-                <option value="">请选择</option>
-                {timeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <div className="jp-lesson-next-class-rows">
+            {rows.map((row, index) => (
+              <div key={row.key} className="jp-lesson-next-class-row">
+                <div className="jp-lesson-next-class-row-head">
+                  <span className="jp-lesson-next-class-row-title">
+                    预约 {index + 1}
+                  </span>
+                  {rows.length > 1 ? (
+                    <button
+                      type="button"
+                      className="jp-lesson-next-class-row-remove"
+                      aria-label={`删除预约 ${index + 1}`}
+                      onClick={() => removeRow(row.key)}
+                    >
+                      删除
+                    </button>
+                  ) : null}
+                </div>
+                <div className="jp-lesson-next-class-fields">
+                  <label className="jp-lesson-next-class-field">
+                    <span>日期</span>
+                    <input
+                      type="date"
+                      className="jp-lesson-next-class-input"
+                      value={row.date}
+                      onChange={(e) => updateRow(row.key, { date: e.target.value })}
+                    />
+                  </label>
+                  <label className="jp-lesson-next-class-field">
+                    <span>时间</span>
+                    <select
+                      className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+                      value={row.time}
+                      onChange={(e) => updateRow(row.key, { time: e.target.value })}
+                    >
+                      <option value="">请选择</option>
+                      {timeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="jp-lesson-next-class-field">
+                    <span>时长</span>
+                    <select
+                      className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+                      value={row.duration}
+                      onChange={(e) =>
+                        updateRow(row.key, { duration: e.target.value })
+                      }
+                    >
+                      <option value="">请选择</option>
+                      {DURATION_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ))}
           </div>
+          <button
+            type="button"
+            className="jp-lesson-next-class-add"
+            disabled={saving}
+            onClick={addRow}
+          >
+            + 添加预约
+          </button>
           <p className="jp-lesson-next-class-hint">
-            仅可选整点或半点（如 13 点、13 点半）；留空表示未定义。
-          </p>
-        </fieldset>
-
-        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
-          <legend>上课时长</legend>
-          <label className="jp-lesson-next-class-field">
-            <span>时长</span>
-            <select
-              className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
-              value={durationValue}
-              onChange={(e) => setDurationValue(e.target.value)}
-            >
-              <option value="">请选择</option>
-              {DURATION_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="jp-lesson-next-class-hint">
-            可选 20 分钟、30 分钟、45 分钟、55 分钟或 1 小时；保存后在列表「上课时间」下方显示。
+            仅可选整点或半点（如 13 点、13 点半）；可添加多条预约；全部留空表示未定义。
           </p>
         </fieldset>
 
@@ -221,7 +286,9 @@ export function JpLessonNextClassEditModal({
         }
 
         .jp-lesson-next-class-modal {
-          width: min(420px, 100%);
+          width: min(520px, 100%);
+          max-height: min(90vh, 720px);
+          overflow: auto;
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -275,6 +342,45 @@ export function JpLessonNextClassEditModal({
           margin-bottom: 0.5rem;
         }
 
+        .jp-lesson-next-class-rows {
+          display: grid;
+          gap: 0.75rem;
+        }
+
+        .jp-lesson-next-class-row {
+          padding: 0.65rem 0.7rem;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: color-mix(in srgb, var(--bg) 28%, var(--panel));
+        }
+
+        .jp-lesson-next-class-row-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          margin-bottom: 0.55rem;
+        }
+
+        .jp-lesson-next-class-row-title {
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+
+        .jp-lesson-next-class-row-remove {
+          border: none;
+          background: transparent;
+          color: var(--muted);
+          font-size: 0.75rem;
+          cursor: pointer;
+          padding: 0.15rem 0.25rem;
+        }
+
+        .jp-lesson-next-class-row-remove:hover {
+          color: var(--rise);
+        }
+
         .jp-lesson-next-class-fields {
           display: grid;
           gap: 0.65rem;
@@ -303,6 +409,22 @@ export function JpLessonNextClassEditModal({
 
         .jp-lesson-next-class-time-select {
           cursor: pointer;
+        }
+
+        .jp-lesson-next-class-add {
+          margin-top: 0.65rem;
+          width: 100%;
+          padding: 0.55rem 0.75rem;
+          border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+          color: var(--accent);
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+
+        .jp-lesson-next-class-add:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
         }
 
         .jp-lesson-next-class-hint {

@@ -224,6 +224,19 @@ export interface LoginLinkTemplate {
   updated_at: string;
 }
 
+export interface JpLessonClassSchedule {
+  id: number;
+  /** 上课时间（北京时间 YYYY-MM-DD HH:mm:ss） */
+  class_at: string;
+  /** 上课时长（分钟：20 / 30 / 45 / 55 / 60） */
+  duration_minutes: number | null;
+}
+
+export type JpLessonClassScheduleInput = {
+  class_at: string;
+  duration_minutes: number | null;
+};
+
 export interface JpLessonRecord {
   id: number;
   kind: JpLessonKind;
@@ -241,9 +254,11 @@ export interface JpLessonRecord {
   teacher_ids: number[];
   /** 未维护在系统中的其他上课老师姓名；仅管理员可见与编辑 */
   teacher_other: string | null;
-  /** 下次上课时间（北京时间；仅管理员可见与编辑） */
+  /** 预约上课时间列表（北京时间；仅管理员可见与编辑） */
+  class_schedules: JpLessonClassSchedule[];
+  /** @deprecated 兼容旧字段，等于 class_schedules[0] */
   next_class_at: string | null;
-  /** 上课时长（分钟：20 / 30 / 45 / 55 / 60；仅管理员可见与编辑） */
+  /** @deprecated 兼容旧字段，等于 class_schedules[0]?.duration_minutes */
   class_duration_minutes: number | null;
   uploaded_at: string;
   created_at: string;

@@ -274,6 +274,19 @@ CREATE TABLE IF NOT EXISTS jp_lesson_teacher_link (
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_link_teacher ON jp_lesson_teacher_link (teacher_id);
 
+-- 日语新课：多条预约上课时间（仅管理员可见与编辑）
+CREATE TABLE IF NOT EXISTS jp_lesson_class_schedule (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  lesson_id        INTEGER NOT NULL,
+  class_at         TEXT    NOT NULL,
+  duration_minutes INTEGER,
+  sort_order       INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (lesson_id) REFERENCES jp_lesson (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_class_schedule_lesson ON jp_lesson_class_schedule (lesson_id, sort_order ASC, class_at ASC);
+
 -- 日语新课：上课老师评价（管理员维护，参照英语老师评价：0～10 分 + 备注）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher_review (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -321,6 +334,7 @@ CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_i
 -- ALTER TABLE jp_lesson ADD COLUMN teacher_other TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN next_class_at TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN class_duration_minutes INTEGER;
+-- CREATE TABLE IF NOT EXISTS jp_lesson_class_schedule (...);  -- 同上
 
 -- trend_aggregator：每日抓取批次 + 条目（含 AI 提示词，可溯源）
 CREATE TABLE IF NOT EXISTS trend_fetch_run (

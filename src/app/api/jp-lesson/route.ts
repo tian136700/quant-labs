@@ -2,6 +2,7 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   listJpLessons,
+  updateJpLessonClassSchedules,
   updateJpLessonNextClassAt,
   updateJpLessonProgress,
   updateJpLessonTeacherAssignment,
@@ -45,6 +46,7 @@ function stripAdminOnlyFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] 
     ...lesson,
     teacher_ids: [],
     teacher_other: null,
+    class_schedules: [],
     next_class_at: null,
     class_duration_minutes: null,
   }));
@@ -97,9 +99,13 @@ export async function POST(request: Request) {
       teacher_other?: string | null;
       next_class_at?: string | null;
       class_duration_minutes?: number | null;
+      class_schedules?: Array<{
+        class_at: string;
+        duration_minutes: number | null;
+      }>;
     };
 
-    if (body.action === "set_next_class_at") {
+    if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {
       const { isAdmin } = await requireAdmin(request);
       if (!isAdmin) {
         return jsonResponse({ ok: false, error: "forbidden" }, 403);
@@ -108,6 +114,33 @@ export async function POST(request: Request) {
       const lessonId = Number(body.lesson_id);
       if (!Number.isInteger(lessonId) || lessonId <= 0) {
         return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      if (Array.isArray(body.class_schedules)) {
+        const result = await updateJpLessonClassSchedules(
+          env.DB,
+          lessonId,
+          body.class_schedules.map((item) => ({
+            class_at: String(item.class_at),
+            duration_minutes:
+              item.duration_minutes === null || item.duration_minutes === undefined
+                ? null
+                : Number(item.duration_minutes),
+          }))
+        );
+
+        if (!result.ok) {
+          const status =
+            result.error === "not_found"
+              ? 404
+              : result.error === "class_at_invalid" ||
+                  result.error === "class_duration_minutes_invalid"
+                ? 400
+                : 400;
+          return jsonResponse({ ok: false, error: result.error }, status);
+        }
+
+        return jsonResponse({ ok: true, lesson: result.lesson });
       }
 
       const nextClassAt =
@@ -135,8 +168,9 @@ export async function POST(request: Request) {
         const status =
           result.error === "not_found"
             ? 404
-            : result.error === "next_class_at_invalid" ||
-                result.error === "class_duration_minutes_invalid"
+            : result.error === "class_at_invalid" ||
+                result.error === "class_duration_minutes_invalid" ||
+                result.error === "next_class_at_invalid"
               ? 400
               : 400;
         return jsonResponse({ ok: false, error: result.error }, status);

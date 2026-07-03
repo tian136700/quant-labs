@@ -131,12 +131,21 @@ function beijingDateParts(date: Date): { y: number; m: number; d: number; weekda
   };
 }
 
-function beijingDateStringFromDate(date: Date): string {
+export function beijingDateStringFromDate(date: Date): string {
   const { y, m, d } = beijingDateParts(date);
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function parseBeijingDateTime(raw: string): Date | null {
+export function beijingTodayDateString(now = new Date()): string {
+  return beijingDateStringFromDate(now);
+}
+
+export function beijingDateOnlyFromClassAt(classAt: string): string | null {
+  const match = classAt.trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
+export function parseBeijingDateTime(raw: string): Date | null {
   const trimmed = raw.trim();
   const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
   if (!match) return null;
@@ -146,7 +155,7 @@ function parseBeijingDateTime(raw: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function beijingTimeHm(date: Date): string {
+export function beijingTimeHm(date: Date): string {
   const parts = new Intl.DateTimeFormat("zh-CN", {
     timeZone: BEIJING_TZ,
     hour: "2-digit",
@@ -181,6 +190,29 @@ function beijingWeekStartUtcMs(date: Date): number {
   const dateStr = beijingDateStringFromDate(monday);
   const parsed = parseBeijingDateTime(`${dateStr} 00:00:00`);
   return parsed?.getTime() ?? date.getTime();
+}
+
+/** 读取课程的预约上课时间（兼容旧单条 next_class_at 字段） */
+export function getLessonClassSchedules(lesson: {
+  class_schedules?: Array<{
+    id: number;
+    class_at: string;
+    duration_minutes: number | null;
+  }>;
+  next_class_at?: string | null;
+  class_duration_minutes?: number | null;
+}): Array<{ id: number; class_at: string; duration_minutes: number | null }> {
+  if (lesson.class_schedules?.length) return lesson.class_schedules;
+  if (lesson.next_class_at?.trim()) {
+    return [
+      {
+        id: 0,
+        class_at: lesson.next_class_at.trim(),
+        duration_minutes: lesson.class_duration_minutes ?? null,
+      },
+    ];
+  }
+  return [];
 }
 
 /** 将存储的下次上课时间格式化为列表展示文案 */
@@ -293,4 +325,115 @@ export function formatClassDurationLabel(
   const normalized = normalizeClassDurationMinutes(minutes);
   if (normalized == null) return null;
   return `时长：${normalized}min`;
+}
+
+/** 日程视图未填写时长时的默认分钟数 */
+export const DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES = 55;
+
+export type JpLessonScheduleEvent = {
+  key: string;
+  lessonId: number;
+  scheduleId: number;
+  classAt: string;
+  start: Date;
+  end: Date;
+  durationMinutes: number;
+};
+
+export function resolveClassDurationMinutes(
+  minutes: number | null | undefined
+): number {
+  return normalizeClassDurationMinutes(minutes) ?? DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES;
+}
+
+export function buildJpLessonScheduleEvents(lesson: {
+  id: number;
+  class_schedules?: Array<{
+    id: number;
+    class_at: string;
+    duration_minutes: number | null;
+  }>;
+  next_class_at?: string | null;
+  class_duration_minutes?: number | null;
+}): JpLessonScheduleEvent[] {
+  const events: JpLessonScheduleEvent[] = [];
+  for (const schedule of getLessonClassSchedules(lesson)) {
+    const start = parseBeijingDateTime(schedule.class_at);
+    if (!start) continue;
+    const durationMinutes = resolveClassDurationMinutes(schedule.duration_minutes);
+    events.push({
+      key: `${lesson.id}-${schedule.id}-${schedule.class_at}`,
+      lessonId: lesson.id,
+      scheduleId: schedule.id,
+      classAt: schedule.class_at,
+      start,
+      end: new Date(start.getTime() + durationMinutes * 60_000),
+      durationMinutes,
+    });
+  }
+  return events;
+}
+
+export function flattenJpLessonScheduleEvents(
+  lessons: Array<Parameters<typeof buildJpLessonScheduleEvents>[0]>
+): JpLessonScheduleEvent[] {
+  return lessons
+    .flatMap((lesson) => buildJpLessonScheduleEvents(lesson))
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+export function beijingMinutesFromMidnight(date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BEIJING_TZ,
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
+export function addBeijingCalendarDays(dateStr: string, days: number): string {
+  const parsed = parseBeijingDateTime(`${dateStr} 12:00:00`);
+  if (!parsed) return dateStr;
+  return beijingDateStringFromDate(addBeijingDays(parsed, days));
+}
+
+export function beijingWeekStartDate(dateStr: string): string {
+  const parsed = parseBeijingDateTime(`${dateStr} 12:00:00`);
+  if (!parsed) return dateStr;
+  const { weekday } = beijingDateParts(parsed);
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  return addBeijingCalendarDays(dateStr, mondayOffset);
+}
+
+export function beijingMonthGridDates(dateStr: string): string[] {
+  const year = Number(dateStr.slice(0, 4));
+  const month = Number(dateStr.slice(5, 7));
+  const firstStr = `${year}-${String(month).padStart(2, "0")}-01`;
+  const parsed = parseBeijingDateTime(`${firstStr} 12:00:00`);
+  if (!parsed) return [];
+  const { weekday } = beijingDateParts(parsed);
+  const mondayOffset = weekday === 0 ? -6 : 1 - weekday;
+  const gridStart = addBeijingCalendarDays(firstStr, mondayOffset);
+  return Array.from({ length: 42 }, (_, index) => addBeijingCalendarDays(gridStart, index));
+}
+
+export function beijingWeekdayLabel(dateStr: string): string {
+  const parsed = parseBeijingDateTime(`${dateStr} 12:00:00`);
+  if (!parsed) return "";
+  return `周${WEEKDAY_SHORT[beijingDateParts(parsed).weekday]}`;
+}
+
+export type JpLessonScheduleEventStatus = "past" | "ongoing" | "upcoming";
+
+export function getJpLessonScheduleEventStatus(
+  event: { start: Date; end: Date },
+  now = new Date()
+): JpLessonScheduleEventStatus {
+  const ts = now.getTime();
+  if (ts >= event.end.getTime()) return "past";
+  if (ts >= event.start.getTime()) return "ongoing";
+  return "upcoming";
 }

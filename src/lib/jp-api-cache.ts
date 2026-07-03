@@ -113,6 +113,18 @@ export function parseJpLessonApi(json: unknown): JpLessonApiPayload {
           lesson.teacher_other != null && String(lesson.teacher_other).trim()
             ? String(lesson.teacher_other).trim()
             : null,
+        class_schedules: Array.isArray(lesson.class_schedules)
+          ? lesson.class_schedules.map((item) => ({
+              id: Number(item.id) || 0,
+              class_at:
+                item.class_at != null && String(item.class_at).trim()
+                  ? String(item.class_at).trim()
+                  : "",
+              duration_minutes: normalizeClassDurationMinutes(
+                item.duration_minutes != null ? Number(item.duration_minutes) : null
+              ),
+            })).filter((item) => item.class_at)
+          : [],
         next_class_at:
           lesson.next_class_at != null && String(lesson.next_class_at).trim()
             ? String(lesson.next_class_at).trim()
