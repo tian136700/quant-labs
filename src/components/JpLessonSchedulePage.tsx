@@ -33,7 +33,40 @@ import type { JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 type ViewMode = "day" | "week" | "month";
 
 const TIMELINE_MINUTES = 24 * 60;
-const HOUR_MARKS = Array.from({ length: 13 }, (_, index) => index * 2);
+const SLOT_MINUTES = 30;
+const SLOT_COUNT = TIMELINE_MINUTES / SLOT_MINUTES;
+
+type DayScheduleEvent = JpLessonScheduleEvent & {
+  lesson: JpLessonRecord;
+  teachers: string;
+};
+
+function formatSlotTime(slotIndex: number): string {
+  const totalMinutes = slotIndex * SLOT_MINUTES;
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function slotIndexFromMinutes(minutes: number): number {
+  return Math.min(SLOT_COUNT - 1, Math.max(0, Math.floor(minutes / SLOT_MINUTES)));
+}
+
+function eventOccupiesSlot(event: DayScheduleEvent, slotIndex: number): boolean {
+  const slotStart = slotIndex * SLOT_MINUTES;
+  const slotEnd = slotStart + SLOT_MINUTES;
+  const eventStart = beijingMinutesFromMidnight(event.start);
+  const eventEnd = beijingMinutesFromMidnight(event.end);
+  return eventStart < slotEnd && eventEnd > slotStart;
+}
+
+function findEventForSlot(events: DayScheduleEvent[], slotIndex: number): DayScheduleEvent | null {
+  return events.find((event) => eventOccupiesSlot(event, slotIndex)) ?? null;
+}
+
+function isFirstSlotForEvent(event: DayScheduleEvent, slotIndex: number): boolean {
+  return slotIndexFromMinutes(beijingMinutesFromMidnight(event.start)) === slotIndex;
+}
 
 function readLessonCache(): JpLessonApiPayload | null {
   return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
@@ -404,51 +437,56 @@ export function JpLessonSchedulePage() {
                 {selectedDate} {beijingWeekdayLabel(selectedDate)}
                 <span className="jpls-day-count">{dayEvents.length} 节课</span>
               </div>
-              <div className="jpls-timeline">
-                <div className="jpls-timeline-hours">
-                  {HOUR_MARKS.map((hour) => (
-                    <div key={hour} className="jpls-hour-label" style={{ top: `${(hour * 60) / TIMELINE_MINUTES * 100}%` }}>
-                      {String(hour).padStart(2, "0")}:00
-                    </div>
-                  ))}
-                </div>
-                <div className="jpls-timeline-track">
-                  {HOUR_MARKS.map((hour) => (
+              <div className="jpls-slot-grid">
+                {Array.from({ length: SLOT_COUNT }, (_, slotIndex) => {
+                  const event = findEventForSlot(dayEvents, slotIndex);
+                  const isHourSlot = slotIndex % 2 === 0;
+                  const status = event ? getJpLessonScheduleEventStatus(event, now) : null;
+                  const showDetails = event && isFirstSlotForEvent(event, slotIndex);
+                  return (
                     <div
-                      key={`grid-${hour}`}
-                      className="jpls-hour-gridline"
-                      style={{ top: `${(hour * 60) / TIMELINE_MINUTES * 100}%` }}
-                    />
-                  ))}
-                  {showNowLine ? (
-                    <div className="jpls-now-line" style={{ top: `${nowTopPct}%` }}>
-                      <span>现在</span>
-                    </div>
-                  ) : null}
-                  {dayEvents.map((event) => {
-                    const startMin = beijingMinutesFromMidnight(event.start);
-                    const topPct = (startMin / TIMELINE_MINUTES) * 100;
-                    const heightPct = Math.max((event.durationMinutes / TIMELINE_MINUTES) * 100, 2.8);
-                    const status = getJpLessonScheduleEventStatus(event, now);
-                    return (
+                      key={slotIndex}
+                      className={`jpls-slot-row${isHourSlot ? " is-hour" : ""}${
+                        showNowLine && slotIndex === slotIndexFromMinutes(beijingMinutesFromMidnight(now))
+                          ? " has-now"
+                          : ""
+                      }`}
+                    >
+                      <div className="jpls-slot-time">{formatSlotTime(slotIndex)}</div>
                       <button
-                        key={event.key}
                         type="button"
-                        className={`jpls-event-block jpls-event-block--${status}${
-                          selectedEventKey === event.key ? " is-selected" : ""
-                        }`}
-                        style={{ top: `${topPct}%`, height: `${heightPct}%` }}
-                        onClick={() => setSelectedEventKey(event.key)}
+                        className={`jpls-slot-cell${event ? " is-busy" : " is-free"}${
+                          event && status ? ` jpls-slot-cell--${status}` : ""
+                        }${event && selectedEventKey === event.key ? " is-selected" : ""}`}
+                        disabled={!event}
+                        onClick={() => event && setSelectedEventKey(event.key)}
                       >
-                        <span className="jpls-event-time">
-                          {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
-                        </span>
-                        <span className="jpls-event-content">{formatContentPreview(event.lesson.content)}</span>
-                        <span className="jpls-event-teacher">{event.teachers}</span>
+                        {event ? (
+                          <>
+                            <span className="jpls-slot-busy-label">要上课</span>
+                            {showDetails ? (
+                              <>
+                                <span className="jpls-slot-busy-time">
+                                  {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
+                                </span>
+                                <span className="jpls-slot-busy-meta">
+                                  {event.teachers} · {formatContentPreview(event.lesson.content, 2)}
+                                </span>
+                              </>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="jpls-slot-free-label">空闲</span>
+                        )}
                       </button>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
+                {showNowLine ? (
+                  <div className="jpls-now-line" style={{ top: `${nowTopPct}%` }}>
+                    <span>现在</span>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}
@@ -791,97 +829,115 @@ export function JpLessonSchedulePage() {
           color: var(--muted);
           font-weight: 400;
         }
-        .jpls-timeline {
-          display: grid;
-          grid-template-columns: 3.25rem minmax(0, 1fr);
-          gap: 0.75rem;
-          height: 720px;
-        }
-        .jpls-timeline-hours {
+        .jpls-slot-grid {
           position: relative;
+          display: flex;
+          flex-direction: column;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          overflow: auto;
+          max-height: min(960px, 70vh);
         }
-        .jpls-hour-label {
-          position: absolute;
-          left: 0;
-          transform: translateY(-50%);
-          font-size: 0.75rem;
+        .jpls-slot-row {
+          display: grid;
+          grid-template-columns: 3.5rem minmax(0, 1fr);
+          min-height: 1.65rem;
+          border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+        }
+        .jpls-slot-row.is-hour {
+          border-bottom-color: color-mix(in srgb, var(--border) 100%, transparent);
+        }
+        .jpls-slot-row:last-child {
+          border-bottom: none;
+        }
+        .jpls-slot-time {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          padding: 0.15rem 0.45rem 0.15rem 0;
+          font-size: 0.6875rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
+          border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+          background: color-mix(in srgb, var(--panel) 90%, transparent);
         }
-        .jpls-timeline-track {
-          position: relative;
-          border-radius: 10px;
+        .jpls-slot-row.is-hour .jpls-slot-time {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--text);
+        }
+        .jpls-slot-cell {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          flex-wrap: wrap;
+          width: 100%;
+          min-height: 1.65rem;
+          padding: 0.1rem 0.55rem;
+          border: none;
+          text-align: left;
+          cursor: default;
+        }
+        .jpls-slot-cell.is-free {
+          background: color-mix(in srgb, var(--fall) 14%, var(--panel));
+        }
+        .jpls-slot-cell.is-busy {
+          background: var(--rise);
+          color: #fff;
+          cursor: pointer;
+        }
+        .jpls-slot-cell.is-busy:hover {
+          background: color-mix(in srgb, var(--rise) 88%, #fff);
+        }
+        .jpls-slot-cell.is-selected {
+          box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 75%, #fff);
+        }
+        .jpls-slot-cell--past {
+          opacity: 0.72;
+        }
+        .jpls-slot-cell--ongoing {
+          box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 65%, #fff);
+        }
+        .jpls-slot-free-label {
+          font-size: 0.6875rem;
+          color: color-mix(in srgb, var(--fall) 70%, var(--muted));
+        }
+        .jpls-slot-busy-label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          flex-shrink: 0;
+        }
+        .jpls-slot-busy-time {
+          font-size: 0.75rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        .jpls-slot-busy-meta {
+          font-size: 0.6875rem;
+          opacity: 0.92;
+          white-space: nowrap;
           overflow: hidden;
-          background: color-mix(in srgb, var(--fall) 12%, var(--panel));
-          border: 1px solid color-mix(in srgb, var(--fall) 28%, var(--border));
-        }
-        .jpls-hour-gridline {
-          position: absolute;
-          left: 0;
-          right: 0;
-          height: 1px;
-          background: color-mix(in srgb, var(--border) 70%, transparent);
-          pointer-events: none;
+          text-overflow: ellipsis;
+          max-width: min(100%, 28rem);
         }
         .jpls-now-line {
           position: absolute;
-          left: 0;
+          left: 3.5rem;
           right: 0;
           height: 2px;
           background: var(--accent);
-          z-index: 2;
+          z-index: 3;
           pointer-events: none;
         }
         .jpls-now-line span {
           position: absolute;
           right: 0.5rem;
-          top: -1.1rem;
+          top: -1rem;
           font-size: 0.6875rem;
           color: var(--accent);
-        }
-        .jpls-event-block {
-          position: absolute;
-          left: 0.5rem;
-          right: 0.5rem;
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.15rem;
-          padding: 0.45rem 0.55rem;
-          border: 1px solid color-mix(in srgb, var(--rise) 45%, var(--border));
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--rise) 22%, var(--panel));
-          color: var(--text);
-          text-align: left;
-          cursor: pointer;
-          overflow: hidden;
-          z-index: 1;
-        }
-        .jpls-event-block.is-selected {
-          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
-        }
-        .jpls-event-block--past {
-          opacity: 0.62;
-        }
-        .jpls-event-block--ongoing {
-          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
-        }
-        .jpls-event-time {
-          font-size: 0.75rem;
-          font-weight: 600;
-          font-variant-numeric: tabular-nums;
-        }
-        .jpls-event-content,
-        .jpls-event-teacher {
-          font-size: 0.75rem;
-          line-height: 1.35;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          max-width: 100%;
-        }
-        .jpls-event-teacher {
-          color: var(--muted);
+          background: var(--panel);
+          padding: 0 0.25rem;
         }
         .jpls-week-view {
           display: grid;
@@ -1134,8 +1190,8 @@ export function JpLessonSchedulePage() {
           .jpls-week-view {
             grid-template-columns: 1fr;
           }
-          .jpls-timeline {
-            height: 560px;
+          .jpls-slot-grid {
+            max-height: min(720px, 62vh);
           }
         }
       `}</style>
