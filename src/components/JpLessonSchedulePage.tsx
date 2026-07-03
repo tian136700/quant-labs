@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -256,10 +256,46 @@ export function JpLessonSchedulePage() {
   const [expandedFreeRanges, setExpandedFreeRanges] = useState<Set<string>>(
     () => new Set()
   );
+  const sidebarPanelsRef = useRef<HTMLDivElement>(null);
+  const calendarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     setExpandedFreeRanges(new Set());
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (viewMode !== "day") {
+      if (calendarRef.current) calendarRef.current.style.height = "";
+      return;
+    }
+
+    const panels = sidebarPanelsRef.current;
+    const calendar = calendarRef.current;
+    if (!panels || !calendar) return;
+
+    const mq = window.matchMedia("(max-width: 960px)");
+
+    const syncCalendarHeight = () => {
+      if (mq.matches) {
+        calendar.style.height = "";
+        return;
+      }
+      calendar.style.height = `${panels.offsetHeight}px`;
+    };
+
+    syncCalendarHeight();
+    const observer = new ResizeObserver(syncCalendarHeight);
+    observer.observe(panels);
+    mq.addEventListener("change", syncCalendarHeight);
+    window.addEventListener("resize", syncCalendarHeight);
+
+    return () => {
+      observer.disconnect();
+      mq.removeEventListener("change", syncCalendarHeight);
+      window.removeEventListener("resize", syncCalendarHeight);
+      calendar.style.height = "";
+    };
+  }, [viewMode, selectedEventKey, dayEvents.length, loading]);
 
   useEffect(() => {
     document.title = "日程管理 · 日语新课";
@@ -567,7 +603,13 @@ export function JpLessonSchedulePage() {
       {loading ? <p className="jpls-muted">加载中…</p> : null}
 
       <div className="jpls-layout">
-        <section className="jpls-calendar section etr-panel" aria-label="日程视图">
+        <section
+          ref={calendarRef}
+          className={`jpls-calendar section etr-panel${
+            viewMode === "day" ? " jpls-calendar--day-sync" : ""
+          }`}
+          aria-label="日程视图"
+        >
           {viewMode === "day" ? (
             <div className="jpls-day-view">
               <div className="jpls-day-title">
@@ -753,6 +795,7 @@ export function JpLessonSchedulePage() {
         </section>
 
         <aside className="jpls-sidebar">
+          <div className="jpls-sidebar-panels" ref={sidebarPanelsRef}>
           <section className="section etr-panel jpls-detail">
             <h2>课程详情</h2>
             {selectedEvent ? (
@@ -848,6 +891,7 @@ export function JpLessonSchedulePage() {
               <p className="jpls-muted">这一天没有预约课程。</p>
             )}
           </section>
+          </div>
 
           <p className="jpls-tip">提示：点击课程块查看详情；有教案时可一键复制链接发给老师。</p>
         </aside>
@@ -987,6 +1031,27 @@ export function JpLessonSchedulePage() {
         .jpls-calendar {
           min-height: 0;
           padding: 1rem;
+        }
+        .jpls-calendar--day-sync {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .jpls-day-view {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+        }
+        .jpls-calendar--day-sync .jpls-slot-grid {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+        }
+        .jpls-sidebar-panels {
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
         }
         .jpls-day-title {
           display: flex;
