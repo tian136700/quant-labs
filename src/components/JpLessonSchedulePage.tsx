@@ -835,8 +835,7 @@ export function JpLessonSchedulePage() {
           flex-direction: column;
           border: 1px solid var(--border);
           border-radius: 10px;
-          overflow: auto;
-          max-height: min(960px, 70vh);
+          overflow: hidden;
         }
         .jpls-slot-row {
           display: grid;
@@ -1189,9 +1188,6 @@ export function JpLessonSchedulePage() {
           }
           .jpls-week-view {
             grid-template-columns: 1fr;
-          }
-          .jpls-slot-grid {
-            max-height: min(720px, 62vh);
           }
         }
       `}</style>

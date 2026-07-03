@@ -25,6 +25,20 @@ __pycache__/
 kill-port.py
 local-src/
 
-# 日语复习 Mac 同步（含 token，勿提交）
+# 本地 D1 同步（仅本机预览真实数据，勿提交）
+scripts/sync-d1-remote-to-local.py
+
+# 日语复习 / 词汇 Mac 本地同步（含本机路径与 token，勿提交）
+scripts/jp-review-sync.py
+scripts/jp-vocab-sync.py
 scripts/.venv-jp-review/
 scripts/jp-review-sync.env
+
+# 趋势博客离线生成（非线上运行时，勿提交）
+trend_aggregator/
+scripts/publish-trend-blog.py
+scripts/trend_blog_markdown.py
+scripts/import-trends-json.py
+
+# 一次性数据回填（本地运维，勿提交）
+scripts/backfill-visit-geo.py
