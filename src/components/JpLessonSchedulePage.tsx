@@ -99,16 +99,34 @@ function collapsedFreeRangeLabel(startSlot: number, endSlot: number): string {
   return `${period}空闲 ${formatSlotTime(startSlot)} - ${formatSlotEndTime(endSlot)}`;
 }
 
+function getDayBusySlotRange(dayEvents: DayScheduleEvent[]): { start: number; end: number } | null {
+  if (!dayEvents.length) return null;
+  let start = SLOT_COUNT;
+  let end = 0;
+  for (const event of dayEvents) {
+    for (let slotIndex = 0; slotIndex < SLOT_COUNT; slotIndex += 1) {
+      if (!eventOccupiesSlot(event, slotIndex)) continue;
+      start = Math.min(start, slotIndex);
+      end = Math.max(end, slotIndex);
+    }
+  }
+  if (start > end) return null;
+  return { start, end };
+}
+
 function buildDayTimelineSegments(
   dayEvents: DayScheduleEvent[],
   expandedKeys: Set<string>,
   nowSlotIndex: number | null,
-  autoExpandAroundNow: boolean
+  autoExpandAroundNow: boolean,
+  busyRange: { start: number; end: number } | null
 ): DayTimelineSegment[] {
-  const segments: DayTimelineSegment[] = [];
-  let slotIndex = 0;
+  if (!busyRange) return [];
 
-  while (slotIndex < SLOT_COUNT) {
+  const segments: DayTimelineSegment[] = [];
+  let slotIndex = busyRange.start;
+
+  while (slotIndex <= busyRange.end) {
     if (!isSlotFree(dayEvents, slotIndex)) {
       segments.push({ kind: "slot", slotIndex });
       slotIndex += 1;
@@ -116,7 +134,7 @@ function buildDayTimelineSegments(
     }
 
     let endSlot = slotIndex;
-    while (endSlot + 1 < SLOT_COUNT && isSlotFree(dayEvents, endSlot + 1)) {
+    while (endSlot + 1 <= busyRange.end && isSlotFree(dayEvents, endSlot + 1)) {
       endSlot += 1;
     }
 
@@ -347,6 +365,7 @@ export function JpLessonSchedulePage() {
   );
 
   const dayEvents = useMemo(() => eventsForDate(selectedDate), [eventsForDate, selectedDate]);
+  const dayBusyRange = useMemo(() => getDayBusySlotRange(dayEvents), [dayEvents]);
 
   useEffect(() => {
     if (viewMode !== "day") {
@@ -380,7 +399,7 @@ export function JpLessonSchedulePage() {
       window.removeEventListener("resize", syncCalendarHeight);
       calendar.style.height = "";
     };
-  }, [viewMode, selectedEventKey, dayEvents.length, loading]);
+  }, [viewMode, selectedEventKey, dayEvents.length, dayBusyRange, loading]);
 
   const weekEvents = useMemo(() => {
     const set = new Set(weekDates);
@@ -438,9 +457,14 @@ export function JpLessonSchedulePage() {
   }, [selectedEvent, refs]);
 
   const todayStr = beijingTodayDateString(now);
-  const showNowLine = viewMode === "day" && selectedDate === todayStr;
   const nowMinutes = beijingMinutesFromMidnight(now);
   const nowSlotIndex = slotIndexFromMinutes(nowMinutes);
+  const showNowLine =
+    viewMode === "day" &&
+    selectedDate === todayStr &&
+    dayBusyRange != null &&
+    nowSlotIndex >= dayBusyRange.start &&
+    nowSlotIndex <= dayBusyRange.end;
 
   const dayTimelineSegments = useMemo(() => {
     if (viewMode !== "day") return [];
@@ -448,9 +472,17 @@ export function JpLessonSchedulePage() {
       dayEvents,
       expandedFreeRanges,
       showNowLine ? nowSlotIndex : null,
-      showNowLine
+      showNowLine,
+      dayBusyRange
     );
-  }, [dayEvents, expandedFreeRanges, nowSlotIndex, showNowLine, viewMode]);
+  }, [
+    dayBusyRange,
+    dayEvents,
+    expandedFreeRanges,
+    nowSlotIndex,
+    showNowLine,
+    viewMode,
+  ]);
 
   const dayTimelineRowCount = dayTimelineSegments.length;
   const nowTopPct =
@@ -609,6 +641,7 @@ export function JpLessonSchedulePage() {
                 {selectedDate} {beijingWeekdayLabel(selectedDate)}
                 <span className="jpls-day-count">{dayEvents.length} 节课</span>
               </div>
+              {dayBusyRange ? (
               <div className="jpls-slot-grid">
                 {dayTimelineSegments.map((segment) => {
                   if (segment.kind === "collapsed") {
@@ -693,6 +726,9 @@ export function JpLessonSchedulePage() {
                   </div>
                 ) : null}
               </div>
+              ) : (
+                <p className="jpls-day-empty">这一天没有预约课程。</p>
+              )}
             </div>
           ) : null}
 
@@ -1017,11 +1053,12 @@ export function JpLessonSchedulePage() {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
           gap: 1rem;
-          align-items: start;
+          align-items: stretch;
         }
         .jpls-calendar {
           min-height: 0;
           padding: 1rem;
+          height: 100%;
         }
         .jpls-calendar--day-sync {
           display: flex;
@@ -1033,11 +1070,26 @@ export function JpLessonSchedulePage() {
           flex-direction: column;
           flex: 1;
           min-height: 0;
+          height: 100%;
         }
         .jpls-calendar--day-sync .jpls-slot-grid {
           flex: 1;
           min-height: 0;
-          overflow-y: auto;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .jpls-calendar--day-sync .jpls-slot-row {
+          flex: 1 1 0;
+          min-height: 1.5rem;
+        }
+        .jpls-calendar--day-sync .jpls-slot-row--collapsed {
+          flex: 0 0 auto;
+          min-height: 2.1rem;
+        }
+        .jpls-calendar--day-sync .jpls-slot-row.is-event-start {
+          flex: 1.35 1 0;
+          min-height: 2rem;
         }
         .jpls-sidebar-panels {
           display: flex;
@@ -1055,6 +1107,18 @@ export function JpLessonSchedulePage() {
           font-size: 0.8125rem;
           color: var(--muted);
           font-weight: 400;
+        }
+        .jpls-day-empty {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0;
+          min-height: 12rem;
+          color: var(--muted);
+          font-size: 0.875rem;
+          border: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+          border-radius: 10px;
         }
         .jpls-slot-grid {
           position: relative;
