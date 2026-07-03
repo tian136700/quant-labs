@@ -1,0 +1,184 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+export type HalfHourTimeOption = { value: string; label: string };
+
+type Props = {
+  value: string;
+  options: HalfHourTimeOption[];
+  disabled?: boolean;
+  onChange: (value: string) => void;
+};
+
+export function JpLessonHalfHourTimeGridPicker({
+  value,
+  options,
+  disabled,
+  onChange,
+}: Props) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const selectedLabel =
+    options.find((option) => option.value === value)?.label ?? "请选择";
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="jp-lesson-time-grid-picker">
+      <button
+        type="button"
+        className={`jp-lesson-time-grid-trigger${
+          value ? " has-value" : ""
+        }${open ? " is-open" : ""}`}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span>{selectedLabel}</span>
+        <span className="jp-lesson-time-grid-chevron" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div
+          className="jp-lesson-time-grid-panel"
+          role="listbox"
+          aria-label="选择时间"
+        >
+          {options.map((option) => {
+            const selected = value === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                className={`jp-lesson-time-grid-tile${
+                  selected ? " is-selected" : ""
+                }`}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <style jsx>{`
+        .jp-lesson-time-grid-picker {
+          position: relative;
+        }
+
+        .jp-lesson-time-grid-trigger {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          width: 100%;
+          box-sizing: border-box;
+          padding: 0.55rem 0.65rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: inherit;
+          font-size: 0.875rem;
+          cursor: pointer;
+          text-align: left;
+        }
+
+        .jp-lesson-time-grid-trigger:not(.has-value) {
+          color: var(--muted);
+        }
+
+        .jp-lesson-time-grid-trigger.is-open {
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        }
+
+        .jp-lesson-time-grid-trigger:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .jp-lesson-time-grid-chevron {
+          color: var(--muted);
+          font-size: 0.75rem;
+          line-height: 1;
+          transition: transform 0.15s ease;
+        }
+
+        .jp-lesson-time-grid-trigger.is-open .jp-lesson-time-grid-chevron {
+          transform: rotate(180deg);
+        }
+
+        .jp-lesson-time-grid-panel {
+          position: absolute;
+          z-index: 2;
+          top: calc(100% + 0.35rem);
+          left: 50%;
+          transform: translateX(-50%);
+          width: min(100vw - 2rem, 22rem);
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 0.35rem;
+          max-height: min(16rem, 50vh);
+          overflow-y: auto;
+          padding: 0.55rem;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: var(--panel);
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+        }
+
+        .jp-lesson-time-grid-tile {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          aspect-ratio: 1;
+          min-height: 2.5rem;
+          padding: 0.15rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: inherit;
+          font-size: 0.72rem;
+          line-height: 1.1;
+          text-align: center;
+          cursor: pointer;
+          transition:
+            border-color 0.12s ease,
+            background 0.12s ease,
+            color 0.12s ease;
+        }
+
+        .jp-lesson-time-grid-tile:hover {
+          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        }
+
+        .jp-lesson-time-grid-tile.is-selected {
+          border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+          background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+          color: var(--accent);
+          font-weight: 600;
+        }
+      `}</style>
+    </div>
+  );
+}

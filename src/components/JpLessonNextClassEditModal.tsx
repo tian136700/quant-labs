@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
 import {
   formatNextClassHalfHourLabel,
   getLessonClassSchedules,
@@ -194,21 +195,15 @@ export function JpLessonNextClassEditModal({
                       onChange={(e) => updateRow(row.key, { date: e.target.value })}
                     />
                   </label>
-                  <label className="jp-lesson-next-class-field">
+                  <div className="jp-lesson-next-class-field">
                     <span>时间</span>
-                    <select
-                      className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+                    <JpLessonHalfHourTimeGridPicker
                       value={row.time}
-                      onChange={(e) => updateRow(row.key, { time: e.target.value })}
-                    >
-                      <option value="">请选择</option>
-                      {timeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      options={timeOptions}
+                      disabled={saving}
+                      onChange={(time) => updateRow(row.key, { time })}
+                    />
+                  </div>
                   <label className="jp-lesson-next-class-field">
                     <span>时长</span>
                     <select
@@ -239,7 +234,7 @@ export function JpLessonNextClassEditModal({
             + 添加预约
           </button>
           <p className="jp-lesson-next-class-hint">
-            仅可选整点或半点（如 13 点、13 点半）；可添加多条预约；全部留空表示未定义。
+            点击时间后在方块网格中选择整点或半点（如 13 点、13 点半）；可添加多条预约；全部留空表示未定义。
           </p>
         </fieldset>
 
@@ -286,7 +281,7 @@ export function JpLessonNextClassEditModal({
         }
 
         .jp-lesson-next-class-modal {
-          width: min(520px, 100%);
+          width: min(560px, 100%);
           max-height: min(90vh, 720px);
           overflow: auto;
           padding: 1rem 1.1rem;
