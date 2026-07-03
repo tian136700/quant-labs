@@ -386,13 +386,8 @@ export async function updateJpLessonProgress(
     return { ok: false, error: "not_found" };
   }
 
-  const row = await db
-    .prepare(`${LESSON_SELECT} WHERE id = ?1`)
-    .bind(lessonId)
-    .first<Record<string, unknown>>();
-
-  if (!row) return { ok: false, error: "not_found" };
-  const lesson = mapRow(row);
+  const lesson = await getJpLessonById(db, lessonId);
+  if (!lesson) return { ok: false, error: "not_found" };
 
   if (completed && !before.completed) {
     await syncLessonToVocab(db, lesson);
