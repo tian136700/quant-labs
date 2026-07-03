@@ -1,6 +1,7 @@
 import { consumeLoginLink } from "@/lib/etr-login-link-db";
 import {
   clearAllSessionCookieHeaders,
+  etrCookieContextFromRequest,
   sessionCookieHeader,
   type EtrUser,
   type EtrUserRole,
@@ -73,13 +74,14 @@ export async function handleLoginLinkHandoff(
     await setLocalePref(env.DB, ip, locale);
   }
 
+  const cookieCtx = etrCookieContextFromRequest(request);
   const headers = new Headers({ Location: redirectUrl.toString() });
-  for (const cookie of clearAllSessionCookieHeaders()) {
+  for (const cookie of clearAllSessionCookieHeaders(cookieCtx)) {
     headers.append("Set-Cookie", cookie);
   }
   headers.append(
     "Set-Cookie",
-    sessionCookieHeader(result.token, new Date(result.expires_at))
+    sessionCookieHeader(result.token, new Date(result.expires_at), cookieCtx)
   );
   headers.append("Set-Cookie", localeCookieHeader(locale));
 

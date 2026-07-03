@@ -7,6 +7,7 @@ import {
 } from "@/lib/etr-auth-db";
 import {
   clearAllSessionCookieHeaders,
+  etrCookieContextFromRequest,
   formatExpiresHint,
   parseAllSessionCookies,
   sessionCookieHeader,
@@ -45,8 +46,16 @@ async function logoutAllSessions(
   }
 }
 
-function authSuccessCookies(token: string, expiresAt: string): string[] {
-  return [...clearAllSessionCookieHeaders(), sessionCookieHeader(token, new Date(expiresAt))];
+function authSuccessCookies(
+  token: string,
+  expiresAt: string,
+  request: Request
+): string[] {
+  const ctx = etrCookieContextFromRequest(request);
+  return [
+    ...clearAllSessionCookieHeaders(ctx),
+    sessionCookieHeader(token, new Date(expiresAt), ctx),
+  ];
 }
 
 const AUTH_ERRORS: Record<string, Record<"en" | "zh", string>> = {
@@ -143,7 +152,7 @@ export async function GET(request: Request) {
       return jsonWithSetCookies(
         { ok: true, authenticated: false, user: null, stale_cookie_cleared: true },
         200,
-        clearAllSessionCookieHeaders()
+        clearAllSessionCookieHeaders(etrCookieContextFromRequest(request))
       );
     }
 
@@ -179,7 +188,11 @@ export async function POST(request: Request) {
       const env = await getCloudflareEnv();
       const cookieHeader = request.headers.get("cookie");
       await logoutAllSessions(env, cookieHeader);
-      return jsonWithSetCookies({ ok: true }, 200, clearAllSessionCookieHeaders());
+      return jsonWithSetCookies(
+        { ok: true },
+        200,
+        clearAllSessionCookieHeaders(etrCookieContextFromRequest(request))
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return jsonResponse({ ok: false, error: message }, 500);
@@ -230,7 +243,7 @@ export async function POST(request: Request) {
           user: await publicAuthUser(env, sessionUser, locale),
         },
         200,
-        authSuccessCookies(result.token, result.expires_at)
+        authSuccessCookies(result.token, result.expires_at, request)
       );
     }
 
@@ -265,7 +278,7 @@ export async function POST(request: Request) {
           user: await publicAuthUser(env, sessionUser, locale),
         },
         200,
-        authSuccessCookies(result.token, result.expires_at)
+        authSuccessCookies(result.token, result.expires_at, request)
       );
     }
 

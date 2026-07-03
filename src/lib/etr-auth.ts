@@ -228,6 +228,79 @@ export function parseAllSessionCookies(cookieHeader: string | null): string[] {
   return tokens;
 }
 
+export type EtrCookieContext = {
+  host?: string;
+  protocol?: string;
+};
+
+function normalizeCookieHost(raw: string | null | undefined): string {
+  const trimmed = raw?.trim();
+  if (!trimmed) return "";
+  return trimmed.split(":")[0].toLowerCase();
+}
+
+/** OpenNext / wrangler preview 里 request.url 常不是浏览器 Host，须优先读请求头 */
+function requestHostFromHeaders(request: Request): string {
+  const hostHeader = normalizeCookieHost(request.headers.get("host"));
+  // 本地 preview 时 x-forwarded-host 可能是 finance.info-quests.com，但浏览器 Host 仍是 127.0.0.1
+  if (hostHeader && isLocalCookieHost(hostHeader)) return hostHeader;
+
+  const forwarded = request.headers.get("x-forwarded-host");
+  if (forwarded) {
+    const host = normalizeCookieHost(forwarded.split(",")[0]);
+    if (host) return host;
+  }
+  if (hostHeader) return hostHeader;
+  const referer = request.headers.get("referer");
+  if (referer) {
+    try {
+      const refHost = normalizeCookieHost(new URL(referer).hostname);
+      if (refHost) return refHost;
+    } catch {
+      /* ignore */
+    }
+  }
+  try {
+    return normalizeCookieHost(new URL(request.url).hostname);
+  } catch {
+    return "";
+  }
+}
+
+function requestProtocolFromHeaders(request: Request): string {
+  const hostHeader = normalizeCookieHost(request.headers.get("host"));
+  if (hostHeader && isLocalCookieHost(hostHeader)) return "http:";
+
+  const forwarded = request.headers.get("x-forwarded-proto");
+  if (forwarded) {
+    const proto = forwarded.split(",")[0]?.trim().toLowerCase();
+    if (proto === "http" || proto === "https") return `${proto}:`;
+  }
+  try {
+    return new URL(request.url).protocol;
+  } catch {
+    return "https:";
+  }
+}
+
+export function etrCookieContextFromRequest(request: Request): EtrCookieContext {
+  const host = requestHostFromHeaders(request);
+  const protocol = requestProtocolFromHeaders(request);
+  if (!host) return { protocol };
+  return { host, protocol };
+}
+
+function isLocalCookieHost(host: string): boolean {
+  const h = normalizeCookieHost(host);
+  return h === "localhost" || h === "127.0.0.1" || h.endsWith(".local");
+}
+
+function hostMatchesCookieDomain(host: string, domain: string): boolean {
+  const bare = domain.startsWith(".") ? domain.slice(1) : domain;
+  const h = normalizeCookieHost(host);
+  return h === bare || h.endsWith(`.${bare}`);
+}
+
 /** 跨子域名共享登录 Cookie（如 finance / food 共用 .info-quests.com） */
 export function authCookieDomain(): string {
   const explicit = process.env.ETR_COOKIE_DOMAIN?.trim();
@@ -263,30 +336,43 @@ export function authCookieDomain(): string {
   return "";
 }
 
-function cookieDomainPart(): string {
+function cookieDomainPart(ctx?: EtrCookieContext): string {
+  if (ctx?.host && isLocalCookieHost(ctx.host)) return "";
   const domain = authCookieDomain();
-  return domain ? `; Domain=${domain}` : "";
+  if (!domain || !ctx?.host || !hostMatchesCookieDomain(ctx.host, domain)) return "";
+  return `; Domain=${domain}`;
 }
 
-export function sessionCookieHeader(token: string, expiresAt: Date): string {
+function cookieSecurePart(ctx?: EtrCookieContext): string {
+  if (ctx?.host && isLocalCookieHost(ctx.host)) return "";
+  if (ctx?.protocol === "http:") return "";
+  // wrangler preview 的 API Request 常拿不到 Host，此时不要强制 Secure
+  if (!ctx?.host) return "";
+  return process.env.NODE_ENV === "production" ? "; Secure" : "";
+}
+
+export function sessionCookieHeader(
+  token: string,
+  expiresAt: Date,
+  ctx?: EtrCookieContext
+): string {
   const maxAge = Math.max(
     0,
     Math.floor((expiresAt.getTime() - Date.now()) / 1000)
   );
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${ETR_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${cookieDomainPart()}${secure}`;
+  return `${ETR_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${cookieDomainPart(ctx)}${cookieSecurePart(ctx)}`;
 }
 
-export function clearSessionCookieHeader(): string {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${cookieDomainPart()}${secure}`;
+export function clearSessionCookieHeader(ctx?: EtrCookieContext): string {
+  return `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${cookieDomainPart(ctx)}${cookieSecurePart(ctx)}`;
 }
 
 /** 清除 host-only 与跨子域两条 etr_session，避免旧 Cookie 干扰新登录 */
-export function clearAllSessionCookieHeaders(): string[] {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+export function clearAllSessionCookieHeaders(ctx?: EtrCookieContext): string[] {
+  const secure = cookieSecurePart(ctx);
   const base = `${ETR_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
   const headers = [`${base}${secure}`];
+  if (ctx?.host && isLocalCookieHost(ctx.host)) return headers;
   const domain = authCookieDomain();
   if (domain) {
     headers.push(`${base}; Domain=${domain}${secure}`);
