@@ -40,6 +40,18 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
+function isSectionBadgeColor(r: number, g: number, b: number): boolean {
+  if (b > 100 && r < 85 && g < 105 && b > r + 50) return true;
+  if (r > 90 && b > 130 && g < 100 && b > r) return true;
+  return false;
+}
+
+function isSectionTitleColor(r: number, g: number, b: number): boolean {
+  if (b > 80 && r < 100 && g < 130 && b > r + 20) return true;
+  if (r > 80 && b > 80 && g < 130 && (r > g + 15 || b > g + 15)) return true;
+  return false;
+}
+
 function sectionHeaderScore(
   data: Uint8ClampedArray,
   width: number,
@@ -47,9 +59,9 @@ function sectionHeaderScore(
 ): number {
   const bandH = 35;
   const bandW = Math.min(400, width);
-  let badgeBlue = 0;
+  let badgeMatch = 0;
   let badgeTotal = 0;
-  let titleBlue = 0;
+  let titleMatch = 0;
   let titleTotal = 0;
 
   for (let dy = 0; dy < bandH; dy++) {
@@ -61,21 +73,116 @@ function sectionHeaderScore(
       const b = data[i + 2];
       if (x < 40) {
         badgeTotal++;
-        if (b > 100 && r < 85 && g < 105 && b > r + 50) badgeBlue++;
+        if (isSectionBadgeColor(r, g, b)) badgeMatch++;
       } else if (x < 350) {
         titleTotal++;
-        if (b > 80 && r < 100 && g < 130 && b > r + 20) titleBlue++;
+        if (isSectionTitleColor(r, g, b)) titleMatch++;
       }
     }
   }
 
-  const badgeScore = badgeTotal ? badgeBlue / badgeTotal : 0;
-  const titleScore = titleTotal ? titleBlue / titleTotal : 0;
+  const badgeScore = badgeTotal ? badgeMatch / badgeTotal : 0;
+  const titleScore = titleTotal ? titleMatch / titleTotal : 0;
   if (badgeScore < 0.1 || titleScore < 0.02) return 0;
   return badgeScore + titleScore * 2;
 }
 
-/** 检测教案各「部分」的纵向边界（基于左侧蓝色序号标题栏） */
+function rowWhiteFraction(
+  data: Uint8ClampedArray,
+  width: number,
+  y: number,
+  x0: number,
+  x1: number
+): number {
+  let white = 0;
+  let total = 0;
+  for (let x = x0; x < x1; x++) {
+    const i = (y * width + x) * 4;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    total++;
+    if (r > 240 && g > 240 && b > 240) white++;
+  }
+  return total ? white / total : 0;
+}
+
+/** 第一部分单词区若有两行卡片，按行间空白切成上下两块（5+5） */
+function detectVocabRowSplitY(
+  data: Uint8ClampedArray,
+  width: number,
+  section: LessonSectionBounds,
+  sectionCount: number
+): number | null {
+  const { y0, y1 } = section;
+  const sectionH = y1 - y0;
+  // 仅「3 段式单词教案」且第一节足够高（10 词两行）时才拆分；旧版 5 词单行不拆
+  if (sectionCount !== 3 || sectionH < 400) return null;
+
+  const scanStart = y0 + Math.floor(sectionH * 0.25);
+  const scanEnd = y0 + Math.floor(sectionH * 0.85);
+  const x0 = Math.min(50, Math.floor(width * 0.05));
+  const x1 = width - x0;
+
+  let bestRun: { start: number; end: number; len: number } | null = null;
+  let runStart: number | null = null;
+
+  for (let y = scanStart; y < scanEnd; y++) {
+    const whiteFrac = rowWhiteFraction(data, width, y, x0, x1);
+    if (whiteFrac > 0.9) {
+      if (runStart === null) runStart = y;
+    } else if (runStart !== null) {
+      const len = y - runStart;
+      if (!bestRun || len > bestRun.len) {
+        bestRun = { start: runStart, end: y, len };
+      }
+      runStart = null;
+    }
+  }
+  if (runStart !== null) {
+    const len = scanEnd - runStart;
+    if (!bestRun || len > bestRun.len) {
+      bestRun = { start: runStart, end: scanEnd, len };
+    }
+  }
+
+  // 两行卡片之间的空白带比标题下方空白更宽
+  if (!bestRun || bestRun.len < 14) return null;
+
+  const splitY = Math.floor((bestRun.start + bestRun.end) / 2);
+  const topH = splitY - y0;
+  const bottomH = y1 - splitY;
+  if (topH < sectionH * 0.35 || bottomH < sectionH * 0.35) return null;
+
+  return splitY;
+}
+
+function splitFirstSectionIfTwoRows(
+  data: Uint8ClampedArray,
+  width: number,
+  sections: LessonSectionBounds[]
+): { sections: LessonSectionBounds[]; firstSectionSplit: boolean } {
+  if (sections.length === 0) {
+    return { sections, firstSectionSplit: false };
+  }
+
+  const splitY = detectVocabRowSplitY(data, width, sections[0], sections.length);
+  if (splitY === null) {
+    return { sections, firstSectionSplit: false };
+  }
+
+  const first = sections[0];
+  return {
+    sections: [
+      { y0: first.y0, y1: splitY },
+      { y0: splitY, y1: first.y1 },
+      ...sections.slice(1),
+    ],
+    firstSectionSplit: true,
+  };
+}
+
+/** 检测教案各「部分」的纵向边界（基于左侧序号标题栏；兼容蓝/紫两种主题） */
 export function detectLessonSectionBounds(
   img: HTMLImageElement
 ): LessonSectionBounds[] {
@@ -91,8 +198,9 @@ export function detectLessonSectionBounds(
   ctx.drawImage(img, 0, 0);
   const { data } = ctx.getImageData(0, 0, w, h);
 
+  const minSectionY = Math.min(80, Math.floor(h * 0.07));
   const scores: { y: number; score: number }[] = [];
-  for (let y = 0; y < h - 35; y++) {
+  for (let y = minSectionY; y < h - 35; y++) {
     scores.push({ y, score: sectionHeaderScore(data, w, y) });
   }
 
@@ -115,10 +223,43 @@ export function detectLessonSectionBounds(
   }));
 }
 
-/** 每页 Word 合并相邻两个「部分」（第一+第二部分同页）；奇数时最后一页仅一节 */
+function readImagePixelData(
+  img: HTMLImageElement
+): { data: Uint8ClampedArray; width: number; height: number } {
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("无法处理图片");
+  ctx.drawImage(img, 0, 0);
+  const { data } = ctx.getImageData(0, 0, w, h);
+  return { data, width: w, height: h };
+}
+
+/**
+ * Word 分页：
+ * - 10 词两行时：第一块 5 词 + 第二块 5 词同页，其余部分各一页
+ * - 旧版 5 词单行时：仍合并相邻两节同页
+ */
 function groupLessonSectionsIntoWordPages(
-  sections: LessonSectionBounds[]
+  sections: LessonSectionBounds[],
+  firstSectionSplit: boolean
 ): LessonSectionBounds[][] {
+  if (firstSectionSplit) {
+    const pages: LessonSectionBounds[][] = [];
+    if (sections.length >= 2) {
+      pages.push([sections[0], sections[1]]);
+      for (let i = 2; i < sections.length; i++) {
+        pages.push([sections[i]]);
+      }
+    } else if (sections.length === 1) {
+      pages.push([sections[0]]);
+    }
+    return pages;
+  }
+
   const pages: LessonSectionBounds[][] = [];
   for (let i = 0; i < sections.length; i += 2) {
     pages.push(sections.slice(i, i + 2));
@@ -187,7 +328,7 @@ export async function exportJpVocabRefPaginatedPdf(
   return sections.length;
 }
 
-/** 导出分页 Word；相邻两部分同页，中间留白供板书；页脚仍带页码 */
+/** 导出分页 Word；10 词时第一页上下两块，其余各一页；中间留白供板书 */
 export async function exportJpVocabRefPaginatedDocx(
   imageUrl: string,
   filenameBase: string
@@ -209,7 +350,16 @@ export async function exportJpVocabRefPaginatedDocx(
   ] = await Promise.all([import("docx"), loadImage(imageUrl)]);
 
   const sections = detectLessonSectionBounds(img);
-  const sectionPages = groupLessonSectionsIntoWordPages(sections);
+  const { data, width } = readImagePixelData(img);
+  const { sections: wordSections, firstSectionSplit } = splitFirstSectionIfTwoRows(
+    data,
+    width,
+    sections
+  );
+  const sectionPages = groupLessonSectionsIntoWordPages(
+    wordSections,
+    firstSectionSplit
+  );
   const pageWpx = 794;
   const pageHpx = 1123;
   const marginPx = 45;
