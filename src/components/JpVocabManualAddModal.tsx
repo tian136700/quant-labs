@@ -329,7 +329,7 @@ export function JpVocabManualAddModal({
               <textarea
                 id="jp-vocab-add-notes"
                 className="jp-vocab-add-textarea"
-                rows={3}
+                rows={6}
                 value={classNotes}
                 onChange={(e) => setClassNotes(e.target.value)}
                 placeholder="记录例句、用法、易错点…"
@@ -511,8 +511,8 @@ export function JpVocabManualAddModal({
         }
 
         .jp-vocab-add-modal {
-          width: min(480px, 100%);
-          max-height: min(90vh, 680px);
+          width: min(640px, 100%);
+          max-height: min(92vh, 860px);
           display: flex;
           flex-direction: column;
           overflow: hidden;
@@ -675,7 +675,7 @@ export function JpVocabManualAddModal({
           font: inherit;
           font-size: 0.875rem;
           line-height: 1.45;
-          min-height: 4.5rem;
+          min-height: 9rem;
           resize: vertical;
           color-scheme: dark;
           transition:
