@@ -3,6 +3,7 @@ import { Providers } from "@/components/Providers";
 import { LS_LOCALE } from "@/i18n/messages";
 import { defaultMetadata } from "@/lib/seo";
 import "./globals.css";
+import "./mobile.css";
 
 export const viewport: Viewport = {
   width: "device-width",

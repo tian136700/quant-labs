@@ -911,15 +911,7 @@ export function JpLessonPage() {
       </p>
 
       {isAdmin ? (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.75rem 1.25rem",
-            marginBottom: "0.75rem",
-            fontSize: "0.875rem",
-          }}
-        >
+        <div className="jp-lesson-admin-links">
           <a href={jpLessonSchedulePath()} style={{ color: "var(--accent)" }}>
             日程管理
           </a>
@@ -1087,6 +1079,13 @@ export function JpLessonPage() {
           flex-direction: column;
           gap: 1.25rem;
         }
+        .jp-lesson-admin-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.75rem 1.25rem;
+          margin-bottom: 0.75rem;
+          font-size: 0.875rem;
+        }
         .jp-lesson-status-card {
           margin: 0;
         }
@@ -1134,7 +1133,11 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-table) {
           width: 100%;
-          min-width: 640px;
+        }
+        @media (min-width: 768px) {
+          :global(.jp-lesson-table) {
+            min-width: 640px;
+          }
         }
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
@@ -1490,77 +1493,6 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-        }
-        @media (max-width: 768px) {
-          :global(.jp-lesson-table) {
-            min-width: 0;
-          }
-          :global(.jp-lesson-table thead) {
-            display: none;
-          }
-          :global(.jp-lesson-table tbody tr) {
-            display: block;
-            margin-bottom: 0.85rem;
-            padding: 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: color-mix(in srgb, var(--panel) 88%, var(--bg));
-          }
-          :global(.jp-lesson-table tbody td) {
-            display: flex;
-            justify-content: space-between;
-            gap: 0.75rem;
-            padding: 0.45rem 0;
-            border: none;
-            text-align: right;
-          }
-          :global(.jp-lesson-table tbody td::before) {
-            content: attr(data-label);
-            flex: 0 0 auto;
-            max-width: 42%;
-            font-size: 0.8125rem;
-            color: var(--muted);
-            text-align: left;
-          }
-          :global(.jp-lesson-table tbody td.jp-lesson-actions-col) {
-            justify-content: center;
-            text-align: center;
-          }
-          :global(.jp-lesson-table tbody td.jp-lesson-actions-col::before) {
-            display: none;
-          }
-          :global(.jp-lesson-actions) {
-            width: 100%;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
-          :global(.jp-lesson-action-btn) {
-            min-height: var(--touch-min, 44px);
-            flex: 1 1 0;
-          }
-          :global(.jp-lesson-table tbody td.jp-lesson-complete-col) {
-            justify-content: center;
-            text-align: center;
-          }
-          :global(.jp-lesson-table tbody td.jp-lesson-complete-col::before) {
-            display: none;
-          }
-          :global(.jp-lesson-table tbody td.jp-lesson-notes-col) {
-            justify-content: center;
-            text-align: center;
-          }
-          :global(.jp-lesson-table tbody td.jp-lesson-notes-col::before) {
-            display: none;
-          }
-          :global(.jp-lesson-notes-btn) {
-            min-height: var(--touch-min, 44px);
-            width: 100%;
-            max-width: 8rem;
-          }
-          :global(.jp-lesson-complete-select) {
-            min-height: var(--touch-min, 44px);
-            width: 5.75rem;
-            min-width: 5.75rem;
-          }
         }
       `}</style>
     </main>

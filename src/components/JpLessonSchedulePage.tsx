@@ -1364,7 +1364,7 @@ export function JpLessonSchedulePage() {
           color: var(--rise);
           margin: 0 0 0.75rem;
         }
-        @media (max-width: 960px) {
+        @media (min-width: 768px) and (max-width: 960px) {
           .jpls-layout {
             grid-template-columns: 1fr;
           }
@@ -1372,7 +1372,7 @@ export function JpLessonSchedulePage() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
         }
-        @media (max-width: 560px) {
+        @media (max-width: 560px) and (min-width: 768px) {
           .jpls-header {
             flex-direction: column;
           }

@@ -43,6 +43,13 @@ body {
   margin-inline: auto;
 }
 
+/* Mobile-only chrome — shown via mobile.css at max-width 767px */
+.mobile-header-bar,
+.mobile-nav-backdrop,
+.mobile-nav-drawer {
+  display: none;
+}
+
 .page-header {
   @apply flex z-20 gap-2;
   flex-direction: column;
@@ -434,13 +441,6 @@ textarea:focus {
 @screen md {
   .desktop-action {
     display: block;
-  }
-}
-
-/* 为底部操作栏留出空间（< md） */
-@media (max-width: 767px) {
-  body {
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
