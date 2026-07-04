@@ -174,6 +174,7 @@ export type JpVocabUploadInput = {
   meaning?: string | null;
   kind?: JpVocabKind | null;
   ref_key?: string | null;
+  class_notes?: string | null;
 };
 
 export type JpVocabRefUploadInput = {

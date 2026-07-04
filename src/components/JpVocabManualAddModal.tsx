@@ -54,6 +54,7 @@ export function JpVocabManualAddModal({
   const [word, setWord] = useState("");
   const [reading, setReading] = useState("");
   const [meaning, setMeaning] = useState("");
+  const [classNotes, setClassNotes] = useState("");
   const [refTitle, setRefTitle] = useState("");
   const [image, setImage] = useState<ImageState | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -73,6 +74,7 @@ export function JpVocabManualAddModal({
     setWord("");
     setReading("");
     setMeaning("");
+    setClassNotes("");
     setRefTitle("");
     setImage((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl);
@@ -165,6 +167,7 @@ export function JpVocabManualAddModal({
       form.set("kind", kind);
       if (reading.trim()) form.set("reading", reading.trim());
       if (meaning.trim()) form.set("meaning", meaning.trim());
+      if (classNotes.trim()) form.set("class_notes", classNotes.trim());
       if (refTitle.trim()) form.set("ref_title", refTitle.trim());
 
       if (image) {
@@ -317,6 +320,19 @@ export function JpVocabManualAddModal({
                 value={meaning}
                 onChange={(e) => setMeaning(e.target.value)}
                 placeholder="例如：学习"
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="jp-vocab-add-notes">备注（可选）</label>
+              <textarea
+                id="jp-vocab-add-notes"
+                className="jp-vocab-add-textarea"
+                rows={3}
+                value={classNotes}
+                onChange={(e) => setClassNotes(e.target.value)}
+                placeholder="记录例句、用法、易错点…"
                 disabled={submitting}
               />
             </div>
@@ -643,6 +659,46 @@ export function JpVocabManualAddModal({
         }
 
         .jp-vocab-add-modal .field input[type="text"]:disabled {
+          opacity: 0.58;
+          cursor: not-allowed;
+        }
+
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea {
+          width: 100%;
+          box-sizing: border-box;
+          margin: 0;
+          background: var(--bg);
+          color: var(--text);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          padding: 0.55rem 0.75rem;
+          font: inherit;
+          font-size: 0.875rem;
+          line-height: 1.45;
+          min-height: 4.5rem;
+          resize: vertical;
+          color-scheme: dark;
+          transition:
+            border-color 0.15s ease,
+            box-shadow 0.15s ease,
+            background 0.15s ease;
+        }
+
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea::placeholder {
+          color: color-mix(in srgb, var(--muted) 72%, transparent);
+        }
+
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:hover:not(:disabled) {
+          border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+        }
+
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+        }
+
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:disabled {
           opacity: 0.58;
           cursor: not-allowed;
         }

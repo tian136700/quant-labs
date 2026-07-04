@@ -71,6 +71,12 @@ export async function POST(request: Request) {
         ? refTitleRaw.trim()
         : null;
 
+    const classNotesRaw = form.get("class_notes");
+    const classNotes =
+      typeof classNotesRaw === "string" && classNotesRaw.trim()
+        ? classNotesRaw.trim()
+        : null;
+
     const existingRefKey = normalizeJpVocabRefKey(
       String(form.get("ref_key") || "")
     );
@@ -125,6 +131,7 @@ export async function POST(request: Request) {
       meaning,
       kind,
       ref_key: refKey,
+      class_notes: classNotes,
     });
 
     if (!result.ok) {

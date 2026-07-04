@@ -744,6 +744,7 @@ export async function addJpVocabWord(
     ref_key: input.ref_key
       ? normalizeJpVocabRefKey(input.ref_key) || null
       : null,
+    class_notes: (input.class_notes || "").trim() || null,
   };
 
   await seedIfEmpty(db);
@@ -766,7 +767,7 @@ export async function addJpVocabWord(
       cnt_weak: 0,
       today_check_count: 0,
       today_check_date: null,
-      class_notes: null,
+      class_notes: item.class_notes,
       created_at: ts,
       updated_at: ts,
     };
@@ -788,7 +789,7 @@ export async function addJpVocabWord(
   const insertResult = await db
     .prepare(
       `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?6)`
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, ?6, ?7, ?7)`
     )
     .bind(
       item.word,
@@ -796,6 +797,7 @@ export async function addJpVocabWord(
       item.meaning,
       item.kind,
       item.ref_key,
+      item.class_notes,
       ts
     )
     .run();
