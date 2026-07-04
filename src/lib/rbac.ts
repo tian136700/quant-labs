@@ -1,6 +1,36 @@
 import type { EtrUserRole } from "@/lib/etr-auth";
 
-export type RbacPermissionCategory = "admin" | "pages" | "jp" | "nav";
+export type RbacPermissionCategory =
+  | "admin"
+  | "pages"
+  | "jp_vocab"
+  | "jp_lesson"
+  | "nav";
+
+/** 权限页大模块（其下可含多个 category 子分组） */
+export type RbacPermissionModule = "jp_learning";
+
+export const RBAC_CATEGORY_MODULE: Partial<
+  Record<RbacPermissionCategory, RbacPermissionModule>
+> = {
+  jp_vocab: "jp_learning",
+  jp_lesson: "jp_learning",
+};
+
+/** 权限页模块顺序及所含子分组 */
+export const RBAC_UI_LAYOUT: Array<
+  | { kind: "category"; category: RbacPermissionCategory }
+  | { kind: "module"; module: RbacPermissionModule; categories: RbacPermissionCategory[] }
+> = [
+  { kind: "category", category: "admin" },
+  { kind: "category", category: "pages" },
+  {
+    kind: "module",
+    module: "jp_learning",
+    categories: ["jp_vocab", "jp_lesson"],
+  },
+  { kind: "category", category: "nav" },
+];
 
 export interface RbacPermissionDef {
   key: string;
@@ -87,33 +117,33 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
   },
   {
     key: "jp_vocab:read",
-    labelZh: "日语单词浏览",
-    labelEn: "JP vocab (browse)",
-    category: "jp",
-    descriptionZh: "访客可浏览单词/语法表",
-    descriptionEn: "Browse vocabulary and grammar lists",
+    labelZh: "浏览单词/语法",
+    labelEn: "Browse vocab & grammar",
+    category: "jp_vocab",
+    descriptionZh: "可查看单词/语法抽问列表",
+    descriptionEn: "View vocabulary and grammar spot-check lists",
   },
   {
     key: "jp_vocab:operate",
-    labelZh: "日语单词操作",
-    labelEn: "JP vocab (edit)",
-    category: "jp",
-    descriptionZh: "勾选熟悉度、重置、手动添加",
-    descriptionEn: "Review levels, reset, manual add",
+    labelZh: "操作单词/语法",
+    labelEn: "Edit vocab & grammar",
+    category: "jp_vocab",
+    descriptionZh: "勾选熟悉度、重置、手动添加词条",
+    descriptionEn: "Review levels, reset, manual add entries",
   },
   {
     key: "jp_lesson:read",
-    labelZh: "日语新课浏览",
-    labelEn: "JP lessons (browse)",
-    category: "jp",
-    descriptionZh: "访客可浏览新课与教案链接",
-    descriptionEn: "Browse lessons and lesson plans",
+    labelZh: "浏览新课",
+    labelEn: "Browse lessons",
+    category: "jp_lesson",
+    descriptionZh: "可查看新课列表与教案链接",
+    descriptionEn: "View lesson list and lesson-plan links",
   },
   {
     key: "jp_lesson:operate",
-    labelZh: "日语新课操作",
-    labelEn: "JP lessons (edit)",
-    category: "jp",
+    labelZh: "操作新课",
+    labelEn: "Edit lessons",
+    category: "jp_lesson",
     descriptionZh: "学习状态、教案编辑、课堂笔记",
     descriptionEn: "Progress, lesson plans, class notes",
   },
@@ -150,8 +180,8 @@ export const RBAC_ROLE_LABELS: Record<
   jp_vocab: {
     zh: "日语教师",
     en: "JP teacher",
-    descriptionZh: "日语新课与单词抽问操作",
-    descriptionEn: "JP lesson and vocab operations",
+    descriptionZh: "日语抽查（单词/语法抽问）",
+    descriptionEn: "JP vocab spot-check operations",
   },
   user: {
     zh: "网上的注册用户",
@@ -167,8 +197,6 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
   jp_vocab: [
     "jp_vocab:read",
     "jp_vocab:operate",
-    "jp_lesson:read",
-    "jp_lesson:operate",
     "about:view",
     "nav:jp_teacher",
   ],
@@ -206,11 +234,28 @@ export function rbacCategoryLabel(
   const map: Record<RbacPermissionCategory, { zh: string; en: string }> = {
     admin: { zh: "管理功能", en: "Administration" },
     pages: { zh: "站点页面", en: "Site pages" },
-    jp: { zh: "日语学习", en: "Japanese learning" },
+    jp_vocab: { zh: "日语抽查（单词/语法）", en: "JP spot-check (vocab & grammar)" },
+    jp_lesson: { zh: "日语新课", en: "JP new lessons" },
     nav: { zh: "导航显示", en: "Navigation" },
   };
   return locale === "zh" ? map[category].zh : map[category].en;
 }
+
+export function rbacModuleLabel(
+  module: RbacPermissionModule,
+  locale: "en" | "zh"
+): string {
+  const map: Record<RbacPermissionModule, { zh: string; en: string }> = {
+    jp_learning: { zh: "日语学习", en: "Japanese learning" },
+  };
+  return locale === "zh" ? map[module].zh : map[module].en;
+}
+
+/** 日语教师角色不应持有的新课权限（默认关闭，可由管理员手动开启） */
+export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
+  "jp_lesson:read",
+  "jp_lesson:operate",
+] as const;
 
 export function isAdminSuperuser(role: string | undefined): boolean {
   return role === "admin";

@@ -115,6 +115,17 @@ export function detectLessonSectionBounds(
   }));
 }
 
+/** 每页 Word 合并相邻两个「部分」（第一+第二部分同页）；奇数时最后一页仅一节 */
+function groupLessonSectionsIntoWordPages(
+  sections: LessonSectionBounds[]
+): LessonSectionBounds[][] {
+  const pages: LessonSectionBounds[][] = [];
+  for (let i = 0; i < sections.length; i += 2) {
+    pages.push(sections.slice(i, i + 2));
+  }
+  return pages;
+}
+
 function cropSectionToDataUrl(
   img: HTMLImageElement,
   bounds: LessonSectionBounds
@@ -176,7 +187,7 @@ export async function exportJpVocabRefPaginatedPdf(
   return sections.length;
 }
 
-/** 导出分页 Word；排版与 PDF 一致（图片在上、页码在下、留白供备注） */
+/** 导出分页 Word；相邻两部分同页，中间留白供板书；页脚仍带页码 */
 export async function exportJpVocabRefPaginatedDocx(
   imageUrl: string,
   filenameBase: string
@@ -198,43 +209,64 @@ export async function exportJpVocabRefPaginatedDocx(
   ] = await Promise.all([import("docx"), loadImage(imageUrl)]);
 
   const sections = detectLessonSectionBounds(img);
+  const sectionPages = groupLessonSectionsIntoWordPages(sections);
   const pageWpx = 794;
   const pageHpx = 1123;
   const marginPx = 45;
-  const maxImgH = pageHpx * 0.52;
+  const partGapMm = 25;
+  const partGapPx = (partGapMm / 25.4) * 96;
+  const maxImgH =
+    (pageHpx - marginPx * 2 - partGapPx) /
+    Math.max(...sectionPages.map((p) => p.length));
   const maxImgW = pageWpx - marginPx * 2;
   const children: Array<InstanceType<typeof Paragraph>> = [];
 
-  for (let i = 0; i < sections.length; i++) {
-    if (i > 0) {
+  for (let pageIdx = 0; pageIdx < sectionPages.length; pageIdx++) {
+    if (pageIdx > 0) {
       children.push(new Paragraph({ children: [new PageBreak()] }));
     }
 
-    const dataUrl = cropSectionToDataUrl(img, sections[i]);
-    const imgW = img.naturalWidth;
-    const imgH = sections[i].y1 - sections[i].y0;
-    const { width: drawW, height: drawH } = calcSectionDrawSize(
-      imgW,
-      imgH,
-      maxImgW,
-      maxImgH
-    );
-
-    children.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new ImageRun({
-            type: "png",
-            data: dataUrlToUint8Array(dataUrl),
-            transformation: {
-              width: Math.round(drawW),
-              height: Math.round(drawH),
+    const pageSections = sectionPages[pageIdx];
+    for (let partIdx = 0; partIdx < pageSections.length; partIdx++) {
+      if (partIdx > 0) {
+        children.push(
+          new Paragraph({
+            spacing: {
+              before: convertMillimetersToTwip(partGapMm),
+              after: convertMillimetersToTwip(4),
             },
-          }),
-        ],
-      })
-    );
+            children: [],
+          })
+        );
+      }
+
+      const bounds = pageSections[partIdx];
+      const dataUrl = cropSectionToDataUrl(img, bounds);
+      const imgW = img.naturalWidth;
+      const imgH = bounds.y1 - bounds.y0;
+      const { width: drawW, height: drawH } = calcSectionDrawSize(
+        imgW,
+        imgH,
+        maxImgW,
+        maxImgH
+      );
+
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              type: "png",
+              data: dataUrlToUint8Array(dataUrl),
+              transformation: {
+                width: Math.round(drawW),
+                height: Math.round(drawH),
+              },
+            }),
+          ],
+        })
+      );
+    }
   }
 
   const doc = new Document({
@@ -275,7 +307,7 @@ export async function exportJpVocabRefPaginatedDocx(
     blob,
     `${paginatedExportBasename(filenameBase)}-分页.docx`
   );
-  return sections.length;
+  return sectionPages.length;
 }
 
 export async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {

@@ -7,7 +7,10 @@ import type { EtrUserRole } from "@/lib/etr-auth";
 import {
   RBAC_MANAGEABLE_ROLES,
   RBAC_ROLE_LABELS,
+  RBAC_UI_LAYOUT,
   rbacCategoryLabel,
+  rbacModuleLabel,
+  rbacPermissionDescription,
   rbacPermissionLabel,
   type RbacPermissionCategory,
   type RbacPermissionDef,
@@ -29,8 +32,69 @@ type UserRow = {
   permissions: string[];
 };
 
-const CATEGORY_ORDER: RbacPermissionCategory[] = ["admin", "pages", "jp", "nav"];
 const EDITABLE_ROLES: EtrUserRole[] = ["jp_vocab", "user"];
+
+function PermissionMatrixTable({
+  items,
+  locale,
+  adminPermissions,
+  draftByRole,
+  toggleDraft,
+}: {
+  items: RbacPermissionDef[];
+  locale: "en" | "zh";
+  adminPermissions: string[];
+  draftByRole: Record<string, Set<string>>;
+  toggleDraft: (role: EtrUserRole, key: string) => void;
+}) {
+  return (
+    <div className="admin-rbac-table-wrap">
+      <table className="admin-rbac-table admin-rbac-matrix">
+        <thead>
+          <tr>
+            <th>{locale === "zh" ? "权限" : "Permission"}</th>
+            <th>{roleLabel("admin", locale)}</th>
+            {EDITABLE_ROLES.map((role) => (
+              <th key={role}>{roleLabel(role, locale)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((perm) => (
+            <tr key={perm.key}>
+              <td>
+                <strong>{rbacPermissionLabel(perm, locale)}</strong>
+                <span className="admin-rbac-desc">
+                  {rbacPermissionDescription(perm, locale)}
+                </span>
+                <span className="admin-rbac-key">{perm.key}</span>
+              </td>
+              <td className="admin-rbac-check-cell">
+                <input
+                  type="checkbox"
+                  checked={adminPermissions.includes(perm.key)}
+                  disabled
+                  readOnly
+                  aria-label={`admin-${perm.key}`}
+                />
+              </td>
+              {EDITABLE_ROLES.map((role) => (
+                <td key={role} className="admin-rbac-check-cell">
+                  <input
+                    type="checkbox"
+                    checked={draftByRole[role]?.has(perm.key) ?? false}
+                    onChange={() => toggleDraft(role, perm.key)}
+                    aria-label={`${role}-${perm.key}`}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function roleLabel(role: EtrUserRole, locale: "en" | "zh"): string {
   const item = RBAC_ROLE_LABELS[role];
@@ -45,7 +109,9 @@ function permissionLabels(
   const map = new Map(catalog.map((p) => [p.key, p]));
   return keys.map((key) => {
     const def = map.get(key);
-    return def ? rbacPermissionLabel(def, locale) : key;
+    if (!def) return key;
+    const group = rbacCategoryLabel(def.category, locale);
+    return `${group} · ${rbacPermissionLabel(def, locale)}`;
   });
 }
 
@@ -65,7 +131,12 @@ export function AdminRbacPage() {
 
   const groupedCatalog = useMemo(() => {
     const groups = new Map<RbacPermissionCategory, RbacPermissionDef[]>();
-    for (const cat of CATEGORY_ORDER) groups.set(cat, []);
+    for (const section of RBAC_UI_LAYOUT) {
+      if (section.kind === "category") groups.set(section.category, []);
+      else {
+        for (const cat of section.categories) groups.set(cat, []);
+      }
+    }
     for (const item of catalog) {
       groups.get(item.category)?.push(item);
     }
@@ -250,57 +321,56 @@ export function AdminRbacPage() {
           <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
         ) : (
           <>
-            {[...groupedCatalog.entries()].map(([category, items]) =>
-              items.length ? (
-                <div key={category} className="admin-rbac-group">
-                  <h3 className="admin-rbac-group-title">
-                    {rbacCategoryLabel(category, locale)}
-                  </h3>
-                  <div className="admin-rbac-table-wrap">
-                    <table className="admin-rbac-table admin-rbac-matrix">
-                      <thead>
-                        <tr>
-                          <th>{locale === "zh" ? "权限" : "Permission"}</th>
-                          <th>{roleLabel("admin", locale)}</th>
-                          {EDITABLE_ROLES.map((role) => (
-                            <th key={role}>{roleLabel(role, locale)}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((perm) => (
-                          <tr key={perm.key}>
-                            <td>
-                              <strong>{rbacPermissionLabel(perm, locale)}</strong>
-                              <span className="admin-rbac-key">{perm.key}</span>
-                            </td>
-                            <td className="admin-rbac-check-cell">
-                              <input
-                                type="checkbox"
-                                checked={adminPermissions.includes(perm.key)}
-                                disabled
-                                readOnly
-                                aria-label={`admin-${perm.key}`}
-                              />
-                            </td>
-                            {EDITABLE_ROLES.map((role) => (
-                              <td key={role} className="admin-rbac-check-cell">
-                                <input
-                                  type="checkbox"
-                                  checked={draftByRole[role]?.has(perm.key) ?? false}
-                                  onChange={() => toggleDraft(role, perm.key)}
-                                  aria-label={`${role}-${perm.key}`}
-                                />
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            {RBAC_UI_LAYOUT.map((section) => {
+              if (section.kind === "category") {
+                const items = groupedCatalog.get(section.category) ?? [];
+                if (!items.length) return null;
+                return (
+                  <div key={section.category} className="admin-rbac-group">
+                    <h3 className="admin-rbac-group-title">
+                      {rbacCategoryLabel(section.category, locale)}
+                    </h3>
+                    <PermissionMatrixTable
+                      items={items}
+                      locale={locale}
+                      adminPermissions={adminPermissions}
+                      draftByRole={draftByRole}
+                      toggleDraft={toggleDraft}
+                    />
                   </div>
+                );
+              }
+
+              const subsections = section.categories
+                .map((category) => ({
+                  category,
+                  items: groupedCatalog.get(category) ?? [],
+                }))
+                .filter((entry) => entry.items.length > 0);
+              if (!subsections.length) return null;
+
+              return (
+                <div key={section.module} className="admin-rbac-module">
+                  <h3 className="admin-rbac-module-title">
+                    {rbacModuleLabel(section.module, locale)}
+                  </h3>
+                  {subsections.map(({ category, items }) => (
+                    <div key={category} className="admin-rbac-group admin-rbac-group--nested">
+                      <h4 className="admin-rbac-group-title admin-rbac-subgroup-title">
+                        {rbacCategoryLabel(category, locale)}
+                      </h4>
+                      <PermissionMatrixTable
+                        items={items}
+                        locale={locale}
+                        adminPermissions={adminPermissions}
+                        draftByRole={draftByRole}
+                        toggleDraft={toggleDraft}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ) : null
-            )}
+              );
+            })}
 
             <div className="etr-form-actions" style={{ marginTop: "1rem" }}>
               <button
@@ -371,12 +441,31 @@ export function AdminRbacPage() {
           font-size: 0.8125rem;
           line-height: 1.35;
         }
+        .admin-rbac-module {
+          margin-top: 1.25rem;
+        }
+        .admin-rbac-module-title {
+          font-size: 1rem;
+          margin: 0 0 0.65rem;
+          font-weight: 600;
+        }
         .admin-rbac-group {
           margin-top: 1.25rem;
+        }
+        .admin-rbac-group--nested {
+          margin-top: 0.85rem;
+          margin-left: 0.75rem;
+          padding-left: 0.85rem;
+          border-left: 2px solid var(--border);
         }
         .admin-rbac-group-title {
           font-size: 0.9375rem;
           margin: 0 0 0.5rem;
+        }
+        .admin-rbac-subgroup-title {
+          font-size: 0.875rem;
+          color: var(--muted);
+          font-weight: 600;
         }
         .admin-rbac-key {
           display: block;
@@ -384,6 +473,13 @@ export function AdminRbacPage() {
           color: var(--muted);
           font-family: ui-monospace, monospace;
           font-weight: normal;
+        }
+        .admin-rbac-desc {
+          display: block;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-weight: normal;
+          margin-top: 0.15rem;
         }
         .admin-rbac-check-cell {
           text-align: center;

@@ -124,7 +124,7 @@ function PaginatedFormatMenu({
             }}
           >
             <span className="jp-ref-download-item-title">分页 Word</span>
-            <span className="jp-ref-download-item-desc">与 PDF 同排版，便于编辑</span>
+            <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
           </button>
         </div>
       ) : null}
@@ -308,7 +308,7 @@ export function JpVocabRefDownloadMenu({
             onClick={() => void downloadPaginatedWord()}
           >
             <span className="jp-ref-download-item-title">分页 Word</span>
-            <span className="jp-ref-download-item-desc">与 PDF 同排版，便于编辑</span>
+            <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
           </button>
         </div>
       ) : null}
