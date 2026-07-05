@@ -1073,6 +1073,86 @@ export async function removeEnVocabLessonWords(
   }
 }
 
+export type DeleteEnVocabWordsResult =
+  | {
+      ok: true;
+      deleted: number;
+      words: EnVocabWord[];
+      display_order: EnVocabDailyDisplayOrder;
+    }
+  | { ok: false; error: string };
+
+/** 管理员批量删除词条（按 id） */
+export async function deleteEnVocabWordsByIds(
+  db: D1Database,
+  wordIds: number[]
+): Promise<DeleteEnVocabWordsResult> {
+  const ids = [
+    ...new Set(
+      wordIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ];
+  if (!ids.length) {
+    return { ok: false, error: "word_ids_empty" };
+  }
+
+  await seedIfEmpty(db);
+  const idSet = new Set(ids);
+
+  if (devStoreEnabled) {
+    let deleted = 0;
+    for (let i = devWords.length - 1; i >= 0; i--) {
+      if (idSet.has(devWords[i].id)) {
+        devWords.splice(i, 1);
+        deleted++;
+      }
+    }
+    for (let i = devShared.length - 1; i >= 0; i--) {
+      if (idSet.has(devShared[i].word_id)) {
+        devShared.splice(i, 1);
+      }
+    }
+    if (deleted === 0) {
+      return { ok: false, error: "not_found" };
+    }
+    const words = [...devWords];
+    let display_order = await ensureEnVocabDailyDisplayOrder(db, words);
+    const validIds = new Set(words.map((w) => w.id));
+    const round_checked_ids = (display_order.round_checked_ids ?? []).filter((id) =>
+      validIds.has(id)
+    );
+    if (round_checked_ids.length !== (display_order.round_checked_ids ?? []).length) {
+      display_order = { ...display_order, round_checked_ids };
+      await saveEnVocabDailyDisplayOrder(db, display_order);
+    }
+    return { ok: true, deleted, words, display_order };
+  }
+
+  const placeholders = ids.map((_, i) => `?${i + 1}`).join(", ");
+  const result = await db
+    .prepare(`DELETE FROM en_vocab_word WHERE id IN (${placeholders})`)
+    .bind(...ids)
+    .run();
+
+  const deleted = result.meta.changes ?? 0;
+  if (deleted === 0) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const words = await listEnVocabWords(db);
+  let display_order = await ensureEnVocabDailyDisplayOrder(db, words);
+  const validIds = new Set(words.map((w) => w.id));
+  const round_checked_ids = (display_order.round_checked_ids ?? []).filter((id) =>
+    validIds.has(id)
+  );
+  if (round_checked_ids.length !== (display_order.round_checked_ids ?? []).length) {
+    display_order = { ...display_order, round_checked_ids };
+    await saveEnVocabDailyDisplayOrder(db, display_order);
+  }
+
+  return { ok: true, deleted, words, display_order };
+}
+
 function lessonMatchesVocabWord(lesson: EnLessonRecord, word: EnVocabWord): boolean {
   if (!lesson.completed) return false;
   const items = parseLessonContent(lesson.content);

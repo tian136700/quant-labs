@@ -224,6 +224,10 @@ export function EnVocabPage() {
   const [kindFilter, setKindFilter] = useState<EnVocabKindFilter>("all");
   const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState(false);
+  const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<number>>(
+    () => new Set()
+  );
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
@@ -424,6 +428,15 @@ export function EnVocabPage() {
     const start = (safePage - 1) * JP_VOCAB_PAGE_SIZE;
     return filteredDisplayedWords.slice(start, start + JP_VOCAB_PAGE_SIZE);
   }, [filteredDisplayedWords, safePage]);
+  const pagedDeleteIds = useMemo(
+    () => pagedDisplayedWords.map((w) => w.id),
+    [pagedDisplayedWords]
+  );
+  const allPageDeleteSelected =
+    pagedDeleteIds.length > 0 &&
+    pagedDeleteIds.every((id) => selectedDeleteIds.has(id));
+  const somePageDeleteSelected =
+    !allPageDeleteSelected && pagedDeleteIds.some((id) => selectedDeleteIds.has(id));
   const showPagination = filteredDisplayedWords.length > JP_VOCAB_PAGE_SIZE;
   const pageRangeStart =
     filteredDisplayedWords.length === 0
@@ -836,6 +849,103 @@ export function EnVocabPage() {
     }
   };
 
+  const toggleDeleteSelection = (wordId: number, checked: boolean) => {
+    setSelectedDeleteIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(wordId);
+      else next.delete(wordId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllPageForDelete = () => {
+    setSelectedDeleteIds((prev) => {
+      const next = new Set(prev);
+      if (allPageDeleteSelected) {
+        for (const id of pagedDeleteIds) next.delete(id);
+      } else {
+        for (const id of pagedDeleteIds) next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const batchDeleteSelected = async () => {
+    if (!isAdmin) {
+      setStatus("仅 Admin 账户可删除词条。");
+      return;
+    }
+    if (!canOperate) {
+      setStatus("请登录后再删除。");
+      openEnAuth();
+      return;
+    }
+    if (deletingBatch || selectedDeleteIds.size === 0) return;
+
+    const ids = [...selectedDeleteIds];
+    const ok = window.confirm(
+      `确定删除选中的 ${ids.length} 条词条？此操作不可恢复。`
+    );
+    if (!ok) return;
+
+    setDeletingBatch(true);
+    setStatus("");
+    setError("");
+    try {
+      const res = await fetch("/api/en-vocab/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ word_ids: ids }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        deleted?: number;
+        words?: EnVocabWord[];
+        display_order?: EnVocabDailyDisplayOrder;
+        error?: string;
+      };
+      if (res.status === 403) {
+        throw new Error("仅 Admin 账户可删除词条。");
+      }
+      if (!data.ok || !data.words || !data.display_order) {
+        throw new Error(data.error || "删除失败");
+      }
+
+      const deletedSet = new Set(ids);
+      setWords(data.words);
+      setDisplayOrder(data.display_order);
+      persistVocabCache(data.words, refs, data.display_order);
+      setSelectedDeleteIds(new Set());
+      setSharedTodayWordIds((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      setSessionLevel((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      setSessionReviewAt((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      if (highlightId != null && deletedSet.has(highlightId)) {
+        setHighlightId(null);
+      }
+      setStatus(`已删除 ${data.deleted ?? ids.length} 条词条。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingBatch(false);
+    }
+  };
+
   const renderPaginationNav = () =>
     showPagination ? (
       <nav className="jp-vocab-pagination" aria-label="单词表分页">
@@ -992,6 +1102,27 @@ export function EnVocabPage() {
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--danger"
+                onClick={() => void batchDeleteSelected()}
+                disabled={
+                  loading || deletingBatch || !selectedDeleteIds.size || !canOperate
+                }
+                title={
+                  selectedDeleteIds.size
+                    ? `删除已选 ${selectedDeleteIds.size} 条`
+                    : "先在表格中勾选要删除的词条"
+                }
+              >
+                {deletingBatch
+                  ? "删除中…"
+                  : selectedDeleteIds.size
+                    ? `批量删除 (${selectedDeleteIds.size})`
+                    : "批量删除"}
+              </button>
+            ) : null}
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--danger"
                 onClick={openResetChoice}
                 disabled={loading || resetting || !words.length || !canOperate}
                 title={canOperate ? undefined : "登录后可重置"}
@@ -1110,6 +1241,21 @@ export function EnVocabPage() {
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
+                  {isAdmin ? (
+                    <th rowSpan={2} className="jp-vocab-select-col" title="勾选后可批量删除">
+                      <input
+                        type="checkbox"
+                        className="jp-vocab-select-checkbox"
+                        checked={allPageDeleteSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = somePageDeleteSelected;
+                        }}
+                        aria-label="全选本页"
+                        disabled={loading || deletingBatch || !pagedDeleteIds.length}
+                        onChange={toggleSelectAllPageForDelete}
+                      />
+                    </th>
+                  ) : null}
                   <th rowSpan={2} className="jp-vocab-seq-col">
                     序号
                   </th>
@@ -1244,6 +1390,18 @@ export function EnVocabPage() {
                           : undefined,
                       }}
                     >
+                      {isAdmin ? (
+                        <td className="jp-vocab-select-col" data-label="选择">
+                          <input
+                            type="checkbox"
+                            className="jp-vocab-select-checkbox"
+                            checked={selectedDeleteIds.has(w.id)}
+                            aria-label={`选择 ${w.word}`}
+                            disabled={deletingBatch}
+                            onChange={(e) => toggleDeleteSelection(w.id, e.target.checked)}
+                          />
+                        </td>
+                      ) : null}
                       <td className="jp-vocab-seq-col" data-label="序号">
                         <span className="jp-vocab-seq-cell">
                           <span className="jp-vocab-seq-num">{dailySeq}</span>
@@ -1882,6 +2040,24 @@ export function EnVocabPage() {
         :global(.jp-vocab-table .jp-vocab-th-multiline__sub) {
           font-size: 0.8125em;
           color: var(--muted);
+        }
+        :global(.jp-vocab-table .jp-vocab-select-col) {
+          width: 2.25rem;
+          min-width: 2.25rem;
+          text-align: center;
+          padding-left: 0.35rem;
+          padding-right: 0.35rem;
+        }
+        :global(.jp-vocab-select-checkbox) {
+          width: 1rem;
+          height: 1rem;
+          margin: 0;
+          cursor: pointer;
+          accent-color: var(--accent);
+        }
+        :global(.jp-vocab-select-checkbox:disabled) {
+          cursor: not-allowed;
+          opacity: 0.55;
         }
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
