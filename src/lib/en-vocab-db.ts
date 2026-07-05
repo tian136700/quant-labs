@@ -1134,7 +1134,7 @@ export async function deleteEnVocabWordsByIds(
     .bind(...ids)
     .run();
 
-  const deleted = result.meta.changes ?? 0;
+  const deleted = Number(result.meta?.changes ?? 0);
   if (deleted === 0) {
     return { ok: false, error: "not_found" };
   }

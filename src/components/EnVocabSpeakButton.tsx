@@ -20,7 +20,6 @@ export function EnVocabSpeakButton({
   className,
   disabled = false,
 }: Props) {
-  const labelId = useId();
   const [playing, setPlaying] = useState(false);
   const supported = canSpeakEnVocab();
   const label = title ?? `播放读音：${text}`;
