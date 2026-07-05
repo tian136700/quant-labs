@@ -13,6 +13,7 @@ import {
 import type { EtrUserRole } from "@/lib/etr-auth";
 import {
   canUserOperateJpVocab,
+  canAccessJpVocabStudy,
   isJpVocabTeacherRole,
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
@@ -53,6 +54,7 @@ type EtrAuthContextValue = {
   isAdmin: boolean;
   isJpVocabTeacher: boolean;
   canAccessJpVocab: boolean;
+  canAccessJpVocabStudy: boolean;
   permissions: string[];
   hasPermission: (key: string) => boolean;
   refresh: () => Promise<void>;
@@ -191,6 +193,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
         user?.can_operate_jp_vocab === true ||
         (user?.can_operate_jp_vocab === undefined &&
           canUserOperateJpVocab(user)),
+      canAccessJpVocabStudy: canAccessJpVocabStudy(user),
       permissions,
       hasPermission,
       refresh,

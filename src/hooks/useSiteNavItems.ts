@@ -30,7 +30,7 @@ export type SiteNavItem = {
 
 export function useSiteNavItems(): SiteNavItem[] {
   const { locale, t } = useI18n();
-  const { user, isAdmin, hasPermission, checking } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy } = useEtrAuth();
   const loggedIn = Boolean(user);
   const jpTeacherNav =
     loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
@@ -63,7 +63,7 @@ export function useSiteNavItems(): SiteNavItem[] {
         label: nav.jpVocab,
         active: onJpVocab && !onJpVocabStudy,
       },
-      ...(isAdmin
+      ...(canAccessJpVocabStudy
         ? [
             {
               id: "jpVocabStudy",
@@ -100,7 +100,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      ...(onJpVocabStudy && isAdmin
+      ...(onJpVocabStudy && canAccessJpVocabStudy
         ? [
             {
               id: "jpVocabStudy",
@@ -216,7 +216,7 @@ export function useSiteNavItems(): SiteNavItem[] {
                     label: nav.jpVocab,
                     active: onJpVocab && !onJpVocabStudy,
                   },
-                  ...(isAdmin
+                  ...(canAccessJpVocabStudy
                     ? [
                         {
                           id: "jpVocabStudy",

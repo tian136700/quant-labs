@@ -1,11 +1,22 @@
-import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { listJpVocabSharedToday } from "@/lib/jp-vocab-db";
+import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 
-/** 今日共享单词列表：公开可读（与 /api/jp-vocab 的 shared_today_word_ids 一致，按北京时间自然日） */
-export async function GET() {
+const AUTH_MSG = {
+  en: "Only Admin or Japanese teachers can access today's vocabulary.",
+  zh: "仅管理员或日语老师可访问今日背单词。",
+};
+
+export async function GET(request: Request) {
+  const locale = localeFromRequest(request);
+
   try {
-    const env = await getCloudflareEnv();
+    const { env, allowed } = await requireJpVocabStudyAccess(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+    }
+
     const { items, refs } = await listJpVocabSharedToday(env.DB);
     return jsonResponse(
       {

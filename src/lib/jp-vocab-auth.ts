@@ -41,6 +41,23 @@ export async function requireJpVocabRead(request: Request) {
   return { env, user, allowed };
 }
 
+/** 今日背单词：仅 Admin / 日语老师（jp_vocab 角色） */
+export async function requireJpVocabStudyAccess(request: Request) {
+  const env = await getCloudflareEnv();
+  const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
+
+  let allowed = false;
+  if (user) {
+    if (await userHasPermission(env.DB, user, "jp_vocab:operate")) {
+      allowed = true;
+    } else {
+      allowed = canUserOperateJpVocab(user);
+    }
+  }
+
+  return { env, user, allowed };
+}
+
 export async function requireJpLessonOperate(request: Request) {
   const env = await getCloudflareEnv();
   const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));

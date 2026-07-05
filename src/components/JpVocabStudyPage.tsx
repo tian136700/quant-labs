@@ -39,8 +39,10 @@ const POLL_HIDDEN_MS = 8000;
 
 export function JpVocabStudyPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, canAccessJpVocabStudy, openAuthPanel } =
+    useEtrAuth();
   const canOperate = canAccessJpVocab;
+  const canViewStudy = canAccessJpVocabStudy;
   const [items, setItems] = useState<JpVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
@@ -63,7 +65,7 @@ export function JpVocabStudyPage() {
       mode: "login",
       loginOnly: true,
       title: "登录 · 今日背单词",
-      subtitle: "登录用户方可修改数据。",
+      subtitle: "仅管理员或日语老师可访问。",
     });
   }, [openAuthPanel]);
 
@@ -90,6 +92,10 @@ export function JpVocabStudyPage() {
   );
 
   const loadShared = useCallback(async (opts?: { force?: boolean }) => {
+    if (!canViewStudy) {
+      setLoading(false);
+      return;
+    }
     if (pollInFlightRef.current) {
       if (opts?.force) pendingRefreshRef.current = true;
       return;
@@ -108,6 +114,13 @@ export function JpVocabStudyPage() {
         share_date?: string;
         error?: string;
       };
+      if (res.status === 401) {
+        setItems([]);
+        setRefs({});
+        setShareDate(beijingDateString());
+        setError("仅管理员或日语老师可访问今日背单词。");
+        return;
+      }
       if (!data.ok || !data.items) {
         throw new Error(data.error || "加载失败");
       }
@@ -125,13 +138,21 @@ export function JpVocabStudyPage() {
         void loadShared({ force: true });
       }
     }
-  }, [locale]);
+  }, [locale, canViewStudy]);
 
   useEffect(() => {
+    if (checking) return;
+    if (!canViewStudy) {
+      setLoading(false);
+      setItems([]);
+      setRefs({});
+      return;
+    }
     void loadShared();
-  }, [loadShared]);
+  }, [loadShared, canViewStudy, checking]);
 
   useEffect(() => {
+    if (!canViewStudy) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const schedule = () => {
@@ -145,16 +166,17 @@ export function JpVocabStudyPage() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [loadShared]);
+  }, [loadShared, canViewStudy]);
 
   useEffect(() => {
+    if (!canViewStudy) return;
     return subscribeJpVocabSharedUpdated((detail) => {
       if (detail.openRemarks && detail.wordId && user) {
         pendingOpenRemarksWordIdRef.current = detail.wordId;
       }
       void loadShared({ force: true });
     });
-  }, [user, loadShared]);
+  }, [user, loadShared, canViewStudy]);
 
   useEffect(() => {
     const wordId = pendingOpenRemarksWordIdRef.current;
@@ -176,14 +198,16 @@ export function JpVocabStudyPage() {
   }, [items, canOperate]);
 
   useEffect(() => {
+    if (!canViewStudy) return;
     const onVisible = () => {
       if (!document.hidden) void loadShared({ force: true });
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [loadShared]);
+  }, [loadShared, canViewStudy]);
 
   const loggedIn = Boolean(user);
+  const accessDenied = loggedIn && !checking && !canViewStudy;
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
     const meta = ref ?? refs[refKey];
@@ -214,7 +238,7 @@ export function JpVocabStudyPage() {
             fontSize: "0.875rem",
           }}
         >
-          共享单词可直接查看；{" "}
+          请{" "}
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact"
@@ -222,8 +246,18 @@ export function JpVocabStudyPage() {
             style={{ display: "inline", padding: "0.1rem 0.35rem" }}
           >
             登录
-          </button>{" "}
-          后可编辑备注等数据。
+          </button>
+          {" "}后查看今日共享单词（仅管理员或日语老师）。
+        </p>
+      ) : null}
+
+      {accessDenied ? (
+        <p
+          className="empty"
+          role="alert"
+          style={{ color: "var(--rise)", marginBottom: "1rem" }}
+        >
+          当前账号无权访问今日背单词，请使用管理员或日语老师账号登录。
         </p>
       ) : null}
 
@@ -257,9 +291,9 @@ export function JpVocabStudyPage() {
           </span>
         </div>
 
-        {loading ? (
+        {loading && canViewStudy ? (
           <p className="empty">加载中…</p>
-        ) : items.length === 0 ? (
+        ) : !canViewStudy ? null : items.length === 0 ? (
           <p className="empty">今日暂无共享单词。</p>
         ) : (
           <div className="jp-vocab-table-wrap">

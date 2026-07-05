@@ -121,6 +121,13 @@ export function canUserOperateJpVocab(
   return name === ETR_DEFAULT_JP_VOCAB_USERNAME.toLowerCase();
 }
 
+/** 今日背单词：仅 Admin 与日语老师（jp_vocab 角色）可访问 */
+export function canAccessJpVocabStudy(
+  user: { username?: string; role?: string } | null | undefined
+): boolean {
+  return canUserOperateJpVocab(user);
+}
+
 export function newSessionToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
