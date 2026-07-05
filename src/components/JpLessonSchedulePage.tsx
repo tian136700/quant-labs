@@ -284,7 +284,7 @@ export function JpLessonSchedulePage() {
     const calendar = calendarRef.current;
     if (!panels || !calendar) return;
 
-    const mq = window.matchMedia("(max-width: 960px)");
+    const mq = window.matchMedia("(max-width: 767px)");
 
     const syncCalendarHeight = () => {
       if (mq.matches) {
@@ -1372,6 +1372,47 @@ export function JpLessonSchedulePage() {
         .jpls-error {
           color: var(--rise);
           margin: 0 0 0.75rem;
+        }
+        @media (max-width: 767px) {
+          .jpls-layout {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .jpls-sidebar {
+            display: contents;
+          }
+          .jpls-sidebar-panels {
+            order: 1;
+            width: 100%;
+          }
+          .jpls-calendar {
+            order: 2;
+            width: 100%;
+            height: auto;
+            min-height: 0;
+          }
+          .jpls-tip {
+            order: 3;
+            width: 100%;
+          }
+          .jpls-calendar--day-sync {
+            display: block;
+            overflow: visible;
+            height: auto;
+          }
+          .jpls-day-view {
+            flex: none;
+            height: auto;
+            min-height: 0;
+            overflow: visible;
+          }
+          .jpls-calendar--day-sync .jpls-slot-grid {
+            flex: none;
+            min-height: 0;
+            overflow: visible;
+          }
+          .jpls-calendar--day-sync .jpls-slot-row {
+            flex: none;
+          }
         }
         @media (min-width: 768px) and (max-width: 960px) {
           .jpls-layout {
