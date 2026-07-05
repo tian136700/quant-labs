@@ -5,6 +5,7 @@ import {
 import {
   createSessionForUser,
   findUserById,
+  revokeUserSessions,
   type AuthResult,
 } from "./etr-auth-db";
 import {
@@ -77,27 +78,6 @@ async function loginLinkExists(db: D1Database, token: string): Promise<boolean> 
   return Boolean(row?.token);
 }
 
-async function findLoginLinkForUser(
-  db: D1Database,
-  userId: number
-): Promise<{ token: string; link_expires_at: string } | null> {
-  if (devEnabled) {
-    const row = devLinks.find((item) => item.user_id === userId);
-    return row ? { token: row.token, link_expires_at: row.link_expires_at } : null;
-  }
-  const row = await db
-    .prepare(
-      `SELECT token, link_expires_at
-       FROM etr_login_links
-       WHERE user_id = ?1
-       ORDER BY created_at DESC
-       LIMIT 1`
-    )
-    .bind(userId)
-    .first<{ token: string; link_expires_at: string }>();
-  return row ?? null;
-}
-
 async function allocateLoginLinkToken(db: D1Database): Promise<string> {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const token = newLoginLinkSlug();
@@ -121,15 +101,9 @@ export async function createLoginLink(
     return { ok: false, error: "user_disabled" };
   }
 
-  const existing = await findLoginLinkForUser(db, userId);
-  if (existing) {
-    return {
-      ok: true,
-      token: existing.token,
-      link_expires_at: existing.link_expires_at,
-      session_days: Math.round(ETR_LOGIN_LINK_SESSION_MS / (24 * 60 * 60 * 1000)),
-    };
-  }
+  // 每次生成新链接：旧链接与该用户全部会话立即失效（便于换人试用同一账号）
+  await deleteUserLoginLinks(db, userId);
+  await revokeUserSessions(db, userId);
 
   const token = await allocateLoginLinkToken(db);
   const linkExpiresAt = ETR_LOGIN_LINK_PERMANENT_EXPIRES_AT;

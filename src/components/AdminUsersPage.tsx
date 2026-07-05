@@ -443,11 +443,11 @@ export function AdminUsersPage() {
       setStatus(
         locale === "zh"
           ? withTemplate
-            ? `已为 ${row.username} 生成登录链接并带模板复制${copied ? "到剪贴板" : ""}（每次登录后 30 天免登录）`
-            : `已为 ${row.username} 生成永久登录链接（每次登录后 30 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
+            ? `已为 ${row.username} 生成新登录链接并带模板复制${copied ? "到剪贴板" : ""}（旧链接与已登录状态已失效；登录后 ${data.session_days ?? 30} 天免登录）`
+            : `已为 ${row.username} 生成新登录链接（旧链接与已登录状态已失效；登录后 ${data.session_days ?? 30} 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
           : withTemplate
-            ? `Login link for ${row.username} copied with template${copied ? "" : " (copy failed)"} (${data.session_days ?? 30}-day session after each sign-in)`
-            : `Permanent login link for ${row.username} (${data.session_days ?? 30}-day session after each sign-in)${copied ? ", copied" : ""}: ${url}`
+            ? `New login link for ${row.username} copied with template${copied ? "" : " (copy failed)"} (previous links and sessions invalidated; ${data.session_days ?? 30}-day session after sign-in)`
+            : `New login link for ${row.username} (previous links and sessions invalidated; ${data.session_days ?? 30}-day session after sign-in)${copied ? ", copied" : ""}: ${url}`
       );
     } catch {
       setStatus(locale === "zh" ? "生成链接失败" : "Failed to generate link");
@@ -750,8 +750,8 @@ export function AdminUsersPage() {
         </h2>
         <p className="hint admin-login-link-templates-hint">
           {locale === "zh"
-            ? "复制登录链接时可选择「仅链接」或「带模板复制」。模板正文会放在链接前面；也可在正文中写 {login_url} 指定链接位置。"
-            : "When copying a login link, choose plain URL or copy with template text before the link. Use {login_url} to place the link inline."}
+            ? "复制登录链接时可选择「仅链接」或「带模板复制」。每次生成都会作废该用户此前的登录链接与已登录状态，便于换人试用同一账号。模板正文会放在链接前面；也可在正文中写 {login_url} 指定链接位置。"
+            : "When copying a login link, choose plain URL or copy with template text before the link. Each new link invalidates that user's previous links and active sessions. Use {login_url} to place the link inline."}
         </p>
 
         {templates.length > 0 ? (

@@ -108,6 +108,9 @@ const SHOW_RANDOM_HIGHLIGHT = false;
 /** 按当前排序，每日建议优先抽查的前 N 条 */
 const JP_VOCAB_DAILY_QUIZ_TOP = 20;
 
+/** 单词表每页条数 */
+const JP_VOCAB_PAGE_SIZE = 100;
+
 function jpVocabCheckedInRound(
   order: JpVocabDailyDisplayOrder,
   word: JpVocabWord
@@ -205,6 +208,7 @@ export function JpVocabPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
+  const [page, setPage] = useState(1);
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -215,6 +219,7 @@ export function JpVocabPage() {
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
   const pollInFlightRef = useRef(false);
+  const scrollToHighlightRef = useRef(false);
 
   useEffect(() => {
     displayOrderRef.current = displayOrder;
@@ -234,6 +239,7 @@ export function JpVocabPage() {
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
     setUseDailyRowOrder(false);
+    setPage(1);
     setStatSort((prev) => {
       if (prev?.key === key) {
         return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
@@ -390,6 +396,44 @@ export function JpVocabPage() {
     [displayedWords, searchQuery, kindFilter]
   );
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredDisplayedWords.length / JP_VOCAB_PAGE_SIZE)
+  );
+  const safePage = Math.min(page, totalPages);
+  const pagedDisplayedWords = useMemo(() => {
+    const start = (safePage - 1) * JP_VOCAB_PAGE_SIZE;
+    return filteredDisplayedWords.slice(start, start + JP_VOCAB_PAGE_SIZE);
+  }, [filteredDisplayedWords, safePage]);
+  const showPagination = filteredDisplayedWords.length > JP_VOCAB_PAGE_SIZE;
+  const pageRangeStart =
+    filteredDisplayedWords.length === 0
+      ? 0
+      : (safePage - 1) * JP_VOCAB_PAGE_SIZE + 1;
+  const pageRangeEnd = Math.min(
+    safePage * JP_VOCAB_PAGE_SIZE,
+    filteredDisplayedWords.length
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, kindFilter]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  useEffect(() => {
+    if (!scrollToHighlightRef.current || highlightId == null) return;
+    scrollToHighlightRef.current = false;
+    const frame = requestAnimationFrame(() => {
+      document
+        .getElementById(`jp-vocab-row-${highlightId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [highlightId, safePage]);
+
   /** 当日固定序号：来自服务端 display_order，不随列头排序变化 */
   const dailySeqByWordId = useMemo(
     () => buildJpVocabDailySeqMap(displayOrder.ids),
@@ -542,6 +586,7 @@ export function JpVocabPage() {
       setUseDailyRowOrder(true);
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
       setHighlightId(null);
+      setPage(1);
       setShowResetChoice(false);
       setStatus(
         action === "reset_today"
@@ -577,12 +622,13 @@ export function JpVocabPage() {
 
   const pickNext = () => {
     const next = pickRandomWord(words, highlightId ?? undefined);
-    if (next) {
-      setHighlightId(next.id);
-      document
-        .getElementById(`jp-vocab-row-${next.id}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!next) return;
+    const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
+    if (idx >= 0) {
+      setPage(Math.floor(idx / JP_VOCAB_PAGE_SIZE) + 1);
     }
+    scrollToHighlightRef.current = true;
+    setHighlightId(next.id);
   };
 
   const handleWordAdded = (
@@ -648,6 +694,32 @@ export function JpVocabPage() {
       setExporting(false);
     }
   };
+
+  const renderPaginationNav = () =>
+    showPagination ? (
+      <nav className="jp-vocab-pagination" aria-label="单词表分页">
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={safePage <= 1}
+        >
+          上一页
+        </button>
+        <span className="jp-vocab-pagination__info">
+          第 {safePage} / {totalPages} 页 · 显示 {pageRangeStart}–{pageRangeEnd} /{" "}
+          {filteredDisplayedWords.length} 条
+        </span>
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact"
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          disabled={safePage >= totalPages}
+        >
+          下一页
+        </button>
+      </nav>
+    ) : null;
 
   return (
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
@@ -888,6 +960,8 @@ export function JpVocabPage() {
                     : "当前没有单词条目。"}
               </p>
             ) : filteredDisplayedWords.length ? (
+          <>
+            {renderPaginationNav()}
           <div className="etr-table-wrap jp-vocab-table-wrap">
             <p className="jp-vocab-scroll-hint" aria-hidden="true">
               表格较宽时可左右滑动查看
@@ -999,7 +1073,7 @@ export function JpVocabPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDisplayedWords.map((w, rowIndex) => {
+                {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
                   const selected = sessionLevel[w.id];
                   const isSaving = savingId === w.id;
@@ -1209,6 +1283,8 @@ export function JpVocabPage() {
               </tbody>
             </table>
           </div>
+            {renderPaginationNav()}
+          </>
             ) : null}
           </>
         )}
@@ -1410,6 +1486,23 @@ export function JpVocabPage() {
           border: 1px dashed var(--border);
           color: var(--muted);
           font-size: 0.875rem;
+        }
+        .jp-vocab-pagination {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.65rem 0.85rem;
+          margin: 0 0 0.75rem;
+        }
+        .jp-vocab-pagination:last-of-type {
+          margin: 0.75rem 0 0;
+        }
+        .jp-vocab-pagination__info {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
+          text-align: center;
         }
         .jp-vocab-levels {
           display: flex;
