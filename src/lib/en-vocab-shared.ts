@@ -61,7 +61,7 @@ export function sortEnVocabWords(words: EnVocabWord[]): EnVocabWord[] {
   return [...words].sort((a, b) => {
     if (b.cnt_weak !== a.cnt_weak) return b.cnt_weak - a.cnt_weak;
     if (b.cnt_normal !== a.cnt_normal) return b.cnt_normal - a.cnt_normal;
-    return a.word.localeCompare(b.word, "ja");
+    return a.word.localeCompare(b.word, "en");
   });
 }
 
@@ -82,7 +82,7 @@ export function sortEnVocabWordsByStat(
   return [...words].sort((a, b) => {
     const diff = statSortValue(a, key) - statSortValue(b, key);
     if (diff !== 0) return diff * mul;
-    return a.word.localeCompare(b.word, "ja");
+    return a.word.localeCompare(b.word, "en");
   });
 }
 
@@ -93,7 +93,7 @@ export function sortEnVocabWordsForDailyOrder(words: EnVocabWord[]): EnVocabWord
     if (zeroCmp !== 0) return zeroCmp;
     const diff = enVocabRiskIndex(b) - enVocabRiskIndex(a);
     if (diff !== 0) return diff;
-    return a.word.localeCompare(b.word, "ja");
+    return a.word.localeCompare(b.word, "en");
   });
 }
 

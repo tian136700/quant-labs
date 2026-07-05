@@ -46,29 +46,29 @@ import type { EnLessonRecord } from "@/lib/types";
 
 const SEED_WORDS: EnVocabUploadInput[] = [
   {
-    word: "～ばかり",
-    meaning: "（刚刚，只是……）",
-    kind: "grammar",
-    ref_key: "demo-lesson3-grammar",
+    word: "however",
+    reading: "/haʊˈevər/",
+    meaning: "然而；不过",
+    kind: "word",
   },
   {
-    word: "～ようになる",
-    meaning: "（变得能够……）",
+    word: "Present Perfect",
+    meaning: "现在完成时",
     kind: "grammar",
-    ref_key: "demo-lesson3-grammar",
+    ref_key: "demo-lesson-grammar",
   },
   {
-    word: "～に来る",
-    meaning: "（来……做……）",
-    kind: "grammar",
-    ref_key: "demo-lesson3-grammar",
+    word: "look forward to",
+    reading: "/lʊk ˈfɔːrwərd tuː/",
+    meaning: "期待；盼望",
+    kind: "word",
   },
 ];
 
 const SEED_REFS: EnVocabRefUploadInput[] = [
   {
-    ref_key: "demo-lesson3-grammar",
-    title: "3つの大切な文法",
+    ref_key: "demo-lesson-grammar",
+    title: "Present Perfect 用法",
     media_type: "image",
   },
 ];

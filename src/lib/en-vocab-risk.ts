@@ -52,7 +52,7 @@ export function buildRiskData(words: EnVocabWord[]): EnVocabRiskRow[] {
         reviewCount: enVocabTotalReviews(w),
       };
     })
-    .sort((a, b) => b.risk - a.risk || a.name.localeCompare(b.name, "ja"));
+    .sort((a, b) => b.risk - a.risk || a.name.localeCompare(b.name, "en"));
 }
 
 /** 图表用：风险指数降序，高风险在上；仅展示 risk > 0（0 无柱长，负值为「已掌握」） */

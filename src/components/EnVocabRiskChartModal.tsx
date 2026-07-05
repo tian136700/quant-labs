@@ -40,36 +40,36 @@ export function EnVocabRiskChartModal({ open, words, onClose }: Props) {
 
   return createPortal(
     <div
-      className="en-vocab- jp-vocab-risk-modal-overlay"
+      className="jp-vocab-risk-modal-overlay"
       role="presentation"
       onClick={onClose}
     >
       <div
-        className="en-vocab- jp-vocab-risk-modal"
+        className="jp-vocab-risk-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="en-vocab- jp-vocab-risk-modal-title"
+        aria-labelledby="jp-vocab-risk-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="en-vocab- jp-vocab-risk-modal-header">
-          <p id="en-vocab- jp-vocab-risk-modal-title" className="en-vocab- jp-vocab-risk-modal-section">
+        <div className="jp-vocab-risk-modal-header">
+          <p id="jp-vocab-risk-modal-title" className="jp-vocab-risk-modal-section">
             学生学习分析
           </p>
           <button
             type="button"
-            className="en-vocab- jp-vocab-risk-modal-close"
+            className="jp-vocab-risk-modal-close"
             onClick={onClose}
             aria-label="关闭"
           >
             ×
           </button>
         </div>
-        <div className="en-vocab- jp-vocab-risk-modal-body">
+        <div className="jp-vocab-risk-modal-body">
           <EnVocabRiskChart words={words} />
         </div>
       </div>
       <style jsx>{`
-        .en-vocab- jp-vocab-risk-modal-overlay {
+        .jp-vocab-risk-modal-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -80,7 +80,7 @@ export function EnVocabRiskChartModal({ open, words, onClose }: Props) {
           background: rgba(8, 12, 18, 0.72);
           backdrop-filter: blur(2px);
         }
-        .en-vocab- jp-vocab-risk-modal {
+        .jp-vocab-risk-modal {
           width: min(1120px, 98vw);
           max-height: min(92dvh, 780px);
           display: flex;
@@ -90,7 +90,7 @@ export function EnVocabRiskChartModal({ open, words, onClose }: Props) {
           border-radius: 10px;
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
-        .en-vocab- jp-vocab-risk-modal-header {
+        .jp-vocab-risk-modal-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
@@ -99,14 +99,14 @@ export function EnVocabRiskChartModal({ open, words, onClose }: Props) {
           border-bottom: 1px solid var(--border);
           flex-shrink: 0;
         }
-        .en-vocab- jp-vocab-risk-modal-section {
+        .jp-vocab-risk-modal-section {
           margin: 0;
           font-size: 0.875rem;
           font-weight: 600;
           color: var(--text);
           letter-spacing: 0.02em;
         }
-        .en-vocab- jp-vocab-risk-modal-close {
+        .jp-vocab-risk-modal-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
@@ -118,22 +118,22 @@ export function EnVocabRiskChartModal({ open, words, onClose }: Props) {
           line-height: 1;
           cursor: pointer;
         }
-        .en-vocab- jp-vocab-risk-modal-close:hover {
+        .jp-vocab-risk-modal-close:hover {
           color: var(--text);
           border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
         }
-        .en-vocab- jp-vocab-risk-modal-body {
+        .jp-vocab-risk-modal-body {
           padding: 0.75rem 1rem 1rem;
           overflow: auto;
           flex: 1;
           min-height: 0;
         }
         @media (max-width: 480px) {
-          .en-vocab- jp-vocab-risk-modal-overlay {
+          .jp-vocab-risk-modal-overlay {
             align-items: flex-end;
             padding: 0;
           }
-          .en-vocab- jp-vocab-risk-modal {
+          .jp-vocab-risk-modal {
             width: 100%;
             max-height: 94dvh;
             border-radius: 12px 12px 0 0;

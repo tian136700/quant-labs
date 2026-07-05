@@ -228,30 +228,30 @@ export function EnVocabManualAddModal({
   return createPortal(
     <>
       <div
-        className="en-vocab- jp-vocab-add-overlay"
+        className="jp-vocab-add-overlay"
         role="presentation"
         onClick={() => {
           if (!submitting) onClose();
         }}
       >
         <div
-          className="en-vocab- jp-vocab-add-modal"
+          className="jp-vocab-add-modal"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="en-vocab- jp-vocab-add-title"
+          aria-labelledby="jp-vocab-add-title"
           onClick={(e) => e.stopPropagation()}
           onPaste={onPaste}
         >
-          <div className="en-vocab- jp-vocab-add-header">
-            <div className="en-vocab- jp-vocab-add-heading">
-              <h2 id="en-vocab- jp-vocab-add-title" className="en-vocab- jp-vocab-add-title">
+          <div className="jp-vocab-add-header">
+            <div className="jp-vocab-add-heading">
+              <h2 id="jp-vocab-add-title" className="jp-vocab-add-title">
                 手动添加词条
               </h2>
-              <p className="en-vocab- jp-vocab-add-subtitle">补充单词或语法，可选关联教案</p>
+              <p className="jp-vocab-add-subtitle">补充单词或语法，可选关联教案</p>
             </div>
             <button
               type="button"
-              className="en-vocab- jp-vocab-add-close"
+              className="jp-vocab-add-close"
               onClick={onClose}
               disabled={submitting}
               aria-label="关闭"
@@ -260,17 +260,17 @@ export function EnVocabManualAddModal({
             </button>
           </div>
 
-          <div className="en-vocab- jp-vocab-add-body">
+          <div className="jp-vocab-add-body">
             <div className="field">
-              <span className="en-vocab- jp-vocab-add-field-label">类型</span>
-              <div className="en-vocab- jp-vocab-add-segment" role="radiogroup" aria-label="词条类型">
+              <span className="jp-vocab-add-field-label">类型</span>
+              <div className="jp-vocab-add-segment" role="radiogroup" aria-label="词条类型">
                 {KIND_OPTIONS.map((opt) => (
                   <button
                     key={opt.key}
                     type="button"
                     role="radio"
                     aria-checked={kind === opt.key}
-                    className={`en-vocab- jp-vocab-add-segment-btn${
+                    className={`jp-vocab-add-segment-btn${
                       kind === opt.key ? " is-active" : ""
                     }`}
                     onClick={() => setKind(opt.key)}
@@ -283,12 +283,12 @@ export function EnVocabManualAddModal({
             </div>
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-add-word">
+              <label htmlFor="jp-vocab-add-word">
                 {kind === "grammar" ? "语法" : "单词"}
                 <span className="etr-required">*</span>
               </label>
               <input
-                id="en-vocab- jp-vocab-add-word"
+                id="jp-vocab-add-word"
                 type="text"
                 value={word}
                 onChange={(e) => setWord(e.target.value)}
@@ -300,9 +300,9 @@ export function EnVocabManualAddModal({
 
             {kind === "word" ? (
               <div className="field">
-                <label htmlFor="en-vocab- jp-vocab-add-reading">读音（可选）</label>
+                <label htmlFor="jp-vocab-add-reading">读音（可选）</label>
                 <input
-                  id="en-vocab- jp-vocab-add-reading"
+                  id="jp-vocab-add-reading"
                   type="text"
                   value={reading}
                   onChange={(e) => setReading(e.target.value)}
@@ -313,9 +313,9 @@ export function EnVocabManualAddModal({
             ) : null}
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-add-meaning">释义</label>
+              <label htmlFor="jp-vocab-add-meaning">释义</label>
               <input
-                id="en-vocab- jp-vocab-add-meaning"
+                id="jp-vocab-add-meaning"
                 type="text"
                 value={meaning}
                 onChange={(e) => setMeaning(e.target.value)}
@@ -325,10 +325,10 @@ export function EnVocabManualAddModal({
             </div>
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-add-notes">备注（可选）</label>
+              <label htmlFor="jp-vocab-add-notes">备注（可选）</label>
               <textarea
-                id="en-vocab- jp-vocab-add-notes"
-                className="en-vocab- jp-vocab-add-textarea"
+                id="jp-vocab-add-notes"
+                className="jp-vocab-add-textarea"
                 rows={6}
                 value={classNotes}
                 onChange={(e) => setClassNotes(e.target.value)}
@@ -338,9 +338,9 @@ export function EnVocabManualAddModal({
             </div>
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-add-ref-title">教案标题（可选）</label>
+              <label htmlFor="jp-vocab-add-ref-title">教案标题（可选）</label>
               <input
-                id="en-vocab- jp-vocab-add-ref-title"
+                id="jp-vocab-add-ref-title"
                 type="text"
                 value={refTitle}
                 onChange={(e) => setRefTitle(e.target.value)}
@@ -350,10 +350,10 @@ export function EnVocabManualAddModal({
             </div>
 
             <div className="field">
-              <span className="en-vocab- jp-vocab-add-field-label">教案图片（可选）</span>
+              <span className="jp-vocab-add-field-label">教案图片（可选）</span>
               <div
                 ref={dropRef}
-                className="en-vocab- jp-vocab-add-drop"
+                className="jp-vocab-add-drop"
                 tabIndex={0}
                 onPaste={onPaste}
                 onDragOver={(e) => {
@@ -371,10 +371,10 @@ export function EnVocabManualAddModal({
                 }}
               >
                 {image ? (
-                  <div className="en-vocab- jp-vocab-add-preview">
+                  <div className="jp-vocab-add-preview">
                     <button
                       type="button"
-                      className="en-vocab- jp-vocab-add-preview-thumb"
+                      className="jp-vocab-add-preview-thumb"
                       onClick={() => setImageZoomOpen(true)}
                       disabled={submitting}
                       title="点击放大查看"
@@ -382,9 +382,9 @@ export function EnVocabManualAddModal({
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={image.previewUrl} alt="教案预览" />
-                      <span className="en-vocab- jp-vocab-add-preview-zoom-hint">点击放大</span>
+                      <span className="jp-vocab-add-preview-zoom-hint">点击放大</span>
                     </button>
-                    <div className="en-vocab- jp-vocab-add-preview-actions">
+                    <div className="jp-vocab-add-preview-actions">
                       <button
                         type="button"
                         className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
@@ -412,7 +412,7 @@ export function EnVocabManualAddModal({
                   </div>
                 ) : (
                   <>
-                    <p className="en-vocab- jp-vocab-add-drop-hint">
+                    <p className="jp-vocab-add-drop-hint">
                       点击上传、拖拽图片到此处，或在弹窗内按 Ctrl+V / ⌘V 粘贴截图
                     </p>
                     <button
@@ -434,18 +434,18 @@ export function EnVocabManualAddModal({
                 />
               </div>
               {dedupeHint ? (
-                <p className="en-vocab- jp-vocab-add-hint">{dedupeHint}</p>
+                <p className="jp-vocab-add-hint">{dedupeHint}</p>
               ) : null}
             </div>
 
             {error ? (
-              <p className="en-vocab- jp-vocab-add-error" role="alert">
+              <p className="jp-vocab-add-error" role="alert">
                 {error}
               </p>
             ) : null}
           </div>
 
-          <div className="en-vocab- jp-vocab-add-footer">
+          <div className="jp-vocab-add-footer">
             <button
               type="button"
               className="btn-rsi-filter"
@@ -468,24 +468,24 @@ export function EnVocabManualAddModal({
 
       {image && imageZoomOpen ? (
         <div
-          className="en-vocab- jp-vocab-add-zoom"
+          className="jp-vocab-add-zoom"
           role="dialog"
           aria-modal="true"
           aria-label="教案图片大图预览"
           onClick={() => setImageZoomOpen(false)}
         >
-          <div className="en-vocab- jp-vocab-add-zoom-bar">
+          <div className="jp-vocab-add-zoom-bar">
             <span>确认图片是否正确 · 点击空白处或按 Esc 关闭</span>
             <button
               type="button"
-              className="en-vocab- jp-vocab-add-close"
+              className="jp-vocab-add-close"
               onClick={() => setImageZoomOpen(false)}
               aria-label="关闭大图预览"
             >
               ×
             </button>
           </div>
-          <div className="en-vocab- jp-vocab-add-zoom-stage">
+          <div className="jp-vocab-add-zoom-stage">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={image.previewUrl}
@@ -497,7 +497,7 @@ export function EnVocabManualAddModal({
       ) : null}
 
       <style jsx global>{`
-        .en-vocab- jp-vocab-add-overlay {
+        .jp-vocab-add-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -510,7 +510,7 @@ export function EnVocabManualAddModal({
           -webkit-backdrop-filter: blur(6px);
         }
 
-        .en-vocab- jp-vocab-add-modal {
+        .jp-vocab-add-modal {
           width: min(640px, 100%);
           max-height: min(92vh, 860px);
           display: flex;
@@ -529,7 +529,7 @@ export function EnVocabManualAddModal({
             0 0 0 1px rgba(255, 255, 255, 0.04) inset;
         }
 
-        .en-vocab- jp-vocab-add-header {
+        .jp-vocab-add-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -538,11 +538,11 @@ export function EnVocabManualAddModal({
           border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-heading {
+        .jp-vocab-add-heading {
           min-width: 0;
         }
 
-        .en-vocab- jp-vocab-add-title {
+        .jp-vocab-add-title {
           margin: 0;
           font-size: 1.0625rem;
           font-weight: 600;
@@ -550,14 +550,14 @@ export function EnVocabManualAddModal({
           letter-spacing: 0.01em;
         }
 
-        .en-vocab- jp-vocab-add-subtitle {
+        .jp-vocab-add-subtitle {
           margin: 0.3rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
           line-height: 1.45;
         }
 
-        .en-vocab- jp-vocab-add-close {
+        .jp-vocab-add-close {
           flex-shrink: 0;
           display: inline-flex;
           align-items: center;
@@ -579,18 +579,18 @@ export function EnVocabManualAddModal({
             background 0.15s ease;
         }
 
-        .en-vocab- jp-vocab-add-close:hover:not(:disabled) {
+        .jp-vocab-add-close:hover:not(:disabled) {
           color: var(--text);
           border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
           background: color-mix(in srgb, var(--accent) 8%, var(--bg));
         }
 
-        .en-vocab- jp-vocab-add-close:disabled {
+        .jp-vocab-add-close:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
 
-        .en-vocab- jp-vocab-add-body {
+        .jp-vocab-add-body {
           display: flex;
           flex-direction: column;
           gap: 0.9rem;
@@ -600,25 +600,25 @@ export function EnVocabManualAddModal({
           scrollbar-color: var(--border) transparent;
         }
 
-        .en-vocab- jp-vocab-add-body::-webkit-scrollbar {
+        .jp-vocab-add-body::-webkit-scrollbar {
           width: 8px;
         }
 
-        .en-vocab- jp-vocab-add-body::-webkit-scrollbar-track {
+        .jp-vocab-add-body::-webkit-scrollbar-track {
           background: transparent;
         }
 
-        .en-vocab- jp-vocab-add-body::-webkit-scrollbar-thumb {
+        .jp-vocab-add-body::-webkit-scrollbar-thumb {
           background: var(--border);
           border-radius: 999px;
         }
 
-        .en-vocab- jp-vocab-add-modal .field {
+        .jp-vocab-add-modal .field {
           min-width: 0;
         }
 
-        .en-vocab- jp-vocab-add-modal .field label,
-        .en-vocab- jp-vocab-add-field-label {
+        .jp-vocab-add-modal .field label,
+        .jp-vocab-add-field-label {
           display: block;
           margin-bottom: 0.35rem;
           font-size: 0.75rem;
@@ -626,7 +626,7 @@ export function EnVocabManualAddModal({
           line-height: 1.35;
         }
 
-        .en-vocab- jp-vocab-add-modal .field input[type="text"] {
+        .jp-vocab-add-modal .field input[type="text"] {
           width: 100%;
           box-sizing: border-box;
           margin: 0;
@@ -644,26 +644,26 @@ export function EnVocabManualAddModal({
             background 0.15s ease;
         }
 
-        .en-vocab- jp-vocab-add-modal .field input[type="text"]::placeholder {
+        .jp-vocab-add-modal .field input[type="text"]::placeholder {
           color: color-mix(in srgb, var(--muted) 72%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-modal .field input[type="text"]:hover:not(:disabled) {
+        .jp-vocab-add-modal .field input[type="text"]:hover:not(:disabled) {
           border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
         }
 
-        .en-vocab- jp-vocab-add-modal .field input[type="text"]:focus {
+        .jp-vocab-add-modal .field input[type="text"]:focus {
           outline: none;
           border-color: var(--accent);
           box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-modal .field input[type="text"]:disabled {
+        .jp-vocab-add-modal .field input[type="text"]:disabled {
           opacity: 0.58;
           cursor: not-allowed;
         }
 
-        .en-vocab- jp-vocab-add-modal .field textarea.en-vocab- jp-vocab-add-textarea {
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea {
           width: 100%;
           box-sizing: border-box;
           margin: 0;
@@ -684,34 +684,34 @@ export function EnVocabManualAddModal({
             background 0.15s ease;
         }
 
-        .en-vocab- jp-vocab-add-modal .field textarea.en-vocab- jp-vocab-add-textarea::placeholder {
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea::placeholder {
           color: color-mix(in srgb, var(--muted) 72%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-modal .field textarea.en-vocab- jp-vocab-add-textarea:hover:not(:disabled) {
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:hover:not(:disabled) {
           border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
         }
 
-        .en-vocab- jp-vocab-add-modal .field textarea.en-vocab- jp-vocab-add-textarea:focus {
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:focus {
           outline: none;
           border-color: var(--accent);
           box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-modal .field textarea.en-vocab- jp-vocab-add-textarea:disabled {
+        .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:disabled {
           opacity: 0.58;
           cursor: not-allowed;
         }
 
-        .en-vocab- jp-vocab-add-modal .field input[type="text"]:-webkit-autofill,
-        .en-vocab- jp-vocab-add-modal .field input[type="text"]:-webkit-autofill:focus {
+        .jp-vocab-add-modal .field input[type="text"]:-webkit-autofill,
+        .jp-vocab-add-modal .field input[type="text"]:-webkit-autofill:focus {
           -webkit-text-fill-color: var(--text);
           -webkit-box-shadow: 0 0 0 1000px var(--bg) inset;
           box-shadow: 0 0 0 1000px var(--bg) inset;
           transition: background-color 9999s ease-out 0s;
         }
 
-        .en-vocab- jp-vocab-add-segment {
+        .jp-vocab-add-segment {
           display: inline-flex;
           flex-wrap: wrap;
           gap: 0.2rem;
@@ -721,7 +721,7 @@ export function EnVocabManualAddModal({
           background: var(--bg);
         }
 
-        .en-vocab- jp-vocab-add-segment-btn {
+        .jp-vocab-add-segment-btn {
           border: none;
           border-radius: 7px;
           background: transparent;
@@ -736,23 +736,23 @@ export function EnVocabManualAddModal({
             box-shadow 0.15s ease;
         }
 
-        .en-vocab- jp-vocab-add-segment-btn:hover:not(:disabled):not(.is-active) {
+        .jp-vocab-add-segment-btn:hover:not(:disabled):not(.is-active) {
           color: var(--text);
           background: color-mix(in srgb, var(--panel) 70%, var(--bg));
         }
 
-        .en-vocab- jp-vocab-add-segment-btn.is-active {
+        .jp-vocab-add-segment-btn.is-active {
           color: var(--accent);
           background: color-mix(in srgb, var(--accent) 14%, var(--panel));
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
         }
 
-        .en-vocab- jp-vocab-add-segment-btn:disabled {
+        .jp-vocab-add-segment-btn:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
 
-        .en-vocab- jp-vocab-add-drop {
+        .jp-vocab-add-drop {
           border: 1px dashed color-mix(in srgb, var(--border) 88%, var(--accent));
           border-radius: 10px;
           padding: 0.9rem;
@@ -764,24 +764,24 @@ export function EnVocabManualAddModal({
             background 0.15s ease;
         }
 
-        .en-vocab- jp-vocab-add-drop:focus-visible {
+        .jp-vocab-add-drop:focus-visible {
           border-color: var(--accent);
           box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-drop.is-dragover {
+        .jp-vocab-add-drop.is-dragover {
           border-color: var(--accent);
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
 
-        .en-vocab- jp-vocab-add-drop-hint {
+        .jp-vocab-add-drop-hint {
           margin: 0 0 0.65rem;
           font-size: 0.8125rem;
           color: var(--muted);
           line-height: 1.45;
         }
 
-        .en-vocab- jp-vocab-add-preview-thumb {
+        .jp-vocab-add-preview-thumb {
           position: relative;
           display: block;
           width: 100%;
@@ -797,17 +797,17 @@ export function EnVocabManualAddModal({
             box-shadow 0.15s ease;
         }
 
-        .en-vocab- jp-vocab-add-preview-thumb:hover:not(:disabled) {
+        .jp-vocab-add-preview-thumb:hover:not(:disabled) {
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
         }
 
-        .en-vocab- jp-vocab-add-preview-thumb:disabled {
+        .jp-vocab-add-preview-thumb:disabled {
           opacity: 0.58;
           cursor: not-allowed;
         }
 
-        .en-vocab- jp-vocab-add-preview-thumb img {
+        .jp-vocab-add-preview-thumb img {
           display: block;
           width: 100%;
           max-height: 220px;
@@ -815,7 +815,7 @@ export function EnVocabManualAddModal({
           background: color-mix(in srgb, var(--bg) 80%, #000);
         }
 
-        .en-vocab- jp-vocab-add-preview-zoom-hint {
+        .jp-vocab-add-preview-zoom-hint {
           position: absolute;
           right: 0.55rem;
           bottom: 0.55rem;
@@ -828,14 +828,14 @@ export function EnVocabManualAddModal({
           pointer-events: none;
         }
 
-        .en-vocab- jp-vocab-add-preview-actions {
+        .jp-vocab-add-preview-actions {
           display: flex;
           flex-wrap: wrap;
           gap: 0.5rem;
           justify-content: center;
         }
 
-        .en-vocab- jp-vocab-add-zoom {
+        .jp-vocab-add-zoom {
           position: fixed;
           inset: 0;
           z-index: 1100;
@@ -846,7 +846,7 @@ export function EnVocabManualAddModal({
           -webkit-backdrop-filter: blur(4px);
         }
 
-        .en-vocab- jp-vocab-add-zoom-bar {
+        .jp-vocab-add-zoom-bar {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -857,7 +857,7 @@ export function EnVocabManualAddModal({
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        .en-vocab- jp-vocab-add-zoom-stage {
+        .jp-vocab-add-zoom-stage {
           flex: 1;
           min-height: 0;
           overflow: auto;
@@ -869,21 +869,21 @@ export function EnVocabManualAddModal({
           scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
         }
 
-        .en-vocab- jp-vocab-add-zoom-stage::-webkit-scrollbar {
+        .jp-vocab-add-zoom-stage::-webkit-scrollbar {
           width: 10px;
           height: 10px;
         }
 
-        .en-vocab- jp-vocab-add-zoom-stage::-webkit-scrollbar-track {
+        .jp-vocab-add-zoom-stage::-webkit-scrollbar-track {
           background: transparent;
         }
 
-        .en-vocab- jp-vocab-add-zoom-stage::-webkit-scrollbar-thumb {
+        .jp-vocab-add-zoom-stage::-webkit-scrollbar-thumb {
           background: rgba(255, 255, 255, 0.18);
           border-radius: 999px;
         }
 
-        .en-vocab- jp-vocab-add-zoom-stage img {
+        .jp-vocab-add-zoom-stage img {
           display: block;
           width: auto;
           max-width: min(96vw, 1400px);
@@ -892,14 +892,14 @@ export function EnVocabManualAddModal({
           box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
         }
 
-        .en-vocab- jp-vocab-add-hint {
+        .jp-vocab-add-hint {
           margin: 0.4rem 0 0;
           font-size: 0.8125rem;
           color: var(--accent);
           line-height: 1.4;
         }
 
-        .en-vocab- jp-vocab-add-error {
+        .jp-vocab-add-error {
           margin: 0;
           padding: 0.55rem 0.7rem;
           border-radius: 8px;
@@ -910,7 +910,7 @@ export function EnVocabManualAddModal({
           line-height: 1.4;
         }
 
-        .en-vocab- jp-vocab-add-footer {
+        .jp-vocab-add-footer {
           display: flex;
           align-items: center;
           justify-content: flex-end;
@@ -920,32 +920,32 @@ export function EnVocabManualAddModal({
           background: color-mix(in srgb, var(--bg) 38%, var(--panel));
         }
 
-        .en-vocab- jp-vocab-add-footer .btn-rsi-filter {
+        .jp-vocab-add-footer .btn-rsi-filter {
           min-width: 5.5rem;
         }
 
         @media (max-width: 480px) {
-          .en-vocab- jp-vocab-add-overlay {
+          .jp-vocab-add-overlay {
             padding: 0.65rem;
             align-items: flex-end;
           }
 
-          .en-vocab- jp-vocab-add-modal {
+          .jp-vocab-add-modal {
             max-height: 92vh;
             border-bottom-left-radius: 10px;
             border-bottom-right-radius: 10px;
           }
 
-          .en-vocab- jp-vocab-add-segment {
+          .jp-vocab-add-segment {
             display: flex;
             width: 100%;
           }
 
-          .en-vocab- jp-vocab-add-segment-btn {
+          .jp-vocab-add-segment-btn {
             flex: 1;
           }
 
-          .en-vocab- jp-vocab-add-footer .btn-rsi-filter {
+          .jp-vocab-add-footer .btn-rsi-filter {
             flex: 1;
           }
         }

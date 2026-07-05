@@ -152,29 +152,29 @@ export function EnVocabEditModal({
   return createPortal(
     <>
       <div
-        className="en-vocab- jp-vocab-edit-overlay"
+        className="jp-vocab-edit-overlay"
         role="presentation"
         onMouseDown={(e) => closeModalOnBackdropMouseDown(e, onClose)}
       >
         <div
-          className="en-vocab- jp-vocab-edit-modal"
+          className="jp-vocab-edit-modal"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="en-vocab- jp-vocab-edit-title"
+          aria-labelledby="jp-vocab-edit-title"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="en-vocab- jp-vocab-edit-header">
+          <div className="jp-vocab-edit-header">
             <div>
-              <h2 id="en-vocab- jp-vocab-edit-title" className="en-vocab- jp-vocab-edit-title">
+              <h2 id="jp-vocab-edit-title" className="jp-vocab-edit-title">
                 编辑词条
               </h2>
-              <p className="en-vocab- jp-vocab-edit-subtitle">
+              <p className="jp-vocab-edit-subtitle">
                 熟悉程度、抽查次数等统计请在表格中直接操作，此处不可修改。
               </p>
             </div>
             <button
               type="button"
-              className="en-vocab- jp-vocab-edit-close"
+              className="jp-vocab-edit-close"
               onClick={onClose}
               aria-label="关闭"
             >
@@ -182,14 +182,14 @@ export function EnVocabEditModal({
             </button>
           </div>
 
-          <div className="en-vocab- jp-vocab-edit-body">
+          <div className="jp-vocab-edit-body">
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-edit-kind" className="en-vocab- jp-vocab-edit-label">
+              <label htmlFor="jp-vocab-edit-kind" className="jp-vocab-edit-label">
                 类型
               </label>
               <select
-                id="en-vocab- jp-vocab-edit-kind"
-                className="en-vocab- jp-vocab-edit-select"
+                id="jp-vocab-edit-kind"
+                className="jp-vocab-edit-select"
                 value={kind}
                 disabled={!canEdit}
                 onChange={(e) => setKind(e.target.value as EnVocabKind)}
@@ -203,13 +203,13 @@ export function EnVocabEditModal({
             </div>
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-edit-word" className="en-vocab- jp-vocab-edit-label">
+              <label htmlFor="jp-vocab-edit-word" className="jp-vocab-edit-label">
                 {kind === "grammar" ? "语法" : "单词 / 语法"}
                 <span className="etr-required">*</span>
               </label>
               <textarea
-                id="en-vocab- jp-vocab-edit-word"
-                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--sm"
+                id="jp-vocab-edit-word"
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
                 rows={2}
                 value={wordText}
                 disabled={!canEdit}
@@ -220,13 +220,13 @@ export function EnVocabEditModal({
 
             {kind === "word" ? (
               <div className="field">
-                <label htmlFor="en-vocab- jp-vocab-edit-reading" className="en-vocab- jp-vocab-edit-label">
+                <label htmlFor="jp-vocab-edit-reading" className="jp-vocab-edit-label">
                   读音（可选）
                 </label>
                 <input
-                  id="en-vocab- jp-vocab-edit-reading"
+                  id="jp-vocab-edit-reading"
                   type="text"
-                  className="en-vocab- jp-vocab-edit-input"
+                  className="jp-vocab-edit-input"
                   value={reading}
                   disabled={!canEdit}
                   placeholder="例如：べんきょう"
@@ -236,12 +236,12 @@ export function EnVocabEditModal({
             ) : null}
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-edit-meaning" className="en-vocab- jp-vocab-edit-label">
+              <label htmlFor="jp-vocab-edit-meaning" className="jp-vocab-edit-label">
                 释义
               </label>
               <textarea
-                id="en-vocab- jp-vocab-edit-meaning"
-                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--sm"
+                id="jp-vocab-edit-meaning"
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
                 rows={2}
                 value={meaning}
                 disabled={!canEdit}
@@ -251,12 +251,12 @@ export function EnVocabEditModal({
             </div>
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-edit-pos" className="en-vocab- jp-vocab-edit-label">
+              <label htmlFor="jp-vocab-edit-pos" className="jp-vocab-edit-label">
                 词性
               </label>
               <textarea
-                id="en-vocab- jp-vocab-edit-pos"
-                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--sm"
+                id="jp-vocab-edit-pos"
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
                 rows={2}
                 value={pos}
                 disabled={!canEdit}
@@ -266,25 +266,25 @@ export function EnVocabEditModal({
             </div>
 
             <div className="field">
-              <label htmlFor="en-vocab- jp-vocab-edit-notes" className="en-vocab- jp-vocab-edit-label">
+              <label htmlFor="jp-vocab-edit-notes" className="jp-vocab-edit-label">
                 备注
               </label>
               <textarea
-                id="en-vocab- jp-vocab-edit-notes"
-                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--lg"
+                id="jp-vocab-edit-notes"
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
                 rows={4}
                 value={classNotes}
                 disabled={!canEdit}
                 placeholder="记录例句、用法、易错点…"
                 onChange={(e) => setClassNotes(e.target.value)}
               />
-              <p className="en-vocab- jp-vocab-edit-hint">备注保存后会同步到英语新课。</p>
+              <p className="jp-vocab-edit-hint">备注保存后会同步到英语新课。</p>
             </div>
 
-            {error ? <p className="en-vocab- jp-vocab-edit-error">{error}</p> : null}
+            {error ? <p className="jp-vocab-edit-error">{error}</p> : null}
           </div>
 
-          <div className="en-vocab- jp-vocab-edit-footer">
+          <div className="jp-vocab-edit-footer">
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
@@ -306,7 +306,7 @@ export function EnVocabEditModal({
       </div>
 
       <style jsx>{`
-        .en-vocab- jp-vocab-edit-overlay {
+        .jp-vocab-edit-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -319,7 +319,7 @@ export function EnVocabEditModal({
           -webkit-backdrop-filter: blur(3px);
         }
 
-        .en-vocab- jp-vocab-edit-modal {
+        .jp-vocab-edit-modal {
           display: flex;
           flex-direction: column;
           width: min(520px, 100%);
@@ -330,7 +330,7 @@ export function EnVocabEditModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
-        .en-vocab- jp-vocab-edit-header {
+        .jp-vocab-edit-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -340,20 +340,20 @@ export function EnVocabEditModal({
           flex-shrink: 0;
         }
 
-        .en-vocab- jp-vocab-edit-title {
+        .jp-vocab-edit-title {
           margin: 0;
           font-size: 1.0625rem;
           font-weight: 600;
         }
 
-        .en-vocab- jp-vocab-edit-subtitle {
+        .jp-vocab-edit-subtitle {
           margin: 0.35rem 0 0;
           font-size: 0.75rem;
           line-height: 1.45;
           color: var(--muted);
         }
 
-        .en-vocab- jp-vocab-edit-close {
+        .jp-vocab-edit-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
@@ -366,7 +366,7 @@ export function EnVocabEditModal({
           cursor: pointer;
         }
 
-        .en-vocab- jp-vocab-edit-body {
+        .jp-vocab-edit-body {
           padding: 1rem 1.1rem;
           display: flex;
           flex-direction: column;
@@ -380,14 +380,14 @@ export function EnVocabEditModal({
           gap: 0.35rem;
         }
 
-        .en-vocab- jp-vocab-edit-label {
+        .jp-vocab-edit-label {
           font-size: 0.8125rem;
           color: var(--muted);
         }
 
-        .en-vocab- jp-vocab-edit-input,
-        .en-vocab- jp-vocab-edit-select,
-        .en-vocab- jp-vocab-edit-textarea {
+        .jp-vocab-edit-input,
+        .jp-vocab-edit-select,
+        .jp-vocab-edit-textarea {
           width: 100%;
           box-sizing: border-box;
           border: 1px solid var(--border);
@@ -400,34 +400,34 @@ export function EnVocabEditModal({
           line-height: 1.45;
         }
 
-        .en-vocab- jp-vocab-edit-select {
+        .jp-vocab-edit-select {
           cursor: pointer;
         }
 
-        .en-vocab- jp-vocab-edit-select:disabled {
+        .jp-vocab-edit-select:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
 
-        .en-vocab- jp-vocab-edit-textarea {
+        .jp-vocab-edit-textarea {
           resize: vertical;
         }
 
-        .en-vocab- jp-vocab-edit-textarea--sm {
+        .jp-vocab-edit-textarea--sm {
           min-height: 3.2rem;
         }
 
-        .en-vocab- jp-vocab-edit-textarea--lg {
+        .jp-vocab-edit-textarea--lg {
           min-height: 5.5rem;
         }
 
-        .en-vocab- jp-vocab-edit-hint {
+        .jp-vocab-edit-hint {
           margin: 0;
           font-size: 0.75rem;
           color: var(--muted);
         }
 
-        .en-vocab- jp-vocab-edit-error {
+        .jp-vocab-edit-error {
           margin: 0;
           padding: 0.55rem 0.7rem;
           border-radius: 8px;
@@ -437,7 +437,7 @@ export function EnVocabEditModal({
           font-size: 0.8125rem;
         }
 
-        .en-vocab- jp-vocab-edit-footer {
+        .jp-vocab-edit-footer {
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;

@@ -26,10 +26,10 @@ const LEVELS: { key: EnVocabLevel; label: string }[] = [
 ];
 
 const STAT_COLUMNS = [
-  { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"] as [string, string], className: "en-vocab- jp-vocab-stat-detail" },
-  { key: "normal", label: "一般", className: "en-vocab- jp-vocab-stat-detail" },
-  { key: "weak", label: "不熟悉", labelLines: ["不", "熟悉"] as [string, string], className: "en-vocab- jp-vocab-stat-detail" },
-  { key: "total", label: "合计", className: "en-vocab- jp-vocab-stat-total" },
+  { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"] as [string, string], className: "jp-vocab-stat-detail" },
+  { key: "normal", label: "一般", className: "jp-vocab-stat-detail" },
+  { key: "weak", label: "不熟悉", labelLines: ["不", "熟悉"] as [string, string], className: "jp-vocab-stat-detail" },
+  { key: "total", label: "合计", className: "jp-vocab-stat-total" },
 ] as const;
 
 const SHOW_REMARKS_COLUMN = true;
@@ -187,7 +187,7 @@ export function EnVocabStudyPage() {
     pendingOpenRemarksWordIdRef.current = null;
     requestAnimationFrame(() => {
       document
-        .getElementById(`en-vocab- jp-vocab-study-row-${wordId}`)
+        .getElementById(`jp-vocab-study-row-${wordId}`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
     if (canOperate) {
@@ -217,7 +217,7 @@ export function EnVocabStudyPage() {
 
   return (
     <main
-      className="page-wrap en-vocab- jp-vocab-page en-vocab- jp-vocab-study-page"
+      className="page-wrap jp-vocab-page jp-vocab-study-page"
       style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}
     >
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>今日背英语单词</h1>
@@ -296,58 +296,58 @@ export function EnVocabStudyPage() {
         ) : !canViewStudy ? null : items.length === 0 ? (
           <p className="empty">今日暂无共享单词。</p>
         ) : (
-          <div className="en-vocab- jp-vocab-table-wrap">
-            <p className="en-vocab- jp-vocab-scroll-hint" aria-hidden="true">
+          <div className="jp-vocab-table-wrap">
+            <p className="jp-vocab-scroll-hint" aria-hidden="true">
               表格较宽时可左右滑动查看
             </p>
-            <table className="compare-table etr-table en-vocab- jp-vocab-table">
+            <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-seq-col">
+                  <th rowSpan={2} className="jp-vocab-seq-col">
                     序号
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-kind-col">
+                  <th rowSpan={2} className="jp-vocab-kind-col">
                     类型
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-word-col">
+                  <th rowSpan={2} className="jp-vocab-word-col">
                     单词 / 语法
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-reading-col">
+                  <th rowSpan={2} className="jp-vocab-reading-col">
                     读音
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-meaning-col">
+                  <th rowSpan={2} className="jp-vocab-meaning-col">
                     释义
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-pos-col">
+                  <th rowSpan={2} className="jp-vocab-pos-col">
                     词性
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-risk-col">
-                    <span className="en-vocab- jp-vocab-th-multiline en-vocab- jp-vocab-th-multiline--compact">
+                  <th rowSpan={2} className="jp-vocab-risk-col">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                       <span>抽查</span>
                       <span>优先级</span>
                     </span>
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-level-col">
-                    <span className="en-vocab- jp-vocab-th-multiline en-vocab- jp-vocab-th-multiline--compact">
+                  <th rowSpan={2} className="jp-vocab-level-col">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                       <span>熟悉程度</span>
-                      <span className="en-vocab- jp-vocab-th-multiline__sub">老师勾选</span>
+                      <span className="jp-vocab-th-multiline__sub">老师勾选</span>
                     </span>
                   </th>
-                  <th colSpan={4} className="en-vocab- jp-vocab-stats-group">
+                  <th colSpan={4} className="jp-vocab-stats-group">
                     复习次数统计
                   </th>
-                  <th rowSpan={2} className="en-vocab- jp-vocab-today-check-col" title="今日抽查次数">
-                    <span className="en-vocab- jp-vocab-th-multiline en-vocab- jp-vocab-th-multiline--compact">
+                  <th rowSpan={2} className="jp-vocab-today-check-col" title="今日抽查次数">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                       <span>今日</span>
                       <span>抽查次数</span>
                     </span>
                   </th>
                   {SHOW_REMARKS_COLUMN ? (
-                    <th rowSpan={2} className="en-vocab- jp-vocab-notes-col">
+                    <th rowSpan={2} className="jp-vocab-notes-col">
                       备注
                     </th>
                   ) : null}
-                  <th rowSpan={2} className="en-vocab- jp-vocab-action-col">
+                  <th rowSpan={2} className="jp-vocab-action-col">
                     操作
                   </th>
                 </tr>
@@ -355,7 +355,7 @@ export function EnVocabStudyPage() {
                   {STAT_COLUMNS.map((col) => (
                     <th key={col.key} className={col.className}>
                       {"labelLines" in col && col.labelLines ? (
-                        <span className="en-vocab- jp-vocab-th-multiline en-vocab- jp-vocab-th-multiline--compact">
+                        <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                           <span>{col.labelLines[0]}</span>
                           <span>{col.labelLines[1]}</span>
                         </span>
@@ -382,41 +382,41 @@ export function EnVocabStudyPage() {
                   );
 
                   return (
-                    <tr key={item.id} id={`en-vocab- jp-vocab-study-row-${w.id}`}>
-                      <td className="en-vocab- jp-vocab-seq-col" data-label="序号">
+                    <tr key={item.id} id={`jp-vocab-study-row-${w.id}`}>
+                      <td className="jp-vocab-seq-col" data-label="序号">
                         {index + 1}
                       </td>
-                      <td className="en-vocab- jp-vocab-kind-col" data-label="类型">
+                      <td className="jp-vocab-kind-col" data-label="类型">
                         <span
-                          className={`en-vocab- jp-vocab-kind-badge${
-                            w.kind === "grammar" ? " en-vocab- jp-vocab-kind-badge--grammar" : ""
+                          className={`jp-vocab-kind-badge${
+                            w.kind === "grammar" ? " jp-vocab-kind-badge--grammar" : ""
                           }`}
                         >
                           {w.kind === "grammar" ? "语法" : "单词"}
                         </span>
                       </td>
-                      <td className="en-vocab- jp-vocab-word-col" data-label="单词 / 语法">
-                        <div className="en-vocab- jp-vocab-word-cell">
+                      <td className="jp-vocab-word-col" data-label="单词 / 语法">
+                        <div className="jp-vocab-word-cell">
                           {w.ref_key ? (
                             <>
                               <button
                                 type="button"
-                                className="en-vocab- jp-vocab-word-link"
+                                className="jp-vocab-word-link"
                                 title={ref?.title ? `教案：${ref.title}` : "查看教案"}
                                 onClick={() => openRefPreview(w.ref_key!, ref)}
                               >
                                 {w.word}
                               </button>
-                              <span className="en-vocab- jp-vocab-ref-hint">（点击查看教案）</span>
+                              <span className="jp-vocab-ref-hint">（点击查看教案）</span>
                             </>
                           ) : (
-                            <span className="en-vocab- jp-vocab-word-text">{w.word}</span>
+                            <span className="jp-vocab-word-text">{w.word}</span>
                           )}
                         </div>
                       </td>
                       <td
-                        className={`en-vocab- jp-vocab-reading-col${
-                          !readingTrim ? " en-vocab- jp-vocab-field-empty" : ""
+                        className={`jp-vocab-reading-col${
+                          !readingTrim ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="读音"
                         style={{ color: "var(--muted)" }}
@@ -424,8 +424,8 @@ export function EnVocabStudyPage() {
                         {readingTrim}
                       </td>
                       <td
-                        className={`en-vocab- jp-vocab-meaning-col${
-                          !meaningTrim ? " en-vocab- jp-vocab-field-empty" : ""
+                        className={`jp-vocab-meaning-col${
+                          !meaningTrim ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="释义"
                         style={{ color: "var(--muted)" }}
@@ -433,24 +433,24 @@ export function EnVocabStudyPage() {
                         {meaningTrim}
                       </td>
                       <td
-                        className={`en-vocab- jp-vocab-pos-col${
-                          !posTrim ? " en-vocab- jp-vocab-field-empty" : ""
+                        className={`jp-vocab-pos-col${
+                          !posTrim ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="词性"
                         style={{ color: "var(--muted)" }}
                       >
                         {posTrim}
                       </td>
-                      <td className="en-vocab- jp-vocab-risk-col" data-label="优先级">
+                      <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
-                          className={`en-vocab- jp-vocab-risk-value en-vocab- jp-vocab-risk-badge en-vocab- jp-vocab-risk-badge--${riskBadgeTier}`}
+                          className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
                         >
                           {risk.toFixed(1)}
                         </span>
                       </td>
-                      <td className="en-vocab- jp-vocab-level-col" data-label="熟悉程度">
+                      <td className="jp-vocab-level-col" data-label="熟悉程度">
                         <div
-                          className="en-vocab- jp-vocab-levels"
+                          className="jp-vocab-levels"
                           role="group"
                           aria-label={`${w.word} 熟悉程度`}
                         >
@@ -459,14 +459,14 @@ export function EnVocabStudyPage() {
                             return (
                               <span
                                 key={lv.key}
-                                className={`en-vocab- jp-vocab-level-opt${
+                                className={`jp-vocab-level-opt${
                                   checked ? " is-checked" : ""
-                                } en-vocab- jp-vocab-level-opt--readonly${
-                                  lv.key === "very" ? " en-vocab- jp-vocab-level-opt--very" : ""
-                                }${lv.key === "weak" ? " en-vocab- jp-vocab-level-opt--weak" : ""}`}
+                                } jp-vocab-level-opt--readonly${
+                                  lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                                }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
                                 aria-pressed={checked}
                               >
-                                <span className="en-vocab- jp-vocab-check-box" aria-hidden="true">
+                                <span className="jp-vocab-check-box" aria-hidden="true">
                                   {checked ? (
                                     <svg viewBox="0 0 12 12" width="10" height="10">
                                       <path
@@ -486,22 +486,22 @@ export function EnVocabStudyPage() {
                           })}
                         </div>
                       </td>
-                      <td className="en-vocab- jp-vocab-stat-detail chg-dn" data-label="非常熟悉">
+                      <td className="jp-vocab-stat-detail chg-dn" data-label="非常熟悉">
                         {w.cnt_very}
                       </td>
-                      <td className="en-vocab- jp-vocab-stat-detail" data-label="一般">
+                      <td className="jp-vocab-stat-detail" data-label="一般">
                         {w.cnt_normal}
                       </td>
-                      <td className="en-vocab- jp-vocab-stat-detail chg-up" data-label="不熟悉">
+                      <td className="jp-vocab-stat-detail chg-up" data-label="不熟悉">
                         {w.cnt_weak}
                       </td>
-                      <td className="en-vocab- jp-vocab-stat-total" data-label="复习合计">
+                      <td className="jp-vocab-stat-total" data-label="复习合计">
                         {(() => {
                           const totalDisplay = formatEnVocabTotalReviewsDisplay(w, locale);
                           if (totalDisplay.isZero) {
                             return (
                               <span
-                                className="en-vocab- jp-vocab-total-never"
+                                className="jp-vocab-total-never"
                                 title={enVocabTotalReviewsZeroHint(locale)}
                               >
                                 {totalDisplay.label}
@@ -511,10 +511,10 @@ export function EnVocabStudyPage() {
                           return totalDisplay.label;
                         })()}
                       </td>
-                      <td className="en-vocab- jp-vocab-today-check-col" data-label="今日抽查次数">
+                      <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
                         <span
-                          className={`en-vocab- jp-vocab-today-check-value${
-                            todayChecks > 0 ? " en-vocab- jp-vocab-today-check-value--active" : ""
+                          className={`jp-vocab-today-check-value${
+                            todayChecks > 0 ? " jp-vocab-today-check-value--active" : ""
                           }`}
                           title={todayChecks > 0 ? `今日已抽查 ${todayChecks} 次` : "今日尚未抽查"}
                         >
@@ -523,14 +523,14 @@ export function EnVocabStudyPage() {
                       </td>
                       {SHOW_REMARKS_COLUMN ? (
                         <td
-                          className={`en-vocab- jp-vocab-notes-col${
+                          className={`jp-vocab-notes-col${
                             !hasEnVocabClassNotes(w.class_notes) && !canOperate
-                              ? " en-vocab- jp-vocab-field-empty"
+                              ? " jp-vocab-field-empty"
                               : ""
                           }`}
                           data-label="备注"
                         >
-                          <div className="en-vocab- jp-vocab-notes-actions">
+                          <div className="jp-vocab-notes-actions">
                             {hasEnVocabClassNotes(w.class_notes) ? (
                               <button
                                 type="button"
@@ -550,11 +550,11 @@ export function EnVocabStudyPage() {
                         </td>
                       ) : null}
                       <td
-                        className={`en-vocab- jp-vocab-action-col${!canOperate ? " en-vocab- jp-vocab-field-empty" : ""}`}
+                        className={`jp-vocab-action-col${!canOperate ? " jp-vocab-field-empty" : ""}`}
                         data-label="操作"
                       >
                         {canOperate ? (
-                          <div className="en-vocab- jp-vocab-action-buttons">
+                          <div className="jp-vocab-action-buttons">
                             <button
                               type="button"
                               className="btn-rsi-filter btn-rsi-filter--compact"
@@ -619,18 +619,18 @@ export function EnVocabStudyPage() {
       />
 
       <style jsx global>{`
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-scroll-hint {
+        .jp-vocab-study-page .jp-vocab-scroll-hint {
           margin: 0 0 0.5rem;
           font-size: 0.8125rem;
           color: var(--muted);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-levels {
+        .jp-vocab-study-page .jp-vocab-levels {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
           gap: 0.35rem 0.5rem;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt {
+        .jp-vocab-study-page .jp-vocab-level-opt {
           display: inline-flex;
           align-items: center;
           gap: 0.4rem;
@@ -644,7 +644,7 @@ export function EnVocabStudyPage() {
           line-height: 1.3;
           min-height: 2rem;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-check-box {
+        .jp-vocab-study-page .jp-vocab-check-box {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -656,30 +656,30 @@ export function EnVocabStudyPage() {
           background: var(--bg);
           color: var(--accent);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt.is-checked .en-vocab- jp-vocab-check-box {
+        .jp-vocab-study-page .jp-vocab-level-opt.is-checked .jp-vocab-check-box {
           border-color: var(--accent);
           background: color-mix(in srgb, var(--accent) 18%, var(--bg));
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt--very.is-checked {
+        .jp-vocab-study-page .jp-vocab-level-opt--very.is-checked {
           color: var(--fall);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt--very.is-checked .en-vocab- jp-vocab-check-box {
+        .jp-vocab-study-page .jp-vocab-level-opt--very.is-checked .jp-vocab-check-box {
           border-color: var(--fall);
           background: color-mix(in srgb, var(--fall) 18%, var(--bg));
           color: var(--fall);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt--weak.is-checked {
+        .jp-vocab-study-page .jp-vocab-level-opt--weak.is-checked {
           color: var(--rise);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt--weak.is-checked .en-vocab- jp-vocab-check-box {
+        .jp-vocab-study-page .jp-vocab-level-opt--weak.is-checked .jp-vocab-check-box {
           border-color: var(--rise);
           background: color-mix(in srgb, var(--rise) 18%, var(--bg));
           color: var(--rise);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-level-opt.is-checked {
+        .jp-vocab-study-page .jp-vocab-level-opt.is-checked {
           background: rgba(61, 139, 253, 0.08);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-kind-badge {
+        .jp-vocab-study-page .jp-vocab-kind-badge {
           display: inline-block;
           font-size: 0.75rem;
           padding: 0.15rem 0.45rem;
@@ -688,11 +688,11 @@ export function EnVocabStudyPage() {
           color: var(--muted);
           white-space: nowrap;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-kind-badge--grammar {
+        .jp-vocab-study-page .jp-vocab-kind-badge--grammar {
           border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
           color: var(--accent);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-word-link {
+        .jp-vocab-study-page .jp-vocab-word-link {
           font-weight: 500;
           color: var(--accent);
           text-decoration: underline;
@@ -704,13 +704,13 @@ export function EnVocabStudyPage() {
           font: inherit;
           cursor: pointer;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-word-link:hover {
+        .jp-vocab-study-page .jp-vocab-word-link:hover {
           text-decoration: underline;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-word-text {
+        .jp-vocab-study-page .jp-vocab-word-text {
           font-weight: 500;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-word-cell {
+        .jp-vocab-study-page .jp-vocab-word-cell {
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -718,39 +718,39 @@ export function EnVocabStudyPage() {
           text-align: center;
           min-width: 0;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-ref-hint {
+        .jp-vocab-study-page .jp-vocab-ref-hint {
           display: block;
           margin-top: 0.2rem;
           font-size: 0.75rem;
           color: var(--muted);
           text-align: center;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-table-wrap {
+        .jp-vocab-study-page .jp-vocab-table-wrap {
           display: block;
           width: 100%;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-table {
+        .jp-vocab-study-page .jp-vocab-table {
           width: 100%;
           min-width: 1180px;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-notes-actions,
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-action-buttons {
+        .jp-vocab-study-page .jp-vocab-notes-actions,
+        .jp-vocab-study-page .jp-vocab-action-buttons {
           display: inline-flex;
           flex-wrap: wrap;
           align-items: center;
           justify-content: center;
           gap: 0.35rem;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-table th,
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-table td {
+        .jp-vocab-study-page .jp-vocab-table th,
+        .jp-vocab-study-page .jp-vocab-table td {
           white-space: normal;
           vertical-align: middle;
           padding: 0.5rem 0.55rem;
           text-align: center;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-th-multiline {
+        .jp-vocab-study-page .jp-vocab-th-multiline {
           display: inline-flex;
           flex-direction: column;
           align-items: center;
@@ -758,35 +758,35 @@ export function EnVocabStudyPage() {
           gap: 0.05rem;
           line-height: 1.2;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-th-multiline__sub {
+        .jp-vocab-study-page .jp-vocab-th-multiline__sub {
           font-size: 0.8125em;
           color: var(--muted);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-risk-value {
+        .jp-vocab-study-page .jp-vocab-risk-value {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-risk-badge--high {
+        .jp-vocab-study-page .jp-vocab-risk-badge--high {
           color: var(--rise);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-risk-badge--mid {
+        .jp-vocab-study-page .jp-vocab-risk-badge--mid {
           color: var(--accent);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-risk-badge--low {
+        .jp-vocab-study-page .jp-vocab-risk-badge--low {
           color: var(--fall);
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-stat-detail,
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-stat-total {
+        .jp-vocab-study-page .jp-vocab-stat-detail,
+        .jp-vocab-study-page .jp-vocab-stat-total {
           font-variant-numeric: tabular-nums;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-total-never {
+        .jp-vocab-study-page .jp-vocab-total-never {
           color: var(--muted);
           font-size: 0.8125rem;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-today-check-value {
+        .jp-vocab-study-page .jp-vocab-today-check-value {
           font-variant-numeric: tabular-nums;
         }
-        .en-vocab- jp-vocab-study-page .en-vocab- jp-vocab-today-check-value--active {
+        .jp-vocab-study-page .jp-vocab-today-check-value--active {
           color: var(--accent);
           font-weight: 700;
         }

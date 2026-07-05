@@ -46,26 +46,26 @@ export function EnVocabResetChoiceModal({
 
   return createPortal(
     <div
-      className="en-vocab- jp-vocab-reset-modal-overlay"
+      className="jp-vocab-reset-modal-overlay"
       role="presentation"
       onClick={() => {
         if (!busy) onClose();
       }}
     >
       <div
-        className="en-vocab- jp-vocab-reset-modal"
+        className="jp-vocab-reset-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="en-vocab- jp-vocab-reset-modal-title"
+        aria-labelledby="jp-vocab-reset-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="en-vocab- jp-vocab-reset-modal-header">
-          <h2 id="en-vocab- jp-vocab-reset-modal-title" className="en-vocab- jp-vocab-reset-modal-title">
+        <div className="jp-vocab-reset-modal-header">
+          <h2 id="jp-vocab-reset-modal-title" className="jp-vocab-reset-modal-title">
             选择重置方式
           </h2>
           <button
             type="button"
-            className="en-vocab- jp-vocab-reset-modal-close"
+            className="jp-vocab-reset-modal-close"
             onClick={() => {
               if (!busy) onClose();
             }}
@@ -75,7 +75,7 @@ export function EnVocabResetChoiceModal({
             ×
           </button>
         </div>
-        <div className="en-vocab- jp-vocab-reset-modal-body">
+        <div className="jp-vocab-reset-modal-body">
           <p>
             <strong>今日重置</strong>：立即按抽查优先级重新排序，并清除当前轮次的序号勾与熟悉程度勾选；今日抽查次数、合计次数等统计不变。适合上午抽查后，下午换一位老师再抽一轮。
           </p>
@@ -83,7 +83,7 @@ export function EnVocabResetChoiceModal({
             <strong>全部重置</strong>：清空所有熟悉程度统计与今日抽查记录，并重排单词表，开始全新一轮复习。
           </p>
         </div>
-        <div className="en-vocab- jp-vocab-reset-modal-footer">
+        <div className="jp-vocab-reset-modal-footer">
           <button
             type="button"
             className="btn-rsi-filter"
@@ -113,7 +113,7 @@ export function EnVocabResetChoiceModal({
         </div>
       </div>
       <style jsx>{`
-        .en-vocab- jp-vocab-reset-modal-overlay {
+        .jp-vocab-reset-modal-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -124,7 +124,7 @@ export function EnVocabResetChoiceModal({
           background: rgba(8, 12, 18, 0.72);
           backdrop-filter: blur(2px);
         }
-        .en-vocab- jp-vocab-reset-modal {
+        .jp-vocab-reset-modal {
           width: min(32rem, 96vw);
           display: flex;
           flex-direction: column;
@@ -133,7 +133,7 @@ export function EnVocabResetChoiceModal({
           border-radius: 10px;
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
-        .en-vocab- jp-vocab-reset-modal-header {
+        .jp-vocab-reset-modal-header {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
@@ -141,12 +141,12 @@ export function EnVocabResetChoiceModal({
           padding: 1rem 1rem 0.75rem;
           border-bottom: 1px solid var(--border);
         }
-        .en-vocab- jp-vocab-reset-modal-title {
+        .jp-vocab-reset-modal-title {
           margin: 0;
           font-size: 1.05rem;
           font-weight: 600;
         }
-        .en-vocab- jp-vocab-reset-modal-close {
+        .jp-vocab-reset-modal-close {
           border: none;
           background: transparent;
           color: var(--muted);
@@ -155,26 +155,26 @@ export function EnVocabResetChoiceModal({
           cursor: pointer;
           padding: 0.1rem 0.35rem;
         }
-        .en-vocab- jp-vocab-reset-modal-close:disabled {
+        .jp-vocab-reset-modal-close:disabled {
           opacity: 0.5;
           cursor: not-allowed;
         }
-        .en-vocab- jp-vocab-reset-modal-body {
+        .jp-vocab-reset-modal-body {
           padding: 0.85rem 1rem 1rem;
           color: var(--muted);
           font-size: 0.9rem;
           line-height: 1.55;
         }
-        .en-vocab- jp-vocab-reset-modal-body p {
+        .jp-vocab-reset-modal-body p {
           margin: 0 0 0.75rem;
         }
-        .en-vocab- jp-vocab-reset-modal-body p:last-child {
+        .jp-vocab-reset-modal-body p:last-child {
           margin-bottom: 0;
         }
-        .en-vocab- jp-vocab-reset-modal-body strong {
+        .jp-vocab-reset-modal-body strong {
           color: var(--text);
         }
-        .en-vocab- jp-vocab-reset-modal-footer {
+        .jp-vocab-reset-modal-footer {
           display: flex;
           flex-wrap: wrap;
           justify-content: flex-end;

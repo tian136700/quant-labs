@@ -119,33 +119,33 @@ function RiskTooltip({
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
   return (
-    <div className="en-vocab- jp-vocab-risk-tooltip">
+    <div className="jp-vocab-risk-tooltip">
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">知识点：</span>
+        <span className="jp-vocab-risk-tooltip-label">知识点：</span>
         {row.name}
       </p>
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">类型：</span>
+        <span className="jp-vocab-risk-tooltip-label">类型：</span>
         {row.kindLabel}
       </p>
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">非常熟悉：</span>
+        <span className="jp-vocab-risk-tooltip-label">非常熟悉：</span>
         {row.familiar}
       </p>
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">一般：</span>
+        <span className="jp-vocab-risk-tooltip-label">一般：</span>
         {row.normal}
       </p>
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">不熟悉：</span>
+        <span className="jp-vocab-risk-tooltip-label">不熟悉：</span>
         {row.unknown}
       </p>
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">复习次数：</span>
+        <span className="jp-vocab-risk-tooltip-label">复习次数：</span>
         {row.reviewCount}
       </p>
       <p>
-        <span className="en-vocab- jp-vocab-risk-tooltip-label">{enVocabPriorityLabel()}：</span>
+        <span className="jp-vocab-risk-tooltip-label">{enVocabPriorityLabel()}：</span>
         {row.risk}
       </p>
     </div>
@@ -183,10 +183,10 @@ export function EnVocabRiskChart({ words }: Props) {
   }
 
   return (
-    <div className="en-vocab- jp-vocab-risk-chart">
-      <div className="en-vocab- jp-vocab-risk-chart-frame" style={{ height: chartHeight }}>
-        <h3 className="en-vocab- jp-vocab-risk-chart-title">知识点抽查优先级（越高越建议先问）</h3>
-        <div className="en-vocab- jp-vocab-risk-chart-canvas" style={{ minWidth: chartMinWidth }}>
+    <div className="jp-vocab-risk-chart">
+      <div className="jp-vocab-risk-chart-frame" style={{ height: chartHeight }}>
+        <h3 className="jp-vocab-risk-chart-title">知识点抽查优先级（越高越建议先问）</h3>
+        <div className="jp-vocab-risk-chart-canvas" style={{ minWidth: chartMinWidth }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={chartMinWidth}>
           <BarChart
             data={rows}
@@ -235,15 +235,15 @@ export function EnVocabRiskChart({ words }: Props) {
         </div>
       </div>
       {excludedCount > 0 ? (
-        <p className="en-vocab- jp-vocab-risk-chart-note">
+        <p className="jp-vocab-risk-chart-note">
           另有 {excludedCount} 个知识点抽查优先级为 0 或更低（未复习，或仅勾选「非常熟悉」），未列入上图。
         </p>
       ) : null}
       <style jsx>{`
-        .en-vocab- jp-vocab-risk-chart {
+        .jp-vocab-risk-chart {
           width: 100%;
         }
-        .en-vocab- jp-vocab-risk-chart-frame {
+        .jp-vocab-risk-chart-frame {
           width: 100%;
           min-height: 240px;
           background: ${CHART_BG};
@@ -255,7 +255,7 @@ export function EnVocabRiskChart({ words }: Props) {
           flex-direction: column;
           overflow-x: auto;
         }
-        .en-vocab- jp-vocab-risk-chart-title {
+        .jp-vocab-risk-chart-title {
           margin: 0 0 0.5rem;
           font-size: 1rem;
           font-weight: 600;
@@ -264,16 +264,16 @@ export function EnVocabRiskChart({ words }: Props) {
           line-height: 1.4;
           flex-shrink: 0;
         }
-        .en-vocab- jp-vocab-risk-chart-canvas {
+        .jp-vocab-risk-chart-canvas {
           flex: 1;
           min-height: 0;
           width: 100%;
         }
-        .en-vocab- jp-vocab-risk-chart-frame :global(.recharts-cartesian-grid-horizontal line),
-        .en-vocab- jp-vocab-risk-chart-frame :global(.recharts-cartesian-grid-vertical line) {
+        .jp-vocab-risk-chart-frame :global(.recharts-cartesian-grid-horizontal line),
+        .jp-vocab-risk-chart-frame :global(.recharts-cartesian-grid-vertical line) {
           stroke: ${CHART_GRID};
         }
-        :global(.en-vocab- jp-vocab-risk-tooltip) {
+        :global(.jp-vocab-risk-tooltip) {
           background: ${CHART_BG};
           border: 1px solid ${CHART_INK};
           border-radius: 2px;
@@ -284,13 +284,13 @@ export function EnVocabRiskChart({ words }: Props) {
           max-width: min(92vw, 280px);
           box-shadow: none;
         }
-        :global(.en-vocab- jp-vocab-risk-tooltip p) {
+        :global(.jp-vocab-risk-tooltip p) {
           margin: 0.12rem 0;
         }
-        :global(.en-vocab- jp-vocab-risk-tooltip-label) {
+        :global(.jp-vocab-risk-tooltip-label) {
           color: #444444;
         }
-        .en-vocab- jp-vocab-risk-chart-note {
+        .jp-vocab-risk-chart-note {
           margin: 0.5rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
