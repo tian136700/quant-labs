@@ -177,6 +177,18 @@ export type JpVocabUploadInput = {
   class_notes?: string | null;
 };
 
+/** 老师共享给学生「今日背单词」的单条记录（按 share_date 每日清空） */
+export interface JpVocabSharedItem {
+  id: number;
+  word_id: number;
+  shared_by: string;
+  shared_at: string;
+  share_date: string;
+  /** 共享时自动标记为不熟悉 */
+  level: JpVocabLevel;
+  word: JpVocabWord;
+}
+
 export type JpVocabRefUploadInput = {
   ref_key: string;
   title?: string | null;

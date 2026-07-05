@@ -14,6 +14,7 @@ import {
   isComparePath,
   isJpLessonPath,
   isJpVocabPath,
+  isJpVocabStudyPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
   isTeacherReviewPath,
@@ -40,7 +41,8 @@ export function useSiteNavItems(): SiteNavItem[] {
   const showFullNav = !onSubdomain || isAdmin;
   const onJpLesson = isJpLessonPath(pathname);
   const onJpVocab = isJpVocabPath(pathname);
-  const onHiddenJp = onJpLesson || onJpVocab;
+  const onJpVocabStudy = isJpVocabStudyPath(pathname);
+  const onHiddenJp = onJpLesson || onJpVocab || onJpVocabStudy;
 
   if (!loggedIn && !checking) {
     return [
@@ -59,7 +61,13 @@ export function useSiteNavItems(): SiteNavItem[] {
         id: "jpVocab",
         href: navHref("jpVocab", locale, navOpts),
         label: nav.jpVocab,
-        active: onJpVocab,
+        active: onJpVocab && !onJpVocabStudy,
+      },
+      {
+        id: "jpVocabStudy",
+        href: navHref("jpVocabStudy", locale, navOpts),
+        label: nav.jpVocabStudy,
+        active: onJpVocabStudy,
       },
       {
         id: "jpLesson",
@@ -84,6 +92,16 @@ export function useSiteNavItems(): SiteNavItem[] {
               id: "jpVocab",
               href: navHref("jpVocab", locale, navOpts),
               label: nav.jpVocab,
+              active: !onJpVocabStudy,
+            },
+          ]
+        : []),
+      ...(onJpVocabStudy
+        ? [
+            {
+              id: "jpVocabStudy",
+              href: navHref("jpVocabStudy", locale, navOpts),
+              label: nav.jpVocabStudy,
               active: true,
             },
           ]
@@ -192,7 +210,13 @@ export function useSiteNavItems(): SiteNavItem[] {
                     id: "jpVocab",
                     href: navHref("jpVocab", locale, navOpts),
                     label: nav.jpVocab,
-                    active: onJpVocab,
+                    active: onJpVocab && !onJpVocabStudy,
+                  },
+                  {
+                    id: "jpVocabStudy",
+                    href: navHref("jpVocabStudy", locale, navOpts),
+                    label: nav.jpVocabStudy,
+                    active: onJpVocabStudy,
                   },
                 ]
               : []),

@@ -209,6 +209,15 @@ export function jpVocabPath(): string {
   return "/jp-vocab";
 }
 
+export function jpVocabStudyPath(): string {
+  return "/jp-vocab/study";
+}
+
+export function isJpVocabStudyPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-vocab/study";
+}
+
 export function isJpVocabPath(pathname: string): boolean {
   const path = stripZhPrefix(pathname);
   return path === "/jp-vocab" || path.startsWith("/jp-vocab/");
@@ -284,6 +293,7 @@ export function isToolDotPath(pathname: string): boolean {
 export function isJpVocabTeacherAllowedPath(pathname: string): boolean {
   return (
     isJpVocabPath(pathname) ||
+    isJpVocabStudyPath(pathname) ||
     isJpLessonPath(pathname) ||
     isAboutPath(pathname)
   );

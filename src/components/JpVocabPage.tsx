@@ -181,6 +181,7 @@ export function JpVocabPage() {
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [sharingId, setSharingId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -552,6 +553,92 @@ export function JpVocabPage() {
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const shareWord = async (wordId: number) => {
+    if (!canOperate) {
+      setStatus("请登录后再共享。");
+      openJpAuth();
+      return;
+    }
+    if (sharingId === wordId || savingId === wordId) return;
+
+    const snapshot = words.find((w) => w.id === wordId);
+    if (!snapshot) return;
+    const prevLevel = sessionLevel[wordId];
+    const prevReviewAt = sessionReviewAt[wordId];
+    const displayOrderSnapshot = displayOrderRef.current;
+    const nowMs = Date.now();
+    const weakLevel: JpVocabLevel = "weak";
+
+    setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
+    setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
+    setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
+    setHighlightId(wordId);
+    setStatus("");
+    setWords((prev) =>
+      prev.map((w) =>
+        w.id === wordId ? bumpWordReview(w, weakLevel, prevLevel) : w
+      )
+    );
+    setSharingId(wordId);
+
+    try {
+      const res = await fetch("/api/jp-vocab/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ word_id: wordId }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        word?: JpVocabWord;
+        already_shared?: boolean;
+        error?: string;
+      };
+      if (res.status === 401) {
+        await refresh();
+        throw new Error(SAVE_ERR[locale]);
+      }
+      if (!data.ok || !data.word) {
+        throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
+      }
+      setWords((prev) => {
+        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+        persistVocabCache(next, refs, displayOrderRef.current);
+        return next;
+      });
+      setStatus(
+        data.already_shared
+          ? "该词今日已共享，已再次标记为不熟悉。"
+          : "已共享到学生「今日背单词」，并标记为不熟悉。"
+      );
+    } catch (err) {
+      if (snapshot) {
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? snapshot : w))
+        );
+      }
+      setDisplayOrder(displayOrderSnapshot);
+      setSessionLevel((prev) => {
+        const next = { ...prev };
+        if (prevLevel) next[wordId] = prevLevel;
+        else delete next[wordId];
+        return next;
+      });
+      setSessionReviewAt((prev) => {
+        const next = { ...prev };
+        if (prevReviewAt != null) next[wordId] = prevReviewAt;
+        else delete next[wordId];
+        return next;
+      });
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSharingId(null);
     }
   };
 
@@ -1303,13 +1390,28 @@ export function JpVocabPage() {
                         data-label="操作"
                       >
                         {canOperate ? (
-                          <button
-                            type="button"
-                            className="btn-rsi-filter btn-rsi-filter--compact"
-                            onClick={() => setEditingWord(w)}
-                          >
-                            编辑
-                          </button>
+                          <div className="jp-vocab-action-buttons">
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact"
+                              onClick={() => setEditingWord(w)}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
+                              disabled={sharingId === w.id || isSaving}
+                              title={
+                                sharingId === w.id
+                                  ? "共享中…"
+                                  : "共享到学生「今日背单词」，并标记为不熟悉"
+                              }
+                              onClick={() => void shareWord(w.id)}
+                            >
+                              {sharingId === w.id ? "共享中…" : "共享"}
+                            </button>
+                          </div>
                         ) : null}
                       </td>
                     </tr>
@@ -1835,7 +1937,17 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-action-col) {
           white-space: nowrap;
-          min-width: 3.75rem;
+          min-width: 7.5rem;
+        }
+        .jp-vocab-action-buttons {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+        }
+        .jp-vocab-share-btn:not(:disabled) {
+          color: var(--accent);
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;

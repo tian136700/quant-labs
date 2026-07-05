@@ -21,6 +21,26 @@ export async function requireJpVocabAccess(request: Request) {
   return { env, user, allowed };
 }
 
+export async function requireJpVocabRead(request: Request) {
+  const env = await getCloudflareEnv();
+  const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
+
+  let allowed = false;
+  if (user) {
+    if (await userHasPermission(env.DB, user, "jp_vocab:read")) {
+      allowed = true;
+    } else if (await userHasPermission(env.DB, user, "jp_vocab:operate")) {
+      allowed = true;
+    } else if (await userHasPermission(env.DB, user, "jp_lesson:operate")) {
+      allowed = true;
+    } else {
+      allowed = canUserOperateJpVocab(user);
+    }
+  }
+
+  return { env, user, allowed };
+}
+
 export async function requireJpLessonOperate(request: Request) {
   const env = await getCloudflareEnv();
   const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));

@@ -19,6 +19,7 @@ export type Messages = {
     jpReview: string;
     jpLesson: string;
     jpVocab: string;
+    jpVocabStudy: string;
     storeReview: string;
     about: string;
     adminDashboard: string;
@@ -495,6 +496,7 @@ export const messages: Record<Locale, Messages> = {
       jpReview: "Japanese Review",
       jpLesson: "Japanese Lesson",
       jpVocab: "Japanese Vocab",
+      jpVocabStudy: "Today's Vocab",
       storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
@@ -1088,6 +1090,7 @@ export const messages: Record<Locale, Messages> = {
       jpReview: "日语口语复习",
       jpLesson: "日语新课",
       jpVocab: "日语抽问",
+      jpVocabStudy: "今日背单词",
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",

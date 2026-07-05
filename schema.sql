@@ -226,6 +226,20 @@ CREATE TABLE IF NOT EXISTS jp_vocab_setting (
   updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
+-- 日语单词抽问：老师共享给学生「今日背单词」（北京时间 0 点按 share_date 自然清空）
+CREATE TABLE IF NOT EXISTS jp_vocab_shared (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  word_id    INTEGER NOT NULL,
+  shared_by  TEXT    NOT NULL,
+  shared_at  TEXT    NOT NULL,
+  share_date TEXT    NOT NULL,
+  FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jp_vocab_shared_day_word
+  ON jp_vocab_shared (share_date, word_id);
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_shared_date ON jp_vocab_shared (share_date);
+
 -- 日语新课：上课老师（管理员维护，仅管理员可见）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
