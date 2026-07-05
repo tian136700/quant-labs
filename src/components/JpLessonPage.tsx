@@ -753,7 +753,7 @@ export function JpLessonPage() {
                     ))}
                   </div>
                 </td>
-                <td data-label="学习类型">
+                <td data-label="学习类型" className="jp-lesson-kind-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
