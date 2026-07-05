@@ -214,6 +214,12 @@ export function isJpVocabPath(pathname: string): boolean {
   return path === "/jp-vocab" || path.startsWith("/jp-vocab/");
 }
 
+/** 教案查看页（可分享给访客的独立预览） */
+export function isJpVocabRefPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path.startsWith("/jp-vocab/ref/");
+}
+
 export function jpLessonPath(): string {
   return "/jp-lesson";
 }

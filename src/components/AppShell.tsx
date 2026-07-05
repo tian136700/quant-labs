@@ -5,7 +5,15 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useSiteNavItems } from "@/hooks/useSiteNavItems";
-import { isMaintenancePath } from "@/lib/locale-path";
+import {
+  isJpLessonPath,
+  isJpReviewPath,
+  isJpVocabPath,
+  isJpVocabRefPath,
+  isMaintenancePath,
+  jpLessonPath,
+  jpVocabPath,
+} from "@/lib/locale-path";
 import { JpVocabTeacherRouteGuard } from "./JpVocabTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
 import { LangSwitch } from "./LangSwitch";
@@ -21,19 +29,34 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
+  const onJpVocabRef = isJpVocabRefPath(pathname);
+
   const headerTitle = useMemo(() => {
     const active = items.find((item) => item.active);
     if (active) return active.label;
+    const nav = t("nav");
+    if (isJpLessonPath(pathname)) return nav.jpLesson;
+    if (isJpVocabPath(pathname)) return nav.jpVocab;
+    if (isJpReviewPath(pathname)) return nav.jpReview;
     return t("meta").title;
-  }, [items, t]);
+  }, [items, pathname, t]);
 
   const headerHref = useMemo(() => {
     const active = items.find((item) => item.active);
-    return active?.href ?? items[0]?.href ?? "/";
-  }, [items]);
+    if (active) return active.href;
+    if (isJpLessonPath(pathname)) return jpLessonPath();
+    if (isJpVocabPath(pathname)) return jpVocabPath();
+    return items[0]?.href ?? "/";
+  }, [items, pathname]);
 
-  if (onMaintenance) {
-    return <main>{children}</main>;
+  if (onMaintenance || onJpVocabRef) {
+    return (
+      <>
+        <MaintenanceRouteGuard />
+        <JpVocabTeacherRouteGuard />
+        <main>{children}</main>
+      </>
+    );
   }
 
   return (
