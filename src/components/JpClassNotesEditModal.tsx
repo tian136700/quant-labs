@@ -334,21 +334,6 @@ export function JpClassNotesEditModal({
               <p className="jp-notes-edit-subtitle">{word.word}</p>
             </div>
             <div className="jp-notes-edit-header-actions">
-              {isAdmin ? (
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
-                  disabled={sharing}
-                  title={
-                    sharedToday
-                      ? "推送到学生「今日背单词」并打开备注"
-                      : "共享到学生「今日背单词」（不改变已勾选的熟悉程度）"
-                  }
-                  onClick={() => void handleShare()}
-                >
-                  {sharing ? "共享中…" : sharedToday ? "推送备注" : "共享"}
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="jp-notes-edit-close"
@@ -415,6 +400,21 @@ export function JpClassNotesEditModal({
             >
               完成
             </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
+                disabled={sharing}
+                title={
+                  sharedToday
+                    ? "将该词备注共享到学生「今日背单词」"
+                    : "共享到学生「今日背单词」，并标记为不熟悉"
+                }
+                onClick={() => void handleShare()}
+              >
+                {sharing ? "共享中…" : "共享备注给学生"}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -539,6 +539,22 @@ export function JpClassNotesEditModal({
           resize: vertical;
           min-height: 10rem;
           line-height: 1.55;
+        }
+
+        .jp-notes-edit-share-btn:not(:disabled) {
+          color: #f0a030;
+          border-color: color-mix(in srgb, #f0a030 58%, var(--border));
+          background: color-mix(in srgb, #f0a030 16%, var(--panel));
+        }
+
+        .jp-notes-edit-share-btn:not(:disabled):hover {
+          color: #f5b85a;
+          border-color: color-mix(in srgb, #f0a030 78%, var(--border));
+          background: color-mix(in srgb, #f0a030 26%, var(--panel));
+        }
+
+        .jp-notes-edit-share-btn:disabled {
+          opacity: 0.55;
         }
 
         .jp-notes-edit-empty {

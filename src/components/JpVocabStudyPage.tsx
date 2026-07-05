@@ -108,13 +108,6 @@ export function JpVocabStudyPage() {
         share_date?: string;
         error?: string;
       };
-      if (res.status === 401) {
-        setItems([]);
-        setRefs({});
-        setShareDate(beijingDateString());
-        setError("");
-        return;
-      }
       if (!data.ok || !data.items) {
         throw new Error(data.error || "加载失败");
       }
@@ -139,7 +132,6 @@ export function JpVocabStudyPage() {
   }, [loadShared]);
 
   useEffect(() => {
-    if (!user) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const schedule = () => {
@@ -153,12 +145,11 @@ export function JpVocabStudyPage() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [user, loadShared]);
+  }, [loadShared]);
 
   useEffect(() => {
-    if (!user) return;
     return subscribeJpVocabSharedUpdated((detail) => {
-      if (detail.openRemarks && detail.wordId) {
+      if (detail.openRemarks && detail.wordId && user) {
         pendingOpenRemarksWordIdRef.current = detail.wordId;
       }
       void loadShared({ force: true });
@@ -185,13 +176,12 @@ export function JpVocabStudyPage() {
   }, [items, canOperate]);
 
   useEffect(() => {
-    if (!user) return;
     const onVisible = () => {
       if (!document.hidden) void loadShared({ force: true });
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [user, loadShared]);
+  }, [loadShared]);
 
   const loggedIn = Boolean(user);
 
@@ -224,7 +214,7 @@ export function JpVocabStudyPage() {
             fontSize: "0.875rem",
           }}
         >
-          请{" "}
+          共享单词可直接查看；{" "}
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact"
@@ -233,7 +223,7 @@ export function JpVocabStudyPage() {
           >
             登录
           </button>{" "}
-          后查看今日共享单词。
+          后可编辑备注等数据。
         </p>
       ) : null}
 
@@ -267,9 +257,9 @@ export function JpVocabStudyPage() {
           </span>
         </div>
 
-        {loading && loggedIn ? (
+        {loading ? (
           <p className="empty">加载中…</p>
-        ) : !loggedIn ? null : items.length === 0 ? (
+        ) : items.length === 0 ? (
           <p className="empty">今日暂无共享单词。</p>
         ) : (
           <div className="jp-vocab-table-wrap">
