@@ -58,6 +58,8 @@
     "db:migrate-jp-vocab-daily-check:remote": "python3 scripts/migrate-jp-vocab-daily-check-safe.py --remote",
     "db:migrate-jp-vocab-shared:local": "python3 scripts/migrate-jp-vocab-shared-safe.py --local",
     "db:migrate-jp-vocab-shared:remote": "python3 scripts/migrate-jp-vocab-shared-safe.py --remote",
+    "db:migrate-en-vocab-fill-reading:local": "python3 scripts/migrate-en-vocab-fill-reading.py --local",
+    "db:migrate-en-vocab-fill-reading:remote": "python3 scripts/migrate-en-vocab-fill-reading.py --remote",
     "db:import-etr:local": "python3 scripts/import-etr-from-stt.py --local",
     "db:import-etr:remote": "python3 scripts/import-etr-from-stt.py --remote",
     "db:sync-remote-to-local": "python3 scripts/sync-d1-remote-to-local.py"

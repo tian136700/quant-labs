@@ -221,7 +221,7 @@ export function EnVocabEditModal({
             {kind === "word" ? (
               <div className="field">
                 <label htmlFor="jp-vocab-edit-reading" className="jp-vocab-edit-label">
-                  读音（可选）
+                  音标（可选）
                 </label>
                 <input
                   id="jp-vocab-edit-reading"
@@ -229,7 +229,7 @@ export function EnVocabEditModal({
                   className="jp-vocab-edit-input"
                   value={reading}
                   disabled={!canEdit}
-                  placeholder="例如：べんきょう"
+                  placeholder="例如：/həˈloʊ/"
                   onChange={(e) => setReading(e.target.value)}
                 />
               </div>

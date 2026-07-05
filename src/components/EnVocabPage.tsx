@@ -23,6 +23,7 @@ import {
   filterEnVocabWordsBySearch,
   type EnVocabKindFilter,
 } from "@/lib/en-vocab-search";
+import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabEditModal } from "@/components/EnVocabEditModal";
 import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
@@ -1266,7 +1267,7 @@ export function EnVocabPage() {
                     单词 / 语法
                   </th>
                   <th rowSpan={2} className="jp-vocab-reading-col">
-                    读音
+                    音标 / 读音
                   </th>
                   <th rowSpan={2} className="jp-vocab-meaning-col">
                     释义
@@ -1460,12 +1461,22 @@ export function EnVocabPage() {
                       </td>
                       <td
                         className={`jp-vocab-reading-col${
-                          !readingTrim ? " jp-vocab-field-empty" : ""
+                          !readingTrim && w.kind !== "word" ? " jp-vocab-field-empty" : ""
                         }`}
-                        data-label="读音"
-                        style={{ color: "var(--muted)" }}
+                        data-label="音标 / 读音"
                       >
-                        {readingTrim}
+                        <div className="en-vocab-reading-cell">
+                          {w.kind === "word" ? (
+                            <EnVocabSpeakButton text={w.word} />
+                          ) : null}
+                          {readingTrim ? (
+                            <span className="en-vocab-reading-text">{readingTrim}</span>
+                          ) : w.kind === "word" ? (
+                            <span className="en-vocab-reading-text en-vocab-reading-text--pending">
+                              待补全
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td
                         className={`jp-vocab-meaning-col${
@@ -2168,11 +2179,52 @@ export function EnVocabPage() {
           padding-right: 0.65rem;
         }
         :global(.jp-vocab-table .jp-vocab-reading-col) {
-          min-width: 5rem;
+          min-width: 6.5rem;
           padding-left: 0.65rem;
           padding-right: 0.65rem;
           word-break: break-word;
           line-height: 1.45;
+        }
+        .en-vocab-reading-cell {
+          display: inline-flex;
+          align-items: flex-start;
+          gap: 0.4rem;
+          color: var(--muted);
+        }
+        .en-vocab-reading-text {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .en-vocab-reading-text--pending {
+          font-size: 0.8125rem;
+          opacity: 0.72;
+        }
+        :global(.en-vocab-speak-btn) {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 1.75rem;
+          height: 1.75rem;
+          margin: 0;
+          padding: 0;
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          background: var(--panel);
+          color: var(--accent);
+          cursor: pointer;
+        }
+        :global(.en-vocab-speak-btn:hover:not(:disabled)) {
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        :global(.en-vocab-speak-btn:disabled) {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        :global(.en-vocab-speak-btn.is-playing) {
+          color: var(--rise);
+          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
         }
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
           min-width: 6.5rem;
