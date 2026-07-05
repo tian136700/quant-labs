@@ -536,7 +536,9 @@ export function JpLessonSchedulePage() {
                 <span className="jpls-day-count">{dayEvents.length} 节课</span>
               </div>
               {dayBusyRange ? (
-              <div className="jpls-slot-grid">
+                <>
+                  <h3 className="jpls-timeline-heading">时间轴</h3>
+                  <div className="jpls-slot-grid">
                 {dayTimelineSlotIndices.map((slotIndex) => {
                   const event = findEventForSlot(dayEvents, slotIndex);
                   const isHourSlot = slotIndex % 2 === 0;
@@ -594,7 +596,8 @@ export function JpLessonSchedulePage() {
                     <span>现在</span>
                   </div>
                 ) : null}
-              </div>
+                  </div>
+                </>
               ) : (
                 <p className="jpls-day-empty">这一天没有预约课程。</p>
               )}
@@ -966,6 +969,12 @@ export function JpLessonSchedulePage() {
           align-items: center;
           gap: 0.75rem;
           margin-bottom: 0.75rem;
+          font-weight: 600;
+        }
+        .jpls-timeline-heading {
+          display: none;
+          margin: 0 0 0.75rem;
+          font-size: 1rem;
           font-weight: 600;
         }
         .jpls-day-count {

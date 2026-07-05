@@ -747,7 +747,13 @@
     overflow: visible !important;
   }
 
-  /* Day view: full-width timeline; cap height so the page stays shorter */
+  /* Day view: card-style timeline — avoid single-line squeeze and clipped overflow */
+  .jpls-day-view .jpls-timeline-heading {
+    display: block !important;
+    margin: 0 0 0.5rem;
+    font-size: 1.0625rem;
+  }
+
   .jpls-calendar--day-sync .jpls-slot-grid,
   .jpls-day-view .jpls-slot-grid {
     flex: none !important;
@@ -755,10 +761,14 @@
     height: auto !important;
     max-width: 100%;
     width: 100%;
-    max-height: min(42vh, 20rem);
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
+    max-height: none !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column;
+    gap: 0.625rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
   }
 
   .jpls-calendar--day-sync .jpls-slot-row,
@@ -771,7 +781,7 @@
     min-height: 2.25rem !important;
   }
 
-  /* 手机端隐藏空闲格，只保留有课时段，大幅缩短日视图高度 */
+  /* 手机端隐藏空闲格，只保留有课时段 */
   .jpls-day-view .jpls-slot-row:has(.jpls-slot-cell.is-free) {
     display: none !important;
   }
@@ -781,31 +791,92 @@
     display: none !important;
   }
 
-  .jpls-calendar--day-sync .jpls-slot-row.is-event-start,
-  .jpls-slot-row.is-event-start {
-    flex: none !important;
+  .jpls-day-view .jpls-slot-row.is-event-start {
+    display: flex !important;
+    flex-direction: column;
+    grid-template-columns: unset !important;
+    min-height: 0 !important;
+    border: 1px solid color-mix(in srgb, var(--rise) 30%, var(--border));
+    border-radius: 10px;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start:has(.jpls-slot-cell--past) {
+    border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start:has(.jpls-slot-cell--ongoing) {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start .jpls-slot-time {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    justify-content: flex-start;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start .jpls-slot-cell.is-busy {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    width: 100%;
     min-height: auto !important;
+    padding: 0.65rem 0.75rem;
+    overflow: visible;
+    border-left: none;
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start .jpls-slot-cell.is-busy.jpls-slot-cell--past {
+    opacity: 1;
   }
 
   .jpls-slot-cell,
   .jpls-slot-row.is-event-start .jpls-slot-cell {
     min-height: 2.25rem !important;
-    flex-wrap: nowrap;
     align-items: center;
-    overflow: hidden;
   }
 
   .jpls-slot-free-label {
     white-space: nowrap;
   }
 
-  .jpls-slot-busy-label,
-  .jpls-slot-busy-encourage {
+  .jpls-day-view .jpls-slot-busy-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, #fff 18%, transparent);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
-  .jpls-slot-busy-time {
+  .jpls-day-view .jpls-slot-busy-label--past {
+    background: color-mix(in srgb, var(--fall) 18%, transparent);
+  }
+
+  .jpls-day-view .jpls-slot-busy-encourage {
+    width: 100%;
+    font-size: 0.75rem;
+    white-space: normal;
+    flex-shrink: 0;
+  }
+
+  .jpls-day-view .jpls-slot-busy-time {
+    width: 100%;
+    font-size: 0.9375rem;
+    font-weight: 600;
     flex-shrink: 0;
   }
 
@@ -814,13 +885,26 @@
     font-size: 0.9375rem;
   }
 
-  .jpls-slot-busy-meta {
+  .jpls-day-view .jpls-slot-busy-meta {
+    width: 100%;
+    font-size: 0.8125rem;
+    line-height: 1.45;
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
     max-width: 100%;
     overflow-wrap: anywhere;
     word-break: break-word;
+  }
+
+  .jpls-day-view .jpls-now-line {
+    display: none;
+  }
+
+  .jpls-calendar--day-sync {
+    margin-top: 0.5rem;
+    padding-top: 0.25rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   }
 
   .jpls-week-view {
