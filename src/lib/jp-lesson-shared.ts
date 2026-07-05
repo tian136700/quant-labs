@@ -445,6 +445,32 @@ export function formatNextClassAtLabel(
   return `${beijingMonthDay(target)} ${timeStr}`;
 }
 
+/** 移动端紧凑格式：MM-DD H:mm（纯数字，无「今天/本周」等相对文案） */
+export function formatNextClassAtLabelCompact(
+  nextClassAt: string | null | undefined,
+  progressStatus: JpLessonProgressStatus
+): string {
+  if (progressStatus === "completed") return "已上完课";
+  if (!nextClassAt?.trim()) return "—";
+
+  const target = parseBeijingDateTime(nextClassAt);
+  if (!target) return "—";
+
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: BEIJING_TZ,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(target);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+
+  return `${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+}
+
 /** datetime-local 输入值 ↔ 数据库存储（北京时间 YYYY-MM-DD HH:mm:ss） */
 export function nextClassAtToDatetimeLocalValue(raw: string | null | undefined): string {
   if (!raw?.trim()) return "";
@@ -466,7 +492,7 @@ export function formatNextClassHalfHourLabel(time: string): string {
   const match = time.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return time;
   const hour = Number(match[1]);
-  return match[2] === "30" ? `${hour} 点半` : `${hour} 点`;
+  return `${hour}:${match[2]}`;
 }
 
 /** 将任意 HH:mm 吸附到最近的整点/半点 */
@@ -523,6 +549,14 @@ export function formatClassDurationLabel(
   const normalized = normalizeClassDurationMinutes(minutes);
   if (normalized == null) return null;
   return `时长：${normalized}min`;
+}
+
+export function formatClassDurationLabelCompact(
+  minutes: number | null | undefined
+): string | null {
+  const normalized = normalizeClassDurationMinutes(minutes);
+  if (normalized == null) return null;
+  return `${normalized}min`;
 }
 
 /** 日程视图未填写时长时的默认分钟数 */

@@ -234,7 +234,7 @@ export function JpLessonNextClassEditModal({
             + 添加预约
           </button>
           <p className="jp-lesson-next-class-hint">
-            点击时间后在方块网格中选择整点或半点（如 13 点、13 点半）；可添加多条预约；全部留空表示未定义。
+            点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。
           </p>
         </fieldset>
 

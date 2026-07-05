@@ -9,7 +9,7 @@ import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import { formatBeijingDateTime } from "@/lib/format-datetime";
+import { formatBeijingDateTime, formatBeijingDateTimeCompact } from "@/lib/format-datetime";
 import {
   formatAdminUserCredentials,
   rememberAdminUserPassword,
@@ -24,8 +24,10 @@ import {
   buildJpLessonDisplayGroups,
   buildLearningClassDayToneMap,
   formatClassDurationLabel,
+  formatClassDurationLabelCompact,
   formatLessonContentLines,
   formatNextClassAtLabel,
+  formatNextClassAtLabelCompact,
   getJpLessonProgressStatus,
   getLessonClassDate,
   getLessonClassSchedules,
@@ -92,6 +94,40 @@ function refFilename(refKey: string, ref?: JpVocabRef): string {
   return jpVocabRefFilename(refKey, ref?.media_type === "pdf" ? "pdf" : "image");
 }
 
+function renderLessonDateTime(iso: string) {
+  return (
+    <span className="jp-lesson-dt">
+      <span className="jp-lesson-dt-full">{formatBeijingDateTime(iso)}</span>
+      <span className="jp-lesson-dt-compact">{formatBeijingDateTimeCompact(iso)}</span>
+    </span>
+  );
+}
+
+function renderNextClassLabel(classAt: string, progressStatus: JpLessonProgressStatus) {
+  return (
+    <span className="jp-lesson-next-class-dt">
+      <span className="jp-lesson-next-class-dt-full">
+        {formatNextClassAtLabel(classAt, progressStatus)}
+      </span>
+      <span className="jp-lesson-next-class-dt-compact">
+        {formatNextClassAtLabelCompact(classAt, progressStatus)}
+      </span>
+    </span>
+  );
+}
+
+function renderClassDurationLabel(minutes: number | null | undefined) {
+  const full = formatClassDurationLabel(minutes);
+  const compact = formatClassDurationLabelCompact(minutes);
+  if (!full || !compact) return null;
+  return (
+    <span className="jp-lesson-class-duration-dt">
+      <span className="jp-lesson-class-duration-dt-full">{full}</span>
+      <span className="jp-lesson-class-duration-dt-compact">{compact}</span>
+    </span>
+  );
+}
+
 function formatLessonTeacherNames(
   lesson: JpLessonRecord,
   teacherNameById: Map<number, string>
@@ -132,6 +168,8 @@ export function JpLessonPage() {
   const [savingTeacherId, setSavingTeacherId] = useState<number | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [mobileStatusFilter, setMobileStatusFilter] =
+    useState<JpLessonProgressStatus>("learning");
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
@@ -645,14 +683,14 @@ export function JpLessonPage() {
               <span className="jp-lesson-next-class-label is-undefined">未定义</span>
             ) : (
               classSchedules.map((schedule, scheduleIdx) => {
-                const durationLabel = formatClassDurationLabel(schedule.duration_minutes);
+                const durationLabel = renderClassDurationLabel(schedule.duration_minutes);
                 return (
                   <div
                     key={schedule.id || scheduleIdx}
                     className="jp-lesson-next-class-entry"
                   >
                     <span className="jp-lesson-next-class-label">
-                      {formatNextClassAtLabel(schedule.class_at, progressStatus)}
+                      {renderNextClassLabel(schedule.class_at, progressStatus)}
                     </span>
                     {durationLabel ? (
                       <span className="jp-lesson-class-duration-label">{durationLabel}</span>
@@ -787,7 +825,7 @@ export function JpLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {formatBeijingDateTime(lesson.uploaded_at)}
+                        {renderLessonDateTime(lesson.uploaded_at)}
                       </div>
                     ))}
                   </div>
@@ -797,7 +835,7 @@ export function JpLessonPage() {
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         {lesson.status_updated_at
-                          ? formatBeijingDateTime(lesson.status_updated_at)
+                          ? renderLessonDateTime(lesson.status_updated_at)
                           : "—"}
                       </div>
                     ))}
@@ -939,7 +977,7 @@ export function JpLessonPage() {
           <p style={{ color: "var(--muted)", margin: 0 }}>暂无新课，请通过 API 上传。</p>
         </section>
       ) : (
-        <div className="jp-lesson-cards">
+        <div className={`jp-lesson-cards jp-lesson-mobile-filter-${mobileStatusFilter}`}>
           {refreshing ? (
             <p
               style={{
@@ -951,6 +989,27 @@ export function JpLessonPage() {
               同步中…
             </p>
           ) : null}
+          <div className="jp-lesson-mobile-status-filter" role="tablist" aria-label="学习状态筛选">
+            {LESSON_STATUS_SECTIONS.map(({ status, title }) => {
+              const sectionCount = lessonsByStatus[status].length;
+              const active = mobileStatusFilter === status;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`jp-lesson-mobile-status-tab jp-lesson-mobile-status-tab--${status}${
+                    active ? " is-active" : ""
+                  }`}
+                  onClick={() => setMobileStatusFilter(status)}
+                >
+                  <span className="jp-lesson-mobile-status-tab-label">{title}</span>
+                  <span className="jp-lesson-mobile-status-tab-count">{sectionCount}</span>
+                </button>
+              );
+            })}
+          </div>
           {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
             const sectionGroups = displayGroupsByStatus[status];
             const sectionCount = lessonsByStatus[status].length;
@@ -1235,6 +1294,16 @@ export function JpLessonPage() {
           display: inline-flex;
           flex-direction: column;
           gap: 0.25rem;
+        }
+        :global(.jp-lesson-dt-compact) {
+          display: none;
+        }
+        :global(.jp-lesson-next-class-dt-compact),
+        :global(.jp-lesson-class-duration-dt-compact) {
+          display: none;
+        }
+        :global(.jp-lesson-mobile-status-filter) {
+          display: none;
         }
         :global(.jp-lesson-uploaded-col),
         :global(.jp-lesson-status-at-col) {
