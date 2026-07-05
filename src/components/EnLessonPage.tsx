@@ -1210,6 +1210,9 @@ export function EnLessonPage() {
           :global(.jp-lesson-table) {
             min-width: 640px;
           }
+          :global(.jp-lesson-mobile-status-filter) {
+            display: none;
+          }
         }
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
@@ -1321,9 +1324,6 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-next-class-dt-compact),
         :global(.jp-lesson-class-duration-dt-compact) {
-          display: none;
-        }
-        :global(.jp-lesson-mobile-status-filter) {
           display: none;
         }
         :global(.jp-lesson-uploaded-col),
