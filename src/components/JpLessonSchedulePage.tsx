@@ -450,64 +450,66 @@ export function JpLessonSchedulePage() {
       </header>
 
       <div className="jpls-toolbar">
-        <div className="jpls-date-nav">
-          <button
-            type="button"
-            className="jpls-icon-btn"
-            aria-label="上一天"
-            onClick={() =>
-              setSelectedDate((prev) =>
-                addBeijingCalendarDays(prev, viewMode === "month" ? -28 : viewMode === "week" ? -7 : -1)
-              )
-            }
-          >
-            ‹
-          </button>
-          <div className="jpls-date-nav-center">
-            <span className="jpls-date-relative" aria-hidden="true">
-              {selectedDateRelativeLabel}
-            </span>
-            <input
-              type="date"
-              className="jpls-date-input"
-              value={selectedDate}
-              aria-label={`选择日期，${selectedDateRelativeLabel}`}
-              onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
-            />
+        <div className="jpls-toolbar-controls">
+          <div className="jpls-view-tabs" role="tablist" aria-label="视图切换">
+            {(
+              [
+                ["day", "日视图"],
+                ["week", "周视图"],
+                ["month", "月视图"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === mode}
+                className={`jpls-view-tab${viewMode === mode ? " is-active" : ""}`}
+                onClick={() => setViewMode(mode)}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            className="jpls-icon-btn"
-            aria-label="下一天"
-            onClick={() =>
-              setSelectedDate((prev) =>
-                addBeijingCalendarDays(prev, viewMode === "month" ? 28 : viewMode === "week" ? 7 : 1)
-              )
-            }
-          >
-            ›
-          </button>
-        </div>
 
-        <div className="jpls-view-tabs" role="tablist" aria-label="视图切换">
-          {(
-            [
-              ["day", "日视图"],
-              ["week", "周视图"],
-              ["month", "月视图"],
-            ] as const
-          ).map(([mode, label]) => (
+          <div className="jpls-date-nav">
             <button
-              key={mode}
               type="button"
-              role="tab"
-              aria-selected={viewMode === mode}
-              className={`jpls-view-tab${viewMode === mode ? " is-active" : ""}`}
-              onClick={() => setViewMode(mode)}
+              className="jpls-icon-btn"
+              aria-label="上一天"
+              onClick={() =>
+                setSelectedDate((prev) =>
+                  addBeijingCalendarDays(prev, viewMode === "month" ? -28 : viewMode === "week" ? -7 : -1)
+                )
+              }
             >
-              {label}
+              ‹
             </button>
-          ))}
+            <div className="jpls-date-nav-center">
+              <span className="jpls-date-relative" aria-hidden="true">
+                {selectedDateRelativeLabel}
+              </span>
+              <input
+                type="date"
+                className="jpls-date-input"
+                value={selectedDate}
+                aria-label={`选择日期，${selectedDateRelativeLabel}`}
+                onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className="jpls-icon-btn"
+              aria-label="下一天"
+              onClick={() =>
+                setSelectedDate((prev) =>
+                  addBeijingCalendarDays(prev, viewMode === "month" ? 28 : viewMode === "week" ? 7 : 1)
+                )
+              }
+            >
+              ›
+            </button>
+          </div>
         </div>
 
         <div className="jpls-toolbar-right">
@@ -852,28 +854,40 @@ export function JpLessonSchedulePage() {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          gap: 0.75rem 1rem;
+          justify-content: space-between;
+          gap: 0.75rem;
           margin-bottom: 1rem;
+        }
+        .jpls-toolbar-controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.625rem 0.75rem;
+          flex: 1 1 24rem;
+          min-width: 0;
         }
         .jpls-date-nav {
           display: flex;
           align-items: center;
           gap: 0.35rem;
+          flex: 1 1 15rem;
+          min-width: 0;
         }
         .jpls-date-nav-center {
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
-          gap: 0.15rem;
+          gap: 0.5rem;
           min-width: 0;
           flex: 1 1 auto;
         }
         .jpls-date-relative {
-          font-size: 0.9375rem;
+          font-size: 0.875rem;
           font-weight: 600;
           color: var(--text);
           line-height: 1.2;
           white-space: nowrap;
+          flex-shrink: 0;
         }
         .jpls-icon-btn,
         .jpls-export-btn,
@@ -886,11 +900,12 @@ export function JpLessonSchedulePage() {
           font-size: 0.8125rem;
         }
         .jpls-icon-btn {
-          width: 2rem;
-          height: 2rem;
+          width: 2.25rem;
+          height: 2.25rem;
           padding: 0;
           font-size: 1.1rem;
           line-height: 1;
+          flex-shrink: 0;
         }
         .jpls-date-input {
           border: 1px solid var(--border);
@@ -899,13 +914,18 @@ export function JpLessonSchedulePage() {
           border-radius: 8px;
           padding: 0.35rem 0.55rem;
           font-size: 0.875rem;
-          width: 100%;
+          min-height: 2.25rem;
+          width: auto;
+          flex: 1 1 9rem;
+          min-width: 0;
         }
         .jpls-export-btn {
           padding: 0.35rem 0.75rem;
+          min-height: 2.25rem;
         }
         .jpls-view-tabs {
           display: inline-flex;
+          flex-shrink: 0;
           border: 1px solid var(--border);
           border-radius: 8px;
           overflow: hidden;
@@ -915,6 +935,10 @@ export function JpLessonSchedulePage() {
           border-right: 1px solid var(--border);
           border-radius: 0;
           padding: 0.35rem 0.85rem;
+          min-height: 2.25rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         .jpls-view-tab:last-child {
           border-right: none;
@@ -929,6 +953,30 @@ export function JpLessonSchedulePage() {
           align-items: center;
           gap: 0.75rem;
           flex-wrap: wrap;
+          flex: 0 1 auto;
+        }
+        @media (max-width: 1100px) {
+          .jpls-toolbar-right {
+            width: 100%;
+            margin-left: 0;
+            justify-content: flex-start;
+          }
+        }
+        @media (max-width: 920px) {
+          .jpls-toolbar-controls {
+            flex: 1 1 100%;
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .jpls-view-tabs {
+            width: 100%;
+          }
+          .jpls-view-tab {
+            flex: 1 1 0;
+          }
+          .jpls-date-nav {
+            width: 100%;
+          }
         }
         .jpls-legend {
           display: inline-flex;
