@@ -448,17 +448,17 @@ export function EnLessonNotesPage() {
 
   return (
     <main
-      className="page-wrap en-lesson- jp-lesson-notes-page"
+      className="page-wrap jp-lesson-notes-page"
       style={{ maxWidth: "min(720px, 96vw)", paddingTop: "1.5rem" }}
     >
-      <div className="en-lesson- jp-lesson-notes-page-head">
+      <div className="jp-lesson-notes-page-head">
         <div>
-          <p className="en-lesson- jp-lesson-notes-back">
+          <p className="jp-lesson-notes-back">
             <Link href="/en-lesson">← 返回英语新课</Link>
           </p>
           <h1 style={{ fontSize: "1.5rem", margin: "0.25rem 0 0" }}>课堂笔记</h1>
           {lesson ? (
-            <p className="en-lesson- jp-lesson-notes-subtitle">
+            <p className="jp-lesson-notes-subtitle">
               ID {lesson.id} · {kindLabel(lesson.kind)} · 共 {items.length}{" "}
               个知识点
               {lesson.completed ? " · 已完成（保存后同步到单词复习）" : ""}
@@ -486,18 +486,18 @@ export function EnLessonNotesPage() {
           {error}
         </p>
       ) : lesson ? (
-        <section className="section etr-panel en-lesson- jp-lesson-notes-panel">
-          <div className="en-lesson- jp-lesson-notes-body">
+        <section className="section etr-panel jp-lesson-notes-panel">
+          <div className="jp-lesson-notes-body">
             {items.map((item) => {
               const fields = itemFields[item] ?? [{ key: `empty-${item}`, body: "" }];
               return (
-                <section key={item} className="en-lesson- jp-lesson-notes-section">
-                  <div className="en-lesson- jp-lesson-notes-section-head">
-                    <span className="en-lesson- jp-lesson-notes-item-name">{item}</span>
+                <section key={item} className="jp-lesson-notes-section">
+                  <div className="jp-lesson-notes-section-head">
+                    <span className="jp-lesson-notes-item-name">{item}</span>
                     {canEdit ? (
                       <button
                         type="button"
-                        className="en-lesson- jp-lesson-notes-section-add"
+                        className="jp-lesson-notes-section-add"
                         disabled={submitting}
                         onClick={() => addField(item)}
                       >
@@ -506,11 +506,11 @@ export function EnLessonNotesPage() {
                     ) : null}
                   </div>
 
-                  <div className="en-lesson- jp-lesson-notes-fields">
+                  <div className="jp-lesson-notes-fields">
                     {fields.map((field, index) => (
-                      <div key={field.key} className="en-lesson- jp-lesson-notes-field">
+                      <div key={field.key} className="jp-lesson-notes-field">
                         <textarea
-                          className="en-lesson- jp-lesson-notes-textarea"
+                          className="jp-lesson-notes-textarea"
                           rows={3}
                           value={field.body}
                           disabled={!canEdit}
@@ -526,7 +526,7 @@ export function EnLessonNotesPage() {
                         {canEdit && canRemoveField(item, field) ? (
                           <button
                             type="button"
-                            className="en-lesson- jp-lesson-notes-field-remove"
+                            className="jp-lesson-notes-field-remove"
                             disabled={submitting}
                             onClick={() => removeField(item, field.key)}
                             aria-label="删除本条笔记"
@@ -542,18 +542,18 @@ export function EnLessonNotesPage() {
             })}
 
             {error && lesson ? (
-              <p className="en-lesson- jp-lesson-notes-error">{error}</p>
+              <p className="jp-lesson-notes-error">{error}</p>
             ) : null}
           </div>
 
-          <div className="en-lesson- jp-lesson-notes-footer">
+          <div className="jp-lesson-notes-footer">
             {statusHint ? (
               <span
-                className={`en-lesson- jp-lesson-notes-status${
+                className={`jp-lesson-notes-status${
                   saveStatus === "saved"
-                    ? " en-lesson- jp-lesson-notes-status--saved"
+                    ? " jp-lesson-notes-status--saved"
                     : saveStatus === "error"
-                      ? " en-lesson- jp-lesson-notes-status--error"
+                      ? " jp-lesson-notes-status--error"
                       : ""
                 }`}
               >
@@ -562,7 +562,7 @@ export function EnLessonNotesPage() {
             ) : (
               <span />
             )}
-            <div className="en-lesson- jp-lesson-notes-footer-actions">
+            <div className="jp-lesson-notes-footer-actions">
               {canEdit ? (
                 <button
                   type="button"
@@ -579,7 +579,7 @@ export function EnLessonNotesPage() {
       ) : null}
 
       <style jsx>{`
-        .en-lesson- jp-lesson-notes-page-head {
+        .jp-lesson-notes-page-head {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -587,33 +587,33 @@ export function EnLessonNotesPage() {
           margin-bottom: 0.35rem;
         }
 
-        .en-lesson- jp-lesson-notes-back {
+        .jp-lesson-notes-back {
           margin: 0;
           font-size: 0.8125rem;
         }
 
-        .en-lesson- jp-lesson-notes-back :global(a) {
+        .jp-lesson-notes-back :global(a) {
           color: var(--accent);
           text-decoration: none;
         }
 
-        .en-lesson- jp-lesson-notes-back :global(a:hover) {
+        .jp-lesson-notes-back :global(a:hover) {
           text-decoration: underline;
         }
 
-        .en-lesson- jp-lesson-notes-subtitle {
+        .jp-lesson-notes-subtitle {
           margin: 0.35rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
         }
 
-        .en-lesson- jp-lesson-notes-user {
+        .jp-lesson-notes-user {
           flex-shrink: 0;
           font-size: 0.8125rem;
           color: var(--muted);
         }
 
-        .en-lesson- jp-lesson-notes-panel {
+        .jp-lesson-notes-panel {
           display: flex;
           flex-direction: column;
           gap: 0;
@@ -621,21 +621,21 @@ export function EnLessonNotesPage() {
           overflow: hidden;
         }
 
-        .en-lesson- jp-lesson-notes-body {
+        .jp-lesson-notes-body {
           display: flex;
           flex-direction: column;
           gap: 1rem;
           padding: 1rem 1.1rem;
         }
 
-        .en-lesson- jp-lesson-notes-section {
+        .jp-lesson-notes-section {
           padding: 0.75rem;
           border: 1px solid var(--border);
           border-radius: 8px;
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
         }
 
-        .en-lesson- jp-lesson-notes-section-head {
+        .jp-lesson-notes-section-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -643,13 +643,13 @@ export function EnLessonNotesPage() {
           margin-bottom: 0.55rem;
         }
 
-        .en-lesson- jp-lesson-notes-item-name {
+        .jp-lesson-notes-item-name {
           font-size: 0.9375rem;
           font-weight: 600;
           color: var(--accent);
         }
 
-        .en-lesson- jp-lesson-notes-section-add {
+        .jp-lesson-notes-section-add {
           flex-shrink: 0;
           border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
           border-radius: 6px;
@@ -661,28 +661,28 @@ export function EnLessonNotesPage() {
           font: inherit;
         }
 
-        .en-lesson- jp-lesson-notes-section-add:hover:not(:disabled) {
+        .jp-lesson-notes-section-add:hover:not(:disabled) {
           background: color-mix(in srgb, var(--accent) 18%, var(--panel));
         }
 
-        .en-lesson- jp-lesson-notes-section-add:disabled {
+        .jp-lesson-notes-section-add:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
 
-        .en-lesson- jp-lesson-notes-fields {
+        .jp-lesson-notes-fields {
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
         }
 
-        .en-lesson- jp-lesson-notes-field {
+        .jp-lesson-notes-field {
           display: flex;
           flex-direction: column;
           gap: 0.25rem;
         }
 
-        .en-lesson- jp-lesson-notes-textarea {
+        .jp-lesson-notes-textarea {
           width: 100%;
           box-sizing: border-box;
           border: 1px solid var(--border);
@@ -697,12 +697,12 @@ export function EnLessonNotesPage() {
           line-height: 1.45;
         }
 
-        .en-lesson- jp-lesson-notes-textarea:disabled {
+        .jp-lesson-notes-textarea:disabled {
           opacity: 0.72;
           cursor: not-allowed;
         }
 
-        .en-lesson- jp-lesson-notes-field-remove {
+        .jp-lesson-notes-field-remove {
           align-self: flex-end;
           border: none;
           background: transparent;
@@ -712,11 +712,11 @@ export function EnLessonNotesPage() {
           padding: 0;
         }
 
-        .en-lesson- jp-lesson-notes-field-remove:hover:not(:disabled) {
+        .jp-lesson-notes-field-remove:hover:not(:disabled) {
           color: var(--rise);
         }
 
-        .en-lesson- jp-lesson-notes-error {
+        .jp-lesson-notes-error {
           margin: 0;
           padding: 0.55rem 0.7rem;
           border-radius: 8px;
@@ -726,7 +726,7 @@ export function EnLessonNotesPage() {
           font-size: 0.8125rem;
         }
 
-        .en-lesson- jp-lesson-notes-footer {
+        .jp-lesson-notes-footer {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -735,20 +735,20 @@ export function EnLessonNotesPage() {
           border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
         }
 
-        .en-lesson- jp-lesson-notes-status {
+        .jp-lesson-notes-status {
           font-size: 0.8125rem;
           color: var(--muted);
         }
 
-        .en-lesson- jp-lesson-notes-status--saved {
+        .jp-lesson-notes-status--saved {
           color: var(--fall);
         }
 
-        .en-lesson- jp-lesson-notes-status--error {
+        .jp-lesson-notes-status--error {
           color: var(--rise);
         }
 
-        .en-lesson- jp-lesson-notes-footer-actions {
+        .jp-lesson-notes-footer-actions {
           display: flex;
           gap: 0.5rem;
         }

@@ -110,29 +110,29 @@ export function EnLessonTeacherEditModal({
 
   return createPortal(
     <div
-      className="en-lesson- jp-lesson-teacher-overlay"
+      className="jp-lesson-teacher-overlay"
       role="presentation"
       onClick={() => {
         if (!saving) onClose();
       }}
     >
       <div
-        className="en-lesson- jp-lesson-teacher-modal"
+        className="jp-lesson-teacher-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="en-lesson- jp-lesson-teacher-modal-title"
+        aria-labelledby="jp-lesson-teacher-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="en-lesson- jp-lesson-teacher-header">
+        <div className="jp-lesson-teacher-header">
           <div>
-            <h2 id="en-lesson- jp-lesson-teacher-modal-title">设置上课老师</h2>
-            <p className="en-lesson- jp-lesson-teacher-modal-lesson">
+            <h2 id="jp-lesson-teacher-modal-title">设置上课老师</h2>
+            <p className="jp-lesson-teacher-modal-lesson">
               课程 #{lesson.id} · {lesson.content}
             </p>
           </div>
           <button
             type="button"
-            className="en-lesson- jp-lesson-teacher-close"
+            className="jp-lesson-teacher-close"
             aria-label="关闭"
             disabled={saving}
             onClick={onClose}
@@ -141,11 +141,11 @@ export function EnLessonTeacherEditModal({
           </button>
         </div>
 
-        <fieldset className="en-lesson- jp-lesson-teacher-fieldset" disabled={saving}>
+        <fieldset className="jp-lesson-teacher-fieldset" disabled={saving}>
           <legend>上课老师（可多选）</legend>
-          <div className="en-lesson- jp-lesson-teacher-options">
+          <div className="jp-lesson-teacher-options">
             {sortedTeachers.map((teacher) => (
-              <label key={teacher.id} className="en-lesson- jp-lesson-teacher-option">
+              <label key={teacher.id} className="jp-lesson-teacher-option">
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(teacher.id)}
@@ -154,7 +154,7 @@ export function EnLessonTeacherEditModal({
                 <span>{teacher.name}</span>
               </label>
             ))}
-            <div className="en-lesson- jp-lesson-teacher-option en-lesson- jp-lesson-teacher-option--add">
+            <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
               <input
                 type="checkbox"
                 checked={false}
@@ -162,10 +162,10 @@ export function EnLessonTeacherEditModal({
                 tabIndex={-1}
                 aria-hidden="true"
               />
-              <span className="en-lesson- jp-lesson-teacher-add-label">添加老师</span>
+              <span className="jp-lesson-teacher-add-label">添加老师</span>
               <input
                 type="text"
-                className="en-lesson- jp-lesson-teacher-add-input"
+                className="jp-lesson-teacher-add-input"
                 value={addName}
                 placeholder="输入姓名后回车保存"
                 disabled={addingTeacher || saving}
@@ -186,16 +186,16 @@ export function EnLessonTeacherEditModal({
               />
             </div>
           </div>
-          {addError ? <p className="en-lesson- jp-lesson-teacher-add-error">{addError}</p> : null}
+          {addError ? <p className="jp-lesson-teacher-add-error">{addError}</p> : null}
           {!sortedTeachers.length ? (
-            <p className="en-lesson- jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
+            <p className="jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
           ) : null}
         </fieldset>
 
-        <div className="en-lesson- jp-lesson-teacher-actions">
+        <div className="jp-lesson-teacher-actions">
           <button
             type="button"
-            className="en-lesson- jp-lesson-action-btn"
+            className="jp-lesson-action-btn"
             disabled={saving}
             onClick={onClose}
           >
@@ -203,7 +203,7 @@ export function EnLessonTeacherEditModal({
           </button>
           <button
             type="button"
-            className="en-lesson- jp-lesson-action-btn en-lesson- jp-lesson-action-btn--primary"
+            className="jp-lesson-action-btn jp-lesson-action-btn--primary"
             disabled={saving}
             onClick={handleSave}
           >
@@ -213,7 +213,7 @@ export function EnLessonTeacherEditModal({
       </div>
 
       <style jsx>{`
-        .en-lesson- jp-lesson-teacher-overlay {
+        .jp-lesson-teacher-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -226,7 +226,7 @@ export function EnLessonTeacherEditModal({
           -webkit-backdrop-filter: blur(3px);
         }
 
-        .en-lesson- jp-lesson-teacher-modal {
+        .jp-lesson-teacher-modal {
           width: min(540px, 100%);
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
@@ -235,7 +235,7 @@ export function EnLessonTeacherEditModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
-        .en-lesson- jp-lesson-teacher-header {
+        .jp-lesson-teacher-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -243,20 +243,20 @@ export function EnLessonTeacherEditModal({
           margin-bottom: 1rem;
         }
 
-        .en-lesson- jp-lesson-teacher-header h2 {
+        .jp-lesson-teacher-header h2 {
           margin: 0;
           font-size: 1.0625rem;
           font-weight: 600;
         }
 
-        .en-lesson- jp-lesson-teacher-modal-lesson {
+        .jp-lesson-teacher-modal-lesson {
           margin: 0.35rem 0 0;
           color: var(--muted);
           font-size: 0.8125rem;
           line-height: 1.45;
         }
 
-        .en-lesson- jp-lesson-teacher-close {
+        .jp-lesson-teacher-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
@@ -269,19 +269,19 @@ export function EnLessonTeacherEditModal({
           cursor: pointer;
         }
 
-        .en-lesson- jp-lesson-teacher-fieldset {
+        .jp-lesson-teacher-fieldset {
           margin: 0 0 0.75rem;
           padding: 0;
           border: none;
         }
 
-        .en-lesson- jp-lesson-teacher-fieldset legend {
+        .jp-lesson-teacher-fieldset legend {
           font-size: 0.8125rem;
           color: var(--muted);
           margin-bottom: 0.5rem;
         }
 
-        .en-lesson- jp-lesson-teacher-options {
+        .jp-lesson-teacher-options {
           display: flex;
           flex-direction: column;
           gap: 0.45rem;
@@ -293,7 +293,7 @@ export function EnLessonTeacherEditModal({
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
         }
 
-        .en-lesson- jp-lesson-teacher-option {
+        .jp-lesson-teacher-option {
           display: flex;
           align-items: center;
           gap: 0.5rem;
@@ -301,20 +301,20 @@ export function EnLessonTeacherEditModal({
           cursor: pointer;
         }
 
-        .en-lesson- jp-lesson-teacher-option input[type="checkbox"] {
+        .jp-lesson-teacher-option input[type="checkbox"] {
           flex-shrink: 0;
         }
 
-        .en-lesson- jp-lesson-teacher-option--add {
+        .jp-lesson-teacher-option--add {
           flex-wrap: wrap;
         }
 
-        .en-lesson- jp-lesson-teacher-add-label {
+        .jp-lesson-teacher-add-label {
           color: var(--muted);
           flex-shrink: 0;
         }
 
-        .en-lesson- jp-lesson-teacher-add-input {
+        .jp-lesson-teacher-add-input {
           flex: 1 1 10rem;
           min-width: 0;
           padding: 0.35rem 0.5rem;
@@ -325,30 +325,30 @@ export function EnLessonTeacherEditModal({
           font-size: 0.8125rem;
         }
 
-        .en-lesson- jp-lesson-teacher-add-input:disabled {
+        .jp-lesson-teacher-add-input:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
 
-        .en-lesson- jp-lesson-teacher-add-error {
+        .jp-lesson-teacher-add-error {
           margin: 0.45rem 0 0;
           font-size: 0.8125rem;
           color: var(--rise);
         }
 
-        .en-lesson- jp-lesson-teacher-hint {
+        .jp-lesson-teacher-hint {
           margin: 0.45rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
         }
 
-        .en-lesson- jp-lesson-teacher-actions {
+        .jp-lesson-teacher-actions {
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
         }
 
-        :global(.en-lesson- jp-lesson-action-btn--primary) {
+        :global(.jp-lesson-action-btn--primary) {
           border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
           background: color-mix(in srgb, var(--accent) 14%, var(--panel));
           color: var(--accent);

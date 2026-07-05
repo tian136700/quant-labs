@@ -409,7 +409,7 @@ export function EnLessonSchedulePage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = `en-lesson- jp-lesson-schedule-${rangeLabel.replace(/\s+/g, "_")}.txt`;
+      anchor.download = `jp-lesson-schedule-${rangeLabel.replace(/\s+/g, "_")}.txt`;
       anchor.click();
       URL.revokeObjectURL(url);
     }
@@ -438,7 +438,7 @@ export function EnLessonSchedulePage() {
   }
 
   return (
-    <main className="page-wrap en-lesson- jp-lesson-schedule-page">
+    <main className="page-wrap jp-lesson-schedule-page">
       <header className="jpls-header">
         <div>
           <h1>日程管理</h1>
@@ -812,10 +812,10 @@ export function EnLessonSchedulePage() {
       </div>
 
       <style jsx>{`
-        :global(.page-wrap:has(.en-lesson- jp-lesson-schedule-page)) {
+        :global(.page-wrap:has(.jp-lesson-schedule-page)) {
           max-width: min(1480px, 96vw);
         }
-        .en-lesson- jp-lesson-schedule-page {
+        .jp-lesson-schedule-page {
           padding-top: 1.25rem;
           padding-bottom: 2rem;
         }

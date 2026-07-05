@@ -134,29 +134,29 @@ export function EnLessonNextClassEditModal({
 
   return createPortal(
     <div
-      className="en-lesson- jp-lesson-next-class-overlay"
+      className="jp-lesson-next-class-overlay"
       role="presentation"
       onClick={() => {
         if (!saving) onClose();
       }}
     >
       <div
-        className="en-lesson- jp-lesson-next-class-modal"
+        className="jp-lesson-next-class-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="en-lesson- jp-lesson-next-class-modal-title"
+        aria-labelledby="jp-lesson-next-class-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="en-lesson- jp-lesson-next-class-header">
+        <div className="jp-lesson-next-class-header">
           <div>
-            <h2 id="en-lesson- jp-lesson-next-class-modal-title">设置上课时间</h2>
-            <p className="en-lesson- jp-lesson-next-class-modal-lesson">
+            <h2 id="jp-lesson-next-class-modal-title">设置上课时间</h2>
+            <p className="jp-lesson-next-class-modal-lesson">
               课程 #{lesson.id} · {lesson.content}
             </p>
           </div>
           <button
             type="button"
-            className="en-lesson- jp-lesson-next-class-close"
+            className="jp-lesson-next-class-close"
             aria-label="关闭"
             disabled={saving}
             onClick={onClose}
@@ -165,19 +165,19 @@ export function EnLessonNextClassEditModal({
           </button>
         </div>
 
-        <fieldset className="en-lesson- jp-lesson-next-class-fieldset" disabled={saving}>
+        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
           <legend>上课时间（北京时间，整点 / 半点）</legend>
-          <div className="en-lesson- jp-lesson-next-class-rows">
+          <div className="jp-lesson-next-class-rows">
             {rows.map((row, index) => (
-              <div key={row.key} className="en-lesson- jp-lesson-next-class-row">
-                <div className="en-lesson- jp-lesson-next-class-row-head">
-                  <span className="en-lesson- jp-lesson-next-class-row-title">
+              <div key={row.key} className="jp-lesson-next-class-row">
+                <div className="jp-lesson-next-class-row-head">
+                  <span className="jp-lesson-next-class-row-title">
                     预约 {index + 1}
                   </span>
                   {rows.length > 1 ? (
                     <button
                       type="button"
-                      className="en-lesson- jp-lesson-next-class-row-remove"
+                      className="jp-lesson-next-class-row-remove"
                       aria-label={`删除预约 ${index + 1}`}
                       onClick={() => removeRow(row.key)}
                     >
@@ -185,17 +185,17 @@ export function EnLessonNextClassEditModal({
                     </button>
                   ) : null}
                 </div>
-                <div className="en-lesson- jp-lesson-next-class-fields">
-                  <label className="en-lesson- jp-lesson-next-class-field">
+                <div className="jp-lesson-next-class-fields">
+                  <label className="jp-lesson-next-class-field">
                     <span>日期</span>
                     <input
                       type="date"
-                      className="en-lesson- jp-lesson-next-class-input"
+                      className="jp-lesson-next-class-input"
                       value={row.date}
                       onChange={(e) => updateRow(row.key, { date: e.target.value })}
                     />
                   </label>
-                  <div className="en-lesson- jp-lesson-next-class-field">
+                  <div className="jp-lesson-next-class-field">
                     <span>时间</span>
                     <EnLessonHalfHourTimeGridPicker
                       value={row.time}
@@ -204,10 +204,10 @@ export function EnLessonNextClassEditModal({
                       onChange={(time) => updateRow(row.key, { time })}
                     />
                   </div>
-                  <label className="en-lesson- jp-lesson-next-class-field">
+                  <label className="jp-lesson-next-class-field">
                     <span>时长</span>
                     <select
-                      className="en-lesson- jp-lesson-next-class-input en-lesson- jp-lesson-next-class-time-select"
+                      className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
                       value={row.duration}
                       onChange={(e) =>
                         updateRow(row.key, { duration: e.target.value })
@@ -227,21 +227,21 @@ export function EnLessonNextClassEditModal({
           </div>
           <button
             type="button"
-            className="en-lesson- jp-lesson-next-class-add"
+            className="jp-lesson-next-class-add"
             disabled={saving}
             onClick={addRow}
           >
             + 添加预约
           </button>
-          <p className="en-lesson- jp-lesson-next-class-hint">
+          <p className="jp-lesson-next-class-hint">
             点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。
           </p>
         </fieldset>
 
-        <div className="en-lesson- jp-lesson-next-class-actions">
+        <div className="jp-lesson-next-class-actions">
           <button
             type="button"
-            className="en-lesson- jp-lesson-action-btn"
+            className="jp-lesson-action-btn"
             disabled={saving}
             onClick={handleClear}
           >
@@ -249,7 +249,7 @@ export function EnLessonNextClassEditModal({
           </button>
           <button
             type="button"
-            className="en-lesson- jp-lesson-action-btn"
+            className="jp-lesson-action-btn"
             disabled={saving}
             onClick={onClose}
           >
@@ -257,7 +257,7 @@ export function EnLessonNextClassEditModal({
           </button>
           <button
             type="button"
-            className="en-lesson- jp-lesson-action-btn en-lesson- jp-lesson-action-btn--primary"
+            className="jp-lesson-action-btn jp-lesson-action-btn--primary"
             disabled={saving}
             onClick={handleSave}
           >
@@ -267,7 +267,7 @@ export function EnLessonNextClassEditModal({
       </div>
 
       <style jsx>{`
-        .en-lesson- jp-lesson-next-class-overlay {
+        .jp-lesson-next-class-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -280,7 +280,7 @@ export function EnLessonNextClassEditModal({
           -webkit-backdrop-filter: blur(3px);
         }
 
-        .en-lesson- jp-lesson-next-class-modal {
+        .jp-lesson-next-class-modal {
           width: min(720px, 100%);
           max-height: min(94vh, 900px);
           overflow: auto;
@@ -291,7 +291,7 @@ export function EnLessonNextClassEditModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
-        .en-lesson- jp-lesson-next-class-header {
+        .jp-lesson-next-class-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -299,20 +299,20 @@ export function EnLessonNextClassEditModal({
           margin-bottom: 1rem;
         }
 
-        .en-lesson- jp-lesson-next-class-header h2 {
+        .jp-lesson-next-class-header h2 {
           margin: 0;
           font-size: 1.0625rem;
           font-weight: 600;
         }
 
-        .en-lesson- jp-lesson-next-class-modal-lesson {
+        .jp-lesson-next-class-modal-lesson {
           margin: 0.35rem 0 0;
           color: var(--muted);
           font-size: 0.8125rem;
           line-height: 1.45;
         }
 
-        .en-lesson- jp-lesson-next-class-close {
+        .jp-lesson-next-class-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
@@ -325,31 +325,31 @@ export function EnLessonNextClassEditModal({
           cursor: pointer;
         }
 
-        .en-lesson- jp-lesson-next-class-fieldset {
+        .jp-lesson-next-class-fieldset {
           margin: 0 0 0.75rem;
           padding: 0;
           border: none;
         }
 
-        .en-lesson- jp-lesson-next-class-fieldset legend {
+        .jp-lesson-next-class-fieldset legend {
           font-size: 0.8125rem;
           color: var(--muted);
           margin-bottom: 0.5rem;
         }
 
-        .en-lesson- jp-lesson-next-class-rows {
+        .jp-lesson-next-class-rows {
           display: grid;
           gap: 0.75rem;
         }
 
-        .en-lesson- jp-lesson-next-class-row {
+        .jp-lesson-next-class-row {
           padding: 0.65rem 0.7rem;
           border: 1px solid var(--border);
           border-radius: 10px;
           background: color-mix(in srgb, var(--bg) 28%, var(--panel));
         }
 
-        .en-lesson- jp-lesson-next-class-row-head {
+        .jp-lesson-next-class-row-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -357,13 +357,13 @@ export function EnLessonNextClassEditModal({
           margin-bottom: 0.55rem;
         }
 
-        .en-lesson- jp-lesson-next-class-row-title {
+        .jp-lesson-next-class-row-title {
           font-size: 0.8125rem;
           font-weight: 600;
           color: var(--muted);
         }
 
-        .en-lesson- jp-lesson-next-class-row-remove {
+        .jp-lesson-next-class-row-remove {
           border: none;
           background: transparent;
           color: var(--muted);
@@ -372,26 +372,26 @@ export function EnLessonNextClassEditModal({
           padding: 0.15rem 0.25rem;
         }
 
-        .en-lesson- jp-lesson-next-class-row-remove:hover {
+        .jp-lesson-next-class-row-remove:hover {
           color: var(--rise);
         }
 
-        .en-lesson- jp-lesson-next-class-fields {
+        .jp-lesson-next-class-fields {
           display: grid;
           gap: 0.65rem;
         }
 
-        .en-lesson- jp-lesson-next-class-field {
+        .jp-lesson-next-class-field {
           display: grid;
           gap: 0.35rem;
         }
 
-        .en-lesson- jp-lesson-next-class-field span {
+        .jp-lesson-next-class-field span {
           font-size: 0.8125rem;
           color: var(--muted);
         }
 
-        .en-lesson- jp-lesson-next-class-input {
+        .jp-lesson-next-class-input {
           width: 100%;
           box-sizing: border-box;
           padding: 0.55rem 0.65rem;
@@ -402,11 +402,11 @@ export function EnLessonNextClassEditModal({
           font-size: 0.875rem;
         }
 
-        .en-lesson- jp-lesson-next-class-time-select {
+        .jp-lesson-next-class-time-select {
           cursor: pointer;
         }
 
-        .en-lesson- jp-lesson-next-class-add {
+        .jp-lesson-next-class-add {
           margin-top: 0.65rem;
           width: 100%;
           padding: 0.55rem 0.75rem;
@@ -418,24 +418,24 @@ export function EnLessonNextClassEditModal({
           cursor: pointer;
         }
 
-        .en-lesson- jp-lesson-next-class-add:hover:not(:disabled) {
+        .jp-lesson-next-class-add:hover:not(:disabled) {
           background: color-mix(in srgb, var(--accent) 12%, var(--panel));
         }
 
-        .en-lesson- jp-lesson-next-class-hint {
+        .jp-lesson-next-class-hint {
           margin: 0.45rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
           line-height: 1.45;
         }
 
-        .en-lesson- jp-lesson-next-class-actions {
+        .jp-lesson-next-class-actions {
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
         }
 
-        :global(.en-lesson- jp-lesson-action-btn--primary) {
+        :global(.jp-lesson-action-btn--primary) {
           border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
           background: color-mix(in srgb, var(--accent) 14%, var(--panel));
           color: var(--accent);

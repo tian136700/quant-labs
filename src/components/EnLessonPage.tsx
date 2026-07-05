@@ -26,6 +26,7 @@ import {
   formatClassDurationLabel,
   formatClassDurationLabelCompact,
   formatLessonContentLines,
+  parseLessonContent,
   formatNextClassAtLabel,
   formatNextClassAtLabelCompact,
   getEnLessonProgressStatus,
@@ -96,20 +97,20 @@ function refFilename(refKey: string, ref?: EnVocabRef): string {
 
 function renderLessonDateTime(iso: string) {
   return (
-    <span className="en-lesson- jp-lesson-dt">
-      <span className="en-lesson- jp-lesson-dt-full">{formatBeijingDateTime(iso)}</span>
-      <span className="en-lesson- jp-lesson-dt-compact">{formatBeijingDateTimeCompact(iso)}</span>
+    <span className="jp-lesson-dt">
+      <span className="jp-lesson-dt-full">{formatBeijingDateTime(iso)}</span>
+      <span className="jp-lesson-dt-compact">{formatBeijingDateTimeCompact(iso)}</span>
     </span>
   );
 }
 
 function renderNextClassLabel(classAt: string, progressStatus: EnLessonProgressStatus) {
   return (
-    <span className="en-lesson- jp-lesson-next-class-dt">
-      <span className="en-lesson- jp-lesson-next-class-dt-full">
+    <span className="jp-lesson-next-class-dt">
+      <span className="jp-lesson-next-class-dt-full">
         {formatNextClassAtLabel(classAt, progressStatus)}
       </span>
-      <span className="en-lesson- jp-lesson-next-class-dt-compact">
+      <span className="jp-lesson-next-class-dt-compact">
         {formatNextClassAtLabelCompact(classAt, progressStatus)}
       </span>
     </span>
@@ -121,9 +122,9 @@ function renderClassDurationLabel(minutes: number | null | undefined) {
   const compact = formatClassDurationLabelCompact(minutes);
   if (!full || !compact) return null;
   return (
-    <span className="en-lesson- jp-lesson-class-duration-dt">
-      <span className="en-lesson- jp-lesson-class-duration-dt-full">{full}</span>
-      <span className="en-lesson- jp-lesson-class-duration-dt-compact">{compact}</span>
+    <span className="jp-lesson-class-duration-dt">
+      <span className="jp-lesson-class-duration-dt-full">{full}</span>
+      <span className="jp-lesson-class-duration-dt-compact">{compact}</span>
     </span>
   );
 }
@@ -580,7 +581,7 @@ export function EnLessonPage() {
       return canOperate ? (
         <button
           type="button"
-          className="en-lesson- jp-lesson-action-btn"
+          className="jp-lesson-action-btn"
           onClick={() => setEditingLesson(lesson)}
         >
           上传教案
@@ -596,7 +597,7 @@ export function EnLessonPage() {
         href={viewUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="en-lesson- jp-lesson-action-btn"
+        className="jp-lesson-action-btn"
       >
         查看
       </a>,
@@ -606,7 +607,7 @@ export function EnLessonPage() {
         <button
           key="annotate"
           type="button"
-          className="en-lesson- jp-lesson-action-btn"
+          className="jp-lesson-action-btn"
           onClick={() => setAnnotatingLesson({ lesson, ref: ref!, viewUrl })}
         >
           随手画
@@ -620,7 +621,7 @@ export function EnLessonPage() {
         mediaUrl={enVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })}
         filename={refFilename(lesson.ref_key!, ref)}
         mediaType={ref?.media_type ?? "image"}
-        primaryClassName="en-lesson- jp-lesson-action-btn"
+        primaryClassName="jp-lesson-action-btn"
         fixedPanel
         allowOriginalDownload={isAdmin}
       />
@@ -629,7 +630,7 @@ export function EnLessonPage() {
       <button
         key="copy"
         type="button"
-        className="en-lesson- jp-lesson-action-btn"
+        className="jp-lesson-action-btn"
         onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
       >
         {copiedId === lesson.id ? "已复制" : "复制"}
@@ -644,16 +645,16 @@ export function EnLessonPage() {
         />
       );
     }
-    return <div className="en-lesson- jp-lesson-actions">{actionItems}</div>;
+    return <div className="jp-lesson-actions">{actionItems}</div>;
   };
 
   const renderSharedTeacherCell = (groupLessons: EnLessonRecord[]) => {
     const lesson = groupLessons[0];
     return (
-      <td data-label="上课老师" className="en-lesson- jp-lesson-teacher-col">
-        <div className="en-lesson- jp-lesson-teacher-cell">
+      <td data-label="上课老师" className="jp-lesson-teacher-col">
+        <div className="jp-lesson-teacher-cell">
           <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
-          <div className="en-lesson- jp-lesson-merged-edit-stack">
+          <div className="jp-lesson-merged-edit-stack">
             {groupLessons.map((item) => (
               <EnEditIconButton
                 key={item.id}
@@ -674,33 +675,33 @@ export function EnLessonPage() {
     const classSchedules = getLessonClassSchedules(lesson);
 
     return (
-      <td data-label="上课时间" className="en-lesson- jp-lesson-next-class-col">
-        <div className="en-lesson- jp-lesson-next-class-cell">
-          <div className="en-lesson- jp-lesson-next-class-lines">
+      <td data-label="上课时间" className="jp-lesson-next-class-col">
+        <div className="jp-lesson-next-class-cell">
+          <div className="jp-lesson-next-class-lines">
             {progressStatus === "completed" ? (
-              <span className="en-lesson- jp-lesson-next-class-label is-done">已上完课</span>
+              <span className="jp-lesson-next-class-label is-done">已上完课</span>
             ) : classSchedules.length === 0 ? (
-              <span className="en-lesson- jp-lesson-next-class-label is-undefined">未定义</span>
+              <span className="jp-lesson-next-class-label is-undefined">未定义</span>
             ) : (
               classSchedules.map((schedule, scheduleIdx) => {
                 const durationLabel = renderClassDurationLabel(schedule.duration_minutes);
                 return (
                   <div
                     key={schedule.id || scheduleIdx}
-                    className="en-lesson- jp-lesson-next-class-entry"
+                    className="jp-lesson-next-class-entry"
                   >
-                    <span className="en-lesson- jp-lesson-next-class-label">
+                    <span className="jp-lesson-next-class-label">
                       {renderNextClassLabel(schedule.class_at, progressStatus)}
                     </span>
                     {durationLabel ? (
-                      <span className="en-lesson- jp-lesson-class-duration-label">{durationLabel}</span>
+                      <span className="jp-lesson-class-duration-label">{durationLabel}</span>
                     ) : null}
                   </div>
                 );
               })
             )}
           </div>
-          <div className="en-lesson- jp-lesson-merged-edit-stack">
+          <div className="jp-lesson-merged-edit-stack">
             {groupLessons.map((item) => (
               <EnEditIconButton
                 key={item.id}
@@ -719,28 +720,31 @@ export function EnLessonPage() {
     displayGroups: EnLessonDisplayGroup<EnLessonRecord>[],
     dayToneByDate?: Map<string, number>
   ) => (
-    <div className="en-lesson- jp-lesson-table-wrap">
-      <table className="compare-table etr-table en-lesson- jp-lesson-table">
+    <div className="jp-lesson-table-wrap">
+      <table className="compare-table etr-table jp-lesson-table">
         <thead>
           <tr>
             <th>ID</th>
             <th>学习类型</th>
             <th>学习内容</th>
-            <th className="en-lesson- jp-lesson-uploaded-col">上传日期</th>
-            <th className="en-lesson- jp-lesson-status-at-col">最近操作</th>
-            <th className="en-lesson- jp-lesson-operator-col">操作人</th>
-            {isAdmin ? <th className="en-lesson- jp-lesson-teacher-col">上课老师</th> : null}
+            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计">
+              词/短语数
+            </th>
+            <th className="jp-lesson-uploaded-col">上传日期</th>
+            <th className="jp-lesson-status-at-col">最近操作</th>
+            <th className="jp-lesson-operator-col">操作人</th>
+            {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
             {isAdmin ? (
               <th
-                className={`en-lesson- jp-lesson-next-class-col en-lesson- jp-lesson-next-class-col--sortable${
+                className={`jp-lesson-next-class-col jp-lesson-next-class-col--sortable${
                   classTimeSortOrder === "asc"
-                    ? " en-lesson- jp-lesson-next-class-col--sorted-asc"
-                    : " en-lesson- jp-lesson-next-class-col--sorted-desc"
+                    ? " jp-lesson-next-class-col--sorted-asc"
+                    : " jp-lesson-next-class-col--sorted-desc"
                 }`}
               >
                 <button
                   type="button"
-                  className="en-lesson- jp-lesson-sort-btn"
+                  className="jp-lesson-sort-btn"
                   title={
                     classTimeSortOrder === "asc"
                       ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
@@ -754,50 +758,50 @@ export function EnLessonPage() {
                   onClick={toggleClassTimeSortOrder}
                 >
                   上课时间
-                  <span className="en-lesson- jp-lesson-sort-indicator" aria-hidden="true">
+                  <span className="jp-lesson-sort-indicator" aria-hidden="true">
                     {classTimeSortOrder === "asc" ? "↑" : "↓"}
                   </span>
                 </button>
               </th>
             ) : null}
-            <th className="en-lesson- jp-lesson-complete-col">学习状态</th>
-            <th className="en-lesson- jp-lesson-notes-col">课堂笔记</th>
-            <th className="en-lesson- jp-lesson-actions-col">教案操作</th>
+            <th className="jp-lesson-complete-col">学习状态</th>
+            <th className="jp-lesson-notes-col">课堂笔记</th>
+            <th className="jp-lesson-actions-col">教案操作</th>
           </tr>
         </thead>
         <tbody>
           {displayGroups.map((group) => {
             const merged = group.lessons.length > 1;
-            const stackClass = merged ? " en-lesson- jp-lesson-merged-stack" : "";
+            const stackClass = merged ? " jp-lesson-merged-stack" : "";
             const classDate = getLessonClassDate(group.lessons[0]);
             const dayTone =
               classDate != null ? dayToneByDate?.get(classDate) : undefined;
             const rowClassName = [
-              "en-lesson- jp-lesson-row",
-              merged ? "en-lesson- jp-lesson-row--merged" : "",
-              dayTone != null ? `en-lesson- jp-lesson-row--day-tone-${dayTone}` : "",
+              "jp-lesson-row",
+              merged ? "jp-lesson-row--merged" : "",
+              dayTone != null ? `jp-lesson-row--day-tone-${dayTone}` : "",
             ]
               .filter(Boolean)
               .join(" ");
 
             return (
               <tr key={group.key} className={rowClassName || undefined}>
-                <td data-label="ID" className="en-lesson- jp-lesson-id-col">
+                <td data-label="ID" className="jp-lesson-id-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}>
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         {lesson.id}
                       </div>
                     ))}
                   </div>
                 </td>
-                <td data-label="学习类型" className="en-lesson- jp-lesson-kind-col">
+                <td data-label="学习类型" className="jp-lesson-kind-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}>
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         <span
-                          className={`en-lesson- jp-lesson-kind${
-                            lesson.kind === "grammar" ? " en-lesson- jp-lesson-kind--grammar" : ""
+                          className={`jp-lesson-kind${
+                            lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
                           }`}
                         >
                           {lesson.kind === "grammar" ? "语法" : "单词"}
@@ -806,13 +810,13 @@ export function EnLessonPage() {
                     ))}
                   </div>
                 </td>
-                <td data-label="学习内容" className="en-lesson- jp-lesson-content-col">
+                <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}>
-                        <div className="en-lesson- jp-lesson-content-lines">
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        <div className="jp-lesson-content-lines">
                           {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
-                            <span key={lineIdx} className="en-lesson- jp-lesson-content-line">
+                            <span key={lineIdx} className="jp-lesson-content-line">
                               {line}
                             </span>
                           ))}
@@ -821,19 +825,28 @@ export function EnLessonPage() {
                     ))}
                   </div>
                 </td>
-                <td data-label="上传日期" className="en-lesson- jp-lesson-uploaded-col">
+                <td data-label="词/短语数" className="jp-lesson-content-count-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}>
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        {parseLessonContent(lesson.content).length}
+                      </div>
+                    ))}
+                  </div>
+                </td>
+                <td data-label="上传日期" className="jp-lesson-uploaded-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         {renderLessonDateTime(lesson.uploaded_at)}
                       </div>
                     ))}
                   </div>
                 </td>
-                <td data-label="最近操作" className="en-lesson- jp-lesson-status-at-col">
+                <td data-label="最近操作" className="jp-lesson-status-at-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}>
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         {lesson.status_updated_at
                           ? renderLessonDateTime(lesson.status_updated_at)
                           : "—"}
@@ -841,10 +854,10 @@ export function EnLessonPage() {
                     ))}
                   </div>
                 </td>
-                <td data-label="操作人" className="en-lesson- jp-lesson-operator-col">
+                <td data-label="操作人" className="jp-lesson-operator-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}>
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         {lesson.status_updated_by ?? "—"}
                       </div>
                     ))}
@@ -852,24 +865,24 @@ export function EnLessonPage() {
                 </td>
                 {isAdmin ? renderSharedTeacherCell(group.lessons) : null}
                 {isAdmin ? renderSharedClassTimeCell(group.lessons) : null}
-                <td data-label="学习状态" className="en-lesson- jp-lesson-complete-col">
+                <td data-label="学习状态" className="jp-lesson-complete-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const progressStatus = getEnLessonProgressStatus(lesson);
                       return (
                         <div
                           key={lesson.id}
-                          className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}
+                          className={merged ? "jp-lesson-merged-stack-item" : undefined}
                         >
                           <div
-                            className={`en-lesson- jp-lesson-complete-wrap${
+                            className={`jp-lesson-complete-wrap${
                               progressStatus === "completed" ? " is-done" : ""
                             }${progressStatus === "learning" ? " is-learning" : ""}${
                               !canOperate ? " is-readonly" : ""
                             }${savingId === lesson.id ? " is-saving" : ""}`}
                           >
                             <select
-                              className="en-lesson- jp-lesson-complete-select"
+                              className="jp-lesson-complete-select"
                               value={progressStatus}
                               disabled={!canOperate || savingId === lesson.id}
                               aria-label={`${lesson.content} 学习状态`}
@@ -890,25 +903,25 @@ export function EnLessonPage() {
                     })}
                   </div>
                 </td>
-                <td data-label="课堂笔记" className="en-lesson- jp-lesson-notes-col">
+                <td data-label="课堂笔记" className="jp-lesson-notes-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
                       return (
                         <div
                           key={lesson.id}
-                          className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}
+                          className={merged ? "jp-lesson-merged-stack-item" : undefined}
                         >
                           <a
                             href={`/en-lesson/notes?id=${lesson.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="en-lesson- jp-lesson-notes-btn"
+                            className="jp-lesson-notes-btn"
                             title="在新标签页打开课堂笔记"
                           >
                             笔记
                             {noteCount > 0 ? (
-                              <span className="en-lesson- jp-lesson-notes-count">{noteCount}</span>
+                              <span className="jp-lesson-notes-count">{noteCount}</span>
                             ) : null}
                           </a>
                         </div>
@@ -916,12 +929,12 @@ export function EnLessonPage() {
                     })}
                   </div>
                 </td>
-                <td data-label="教案操作" className="en-lesson- jp-lesson-actions-col">
+                <td data-label="教案操作" className="jp-lesson-actions-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className={merged ? "en-lesson- jp-lesson-merged-stack-item" : undefined}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
                       >
                         {renderLessonActions(lesson)}
                       </div>
@@ -937,7 +950,7 @@ export function EnLessonPage() {
   );
 
   return (
-    <main className="page-wrap en-lesson- jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
+    <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
@@ -949,7 +962,7 @@ export function EnLessonPage() {
       </p>
 
       {isAdmin ? (
-        <div className="en-lesson- jp-lesson-admin-links">
+        <div className="jp-lesson-admin-links">
           <a href={enLessonSchedulePath()} style={{ color: "var(--accent)" }}>
             日程管理
           </a>
@@ -977,7 +990,7 @@ export function EnLessonPage() {
           <p style={{ color: "var(--muted)", margin: 0 }}>暂无新课，请通过 API 上传。</p>
         </section>
       ) : (
-        <div className={`en-lesson- jp-lesson-cards en-lesson- jp-lesson-mobile-filter-${mobileStatusFilter}`}>
+        <div className={`jp-lesson-cards jp-lesson-mobile-filter-${mobileStatusFilter}`}>
           {refreshing ? (
             <p
               style={{
@@ -989,7 +1002,7 @@ export function EnLessonPage() {
               同步中…
             </p>
           ) : null}
-          <div className="en-lesson- jp-lesson-mobile-status-filter" role="tablist" aria-label="学习状态筛选">
+          <div className="jp-lesson-mobile-status-filter" role="tablist" aria-label="学习状态筛选">
             {LESSON_STATUS_SECTIONS.map(({ status, title }) => {
               const sectionCount = lessonsByStatus[status].length;
               const active = mobileStatusFilter === status;
@@ -999,13 +1012,13 @@ export function EnLessonPage() {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  className={`en-lesson- jp-lesson-mobile-status-tab en-lesson- jp-lesson-mobile-status-tab--${status}${
+                  className={`jp-lesson-mobile-status-tab jp-lesson-mobile-status-tab--${status}${
                     active ? " is-active" : ""
                   }`}
                   onClick={() => setMobileStatusFilter(status)}
                 >
-                  <span className="en-lesson- jp-lesson-mobile-status-tab-label">{title}</span>
-                  <span className="en-lesson- jp-lesson-mobile-status-tab-count">{sectionCount}</span>
+                  <span className="jp-lesson-mobile-status-tab-label">{title}</span>
+                  <span className="jp-lesson-mobile-status-tab-count">{sectionCount}</span>
                 </button>
               );
             })}
@@ -1016,12 +1029,12 @@ export function EnLessonPage() {
             return (
               <section
                 key={status}
-                className={`section etr-panel en-lesson- jp-lesson-status-card en-lesson- jp-lesson-status-card--${status}`}
+                className={`section etr-panel jp-lesson-status-card jp-lesson-status-card--${status}`}
                 aria-label={`${title}新课`}
               >
-                <div className="en-lesson- jp-lesson-status-card-head">
-                  <h2 className="en-lesson- jp-lesson-status-card-title">{title}</h2>
-                  <span className="en-lesson- jp-lesson-status-card-count">
+                <div className="jp-lesson-status-card-head">
+                  <h2 className="jp-lesson-status-card-title">{title}</h2>
+                  <span className="jp-lesson-status-card-count">
                     {sectionCount} 条
                   </span>
                 </div>
@@ -1031,7 +1044,7 @@ export function EnLessonPage() {
                     status === "learning" ? learningDayToneByDate : undefined
                   )
                 ) : (
-                  <p className="en-lesson- jp-lesson-status-card-empty">{emptyHint}</p>
+                  <p className="jp-lesson-status-card-empty">{emptyHint}</p>
                 )}
               </section>
             );
@@ -1130,209 +1143,217 @@ export function EnLessonPage() {
       </details>
 
       <style jsx>{`
-        :global(.page-wrap:has(.en-lesson- jp-lesson-page)) {
+        :global(.page-wrap:has(.jp-lesson-page)) {
           max-width: min(1480px, 96vw);
         }
-        .en-lesson- jp-lesson-cards {
+        .jp-lesson-cards {
           display: flex;
           flex-direction: column;
           gap: 1.25rem;
         }
-        .en-lesson- jp-lesson-admin-links {
+        .jp-lesson-admin-links {
           display: flex;
           flex-wrap: wrap;
           gap: 0.75rem 1.25rem;
           margin-bottom: 0.75rem;
           font-size: 0.875rem;
         }
-        .en-lesson- jp-lesson-status-card {
+        .jp-lesson-status-card {
           margin: 0;
         }
-        .en-lesson- jp-lesson-status-card-head {
+        .jp-lesson-status-card-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 0.75rem;
           margin-bottom: 0.75rem;
         }
-        .en-lesson- jp-lesson-status-card-title {
+        .jp-lesson-status-card-title {
           font-size: 1.375rem;
           font-weight: 600;
           margin: 0;
           letter-spacing: 0.02em;
         }
-        .en-lesson- jp-lesson-status-card-count {
+        .jp-lesson-status-card-count {
           font-size: 0.8125rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
         }
-        .en-lesson- jp-lesson-status-card-empty {
+        .jp-lesson-status-card-empty {
           margin: 0;
           color: var(--muted);
           font-size: 0.875rem;
         }
-        .en-lesson- jp-lesson-status-card--learning {
+        .jp-lesson-status-card--learning {
           border-left: 3px solid color-mix(in srgb, var(--accent) 70%, var(--border));
         }
-        .en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-status-card-title {
+        .jp-lesson-status-card--learning .jp-lesson-status-card-title {
           color: var(--accent);
         }
-        .en-lesson- jp-lesson-status-card--pending {
+        .jp-lesson-status-card--pending {
           border-left: 3px solid var(--border);
         }
-        .en-lesson- jp-lesson-status-card--completed {
+        .jp-lesson-status-card--completed {
           border-left: 3px solid color-mix(in srgb, var(--fall) 70%, var(--border));
         }
-        .en-lesson- jp-lesson-status-card--completed .en-lesson- jp-lesson-status-card-title {
+        .jp-lesson-status-card--completed .jp-lesson-status-card-title {
           color: var(--fall);
         }
-        :global(.en-lesson- jp-lesson-table-wrap) {
+        :global(.jp-lesson-table-wrap) {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
         }
-        :global(.en-lesson- jp-lesson-table) {
+        :global(.jp-lesson-table) {
           width: 100%;
         }
         @media (min-width: 768px) {
-          :global(.en-lesson- jp-lesson-table) {
+          :global(.jp-lesson-table) {
             min-width: 640px;
           }
         }
-        :global(.en-lesson- jp-lesson-table th),
-        :global(.en-lesson- jp-lesson-table td) {
+        :global(.jp-lesson-table th),
+        :global(.jp-lesson-table td) {
           vertical-align: middle;
           padding: 0.6rem 0.75rem;
           white-space: normal;
         }
-        :global(.en-lesson- jp-lesson-id-col) {
+        :global(.jp-lesson-id-col) {
           width: 3.25rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
           text-align: center;
         }
-        :global(.en-lesson- jp-lesson-content-col) {
+        :global(.jp-lesson-content-col) {
           min-width: 9rem;
           max-width: 14rem;
         }
-        :global(.en-lesson- jp-lesson-content-lines) {
+        :global(.jp-lesson-content-count-col) {
+          width: 4.5rem;
+          min-width: 4.5rem;
+          text-align: center;
+          font-variant-numeric: tabular-nums;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        :global(.jp-lesson-content-lines) {
           display: flex;
           flex-direction: column;
           gap: 0.2rem;
           line-height: 1.45;
         }
-        :global(.en-lesson- jp-lesson-content-line) {
+        :global(.jp-lesson-content-line) {
           display: block;
         }
-        :global(.en-lesson- jp-lesson-merged-stack) {
+        :global(.jp-lesson-merged-stack) {
           display: flex;
           flex-direction: column;
           gap: 0;
         }
-        :global(.en-lesson- jp-lesson-merged-stack-item + .en-lesson- jp-lesson-merged-stack-item) {
+        :global(.jp-lesson-merged-stack-item + .jp-lesson-merged-stack-item) {
           margin-top: 0.65rem;
           padding-top: 0.65rem;
           border-top: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
         }
-        :global(.en-lesson- jp-lesson-row--merged) {
+        :global(.jp-lesson-row--merged) {
           background: color-mix(in srgb, var(--accent) 4%, transparent);
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-0) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0) {
           background: color-mix(in srgb, #c9b86a 10%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-1) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1) {
           background: color-mix(in srgb, var(--fall) 9%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-2) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2) {
           background: color-mix(in srgb, #6ab8c8 9%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-3) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3) {
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-4) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4) {
           background: color-mix(in srgb, #9a8fbf 9%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-5) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5) {
           background: color-mix(in srgb, #c8a882 9%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-0:hover) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0:hover) {
           background: color-mix(in srgb, #c9b86a 13%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-1:hover) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1:hover) {
           background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-2:hover) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2:hover) {
           background: color-mix(in srgb, #6ab8c8 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-3:hover) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3:hover) {
           background: color-mix(in srgb, var(--accent) 11%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-4:hover) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4:hover) {
           background: color-mix(in srgb, #9a8fbf 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--day-tone-5:hover) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5:hover) {
           background: color-mix(in srgb, #c8a882 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--merged.en-lesson- jp-lesson-row--day-tone-0) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-0) {
           background: color-mix(in srgb, #c9b86a 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--merged.en-lesson- jp-lesson-row--day-tone-1) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-1) {
           background: color-mix(in srgb, var(--fall) 11%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--merged.en-lesson- jp-lesson-row--day-tone-2) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-2) {
           background: color-mix(in srgb, #6ab8c8 11%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--merged.en-lesson- jp-lesson-row--day-tone-3) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-3) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--merged.en-lesson- jp-lesson-row--day-tone-4) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-4) {
           background: color-mix(in srgb, #9a8fbf 11%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-status-card--learning .en-lesson- jp-lesson-table tbody tr.en-lesson- jp-lesson-row--merged.en-lesson- jp-lesson-row--day-tone-5) {
+        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-5) {
           background: color-mix(in srgb, #c8a882 11%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-merged-edit-stack) {
+        :global(.jp-lesson-merged-edit-stack) {
           display: inline-flex;
           flex-direction: column;
           gap: 0.25rem;
         }
-        :global(.en-lesson- jp-lesson-dt-compact) {
+        :global(.jp-lesson-dt-compact) {
           display: none;
         }
-        :global(.en-lesson- jp-lesson-next-class-dt-compact),
-        :global(.en-lesson- jp-lesson-class-duration-dt-compact) {
+        :global(.jp-lesson-next-class-dt-compact),
+        :global(.jp-lesson-class-duration-dt-compact) {
           display: none;
         }
-        :global(.en-lesson- jp-lesson-mobile-status-filter) {
+        :global(.jp-lesson-mobile-status-filter) {
           display: none;
         }
-        :global(.en-lesson- jp-lesson-uploaded-col),
-        :global(.en-lesson- jp-lesson-status-at-col) {
+        :global(.jp-lesson-uploaded-col),
+        :global(.jp-lesson-status-at-col) {
           white-space: nowrap;
           font-variant-numeric: tabular-nums;
           font-size: 0.8125rem;
         }
-        :global(.en-lesson- jp-lesson-operator-col) {
+        :global(.jp-lesson-operator-col) {
           white-space: nowrap;
           font-size: 0.8125rem;
           color: var(--muted);
         }
-        :global(.en-lesson- jp-lesson-teacher-col) {
+        :global(.jp-lesson-teacher-col) {
           font-size: 0.8125rem;
           min-width: 6.5rem;
         }
-        :global(.en-lesson- jp-lesson-teacher-cell) {
+        :global(.jp-lesson-teacher-cell) {
           display: inline-flex;
           align-items: center;
           gap: 0.35rem;
         }
-        :global(.en-lesson- jp-lesson-next-class-col) {
+        :global(.jp-lesson-next-class-col) {
           font-size: 0.8125rem;
           min-width: 7.5rem;
         }
-        :global(.en-lesson- jp-lesson-next-class-col--sortable) {
+        :global(.jp-lesson-next-class-col--sortable) {
           padding: 0;
         }
-        :global(.en-lesson- jp-lesson-sort-btn) {
+        :global(.jp-lesson-sort-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -1349,61 +1370,61 @@ export function EnLessonPage() {
           white-space: nowrap;
           transition: color 0.15s ease, background 0.15s ease;
         }
-        :global(.en-lesson- jp-lesson-sort-btn:hover) {
+        :global(.jp-lesson-sort-btn:hover) {
           color: var(--accent);
           background: color-mix(in srgb, var(--accent) 8%, transparent);
         }
-        :global(.en-lesson- jp-lesson-sort-btn:focus-visible) {
+        :global(.jp-lesson-sort-btn:focus-visible) {
           outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
           outline-offset: -2px;
         }
-        :global(.en-lesson- jp-lesson-next-class-col--sorted-asc .en-lesson- jp-lesson-sort-btn),
-        :global(.en-lesson- jp-lesson-next-class-col--sorted-desc .en-lesson- jp-lesson-sort-btn) {
+        :global(.jp-lesson-next-class-col--sorted-asc .jp-lesson-sort-btn),
+        :global(.jp-lesson-next-class-col--sorted-desc .jp-lesson-sort-btn) {
           color: var(--accent);
         }
-        :global(.en-lesson- jp-lesson-sort-indicator) {
+        :global(.jp-lesson-sort-indicator) {
           font-size: 0.75rem;
           line-height: 1;
           opacity: 0.9;
         }
-        :global(.en-lesson- jp-lesson-next-class-cell) {
+        :global(.jp-lesson-next-class-cell) {
           display: inline-flex;
           align-items: flex-start;
           gap: 0.35rem;
         }
-        :global(.en-lesson- jp-lesson-next-class-lines) {
+        :global(.jp-lesson-next-class-lines) {
           display: flex;
           flex-direction: column;
           gap: 0.35rem;
           line-height: 1.35;
         }
-        :global(.en-lesson- jp-lesson-next-class-entry) {
+        :global(.jp-lesson-next-class-entry) {
           display: flex;
           flex-direction: column;
           gap: 0.08rem;
         }
-        :global(.en-lesson- jp-lesson-next-class-label) {
+        :global(.jp-lesson-next-class-label) {
           color: var(--accent);
           white-space: nowrap;
         }
-        :global(.en-lesson- jp-lesson-class-duration-label) {
+        :global(.jp-lesson-class-duration-label) {
           color: var(--muted);
           font-size: 0.75rem;
           white-space: nowrap;
         }
-        :global(.en-lesson- jp-lesson-next-class-label.is-undefined) {
+        :global(.jp-lesson-next-class-label.is-undefined) {
           color: var(--muted);
         }
-        :global(.en-lesson- jp-lesson-next-class-label.is-done) {
+        :global(.jp-lesson-next-class-label.is-done) {
           color: var(--fall);
         }
-        :global(.en-lesson- jp-lesson-actions-col) {
+        :global(.jp-lesson-actions-col) {
           text-align: center;
         }
-        :global(.en-lesson- jp-lesson-notes-col) {
+        :global(.jp-lesson-notes-col) {
           text-align: center;
         }
-        :global(.en-lesson- jp-lesson-notes-btn) {
+        :global(.jp-lesson-notes-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -1420,11 +1441,11 @@ export function EnLessonPage() {
           line-height: 1.3;
           text-decoration: none;
         }
-        :global(.en-lesson- jp-lesson-notes-btn:hover) {
+        :global(.jp-lesson-notes-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
           text-decoration: none;
         }
-        :global(.en-lesson- jp-lesson-notes-count) {
+        :global(.jp-lesson-notes-count) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -1437,7 +1458,7 @@ export function EnLessonPage() {
           font-size: 0.6875rem;
           font-variant-numeric: tabular-nums;
         }
-        :global(.en-lesson- jp-lesson-kind) {
+        :global(.jp-lesson-kind) {
           display: inline-block;
           font-size: 0.75rem;
           padding: 0.15rem 0.45rem;
@@ -1445,15 +1466,15 @@ export function EnLessonPage() {
           border: 1px solid var(--border);
           color: var(--muted);
         }
-        :global(.en-lesson- jp-lesson-kind--grammar) {
+        :global(.jp-lesson-kind--grammar) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, transparent);
         }
-        :global(.en-lesson- jp-lesson-complete-col) {
+        :global(.jp-lesson-complete-col) {
           text-align: center;
         }
-        :global(.en-lesson- jp-lesson-complete-wrap) {
+        :global(.jp-lesson-complete-wrap) {
           position: relative;
           display: inline-flex;
           align-items: center;
@@ -1467,27 +1488,27 @@ export function EnLessonPage() {
             background 0.15s ease,
             box-shadow 0.15s ease;
         }
-        :global(.en-lesson- jp-lesson-complete-wrap.is-done) {
+        :global(.jp-lesson-complete-wrap.is-done) {
           color: var(--fall);
           border-color: color-mix(in srgb, var(--fall) 50%, var(--border));
           background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-complete-wrap.is-learning) {
+        :global(.jp-lesson-complete-wrap.is-learning) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
           background: color-mix(in srgb, var(--accent) 12%, var(--panel));
         }
-        :global(.en-lesson- jp-lesson-complete-wrap:not(.is-readonly):not(.is-saving):hover) {
+        :global(.jp-lesson-complete-wrap:not(.is-readonly):not(.is-saving):hover) {
           border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
         }
-        :global(.en-lesson- jp-lesson-complete-wrap.is-done:not(.is-readonly):not(.is-saving):hover) {
+        :global(.jp-lesson-complete-wrap.is-done:not(.is-readonly):not(.is-saving):hover) {
           border-color: color-mix(in srgb, var(--fall) 65%, var(--border));
           background: color-mix(in srgb, var(--fall) 16%, var(--panel));
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 22%, transparent);
         }
-        :global(.en-lesson- jp-lesson-complete-wrap::after) {
+        :global(.jp-lesson-complete-wrap::after) {
           content: "";
           position: absolute;
           right: 0.55rem;
@@ -1500,13 +1521,13 @@ export function EnLessonPage() {
           pointer-events: none;
           opacity: 0.72;
         }
-        :global(.en-lesson- jp-lesson-complete-wrap.is-readonly) {
+        :global(.jp-lesson-complete-wrap.is-readonly) {
           opacity: 0.72;
         }
-        :global(.en-lesson- jp-lesson-complete-wrap.is-saving) {
+        :global(.jp-lesson-complete-wrap.is-saving) {
           opacity: 0.55;
         }
-        :global(.en-lesson- jp-lesson-complete-select) {
+        :global(.jp-lesson-complete-select) {
           display: block;
           min-height: 2rem;
           width: 6.5rem;
@@ -1526,25 +1547,25 @@ export function EnLessonPage() {
           -webkit-appearance: none;
           -moz-appearance: none;
         }
-        :global(.en-lesson- jp-lesson-complete-select:focus-visible) {
+        :global(.jp-lesson-complete-select:focus-visible) {
           outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
           outline-offset: 1px;
         }
-        :global(.en-lesson- jp-lesson-complete-select:disabled) {
+        :global(.jp-lesson-complete-select:disabled) {
           cursor: not-allowed;
         }
-        :global(.en-lesson- jp-lesson-complete-wrap.is-readonly .en-lesson- jp-lesson-complete-select:disabled),
-        :global(.en-lesson- jp-lesson-complete-wrap.is-saving .en-lesson- jp-lesson-complete-select:disabled) {
+        :global(.jp-lesson-complete-wrap.is-readonly .jp-lesson-complete-select:disabled),
+        :global(.jp-lesson-complete-wrap.is-saving .jp-lesson-complete-select:disabled) {
           cursor: not-allowed;
         }
-        :global(.en-lesson- jp-lesson-actions) {
+        :global(.jp-lesson-actions) {
           display: grid;
           grid-template-columns: repeat(3, max-content);
           justify-content: center;
           align-items: center;
           gap: 0.35rem;
         }
-        :global(.en-lesson- jp-lesson-action-btn) {
+        :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -1560,7 +1581,7 @@ export function EnLessonPage() {
           font: inherit;
           line-height: 1.3;
         }
-        :global(.en-lesson- jp-lesson-action-btn:hover) {
+        :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
       `}</style>

@@ -233,29 +233,29 @@ export function EnLessonTeacherReviewModal({
 
   return createPortal(
     <div
-      className="en-lesson- jp-lesson-teacher-overlay"
+      className="jp-lesson-teacher-overlay"
       role="presentation"
       onClick={() => {
         if (!saving) onClose();
       }}
     >
       <div
-        className="en-lesson- jp-lesson-teacher-modal en-lesson- jp-lesson-teacher-review-modal"
+        className="jp-lesson-teacher-modal jp-lesson-teacher-review-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="en-lesson- jp-lesson-teacher-review-title"
+        aria-labelledby="jp-lesson-teacher-review-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="en-lesson- jp-lesson-teacher-header">
+        <div className="jp-lesson-teacher-header">
           <div>
-            <h2 id="en-lesson- jp-lesson-teacher-review-title">
+            <h2 id="jp-lesson-teacher-review-title">
               {zh ? "老师评价" : "Teacher review"}
             </h2>
-            <p className="en-lesson- jp-lesson-teacher-modal-lesson">{teacher.name}</p>
+            <p className="jp-lesson-teacher-modal-lesson">{teacher.name}</p>
           </div>
           <button
             type="button"
-            className="en-lesson- jp-lesson-teacher-close"
+            className="jp-lesson-teacher-close"
             aria-label={zh ? "关闭" : "Close"}
             disabled={saving}
             onClick={onClose}
@@ -265,7 +265,7 @@ export function EnLessonTeacherReviewModal({
         </div>
 
         <form
-          className="etr-form en-lesson- jp-lesson-teacher-review-form"
+          className="etr-form jp-lesson-teacher-review-form"
           onSubmit={(e) => {
             e.preventDefault();
             void onSave();
@@ -379,7 +379,7 @@ export function EnLessonTeacherReviewModal({
           </p>
         ) : null}
 
-        <div className="en-lesson- jp-lesson-teacher-review-history">
+        <div className="jp-lesson-teacher-review-history">
           <div className="etr-history-head">
             <h3>{zh ? "评价记录" : "Review history"}</h3>
             <button
@@ -397,7 +397,7 @@ export function EnLessonTeacherReviewModal({
           ) : !records.length ? (
             <p className="hint">{zh ? "暂无评价记录。" : "No reviews yet."}</p>
           ) : (
-            <div className="admin-rbac-table-wrap en-lesson- jp-lesson-teacher-review-table-wrap">
+            <div className="admin-rbac-table-wrap jp-lesson-teacher-review-table-wrap">
               <table className="admin-rbac-table">
                 <thead>
                   <tr>
@@ -476,7 +476,7 @@ export function EnLessonTeacherReviewModal({
       </div>
 
       <style jsx>{`
-        .en-lesson- jp-lesson-teacher-overlay {
+        .jp-lesson-teacher-overlay {
           position: fixed;
           inset: 0;
           z-index: 1000;
@@ -489,7 +489,7 @@ export function EnLessonTeacherReviewModal({
           -webkit-backdrop-filter: blur(3px);
         }
 
-        .en-lesson- jp-lesson-teacher-modal {
+        .jp-lesson-teacher-modal {
           width: min(720px, 100%);
           max-height: min(90vh, 860px);
           overflow-y: auto;
@@ -500,7 +500,7 @@ export function EnLessonTeacherReviewModal({
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
 
-        .en-lesson- jp-lesson-teacher-header {
+        .jp-lesson-teacher-header {
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
@@ -508,20 +508,20 @@ export function EnLessonTeacherReviewModal({
           margin-bottom: 1rem;
         }
 
-        .en-lesson- jp-lesson-teacher-header h2 {
+        .jp-lesson-teacher-header h2 {
           margin: 0;
           font-size: 1.0625rem;
           font-weight: 600;
         }
 
-        .en-lesson- jp-lesson-teacher-modal-lesson {
+        .jp-lesson-teacher-modal-lesson {
           margin: 0.35rem 0 0;
           color: var(--muted);
           font-size: 0.8125rem;
           line-height: 1.45;
         }
 
-        .en-lesson- jp-lesson-teacher-close {
+        .jp-lesson-teacher-close {
           flex-shrink: 0;
           width: 2rem;
           height: 2rem;
@@ -534,17 +534,17 @@ export function EnLessonTeacherReviewModal({
           cursor: pointer;
         }
 
-        .en-lesson- jp-lesson-teacher-review-form {
+        .jp-lesson-teacher-review-form {
           margin-bottom: 0.75rem;
         }
 
-        .en-lesson- jp-lesson-teacher-review-history h3 {
+        .jp-lesson-teacher-review-history h3 {
           margin: 0;
           font-size: 0.9375rem;
           font-weight: 600;
         }
 
-        .en-lesson- jp-lesson-teacher-review-table-wrap {
+        .jp-lesson-teacher-review-table-wrap {
           margin-top: 0.65rem;
           max-height: min(40vh, 320px);
           overflow: auto;
