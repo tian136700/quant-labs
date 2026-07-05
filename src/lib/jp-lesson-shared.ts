@@ -624,6 +624,32 @@ export function beijingWeekdayLabel(dateStr: string): string {
   return `周${WEEKDAY_SHORT[beijingDateParts(parsed).weekday]}`;
 }
 
+/** 日程导航用：今天/明天/本周X/下周X，其余仅显示周几 */
+export function beijingRelativeWeekdayLabel(dateStr: string, now = new Date()): string {
+  const parsed = parseBeijingDateTime(`${dateStr} 12:00:00`);
+  if (!parsed) return beijingWeekdayLabel(dateStr);
+
+  const todayStr = beijingDateStringFromDate(now);
+  const targetStr = beijingDateStringFromDate(parsed);
+
+  if (targetStr === todayStr) return "今天";
+
+  const yesterdayStr = beijingDateStringFromDate(addBeijingDays(now, -1));
+  if (targetStr === yesterdayStr) return "昨天";
+
+  const tomorrowStr = beijingDateStringFromDate(addBeijingDays(now, 1));
+  if (targetStr === tomorrowStr) return "明天";
+
+  const weekStartNow = beijingWeekStartUtcMs(now);
+  const weekStartTarget = beijingWeekStartUtcMs(parsed);
+  const weekDiff = Math.round((weekStartTarget - weekStartNow) / (7 * 86_400_000));
+  const weekdayShort = WEEKDAY_SHORT[beijingDateParts(parsed).weekday];
+
+  if (weekDiff === 0) return `本周${weekdayShort}`;
+  if (weekDiff === 1) return `下周${weekdayShort}`;
+  return `周${weekdayShort}`;
+}
+
 export type JpLessonScheduleEventStatus = "past" | "ongoing" | "upcoming";
 
 export function getJpLessonScheduleEventStatus(

@@ -18,7 +18,7 @@ import {
   beijingTimeHm,
   beijingTodayDateString,
   beijingWeekStartDate,
-  beijingWeekdayLabel,
+  beijingRelativeWeekdayLabel,
   flattenJpLessonScheduleEvents,
   formatLessonContentLines,
   getJpLessonScheduleEventStatus,
@@ -364,6 +364,10 @@ export function JpLessonSchedulePage() {
   }, [selectedEvent, refs]);
 
   const todayStr = beijingTodayDateString(now);
+  const selectedDateRelativeLabel = useMemo(
+    () => beijingRelativeWeekdayLabel(selectedDate, now),
+    [selectedDate, now]
+  );
   const nowMinutes = beijingMinutesFromMidnight(now);
   const nowSlotIndex = slotIndexFromMinutes(nowMinutes);
   const showNowLine =
@@ -459,12 +463,18 @@ export function JpLessonSchedulePage() {
           >
             ‹
           </button>
-          <input
-            type="date"
-            className="jpls-date-input"
-            value={selectedDate}
-            onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
-          />
+          <div className="jpls-date-nav-center">
+            <span className="jpls-date-relative" aria-hidden="true">
+              {selectedDateRelativeLabel}
+            </span>
+            <input
+              type="date"
+              className="jpls-date-input"
+              value={selectedDate}
+              aria-label={`选择日期，${selectedDateRelativeLabel}`}
+              onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
+            />
+          </div>
           <button
             type="button"
             className="jpls-icon-btn"
@@ -532,7 +542,8 @@ export function JpLessonSchedulePage() {
           {viewMode === "day" ? (
             <div className="jpls-day-view">
               <div className="jpls-day-title">
-                {selectedDate} {beijingWeekdayLabel(selectedDate)}
+                <span className="jpls-day-date">{selectedDate}</span>
+                <span className="jpls-day-weekday">{selectedDateRelativeLabel}</span>
                 <span className="jpls-day-count">{dayEvents.length} 节课</span>
               </div>
               {dayBusyRange ? (
@@ -623,7 +634,7 @@ export function JpLessonSchedulePage() {
                       }}
                     >
                       <span>{dateStr.slice(5)}</span>
-                      <span>{beijingWeekdayLabel(dateStr)}</span>
+                      <span>{beijingRelativeWeekdayLabel(dateStr, now)}</span>
                       <span className="jpls-week-count">{events.length}</span>
                     </button>
                     <div className="jpls-week-list">
@@ -849,6 +860,21 @@ export function JpLessonSchedulePage() {
           align-items: center;
           gap: 0.35rem;
         }
+        .jpls-date-nav-center {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.15rem;
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .jpls-date-relative {
+          font-size: 0.9375rem;
+          font-weight: 600;
+          color: var(--text);
+          line-height: 1.2;
+          white-space: nowrap;
+        }
         .jpls-icon-btn,
         .jpls-export-btn,
         .jpls-view-tab {
@@ -873,6 +899,7 @@ export function JpLessonSchedulePage() {
           border-radius: 8px;
           padding: 0.35rem 0.55rem;
           font-size: 0.875rem;
+          width: 100%;
         }
         .jpls-export-btn {
           padding: 0.35rem 0.75rem;
@@ -970,6 +997,9 @@ export function JpLessonSchedulePage() {
           gap: 0.75rem;
           margin-bottom: 0.75rem;
           font-weight: 600;
+        }
+        .jpls-day-weekday {
+          color: var(--accent);
         }
         .jpls-timeline-heading {
           display: none;

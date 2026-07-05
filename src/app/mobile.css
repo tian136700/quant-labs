@@ -648,6 +648,18 @@
 
   .jpls-date-nav {
     width: 100%;
+    align-items: stretch;
+  }
+
+  .jpls-date-nav-center {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .jpls-date-relative {
+    font-size: 1.125rem;
+    font-weight: 700;
+    text-align: center;
   }
 
   .jpls-date-input {
@@ -889,6 +901,12 @@
   .jpls-day-title {
     margin-bottom: 0.5rem;
     font-size: 0.9375rem;
+    flex-wrap: wrap;
+  }
+
+  .jpls-day-weekday {
+    font-size: 1.0625rem;
+    font-weight: 700;
   }
 
   .jpls-day-view .jpls-slot-busy-meta {
