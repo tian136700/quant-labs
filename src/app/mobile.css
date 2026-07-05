@@ -494,9 +494,7 @@
     text-decoration: none;
   }
 
-  .jp-lesson-table-wrap {
-    overflow-x: visible;
-  }
+  /* jp-lesson-table-wrap — see JP Lesson cards section below */
 
   /* ── Cards: single column on phones ── */
   .compare-cards,
@@ -1084,8 +1082,16 @@
     width: 100%;
   }
 
-  /* ── JP Lesson cards — one unified card per row, compact label:value grid ── */
-  .jp-lesson-table {
+  /* ── JP Lesson cards — break table layout, 2-col grid per card row ── */
+  .jp-lesson-table-wrap {
+    overflow-x: visible;
+    width: 100%;
+  }
+
+  .jp-lesson-table,
+  .jp-lesson-table tbody {
+    display: block;
+    width: 100%;
     min-width: 0 !important;
   }
 
@@ -1095,10 +1101,12 @@
 
   .jp-lesson-table tbody tr {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 4px 8px;
+    width: 100%;
+    box-sizing: border-box;
     margin-bottom: 0.5rem;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: color-mix(in srgb, var(--panel) 92%, var(--bg));
@@ -1109,96 +1117,153 @@
     flex-direction: row !important;
     align-items: flex-start !important;
     justify-content: flex-start !important;
-    gap: 6px;
+    gap: 4px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0 !important;
     border: none !important;
     text-align: left !important;
     white-space: normal;
-    line-height: 1.35;
-    min-width: 0;
+    line-height: 1.3;
   }
 
   .jp-lesson-table tbody td::before {
-    content: attr(data-label) "：";
-    flex: 0 0 4.25rem;
-    min-width: 3.75rem;
-    max-width: 5rem;
-    font-size: 0.8125rem;
+    flex: 0 0 auto;
+    font-size: 0.75rem;
     font-weight: 400;
     color: var(--muted);
     text-align: left !important;
     padding: 0;
-    line-height: 1.35;
+    line-height: 1.3;
+    white-space: nowrap;
   }
 
   .jp-lesson-table tbody td > * {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
   }
 
+  /* 同行双列：相同 order 的 td 会排在同一行 */
   .jp-lesson-id-col {
     order: 1;
   }
 
+  .jp-lesson-id-col::before {
+    content: "ID：";
+  }
+
   .jp-lesson-kind-col {
-    order: 2;
+    order: 1;
+  }
+
+  .jp-lesson-kind-col::before {
+    content: "类型：";
   }
 
   .jp-lesson-content-col {
-    order: 3;
+    order: 2;
     grid-column: 1 / -1;
+  }
+
+  .jp-lesson-content-col::before {
+    content: "内容：";
+    flex: 0 0 2.5rem;
   }
 
   .jp-lesson-uploaded-col {
-    order: 4;
+    order: 3;
+  }
+
+  .jp-lesson-uploaded-col::before {
+    content: "上传：";
   }
 
   .jp-lesson-status-at-col {
-    order: 5;
+    order: 3;
+  }
+
+  .jp-lesson-status-at-col::before {
+    content: "最近：";
+  }
+
+  .jp-lesson-uploaded-col > *,
+  .jp-lesson-status-at-col > * {
+    font-size: 0.6875rem;
+    line-height: 1.25;
   }
 
   .jp-lesson-operator-col {
-    order: 6;
+    order: 4;
     grid-column: 1 / -1;
+  }
+
+  .jp-lesson-operator-col::before {
+    content: "操作人：";
+    flex: 0 0 3rem;
+  }
+
+  .jp-lesson-operator-col:has(~ .jp-lesson-teacher-col) {
+    grid-column: auto;
   }
 
   .jp-lesson-teacher-col {
-    order: 7;
-    grid-column: 1 / -1;
+    order: 4;
+  }
+
+  .jp-lesson-teacher-col::before {
+    content: "老师：";
+    flex: 0 0 2.5rem;
   }
 
   .jp-lesson-next-class-col {
-    order: 8;
+    order: 5;
     grid-column: 1 / -1;
+  }
+
+  .jp-lesson-next-class-col::before {
+    content: "上课时间：";
+    flex: 0 0 4rem;
   }
 
   .jp-lesson-complete-col {
     order: 90;
     grid-column: 1;
-    padding-top: 6px !important;
-    margin-top: 4px;
+    padding-top: 4px !important;
+    margin-top: 2px;
     border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
   }
 
+  .jp-lesson-complete-col::before {
+    content: "状态：";
+    flex: 0 0 2.5rem;
+  }
+
   .jp-lesson-notes-col {
-    order: 91;
+    order: 90;
     grid-column: 2;
-    padding-top: 6px !important;
-    margin-top: 4px;
+    padding-top: 4px !important;
+    margin-top: 2px;
     border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  }
+
+  .jp-lesson-notes-col::before {
+    content: "笔记：";
+    flex: 0 0 2.5rem;
   }
 
   .jp-lesson-actions-col {
     order: 100;
     grid-column: 1 / -1;
-    padding-top: 4px !important;
+    padding-top: 2px !important;
     margin-top: 0;
     border-top: none !important;
   }
 
   .jp-lesson-actions-col::before {
-    flex: 0 0 auto !important;
+    content: "教案：";
+    flex: 0 0 2.5rem !important;
     width: auto !important;
     max-width: none !important;
     min-width: 0 !important;
@@ -1208,6 +1273,11 @@
   .jp-lesson-content-line {
     overflow-wrap: anywhere;
     word-break: break-word;
+  }
+
+  .jp-lesson-table .jp-lesson-kind {
+    padding: 0.05rem 0.35rem;
+    font-size: 0.75rem;
   }
 
   .jp-lesson-merged-stack-item + .jp-lesson-merged-stack-item {
