@@ -60,7 +60,8 @@ import {
   jpVocabTodayCheckStats,
 } from "@/lib/jp-vocab-daily-check";
 import { applyJpVocabReview } from "@/lib/jp-vocab-review";
-import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
+import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
+import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -70,7 +71,8 @@ function readVocabCache(): JpVocabApiPayload | null {
 function persistVocabCache(
   words: JpVocabWord[],
   refs: Record<string, JpVocabRef>,
-  display_order: JpVocabDailyDisplayOrder
+  display_order: JpVocabDailyDisplayOrder,
+  shared_today_word_ids?: number[]
 ) {
   const prev = readVocabCache();
   writeClientCache(JP_VOCAB_CACHE_KEY, {
@@ -78,6 +80,10 @@ function persistVocabCache(
     refs,
     daily_quiz_style: prev?.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
     display_order,
+    shared_today_word_ids:
+      shared_today_word_ids ??
+      prev?.shared_today_word_ids ??
+      [],
   });
 }
 
@@ -182,6 +188,9 @@ export function JpVocabPage() {
   const [showResetChoice, setShowResetChoice] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [sharingId, setSharingId] = useState<number | null>(null);
+  const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
+    () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
+  );
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -194,6 +203,10 @@ export function JpVocabPage() {
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [previewRef, setPreviewRef] = useState<{
+    ref: JpVocabRef;
+    cacheVersion?: string | null;
+  } | null>(null);
   const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
@@ -219,6 +232,7 @@ export function JpVocabPage() {
   const refsRef = useRef(refs);
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
+  const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
   const pollInFlightRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
 
@@ -237,6 +251,9 @@ export function JpVocabPage() {
   useEffect(() => {
     editingWordIdRef.current = editingWord?.id ?? null;
   }, [editingWord?.id]);
+  useEffect(() => {
+    sharedTodayWordIdsRef.current = sharedTodayWordIds;
+  }, [sharedTodayWordIds]);
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
     setUseDailyRowOrder(false);
@@ -253,6 +270,7 @@ export function JpVocabPage() {
     setWords(payload.words);
     setRefs(payload.refs);
     setDisplayOrder(payload.display_order);
+    setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
   }, []);
 
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
@@ -481,6 +499,10 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
+    if (sharedTodayWordIds.has(wordId)) {
+      setStatus("今日已共享，熟悉程度不可更改。");
+      return;
+    }
     if (savingId === wordId) return;
 
     const snapshot = words.find((w) => w.id === wordId);
@@ -523,7 +545,11 @@ export function JpVocabPage() {
           throw new Error(SAVE_ERR[locale]);
         }
         if (!data.ok || !data.word) {
-          throw new Error(data.error || (locale === "zh" ? "保存失败" : "Save failed"));
+          const msg =
+            data.error === "shared_level_locked"
+              ? "今日已共享，熟悉程度不可更改。"
+              : data.error || (locale === "zh" ? "保存失败" : "Save failed");
+          throw new Error(msg);
         }
         setWords((prev) => {
           const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
@@ -557,12 +583,20 @@ export function JpVocabPage() {
   };
 
   const shareWord = async (wordId: number) => {
+    if (!isAdmin) {
+      setStatus("仅 Admin 账户可共享。");
+      return;
+    }
     if (!canOperate) {
       setStatus("请登录后再共享。");
       openJpAuth();
       return;
     }
     if (sharingId === wordId || savingId === wordId) return;
+    if (sharedTodayWordIds.has(wordId)) {
+      setStatus("该词今日已共享。");
+      return;
+    }
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -571,17 +605,25 @@ export function JpVocabPage() {
     const displayOrderSnapshot = displayOrderRef.current;
     const nowMs = Date.now();
     const weakLevel: JpVocabLevel = "weak";
+    const alreadyMarked =
+      prevLevel != null ||
+      effectiveTodayCheckCount(
+        snapshot.today_check_count ?? 0,
+        snapshot.today_check_date
+      ) > 0;
 
-    setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
-    setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-    setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
     setHighlightId(wordId);
     setStatus("");
-    setWords((prev) =>
-      prev.map((w) =>
-        w.id === wordId ? bumpWordReview(w, weakLevel, prevLevel) : w
-      )
-    );
+    if (!alreadyMarked) {
+      setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
+      setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
+      setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
+      setWords((prev) =>
+        prev.map((w) =>
+          w.id === wordId ? bumpWordReview(w, weakLevel, prevLevel) : w
+        )
+      );
+    }
     setSharingId(wordId);
 
     try {
@@ -597,45 +639,57 @@ export function JpVocabPage() {
       const data = (await res.json()) as {
         ok: boolean;
         word?: JpVocabWord;
-        already_shared?: boolean;
         error?: string;
       };
       if (res.status === 401) {
         await refresh();
         throw new Error(SAVE_ERR[locale]);
       }
+      if (res.status === 409 || data.error === "already_shared_today") {
+        setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
+        throw new Error("该词今日已共享。");
+      }
       if (!data.ok || !data.word) {
         throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
       }
+      setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
       setWords((prev) => {
         const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(next, refs, displayOrderRef.current);
+        persistVocabCache(
+          next,
+          refs,
+          displayOrderRef.current,
+          [...sharedTodayWordIdsRef.current, wordId]
+        );
         return next;
       });
       setStatus(
-        data.already_shared
-          ? "该词今日已共享，已再次标记为不熟悉。"
+        alreadyMarked
+          ? "已共享到学生「今日背单词」。"
           : "已共享到学生「今日背单词」，并标记为不熟悉。"
       );
+      notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
     } catch (err) {
-      if (snapshot) {
+      if (snapshot && !alreadyMarked) {
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? snapshot : w))
         );
       }
-      setDisplayOrder(displayOrderSnapshot);
-      setSessionLevel((prev) => {
-        const next = { ...prev };
-        if (prevLevel) next[wordId] = prevLevel;
-        else delete next[wordId];
-        return next;
-      });
-      setSessionReviewAt((prev) => {
-        const next = { ...prev };
-        if (prevReviewAt != null) next[wordId] = prevReviewAt;
-        else delete next[wordId];
-        return next;
-      });
+      if (!alreadyMarked) {
+        setDisplayOrder(displayOrderSnapshot);
+        setSessionLevel((prev) => {
+          const next = { ...prev };
+          if (prevLevel) next[wordId] = prevLevel;
+          else delete next[wordId];
+          return next;
+        });
+        setSessionReviewAt((prev) => {
+          const next = { ...prev };
+          if (prevReviewAt != null) next[wordId] = prevReviewAt;
+          else delete next[wordId];
+          return next;
+        });
+      }
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       setSharingId(null);
@@ -1162,7 +1216,9 @@ export function JpVocabPage() {
               <tbody>
                 {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const selected = sessionLevel[w.id];
+                  const sharedLocked = sharedTodayWordIds.has(w.id);
+                  const selected =
+                    sessionLevel[w.id] ?? (sharedLocked ? ("weak" as JpVocabLevel) : undefined);
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
@@ -1224,16 +1280,20 @@ export function JpVocabPage() {
                         <div className="jp-vocab-word-cell">
                           {w.ref_key ? (
                             <>
-                              <a
-                                href={jpVocabRefViewerPath(w.ref_key, ref?.updated_at)}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
                                 className="jp-vocab-word-link"
                                 title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                                onClick={() => {
+                                  const meta = ref ?? refs[w.ref_key!];
+                                  if (meta) {
+                                    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at });
+                                  }
+                                }}
                               >
                                 {w.word}
-                              </a>
-                              <span className="jp-vocab-ref-hint">（点击可进入教案）</span>
+                              </button>
+                              <span className="jp-vocab-ref-hint">（点击查看教案）</span>
                             </>
                           ) : (
                             <span className="jp-vocab-word-text">{w.word}</span>
@@ -1286,18 +1346,22 @@ export function JpVocabPage() {
                                 type="button"
                                 className={`jp-vocab-level-opt${
                                   checked ? " is-checked" : ""
-                                }${!canOperate ? " jp-vocab-level-opt--readonly" : ""}${
-                                  lv.key === "very" ? " jp-vocab-level-opt--very" : ""
                                 }${
+                                  !canOperate || sharedLocked
+                                    ? " jp-vocab-level-opt--readonly"
+                                    : ""
+                                }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
                                   lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                 }`}
-                                disabled={!canOperate || isSaving}
+                                disabled={!canOperate || isSaving || sharedLocked}
                                 title={
-                                  !canOperate
-                                    ? "登录后可勾选"
-                                    : isSaving
-                                      ? "保存中…"
-                                      : undefined
+                                  sharedLocked
+                                    ? "今日已共享，熟悉程度不可更改"
+                                    : !canOperate
+                                      ? "登录后可勾选"
+                                      : isSaving
+                                        ? "保存中…"
+                                        : undefined
                                 }
                                 aria-pressed={checked}
                                 onClick={() => void recordLevel(w.id, lv.key)}
@@ -1398,19 +1462,31 @@ export function JpVocabPage() {
                             >
                               编辑
                             </button>
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
-                              disabled={sharingId === w.id || isSaving}
-                              title={
-                                sharingId === w.id
-                                  ? "共享中…"
-                                  : "共享到学生「今日背单词」，并标记为不熟悉"
-                              }
-                              onClick={() => void shareWord(w.id)}
-                            >
-                              {sharingId === w.id ? "共享中…" : "共享"}
-                            </button>
+                            {isAdmin ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
+                                disabled={
+                                  sharingId === w.id ||
+                                  isSaving ||
+                                  sharedTodayWordIds.has(w.id)
+                                }
+                                title={
+                                  sharedTodayWordIds.has(w.id)
+                                    ? "今日已共享"
+                                    : sharingId === w.id
+                                      ? "共享中…"
+                                      : "共享到学生「今日背单词」，并标记为不熟悉"
+                                }
+                                onClick={() => void shareWord(w.id)}
+                              >
+                                {sharedTodayWordIds.has(w.id)
+                                  ? "已共享"
+                                  : sharingId === w.id
+                                    ? "共享中…"
+                                    : "共享"}
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </td>
@@ -1461,11 +1537,22 @@ export function JpVocabPage() {
         onClose={() => setViewingRemarksWord(null)}
       />
 
+      <JpVocabRefPreviewModal
+        open={previewRef != null}
+        refMeta={previewRef?.ref ?? null}
+        cacheVersion={previewRef?.cacheVersion}
+        onClose={() => setPreviewRef(null)}
+      />
+
       <JpClassNotesEditModal
         open={editingRemarksWord != null}
         word={editingRemarksWord}
         locale={locale}
         canEdit={canOperate}
+        sharedToday={
+          editingRemarksWord != null &&
+          sharedTodayWordIds.has(editingRemarksWord.id)
+        }
         onClose={() => setEditingRemarksWord(null)}
         onSaved={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
@@ -1737,6 +1824,11 @@ export function JpVocabPage() {
           text-decoration: underline;
           text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
           text-underline-offset: 2px;
+          border: none;
+          background: transparent;
+          padding: 0;
+          font: inherit;
+          cursor: pointer;
         }
         .jp-vocab-word-link:hover {
           text-decoration: underline;

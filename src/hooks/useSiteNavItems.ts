@@ -63,12 +63,16 @@ export function useSiteNavItems(): SiteNavItem[] {
         label: nav.jpVocab,
         active: onJpVocab && !onJpVocabStudy,
       },
-      {
-        id: "jpVocabStudy",
-        href: navHref("jpVocabStudy", locale, navOpts),
-        label: nav.jpVocabStudy,
-        active: onJpVocabStudy,
-      },
+      ...(isAdmin
+        ? [
+            {
+              id: "jpVocabStudy",
+              href: navHref("jpVocabStudy", locale, navOpts),
+              label: nav.jpVocabStudy,
+              active: onJpVocabStudy,
+            },
+          ]
+        : []),
       {
         id: "jpLesson",
         href: navHref("jpLesson", locale, navOpts),
@@ -96,7 +100,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      ...(onJpVocabStudy
+      ...(onJpVocabStudy && isAdmin
         ? [
             {
               id: "jpVocabStudy",
@@ -212,12 +216,16 @@ export function useSiteNavItems(): SiteNavItem[] {
                     label: nav.jpVocab,
                     active: onJpVocab && !onJpVocabStudy,
                   },
-                  {
-                    id: "jpVocabStudy",
-                    href: navHref("jpVocabStudy", locale, navOpts),
-                    label: nav.jpVocabStudy,
-                    active: onJpVocabStudy,
-                  },
+                  ...(isAdmin
+                    ? [
+                        {
+                          id: "jpVocabStudy",
+                          href: navHref("jpVocabStudy", locale, navOpts),
+                          label: nav.jpVocabStudy,
+                          active: onJpVocabStudy,
+                        },
+                      ]
+                    : []),
                 ]
               : []),
           ]),

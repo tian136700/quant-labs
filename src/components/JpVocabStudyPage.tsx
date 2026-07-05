@@ -4,9 +4,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
-import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem } from "@/lib/types";
+import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import {
+  formatJpVocabTotalReviewsDisplay,
+  jpVocabRiskIndex,
+  jpVocabTotalReviewsZeroHint,
+} from "@/lib/jp-vocab-shared";
+import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
+import { JpEditIconButton } from "@/components/JpEditIconButton";
+import { JpVocabEditModal } from "@/components/JpVocabEditModal";
+import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
+import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
+import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
+import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
@@ -14,35 +25,81 @@ const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "weak", label: "不熟悉" },
 ];
 
-const POLL_MS = 3000;
-const POLL_HIDDEN_MS = 10000;
+const STAT_COLUMNS = [
+  { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"] as [string, string], className: "jp-vocab-stat-detail" },
+  { key: "normal", label: "一般", className: "jp-vocab-stat-detail" },
+  { key: "weak", label: "不熟悉", labelLines: ["不", "熟悉"] as [string, string], className: "jp-vocab-stat-detail" },
+  { key: "total", label: "合计", className: "jp-vocab-stat-total" },
+] as const;
+
+const SHOW_REMARKS_COLUMN = true;
+
+const POLL_MS = 2000;
+const POLL_HIDDEN_MS = 8000;
 
 export function JpVocabStudyPage() {
   const { locale } = useI18n();
-  const { user, checking, openAuthPanel } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
+  const canOperate = canAccessJpVocab;
   const [items, setItems] = useState<JpVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
+  const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [previewRef, setPreviewRef] = useState<{
+    ref: JpVocabRef;
+    cacheVersion?: string | null;
+  } | null>(null);
+  const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
   const pollInFlightRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+  const pendingOpenRemarksWordIdRef = useRef<number | null>(null);
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
       mode: "login",
       loginOnly: true,
       title: "登录 · 今日背单词",
-      subtitle: "登录后可查看老师共享的单词。",
+      subtitle: "登录用户方可修改数据。",
     });
   }, [openAuthPanel]);
 
-  const loadShared = useCallback(async () => {
-    if (pollInFlightRef.current) return;
+  const handleWordSaved = useCallback((word: JpVocabWord) => {
+    setItems((prev) =>
+      prev.map((item) => (item.word_id === word.id ? { ...item, word } : item))
+    );
+    setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+    setEditingWord((prev) => (prev?.id === word.id ? word : prev));
+    setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+    setStatus("词条已保存。");
+  }, []);
+
+  const handleWordSaveFailed = useCallback(
+    (wordId: number, snapshot: JpVocabWord, message: string) => {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.word_id === wordId ? { ...item, word: snapshot } : item
+        )
+      );
+      setStatus(message);
+    },
+    []
+  );
+
+  const loadShared = useCallback(async (opts?: { force?: boolean }) => {
+    if (pollInFlightRef.current) {
+      if (opts?.force) pendingRefreshRef.current = true;
+      return;
+    }
     pollInFlightRef.current = true;
     try {
       const res = await fetch("/api/jp-vocab/shared", {
         headers: { [LOCALE_HEADER]: locale },
         credentials: "include",
+        cache: "no-store",
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -70,6 +127,10 @@ export function JpVocabStudyPage() {
     } finally {
       setLoading(false);
       pollInFlightRef.current = false;
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false;
+        void loadShared({ force: true });
+      }
     }
   }, [locale]);
 
@@ -94,12 +155,56 @@ export function JpVocabStudyPage() {
     };
   }, [user, loadShared]);
 
+  useEffect(() => {
+    if (!user) return;
+    return subscribeJpVocabSharedUpdated((detail) => {
+      if (detail.openRemarks && detail.wordId) {
+        pendingOpenRemarksWordIdRef.current = detail.wordId;
+      }
+      void loadShared({ force: true });
+    });
+  }, [user, loadShared]);
+
+  useEffect(() => {
+    const wordId = pendingOpenRemarksWordIdRef.current;
+    if (!wordId || items.length === 0) return;
+    const item = items.find((entry) => entry.word_id === wordId);
+    if (!item) return;
+
+    pendingOpenRemarksWordIdRef.current = null;
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`jp-vocab-study-row-${wordId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    if (canOperate) {
+      setEditingRemarksWord(item.word);
+    } else {
+      setViewingRemarksWord(item.word);
+    }
+  }, [items, canOperate]);
+
+  useEffect(() => {
+    if (!user) return;
+    const onVisible = () => {
+      if (!document.hidden) void loadShared({ force: true });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [user, loadShared]);
+
   const loggedIn = Boolean(user);
+
+  const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
+    const meta = ref ?? refs[refKey];
+    if (!meta) return;
+    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at });
+  };
 
   return (
     <main
       className="page-wrap jp-vocab-page jp-vocab-study-page"
-      style={{ maxWidth: "min(980px, 96vw)", paddingTop: "1.5rem" }}
+      style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}
     >
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>今日背单词</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
@@ -138,6 +243,12 @@ export function JpVocabStudyPage() {
         </p>
       ) : null}
 
+      {status ? (
+        <p className="hint" role="status" style={{ marginBottom: "0.75rem", fontSize: "0.875rem" }}>
+          {status}
+        </p>
+      ) : null}
+
       <section className="section etr-panel" aria-label="今日共享单词">
         <div
           style={{
@@ -162,16 +273,73 @@ export function JpVocabStudyPage() {
           <p className="empty">今日暂无共享单词。</p>
         ) : (
           <div className="jp-vocab-table-wrap">
-            <table className="jp-vocab-table">
+            <p className="jp-vocab-scroll-hint" aria-hidden="true">
+              表格较宽时可左右滑动查看
+            </p>
+            <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
-                  <th className="jp-vocab-seq-col">序号</th>
-                  <th className="jp-vocab-kind-col">类型</th>
-                  <th className="jp-vocab-word-col">单词 / 语法</th>
-                  <th className="jp-vocab-reading-col">读音</th>
-                  <th className="jp-vocab-meaning-col">释义</th>
-                  <th className="jp-vocab-pos-col">词性</th>
-                  <th className="jp-vocab-level-col">熟悉程度</th>
+                  <th rowSpan={2} className="jp-vocab-seq-col">
+                    序号
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-kind-col">
+                    类型
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-word-col">
+                    单词 / 语法
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-reading-col">
+                    读音
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-meaning-col">
+                    释义
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-pos-col">
+                    词性
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-risk-col">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                      <span>抽查</span>
+                      <span>优先级</span>
+                    </span>
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-level-col">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                      <span>熟悉程度</span>
+                      <span className="jp-vocab-th-multiline__sub">老师勾选</span>
+                    </span>
+                  </th>
+                  <th colSpan={4} className="jp-vocab-stats-group">
+                    复习次数统计
+                  </th>
+                  <th rowSpan={2} className="jp-vocab-today-check-col" title="今日抽查次数">
+                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                      <span>今日</span>
+                      <span>抽查次数</span>
+                    </span>
+                  </th>
+                  {SHOW_REMARKS_COLUMN ? (
+                    <th rowSpan={2} className="jp-vocab-notes-col">
+                      备注
+                    </th>
+                  ) : null}
+                  <th rowSpan={2} className="jp-vocab-action-col">
+                    操作
+                  </th>
+                </tr>
+                <tr>
+                  {STAT_COLUMNS.map((col) => (
+                    <th key={col.key} className={col.className}>
+                      {"labelLines" in col && col.labelLines ? (
+                        <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                          <span>{col.labelLines[0]}</span>
+                          <span>{col.labelLines[1]}</span>
+                        </span>
+                      ) : (
+                        <span>{col.label}</span>
+                      )}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -182,9 +350,15 @@ export function JpVocabStudyPage() {
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
                   const selected = item.level;
+                  const risk = jpVocabRiskIndex(w);
+                  const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+                  const todayChecks = effectiveTodayCheckCount(
+                    w.today_check_count ?? 0,
+                    w.today_check_date
+                  );
 
                   return (
-                    <tr key={item.id}>
+                    <tr key={item.id} id={`jp-vocab-study-row-${w.id}`}>
                       <td className="jp-vocab-seq-col" data-label="序号">
                         {index + 1}
                       </td>
@@ -201,16 +375,15 @@ export function JpVocabStudyPage() {
                         <div className="jp-vocab-word-cell">
                           {w.ref_key ? (
                             <>
-                              <a
-                                href={jpVocabRefViewerPath(w.ref_key, ref?.updated_at)}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
                                 className="jp-vocab-word-link"
                                 title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                                onClick={() => openRefPreview(w.ref_key!, ref)}
                               >
                                 {w.word}
-                              </a>
-                              <span className="jp-vocab-ref-hint">（点击可进入教案）</span>
+                              </button>
+                              <span className="jp-vocab-ref-hint">（点击查看教案）</span>
                             </>
                           ) : (
                             <span className="jp-vocab-word-text">{w.word}</span>
@@ -243,6 +416,13 @@ export function JpVocabStudyPage() {
                         style={{ color: "var(--muted)" }}
                       >
                         {posTrim}
+                      </td>
+                      <td className="jp-vocab-risk-col" data-label="优先级">
+                        <span
+                          className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
+                        >
+                          {risk.toFixed(1)}
+                        </span>
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         <div
@@ -282,6 +462,85 @@ export function JpVocabStudyPage() {
                           })}
                         </div>
                       </td>
+                      <td className="jp-vocab-stat-detail chg-dn" data-label="非常熟悉">
+                        {w.cnt_very}
+                      </td>
+                      <td className="jp-vocab-stat-detail" data-label="一般">
+                        {w.cnt_normal}
+                      </td>
+                      <td className="jp-vocab-stat-detail chg-up" data-label="不熟悉">
+                        {w.cnt_weak}
+                      </td>
+                      <td className="jp-vocab-stat-total" data-label="复习合计">
+                        {(() => {
+                          const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
+                          if (totalDisplay.isZero) {
+                            return (
+                              <span
+                                className="jp-vocab-total-never"
+                                title={jpVocabTotalReviewsZeroHint(locale)}
+                              >
+                                {totalDisplay.label}
+                              </span>
+                            );
+                          }
+                          return totalDisplay.label;
+                        })()}
+                      </td>
+                      <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
+                        <span
+                          className={`jp-vocab-today-check-value${
+                            todayChecks > 0 ? " jp-vocab-today-check-value--active" : ""
+                          }`}
+                          title={todayChecks > 0 ? `今日已抽查 ${todayChecks} 次` : "今日尚未抽查"}
+                        >
+                          {todayChecks}
+                        </span>
+                      </td>
+                      {SHOW_REMARKS_COLUMN ? (
+                        <td
+                          className={`jp-vocab-notes-col${
+                            !hasJpVocabClassNotes(w.class_notes) && !canOperate
+                              ? " jp-vocab-field-empty"
+                              : ""
+                          }`}
+                          data-label="备注"
+                        >
+                          <div className="jp-vocab-notes-actions">
+                            {hasJpVocabClassNotes(w.class_notes) ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact"
+                                onClick={() => setViewingRemarksWord(w)}
+                              >
+                                查看
+                              </button>
+                            ) : null}
+                            {canOperate ? (
+                              <JpEditIconButton
+                                title="编辑备注"
+                                onClick={() => setEditingRemarksWord(w)}
+                              />
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
+                      <td
+                        className={`jp-vocab-action-col${!canOperate ? " jp-vocab-field-empty" : ""}`}
+                        data-label="操作"
+                      >
+                        {canOperate ? (
+                          <div className="jp-vocab-action-buttons">
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact"
+                              onClick={() => setEditingWord(w)}
+                            >
+                              编辑
+                            </button>
+                          </div>
+                        ) : null}
+                      </td>
                     </tr>
                   );
                 })}
@@ -290,7 +549,57 @@ export function JpVocabStudyPage() {
           </div>
         )}
       </section>
+
+      <JpVocabRefPreviewModal
+        open={previewRef != null}
+        refMeta={previewRef?.ref ?? null}
+        cacheVersion={previewRef?.cacheVersion}
+        onClose={() => setPreviewRef(null)}
+      />
+
+      <JpVocabRemarksViewModal
+        open={viewingRemarksWord != null}
+        word={viewingRemarksWord}
+        onClose={() => setViewingRemarksWord(null)}
+        onWordUpdated={(word) => {
+          setItems((prev) =>
+            prev.map((item) =>
+              item.word_id === word.id ? { ...item, word } : item
+            )
+          );
+          setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+        }}
+      />
+
+      <JpClassNotesEditModal
+        open={editingRemarksWord != null}
+        word={editingRemarksWord}
+        locale={locale}
+        canEdit={canOperate}
+        sharedToday
+        onClose={() => setEditingRemarksWord(null)}
+        onSaved={handleWordSaved}
+        onSaveFailed={handleWordSaveFailed}
+        onNeedAuth={openJpAuth}
+      />
+
+      <JpVocabEditModal
+        open={editingWord != null}
+        word={editingWord}
+        locale={locale}
+        canEdit={canOperate}
+        onClose={() => setEditingWord(null)}
+        onSaved={handleWordSaved}
+        onSaveFailed={handleWordSaveFailed}
+        onNeedAuth={openJpAuth}
+      />
+
       <style jsx global>{`
+        .jp-vocab-study-page .jp-vocab-scroll-hint {
+          margin: 0 0 0.5rem;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
         .jp-vocab-study-page .jp-vocab-levels {
           display: flex;
           flex-wrap: wrap;
@@ -327,6 +636,14 @@ export function JpVocabStudyPage() {
           border-color: var(--accent);
           background: color-mix(in srgb, var(--accent) 18%, var(--bg));
         }
+        .jp-vocab-study-page .jp-vocab-level-opt--very.is-checked {
+          color: var(--fall);
+        }
+        .jp-vocab-study-page .jp-vocab-level-opt--very.is-checked .jp-vocab-check-box {
+          border-color: var(--fall);
+          background: color-mix(in srgb, var(--fall) 18%, var(--bg));
+          color: var(--fall);
+        }
         .jp-vocab-study-page .jp-vocab-level-opt--weak.is-checked {
           color: var(--rise);
         }
@@ -350,6 +667,104 @@ export function JpVocabStudyPage() {
         .jp-vocab-study-page .jp-vocab-kind-badge--grammar {
           border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
           color: var(--accent);
+        }
+        .jp-vocab-study-page .jp-vocab-word-link {
+          font-weight: 500;
+          color: var(--accent);
+          text-decoration: underline;
+          text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+          text-underline-offset: 2px;
+          border: none;
+          background: transparent;
+          padding: 0;
+          font: inherit;
+          cursor: pointer;
+        }
+        .jp-vocab-study-page .jp-vocab-word-link:hover {
+          text-decoration: underline;
+        }
+        .jp-vocab-study-page .jp-vocab-word-text {
+          font-weight: 500;
+        }
+        .jp-vocab-study-page .jp-vocab-word-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          min-width: 0;
+        }
+        .jp-vocab-study-page .jp-vocab-ref-hint {
+          display: block;
+          margin-top: 0.2rem;
+          font-size: 0.75rem;
+          color: var(--muted);
+          text-align: center;
+        }
+        .jp-vocab-study-page .jp-vocab-table-wrap {
+          display: block;
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+        .jp-vocab-study-page .jp-vocab-table {
+          width: 100%;
+          min-width: 1180px;
+        }
+        .jp-vocab-study-page .jp-vocab-notes-actions,
+        .jp-vocab-study-page .jp-vocab-action-buttons {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+        }
+        .jp-vocab-study-page .jp-vocab-table th,
+        .jp-vocab-study-page .jp-vocab-table td {
+          white-space: normal;
+          vertical-align: middle;
+          padding: 0.5rem 0.55rem;
+          text-align: center;
+        }
+        .jp-vocab-study-page .jp-vocab-th-multiline {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.05rem;
+          line-height: 1.2;
+        }
+        .jp-vocab-study-page .jp-vocab-th-multiline__sub {
+          font-size: 0.8125em;
+          color: var(--muted);
+        }
+        .jp-vocab-study-page .jp-vocab-risk-value {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-study-page .jp-vocab-risk-badge--high {
+          color: var(--rise);
+        }
+        .jp-vocab-study-page .jp-vocab-risk-badge--mid {
+          color: var(--accent);
+        }
+        .jp-vocab-study-page .jp-vocab-risk-badge--low {
+          color: var(--fall);
+        }
+        .jp-vocab-study-page .jp-vocab-stat-detail,
+        .jp-vocab-study-page .jp-vocab-stat-total {
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-study-page .jp-vocab-total-never {
+          color: var(--muted);
+          font-size: 0.8125rem;
+        }
+        .jp-vocab-study-page .jp-vocab-today-check-value {
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-study-page .jp-vocab-today-check-value--active {
+          color: var(--accent);
+          font-weight: 700;
         }
       `}</style>
     </main>

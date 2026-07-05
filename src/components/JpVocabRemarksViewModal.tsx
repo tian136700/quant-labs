@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "@/i18n/I18nProvider";
+import { LOCALE_HEADER } from "@/lib/locale-detect";
+import { parseJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { JpVocabWord } from "@/lib/types";
 
@@ -9,14 +12,57 @@ type Props = {
   open: boolean;
   word: JpVocabWord | null;
   onClose: () => void;
+  onWordUpdated?: (word: JpVocabWord) => void;
 };
 
-export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
+const POLL_MS = 2_000;
+
+export function JpVocabRemarksViewModal({
+  open,
+  word,
+  onClose,
+  onWordUpdated,
+}: Props) {
+  const { locale } = useI18n();
   const [mounted, setMounted] = useState(false);
+  const [displayWord, setDisplayWord] = useState<JpVocabWord | null>(word);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (open && word) setDisplayWord(word);
+  }, [open, word?.id, word?.updated_at, word]);
+
+  const pullRemoteNotes = useCallback(async () => {
+    if (!open || !word) return;
+    try {
+      const res = await fetch(
+        `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
+        {
+          headers: { [LOCALE_HEADER]: locale },
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
+      const data = (await res.json()) as { ok: boolean; word?: JpVocabWord };
+      if (!data.ok || !data.word) return;
+      if (data.word.updated_at !== displayWord?.updated_at) {
+        setDisplayWord(data.word);
+        onWordUpdated?.(data.word);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [displayWord?.updated_at, locale, onWordUpdated, open, word]);
+
+  useEffect(() => {
+    if (!open || !word) return;
+    void pullRemoteNotes();
+    const timer = setInterval(() => void pullRemoteNotes(), POLL_MS);
+    return () => clearInterval(timer);
+  }, [open, word?.id, pullRemoteNotes, word]);
 
   useEffect(() => {
     if (!open) return;
@@ -37,9 +83,9 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
     };
   }, [open]);
 
-  if (!open || !mounted || !word) return null;
+  if (!open || !mounted || !displayWord) return null;
 
-  const body = (word.class_notes || "").trim();
+  const entries = parseJpVocabClassNotes(displayWord.class_notes);
 
   return createPortal(
     <>
@@ -60,7 +106,7 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
               <h2 id="jp-remarks-view-title" className="jp-remarks-view-title">
                 备注
               </h2>
-              <p className="jp-remarks-view-subtitle">{word.word}</p>
+              <p className="jp-remarks-view-subtitle">{displayWord.word}</p>
             </div>
             <button
               type="button"
@@ -73,11 +119,24 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
           </div>
 
           <div className="jp-remarks-view-body">
-            {body ? (
-              <p className="jp-remarks-view-text">{body}</p>
+            {entries.length > 0 ? (
+              <div className="jp-remarks-view-list">
+                {entries.map((entry, index) => (
+                  <div
+                    key={`${entry.timestamp ?? "legacy"}-${index}`}
+                    className="jp-remarks-view-entry"
+                  >
+                    {entry.timestamp ? (
+                      <div className="jp-remarks-view-entry-ts">{entry.timestamp}</div>
+                    ) : null}
+                    <pre className="jp-remarks-view-entry-body">{entry.content}</pre>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="jp-remarks-view-empty">暂无备注</p>
             )}
+            <p className="jp-remarks-view-sync-hint">每 2 秒自动同步</p>
           </div>
 
           <div className="jp-remarks-view-footer">
@@ -159,18 +218,45 @@ export function JpVocabRemarksViewModal({ open, word, onClose }: Props) {
           min-height: 12rem;
         }
 
-        .jp-remarks-view-text {
+        .jp-remarks-view-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+
+        .jp-remarks-view-entry {
+          padding: 0.65rem 0.75rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+          background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+        }
+
+        .jp-remarks-view-entry-ts {
+          font-size: 0.75rem;
+          font-variant-numeric: tabular-nums;
+          color: var(--muted);
+          margin-bottom: 0.35rem;
+        }
+
+        .jp-remarks-view-entry-body {
           margin: 0;
           white-space: pre-wrap;
           word-break: break-word;
-          line-height: 1.6;
+          font: inherit;
           font-size: 0.9375rem;
+          line-height: 1.6;
           color: var(--text);
         }
 
         .jp-remarks-view-empty {
           margin: 0;
           font-size: 0.875rem;
+          color: var(--muted);
+        }
+
+        .jp-remarks-view-sync-hint {
+          margin: 0.75rem 0 0;
+          font-size: 0.75rem;
           color: var(--muted);
         }
 

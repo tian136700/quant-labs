@@ -1,21 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import type { JpVocabWord } from "@/lib/types";
+import {
+  formatBeijingClassNoteTimestamp,
+  parseJpVocabClassNotes,
+  upsertJpVocabClassNoteSession,
+  type JpVocabClassNoteEntry,
+} from "@/lib/jp-vocab-class-notes";
+import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import {
   buildOptimisticJpVocabWord,
   syncJpVocabEditResponse,
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
+import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
   open: boolean;
   word: JpVocabWord | null;
   locale: "en" | "zh";
   canEdit: boolean;
+  sharedToday?: boolean;
   onClose: () => void;
   onSaved: (word: JpVocabWord) => void;
   onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
@@ -25,25 +34,38 @@ type Props = {
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
 const AUTO_SAVE_MS = 1_000;
+const POLL_MS = 2_000;
+
+function historyEntriesFromWord(word: JpVocabWord | null): JpVocabClassNoteEntry[] {
+  if (!word) return [];
+  return parseJpVocabClassNotes(word.class_notes);
+}
 
 export function JpClassNotesEditModal({
   open,
   word,
   locale,
   canEdit,
+  sharedToday = false,
   onClose,
   onSaved,
   onSaveFailed,
   onNeedAuth,
 }: Props) {
+  const { isAdmin } = useEtrAuth();
   const [mounted, setMounted] = useState(false);
-  const [body, setBody] = useState("");
+  const [draft, setDraft] = useState("");
+  const [historyEntries, setHistoryEntries] = useState<JpVocabClassNoteEntry[]>([]);
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [sharing, setSharing] = useState(false);
   const dirtyRef = useRef(false);
-  const lastSavedRef = useRef("");
+  const lastSavedDraftRef = useRef("");
+  const sessionTsRef = useRef<string | null>(null);
+  const [sessionTs, setSessionTs] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wordRef = useRef(word);
+  const pollInFlightRef = useRef(false);
 
   useEffect(() => {
     wordRef.current = word;
@@ -55,9 +77,11 @@ export function JpClassNotesEditModal({
 
   useEffect(() => {
     if (open && word) {
-      const notes = word.class_notes || "";
-      setBody(notes);
-      lastSavedRef.current = notes;
+      setHistoryEntries(historyEntriesFromWord(word));
+      setDraft("");
+      lastSavedDraftRef.current = "";
+      sessionTsRef.current = null;
+      setSessionTs(null);
       dirtyRef.current = false;
       setError("");
       setSaveStatus("idle");
@@ -66,10 +90,49 @@ export function JpClassNotesEditModal({
 
   useEffect(() => {
     if (!open || !word || dirtyRef.current) return;
-    const notes = word.class_notes || "";
-    setBody(notes);
-    lastSavedRef.current = notes;
+    setHistoryEntries(historyEntriesFromWord(word));
   }, [open, word?.id, word?.class_notes, word?.updated_at, word]);
+
+  const pullRemoteNotes = useCallback(async () => {
+    const current = wordRef.current;
+    if (!open || !current || pollInFlightRef.current) return;
+    pollInFlightRef.current = true;
+    try {
+      const res = await fetch(
+        `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(current.id))}`,
+        {
+          headers: { [LOCALE_HEADER]: locale },
+          credentials: "include",
+          cache: "no-store",
+        }
+      );
+      const data = (await res.json()) as {
+        ok: boolean;
+        word?: JpVocabWord;
+        error?: string;
+      };
+      if (!data.ok || !data.word) return;
+      if (dirtyRef.current) {
+        setHistoryEntries(parseJpVocabClassNotes(data.word.class_notes));
+        return;
+      }
+      if (data.word.updated_at !== wordRef.current?.updated_at) {
+        onSaved(data.word);
+        setHistoryEntries(parseJpVocabClassNotes(data.word.class_notes));
+      }
+    } catch {
+      /* ignore poll errors */
+    } finally {
+      pollInFlightRef.current = false;
+    }
+  }, [locale, onSaved, open]);
+
+  useEffect(() => {
+    if (!open || !word) return;
+    void pullRemoteNotes();
+    const timer = setInterval(() => void pullRemoteNotes(), POLL_MS);
+    return () => clearInterval(timer);
+  }, [open, word?.id, pullRemoteNotes, word]);
 
   useEffect(() => {
     if (!open) return;
@@ -97,24 +160,39 @@ export function JpClassNotesEditModal({
   }, []);
 
   const flushSave = useCallback(
-    async (notesRaw: string) => {
+    async (draftRaw: string) => {
       const current = wordRef.current;
       if (!current || !canEdit) return;
 
-      const notes = notesRaw.trim() || null;
-      const lastSaved = lastSavedRef.current.trim() || null;
-      if (notes === lastSaved) {
+      const trimmed = draftRaw.trim();
+      if (!trimmed) {
+        setSaveStatus("saved");
+        return;
+      }
+      if (trimmed === lastSavedDraftRef.current.trim()) {
         setSaveStatus("saved");
         return;
       }
 
+      if (!sessionTsRef.current) {
+        sessionTsRef.current = formatBeijingClassNoteTimestamp();
+        setSessionTs(sessionTsRef.current);
+      }
+
+      const nextNotes = upsertJpVocabClassNoteSession(
+        current.class_notes,
+        sessionTsRef.current,
+        trimmed
+      );
+
       setSaveStatus("saving");
       const snapshot = current;
       const optimistic = buildOptimisticJpVocabWord(snapshot, {
-        class_notes: notes,
+        class_notes: nextNotes,
       });
       onSaved(optimistic);
-      lastSavedRef.current = notesRaw;
+      setHistoryEntries(parseJpVocabClassNotes(nextNotes));
+      lastSavedDraftRef.current = trimmed;
       dirtyRef.current = false;
 
       try {
@@ -128,7 +206,7 @@ export function JpClassNotesEditModal({
             credentials: "include",
             body: JSON.stringify({
               word_id: snapshot.id,
-              class_notes: notes,
+              class_notes: nextNotes,
             }),
           });
           const data = (await res.json()) as {
@@ -158,23 +236,66 @@ export function JpClassNotesEditModal({
   useEffect(() => {
     if (!open || !canEdit || !word) return;
 
-    const notes = body.trim() || null;
-    const lastSaved = lastSavedRef.current.trim() || null;
-    if (notes === lastSaved) {
+    if (!draft.trim()) {
       setSaveStatus((s) => (s === "pending" ? "saved" : s));
+      return;
+    }
+
+    if (draft.trim() === lastSavedDraftRef.current.trim()) {
+      setSaveStatus("saved");
       return;
     }
 
     setSaveStatus("pending");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      void flushSave(body);
+      void flushSave(draft);
     }, AUTO_SAVE_MS);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [body, open, canEdit, word, flushSave]);
+  }, [draft, open, canEdit, word, flushSave]);
+
+  const handleShare = async () => {
+    const current = wordRef.current;
+    if (!current || !isAdmin || sharing) return;
+
+    setSharing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/jp-vocab/share", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ word_id: current.id }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (res.status === 401) {
+        onNeedAuth();
+        return;
+      }
+      if (!data.ok && res.status !== 409 && data.error !== "already_shared_today") {
+        throw new Error(data.error || "共享失败");
+      }
+      notifyJpVocabSharedUpdated({
+        wordId: current.id,
+        openRemarks: true,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const pastEntries = useMemo(() => {
+    if (!sessionTs) return historyEntries;
+    return historyEntries.filter((e) => e.timestamp !== sessionTs);
+  }, [historyEntries, sessionTs]);
 
   const statusLabel =
     saveStatus === "pending"
@@ -185,7 +306,9 @@ export function JpClassNotesEditModal({
           ? "已同步"
           : saveStatus === "error"
             ? "保存失败"
-            : "输入后约 1 秒自动保存";
+            : canEdit
+              ? "输入后约 1 秒自动保存 · 每 2 秒同步"
+              : "每 2 秒自动同步";
 
   if (!open || !mounted || !word) return null;
 
@@ -206,32 +329,69 @@ export function JpClassNotesEditModal({
           <div className="jp-notes-edit-header">
             <div>
               <h2 id="jp-notes-edit-title" className="jp-notes-edit-title">
-                编辑备注
+                {canEdit ? "编辑备注" : "备注"}
               </h2>
               <p className="jp-notes-edit-subtitle">{word.word}</p>
             </div>
-            <button
-              type="button"
-              className="jp-notes-edit-close"
-              onClick={onClose}
-              aria-label="关闭"
-            >
-              ×
-            </button>
+            <div className="jp-notes-edit-header-actions">
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
+                  disabled={sharing}
+                  title={
+                    sharedToday
+                      ? "推送到学生「今日背单词」并打开备注"
+                      : "共享到学生「今日背单词」（不改变已勾选的熟悉程度）"
+                  }
+                  onClick={() => void handleShare()}
+                >
+                  {sharing ? "共享中…" : sharedToday ? "推送备注" : "共享"}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="jp-notes-edit-close"
+                onClick={onClose}
+                aria-label="关闭"
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           <div className="jp-notes-edit-body">
-            <textarea
-              className="jp-notes-edit-textarea"
-              rows={12}
-              value={body}
-              disabled={!canEdit}
-              placeholder="记录例句、用法、易错点…"
-              onChange={(e) => {
-                dirtyRef.current = true;
-                setBody(e.target.value);
-              }}
-            />
+            {pastEntries.length > 0 ? (
+              <div className="jp-notes-edit-history" aria-label="历史备注">
+                {pastEntries.map((entry, index) => (
+                  <div
+                    key={`${entry.timestamp ?? "legacy"}-${index}`}
+                    className="jp-notes-edit-entry"
+                  >
+                    {entry.timestamp ? (
+                      <div className="jp-notes-edit-entry-ts">{entry.timestamp}</div>
+                    ) : null}
+                    <pre className="jp-notes-edit-entry-body">{entry.content}</pre>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {canEdit ? (
+              <textarea
+                className="jp-notes-edit-textarea"
+                rows={8}
+                value={draft}
+                placeholder="在此输入新备注，保存后自动带上当前时间…"
+                onChange={(e) => {
+                  dirtyRef.current = true;
+                  setDraft(e.target.value);
+                }}
+              />
+            ) : pastEntries.length === 0 ? (
+              <p className="jp-notes-edit-empty">暂无备注</p>
+            ) : null}
+
             <p
               className={`jp-notes-edit-hint${
                 saveStatus === "saved"
@@ -294,6 +454,13 @@ export function JpClassNotesEditModal({
           flex-shrink: 0;
         }
 
+        .jp-notes-edit-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-shrink: 0;
+        }
+
         .jp-notes-edit-title {
           margin: 0;
           font-size: 1.0625rem;
@@ -323,9 +490,40 @@ export function JpClassNotesEditModal({
           padding: 1rem 1.25rem;
           display: flex;
           flex-direction: column;
-          gap: 0.5rem;
+          gap: 0.75rem;
           flex: 1;
           min-height: 0;
+          overflow-y: auto;
+        }
+
+        .jp-notes-edit-history {
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+
+        .jp-notes-edit-entry {
+          padding: 0.65rem 0.75rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+          background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+        }
+
+        .jp-notes-edit-entry-ts {
+          font-size: 0.75rem;
+          font-variant-numeric: tabular-nums;
+          color: var(--muted);
+          margin-bottom: 0.35rem;
+        }
+
+        .jp-notes-edit-entry-body {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font: inherit;
+          font-size: 0.9375rem;
+          line-height: 1.55;
+          color: var(--text);
         }
 
         .jp-notes-edit-textarea {
@@ -339,9 +537,14 @@ export function JpClassNotesEditModal({
           font-size: 0.9375rem;
           padding: 0.75rem 0.85rem;
           resize: vertical;
-          min-height: 16rem;
+          min-height: 10rem;
           line-height: 1.55;
-          flex: 1;
+        }
+
+        .jp-notes-edit-empty {
+          margin: 0;
+          font-size: 0.875rem;
+          color: var(--muted);
         }
 
         .jp-notes-edit-hint {

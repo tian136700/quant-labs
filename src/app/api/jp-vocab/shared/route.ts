@@ -18,12 +18,16 @@ export async function GET(request: Request) {
     }
 
     const { items, refs } = await listJpVocabSharedToday(env.DB);
-    return jsonResponse({
-      ok: true,
-      items,
-      refs,
-      share_date: beijingDateString(),
-    });
+    return jsonResponse(
+      {
+        ok: true,
+        items,
+        refs,
+        share_date: beijingDateString(),
+      },
+      200,
+      { "Cache-Control": "no-store" }
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

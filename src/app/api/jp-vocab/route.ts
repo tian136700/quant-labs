@@ -2,6 +2,7 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import {
   ensureJpVocabDailyDisplayOrder,
   getJpVocabDailyQuizStyle,
+  listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
   resetAllJpVocabReviews,
@@ -24,12 +25,20 @@ const AUTH_MSG = {
 export async function GET() {
   try {
     const env = await getCloudflareEnv();
-    const [{ words, refs }, daily_quiz_style] = await Promise.all([
+    const [{ words, refs }, daily_quiz_style, shared_today_word_ids] = await Promise.all([
       listJpVocabWordsWithRefs(env.DB),
       getJpVocabDailyQuizStyle(env.DB),
+      listJpVocabSharedTodayWordIds(env.DB),
     ]);
     const display_order = await ensureJpVocabDailyDisplayOrder(env.DB, words);
-    return jsonResponse({ ok: true, words, refs, daily_quiz_style, display_order });
+    return jsonResponse({
+      ok: true,
+      words,
+      refs,
+      daily_quiz_style,
+      display_order,
+      shared_today_word_ids,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

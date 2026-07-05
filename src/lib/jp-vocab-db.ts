@@ -503,6 +503,11 @@ export async function recordJpVocabReview(
 
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
+  await ensureJpVocabSharedSchema(db);
+
+  if (await isJpVocabWordSharedToday(db, wordId)) {
+    return { ok: false, error: "shared_level_locked" };
+  }
 
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
@@ -1080,6 +1085,31 @@ export type UpdateJpVocabClassNotesResult =
   | { ok: true; word: JpVocabWord }
   | { ok: false; error: string };
 
+export async function getJpVocabClassNotes(
+  db: D1Database,
+  wordId: number
+): Promise<UpdateJpVocabClassNotesResult> {
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    return { ok: false, error: "word_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const word = devWords.find((w) => w.id === wordId);
+    if (!word) return { ok: false, error: "not_found" };
+    return { ok: true, word };
+  }
+
+  const row = await db
+    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .bind(wordId)
+    .first<Record<string, unknown>>();
+
+  if (!row) return { ok: false, error: "not_found" };
+  return { ok: true, word: mapRow(row) };
+}
+
 /** 更新单词复习页课堂笔记，并同步回关联的新课笔记 */
 export async function updateJpVocabClassNotes(
   db: D1Database,
@@ -1629,20 +1659,80 @@ function mapSharedRow(
   row: Record<string, unknown>,
   word: JpVocabWord
 ): JpVocabSharedItem {
+  const level: JpVocabLevel =
+    word.last_review_level === "very" ||
+    word.last_review_level === "normal" ||
+    word.last_review_level === "weak"
+      ? word.last_review_level
+      : "weak";
   return {
     id: Number(row.id),
     word_id: Number(row.word_id),
     shared_by: String(row.shared_by),
     shared_at: String(row.shared_at),
     share_date: String(row.share_date),
-    level: "weak",
+    level,
     word,
   };
 }
 
+function isJpVocabWordCheckedToday(word: JpVocabWord, now = new Date()): boolean {
+  if (
+    effectiveTodayCheckCount(word.today_check_count ?? 0, word.today_check_date, now) >
+    0
+  ) {
+    return true;
+  }
+  if (!word.last_review_at || !word.last_review_level) return false;
+  return word.last_review_at.slice(0, 10) === beijingDateString(now);
+}
+
 export type ShareJpVocabWordResult =
-  | { ok: true; item: JpVocabSharedItem; word: JpVocabWord; already_shared: boolean }
+  | { ok: true; item: JpVocabSharedItem; word: JpVocabWord }
   | { ok: false; error: string };
+
+async function isJpVocabWordSharedToday(
+  db: D1Database,
+  wordId: number,
+  now = new Date()
+): Promise<boolean> {
+  await ensureJpVocabSharedSchema(db);
+  const today = beijingDateString(now);
+  if (devStoreEnabled) {
+    return devShared.some((s) => s.share_date === today && s.word_id === wordId);
+  }
+  const row = await db
+    .prepare(
+      `SELECT 1 AS ok FROM jp_vocab_shared
+       WHERE share_date = ?1 AND word_id = ?2
+       LIMIT 1`
+    )
+    .bind(today, wordId)
+    .first<{ ok: number }>();
+  return Boolean(row);
+}
+
+export async function listJpVocabSharedTodayWordIds(
+  db: D1Database,
+  now = new Date()
+): Promise<number[]> {
+  await ensureJpVocabSharedSchema(db);
+  const today = beijingDateString(now);
+  if (devStoreEnabled) {
+    return devShared
+      .filter((s) => s.share_date === today)
+      .map((s) => s.word_id);
+  }
+  const result = await db
+    .prepare(
+      `SELECT word_id FROM jp_vocab_shared
+       WHERE share_date = ?1
+       ORDER BY shared_at ASC, id ASC`
+    )
+    .bind(today)
+    .all<{ word_id: number }>();
+  return (result.results ?? []).map((row) => Number(row.word_id));
+}
 
 export async function shareJpVocabWord(
   db: D1Database,
@@ -1667,27 +1757,27 @@ export async function shareJpVocabWord(
   if (devStoreEnabled) {
     const word = devWords.find((w) => w.id === wordId);
     if (!word) return { ok: false, error: "not_found" };
-    let existing = devShared.find(
-      (s) => s.share_date === today && s.word_id === wordId
-    );
-    const already_shared = Boolean(existing);
-    if (!existing) {
-      existing = {
-        id: devSharedNextId++,
-        word_id: wordId,
-        shared_by: sharedByTrim,
-        shared_at: ts,
-        share_date: today,
-      };
-      devShared.push(existing);
+    if (await isJpVocabWordSharedToday(db, wordId)) {
+      return { ok: false, error: "already_shared_today" };
     }
-    const review = await recordJpVocabReview(db, wordId, "weak");
-    if (!review.ok) return { ok: false, error: review.error };
+    let updatedWord = word;
+    if (!isJpVocabWordCheckedToday(word)) {
+      const review = await recordJpVocabReview(db, wordId, "weak");
+      if (!review.ok) return { ok: false, error: review.error };
+      updatedWord = review.word;
+    }
+    const sharedRow = {
+      id: devSharedNextId++,
+      word_id: wordId,
+      shared_by: sharedByTrim,
+      shared_at: ts,
+      share_date: today,
+    };
+    devShared.push(sharedRow);
     return {
       ok: true,
-      item: mapSharedRow(existing, review.word),
-      word: review.word,
-      already_shared,
+      item: mapSharedRow(sharedRow, updatedWord),
+      word: updatedWord,
     };
   }
 
@@ -1706,35 +1796,38 @@ export async function shareJpVocabWord(
     .bind(today, wordId)
     .first<Record<string, unknown>>();
 
-  let sharedRow = existingRow;
-  const already_shared = Boolean(existingRow);
-
-  if (!existingRow) {
-    const insert = await db
-      .prepare(
-        `INSERT INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date)
-         VALUES (?1, ?2, ?3, ?4)`
-      )
-      .bind(wordId, sharedByTrim, ts, today)
-      .run();
-    const insertedId = Number(insert.meta?.last_row_id);
-    sharedRow = {
-      id: insertedId,
-      word_id: wordId,
-      shared_by: sharedByTrim,
-      shared_at: ts,
-      share_date: today,
-    };
+  if (existingRow) {
+    return { ok: false, error: "already_shared_today" };
   }
 
-  const review = await recordJpVocabReview(db, wordId, "weak");
-  if (!review.ok) return { ok: false, error: review.error };
+  const current = mapRow(wordRow);
+  let updatedWord = current;
+  if (!isJpVocabWordCheckedToday(current)) {
+    const review = await recordJpVocabReview(db, wordId, "weak");
+    if (!review.ok) return { ok: false, error: review.error };
+    updatedWord = review.word;
+  }
+
+  const insert = await db
+    .prepare(
+      `INSERT INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date)
+       VALUES (?1, ?2, ?3, ?4)`
+    )
+    .bind(wordId, sharedByTrim, ts, today)
+    .run();
+  const insertedId = Number(insert.meta?.last_row_id);
+  const sharedRow = {
+    id: insertedId,
+    word_id: wordId,
+    shared_by: sharedByTrim,
+    shared_at: ts,
+    share_date: today,
+  };
 
   return {
     ok: true,
-    item: mapSharedRow(sharedRow!, review.word),
-    word: review.word,
-    already_shared,
+    item: mapSharedRow(sharedRow, updatedWord),
+    word: updatedWord,
   };
 }
 

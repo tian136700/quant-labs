@@ -1,10 +1,16 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { shareJpVocabWord } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { isAdminSuperuser } from "@/lib/rbac";
 
 const AUTH_MSG = {
   en: "Please log in to share words.",
   zh: "请登录后再共享。",
+};
+
+const ADMIN_MSG = {
+  en: "Only the Admin account can share words.",
+  zh: "仅 Admin 账户可共享单词。",
 };
 
 export async function POST(request: Request) {
@@ -15,6 +21,9 @@ export async function POST(request: Request) {
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
+    if (!isAdminSuperuser(user.role)) {
+      return jsonResponse({ ok: false, error: ADMIN_MSG[locale] }, 403);
+    }
 
     const body = (await request.json()) as { word_id?: number };
     const wordId = Number(body.word_id);
@@ -24,7 +33,12 @@ export async function POST(request: Request) {
 
     const result = await shareJpVocabWord(env.DB, wordId, user.username);
     if (!result.ok) {
-      const status = result.error === "not_found" ? 404 : 400;
+      const status =
+        result.error === "not_found"
+          ? 404
+          : result.error === "already_shared_today"
+            ? 409
+            : 400;
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
@@ -32,7 +46,6 @@ export async function POST(request: Request) {
       ok: true,
       item: result.item,
       word: result.word,
-      already_shared: result.already_shared,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

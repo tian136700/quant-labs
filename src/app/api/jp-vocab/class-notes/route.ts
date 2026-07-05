@@ -1,11 +1,50 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { updateJpVocabClassNotes } from "@/lib/jp-vocab-db";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import {
+  getJpVocabClassNotes,
+  updateJpVocabClassNotes,
+} from "@/lib/jp-vocab-db";
+import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 
 const AUTH_MSG = {
   en: "Please log in to edit class notes.",
   zh: "请登录后再编辑课堂笔记。",
 };
+
+const READ_MSG = {
+  en: "Please log in to view class notes.",
+  zh: "请登录后查看课堂笔记。",
+};
+
+export async function GET(request: Request) {
+  const locale = localeFromRequest(request);
+
+  try {
+    const wordId = Number(new URL(request.url).searchParams.get("word_id"));
+    if (!Number.isInteger(wordId) || wordId <= 0) {
+      return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
+    }
+
+    const { env, allowed } = await requireJpVocabRead(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: READ_MSG[locale] }, 401);
+    }
+
+    const result = await getJpVocabClassNotes(env.DB, wordId);
+    if (!result.ok) {
+      const status = result.error === "not_found" ? 404 : 400;
+      return jsonResponse({ ok: false, error: result.error }, status);
+    }
+
+    return jsonResponse(
+      { ok: true, word: result.word },
+      200,
+      { "Cache-Control": "no-store" }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return jsonResponse({ ok: false, error: message }, 500);
+  }
+}
 
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);
