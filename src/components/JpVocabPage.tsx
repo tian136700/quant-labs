@@ -962,7 +962,7 @@ export function JpVocabPage() {
             ) : filteredDisplayedWords.length ? (
           <>
             {renderPaginationNav()}
-          <div className="etr-table-wrap jp-vocab-table-wrap">
+          <div className="jp-vocab-table-wrap">
             <p className="jp-vocab-scroll-hint" aria-hidden="true">
               表格较宽时可左右滑动查看
             </p>
@@ -1616,7 +1616,9 @@ export function JpVocabPage() {
           flex: 1;
           min-width: 0;
         }
-        :global(.jp-vocab-page .jp-vocab-table-wrap) {
+        :global(.jp-vocab-table-wrap) {
+          display: block;
+          width: 100%;
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
         }

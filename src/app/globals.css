@@ -916,6 +916,12 @@ textarea:focus {
   display: none;
 }
 
+.jp-vocab-table-wrap {
+  @apply w-full overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+}
+
 @screen lg {
   .etr-table-wrap {
     display: block;
