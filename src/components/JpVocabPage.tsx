@@ -23,6 +23,7 @@ import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
 } from "@/lib/jp-vocab-search";
+import { JpVocabSpeakButton } from "@/components/JpVocabSpeakButton";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
@@ -1302,12 +1303,22 @@ export function JpVocabPage() {
                       </td>
                       <td
                         className={`jp-vocab-reading-col${
-                          !readingTrim ? " jp-vocab-field-empty" : ""
+                          !readingTrim && w.kind !== "word" ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="读音"
-                        style={{ color: "var(--muted)" }}
                       >
-                        {readingTrim}
+                        <div className="jp-vocab-reading-cell">
+                          {w.kind === "word" ? (
+                            <JpVocabSpeakButton word={w.word} reading={w.reading} />
+                          ) : null}
+                          {readingTrim ? (
+                            <span className="jp-vocab-reading-text">{readingTrim}</span>
+                          ) : w.kind === "word" ? (
+                            <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
+                              待补全
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td
                         className={`jp-vocab-meaning-col${
@@ -1992,11 +2003,52 @@ export function JpVocabPage() {
           padding-right: 0.65rem;
         }
         :global(.jp-vocab-table .jp-vocab-reading-col) {
-          min-width: 5rem;
+          min-width: 6.5rem;
           padding-left: 0.65rem;
           padding-right: 0.65rem;
           word-break: break-word;
           line-height: 1.45;
+        }
+        .jp-vocab-reading-cell {
+          display: inline-flex;
+          align-items: flex-start;
+          gap: 0.4rem;
+          color: var(--muted);
+        }
+        .jp-vocab-reading-text {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .jp-vocab-reading-text--pending {
+          font-size: 0.8125rem;
+          opacity: 0.72;
+        }
+        :global(.jp-vocab-speak-btn) {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 1.75rem;
+          height: 1.75rem;
+          margin: 0;
+          padding: 0;
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          background: var(--panel);
+          color: var(--accent);
+          cursor: pointer;
+        }
+        :global(.jp-vocab-speak-btn:hover:not(:disabled)) {
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        :global(.jp-vocab-speak-btn:disabled) {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        :global(.jp-vocab-speak-btn.is-playing) {
+          color: var(--rise);
+          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
         }
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
           min-width: 6.5rem;
