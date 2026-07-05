@@ -246,6 +246,17 @@ export function isJpLessonPath(pathname: string): boolean {
   return path === "/jp-lesson" || path.startsWith("/jp-lesson/");
 }
 
+/** 日语模块路径：界面固定显示中文，不受 IP / cookie 语言影响 */
+export function isJpModulePath(pathname: string): boolean {
+  return (
+    isJpLessonPath(pathname) ||
+    isJpVocabPath(pathname) ||
+    isJpReviewPath(pathname) ||
+    isJpVocabRefPath(pathname) ||
+    isAdminJpLessonTeachersPath(pathname)
+  );
+}
+
 const TOOL_SLUGS = ["pdf-to-word", "pdf-to-excel", "word-to-pdf"] as const;
 
 export function toolDotHomePath(locale: Locale): string {

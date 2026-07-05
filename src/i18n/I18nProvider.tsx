@@ -65,19 +65,23 @@ export function I18nProvider({
 }) {
   const pathname = usePathname() ?? "/";
   const initialServerLocale = useRef(serverLocale).current;
-  const [locale, setLocaleState] = useState<Locale>(() =>
-    resolveHydrationLocale(initialServerLocale)
-  );
-  const [ready, setReady] = useState(
-    () => !needsGeoLocale(initialServerLocale)
-  );
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    const routeLocale = localeFromPathname(pathname);
+    if (routeLocale) return routeLocale;
+    return resolveHydrationLocale(initialServerLocale);
+  });
+  const [ready, setReady] = useState(() => {
+    if (localeFromPathname(pathname)) return true;
+    return !needsGeoLocale(initialServerLocale);
+  });
 
   useEffect(() => {
-    const resolved = resolveClientLocale(initialServerLocale);
+    const routeLocale = localeFromPathname(pathname);
+    const resolved = routeLocale ?? resolveClientLocale(initialServerLocale);
     setLocaleState(resolved);
     persistLocale(resolved);
 
-    if (!needsGeoLocale(initialServerLocale)) {
+    if (routeLocale || !needsGeoLocale(initialServerLocale)) {
       setReady(true);
       return;
     }
@@ -95,7 +99,7 @@ export function I18nProvider({
     return () => {
       cancelled = true;
     };
-  }, [initialServerLocale]);
+  }, [initialServerLocale, pathname]);
 
   useEffect(() => {
     const routeLocale = localeFromPathname(pathname);

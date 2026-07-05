@@ -7,6 +7,7 @@ import { LangSwitch } from "@/components/LangSwitch";
 import { SiteAuthBar } from "@/components/SiteAuthBar";
 import { useSiteNavItems } from "@/hooks/useSiteNavItems";
 import { useI18n } from "@/i18n/I18nProvider";
+import { isJpModulePath } from "@/lib/locale-path";
 
 type MobileNavDrawerProps = {
   id: string;
@@ -16,6 +17,7 @@ type MobileNavDrawerProps = {
 
 export function MobileNavDrawer({ id, open, onClose }: MobileNavDrawerProps) {
   const pathname = usePathname() ?? "/";
+  const onJpModule = isJpModulePath(pathname);
   const items = useSiteNavItems();
   const { t } = useI18n();
   const nav = t("nav");
@@ -72,7 +74,7 @@ export function MobileNavDrawer({ id, open, onClose }: MobileNavDrawerProps) {
 
         <div className="mobile-nav-drawer-tools">
           <SiteAuthBar />
-          <LangSwitch />
+          {onJpModule ? null : <LangSwitch />}
         </div>
 
         <nav className="mobile-nav-drawer-nav" aria-label={nav.ariaLabel}>

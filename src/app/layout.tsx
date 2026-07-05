@@ -23,7 +23,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k=${JSON.stringify(LS_LOCALE)};var l=localStorage.getItem(k);var c=document.cookie.match(new RegExp("(?:^|; )"+k+"=([^;]*)"));var cv=c?decodeURIComponent(c[1]):"";var p=location.pathname;var z=l==="zh"||cv==="zh"||p==="/zh"||p.indexOf("/zh/")===0;if(z)document.documentElement.lang="zh-CN";}catch(e){}})();`,
+            __html: `(function(){try{var k=${JSON.stringify(LS_LOCALE)};var l=localStorage.getItem(k);var c=document.cookie.match(new RegExp("(?:^|; )"+k+"=([^;]*)"));var cv=c?decodeURIComponent(c[1]):"";var p=location.pathname;var jp=p.indexOf("/jp-lesson")===0||p.indexOf("/jp-vocab")===0||p.indexOf("/jp-review")===0||p.indexOf("/admin/jp-lesson-teachers")===0||p.indexOf("/zh/admin/jp-lesson-teachers")===0;var z=l==="zh"||cv==="zh"||p==="/zh"||p.indexOf("/zh/")===0||jp;if(z)document.documentElement.lang="zh-CN";}catch(e){}})();`,
           }}
         />
       </head>

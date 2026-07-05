@@ -7,6 +7,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { useSiteNavItems } from "@/hooks/useSiteNavItems";
 import {
   isJpLessonPath,
+  isJpModulePath,
   isJpReviewPath,
   isJpVocabPath,
   isJpVocabRefPath,
@@ -30,6 +31,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const onJpVocabRef = isJpVocabRefPath(pathname);
+  const onJpModule = isJpModulePath(pathname);
 
   const headerTitle = useMemo(() => {
     const active = items.find((item) => item.active);
@@ -82,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SiteNav />
         <div className="page-header-tools page-header-tools--desktop">
           <SiteAuthBar />
-          <LangSwitch />
+          {onJpModule ? null : <LangSwitch />}
         </div>
         <MobileNavDrawer
           id="mobile-nav-drawer"

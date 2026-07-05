@@ -1,11 +1,13 @@
 import type { NextRequest } from "next/server";
 import { LS_LOCALE, type Locale } from "@/i18n/messages";
 import { clientCountryCode, localeFromCountry } from "@/lib/geoip";
+import { isJpModulePath } from "@/lib/locale-path";
 
 export const LOCALE_HEADER = "x-locale";
 
 export function localeFromPathname(pathname: string): Locale | null {
   if (pathname === "/zh" || pathname.startsWith("/zh/")) return "zh";
+  if (isJpModulePath(pathname)) return "zh";
   return null;
 }
 
