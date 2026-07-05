@@ -8,10 +8,19 @@ import json
 import re
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = "strategy-compare-db"
+JISHO_URL = "https://jisho.org/api/v1/search/words?keyword="
+HTTP_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 # 含汉字或特殊写法，需人工指定（hiragana/katakana 词条由规则自动推断）
 MANUAL_READINGS: dict[str, str] = {
@@ -42,6 +51,43 @@ _KANA_OR_MARK = re.compile(
     r"^[\u3040-\u309F\u30A0-\u30FFー～〜/\s]+$"
 )
 _HAS_KANJI = re.compile(r"[\u4E00-\u9FFF]")
+# 末尾注释括号：大体(数量)、送る(人) — 只查括号外词形
+_PARENS_NOTE = re.compile(r"^(.+?)[（(][^）)]+[）)]$")
+# 形容动词：便利だ → 查「便利」再补「だ」
+_DA_ADJ_SUFFIX = re.compile(r"^(.+)だ$")
+# 长短语 / 礼貌句暂不补读音
+_SKIP_PHRASE = re.compile(r"(します|ください|てください|お願い)")
+_MAX_AUTO_READING_CHARS = 9
+
+
+def analyze_word(word: str) -> tuple[str, str, str | None]:
+    """解析词条，返回 (查词形, 读音后缀, 跳过原因)。"""
+    w = word.strip()
+    if not w:
+        return w, "", "empty"
+    if len(w) > _MAX_AUTO_READING_CHARS or _SKIP_PHRASE.search(w):
+        return w, "", "long_phrase"
+
+    lookup = w
+    m = _PARENS_NOTE.match(w)
+    if m:
+        lookup = m.group(1).strip()
+
+    suffix = ""
+    da_match = _DA_ADJ_SUFFIX.match(lookup)
+    if da_match:
+        lookup = da_match.group(1).strip()
+        suffix = "だ"
+
+    return lookup, suffix, None
+
+
+def attach_reading_suffix(reading: str, suffix: str) -> str:
+    if not suffix:
+        return reading
+    if reading.endswith(suffix):
+        return reading
+    return reading + suffix
 
 
 def sql_literal(value: str) -> str:
@@ -77,17 +123,91 @@ def fetch_missing(remote: bool) -> list[dict]:
     return []
 
 
-def infer_reading(word: str) -> str | None:
-    w = word.strip()
-    if not w:
+def lookup_jisho(
+    word: str,
+    cache: dict[str, str | None],
+    delay_sec: float,
+) -> str | None:
+    if word in cache:
+        return cache[word]
+
+    query = urllib.parse.quote(word.strip())
+    req = urllib.request.Request(
+        JISHO_URL + query,
+        headers={"User-Agent": HTTP_USER_AGENT},
+    )
+    reading: str | None = None
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        for item in payload.get("data") or []:
+            for jp in item.get("japanese") or []:
+                surface = str(jp.get("word") or "").strip()
+                kana = str(jp.get("reading") or "").strip()
+                if surface == word and kana:
+                    reading = kana
+                    break
+                if not surface and kana == word:
+                    reading = kana
+                    break
+            if reading:
+                break
+        if not reading:
+            for item in payload.get("data") or []:
+                for jp in item.get("japanese") or []:
+                    surface = str(jp.get("word") or "").strip()
+                    kana = str(jp.get("reading") or "").strip()
+                    if surface == word:
+                        reading = kana or surface
+                        break
+                    if kana and kana == word:
+                        reading = kana
+                        break
+                if reading:
+                    break
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as err:
+        print(f"  jisho lookup failed for {word!r}: {err}", flush=True)
+        cache[word] = None
         return None
-    if w in MANUAL_READINGS:
-        return MANUAL_READINGS[w]
-    if _KANA_OR_MARK.fullmatch(w):
-        return w
-    if _HAS_KANJI.search(w):
-        return None
-    return w
+
+    cache[word] = reading
+    if delay_sec > 0:
+        time.sleep(delay_sec)
+    return reading
+
+
+def infer_reading(
+    word: str,
+    *,
+    use_jisho: bool,
+    jisho_cache: dict[str, str | None],
+    jisho_delay_sec: float,
+) -> tuple[str | None, str | None]:
+    """返回 (读音, 跳过原因)。跳过原因如 long_phrase 表示故意不补。"""
+    lookup, suffix, skip_reason = analyze_word(word)
+    if skip_reason:
+        return None, skip_reason
+
+    if word in MANUAL_READINGS:
+        return MANUAL_READINGS[word], None
+    if lookup in MANUAL_READINGS:
+        return attach_reading_suffix(MANUAL_READINGS[lookup], suffix), None
+
+    if _KANA_OR_MARK.fullmatch(lookup):
+        return attach_reading_suffix(lookup, suffix), None
+
+    reading: str | None
+    if _HAS_KANJI.search(lookup):
+        if use_jisho:
+            reading = lookup_jisho(lookup, jisho_cache, jisho_delay_sec)
+        else:
+            reading = None
+    else:
+        reading = lookup
+
+    if not reading:
+        return None, None
+    return attach_reading_suffix(reading, suffix), None
 
 
 def main() -> int:
@@ -95,6 +215,22 @@ def main() -> int:
     parser.add_argument("--remote", action="store_true")
     parser.add_argument("--local", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--jisho",
+        action="store_true",
+        help="含汉字的词条通过 Jisho 词典 API 查读音",
+    )
+    parser.add_argument(
+        "--jisho-delay",
+        type=float,
+        default=0.35,
+        help="Jisho 请求间隔（秒），避免触发限流",
+    )
+    parser.add_argument(
+        "--allow-skipped",
+        action="store_true",
+        help="仍有无法推断的词条时也返回 0（适合 nightly 定时任务）",
+    )
     args = parser.parse_args()
     if args.remote == args.local:
         print("请指定 --remote 或 --local", file=sys.stderr)
@@ -103,6 +239,8 @@ def main() -> int:
     remote = args.remote
     label = "remote" if remote else "local"
     print(f"[migrate-jp-vocab-fill-reading] target={label}", flush=True)
+    if args.jisho:
+        print("  jisho lookup: enabled", flush=True)
 
     rows = fetch_missing(remote)
     if not rows:
@@ -111,10 +249,20 @@ def main() -> int:
 
     updated = 0
     skipped: list[str] = []
+    skipped_long: list[str] = []
+    jisho_cache: dict[str, str | None] = {}
     for row in rows:
         word_id = int(row["id"])
         word = str(row["word"])
-        reading = infer_reading(word)
+        reading, skip_reason = infer_reading(
+            word,
+            use_jisho=args.jisho,
+            jisho_cache=jisho_cache,
+            jisho_delay_sec=args.jisho_delay if args.jisho else 0.0,
+        )
+        if skip_reason == "long_phrase":
+            skipped_long.append(f"{word_id}:{word!r}")
+            continue
         if not reading:
             skipped.append(f"{word_id}:{word!r}")
             continue
@@ -136,6 +284,11 @@ def main() -> int:
             rows_written = int(meta.get("rows_written") or 0)
         updated += rows_written
 
+    if skipped_long:
+        print(
+            f"  长句/短语跳过（暂不补读音）: {', '.join(skipped_long)}",
+            flush=True,
+        )
     if skipped:
         print(f"  无法推断（需人工补全）: {', '.join(skipped)}", flush=True)
     print(
@@ -143,7 +296,9 @@ def main() -> int:
         f"{'would update' if args.dry_run else 'updated'}: {updated}",
         flush=True,
     )
-    return 0 if not skipped else 1
+    if skipped and not args.allow_skipped:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

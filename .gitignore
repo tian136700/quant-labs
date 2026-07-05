@@ -35,6 +35,9 @@ scripts/jp-vocab-sync.py
 scripts/.venv-jp-review/
 scripts/jp-review-sync.env
 
+# 日语单词读音 nightly 补全（launchd 生成的 plist 含本机绝对路径，勿提交）
+scripts/com.infoquests.jp-vocab-fill-reading.plist
+
 # 趋势博客离线生成（非线上运行时，勿提交）
 trend_aggregator/
 scripts/publish-trend-blog.py
