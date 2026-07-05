@@ -5,16 +5,20 @@ export type RbacPermissionCategory =
   | "pages"
   | "jp_vocab"
   | "jp_lesson"
+  | "en_vocab"
+  | "en_lesson"
   | "nav";
 
 /** 权限页大模块（其下可含多个 category 子分组） */
-export type RbacPermissionModule = "jp_learning";
+export type RbacPermissionModule = "jp_learning" | "en_learning";
 
 export const RBAC_CATEGORY_MODULE: Partial<
   Record<RbacPermissionCategory, RbacPermissionModule>
 > = {
   jp_vocab: "jp_learning",
   jp_lesson: "jp_learning",
+  en_vocab: "en_learning",
+  en_lesson: "en_learning",
 };
 
 /** 权限页模块顺序及所含子分组 */
@@ -28,6 +32,11 @@ export const RBAC_UI_LAYOUT: Array<
     kind: "module",
     module: "jp_learning",
     categories: ["jp_vocab", "jp_lesson"],
+  },
+  {
+    kind: "module",
+    module: "en_learning",
+    categories: ["en_vocab", "en_lesson"],
   },
   { kind: "category", category: "nav" },
 ];
@@ -148,12 +157,52 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "Progress, lesson plans, class notes",
   },
   {
+    key: "en_vocab:read",
+    labelZh: "浏览英语单词/语法",
+    labelEn: "Browse EN vocab & grammar",
+    category: "en_vocab",
+    descriptionZh: "可查看英语单词/语法抽问列表",
+    descriptionEn: "View English vocabulary and grammar spot-check lists",
+  },
+  {
+    key: "en_vocab:operate",
+    labelZh: "操作英语单词/语法",
+    labelEn: "Edit EN vocab & grammar",
+    category: "en_vocab",
+    descriptionZh: "勾选熟悉度、重置、手动添加词条、共享到今日单词",
+    descriptionEn: "Review levels, reset, manual add, share to today's list",
+  },
+  {
+    key: "en_lesson:read",
+    labelZh: "浏览英语新课",
+    labelEn: "Browse EN lessons",
+    category: "en_lesson",
+    descriptionZh: "可查看英语新课列表与教案链接",
+    descriptionEn: "View English lesson list and lesson-plan links",
+  },
+  {
+    key: "en_lesson:operate",
+    labelZh: "操作英语新课",
+    labelEn: "Edit EN lessons",
+    category: "en_lesson",
+    descriptionZh: "学习状态、教案编辑、课堂笔记",
+    descriptionEn: "Progress, lesson plans, class notes",
+  },
+  {
     key: "nav:jp_teacher",
     labelZh: "日语教师导航",
     labelEn: "JP teacher navigation",
     category: "nav",
     descriptionZh: "仅显示日语相关导航项",
     descriptionEn: "JP-focused nav items only",
+  },
+  {
+    key: "nav:en_teacher",
+    labelZh: "英语教师导航",
+    labelEn: "EN teacher navigation",
+    category: "nav",
+    descriptionZh: "仅显示英语相关导航项",
+    descriptionEn: "EN-focused nav items only",
   },
   {
     key: "nav:full",
@@ -183,6 +232,12 @@ export const RBAC_ROLE_LABELS: Record<
     descriptionZh: "日语抽查（单词/语法抽问）",
     descriptionEn: "JP vocab spot-check operations",
   },
+  en_vocab: {
+    zh: "英语教师",
+    en: "EN teacher",
+    descriptionZh: "英语抽背与今日英语单词",
+    descriptionEn: "EN vocab spot-check and today's words",
+  },
   user: {
     zh: "网上的注册用户",
     en: "Online registered user",
@@ -200,6 +255,12 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "about:view",
     "nav:jp_teacher",
   ],
+  en_vocab: [
+    "en_vocab:read",
+    "en_vocab:operate",
+    "about:view",
+    "nav:en_teacher",
+  ],
   user: [
     "compare:view",
     "etr:use",
@@ -211,7 +272,7 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
   ],
 };
 
-export const RBAC_MANAGEABLE_ROLES: EtrUserRole[] = ["jp_vocab", "user"];
+export const RBAC_MANAGEABLE_ROLES: EtrUserRole[] = ["jp_vocab", "en_vocab", "user"];
 
 export function rbacPermissionLabel(
   def: RbacPermissionDef,
@@ -236,6 +297,8 @@ export function rbacCategoryLabel(
     pages: { zh: "站点页面", en: "Site pages" },
     jp_vocab: { zh: "日语抽查（单词/语法）", en: "JP spot-check (vocab & grammar)" },
     jp_lesson: { zh: "日语新课", en: "JP new lessons" },
+    en_vocab: { zh: "英语抽查（单词/语法）", en: "EN spot-check (vocab & grammar)" },
+    en_lesson: { zh: "英语新课", en: "EN new lessons" },
     nav: { zh: "导航显示", en: "Navigation" },
   };
   return locale === "zh" ? map[category].zh : map[category].en;
@@ -247,6 +310,7 @@ export function rbacModuleLabel(
 ): string {
   const map: Record<RbacPermissionModule, { zh: string; en: string }> = {
     jp_learning: { zh: "日语学习", en: "Japanese learning" },
+    en_learning: { zh: "英语学习", en: "English learning" },
   };
   return locale === "zh" ? map[module].zh : map[module].en;
 }
@@ -255,6 +319,12 @@ export function rbacModuleLabel(
 export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "jp_lesson:read",
   "jp_lesson:operate",
+] as const;
+
+/** 英语教师角色不应持有的新课权限（默认关闭，可由管理员手动开启） */
+export const RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS = [
+  "en_lesson:read",
+  "en_lesson:operate",
 ] as const;
 
 export function isAdminSuperuser(role: string | undefined): boolean {

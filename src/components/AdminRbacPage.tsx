@@ -32,7 +32,7 @@ type UserRow = {
   permissions: string[];
 };
 
-const EDITABLE_ROLES: EtrUserRole[] = ["jp_vocab", "user"];
+const EDITABLE_ROLES: EtrUserRole[] = ["jp_vocab", "en_vocab", "user"];
 
 function PermissionMatrixTable({
   items,

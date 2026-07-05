@@ -232,6 +232,7 @@ export function catalogForClient(): RbacPermissionDef[] {
 export type SessionUserWithPermissions = EtrSessionUser & {
   permissions: string[];
   can_operate_jp_vocab: boolean;
+  can_operate_en_vocab: boolean;
 };
 
 export async function enrichSessionUser(
@@ -243,5 +244,9 @@ export async function enrichSessionUser(
     isAdminSuperuser(user.role) ||
     permissions.includes("jp_vocab:operate") ||
     permissions.includes("jp_lesson:operate");
-  return { ...user, permissions, can_operate_jp_vocab };
+  const can_operate_en_vocab =
+    isAdminSuperuser(user.role) ||
+    permissions.includes("en_vocab:operate") ||
+    permissions.includes("en_lesson:operate");
+  return { ...user, permissions, can_operate_jp_vocab, can_operate_en_vocab };
 }

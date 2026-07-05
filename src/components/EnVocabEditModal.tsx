@@ -1,0 +1,452 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { LOCALE_HEADER } from "@/lib/locale-detect";
+import type { EnVocabKind, EnVocabWord } from "@/lib/types";
+import {
+  buildOptimisticEnVocabWord,
+  syncEnVocabEditResponse,
+} from "@/lib/en-vocab-optimistic-save";
+import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { enVocabSaveQueue } from "@/lib/request-queue";
+
+type Props = {
+  open: boolean;
+  word: EnVocabWord | null;
+  locale: "en" | "zh";
+  canEdit: boolean;
+  onClose: () => void;
+  onSaved: (word: EnVocabWord) => void;
+  onSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;
+  onNeedAuth: () => void;
+};
+
+const KIND_OPTIONS: { key: EnVocabKind; label: string }[] = [
+  { key: "word", label: "单词" },
+  { key: "grammar", label: "语法" },
+];
+
+export function EnVocabEditModal({
+  open,
+  word,
+  locale,
+  canEdit,
+  onClose,
+  onSaved,
+  onSaveFailed,
+  onNeedAuth,
+}: Props) {
+  const [mounted, setMounted] = useState(false);
+  const [kind, setKind] = useState<EnVocabKind>("word");
+  const [wordText, setWordText] = useState("");
+  const [reading, setReading] = useState("");
+  const [meaning, setMeaning] = useState("");
+  const [pos, setPos] = useState("");
+  const [classNotes, setClassNotes] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (open && word) {
+      setKind(word.kind);
+      setWordText(word.word);
+      setReading(word.reading || "");
+      setMeaning(word.meaning || "");
+      setPos(word.pos || "");
+      setClassNotes(word.class_notes || "");
+      setError("");
+    }
+  }, [open, word]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  const save = () => {
+    if (!word) return;
+    if (!canEdit) {
+      onNeedAuth();
+      return;
+    }
+
+    const trimmedWord = wordText.trim();
+    if (!trimmedWord) {
+      setError(locale === "zh" ? "请填写单词或语法。" : "Word is required.");
+      return;
+    }
+
+    setError("");
+    const snapshot = word;
+    const optimistic = buildOptimisticEnVocabWord(snapshot, {
+      kind,
+      word: trimmedWord,
+      reading: kind === "word" ? reading.trim() || null : null,
+      meaning: meaning.trim() || null,
+      pos: pos.trim() || null,
+      class_notes: classNotes.trim() || null,
+    });
+
+    onSaved(optimistic);
+    onClose();
+
+    void enVocabSaveQueue.enqueue(async () => {
+      try {
+        const res = await fetch("/api/en-vocab/edit", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            word_id: snapshot.id,
+            kind,
+            word: trimmedWord,
+            reading: kind === "word" ? reading.trim() || null : null,
+            meaning: meaning.trim() || null,
+            pos: pos.trim() || null,
+            class_notes: classNotes.trim() || null,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: EnVocabWord;
+          error?: string;
+        };
+        await syncEnVocabEditResponse(res, data, locale, {
+          onSaved,
+          onSaveFailed,
+          onNeedAuth,
+        });
+      } catch (err) {
+        onSaveFailed(
+          snapshot.id,
+          snapshot,
+          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed"
+        );
+      }
+    });
+  };
+
+  if (!open || !mounted || !word) return null;
+
+  return createPortal(
+    <>
+      <div
+        className="en-vocab- jp-vocab-edit-overlay"
+        role="presentation"
+        onMouseDown={(e) => closeModalOnBackdropMouseDown(e, onClose)}
+      >
+        <div
+          className="en-vocab- jp-vocab-edit-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="en-vocab- jp-vocab-edit-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="en-vocab- jp-vocab-edit-header">
+            <div>
+              <h2 id="en-vocab- jp-vocab-edit-title" className="en-vocab- jp-vocab-edit-title">
+                编辑词条
+              </h2>
+              <p className="en-vocab- jp-vocab-edit-subtitle">
+                熟悉程度、抽查次数等统计请在表格中直接操作，此处不可修改。
+              </p>
+            </div>
+            <button
+              type="button"
+              className="en-vocab- jp-vocab-edit-close"
+              onClick={onClose}
+              aria-label="关闭"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="en-vocab- jp-vocab-edit-body">
+            <div className="field">
+              <label htmlFor="en-vocab- jp-vocab-edit-kind" className="en-vocab- jp-vocab-edit-label">
+                类型
+              </label>
+              <select
+                id="en-vocab- jp-vocab-edit-kind"
+                className="en-vocab- jp-vocab-edit-select"
+                value={kind}
+                disabled={!canEdit}
+                onChange={(e) => setKind(e.target.value as EnVocabKind)}
+              >
+                {KIND_OPTIONS.map((opt) => (
+                  <option key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="en-vocab- jp-vocab-edit-word" className="en-vocab- jp-vocab-edit-label">
+                {kind === "grammar" ? "语法" : "单词 / 语法"}
+                <span className="etr-required">*</span>
+              </label>
+              <textarea
+                id="en-vocab- jp-vocab-edit-word"
+                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--sm"
+                rows={2}
+                value={wordText}
+                disabled={!canEdit}
+                placeholder={kind === "grammar" ? "例如：～ばかり" : "例如：勉強"}
+                onChange={(e) => setWordText(e.target.value)}
+              />
+            </div>
+
+            {kind === "word" ? (
+              <div className="field">
+                <label htmlFor="en-vocab- jp-vocab-edit-reading" className="en-vocab- jp-vocab-edit-label">
+                  读音（可选）
+                </label>
+                <input
+                  id="en-vocab- jp-vocab-edit-reading"
+                  type="text"
+                  className="en-vocab- jp-vocab-edit-input"
+                  value={reading}
+                  disabled={!canEdit}
+                  placeholder="例如：べんきょう"
+                  onChange={(e) => setReading(e.target.value)}
+                />
+              </div>
+            ) : null}
+
+            <div className="field">
+              <label htmlFor="en-vocab- jp-vocab-edit-meaning" className="en-vocab- jp-vocab-edit-label">
+                释义
+              </label>
+              <textarea
+                id="en-vocab- jp-vocab-edit-meaning"
+                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--sm"
+                rows={2}
+                value={meaning}
+                disabled={!canEdit}
+                placeholder="例如：学习"
+                onChange={(e) => setMeaning(e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="en-vocab- jp-vocab-edit-pos" className="en-vocab- jp-vocab-edit-label">
+                词性
+              </label>
+              <textarea
+                id="en-vocab- jp-vocab-edit-pos"
+                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--sm"
+                rows={2}
+                value={pos}
+                disabled={!canEdit}
+                placeholder="例如：名词、动词、形容词"
+                onChange={(e) => setPos(e.target.value)}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="en-vocab- jp-vocab-edit-notes" className="en-vocab- jp-vocab-edit-label">
+                备注
+              </label>
+              <textarea
+                id="en-vocab- jp-vocab-edit-notes"
+                className="en-vocab- jp-vocab-edit-textarea en-vocab- jp-vocab-edit-textarea--lg"
+                rows={4}
+                value={classNotes}
+                disabled={!canEdit}
+                placeholder="记录例句、用法、易错点…"
+                onChange={(e) => setClassNotes(e.target.value)}
+              />
+              <p className="en-vocab- jp-vocab-edit-hint">备注保存后会同步到英语新课。</p>
+            </div>
+
+            {error ? <p className="en-vocab- jp-vocab-edit-error">{error}</p> : null}
+          </div>
+
+          <div className="en-vocab- jp-vocab-edit-footer">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={onClose}
+            >
+              取消
+            </button>
+            {canEdit ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+                onClick={save}
+              >
+                保存
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .en-vocab- jp-vocab-edit-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(3px);
+          -webkit-backdrop-filter: blur(3px);
+        }
+
+        .en-vocab- jp-vocab-edit-modal {
+          display: flex;
+          flex-direction: column;
+          width: min(520px, 100%);
+          max-height: min(92vh, 720px);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--panel);
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        .en-vocab- jp-vocab-edit-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 1rem 1.1rem 0.85rem;
+          border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          flex-shrink: 0;
+        }
+
+        .en-vocab- jp-vocab-edit-title {
+          margin: 0;
+          font-size: 1.0625rem;
+          font-weight: 600;
+        }
+
+        .en-vocab- jp-vocab-edit-subtitle {
+          margin: 0.35rem 0 0;
+          font-size: 0.75rem;
+          line-height: 1.45;
+          color: var(--muted);
+        }
+
+        .en-vocab- jp-vocab-edit-close {
+          flex-shrink: 0;
+          width: 2rem;
+          height: 2rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 55%, transparent);
+          color: var(--muted);
+          font-size: 1.25rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .en-vocab- jp-vocab-edit-body {
+          padding: 1rem 1.1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+          overflow-y: auto;
+        }
+
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+        }
+
+        .en-vocab- jp-vocab-edit-label {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+
+        .en-vocab- jp-vocab-edit-input,
+        .en-vocab- jp-vocab-edit-select,
+        .en-vocab- jp-vocab-edit-textarea {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: var(--bg);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          padding: 0.55rem 0.65rem;
+          line-height: 1.45;
+        }
+
+        .en-vocab- jp-vocab-edit-select {
+          cursor: pointer;
+        }
+
+        .en-vocab- jp-vocab-edit-select:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .en-vocab- jp-vocab-edit-textarea {
+          resize: vertical;
+        }
+
+        .en-vocab- jp-vocab-edit-textarea--sm {
+          min-height: 3.2rem;
+        }
+
+        .en-vocab- jp-vocab-edit-textarea--lg {
+          min-height: 5.5rem;
+        }
+
+        .en-vocab- jp-vocab-edit-hint {
+          margin: 0;
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
+
+        .en-vocab- jp-vocab-edit-error {
+          margin: 0;
+          padding: 0.55rem 0.7rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
+          color: var(--rise);
+          font-size: 0.8125rem;
+        }
+
+        .en-vocab- jp-vocab-edit-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.5rem;
+          padding: 0.85rem 1.1rem 1rem;
+          border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          flex-shrink: 0;
+        }
+      `}</style>
+    </>,
+    document.body
+  );
+}

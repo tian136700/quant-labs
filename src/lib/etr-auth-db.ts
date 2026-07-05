@@ -649,7 +649,7 @@ export async function createUserByAdmin(
   await ensureBootstrapUsers(env);
 
   if (role === "admin") return { ok: false, error: "cannot_create_admin" };
-  if (role !== "user" && role !== "jp_vocab") {
+  if (role !== "user" && role !== "jp_vocab" && role !== "en_vocab") {
     return { ok: false, error: "role_invalid" };
   }
 
@@ -666,6 +666,9 @@ export async function createUserByAdmin(
   }
   if (password.length < 6) return { ok: false, error: "password_too_short" };
   if (role === "jp_vocab" && password.length < 10) {
+    return { ok: false, error: "password_too_weak" };
+  }
+  if (role === "en_vocab" && password.length < 10) {
     return { ok: false, error: "password_too_weak" };
   }
 
@@ -778,6 +781,73 @@ export async function provisionJpLessonTeacherUser(
   };
 }
 
+export type ProvisionEnLessonTeacherUserResult = ProvisionJpLessonTeacherUserResult;
+
+/** 添加英语上课老师时，自动创建禁用的 en_vocab 账号（用户名取自横杠前的称呼拼音） */
+export async function provisionEnLessonTeacherUser(
+  env: CloudflareEnv,
+  teacherName: string
+): Promise<ProvisionEnLessonTeacherUserResult> {
+  const { teacherNameToUsername } = await import("./teacher-name-username");
+  const baseUsername = teacherNameToUsername(teacherName);
+  if (!baseUsername) {
+    return { ok: false, error: "username_invalid" };
+  }
+
+  await ensureBootstrapUsers(env);
+
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+
+  const candidates = [baseUsername];
+  for (let i = 2; i <= 99; i += 1) {
+    candidates.push(`${baseUsername}${i}`);
+  }
+
+  let username: string | null = null;
+  for (const candidate of candidates) {
+    const name = normalizeUsername(candidate);
+    if (!isValidUsername(name)) continue;
+    if (isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name)) {
+      continue;
+    }
+    const existing = await findUserByUsername(env.DB, name);
+    if (existing) {
+      if (candidate === baseUsername) {
+        return { ok: true, created: false, reason: "user_exists" };
+      }
+      continue;
+    }
+    username = name;
+    break;
+  }
+
+  if (!username) {
+    return { ok: true, created: false, reason: "username_unavailable" };
+  }
+
+  const password = generateAdminResetPassword(10);
+  const result = await createUserByAdmin(env, username, password, "en_vocab", {
+    disabled: true,
+  });
+  if (!result.ok) {
+    if (result.error === "username_taken") {
+      return { ok: true, created: false, reason: "user_exists" };
+    }
+    return { ok: false, error: result.error };
+  }
+
+  return {
+    ok: true,
+    created: true,
+    user: result.user,
+    password,
+  };
+}
+
 export type UpdateUserByAdminInput = {
   username?: string;
   password?: string;
@@ -809,7 +879,7 @@ export async function updateUserByAdmin(
 
   const nextRole = (hasRole ? input.role : user.role) as EtrUserRole;
   if (nextRole === "admin") return { ok: false, error: "cannot_create_admin" };
-  if (nextRole !== "user" && nextRole !== "jp_vocab") {
+  if (nextRole !== "user" && nextRole !== "jp_vocab" && nextRole !== "en_vocab") {
     return { ok: false, error: "role_invalid" };
   }
 
@@ -837,6 +907,9 @@ export async function updateUserByAdmin(
     const password = input.password!;
     if (password.length < 6) return { ok: false, error: "password_too_short" };
     if (nextRole === "jp_vocab" && password.length < 10) {
+      return { ok: false, error: "password_too_weak" };
+    }
+    if (nextRole === "en_vocab" && password.length < 10) {
       return { ok: false, error: "password_too_weak" };
     }
     const { salt, hash } = await hashPassword(password);
@@ -897,7 +970,7 @@ export async function resetUserPasswordByAdmin(
   if (!user) return { ok: false, error: "user_not_found" };
   if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
 
-  const minLength = user.role === "jp_vocab" ? 10 : 6;
+  const minLength = user.role === "jp_vocab" || user.role === "en_vocab" ? 10 : 6;
   const password = generateAdminResetPassword(minLength);
   const { salt, hash } = await hashPassword(password);
   const passwordHash = encodePasswordStorage(salt, hash);

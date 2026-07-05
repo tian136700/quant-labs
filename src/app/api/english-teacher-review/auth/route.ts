@@ -123,6 +123,7 @@ async function publicAuthUser(
     expires_hint: formatExpiresHint(enriched.role, locale),
     permissions: enriched.permissions,
     can_operate_jp_vocab: enriched.can_operate_jp_vocab,
+    can_operate_en_vocab: enriched.can_operate_en_vocab,
   };
 }
 

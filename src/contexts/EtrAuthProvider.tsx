@@ -15,6 +15,9 @@ import {
   canUserOperateJpVocab,
   canAccessJpVocabStudy,
   isJpVocabTeacherRole,
+  canUserOperateEnVocab,
+  canAccessEnVocabStudy,
+  isEnVocabTeacherRole,
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
@@ -37,6 +40,8 @@ export type EtrAuthUser = {
   permissions?: string[];
   /** 服务端根据 RBAC 计算的日语单词操作权限 */
   can_operate_jp_vocab?: boolean;
+  /** 服务端根据 RBAC 计算的英语单词操作权限 */
+  can_operate_en_vocab?: boolean;
 };
 
 type AuthPanelState = {
@@ -53,8 +58,11 @@ type EtrAuthContextValue = {
   authPanel: AuthPanelState | null;
   isAdmin: boolean;
   isJpVocabTeacher: boolean;
+  isEnVocabTeacher: boolean;
   canAccessJpVocab: boolean;
   canAccessJpVocabStudy: boolean;
+  canAccessEnVocab: boolean;
+  canAccessEnVocabStudy: boolean;
   permissions: string[];
   hasPermission: (key: string) => boolean;
   refresh: () => Promise<void>;
@@ -189,11 +197,17 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       authPanel,
       isAdmin,
       isJpVocabTeacher: isJpVocabTeacherRole(user?.role),
+      isEnVocabTeacher: isEnVocabTeacherRole(user?.role),
       canAccessJpVocab:
         user?.can_operate_jp_vocab === true ||
         (user?.can_operate_jp_vocab === undefined &&
           canUserOperateJpVocab(user)),
       canAccessJpVocabStudy: canAccessJpVocabStudy(user),
+      canAccessEnVocab:
+        user?.can_operate_en_vocab === true ||
+        (user?.can_operate_en_vocab === undefined &&
+          canUserOperateEnVocab(user)),
+      canAccessEnVocabStudy: canAccessEnVocabStudy(user),
       permissions,
       hasPermission,
       refresh,

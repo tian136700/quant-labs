@@ -84,7 +84,7 @@ export function AdminUsersPage() {
   const [editTemplateBody, setEditTemplateBody] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"user" | "jp_vocab">("user");
+  const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab">("user");
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
@@ -715,11 +715,14 @@ export function AdminUsersPage() {
             <select
               value={newRole}
               disabled={creating}
-              onChange={(e) => setNewRole(e.target.value as "user" | "jp_vocab")}
+              onChange={(e) => setNewRole(e.target.value as "user" | "jp_vocab" | "en_vocab")}
             >
               <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
               <option value="jp_vocab">
                 {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
+              </option>
+              <option value="en_vocab">
+                {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
               </option>
             </select>
           </label>

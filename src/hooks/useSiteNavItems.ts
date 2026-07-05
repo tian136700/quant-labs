@@ -15,6 +15,9 @@ import {
   isJpLessonPath,
   isJpVocabPath,
   isJpVocabStudyPath,
+  isEnLessonPath,
+  isEnVocabPath,
+  isEnVocabStudyPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
   isTeacherReviewPath,
@@ -30,10 +33,12 @@ export type SiteNavItem = {
 
 export function useSiteNavItems(): SiteNavItem[] {
   const { locale, t } = useI18n();
-  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessEnVocabStudy } = useEtrAuth();
   const loggedIn = Boolean(user);
   const jpTeacherNav =
     loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
+  const enTeacherNav =
+    loggedIn && hasPermission("nav:en_teacher") && !hasPermission("nav:full");
   const pathname = usePathname() ?? "/";
   const nav = t("nav");
   const onSubdomain = useStoreReviewSubdomain();
@@ -42,10 +47,47 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onJpLesson = isJpLessonPath(pathname);
   const onJpVocab = isJpVocabPath(pathname);
   const onJpVocabStudy = isJpVocabStudyPath(pathname);
+  const onEnLesson = isEnLessonPath(pathname);
+  const onEnVocab = isEnVocabPath(pathname);
+  const onEnVocabStudy = isEnVocabStudyPath(pathname);
   const onHiddenJp = onJpLesson || onJpVocab || onJpVocabStudy;
+  const onHiddenEn = onEnLesson || onEnVocab || onEnVocabStudy;
 
   if (!loggedIn && !checking) {
     return [
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  }
+
+  if (enTeacherNav) {
+    return [
+      {
+        id: "enVocab",
+        href: navHref("enVocab", locale, navOpts),
+        label: nav.enVocab,
+        active: onEnVocab && !onEnVocabStudy,
+      },
+      ...(canAccessEnVocabStudy
+        ? [
+            {
+              id: "enVocabStudy",
+              href: navHref("enVocabStudy", locale, navOpts),
+              label: nav.enVocabStudy,
+              active: onEnVocabStudy,
+            },
+          ]
+        : []),
+      {
+        id: "enLesson",
+        href: navHref("enLesson", locale, navOpts),
+        label: nav.enLesson,
+        active: onEnLesson,
+      },
       {
         id: "about",
         href: navHref("about", locale, navOpts),
@@ -79,6 +121,47 @@ export function useSiteNavItems(): SiteNavItem[] {
         label: nav.jpLesson,
         active: onJpLesson,
       },
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  }
+
+  if (onHiddenEn && loggedIn && !hasPermission("nav:full")) {
+    return [
+      ...(onEnVocab
+        ? [
+            {
+              id: "enVocab",
+              href: navHref("enVocab", locale, navOpts),
+              label: nav.enVocab,
+              active: !onEnVocabStudy,
+            },
+          ]
+        : []),
+      ...(onEnVocabStudy && canAccessEnVocabStudy
+        ? [
+            {
+              id: "enVocabStudy",
+              href: navHref("enVocabStudy", locale, navOpts),
+              label: nav.enVocabStudy,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onEnLesson
+        ? [
+            {
+              id: "enLesson",
+              href: navHref("enLesson", locale, navOpts),
+              label: nav.enLesson,
+              active: true,
+            },
+          ]
+        : []),
       {
         id: "about",
         href: navHref("about", locale, navOpts),
@@ -223,6 +306,38 @@ export function useSiteNavItems(): SiteNavItem[] {
                           href: navHref("jpVocabStudy", locale, navOpts),
                           label: nav.jpVocabStudy,
                           active: onJpVocabStudy,
+                        },
+                      ]
+                    : []),
+                ]
+              : []),
+            ...(hasPermission("en_lesson:read") ||
+            hasPermission("en_lesson:operate")
+              ? [
+                  {
+                    id: "enLesson",
+                    href: navHref("enLesson", locale, navOpts),
+                    label: nav.enLesson,
+                    active: onEnLesson,
+                  },
+                ]
+              : []),
+            ...(hasPermission("en_vocab:read") ||
+            hasPermission("en_vocab:operate")
+              ? [
+                  {
+                    id: "enVocab",
+                    href: navHref("enVocab", locale, navOpts),
+                    label: nav.enVocab,
+                    active: onEnVocab && !onEnVocabStudy,
+                  },
+                  ...(canAccessEnVocabStudy
+                    ? [
+                        {
+                          id: "enVocabStudy",
+                          href: navHref("enVocabStudy", locale, navOpts),
+                          label: nav.enVocabStudy,
+                          active: onEnVocabStudy,
                         },
                       ]
                     : []),

@@ -6,15 +6,22 @@ import { usePathname } from "next/navigation";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useSiteNavItems } from "@/hooks/useSiteNavItems";
 import {
+  isEnLessonPath,
+  isEnModulePath,
+  isEnVocabPath,
+  isEnVocabRefPath,
   isJpLessonPath,
   isJpModulePath,
   isJpReviewPath,
   isJpVocabPath,
   isJpVocabRefPath,
   isMaintenancePath,
+  enLessonPath,
+  enVocabPath,
   jpLessonPath,
   jpVocabPath,
 } from "@/lib/locale-path";
+import { EnVocabTeacherRouteGuard } from "./EnVocabTeacherRouteGuard";
 import { JpVocabTeacherRouteGuard } from "./JpVocabTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
 import { LangSwitch } from "./LangSwitch";
@@ -31,7 +38,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const onJpVocabRef = isJpVocabRefPath(pathname);
+  const onEnVocabRef = isEnVocabRefPath(pathname);
   const onJpModule = isJpModulePath(pathname);
+  const onEnModule = isEnModulePath(pathname);
+  const onLearningModule = onJpModule || onEnModule;
 
   const headerTitle = useMemo(() => {
     const active = items.find((item) => item.active);
@@ -39,6 +49,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const nav = t("nav");
     if (isJpLessonPath(pathname)) return nav.jpLesson;
     if (isJpVocabPath(pathname)) return nav.jpVocab;
+    if (isEnLessonPath(pathname)) return nav.enLesson;
+    if (isEnVocabPath(pathname)) return nav.enVocab;
     if (isJpReviewPath(pathname)) return nav.jpReview;
     return t("meta").title;
   }, [items, pathname, t]);
@@ -48,14 +60,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (active) return active.href;
     if (isJpLessonPath(pathname)) return jpLessonPath();
     if (isJpVocabPath(pathname)) return jpVocabPath();
+    if (isEnLessonPath(pathname)) return enLessonPath();
+    if (isEnVocabPath(pathname)) return enVocabPath();
     return items[0]?.href ?? "/";
   }, [items, pathname]);
 
-  if (onMaintenance || onJpVocabRef) {
+  if (onMaintenance || onJpVocabRef || onEnVocabRef) {
     return (
       <>
         <MaintenanceRouteGuard />
         <JpVocabTeacherRouteGuard />
+        <EnVocabTeacherRouteGuard />
         <main>{children}</main>
       </>
     );
@@ -65,6 +80,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="page-wrap">
       <MaintenanceRouteGuard />
       <JpVocabTeacherRouteGuard />
+      <EnVocabTeacherRouteGuard />
       <header className="page-header">
         <div className="mobile-header-bar">
           <Link href={headerHref} className="mobile-header-title">
@@ -84,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SiteNav />
         <div className="page-header-tools page-header-tools--desktop">
           <SiteAuthBar />
-          {onJpModule ? null : <LangSwitch />}
+          {onLearningModule ? null : <LangSwitch />}
         </div>
         <MobileNavDrawer
           id="mobile-nav-drawer"

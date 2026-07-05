@@ -14,3 +14,4 @@ export class RequestQueue {
 
 /** 日语单词页勾选/保存等写操作共用，避免并发 POST 压垮 Worker */
 export const jpVocabSaveQueue = new RequestQueue();
+export const enVocabSaveQueue = new RequestQueue();

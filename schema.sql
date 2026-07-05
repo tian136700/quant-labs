@@ -331,6 +331,153 @@ CREATE TABLE IF NOT EXISTS jp_lesson_note (
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_id);
 
+-- 英语单词抽问：共用参考资料（图片/PDF，多条词条可指向同一 ref_key）
+CREATE TABLE IF NOT EXISTS en_vocab_ref (
+  ref_key    TEXT    PRIMARY KEY,
+  title      TEXT,
+  media_type TEXT    NOT NULL DEFAULT 'image',
+  r2_key     TEXT    NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 英语单词抽问：单词/语法列表 + 熟悉程度统计
+CREATE TABLE IF NOT EXISTS en_vocab_word (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  word       TEXT    NOT NULL,
+  reading    TEXT,
+  meaning    TEXT,
+  pos        TEXT,
+  kind       TEXT    NOT NULL DEFAULT 'word',
+  ref_key    TEXT,
+  cnt_very   INTEGER NOT NULL DEFAULT 0,
+  cnt_normal INTEGER NOT NULL DEFAULT 0,
+  cnt_weak   INTEGER NOT NULL DEFAULT 0,
+  today_check_count INTEGER NOT NULL DEFAULT 0,
+  today_check_date  TEXT,
+  class_notes TEXT,
+  last_review_level TEXT,
+  last_review_at TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (ref_key) REFERENCES en_vocab_ref (ref_key) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_vocab_word ON en_vocab_word (word);
+CREATE INDEX IF NOT EXISTS idx_en_vocab_weak ON en_vocab_word (cnt_weak DESC, cnt_normal ASC);
+CREATE INDEX IF NOT EXISTS idx_en_vocab_ref_key ON en_vocab_word (ref_key);
+CREATE INDEX IF NOT EXISTS idx_en_vocab_updated_at ON en_vocab_word (updated_at);
+
+-- 英语单词抽问：站点级配置（如今日前 20 条标记样式，管理员统一设置）
+CREATE TABLE IF NOT EXISTS en_vocab_setting (
+  key        TEXT    PRIMARY KEY,
+  value      TEXT    NOT NULL,
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 英语单词抽问：老师共享给学生「今日背英语单词」（北京时间 0 点按 share_date 自然清空）
+CREATE TABLE IF NOT EXISTS en_vocab_shared (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  word_id    INTEGER NOT NULL,
+  shared_by  TEXT    NOT NULL,
+  shared_at  TEXT    NOT NULL,
+  share_date TEXT    NOT NULL,
+  FOREIGN KEY (word_id) REFERENCES en_vocab_word (id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_en_vocab_shared_day_word
+  ON en_vocab_shared (share_date, word_id);
+CREATE INDEX IF NOT EXISTS idx_en_vocab_shared_date ON en_vocab_shared (share_date);
+
+-- 英语新课：上课老师（管理员维护，仅管理员可见）
+CREATE TABLE IF NOT EXISTS en_lesson_teacher (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL UNIQUE,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_lesson_teacher_sort ON en_lesson_teacher (sort_order ASC, id ASC);
+
+-- 英语新课：学习清单 + 教案（API 在此上传，逗号分隔学习内容）
+CREATE TABLE IF NOT EXISTS en_lesson (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind        TEXT    NOT NULL DEFAULT 'word',
+  content     TEXT    NOT NULL,
+  title       TEXT,
+  ref_key     TEXT,
+  completed           INTEGER NOT NULL DEFAULT 0,
+  learning            INTEGER NOT NULL DEFAULT 0,
+  status_updated_at   TEXT,
+  status_updated_by   TEXT,
+  teacher_other       TEXT,
+  next_class_at       TEXT,
+  class_duration_minutes INTEGER,
+  uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (ref_key) REFERENCES en_vocab_ref (ref_key) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_lesson_uploaded ON en_lesson (uploaded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_en_lesson_ref ON en_lesson (ref_key);
+
+-- 英语新课：课程与上课老师（多对多，仅管理员可见）
+CREATE TABLE IF NOT EXISTS en_lesson_teacher_link (
+  lesson_id  INTEGER NOT NULL,
+  teacher_id INTEGER NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (lesson_id, teacher_id),
+  FOREIGN KEY (lesson_id) REFERENCES en_lesson (id) ON DELETE CASCADE,
+  FOREIGN KEY (teacher_id) REFERENCES en_lesson_teacher (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_lesson_teacher_link_teacher ON en_lesson_teacher_link (teacher_id);
+
+-- 英语新课：多条预约上课时间（仅管理员可见与编辑）
+CREATE TABLE IF NOT EXISTS en_lesson_class_schedule (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  lesson_id        INTEGER NOT NULL,
+  class_at         TEXT    NOT NULL,
+  duration_minutes INTEGER,
+  sort_order       INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (lesson_id) REFERENCES en_lesson (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_lesson_class_schedule_lesson ON en_lesson_class_schedule (lesson_id, sort_order ASC, class_at ASC);
+
+-- 英语新课：上课老师评价（管理员维护，参照英语老师评价：0～10 分 + 备注）
+CREATE TABLE IF NOT EXISTS en_lesson_teacher_review (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  teacher_id  INTEGER NOT NULL,
+  class_date  TEXT    NOT NULL,
+  score       INTEGER NOT NULL,
+  remark      TEXT,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (teacher_id) REFERENCES en_lesson_teacher (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_lesson_teacher_review_teacher ON en_lesson_teacher_review (teacher_id);
+CREATE INDEX IF NOT EXISTS idx_en_lesson_teacher_review_class_date ON en_lesson_teacher_review (class_date);
+CREATE INDEX IF NOT EXISTS idx_en_lesson_teacher_review_updated_at ON en_lesson_teacher_review (updated_at);
+
+-- 英语新课：课堂笔记（每条笔记归属 content 中的某一单词/语法）
+CREATE TABLE IF NOT EXISTS en_lesson_note (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  lesson_id  INTEGER NOT NULL,
+  item_word  TEXT    NOT NULL,
+  body       TEXT    NOT NULL,
+  created_by TEXT,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (lesson_id) REFERENCES en_lesson (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_en_lesson_note_lesson ON en_lesson_note (lesson_id);
+
 -- 已有库升级（仅需执行一次）：
 -- ALTER TABLE user_feedback ADD COLUMN geo_region TEXT;
 -- ALTER TABLE user_feedback ADD COLUMN geo_region_code TEXT;

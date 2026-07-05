@@ -34,7 +34,11 @@ function isLocaleNeutralPath(pathname: string): boolean {
     path === "/jp-vocab" ||
     path.startsWith("/jp-vocab/") ||
     path === "/jp-review" ||
-    path.startsWith("/jp-review/")
+    path.startsWith("/jp-review/") ||
+    path === "/en-lesson" ||
+    path.startsWith("/en-lesson/") ||
+    path === "/en-vocab" ||
+    path.startsWith("/en-vocab/")
   );
 }
 
@@ -150,6 +154,10 @@ export function adminJpLessonTeachersPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
 }
 
+export function adminEnLessonTeachersPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/en-lesson-teachers" : "/admin/en-lesson-teachers";
+}
+
 export function maintenancePath(locale: Locale): string {
   return locale === "zh" ? "/zh/maintenance" : "/maintenance";
 }
@@ -181,6 +189,13 @@ export function isAdminJpLessonTeachersPath(pathname: string): boolean {
   );
 }
 
+export function isAdminEnLessonTeachersPath(pathname: string): boolean {
+  return (
+    pathname === "/admin/en-lesson-teachers" ||
+    pathname === "/zh/admin/en-lesson-teachers"
+  );
+}
+
 export function isMaintenancePath(pathname: string): boolean {
   return pathname === "/maintenance" || pathname === "/zh/maintenance";
 }
@@ -192,7 +207,8 @@ export function isAdminPath(pathname: string): boolean {
     isAdminRbacPath(pathname) ||
     isAdminUsersPath(pathname) ||
     isAdminToolCodesPath(pathname) ||
-    isAdminJpLessonTeachersPath(pathname)
+    isAdminJpLessonTeachersPath(pathname) ||
+    isAdminEnLessonTeachersPath(pathname)
   );
 }
 
@@ -295,6 +311,62 @@ export function isJpVocabTeacherAllowedPath(pathname: string): boolean {
     isJpVocabPath(pathname) ||
     isJpVocabStudyPath(pathname) ||
     isJpLessonPath(pathname) ||
+    isAboutPath(pathname)
+  );
+}
+
+export function enVocabPath(): string {
+  return "/en-vocab";
+}
+
+export function enVocabStudyPath(): string {
+  return "/en-vocab/study";
+}
+
+export function isEnVocabStudyPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/en-vocab/study";
+}
+
+export function isEnVocabPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/en-vocab" || path.startsWith("/en-vocab/");
+}
+
+export function isEnVocabRefPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path.startsWith("/en-vocab/ref/");
+}
+
+export function enLessonPath(): string {
+  return "/en-lesson";
+}
+
+export function enLessonSchedulePath(): string {
+  return "/en-lesson/schedule";
+}
+
+export function isEnLessonPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/en-lesson" || path.startsWith("/en-lesson/");
+}
+
+/** 英语模块路径：界面固定显示中文，不受 IP / cookie 语言影响 */
+export function isEnModulePath(pathname: string): boolean {
+  return (
+    isEnLessonPath(pathname) ||
+    isEnVocabPath(pathname) ||
+    isEnVocabRefPath(pathname) ||
+    isAdminEnLessonTeachersPath(pathname)
+  );
+}
+
+/** 英语模块老师可访问的页面（不含 API / 静态资源） */
+export function isEnVocabTeacherAllowedPath(pathname: string): boolean {
+  return (
+    isEnVocabPath(pathname) ||
+    isEnVocabStudyPath(pathname) ||
+    isEnLessonPath(pathname) ||
     isAboutPath(pathname)
   );
 }

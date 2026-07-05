@@ -25,7 +25,9 @@ type Props = {
   onCredentialsStored?: (userId: number, password: string) => void;
 };
 
-function adminUserRoleLabel(role: "user" | "jp_vocab", locale: "en" | "zh"): string {
+type AdminUserRole = "user" | "jp_vocab" | "en_vocab";
+
+function adminUserRoleLabel(role: AdminUserRole, locale: "en" | "zh"): string {
   const item = RBAC_ROLE_LABELS[role as EtrUserRole];
   return locale === "zh" ? item.zh : item.en;
 }
@@ -33,7 +35,7 @@ function adminUserRoleLabel(role: "user" | "jp_vocab", locale: "en" | "zh"): str
 function buildOptimisticAdminUser(
   base: AdminUserEditRow,
   username: string,
-  role: "user" | "jp_vocab",
+  role: AdminUserRole,
   locale: "en" | "zh"
 ): AdminUserEditRow {
   return {
@@ -56,7 +58,7 @@ export function AdminUserEditModal({
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"user" | "jp_vocab">("user");
+  const [role, setRole] = useState<AdminUserRole>("user");
   const [error, setError] = useState("");
   const wasOpenRef = useRef(false);
 
@@ -68,7 +70,13 @@ export function AdminUserEditModal({
     if (open && !wasOpenRef.current && user) {
       setUsername(user.username);
       setPassword("");
-      setRole(user.role === "jp_vocab" ? "jp_vocab" : "user");
+      setRole(
+        user.role === "jp_vocab"
+          ? "jp_vocab"
+          : user.role === "en_vocab"
+            ? "en_vocab"
+            : "user"
+      );
       setError("");
     }
     wasOpenRef.current = open;
@@ -232,11 +240,14 @@ export function AdminUserEditModal({
             <span>{locale === "zh" ? "角色" : "Role"}</span>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as "user" | "jp_vocab")}
+              onChange={(e) => setRole(e.target.value as AdminUserRole)}
             >
               <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
               <option value="jp_vocab">
                 {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
+              </option>
+              <option value="en_vocab">
+                {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
               </option>
             </select>
           </label>

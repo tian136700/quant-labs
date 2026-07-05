@@ -80,6 +80,10 @@ export interface CloudflareEnv {
   JP_REVIEW_UPLOAD_TOKEN?: string;
   /** 日语复习 PDF：下载可选 query key（留空则公开下载） */
   JP_REVIEW_DOWNLOAD_KEY?: string;
+  /** 英语单词模块：老师用户名 */
+  ETR_EN_VOCAB_USERNAME?: string;
+  /** 英语单词模块：老师密码（仅环境变量/Secret，勿提交 Git） */
+  ETR_EN_VOCAB_PASSWORD?: string;
 }
 
 export interface EnglishTeacherReviewRecord {
@@ -295,6 +299,26 @@ export interface JpLessonNote {
   created_at: string;
   updated_at: string;
 }
+
+/** 英语单词/新课：与日语模块结构相同，独立表存储 */
+export type EnVocabLevel = JpVocabLevel;
+export type EnVocabKind = JpVocabKind;
+export type EnVocabMediaType = JpVocabMediaType;
+export type EnVocabRef = JpVocabRef;
+export type EnVocabWord = JpVocabWord;
+export type EnVocabUploadInput = JpVocabUploadInput;
+export type EnVocabSharedItem = JpVocabSharedItem;
+export type EnVocabRefUploadInput = JpVocabRefUploadInput;
+export type EnLessonKind = JpLessonKind;
+export type EnLessonTeacher = JpLessonTeacher;
+export type EnLessonTeacherReviewRecord = JpLessonTeacherReviewRecord;
+export type EnLessonTeacherReviewSortField = JpLessonTeacherReviewSortField;
+export type EnLessonTeacherReviewSummary = JpLessonTeacherReviewSummary;
+export type EnLessonClassSchedule = JpLessonClassSchedule;
+export type EnLessonClassScheduleInput = JpLessonClassScheduleInput;
+export type EnLessonRecord = JpLessonRecord;
+export type EnLessonUploadInput = JpLessonUploadInput;
+export type EnLessonNote = JpLessonNote;
 
 export interface TrendFetchRunRecord {
   id: number;
