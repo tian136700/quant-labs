@@ -141,6 +141,120 @@ function formatLessonTeacherNames(
   return names.length ? names.join("、") : "—";
 }
 
+type JpLessonMobileIconName =
+  | "edit"
+  | "calendar"
+  | "user"
+  | "upload"
+  | "clock"
+  | "view"
+  | "pen"
+  | "download"
+  | "copy"
+  | "notes";
+
+function JpLessonMobileIcon({
+  name,
+  className = "",
+}: {
+  name: JpLessonMobileIconName;
+  className?: string;
+}) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.4,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  const body = (() => {
+    switch (name) {
+      case "edit":
+      case "pen":
+        return <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" {...common} />;
+      case "calendar":
+        return (
+          <>
+            <rect x="2.5" y="3.5" width="11" height="10" rx="1.2" {...common} />
+            <path d="M2.5 6.5h11M5.5 2v2.5M10.5 2v2.5" {...common} />
+          </>
+        );
+      case "user":
+        return (
+          <>
+            <circle cx="8" cy="5.5" r="2.2" {...common} />
+            <path d="M3.5 13.5c.8-2.2 2.6-3.5 4.5-3.5s3.7 1.3 4.5 3.5" {...common} />
+          </>
+        );
+      case "upload":
+        return (
+          <>
+            <path d="M8 10V3.5M5.5 6 8 3.5 10.5 6" {...common} />
+            <path d="M3 12.5h10" {...common} />
+          </>
+        );
+      case "clock":
+        return (
+          <>
+            <circle cx="8" cy="8" r="5.5" {...common} />
+            <path d="M8 5v3.5l2.2 1.3" {...common} />
+          </>
+        );
+      case "view":
+        return (
+          <>
+            <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" {...common} />
+            <circle cx="8" cy="8" r="2" {...common} />
+          </>
+        );
+      case "download":
+        return (
+          <>
+            <path d="M8 2.5v7M5.5 7 8 9.5 10.5 7" {...common} />
+            <path d="M3 12.5h10" {...common} />
+          </>
+        );
+      case "copy":
+        return (
+          <>
+            <rect x="5.5" y="5.5" width="7" height="7" rx="1" {...common} />
+            <path d="M3.5 10.5V4.5a1 1 0 011-1H10" {...common} />
+          </>
+        );
+      case "notes":
+        return <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" {...common} />;
+      default:
+        return null;
+    }
+  })();
+  return (
+    <svg
+      className={`jp-lesson-mobile-icon${className ? ` ${className}` : ""}`}
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      {body}
+    </svg>
+  );
+}
+
+function JpLessonMobileFieldValue({
+  icon,
+  children,
+}: {
+  icon: JpLessonMobileIconName;
+  children: ReactNode;
+}) {
+  return (
+    <div className="jp-lesson-mobile-field-value">
+      <JpLessonMobileIcon name={icon} />
+      <span className="jp-lesson-mobile-field-text">{children}</span>
+    </div>
+  );
+}
+
 export function JpLessonPage() {
   const { locale } = useI18n();
   const { user, checking, canAccessJpVocab, openAuthPanel, isAdmin } = useEtrAuth();
@@ -583,6 +697,9 @@ export function JpLessonPage() {
           className="jp-lesson-action-btn"
           onClick={() => setEditingLesson(lesson)}
         >
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <JpLessonMobileIcon name="upload" />
+          </span>
           上传教案
         </button>
       ) : (
@@ -598,6 +715,9 @@ export function JpLessonPage() {
         rel="noopener noreferrer"
         className="jp-lesson-action-btn"
       >
+        <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+          <JpLessonMobileIcon name="view" />
+        </span>
         查看
       </a>,
     ];
@@ -609,6 +729,9 @@ export function JpLessonPage() {
           className="jp-lesson-action-btn"
           onClick={() => setAnnotatingLesson({ lesson, ref: ref!, viewUrl })}
         >
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <JpLessonMobileIcon name="pen" />
+          </span>
           随手画
         </button>
       );
@@ -620,7 +743,7 @@ export function JpLessonPage() {
         mediaUrl={jpVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })}
         filename={refFilename(lesson.ref_key!, ref)}
         mediaType={ref?.media_type ?? "image"}
-        primaryClassName="jp-lesson-action-btn"
+        primaryClassName="jp-lesson-action-btn jp-lesson-action-btn--download"
         fixedPanel
         allowOriginalDownload={isAdmin}
       />
@@ -632,6 +755,9 @@ export function JpLessonPage() {
         className="jp-lesson-action-btn"
         onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
       >
+        <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+          <JpLessonMobileIcon name="copy" />
+        </span>
         {copiedId === lesson.id ? "已复制" : "复制"}
       </button>
     );
@@ -647,12 +773,121 @@ export function JpLessonPage() {
     return <div className="jp-lesson-actions">{actionItems}</div>;
   };
 
+  const renderMobileCardHead = (groupLessons: JpLessonRecord[]) => (
+    <td className="jp-lesson-mobile-card-head">
+      <div className="jp-lesson-mobile-card-head-inner">
+        <div className="jp-lesson-mobile-card-head-meta">
+          {groupLessons.map((lesson) => (
+            <div
+              key={lesson.id}
+              className={`jp-lesson-mobile-card-head-row${
+                groupLessons.length > 1 ? " jp-lesson-mobile-card-head-row--merged" : ""
+              }`}
+            >
+              <span className="jp-lesson-mobile-card-id">ID {lesson.id}</span>
+              <span
+                className={`jp-lesson-kind jp-lesson-mobile-card-kind${
+                  lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                }`}
+              >
+                {lesson.kind === "grammar" ? "语法" : "单词"}
+              </span>
+            </div>
+          ))}
+        </div>
+        {canOperate ? (
+          <div className="jp-lesson-mobile-card-head-actions">
+            {groupLessons.map((lesson) => (
+              <button
+                key={lesson.id}
+                type="button"
+                className="jp-lesson-mobile-card-head-edit"
+                title={`编辑 #${lesson.id} 教案`}
+                aria-label={`编辑 #${lesson.id} 教案`}
+                onClick={() => setEditingLesson(lesson)}
+              >
+                <JpLessonMobileIcon name="edit" />
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </td>
+  );
+
+  const renderMobileCardFooter = (groupLessons: JpLessonRecord[]) => {
+    const rows = groupLessons.flatMap((lesson) => {
+      const buttons: ReactNode[] = [];
+      if (canOperate) {
+        buttons.push(
+          <button
+            key={`edit-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            onClick={() => setEditingLesson(lesson)}
+          >
+            <JpLessonMobileIcon name="edit" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}编辑课程</span>
+          </button>
+        );
+      }
+      if (isAdmin) {
+        buttons.push(
+          <button
+            key={`time-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            disabled={savingNextClassId === lesson.id}
+            onClick={() => setEditingNextClassLesson(lesson)}
+          >
+            <JpLessonMobileIcon name="clock" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改时间</span>
+          </button>
+        );
+        buttons.push(
+          <button
+            key={`teacher-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            disabled={savingTeacherId === lesson.id}
+            onClick={() => setEditingTeacherLesson(lesson)}
+          >
+            <JpLessonMobileIcon name="user" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改老师</span>
+          </button>
+        );
+      }
+      if (!buttons.length) return [];
+      return (
+        <div
+          key={lesson.id}
+          className="jp-lesson-mobile-footer-row"
+          style={{ gridTemplateColumns: `repeat(${buttons.length}, minmax(0, 1fr))` }}
+        >
+          {buttons}
+        </div>
+      );
+    });
+
+    if (!rows.length) {
+      return <td className="jp-lesson-mobile-card-footer" aria-hidden="true" />;
+    }
+
+    return (
+      <td className="jp-lesson-mobile-card-footer">
+        <div className="jp-lesson-mobile-footer-stack">{rows}</div>
+      </td>
+    );
+  };
+
   const renderSharedTeacherCell = (groupLessons: JpLessonRecord[]) => {
     const lesson = groupLessons[0];
     return (
       <td data-label="上课老师" className="jp-lesson-teacher-col">
         <div className="jp-lesson-teacher-cell">
-          <span>{formatLessonTeacherNames(lesson, teacherNameById)}</span>
+          <JpLessonMobileFieldValue icon="user">
+            {formatLessonTeacherNames(lesson, teacherNameById)}
+          </JpLessonMobileFieldValue>
           <div className="jp-lesson-merged-edit-stack">
             {groupLessons.map((item) => (
               <JpEditIconButton
@@ -676,7 +911,8 @@ export function JpLessonPage() {
     return (
       <td data-label="上课时间" className="jp-lesson-next-class-col">
         <div className="jp-lesson-next-class-cell">
-          <div className="jp-lesson-next-class-lines">
+          <JpLessonMobileFieldValue icon="calendar">
+            <div className="jp-lesson-next-class-lines">
             {progressStatus === "completed" ? (
               <span className="jp-lesson-next-class-label is-done">已上完课</span>
             ) : classSchedules.length === 0 ? (
@@ -699,7 +935,8 @@ export function JpLessonPage() {
                 );
               })
             )}
-          </div>
+            </div>
+          </JpLessonMobileFieldValue>
           <div className="jp-lesson-merged-edit-stack">
             {groupLessons.map((item) => (
               <JpEditIconButton
@@ -782,6 +1019,7 @@ export function JpLessonPage() {
 
             return (
               <tr key={group.key} className={rowClassName || undefined}>
+                {renderMobileCardHead(group.lessons)}
                 <td data-label="ID" className="jp-lesson-id-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
@@ -825,7 +1063,9 @@ export function JpLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {renderLessonDateTime(lesson.uploaded_at)}
+                        <JpLessonMobileFieldValue icon="upload">
+                          {renderLessonDateTime(lesson.uploaded_at)}
+                        </JpLessonMobileFieldValue>
                       </div>
                     ))}
                   </div>
@@ -834,9 +1074,11 @@ export function JpLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {lesson.status_updated_at
-                          ? renderLessonDateTime(lesson.status_updated_at)
-                          : "—"}
+                        <JpLessonMobileFieldValue icon="clock">
+                          {lesson.status_updated_at
+                            ? renderLessonDateTime(lesson.status_updated_at)
+                            : "—"}
+                        </JpLessonMobileFieldValue>
                       </div>
                     ))}
                   </div>
@@ -845,7 +1087,9 @@ export function JpLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {lesson.status_updated_by ?? "—"}
+                        <JpLessonMobileFieldValue icon="user">
+                          {lesson.status_updated_by ?? "—"}
+                        </JpLessonMobileFieldValue>
                       </div>
                     ))}
                   </div>
@@ -906,6 +1150,9 @@ export function JpLessonPage() {
                             className="jp-lesson-notes-btn"
                             title="在新标签页打开课堂笔记"
                           >
+                            <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+                              <JpLessonMobileIcon name="notes" />
+                            </span>
                             笔记
                             {noteCount > 0 ? (
                               <span className="jp-lesson-notes-count">{noteCount}</span>
@@ -928,6 +1175,7 @@ export function JpLessonPage() {
                     ))}
                   </div>
                 </td>
+                {renderMobileCardFooter(group.lessons)}
               </tr>
             );
           })}
@@ -1203,6 +1451,17 @@ export function JpLessonPage() {
           :global(.jp-lesson-mobile-status-filter) {
             display: none;
           }
+        }
+        :global(.jp-lesson-mobile-card-head),
+        :global(.jp-lesson-mobile-card-footer) {
+          display: none !important;
+        }
+        :global(.jp-lesson-mobile-field-value) {
+          display: contents;
+        }
+        :global(.jp-lesson-mobile-icon),
+        :global(.jp-lesson-mobile-btn-icon) {
+          display: none;
         }
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
