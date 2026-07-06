@@ -3,7 +3,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ENV_FILE="${HOME}/.config/info-quests/jp-vocab-fill-reading.env"
+CONFIG_DIR="${HOME}/.config/info-quests"
+ENV_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.env"
+STATE_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.last_success"
+LOCK_DIR="${CONFIG_DIR}/jp-vocab-fill-reading.lock.d"
 
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -32,5 +35,13 @@ fi
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "$(date '+%F %T') nightly: already running, skip"
+  exit 0
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
 cd "$ROOT"
-exec python3 "$ROOT/scripts/migrate-jp-vocab-fill-reading.py" "${ARGS[@]}"
+python3 "$ROOT/scripts/migrate-jp-vocab-fill-reading.py" "${ARGS[@]}"
+date +%s > "$STATE_FILE"
+echo "$(date '+%F %T') nightly: done, state updated"
