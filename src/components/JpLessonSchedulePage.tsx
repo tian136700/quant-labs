@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -66,6 +66,23 @@ function findEventForSlot(events: DayScheduleEvent[], slotIndex: number): DaySch
 
 function isFirstSlotForEvent(event: DayScheduleEvent, slotIndex: number): boolean {
   return slotIndexFromMinutes(beijingMinutesFromMidnight(event.start)) === slotIndex;
+}
+
+/** 从起始格起，该节课连续占用的半小时格数（如 55 分钟 ≈ 2 格） */
+function getEventSlotSpan(event: DayScheduleEvent, fromSlotIndex: number): number {
+  let span = 0;
+  for (let slotIndex = fromSlotIndex; slotIndex < SLOT_COUNT; slotIndex += 1) {
+    if (!eventOccupiesSlot(event, slotIndex)) break;
+    span += 1;
+  }
+  return Math.max(1, span);
+}
+
+/** 时间轴只渲染每节课的首格；后续半小时格合并进首格展示 */
+function shouldRenderTimelineSlot(events: DayScheduleEvent[], slotIndex: number): boolean {
+  const event = findEventForSlot(events, slotIndex);
+  if (!event) return true;
+  return isFirstSlotForEvent(event, slotIndex);
 }
 
 function getDayBusySlotRange(dayEvents: DayScheduleEvent[]): { start: number; end: number } | null {
@@ -552,18 +569,30 @@ export function JpLessonSchedulePage() {
                 <>
                   <h3 className="jpls-timeline-heading">时间轴</h3>
                   <div className="jpls-slot-grid">
-                {dayTimelineSlotIndices.map((slotIndex) => {
+                {dayTimelineSlotIndices
+                  .filter((slotIndex) => shouldRenderTimelineSlot(dayEvents, slotIndex))
+                  .map((slotIndex) => {
                   const event = findEventForSlot(dayEvents, slotIndex);
                   const isHourSlot = slotIndex % 2 === 0;
                   const status = event ? getJpLessonScheduleEventStatus(event, now) : null;
                   const showDetails = event && isFirstSlotForEvent(event, slotIndex);
+                  const eventSlotSpan =
+                    event && showDetails ? getEventSlotSpan(event, slotIndex) : 1;
                   const encourageLabel = status ? eventTimelineEncourageLabel(status) : null;
                   return (
                     <div
                       key={slotIndex}
                       className={`jpls-slot-row${isHourSlot ? " is-hour" : ""}${
                         showNowLine && slotIndex === nowSlotIndex ? " has-now" : ""
-                      }${event && showDetails ? " is-event-start" : ""}`}
+                      }${event && showDetails ? " is-event-start" : ""}${
+                        eventSlotSpan > 1 ? " is-event-span" : ""
+                      }`}
+                      data-slot-span={eventSlotSpan > 1 ? eventSlotSpan : undefined}
+                      style={
+                        eventSlotSpan > 1
+                          ? ({ "--jpls-slot-span": eventSlotSpan } as CSSProperties)
+                          : undefined
+                      }
                     >
                       <div className="jpls-slot-time">{formatSlotTime(slotIndex)}</div>
                       <button
@@ -1088,6 +1117,17 @@ export function JpLessonSchedulePage() {
         }
         .jpls-slot-row.is-event-start {
           min-height: 2.35rem;
+        }
+        .jpls-slot-row.is-event-span {
+          min-height: calc(var(--jpls-slot-span, 2) * 1.75rem);
+        }
+        .jpls-slot-row.is-event-span.is-event-start {
+          min-height: calc(var(--jpls-slot-span, 2) * 2.35rem);
+        }
+        .jpls-slot-row.is-event-span .jpls-slot-cell.is-busy {
+          align-items: flex-start;
+          flex-direction: column;
+          justify-content: center;
         }
         .jpls-slot-row.is-hour {
           border-bottom-color: color-mix(in srgb, var(--border) 100%, transparent);

@@ -33,6 +33,7 @@ import {
   getLessonClassSchedules,
   jpLessonProgressToFields,
   normalizeClassDurationMinutes,
+  parseLessonContent,
   type JpLessonDisplayGroup,
   type JpLessonClassTimeSortOrder,
   type JpLessonProgressStatus,
@@ -92,6 +93,12 @@ function groupLessonsForDisplay(
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
   return jpVocabRefFilename(refKey, ref?.media_type === "pdf" ? "pdf" : "image");
+}
+
+function formatLessonContentOneLine(raw: string): string {
+  const items = parseLessonContent(raw);
+  if (!items.length) return raw.trim() || "—";
+  return items.join("、");
 }
 
 function renderLessonDateTime(iso: string) {
@@ -773,48 +780,6 @@ export function JpLessonPage() {
     return <div className="jp-lesson-actions">{actionItems}</div>;
   };
 
-  const renderMobileCardHead = (groupLessons: JpLessonRecord[]) => (
-    <td className="jp-lesson-mobile-card-head">
-      <div className="jp-lesson-mobile-card-head-inner">
-        <div className="jp-lesson-mobile-card-head-meta">
-          {groupLessons.map((lesson) => (
-            <div
-              key={lesson.id}
-              className={`jp-lesson-mobile-card-head-row${
-                groupLessons.length > 1 ? " jp-lesson-mobile-card-head-row--merged" : ""
-              }`}
-            >
-              <span className="jp-lesson-mobile-card-id">ID {lesson.id}</span>
-              <span
-                className={`jp-lesson-kind jp-lesson-mobile-card-kind${
-                  lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
-                }`}
-              >
-                {lesson.kind === "grammar" ? "语法" : "单词"}
-              </span>
-            </div>
-          ))}
-        </div>
-        {canOperate ? (
-          <div className="jp-lesson-mobile-card-head-actions">
-            {groupLessons.map((lesson) => (
-              <button
-                key={lesson.id}
-                type="button"
-                className="jp-lesson-mobile-card-head-edit"
-                title={`编辑 #${lesson.id} 教案`}
-                aria-label={`编辑 #${lesson.id} 教案`}
-                onClick={() => setEditingLesson(lesson)}
-              >
-                <JpLessonMobileIcon name="edit" />
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </td>
-  );
-
   const renderMobileCardFooter = (groupLessons: JpLessonRecord[]) => {
     const rows = groupLessons.flatMap((lesson) => {
       const buttons: ReactNode[] = [];
@@ -1019,7 +984,6 @@ export function JpLessonPage() {
 
             return (
               <tr key={group.key} className={rowClassName || undefined}>
-                {renderMobileCardHead(group.lessons)}
                 <td data-label="ID" className="jp-lesson-id-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
@@ -1047,13 +1011,51 @@ export function JpLessonPage() {
                 <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        <div className="jp-lesson-content-lines">
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        <div className="jp-lesson-content-lines jp-lesson-content-desktop">
                           {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
                             <span key={lineIdx} className="jp-lesson-content-line">
                               {line}
                             </span>
                           ))}
+                        </div>
+                        <div
+                          className={`jp-lesson-mobile-content-item${
+                            merged ? " jp-lesson-merged-stack-item" : ""
+                          }`}
+                        >
+                          <div className="jp-lesson-mobile-content-main">
+                            <div className="jp-lesson-mobile-id-block">
+                              <div className="jp-lesson-mobile-id-line">
+                                <span className="jp-lesson-mobile-id-label">ID</span>
+                                <span className="jp-lesson-mobile-id-value">{lesson.id}</span>
+                              </div>
+                              <span
+                                className={`jp-lesson-kind jp-lesson-mobile-kind-tag${
+                                  lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                                }`}
+                              >
+                                {lesson.kind === "grammar" ? "语法" : "单词"}
+                              </span>
+                            </div>
+                            <p className="jp-lesson-mobile-content-text">
+                              {formatLessonContentOneLine(lesson.content)}
+                            </p>
+                            {canOperate ? (
+                              <button
+                                type="button"
+                                className="jp-lesson-mobile-content-edit"
+                                title={`编辑 #${lesson.id} 教案`}
+                                aria-label={`编辑 #${lesson.id} 教案`}
+                                onClick={() => setEditingLesson(lesson)}
+                              >
+                                <JpLessonMobileIcon name="edit" />
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1096,7 +1098,7 @@ export function JpLessonPage() {
                 </td>
                 {isAdmin ? renderSharedTeacherCell(group.lessons) : null}
                 {isAdmin ? renderSharedClassTimeCell(group.lessons) : null}
-                <td data-label="学习状态" className="jp-lesson-complete-col">
+                <td data-label="学习状态" className="jp-lesson-complete-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const progressStatus = getJpLessonProgressStatus(lesson);
@@ -1134,7 +1136,7 @@ export function JpLessonPage() {
                     })}
                   </div>
                 </td>
-                <td data-label="课堂笔记" className="jp-lesson-notes-col">
+                <td data-label="课堂笔记" className="jp-lesson-notes-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
@@ -1163,7 +1165,7 @@ export function JpLessonPage() {
                     })}
                   </div>
                 </td>
-                <td data-label="教案操作" className="jp-lesson-actions-col">
+                <td data-label="教案操作" className="jp-lesson-actions-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div
@@ -1460,8 +1462,12 @@ export function JpLessonPage() {
           display: contents;
         }
         :global(.jp-lesson-mobile-icon),
-        :global(.jp-lesson-mobile-btn-icon) {
+        :global(.jp-lesson-mobile-btn-icon),
+        :global(.jp-lesson-mobile-content-item) {
           display: none;
+        }
+        :global(.jp-lesson-content-desktop) {
+          display: flex;
         }
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
@@ -1566,6 +1572,18 @@ export function JpLessonPage() {
         :global(.jp-lesson-next-class-dt-compact),
         :global(.jp-lesson-class-duration-dt-compact) {
           display: none;
+        }
+        @media (max-width: 767px) {
+          :global(.jp-lesson-page--ja .jp-lesson-dt-full),
+          :global(.jp-lesson-page--ja .jp-lesson-next-class-dt-full),
+          :global(.jp-lesson-page--ja .jp-lesson-class-duration-dt-full) {
+            display: none !important;
+          }
+          :global(.jp-lesson-page--ja .jp-lesson-dt-compact),
+          :global(.jp-lesson-page--ja .jp-lesson-next-class-dt-compact),
+          :global(.jp-lesson-page--ja .jp-lesson-class-duration-dt-compact) {
+            display: inline !important;
+          }
         }
         :global(.jp-lesson-uploaded-col),
         :global(.jp-lesson-status-at-col) {
