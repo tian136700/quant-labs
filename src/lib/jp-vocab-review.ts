@@ -4,6 +4,35 @@ import {
   nextTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
 
+const JP_VOCAB_LEVELS: JpVocabLevel[] = ["very", "normal", "weak"];
+
+/** 最近一次熟悉程度勾选是否发生在今日（北京时间） */
+export function isJpVocabReviewToday(
+  lastAt: string | null | undefined,
+  now = new Date()
+): boolean {
+  if (!lastAt) return false;
+  return lastAt.slice(0, 10) === beijingDateString(now);
+}
+
+/** 表格回显：仅今日勾选显示打勾，跨日后清空回显但统计次数保留 */
+export function effectiveJpVocabDisplayLevel(
+  word: JpVocabWord,
+  sessionLevel?: JpVocabLevel,
+  now = new Date()
+): JpVocabLevel | undefined {
+  if (sessionLevel) return sessionLevel;
+  const level = word.last_review_level;
+  if (
+    level &&
+    JP_VOCAB_LEVELS.includes(level) &&
+    isJpVocabReviewToday(word.last_review_at, now)
+  ) {
+    return level;
+  }
+  return undefined;
+}
+
 /** 同一单词在此时间内改选熟悉程度，视为修正上次判断，不重复计次 */
 export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
 
@@ -59,7 +88,10 @@ export function resolveJpVocabPreviousLevel(
   ) {
     return opts.sessionLevel;
   }
-  if (isJpVocabReviewCorrection(word.last_review_level, word.last_review_at, nowMs)) {
+  if (
+    isJpVocabReviewToday(word.last_review_at, new Date(nowMs)) &&
+    isJpVocabReviewCorrection(word.last_review_level, word.last_review_at, nowMs)
+  ) {
     return word.last_review_level ?? null;
   }
   return null;

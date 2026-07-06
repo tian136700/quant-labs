@@ -59,8 +59,9 @@ import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
 import {
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
+  beijingDateString,
 } from "@/lib/jp-vocab-daily-check";
-import { applyJpVocabReview } from "@/lib/jp-vocab-review";
+import { applyJpVocabReview, effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
@@ -123,6 +124,7 @@ function jpVocabCheckedInRound(
   order: JpVocabDailyDisplayOrder,
   word: JpVocabWord
 ): boolean {
+  if (order.date !== beijingDateString()) return false;
   return isJpVocabRoundChecked(order, word.id);
 }
 
@@ -321,6 +323,23 @@ export function JpVocabPage() {
     void loadWords();
   }, [loadWords]);
 
+  /** 北京时间跨日后清空前端勾选回显，并拉取当日新顺序 */
+  useEffect(() => {
+    let today = beijingDateString();
+    const onDayRollover = () => {
+      const next = beijingDateString();
+      if (next === today) return;
+      today = next;
+      setSessionLevel({});
+      setSessionReviewAt({});
+      setHighlightId(null);
+      void loadWords({ force: true });
+    };
+    onDayRollover();
+    const timer = window.setInterval(onDayRollover, 60_000);
+    return () => window.clearInterval(timer);
+  }, [loadWords]);
+
   const applySyncPatches = useCallback((patches: JpVocabWord[]) => {
     if (!patches.length) return;
     setWords((prev) => {
@@ -488,7 +507,8 @@ export function JpVocabPage() {
   }, [loading, checking, canOperate, words.length, anyCheckedInRound]);
 
   const unmarkedCount = useMemo(
-    () => words.filter((w) => !sessionLevel[w.id]).length,
+    () =>
+      words.filter((w) => !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id])).length,
     [words, sessionLevel]
   );
 
@@ -1308,8 +1328,7 @@ export function JpVocabPage() {
               <tbody>
                 {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const selected =
-                    sessionLevel[w.id] ?? w.last_review_level ?? undefined;
+                  const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id]);
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);

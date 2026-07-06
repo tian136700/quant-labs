@@ -1405,7 +1405,7 @@ export function JpLessonSchedulePage() {
           background: color-mix(in srgb, var(--rise) 70%, transparent);
         }
         .jpls-legend-dot--manual {
-          background: color-mix(in srgb, var(--accent) 70%, transparent);
+          background: color-mix(in srgb, var(--rise) 70%, transparent);
         }
         .jpls-layout {
           display: grid;
@@ -1561,11 +1561,6 @@ export function JpLessonSchedulePage() {
           background: color-mix(in srgb, var(--accent) 78%, var(--panel));
           color: #fff;
         }
-        .jpls-slot-cell.is-busy.jpls-slot-cell--manual {
-          background: color-mix(in srgb, var(--accent) 72%, var(--panel));
-          color: #fff;
-          border-left: 3px solid color-mix(in srgb, var(--accent) 85%, transparent);
-        }
         .jpls-slot-cell.is-busy.jpls-slot-cell--manual.jpls-slot-cell--past {
           background: color-mix(in srgb, var(--fall) 22%, var(--panel));
           color: var(--text);
@@ -1576,9 +1571,6 @@ export function JpLessonSchedulePage() {
         }
         .jpls-slot-cell.is-busy.jpls-slot-cell--past:hover {
           background: color-mix(in srgb, var(--fall) 28%, var(--panel));
-        }
-        .jpls-slot-cell.is-busy.jpls-slot-cell--manual:hover {
-          background: color-mix(in srgb, var(--accent) 82%, var(--panel));
         }
         .jpls-slot-cell.is-selected {
           box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 75%, #fff);
@@ -1727,14 +1719,10 @@ export function JpLessonSchedulePage() {
           font-weight: 600;
           color: color-mix(in srgb, var(--fall) 82%, var(--text));
         }
-        .jpls-week-item--manual:not(.jpls-week-item--past) {
-          border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-        }
         .jpls-week-item-manual {
           font-size: 0.6875rem;
           font-weight: 600;
-          color: color-mix(in srgb, var(--accent) 82%, var(--text));
+          color: color-mix(in srgb, var(--rise) 82%, var(--text));
         }
         .jpls-week-item.is-selected {
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
@@ -1874,8 +1862,8 @@ export function JpLessonSchedulePage() {
           color: var(--rise);
         }
         .jpls-status-badge--manual {
-          background: color-mix(in srgb, var(--accent) 16%, transparent);
-          color: var(--accent);
+          background: color-mix(in srgb, var(--rise) 16%, transparent);
+          color: var(--rise);
         }
         .jpls-detail-actions,
         .jpls-manual-actions {
@@ -1928,8 +1916,8 @@ export function JpLessonSchedulePage() {
           background: color-mix(in srgb, var(--fall) 8%, var(--panel));
         }
         .jpls-today-item--manual:not(.jpls-today-item--past) {
-          border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+          border-color: color-mix(in srgb, var(--rise) 35%, var(--border));
+          background: color-mix(in srgb, var(--rise) 16%, var(--panel));
         }
         .jpls-today-time {
           font-size: 0.8125rem;
