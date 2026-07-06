@@ -21,6 +21,7 @@ import {
   beijingRelativeWeekdayLabel,
   flattenEnLessonScheduleEvents,
   formatLessonContentLines,
+  formatLessonScheduleDaySummary,
   getEnLessonScheduleEventStatus,
   type EnLessonScheduleEvent,
   type EnLessonScheduleEventStatus,
@@ -510,11 +511,19 @@ export function EnLessonSchedulePage() {
                 type="date"
                 className="jpls-date-input"
                 value={selectedDate}
-                aria-label={`选择日期，${selectedDateRelativeLabel}，${dayEvents.length} 节课`}
+                aria-label={`选择日期，${selectedDateRelativeLabel}，${formatLessonScheduleDaySummary(dayEvents, {
+                  classUnit: "节课",
+                  emptyLabel: "0节课（0小时00分）",
+                })}`}
                 onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
               />
               {viewMode === "day" ? (
-                <span className="jpls-date-count">{dayEvents.length} 节课</span>
+                <span className="jpls-date-count">
+                  {formatLessonScheduleDaySummary(dayEvents, {
+                    classUnit: "节课",
+                    emptyLabel: "0节课（0小时00分）",
+                  })}
+                </span>
               ) : null}
             </div>
             <button
@@ -668,7 +677,9 @@ export function EnLessonSchedulePage() {
                     >
                       <span>{dateStr.slice(5)}</span>
                       <span>{beijingRelativeWeekdayLabel(dateStr, now)}</span>
-                      <span className="jpls-week-count">{events.length}</span>
+                      <span className="jpls-week-count">
+                        {formatLessonScheduleDaySummary(events)}
+                      </span>
                     </button>
                     <div className="jpls-week-list">
                       {events.length ? (
@@ -921,11 +932,13 @@ export function EnLessonSchedulePage() {
           flex-shrink: 0;
         }
         .jpls-date-count {
-          font-size: 0.8125rem;
+          font-size: 0.75rem;
           color: var(--muted);
           font-weight: 500;
           white-space: nowrap;
-          flex-shrink: 0;
+          flex-shrink: 1;
+          min-width: 0;
+          line-height: 1.2;
         }
         .jpls-icon-btn,
         .jpls-export-btn,
@@ -1279,8 +1292,12 @@ export function EnLessonSchedulePage() {
           font-size: 0.8125rem;
         }
         .jpls-week-count {
+          align-self: flex-end;
           color: var(--muted);
-          font-size: 0.75rem;
+          font-size: 0.6875rem;
+          line-height: 1.25;
+          text-align: right;
+          max-width: 100%;
         }
         .jpls-week-list {
           display: flex;

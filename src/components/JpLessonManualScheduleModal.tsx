@@ -13,10 +13,13 @@ import {
   splitNextClassAtLocalValue,
 } from "@/lib/jp-lesson-shared";
 
+type ManualScheduleModalMode = "full" | "time";
+
 type Props = {
   open: boolean;
   initialDate?: string;
   editing?: JpLessonManualSchedule | null;
+  mode?: ManualScheduleModalMode;
   onClose: () => void;
   onSave: (draft: JpLessonManualScheduleDraft) => void;
 };
@@ -65,6 +68,7 @@ export function JpLessonManualScheduleModal({
   open,
   initialDate = "",
   editing = null,
+  mode = "full",
   onClose,
   onSave,
 }: Props) {
@@ -128,6 +132,13 @@ export function JpLessonManualScheduleModal({
     });
   };
 
+  const modalTitle = editing
+    ? mode === "time"
+      ? "改时"
+      : "编辑手动日程"
+    : "手动添加日程";
+  const showFullFields = mode === "full";
+
   if (!open || !mounted) return null;
 
   return createPortal(
@@ -145,9 +156,7 @@ export function JpLessonManualScheduleModal({
       >
         <div className="jp-lesson-next-class-header">
           <div>
-            <h2 id="jp-lesson-manual-schedule-modal-title">
-              {editing ? "编辑手动日程" : "手动添加日程"}
-            </h2>
+            <h2 id="jp-lesson-manual-schedule-modal-title">{modalTitle}</h2>
             <p className="jp-lesson-next-class-modal-lesson">
               仅保存在本页，不会同步到日语新课列表
             </p>
@@ -163,20 +172,24 @@ export function JpLessonManualScheduleModal({
         </div>
 
         <fieldset className="jp-lesson-next-class-fieldset">
-          <legend>日程信息（北京时间，整点 / 半点）</legend>
+          <legend>
+            {showFullFields ? "日程信息（北京时间，整点 / 半点）" : "上课时间（北京时间，整点 / 半点）"}
+          </legend>
           <div className="jp-lesson-next-class-rows">
             <div className="jp-lesson-next-class-row">
               <div className="jp-lesson-next-class-fields">
-                <label className="jp-lesson-next-class-field">
-                  <span>标题</span>
-                  <input
-                    type="text"
-                    className="jp-lesson-next-class-input"
-                    value={title}
-                    placeholder="例如：复习 N3 语法"
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </label>
+                {showFullFields ? (
+                  <label className="jp-lesson-next-class-field">
+                    <span>标题</span>
+                    <input
+                      type="text"
+                      className="jp-lesson-next-class-input"
+                      value={title}
+                      placeholder="例如：复习 N3 语法"
+                      onChange={(e) => setTitle(e.target.value)}
+                    />
+                  </label>
+                ) : null}
                 <label className="jp-lesson-next-class-field">
                   <span>日期</span>
                   <input
@@ -209,26 +222,30 @@ export function JpLessonManualScheduleModal({
                     ))}
                   </select>
                 </label>
-                <label className="jp-lesson-next-class-field">
-                  <span>老师（可选）</span>
-                  <input
-                    type="text"
-                    className="jp-lesson-next-class-input"
-                    value={teacher}
-                    placeholder="例如：张老师"
-                    onChange={(e) => setTeacher(e.target.value)}
-                  />
-                </label>
-                <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
-                  <span>备注（可选）</span>
-                  <textarea
-                    className="jp-lesson-next-class-input jp-lesson-manual-note"
-                    value={note}
-                    rows={3}
-                    placeholder="补充说明、链接等"
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                </label>
+                {showFullFields ? (
+                  <>
+                    <label className="jp-lesson-next-class-field">
+                      <span>老师（可选）</span>
+                      <input
+                        type="text"
+                        className="jp-lesson-next-class-input"
+                        value={teacher}
+                        placeholder="例如：张老师"
+                        onChange={(e) => setTeacher(e.target.value)}
+                      />
+                    </label>
+                    <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
+                      <span>备注（可选）</span>
+                      <textarea
+                        className="jp-lesson-next-class-input jp-lesson-manual-note"
+                        value={note}
+                        rows={3}
+                        placeholder="补充说明、链接等"
+                        onChange={(e) => setNote(e.target.value)}
+                      />
+                    </label>
+                  </>
+                ) : null}
               </div>
             </div>
           </div>

@@ -578,6 +578,23 @@ export function resolveClassDurationMinutes(
   return normalizeClassDurationMinutes(minutes) ?? DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES;
 }
 
+export function formatLessonScheduleDurationLabel(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}小时${String(minutes).padStart(2, "0")}分`;
+}
+
+export function formatLessonScheduleDaySummary(
+  events: Array<{ durationMinutes: number }>,
+  options?: { classUnit?: "节" | "节课"; emptyLabel?: string }
+): string {
+  const classUnit = options?.classUnit ?? "节";
+  const emptyLabel = options?.emptyLabel ?? "无课";
+  if (!events.length) return emptyLabel;
+  const totalMinutes = events.reduce((sum, event) => sum + event.durationMinutes, 0);
+  return `${events.length}${classUnit}（${formatLessonScheduleDurationLabel(totalMinutes)}）`;
+}
+
 export function buildJpLessonScheduleEvents(lesson: {
   id: number;
   class_schedules?: Array<{

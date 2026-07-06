@@ -24,6 +24,7 @@ import {
   beijingRelativeWeekdayLabel,
   flattenJpLessonScheduleEvents,
   formatLessonContentLines,
+  formatLessonScheduleDaySummary,
   getJpLessonScheduleEventStatus,
   normalizeClassDurationMinutes,
   type JpLessonScheduleEventStatus,
@@ -216,6 +217,7 @@ export function JpLessonSchedulePage() {
   const [now, setNow] = useState(() => new Date());
   const [manualSchedules, setManualSchedules] = useState<JpLessonManualSchedule[]>([]);
   const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualModalMode, setManualModalMode] = useState<"full" | "time">("full");
   const [editingManual, setEditingManual] = useState<JpLessonManualSchedule | null>(null);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
@@ -425,7 +427,11 @@ export function JpLessonSchedulePage() {
     return manualSchedules.find((item) => item.id === selectedEvent.manualId) ?? null;
   }, [selectedEvent, manualSchedules]);
 
-  const openManualModal = (manual: JpLessonManualSchedule | null = null) => {
+  const openManualModal = (
+    manual: JpLessonManualSchedule | null = null,
+    mode: "full" | "time" = "full"
+  ) => {
+    setManualModalMode(mode);
     setEditingManual(manual);
     setManualModalOpen(true);
   };
@@ -433,6 +439,7 @@ export function JpLessonSchedulePage() {
   const closeManualModal = () => {
     setManualModalOpen(false);
     setEditingManual(null);
+    setManualModalMode("full");
   };
 
   const handleSaveManualSchedule = (draft: Parameters<typeof addJpLessonManualSchedule>[0]) => {
@@ -673,11 +680,19 @@ export function JpLessonSchedulePage() {
                 type="date"
                 className="jpls-date-input"
                 value={selectedDate}
-                aria-label={`选择日期，${selectedDateRelativeLabel}，${dayEvents.length} 节课`}
+                aria-label={`选择日期，${selectedDateRelativeLabel}，${formatLessonScheduleDaySummary(dayEvents, {
+                  classUnit: "节课",
+                  emptyLabel: "0节课（0小时00分）",
+                })}`}
                 onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
               />
               {viewMode === "day" ? (
-                <span className="jpls-date-count">{dayEvents.length} 节课</span>
+                <span className="jpls-date-count">
+                  {formatLessonScheduleDaySummary(dayEvents, {
+                    classUnit: "节课",
+                    emptyLabel: "0节课（0小时00分）",
+                  })}
+                </span>
               ) : null}
             </div>
             <button
@@ -861,7 +876,7 @@ export function JpLessonSchedulePage() {
                         <span className="jpls-week-col-date">{dateStr.slice(5)}</span>
                       </span>
                       <span className="jpls-week-count">
-                        {events.length ? `${events.length} 节` : "无课"}
+                        {formatLessonScheduleDaySummary(events)}
                       </span>
                     </button>
                     <div className="jpls-week-list">
@@ -1022,7 +1037,16 @@ export function JpLessonSchedulePage() {
                 <div className="jpls-detail-actions">
                   {selectedEvent.source === "manual" ? (
                     <>
-                      <button type="button" onClick={() => openManualModal(selectedManualSchedule)}>
+                      <button
+                        type="button"
+                        onClick={() => openManualModal(selectedManualSchedule, "full")}
+                      >
+                        编辑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openManualModal(selectedManualSchedule, "time")}
+                      >
                         改时
                       </button>
                       <button
@@ -1096,6 +1120,7 @@ export function JpLessonSchedulePage() {
         open={manualModalOpen}
         initialDate={selectedDate}
         editing={editingManual}
+        mode={manualModalMode}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
       />
@@ -1191,11 +1216,13 @@ export function JpLessonSchedulePage() {
           flex-shrink: 0;
         }
         .jpls-date-count {
-          font-size: 0.8125rem;
+          font-size: 0.75rem;
           color: var(--muted);
           font-weight: 500;
           white-space: nowrap;
-          flex-shrink: 0;
+          flex-shrink: 1;
+          min-width: 0;
+          line-height: 1.2;
         }
         .jpls-icon-btn,
         .jpls-export-btn,
@@ -1587,8 +1614,12 @@ export function JpLessonSchedulePage() {
           font-size: 0.75rem;
         }
         .jpls-week-count {
+          align-self: flex-end;
           color: var(--muted);
-          font-size: 0.75rem;
+          font-size: 0.6875rem;
+          line-height: 1.25;
+          text-align: right;
+          max-width: 100%;
         }
         .jpls-week-list {
           display: flex;
@@ -1782,6 +1813,7 @@ export function JpLessonSchedulePage() {
         .jpls-detail-actions,
         .jpls-manual-actions {
           display: flex;
+          flex-wrap: wrap;
           gap: 0.5rem;
           margin-top: 0.85rem;
         }
