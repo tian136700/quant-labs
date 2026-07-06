@@ -1369,6 +1369,25 @@ export function JpVocabPage() {
                         </span>
                       </td>
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
+                        <div className="jp-vocab-word-head-mobile" aria-hidden="true">
+                          <span className="jp-vocab-seq-cell">
+                            <span className="jp-vocab-seq-num">{dailySeq}</span>
+                            {checkedInRound ? (
+                              <span className="jp-vocab-seq-checked">
+                                <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                                  <path
+                                    d="M2 6l3 3 5-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </span>
+                            ) : null}
+                          </span>
+                        </div>
                         <div className="jp-vocab-word-cell">
                           {w.ref_key ? (
                             <>
@@ -2295,6 +2314,9 @@ export function JpVocabPage() {
           :global(.jp-vocab-table .jp-vocab-word-col::before) {
             display: none;
           }
+          .jp-vocab-word-head-mobile {
+            display: none;
+          }
           .jp-vocab-word-cell {
             text-align: center;
             width: 100%;
@@ -2306,15 +2328,36 @@ export function JpVocabPage() {
             font-weight: 600;
             line-height: 1.2;
           }
+          .jp-vocab-word-head-mobile {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 0.15rem;
+          }
+          .jp-vocab-word-head-mobile .jp-vocab-seq-cell {
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            min-height: 0;
+            color: var(--muted);
+            font-size: 0.875rem;
+          }
+          .jp-vocab-word-head-mobile .jp-vocab-seq-num {
+            font-size: 1rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+          }
           :global(.jp-vocab-table .jp-vocab-seq-col) {
-            order: 1;
+            display: none !important;
           }
           :global(.jp-vocab-table .jp-vocab-kind-col) {
             order: 2;
           }
           :global(.jp-vocab-table .jp-vocab-reading-col) {
-            order: 3;
-            max-width: none;
+            display: none !important;
           }
           :global(.jp-vocab-table .jp-vocab-meaning-col) {
             order: 4;

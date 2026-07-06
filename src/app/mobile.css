@@ -2459,6 +2459,10 @@
     display: none !important;
   }
 
+  .jp-vocab-word-head-mobile {
+    display: none;
+  }
+
   .jp-vocab-word-cell {
     text-align: center !important;
     align-items: center !important;
@@ -2473,6 +2477,31 @@
     line-height: 1.2;
   }
 
+  .jp-vocab-word-head-mobile {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 0.15rem;
+  }
+
+  .jp-vocab-word-head-mobile .jp-vocab-seq-cell {
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  .jp-vocab-word-head-mobile .jp-vocab-seq-num {
+    font-size: 1rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
   .jp-vocab-table tbody td > * {
     flex: 1;
     min-width: 0;
@@ -2480,7 +2509,7 @@
   }
 
   .jp-vocab-table .jp-vocab-seq-col {
-    order: 1;
+    display: none !important;
   }
 
   .jp-vocab-table .jp-vocab-kind-col {
@@ -2488,7 +2517,7 @@
   }
 
   .jp-vocab-table .jp-vocab-reading-col {
-    order: 3;
+    display: none !important;
   }
 
   .jp-vocab-table .jp-vocab-meaning-col {
