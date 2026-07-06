@@ -253,6 +253,11 @@ export function jpLessonSchedulePath(): string {
   return "/jp-lesson/schedule";
 }
 
+export function isJpLessonSchedulePath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-lesson/schedule";
+}
+
 export function trendBlogPath(locale: Locale): string {
   return locale === "zh" ? "/zh/trend-blog" : "/trend-blog";
 }

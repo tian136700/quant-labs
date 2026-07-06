@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Stop local dev on 3002 and remove .next / .open-next before deploy."""
+"""Remove stale Cloudflare build output before deploy.
+
+If local dev is listening on 3002, leave it running and skip .next cleanup
+so you can keep verifying locally after publish.
+"""
 
 from __future__ import annotations
 
@@ -10,24 +14,19 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-KILL_PORT = ROOT / "kill-port.py"
-BUILD_DIRS = (".next", ".open-next")
+DEV_PORT = 3002
 
 
-def kill_dev_server(port: int = 3002) -> None:
-    if not KILL_PORT.is_file():
-        return
-    subprocess.run(
-        [sys.executable, str(KILL_PORT), str(port)],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    time.sleep(0.4)
-    subprocess.run(
-        [sys.executable, str(KILL_PORT), str(port), "-f"],
-        check=False,
-    )
+def dev_server_running(port: int = DEV_PORT) -> bool:
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+    return any(line.strip().isdigit() for line in out.splitlines())
 
 
 def remove_build_dir(path: Path, attempts: int = 5) -> None:
@@ -50,11 +49,17 @@ def remove_build_dir(path: Path, attempts: int = 5) -> None:
 
 
 def main() -> int:
-    kill_dev_server()
-    time.sleep(0.6)
+    local_dev = dev_server_running()
 
-    for name in BUILD_DIRS:
-        remove_build_dir(ROOT / name)
+    if local_dev:
+        print(
+            f"本地 dev 正在运行 (:{DEV_PORT})，保留 .next/，仅清理 .open-next/",
+            flush=True,
+        )
+        remove_build_dir(ROOT / ".open-next")
+    else:
+        for name in (".next", ".open-next"):
+            remove_build_dir(ROOT / name)
 
     return 0
 
@@ -64,5 +69,8 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except OSError as exc:
         print(f"predeploy 清理失败: {exc}", file=sys.stderr)
-        print("请确认 3002 端口无进程占用后重试 npm run deploy", file=sys.stderr)
+        print(
+            "若 .next 被占用，可暂时停止本地 dev 后重试 npm run deploy",
+            file=sys.stderr,
+        )
         raise SystemExit(1) from exc

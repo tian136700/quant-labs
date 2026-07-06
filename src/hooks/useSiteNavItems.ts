@@ -13,6 +13,7 @@ import {
   isAdminUsersPath,
   isComparePath,
   isJpLessonPath,
+  isJpLessonSchedulePath,
   isJpVocabPath,
   isJpVocabStudyPath,
   isEnLessonPath,
@@ -45,6 +46,8 @@ export function useSiteNavItems(): SiteNavItem[] {
   const navOpts = { onSubdomain, isAdmin };
   const showFullNav = !onSubdomain || isAdmin;
   const onJpLesson = isJpLessonPath(pathname);
+  const onJpLessonSchedule = isJpLessonSchedulePath(pathname);
+  const onJpLessonMain = onJpLesson && !onJpLessonSchedule;
   const onJpVocab = isJpVocabPath(pathname);
   const onJpVocabStudy = isJpVocabStudyPath(pathname);
   const onEnLesson = isEnLessonPath(pathname);
@@ -119,7 +122,7 @@ export function useSiteNavItems(): SiteNavItem[] {
         id: "jpLesson",
         href: navHref("jpLesson", locale, navOpts),
         label: nav.jpLesson,
-        active: onJpLesson,
+        active: onJpLessonMain,
       },
       {
         id: "about",
@@ -286,7 +289,17 @@ export function useSiteNavItems(): SiteNavItem[] {
                     id: "jpLesson",
                     href: navHref("jpLesson", locale, navOpts),
                     label: nav.jpLesson,
-                    active: onJpLesson,
+                    active: onJpLessonMain,
+                  },
+                ]
+              : []),
+            ...(isAdmin
+              ? [
+                  {
+                    id: "jpLessonSchedule",
+                    href: navHref("jpLessonSchedule", locale, navOpts),
+                    label: nav.jpLessonSchedule,
+                    active: onJpLessonSchedule,
                   },
                 ]
               : []),
