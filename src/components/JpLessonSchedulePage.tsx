@@ -4,8 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
+import { type JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import {
+  formatAdminUserCredentials,
+  rememberAdminUserPassword,
+} from "@/lib/admin-user-credentials";
 import {
   JP_LESSON_CACHE_KEY,
   parseJpLessonApi,
@@ -464,6 +469,65 @@ export function JpLessonSchedulePage() {
     setSelectedEventKey(null);
   };
 
+  const addLessonTeacher = async (
+    input: JpLessonTeacherAddInput
+  ): Promise<JpLessonTeacher | null> => {
+    if (!isAdmin) return null;
+
+    try {
+      const res = await fetch("/api/admin/jp-lesson-teachers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teacher?: JpLessonTeacher;
+        error?: string;
+        user_account?: {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        };
+      };
+      if (!data.ok || !data.teacher) {
+        if (data.error === "name_duplicate") {
+          return teachers.find((item) => item.name === input.name.trim()) ?? null;
+        }
+        return null;
+      }
+      if (data.user_account) {
+        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
+        setStatusMessage(
+          `已添加老师，并自动创建禁用账号：${formatAdminUserCredentials(
+            data.user_account.username,
+            data.user_account.password,
+            "zh"
+          )}`
+        );
+        window.setTimeout(() => setStatusMessage(""), 4500);
+      }
+      setTeachers((prev) => {
+        const next = [...prev, data.teacher!].sort(
+          (a, b) => a.sort_order - b.sort_order || a.id - b.id
+        );
+        const cache = readLessonCache();
+        writeClientCache(JP_LESSON_CACHE_KEY, {
+          lessons,
+          refs,
+          notes: cache?.notes ?? [],
+          teachers: next,
+        });
+        return next;
+      });
+      return data.teacher;
+    } catch {
+      return null;
+    }
+  };
+
   const setLessonClassSchedules = async (
     lessonId: number,
     schedules: JpLessonClassScheduleInput[]
@@ -730,9 +794,6 @@ export function JpLessonSchedulePage() {
             onClick={() => openManualModal()}
           >
             手动添加日程
-          </button>
-          <button type="button" className="jpls-export-btn" onClick={() => void handleExport()}>
-            {copiedLink ? "已复制" : "导出日程"}
           </button>
         </div>
       </div>
@@ -1125,6 +1186,8 @@ export function JpLessonSchedulePage() {
         initialDate={selectedDate}
         editing={editingManual}
         mode={manualModalMode}
+        teachers={teachers}
+        onAddTeacher={addLessonTeacher}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
       />
@@ -1902,6 +1965,19 @@ export function JpLessonSchedulePage() {
           font-size: 0.875rem;
         }
         @media (max-width: 767px) {
+          .jpls-toolbar {
+            justify-content: center;
+            align-items: center;
+          }
+          .jpls-toolbar-controls {
+            align-items: center;
+          }
+          .jpls-date-nav {
+            justify-content: center;
+          }
+          .jpls-toolbar-right {
+            justify-content: center;
+          }
           .jpls-layout {
             grid-template-columns: minmax(0, 1fr);
           }

@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
+import {
+  JpLessonTeacherSinglePicker,
+} from "@/components/JpLessonTeacherSinglePicker";
+import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import type { JpLessonManualSchedule, JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
+import type { JpLessonTeacher } from "@/lib/types";
 import {
   formatNextClassHalfHourLabel,
   JP_LESSON_CLASS_DURATION_MINUTES,
@@ -20,6 +25,8 @@ type Props = {
   initialDate?: string;
   editing?: JpLessonManualSchedule | null;
   mode?: ManualScheduleModalMode;
+  teachers?: JpLessonTeacher[];
+  onAddTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onClose: () => void;
   onSave: (draft: JpLessonManualScheduleDraft) => void;
 };
@@ -69,6 +76,8 @@ export function JpLessonManualScheduleModal({
   initialDate = "",
   editing = null,
   mode = "full",
+  teachers = [],
+  onAddTeacher,
   onClose,
   onSave,
 }: Props) {
@@ -226,13 +235,23 @@ export function JpLessonManualScheduleModal({
                   <>
                     <label className="jp-lesson-next-class-field">
                       <span>老师（可选）</span>
-                      <input
-                        type="text"
-                        className="jp-lesson-next-class-input"
-                        value={teacher}
-                        placeholder="例如：张老师"
-                        onChange={(e) => setTeacher(e.target.value)}
-                      />
+                      {onAddTeacher ? (
+                        <JpLessonTeacherSinglePicker
+                          value={teacher}
+                          teachers={teachers}
+                          placeholder="选择系统老师，或输入后添加"
+                          onChange={setTeacher}
+                          onAddTeacher={onAddTeacher}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          className="jp-lesson-next-class-input"
+                          value={teacher}
+                          placeholder="例如：张老师"
+                          onChange={(e) => setTeacher(e.target.value)}
+                        />
+                      )}
                     </label>
                     <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
                       <span>备注（可选）</span>
