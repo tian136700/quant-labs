@@ -78,7 +78,7 @@ export async function PUT(request: Request) {
     }
 
     const role = String(body.role || "").trim() as EtrUserRole;
-    if (role !== "jp_vocab" && role !== "user") {
+    if (role !== "jp_vocab" && role !== "en_vocab" && role !== "user") {
       return jsonResponse({ ok: false, error: errMsg("role_invalid", locale) }, 400);
     }
 

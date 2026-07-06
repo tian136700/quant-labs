@@ -5,6 +5,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { EtrUserRole } from "@/lib/etr-auth";
 import {
+  RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_ROLE_LABELS,
   RBAC_UI_LAYOUT,
@@ -32,73 +33,34 @@ type UserRow = {
   permissions: string[];
 };
 
-const EDITABLE_ROLES: EtrUserRole[] = ["jp_vocab", "en_vocab", "user"];
-
-function PermissionMatrixTable({
-  items,
-  locale,
-  adminPermissions,
-  draftByRole,
-  toggleDraft,
-}: {
-  items: RbacPermissionDef[];
-  locale: "en" | "zh";
-  adminPermissions: string[];
-  draftByRole: Record<string, Set<string>>;
-  toggleDraft: (role: EtrUserRole, key: string) => void;
-}) {
-  return (
-    <div className="admin-rbac-table-wrap">
-      <table className="admin-rbac-table admin-rbac-matrix">
-        <thead>
-          <tr>
-            <th>{locale === "zh" ? "权限" : "Permission"}</th>
-            <th>{roleLabel("admin", locale)}</th>
-            {EDITABLE_ROLES.map((role) => (
-              <th key={role}>{roleLabel(role, locale)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((perm) => (
-            <tr key={perm.key}>
-              <td>
-                <strong>{rbacPermissionLabel(perm, locale)}</strong>
-                <span className="admin-rbac-desc">
-                  {rbacPermissionDescription(perm, locale)}
-                </span>
-                <span className="admin-rbac-key">{perm.key}</span>
-              </td>
-              <td className="admin-rbac-check-cell">
-                <input
-                  type="checkbox"
-                  checked={adminPermissions.includes(perm.key)}
-                  disabled
-                  readOnly
-                  aria-label={`admin-${perm.key}`}
-                />
-              </td>
-              {EDITABLE_ROLES.map((role) => (
-                <td key={role} className="admin-rbac-check-cell">
-                  <input
-                    type="checkbox"
-                    checked={draftByRole[role]?.has(perm.key) ?? false}
-                    onChange={() => toggleDraft(role, perm.key)}
-                    aria-label={`${role}-${perm.key}`}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+const ALL_ROLES: EtrUserRole[] = ["admin", "jp_vocab", "en_vocab", "user"];
 
 function roleLabel(role: EtrUserRole, locale: "en" | "zh"): string {
   const item = RBAC_ROLE_LABELS[role];
   return locale === "zh" ? item.zh : item.en;
+}
+
+function roleDescription(role: EtrUserRole, locale: "en" | "zh"): string {
+  const item = RBAC_ROLE_LABELS[role];
+  return locale === "zh" ? item.descriptionZh : item.descriptionEn;
+}
+
+function matchesSearch(
+  perm: RbacPermissionDef,
+  query: string,
+  locale: "en" | "zh"
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = [
+    perm.key,
+    rbacPermissionLabel(perm, locale),
+    rbacPermissionDescription(perm, locale),
+    rbacCategoryLabel(perm.category, locale),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(q);
 }
 
 function permissionLabels(
@@ -115,6 +77,73 @@ function permissionLabels(
   });
 }
 
+function sortedKeys(set: Set<string> | undefined): string[] {
+  return [...(set ?? [])].sort();
+}
+
+function RolePermissionList({
+  items,
+  locale,
+  role,
+  checkedKeys,
+  onToggle,
+  readOnly,
+  excludedKeys,
+}: {
+  items: RbacPermissionDef[];
+  locale: "en" | "zh";
+  role: EtrUserRole;
+  checkedKeys: Set<string>;
+  onToggle: (key: string) => void;
+  readOnly: boolean;
+  excludedKeys?: Set<string>;
+}) {
+  if (!items.length) return null;
+
+  return (
+    <ul className="admin-rbac-perm-list">
+      {items.map((perm) => {
+        const excluded = excludedKeys?.has(perm.key) ?? false;
+        const disabled = readOnly || excluded;
+        const checked = readOnly ? true : excluded ? false : checkedKeys.has(perm.key);
+        return (
+          <li key={perm.key} className="admin-rbac-perm-row">
+            <label
+              className={`admin-rbac-perm-row-label${disabled ? " admin-rbac-perm-row-label--locked" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="admin-rbac-check"
+                checked={checked}
+                disabled={disabled}
+                readOnly={disabled}
+                onChange={() => onToggle(perm.key)}
+                aria-label={`${role}-${perm.key}`}
+              />
+              <div className="admin-rbac-perm-row-body">
+                <div className="admin-rbac-perm-name">
+                  {rbacPermissionLabel(perm, locale)}
+                </div>
+                <div className="admin-rbac-perm-desc">
+                  {rbacPermissionDescription(perm, locale)}
+                </div>
+                {excluded ? (
+                  <span className="admin-rbac-perm-excluded-hint">
+                    {locale === "zh"
+                      ? "日语教师角色不可分配新课权限"
+                      : "Not assignable to JP teacher role"}
+                  </span>
+                ) : null}
+                <code className="admin-rbac-perm-key">{perm.key}</code>
+              </div>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function AdminRbacPage() {
   const { locale } = useI18n();
   const { isAdmin, hasPermission, checking } = useEtrAuth();
@@ -124,10 +153,12 @@ export function AdminRbacPage() {
   const [matrix, setMatrix] = useState<RoleMatrix[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [draftByRole, setDraftByRole] = useState<Record<string, Set<string>>>({});
+  const [selectedRole, setSelectedRole] = useState<EtrUserRole>("jp_vocab");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
+  const [search, setSearch] = useState("");
 
   const groupedCatalog = useMemo(() => {
     const groups = new Map<RbacPermissionCategory, RbacPermissionDef[]>();
@@ -143,10 +174,57 @@ export function AdminRbacPage() {
     return groups;
   }, [catalog]);
 
-  const adminPermissions = useMemo(
-    () => matrix.find((m) => m.role === "admin")?.permissions ?? [],
-    [matrix]
+  const filterItems = useCallback(
+    (items: RbacPermissionDef[]) =>
+      items.filter((item) => matchesSearch(item, search, locale)),
+    [search, locale]
   );
+
+  const userCountByRole = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const role of ALL_ROLES) counts[role] = 0;
+    for (const user of users) {
+      counts[user.role] = (counts[user.role] ?? 0) + 1;
+    }
+    return counts;
+  }, [users]);
+
+  const selectedRoleUsers = useMemo(
+    () => users.filter((user) => user.role === selectedRole),
+    [users, selectedRole]
+  );
+
+  const selectedRoleReadOnly = selectedRole === "admin";
+
+  const roleExcludedKeys = useMemo(() => {
+    if (selectedRole === "jp_vocab") {
+      return new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
+    }
+    return new Set<string>();
+  }, [selectedRole]);
+
+  const selectedDraft = useMemo(
+    () => draftByRole[selectedRole] ?? new Set<string>(),
+    [draftByRole, selectedRole]
+  );
+
+  const selectedSaved = useMemo(
+    () => matrix.find((m) => m.role === selectedRole)?.permissions ?? [],
+    [matrix, selectedRole]
+  );
+
+  const isDirty = useMemo(() => {
+    if (selectedRoleReadOnly) return false;
+    return (
+      JSON.stringify(sortedKeys(selectedDraft)) !==
+      JSON.stringify([...selectedSaved].sort())
+    );
+  }, [selectedDraft, selectedSaved, selectedRoleReadOnly]);
+
+  const selectedCheckedCount = useMemo(() => {
+    if (selectedRoleReadOnly) return catalog.length;
+    return selectedDraft.size;
+  }, [selectedRoleReadOnly, selectedDraft, catalog.length]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,7 +243,12 @@ export function AdminRbacPage() {
       const nextDraft: Record<string, Set<string>> = {};
       for (const row of data.matrix ?? []) {
         if (RBAC_MANAGEABLE_ROLES.includes(row.role)) {
-          nextDraft[row.role] = new Set(row.permissions ?? []);
+          let perms = row.permissions ?? [];
+          if (row.role === "jp_vocab") {
+            const excluded = new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
+            perms = perms.filter((key: string) => !excluded.has(key));
+          }
+          nextDraft[row.role] = new Set(perms);
         }
       }
       setDraftByRole(nextDraft);
@@ -182,46 +265,148 @@ export function AdminRbacPage() {
     void load();
   }, [checking, canManage, load]);
 
-  const toggleDraft = (role: EtrUserRole, key: string) => {
-    if (!RBAC_MANAGEABLE_ROLES.includes(role)) return;
+  const toggleDraft = (key: string) => {
+    if (selectedRoleReadOnly || !RBAC_MANAGEABLE_ROLES.includes(selectedRole)) return;
+    if (roleExcludedKeys.has(key)) return;
     setDraftByRole((prev) => {
       const next = { ...prev };
-      const set = new Set(prev[role] ?? []);
+      const set = new Set(prev[selectedRole] ?? []);
       if (set.has(key)) set.delete(key);
       else set.add(key);
-      next[role] = set;
+      next[selectedRole] = set;
       return next;
     });
   };
 
-  const saveAll = async () => {
+  const resetSelectedRole = () => {
+    if (selectedRoleReadOnly) return;
+    setDraftByRole((prev) => ({
+      ...prev,
+      [selectedRole]: new Set(selectedSaved),
+    }));
+  };
+
+  const saveSelectedRole = async () => {
+    if (selectedRoleReadOnly || !RBAC_MANAGEABLE_ROLES.includes(selectedRole)) return;
     setSaving(true);
     setStatus("");
     setStatusErr(false);
     try {
-      for (const role of EDITABLE_ROLES) {
-        const permissions = [...(draftByRole[role] ?? [])];
-        const res = await fetch("/api/admin/rbac", {
-          method: "PUT",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ role, permissions }),
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          setStatus(String(data.error || "save failed"));
-          setStatusErr(true);
-          return;
-        }
+      const permissions = [...(draftByRole[selectedRole] ?? [])];
+      const res = await fetch("/api/admin/rbac", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: selectedRole, permissions }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(String(data.error || "save failed"));
+        setStatusErr(true);
+        return;
       }
       await load();
-      setStatus(locale === "zh" ? "已保存" : "Saved");
+      setStatus(
+        locale === "zh"
+          ? `已保存「${roleLabel(selectedRole, locale)}」的权限`
+          : `Saved permissions for ${roleLabel(selectedRole, locale)}`
+      );
     } catch {
       setStatus(locale === "zh" ? "保存失败" : "Save failed");
       setStatusErr(true);
     } finally {
       setSaving(false);
     }
+  };
+
+  const renderPermissionGroups = () => {
+    const groups = RBAC_UI_LAYOUT.map((section) => {
+      if (section.kind === "category") {
+        const items = filterItems(groupedCatalog.get(section.category) ?? []);
+        if (!items.length) return null;
+        return (
+          <div key={section.category} className="admin-rbac-group">
+            <div className="admin-rbac-group-head">
+              <h3 className="admin-rbac-group-title">
+                {rbacCategoryLabel(section.category, locale)}
+              </h3>
+              <span className="admin-rbac-count-badge">
+                {items.filter((p) => selectedRoleReadOnly || selectedDraft.has(p.key)).length}
+                /{items.length}
+              </span>
+            </div>
+            <RolePermissionList
+              items={items}
+              locale={locale}
+              role={selectedRole}
+              checkedKeys={selectedDraft}
+              onToggle={toggleDraft}
+              readOnly={selectedRoleReadOnly}
+              excludedKeys={roleExcludedKeys}
+            />
+          </div>
+        );
+      }
+
+      const subsections = section.categories
+        .map((category) => ({
+          category,
+          items: filterItems(groupedCatalog.get(category) ?? []),
+        }))
+        .filter((entry) => entry.items.length > 0);
+      if (!subsections.length) return null;
+
+      return (
+        <div key={section.module} className="admin-rbac-module">
+          <h3 className="admin-rbac-module-title">
+            {rbacModuleLabel(section.module, locale)}
+          </h3>
+          {subsections.map(({ category, items }) => (
+            <div key={category} className="admin-rbac-group admin-rbac-group--nested">
+              <div className="admin-rbac-group-head">
+                <h4 className="admin-rbac-group-title admin-rbac-subgroup-title">
+                  {rbacCategoryLabel(category, locale)}
+                </h4>
+                <span className="admin-rbac-count-badge">
+                  {items.filter((p) => selectedRoleReadOnly || selectedDraft.has(p.key)).length}
+                  /{items.length}
+                </span>
+              </div>
+              <RolePermissionList
+                items={items}
+                locale={locale}
+                role={selectedRole}
+                checkedKeys={selectedDraft}
+                onToggle={toggleDraft}
+                readOnly={selectedRoleReadOnly}
+                excludedKeys={roleExcludedKeys}
+              />
+            </div>
+          ))}
+        </div>
+      );
+    });
+
+    const hasAny =
+      search.trim() === "" ||
+      RBAC_UI_LAYOUT.some((section) => {
+        if (section.kind === "category") {
+          return filterItems(groupedCatalog.get(section.category) ?? []).length > 0;
+        }
+        return section.categories.some(
+          (cat) => filterItems(groupedCatalog.get(cat) ?? []).length > 0
+        );
+      });
+
+    if (!hasAny) {
+      return (
+        <p className="hint admin-rbac-empty">
+          {locale === "zh" ? "没有匹配的权限。" : "No permissions match your search."}
+        </p>
+      );
+    }
+
+    return groups;
   };
 
   if (checking || !canManage) {
@@ -241,8 +426,8 @@ export function AdminRbacPage() {
         <h1>{locale === "zh" ? "角色权限管理" : "Role permissions"}</h1>
         <p className="sub">
           {locale === "zh"
-            ? "下方表格列出每个用户名及其有效权限。修改角色权限后，同角色下所有用户会一并生效。"
-            : "Tables below show each username and effective permissions. Role changes apply to all users with that role."}
+            ? "先选择角色，勾选该角色可使用的功能，保存后该角色下所有用户立即生效。"
+            : "Pick a role, check the features it may use, then save — all users with that role update immediately."}
         </p>
         <p className="hint">
           <a href={adminPath(locale)}>{locale === "zh" ? "← 返回后台管理" : "← Back to admin"}</a>
@@ -256,38 +441,183 @@ export function AdminRbacPage() {
       </div>
 
       {status ? (
-        <p className={statusErr ? "telegram-push-result telegram-push-result--err" : "hint"}>
+        <p
+          className={
+            statusErr
+              ? "telegram-push-result telegram-push-result--err admin-rbac-status"
+              : "telegram-push-result telegram-push-result--ok admin-rbac-status"
+          }
+        >
           {status}
         </p>
       ) : null}
 
       <section className="section etr-panel admin-rbac-section">
-        <h2 className="admin-rbac-section-title">
-          {locale === "zh" ? "用户权限一览" : "Users & permissions"}
-        </h2>
+        <div className="admin-rbac-section-head">
+          <h2 className="admin-rbac-section-title">
+            {locale === "zh" ? "编辑角色权限" : "Edit role permissions"}
+          </h2>
+        </div>
+
+        <p className="admin-rbac-step-label">
+          {locale === "zh" ? "第 1 步：选择角色" : "Step 1: Choose a role"}
+        </p>
+        <div className="admin-rbac-role-tabs" role="tablist">
+          {ALL_ROLES.map((role) => (
+            <button
+              key={role}
+              type="button"
+              role="tab"
+              aria-selected={selectedRole === role}
+              className={`admin-rbac-role-tab${selectedRole === role ? " is-active" : ""}`}
+              onClick={() => setSelectedRole(role)}
+            >
+              <span className={`admin-rbac-role-badge admin-rbac-role-badge--${role}`}>
+                {roleLabel(role, locale)}
+              </span>
+              <span className="admin-rbac-role-tab-meta">
+                {locale === "zh"
+                  ? `${userCountByRole[role] ?? 0} 人`
+                  : `${userCountByRole[role] ?? 0} users`}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-rbac-role-panel">
+          <div className="admin-rbac-role-panel-head">
+            <p className="admin-rbac-role-desc">{roleDescription(selectedRole, locale)}</p>
+            {selectedRoleReadOnly ? (
+              <span className="admin-rbac-role-lock-badge">
+                {locale === "zh" ? "全部权限 · 不可编辑" : "Full access · read-only"}
+              </span>
+            ) : (
+              <span className="admin-rbac-role-count-badge">
+                {locale === "zh"
+                  ? `已勾选 ${selectedCheckedCount} / ${catalog.length} 项`
+                  : `${selectedCheckedCount} / ${catalog.length} enabled`}
+                {isDirty ? (
+                  <span className="admin-rbac-dirty-dot" title={locale === "zh" ? "未保存" : "Unsaved"} />
+                ) : null}
+              </span>
+            )}
+          </div>
+
+          {selectedRoleReadOnly ? (
+            <div className="admin-rbac-callout">
+              {locale === "zh"
+                ? "管理员始终拥有全部权限，此处仅供查看，无法取消勾选。"
+                : "Admins always have full access. This view is read-only."}
+            </div>
+          ) : (
+            <div className="admin-rbac-callout">
+              {locale === "zh"
+                ? `勾选下方权限并点击「保存」，会更新所有「${roleLabel(selectedRole, locale)}」用户（共 ${userCountByRole[selectedRole] ?? 0} 人）。`
+                : `Check permissions below and save to update all ${roleLabel(selectedRole, locale)} users (${userCountByRole[selectedRole] ?? 0}).`}
+            </div>
+          )}
+
+          <p className="admin-rbac-step-label">
+            {locale === "zh" ? "第 2 步：勾选权限" : "Step 2: Toggle permissions"}
+          </p>
+
+          <div className="admin-rbac-toolbar admin-rbac-toolbar--inline">
+            <label className="admin-rbac-search-field">
+              <span className="admin-rbac-search-label">
+                {locale === "zh" ? "搜索权限" : "Search permissions"}
+              </span>
+              <input
+                type="search"
+                className="admin-rbac-search-input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={
+                  locale === "zh" ? "名称、描述或 key…" : "Name, description, or key…"
+                }
+              />
+            </label>
+            {search.trim() ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact admin-rbac-search-clear"
+                onClick={() => setSearch("")}
+              >
+                {locale === "zh" ? "清除" : "Clear"}
+              </button>
+            ) : null}
+          </div>
+
+          {loading ? (
+            <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
+          ) : (
+            <div className="admin-rbac-perm-groups">{renderPermissionGroups()}</div>
+          )}
+
+          {!selectedRoleReadOnly ? (
+            <div className="admin-rbac-save-bar">
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--primary"
+                disabled={saving || !isDirty}
+                onClick={() => void saveSelectedRole()}
+              >
+                {saving
+                  ? locale === "zh"
+                    ? "保存中…"
+                    : "Saving…"
+                  : locale === "zh"
+                    ? `保存「${roleLabel(selectedRole, locale)}」权限`
+                    : `Save ${roleLabel(selectedRole, locale)}`}
+              </button>
+              <button
+                type="button"
+                className="btn-rsi-filter"
+                disabled={saving || !isDirty}
+                onClick={resetSelectedRole}
+              >
+                {locale === "zh" ? "撤销修改" : "Discard changes"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="section etr-panel admin-rbac-section">
+        <div className="admin-rbac-section-head">
+          <h2 className="admin-rbac-section-title">
+            {locale === "zh"
+              ? `「${roleLabel(selectedRole, locale)}」下的用户`
+              : `Users with role: ${roleLabel(selectedRole, locale)}`}
+          </h2>
+          {!loading ? (
+            <span className="admin-rbac-count-badge">
+              {selectedRoleUsers.length}
+              {locale === "zh" ? " 人" : " users"}
+            </span>
+          ) : null}
+        </div>
+
         {loading ? (
           <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
-        ) : users.length === 0 ? (
-          <p className="hint">
+        ) : selectedRoleUsers.length === 0 ? (
+          <p className="hint admin-rbac-empty">
             {locale === "zh"
-              ? "暂无用户记录。账号首次登录后会出现在此表中。"
-              : "No users yet. Accounts appear here after first login."}
+              ? "该角色下暂无用户。可在「用户管理」中创建或调整用户角色。"
+              : "No users with this role yet. Assign roles in User management."}
           </p>
         ) : (
-          <div className="admin-rbac-table-wrap">
-            <table className="admin-rbac-table">
+          <div className="admin-rbac-users-wrap">
+            <table className="admin-rbac-users-table">
               <thead>
                 <tr>
                   <th>{locale === "zh" ? "用户名" : "Username"}</th>
-                  <th>{locale === "zh" ? "角色" : "Role"}</th>
-                  <th>{locale === "zh" ? "权限" : "Permissions"}</th>
+                  <th>{locale === "zh" ? "有效权限" : "Effective permissions"}</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {selectedRoleUsers.map((user) => (
                   <tr key={user.id}>
                     <td className="admin-rbac-username">{user.username}</td>
-                    <td>{roleLabel(user.role, locale)}</td>
                     <td>
                       <div className="admin-rbac-tags">
                         {permissionLabels(user.permissions, catalog, locale).map(
@@ -306,189 +636,6 @@ export function AdminRbacPage() {
           </div>
         )}
       </section>
-
-      <section className="section etr-panel admin-rbac-section">
-        <h2 className="admin-rbac-section-title">
-          {locale === "zh" ? "按角色配置权限" : "Permissions by role"}
-        </h2>
-        <p className="hint" style={{ marginBottom: "0.75rem" }}>
-          {locale === "zh"
-            ? "管理员始终拥有全部权限（不可改）。勾选后点击保存，会更新该角色下所有用户（如上表）。"
-            : "Admin always has full access (read-only). Saving updates all users with that role."}
-        </p>
-
-        {loading ? (
-          <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
-        ) : (
-          <>
-            {RBAC_UI_LAYOUT.map((section) => {
-              if (section.kind === "category") {
-                const items = groupedCatalog.get(section.category) ?? [];
-                if (!items.length) return null;
-                return (
-                  <div key={section.category} className="admin-rbac-group">
-                    <h3 className="admin-rbac-group-title">
-                      {rbacCategoryLabel(section.category, locale)}
-                    </h3>
-                    <PermissionMatrixTable
-                      items={items}
-                      locale={locale}
-                      adminPermissions={adminPermissions}
-                      draftByRole={draftByRole}
-                      toggleDraft={toggleDraft}
-                    />
-                  </div>
-                );
-              }
-
-              const subsections = section.categories
-                .map((category) => ({
-                  category,
-                  items: groupedCatalog.get(category) ?? [],
-                }))
-                .filter((entry) => entry.items.length > 0);
-              if (!subsections.length) return null;
-
-              return (
-                <div key={section.module} className="admin-rbac-module">
-                  <h3 className="admin-rbac-module-title">
-                    {rbacModuleLabel(section.module, locale)}
-                  </h3>
-                  {subsections.map(({ category, items }) => (
-                    <div key={category} className="admin-rbac-group admin-rbac-group--nested">
-                      <h4 className="admin-rbac-group-title admin-rbac-subgroup-title">
-                        {rbacCategoryLabel(category, locale)}
-                      </h4>
-                      <PermissionMatrixTable
-                        items={items}
-                        locale={locale}
-                        adminPermissions={adminPermissions}
-                        draftByRole={draftByRole}
-                        toggleDraft={toggleDraft}
-                      />
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-
-            <div className="etr-form-actions" style={{ marginTop: "1rem" }}>
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--primary"
-                disabled={saving}
-                onClick={() => void saveAll()}
-              >
-                {saving
-                  ? locale === "zh"
-                    ? "保存中…"
-                    : "Saving…"
-                  : locale === "zh"
-                    ? "保存角色权限"
-                    : "Save role permissions"}
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-
-      <style jsx>{`
-        .admin-rbac-section {
-          margin-bottom: 1.25rem;
-        }
-        .admin-rbac-section-title {
-          font-size: 1.125rem;
-          margin: 0 0 0.75rem;
-        }
-        .admin-rbac-table-wrap {
-          overflow-x: auto;
-        }
-        .admin-rbac-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 0.875rem;
-        }
-        .admin-rbac-table th,
-        .admin-rbac-table td {
-          border: 1px solid var(--border);
-          padding: 0.55rem 0.65rem;
-          vertical-align: top;
-          text-align: left;
-        }
-        .admin-rbac-table th {
-          background: var(--panel);
-          font-weight: 600;
-          white-space: nowrap;
-        }
-        .admin-rbac-table tbody tr:nth-child(even) {
-          background: rgba(255, 255, 255, 0.02);
-        }
-        .admin-rbac-username {
-          font-weight: 600;
-          white-space: nowrap;
-        }
-        .admin-rbac-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.35rem;
-        }
-        .admin-rbac-tag {
-          display: inline-block;
-          padding: 0.15rem 0.45rem;
-          border-radius: 4px;
-          border: 1px solid var(--border);
-          background: var(--panel);
-          font-size: 0.8125rem;
-          line-height: 1.35;
-        }
-        .admin-rbac-module {
-          margin-top: 1.25rem;
-        }
-        .admin-rbac-module-title {
-          font-size: 1rem;
-          margin: 0 0 0.65rem;
-          font-weight: 600;
-        }
-        .admin-rbac-group {
-          margin-top: 1.25rem;
-        }
-        .admin-rbac-group--nested {
-          margin-top: 0.85rem;
-          margin-left: 0.75rem;
-          padding-left: 0.85rem;
-          border-left: 2px solid var(--border);
-        }
-        .admin-rbac-group-title {
-          font-size: 0.9375rem;
-          margin: 0 0 0.5rem;
-        }
-        .admin-rbac-subgroup-title {
-          font-size: 0.875rem;
-          color: var(--muted);
-          font-weight: 600;
-        }
-        .admin-rbac-key {
-          display: block;
-          font-size: 0.75rem;
-          color: var(--muted);
-          font-family: ui-monospace, monospace;
-          font-weight: normal;
-        }
-        .admin-rbac-desc {
-          display: block;
-          font-size: 0.8125rem;
-          color: var(--muted);
-          font-weight: normal;
-          margin-top: 0.15rem;
-        }
-        .admin-rbac-check-cell {
-          text-align: center;
-          width: 6rem;
-        }
-        .admin-rbac-matrix td:first-child {
-          min-width: 12rem;
-        }
-      `}</style>
     </div>
   );
 }

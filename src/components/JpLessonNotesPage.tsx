@@ -102,8 +102,13 @@ export function JpLessonNotesPage() {
   const searchParams = useSearchParams();
   const lessonId = Number(searchParams.get("id"));
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
-  const canEdit = canAccessJpVocab;
+  const { user, checking, hasPermission, isAdmin, openAuthPanel } = useEtrAuth();
+  const canViewJpLesson =
+    !user ||
+    isAdmin ||
+    hasPermission("jp_lesson:read") ||
+    hasPermission("jp_lesson:operate");
+  const canEdit = isAdmin || hasPermission("jp_lesson:operate");
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -204,8 +209,10 @@ export function JpLessonNotesPage() {
   }, [lessonId]);
 
   useEffect(() => {
+    if (checking) return;
+    if (user && !canViewJpLesson) return;
     void loadData();
-  }, [loadData]);
+  }, [loadData, checking, user, canViewJpLesson]);
 
   useEffect(() => {
     if (!lesson || loading) return;
@@ -223,7 +230,7 @@ export function JpLessonNotesPage() {
       if (!lesson) return;
       if (!canEdit) {
         if (!opts?.auto) {
-          openJpAuth();
+          if (!user) openJpAuth();
         }
         return;
       }
@@ -470,8 +477,8 @@ export function JpLessonNotesPage() {
       {!canEdit ? (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
           {user
-            ? "当前账号仅可浏览；编辑笔记需登录用户权限。"
-            : "当前为浏览模式；编辑笔记需登录。"}
+            ? "当前账号没有新课编辑权限，笔记为只读。"
+            : "当前为浏览模式；编辑笔记需登录并具有新课编辑权限。"}
         </p>
       ) : (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
@@ -479,7 +486,15 @@ export function JpLessonNotesPage() {
         </p>
       )}
 
-      {loading ? (
+      {checking ? (
+        <p style={{ color: "var(--muted)" }}>验证中…</p>
+      ) : user && !canViewJpLesson ? (
+        <section className="section etr-panel">
+          <p style={{ color: "var(--muted)", margin: 0 }}>
+            您没有日语新课的查看权限，无法打开课堂笔记。
+          </p>
+        </section>
+      ) : loading ? (
         <p style={{ color: "var(--muted)" }}>加载中…</p>
       ) : error && !lesson ? (
         <p className="empty" role="alert" style={{ color: "var(--rise)" }}>

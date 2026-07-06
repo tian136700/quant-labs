@@ -5,7 +5,7 @@ import {
   updateJpLessonRefKey,
 } from "@/lib/jp-lesson-db";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireJpLessonOperate } from "@/lib/jp-lesson-auth";
 import {
   saveJpVocabRefFileMeta,
   updateJpVocabWordsRefKey,
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }

@@ -264,8 +264,13 @@ function JpLessonMobileFieldValue({
 
 export function JpLessonPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, openAuthPanel, isAdmin } = useEtrAuth();
-  const canOperate = canAccessJpVocab;
+  const { user, checking, hasPermission, openAuthPanel, isAdmin } = useEtrAuth();
+  const canViewJpLesson =
+    !user ||
+    isAdmin ||
+    hasPermission("jp_lesson:read") ||
+    hasPermission("jp_lesson:operate");
+  const canOperate = isAdmin || hasPermission("jp_lesson:operate");
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -343,8 +348,10 @@ export function JpLessonPage() {
   }, [applyLessonPayload]);
 
   useEffect(() => {
+    if (checking) return;
+    if (user && !canViewJpLesson) return;
     void loadLessons();
-  }, [loadLessons]);
+  }, [loadLessons, checking, user, canViewJpLesson]);
 
   const lessonsByStatus = useMemo(() => {
     const buckets: Record<JpLessonProgressStatus, JpLessonRecord[]> = {
@@ -407,7 +414,8 @@ export function JpLessonPage() {
     progressStatus: JpLessonProgressStatus
   ) => {
     if (!canOperate) {
-      openJpAuth();
+      if (!user) openJpAuth();
+      else setStatus("您没有日语新课的编辑权限。");
       return;
     }
     if (savingId === lessonId) return;
@@ -1194,12 +1202,23 @@ export function JpLessonPage() {
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        新课学习清单与教案管理。访客可浏览；登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
+        新课学习清单与教案管理。访客可浏览；具备「新课编辑」权限的登录用户可设置学习状态（未完成 / 学习中 / 已完成）。仅「已完成」会同步进入
         <a href="/jp-vocab" style={{ color: "var(--accent)" }}>
           日语单词抽问
         </a>
         并带上教案链接。
       </p>
+
+      {checking ? (
+        <p style={{ color: "var(--muted)" }}>验证中…</p>
+      ) : user && !canViewJpLesson ? (
+        <section className="section etr-panel">
+          <p style={{ color: "var(--muted)", margin: 0 }}>
+            您没有日语新课的查看权限。如需访问，请联系管理员在「角色权限管理」中为您的角色开启「日语新课 · 查看/浏览」或「编辑/操作」权限。
+          </p>
+        </section>
+      ) : (
+        <>
 
       {isAdmin ? (
         <div className="jp-lesson-admin-links">
@@ -1381,6 +1400,8 @@ export function JpLessonPage() {
           日语单词抽问并带上教案链接。
         </p>
       </details>
+        </>
+      )}
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-page)) {

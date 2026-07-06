@@ -10,7 +10,7 @@ import {
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
 import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
 import type { JpLessonRecord } from "@/lib/types";
 
@@ -53,8 +53,18 @@ function stripAdminOnlyFromLessons(lessons: JpLessonRecord[]): JpLessonRecord[] 
 }
 
 export async function GET(request: Request) {
+  const locale = localeFromRequest(request);
+  const FORBIDDEN = {
+    en: "You do not have permission to view Japanese lessons.",
+    zh: "您没有日语新课的查看权限。",
+  };
+
   try {
-    const env = await getCloudflareEnv();
+    const { env, user, allowed } = await requireJpLessonRead(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: FORBIDDEN[locale] }, 403);
+    }
+
     const { isAdmin } = await requireAdmin(request);
     const [lessons, refs, notes] = await Promise.all([
       listJpLessons(env.DB),
@@ -84,7 +94,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }

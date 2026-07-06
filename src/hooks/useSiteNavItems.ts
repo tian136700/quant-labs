@@ -118,12 +118,16 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "jpLesson",
-        href: navHref("jpLesson", locale, navOpts),
-        label: nav.jpLesson,
-        active: onJpLessonMain,
-      },
+      ...(hasPermission("jp_lesson:read") || hasPermission("jp_lesson:operate")
+        ? [
+            {
+              id: "jpLesson",
+              href: navHref("jpLesson", locale, navOpts),
+              label: nav.jpLesson,
+              active: onJpLessonMain,
+            },
+          ]
+        : []),
       {
         id: "about",
         href: navHref("about", locale, navOpts),

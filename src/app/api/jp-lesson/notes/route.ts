@@ -4,7 +4,7 @@ import {
   deleteJpLessonNote,
   updateJpLessonNote,
 } from "@/lib/jp-lesson-note-db";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireJpLessonOperate } from "@/lib/jp-lesson-auth";
 
 const AUTH_MSG = {
   en: "Please log in to save notes.",
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
@@ -56,7 +56,7 @@ export async function PATCH(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
@@ -93,7 +93,7 @@ export async function DELETE(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }

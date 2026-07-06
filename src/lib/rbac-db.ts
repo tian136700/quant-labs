@@ -3,6 +3,7 @@ import { listEtrUsers } from "@/lib/etr-auth-db";
 import {
   RBAC_ALL_PERMISSION_KEYS,
   RBAC_DEFAULT_ROLE_PERMISSIONS,
+  RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_PERMISSION_CATALOG,
   isAdminSuperuser,
@@ -167,7 +168,7 @@ export type RbacRoleMatrix = {
 
 export async function listRbacMatrix(db: D1Database): Promise<RbacRoleMatrix[]> {
   await ensureRbacSeeded(db);
-  const roles: EtrUserRole[] = ["admin", "jp_vocab", "user"];
+  const roles: EtrUserRole[] = ["admin", "jp_vocab", "en_vocab", "user"];
   const matrix: RbacRoleMatrix[] = [];
   for (const role of roles) {
     matrix.push({
@@ -196,7 +197,12 @@ export async function updateRolePermissions(
   }
 
   const allowed = new Set(RBAC_ALL_PERMISSION_KEYS);
-  const cleaned = [...new Set(permissionKeys.filter((k) => allowed.has(k)))].sort();
+  let cleaned = [...new Set(permissionKeys.filter((k) => allowed.has(k)))];
+  if (role === "jp_vocab") {
+    const excluded = new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
+    cleaned = cleaned.filter((k) => !excluded.has(k));
+  }
+  cleaned.sort();
 
   if (devRbacEnabled) {
     devRolePermissions.set(role, new Set(cleaned));
@@ -241,9 +247,7 @@ export async function enrichSessionUser(
 ): Promise<SessionUserWithPermissions> {
   const permissions = await getUserPermissions(db, user);
   const can_operate_jp_vocab =
-    isAdminSuperuser(user.role) ||
-    permissions.includes("jp_vocab:operate") ||
-    permissions.includes("jp_lesson:operate");
+    isAdminSuperuser(user.role) || permissions.includes("jp_vocab:operate");
   const can_operate_en_vocab =
     isAdminSuperuser(user.role) ||
     permissions.includes("en_vocab:operate") ||
