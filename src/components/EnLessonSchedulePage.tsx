@@ -510,9 +510,12 @@ export function EnLessonSchedulePage() {
                 type="date"
                 className="jpls-date-input"
                 value={selectedDate}
-                aria-label={`选择日期，${selectedDateRelativeLabel}`}
+                aria-label={`选择日期，${selectedDateRelativeLabel}，${dayEvents.length} 节课`}
                 onChange={(event) => event.target.value && setSelectedDate(event.target.value)}
               />
+              {viewMode === "day" ? (
+                <span className="jpls-date-count">{dayEvents.length} 节课</span>
+              ) : null}
             </div>
             <button
               type="button"
@@ -563,7 +566,6 @@ export function EnLessonSchedulePage() {
               <div className="jpls-day-title">
                 <span className="jpls-day-date">{selectedDate}</span>
                 <span className="jpls-day-weekday">{selectedDateRelativeLabel}</span>
-                <span className="jpls-day-count">{dayEvents.length} 节课</span>
               </div>
               {dayBusyRange ? (
                 <>
@@ -918,6 +920,13 @@ export function EnLessonSchedulePage() {
           white-space: nowrap;
           flex-shrink: 0;
         }
+        .jpls-date-count {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-weight: 500;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
         .jpls-icon-btn,
         .jpls-export-btn,
         .jpls-view-tab {
@@ -1083,11 +1092,6 @@ export function EnLessonSchedulePage() {
           margin: 0 0 0.75rem;
           font-size: 1rem;
           font-weight: 600;
-        }
-        .jpls-day-count {
-          font-size: 0.8125rem;
-          color: var(--muted);
-          font-weight: 400;
         }
         .jpls-day-empty {
           flex: 1;

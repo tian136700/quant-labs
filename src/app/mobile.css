@@ -748,6 +748,14 @@
     font-size: 0.875rem;
   }
 
+  .jpls-date-count {
+    font-size: 0.8125rem;
+    color: var(--muted);
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   .jpls-icon-btn {
     width: 2.25rem;
     height: 2.25rem;
