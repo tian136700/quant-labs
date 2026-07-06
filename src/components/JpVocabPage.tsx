@@ -24,7 +24,6 @@ import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
 } from "@/lib/jp-vocab-search";
-import { JpVocabSpeakButton } from "@/components/JpVocabSpeakButton";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
@@ -1388,20 +1387,13 @@ export function JpVocabPage() {
                         </div>
                         <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
                           {w.kind === "word" ? (
-                            <>
-                              <JpVocabSpeakButton
-                                word={w.word}
-                                reading={w.reading}
-                                className="jp-vocab-mobile-speak"
-                              />
-                              {readingTrim ? (
-                                <span className="jp-vocab-reading-text">{readingTrim}</span>
-                              ) : (
-                                <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                                  待补全
-                                </span>
-                              )}
-                            </>
+                            readingTrim ? (
+                              <span className="jp-vocab-reading-text">{readingTrim}</span>
+                            ) : (
+                              <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
+                                待补全
+                              </span>
+                            )
                           ) : readingTrim ? (
                             <span className="jp-vocab-reading-text">{readingTrim}</span>
                           ) : null}
@@ -1414,9 +1406,6 @@ export function JpVocabPage() {
                         data-label="读音"
                       >
                         <div className="jp-vocab-reading-cell">
-                          {w.kind === "word" ? (
-                            <JpVocabSpeakButton word={w.word} reading={w.reading} />
-                          ) : null}
                           {readingTrim ? (
                             <span className="jp-vocab-reading-text">{readingTrim}</span>
                           ) : w.kind === "word" ? (
@@ -2244,33 +2233,6 @@ export function JpVocabPage() {
           font-size: 0.8125rem;
           opacity: 0.72;
         }
-        :global(.jp-vocab-speak-btn) {
-          flex: 0 0 auto;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 1.75rem;
-          height: 1.75rem;
-          margin: 0;
-          padding: 0;
-          border: 1px solid var(--border);
-          border-radius: 999px;
-          background: var(--panel);
-          color: var(--accent);
-          cursor: pointer;
-        }
-        :global(.jp-vocab-speak-btn:hover:not(:disabled)) {
-          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-        }
-        :global(.jp-vocab-speak-btn:disabled) {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-        :global(.jp-vocab-speak-btn.is-playing) {
-          color: var(--rise);
-          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
-          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
-        }
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
           min-width: 6.5rem;
           padding-left: 0.65rem;
@@ -2399,7 +2361,7 @@ export function JpVocabPage() {
           :global(.jp-vocab-table tbody td::before) {
             content: attr(data-label) "：";
             flex: 0 0 auto;
-            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
+            font-size: clamp(0.8125rem, 3.2vw, 0.9375rem);
             font-weight: 400;
             color: var(--muted);
             white-space: nowrap;
@@ -2410,7 +2372,11 @@ export function JpVocabPage() {
           :global(.jp-vocab-table tbody td > *) {
             flex: 1;
             min-width: 0;
-            font-size: clamp(0.8125rem, 3vw, 0.9375rem);
+            font-size: clamp(0.875rem, 3.4vw, 1rem);
+          }
+          :global(.jp-vocab-table .jp-vocab-seq-num) {
+            font-size: clamp(0.875rem, 3.4vw, 1rem);
+            font-weight: 600;
           }
           :global(.jp-vocab-table .jp-vocab-word-col) {
             grid-column: 1 / -1;
@@ -2444,7 +2410,6 @@ export function JpVocabPage() {
             align-items: center;
             gap: 0.375rem;
             width: 100%;
-            min-height: 2.75rem;
           }
           .jp-vocab-mobile-reading-row:empty {
             display: none;
@@ -2561,8 +2526,8 @@ export function JpVocabPage() {
           :global(.jp-vocab-table .jp-vocab-kind-badge),
           .jp-vocab-pos-badge {
             flex: 0 0 auto;
-            font-size: clamp(0.6875rem, 2.6vw, 0.75rem) !important;
-            padding: 0.125rem 0.4375rem !important;
+            font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
+            padding: 0.1875rem 0.5rem !important;
             border-radius: 999px !important;
             border: 1px solid var(--border) !important;
             background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
@@ -2580,7 +2545,7 @@ export function JpVocabPage() {
             flex: 0 0 auto !important;
             padding: 0.125rem 0.4375rem;
             border-radius: 999px;
-            font-size: clamp(0.6875rem, 2.6vw, 0.75rem) !important;
+            font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             border: 1px solid var(--border);

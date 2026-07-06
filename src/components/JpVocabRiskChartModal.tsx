@@ -86,32 +86,32 @@ export function JpVocabRiskChartModal({ open, words, onClose }: Props) {
           display: flex;
           flex-direction: column;
           background: var(--panel);
-          border: 1px solid var(--border);
-          border-radius: 10px;
+          border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+          border-radius: 15px;
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
         .jp-vocab-risk-modal-header {
           display: flex;
           justify-content: space-between;
-          align-items: flex-start;
+          align-items: center;
           gap: 0.75rem;
-          padding: 1rem 1rem 0.5rem;
-          border-bottom: 1px solid var(--border);
+          padding: 0.875rem 1rem 0.625rem;
+          border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
           flex-shrink: 0;
         }
         .jp-vocab-risk-modal-section {
           margin: 0;
-          font-size: 0.875rem;
+          font-size: clamp(0.9375rem, 3.5vw, 1rem);
           font-weight: 600;
           color: var(--text);
-          letter-spacing: 0.02em;
+          letter-spacing: 0.01em;
         }
         .jp-vocab-risk-modal-close {
           flex-shrink: 0;
-          width: 2rem;
-          height: 2rem;
-          border: 1px solid var(--border);
-          border-radius: 6px;
+          width: 2.75rem;
+          height: 2.75rem;
+          border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+          border-radius: 10px;
           background: transparent;
           color: var(--muted);
           font-size: 1.25rem;
@@ -123,20 +123,28 @@ export function JpVocabRiskChartModal({ open, words, onClose }: Props) {
           border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
         }
         .jp-vocab-risk-modal-body {
-          padding: 0.75rem 1rem 1rem;
+          padding: 0.625rem 1rem 1rem;
           overflow: auto;
           flex: 1;
           min-height: 0;
+          -webkit-overflow-scrolling: touch;
         }
-        @media (max-width: 480px) {
+        @media (max-width: 767px) {
           .jp-vocab-risk-modal-overlay {
             align-items: flex-end;
             padding: 0;
           }
           .jp-vocab-risk-modal {
             width: 100%;
-            max-height: 94dvh;
-            border-radius: 12px 12px 0 0;
+            max-height: min(94dvh, 100dvh - env(safe-area-inset-top, 0px));
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+          }
+          .jp-vocab-risk-modal-header {
+            padding: 0.75rem 1rem 0.5rem;
+          }
+          .jp-vocab-risk-modal-body {
+            padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
           }
         }
       `}</style>
