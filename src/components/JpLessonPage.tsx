@@ -647,85 +647,6 @@ export function JpLessonPage() {
     return <div className="jp-lesson-actions">{actionItems}</div>;
   };
 
-  const renderMobileEditBar = (groupLessons: JpLessonRecord[]) => {
-    type EditAction = {
-      key: string;
-      label: string;
-      disabled?: boolean;
-      onClick: () => void;
-    };
-    const actions: EditAction[] = [];
-
-    for (const lesson of groupLessons) {
-      const prefix = groupLessons.length > 1 ? `#${lesson.id} ` : "";
-      const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
-      const hasRef = Boolean(lesson.ref_key && ref);
-
-      if (canOperate && hasRef) {
-        actions.push({
-          key: `ref-${lesson.id}`,
-          label: `${prefix}编辑教案`,
-          onClick: () => setEditingLesson(lesson),
-        });
-      }
-      if (isAdmin) {
-        actions.push({
-          key: `teacher-${lesson.id}`,
-          label: `${prefix}上课老师`,
-          disabled: savingTeacherId === lesson.id,
-          onClick: () => setEditingTeacherLesson(lesson),
-        });
-        actions.push({
-          key: `time-${lesson.id}`,
-          label: `${prefix}上课时间`,
-          disabled: savingNextClassId === lesson.id,
-          onClick: () => setEditingNextClassLesson(lesson),
-        });
-      }
-    }
-
-    if (!actions.length) {
-      return <td className="jp-lesson-mobile-edit-bar" aria-hidden="true" />;
-    }
-
-    if (actions.length === 1) {
-      return (
-        <td className="jp-lesson-mobile-edit-bar">
-          <button
-            type="button"
-            className="jp-lesson-mobile-edit-trigger"
-            disabled={actions[0].disabled}
-            onClick={actions[0].onClick}
-          >
-            ✏ 编辑
-          </button>
-        </td>
-      );
-    }
-
-    return (
-      <td className="jp-lesson-mobile-edit-bar">
-        <details className="jp-lesson-mobile-edit-menu">
-          <summary className="jp-lesson-mobile-edit-trigger">✏ 编辑</summary>
-          <div className="jp-lesson-mobile-edit-options" role="menu">
-            {actions.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                role="menuitem"
-                className="jp-lesson-mobile-edit-option"
-                disabled={action.disabled}
-                onClick={action.onClick}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
-        </details>
-      </td>
-    );
-  };
-
   const renderSharedTeacherCell = (groupLessons: JpLessonRecord[]) => {
     const lesson = groupLessons[0];
     return (
@@ -1007,7 +928,6 @@ export function JpLessonPage() {
                     ))}
                   </div>
                 </td>
-                {renderMobileEditBar(group.lessons)}
               </tr>
             );
           })}
@@ -1283,9 +1203,6 @@ export function JpLessonPage() {
           :global(.jp-lesson-mobile-status-filter) {
             display: none;
           }
-        }
-        :global(.jp-lesson-mobile-edit-bar) {
-          display: none !important;
         }
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
