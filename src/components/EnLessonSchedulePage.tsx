@@ -899,16 +899,16 @@ export function EnLessonSchedulePage() {
           display: flex;
           align-items: center;
           gap: 0.35rem;
-          flex: 1 1 15rem;
-          min-width: 0;
+          flex: 0 0 auto;
+          width: auto;
         }
         .jpls-date-nav-center {
           display: flex;
           flex-direction: row;
           align-items: center;
           gap: 0.5rem;
-          min-width: 0;
-          flex: 1 1 auto;
+          flex: 0 0 auto;
+          width: auto;
         }
         .jpls-date-relative {
           font-size: 0.875rem;
@@ -944,9 +944,9 @@ export function EnLessonSchedulePage() {
           padding: 0.35rem 0.55rem;
           font-size: 0.875rem;
           min-height: 2.25rem;
-          width: auto;
-          flex: 1 1 9rem;
-          min-width: 0;
+          flex: 0 0 auto;
+          width: 10.5rem;
+          max-width: 10.5rem;
         }
         .jpls-export-btn {
           padding: 0.35rem 0.75rem;

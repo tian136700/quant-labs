@@ -197,7 +197,7 @@ export function JpLessonSchedulePage() {
   );
   const [loading, setLoading] = useState(() => readLessonCache() == null);
   const [error, setError] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [selectedDate, setSelectedDate] = useState(() => beijingTodayDateString());
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -493,7 +493,7 @@ export function JpLessonSchedulePage() {
             <button
               type="button"
               className="jpls-icon-btn"
-              aria-label="上一天"
+              aria-label={viewMode === "week" ? "上一周" : viewMode === "month" ? "上一月" : "上一天"}
               onClick={() =>
                 setSelectedDate((prev) =>
                   addBeijingCalendarDays(prev, viewMode === "month" ? -28 : viewMode === "week" ? -7 : -1)
@@ -517,7 +517,7 @@ export function JpLessonSchedulePage() {
             <button
               type="button"
               className="jpls-icon-btn"
-              aria-label="下一天"
+              aria-label={viewMode === "week" ? "下一周" : viewMode === "month" ? "下一月" : "下一天"}
               onClick={() =>
                 setSelectedDate((prev) =>
                   addBeijingCalendarDays(prev, viewMode === "month" ? 28 : viewMode === "week" ? 7 : 1)
@@ -648,6 +648,9 @@ export function JpLessonSchedulePage() {
 
           {viewMode === "week" ? (
             <div className="jpls-week-view">
+              <div className="jpls-week-range" aria-hidden="true">
+                {weekDates[0]} ~ {weekDates[6]}
+              </div>
               {weekDates.map((dateStr) => {
                 const events = eventsForDate(dateStr);
                 const isToday = dateStr === todayStr;
@@ -664,25 +667,39 @@ export function JpLessonSchedulePage() {
                         setViewMode("day");
                       }}
                     >
-                      <span>{dateStr.slice(5)}</span>
-                      <span>{beijingRelativeWeekdayLabel(dateStr, now)}</span>
-                      <span className="jpls-week-count">{events.length}</span>
+                      <span className="jpls-week-col-main">
+                        <span className="jpls-week-col-weekday">
+                          {beijingRelativeWeekdayLabel(dateStr, now)}
+                        </span>
+                        <span className="jpls-week-col-date">{dateStr.slice(5)}</span>
+                      </span>
+                      <span className="jpls-week-count">
+                        {events.length ? `${events.length} 节` : "无课"}
+                      </span>
                     </button>
                     <div className="jpls-week-list">
                       {events.length ? (
-                        events.map((event) => (
-                          <button
-                            key={event.key}
-                            type="button"
-                            className={`jpls-week-item${
-                              selectedEventKey === event.key ? " is-selected" : ""
-                            }`}
-                            onClick={() => setSelectedEventKey(event.key)}
-                          >
-                            <span>{beijingTimeHm(event.start)}</span>
-                            <span>{formatContentPreview(event.lesson.content, 2)}</span>
-                          </button>
-                        ))
+                        events.map((event) => {
+                          const status = getJpLessonScheduleEventStatus(event, now);
+                          return (
+                            <button
+                              key={event.key}
+                              type="button"
+                              className={`jpls-week-item${
+                                selectedEventKey === event.key ? " is-selected" : ""
+                              }${status ? ` jpls-week-item--${status}` : ""}`}
+                              onClick={() => setSelectedEventKey(event.key)}
+                            >
+                              <span className="jpls-week-item-time">
+                                {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
+                              </span>
+                              <span className="jpls-week-item-meta">{event.teachers}</span>
+                              <span className="jpls-week-item-content">
+                                {formatContentPreview(event.lesson.content, 2)}
+                              </span>
+                            </button>
+                          );
+                        })
                       ) : (
                         <p className="jpls-week-empty">无课</p>
                       )}
@@ -899,16 +916,16 @@ export function JpLessonSchedulePage() {
           display: flex;
           align-items: center;
           gap: 0.35rem;
-          flex: 1 1 15rem;
-          min-width: 0;
+          flex: 0 0 auto;
+          width: auto;
         }
         .jpls-date-nav-center {
           display: flex;
           flex-direction: row;
           align-items: center;
           gap: 0.5rem;
-          min-width: 0;
-          flex: 1 1 auto;
+          flex: 0 0 auto;
+          width: auto;
         }
         .jpls-date-relative {
           font-size: 0.875rem;
@@ -944,9 +961,9 @@ export function JpLessonSchedulePage() {
           padding: 0.35rem 0.55rem;
           font-size: 0.875rem;
           min-height: 2.25rem;
-          width: auto;
-          flex: 1 1 9rem;
-          min-width: 0;
+          flex: 0 0 auto;
+          width: 10.5rem;
+          max-width: 10.5rem;
         }
         .jpls-export-btn {
           padding: 0.35rem 0.75rem;
@@ -1254,6 +1271,9 @@ export function JpLessonSchedulePage() {
           gap: 0.5rem;
           min-height: 520px;
         }
+        .jpls-week-range {
+          display: none;
+        }
         .jpls-week-col {
           border: 1px solid var(--border);
           border-radius: 10px;
@@ -1274,6 +1294,19 @@ export function JpLessonSchedulePage() {
           cursor: pointer;
           font-size: 0.8125rem;
         }
+        .jpls-week-col-main {
+          display: flex;
+          flex-direction: column;
+          gap: 0.1rem;
+          align-items: flex-start;
+        }
+        .jpls-week-col-weekday {
+          font-weight: 600;
+        }
+        .jpls-week-col-date {
+          color: var(--muted);
+          font-size: 0.75rem;
+        }
         .jpls-week-count {
           color: var(--muted);
           font-size: 0.75rem;
@@ -1288,7 +1321,7 @@ export function JpLessonSchedulePage() {
           display: flex;
           flex-direction: column;
           align-items: flex-start;
-          gap: 0.1rem;
+          gap: 0.15rem;
           padding: 0.45rem;
           border-radius: 8px;
           border: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
@@ -1296,6 +1329,22 @@ export function JpLessonSchedulePage() {
           cursor: pointer;
           font-size: 0.75rem;
           text-align: left;
+        }
+        .jpls-week-item-time {
+          font-weight: 600;
+        }
+        .jpls-week-item-meta {
+          color: var(--muted);
+          font-size: 0.6875rem;
+        }
+        .jpls-week-item-content {
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+        .jpls-week-item--past {
+          opacity: 0.72;
+          border-color: color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--panel) 92%, transparent);
         }
         .jpls-week-item.is-selected {
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
