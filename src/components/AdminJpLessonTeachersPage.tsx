@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
@@ -111,6 +111,24 @@ export function AdminJpLessonTeachersPage() {
   useEffect(() => {
     if (!checking && isAdmin) void loadTeachers();
   }, [checking, isAdmin, loadTeachers]);
+
+  const sortedTeachers = useMemo(() => {
+    const avgScore = (teacherId: number): number | null => {
+      const summary = reviewSummaries.get(teacherId);
+      if (!summary || summary.review_count <= 0 || summary.avg_score == null) return null;
+      return summary.avg_score;
+    };
+
+    return [...teachers].sort((a, b) => {
+      const scoreA = avgScore(a.id);
+      const scoreB = avgScore(b.id);
+      if (scoreA == null && scoreB == null) return a.sort_order - b.sort_order || a.id - b.id;
+      if (scoreA == null) return 1;
+      if (scoreB == null) return -1;
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return a.sort_order - b.sort_order || a.id - b.id;
+    });
+  }, [teachers, reviewSummaries]);
 
   const createTeacher = async () => {
     setSaving(true);
@@ -355,7 +373,7 @@ export function AdminJpLessonTeachersPage() {
                 </tr>
               </thead>
               <tbody>
-                {teachers.map((teacher) => {
+                {sortedTeachers.map((teacher) => {
                   const isEditing = editingId === teacher.id;
                   const summary = reviewSummaries.get(teacher.id);
                   const latestRemark = summary?.latest_remark ?? null;
