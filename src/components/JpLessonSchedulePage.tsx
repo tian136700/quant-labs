@@ -217,6 +217,12 @@ export function JpLessonSchedulePage() {
   const [loading, setLoading] = useState(() => readLessonCache() == null);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("week");
+
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setViewMode("day");
+    }
+  }, []);
   const [selectedDate, setSelectedDate] = useState(() => beijingTodayDateString());
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -1303,10 +1309,13 @@ export function JpLessonSchedulePage() {
           font-size: 0.8125rem;
         }
         .jpls-icon-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           width: 2.25rem;
           height: 2.25rem;
           padding: 0;
-          font-size: 1.1rem;
+          font-size: 1.25rem;
           line-height: 1;
           flex-shrink: 0;
         }
@@ -1383,7 +1392,54 @@ export function JpLessonSchedulePage() {
             flex: 1 1 0;
           }
           .jpls-date-nav {
+            display: grid;
+            grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem;
+            grid-template-rows: auto auto;
+            column-gap: 0.35rem;
+            row-gap: 0.25rem;
+            align-items: center;
             width: 100%;
+            max-width: 100%;
+            overflow: visible;
+          }
+          .jpls-date-nav > .jpls-icon-btn:first-child {
+            grid-column: 1;
+            grid-row: 1;
+            position: relative;
+            z-index: 1;
+          }
+          .jpls-date-nav > .jpls-icon-btn:last-child {
+            grid-column: 3;
+            grid-row: 1;
+            position: relative;
+            z-index: 1;
+          }
+          .jpls-date-nav-center {
+            grid-column: 2;
+            grid-row: 1 / 3;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            grid-template-rows: auto auto;
+            gap: 0.2rem 0.5rem;
+            align-items: center;
+            min-width: 0;
+            width: 100%;
+          }
+          .jpls-date-relative {
+            grid-column: 1;
+            grid-row: 1;
+          }
+          .jpls-date-input {
+            grid-column: 2;
+            grid-row: 1;
+            width: 100%;
+            max-width: 100%;
+          }
+          .jpls-date-count {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            text-align: center;
+            white-space: normal;
           }
         }
         .jpls-legend {
@@ -1959,9 +2015,6 @@ export function JpLessonSchedulePage() {
           }
           .jpls-toolbar-controls {
             align-items: center;
-          }
-          .jpls-date-nav {
-            justify-content: center;
           }
           .jpls-toolbar-right {
             justify-content: center;

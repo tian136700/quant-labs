@@ -27,6 +27,29 @@ function scoreClass(score: number): string {
   return "etr-score--mid";
 }
 
+type ScoreSortOrder = "asc" | "desc";
+
+function compareTeachersByAvgScore(
+  a: JpLessonTeacher,
+  b: JpLessonTeacher,
+  reviewSummaries: Map<number, JpLessonTeacherReviewSummary>,
+  order: ScoreSortOrder
+): number {
+  const avgScore = (teacherId: number): number | null => {
+    const summary = reviewSummaries.get(teacherId);
+    if (!summary || summary.review_count <= 0 || summary.avg_score == null) return null;
+    return summary.avg_score;
+  };
+
+  const scoreA = avgScore(a.id);
+  const scoreB = avgScore(b.id);
+  if (scoreA == null && scoreB == null) return a.sort_order - b.sort_order || a.id - b.id;
+  if (scoreA == null) return 1;
+  if (scoreB == null) return -1;
+  if (scoreA !== scoreB) return order === "desc" ? scoreB - scoreA : scoreA - scoreB;
+  return a.sort_order - b.sort_order || a.id - b.id;
+}
+
 export function AdminJpLessonTeachersPage() {
   const { locale } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
@@ -46,6 +69,7 @@ export function AdminJpLessonTeachersPage() {
     Map<number, JpLessonTeacherReviewSummary>
   >(new Map());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
+  const [scoreSortOrder, setScoreSortOrder] = useState<ScoreSortOrder>("desc");
 
   useEffect(() => {
     document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
@@ -116,22 +140,14 @@ export function AdminJpLessonTeachersPage() {
   }, [checking, isAdmin, loadTeachers]);
 
   const sortedTeachers = useMemo(() => {
-    const avgScore = (teacherId: number): number | null => {
-      const summary = reviewSummaries.get(teacherId);
-      if (!summary || summary.review_count <= 0 || summary.avg_score == null) return null;
-      return summary.avg_score;
-    };
+    return [...teachers].sort((a, b) =>
+      compareTeachersByAvgScore(a, b, reviewSummaries, scoreSortOrder)
+    );
+  }, [teachers, reviewSummaries, scoreSortOrder]);
 
-    return [...teachers].sort((a, b) => {
-      const scoreA = avgScore(a.id);
-      const scoreB = avgScore(b.id);
-      if (scoreA == null && scoreB == null) return a.sort_order - b.sort_order || a.id - b.id;
-      if (scoreA == null) return 1;
-      if (scoreB == null) return -1;
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return a.sort_order - b.sort_order || a.id - b.id;
-    });
-  }, [teachers, reviewSummaries]);
+  const toggleScoreSortOrder = useCallback(() => {
+    setScoreSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  }, []);
 
   const createTeacher = async () => {
     setSaving(true);
@@ -391,7 +407,42 @@ export function AdminJpLessonTeachersPage() {
                   <th className="col-id">ID</th>
                   <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
                   <th className="col-rate">{locale === "zh" ? "课时费" : "Rate"}</th>
-                  <th className="col-score">{locale === "zh" ? "平均评分" : "Avg"}</th>
+                  <th
+                    className={`col-score col-score--sortable${
+                      scoreSortOrder === "asc"
+                        ? " col-score--sorted-asc"
+                        : " col-score--sorted-desc"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="etr-sort-btn is-active admin-jpl-score-sort-btn"
+                      title={
+                        scoreSortOrder === "desc"
+                          ? locale === "zh"
+                            ? "按平均评分从高到低；点击切换为从低到高"
+                            : "Avg score high to low; click for low to high"
+                          : locale === "zh"
+                            ? "按平均评分从低到高；点击切换为从高到低"
+                            : "Avg score low to high; click for high to low"
+                      }
+                      aria-label={
+                        scoreSortOrder === "desc"
+                          ? locale === "zh"
+                            ? "平均评分降序，点击切换为升序"
+                            : "Avg score descending, click for ascending"
+                          : locale === "zh"
+                            ? "平均评分升序，点击切换为降序"
+                            : "Avg score ascending, click for descending"
+                      }
+                      onClick={toggleScoreSortOrder}
+                    >
+                      {locale === "zh" ? "平均评分" : "Avg"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {scoreSortOrder === "asc" ? "↑" : "↓"}
+                      </span>
+                    </button>
+                  </th>
                   <th className="col-remark">{locale === "zh" ? "最近备注" : "Latest note"}</th>
                   <th className="col-updated">{locale === "zh" ? "更新时间" : "Updated"}</th>
                   <th className="col-actions">{locale === "zh" ? "操作" : "Actions"}</th>

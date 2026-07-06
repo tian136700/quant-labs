@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
+import { JpLessonCopyMenu } from "@/components/JpLessonCopyMenu";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
@@ -399,19 +400,14 @@ export function JpLessonPage() {
     return map;
   }, [teachers]);
 
-  const copyLessonViewLink = async (lessonId: number, viewUrl: string) => {
-    try {
-      const link = `${SITE_URL}${viewUrl}`;
-      const text = isAdmin
-        ? `老师，这是咱们需要上课内容，麻烦你有时间的时候抽空看一下：${link}`
-        : link;
-      await navigator.clipboard.writeText(text);
-      setCopiedId(lessonId);
-      window.setTimeout(() => setCopiedId(null), 1000);
-    } catch {
-      setStatus("复制失败，请手动选择复制");
-    }
-  };
+  const handleLessonLinkCopied = useCallback((lessonId: number) => {
+    setCopiedId(lessonId);
+    window.setTimeout(() => setCopiedId(null), 1000);
+  }, []);
+
+  const handleLessonLinkCopyError = useCallback(() => {
+    setStatus("复制失败，请手动选择复制");
+  }, []);
 
   const setLessonProgress = async (
     lessonId: number,
@@ -770,17 +766,22 @@ export function JpLessonPage() {
       />
     );
     actionItems.push(
-      <button
+      <JpLessonCopyMenu
         key="copy"
-        type="button"
-        className="jp-lesson-action-btn"
-        onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
-      >
-        <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
-          <JpLessonMobileIcon name="copy" />
-        </span>
-        {copiedId === lesson.id ? "已复制" : "复制"}
-      </button>
+        lessonId={lesson.id}
+        viewUrl={viewUrl}
+        siteUrl={SITE_URL}
+        primaryClassName="jp-lesson-action-btn"
+        fixedPanel
+        copiedId={copiedId}
+        onCopied={handleLessonLinkCopied}
+        onCopyError={handleLessonLinkCopyError}
+        icon={
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <JpLessonMobileIcon name="copy" />
+          </span>
+        }
+      />
     );
     if (canOperate) {
       actionItems.push(
