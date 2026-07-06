@@ -1273,7 +1273,7 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-level-col">
                     <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                       <span>熟悉程度</span>
-                      <span className="jp-vocab-th-multiline__sub">老师勾选</span>
+                      <span className="jp-vocab-th-multiline__sub">(老师勾选)</span>
                     </span>
                   </th>
                   <th colSpan={4} className="jp-vocab-stats-group">
@@ -2126,7 +2126,7 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-th-multiline__sub) {
           font-size: 0.8125em;
-          color: var(--muted);
+          color: var(--rise);
         }
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
