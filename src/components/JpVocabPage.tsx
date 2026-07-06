@@ -1369,25 +1369,6 @@ export function JpVocabPage() {
                         </span>
                       </td>
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
-                        <div className="jp-vocab-word-head-mobile" aria-hidden="true">
-                          <span className="jp-vocab-seq-cell">
-                            <span className="jp-vocab-seq-num">{dailySeq}</span>
-                            {checkedInRound ? (
-                              <span className="jp-vocab-seq-checked">
-                                <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-                                  <path
-                                    d="M2 6l3 3 5-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.8"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </span>
-                            ) : null}
-                          </span>
-                        </div>
                         <div className="jp-vocab-word-cell">
                           {w.ref_key ? (
                             <>
@@ -1404,6 +1385,26 @@ export function JpVocabPage() {
                           ) : (
                             <span className="jp-vocab-word-text">{w.word}</span>
                           )}
+                        </div>
+                        <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
+                          {w.kind === "word" ? (
+                            <>
+                              <JpVocabSpeakButton
+                                word={w.word}
+                                reading={w.reading}
+                                className="jp-vocab-mobile-speak"
+                              />
+                              {readingTrim ? (
+                                <span className="jp-vocab-reading-text">{readingTrim}</span>
+                              ) : (
+                                <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
+                                  待补全
+                                </span>
+                              )}
+                            </>
+                          ) : readingTrim ? (
+                            <span className="jp-vocab-reading-text">{readingTrim}</span>
+                          ) : null}
                         </div>
                       </td>
                       <td
@@ -1432,14 +1433,27 @@ export function JpVocabPage() {
                         data-label="释义"
                         style={{ color: "var(--muted)" }}
                       >
-                        {meaningTrim}
+                        {meaningTrim ? (
+                          <>
+                            <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
+                            <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
+                              <summary className="jp-vocab-meaning-fold__summary">
+                                <span className="jp-vocab-fold-label">释义</span>
+                                <span className="jp-vocab-meaning-preview">{meaningTrim}</span>
+                              </summary>
+                              <p className="jp-vocab-meaning-full">{meaningTrim}</p>
+                            </details>
+                          </>
+                        ) : null}
                       </td>
                       <td
                         className={`jp-vocab-pos-col${!posTrim ? " jp-vocab-field-empty" : ""}`}
                         data-label="词性"
                         style={{ color: "var(--muted)" }}
                       >
-                        {posTrim}
+                        {posTrim ? (
+                          <span className="jp-vocab-pos-badge">{posTrim}</span>
+                        ) : null}
                       </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
@@ -1542,23 +1556,47 @@ export function JpVocabPage() {
                           }`}
                           data-label="备注"
                         >
-                          <div className="jp-vocab-notes-actions">
-                            {(w.class_notes || "").trim() ? (
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
-                                onClick={() => setViewingRemarksWord(w)}
-                              >
-                                查看
-                              </button>
-                            ) : null}
-                            {canOperate ? (
-                              <JpEditIconButton
-                                title="编辑备注"
-                                onClick={() => setEditingRemarksWord(w)}
-                              />
-                            ) : null}
-                          </div>
+                          <details className="jp-vocab-notes-fold">
+                            <summary className="jp-vocab-notes-fold__summary jp-vocab-mobile-only">
+                              <span className="jp-vocab-fold-label">备注</span>
+                              <span className="jp-vocab-notes-fold__hint">
+                                {(w.class_notes || "").trim() ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
+                              </span>
+                            </summary>
+                            <div className="jp-vocab-notes-actions">
+                              {(w.class_notes || "").trim() ? (
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
+                                  onClick={() => setViewingRemarksWord(w)}
+                                >
+                                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                                    <path
+                                      d="M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1.5"
+                                    />
+                                    <path
+                                      d="M10 8.5v3M10 13.5h.01"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1.5"
+                                      strokeLinecap="round"
+                                    />
+                                  </svg>
+                                  查看
+                                </button>
+                              ) : null}
+                              {canOperate ? (
+                                <JpEditIconButton
+                                  title="编辑备注"
+                                  className="jp-vocab-notes-edit-btn"
+                                  onClick={() => setEditingRemarksWord(w)}
+                                />
+                              ) : null}
+                            </div>
+                          </details>
                         </td>
                       ) : null}
                       <td
@@ -1567,51 +1605,88 @@ export function JpVocabPage() {
                       >
                         {canOperate ? (
                           <div className="jp-vocab-action-buttons">
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact"
-                              onClick={() => setEditingWord(w)}
-                            >
-                              编辑
-                            </button>
-                            {canShareToStudy ? (
-                              sharedTodayWordIds.has(w.id) ? (
-                                <button
-                                  type="button"
-                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn"
-                                  disabled={
-                                    unsharingId === w.id ||
-                                    sharingId === w.id ||
-                                    isSaving
-                                  }
-                                  title={
-                                    unsharingId === w.id
-                                      ? "取消共享中…"
-                                      : "从学生「今日背单词」移除；若共享时自动标记了不熟悉，将一并撤销"
-                                  }
-                                  onClick={() => void unshareWord(w.id)}
-                                >
-                                  {unsharingId === w.id ? "取消中…" : "取消共享"}
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
-                                  disabled={
-                                    sharingId === w.id ||
-                                    isSaving
-                                  }
-                                  title={
-                                    sharingId === w.id
-                                      ? "共享中…"
-                                      : "共享到学生「今日背单词」，并标记为不熟悉"
-                                  }
-                                  onClick={() => void shareWord(w.id)}
-                                >
-                                  {sharingId === w.id ? "共享中…" : "共享"}
-                                </button>
-                              )
+                            {w.ref_key ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-mobile-action-btn--full jp-vocab-mobile-only"
+                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                                onClick={() => openRefPreview(w.ref_key!, ref)}
+                              >
+                                <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                                  <path
+                                    d="M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v7A2.5 2.5 0 0 1 13.5 16h-7A2.5 2.5 0 0 1 4 13.5v-7Z"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                  />
+                                  <path
+                                    d="M8 10.5l1.5 1.5L12.5 9"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                                查看教案
+                              </button>
                             ) : null}
+                            <div className="jp-vocab-action-row">
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
+                                onClick={() => setEditingWord(w)}
+                              >
+                                <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                                  <path
+                                    d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5Z"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                                编辑
+                              </button>
+                              {canShareToStudy ? (
+                                sharedTodayWordIds.has(w.id) ? (
+                                  <button
+                                    type="button"
+                                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
+                                    disabled={
+                                      unsharingId === w.id ||
+                                      sharingId === w.id ||
+                                      isSaving
+                                    }
+                                    title={
+                                      unsharingId === w.id
+                                        ? "取消共享中…"
+                                        : "从学生「今日背单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                                    }
+                                    onClick={() => void unshareWord(w.id)}
+                                  >
+                                    {unsharingId === w.id ? "取消中…" : "取消共享"}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
+                                    disabled={
+                                      sharingId === w.id ||
+                                      isSaving
+                                    }
+                                    title={
+                                      sharingId === w.id
+                                        ? "共享中…"
+                                        : "共享到学生「今日背单词」，并标记为不熟悉"
+                                    }
+                                    onClick={() => void shareWord(w.id)}
+                                  >
+                                    {sharingId === w.id ? "共享中…" : "共享"}
+                                  </button>
+                                )
+                              ) : null}
+                            </div>
                           </div>
                         ) : null}
                       </td>
@@ -1935,6 +2010,38 @@ export function JpVocabPage() {
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, transparent);
         }
+        .jp-vocab-pos-badge {
+          display: inline-block;
+          font-size: 0.75rem;
+          padding: 0.15rem 0.45rem;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          color: var(--muted);
+          white-space: nowrap;
+          background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+        }
+        .jp-vocab-mobile-only {
+          display: none;
+        }
+        .jp-vocab-mobile-reading-row {
+          display: none;
+        }
+        .jp-vocab-meaning-desktop {
+          display: inline;
+        }
+        .jp-vocab-meaning-fold {
+          display: none;
+        }
+        .jp-vocab-notes-fold > summary {
+          display: none;
+        }
+        .jp-vocab-action-row {
+          display: contents;
+        }
+        .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
+        .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
+          display: none;
+        }
         .jp-vocab-ref-hint {
           display: block;
           margin-left: 0;
@@ -2253,13 +2360,13 @@ export function JpVocabPage() {
           }
         }
 
-        /* 手机 / 小屏：紧凑信息列表卡片 */
+        /* 手机 / 小屏：紧凑卡片布局 */
         @media (max-width: 768px) {
           .jp-vocab-scroll-hint {
             display: none;
           }
           :global(.jp-vocab-page) {
-            padding-top: 1rem !important;
+            padding-top: 0.75rem !important;
           }
           :global(.jp-vocab-table) {
             min-width: 0;
@@ -2268,147 +2375,212 @@ export function JpVocabPage() {
             display: none;
           }
           :global(.jp-vocab-table tbody tr) {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 12px;
-            padding: 14px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            background: color-mix(in srgb, var(--panel) 92%, var(--bg));
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem 0.75rem;
+            margin-bottom: 0.625rem;
+            padding: 0.875rem 1rem;
+            border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+            border-radius: 15px;
+            background: color-mix(in srgb, var(--panel) 94%, var(--bg));
           }
           :global(.jp-vocab-table tbody td) {
             display: flex;
             flex-direction: row;
-            align-items: flex-start;
+            align-items: center;
             justify-content: flex-start;
-            gap: 8px;
+            gap: 0.25rem;
             padding: 0;
             border: none;
             text-align: left;
             line-height: 1.35;
+            min-width: 0;
           }
           :global(.jp-vocab-table tbody td::before) {
             content: attr(data-label) "：";
-            flex: 0 0 5.5rem;
-            min-width: 5rem;
-            max-width: 6.25rem;
-            font-size: 0.875rem;
+            flex: 0 0 auto;
+            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
             font-weight: 400;
             color: var(--muted);
-            text-align: left;
-            padding-right: 0;
+            white-space: nowrap;
           }
           :global(.jp-vocab-table tbody td.jp-vocab-field-empty) {
             display: none;
           }
+          :global(.jp-vocab-table tbody td > *) {
+            flex: 1;
+            min-width: 0;
+            font-size: clamp(0.8125rem, 3vw, 0.9375rem);
+          }
           :global(.jp-vocab-table .jp-vocab-word-col) {
-            order: -1;
+            grid-column: 1 / -1;
             flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 0 0 8px;
-            margin-bottom: 2px;
-            border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+            align-items: flex-start;
+            gap: 0.25rem;
+            padding: 0 0 0.5rem;
+            margin-bottom: 0.125rem;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
           }
           :global(.jp-vocab-table .jp-vocab-word-col::before) {
             display: none;
           }
-          .jp-vocab-word-head-mobile {
-            display: none;
-          }
           .jp-vocab-word-cell {
-            text-align: center;
+            text-align: left;
             width: 100%;
-            align-items: center;
+            align-items: flex-start;
           }
           .jp-vocab-word-link,
           .jp-vocab-word-text {
-            font-size: clamp(1.75rem, 8vw, 2rem);
-            font-weight: 600;
+            font-size: clamp(1.5rem, 6.5vw, 1.75rem);
+            font-weight: 700;
             line-height: 1.2;
+            text-align: left;
           }
-          .jp-vocab-word-head-mobile {
+          .jp-vocab-mobile-only {
+            display: block;
+          }
+          .jp-vocab-mobile-reading-row {
             display: flex;
-            justify-content: center;
             align-items: center;
+            gap: 0.375rem;
             width: 100%;
-            margin-bottom: 0.15rem;
+            min-height: 2.75rem;
           }
-          .jp-vocab-word-head-mobile .jp-vocab-seq-cell {
-            flex-direction: row;
-            align-items: center;
-            justify-content: center;
-            gap: 0.35rem;
+          .jp-vocab-mobile-reading-row:empty {
+            display: none;
             min-height: 0;
-            color: var(--muted);
-            font-size: 0.875rem;
           }
-          .jp-vocab-word-head-mobile .jp-vocab-seq-num {
-            font-size: 1rem;
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-            line-height: 1;
+          .jp-vocab-mobile-reading-row .jp-vocab-reading-text {
+            font-size: clamp(0.875rem, 3.5vw, 1rem);
+            color: var(--muted);
+          }
+          .jp-vocab-ref-hint {
+            display: block;
+            width: 100%;
+            margin: 0;
+            text-align: left;
+            font-size: clamp(0.6875rem, 2.8vw, 0.75rem);
+            color: color-mix(in srgb, var(--muted) 85%, transparent);
           }
           :global(.jp-vocab-table .jp-vocab-seq-col) {
-            display: none !important;
+            display: flex !important;
+            grid-column: 1;
+          }
+          :global(.jp-vocab-table .jp-vocab-seq-col::before) {
+            content: "编号：";
           }
           :global(.jp-vocab-table .jp-vocab-kind-col) {
-            order: 2;
+            grid-column: 2;
+          }
+          :global(.jp-vocab-table .jp-vocab-kind-col::before) {
+            content: "类型：";
           }
           :global(.jp-vocab-table .jp-vocab-reading-col) {
             display: none !important;
           }
           :global(.jp-vocab-table .jp-vocab-meaning-col) {
-            order: 4;
-            max-width: none;
-          }
-          :global(.jp-vocab-table .jp-vocab-pos-col) {
-            order: 5;
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-col) {
-            order: 6;
-          }
-          :global(.jp-vocab-table .jp-vocab-level-col) {
-            order: 7;
+            grid-column: 1 / -1;
             flex-direction: column;
             align-items: stretch;
-            gap: 6px;
-            padding-top: 4px;
-            margin-top: 2px;
-            border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+            gap: 0;
+          }
+          :global(.jp-vocab-table .jp-vocab-meaning-col::before) {
+            display: none;
+          }
+          .jp-vocab-meaning-desktop {
+            display: none;
+          }
+          .jp-vocab-meaning-fold {
+            display: block;
+            width: 100%;
+          }
+          .jp-vocab-meaning-fold__summary {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.125rem;
+            list-style: none;
+            cursor: pointer;
+            padding: 0.375rem 0;
+          }
+          .jp-vocab-meaning-fold__summary::-webkit-details-marker {
+            display: none;
+          }
+          .jp-vocab-fold-label {
+            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
+            color: var(--muted);
+            font-weight: 500;
+          }
+          .jp-vocab-meaning-preview {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow: hidden;
+            font-size: clamp(0.8125rem, 3vw, 0.9375rem);
+            color: var(--muted);
+            line-height: 1.4;
+            width: 100%;
+          }
+          .jp-vocab-meaning-fold[open] .jp-vocab-meaning-preview {
+            display: none;
+          }
+          .jp-vocab-meaning-full {
+            margin: 0;
+            font-size: clamp(0.8125rem, 3vw, 0.9375rem);
+            color: var(--muted);
+            line-height: 1.45;
+          }
+          :global(.jp-vocab-table .jp-vocab-pos-col) {
+            grid-column: 1;
+          }
+          :global(.jp-vocab-table .jp-vocab-pos-col::before) {
+            content: "词性：";
+          }
+          :global(.jp-vocab-table .jp-vocab-risk-col) {
+            grid-column: 2;
+          }
+          :global(.jp-vocab-table .jp-vocab-risk-col::before) {
+            content: "优先级：";
+          }
+          :global(.jp-vocab-table .jp-vocab-level-col) {
+            grid-column: 1 / -1;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.375rem;
+            padding-top: 0.375rem;
+            margin-top: 0.125rem;
+            border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
           }
           :global(.jp-vocab-table .jp-vocab-level-col::before) {
             flex: 0 0 auto;
             width: auto;
             max-width: none;
+            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
+            font-weight: 500;
           }
-          :global(.jp-vocab-table tbody td > *) {
-            flex: 1;
-            min-width: 0;
-            font-size: 0.9375rem;
+          :global(.jp-vocab-table .jp-vocab-kind-badge),
+          .jp-vocab-pos-badge {
+            flex: 0 0 auto;
+            font-size: clamp(0.6875rem, 2.6vw, 0.75rem) !important;
+            padding: 0.125rem 0.4375rem !important;
+            border-radius: 999px !important;
+            border: 1px solid var(--border) !important;
+            background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
+            color: var(--text) !important;
+            white-space: nowrap;
           }
-          :global(.jp-vocab-table .jp-vocab-seq-cell) {
-            flex-direction: row;
-            align-items: center;
-            gap: 0.35rem;
-            min-height: 0;
-          }
-          :global(.jp-vocab-table .jp-vocab-kind-badge) {
-            font-size: 0.9375rem;
-            padding: 0;
-            border: none;
-            border-radius: 0;
-            background: none;
-            color: var(--text);
+          :global(.jp-vocab-table .jp-vocab-kind-badge--grammar) {
+            color: var(--accent) !important;
+            border-color: color-mix(in srgb, var(--accent) 35%, var(--border)) !important;
+            background: color-mix(in srgb, var(--accent) 10%, var(--panel)) !important;
           }
           :global(.jp-vocab-table .jp-vocab-risk-badge) {
-            display: inline-flex;
+            display: inline-flex !important;
             align-items: center;
-            flex: 0 0 auto;
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.875rem;
+            flex: 0 0 auto !important;
+            padding: 0.125rem 0.4375rem;
+            border-radius: 999px;
+            font-size: clamp(0.6875rem, 2.6vw, 0.75rem) !important;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             border: 1px solid var(--border);
@@ -2430,49 +2602,141 @@ export function JpVocabPage() {
             background: color-mix(in srgb, var(--rise) 12%, var(--panel));
           }
           .jp-vocab-levels {
-            justify-content: flex-start;
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
             width: 100%;
-            gap: 12px;
+            border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+            border-radius: 10px;
+            overflow: hidden;
+            background: color-mix(in srgb, var(--bg) 60%, var(--panel));
           }
           .jp-vocab-level-opt {
-            min-height: 2.25rem;
-            padding: 4px 8px;
-            flex: 0 1 auto;
-            justify-content: flex-start;
-            font-size: 0.875rem;
+            min-height: 2.75rem;
+            padding: 0.375rem 0.25rem;
+            flex: 1 1 0;
+            justify-content: center;
+            font-size: clamp(0.6875rem, 2.8vw, 0.8125rem);
+            border: none;
+            border-radius: 0;
+            border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+            background: transparent;
+            white-space: nowrap;
+          }
+          .jp-vocab-level-opt:last-child {
+            border-right: none;
+          }
+          .jp-vocab-check-box {
+            display: none;
+          }
+          .jp-vocab-level-opt.is-checked {
+            background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+            color: var(--accent);
+            font-weight: 600;
+          }
+          .jp-vocab-level-opt--very.is-checked {
+            background: color-mix(in srgb, var(--fall) 16%, var(--panel));
+            color: var(--fall);
+          }
+          .jp-vocab-level-opt--weak.is-checked {
+            background: color-mix(in srgb, var(--rise) 16%, var(--panel));
+            color: var(--rise);
           }
           :global(.jp-vocab-table .jp-vocab-stat-detail),
           :global(.jp-vocab-table .jp-vocab-stat-total),
           :global(.jp-vocab-table .jp-vocab-today-check-col) {
             display: none;
           }
-          :global(.jp-vocab-table .jp-vocab-notes-col),
-          :global(.jp-vocab-table .jp-vocab-action-col) {
-            order: 8;
-            padding-top: 4px;
+          :global(.jp-vocab-table .jp-vocab-notes-col) {
+            grid-column: 1 / -1;
+            flex-direction: column;
+            align-items: stretch;
+            padding-top: 0.25rem;
             border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
           }
+          :global(.jp-vocab-table .jp-vocab-notes-col::before) {
+            display: none;
+          }
+          .jp-vocab-notes-fold {
+            width: 100%;
+          }
+          .jp-vocab-notes-fold > summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            min-height: 2.75rem;
+            list-style: none;
+            cursor: pointer;
+            padding: 0.125rem 0;
+          }
+          .jp-vocab-notes-fold > summary::-webkit-details-marker {
+            display: none;
+          }
+          .jp-vocab-notes-fold__hint {
+            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
+            color: var(--accent);
+          }
+          .jp-vocab-notes-fold:not([open]) .jp-vocab-notes-actions {
+            display: none;
+          }
+          .jp-vocab-notes-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding-bottom: 0.25rem;
+          }
           :global(.jp-vocab-table .jp-vocab-action-col) {
-            order: 9;
-            border-top: none;
-            padding-top: 0;
+            grid-column: 1 / -1;
+            flex-direction: column;
+            align-items: stretch;
+            padding-top: 0.25rem;
+          }
+          :global(.jp-vocab-table .jp-vocab-action-col::before) {
+            display: none;
+          }
+          .jp-vocab-action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            width: 100%;
+          }
+          .jp-vocab-action-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.5rem;
+            width: 100%;
+          }
+          .jp-vocab-action-row > :only-child {
+            grid-column: 1 / -1;
+          }
+          :global(.jp-vocab-mobile-action-btn) {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 0.375rem;
+            min-height: 2.75rem;
+            width: 100%;
+            font-size: clamp(0.8125rem, 3vw, 0.875rem);
+            border-radius: 10px;
+          }
+          :global(.jp-vocab-mobile-action-btn--full) {
+            grid-column: 1 / -1;
+          }
+          .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
+          .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
+            display: block;
+            flex-shrink: 0;
           }
           :global(.jp-vocab-table .jp-vocab-notes-col.jp-vocab-field-empty) {
             display: none;
-          }
-          .jp-vocab-ref-hint {
-            display: block;
-            width: 100%;
-            margin-left: 0;
-            margin-top: 0.15rem;
-            text-align: center;
-            font-size: 0.75rem;
           }
         }
 
         @media (max-width: 480px) {
           :global(.jp-vocab-table tbody tr) {
-            padding: 12px;
+            padding: 0.75rem 0.875rem;
+            gap: 0.4375rem 0.625rem;
           }
         }
       `}</style>

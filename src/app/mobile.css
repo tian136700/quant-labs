@@ -2405,40 +2405,41 @@
   }
 
   .jp-vocab-table tbody tr {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 12px !important;
-    padding: 14px !important;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--panel) 92%, var(--bg));
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 0.75rem;
+    margin-bottom: 0.625rem !important;
+    padding: 0.875rem 1rem !important;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent) !important;
+    border-radius: 15px !important;
+    background: color-mix(in srgb, var(--panel) 94%, var(--bg)) !important;
   }
 
-  /* JP Vocab word cards — compact label:value info list (iOS Settings style) */
   .jp-vocab-table tbody td {
     display: flex !important;
     flex-direction: row !important;
-    align-items: flex-start !important;
+    align-items: center !important;
     justify-content: flex-start !important;
-    gap: 8px;
+    gap: 0.25rem;
     padding: 0 !important;
     border: none;
     text-align: left !important;
     white-space: normal;
     line-height: 1.35;
+    min-width: 0;
   }
 
   .jp-vocab-table tbody td::before {
     content: attr(data-label) "：";
-    flex: 0 0 5.5rem;
-    min-width: 5rem;
-    max-width: 6.25rem;
-    font-size: 0.875rem;
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: none;
+    font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
     font-weight: 400;
     color: var(--muted);
     text-align: left !important;
     padding: 0;
+    white-space: nowrap;
   }
 
   .jp-vocab-table tbody td.jp-vocab-field-empty {
@@ -2446,74 +2447,102 @@
   }
 
   .jp-vocab-table .jp-vocab-word-col {
-    order: -1;
+    grid-column: 1 / -1;
+    order: unset;
     flex-direction: column !important;
-    align-items: center !important;
-    gap: 4px;
-    padding: 0 0 8px !important;
-    margin-bottom: 2px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    align-items: flex-start !important;
+    gap: 0.25rem;
+    padding: 0 0 0.5rem !important;
+    margin-bottom: 0.125rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   }
 
   .jp-vocab-table .jp-vocab-word-col::before {
     display: none !important;
   }
 
-  .jp-vocab-word-head-mobile {
-    display: none;
-  }
-
   .jp-vocab-word-cell {
-    text-align: center !important;
-    align-items: center !important;
+    text-align: left !important;
+    align-items: flex-start !important;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
 
   .jp-vocab-word-link,
   .jp-vocab-word-text {
-    font-size: clamp(1.75rem, 8vw, 2rem) !important;
-    font-weight: 600;
+    font-size: clamp(1.5rem, 6.5vw, 1.75rem) !important;
+    font-weight: 700;
     line-height: 1.2;
+    text-align: left !important;
   }
 
-  .jp-vocab-word-head-mobile {
-    display: flex;
-    justify-content: center;
+  .jp-vocab-mobile-reading-row {
+    display: flex !important;
     align-items: center;
+    gap: 0.375rem;
     width: 100%;
-    margin-bottom: 0.15rem;
+    min-height: 2.75rem;
   }
 
-  .jp-vocab-word-head-mobile .jp-vocab-seq-cell {
-    flex-direction: row !important;
+  .jp-vocab-mobile-reading-row .jp-vocab-reading-text {
+    font-size: clamp(0.875rem, 3.5vw, 1rem);
+    color: var(--muted);
+  }
+
+  .jp-vocab-mobile-reading-row:empty {
+    display: none !important;
+    min-height: 0;
+  }
+
+  .jp-vocab-speak-btn {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
-    min-height: 0;
-    color: var(--muted);
-    font-size: 0.875rem;
+    flex-shrink: 0;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--panel) 90%, var(--bg));
+    color: var(--text);
+    cursor: pointer;
   }
 
-  .jp-vocab-word-head-mobile .jp-vocab-seq-num {
-    font-size: 1rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
+  .jp-vocab-speak-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .jp-vocab-speak-btn.is-playing {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
   }
 
   .jp-vocab-table tbody td > * {
     flex: 1;
     min-width: 0;
-    font-size: 0.9375rem;
+    font-size: clamp(0.8125rem, 3vw, 0.9375rem);
   }
 
   .jp-vocab-table .jp-vocab-seq-col {
-    display: none !important;
+    display: flex !important;
+    grid-column: 1;
+  }
+
+  .jp-vocab-table .jp-vocab-seq-col::before {
+    content: "编号：";
   }
 
   .jp-vocab-table .jp-vocab-kind-col {
-    order: 2;
+    order: unset;
+    grid-column: 2;
+  }
+
+  .jp-vocab-table .jp-vocab-kind-col::before {
+    content: "类型：";
   }
 
   .jp-vocab-table .jp-vocab-reading-col {
@@ -2521,25 +2550,52 @@
   }
 
   .jp-vocab-table .jp-vocab-meaning-col {
-    order: 4;
+    order: unset;
+    grid-column: 1 / -1;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .jp-vocab-table .jp-vocab-meaning-col::before {
+    display: none !important;
+  }
+
+  .jp-vocab-meaning-desktop {
+    display: none !important;
+  }
+
+  .jp-vocab-meaning-fold {
+    display: block !important;
+    width: 100%;
   }
 
   .jp-vocab-table .jp-vocab-pos-col {
-    order: 5;
+    order: unset;
+    grid-column: 1;
+  }
+
+  .jp-vocab-table .jp-vocab-pos-col::before {
+    content: "词性：";
   }
 
   .jp-vocab-table .jp-vocab-risk-col {
-    order: 6;
+    order: unset;
+    grid-column: 2;
+  }
+
+  .jp-vocab-table .jp-vocab-risk-col::before {
+    content: "优先级：";
   }
 
   .jp-vocab-table .jp-vocab-level-col {
-    order: 7;
+    order: unset;
+    grid-column: 1 / -1;
     flex-direction: column !important;
     align-items: stretch !important;
-    gap: 6px !important;
-    padding-top: 4px !important;
-    margin-top: 2px;
-    border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    gap: 0.375rem !important;
+    padding-top: 0.375rem !important;
+    margin-top: 0.125rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
   }
 
   .jp-vocab-table .jp-vocab-level-col::before {
@@ -2553,24 +2609,33 @@
     align-items: center;
     gap: 0.35rem;
     min-height: 0;
+    flex: 0 0 auto;
   }
 
-  .jp-vocab-table .jp-vocab-kind-badge {
-    font-size: 0.9375rem !important;
-    padding: 0 !important;
-    border: none !important;
-    border-radius: 0 !important;
-    background: none !important;
+  .jp-vocab-table .jp-vocab-kind-badge,
+  .jp-vocab-pos-badge {
+    flex: 0 0 auto !important;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem) !important;
+    padding: 0.125rem 0.4375rem !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--border) !important;
+    background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
     color: var(--text) !important;
+  }
+
+  .jp-vocab-table .jp-vocab-kind-badge--grammar {
+    color: var(--accent) !important;
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border)) !important;
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel)) !important;
   }
 
   .jp-vocab-table .jp-vocab-risk-badge {
     display: inline-flex !important;
     align-items: center;
     flex: 0 0 auto !important;
-    padding: 2px 8px;
-    border-radius: 6px;
-    font-size: 0.875rem !important;
+    padding: 0.125rem 0.4375rem;
+    border-radius: 999px;
+    font-size: clamp(0.6875rem, 2.6vw, 0.75rem) !important;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     border: 1px solid var(--border);
@@ -2596,19 +2661,51 @@
   }
 
   .jp-vocab-levels {
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 12px !important;
-    justify-content: flex-start !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 !important;
+    justify-content: stretch !important;
     width: 100%;
+    border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    border-radius: 10px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--bg) 60%, var(--panel));
   }
 
   .jp-vocab-level-opt {
-    flex: 0 1 auto !important;
-    min-height: 2.25rem !important;
-    padding: 4px 8px !important;
-    font-size: 0.875rem !important;
-    justify-content: flex-start !important;
+    flex: 1 1 0 !important;
+    min-height: 2.75rem !important;
+    padding: 0.375rem 0.25rem !important;
+    font-size: clamp(0.6875rem, 2.8vw, 0.8125rem) !important;
+    justify-content: center !important;
+    border: none !important;
+    border-radius: 0 !important;
+    border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent) !important;
+    background: transparent !important;
+  }
+
+  .jp-vocab-level-opt:last-child {
+    border-right: none !important;
+  }
+
+  .jp-vocab-check-box {
+    display: none !important;
+  }
+
+  .jp-vocab-level-opt.is-checked {
+    background: color-mix(in srgb, var(--accent) 18%, var(--panel)) !important;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .jp-vocab-level-opt--very.is-checked {
+    background: color-mix(in srgb, var(--fall) 16%, var(--panel)) !important;
+    color: var(--fall);
+  }
+
+  .jp-vocab-level-opt--weak.is-checked {
+    background: color-mix(in srgb, var(--rise) 16%, var(--panel)) !important;
+    color: var(--rise);
   }
 
   .jp-vocab-table .jp-vocab-stat-detail,
@@ -2617,23 +2714,67 @@
     display: none !important;
   }
 
-  .jp-vocab-table .jp-vocab-notes-col,
-  .jp-vocab-table .jp-vocab-action-col {
-    order: 8;
-    padding-top: 4px !important;
+  .jp-vocab-table .jp-vocab-notes-col {
+    order: unset;
+    grid-column: 1 / -1;
+    padding-top: 0.25rem !important;
     border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   }
 
+  .jp-vocab-table .jp-vocab-notes-col::before {
+    display: none !important;
+  }
+
+  .jp-vocab-notes-fold > summary {
+    display: flex !important;
+  }
+
   .jp-vocab-table .jp-vocab-action-col {
-    order: 9;
+    order: unset;
+    grid-column: 1 / -1;
     border-top: none;
-    padding-top: 0 !important;
+    padding-top: 0.25rem !important;
+  }
+
+  .jp-vocab-table .jp-vocab-action-col::before {
+    display: none !important;
+  }
+
+  .jp-vocab-action-buttons {
+    display: flex !important;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .jp-vocab-action-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .jp-vocab-mobile-action-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    min-height: 2.75rem;
+    width: 100%;
+    font-size: clamp(0.8125rem, 3vw, 0.875rem);
+    border-radius: 10px;
   }
 
   .jp-vocab-ref-hint {
-    text-align: center !important;
-    font-size: 0.75rem !important;
-    margin-top: 0.15rem !important;
+    text-align: left !important;
+    font-size: clamp(0.6875rem, 2.8vw, 0.75rem) !important;
+    margin-top: 0 !important;
+    color: color-mix(in srgb, var(--muted) 85%, transparent);
+  }
+
+  .jp-vocab-notes-edit-btn {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
   }
 
   /* ── Tool-dot pages ── */
