@@ -1,5 +1,7 @@
 /** 登录链接 slug：日语罗马音 / 英文单词交替，形如 sakura-harbor-kyoto-garden-nara-breeze */
 
+import { JP_SITE_URL } from "@/lib/jp-site-host";
+
 export const LOGIN_LINK_SLUG_WORD_COUNT = 6;
 
 export const LOGIN_LINK_SLUG_PATTERN = /^[a-z]+(?:-[a-z]+){5}$/;
@@ -121,4 +123,9 @@ export function normalizeLoginLinkToken(raw: string): string {
 
 export function loginLinkPath(slug: string): string {
   return `/sign-in/${normalizeLoginLinkToken(slug)}`;
+}
+
+/** 对外分享的登录链接使用日语子域名，避免 finance 金融域名引起误解 */
+export function buildLoginLinkUrl(token: string): string {
+  return `${JP_SITE_URL}${loginLinkPath(token)}`;
 }

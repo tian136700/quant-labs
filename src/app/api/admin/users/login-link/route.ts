@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/admin-auth";
 import { createLoginLink } from "@/lib/etr-login-link-db";
-import { loginLinkPath } from "@/lib/login-link-slug";
+import { buildLoginLinkUrl } from "@/lib/login-link-slug";
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 
 const ERR: Record<string, Record<"en" | "zh", string>> = {
@@ -54,8 +54,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const origin = new URL(request.url).origin;
-    const loginUrl = `${origin}${loginLinkPath(result.token)}`;
+    const loginUrl = buildLoginLinkUrl(result.token);
 
     return jsonResponse({
       ok: true,
