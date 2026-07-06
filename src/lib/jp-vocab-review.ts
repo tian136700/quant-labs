@@ -3,6 +3,10 @@ import {
   beijingDateString,
   nextTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
+import {
+  isJpVocabRoundChecked,
+  type JpVocabDailyDisplayOrder,
+} from "@/lib/jp-vocab-daily-order";
 
 const JP_VOCAB_LEVELS: JpVocabLevel[] = ["very", "normal", "weak"];
 
@@ -15,13 +19,22 @@ export function isJpVocabReviewToday(
   return lastAt.slice(0, 10) === beijingDateString(now);
 }
 
-/** 表格回显：仅今日勾选显示打勾，跨日后清空回显但统计次数保留 */
+/** 表格回显：仅当前轮次（round_checked）且今日勾选显示打勾；跨日/今日重置后清空回显，统计次数保留 */
 export function effectiveJpVocabDisplayLevel(
   word: JpVocabWord,
   sessionLevel?: JpVocabLevel,
-  now = new Date()
+  opts?: {
+    now?: Date;
+    displayOrder?: JpVocabDailyDisplayOrder;
+  }
 ): JpVocabLevel | undefined {
   if (sessionLevel) return sessionLevel;
+  const now = opts?.now ?? new Date();
+  const order = opts?.displayOrder;
+  if (order?.date) {
+    if (order.date !== beijingDateString(now)) return undefined;
+    if (!isJpVocabRoundChecked(order, word.id)) return undefined;
+  }
   const level = word.last_review_level;
   if (
     level &&

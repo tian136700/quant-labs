@@ -508,8 +508,11 @@ export function JpVocabPage() {
 
   const unmarkedCount = useMemo(
     () =>
-      words.filter((w) => !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id])).length,
-    [words, sessionLevel]
+      words.filter(
+        (w) =>
+          !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
+      ).length,
+    [words, sessionLevel, displayOrder]
   );
 
   const todayCheckStats = useMemo(
@@ -1328,7 +1331,9 @@ export function JpVocabPage() {
               <tbody>
                 {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id]);
+                  const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
+                    displayOrder,
+                  });
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
