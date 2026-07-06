@@ -1211,7 +1211,30 @@
   }
 
   .jpls-week-item--past {
-    opacity: 0.78;
+    border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+    background: color-mix(in srgb, var(--fall) 8%, var(--panel));
+  }
+
+  .jpls-week-item--manual:not(.jpls-week-item--past) {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  }
+
+  .jpls-week-item-manual {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--accent) 82%, var(--text));
+  }
+
+  .jpls-today-item--manual:not(.jpls-today-item--past) {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  }
+
+  .jpls-manual-add-btn {
+    min-height: 2.75rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.9375rem;
   }
 
   .jpls-week-item.is-selected {

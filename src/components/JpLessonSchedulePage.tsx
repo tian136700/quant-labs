@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
+import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
@@ -9,7 +11,8 @@ import {
   parseJpLessonApi,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
-import { fetchWithClientCache, readClientCache } from "@/lib/client-swr-cache";
+import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   addBeijingCalendarDays,
   beijingDateOnlyFromClassAt,
@@ -22,13 +25,22 @@ import {
   flattenJpLessonScheduleEvents,
   formatLessonContentLines,
   getJpLessonScheduleEventStatus,
-  type JpLessonScheduleEvent,
+  normalizeClassDurationMinutes,
   type JpLessonScheduleEventStatus,
 } from "@/lib/jp-lesson-shared";
+import {
+  addJpLessonManualSchedule,
+  deleteJpLessonManualSchedule,
+  flattenManualSchedulePageEvents,
+  readJpLessonManualSchedules,
+  updateJpLessonManualSchedule,
+  type JpLessonManualSchedule,
+  type JpLessonSchedulePageEvent,
+} from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath } from "@/lib/locale-path";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
-import type { JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
+import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 
 type ViewMode = "day" | "week" | "month";
 
@@ -36,10 +48,7 @@ const TIMELINE_MINUTES = 24 * 60;
 const SLOT_MINUTES = 30;
 const SLOT_COUNT = TIMELINE_MINUTES / SLOT_MINUTES;
 
-type DayScheduleEvent = JpLessonScheduleEvent & {
-  lesson: JpLessonRecord;
-  teachers: string;
-};
+type DayScheduleEvent = JpLessonSchedulePageEvent;
 
 function formatSlotTime(slotIndex: number): string {
   const totalMinutes = slotIndex * SLOT_MINUTES;
@@ -171,19 +180,22 @@ function monthGrid(dateStr: string): string[] {
   return beijingMonthGridDates(dateStr);
 }
 
-function exportScheduleText(
-  events: Array<JpLessonScheduleEvent & { lesson: JpLessonRecord; teachers: string }>,
-  rangeLabel: string
-): string {
+function exportScheduleText(events: DayScheduleEvent[], rangeLabel: string): string {
   const lines = [`日语新课日程 · ${rangeLabel}`, ""];
   for (const event of events) {
+    const prefix = event.source === "manual" ? "[手动] " : "";
     lines.push(
-      `${event.classAt.slice(0, 16)} - ${beijingTimeHm(event.end)} · ${event.teachers}`,
-      formatLessonContentLines(event.lesson.content, 4).join("\n"),
-      ""
+      `${prefix}${event.classAt.slice(0, 16)} - ${beijingTimeHm(event.end)} · ${event.teachers}`,
+      formatLessonContentLines(event.displayContent, 4).join("\n")
     );
+    if (event.manualNote) lines.push(`备注：${event.manualNote}`);
+    lines.push("");
   }
   return lines.join("\n").trim();
+}
+
+function eventContentPreview(event: DayScheduleEvent, maxItems = 3): string {
+  return formatContentPreview(event.displayContent, maxItems);
 }
 
 export function JpLessonSchedulePage() {
@@ -202,6 +214,12 @@ export function JpLessonSchedulePage() {
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [manualSchedules, setManualSchedules] = useState<JpLessonManualSchedule[]>([]);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [editingManual, setEditingManual] = useState<JpLessonManualSchedule | null>(null);
+  const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
+  const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
   const sidebarPanelsRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLElement>(null);
 
@@ -212,6 +230,10 @@ export function JpLessonSchedulePage() {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    setManualSchedules(readJpLessonManualSchedules());
   }, []);
 
   const loadLessons = useCallback(async () => {
@@ -264,18 +286,36 @@ export function JpLessonSchedulePage() {
   }, [lessons]);
 
   const allEvents = useMemo(() => {
-    return flattenJpLessonScheduleEvents(lessons).flatMap((event) => {
-      const lesson = lessonById.get(event.lessonId);
-      if (!lesson) return [];
-      return [
-        {
-          ...event,
-          lesson,
-          teachers: formatLessonTeacherNames(lesson, teacherNameById),
-        },
-      ];
-    });
-  }, [lessons, lessonById, teacherNameById]);
+    const lessonEvents: DayScheduleEvent[] = flattenJpLessonScheduleEvents(lessons).flatMap(
+      (event) => {
+        const lesson = lessonById.get(event.lessonId);
+        if (!lesson) return [];
+        return [
+          {
+            key: event.key,
+            classAt: event.classAt,
+            start: event.start,
+            end: event.end,
+            durationMinutes: event.durationMinutes,
+            teachers: formatLessonTeacherNames(lesson, teacherNameById),
+            displayContent: lesson.content,
+            source: "lesson" as const,
+            lessonId: event.lessonId,
+            scheduleId: event.scheduleId,
+            lesson: {
+              id: lesson.id,
+              content: lesson.content,
+              ref_key: lesson.ref_key,
+            },
+          },
+        ];
+      }
+    );
+    const manualEvents = flattenManualSchedulePageEvents(manualSchedules);
+    return [...lessonEvents, ...manualEvents].sort(
+      (a, b) => a.start.getTime() - b.start.getTime()
+    );
+  }, [lessons, lessonById, teacherNameById, manualSchedules]);
 
   const weekDates = useMemo(() => {
     const start = weekStartDate(selectedDate);
@@ -375,10 +415,133 @@ export function JpLessonSchedulePage() {
   );
 
   const selectedViewUrl = useMemo(() => {
-    if (!selectedEvent?.lesson.ref_key) return null;
+    if (!selectedEvent?.lesson?.ref_key) return null;
     const ref = refs[selectedEvent.lesson.ref_key];
     return jpVocabRefViewerPath(selectedEvent.lesson.ref_key, ref?.updated_at);
   }, [selectedEvent, refs]);
+
+  const selectedManualSchedule = useMemo(() => {
+    if (!selectedEvent?.manualId) return null;
+    return manualSchedules.find((item) => item.id === selectedEvent.manualId) ?? null;
+  }, [selectedEvent, manualSchedules]);
+
+  const openManualModal = (manual: JpLessonManualSchedule | null = null) => {
+    setEditingManual(manual);
+    setManualModalOpen(true);
+  };
+
+  const closeManualModal = () => {
+    setManualModalOpen(false);
+    setEditingManual(null);
+  };
+
+  const handleSaveManualSchedule = (draft: Parameters<typeof addJpLessonManualSchedule>[0]) => {
+    const saved = editingManual
+      ? updateJpLessonManualSchedule(editingManual.id, draft)
+      : addJpLessonManualSchedule(draft);
+    if (!saved) return;
+    setManualSchedules(readJpLessonManualSchedules());
+    setSelectedEventKey(`manual-${saved.id}`);
+    closeManualModal();
+  };
+
+  const handleDeleteManualSchedule = () => {
+    if (!selectedManualSchedule) return;
+    if (!window.confirm("确定删除这条手动日程吗？")) return;
+    deleteJpLessonManualSchedule(selectedManualSchedule.id);
+    setManualSchedules(readJpLessonManualSchedules());
+    setSelectedEventKey(null);
+  };
+
+  const setLessonClassSchedules = async (
+    lessonId: number,
+    schedules: JpLessonClassScheduleInput[]
+  ) => {
+    if (!isAdmin || savingNextClassId === lessonId) return;
+
+    const normalized = schedules.map((item) => ({
+      class_at: item.class_at.trim(),
+      duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
+    }));
+
+    const snapshot = lessons.find((lesson) => lesson.id === lessonId);
+    const first = normalized[0];
+    setSavingNextClassId(lessonId);
+    setLessons((prev) =>
+      prev.map((lesson) =>
+        lesson.id === lessonId
+          ? {
+              ...lesson,
+              class_schedules: normalized.map((item, index) => ({
+                id: -(index + 1),
+                class_at: item.class_at,
+                duration_minutes: item.duration_minutes,
+              })),
+              next_class_at: first?.class_at ?? null,
+              class_duration_minutes: first?.duration_minutes ?? null,
+            }
+          : lesson
+      )
+    );
+
+    try {
+      const res = await fetch("/api/jp-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "set_class_schedules",
+          lesson_id: lessonId,
+          class_schedules: normalized,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        lesson?: JpLessonRecord;
+        error?: string;
+      };
+      if (!data.ok || !data.lesson) {
+        throw new Error(data.error || "保存失败");
+      }
+
+      setLessons((prev) => {
+        const next = prev.map((lesson) =>
+          lesson.id === data.lesson!.id ? data.lesson! : lesson
+        );
+        const cache = readLessonCache();
+        writeClientCache(JP_LESSON_CACHE_KEY, {
+          lessons: next,
+          refs,
+          notes: cache?.notes ?? [],
+          teachers,
+        });
+        return next;
+      });
+      setEditingNextClassLesson(null);
+      setStatusMessage("上课时间已更新");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+    } catch (err) {
+      if (snapshot) {
+        setLessons((prev) =>
+          prev.map((lesson) => (lesson.id === lessonId ? snapshot : lesson))
+        );
+      }
+      setStatusMessage(err instanceof Error ? err.message : "保存失败");
+      window.setTimeout(() => setStatusMessage(""), 3500);
+    } finally {
+      setSavingNextClassId(null);
+    }
+  };
+
+  const openLessonReschedule = () => {
+    if (!selectedEvent?.lessonId) return;
+    const lesson = lessonById.get(selectedEvent.lessonId);
+    if (!lesson) return;
+    setEditingNextClassLesson(lesson);
+  };
 
   const todayStr = beijingTodayDateString(now);
   const selectedDateRelativeLabel = useMemo(
@@ -459,7 +622,7 @@ export function JpLessonSchedulePage() {
       <header className="jpls-header">
         <div>
           <h1>日程管理</h1>
-          <p className="jpls-sub">查看今日及未来的日语新课预约时间（北京时间）</p>
+          <p className="jpls-sub">查看今日及未来的日语新课预约时间（北京时间），支持手动添加仅本页可见的日程</p>
         </div>
         <a className="jpls-back-btn" href={jpLessonPath()}>
           ← 返回日语新课
@@ -536,6 +699,16 @@ export function JpLessonSchedulePage() {
           <span className="jpls-legend">
             <span className="jpls-legend-dot jpls-legend-dot--busy" /> 有课
           </span>
+          <span className="jpls-legend">
+            <span className="jpls-legend-dot jpls-legend-dot--manual" /> 手动
+          </span>
+          <button
+            type="button"
+            className="jpls-manual-add-btn"
+            onClick={() => openManualModal()}
+          >
+            手动添加日程
+          </button>
           <button type="button" className="jpls-export-btn" onClick={() => void handleExport()}>
             {copiedLink ? "已复制" : "导出日程"}
           </button>
@@ -545,6 +718,12 @@ export function JpLessonSchedulePage() {
       {error ? (
         <p className="jpls-error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {statusMessage ? (
+        <p className="jpls-status" role="status">
+          {statusMessage}
         </p>
       ) : null}
 
@@ -599,7 +778,9 @@ export function JpLessonSchedulePage() {
                         type="button"
                         className={`jpls-slot-cell${event ? " is-busy" : " is-free"}${
                           event && status ? ` jpls-slot-cell--${status}` : ""
-                        }${event && selectedEventKey === event.key ? " is-selected" : ""}`}
+                        }${event?.source === "manual" ? " jpls-slot-cell--manual" : ""}${
+                          event && selectedEventKey === event.key ? " is-selected" : ""
+                        }`}
                         disabled={!event}
                         onClick={() => event && setSelectedEventKey(event.key)}
                       >
@@ -610,7 +791,11 @@ export function JpLessonSchedulePage() {
                                 status === "past" ? " jpls-slot-busy-label--past" : ""
                               }`}
                             >
-                              {status ? eventTimelinePrimaryLabel(status) : "要上课"}
+                              {status
+                                ? event.source === "manual" && status !== "past"
+                                  ? "手动日程"
+                                  : eventTimelinePrimaryLabel(status)
+                                : "要上课"}
                             </span>
                             {encourageLabel ? (
                               <span className="jpls-slot-busy-encourage">{encourageLabel}</span>
@@ -621,7 +806,7 @@ export function JpLessonSchedulePage() {
                                   {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
                                 </span>
                                 <span className="jpls-slot-busy-meta">
-                                  {event.teachers} · {formatContentPreview(event.lesson.content, 2)}
+                                  {event.teachers} · {eventContentPreview(event, 2)}
                                 </span>
                               </>
                             ) : null}
@@ -687,15 +872,22 @@ export function JpLessonSchedulePage() {
                               type="button"
                               className={`jpls-week-item${
                                 selectedEventKey === event.key ? " is-selected" : ""
-                              }${status ? ` jpls-week-item--${status}` : ""}`}
+                              }${status ? ` jpls-week-item--${status}` : ""}${
+                                event.source === "manual" ? " jpls-week-item--manual" : ""
+                              }`}
                               onClick={() => setSelectedEventKey(event.key)}
                             >
+                              {status === "past" ? (
+                                <span className="jpls-week-item-done">✓ 已结束</span>
+                              ) : event.source === "manual" ? (
+                                <span className="jpls-week-item-manual">手动</span>
+                              ) : null}
                               <span className="jpls-week-item-time">
                                 {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
                               </span>
                               <span className="jpls-week-item-meta">{event.teachers}</span>
                               <span className="jpls-week-item-content">
-                                {formatContentPreview(event.lesson.content, 2)}
+                                {eventContentPreview(event, 2)}
                               </span>
                             </button>
                           );
@@ -757,10 +949,20 @@ export function JpLessonSchedulePage() {
         <aside className="jpls-sidebar">
           <div className="jpls-sidebar-panels" ref={sidebarPanelsRef}>
           <section className="section etr-panel jpls-detail">
-            <h2>课程详情</h2>
+            <h2>{selectedEvent?.source === "manual" ? "手动日程详情" : "课程详情"}</h2>
             {selectedEvent ? (
               <>
                 <dl className="jpls-detail-list">
+                  {selectedEvent.source === "manual" ? (
+                    <div>
+                      <dt>类型</dt>
+                      <dd>
+                        <span className="jpls-status-badge jpls-status-badge--manual">
+                          手动日程 · 不同步到日语新课
+                        </span>
+                      </dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt>上课时间</dt>
                     <dd>
@@ -778,9 +980,9 @@ export function JpLessonSchedulePage() {
                     </dd>
                   </div>
                   <div>
-                    <dt>课程内容</dt>
+                    <dt>{selectedEvent.source === "manual" ? "标题" : "课程内容"}</dt>
                     <dd>
-                      {formatLessonContentLines(selectedEvent.lesson.content, 4).map((line) => (
+                      {formatLessonContentLines(selectedEvent.displayContent, 4).map((line) => (
                         <span key={line} className="jpls-content-line">
                           {line}
                         </span>
@@ -795,6 +997,12 @@ export function JpLessonSchedulePage() {
                     <dt>时长</dt>
                     <dd>{selectedEvent.durationMinutes} 分钟</dd>
                   </div>
+                  {selectedEvent.manualNote ? (
+                    <div>
+                      <dt>备注</dt>
+                      <dd>{selectedEvent.manualNote}</dd>
+                    </div>
+                  ) : null}
                   {selectedViewUrl ? (
                     <div>
                       <dt>课程链接</dt>
@@ -809,9 +1017,31 @@ export function JpLessonSchedulePage() {
                     </div>
                   ) : null}
                 </dl>
+                <div className="jpls-detail-actions">
+                  {selectedEvent.source === "manual" ? (
+                    <>
+                      <button type="button" onClick={() => openManualModal(selectedManualSchedule)}>
+                        改时
+                      </button>
+                      <button
+                        type="button"
+                        className="jpls-manual-delete-btn"
+                        onClick={handleDeleteManualSchedule}
+                      >
+                        删除
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={openLessonReschedule}>
+                      改时
+                    </button>
+                  )}
+                </div>
               </>
             ) : (
-              <p className="jpls-muted">当前日期暂无课程，可在日语新课列表中设置「下次上课时间」。</p>
+              <p className="jpls-muted">
+                当前日期暂无课程，可在日语新课列表中设置「下次上课时间」，或点击「手动添加日程」。
+              </p>
             )}
           </section>
 
@@ -829,18 +1059,21 @@ export function JpLessonSchedulePage() {
                         type="button"
                         className={`jpls-today-item${
                           selectedEventKey === event.key ? " is-selected" : ""
-                        }${status === "past" ? " jpls-today-item--past" : ""}`}
+                        }${status === "past" ? " jpls-today-item--past" : ""}${
+                          event.source === "manual" ? " jpls-today-item--manual" : ""
+                        }`}
                         onClick={() => setSelectedEventKey(event.key)}
                       >
                         <span className="jpls-today-time">
                           {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
                         </span>
                         <span className="jpls-today-meta">
+                          {event.source === "manual" ? "手动 · " : ""}
                           {event.teachers} ·{" "}
                           {status === "past" ? "✓ 已结束 · 已上完课了，真棒" : eventStatusLabel(status)}
                         </span>
                         <span className="jpls-today-content">
-                          {formatContentPreview(event.lesson.content, 2)}
+                          {eventContentPreview(event, 2)}
                         </span>
                       </button>
                     </li>
@@ -853,9 +1086,29 @@ export function JpLessonSchedulePage() {
           </section>
           </div>
 
-          <p className="jpls-tip">提示：点击课程块查看详情；有教案时可一键复制链接发给老师。</p>
+          <p className="jpls-tip">提示：点击课程块查看详情，可在右侧直接改时；有教案时可一键复制链接发给老师。</p>
         </aside>
       </div>
+
+      <JpLessonManualScheduleModal
+        open={manualModalOpen}
+        initialDate={selectedDate}
+        editing={editingManual}
+        onClose={closeManualModal}
+        onSave={handleSaveManualSchedule}
+      />
+
+      <JpLessonNextClassEditModal
+        open={editingNextClassLesson != null}
+        lesson={editingNextClassLesson}
+        saving={savingNextClassId === editingNextClassLesson?.id}
+        onClose={() => setEditingNextClassLesson(null)}
+        onSave={(schedules) => {
+          if (editingNextClassLesson) {
+            void setLessonClassSchedules(editingNextClassLesson.id, schedules);
+          }
+        }}
+      />
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-schedule-page)) {
@@ -937,6 +1190,7 @@ export function JpLessonSchedulePage() {
         }
         .jpls-icon-btn,
         .jpls-export-btn,
+        .jpls-manual-add-btn,
         .jpls-view-tab {
           border: 1px solid var(--border);
           background: var(--panel);
@@ -965,9 +1219,14 @@ export function JpLessonSchedulePage() {
           width: 10.5rem;
           max-width: 10.5rem;
         }
-        .jpls-export-btn {
+        .jpls-export-btn,
+        .jpls-manual-add-btn {
           padding: 0.35rem 0.75rem;
           min-height: 2.25rem;
+        }
+        .jpls-manual-add-btn {
+          border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
         .jpls-view-tabs {
           display: inline-flex;
@@ -1041,6 +1300,9 @@ export function JpLessonSchedulePage() {
         }
         .jpls-legend-dot--busy {
           background: color-mix(in srgb, var(--rise) 70%, transparent);
+        }
+        .jpls-legend-dot--manual {
+          background: color-mix(in srgb, var(--accent) 70%, transparent);
         }
         .jpls-layout {
           display: grid;
@@ -1201,11 +1463,24 @@ export function JpLessonSchedulePage() {
           background: color-mix(in srgb, var(--accent) 78%, var(--panel));
           color: #fff;
         }
+        .jpls-slot-cell.is-busy.jpls-slot-cell--manual {
+          background: color-mix(in srgb, var(--accent) 72%, var(--panel));
+          color: #fff;
+          border-left: 3px solid color-mix(in srgb, var(--accent) 85%, transparent);
+        }
+        .jpls-slot-cell.is-busy.jpls-slot-cell--manual.jpls-slot-cell--past {
+          background: color-mix(in srgb, var(--fall) 22%, var(--panel));
+          color: var(--text);
+          border-left: 3px solid color-mix(in srgb, var(--fall) 70%, transparent);
+        }
         .jpls-slot-cell.is-busy:hover {
           background: color-mix(in srgb, var(--rise) 88%, #fff);
         }
         .jpls-slot-cell.is-busy.jpls-slot-cell--past:hover {
           background: color-mix(in srgb, var(--fall) 28%, var(--panel));
+        }
+        .jpls-slot-cell.is-busy.jpls-slot-cell--manual:hover {
+          background: color-mix(in srgb, var(--accent) 82%, var(--panel));
         }
         .jpls-slot-cell.is-selected {
           box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 75%, #fff);
@@ -1342,9 +1617,22 @@ export function JpLessonSchedulePage() {
           word-break: break-word;
         }
         .jpls-week-item--past {
-          opacity: 0.72;
-          border-color: color-mix(in srgb, var(--border) 80%, transparent);
-          background: color-mix(in srgb, var(--panel) 92%, transparent);
+          border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+          background: color-mix(in srgb, var(--fall) 8%, var(--panel));
+        }
+        .jpls-week-item-done {
+          font-size: 0.6875rem;
+          font-weight: 600;
+          color: color-mix(in srgb, var(--fall) 82%, var(--text));
+        }
+        .jpls-week-item--manual:not(.jpls-week-item--past) {
+          border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+        }
+        .jpls-week-item-manual {
+          font-size: 0.6875rem;
+          font-weight: 600;
+          color: color-mix(in srgb, var(--accent) 82%, var(--text));
         }
         .jpls-week-item.is-selected {
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
@@ -1483,6 +1771,30 @@ export function JpLessonSchedulePage() {
           background: color-mix(in srgb, var(--rise) 16%, transparent);
           color: var(--rise);
         }
+        .jpls-status-badge--manual {
+          background: color-mix(in srgb, var(--accent) 16%, transparent);
+          color: var(--accent);
+        }
+        .jpls-detail-actions,
+        .jpls-manual-actions {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 0.85rem;
+        }
+        .jpls-detail-actions button,
+        .jpls-manual-actions button {
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          border-radius: 8px;
+          padding: 0.35rem 0.75rem;
+          font-size: 0.8125rem;
+          cursor: pointer;
+        }
+        .jpls-manual-delete-btn {
+          border-color: color-mix(in srgb, var(--rise) 35%, var(--border)) !important;
+          color: var(--rise) !important;
+        }
         .jpls-today-list ul {
           list-style: none;
           margin: 0;
@@ -1512,6 +1824,10 @@ export function JpLessonSchedulePage() {
           border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
           background: color-mix(in srgb, var(--fall) 8%, var(--panel));
         }
+        .jpls-today-item--manual:not(.jpls-today-item--past) {
+          border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        }
         .jpls-today-time {
           font-size: 0.8125rem;
           font-weight: 600;
@@ -1539,6 +1855,11 @@ export function JpLessonSchedulePage() {
         .jpls-error {
           color: var(--rise);
           margin: 0 0 0.75rem;
+        }
+        .jpls-status {
+          color: var(--accent);
+          margin: 0 0 0.75rem;
+          font-size: 0.875rem;
         }
         @media (max-width: 767px) {
           .jpls-layout {
