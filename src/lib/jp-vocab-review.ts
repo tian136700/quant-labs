@@ -1,5 +1,8 @@
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
-import { nextTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import {
+  beijingDateString,
+  nextTodayCheckCount,
+} from "@/lib/jp-vocab-daily-check";
 
 /** 同一单词在此时间内改选熟悉程度，视为修正上次判断，不重复计次 */
 export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
@@ -115,5 +118,37 @@ export function applyJpVocabReview(
       updated_at: ts,
     },
     isCorrection: false,
+  };
+}
+
+/** 撤销共享时自动标记的熟悉程度（仅当今日最后一次勾选仍为该 level 时生效） */
+export function revertJpVocabAutoShareReview(
+  word: JpVocabWord,
+  level: JpVocabLevel,
+  now = new Date()
+): JpVocabWord {
+  const ts = formatReviewIso(now);
+  const today = beijingDateString(now);
+  if (word.last_review_level !== level) return word;
+  if (word.last_review_at && word.last_review_at.slice(0, 10) !== today) {
+    return word;
+  }
+
+  const counts = adjustLevelCount(word, level, -1);
+  let today_check_count = word.today_check_count ?? 0;
+  let today_check_date = word.today_check_date ?? null;
+  if (today_check_date === today) {
+    today_check_count = Math.max(0, today_check_count - 1);
+    if (today_check_count === 0) today_check_date = null;
+  }
+
+  return {
+    ...word,
+    ...counts,
+    today_check_count,
+    today_check_date,
+    last_review_level: null,
+    last_review_at: null,
+    updated_at: ts,
   };
 }

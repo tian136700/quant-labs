@@ -37,6 +37,18 @@ export function markJpVocabRoundChecked(
   return { ...order, round_checked_ids: [...checked, wordId] };
 }
 
+export function unmarkJpVocabRoundChecked(
+  order: JpVocabDailyDisplayOrder,
+  wordId: number
+): JpVocabDailyDisplayOrder {
+  const checked = order.round_checked_ids ?? [];
+  if (!checked.includes(wordId)) return order;
+  return {
+    ...order,
+    round_checked_ids: checked.filter((id) => id !== wordId),
+  };
+}
+
 export function clearJpVocabRoundChecked(
   order: JpVocabDailyDisplayOrder
 ): JpVocabDailyDisplayOrder {

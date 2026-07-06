@@ -15,6 +15,7 @@ import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnVocabEditModal } from "@/components/EnVocabEditModal";
 import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
+import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabLevel, EnVocabRef, EnVocabSharedItem, EnVocabWord } from "@/lib/types";
@@ -210,9 +211,8 @@ export function EnVocabStudyPage() {
   const accessDenied = loggedIn && !checking && !canViewStudy;
 
   const openRefPreview = (refKey: string, ref?: EnVocabRef) => {
-    const meta = ref ?? refs[refKey];
-    if (!meta) return;
-    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at });
+    const meta = resolveEnVocabRefForPreview(refKey, refs, ref);
+    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
   };
 
   return (

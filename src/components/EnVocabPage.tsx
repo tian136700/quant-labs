@@ -62,6 +62,7 @@ import {
 } from "@/lib/en-vocab-daily-check";
 import { applyEnVocabReview } from "@/lib/en-vocab-review";
 import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
+import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 
@@ -850,6 +851,11 @@ export function EnVocabPage() {
     }
   };
 
+  const openRefPreview = (refKey: string, ref?: EnVocabRef) => {
+    const meta = resolveEnVocabRefForPreview(refKey, refs, ref);
+    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
+  };
+
   const toggleDeleteSelection = (wordId: number, checked: boolean) => {
     setSelectedDeleteIds((prev) => {
       const next = new Set(prev);
@@ -1443,12 +1449,7 @@ export function EnVocabPage() {
                                 type="button"
                                 className="jp-vocab-word-link"
                                 title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                                onClick={() => {
-                                  const meta = ref ?? refs[w.ref_key!];
-                                  if (meta) {
-                                    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at });
-                                  }
-                                }}
+                                onClick={() => openRefPreview(w.ref_key!, ref)}
                               >
                                 {w.word}
                               </button>

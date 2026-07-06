@@ -15,6 +15,7 @@ import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
+import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
@@ -210,9 +211,8 @@ export function JpVocabStudyPage() {
   const accessDenied = loggedIn && !checking && !canViewStudy;
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
-    const meta = ref ?? refs[refKey];
-    if (!meta) return;
-    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at });
+    const meta = resolveJpVocabRefForPreview(refKey, refs, ref);
+    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
   };
 
   return (

@@ -31,6 +31,7 @@ import {
   markJpVocabRoundChecked,
   mergeJpVocabDailyDisplayOrder,
   normalizeJpVocabRoundCheckedIds,
+  unmarkJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
 import {
@@ -38,7 +39,7 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
-import { applyJpVocabReview } from "@/lib/jp-vocab-review";
+import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
@@ -93,6 +94,7 @@ const devShared: Array<{
   shared_by: string;
   shared_at: string;
   share_date: string;
+  auto_marked_level: JpVocabLevel | null;
 }> = [];
 let devSharedNextId = 1;
 let jpVocabSharedSchemaReady = false;
@@ -1541,6 +1543,36 @@ export async function markJpVocabWordRoundChecked(
   }
 }
 
+export async function unmarkJpVocabWordRoundChecked(
+  db: D1Database,
+  wordId: number
+): Promise<JpVocabDailyDisplayOrder | null> {
+  if (devStoreEnabled) {
+    const next = unmarkJpVocabRoundChecked(devDailyDisplayOrder, wordId);
+    if (
+      (next.round_checked_ids ?? []).length !==
+      (devDailyDisplayOrder.round_checked_ids ?? []).length
+    ) {
+      devDailyDisplayOrder = next;
+      return next;
+    }
+    return null;
+  }
+
+  const stored = await readJpVocabDailyDisplayOrderRaw(db);
+  const today = beijingDateString();
+  const base =
+    stored?.date === today
+      ? stored
+      : { date: today, ids: [] as number[], round_checked_ids: [] as number[] };
+  const next = unmarkJpVocabRoundChecked(base, wordId);
+  if ((next.round_checked_ids ?? []).length !== (base.round_checked_ids ?? []).length) {
+    await saveJpVocabDailyDisplayOrder(db, next);
+    return next;
+  }
+  return null;
+}
+
 export async function appendJpVocabWordToDailyDisplayOrder(
   db: D1Database,
   wordId: number
@@ -1627,10 +1659,11 @@ export async function setJpVocabDailyQuizStyle(
 }
 
 async function ensureJpVocabSharedSchema(db: D1Database): Promise<void> {
-  if (devStoreEnabled || jpVocabSharedSchemaReady) return;
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS jp_vocab_shared (
+  if (devStoreEnabled) return;
+  if (!jpVocabSharedSchemaReady) {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS jp_vocab_shared (
          id         INTEGER PRIMARY KEY AUTOINCREMENT,
          word_id    INTEGER NOT NULL,
          shared_by  TEXT    NOT NULL,
@@ -1638,21 +1671,31 @@ async function ensureJpVocabSharedSchema(db: D1Database): Promise<void> {
          share_date TEXT    NOT NULL,
          FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
        )`
-    )
-    .run();
-  await db
-    .prepare(
-      `CREATE UNIQUE INDEX IF NOT EXISTS idx_jp_vocab_shared_day_word
+      )
+      .run();
+    await db
+      .prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS idx_jp_vocab_shared_day_word
        ON jp_vocab_shared (share_date, word_id)`
-    )
-    .run();
-  await db
-    .prepare(
-      `CREATE INDEX IF NOT EXISTS idx_jp_vocab_shared_date
+      )
+      .run();
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_jp_vocab_shared_date
        ON jp_vocab_shared (share_date)`
-    )
-    .run();
-  jpVocabSharedSchemaReady = true;
+      )
+      .run();
+    jpVocabSharedSchemaReady = true;
+  }
+  const info = await db
+    .prepare(`PRAGMA table_info(jp_vocab_shared)`)
+    .all<{ name: string }>();
+  const cols = new Set((info.results ?? []).map((row) => row.name));
+  if (!cols.has("auto_marked_level")) {
+    await db
+      .prepare(`ALTER TABLE jp_vocab_shared ADD COLUMN auto_marked_level TEXT`)
+      .run();
+  }
 }
 
 function mapSharedRow(
@@ -1761,8 +1804,11 @@ export async function shareJpVocabWord(
       return { ok: false, error: "already_shared_today" };
     }
     let updatedWord = word;
-    if (!isJpVocabWordCheckedToday(word)) {
-      const review = await recordJpVocabReview(db, wordId, "weak");
+    const autoMarkedLevel: JpVocabLevel | null = isJpVocabWordCheckedToday(word)
+      ? null
+      : "weak";
+    if (autoMarkedLevel) {
+      const review = await recordJpVocabReview(db, wordId, autoMarkedLevel);
       if (!review.ok) return { ok: false, error: review.error };
       updatedWord = review.word;
     }
@@ -1772,6 +1818,7 @@ export async function shareJpVocabWord(
       shared_by: sharedByTrim,
       shared_at: ts,
       share_date: today,
+      auto_marked_level: autoMarkedLevel,
     };
     devShared.push(sharedRow);
     return {
@@ -1802,18 +1849,21 @@ export async function shareJpVocabWord(
 
   const current = mapRow(wordRow);
   let updatedWord = current;
-  if (!isJpVocabWordCheckedToday(current)) {
-    const review = await recordJpVocabReview(db, wordId, "weak");
+  const autoMarkedLevel: JpVocabLevel | null = isJpVocabWordCheckedToday(current)
+    ? null
+    : "weak";
+  if (autoMarkedLevel) {
+    const review = await recordJpVocabReview(db, wordId, autoMarkedLevel);
     if (!review.ok) return { ok: false, error: review.error };
     updatedWord = review.word;
   }
 
   const insert = await db
     .prepare(
-      `INSERT INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date)
-       VALUES (?1, ?2, ?3, ?4)`
+      `INSERT INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date, auto_marked_level)
+       VALUES (?1, ?2, ?3, ?4, ?5)`
     )
-    .bind(wordId, sharedByTrim, ts, today)
+    .bind(wordId, sharedByTrim, ts, today, autoMarkedLevel)
     .run();
   const insertedId = Number(insert.meta?.last_row_id);
   const sharedRow = {
@@ -1822,6 +1872,7 @@ export async function shareJpVocabWord(
     shared_by: sharedByTrim,
     shared_at: ts,
     share_date: today,
+    auto_marked_level: autoMarkedLevel,
   };
 
   return {
@@ -1829,6 +1880,125 @@ export async function shareJpVocabWord(
     item: mapSharedRow(sharedRow, updatedWord),
     word: updatedWord,
   };
+}
+
+export type UnshareJpVocabWordResult =
+  | {
+      ok: true;
+      word: JpVocabWord;
+      reverted: boolean;
+      display_order: JpVocabDailyDisplayOrder | null;
+    }
+  | { ok: false; error: string };
+
+export async function unshareJpVocabWord(
+  db: D1Database,
+  wordId: number
+): Promise<UnshareJpVocabWordResult> {
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    return { ok: false, error: "word_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+  await ensureJpVocabSharedSchema(db);
+
+  const today = beijingDateString();
+
+  if (devStoreEnabled) {
+    const idx = devShared.findIndex(
+      (s) => s.share_date === today && s.word_id === wordId
+    );
+    if (idx < 0) return { ok: false, error: "not_shared_today" };
+    const sharedRow = devShared[idx];
+    devShared.splice(idx, 1);
+
+    const wordIdx = devWords.findIndex((w) => w.id === wordId);
+    if (wordIdx < 0) return { ok: false, error: "not_found" };
+
+    let updatedWord = devWords[wordIdx];
+    const autoMarked =
+      sharedRow.auto_marked_level === "very" ||
+      sharedRow.auto_marked_level === "normal" ||
+      sharedRow.auto_marked_level === "weak"
+        ? sharedRow.auto_marked_level
+        : null;
+    let reverted = false;
+    let display_order: JpVocabDailyDisplayOrder | null = null;
+    if (autoMarked) {
+      updatedWord = revertJpVocabAutoShareReview(updatedWord, autoMarked);
+      devWords[wordIdx] = updatedWord;
+      reverted = true;
+      display_order = await unmarkJpVocabWordRoundChecked(db, wordId);
+    }
+
+    return { ok: true, word: updatedWord, reverted, display_order };
+  }
+
+  const sharedRow = await db
+    .prepare(
+      `SELECT id, word_id, shared_by, shared_at, share_date, auto_marked_level
+       FROM jp_vocab_shared
+       WHERE share_date = ?1 AND word_id = ?2`
+    )
+    .bind(today, wordId)
+    .first<Record<string, unknown>>();
+
+  if (!sharedRow) return { ok: false, error: "not_shared_today" };
+
+  const wordRow = await db
+    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .bind(wordId)
+    .first<Record<string, unknown>>();
+  if (!wordRow) return { ok: false, error: "not_found" };
+
+  await db
+    .prepare(`DELETE FROM jp_vocab_shared WHERE id = ?1`)
+    .bind(Number(sharedRow.id))
+    .run();
+
+  let updatedWord = mapRow(wordRow);
+  let reverted = false;
+  let display_order: JpVocabDailyDisplayOrder | null = null;
+  const rawAutoMarked = sharedRow.auto_marked_level;
+  const autoMarked =
+    rawAutoMarked === "very" ||
+    rawAutoMarked === "normal" ||
+    rawAutoMarked === "weak"
+      ? rawAutoMarked
+      : null;
+  if (autoMarked) {
+    updatedWord = revertJpVocabAutoShareReview(updatedWord, autoMarked);
+    reverted = true;
+    display_order = await unmarkJpVocabWordRoundChecked(db, wordId);
+    await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET cnt_very = ?1,
+             cnt_normal = ?2,
+             cnt_weak = ?3,
+             today_check_count = ?4,
+             today_check_date = ?5,
+             last_review_level = ?6,
+             last_review_at = ?7,
+             updated_at = ?8
+         WHERE id = ?9`
+      )
+      .bind(
+        updatedWord.cnt_very,
+        updatedWord.cnt_normal,
+        updatedWord.cnt_weak,
+        updatedWord.today_check_count,
+        updatedWord.today_check_date,
+        updatedWord.last_review_level,
+        updatedWord.last_review_at,
+        updatedWord.updated_at,
+        wordId
+      )
+      .run();
+  }
+
+  return { ok: true, word: updatedWord, reverted, display_order };
 }
 
 export async function listJpVocabSharedToday(
@@ -1850,7 +2020,10 @@ export async function listJpVocabSharedToday(
         return mapSharedRow(s, word);
       })
       .filter((item): item is JpVocabSharedItem => item != null)
-      .sort((a, b) => a.shared_at.localeCompare(b.shared_at));
+      .sort(
+        (a, b) =>
+          b.shared_at.localeCompare(a.shared_at) || b.id - a.id
+      );
     const refs = refsRecord(Array.from(devRefs.values()));
     return { items, refs };
   }
@@ -1864,7 +2037,7 @@ export async function listJpVocabSharedToday(
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
        WHERE s.share_date = ?1
-       ORDER BY s.shared_at ASC, s.id ASC`
+       ORDER BY s.shared_at DESC, s.id DESC`
     )
     .bind(today)
     .all<Record<string, unknown>>();

@@ -16,6 +16,12 @@ type Props = {
   onClose: () => void;
 };
 
+type PointerPoint = { x: number; y: number };
+
+function pointerDistance(a: PointerPoint, b: PointerPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 export function JpVocabRefPreviewModal({
   open,
   refMeta,
@@ -26,14 +32,23 @@ export function JpVocabRefPreviewModal({
   const [zoom, setZoom] = useState(1);
   const [fitScale, setFitScale] = useState(1);
   const [imgReady, setImgReady] = useState(false);
+  const [coarsePointer, setCoarsePointer] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const zoomRef = useRef(1);
+  const activePointersRef = useRef(new Map<number, PointerPoint>());
   const panSessionRef = useRef<{
     pointerId: number;
     startX: number;
     startY: number;
     scrollLeft: number;
     scrollTop: number;
+  } | null>(null);
+  const pinchSessionRef = useRef<{
+    startDistance: number;
+    startZoom: number;
+    centerX: number;
+    centerY: number;
   } | null>(null);
 
   const title = refMeta?.title?.trim() || refMeta?.ref_key || "教案";
@@ -56,43 +71,57 @@ export function JpVocabRefPreviewModal({
 
   const resetView = useCallback(() => {
     setZoom(1);
+    zoomRef.current = 1;
     setFitScale(1);
     setImgReady(false);
+    activePointersRef.current.clear();
     panSessionRef.current = null;
+    pinchSessionRef.current = null;
     stageRef.current?.scrollTo({ left: 0, top: 0 });
   }, []);
 
-  const zoomAtPointer = useCallback(
-    (clientX: number, clientY: number, factor: number) => {
+  const applyZoomAtPointer = useCallback(
+    (clientX: number, clientY: number, nextZoom: number) => {
       const stage = stageRef.current;
       const img = imgRef.current;
       if (!stage || !img || isPdf) return;
 
-      setZoom((prevZoom) => {
-        const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, prevZoom * factor));
-        if (nextZoom === prevZoom) return prevZoom;
+      const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextZoom));
+      const prevZoom = zoomRef.current;
+      if (Math.abs(clamped - prevZoom) < 0.0001) return;
 
-        const imgRect = img.getBoundingClientRect();
-        const fx = (clientX - imgRect.left) / imgRect.width;
-        const fy = (clientY - imgRect.top) / imgRect.height;
-        const prevW = imgRect.width;
-        const prevH = imgRect.height;
-        const nextW = prevW * (nextZoom / prevZoom);
-        const nextH = prevH * (nextZoom / prevZoom);
+      const imgRect = img.getBoundingClientRect();
+      const fx = (clientX - imgRect.left) / imgRect.width;
+      const fy = (clientY - imgRect.top) / imgRect.height;
+      const prevW = imgRect.width;
+      const prevH = imgRect.height;
+      const nextW = prevW * (clamped / prevZoom);
+      const nextH = prevH * (clamped / prevZoom);
 
-        requestAnimationFrame(() => {
-          stage.scrollLeft += fx * (nextW - prevW);
-          stage.scrollTop += fy * (nextH - prevH);
-        });
-        return nextZoom;
+      zoomRef.current = clamped;
+      setZoom(clamped);
+      requestAnimationFrame(() => {
+        stage.scrollLeft += fx * (nextW - prevW);
+        stage.scrollTop += fy * (nextH - prevH);
       });
     },
     [isPdf]
   );
 
+  const zoomAtPointer = useCallback(
+    (clientX: number, clientY: number, factor: number) => {
+      applyZoomAtPointer(clientX, clientY, zoomRef.current * factor);
+    },
+    [applyZoomAtPointer]
+  );
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   useEffect(() => {
     if (open) resetView();
@@ -117,6 +146,16 @@ export function JpVocabRefPreviewModal({
   }, [open]);
 
   useEffect(() => {
+    if (!open) return;
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    setCoarsePointer(coarse);
+    const mq = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setCoarsePointer(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [open]);
+
+  useEffect(() => {
     if (!open || !imgReady) return;
     const onResize = () => {
       const nextFit = computeFitScale();
@@ -137,33 +176,92 @@ export function JpVocabRefPreviewModal({
     if (isPdf || e.button !== 0) return;
     const stage = stageRef.current;
     if (!stage) return;
-    panSessionRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      scrollLeft: stage.scrollLeft,
-      scrollTop: stage.scrollTop,
-    };
+
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     stage.setPointerCapture(e.pointerId);
+
+    if (activePointersRef.current.size === 2) {
+      const pts = [...activePointersRef.current.values()];
+      panSessionRef.current = null;
+      pinchSessionRef.current = {
+        startDistance: pointerDistance(pts[0], pts[1]),
+        startZoom: zoomRef.current,
+        centerX: (pts[0].x + pts[1].x) / 2,
+        centerY: (pts[0].y + pts[1].y) / 2,
+      };
+      return;
+    }
+
+    if (activePointersRef.current.size === 1) {
+      pinchSessionRef.current = null;
+      panSessionRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        scrollLeft: stage.scrollLeft,
+        scrollTop: stage.scrollTop,
+      };
+    }
   };
 
   const onStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const session = panSessionRef.current;
     const stage = stageRef.current;
-    if (!session || !stage || session.pointerId !== e.pointerId) return;
+    if (!stage || !activePointersRef.current.has(e.pointerId)) return;
+
+    activePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const pinch = pinchSessionRef.current;
+    if (pinch && activePointersRef.current.size >= 2) {
+      const pts = [...activePointersRef.current.values()];
+      const dist = pointerDistance(pts[0], pts[1]);
+      if (pinch.startDistance > 0) {
+        applyZoomAtPointer(
+          pinch.centerX,
+          pinch.centerY,
+          pinch.startZoom * (dist / pinch.startDistance)
+        );
+      }
+      return;
+    }
+
+    const session = panSessionRef.current;
+    if (!session || session.pointerId !== e.pointerId || activePointersRef.current.size !== 1) {
+      return;
+    }
     stage.scrollLeft = session.scrollLeft - (e.clientX - session.startX);
     stage.scrollTop = session.scrollTop - (e.clientY - session.startY);
   };
 
-  const onStagePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    const session = panSessionRef.current;
+  const endPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const stage = stageRef.current;
-    if (!session || session.pointerId !== e.pointerId) return;
-    panSessionRef.current = null;
+    activePointersRef.current.delete(e.pointerId);
+    if (activePointersRef.current.size < 2) {
+      pinchSessionRef.current = null;
+    }
+    if (activePointersRef.current.size === 0) {
+      panSessionRef.current = null;
+    } else if (activePointersRef.current.size === 1 && !pinchSessionRef.current) {
+      const remaining = [...activePointersRef.current.entries()][0];
+      if (remaining && stage) {
+        panSessionRef.current = {
+          pointerId: remaining[0],
+          startX: remaining[1].x,
+          startY: remaining[1].y,
+          scrollLeft: stage.scrollLeft,
+          scrollTop: stage.scrollTop,
+        };
+      }
+    }
     stage?.releasePointerCapture(e.pointerId);
   };
 
   if (!open || !mounted || !refMeta) return null;
+
+  const hint = isPdf
+    ? "滚动查看 · Esc 关闭"
+    : coarsePointer
+      ? "单指拖动 · 双指缩放 · ± 按钮 · Esc 关闭"
+      : "拖动平移 · 滚轮缩放 · Esc 关闭";
 
   return createPortal(
     <div
@@ -176,9 +274,7 @@ export function JpVocabRefPreviewModal({
       <div className="jp-ref-preview-bar" onClick={(e) => e.stopPropagation()}>
         <div className="jp-ref-preview-title-wrap">
           <span className="jp-ref-preview-title">{title}</span>
-          <span className="jp-ref-preview-hint">
-            {isPdf ? "滚动查看 · Esc 关闭" : "拖动平移 · 滚轮缩放 · Esc 关闭"}
-          </span>
+          <span className="jp-ref-preview-hint">{hint}</span>
         </div>
         <div className="jp-ref-preview-tools">
           {!isPdf ? (
@@ -238,8 +334,8 @@ export function JpVocabRefPreviewModal({
         onWheel={onStageWheel}
         onPointerDown={onStagePointerDown}
         onPointerMove={onStagePointerMove}
-        onPointerUp={onStagePointerUp}
-        onPointerCancel={onStagePointerUp}
+        onPointerUp={endPointer}
+        onPointerCancel={endPointer}
       >
         {isPdf ? (
           <iframe src={mediaUrl} title={title} className="jp-ref-preview-pdf" />
@@ -267,6 +363,7 @@ export function JpVocabRefPreviewModal({
               }}
               onLoad={() => {
                 setFitScale(computeFitScale());
+                zoomRef.current = 1;
                 setZoom(1);
                 setImgReady(true);
                 stageRef.current?.scrollTo({ left: 0, top: 0 });
@@ -285,6 +382,8 @@ export function JpVocabRefPreviewModal({
           background: rgba(8, 12, 18, 0.88);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
+          padding-top: env(safe-area-inset-top, 0px);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
         }
         .jp-ref-preview-bar {
           display: flex;
@@ -312,6 +411,7 @@ export function JpVocabRefPreviewModal({
         .jp-ref-preview-hint {
           font-size: 0.75rem;
           color: var(--muted);
+          line-height: 1.35;
         }
         .jp-ref-preview-tools {
           display: flex;
@@ -354,6 +454,7 @@ export function JpVocabRefPreviewModal({
           overflow: auto;
           cursor: grab;
           touch-action: none;
+          -webkit-overflow-scrolling: touch;
         }
         .jp-ref-preview-stage:active {
           cursor: grabbing;
@@ -379,6 +480,7 @@ export function JpVocabRefPreviewModal({
           background: #fff;
           box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
           user-select: none;
+          -webkit-user-drag: none;
         }
         .jp-ref-preview-pdf {
           display: block;
@@ -389,6 +491,20 @@ export function JpVocabRefPreviewModal({
           border: 1px solid var(--border);
           border-radius: 8px;
           background: #fff;
+        }
+        @media (max-width: 480px) {
+          .jp-ref-preview-bar {
+            padding: 0.65rem 0.75rem;
+          }
+          .jp-ref-preview-tool-btn,
+          .jp-ref-preview-close {
+            min-width: 2.75rem;
+            height: 2.75rem;
+          }
+          .jp-ref-preview-pdf {
+            width: 100%;
+            min-height: calc(100dvh - 5.5rem);
+          }
         }
       `}</style>
     </div>,

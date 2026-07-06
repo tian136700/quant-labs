@@ -17,6 +17,7 @@ import {
   buildJpVocabDailySeqMap,
   isJpVocabRoundChecked,
   markJpVocabRoundChecked,
+  unmarkJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
 import {
@@ -62,6 +63,7 @@ import {
 } from "@/lib/jp-vocab-daily-check";
 import { applyJpVocabReview } from "@/lib/jp-vocab-review";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
+import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -190,6 +192,7 @@ export function JpVocabPage() {
   const [showResetChoice, setShowResetChoice] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [sharingId, setSharingId] = useState<number | null>(null);
+  const [unsharingId, setUnsharingId] = useState<number | null>(null);
   const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
     () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
   );
@@ -698,6 +701,95 @@ export function JpVocabPage() {
     }
   };
 
+  const unshareWord = async (wordId: number) => {
+    if (!canShareToStudy) {
+      setStatus("仅管理员或日语老师可取消共享。");
+      return;
+    }
+    if (!canOperate) {
+      setStatus("请登录后再取消共享。");
+      openJpAuth();
+      return;
+    }
+    if (unsharingId === wordId || sharingId === wordId || savingId === wordId) return;
+    if (!sharedTodayWordIds.has(wordId)) {
+      setStatus("该词今日尚未共享。");
+      return;
+    }
+
+    setHighlightId(wordId);
+    setStatus("");
+    setUnsharingId(wordId);
+
+    try {
+      const res = await fetch("/api/jp-vocab/share", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ word_id: wordId }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        word?: JpVocabWord;
+        reverted?: boolean;
+        display_order?: JpVocabDailyDisplayOrder | null;
+        error?: string;
+      };
+      if (res.status === 401) {
+        await refresh();
+        throw new Error(SAVE_ERR[locale]);
+      }
+      if (res.status === 409 || data.error === "not_shared_today") {
+        setSharedTodayWordIds((prev) => {
+          const next = new Set(prev);
+          next.delete(wordId);
+          return next;
+        });
+        throw new Error("该词今日尚未共享。");
+      }
+      if (!data.ok || !data.word) {
+        throw new Error(data.error || (locale === "zh" ? "取消共享失败" : "Unshare failed"));
+      }
+
+      const nextSharedIds = [...sharedTodayWordIdsRef.current].filter((id) => id !== wordId);
+      setSharedTodayWordIds(new Set(nextSharedIds));
+      setWords((prev) => {
+        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+        persistVocabCache(next, refs, displayOrderRef.current, nextSharedIds);
+        return next;
+      });
+
+      if (data.reverted) {
+        setSessionLevel((prev) => {
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        });
+        setSessionReviewAt((prev) => {
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        });
+        if (data.display_order) {
+          setDisplayOrder(data.display_order);
+        } else {
+          setDisplayOrder((prev) => unmarkJpVocabRoundChecked(prev, wordId));
+        }
+        setStatus("已取消共享，并撤销自动标记的不熟悉。");
+      } else {
+        setStatus("已取消共享，学生「今日背单词」中不再显示该词。");
+      }
+      notifyJpVocabSharedUpdated({ wordId });
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUnsharingId(null);
+    }
+  };
+
   const runReset = async (action: "reset_today" | "reset") => {
     setResetting(true);
     setStatus("");
@@ -836,6 +928,11 @@ export function JpVocabPage() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
+    const meta = resolveJpVocabRefForPreview(refKey, refs, ref);
+    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
   };
 
   const renderPaginationNav = () =>
@@ -1220,7 +1317,10 @@ export function JpVocabPage() {
                   const isHighlight = highlightId === w.id;
                   const sharedLocked = sharedTodayWordIds.has(w.id);
                   const selected =
-                    sessionLevel[w.id] ?? (sharedLocked ? ("weak" as JpVocabLevel) : undefined);
+                    sessionLevel[w.id] ??
+                    (sharedLocked
+                      ? (w.last_review_level ?? ("weak" as JpVocabLevel))
+                      : undefined);
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
@@ -1286,12 +1386,7 @@ export function JpVocabPage() {
                                 type="button"
                                 className="jp-vocab-word-link"
                                 title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                                onClick={() => {
-                                  const meta = ref ?? refs[w.ref_key!];
-                                  if (meta) {
-                                    setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at });
-                                  }
-                                }}
+                                onClick={() => openRefPreview(w.ref_key!, ref)}
                               >
                                 {w.word}
                               </button>
@@ -1475,29 +1570,42 @@ export function JpVocabPage() {
                               编辑
                             </button>
                             {canShareToStudy ? (
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
-                                disabled={
-                                  sharingId === w.id ||
-                                  isSaving ||
-                                  sharedTodayWordIds.has(w.id)
-                                }
-                                title={
-                                  sharedTodayWordIds.has(w.id)
-                                    ? "今日已共享"
-                                    : sharingId === w.id
+                              sharedTodayWordIds.has(w.id) ? (
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn"
+                                  disabled={
+                                    unsharingId === w.id ||
+                                    sharingId === w.id ||
+                                    isSaving
+                                  }
+                                  title={
+                                    unsharingId === w.id
+                                      ? "取消共享中…"
+                                      : "从学生「今日背单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                                  }
+                                  onClick={() => void unshareWord(w.id)}
+                                >
+                                  {unsharingId === w.id ? "取消中…" : "取消共享"}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
+                                  disabled={
+                                    sharingId === w.id ||
+                                    isSaving
+                                  }
+                                  title={
+                                    sharingId === w.id
                                       ? "共享中…"
                                       : "共享到学生「今日背单词」，并标记为不熟悉"
-                                }
-                                onClick={() => void shareWord(w.id)}
-                              >
-                                {sharedTodayWordIds.has(w.id)
-                                  ? "已共享"
-                                  : sharingId === w.id
-                                    ? "共享中…"
-                                    : "共享"}
-                              </button>
+                                  }
+                                  onClick={() => void shareWord(w.id)}
+                                >
+                                  {sharingId === w.id ? "共享中…" : "共享"}
+                                </button>
+                              )
                             ) : null}
                           </div>
                         ) : null}

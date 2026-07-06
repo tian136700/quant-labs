@@ -1,4 +1,4 @@
-import type { EnVocabMediaType } from "@/lib/types";
+import type { EnVocabMediaType, EnVocabRef } from "@/lib/types";
 
 /** 教案文件 R2 前缀；与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
 export const JP_VOCAB_REF_R2_PREFIX = "vocab-ref/";
@@ -57,6 +57,25 @@ export function enVocabRefApiPath(
   if (opts?.v) params.set("v", opts.v);
   const q = params.toString();
   return q ? `${base}?${q}` : base;
+}
+
+/** 弹窗预览教案：优先用缓存元数据，缺失时用 ref_key 构造占位（默认可缩放图片） */
+export function resolveEnVocabRefForPreview(
+  refKey: string,
+  refs: Record<string, EnVocabRef>,
+  ref?: EnVocabRef
+): EnVocabRef {
+  return (
+    ref ??
+    refs[refKey] ?? {
+      ref_key: refKey,
+      title: null,
+      media_type: "image",
+      r2_key: "",
+      created_at: "",
+      updated_at: "",
+    }
+  );
 }
 
 /** 教案查看页（带下载按钮） */
