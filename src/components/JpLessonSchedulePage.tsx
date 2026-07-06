@@ -39,6 +39,7 @@ import {
   type JpLessonSchedulePageEvent,
 } from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath } from "@/lib/locale-path";
+import { formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
 import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
@@ -274,7 +275,10 @@ export function JpLessonSchedulePage() {
   const teacherNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const teacher of teachers) {
-      map.set(teacher.id, teacher.name);
+      map.set(
+        teacher.id,
+        formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate)
+      );
     }
     return map;
   }, [teachers]);

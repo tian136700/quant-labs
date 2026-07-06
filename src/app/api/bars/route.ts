@@ -1,6 +1,8 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { requireAdmin } from "@/lib/admin-auth";
 import { buildComparePayload, prepareRowsWithRsi } from "@/lib/compare";
 import { getBarsWithCache, getLatestBarDate } from "@/lib/db";
+import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { addYears, todayIso, warmupStartForRsi } from "@/lib/rsi";
 import type { BarsApiResponse, CloudflareEnv } from "@/lib/types";
 
@@ -13,6 +15,13 @@ const MAX_YEARS = 10;
  */
 export async function GET(request: Request) {
   try {
+    if (COMPARE_ADMIN_ONLY) {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return json({ ok: false, error: "Unauthorized" }, 401);
+      }
+    }
+
     const url = new URL(request.url);
     const symbol = (url.searchParams.get("symbol") || "").trim().toUpperCase();
     const yearsRaw = parseInt(url.searchParams.get("years") || "2", 10);

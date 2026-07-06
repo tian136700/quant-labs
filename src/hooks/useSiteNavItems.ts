@@ -24,6 +24,7 @@ import {
   isTeacherReviewPath,
 } from "@/lib/locale-path";
 import { navHref } from "@/lib/nav-href";
+import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 
 export type SiteNavItem = {
   id: string;
@@ -224,7 +225,7 @@ export function useSiteNavItems(): SiteNavItem[] {
       ...(checking || !hasPermission("nav:full")
         ? []
         : [
-            ...(hasPermission("compare:view")
+            ...(hasPermission("compare:view") && (!COMPARE_ADMIN_ONLY || isAdmin)
               ? [
                   {
                     id: "compare",

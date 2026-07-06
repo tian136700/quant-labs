@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
+import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { storeReviewSiteUrl } from "@/lib/store-review-seo";
 import { isStoreReviewSubdomainHost } from "@/lib/store-review-host";
 import { isTrendBlogSubdomainHost } from "@/lib/trend-blog-host";
@@ -12,6 +13,7 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     userAgent: "*",
     allow: "/",
     disallow: [
+      ...(COMPARE_ADMIN_ONLY ? ["/", "/zh"] : []),
       "/jp-review",
       "/api/jp-review/",
       "/jp-vocab",

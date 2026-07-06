@@ -64,3 +64,15 @@ export function formatHourlyRate(rate: number | null | undefined): string {
   const rounded = Math.round(rate * 100) / 100;
   return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2)}/h`;
 }
+
+/** 新课/课表等前台展示：名称 + 课时费，如「李老师 - 50/h」 */
+export function formatTeacherDisplayLabel(
+  name: string,
+  hourlyRate: number | null | undefined
+): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "";
+  const rate = formatHourlyRate(hourlyRate);
+  if (rate === "—") return trimmed;
+  return `${trimmed} - ${rate}`;
+}

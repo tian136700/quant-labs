@@ -43,6 +43,7 @@ import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
+import { formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
@@ -390,7 +391,10 @@ export function JpLessonPage() {
   const teacherNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const teacher of teachers) {
-      map.set(teacher.id, teacher.name);
+      map.set(
+        teacher.id,
+        formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate)
+      );
     }
     return map;
   }, [teachers]);

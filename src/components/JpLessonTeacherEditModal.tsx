@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
-import { calcHourlyRate, formatHourlyRate } from "@/lib/jp-lesson-teacher-rate";
+import { calcHourlyRate, formatHourlyRate, formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 
 export type JpLessonTeacherAddInput = {
   name: string;
@@ -193,14 +193,7 @@ export function JpLessonTeacherEditModal({
                   checked={selectedIds.includes(teacher.id)}
                   onChange={() => toggleTeacher(teacher.id)}
                 />
-                <span>
-                  {teacher.name}
-                  {teacher.hourly_rate != null ? (
-                    <span className="jp-lesson-teacher-rate-tag">
-                      {formatHourlyRate(teacher.hourly_rate)}
-                    </span>
-                  ) : null}
-                </span>
+                <span>{formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate)}</span>
               </label>
             ))}
             <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
@@ -416,12 +409,6 @@ export function JpLessonTeacherEditModal({
         .jp-lesson-teacher-add-label {
           color: var(--muted);
           flex-shrink: 0;
-        }
-
-        .jp-lesson-teacher-rate-tag {
-          margin-left: 0.35rem;
-          color: var(--muted);
-          font-size: 0.8125rem;
         }
 
         .jp-lesson-teacher-add-input {

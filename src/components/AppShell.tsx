@@ -16,11 +16,14 @@ import {
   isJpVocabPath,
   isJpVocabRefPath,
   isMaintenancePath,
+  isComparePath,
   enLessonPath,
   enVocabPath,
   jpLessonPath,
   jpVocabPath,
 } from "@/lib/locale-path";
+import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { EnVocabTeacherRouteGuard } from "./EnVocabTeacherRouteGuard";
 import { JpVocabTeacherRouteGuard } from "./JpVocabTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
@@ -32,6 +35,11 @@ import { SiteNav } from "./SiteNav";
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/";
   const onMaintenance = isMaintenancePath(pathname);
+  const { user, checking, isAdmin } = useEtrAuth();
+  const compareGatedShell =
+    COMPARE_ADMIN_ONLY &&
+    isComparePath(pathname) &&
+    (checking || !user || !isAdmin);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = useSiteNavItems();
   const { t } = useI18n();
@@ -65,7 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return items[0]?.href ?? "/";
   }, [items, pathname]);
 
-  if (onMaintenance || onJpVocabRef || onEnVocabRef) {
+  if (onMaintenance || onJpVocabRef || onEnVocabRef || compareGatedShell) {
     return (
       <>
         <MaintenanceRouteGuard />

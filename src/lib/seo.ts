@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { DEFAULT_YEARS, POPULAR_SYMBOLS, SITE_NAME, SITE_URL } from "./site";
 
 export type SeoLocale = "en" | "zh";
@@ -254,6 +255,8 @@ export function buildWebAppJsonLd(locale: SeoLocale) {
 
 /** sitemap 条目 */
 export function sitemapEntries(): { url: string; lastModified: Date; priority: number }[] {
+  if (COMPARE_ADMIN_ONLY) return [];
+
   const now = new Date();
   const entries: { url: string; lastModified: Date; priority: number }[] = [
     { url: SITE_URL, lastModified: now, priority: 1 },
