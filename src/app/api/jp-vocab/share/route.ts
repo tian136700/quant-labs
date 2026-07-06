@@ -1,28 +1,27 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { shareJpVocabWord } from "@/lib/jp-vocab-db";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
-import { isAdminSuperuser } from "@/lib/rbac";
+import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 
 const AUTH_MSG = {
   en: "Please log in to share words.",
   zh: "请登录后再共享。",
 };
 
-const ADMIN_MSG = {
-  en: "Only the Admin account can share words.",
-  zh: "仅 Admin 账户可共享单词。",
+const PERM_MSG = {
+  en: "Only admin or Japanese teachers can share words.",
+  zh: "仅管理员或日语老师可共享单词。",
 };
 
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpVocabStudyAccess(request);
     if (!allowed || !user) {
-      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
-    }
-    if (!isAdminSuperuser(user.role)) {
-      return jsonResponse({ ok: false, error: ADMIN_MSG[locale] }, 403);
+      return jsonResponse(
+        { ok: false, error: user ? PERM_MSG[locale] : AUTH_MSG[locale] },
+        user ? 403 : 401
+      );
     }
 
     const body = (await request.json()) as { word_id?: number };

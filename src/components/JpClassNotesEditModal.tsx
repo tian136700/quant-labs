@@ -52,7 +52,8 @@ export function JpClassNotesEditModal({
   onSaveFailed,
   onNeedAuth,
 }: Props) {
-  const { isAdmin } = useEtrAuth();
+  const { canAccessJpVocabStudy } = useEtrAuth();
+  const canShareToStudy = canAccessJpVocabStudy;
   const [mounted, setMounted] = useState(false);
   const [draft, setDraft] = useState("");
   const [historyEntries, setHistoryEntries] = useState<JpVocabClassNoteEntry[]>([]);
@@ -259,7 +260,7 @@ export function JpClassNotesEditModal({
 
   const handleShare = async () => {
     const current = wordRef.current;
-    if (!current || !isAdmin || sharing) return;
+    if (!current || !canShareToStudy || sharing) return;
 
     setSharing(true);
     setError("");
@@ -400,7 +401,7 @@ export function JpClassNotesEditModal({
             >
               完成
             </button>
-            {isAdmin ? (
+            {canShareToStudy ? (
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"

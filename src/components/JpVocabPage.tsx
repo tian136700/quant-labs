@@ -169,9 +169,10 @@ const SAVE_ERR = {
 
 export function JpVocabPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, refresh, openAuthPanel, isAdmin } =
+  const { user, checking, canAccessJpVocab, canAccessJpVocabStudy, refresh, openAuthPanel, isAdmin } =
     useEtrAuth();
   const canOperate = canAccessJpVocab;
+  const canShareToStudy = canAccessJpVocabStudy;
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -584,8 +585,8 @@ export function JpVocabPage() {
   };
 
   const shareWord = async (wordId: number) => {
-    if (!isAdmin) {
-      setStatus("仅 Admin 账户可共享。");
+    if (!canShareToStudy) {
+      setStatus("仅管理员或日语老师可共享。");
       return;
     }
     if (!canOperate) {
@@ -1473,7 +1474,7 @@ export function JpVocabPage() {
                             >
                               编辑
                             </button>
-                            {isAdmin ? (
+                            {canShareToStudy ? (
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"
