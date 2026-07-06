@@ -258,13 +258,155 @@ export function JpLessonManualScheduleModal({
       </div>
 
       <style jsx>{`
+        .jp-lesson-next-class-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(3px);
+          -webkit-backdrop-filter: blur(3px);
+        }
+
+        .jp-lesson-next-class-modal {
+          width: min(720px, 100%);
+          max-height: min(94vh, 900px);
+          overflow: auto;
+          padding: 1.15rem 1.25rem;
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          background: var(--panel);
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        .jp-lesson-next-class-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+        }
+
+        .jp-lesson-next-class-header h2 {
+          margin: 0;
+          font-size: 1.0625rem;
+          font-weight: 600;
+        }
+
+        .jp-lesson-next-class-modal-lesson {
+          margin: 0.35rem 0 0;
+          color: var(--muted);
+          font-size: 0.8125rem;
+          line-height: 1.45;
+        }
+
+        .jp-lesson-next-class-close {
+          flex-shrink: 0;
+          width: 2rem;
+          height: 2rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 55%, transparent);
+          color: var(--muted);
+          font-size: 1.25rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .jp-lesson-next-class-fieldset {
+          margin: 0 0 0.75rem;
+          padding: 0;
+          border: none;
+        }
+
+        .jp-lesson-next-class-fieldset legend {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          margin-bottom: 0.5rem;
+        }
+
+        .jp-lesson-next-class-rows {
+          display: grid;
+          gap: 0.75rem;
+        }
+
+        .jp-lesson-next-class-row {
+          padding: 0.65rem 0.7rem;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: color-mix(in srgb, var(--bg) 28%, var(--panel));
+        }
+
+        .jp-lesson-next-class-fields {
+          display: grid;
+          gap: 0.65rem;
+        }
+
+        .jp-lesson-next-class-field {
+          display: grid;
+          gap: 0.35rem;
+        }
+
+        .jp-lesson-next-class-field span {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+
+        .jp-lesson-next-class-input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 0.55rem 0.65rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: inherit;
+          font-size: 0.875rem;
+        }
+
+        .jp-lesson-next-class-time-select {
+          cursor: pointer;
+        }
+
+        .jp-lesson-next-class-hint {
+          margin: 0.45rem 0 0;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          line-height: 1.45;
+        }
+
+        .jp-lesson-next-class-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.5rem;
+        }
+
         .jp-lesson-next-class-field--full {
           grid-column: 1 / -1;
         }
+
         .jp-lesson-manual-note {
           resize: vertical;
           min-height: 4.5rem;
           line-height: 1.45;
+        }
+
+        :global(.jp-lesson-action-btn) {
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          border-radius: 8px;
+          padding: 0.45rem 0.85rem;
+          font-size: 0.8125rem;
+          cursor: pointer;
+        }
+
+        :global(.jp-lesson-action-btn--primary) {
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+          background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+          color: var(--accent);
         }
       `}</style>
     </div>,
