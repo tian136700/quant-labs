@@ -1061,6 +1061,13 @@ textarea:focus {
   vertical-align: middle;
 }
 
+.admin-jpl-teachers-table .col-rate {
+  width: 6rem;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
 .admin-jpl-teachers-table .col-score {
   width: 6.5rem;
   white-space: nowrap;

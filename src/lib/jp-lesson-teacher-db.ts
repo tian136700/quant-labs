@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { JpLessonTeacher } from "@/lib/types";
+import { normalizeHourlyRate } from "@/lib/jp-lesson-teacher-rate";
 
 let devStoreEnabled = false;
 const devTeachers: JpLessonTeacher[] = [];
@@ -18,16 +19,22 @@ function nowIso(): string {
 }
 
 function mapRow(row: Record<string, unknown>): JpLessonTeacher {
+  const hourlyRaw = row.hourly_rate;
+  const hourly_rate =
+    hourlyRaw == null || hourlyRaw === ""
+      ? null
+      : normalizeHourlyRate(Number(hourlyRaw));
   return {
     id: Number(row.id),
     name: String(row.name),
+    hourly_rate,
     sort_order: Number(row.sort_order) || 0,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
 }
 
-const TEACHER_SELECT = `SELECT id, name, sort_order, created_at, updated_at FROM jp_lesson_teacher`;
+const TEACHER_SELECT = `SELECT id, name, hourly_rate, sort_order, created_at, updated_at FROM jp_lesson_teacher`;
 
 export async function listJpLessonTeachers(db: D1Database): Promise<JpLessonTeacher[]> {
   if (devStoreEnabled) {
@@ -66,11 +73,13 @@ export type MutateJpLessonTeacherResult =
 export async function createJpLessonTeacher(
   db: D1Database,
   name: string,
-  sortOrder = 0
+  sortOrder = 0,
+  hourlyRate: number | null = null
 ): Promise<MutateJpLessonTeacherResult> {
   const trimmed = name.trim();
   if (!trimmed) return { ok: false, error: "name_empty" };
 
+  const hourly_rate = normalizeHourlyRate(hourlyRate);
   const ts = nowIso();
 
   if (devStoreEnabled) {
@@ -80,6 +89,7 @@ export async function createJpLessonTeacher(
     const teacher: JpLessonTeacher = {
       id: devNextId++,
       name: trimmed,
+      hourly_rate,
       sort_order: sortOrder,
       created_at: ts,
       updated_at: ts,
@@ -91,10 +101,10 @@ export async function createJpLessonTeacher(
   try {
     const result = await db
       .prepare(
-        `INSERT INTO jp_lesson_teacher (name, sort_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?3)`
+        `INSERT INTO jp_lesson_teacher (name, hourly_rate, sort_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?4)`
       )
-      .bind(trimmed, sortOrder, ts)
+      .bind(trimmed, hourly_rate, sortOrder, ts)
       .run();
 
     const id = Number(result.meta?.last_row_id);
@@ -111,7 +121,7 @@ export async function createJpLessonTeacher(
 export async function updateJpLessonTeacher(
   db: D1Database,
   teacherId: number,
-  input: { name?: string; sort_order?: number }
+  input: { name?: string; sort_order?: number; hourly_rate?: number | null }
 ): Promise<MutateJpLessonTeacherResult> {
   if (!Number.isInteger(teacherId) || teacherId <= 0) {
     return { ok: false, error: "teacher_id_invalid" };
@@ -125,6 +135,10 @@ export async function updateJpLessonTeacher(
 
   const sortOrder =
     input.sort_order !== undefined ? input.sort_order : existing.sort_order;
+  const hourly_rate =
+    input.hourly_rate !== undefined
+      ? normalizeHourlyRate(input.hourly_rate)
+      : existing.hourly_rate;
   const ts = nowIso();
 
   if (devStoreEnabled) {
@@ -135,6 +149,7 @@ export async function updateJpLessonTeacher(
     devTeachers[idx] = {
       ...devTeachers[idx],
       name,
+      hourly_rate,
       sort_order: sortOrder,
       updated_at: ts,
     };
@@ -144,9 +159,9 @@ export async function updateJpLessonTeacher(
   try {
     const result = await db
       .prepare(
-        `UPDATE jp_lesson_teacher SET name = ?1, sort_order = ?2, updated_at = ?3 WHERE id = ?4`
+        `UPDATE jp_lesson_teacher SET name = ?1, hourly_rate = ?2, sort_order = ?3, updated_at = ?4 WHERE id = ?5`
       )
-      .bind(name, sortOrder, ts, teacherId)
+      .bind(name, hourly_rate, sortOrder, ts, teacherId)
       .run();
 
     if (!result.meta?.changes) return { ok: false, error: "not_found" };

@@ -2,11 +2,53 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { provisionJpLessonTeacherUser } from "@/lib/etr-auth-db";
 import {
+  calcHourlyRate,
+  normalizeHourlyRate,
+  splitTeacherNameAndRate,
+} from "@/lib/jp-lesson-teacher-rate";
+import {
   createJpLessonTeacher,
   deleteJpLessonTeacher,
   listJpLessonTeachers,
   updateJpLessonTeacher,
 } from "@/lib/jp-lesson-teacher-db";
+
+function resolveHourlyRate(body: {
+  hourly_rate?: unknown;
+  lesson_price?: unknown;
+  lesson_minutes?: unknown;
+}): number | null | undefined {
+  if (body.lesson_price !== undefined || body.lesson_minutes !== undefined) {
+    const price = Number(body.lesson_price);
+    const minutes = Number(body.lesson_minutes);
+    return calcHourlyRate(price, minutes);
+  }
+  if (body.hourly_rate !== undefined) {
+    return body.hourly_rate === null ? null : normalizeHourlyRate(body.hourly_rate);
+  }
+  return undefined;
+}
+
+function resolveTeacherNameAndRate(body: {
+  name?: string;
+  hourly_rate?: unknown;
+  lesson_price?: unknown;
+  lesson_minutes?: unknown;
+}): { name: string; hourly_rate: number | null | undefined } {
+  const rawName = typeof body.name === "string" ? body.name.trim() : "";
+  let hourlyRate = resolveHourlyRate(body);
+  let name = rawName;
+
+  if (hourlyRate === undefined && rawName) {
+    const split = splitTeacherNameAndRate(rawName);
+    if (split.hourly_rate != null) {
+      name = split.name;
+      hourlyRate = split.hourly_rate;
+    }
+  }
+
+  return { name, hourly_rate: hourlyRate };
+}
 
 export async function GET(request: Request) {
   try {
@@ -35,6 +77,9 @@ export async function POST(request: Request) {
       id?: number;
       name?: string;
       sort_order?: number;
+      hourly_rate?: number | null;
+      lesson_price?: number;
+      lesson_minutes?: number;
     };
 
     if (body.action === "update") {
@@ -43,10 +88,13 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: "teacher_id_invalid" }, 400);
       }
 
+      const { name, hourly_rate: hourlyRate } = resolveTeacherNameAndRate(body);
+
       const result = await updateJpLessonTeacher(env.DB, id, {
-        name: body.name,
+        name: body.name !== undefined ? name : undefined,
         sort_order:
           body.sort_order !== undefined ? Number(body.sort_order) : undefined,
+        hourly_rate: hourlyRate,
       });
 
       if (!result.ok) {
@@ -62,11 +110,16 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: true, teacher: result.teacher });
     }
 
-    const name = typeof body.name === "string" ? body.name : "";
+    const { name, hourly_rate: hourlyRate } = resolveTeacherNameAndRate(body);
     const sortOrder =
       body.sort_order !== undefined ? Number(body.sort_order) : 0;
 
-    const result = await createJpLessonTeacher(env.DB, name, sortOrder);
+    const result = await createJpLessonTeacher(
+      env.DB,
+      name,
+      sortOrder,
+      hourlyRate ?? null
+    );
     if (!result.ok) {
       const status = result.error === "name_duplicate" ? 409 : 400;
       return jsonResponse({ ok: false, error: result.error }, status);

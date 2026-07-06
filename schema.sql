@@ -244,6 +244,7 @@ CREATE INDEX IF NOT EXISTS idx_jp_vocab_shared_date ON jp_vocab_shared (share_da
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT    NOT NULL UNIQUE,
+  hourly_rate REAL,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))

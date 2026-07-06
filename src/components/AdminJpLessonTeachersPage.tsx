@@ -19,6 +19,7 @@ import {
   jpLessonPath,
 } from "@/lib/locale-path";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
+import { formatHourlyRate } from "@/lib/jp-lesson-teacher-rate";
 
 function scoreClass(score: number): string {
   if (score >= 8) return "etr-score--high";
@@ -36,8 +37,10 @@ export function AdminJpLessonTeachersPage() {
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newHourlyRate, setNewHourlyRate] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [editHourlyRate, setEditHourlyRate] = useState("");
   const [editSortOrder, setEditSortOrder] = useState(0);
   const [reviewSummaries, setReviewSummaries] = useState<
     Map<number, JpLessonTeacherReviewSummary>
@@ -139,7 +142,10 @@ export function AdminJpLessonTeachersPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName }),
+        body: JSON.stringify({
+          name: newName,
+          hourly_rate: newHourlyRate.trim() ? Number(newHourlyRate) : null,
+        }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -159,6 +165,7 @@ export function AdminJpLessonTeachersPage() {
         return;
       }
       setNewName("");
+      setNewHourlyRate("");
       if (data.user_account) {
         rememberAdminUserPassword(data.user_account.id, data.user_account.password);
         setStatus(
@@ -190,12 +197,16 @@ export function AdminJpLessonTeachersPage() {
   const startEdit = (teacher: JpLessonTeacher) => {
     setEditingId(teacher.id);
     setEditName(teacher.name);
+    setEditHourlyRate(
+      teacher.hourly_rate != null ? String(teacher.hourly_rate) : ""
+    );
     setEditSortOrder(teacher.sort_order);
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setEditName("");
+    setEditHourlyRate("");
     setEditSortOrder(0);
   };
 
@@ -213,6 +224,7 @@ export function AdminJpLessonTeachersPage() {
           action: "update",
           id: editingId,
           name: editName,
+          hourly_rate: editHourlyRate.trim() ? Number(editHourlyRate) : null,
           sort_order: editSortOrder,
         }),
       });
@@ -317,8 +329,20 @@ export function AdminJpLessonTeachersPage() {
               type="text"
               value={newName}
               disabled={saving}
-              placeholder={locale === "zh" ? "例如：周老师 或 周老师-备注" : "e.g. Teacher Zhou or Teacher Zhou - note"}
+              placeholder={locale === "zh" ? "例如：周老师" : "e.g. Teacher Zhou"}
               onChange={(e) => setNewName(e.target.value)}
+            />
+          </label>
+          <label className="admin-user-add-field">
+            <span>{locale === "zh" ? "课时费（元/小时）" : "Rate (per hour)"}</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newHourlyRate}
+              disabled={saving}
+              placeholder={locale === "zh" ? "选填" : "Optional"}
+              onChange={(e) => setNewHourlyRate(e.target.value)}
             />
           </label>
           <button
@@ -337,8 +361,8 @@ export function AdminJpLessonTeachersPage() {
         </form>
         <p className="hint admin-user-add-hint">
           {locale === "zh"
-            ? "添加后将自动在用户管理中创建禁用的日语教师账号（用户名取自横杠前称呼的拼音，随机密码）。启用账号后老师方可登录。"
-            : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin before “-”, random password). Enable it before the teacher can log in."}
+            ? "添加后将自动在用户管理中创建禁用的日语教师账号（用户名取自称呼的拼音，随机密码）。启用账号后老师方可登录。"
+            : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin of the name, random password). Enable it before the teacher can log in."}
         </p>
       </section>
 
@@ -366,6 +390,7 @@ export function AdminJpLessonTeachersPage() {
                 <tr>
                   <th className="col-id">ID</th>
                   <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
+                  <th className="col-rate">{locale === "zh" ? "课时费" : "Rate"}</th>
                   <th className="col-score">{locale === "zh" ? "平均评分" : "Avg"}</th>
                   <th className="col-remark">{locale === "zh" ? "最近备注" : "Latest note"}</th>
                   <th className="col-updated">{locale === "zh" ? "更新时间" : "Updated"}</th>
@@ -391,6 +416,21 @@ export function AdminJpLessonTeachersPage() {
                           />
                         ) : (
                           teacher.name
+                        )}
+                      </td>
+                      <td className="col-rate">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editHourlyRate}
+                            disabled={saving}
+                            placeholder={locale === "zh" ? "元/小时" : "Per hour"}
+                            onChange={(e) => setEditHourlyRate(e.target.value)}
+                          />
+                        ) : (
+                          formatHourlyRate(teacher.hourly_rate)
                         )}
                       </td>
                       <td className="col-score">

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
-import { JpLessonTeacherEditModal } from "@/components/JpLessonTeacherEditModal";
+import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -548,7 +548,9 @@ export function JpLessonPage() {
     }
   };
 
-  const addLessonTeacher = async (name: string): Promise<JpLessonTeacher | null> => {
+  const addLessonTeacher = async (
+    input: JpLessonTeacherAddInput
+  ): Promise<JpLessonTeacher | null> => {
     if (!isAdmin) return null;
 
     try {
@@ -556,7 +558,7 @@ export function JpLessonPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(input),
       });
       const data = (await res.json()) as {
         ok?: boolean;
@@ -571,7 +573,7 @@ export function JpLessonPage() {
       };
       if (!data.ok || !data.teacher) {
         if (data.error === "name_duplicate") {
-          const existing = teachers.find((t) => t.name === name.trim());
+          const existing = teachers.find((t) => t.name === input.name.trim());
           return existing ?? null;
         }
         return null;

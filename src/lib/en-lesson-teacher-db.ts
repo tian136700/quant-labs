@@ -18,9 +18,17 @@ function nowIso(): string {
 }
 
 function mapRow(row: Record<string, unknown>): EnLessonTeacher {
+  const hourlyRaw = row.hourly_rate;
+  const hourly_rate =
+    hourlyRaw == null || hourlyRaw === ""
+      ? null
+      : Number.isFinite(Number(hourlyRaw))
+        ? Math.round(Number(hourlyRaw) * 100) / 100
+        : null;
   return {
     id: Number(row.id),
     name: String(row.name),
+    hourly_rate,
     sort_order: Number(row.sort_order) || 0,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -80,6 +88,7 @@ export async function createEnLessonTeacher(
     const teacher: EnLessonTeacher = {
       id: devNextId++,
       name: trimmed,
+      hourly_rate: null,
       sort_order: sortOrder,
       created_at: ts,
       updated_at: ts,
