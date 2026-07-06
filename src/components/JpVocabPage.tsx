@@ -504,11 +504,7 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (sharedTodayWordIds.has(wordId)) {
-      setStatus("今日已共享，熟悉程度不可更改。");
-      return;
-    }
-    if (savingId === wordId) return;
+  if (savingId === wordId) return;
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -551,9 +547,7 @@ export function JpVocabPage() {
         }
         if (!data.ok || !data.word) {
           const msg =
-            data.error === "shared_level_locked"
-              ? "今日已共享，熟悉程度不可更改。"
-              : data.error || (locale === "zh" ? "保存失败" : "Save failed");
+            data.error || (locale === "zh" ? "保存失败" : "Save failed");
           throw new Error(msg);
         }
         setWords((prev) => {
@@ -1315,12 +1309,8 @@ export function JpVocabPage() {
               <tbody>
                 {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const sharedLocked = sharedTodayWordIds.has(w.id);
                   const selected =
-                    sessionLevel[w.id] ??
-                    (sharedLocked
-                      ? (w.last_review_level ?? ("weak" as JpVocabLevel))
-                      : undefined);
+                    sessionLevel[w.id] ?? w.last_review_level ?? undefined;
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
@@ -1454,21 +1444,17 @@ export function JpVocabPage() {
                                 className={`jp-vocab-level-opt${
                                   checked ? " is-checked" : ""
                                 }${
-                                  !canOperate || sharedLocked
-                                    ? " jp-vocab-level-opt--readonly"
-                                    : ""
+                                  !canOperate ? " jp-vocab-level-opt--readonly" : ""
                                 }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
                                   lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                 }`}
-                                disabled={!canOperate || isSaving || sharedLocked}
+                                disabled={!canOperate || isSaving}
                                 title={
-                                  sharedLocked
-                                    ? "今日已共享，熟悉程度不可更改"
-                                    : !canOperate
-                                      ? "登录后可勾选"
-                                      : isSaving
-                                        ? "保存中…"
-                                        : undefined
+                                  !canOperate
+                                    ? "登录后可勾选"
+                                    : isSaving
+                                      ? "保存中…"
+                                      : undefined
                                 }
                                 aria-pressed={checked}
                                 onClick={() => void recordLevel(w.id, lv.key)}

@@ -507,10 +507,6 @@ export async function recordJpVocabReview(
   await ensureVocabWordSchema(db);
   await ensureJpVocabSharedSchema(db);
 
-  if (await isJpVocabWordSharedToday(db, wordId)) {
-    return { ok: false, error: "shared_level_locked" };
-  }
-
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
