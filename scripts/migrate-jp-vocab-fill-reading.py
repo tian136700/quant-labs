@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""为 jp_vocab_word 中 reading 为空的词条补全读音（已有读音的不改，可重复执行）。"""
+"""为 jp_vocab_word 中 reading 为空的词条补全读音（已有读音的不改，可重复执行）。
+
+Mac nightly 已改为调用 POST /api/jp-vocab/fill-reading（见 jp-vocab-fill-reading-api.py）。
+本脚本保留给本地 wrangler D1 调试。
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import re
+import ssl
 import subprocess
 import sys
 import time
@@ -13,6 +18,18 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+
+def _ssl_context() -> ssl.SSLContext:
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+SSL_CONTEXT = _ssl_context()
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = "strategy-compare-db"
@@ -45,6 +62,17 @@ MANUAL_READINGS: dict[str, str] = {
     "手": "て",
     "鍵屋": "かぎや",
     "綺麗だ": "きれいだ",
+    "寝る": "ねる",
+    "水道": "すいどう",
+    "約束": "やくそく",
+    "一部": "いちぶ",
+    "悲しい": "かなしい",
+    "閉める": "しめる",
+    "食事する": "しょくじする",
+    "見せる": "みせる",
+    "生活": "せいかつ",
+    "好き": "すき",
+    "好きだ": "すきだ",
 }
 
 _KANA_OR_MARK = re.compile(
@@ -127,9 +155,9 @@ def lookup_jisho(
     word: str,
     cache: dict[str, str | None],
     delay_sec: float,
-) -> str | None:
+) -> tuple[str | None, bool]:
     if word in cache:
-        return cache[word]
+        return cache[word], False
 
     query = urllib.parse.quote(word.strip())
     req = urllib.request.Request(
@@ -137,8 +165,9 @@ def lookup_jisho(
         headers={"User-Agent": HTTP_USER_AGENT},
     )
     reading: str | None = None
+    had_error = False
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with urllib.request.urlopen(req, timeout=20, context=SSL_CONTEXT) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         for item in payload.get("data") or []:
             for jp in item.get("japanese") or []:
@@ -167,13 +196,14 @@ def lookup_jisho(
                     break
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as err:
         print(f"  jisho lookup failed for {word!r}: {err}", flush=True)
+        had_error = True
         cache[word] = None
-        return None
+        return None, had_error
 
     cache[word] = reading
     if delay_sec > 0:
         time.sleep(delay_sec)
-    return reading
+    return reading, had_error
 
 
 def infer_reading(
@@ -182,32 +212,33 @@ def infer_reading(
     use_jisho: bool,
     jisho_cache: dict[str, str | None],
     jisho_delay_sec: float,
-) -> tuple[str | None, str | None]:
-    """返回 (读音, 跳过原因)。跳过原因如 long_phrase 表示故意不补。"""
+) -> tuple[str | None, str | None, bool]:
+    """返回 (读音, 跳过原因, jisho是否出错)。跳过原因如 long_phrase 表示故意不补。"""
     lookup, suffix, skip_reason = analyze_word(word)
     if skip_reason:
-        return None, skip_reason
+        return None, skip_reason, False
 
     if word in MANUAL_READINGS:
-        return MANUAL_READINGS[word], None
+        return MANUAL_READINGS[word], None, False
     if lookup in MANUAL_READINGS:
-        return attach_reading_suffix(MANUAL_READINGS[lookup], suffix), None
+        return attach_reading_suffix(MANUAL_READINGS[lookup], suffix), None, False
 
     if _KANA_OR_MARK.fullmatch(lookup):
-        return attach_reading_suffix(lookup, suffix), None
+        return attach_reading_suffix(lookup, suffix), None, False
 
     reading: str | None
+    jisho_error = False
     if _HAS_KANJI.search(lookup):
         if use_jisho:
-            reading = lookup_jisho(lookup, jisho_cache, jisho_delay_sec)
+            reading, jisho_error = lookup_jisho(lookup, jisho_cache, jisho_delay_sec)
         else:
             reading = None
     else:
         reading = lookup
 
     if not reading:
-        return None, None
-    return attach_reading_suffix(reading, suffix), None
+        return None, None, jisho_error
+    return attach_reading_suffix(reading, suffix), None, jisho_error
 
 
 def main() -> int:
@@ -250,16 +281,19 @@ def main() -> int:
     updated = 0
     skipped: list[str] = []
     skipped_long: list[str] = []
+    jisho_errors = 0
     jisho_cache: dict[str, str | None] = {}
     for row in rows:
         word_id = int(row["id"])
         word = str(row["word"])
-        reading, skip_reason = infer_reading(
+        reading, skip_reason, jisho_error = infer_reading(
             word,
             use_jisho=args.jisho,
             jisho_cache=jisho_cache,
             jisho_delay_sec=args.jisho_delay if args.jisho else 0.0,
         )
+        if jisho_error:
+            jisho_errors += 1
         if skip_reason == "long_phrase":
             skipped_long.append(f"{word_id}:{word!r}")
             continue
@@ -291,11 +325,15 @@ def main() -> int:
         )
     if skipped:
         print(f"  无法推断（需人工补全）: {', '.join(skipped)}", flush=True)
+    if jisho_errors:
+        print(f"  jisho 网络/SSL 失败: {jisho_errors} 次", flush=True)
     print(
         f"[migrate-jp-vocab-fill-reading] done, "
         f"{'would update' if args.dry_run else 'updated'}: {updated}",
         flush=True,
     )
+    if jisho_errors:
+        return 1
     if skipped and not args.allow_skipped:
         return 1
     return 0
