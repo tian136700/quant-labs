@@ -1564,22 +1564,7 @@ export function JpVocabPage() {
                           title="查看备注"
                           onClick={() => setViewingRemarksWord(w)}
                         >
-                          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                            <path
-                              d="M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                            />
-                            <path
-                              d="M10 8.5v3M10 13.5h.01"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <span className="jp-vocab-notes-view-label">查看</span>
+                          查看
                         </button>
                       ) : null}
                       {canOperate ? (
@@ -2264,18 +2249,12 @@ export function JpVocabPage() {
           align-items: center;
           justify-content: center;
         }
-        .jp-vocab-notes-view-btn .jp-vocab-notes-view-label {
-          display: none;
-        }
         .jp-vocab-action-row {
           display: contents;
         }
         .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
         .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
           display: none;
-        }
-        .jp-vocab-notes-actions .jp-vocab-notes-view-btn svg {
-          display: block;
         }
         .jp-vocab-ref-hint {
           display: block;
@@ -2658,9 +2637,6 @@ export function JpVocabPage() {
           }
           .jp-vocab-notes-desktop {
             display: none;
-          }
-          .jp-vocab-notes-view-btn .jp-vocab-notes-view-label {
-            display: inline;
           }
           .jp-vocab-mobile-reading-row {
             display: flex;
