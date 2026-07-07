@@ -327,6 +327,37 @@ HTML_PAGE = """<!DOCTYPE html>
       color: #c5d0e0;
     }
     .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+    .log-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+    }
+    .log-head h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .btn-copy {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .btn-copy.err {
+      border-color: var(--err);
+      color: var(--err);
+      background: rgba(232, 93, 111, 0.08);
+    }
+    .btn-copy.copied {
+      border-color: var(--ok);
+      color: var(--ok);
+    }
   </style>
 </head>
 <body>
@@ -351,6 +382,10 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
 
     <div class="card">
+      <div class="log-head">
+        <h2>日志</h2>
+        <button id="copyLog" class="btn-copy" type="button" hidden>复制错误日志</button>
+      </div>
       <pre id="log"></pre>
     </div>
   </div>
@@ -367,7 +402,10 @@ HTML_PAGE = """<!DOCTYPE html>
     const statusEl = el("status");
     const metaEl = el("meta");
     const stepsEl = el("steps");
+    const copyLogBtn = el("copyLog");
     let msgTouched = false;
+    let lastSnapshot = null;
+    let copyResetTimer = null;
 
     msgInput.addEventListener("input", () => {
       msgTouched = true;
@@ -405,7 +443,58 @@ HTML_PAGE = """<!DOCTYPE html>
       logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function buildErrorReport(data) {
+      const logs = Array.isArray(data?.logs) ? data.logs : logEl.textContent.split("\\n").filter(Boolean);
+      const lines = [
+        "=== strategy-compare-cloud 发布控制台错误报告 ===",
+        "项目: strategy-compare-cloud",
+        "控制台: " + (data?.url || location.origin),
+        "状态: " + (data?.message || "发布失败"),
+        "退出码: " + (data?.exit_code ?? "未知"),
+      ];
+      if (data?.started_at) lines.push("开始: " + data.started_at);
+      if (data?.finished_at) lines.push("结束: " + data.finished_at);
+      if (data?.step) lines.push("失败步骤: " + (stepLabels[data.step] || data.step));
+      lines.push("", "--- 完整日志 ---", "");
+      lines.push(...logs);
+      return lines.join("\\n");
+    }
+
+    async function copyErrorLog() {
+      const text = buildErrorReport(lastSnapshot || { logs: logEl.textContent.split("\\n").filter(Boolean) });
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      copyLogBtn.textContent = "已复制 ✓";
+      copyLogBtn.classList.add("copied");
+      clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => {
+        copyLogBtn.textContent = "复制错误日志";
+        copyLogBtn.classList.remove("copied");
+      }, 2000);
+    }
+
+    function updateCopyButton(data) {
+      const isError = data?.status === "error";
+      copyLogBtn.hidden = !isError;
+      copyLogBtn.classList.toggle("err", isError);
+      if (!isError) {
+        copyLogBtn.textContent = "复制错误日志";
+        copyLogBtn.classList.remove("copied");
+      }
+    }
+
     function applySnapshot(data) {
+      lastSnapshot = data;
       el("url").textContent = data.url || location.origin;
       renderSteps(data.step, data.progress, data.status);
       if (data.status === "running") {
@@ -431,6 +520,7 @@ HTML_PAGE = """<!DOCTYPE html>
         logEl.textContent = data.logs.join("\\n") + (data.logs.length ? "\\n" : "");
         logEl.scrollTop = logEl.scrollHeight;
       }
+      updateCopyButton(data);
     }
 
     async function refresh() {
@@ -463,6 +553,10 @@ HTML_PAGE = """<!DOCTYPE html>
     el("refresh").addEventListener("click", async () => {
       msgTouched = false;
       await refresh();
+    });
+
+    copyLogBtn.addEventListener("click", () => {
+      void copyErrorLog();
     });
 
     const es = new EventSource("/api/events");
