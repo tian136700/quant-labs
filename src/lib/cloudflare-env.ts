@@ -13,6 +13,7 @@ import { enableEnLessonTeacherDevStore } from "@/lib/en-lesson-teacher-db";
 import { enableEnLessonTeacherReviewDevStore } from "@/lib/en-lesson-teacher-review-db";
 import { enableEnVocabDevStore } from "@/lib/en-vocab-db";
 import { enableJpLessonDevStore } from "@/lib/jp-lesson-db";
+import { enableJpLessonManualScheduleDevStore } from "@/lib/jp-lesson-manual-schedule-db";
 import { enableJpLessonTeacherDevStore } from "@/lib/jp-lesson-teacher-db";
 import { enableJpLessonTeacherReviewDevStore } from "@/lib/jp-lesson-teacher-review-db";
 import { enableJpVocabDevStore } from "@/lib/jp-vocab-db";
@@ -65,6 +66,7 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
   enableAnalyticsDevStore();
   enableJpVocabDevStore();
   enableJpLessonDevStore();
+  enableJpLessonManualScheduleDevStore();
   enableJpLessonTeacherDevStore();
   enableJpLessonTeacherReviewDevStore();
   enableEnVocabDevStore();

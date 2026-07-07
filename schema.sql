@@ -332,6 +332,20 @@ CREATE TABLE IF NOT EXISTS jp_lesson_note (
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_note_lesson ON jp_lesson_note (lesson_id);
 
+-- 日语新课：日程页手动添加的独立日程（不同步到 jp_lesson 列表）
+CREATE TABLE IF NOT EXISTS jp_lesson_manual_schedule (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  class_at         TEXT    NOT NULL,
+  duration_minutes INTEGER,
+  title            TEXT    NOT NULL,
+  teacher          TEXT    NOT NULL DEFAULT '',
+  note             TEXT    NOT NULL DEFAULT '',
+  created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_lesson_manual_schedule_class_at ON jp_lesson_manual_schedule (class_at ASC, id ASC);
+
 -- 英语单词抽问：共用参考资料（图片/PDF，多条词条可指向同一 ref_key）
 CREATE TABLE IF NOT EXISTS en_vocab_ref (
   ref_key    TEXT    PRIMARY KEY,

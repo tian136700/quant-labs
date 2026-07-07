@@ -6,7 +6,7 @@ import {
 export const JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY = "jp-lesson-manual-schedules";
 
 export type JpLessonManualSchedule = {
-  id: string;
+  id: number;
   class_at: string;
   duration_minutes: number | null;
   title: string;
@@ -24,28 +24,25 @@ export type JpLessonManualScheduleDraft = {
   note: string;
 };
 
-function createManualScheduleId(): string {
-  return `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+type LegacyJpLessonManualSchedule = {
+  id: string;
+  class_at: string;
+  duration_minutes: number | null;
+  title: string;
+  teacher: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
+};
+
+function manualScheduleDedupeKey(item: {
+  class_at: string;
+  title: string;
+}): string {
+  return `${item.class_at.trim()}|${item.title.trim()}`;
 }
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-function normalizeDraft(draft: JpLessonManualScheduleDraft): JpLessonManualScheduleDraft | null {
-  const title = draft.title.trim();
-  const classAt = draft.class_at.trim();
-  if (!title || !classAt || !parseBeijingDateTime(classAt)) return null;
-  return {
-    title,
-    class_at: classAt,
-    duration_minutes: draft.duration_minutes,
-    teacher: draft.teacher.trim(),
-    note: draft.note.trim(),
-  };
-}
-
-export function readJpLessonManualSchedules(): JpLessonManualSchedule[] {
+function readLegacyJpLessonManualSchedulesFromLocalStorage(): LegacyJpLessonManualSchedule[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY);
@@ -53,9 +50,9 @@ export function readJpLessonManualSchedules(): JpLessonManualSchedule[] {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((item): item is JpLessonManualSchedule => {
+      .filter((item): item is LegacyJpLessonManualSchedule => {
         if (!item || typeof item !== "object") return false;
-        const row = item as Partial<JpLessonManualSchedule>;
+        const row = item as Partial<LegacyJpLessonManualSchedule>;
         return (
           typeof row.id === "string" &&
           typeof row.class_at === "string" &&
@@ -73,54 +70,101 @@ export function readJpLessonManualSchedules(): JpLessonManualSchedule[] {
   }
 }
 
-export function writeJpLessonManualSchedules(schedules: JpLessonManualSchedule[]): void {
+function clearLegacyJpLessonManualSchedulesFromLocalStorage(): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY, JSON.stringify(schedules));
+  localStorage.removeItem(JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY);
 }
 
-export function addJpLessonManualSchedule(
+async function parseManualScheduleResponse(
+  res: Response
+): Promise<Record<string, unknown>> {
+  const data = (await res.json()) as Record<string, unknown>;
+  if (!res.ok || data.ok === false) {
+    const error =
+      typeof data.error === "string" ? data.error : `request_failed_${res.status}`;
+    throw new Error(error);
+  }
+  return data;
+}
+
+export async function fetchJpLessonManualSchedules(): Promise<JpLessonManualSchedule[]> {
+  const res = await fetch("/api/jp-lesson/manual-schedules", {
+    credentials: "include",
+  });
+  const data = await parseManualScheduleResponse(res);
+  const schedules = data.schedules;
+  if (!Array.isArray(schedules)) return [];
+  return schedules as JpLessonManualSchedule[];
+}
+
+export async function createJpLessonManualSchedule(
   draft: JpLessonManualScheduleDraft
-): JpLessonManualSchedule | null {
-  const normalized = normalizeDraft(draft);
-  if (!normalized) return null;
-  const ts = nowIso();
-  const next: JpLessonManualSchedule = {
-    id: createManualScheduleId(),
-    ...normalized,
-    created_at: ts,
-    updated_at: ts,
-  };
-  const schedules = readJpLessonManualSchedules();
-  schedules.push(next);
-  writeJpLessonManualSchedules(schedules);
-  return next;
+): Promise<JpLessonManualSchedule | null> {
+  const res = await fetch("/api/jp-lesson/manual-schedules", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+  const data = await parseManualScheduleResponse(res);
+  const schedule = data.schedule;
+  if (!schedule || typeof schedule !== "object") return null;
+  return schedule as JpLessonManualSchedule;
 }
 
-export function updateJpLessonManualSchedule(
-  id: string,
+export async function updateJpLessonManualSchedule(
+  id: number,
   draft: JpLessonManualScheduleDraft
-): JpLessonManualSchedule | null {
-  const normalized = normalizeDraft(draft);
-  if (!normalized) return null;
-  const schedules = readJpLessonManualSchedules();
-  const index = schedules.findIndex((item) => item.id === id);
-  if (index < 0) return null;
-  const updated: JpLessonManualSchedule = {
-    ...schedules[index],
-    ...normalized,
-    updated_at: nowIso(),
-  };
-  schedules[index] = updated;
-  writeJpLessonManualSchedules(schedules);
-  return updated;
+): Promise<JpLessonManualSchedule | null> {
+  const res = await fetch("/api/jp-lesson/manual-schedules", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "update", id, ...draft }),
+  });
+  const data = await parseManualScheduleResponse(res);
+  const schedule = data.schedule;
+  if (!schedule || typeof schedule !== "object") return null;
+  return schedule as JpLessonManualSchedule;
 }
 
-export function deleteJpLessonManualSchedule(id: string): boolean {
-  const schedules = readJpLessonManualSchedules();
-  const next = schedules.filter((item) => item.id !== id);
-  if (next.length === schedules.length) return false;
-  writeJpLessonManualSchedules(next);
+export async function deleteJpLessonManualSchedule(id: number): Promise<boolean> {
+  const res = await fetch(`/api/jp-lesson/manual-schedules?id=${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  await parseManualScheduleResponse(res);
   return true;
+}
+
+/** 从服务端加载，并把旧版 localStorage 数据一次性迁入数据库。 */
+export async function loadJpLessonManualSchedulesWithLegacyMigration(): Promise<
+  JpLessonManualSchedule[]
+> {
+  let schedules = await fetchJpLessonManualSchedules();
+  const legacy = readLegacyJpLessonManualSchedulesFromLocalStorage();
+  if (!legacy.length) return schedules;
+
+  const existing = new Set(schedules.map((item) => manualScheduleDedupeKey(item)));
+  for (const item of legacy) {
+    const draft: JpLessonManualScheduleDraft = {
+      class_at: item.class_at,
+      duration_minutes: item.duration_minutes,
+      title: item.title,
+      teacher: item.teacher,
+      note: item.note,
+    };
+    if (existing.has(manualScheduleDedupeKey(draft))) continue;
+    const created = await createJpLessonManualSchedule(draft);
+    if (created) {
+      schedules.push(created);
+      existing.add(manualScheduleDedupeKey(created));
+    }
+  }
+
+  clearLegacyJpLessonManualSchedulesFromLocalStorage();
+  schedules.sort((a, b) => a.class_at.localeCompare(b.class_at));
+  return schedules;
 }
 
 export type JpLessonSchedulePageEvent = {
@@ -139,7 +183,7 @@ export type JpLessonSchedulePageEvent = {
     content: string;
     ref_key: string | null;
   };
-  manualId?: string;
+  manualId?: number;
   manualNote?: string;
 };
 

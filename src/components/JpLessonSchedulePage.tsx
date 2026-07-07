@@ -35,10 +35,10 @@ import {
   type JpLessonScheduleEventStatus,
 } from "@/lib/jp-lesson-shared";
 import {
-  addJpLessonManualSchedule,
+  createJpLessonManualSchedule,
   deleteJpLessonManualSchedule,
   flattenManualSchedulePageEvents,
-  readJpLessonManualSchedules,
+  loadJpLessonManualSchedulesWithLegacyMigration,
   updateJpLessonManualSchedule,
   type JpLessonManualSchedule,
   type JpLessonSchedulePageEvent,
@@ -228,6 +228,8 @@ export function JpLessonSchedulePage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [manualSchedules, setManualSchedules] = useState<JpLessonManualSchedule[]>([]);
+  const [manualSchedulesLoading, setManualSchedulesLoading] = useState(false);
+  const [savingManualSchedule, setSavingManualSchedule] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualModalMode, setManualModalMode] = useState<"full" | "time">("full");
   const [editingManual, setEditingManual] = useState<JpLessonManualSchedule | null>(null);
@@ -246,9 +248,21 @@ export function JpLessonSchedulePage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    setManualSchedules(readJpLessonManualSchedules());
+  const loadManualSchedules = useCallback(async () => {
+    setManualSchedulesLoading(true);
+    try {
+      const schedules = await loadJpLessonManualSchedulesWithLegacyMigration();
+      setManualSchedules(schedules);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setManualSchedulesLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!checking && isAdmin) void loadManualSchedules();
+  }, [checking, isAdmin, loadManualSchedules]);
 
   const loadLessons = useCallback(async () => {
     const hasCache = readLessonCache() != null;
@@ -457,22 +471,47 @@ export function JpLessonSchedulePage() {
     setManualModalMode("full");
   };
 
-  const handleSaveManualSchedule = (draft: Parameters<typeof addJpLessonManualSchedule>[0]) => {
-    const saved = editingManual
-      ? updateJpLessonManualSchedule(editingManual.id, draft)
-      : addJpLessonManualSchedule(draft);
-    if (!saved) return;
-    setManualSchedules(readJpLessonManualSchedules());
-    setSelectedEventKey(`manual-${saved.id}`);
-    closeManualModal();
+  const handleSaveManualSchedule = async (
+    draft: Parameters<typeof createJpLessonManualSchedule>[0]
+  ) => {
+    setSavingManualSchedule(true);
+    setError("");
+    try {
+      const saved = editingManual
+        ? await updateJpLessonManualSchedule(editingManual.id, draft)
+        : await createJpLessonManualSchedule(draft);
+      if (!saved) {
+        setError("保存手动日程失败");
+        return;
+      }
+      setManualSchedules((prev) => {
+        const next = editingManual
+          ? prev.map((item) => (item.id === saved.id ? saved : item))
+          : [...prev, saved];
+        return next.sort((a, b) => a.class_at.localeCompare(b.class_at));
+      });
+      setSelectedEventKey(`manual-${saved.id}`);
+      closeManualModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingManualSchedule(false);
+    }
   };
 
-  const handleDeleteManualSchedule = () => {
+  const handleDeleteManualSchedule = async () => {
     if (!selectedManualSchedule) return;
     if (!window.confirm("确定删除这条手动日程吗？")) return;
-    deleteJpLessonManualSchedule(selectedManualSchedule.id);
-    setManualSchedules(readJpLessonManualSchedules());
-    setSelectedEventKey(null);
+    setError("");
+    try {
+      await deleteJpLessonManualSchedule(selectedManualSchedule.id);
+      setManualSchedules((prev) =>
+        prev.filter((item) => item.id !== selectedManualSchedule.id)
+      );
+      setSelectedEventKey(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const addLessonTeacher = async (
@@ -703,7 +742,7 @@ export function JpLessonSchedulePage() {
       <header className="jpls-header">
         <div>
           <h1>日程管理</h1>
-          <p className="jpls-sub">查看今日及未来的日语新课预约时间（北京时间），支持手动添加仅本页可见的日程</p>
+          <p className="jpls-sub">查看今日及未来的日语新课预约时间（北京时间），支持手动添加仅日程页可见、各端同步的日程</p>
         </div>
         <a className="jpls-back-btn" href={jpLessonPath()}>
           ← 返回日语新课
@@ -816,7 +855,7 @@ export function JpLessonSchedulePage() {
         </p>
       ) : null}
 
-      {loading ? <p className="jpls-muted">加载中…</p> : null}
+      {loading || manualSchedulesLoading ? <p className="jpls-muted">加载中…</p> : null}
 
       <div className="jpls-layout">
         <section

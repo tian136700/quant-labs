@@ -46,6 +46,8 @@
     "db:migrate-jp-lesson-class-duration:remote": "python3 scripts/migrate-jp-lesson-class-duration.py --remote",
     "db:migrate-jp-lesson-class-schedule:local": "python3 scripts/migrate-jp-lesson-class-schedule.py --local",
     "db:migrate-jp-lesson-class-schedule:remote": "python3 scripts/migrate-jp-lesson-class-schedule.py --remote",
+    "db:migrate-jp-lesson-manual-schedule:local": "python3 scripts/migrate-jp-lesson-manual-schedule.py --local",
+    "db:migrate-jp-lesson-manual-schedule:remote": "python3 scripts/migrate-jp-lesson-manual-schedule.py --remote",
     "db:migrate-jp-vocab-class-notes:local": "python3 scripts/migrate-jp-vocab-class-notes.py --local",
     "db:migrate-jp-vocab-class-notes:remote": "python3 scripts/migrate-jp-vocab-class-notes.py --remote",
     "db:migrate-rbac:local": "wrangler d1 execute strategy-compare-db --local --command \"CREATE TABLE IF NOT EXISTS etr_role_permissions (role TEXT NOT NULL, permission_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (role, permission_key)); CREATE INDEX IF NOT EXISTS idx_etr_role_permissions_role ON etr_role_permissions (role);\" -y",
