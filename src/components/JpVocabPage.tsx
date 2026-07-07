@@ -1427,7 +1427,12 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-level-col">
                     <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                       <span>熟悉程度</span>
-                      <span className="jp-vocab-th-multiline__sub">(老师勾选)</span>
+                      <span
+                        className="jp-vocab-th-multiline__sub"
+                        title="同一单词今日内可改选，以最后一次为准；明日北京时间 0 点重置"
+                      >
+                        (老师勾选·今日可改选)
+                      </span>
                     </span>
                   </th>
                   <th colSpan={4} className="jp-vocab-stats-group">
@@ -1654,7 +1659,11 @@ export function JpVocabPage() {
                                     ? "登录后可勾选"
                                     : isSaving
                                       ? "保存中…"
-                                      : undefined
+                                      : checked
+                                        ? "今日已选此项，可点其他选项改选"
+                                        : selected
+                                          ? "改选后以此为准，今日抽查次数不重复计"
+                                          : "勾选熟悉程度"
                                 }
                                 aria-pressed={checked}
                                 onClick={() => void recordLevel(w.id, lv.key)}

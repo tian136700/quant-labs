@@ -242,12 +242,14 @@ CREATE INDEX IF NOT EXISTS idx_jp_vocab_shared_date ON jp_vocab_shared (share_da
 
 -- 日语新课：上课老师（管理员维护，仅管理员可见）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT    NOT NULL UNIQUE,
-  hourly_rate REAL,
-  sort_order  INTEGER NOT NULL DEFAULT 0,
-  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  name           TEXT    NOT NULL UNIQUE,
+  hourly_rate    REAL,
+  /** 单次课时长（分钟：20 / 30 / 45 / 55 / 60） */
+  lesson_minutes INTEGER,
+  sort_order     INTEGER NOT NULL DEFAULT 0,
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_jp_lesson_teacher_sort ON jp_lesson_teacher (sort_order ASC, id ASC);

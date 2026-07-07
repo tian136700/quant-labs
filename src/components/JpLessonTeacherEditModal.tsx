@@ -3,12 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
-import { calcHourlyRate, formatHourlyRate, formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
+import { calcHourlyRate, formatHourlyRate } from "@/lib/jp-lesson-teacher-rate";
+import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 
 export type JpLessonTeacherAddInput = {
   name: string;
   lesson_price?: number;
   lesson_minutes?: number;
+};
+
+export type JpLessonTeacherUpdateInput = {
+  id: number;
+  name: string;
+  hourly_rate: number | null;
+  lesson_minutes: number | null;
+};
+
+type TeacherDraft = {
+  name: string;
+  hourlyRate: string;
+  lessonMinutes: string;
 };
 
 type Props = {
@@ -23,13 +37,13 @@ type Props = {
     options?: { keepOpen?: boolean }
   ) => void | Promise<void>;
   onAddTeacher: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
+  onUpdateTeacher: (input: JpLessonTeacherUpdateInput) => Promise<JpLessonTeacher | null>;
 };
 
-const TEACHER_LESSON_MINUTE_OPTIONS = [
-  { value: "30", label: "30 分钟" },
-  { value: "45", label: "45 分钟" },
-  { value: "60", label: "60 分钟（1 小时）" },
-] as const;
+const TEACHER_LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
+  value: String(minutes),
+  label: minutes === 60 ? "60 分钟（1 小时）" : `${minutes} 分钟`,
+}));
 
 export function JpLessonTeacherEditModal({
   open,
@@ -39,15 +53,19 @@ export function JpLessonTeacherEditModal({
   onClose,
   onSave,
   onAddTeacher,
+  onUpdateTeacher,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [drafts, setDrafts] = useState<Record<number, TeacherDraft>>({});
   const [addName, setAddName] = useState("");
   const [addPrice, setAddPrice] = useState("");
   const [addMinutes, setAddMinutes] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
   const [addError, setAddError] = useState("");
+  const [saveError, setSaveError] = useState("");
   const skipAddBlurRef = useRef(false);
+  const wasOpenRef = useRef(false);
 
   const addHourlyPreview = useMemo(() => {
     const price = Number(addPrice);
@@ -66,13 +84,60 @@ export function JpLessonTeacherEditModal({
   }, []);
 
   useEffect(() => {
-    if (!open || !lesson) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    if (!lesson) return;
+
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    if (!justOpened) return;
+
     setSelectedIds([...(lesson.teacher_ids ?? [])]);
+    const initial: Record<number, TeacherDraft> = {};
+    for (const teacher of teachers) {
+      initial[teacher.id] = {
+        name: teacher.name,
+        hourlyRate: teacher.hourly_rate != null ? String(teacher.hourly_rate) : "",
+        lessonMinutes:
+          teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : "",
+      };
+    }
+    setDrafts(initial);
     setAddName("");
     setAddPrice("");
     setAddMinutes("");
     setAddError("");
-  }, [open, lesson]);
+    setSaveError("");
+  }, [open, lesson, teachers]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDrafts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const teacher of teachers) {
+        if (next[teacher.id]) continue;
+        next[teacher.id] = {
+          name: teacher.name,
+          hourlyRate: teacher.hourly_rate != null ? String(teacher.hourly_rate) : "",
+          lessonMinutes:
+            teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : "",
+        };
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [open, teachers]);
+
+  const updateDraft = (teacherId: number, patch: Partial<TeacherDraft>) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [teacherId]: { ...prev[teacherId], ...patch },
+    }));
+    if (saveError) setSaveError("");
+  };
 
   const toggleTeacher = (teacherId: number) => {
     setSelectedIds((prev) =>
@@ -150,8 +215,55 @@ export function JpLessonTeacherEditModal({
     }
   };
 
-  const handleSave = () => {
-    onSave(selectedIds, null);
+  const handleSave = async () => {
+    if (saving || addingTeacher) return;
+    setSaveError("");
+
+    for (const teacher of sortedTeachers) {
+      const draft = drafts[teacher.id];
+      if (!draft?.name.trim()) {
+        setSaveError("老师名称不能为空");
+        return;
+      }
+    }
+
+    const nameSeen = new Set<string>();
+    for (const teacher of sortedTeachers) {
+      const name = drafts[teacher.id]?.name.trim() ?? "";
+      if (nameSeen.has(name)) {
+        setSaveError(`老师名称「${name}」重复`);
+        return;
+      }
+      nameSeen.add(name);
+    }
+
+    for (const teacher of sortedTeachers) {
+      const draft = drafts[teacher.id];
+      if (!draft) continue;
+      const name = draft.name.trim();
+      const hourly_rate = draft.hourlyRate.trim() ? Number(draft.hourlyRate) : null;
+      const lesson_minutes = draft.lessonMinutes.trim()
+        ? Number(draft.lessonMinutes)
+        : null;
+      const changed =
+        name !== teacher.name ||
+        hourly_rate !== teacher.hourly_rate ||
+        lesson_minutes !== teacher.lesson_minutes;
+      if (!changed) continue;
+
+      const updated = await onUpdateTeacher({
+        id: teacher.id,
+        name,
+        hourly_rate,
+        lesson_minutes,
+      });
+      if (!updated) {
+        setSaveError("保存老师信息失败，请检查名称是否重复");
+        return;
+      }
+    }
+
+    await onSave(selectedIds, null);
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -189,19 +301,75 @@ export function JpLessonTeacherEditModal({
           </button>
         </div>
 
-        <fieldset className="jp-lesson-teacher-fieldset" disabled={saving}>
-          <legend>上课老师（可多选）</legend>
+        <fieldset className="jp-lesson-teacher-fieldset" disabled={saving || addingTeacher}>
+          <legend>上课老师（可多选，可直接改名称、课时费与时长）</legend>
           <div className="jp-lesson-teacher-options">
-            {sortedTeachers.map((teacher) => (
-              <label key={teacher.id} className="jp-lesson-teacher-option">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(teacher.id)}
-                  onChange={() => toggleTeacher(teacher.id)}
-                />
-                <span>{formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate)}</span>
-              </label>
-            ))}
+            {sortedTeachers.length ? (
+              <div className="jp-lesson-teacher-edit-head" aria-hidden="true">
+                <span className="jp-lesson-teacher-edit-head__check" />
+                <span className="jp-lesson-teacher-edit-head__name">称呼</span>
+                <span className="jp-lesson-teacher-edit-head__rate">元/小时</span>
+                <span className="jp-lesson-teacher-edit-head__minutes">时长</span>
+              </div>
+            ) : null}
+            {sortedTeachers.map((teacher) => {
+              const draft = drafts[teacher.id] ?? {
+                name: teacher.name,
+                hourlyRate:
+                  teacher.hourly_rate != null ? String(teacher.hourly_rate) : "",
+                lessonMinutes:
+                  teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : "",
+              };
+              return (
+                <div
+                  key={teacher.id}
+                  className="jp-lesson-teacher-option jp-lesson-teacher-option--editable"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(teacher.id)}
+                    aria-label={`选择 ${draft.name || teacher.name}`}
+                    onChange={() => toggleTeacher(teacher.id)}
+                  />
+                  <div className="jp-lesson-teacher-edit-fields">
+                    <input
+                      type="text"
+                      className="jp-lesson-teacher-add-input"
+                      value={draft.name}
+                      placeholder="老师称呼"
+                      onChange={(e) =>
+                        updateDraft(teacher.id, { name: e.target.value })
+                      }
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="jp-lesson-teacher-add-input jp-lesson-teacher-add-input--short"
+                      value={draft.hourlyRate}
+                      placeholder="元/小时"
+                      onChange={(e) =>
+                        updateDraft(teacher.id, { hourlyRate: e.target.value })
+                      }
+                    />
+                    <select
+                      className="jp-lesson-teacher-add-input jp-lesson-teacher-add-input--short jp-lesson-teacher-add-select"
+                      value={draft.lessonMinutes}
+                      onChange={(e) =>
+                        updateDraft(teacher.id, { lessonMinutes: e.target.value })
+                      }
+                    >
+                      <option value="">时长</option>
+                      {TEACHER_LESSON_MINUTE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
             <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
               <input
                 type="checkbox"
@@ -283,6 +451,7 @@ export function JpLessonTeacherEditModal({
             </div>
           </div>
           {addError ? <p className="jp-lesson-teacher-add-error">{addError}</p> : null}
+          {saveError ? <p className="jp-lesson-teacher-add-error">{saveError}</p> : null}
           {!sortedTeachers.length ? (
             <p className="jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
           ) : null}
@@ -300,8 +469,8 @@ export function JpLessonTeacherEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving}
-            onClick={handleSave}
+            disabled={saving || addingTeacher}
+            onClick={() => void handleSave()}
           >
             {saving ? "保存中…" : "保存"}
           </button>
@@ -323,7 +492,7 @@ export function JpLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-modal {
-          width: min(540px, 100%);
+          width: min(620px, 100%);
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -389,21 +558,65 @@ export function JpLessonTeacherEditModal({
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
         }
 
+        .jp-lesson-teacher-edit-head {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0 0 0.15rem;
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
+
+        .jp-lesson-teacher-edit-head__check {
+          flex-shrink: 0;
+          width: 1rem;
+        }
+
+        .jp-lesson-teacher-edit-head__name {
+          flex: 1 1 8rem;
+          min-width: 0;
+        }
+
+        .jp-lesson-teacher-edit-head__rate {
+          flex: 0 1 5rem;
+        }
+
+        .jp-lesson-teacher-edit-head__minutes {
+          flex: 0 1 7.5rem;
+        }
+
         .jp-lesson-teacher-option {
           display: flex;
           align-items: center;
           gap: 0.5rem;
           font-size: 0.875rem;
-          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-option--editable {
+          align-items: flex-start;
         }
 
         .jp-lesson-teacher-option input[type="checkbox"] {
           flex-shrink: 0;
+          margin-top: 0.45rem;
+        }
+
+        .jp-lesson-teacher-edit-fields {
+          flex: 1 1 12rem;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35rem;
+          min-width: 0;
         }
 
         .jp-lesson-teacher-option--add {
           flex-wrap: wrap;
           align-items: flex-start;
+        }
+
+        .jp-lesson-teacher-option--add input[type="checkbox"] {
+          margin-top: 0.45rem;
         }
 
         .jp-lesson-teacher-add-fields {

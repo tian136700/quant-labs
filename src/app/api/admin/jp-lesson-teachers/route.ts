@@ -4,6 +4,7 @@ import { provisionJpLessonTeacherUser } from "@/lib/etr-auth-db";
 import {
   calcHourlyRate,
   normalizeHourlyRate,
+  normalizeTeacherLessonMinutes,
   splitTeacherNameAndRate,
 } from "@/lib/jp-lesson-teacher-rate";
 import {
@@ -34,9 +35,17 @@ function resolveTeacherNameAndRate(body: {
   hourly_rate?: unknown;
   lesson_price?: unknown;
   lesson_minutes?: unknown;
-}): { name: string; hourly_rate: number | null | undefined } {
+}): {
+  name: string;
+  hourly_rate: number | null | undefined;
+  lesson_minutes: number | null | undefined;
+} {
   const rawName = typeof body.name === "string" ? body.name.trim() : "";
   let hourlyRate = resolveHourlyRate(body);
+  let lessonMinutes =
+    body.lesson_minutes !== undefined
+      ? normalizeTeacherLessonMinutes(body.lesson_minutes)
+      : undefined;
   let name = rawName;
 
   if (hourlyRate === undefined && rawName) {
@@ -44,10 +53,13 @@ function resolveTeacherNameAndRate(body: {
     if (split.hourly_rate != null) {
       name = split.name;
       hourlyRate = split.hourly_rate;
+      if (lessonMinutes === undefined && split.lesson_minutes != null) {
+        lessonMinutes = split.lesson_minutes;
+      }
     }
   }
 
-  return { name, hourly_rate: hourlyRate };
+  return { name, hourly_rate: hourlyRate, lesson_minutes: lessonMinutes };
 }
 
 export async function GET(request: Request) {
@@ -88,13 +100,15 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: "teacher_id_invalid" }, 400);
       }
 
-      const { name, hourly_rate: hourlyRate } = resolveTeacherNameAndRate(body);
+      const { name, hourly_rate: hourlyRate, lesson_minutes: lessonMinutes } =
+        resolveTeacherNameAndRate(body);
 
       const result = await updateJpLessonTeacher(env.DB, id, {
         name: body.name !== undefined ? name : undefined,
         sort_order:
           body.sort_order !== undefined ? Number(body.sort_order) : undefined,
         hourly_rate: hourlyRate,
+        lesson_minutes: lessonMinutes,
       });
 
       if (!result.ok) {
@@ -110,7 +124,8 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: true, teacher: result.teacher });
     }
 
-    const { name, hourly_rate: hourlyRate } = resolveTeacherNameAndRate(body);
+    const { name, hourly_rate: hourlyRate, lesson_minutes: lessonMinutes } =
+      resolveTeacherNameAndRate(body);
     const sortOrder =
       body.sort_order !== undefined ? Number(body.sort_order) : 0;
 
@@ -118,7 +133,8 @@ export async function POST(request: Request) {
       env.DB,
       name,
       sortOrder,
-      hourlyRate ?? null
+      hourlyRate ?? null,
+      lessonMinutes ?? null
     );
     if (!result.ok) {
       const status = result.error === "name_duplicate" ? 409 : 400;

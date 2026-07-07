@@ -19,7 +19,11 @@ import {
   jpLessonPath,
 } from "@/lib/locale-path";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
-import { formatHourlyRate } from "@/lib/jp-lesson-teacher-rate";
+import {
+  formatHourlyRate,
+  formatTeacherLessonMinutes,
+} from "@/lib/jp-lesson-teacher-rate";
+import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 
 function scoreClass(score: number): string {
   if (score >= 8) return "etr-score--high";
@@ -28,6 +32,13 @@ function scoreClass(score: number): string {
 }
 
 type ScoreSortOrder = "asc" | "desc";
+
+const LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES;
+
+function formatLessonMinuteOptionLabel(minutes: number, locale: "zh" | "en"): string {
+  if (locale === "zh" && minutes === 60) return "60 分钟（1 小时）";
+  return locale === "zh" ? `${minutes} 分钟` : `${minutes} min`;
+}
 
 function compareTeachersByAvgScore(
   a: JpLessonTeacher,
@@ -61,9 +72,11 @@ export function AdminJpLessonTeachersPage() {
   const [statusErr, setStatusErr] = useState(false);
   const [newName, setNewName] = useState("");
   const [newHourlyRate, setNewHourlyRate] = useState("");
+  const [newLessonMinutes, setNewLessonMinutes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editHourlyRate, setEditHourlyRate] = useState("");
+  const [editLessonMinutes, setEditLessonMinutes] = useState("");
   const [editSortOrder, setEditSortOrder] = useState(0);
   const [reviewSummaries, setReviewSummaries] = useState<
     Map<number, JpLessonTeacherReviewSummary>
@@ -161,6 +174,7 @@ export function AdminJpLessonTeachersPage() {
         body: JSON.stringify({
           name: newName,
           hourly_rate: newHourlyRate.trim() ? Number(newHourlyRate) : null,
+          lesson_minutes: newLessonMinutes.trim() ? Number(newLessonMinutes) : null,
         }),
       });
       const data = (await res.json()) as {
@@ -182,6 +196,7 @@ export function AdminJpLessonTeachersPage() {
       }
       setNewName("");
       setNewHourlyRate("");
+      setNewLessonMinutes("");
       if (data.user_account) {
         rememberAdminUserPassword(data.user_account.id, data.user_account.password);
         setStatus(
@@ -216,6 +231,9 @@ export function AdminJpLessonTeachersPage() {
     setEditHourlyRate(
       teacher.hourly_rate != null ? String(teacher.hourly_rate) : ""
     );
+    setEditLessonMinutes(
+      teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : ""
+    );
     setEditSortOrder(teacher.sort_order);
   };
 
@@ -223,6 +241,7 @@ export function AdminJpLessonTeachersPage() {
     setEditingId(null);
     setEditName("");
     setEditHourlyRate("");
+    setEditLessonMinutes("");
     setEditSortOrder(0);
   };
 
@@ -241,6 +260,7 @@ export function AdminJpLessonTeachersPage() {
           id: editingId,
           name: editName,
           hourly_rate: editHourlyRate.trim() ? Number(editHourlyRate) : null,
+          lesson_minutes: editLessonMinutes.trim() ? Number(editLessonMinutes) : null,
           sort_order: editSortOrder,
         }),
       });
@@ -361,6 +381,21 @@ export function AdminJpLessonTeachersPage() {
               onChange={(e) => setNewHourlyRate(e.target.value)}
             />
           </label>
+          <label className="admin-user-add-field">
+            <span>{locale === "zh" ? "单次课时长" : "Lesson duration"}</span>
+            <select
+              value={newLessonMinutes}
+              disabled={saving}
+              onChange={(e) => setNewLessonMinutes(e.target.value)}
+            >
+              <option value="">{locale === "zh" ? "选填" : "Optional"}</option>
+              {LESSON_MINUTE_OPTIONS.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {formatLessonMinuteOptionLabel(minutes, locale)}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="submit"
             className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
@@ -407,6 +442,7 @@ export function AdminJpLessonTeachersPage() {
                   <th className="col-id">ID</th>
                   <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
                   <th className="col-rate">{locale === "zh" ? "课时费" : "Rate"}</th>
+                  <th className="col-minutes">{locale === "zh" ? "课时时长" : "Duration"}</th>
                   <th
                     className={`col-score col-score--sortable${
                       scoreSortOrder === "asc"
@@ -482,6 +518,31 @@ export function AdminJpLessonTeachersPage() {
                           />
                         ) : (
                           formatHourlyRate(teacher.hourly_rate)
+                        )}
+                      </td>
+                      <td className="col-minutes">
+                        {isEditing ? (
+                          <select
+                            value={editLessonMinutes}
+                            disabled={saving}
+                            aria-label={
+                              locale === "zh"
+                                ? `${teacher.name} 单次课时长`
+                                : `${teacher.name} lesson duration`
+                            }
+                            onChange={(e) => setEditLessonMinutes(e.target.value)}
+                          >
+                            <option value="">
+                              {locale === "zh" ? "未设置" : "Unset"}
+                            </option>
+                            {LESSON_MINUTE_OPTIONS.map((minutes) => (
+                              <option key={minutes} value={minutes}>
+                                {formatLessonMinuteOptionLabel(minutes, locale)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          formatTeacherLessonMinutes(teacher.lesson_minutes, locale)
                         )}
                       </td>
                       <td className="col-score">

@@ -206,6 +206,8 @@ export interface JpLessonTeacher {
   name: string;
   /** 每小时课时费（元）；可为空 */
   hourly_rate: number | null;
+  /** 单次课时长（分钟：20 / 30 / 45 / 55 / 60）；可为空 */
+  lesson_minutes: number | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

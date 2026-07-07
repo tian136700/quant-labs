@@ -5,7 +5,7 @@ import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpLessonCopyMenu } from "@/components/JpLessonCopyMenu";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
-import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
+import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput, type JpLessonTeacherUpdateInput } from "@/components/JpLessonTeacherEditModal";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -592,6 +592,45 @@ export function JpLessonPage() {
         const next = [...prev, data.teacher!].sort(
           (a, b) => a.sort_order - b.sort_order || a.id - b.id
         );
+        persistLessonCache(lessons, refs, notes, next);
+        return next;
+      });
+      return data.teacher;
+    } catch {
+      return null;
+    }
+  };
+
+  const updateLessonTeacher = async (
+    input: JpLessonTeacherUpdateInput
+  ): Promise<JpLessonTeacher | null> => {
+    if (!isAdmin) return null;
+
+    try {
+      const res = await fetch("/api/admin/jp-lesson-teachers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update",
+          id: input.id,
+          name: input.name,
+          hourly_rate: input.hourly_rate,
+          lesson_minutes: input.lesson_minutes,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teacher?: JpLessonTeacher;
+        error?: string;
+      };
+      if (!data.ok || !data.teacher) {
+        return null;
+      }
+      setTeachers((prev) => {
+        const next = prev
+          .map((t) => (t.id === data.teacher!.id ? data.teacher! : t))
+          .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
         persistLessonCache(lessons, refs, notes, next);
         return next;
       });
@@ -1325,6 +1364,7 @@ export function JpLessonPage() {
         saving={savingTeacherId === editingTeacherLesson?.id}
         onClose={() => setEditingTeacherLesson(null)}
         onAddTeacher={addLessonTeacher}
+        onUpdateTeacher={updateLessonTeacher}
         onSave={(teacherIds, teacherOther, options) => {
           if (editingTeacherLesson) {
             return setLessonTeachers(

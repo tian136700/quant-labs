@@ -1,15 +1,31 @@
+import {
+  JP_LESSON_CLASS_DURATION_MINUTES,
+  normalizeClassDurationMinutes,
+} from "@/lib/jp-lesson-shared";
+
 const DASH_PATTERN = /[-－—]/;
 
-function parseHourlyRateFromSuffix(suffix: string): number | null {
+function parseRateSuffix(suffix: string): {
+  hourly_rate: number | null;
+  lesson_minutes: number | null;
+} {
   const text = suffix.trim();
-  if (!text) return null;
+  if (!text) return { hourly_rate: null, lesson_minutes: null };
 
   const perSession = text.match(/^([\d.]+)\s*\/\s*([\d.]+)\s*min/i);
   if (perSession) {
     const price = Number.parseFloat(perSession[1]);
     const minutes = Number.parseFloat(perSession[2]);
-    if (Number.isFinite(price) && price > 0 && Number.isFinite(minutes) && minutes > 0) {
-      return Math.round((price / minutes) * 60 * 100) / 100;
+    const lesson_minutes = normalizeClassDurationMinutes(minutes);
+    if (
+      Number.isFinite(price) &&
+      price > 0 &&
+      lesson_minutes != null
+    ) {
+      return {
+        hourly_rate: Math.round((price / lesson_minutes) * 60 * 100) / 100,
+        lesson_minutes,
+      };
     }
   }
 
@@ -17,32 +33,40 @@ function parseHourlyRateFromSuffix(suffix: string): number | null {
   if (perHour) {
     const value = Number.parseFloat(perHour[1]);
     if (Number.isFinite(value) && value > 0) {
-      return Math.round(value * 100) / 100;
+      return {
+        hourly_rate: Math.round(value * 100) / 100,
+        lesson_minutes: null,
+      };
     }
   }
 
-  return null;
+  return { hourly_rate: null, lesson_minutes: null };
 }
 
-/** 从旧版「名称-80/h」格式拆分称呼与每小时课时费 */
+/** 从旧版「名称-80/h」或「名称-60/45min」格式拆分称呼、课时费与时长 */
 export function splitTeacherNameAndRate(combined: string): {
   name: string;
   hourly_rate: number | null;
+  lesson_minutes: number | null;
 } {
   const trimmed = combined.trim();
   const match = trimmed.match(DASH_PATTERN);
   if (!match || match.index == null || match.index <= 0) {
-    return { name: trimmed, hourly_rate: null };
+    return { name: trimmed, hourly_rate: null, lesson_minutes: null };
   }
 
   const name = trimmed.slice(0, match.index).trim();
   const ratePart = trimmed.slice(match.index + match[0].length).trim();
-  const hourly_rate = parseHourlyRateFromSuffix(ratePart);
-  if (hourly_rate == null) {
-    return { name: trimmed, hourly_rate: null };
+  const parsed = parseRateSuffix(ratePart);
+  if (parsed.hourly_rate == null) {
+    return { name: trimmed, hourly_rate: null, lesson_minutes: null };
   }
 
-  return { name: name || trimmed, hourly_rate };
+  return {
+    name: name || trimmed,
+    hourly_rate: parsed.hourly_rate,
+    lesson_minutes: parsed.lesson_minutes,
+  };
 }
 
 /** 按单次课金额与时长（分钟）换算每小时课时费，保留两位小数 */
@@ -64,6 +88,23 @@ export function formatHourlyRate(rate: number | null | undefined): string {
   const rounded = Math.round(rate * 100) / 100;
   return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2)}/h`;
 }
+
+export function normalizeTeacherLessonMinutes(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  return normalizeClassDurationMinutes(Number(raw));
+}
+
+export function formatTeacherLessonMinutes(
+  minutes: number | null | undefined,
+  locale: "zh" | "en" = "zh"
+): string {
+  const normalized = normalizeTeacherLessonMinutes(minutes);
+  if (normalized == null) return "—";
+  if (locale === "zh" && normalized === 60) return "1小时";
+  return locale === "zh" ? `${normalized}分钟` : `${normalized} min`;
+}
+
+export { JP_LESSON_CLASS_DURATION_MINUTES };
 
 /** 新课/课表等前台展示：名称 + 课时费，如「李老师 - 50/h」 */
 export function formatTeacherDisplayLabel(
