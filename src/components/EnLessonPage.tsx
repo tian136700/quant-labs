@@ -433,6 +433,7 @@ export function EnLessonPage() {
       const data = (await res.json()) as {
         ok?: boolean;
         teacher?: EnLessonTeacher;
+        renamed_teachers?: EnLessonTeacher[];
         error?: string;
         user_account?: {
           id: number;
@@ -442,10 +443,6 @@ export function EnLessonPage() {
         };
       };
       if (!data.ok || !data.teacher) {
-        if (data.error === "name_duplicate") {
-          const existing = teachers.find((t) => t.name === name.trim());
-          return existing ?? null;
-        }
         return null;
       }
       if (data.user_account) {
@@ -459,7 +456,11 @@ export function EnLessonPage() {
         );
       }
       setTeachers((prev) => {
-        const next = [...prev, data.teacher!].sort(
+        const renamedMap = new Map(
+          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
+        );
+        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
+        const next = [...merged.filter((teacher) => teacher.id !== data.teacher!.id), data.teacher!].sort(
           (a, b) => a.sort_order - b.sort_order || a.id - b.id
         );
         persistLessonCache(lessons, refs, notes, next);

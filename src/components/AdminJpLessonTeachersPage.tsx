@@ -549,16 +549,9 @@ export function AdminJpLessonTeachersPage() {
                         {summary && summary.review_count > 0 && summary.avg_score != null ? (
                           <span
                             className={`etr-score-badge ${scoreClass(summary.avg_score)}`}
-                            title={
-                              locale === "zh"
-                                ? `${summary.review_count} 条评价`
-                                : `${summary.review_count} review(s)`
-                            }
+                            title={locale === "zh" ? "已评价" : "Reviewed"}
                           >
                             {summary.avg_score} {locale === "zh" ? "分" : "pts"}
-                            <span className="admin-jpl-review-count">
-                              ({summary.review_count})
-                            </span>
                           </span>
                         ) : (
                           <span className="col-remark--empty">—</span>
@@ -572,7 +565,7 @@ export function AdminJpLessonTeachersPage() {
                           <button
                             type="button"
                             className="admin-jpl-remark-box"
-                            title={locale === "zh" ? "点击查看全部评价" : "View all reviews"}
+                            title={locale === "zh" ? "点击查看评价" : "View review"}
                             onClick={() => setReviewTeacher(teacher)}
                           >
                             {latestClassDate ? (

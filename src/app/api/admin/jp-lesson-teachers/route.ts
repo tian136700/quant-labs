@@ -146,6 +146,7 @@ export async function POST(request: Request) {
     return jsonResponse({
       ok: true,
       teacher: result.teacher,
+      renamed_teachers: result.renamed_teachers,
       user_account:
         userProvision.ok && userProvision.created
           ? {

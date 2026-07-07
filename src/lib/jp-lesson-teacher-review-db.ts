@@ -57,6 +57,39 @@ export type SaveJpLessonTeacherReviewResult =
   | { ok: true; record: JpLessonTeacherReviewRecord }
   | { ok: false; error: string };
 
+export async function getJpLessonTeacherReviewForTeacher(
+  db: D1Database,
+  teacherId: number
+): Promise<JpLessonTeacherReviewRecord | null> {
+  const rows = await listJpLessonTeacherReviews(db, teacherId, "updated_at", "desc", 1);
+  return rows[0] ?? null;
+}
+
+async function dedupeJpLessonTeacherReviews(
+  db: D1Database,
+  teacherId: number,
+  keepId: number
+): Promise<void> {
+  if (devStoreEnabled) {
+    for (let i = devRecords.length - 1; i >= 0; i--) {
+      if (
+        devRecords[i].teacher_id === teacherId &&
+        devRecords[i].id !== keepId
+      ) {
+        devRecords.splice(i, 1);
+      }
+    }
+    return;
+  }
+
+  await db
+    .prepare(
+      `DELETE FROM jp_lesson_teacher_review WHERE teacher_id = ?1 AND id != ?2`
+    )
+    .bind(teacherId, keepId)
+    .run();
+}
+
 export async function saveJpLessonTeacherReview(
   db: D1Database,
   input: SaveJpLessonTeacherReviewInput
@@ -77,7 +110,12 @@ export async function saveJpLessonTeacherReview(
   }
 
   const remark = (input.remark || "").trim() || null;
-  const id = input.id && input.id > 0 ? input.id : 0;
+  let id = input.id && input.id > 0 ? input.id : 0;
+
+  if (id <= 0) {
+    const existing = await getJpLessonTeacherReviewForTeacher(db, teacherId);
+    if (existing) id = existing.id;
+  }
 
   if (devStoreEnabled) {
     const ts = nowIso();
@@ -95,6 +133,7 @@ export async function saveJpLessonTeacherReview(
         updated_at: ts,
       };
       devRecords[idx] = updated;
+      await dedupeJpLessonTeacherReviews(db, teacherId, updated.id);
       return { ok: true, record: updated };
     }
     const created: JpLessonTeacherReviewRecord = {
@@ -107,6 +146,7 @@ export async function saveJpLessonTeacherReview(
       updated_at: ts,
     };
     devRecords.unshift(created);
+    await dedupeJpLessonTeacherReviews(db, teacherId, created.id);
     return { ok: true, record: created };
   }
 
@@ -151,6 +191,7 @@ export async function saveJpLessonTeacherReview(
   if (!record) {
     return { ok: false, error: "save_failed" };
   }
+  await dedupeJpLessonTeacherReviews(db, teacherId, record.id);
   return { ok: true, record };
 }
 

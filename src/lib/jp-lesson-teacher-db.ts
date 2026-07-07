@@ -5,6 +5,10 @@ import {
   normalizeHourlyRate,
   normalizeTeacherLessonMinutes,
 } from "@/lib/jp-lesson-teacher-rate";
+import {
+  planLessonTeacherNameForCreate,
+  planLessonTeacherNameForUpdate,
+} from "@/lib/lesson-teacher-name";
 
 let devStoreEnabled = false;
 const devTeachers: JpLessonTeacher[] = [];
@@ -93,8 +97,39 @@ export async function getJpLessonTeacherById(
 }
 
 export type MutateJpLessonTeacherResult =
-  | { ok: true; teacher: JpLessonTeacher }
+  | { ok: true; teacher: JpLessonTeacher; renamed_teachers?: JpLessonTeacher[] }
   | { ok: false; error: string };
+
+async function applyJpLessonTeacherRenames(
+  db: D1Database,
+  renames: Array<{ id: number; name: string }>,
+  ts: string
+): Promise<JpLessonTeacher[]> {
+  const renamed: JpLessonTeacher[] = [];
+  for (const item of renames) {
+    await db
+      .prepare(`UPDATE jp_lesson_teacher SET name = ?1, updated_at = ?2 WHERE id = ?3`)
+      .bind(item.name, ts, item.id)
+      .run();
+    const teacher = await getJpLessonTeacherById(db, item.id);
+    if (teacher) renamed.push(teacher);
+  }
+  return renamed;
+}
+
+function applyJpLessonTeacherRenamesDev(
+  renames: Array<{ id: number; name: string }>,
+  ts: string
+): JpLessonTeacher[] {
+  const renamed: JpLessonTeacher[] = [];
+  for (const item of renames) {
+    const idx = devTeachers.findIndex((teacher) => teacher.id === item.id);
+    if (idx < 0) continue;
+    devTeachers[idx] = { ...devTeachers[idx], name: item.name, updated_at: ts };
+    renamed.push(devTeachers[idx]);
+  }
+  return renamed;
+}
 
 export async function createJpLessonTeacher(
   db: D1Database,
@@ -111,12 +146,11 @@ export async function createJpLessonTeacher(
   const ts = nowIso();
 
   if (devStoreEnabled) {
-    if (devTeachers.some((t) => t.name === trimmed)) {
-      return { ok: false, error: "name_duplicate" };
-    }
+    const plan = planLessonTeacherNameForCreate(trimmed, devTeachers);
+    const renamed_teachers = applyJpLessonTeacherRenamesDev(plan.renames, ts);
     const teacher: JpLessonTeacher = {
       id: devNextId++,
-      name: trimmed,
+      name: plan.name,
       hourly_rate,
       lesson_minutes,
       sort_order: sortOrder,
@@ -124,29 +158,33 @@ export async function createJpLessonTeacher(
       updated_at: ts,
     };
     devTeachers.push(teacher);
-    return { ok: true, teacher };
+    return renamed_teachers.length
+      ? { ok: true, teacher, renamed_teachers }
+      : { ok: true, teacher };
   }
 
   await ensureTeacherSchema(db);
 
-  try {
-    const result = await db
-      .prepare(
-        `INSERT INTO jp_lesson_teacher (name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?5)`
-      )
-      .bind(trimmed, hourly_rate, lesson_minutes, sortOrder, ts)
-      .run();
+  const existing = await listJpLessonTeachers(db);
+  const plan = planLessonTeacherNameForCreate(trimmed, existing);
+  const renamed_teachers = await applyJpLessonTeacherRenames(db, plan.renames, ts);
 
-    const id = Number(result.meta?.last_row_id);
-    if (!id) return { ok: false, error: "insert_failed" };
+  const result = await db
+    .prepare(
+      `INSERT INTO jp_lesson_teacher (name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?5)`
+    )
+    .bind(plan.name, hourly_rate, lesson_minutes, sortOrder, ts)
+    .run();
 
-    const teacher = await getJpLessonTeacherById(db, id);
-    if (!teacher) return { ok: false, error: "insert_failed" };
-    return { ok: true, teacher };
-  } catch {
-    return { ok: false, error: "name_duplicate" };
-  }
+  const id = Number(result.meta?.last_row_id);
+  if (!id) return { ok: false, error: "insert_failed" };
+
+  const teacher = await getJpLessonTeacherById(db, id);
+  if (!teacher) return { ok: false, error: "insert_failed" };
+  return renamed_teachers.length
+    ? { ok: true, teacher, renamed_teachers }
+    : { ok: true, teacher };
 }
 
 export async function updateJpLessonTeacher(
@@ -166,8 +204,8 @@ export async function updateJpLessonTeacher(
   const existing = await getJpLessonTeacherById(db, teacherId);
   if (!existing) return { ok: false, error: "not_found" };
 
-  const name = input.name !== undefined ? input.name.trim() : existing.name;
-  if (!name) return { ok: false, error: "name_empty" };
+  const requestedName = input.name !== undefined ? input.name.trim() : existing.name;
+  if (!requestedName) return { ok: false, error: "name_empty" };
 
   const sortOrder =
     input.sort_order !== undefined ? input.sort_order : existing.sort_order;
@@ -182,13 +220,11 @@ export async function updateJpLessonTeacher(
   const ts = nowIso();
 
   if (devStoreEnabled) {
-    if (devTeachers.some((t) => t.id !== teacherId && t.name === name)) {
-      return { ok: false, error: "name_duplicate" };
-    }
+    const plan = planLessonTeacherNameForUpdate(teacherId, requestedName, devTeachers);
     const idx = devTeachers.findIndex((t) => t.id === teacherId);
     devTeachers[idx] = {
       ...devTeachers[idx],
-      name,
+      name: plan.name,
       hourly_rate,
       lesson_minutes,
       sort_order: sortOrder,
@@ -199,22 +235,21 @@ export async function updateJpLessonTeacher(
 
   await ensureTeacherSchema(db);
 
-  try {
-    const result = await db
-      .prepare(
-        `UPDATE jp_lesson_teacher SET name = ?1, hourly_rate = ?2, lesson_minutes = ?3, sort_order = ?4, updated_at = ?5 WHERE id = ?6`
-      )
-      .bind(name, hourly_rate, lesson_minutes, sortOrder, ts, teacherId)
-      .run();
+  const allTeachers = await listJpLessonTeachers(db);
+  const plan = planLessonTeacherNameForUpdate(teacherId, requestedName, allTeachers);
 
-    if (!result.meta?.changes) return { ok: false, error: "not_found" };
+  const result = await db
+    .prepare(
+      `UPDATE jp_lesson_teacher SET name = ?1, hourly_rate = ?2, lesson_minutes = ?3, sort_order = ?4, updated_at = ?5 WHERE id = ?6`
+    )
+    .bind(plan.name, hourly_rate, lesson_minutes, sortOrder, ts, teacherId)
+    .run();
 
-    const teacher = await getJpLessonTeacherById(db, teacherId);
-    if (!teacher) return { ok: false, error: "not_found" };
-    return { ok: true, teacher };
-  } catch {
-    return { ok: false, error: "name_duplicate" };
-  }
+  if (!result.meta?.changes) return { ok: false, error: "not_found" };
+
+  const teacher = await getJpLessonTeacherById(db, teacherId);
+  if (!teacher) return { ok: false, error: "not_found" };
+  return { ok: true, teacher };
 }
 
 export type DeleteJpLessonTeacherResult =

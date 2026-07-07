@@ -529,6 +529,7 @@ export function JpLessonSchedulePage() {
       const data = (await res.json()) as {
         ok?: boolean;
         teacher?: JpLessonTeacher;
+        renamed_teachers?: JpLessonTeacher[];
         error?: string;
         user_account?: {
           id: number;
@@ -538,9 +539,6 @@ export function JpLessonSchedulePage() {
         };
       };
       if (!data.ok || !data.teacher) {
-        if (data.error === "name_duplicate") {
-          return teachers.find((item) => item.name === input.name.trim()) ?? null;
-        }
         return null;
       }
       if (data.user_account) {
@@ -555,7 +553,11 @@ export function JpLessonSchedulePage() {
         window.setTimeout(() => setStatusMessage(""), 4500);
       }
       setTeachers((prev) => {
-        const next = [...prev, data.teacher!].sort(
+        const renamedMap = new Map(
+          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
+        );
+        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
+        const next = [...merged.filter((teacher) => teacher.id !== data.teacher!.id), data.teacher!].sort(
           (a, b) => a.sort_order - b.sort_order || a.id - b.id
         );
         const cache = readLessonCache();

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 import { calcHourlyRate, formatHourlyRate } from "@/lib/jp-lesson-teacher-rate";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
+import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
 
 export type JpLessonTeacherAddInput = {
   name: string;
@@ -227,15 +228,11 @@ export function JpLessonTeacherEditModal({
       }
     }
 
-    const nameSeen = new Set<string>();
-    for (const teacher of sortedTeachers) {
-      const name = drafts[teacher.id]?.name.trim() ?? "";
-      if (nameSeen.has(name)) {
-        setSaveError(`老师名称「${name}」重复`);
-        return;
-      }
-      nameSeen.add(name);
-    }
+    const teacherNameRefs = sortedTeachers.map((teacher) => ({
+      id: teacher.id,
+      name: drafts[teacher.id]?.name.trim() || teacher.name,
+    }));
+    const reservedNames = new Set<string>();
 
     for (const teacher of sortedTeachers) {
       const draft = drafts[teacher.id];
@@ -251,15 +248,29 @@ export function JpLessonTeacherEditModal({
         lesson_minutes !== teacher.lesson_minutes;
       if (!changed) continue;
 
+      const plannedName = planLessonTeacherNameForUpdate(
+        teacher.id,
+        name,
+        teacherNameRefs,
+        reservedNames
+      ).name;
+      reservedNames.add(plannedName);
+
       const updated = await onUpdateTeacher({
         id: teacher.id,
-        name,
+        name: plannedName,
         hourly_rate,
         lesson_minutes,
       });
       if (!updated) {
-        setSaveError("保存老师信息失败，请检查名称是否重复");
+        setSaveError("保存老师信息失败，请稍后重试");
         return;
+      }
+      if (updated.name !== name) {
+        setDrafts((prev) => ({
+          ...prev,
+          [teacher.id]: { ...prev[teacher.id], name: updated.name },
+        }));
       }
     }
 

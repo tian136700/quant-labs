@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatBeijingDateTime } from "@/lib/format-datetime";
-import type {
-  JpLessonTeacher,
-  JpLessonTeacherReviewRecord,
-  JpLessonTeacherReviewSortField,
-} from "@/lib/types";
-
-type SortOrder = "asc" | "desc";
+import type { JpLessonTeacher, JpLessonTeacherReviewRecord } from "@/lib/types";
 
 type FormState = {
   id: string;
@@ -32,22 +25,21 @@ function todayYmd(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function defaultOrderForField(field: JpLessonTeacherReviewSortField): SortOrder {
-  return field === "score" ? "asc" : "desc";
-}
-
-function scoreClass(score: number): string {
-  if (score >= 8) return "etr-score--high";
-  if (score <= 3) return "etr-score--low";
-  return "etr-score--mid";
-}
-
 function defaultForm(): FormState {
   return {
     id: "",
     class_date: todayYmd(),
     score: "",
     remark: "",
+  };
+}
+
+function recordToForm(record: JpLessonTeacherReviewRecord): FormState {
+  return {
+    id: String(record.id),
+    class_date: record.class_date,
+    score: String(record.score),
+    remark: record.remark ?? "",
   };
 }
 
@@ -61,13 +53,10 @@ export function JpLessonTeacherReviewModal({
   const zh = locale === "zh";
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState<FormState>(defaultForm);
-  const [records, setRecords] = useState<JpLessonTeacherReviewRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
-  const [sortField, setSortField] = useState<JpLessonTeacherReviewSortField>("updated_at");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const scoreOptions = Array.from({ length: 11 }, (_, i) => i);
 
@@ -75,18 +64,17 @@ export function JpLessonTeacherReviewModal({
     setMounted(true);
   }, []);
 
-  const resetForm = useCallback(() => {
-    setForm(defaultForm());
-  }, []);
-
-  const loadHistory = useCallback(async () => {
+  const loadReview = useCallback(async () => {
     if (!teacher) return;
     setLoading(true);
+    setStatus("");
+    setStatusErr(false);
     try {
       const params = new URLSearchParams({
         teacher_id: String(teacher.id),
-        sort: sortField,
-        order: sortOrder,
+        sort: "updated_at",
+        order: "desc",
+        limit: "1",
         _: String(Date.now()),
       });
       const res = await fetch(`/api/admin/jp-lesson-teacher-review?${params}`, {
@@ -100,40 +88,24 @@ export function JpLessonTeacherReviewModal({
       if (!data.ok) {
         setStatus(data.error || (zh ? "加载失败" : "Load failed"));
         setStatusErr(true);
-        setRecords([]);
+        setForm(defaultForm());
         return;
       }
-      setRecords(data.data ?? []);
+      const record = data.data?.[0];
+      setForm(record ? recordToForm(record) : defaultForm());
     } catch {
       setStatus(zh ? "加载失败" : "Load failed");
       setStatusErr(true);
-      setRecords([]);
+      setForm(defaultForm());
     } finally {
       setLoading(false);
     }
-  }, [teacher, sortField, sortOrder, zh]);
+  }, [teacher, zh]);
 
   useEffect(() => {
     if (!open || !teacher) return;
-    resetForm();
-    setStatus("");
-    setStatusErr(false);
-    void loadHistory();
-  }, [open, teacher, loadHistory, resetForm]);
-
-  const onSort = (field: JpLessonTeacherReviewSortField) => {
-    if (sortField === field) {
-      setSortOrder((o) => (o === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortOrder(defaultOrderForField(field));
-    }
-  };
-
-  const sortMark = (field: JpLessonTeacherReviewSortField) => {
-    if (sortField !== field) return "";
-    return sortOrder === "asc" ? " ↑" : " ↓";
-  };
+    void loadReview();
+  }, [open, teacher, loadReview]);
 
   const validate = (): boolean => {
     if (form.score === "") {
@@ -173,59 +145,13 @@ export function JpLessonTeacherReviewModal({
         setStatusErr(true);
         return;
       }
-      setStatus(zh ? "保存成功。" : "Saved.");
-      setStatusErr(false);
-      resetForm();
-      void loadHistory();
       onChanged?.();
+      onClose();
     } catch {
       setStatus(zh ? "保存失败" : "Save failed");
       setStatusErr(true);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const onEdit = (record: JpLessonTeacherReviewRecord) => {
-    setForm({
-      id: String(record.id),
-      class_date: record.class_date,
-      score: String(record.score),
-      remark: record.remark ?? "",
-    });
-    setStatus("");
-    setStatusErr(false);
-  };
-
-  const onDelete = async (id: number) => {
-    if (
-      !window.confirm(
-        zh ? "确认删除该条评价记录吗？" : "Delete this review record?"
-      )
-    ) {
-      return;
-    }
-    try {
-      const res = await fetch("/api/admin/jp-lesson-teacher-review", {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [id] }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!data.ok) {
-        setStatus(data.error || (zh ? "删除失败" : "Delete failed"));
-        setStatusErr(true);
-        return;
-      }
-      setStatus(zh ? "已删除。" : "Deleted.");
-      setStatusErr(false);
-      if (form.id === String(id)) resetForm();
-      void loadHistory();
-      onChanged?.();
-    } catch {
-      setStatus(zh ? "删除失败" : "Delete failed");
-      setStatusErr(true);
     }
   };
 
@@ -264,108 +190,100 @@ export function JpLessonTeacherReviewModal({
           </button>
         </div>
 
-        <form
-          className="etr-form jp-lesson-teacher-review-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void onSave();
-          }}
-        >
-          <input type="hidden" name="id" value={form.id} />
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="jpl-review-class-date">
-                {zh ? "上课日期" : "Class date"}
-                <span className="etr-required">*</span>
-              </label>
-              <input
-                id="jpl-review-class-date"
-                type="date"
-                value={form.class_date}
-                disabled={saving}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, class_date: e.target.value }))
-                }
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="jpl-review-score">
-                {zh ? "评分" : "Score"}
-                <span className="etr-required">*</span>
-              </label>
-              <select
-                id="jpl-review-score"
-                value={form.score}
-                disabled={saving}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, score: e.target.value }))
-                }
-              >
-                <option value="">
-                  {zh ? "请选择评分（0～10 分）" : "Select score (0–10)"}
-                </option>
-                {scoreOptions.map((n) => (
-                  <option key={n} value={String(n)}>
-                    {n} {zh ? "分" : "pts"}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field field--span-2 etr-remark-field">
-              <label htmlFor="jpl-review-remark">{zh ? "备注" : "Notes"}</label>
-              <textarea
-                id="jpl-review-remark"
-                value={form.remark}
-                disabled={saving}
-                placeholder={
-                  zh
-                    ? "可选：记录本次上课体验、优缺点、需改进点等"
-                    : "Optional: class experience, pros and cons, etc."
-                }
-                rows={3}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, remark: e.target.value }))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void onSave();
+        {loading ? (
+          <p className="hint">{zh ? "加载中…" : "Loading…"}</p>
+        ) : (
+          <form
+            className="etr-form jp-lesson-teacher-review-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void onSave();
+            }}
+          >
+            <input type="hidden" name="id" value={form.id} />
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="jpl-review-class-date">
+                  {zh ? "上课日期" : "Class date"}
+                  <span className="etr-required">*</span>
+                </label>
+                <input
+                  id="jpl-review-class-date"
+                  type="date"
+                  value={form.class_date}
+                  disabled={saving}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, class_date: e.target.value }))
                   }
-                }}
-              />
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="jpl-review-score">
+                  {zh ? "评分" : "Score"}
+                  <span className="etr-required">*</span>
+                </label>
+                <select
+                  id="jpl-review-score"
+                  value={form.score}
+                  disabled={saving}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, score: e.target.value }))
+                  }
+                >
+                  <option value="">
+                    {zh ? "请选择评分（0～10 分）" : "Select score (0–10)"}
+                  </option>
+                  {scoreOptions.map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n} {zh ? "分" : "pts"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field field--span-2 etr-remark-field">
+                <label htmlFor="jpl-review-remark">{zh ? "备注" : "Notes"}</label>
+                <textarea
+                  id="jpl-review-remark"
+                  value={form.remark}
+                  disabled={saving}
+                  placeholder={
+                    zh
+                      ? "可选：记录上课体验、优缺点、需改进点等"
+                      : "Optional: class experience, pros and cons, etc."
+                  }
+                  rows={4}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, remark: e.target.value }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void onSave();
+                    }
+                  }}
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="etr-form-actions etr-form-actions--inline">
-            <button
-              type="submit"
-              className="btn-rsi-filter btn-rsi-filter--primary"
-              disabled={saving}
-            >
-              {saving
-                ? zh
-                  ? "保存中…"
-                  : "Saving…"
-                : form.id
-                  ? zh
-                    ? "更新"
-                    : "Update"
-                  : zh
-                    ? "保存"
-                    : "Save"}
-            </button>
-            {form.id ? (
+            <div className="etr-form-actions etr-form-actions--inline">
               <button
                 type="button"
                 className="btn-rsi-filter"
                 disabled={saving}
-                onClick={resetForm}
+                onClick={onClose}
               >
-                {zh ? "新增评价" : "New review"}
+                {zh ? "取消" : "Cancel"}
               </button>
-            ) : null}
-          </div>
-        </form>
+              <button
+                type="submit"
+                className="btn-rsi-filter btn-rsi-filter--primary"
+                disabled={saving}
+              >
+                {saving ? (zh ? "保存中…" : "Saving…") : zh ? "保存" : "Save"}
+              </button>
+            </div>
+          </form>
+        )}
 
         {status ? (
           <p
@@ -378,101 +296,6 @@ export function JpLessonTeacherReviewModal({
             {status}
           </p>
         ) : null}
-
-        <div className="jp-lesson-teacher-review-history">
-          <div className="etr-history-head">
-            <h3>{zh ? "评价记录" : "Review history"}</h3>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              disabled={loading}
-              onClick={() => void loadHistory()}
-            >
-              {zh ? "刷新" : "Refresh"}
-            </button>
-          </div>
-
-          {loading && !records.length ? (
-            <p className="hint">{zh ? "加载中…" : "Loading…"}</p>
-          ) : !records.length ? (
-            <p className="hint">{zh ? "暂无评价记录。" : "No reviews yet."}</p>
-          ) : (
-            <div className="admin-rbac-table-wrap jp-lesson-teacher-review-table-wrap">
-              <table className="admin-rbac-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>
-                      <button
-                        type="button"
-                        className={`etr-sort-btn${sortField === "class_date" ? " is-active" : ""}`}
-                        onClick={() => onSort("class_date")}
-                      >
-                        {zh ? "上课日期" : "Date"}
-                        {sortMark("class_date")}
-                      </button>
-                    </th>
-                    <th>
-                      <button
-                        type="button"
-                        className={`etr-sort-btn${sortField === "score" ? " is-active" : ""}`}
-                        onClick={() => onSort("score")}
-                      >
-                        {zh ? "评分" : "Score"}
-                        {sortMark("score")}
-                      </button>
-                    </th>
-                    <th>{zh ? "备注" : "Notes"}</th>
-                    <th>
-                      <button
-                        type="button"
-                        className={`etr-sort-btn${sortField === "updated_at" ? " is-active" : ""}`}
-                        onClick={() => onSort("updated_at")}
-                      >
-                        {zh ? "更新时间" : "Updated"}
-                        {sortMark("updated_at")}
-                      </button>
-                    </th>
-                    <th>{zh ? "操作" : "Actions"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.id}</td>
-                      <td>{item.class_date}</td>
-                      <td>
-                        <span className={`etr-score-badge ${scoreClass(item.score)}`}>
-                          {item.score} {zh ? "分" : "pts"}
-                        </span>
-                      </td>
-                      <td className="etr-remark-cell">{item.remark || "—"}</td>
-                      <td>{formatBeijingDateTime(item.updated_at)}</td>
-                      <td>
-                        <div className="etr-form-actions etr-form-actions--inline">
-                          <button
-                            type="button"
-                            className="btn-rsi-filter btn-rsi-filter--compact"
-                            onClick={() => onEdit(item)}
-                          >
-                            {zh ? "编辑" : "Edit"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-rsi-filter btn-rsi-filter--danger btn-rsi-filter--compact"
-                            onClick={() => void onDelete(item.id)}
-                          >
-                            {zh ? "删除" : "Delete"}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </div>
 
       <style jsx>{`
@@ -490,9 +313,7 @@ export function JpLessonTeacherReviewModal({
         }
 
         .jp-lesson-teacher-modal {
-          width: min(720px, 100%);
-          max-height: min(90vh, 860px);
-          overflow-y: auto;
+          width: min(520px, 100%);
           padding: 1rem 1.1rem;
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -535,25 +356,7 @@ export function JpLessonTeacherReviewModal({
         }
 
         .jp-lesson-teacher-review-form {
-          margin-bottom: 0.75rem;
-        }
-
-        .jp-lesson-teacher-review-history h3 {
-          margin: 0;
-          font-size: 0.9375rem;
-          font-weight: 600;
-        }
-
-        .jp-lesson-teacher-review-table-wrap {
-          margin-top: 0.65rem;
-          max-height: min(40vh, 320px);
-          overflow: auto;
-        }
-
-        .etr-remark-cell {
-          max-width: 220px;
-          white-space: pre-wrap;
-          word-break: break-word;
+          margin-bottom: 0.25rem;
         }
       `}</style>
     </div>,

@@ -563,6 +563,7 @@ export function JpLessonPage() {
       const data = (await res.json()) as {
         ok?: boolean;
         teacher?: JpLessonTeacher;
+        renamed_teachers?: JpLessonTeacher[];
         error?: string;
         user_account?: {
           id: number;
@@ -572,10 +573,6 @@ export function JpLessonPage() {
         };
       };
       if (!data.ok || !data.teacher) {
-        if (data.error === "name_duplicate") {
-          const existing = teachers.find((t) => t.name === input.name.trim());
-          return existing ?? null;
-        }
         return null;
       }
       if (data.user_account) {
@@ -589,7 +586,11 @@ export function JpLessonPage() {
         );
       }
       setTeachers((prev) => {
-        const next = [...prev, data.teacher!].sort(
+        const renamedMap = new Map(
+          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
+        );
+        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
+        const next = [...merged.filter((teacher) => teacher.id !== data.teacher!.id), data.teacher!].sort(
           (a, b) => a.sort_order - b.sort_order || a.id - b.id
         );
         persistLessonCache(lessons, refs, notes, next);
