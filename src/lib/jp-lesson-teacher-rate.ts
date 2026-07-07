@@ -106,14 +106,63 @@ export function formatTeacherLessonMinutes(
 
 export { JP_LESSON_CLASS_DURATION_MINUTES };
 
+export type LessonTeacherRateFields = {
+  name: string;
+  hourly_rate: number | null;
+  lesson_minutes: number | null;
+};
+
+export function resolveLessonTeacherRateFields(input: {
+  name: string;
+  hourly_rate?: number | null;
+  lesson_minutes?: number | null;
+}): LessonTeacherRateFields {
+  const trimmedName = input.name.trim();
+  const hourlyFromColumn = normalizeHourlyRate(input.hourly_rate);
+  const minutesFromColumn = normalizeTeacherLessonMinutes(input.lesson_minutes);
+
+  if (hourlyFromColumn != null) {
+    return {
+      name: trimmedName,
+      hourly_rate: hourlyFromColumn,
+      lesson_minutes: minutesFromColumn,
+    };
+  }
+
+  const split = splitTeacherNameAndRate(trimmedName);
+  if (split.hourly_rate != null) {
+    return {
+      name: split.name,
+      hourly_rate: split.hourly_rate,
+      lesson_minutes: minutesFromColumn ?? split.lesson_minutes,
+    };
+  }
+
+  return {
+    name: trimmedName,
+    hourly_rate: null,
+    lesson_minutes: minutesFromColumn,
+  };
+}
+
+/** 统一解析 API / 缓存中的老师课时费字段 */
+export function normalizeJpLessonTeacher<T extends {
+  name: string;
+  hourly_rate?: number | null;
+  lesson_minutes?: number | null;
+}>(teacher: T): T & LessonTeacherRateFields {
+  const resolved = resolveLessonTeacherRateFields(teacher);
+  return { ...teacher, ...resolved };
+}
+
 /** 新课/课表等前台展示：名称 + 课时费，如「李老师 - 50/h」 */
 export function formatTeacherDisplayLabel(
   name: string,
   hourlyRate: number | null | undefined
 ): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "";
-  const rate = formatHourlyRate(hourlyRate);
-  if (rate === "—") return trimmed;
-  return `${trimmed} - ${rate}`;
+  const resolved = resolveLessonTeacherRateFields({ name, hourly_rate: hourlyRate });
+  if (!resolved.name) return "";
+  const rate = formatHourlyRate(resolved.hourly_rate);
+  if (rate === "—") return resolved.name;
+  return `${resolved.name} - ${rate}`;
 }

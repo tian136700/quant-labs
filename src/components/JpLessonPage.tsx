@@ -44,7 +44,7 @@ import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
-import { formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
+import { formatTeacherDisplayLabel, normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
@@ -60,7 +60,13 @@ import type {
 } from "@/lib/types";
 
 function readLessonCache(): JpLessonApiPayload | null {
-  return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
+  const cached = readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
+  if (!cached) return null;
+  if (!Array.isArray(cached.teachers)) return cached;
+  return {
+    ...cached,
+    teachers: cached.teachers.map((teacher) => normalizeJpLessonTeacher(teacher)),
+  };
 }
 
 function persistLessonCache(
@@ -318,7 +324,7 @@ export function JpLessonPage() {
     setNotes(payload.notes);
     setRefs(payload.refs);
     if (payload.teachers) {
-      setTeachers(payload.teachers);
+      setTeachers(payload.teachers.map((teacher) => normalizeJpLessonTeacher(teacher)));
     }
   }, []);
 
@@ -575,6 +581,10 @@ export function JpLessonPage() {
       if (!data.ok || !data.teacher) {
         return null;
       }
+      const teacher = normalizeJpLessonTeacher(data.teacher);
+      const renamedTeachers = (data.renamed_teachers ?? []).map((item) =>
+        normalizeJpLessonTeacher(item)
+      );
       if (data.user_account) {
         rememberAdminUserPassword(data.user_account.id, data.user_account.password);
         setStatus(
@@ -586,17 +596,15 @@ export function JpLessonPage() {
         );
       }
       setTeachers((prev) => {
-        const renamedMap = new Map(
-          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
-        );
-        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
-        const next = [...merged.filter((teacher) => teacher.id !== data.teacher!.id), data.teacher!].sort(
+        const renamedMap = new Map(renamedTeachers.map((item) => [item.id, item]));
+        const merged = prev.map((item) => renamedMap.get(item.id) ?? item);
+        const next = [...merged.filter((item) => item.id !== teacher.id), teacher].sort(
           (a, b) => a.sort_order - b.sort_order || a.id - b.id
         );
         persistLessonCache(lessons, refs, notes, next);
         return next;
       });
-      return data.teacher;
+      return teacher;
     } catch {
       return null;
     }
@@ -628,14 +636,15 @@ export function JpLessonPage() {
       if (!data.ok || !data.teacher) {
         return null;
       }
+      const teacher = normalizeJpLessonTeacher(data.teacher);
       setTeachers((prev) => {
         const next = prev
-          .map((t) => (t.id === data.teacher!.id ? data.teacher! : t))
+          .map((t) => (t.id === teacher.id ? teacher : t))
           .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
         persistLessonCache(lessons, refs, notes, next);
         return next;
       });
-      return data.teacher;
+      return teacher;
     } catch {
       return null;
     }

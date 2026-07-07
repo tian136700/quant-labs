@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
-import { calcHourlyRate, formatHourlyRate } from "@/lib/jp-lesson-teacher-rate";
+import { calcHourlyRate, formatHourlyRate, resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
 
@@ -25,6 +25,22 @@ type TeacherDraft = {
   hourlyRate: string;
   lessonMinutes: string;
 };
+
+type TeacherDraftTouched = {
+  name?: boolean;
+  hourlyRate?: boolean;
+  lessonMinutes?: boolean;
+};
+
+function teacherToDraft(teacher: JpLessonTeacher): TeacherDraft {
+  const resolved = resolveLessonTeacherRateFields(teacher);
+  return {
+    name: resolved.name,
+    hourlyRate: resolved.hourly_rate != null ? String(resolved.hourly_rate) : "",
+    lessonMinutes:
+      resolved.lesson_minutes != null ? String(resolved.lesson_minutes) : "",
+  };
+}
 
 type Props = {
   open: boolean;
@@ -66,7 +82,7 @@ export function JpLessonTeacherEditModal({
   const [addError, setAddError] = useState("");
   const [saveError, setSaveError] = useState("");
   const skipAddBlurRef = useRef(false);
-  const wasOpenRef = useRef(false);
+  const touchedFieldsRef = useRef<Record<number, TeacherDraftTouched>>({});
 
   const addHourlyPreview = useMemo(() => {
     const price = Number(addPrice);
@@ -85,33 +101,17 @@ export function JpLessonTeacherEditModal({
   }, []);
 
   useEffect(() => {
-    if (!open) {
-      wasOpenRef.current = false;
-      return;
-    }
-    if (!lesson) return;
-
-    const justOpened = !wasOpenRef.current;
-    wasOpenRef.current = true;
-    if (!justOpened) return;
+    if (!open || !lesson) return;
 
     setSelectedIds([...(lesson.teacher_ids ?? [])]);
-    const initial: Record<number, TeacherDraft> = {};
-    for (const teacher of teachers) {
-      initial[teacher.id] = {
-        name: teacher.name,
-        hourlyRate: teacher.hourly_rate != null ? String(teacher.hourly_rate) : "",
-        lessonMinutes:
-          teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : "",
-      };
-    }
-    setDrafts(initial);
+    setDrafts(Object.fromEntries(teachers.map((teacher) => [teacher.id, teacherToDraft(teacher)])));
+    touchedFieldsRef.current = {};
     setAddName("");
     setAddPrice("");
     setAddMinutes("");
     setAddError("");
     setSaveError("");
-  }, [open, lesson, teachers]);
+  }, [open, lesson?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -119,20 +119,45 @@ export function JpLessonTeacherEditModal({
       let changed = false;
       const next = { ...prev };
       for (const teacher of teachers) {
-        if (next[teacher.id]) continue;
-        next[teacher.id] = {
-          name: teacher.name,
-          hourlyRate: teacher.hourly_rate != null ? String(teacher.hourly_rate) : "",
-          lessonMinutes:
-            teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : "",
-        };
-        changed = true;
+        const server = teacherToDraft(teacher);
+        const existing = next[teacher.id];
+        if (!existing) {
+          next[teacher.id] = server;
+          changed = true;
+          continue;
+        }
+        const touched = touchedFieldsRef.current[teacher.id] ?? {};
+        const merged: TeacherDraft = { ...existing };
+        let rowChanged = false;
+        if (!touched.name && existing.name !== server.name) {
+          merged.name = server.name;
+          rowChanged = true;
+        }
+        if (!touched.hourlyRate && existing.hourlyRate !== server.hourlyRate) {
+          merged.hourlyRate = server.hourlyRate;
+          rowChanged = true;
+        }
+        if (!touched.lessonMinutes && existing.lessonMinutes !== server.lessonMinutes) {
+          merged.lessonMinutes = server.lessonMinutes;
+          rowChanged = true;
+        }
+        if (rowChanged) {
+          next[teacher.id] = merged;
+          changed = true;
+        }
       }
       return changed ? next : prev;
     });
   }, [open, teachers]);
 
   const updateDraft = (teacherId: number, patch: Partial<TeacherDraft>) => {
+    if (!touchedFieldsRef.current[teacherId]) {
+      touchedFieldsRef.current[teacherId] = {};
+    }
+    const touched = touchedFieldsRef.current[teacherId];
+    if (patch.name !== undefined) touched.name = true;
+    if (patch.hourlyRate !== undefined) touched.hourlyRate = true;
+    if (patch.lessonMinutes !== undefined) touched.lessonMinutes = true;
     setDrafts((prev) => ({
       ...prev,
       [teacherId]: { ...prev[teacherId], ...patch },
@@ -237,15 +262,23 @@ export function JpLessonTeacherEditModal({
     for (const teacher of sortedTeachers) {
       const draft = drafts[teacher.id];
       if (!draft) continue;
-      const name = draft.name.trim();
-      const hourly_rate = draft.hourlyRate.trim() ? Number(draft.hourlyRate) : null;
-      const lesson_minutes = draft.lessonMinutes.trim()
-        ? Number(draft.lessonMinutes)
-        : null;
+      const baseline = resolveLessonTeacherRateFields(teacher);
+      const touched = touchedFieldsRef.current[teacher.id] ?? {};
+      const name = (touched.name ? draft.name : baseline.name).trim();
+      const hourly_rate = touched.hourlyRate
+        ? draft.hourlyRate.trim()
+          ? Number(draft.hourlyRate)
+          : null
+        : baseline.hourly_rate;
+      const lesson_minutes = touched.lessonMinutes
+        ? draft.lessonMinutes.trim()
+          ? Number(draft.lessonMinutes)
+          : null
+        : baseline.lesson_minutes;
       const changed =
-        name !== teacher.name ||
-        hourly_rate !== teacher.hourly_rate ||
-        lesson_minutes !== teacher.lesson_minutes;
+        name !== baseline.name ||
+        hourly_rate !== baseline.hourly_rate ||
+        lesson_minutes !== baseline.lesson_minutes;
       if (!changed) continue;
 
       const plannedName = planLessonTeacherNameForUpdate(
@@ -324,13 +357,7 @@ export function JpLessonTeacherEditModal({
               </div>
             ) : null}
             {sortedTeachers.map((teacher) => {
-              const draft = drafts[teacher.id] ?? {
-                name: teacher.name,
-                hourlyRate:
-                  teacher.hourly_rate != null ? String(teacher.hourly_rate) : "",
-                lessonMinutes:
-                  teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : "",
-              };
+              const draft = drafts[teacher.id] ?? teacherToDraft(teacher);
               return (
                 <div
                   key={teacher.id}

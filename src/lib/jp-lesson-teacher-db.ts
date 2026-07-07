@@ -4,6 +4,7 @@ import type { JpLessonTeacher } from "@/lib/types";
 import {
   normalizeHourlyRate,
   normalizeTeacherLessonMinutes,
+  resolveLessonTeacherRateFields,
 } from "@/lib/jp-lesson-teacher-rate";
 import {
   planLessonTeacherNameForCreate,
@@ -43,7 +44,15 @@ function nowIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function mapRow(row: Record<string, unknown>): JpLessonTeacher {
+function readTeacherRowFields(row: Record<string, unknown>): {
+  id: number;
+  name: string;
+  hourly_rate: number | null;
+  lesson_minutes: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+} {
   const hourlyRaw = row.hourly_rate;
   const hourly_rate =
     hourlyRaw == null || hourlyRaw === ""
@@ -60,6 +69,33 @@ function mapRow(row: Record<string, unknown>): JpLessonTeacher {
   };
 }
 
+function mapRow(row: Record<string, unknown>): JpLessonTeacher {
+  const base = readTeacherRowFields(row);
+  const resolved = resolveLessonTeacherRateFields(base);
+  return { ...base, ...resolved };
+}
+
+async function migrateTeacherRateFieldsIfNeeded(
+  db: D1Database,
+  before: Pick<JpLessonTeacher, "id" | "name" | "hourly_rate" | "lesson_minutes">,
+  after: Pick<JpLessonTeacher, "name" | "hourly_rate" | "lesson_minutes">
+): Promise<void> {
+  if (
+    before.name === after.name &&
+    before.hourly_rate === after.hourly_rate &&
+    before.lesson_minutes === after.lesson_minutes
+  ) {
+    return;
+  }
+
+  await db
+    .prepare(
+      `UPDATE jp_lesson_teacher SET name = ?1, hourly_rate = ?2, lesson_minutes = ?3, updated_at = ?4 WHERE id = ?5`
+    )
+    .bind(after.name, after.hourly_rate, after.lesson_minutes, nowIso(), before.id)
+    .run();
+}
+
 const TEACHER_SELECT = `SELECT id, name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at FROM jp_lesson_teacher`;
 
 export async function listJpLessonTeachers(db: D1Database): Promise<JpLessonTeacher[]> {
@@ -73,7 +109,14 @@ export async function listJpLessonTeachers(db: D1Database): Promise<JpLessonTeac
     .prepare(`${TEACHER_SELECT} ORDER BY sort_order ASC, id ASC`)
     .all<Record<string, unknown>>();
 
-  return (result.results || []).map(mapRow);
+  const teachers: JpLessonTeacher[] = [];
+  for (const row of result.results || []) {
+    const before = readTeacherRowFields(row);
+    const teacher = mapRow(row);
+    await migrateTeacherRateFieldsIfNeeded(db, before, teacher);
+    teachers.push(teacher);
+  }
+  return teachers;
 }
 
 export async function getJpLessonTeacherById(

@@ -22,6 +22,7 @@ import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types"
 import {
   formatHourlyRate,
   formatTeacherLessonMinutes,
+  resolveLessonTeacherRateFields,
 } from "@/lib/jp-lesson-teacher-rate";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 
@@ -226,13 +227,14 @@ export function AdminJpLessonTeachersPage() {
   };
 
   const startEdit = (teacher: JpLessonTeacher) => {
+    const resolved = resolveLessonTeacherRateFields(teacher);
     setEditingId(teacher.id);
-    setEditName(teacher.name);
+    setEditName(resolved.name);
     setEditHourlyRate(
-      teacher.hourly_rate != null ? String(teacher.hourly_rate) : ""
+      resolved.hourly_rate != null ? String(resolved.hourly_rate) : ""
     );
     setEditLessonMinutes(
-      teacher.lesson_minutes != null ? String(teacher.lesson_minutes) : ""
+      resolved.lesson_minutes != null ? String(resolved.lesson_minutes) : ""
     );
     setEditSortOrder(teacher.sort_order);
   };
@@ -517,7 +519,9 @@ export function AdminJpLessonTeachersPage() {
                             onChange={(e) => setEditHourlyRate(e.target.value)}
                           />
                         ) : (
-                          formatHourlyRate(teacher.hourly_rate)
+                          formatHourlyRate(
+                            resolveLessonTeacherRateFields(teacher).hourly_rate
+                          )
                         )}
                       </td>
                       <td className="col-minutes">
