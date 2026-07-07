@@ -1044,7 +1044,7 @@ export function JpVocabPage() {
       const nextLimit = data.teacher_visible_limit.limit;
       const prevFrom = nextLimit - JP_VOCAB_TEACHER_VISIBLE_STEP + 1;
       setStatus(
-        `已为老师开放更多词条：序号 ${prevFrom}–${nextLimit}（共可见 ${jpVocabTeacherVisibleRangeLabel(nextLimit)}）。`
+        `已释放 ${JP_VOCAB_TEACHER_VISIBLE_STEP} 条：序号 ${prevFrom}–${nextLimit}（老师共可见 ${jpVocabTeacherVisibleRangeLabel(nextLimit)}）。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -1197,14 +1197,14 @@ export function JpVocabPage() {
                 title={
                   teacherVisibleAtMax
                     ? "老师已可见全部词条"
-                    : `当前老师可见序号 ${teacherVisibleRange}；点击后再开放 ${JP_VOCAB_TEACHER_VISIBLE_STEP} 条`
+                    : `当前老师可见序号 ${teacherVisibleRange}；点击后再释放 ${JP_VOCAB_TEACHER_VISIBLE_STEP} 条`
                 }
               >
                 {expandingTeacherVisible
-                  ? "开放中…"
+                  ? "释放中…"
                   : teacherVisibleAtMax
-                    ? "老师已全开"
-                    : `给老师 +${JP_VOCAB_TEACHER_VISIBLE_STEP} 条`}
+                    ? "已全部释放"
+                    : `释放${JP_VOCAB_TEACHER_VISIBLE_STEP}条`}
               </button>
             ) : null}
             {isAdmin ? (
@@ -1284,7 +1284,7 @@ export function JpVocabPage() {
                 ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15 秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
-                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。非管理员老师默认仅可见当日序号 1–20，管理员可点「给老师 +20 条」逐步开放更多；跨日自动回到 20 条。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
+                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。非管理员老师默认仅可见当日序号 1–20，管理员可点「释放20条」逐步开放更多；跨日自动回到 20 条。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
                 搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）；旁边可按「全部 / 单词 / 语法」筛选类型。
                 备注编辑后约 1 秒自动保存并写入数据库；其他端约 1 秒自动拉取变更（标签页在后台时会降频）。
               </p>
