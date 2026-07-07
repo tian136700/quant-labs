@@ -1133,7 +1133,7 @@ export function JpVocabPage() {
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        按序号抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时<strong>系统自动标记为不熟悉</strong>），供学生复习。
+        按序号抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生复习」（同时<strong>系统自动标记为不熟悉</strong>），供学生复习。
       </p>
 
       {!canOperate && !checking ? (
@@ -1458,12 +1458,7 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-level-col">
                     <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
                       <span>熟悉程度</span>
-                      <span
-                        className="jp-vocab-th-multiline__sub"
-                        title="同一单词今日内可改选，以最后一次为准；明日北京时间 0 点重置"
-                      >
-                        (老师勾选·今日可改选)
-                      </span>
+                      <span className="jp-vocab-th-multiline__sub">(老师勾选)</span>
                     </span>
                   </th>
                   <th colSpan={4} className="jp-vocab-stats-group">
@@ -1889,7 +1884,7 @@ export function JpVocabPage() {
                                     }
                                     onClick={() => void shareWord(w.id)}
                                   >
-                                    {sharingId === w.id ? "发送中…" : "发给学生"}
+                                    {sharingId === w.id ? "发送中…" : "发给学生复习"}
                                   </button>
                                 )
                               ) : null}

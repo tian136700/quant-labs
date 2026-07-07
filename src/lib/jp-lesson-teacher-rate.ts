@@ -90,6 +90,21 @@ export function normalizeHourlyRate(raw: unknown): number | null {
   return Math.round(value * 100) / 100;
 }
 
+/** 从 API 请求体解析 hourly_rate：仅在有 lesson_price 时按单次课金额换算，否则读 hourly_rate */
+export function resolveLessonTeacherHourlyRateInput(body: {
+  hourly_rate?: unknown;
+  lesson_price?: unknown;
+  lesson_minutes?: unknown;
+}): number | null | undefined {
+  if (body.lesson_price !== undefined) {
+    return calcHourlyRate(Number(body.lesson_price), Number(body.lesson_minutes));
+  }
+  if (body.hourly_rate !== undefined) {
+    return body.hourly_rate === null ? null : normalizeHourlyRate(body.hourly_rate);
+  }
+  return undefined;
+}
+
 export function formatHourlyRate(rate: number | null | undefined): string {
   if (rate == null || !Number.isFinite(rate)) return "—";
   const rounded = Math.round(rate * 100) / 100;

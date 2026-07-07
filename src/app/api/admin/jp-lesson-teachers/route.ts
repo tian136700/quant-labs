@@ -2,9 +2,8 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { provisionJpLessonTeacherUser } from "@/lib/etr-auth-db";
 import {
-  calcHourlyRate,
-  normalizeHourlyRate,
   normalizeTeacherLessonMinutes,
+  resolveLessonTeacherHourlyRateInput,
   splitTeacherNameAndRate,
 } from "@/lib/jp-lesson-teacher-rate";
 import {
@@ -13,22 +12,6 @@ import {
   listJpLessonTeachers,
   updateJpLessonTeacher,
 } from "@/lib/jp-lesson-teacher-db";
-
-function resolveHourlyRate(body: {
-  hourly_rate?: unknown;
-  lesson_price?: unknown;
-  lesson_minutes?: unknown;
-}): number | null | undefined {
-  if (body.lesson_price !== undefined || body.lesson_minutes !== undefined) {
-    const price = Number(body.lesson_price);
-    const minutes = Number(body.lesson_minutes);
-    return calcHourlyRate(price, minutes);
-  }
-  if (body.hourly_rate !== undefined) {
-    return body.hourly_rate === null ? null : normalizeHourlyRate(body.hourly_rate);
-  }
-  return undefined;
-}
 
 function resolveTeacherNameAndRate(body: {
   name?: string;
@@ -41,7 +24,7 @@ function resolveTeacherNameAndRate(body: {
   lesson_minutes: number | null | undefined;
 } {
   const rawName = typeof body.name === "string" ? body.name.trim() : "";
-  let hourlyRate = resolveHourlyRate(body);
+  let hourlyRate = resolveLessonTeacherHourlyRateInput(body);
   let lessonMinutes =
     body.lesson_minutes !== undefined
       ? normalizeTeacherLessonMinutes(body.lesson_minutes)
