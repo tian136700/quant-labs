@@ -76,6 +76,13 @@ export function calcHourlyRate(price: number, minutes: number): number | null {
   return Math.round((price / minutes) * 60 * 100) / 100;
 }
 
+/** 按每小时课时费与单次课时长（分钟）反算单次课金额，保留两位小数 */
+export function calcLessonPrice(hourlyRate: number, minutes: number): number | null {
+  if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) return null;
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  return Math.round((hourlyRate / 60) * minutes * 100) / 100;
+}
+
 export function normalizeHourlyRate(raw: unknown): number | null {
   if (raw === null || raw === undefined || raw === "") return null;
   const value = Number(raw);
@@ -165,4 +172,22 @@ export function formatTeacherDisplayLabel(
   const rate = formatHourlyRate(resolved.hourly_rate);
   if (rate === "—") return resolved.name;
   return `${resolved.name} - ${rate}`;
+}
+
+/** 新课列表/日程：名称 + 课时费 + 单次课时长 */
+export function formatTeacherLessonDisplayLabel(
+  teacher: {
+    name: string;
+    hourly_rate?: number | null;
+    lesson_minutes?: number | null;
+  },
+  locale: "zh" | "en" = "zh"
+): string {
+  const resolved = resolveLessonTeacherRateFields(teacher);
+  const base = formatTeacherDisplayLabel(resolved.name, resolved.hourly_rate);
+  if (!base) return "—";
+  if (resolved.lesson_minutes == null) return base;
+  const duration = formatTeacherLessonMinutes(resolved.lesson_minutes, locale);
+  if (duration === "—") return base;
+  return `${base} · ${duration}`;
 }

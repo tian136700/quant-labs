@@ -23,6 +23,9 @@ export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v8";
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
 export const JP_VOCAB_REFRESH_TTL_MS = 45_000;
 
+/** 新课列表本地缓存 TTL，与词表一致 */
+export const JP_LESSON_REFRESH_TTL_MS = 45_000;
+
 export type JpVocabApiPayload = {
   words: JpVocabWord[];
   refs: Record<string, JpVocabRef>;

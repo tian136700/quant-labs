@@ -22,8 +22,16 @@ import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types"
 import {
   formatHourlyRate,
   formatTeacherLessonMinutes,
+  normalizeJpLessonTeacher,
   resolveLessonTeacherRateFields,
 } from "@/lib/jp-lesson-teacher-rate";
+import {
+  mergeJpLessonTeachersCache,
+  readJpLessonTeachersCache,
+  removeJpLessonTeacherCache,
+  syncJpLessonTeachersCache,
+  upsertJpLessonTeacherCache,
+} from "@/lib/jp-lesson-teachers-cache";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 
 function scoreClass(score: number): string {
@@ -66,7 +74,7 @@ export function AdminJpLessonTeachersPage() {
   const { locale } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
 
-  const [teachers, setTeachers] = useState<JpLessonTeacher[]>([]);
+  const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
@@ -129,6 +137,7 @@ export function AdminJpLessonTeachersPage() {
         return;
       }
       setTeachers(data.teachers ?? []);
+      syncJpLessonTeachersCache(data.teachers ?? []);
 
       const summaryData = (await summariesRes.json()) as {
         ok?: boolean;
@@ -152,6 +161,23 @@ export function AdminJpLessonTeachersPage() {
   useEffect(() => {
     if (!checking && isAdmin) void loadTeachers();
   }, [checking, isAdmin, loadTeachers]);
+
+  /** 与日语新课页共用 localStorage 老师缓存；切回此页时合并新课页刚保存的数据 */
+  useEffect(() => {
+    const refreshFromSharedCache = () => {
+      const cached = readJpLessonTeachersCache();
+      if (!cached.length) return;
+      setTeachers((prev) => mergeJpLessonTeachersCache(prev, cached));
+    };
+
+    refreshFromSharedCache();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshFromSharedCache();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   const sortedTeachers = useMemo(() => {
     return [...teachers].sort((a, b) =>
@@ -181,6 +207,8 @@ export function AdminJpLessonTeachersPage() {
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
+        teacher?: JpLessonTeacher;
+        renamed_teachers?: JpLessonTeacher[];
         user_account?: {
           id: number;
           username: string;
@@ -194,6 +222,14 @@ export function AdminJpLessonTeachersPage() {
         );
         setStatusErr(true);
         return;
+      }
+      if (data.teacher) {
+        const teacher = normalizeJpLessonTeacher(data.teacher);
+        for (const item of data.renamed_teachers ?? []) {
+          upsertJpLessonTeacherCache(normalizeJpLessonTeacher(item));
+        }
+        upsertJpLessonTeacherCache(teacher);
+        setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
       }
       setNewName("");
       setNewHourlyRate("");
@@ -273,13 +309,22 @@ export function AdminJpLessonTeachersPage() {
           sort_order: editSortOrder,
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teacher?: JpLessonTeacher;
+        error?: string;
+      };
       if (!data.ok) {
         setStatus(
           data.error === "name_duplicate" ? "老师名称已存在" : data.error || "保存失败"
         );
         setStatusErr(true);
         return;
+      }
+      if (data.teacher) {
+        const teacher = normalizeJpLessonTeacher(data.teacher);
+        upsertJpLessonTeacherCache(teacher);
+        setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
       }
       cancelEdit();
       setStatus("已保存");
@@ -307,6 +352,8 @@ export function AdminJpLessonTeachersPage() {
         return;
       }
       if (editingId === id) cancelEdit();
+      removeJpLessonTeacherCache(id);
+      setTeachers((prev) => prev.filter((teacher) => teacher.id !== id));
       setStatus("已删除");
       setStatusErr(false);
       void loadTeachers();

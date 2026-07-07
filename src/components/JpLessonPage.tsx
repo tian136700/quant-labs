@@ -18,6 +18,7 @@ import {
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
+  JP_LESSON_REFRESH_TTL_MS,
   parseJpLessonApi,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
@@ -39,17 +40,27 @@ import {
   type JpLessonClassTimeSortOrder,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
-import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import {
+  fetchWithClientCache,
+  readClientCache,
+  readClientCacheAge,
+  writeClientCache,
+} from "@/lib/client-swr-cache";
 import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
-import { formatTeacherDisplayLabel, normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
+import { formatTeacherLessonDisplayLabel, normalizeJpLessonTeacher, resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
   jpVocabRefViewerPath,
 } from "@/lib/jp-vocab-ref-shared";
+import {
+  mergeJpLessonTeachersCache,
+  readJpLessonTeachersCache,
+  upsertJpLessonTeacherCache,
+} from "@/lib/jp-lesson-teachers-cache";
 import { SITE_URL } from "@/lib/site";
 import type {
   JpLessonClassScheduleInput,
@@ -141,6 +152,10 @@ function renderClassDurationLabel(minutes: number | null | undefined) {
       <span className="jp-lesson-class-duration-dt-compact">{compact}</span>
     </span>
   );
+}
+
+function formatTeacherListLabel(teacher: JpLessonTeacher): string {
+  return formatTeacherLessonDisplayLabel(teacher, "zh");
 }
 
 function formatLessonTeacherNames(
@@ -328,11 +343,20 @@ export function JpLessonPage() {
     }
   }, []);
 
-  const loadLessons = useCallback(async () => {
-    const hasCache = readLessonCache() != null;
+  const loadLessons = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = readLessonCache();
+    const hasCache = cached != null;
+    const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
+    const cacheFresh =
+      !opts?.force &&
+      hasCache &&
+      cacheAge != null &&
+      cacheAge < JP_LESSON_REFRESH_TTL_MS;
+
     if (hasCache) {
-      setRefreshing(true);
+      applyLessonPayload(cached);
       setLoading(false);
+      if (!cacheFresh) setRefreshing(true);
     } else {
       setLoading(true);
     }
@@ -342,7 +366,11 @@ export function JpLessonPage() {
         JP_LESSON_CACHE_KEY,
         "/api/jp-lesson",
         parseJpLessonApi,
-        { onCached: applyLessonPayload }
+        {
+          onCached: applyLessonPayload,
+          ttlMs: JP_LESSON_REFRESH_TTL_MS,
+          force: opts?.force,
+        }
       );
       applyLessonPayload(payload);
     } catch (err) {
@@ -356,8 +384,7 @@ export function JpLessonPage() {
   }, [applyLessonPayload]);
 
   useEffect(() => {
-    if (checking) return;
-    if (user && !canViewJpLesson) return;
+    if (user && !checking && !canViewJpLesson) return;
     void loadLessons();
   }, [loadLessons, checking, user, canViewJpLesson]);
 
@@ -398,13 +425,15 @@ export function JpLessonPage() {
   const teacherNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const teacher of teachers) {
-      map.set(
-        teacher.id,
-        formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate)
-      );
+      map.set(teacher.id, formatTeacherListLabel(teacher));
     }
     return map;
   }, [teachers]);
+
+  const openTeacherEditModal = useCallback((lesson: JpLessonRecord) => {
+    setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
+    setEditingTeacherLesson(lesson);
+  }, []);
 
   const handleLessonLinkCopied = useCallback((lessonId: number) => {
     setCopiedId(lessonId);
@@ -533,7 +562,10 @@ export function JpLessonPage() {
       }
       setLessons((prev) => {
         const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
-        persistLessonCache(next, refs, notes, teachers);
+        setTeachers((currentTeachers) => {
+          persistLessonCache(next, refs, notes, currentTeachers);
+          return currentTeachers;
+        });
         return next;
       });
       if (!options?.keepOpen) {
@@ -595,14 +627,16 @@ export function JpLessonPage() {
           )}`
         );
       }
+      for (const item of renamedTeachers) {
+        upsertJpLessonTeacherCache(item);
+      }
+      upsertJpLessonTeacherCache(teacher);
       setTeachers((prev) => {
         const renamedMap = new Map(renamedTeachers.map((item) => [item.id, item]));
         const merged = prev.map((item) => renamedMap.get(item.id) ?? item);
-        const next = [...merged.filter((item) => item.id !== teacher.id), teacher].sort(
+        return [...merged.filter((item) => item.id !== teacher.id), teacher].sort(
           (a, b) => a.sort_order - b.sort_order || a.id - b.id
         );
-        persistLessonCache(lessons, refs, notes, next);
-        return next;
       });
       return teacher;
     } catch {
@@ -637,6 +671,7 @@ export function JpLessonPage() {
         return null;
       }
       const teacher = normalizeJpLessonTeacher(data.teacher);
+      upsertJpLessonTeacherCache(teacher);
       setTeachers((prev) => {
         const next = prev
           .map((t) => (t.id === teacher.id ? teacher : t))
@@ -879,7 +914,7 @@ export function JpLessonPage() {
             type="button"
             className="jp-lesson-mobile-footer-btn"
             disabled={savingTeacherId === lesson.id}
-            onClick={() => setEditingTeacherLesson(lesson)}
+            onClick={() => openTeacherEditModal(lesson)}
           >
             <JpLessonMobileIcon name="user" />
             <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改老师</span>
@@ -923,7 +958,7 @@ export function JpLessonPage() {
                 key={item.id}
                 title={`设置 #${item.id} 上课老师`}
                 disabled={savingTeacherId === item.id}
-                onClick={() => setEditingTeacherLesson(item)}
+                onClick={() => openTeacherEditModal(item)}
               />
             ))}
           </div>
@@ -1265,9 +1300,7 @@ export function JpLessonPage() {
         并带上教案链接。
       </p>
 
-      {checking ? (
-        <p style={{ color: "var(--muted)" }}>验证中…</p>
-      ) : user && !canViewJpLesson ? (
+      {user && !checking && !canViewJpLesson ? (
         <section className="section etr-panel">
           <p style={{ color: "var(--muted)", margin: 0 }}>
             您没有日语新课的查看权限。如需访问，请联系管理员在「角色权限管理」中为您的角色开启「日语新课 · 查看/浏览」或「编辑/操作」权限。

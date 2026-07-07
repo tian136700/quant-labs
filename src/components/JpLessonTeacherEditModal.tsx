@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
-import { calcHourlyRate, formatHourlyRate, resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
+import { calcHourlyRate, formatHourlyRate, normalizeHourlyRate, normalizeTeacherLessonMinutes, resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
 
@@ -36,7 +36,8 @@ function teacherToDraft(teacher: JpLessonTeacher): TeacherDraft {
   const resolved = resolveLessonTeacherRateFields(teacher);
   return {
     name: resolved.name,
-    hourlyRate: resolved.hourly_rate != null ? String(resolved.hourly_rate) : "",
+    hourlyRate:
+      resolved.hourly_rate != null ? String(resolved.hourly_rate) : "",
     lessonMinutes:
       resolved.lesson_minutes != null ? String(resolved.lesson_minutes) : "",
   };
@@ -196,6 +197,26 @@ export function JpLessonTeacherEditModal({
 
     const existing = resolveExistingTeacher(input.name);
     if (existing) {
+      if (addPrice.trim() && addMinutes.trim()) {
+        const hourly = calcHourlyRate(Number(addPrice), Number(addMinutes));
+        if (hourly == null) {
+          setAddError("请填写有效的金额与分钟数");
+          skipAddBlurRef.current = false;
+          return;
+        }
+        const updated = await onUpdateTeacher({
+          id: existing.id,
+          name: existing.name,
+          hourly_rate: hourly,
+          lesson_minutes: Number(addMinutes),
+        });
+        if (!updated) {
+          setAddError("更新老师课时费失败，请重试");
+          skipAddBlurRef.current = false;
+          return;
+        }
+      }
+
       const nextIds = selectedIds.includes(existing.id)
         ? selectedIds
         : [...selectedIds, existing.id];
@@ -267,12 +288,12 @@ export function JpLessonTeacherEditModal({
       const name = (touched.name ? draft.name : baseline.name).trim();
       const hourly_rate = touched.hourlyRate
         ? draft.hourlyRate.trim()
-          ? Number(draft.hourlyRate)
+          ? normalizeHourlyRate(draft.hourlyRate)
           : null
         : baseline.hourly_rate;
       const lesson_minutes = touched.lessonMinutes
         ? draft.lessonMinutes.trim()
-          ? Number(draft.lessonMinutes)
+          ? normalizeTeacherLessonMinutes(draft.lessonMinutes)
           : null
         : baseline.lesson_minutes;
       const changed =
