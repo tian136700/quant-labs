@@ -4,43 +4,48 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 
-const STORAGE_KEY = "jp-vocab-daily-intro-v1";
+const STORAGE_KEY_PREFIX = "jp-vocab-daily-intro-v1";
 const FOREVER_VALUE = "forever";
 
-export function readJpVocabDailyIntroDismissedDate(): string | null {
+function introStorageKey(userId: number): string {
+  return `${STORAGE_KEY_PREFIX}:${userId}`;
+}
+
+export function readJpVocabDailyIntroDismissedDate(userId: number): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(introStorageKey(userId));
   } catch {
     return null;
   }
 }
 
-export function markJpVocabDailyIntroDismissed(): void {
+export function markJpVocabDailyIntroDismissed(userId: number): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, beijingDateString());
+    localStorage.setItem(introStorageKey(userId), beijingDateString());
   } catch {
     /* ignore */
   }
 }
 
-export function markJpVocabDailyIntroDismissedForever(): void {
+export function markJpVocabDailyIntroDismissedForever(userId: number): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, FOREVER_VALUE);
+    localStorage.setItem(introStorageKey(userId), FOREVER_VALUE);
   } catch {
     /* ignore */
   }
 }
 
-export function shouldShowJpVocabDailyIntro(): boolean {
-  const stored = readJpVocabDailyIntroDismissedDate();
+export function shouldShowJpVocabDailyIntro(userId: number): boolean {
+  const stored = readJpVocabDailyIntroDismissedDate(userId);
   if (stored === FOREVER_VALUE) return false;
   return stored !== beijingDateString();
 }
 
 type Props = {
+  userId: number;
   open: boolean;
   dailyTarget: number;
   dailyCheckedCount: number;
@@ -48,6 +53,7 @@ type Props = {
 };
 
 export function JpVocabDailyQuizIntroModal({
+  userId,
   open,
   dailyTarget,
   dailyCheckedCount,
@@ -87,9 +93,9 @@ export function JpVocabDailyQuizIntroModal({
 
   const handleClose = (honorNever = false) => {
     if (honorNever && dontShowAgain) {
-      markJpVocabDailyIntroDismissedForever();
+      markJpVocabDailyIntroDismissedForever(userId);
     } else {
-      markJpVocabDailyIntroDismissed();
+      markJpVocabDailyIntroDismissed(userId);
     }
     onClose();
   };
@@ -123,11 +129,17 @@ export function JpVocabDailyQuizIntroModal({
         <div className="jp-vocab-intro-modal-body">
           <ol className="jp-vocab-intro-modal-list">
             <li>
-              今日需抽查<strong>序号前 {dailyTarget}</strong> 个单词/语法（即表格第 1～
-              {dailyTarget} 行），当前已抽查 <strong>{dailyCheckedCount}</strong> 个。
+              <strong>进行抽查</strong>：今日需抽查序号前 {dailyTarget} 个单词/语法（表格第 1～
+              {dailyTarget} 行），当前已抽查 {dailyCheckedCount} 个。
             </li>
             <li>
-              抽查时向学生提问，学生回答后请勾选「熟悉程度」（非常熟悉 / 一般 / 不熟悉）。
+              <strong>提问并勾选</strong>：抽查时向学生提问，学生回答后请勾选「熟悉程度」（非常熟悉 /
+              一般 / 不熟悉）。
+            </li>
+            <li>
+              <strong>发给学生复习</strong>：若学生答不出或不熟悉，点击
+              <span className="jp-vocab-intro-send-label">「发给学生」</span>
+              按钮，该词会同步到学生「今日背单词」页，并同时标记为「不熟悉」，方便课后复习。
             </li>
           </ol>
         </div>
@@ -214,8 +226,12 @@ export function JpVocabDailyQuizIntroModal({
           margin-top: 0.75rem;
         }
         .jp-vocab-intro-modal-list strong {
-          color: var(--accent);
-          font-variant-numeric: tabular-nums;
+          color: var(--text);
+          font-weight: 600;
+        }
+        .jp-vocab-intro-send-label {
+          color: #f0a840;
+          font-weight: 600;
         }
         .jp-vocab-intro-modal-footer {
           display: flex;

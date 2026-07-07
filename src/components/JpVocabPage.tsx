@@ -500,11 +500,11 @@ export function JpVocabPage() {
   );
 
   useEffect(() => {
-    if (loading || checking || !canOperate || !words.length) return;
+    if (loading || checking || !canOperate || !words.length || !user) return;
     if (anyCheckedInRound) return;
-    if (!shouldShowJpVocabDailyIntro()) return;
+    if (!shouldShowJpVocabDailyIntro(user.id)) return;
     setShowDailyIntro(true);
-  }, [loading, checking, canOperate, words.length, anyCheckedInRound]);
+  }, [loading, checking, canOperate, words.length, anyCheckedInRound, user?.id]);
 
   const unmarkedCount = useMemo(
     () =>
@@ -981,7 +981,7 @@ export function JpVocabPage() {
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        扫一眼单词或语法表，学生回答后勾选熟悉程度。
+        按序号抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时标记为不熟悉），供学生复习。
       </p>
 
       {!canOperate && !checking ? (
@@ -1690,12 +1690,12 @@ export function JpVocabPage() {
                                     }
                                     title={
                                       sharingId === w.id
-                                        ? "共享中…"
-                                        : "共享到学生「今日背单词」，并标记为不熟悉"
+                                        ? "发送中…"
+                                        : "发给学生「今日背单词」，并标记为不熟悉"
                                     }
                                     onClick={() => void shareWord(w.id)}
                                   >
-                                    {sharingId === w.id ? "共享中…" : "共享"}
+                                    {sharingId === w.id ? "发送中…" : "发给学生"}
                                   </button>
                                 )
                               ) : null}
@@ -1738,6 +1738,7 @@ export function JpVocabPage() {
       />
 
       <JpVocabDailyQuizIntroModal
+        userId={user!.id}
         open={showDailyIntro}
         dailyTarget={dailyTarget}
         dailyCheckedCount={dailyCheckedCount}
@@ -2297,8 +2298,13 @@ export function JpVocabPage() {
           justify-content: center;
           gap: 0.35rem;
         }
-        .jp-vocab-share-btn:not(:disabled) {
-          color: var(--accent);
+        .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn) {
+          color: #f0a840;
+          border-color: color-mix(in srgb, #f0a840 45%, var(--border));
+        }
+        .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn):hover {
+          color: #ffc860;
+          border-color: color-mix(in srgb, #f0a840 65%, var(--border));
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;
