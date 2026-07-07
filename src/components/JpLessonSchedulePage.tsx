@@ -13,10 +13,23 @@ import {
 } from "@/lib/admin-user-credentials";
 import {
   JP_LESSON_CACHE_KEY,
+  JP_LESSON_REFRESH_TTL_MS,
   parseJpLessonApi,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
-import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import {
+  fetchWithClientCache,
+  readClientCache,
+  readClientCacheAge,
+  writeClientCache,
+} from "@/lib/client-swr-cache";
+import {
+  hasJpLessonManualScheduleCache,
+  JP_LESSON_MANUAL_SCHEDULE_CACHE_KEY,
+  JP_LESSON_MANUAL_SCHEDULE_TTL_MS,
+  readJpLessonManualScheduleCache,
+  syncJpLessonManualScheduleCache,
+} from "@/lib/jp-lesson-manual-schedule-cache";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   addBeijingCalendarDays,
@@ -215,6 +228,7 @@ export function JpLessonSchedulePage() {
     () => readLessonCache()?.teachers ?? []
   );
   const [loading, setLoading] = useState(() => readLessonCache() == null);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("week");
 
@@ -227,8 +241,13 @@ export function JpLessonSchedulePage() {
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const [manualSchedules, setManualSchedules] = useState<JpLessonManualSchedule[]>([]);
-  const [manualSchedulesLoading, setManualSchedulesLoading] = useState(false);
+  const [manualSchedules, setManualSchedules] = useState<JpLessonManualSchedule[]>(() =>
+    readJpLessonManualScheduleCache()
+  );
+  const [manualSchedulesLoading, setManualSchedulesLoading] = useState(
+    () => !hasJpLessonManualScheduleCache()
+  );
+  const [manualSchedulesRefreshing, setManualSchedulesRefreshing] = useState(false);
   const [savingManualSchedule, setSavingManualSchedule] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [manualModalMode, setManualModalMode] = useState<"full" | "time">("full");
@@ -248,15 +267,43 @@ export function JpLessonSchedulePage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const loadManualSchedules = useCallback(async () => {
-    setManualSchedulesLoading(true);
+  const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
+    setLessons(payload.lessons);
+    setRefs(payload.refs);
+    if (payload.teachers) setTeachers(payload.teachers);
+  }, []);
+
+  const loadManualSchedules = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = readJpLessonManualScheduleCache();
+    const hasCache = hasJpLessonManualScheduleCache();
+    const cacheAge = readClientCacheAge(JP_LESSON_MANUAL_SCHEDULE_CACHE_KEY);
+    const cacheFresh =
+      !opts?.force &&
+      hasCache &&
+      cacheAge != null &&
+      cacheAge < JP_LESSON_MANUAL_SCHEDULE_TTL_MS;
+
+    if (hasCache) {
+      setManualSchedules(cached);
+      setManualSchedulesLoading(false);
+      if (!cacheFresh) setManualSchedulesRefreshing(true);
+    } else {
+      setManualSchedulesLoading(true);
+    }
+
+    if (cacheFresh) return;
+
     try {
       const schedules = await loadJpLessonManualSchedulesWithLegacyMigration();
       setManualSchedules(schedules);
+      syncJpLessonManualScheduleCache(schedules);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!hasCache) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setManualSchedulesLoading(false);
+      setManualSchedulesRefreshing(false);
     }
   }, []);
 
@@ -264,9 +311,23 @@ export function JpLessonSchedulePage() {
     if (!checking && isAdmin) void loadManualSchedules();
   }, [checking, isAdmin, loadManualSchedules]);
 
-  const loadLessons = useCallback(async () => {
-    const hasCache = readLessonCache() != null;
-    if (!hasCache) setLoading(true);
+  const loadLessons = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = readLessonCache();
+    const hasCache = cached != null;
+    const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
+    const cacheFresh =
+      !opts?.force &&
+      hasCache &&
+      cacheAge != null &&
+      cacheAge < JP_LESSON_REFRESH_TTL_MS;
+
+    if (hasCache) {
+      applyLessonPayload(cached);
+      setLoading(false);
+      if (!cacheFresh) setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError("");
     try {
       const payload = await fetchWithClientCache(
@@ -274,24 +335,21 @@ export function JpLessonSchedulePage() {
         "/api/jp-lesson",
         parseJpLessonApi,
         {
-          onCached: (cached) => {
-            setLessons(cached.lessons);
-            setRefs(cached.refs);
-            if (cached.teachers) setTeachers(cached.teachers);
-          },
+          onCached: applyLessonPayload,
+          ttlMs: JP_LESSON_REFRESH_TTL_MS,
+          force: opts?.force,
         }
       );
-      setLessons(payload.lessons);
-      setRefs(payload.refs);
-      if (payload.teachers) setTeachers(payload.teachers);
+      applyLessonPayload(payload);
     } catch (err) {
       if (!hasCache) {
         setError(err instanceof Error ? err.message : String(err));
       }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [applyLessonPayload]);
 
   useEffect(() => {
     if (!checking && isAdmin) void loadLessons();
@@ -488,7 +546,9 @@ export function JpLessonSchedulePage() {
         const next = editingManual
           ? prev.map((item) => (item.id === saved.id ? saved : item))
           : [...prev, saved];
-        return next.sort((a, b) => a.class_at.localeCompare(b.class_at));
+        const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
+        syncJpLessonManualScheduleCache(sorted);
+        return sorted;
       });
       setSelectedEventKey(`manual-${saved.id}`);
       closeManualModal();
@@ -505,9 +565,11 @@ export function JpLessonSchedulePage() {
     setError("");
     try {
       await deleteJpLessonManualSchedule(selectedManualSchedule.id);
-      setManualSchedules((prev) =>
-        prev.filter((item) => item.id !== selectedManualSchedule.id)
-      );
+      setManualSchedules((prev) => {
+        const next = prev.filter((item) => item.id !== selectedManualSchedule.id);
+        syncJpLessonManualScheduleCache(next);
+        return next;
+      });
       setSelectedEventKey(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -857,7 +919,15 @@ export function JpLessonSchedulePage() {
         </p>
       ) : null}
 
-      {loading || manualSchedulesLoading ? <p className="jpls-muted">加载中…</p> : null}
+      {loading && lessons.length === 0 ? <p className="jpls-muted">加载中…</p> : null}
+      {manualSchedulesLoading && manualSchedules.length === 0 && lessons.length > 0 ? (
+        <p className="jpls-muted">加载手动日程…</p>
+      ) : null}
+      {refreshing || manualSchedulesRefreshing ? (
+        <p className="jpls-muted" role="status">
+          同步中…
+        </p>
+      ) : null}
 
       <div className="jpls-layout">
         <section

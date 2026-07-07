@@ -1,5 +1,5 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { listJpVocabSharedToday } from "@/lib/jp-vocab-db";
+import { listJpVocabSharedToday, getJpVocabDailyQuizProgress } from "@/lib/jp-vocab-db";
 import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 
@@ -17,13 +17,17 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
 
-    const { items, refs } = await listJpVocabSharedToday(env.DB);
+    const [{ items, refs }, quiz_progress] = await Promise.all([
+      listJpVocabSharedToday(env.DB),
+      getJpVocabDailyQuizProgress(env.DB),
+    ]);
     return jsonResponse(
       {
         ok: true,
         items,
         refs,
         share_date: beijingDateString(),
+        quiz_progress,
       },
       200,
       { "Cache-Control": "no-store" }

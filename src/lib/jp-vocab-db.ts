@@ -46,6 +46,10 @@ import {
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
+import {
+  computeJpVocabDailyQuizProgress,
+  type JpVocabDailyQuizProgress,
+} from "@/lib/jp-vocab-daily-quiz-progress";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
@@ -2167,4 +2171,25 @@ export async function listJpVocabSharedToday(
   }
 
   return { items, refs };
+}
+
+export async function getJpVocabDailyQuizProgress(
+  db: D1Database,
+  now = new Date()
+): Promise<JpVocabDailyQuizProgress> {
+  await seedIfEmpty(db);
+  const [stored, teacherVisibleLimit] = await Promise.all([
+    readJpVocabDailyDisplayOrderRaw(db),
+    getJpVocabTeacherVisibleLimit(db),
+  ]);
+  const today = beijingDateString(now);
+  const order: JpVocabDailyDisplayOrder =
+    stored?.date === today && stored.ids.length > 0
+      ? stored
+      : { date: today, ids: [], round_checked_ids: [] };
+  return computeJpVocabDailyQuizProgress(
+    order,
+    teacherVisibleLimit.limit,
+    now
+  );
 }

@@ -5,6 +5,11 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import {
+  markJpVocabStudyDailyCompleteDismissed,
+  shouldShowJpVocabStudyDailyComplete,
+} from "@/lib/jp-vocab-daily-complete-dismiss";
+import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -13,6 +18,8 @@ import {
 } from "@/lib/jp-vocab-shared";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
+import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
+import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
@@ -47,6 +54,9 @@ export function JpVocabStudyPage() {
   const [items, setItems] = useState<JpVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
+  const [quizProgress, setQuizProgress] = useState<JpVocabDailyQuizProgress | null>(null);
+  const [showDailyComplete, setShowDailyComplete] = useState(false);
+  const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -113,6 +123,7 @@ export function JpVocabStudyPage() {
         items?: JpVocabSharedItem[];
         refs?: Record<string, JpVocabRef>;
         share_date?: string;
+        quiz_progress?: JpVocabDailyQuizProgress;
         error?: string;
       };
       if (res.status === 401) {
@@ -128,6 +139,7 @@ export function JpVocabStudyPage() {
       setItems(data.items);
       setRefs(data.refs ?? {});
       setShareDate(data.share_date ?? beijingDateString());
+      setQuizProgress(data.quiz_progress ?? null);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -207,6 +219,19 @@ export function JpVocabStudyPage() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadShared, canViewStudy]);
 
+  useEffect(() => {
+    if (!canViewStudy || !user || !quizProgress || quizProgress.total <= 0) return;
+
+    const wasComplete = dailyQuizCompleteWasRef.current;
+    dailyQuizCompleteWasRef.current = quizProgress.complete;
+
+    if (!quizProgress.complete) return;
+    if (!shouldShowJpVocabStudyDailyComplete(user.id)) return;
+    if (wasComplete === true) return;
+
+    setShowDailyComplete(true);
+  }, [canViewStudy, user?.id, quizProgress?.complete, quizProgress?.total]);
+
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
 
@@ -271,6 +296,10 @@ export function JpVocabStudyPage() {
         <p className="hint" role="status" style={{ marginBottom: "0.75rem", fontSize: "0.875rem" }}>
           {status}
         </p>
+      ) : null}
+
+      {canViewStudy && quizProgress && quizProgress.total > 0 ? (
+        <JpVocabDailyQuizProgressBar progress={quizProgress} variant="study" />
       ) : null}
 
       <section className="section etr-panel" aria-label="今日共享单词">
@@ -573,6 +602,18 @@ export function JpVocabStudyPage() {
           </div>
         )}
       </section>
+
+      {user && quizProgress ? (
+        <JpVocabDailyQuizCompleteModal
+          open={showDailyComplete}
+          total={quizProgress.total}
+          variant="study"
+          onClose={() => {
+            markJpVocabStudyDailyCompleteDismissed(user.id);
+            setShowDailyComplete(false);
+          }}
+        />
+      ) : null}
 
       <JpVocabRefPreviewModal
         open={previewRef != null}

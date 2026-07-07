@@ -32,6 +32,14 @@ import {
   syncJpLessonTeachersCache,
   upsertJpLessonTeacherCache,
 } from "@/lib/jp-lesson-teachers-cache";
+import { JP_LESSON_CACHE_KEY, JP_LESSON_REFRESH_TTL_MS } from "@/lib/jp-api-cache";
+import { readClientCacheAge } from "@/lib/client-swr-cache";
+import {
+  JP_LESSON_TEACHER_REVIEW_CACHE_KEY,
+  JP_LESSON_TEACHER_REVIEW_TTL_MS,
+  readJpLessonTeacherReviewCache,
+  syncJpLessonTeacherReviewCache,
+} from "@/lib/jp-lesson-teacher-review-cache";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 
 function scoreClass(score: number): string {
@@ -75,7 +83,8 @@ export function AdminJpLessonTeachersPage() {
   const { isAdmin, checking } = useEtrAuth();
 
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => readJpLessonTeachersCache().length === 0);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
@@ -89,7 +98,7 @@ export function AdminJpLessonTeachersPage() {
   const [editSortOrder, setEditSortOrder] = useState(0);
   const [reviewSummaries, setReviewSummaries] = useState<
     Map<number, JpLessonTeacherReviewSummary>
-  >(new Map());
+  >(() => readJpLessonTeacherReviewCache());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
   const [scoreSortOrder, setScoreSortOrder] = useState<ScoreSortOrder>("desc");
 
@@ -97,7 +106,20 @@ export function AdminJpLessonTeachersPage() {
     document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
   }, [locale]);
 
-  const loadReviewSummaries = useCallback(async () => {
+  const loadReviewSummaries = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = readJpLessonTeacherReviewCache();
+    const cacheAge = readClientCacheAge(JP_LESSON_TEACHER_REVIEW_CACHE_KEY);
+    const cacheFresh =
+      !opts?.force &&
+      cached.size > 0 &&
+      cacheAge != null &&
+      cacheAge < JP_LESSON_TEACHER_REVIEW_TTL_MS;
+
+    if (cached.size > 0) {
+      setReviewSummaries(cached);
+    }
+    if (cacheFresh) return;
+
     try {
       const res = await fetch("/api/admin/jp-lesson-teacher-review?summary=1", {
         credentials: "include",
@@ -112,51 +134,71 @@ export function AdminJpLessonTeachersPage() {
         map.set(item.teacher_id, item);
       }
       setReviewSummaries(map);
+      syncJpLessonTeacherReviewCache(data.summaries ?? []);
     } catch {
       /* summary is optional; ignore load errors */
     }
   }, []);
 
-  const loadTeachers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [teachersRes, summariesRes] = await Promise.all([
-        fetch("/api/admin/jp-lesson-teachers", { credentials: "include" }),
-        fetch("/api/admin/jp-lesson-teacher-review?summary=1", {
-          credentials: "include",
-        }),
-      ]);
-      const data = (await teachersRes.json()) as {
-        ok?: boolean;
-        teachers?: JpLessonTeacher[];
-        error?: string;
-      };
-      if (!data.ok) {
-        setStatus(data.error || "加载失败");
-        setStatusErr(true);
-        return;
-      }
-      setTeachers(data.teachers ?? []);
-      syncJpLessonTeachersCache(data.teachers ?? []);
+  const loadTeachers = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = readJpLessonTeachersCache();
+    const hasCache = cached.length > 0;
+    const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
+    const cacheFresh =
+      !opts?.force &&
+      hasCache &&
+      cacheAge != null &&
+      cacheAge < JP_LESSON_REFRESH_TTL_MS;
 
-      const summaryData = (await summariesRes.json()) as {
-        ok?: boolean;
-        summaries?: JpLessonTeacherReviewSummary[];
-      };
-      if (summaryData.ok) {
-        const map = new Map<number, JpLessonTeacherReviewSummary>();
-        for (const item of summaryData.summaries ?? []) {
-          map.set(item.teacher_id, item);
-        }
-        setReviewSummaries(map);
+    if (hasCache) {
+      setTeachers(cached);
+      setLoading(false);
+      if (!cacheFresh) setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const tasks: Promise<void>[] = [loadReviewSummaries(opts)];
+
+      if (!cacheFresh) {
+        tasks.push(
+          (async () => {
+            const res = await fetch("/api/admin/jp-lesson-teachers", {
+              credentials: "include",
+            });
+            const data = (await res.json()) as {
+              ok?: boolean;
+              teachers?: JpLessonTeacher[];
+              error?: string;
+            };
+            if (!data.ok) {
+              if (!hasCache) {
+                setStatus(data.error || "加载失败");
+                setStatusErr(true);
+              }
+              return;
+            }
+            const list = (data.teachers ?? []).map((teacher) =>
+              normalizeJpLessonTeacher(teacher)
+            );
+            setTeachers(list);
+            syncJpLessonTeachersCache(list);
+          })()
+        );
       }
+
+      await Promise.all(tasks);
     } catch {
-      setStatus("加载失败");
-      setStatusErr(true);
+      if (!hasCache) {
+        setStatus("加载失败");
+        setStatusErr(true);
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [loadReviewSummaries]);
 
   useEffect(() => {
     if (!checking && isAdmin) void loadTeachers();
@@ -253,7 +295,6 @@ export function AdminJpLessonTeachersPage() {
         setStatus(locale === "zh" ? "已添加" : "Added");
       }
       setStatusErr(false);
-      void loadTeachers();
     } catch {
       setStatus("添加失败");
       setStatusErr(true);
@@ -329,7 +370,6 @@ export function AdminJpLessonTeachersPage() {
       cancelEdit();
       setStatus("已保存");
       setStatusErr(false);
-      void loadTeachers();
     } catch {
       setStatus("保存失败");
       setStatusErr(true);
@@ -356,7 +396,6 @@ export function AdminJpLessonTeachersPage() {
       setTeachers((prev) => prev.filter((teacher) => teacher.id !== id));
       setStatus("已删除");
       setStatusErr(false);
-      void loadTeachers();
     } catch {
       setStatus("删除失败");
       setStatusErr(true);
@@ -479,12 +518,22 @@ export function AdminJpLessonTeachersPage() {
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => void loadTeachers()}
-            disabled={loading}
+            onClick={() => void loadTeachers({ force: true })}
+            disabled={loading || refreshing}
           >
-            {locale === "zh" ? "刷新" : "Refresh"}
+            {refreshing
+              ? locale === "zh"
+                ? "同步中…"
+                : "Syncing…"
+              : locale === "zh"
+                ? "刷新"
+                : "Refresh"}
           </button>
         </div>
+
+        {refreshing && teachers.length > 0 ? (
+          <p className="hint">{locale === "zh" ? "同步中…" : "Syncing…"}</p>
+        ) : null}
 
         {loading ? (
           <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
@@ -701,7 +750,7 @@ export function AdminJpLessonTeachersPage() {
         teacher={reviewTeacher}
         locale={locale}
         onClose={() => setReviewTeacher(null)}
-        onChanged={() => void loadReviewSummaries()}
+        onChanged={() => void loadReviewSummaries({ force: true })}
       />
     </div>
   );

@@ -96,6 +96,70 @@ export function formatHourlyRate(rate: number | null | undefined): string {
   return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2)}/h`;
 }
 
+export function formatLessonPriceValue(price: number): string {
+  const rounded = Math.round(price * 100) / 100;
+  return rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2);
+}
+
+/** 前台展示用短时长，如 45 min、1h */
+export function formatLessonDurationShort(
+  minutes: number | null | undefined,
+  locale: "zh" | "en" = "zh"
+): string | null {
+  const normalized = normalizeTeacherLessonMinutes(minutes);
+  if (normalized == null) return null;
+  if (normalized === 60) return locale === "zh" ? "1h" : "1 h";
+  return `${normalized} min`;
+}
+
+export type TeacherLessonDisplayParts = {
+  name: string;
+  priceDuration: string | null;
+};
+
+/** 解析老师展示：称呼 + 「金额 / 时长」 */
+export function resolveTeacherLessonDisplayParts(
+  teacher: {
+    name: string;
+    hourly_rate?: number | null;
+    lesson_minutes?: number | null;
+  },
+  locale: "zh" | "en" = "zh"
+): TeacherLessonDisplayParts {
+  const resolved = resolveLessonTeacherRateFields(teacher);
+  if (!resolved.name) return { name: "—", priceDuration: null };
+
+  if (resolved.hourly_rate != null && resolved.lesson_minutes != null) {
+    const price = calcLessonPrice(resolved.hourly_rate, resolved.lesson_minutes);
+    const duration = formatLessonDurationShort(resolved.lesson_minutes, locale);
+    if (price != null && duration) {
+      return {
+        name: resolved.name,
+        priceDuration: `${formatLessonPriceValue(price)} / ${duration}`,
+      };
+    }
+  }
+
+  if (resolved.hourly_rate != null) {
+    const rate = formatHourlyRate(resolved.hourly_rate);
+    if (rate !== "—") {
+      return {
+        name: resolved.name,
+        priceDuration: `${formatLessonPriceValue(resolved.hourly_rate)} / h`,
+      };
+    }
+  }
+
+  if (resolved.lesson_minutes != null) {
+    const duration = formatLessonDurationShort(resolved.lesson_minutes, locale);
+    if (duration) {
+      return { name: resolved.name, priceDuration: duration };
+    }
+  }
+
+  return { name: resolved.name, priceDuration: null };
+}
+
 export function normalizeTeacherLessonMinutes(raw: unknown): number | null {
   if (raw === null || raw === undefined || raw === "") return null;
   return normalizeClassDurationMinutes(Number(raw));
@@ -162,19 +226,23 @@ export function normalizeJpLessonTeacher<T extends {
   return { ...teacher, ...resolved };
 }
 
-/** 新课/课表等前台展示：名称 + 课时费，如「李老师 - 50/h」 */
+/** 新课/课表等前台展示：名称 + 金额/时长，如「李老师 · 80 / 45 min」 */
 export function formatTeacherDisplayLabel(
   name: string,
-  hourlyRate: number | null | undefined
+  hourlyRate: number | null | undefined,
+  lessonMinutes?: number | null,
+  locale: "zh" | "en" = "zh"
 ): string {
-  const resolved = resolveLessonTeacherRateFields({ name, hourly_rate: hourlyRate });
-  if (!resolved.name) return "";
-  const rate = formatHourlyRate(resolved.hourly_rate);
-  if (rate === "—") return resolved.name;
-  return `${resolved.name} - ${rate}`;
+  const parts = resolveTeacherLessonDisplayParts(
+    { name, hourly_rate: hourlyRate, lesson_minutes: lessonMinutes },
+    locale
+  );
+  if (!parts.name) return "";
+  if (!parts.priceDuration) return parts.name;
+  return `${parts.name} · ${parts.priceDuration}`;
 }
 
-/** 新课列表/日程：名称 + 课时费 + 单次课时长 */
+/** 新课列表/日程：名称 + 金额/时长 */
 export function formatTeacherLessonDisplayLabel(
   teacher: {
     name: string;
@@ -183,11 +251,8 @@ export function formatTeacherLessonDisplayLabel(
   },
   locale: "zh" | "en" = "zh"
 ): string {
-  const resolved = resolveLessonTeacherRateFields(teacher);
-  const base = formatTeacherDisplayLabel(resolved.name, resolved.hourly_rate);
-  if (!base) return "—";
-  if (resolved.lesson_minutes == null) return base;
-  const duration = formatTeacherLessonMinutes(resolved.lesson_minutes, locale);
-  if (duration === "—") return base;
-  return `${base} · ${duration}`;
+  const parts = resolveTeacherLessonDisplayParts(teacher, locale);
+  if (!parts.name) return "—";
+  if (!parts.priceDuration) return parts.name;
+  return `${parts.name} · ${parts.priceDuration}`;
 }

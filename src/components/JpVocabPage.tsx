@@ -34,6 +34,8 @@ import {
   JpVocabDailyQuizIntroModal,
   shouldShowJpVocabDailyIntro,
 } from "@/components/JpVocabDailyQuizIntroModal";
+import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
+import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import {
   JP_VOCAB_CACHE_KEY,
@@ -75,6 +77,14 @@ import {
 } from "@/lib/jp-vocab-teacher-visible";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
+import {
+  computeJpVocabDailyQuizProgress,
+  JP_VOCAB_DAILY_QUIZ_TOP,
+} from "@/lib/jp-vocab-daily-quiz-progress";
+import {
+  markJpVocabTeacherDailyCompleteDismissed,
+  shouldShowJpVocabTeacherDailyComplete,
+} from "@/lib/jp-vocab-daily-complete-dismiss";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -129,9 +139,6 @@ const SHOW_REMARKS_COLUMN = true;
 
 /** 暂时隐藏「随机高亮」按钮 */
 const SHOW_RANDOM_HIGHLIGHT = false;
-
-/** 按当前排序，每日建议优先抽查的前 N 条 */
-const JP_VOCAB_DAILY_QUIZ_TOP = 20;
 
 /** 单词表每页条数 */
 const JP_VOCAB_PAGE_SIZE = 100;
@@ -248,6 +255,8 @@ export function JpVocabPage() {
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
+  const [showDailyComplete, setShowDailyComplete] = useState(false);
+  const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
@@ -544,12 +553,12 @@ export function JpVocabPage() {
 
   const dailyTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, teacherVisibleWords.length);
 
-  const dailyCheckedCount = useMemo(() => {
-    if (!teacherVisibleWords.length) return 0;
-    return teacherVisibleWords
-      .slice(0, dailyTarget)
-      .filter((w) => jpVocabCheckedInRound(displayOrder, w)).length;
-  }, [teacherVisibleWords, dailyTarget, displayOrder]);
+  const dailyQuizProgress = useMemo(
+    () => computeJpVocabDailyQuizProgress(displayOrder, teacherVisibleLimit.limit),
+    [displayOrder, teacherVisibleLimit.limit]
+  );
+
+  const dailyCheckedCount = dailyQuizProgress.checked;
 
   const anyCheckedInRound = useMemo(
     () => (displayOrder.round_checked_ids ?? []).length > 0,
@@ -562,6 +571,24 @@ export function JpVocabPage() {
     if (!shouldShowJpVocabDailyIntro(user.id)) return;
     setShowDailyIntro(true);
   }, [loading, checking, canOperate, words.length, anyCheckedInRound, user?.id]);
+
+  useEffect(() => {
+    if (!canOperate || !user || dailyQuizProgress.total <= 0) return;
+
+    const wasComplete = dailyQuizCompleteWasRef.current;
+    dailyQuizCompleteWasRef.current = dailyQuizProgress.complete;
+
+    if (!dailyQuizProgress.complete) return;
+    if (!shouldShowJpVocabTeacherDailyComplete(user.id)) return;
+    if (wasComplete === true) return;
+
+    setShowDailyComplete(true);
+  }, [
+    canOperate,
+    user?.id,
+    dailyQuizProgress.complete,
+    dailyQuizProgress.total,
+  ]);
 
   const unmarkedCount = useMemo(
     () =>
@@ -1132,6 +1159,10 @@ export function JpVocabPage() {
         <p className="empty" role="alert" style={{ color: "var(--rise)" }}>
           {error}
         </p>
+      ) : null}
+
+      {canOperate && dailyQuizProgress.total > 0 ? (
+        <JpVocabDailyQuizProgressBar progress={dailyQuizProgress} variant="teacher" />
       ) : null}
 
       <section className="section etr-panel" aria-label="单词表">
@@ -1907,6 +1938,18 @@ export function JpVocabPage() {
           dailyTarget={dailyTarget}
           dailyCheckedCount={dailyCheckedCount}
           onClose={() => setShowDailyIntro(false)}
+        />
+      ) : null}
+
+      {user ? (
+        <JpVocabDailyQuizCompleteModal
+          open={showDailyComplete}
+          total={dailyQuizProgress.total}
+          variant="teacher"
+          onClose={() => {
+            markJpVocabTeacherDailyCompleteDismissed(user.id);
+            setShowDailyComplete(false);
+          }}
         />
       ) : null}
 

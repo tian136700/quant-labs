@@ -161,7 +161,7 @@ export function JpLessonTeacherSinglePicker({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectTeacher(teacher.name)}
               >
-                {formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate)}
+                {formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate, teacher.lesson_minutes)}
               </button>
             </li>
           ))}

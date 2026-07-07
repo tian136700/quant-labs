@@ -50,7 +50,8 @@ import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
-import { formatTeacherLessonDisplayLabel, normalizeJpLessonTeacher, resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
+import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
+import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
 import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
@@ -154,21 +155,12 @@ function renderClassDurationLabel(minutes: number | null | undefined) {
   );
 }
 
-function formatTeacherListLabel(teacher: JpLessonTeacher): string {
-  return formatTeacherLessonDisplayLabel(teacher, "zh");
-}
-
-function formatLessonTeacherNames(
-  lesson: JpLessonRecord,
-  teacherNameById: Map<number, string>
-): string {
-  const names = (lesson.teacher_ids ?? [])
-    .map((id) => teacherNameById.get(id))
-    .filter((name): name is string => Boolean(name));
-  if (lesson.teacher_other?.trim()) {
-    names.push(lesson.teacher_other.trim());
+function buildTeacherById(teachers: JpLessonTeacher[]): Map<number, JpLessonTeacher> {
+  const map = new Map<number, JpLessonTeacher>();
+  for (const teacher of teachers) {
+    map.set(teacher.id, teacher);
   }
-  return names.length ? names.join("、") : "—";
+  return map;
 }
 
 type JpLessonMobileIconName =
@@ -422,13 +414,7 @@ export function JpLessonPage() {
     return map;
   }, [notes]);
 
-  const teacherNameById = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const teacher of teachers) {
-      map.set(teacher.id, formatTeacherListLabel(teacher));
-    }
-    return map;
-  }, [teachers]);
+  const teacherById = useMemo(() => buildTeacherById(teachers), [teachers]);
 
   const openTeacherEditModal = useCallback((lesson: JpLessonRecord) => {
     setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
@@ -950,7 +936,7 @@ export function JpLessonPage() {
       <td data-label="上课老师" className="jp-lesson-teacher-col">
         <div className="jp-lesson-teacher-cell">
           <JpLessonMobileFieldValue icon="user">
-            {formatLessonTeacherNames(lesson, teacherNameById)}
+            <JpLessonTeacherDisplay lesson={lesson} teachersById={teacherById} />
           </JpLessonMobileFieldValue>
           <div className="jp-lesson-merged-edit-stack">
             {groupLessons.map((item) => (
@@ -1709,11 +1695,11 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-teacher-col) {
           font-size: 0.8125rem;
-          min-width: 6.5rem;
+          min-width: 5.5rem;
         }
         :global(.jp-lesson-teacher-cell) {
           display: inline-flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 0.35rem;
         }
         :global(.jp-lesson-next-class-col) {
