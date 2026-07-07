@@ -23,9 +23,11 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from git_commit_message import summarize_worktree_commit_message
+from git_commit_message import ROOT as REPO_ROOT
+from git_commit_message import summarize_worktree_commit_message, worktree_changes
 
 QUICK_COMMIT = ROOT / "git-quick-commit.py"
+JOB_LOCK_FILE = ROOT / ".publish-console.job.lock"
 HOST = os.environ.get("PUBLISH_CONSOLE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PUBLISH_CONSOLE_PORT", "17823"))
 
@@ -43,6 +45,61 @@ def now_str() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def git_output(*args: str) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+    except OSError:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def get_workspace_info() -> dict[str, Any]:
+    """工作区与 Git 元数据，供页面判断「备注/代码是否最新」。"""
+    changes = worktree_changes()
+    latest_mtime = 0.0
+    for change in changes:
+        path = REPO_ROOT / change.path
+        if not path.is_file():
+            continue
+        try:
+            latest_mtime = max(latest_mtime, path.stat().st_mtime)
+        except OSError:
+            continue
+
+    branch = git_output("rev-parse", "--abbrev-ref", "HEAD") or "main"
+    unpushed = 0
+    unpushed_text = git_output("rev-list", "--count", f"origin/{branch}..HEAD")
+    if unpushed_text.isdigit():
+        unpushed = int(unpushed_text)
+
+    head_parts = git_output("log", "-1", "--format=%ci|%h|%s").split("|", 2)
+    head_commit_at = head_parts[0] if len(head_parts) > 0 and head_parts[0] else None
+    head_commit_short = head_parts[1] if len(head_parts) > 1 and head_parts[1] else None
+    head_commit_message = head_parts[2] if len(head_parts) > 2 and head_parts[2] else None
+
+    return {
+        "branch": branch,
+        "changed_file_count": len(changes),
+        "has_uncommitted_changes": bool(changes),
+        "workspace_changed_at": (
+            datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            if latest_mtime > 0
+            else None
+        ),
+        "head_commit_at": head_commit_at,
+        "head_commit_short": head_commit_short,
+        "head_commit_message": head_commit_message,
+        "unpushed_commit_count": unpushed,
+    }
+
+
 @dataclass
 class JobState:
     status: str = "idle"  # idle | running | success | error
@@ -53,6 +110,16 @@ class JobState:
     finished_at: str | None = None
     exit_code: int | None = None
     logs: list[str] = field(default_factory=list)
+
+
+def _set_job_lock(active: bool) -> None:
+    try:
+        if active:
+            JOB_LOCK_FILE.write_text("running\n", encoding="utf-8")
+        elif JOB_LOCK_FILE.is_file():
+            JOB_LOCK_FILE.unlink()
+    except OSError:
+        pass
 
 
 class PublishHub:
@@ -75,6 +142,8 @@ class PublishHub:
                 "steps": [{"id": s[0], "label": s[1]} for s in STEPS],
                 "logs": self._job.logs[-400:],
                 "url": f"http://{HOST}:{PORT}/",
+                "server_time": now_str(),
+                "workspace": get_workspace_info(),
             }
 
     def subscribe(self) -> queue.Queue[str]:
@@ -155,6 +224,7 @@ class PublishHub:
                 args=(commit_message.strip(),),
                 daemon=True,
             )
+            _set_job_lock(True)
             self._thread.start()
         self._broadcast({"type": "started", "started_at": self._job.started_at})
         return True, "ok"
@@ -179,6 +249,7 @@ class PublishHub:
                 "step": self._job.step,
             }
         )
+        _set_job_lock(False)
 
     def _run_job(self, commit_message: str) -> None:
         self._set_step("prepare", 8, "检查环境与凭据…")
@@ -326,7 +397,8 @@ HTML_PAGE = """<!DOCTYPE html>
       word-break: break-word;
       color: #c5d0e0;
     }
-    .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+    .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; line-height: 1.55; }
+    .meta-warn { color: #e8b84f; margin-top: 0.35rem; font-size: 0.8rem; }
     .log-head {
       display: flex;
       align-items: center;
@@ -368,6 +440,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="card">
       <label for="msg">提交说明（已自动识别，可修改后再发布）</label>
       <input id="msg" type="text" placeholder="正在识别改动…" />
+      <div id="msgMeta" class="meta"></div>
       <div class="btn-row">
         <button id="publish" class="btn-primary">发布（提交 + 推送 + 部署）</button>
         <button id="refresh" class="btn-ghost">刷新状态</button>
@@ -379,6 +452,7 @@ HTML_PAGE = """<!DOCTYPE html>
       <div id="steps" class="steps"></div>
       <div id="status" class="status-line">待命</div>
       <div id="meta" class="meta"></div>
+      <div id="metaWarn" class="meta-warn" hidden></div>
     </div>
 
     <div class="card">
@@ -397,14 +471,18 @@ HTML_PAGE = """<!DOCTYPE html>
     const el = (id) => document.getElementById(id);
     const publishBtn = el("publish");
     const msgInput = el("msg");
+    const msgMetaEl = el("msgMeta");
     const logEl = el("log");
     const barEl = el("bar");
     const statusEl = el("status");
     const metaEl = el("meta");
+    const metaWarnEl = el("metaWarn");
     const stepsEl = el("steps");
     const copyLogBtn = el("copyLog");
     let msgTouched = false;
     let lastSnapshot = null;
+    let lastSuggest = null;
+    let statusRefreshedAt = null;
     let copyResetTimer = null;
 
     msgInput.addEventListener("input", () => {
@@ -417,8 +495,77 @@ HTML_PAGE = """<!DOCTYPE html>
         const res = await fetch("/api/suggest-message");
         const data = await res.json();
         if (!data.message) return;
+        lastSuggest = data;
         msgInput.value = data.message;
+        renderMeta(lastSnapshot, data);
       } catch (_) {}
+    }
+
+    function parseTime(text) {
+      if (!text) return 0;
+      const t = Date.parse(String(text).replace(" ", "T"));
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    function renderMeta(data, suggest) {
+      const lines = [];
+      if (statusRefreshedAt) {
+        lines.push("状态刷新：" + statusRefreshedAt);
+      }
+      const ws = data?.workspace || suggest?.workspace;
+      if (ws) {
+        if (ws.has_uncommitted_changes) {
+          lines.push(
+            "工作区改动：" + (ws.workspace_changed_at || "—") +
+            "（" + ws.changed_file_count + " 个文件未提交）"
+          );
+        } else {
+          lines.push("工作区改动：无（与最近一次提交一致）");
+        }
+        if (suggest?.generated_at) {
+          lines.push("备注识别：" + suggest.generated_at);
+        }
+        if (ws.head_commit_at) {
+          let commitLine = "最近提交：" + ws.head_commit_at;
+          if (ws.head_commit_short) commitLine += " · " + ws.head_commit_short;
+          if (ws.head_commit_message) commitLine += " · " + ws.head_commit_message;
+          lines.push(commitLine);
+        }
+        if (ws.unpushed_commit_count > 0) {
+          lines.push("待推送提交：" + ws.unpushed_commit_count + " 个");
+        }
+      }
+      if (data?.started_at) lines.push("任务开始：" + data.started_at);
+      if (data?.finished_at) lines.push("任务结束：" + data.finished_at);
+      metaEl.textContent = lines.join("\\n");
+
+      if (ws && suggest?.generated_at) {
+        const wsHint = ws.has_uncommitted_changes
+          ? "代码改动 " + (ws.workspace_changed_at || "—") + " · 备注识别 " + suggest.generated_at
+          : "无未提交改动 · 备注识别 " + suggest.generated_at;
+        msgMetaEl.textContent = wsHint;
+      } else if (ws) {
+        msgMetaEl.textContent = ws.has_uncommitted_changes
+          ? "代码改动 " + (ws.workspace_changed_at || "—") + "（" + ws.changed_file_count + " 个文件）"
+          : "无未提交改动";
+      } else {
+        msgMetaEl.textContent = "";
+      }
+
+      const stale =
+        !msgTouched &&
+        ws?.has_uncommitted_changes &&
+        suggest?.generated_at &&
+        ws?.workspace_changed_at &&
+        parseTime(ws.workspace_changed_at) > parseTime(suggest.generated_at);
+      if (stale) {
+        metaWarnEl.hidden = false;
+        metaWarnEl.textContent =
+          "工作区在备注识别之后又有改动，备注可能不是最新；请点击「刷新状态」重新识别。";
+      } else {
+        metaWarnEl.hidden = true;
+        metaWarnEl.textContent = "";
+      }
     }
 
     function renderSteps(current, progress, jobStatus) {
@@ -512,10 +659,7 @@ HTML_PAGE = """<!DOCTYPE html>
         setStatus("待命，点击「发布」开始", "");
         publishBtn.disabled = false;
       }
-      const parts = [];
-      if (data.started_at) parts.push("开始: " + data.started_at);
-      if (data.finished_at) parts.push("结束: " + data.finished_at);
-      metaEl.textContent = parts.join(" · ");
+      renderMeta(data, lastSuggest);
       if (Array.isArray(data.logs)) {
         logEl.textContent = data.logs.join("\\n") + (data.logs.length ? "\\n" : "");
         logEl.scrollTop = logEl.scrollHeight;
@@ -526,9 +670,12 @@ HTML_PAGE = """<!DOCTYPE html>
     async function refresh() {
       const res = await fetch("/api/status");
       const data = await res.json();
+      statusRefreshedAt = data.server_time || new Date().toLocaleString("sv-SE").replace("T", " ").slice(0, 19);
       applySnapshot(data);
       if (data.status !== "running") {
         await loadSuggestedMessage(false);
+      } else {
+        renderMeta(data, lastSuggest);
       }
     }
 
@@ -573,7 +720,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     refresh();
     loadSuggestedMessage(false);
-    setInterval(refresh, 8000);
+    setInterval(refresh, 5000);
   </script>
 </body>
 </html>
@@ -619,6 +766,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/suggest-message":
+            generated_at = now_str()
+            workspace = get_workspace_info()
             try:
                 message = summarize_worktree_commit_message()
             except Exception as exc:  # noqa: BLE001 — 预览失败不应拖垮页面
@@ -626,7 +775,15 @@ class Handler(BaseHTTPRequestHandler):
                 err = str(exc)
             else:
                 err = ""
-            self._send_json({"ok": True, "message": message, "error": err or None})
+            self._send_json(
+                {
+                    "ok": True,
+                    "message": message,
+                    "generated_at": generated_at,
+                    "workspace": workspace,
+                    "error": err or None,
+                }
+            )
             return
 
         if path == "/api/events":

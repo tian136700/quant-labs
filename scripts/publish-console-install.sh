@@ -5,14 +5,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="com.infoquests.publish-console"
 PLIST_DST="$HOME/Library/LaunchAgents/${LABEL}.plist"
-SCRIPT="$ROOT/scripts/publish-console.py"
+SCRIPT="$ROOT/scripts/publish-console-watch.py"
 LOG="$HOME/Library/Logs/publish-console.log"
 PYTHON="$(command -v python3)"
 PORT="${PUBLISH_CONSOLE_PORT:-17823}"
 NPM_BIN="$(dirname "$(command -v npm 2>/dev/null || echo /usr/local/bin/npm)")"
 PATH_PREFIX="/usr/local/bin:/opt/homebrew/bin:${NPM_BIN}:/usr/bin:/bin"
 
-chmod +x "$SCRIPT"
+chmod +x "$SCRIPT" "$ROOT/scripts/publish-console.py"
 
 mkdir -p "$HOME/Library/Logs"
 

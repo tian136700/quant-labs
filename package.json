@@ -11,7 +11,7 @@
     "lint": "next lint",
     "commit-push": "python3 git-quick-commit.py",
     "commit-push-deploy": "python3 git-quick-commit.py --deploy",
-    "publish:console": "python3 scripts/publish-console.py",
+    "publish:console": "python3 scripts/publish-console-watch.py",
     "publish:console:install": "bash scripts/publish-console-install.sh",
     "publish:console:uninstall": "bash scripts/publish-console-uninstall.sh",
     "git:auto-push:watch": "python3 scripts/git-auto-push-watch.py",
