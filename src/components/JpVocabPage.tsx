@@ -1737,13 +1737,15 @@ export function JpVocabPage() {
         onClose={() => setShowRiskChart(false)}
       />
 
-      <JpVocabDailyQuizIntroModal
-        userId={user!.id}
-        open={showDailyIntro}
-        dailyTarget={dailyTarget}
-        dailyCheckedCount={dailyCheckedCount}
-        onClose={() => setShowDailyIntro(false)}
-      />
+      {user ? (
+        <JpVocabDailyQuizIntroModal
+          userId={user.id}
+          open={showDailyIntro}
+          dailyTarget={dailyTarget}
+          dailyCheckedCount={dailyCheckedCount}
+          onClose={() => setShowDailyIntro(false)}
+        />
+      ) : null}
 
       <JpVocabRemarksViewModal
         open={viewingRemarksWord != null}
