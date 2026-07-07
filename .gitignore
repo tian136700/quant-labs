@@ -6,6 +6,7 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.deploy.local.example
 *.log
 .DS_Store
 

@@ -106,12 +106,24 @@ def needs_git_action() -> bool:
     return bool(text.isdigit() and int(text) > 0)
 
 
+def auto_deploy_enabled() -> bool:
+    value = os.environ.get("GIT_AUTO_PUSH_DEPLOY", "1").strip().lower()
+    return value not in ("0", "false", "no", "off")
+
+
+def quick_commit_command() -> list[str]:
+    cmd = [sys.executable, str(QUICK_COMMIT)]
+    if auto_deploy_enabled():
+        cmd.extend(["--deploy", "--deploy-optional"])
+    return cmd
+
+
 def auto_commit_push() -> bool:
     if not QUICK_COMMIT.is_file():
         log(f"未找到 {QUICK_COMMIT.name}，跳过")
         return False
     proc = subprocess.run(
-        [sys.executable, str(QUICK_COMMIT)],
+        quick_commit_command(),
         cwd=ROOT,
         text=True,
     )
@@ -136,9 +148,10 @@ def main() -> int:
         save_last_activity(time.time())
         return 0
 
-    log(f"已空闲 {int(idle_for // 60)} 分钟，开始自动 commit + push …")
+    log(f"已空闲 {int(idle_for // 60)} 分钟，开始自动 commit + push"
+        f"{' + deploy' if auto_deploy_enabled() else ''} …")
     if auto_commit_push():
-        log("自动提交并推送完成")
+        log("自动提交并推送完成" + ("（已尝试部署）" if auto_deploy_enabled() else ""))
         save_last_activity(time.time())
     else:
         log("自动推送失败，稍后重试")

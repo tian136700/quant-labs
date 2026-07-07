@@ -108,7 +108,26 @@ GET /api/bars?symbol=SPY&years=5
 ```bash
 npm run cf:build    # 或 opennextjs-cloudflare build
 npm run cf:deploy   # 或 opennextjs-cloudflare deploy
+# 或一步：提交 + 推送 + 部署
+npm run commit-push-deploy
 ```
+
+### Git 自动提交后部署
+
+`git-quick-commit.py` 与空闲自动推送脚本在推送成功后会执行 `npm run deploy`（可用 `--deploy-optional` 在无凭据时跳过，不中断 Git）。
+
+| 命令 | 说明 |
+|------|------|
+| `npm run commit-push` | 暂存 + 提交 + 推送 |
+| `npm run commit-push-deploy` | 同上 + 部署 |
+| `npm run git:auto-push:install` | 安装 crontab：空闲 10 分钟后自动 commit + push + deploy |
+
+**Cloudflare 凭据（cron 无交互，需提前配置其一）：**
+
+1. **推荐**：`cp .env.deploy.local.example .env.deploy.local`，填入 [API Token](https://dash.cloudflare.com/profile/api-tokens)（模板：Edit Cloudflare Workers，含 D1）
+2. 或在本机终端执行一次：`npx wrangler login`（OAuth 写入 `~/.wrangler/`，cron 可读）
+
+关闭自动部署：环境变量 `GIT_AUTO_PUSH_DEPLOY=0`（install 脚本写入 crontab 的为 `1`）。
 
 ### Cloudflare Workers Builds（GitHub 自动部署）
 

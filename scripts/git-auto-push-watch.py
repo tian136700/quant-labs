@@ -86,12 +86,24 @@ def needs_git_action() -> bool:
     return has_local_changes() or unpushed_commit_count() > 0
 
 
+def auto_deploy_enabled() -> bool:
+    value = os.environ.get("GIT_AUTO_PUSH_DEPLOY", "1").strip().lower()
+    return value not in ("0", "false", "no", "off")
+
+
+def quick_commit_command() -> list[str]:
+    cmd = [sys.executable, str(QUICK_COMMIT)]
+    if auto_deploy_enabled():
+        cmd.extend(["--deploy", "--deploy-optional"])
+    return cmd
+
+
 def auto_commit_push() -> bool:
     if not QUICK_COMMIT.is_file():
         log(f"未找到 {QUICK_COMMIT.name}，跳过")
         return False
     proc = subprocess.run(
-        [sys.executable, str(QUICK_COMMIT)],
+        quick_commit_command(),
         cwd=ROOT,
         text=True,
     )
@@ -111,6 +123,7 @@ def format_idle(seconds: float) -> str:
 def main() -> int:
     log(
         f"开始监听 {ROOT.name}，空闲 {format_idle(IDLE_SECONDS)} 后自动提交并推送"
+        f"{'、部署' if auto_deploy_enabled() else ''}"
     )
     last_activity = latest_worktree_mtime()
     if last_activity <= 0:
@@ -126,10 +139,14 @@ def main() -> int:
             idle_for = time.time() - last_activity
             if idle_for >= IDLE_SECONDS and needs_git_action():
                 log(
-                    f"已空闲 {format_idle(idle_for)}，开始自动 commit + push …"
+                    f"已空闲 {format_idle(idle_for)}，开始自动 commit + push"
+                    f"{' + deploy' if auto_deploy_enabled() else ''} …"
                 )
                 if auto_commit_push():
-                    log("自动提交并推送完成")
+                    log(
+                        "自动提交并推送完成"
+                        + ("（已尝试部署）" if auto_deploy_enabled() else "")
+                    )
                     last_activity = time.time()
                 else:
                     log("本次自动推送未成功，10 分钟后会再试")
