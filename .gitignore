@@ -3,40 +3,79 @@ node_modules/
 .open-next/
 .wrangler/
 dist/
+out/
+.vercel/
+.turbo/
+coverage/
+.nyc_output/
 .env
 .env.*
 !.env.example
 !.env.deploy.local.example
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 .DS_Store
+Thumbs.db
+Desktop.ini
 
 # IDE / 编辑器本地历史（勿提交）
 .history/
 .idea/
 .vscode/
+.cursor/
 *.swp
 *~
+*.orig
+*.bak
+*.backup
 
-# TypeScript 增量构建缓存
+# TypeScript / 构建缓存
 *.tsbuildinfo
+.eslintcache
 
 # 本地 D1 导出 / 同步缓存（含线上数据副本，勿提交）
 tmp/
+tmp/**
 *-dump.sql
+*-export.sql
+*-backup.sql
+*-inserts.sql
+remote-*.sql
 remote-inserts.sql
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+*.db
 scripts/.remote-d1-snapshot.sql
 .remote-d1-snapshot.sql
+**/.remote-d1-snapshot.sql
 
 # 业务数据 SQL 导出（schema 迁移脚本 scripts/migrate-*.sql 可提交）
 jp_vocab_data.sql
 *-data.sql
+*_data.sql
+
+# 证书、密钥、凭据（公开仓库绝勿提交）
+*.pem
+*.key
+*.p12
+*.cer
+credentials.json
+secrets.json
+**/credentials/
+**/*-credentials.json
 
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
 
 # 本地开发工具（个人脚本，勿提交）
 kill-port.py
@@ -53,17 +92,16 @@ scripts/.venv-jp-review/
 scripts/jp-review-sync.env
 scripts/jp-vocab-fill-reading.env
 scripts/en-vocab-fill-reading.env
+scripts/*.env
+!scripts/*.env.example
 
 # launchd 实装 plist（含本机绝对路径；*.plist.example 可提交）
 com.infoquests.*.plist
 scripts/com.infoquests.*.plist
 !**/*.plist.example
 
-# Git 自动推送 launchd（含本机绝对路径，勿提交）
-scripts/com.infoquests.git-auto-push.plist
-
-# 发布控制台 launchd（含本机绝对路径，勿提交）
-scripts/com.infoquests.publish-console.plist
+# Git 自动推送 / 发布控制台本地状态
+.git-auto-push-state.json
 
 # 趋势博客离线生成（非线上运行时，勿提交）
 trend_aggregator/

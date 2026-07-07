@@ -19,6 +19,12 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from git_commit_message import summarize_worktree_commit_message
+
 QUICK_COMMIT = ROOT / "git-quick-commit.py"
 HOST = os.environ.get("PUBLISH_CONSOLE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PUBLISH_CONSOLE_PORT", "17823"))
@@ -329,8 +335,8 @@ HTML_PAGE = """<!DOCTYPE html>
     <p class="sub">一键：Git 提交 → 推送 → Cloudflare 部署 · 本机常驻 <code id="url"></code></p>
 
     <div class="card">
-      <label for="msg">提交说明（可留空，自动猜测）</label>
-      <input id="msg" type="text" placeholder="例如：页面优化 / bug修复" />
+      <label for="msg">提交说明（已自动识别，可修改后再发布）</label>
+      <input id="msg" type="text" placeholder="正在识别改动…" />
       <div class="btn-row">
         <button id="publish" class="btn-primary">发布（提交 + 推送 + 部署）</button>
         <button id="refresh" class="btn-ghost">刷新状态</button>
@@ -355,11 +361,27 @@ HTML_PAGE = """<!DOCTYPE html>
     };
     const el = (id) => document.getElementById(id);
     const publishBtn = el("publish");
+    const msgInput = el("msg");
     const logEl = el("log");
     const barEl = el("bar");
     const statusEl = el("status");
     const metaEl = el("meta");
     const stepsEl = el("steps");
+    let msgTouched = false;
+
+    msgInput.addEventListener("input", () => {
+      msgTouched = true;
+    });
+
+    async function loadSuggestedMessage(force) {
+      if (msgTouched && !force) return;
+      try {
+        const res = await fetch("/api/suggest-message");
+        const data = await res.json();
+        if (!data.message) return;
+        msgInput.value = data.message;
+      } catch (_) {}
+    }
 
     function renderSteps(current, progress, jobStatus) {
       stepsEl.innerHTML = stepOrder.map((id) => {
@@ -392,6 +414,8 @@ HTML_PAGE = """<!DOCTYPE html>
       } else if (data.status === "success") {
         setStatus(data.message || "发布成功", "ok");
         publishBtn.disabled = false;
+        msgTouched = false;
+        void loadSuggestedMessage(true);
       } else if (data.status === "error") {
         setStatus(data.message || "发布失败", "err");
         publishBtn.disabled = false;
@@ -411,7 +435,11 @@ HTML_PAGE = """<!DOCTYPE html>
 
     async function refresh() {
       const res = await fetch("/api/status");
-      applySnapshot(await res.json());
+      const data = await res.json();
+      applySnapshot(data);
+      if (data.status !== "running") {
+        await loadSuggestedMessage(false);
+      }
     }
 
     publishBtn.addEventListener("click", async () => {
@@ -432,7 +460,10 @@ HTML_PAGE = """<!DOCTYPE html>
       await refresh();
     });
 
-    el("refresh").addEventListener("click", refresh);
+    el("refresh").addEventListener("click", async () => {
+      msgTouched = false;
+      await refresh();
+    });
 
     const es = new EventSource("/api/events");
     es.onmessage = (ev) => {
@@ -447,6 +478,7 @@ HTML_PAGE = """<!DOCTYPE html>
     es.onerror = () => { /* 断线后靠轮询 */ };
 
     refresh();
+    loadSuggestedMessage(false);
     setInterval(refresh, 8000);
   </script>
 </body>
@@ -490,6 +522,17 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/status":
             self._send_json(HUB.snapshot())
+            return
+
+        if path == "/api/suggest-message":
+            try:
+                message = summarize_worktree_commit_message()
+            except Exception as exc:  # noqa: BLE001 — 预览失败不应拖垮页面
+                message = "代码更新"
+                err = str(exc)
+            else:
+                err = ""
+            self._send_json({"ok": True, "message": message, "error": err or None})
             return
 
         if path == "/api/events":
