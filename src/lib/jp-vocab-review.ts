@@ -46,9 +46,6 @@ export function effectiveJpVocabDisplayLevel(
   return undefined;
 }
 
-/** 同一单词在此时间内改选熟悉程度，视为修正上次判断，不重复计次 */
-export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
-
 export function reviewTimestampMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
   const normalized = iso.includes("T") ? iso : iso.replace(" ", "T");
@@ -56,15 +53,15 @@ export function reviewTimestampMs(iso: string | null | undefined): number | null
   return Number.isFinite(ms) ? ms : null;
 }
 
+/** 同一单词今日内改选熟悉程度，视为修正上次判断，不重复计次 */
 export function isJpVocabReviewCorrection(
   lastLevel: JpVocabLevel | null | undefined,
   lastAt: string | null | undefined,
-  nowMs = Date.now()
+  now = new Date()
 ): lastLevel is JpVocabLevel {
   if (!lastLevel || !lastAt) return false;
-  const t = reviewTimestampMs(lastAt);
-  if (t == null) return false;
-  return nowMs - t <= JP_VOCAB_REVIEW_CORRECTION_MS;
+  if (!JP_VOCAB_LEVELS.includes(lastLevel)) return false;
+  return isJpVocabReviewToday(lastAt, now);
 }
 
 export function formatReviewIso(now = new Date()): string {
@@ -94,23 +91,20 @@ export function resolveJpVocabPreviousLevel(
   } = {}
 ): JpVocabLevel | null {
   const nowMs = opts.nowMs ?? Date.now();
-  if (
-    opts.sessionLevel &&
-    opts.sessionReviewAtMs != null &&
-    nowMs - opts.sessionReviewAtMs <= JP_VOCAB_REVIEW_CORRECTION_MS
-  ) {
-    return opts.sessionLevel;
+  const now = new Date(nowMs);
+  if (opts.sessionLevel && opts.sessionReviewAtMs != null) {
+    const sessionDay = beijingDateString(new Date(opts.sessionReviewAtMs));
+    if (sessionDay === beijingDateString(now)) {
+      return opts.sessionLevel;
+    }
   }
-  if (
-    isJpVocabReviewToday(word.last_review_at, new Date(nowMs)) &&
-    isJpVocabReviewCorrection(word.last_review_level, word.last_review_at, nowMs)
-  ) {
+  if (isJpVocabReviewCorrection(word.last_review_level, word.last_review_at, now)) {
     return word.last_review_level ?? null;
   }
   return null;
 }
 
-/** 应用一次熟悉程度勾选（新抽查 or 15 秒内改选修正） */
+/** 应用一次熟悉程度勾选（新抽查 or 今日内改选修正） */
 export function applyJpVocabReview(
   word: JpVocabWord,
   level: JpVocabLevel,
