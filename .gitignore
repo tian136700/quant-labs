@@ -38,6 +38,7 @@ Desktop.ini
 # 本地 D1 导出 / 同步缓存（含线上数据副本，勿提交）
 tmp/
 tmp/**
+tmp/d1-backups/
 *-dump.sql
 *-export.sql
 *-backup.sql

@@ -249,6 +249,9 @@ export function AdminJpLessonTeachersPage() {
 
   const saveEdit = async () => {
     if (editingId == null) return;
+    const original = teachers.find((t) => t.id === editingId);
+    if (!original) return;
+    const baseline = resolveLessonTeacherRateFields(original);
     setSaving(true);
     setStatus("");
     setStatusErr(false);
@@ -261,8 +264,12 @@ export function AdminJpLessonTeachersPage() {
           action: "update",
           id: editingId,
           name: editName,
-          hourly_rate: editHourlyRate.trim() ? Number(editHourlyRate) : null,
-          lesson_minutes: editLessonMinutes.trim() ? Number(editLessonMinutes) : null,
+          hourly_rate: editHourlyRate.trim()
+            ? Number(editHourlyRate)
+            : baseline.hourly_rate,
+          lesson_minutes: editLessonMinutes.trim()
+            ? Number(editLessonMinutes)
+            : baseline.lesson_minutes,
           sort_order: editSortOrder,
         }),
       });
@@ -546,7 +553,10 @@ export function AdminJpLessonTeachersPage() {
                             ))}
                           </select>
                         ) : (
-                          formatTeacherLessonMinutes(teacher.lesson_minutes, locale)
+                          formatTeacherLessonMinutes(
+                            resolveLessonTeacherRateFields(teacher).lesson_minutes,
+                            locale
+                          )
                         )}
                       </td>
                       <td className="col-score">

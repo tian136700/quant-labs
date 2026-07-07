@@ -75,27 +75,6 @@ function mapRow(row: Record<string, unknown>): EnLessonTeacher {
   return { ...base, ...resolved };
 }
 
-async function migrateTeacherRateFieldsIfNeeded(
-  db: D1Database,
-  before: Pick<EnLessonTeacher, "id" | "name" | "hourly_rate" | "lesson_minutes">,
-  after: Pick<EnLessonTeacher, "name" | "hourly_rate" | "lesson_minutes">
-): Promise<void> {
-  if (
-    before.name === after.name &&
-    before.hourly_rate === after.hourly_rate &&
-    before.lesson_minutes === after.lesson_minutes
-  ) {
-    return;
-  }
-
-  await db
-    .prepare(
-      `UPDATE en_lesson_teacher SET name = ?1, hourly_rate = ?2, lesson_minutes = ?3, updated_at = ?4 WHERE id = ?5`
-    )
-    .bind(after.name, after.hourly_rate, after.lesson_minutes, nowIso(), before.id)
-    .run();
-}
-
 const TEACHER_SELECT = `SELECT id, name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at FROM en_lesson_teacher`;
 
 export async function listEnLessonTeachers(db: D1Database): Promise<EnLessonTeacher[]> {
@@ -109,14 +88,7 @@ export async function listEnLessonTeachers(db: D1Database): Promise<EnLessonTeac
     .prepare(`${TEACHER_SELECT} ORDER BY sort_order ASC, id ASC`)
     .all<Record<string, unknown>>();
 
-  const teachers: EnLessonTeacher[] = [];
-  for (const row of result.results || []) {
-    const before = readTeacherRowFields(row);
-    const teacher = mapRow(row);
-    await migrateTeacherRateFieldsIfNeeded(db, before, teacher);
-    teachers.push(teacher);
-  }
-  return teachers;
+  return (result.results || []).map(mapRow);
 }
 
 export async function getEnLessonTeacherById(

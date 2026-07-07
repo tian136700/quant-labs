@@ -12,6 +12,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DB = "strategy-compare-db"
+SCRIPTS = ROOT / "scripts"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from d1_backup import ensure_remote_backup
 DASH_PATTERN = re.compile(r"[-－—]")
 
 
@@ -93,6 +98,12 @@ def main() -> int:
     remote = args.remote
     label = "remote" if remote else "local"
     print(f"[migrate-jp-lesson-teacher-hourly-rate] target={label}", flush=True)
+
+    if remote:
+        ensure_remote_backup(
+            ["jp_lesson_teacher"],
+            reason="migrate-jp-lesson-teacher-hourly-rate",
+        )
 
     if not column_exists(remote, "jp_lesson_teacher", "hourly_rate"):
         run_wrangler(

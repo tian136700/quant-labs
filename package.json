@@ -71,7 +71,9 @@
     "db:migrate-en-vocab-fill-reading:remote": "python3 scripts/migrate-en-vocab-fill-reading.py --remote",
     "db:import-etr:local": "python3 scripts/import-etr-from-stt.py --local",
     "db:import-etr:remote": "python3 scripts/import-etr-from-stt.py --remote",
-    "db:sync-remote-to-local": "python3 scripts/sync-d1-remote-to-local.py"
+    "db:sync-remote-to-local": "python3 scripts/sync-d1-remote-to-local.py",
+    "db:backup:remote": "python3 scripts/d1_backup.py --remote --reason manual",
+    "db:backup:scan": "python3 scripts/d1_backup.py --scan"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.0.4",
