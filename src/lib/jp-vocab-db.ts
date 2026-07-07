@@ -39,6 +39,12 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
+import {
+  JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  JP_VOCAB_TEACHER_VISIBLE_STEP,
+  normalizeJpVocabTeacherVisibleLimit,
+  type JpVocabTeacherVisibleLimit,
+} from "@/lib/jp-vocab-teacher-visible";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
@@ -83,6 +89,10 @@ let vocabWordSchemaReady = false;
 let devDailyQuizStyle: JpVocabDailyQuizStyle = {
   ...JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
 };
+let devTeacherVisibleLimit: JpVocabTeacherVisibleLimit = {
+  date: "",
+  limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+};
 let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   date: "",
   ids: [],
@@ -101,6 +111,7 @@ let jpVocabSharedSchemaReady = false;
 
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
+const JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
@@ -608,11 +619,16 @@ export async function resetAllJpVocabReviews(
 
 export async function resetTodayJpVocabRound(
   db: D1Database
-): Promise<ResetJpVocabReviewsResult> {
+): Promise<
+  ResetJpVocabReviewsResult & { teacher_visible_limit: JpVocabTeacherVisibleLimit }
+> {
   await seedIfEmpty(db);
   const words = await listJpVocabWords(db);
-  const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
-  return { ok: true, words, display_order };
+  const [display_order, teacher_visible_limit] = await Promise.all([
+    refreshJpVocabDailyDisplayOrder(db, words),
+    resetJpVocabTeacherVisibleLimit(db),
+  ]);
+  return { ok: true, words, display_order, teacher_visible_limit };
 }
 
 export type UploadJpVocabWordsResult =
@@ -1652,6 +1668,82 @@ export async function setJpVocabDailyQuizStyle(
     .run();
 
   return normalized;
+}
+
+export async function getJpVocabTeacherVisibleLimit(
+  db: D1Database
+): Promise<JpVocabTeacherVisibleLimit> {
+  if (devStoreEnabled) {
+    return normalizeJpVocabTeacherVisibleLimit(devTeacherVisibleLimit);
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY)
+    .first<{ value: string }>();
+
+  if (!row?.value) {
+    return normalizeJpVocabTeacherVisibleLimit(null);
+  }
+
+  try {
+    return normalizeJpVocabTeacherVisibleLimit(
+      JSON.parse(row.value) as Partial<JpVocabTeacherVisibleLimit>
+    );
+  } catch {
+    return normalizeJpVocabTeacherVisibleLimit(null);
+  }
+}
+
+async function saveJpVocabTeacherVisibleLimit(
+  db: D1Database,
+  limit: JpVocabTeacherVisibleLimit
+): Promise<JpVocabTeacherVisibleLimit> {
+  const next = normalizeJpVocabTeacherVisibleLimit(limit);
+
+  if (devStoreEnabled) {
+    devTeacherVisibleLimit = next;
+    return next;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(
+      JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY,
+      JSON.stringify(next),
+      nowIso()
+    )
+    .run();
+
+  return next;
+}
+
+export async function expandJpVocabTeacherVisibleLimit(
+  db: D1Database
+): Promise<JpVocabTeacherVisibleLimit> {
+  const current = await getJpVocabTeacherVisibleLimit(db);
+  return saveJpVocabTeacherVisibleLimit(db, {
+    date: current.date,
+    limit: current.limit + JP_VOCAB_TEACHER_VISIBLE_STEP,
+  });
+}
+
+/** 今日重置时恢复老师默认可见序号 1–20 */
+export async function resetJpVocabTeacherVisibleLimit(
+  db: D1Database
+): Promise<JpVocabTeacherVisibleLimit> {
+  return saveJpVocabTeacherVisibleLimit(db, {
+    date: beijingDateString(),
+    limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  });
 }
 
 async function ensureJpVocabSharedSchema(db: D1Database): Promise<void> {

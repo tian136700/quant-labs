@@ -1,7 +1,9 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   ensureJpVocabDailyDisplayOrder,
+  expandJpVocabTeacherVisibleLimit,
   getJpVocabDailyQuizStyle,
+  getJpVocabTeacherVisibleLimit,
   listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
@@ -25,10 +27,12 @@ const AUTH_MSG = {
 export async function GET() {
   try {
     const env = await getCloudflareEnv();
-    const [{ words, refs }, daily_quiz_style, shared_today_word_ids] = await Promise.all([
+    const [{ words, refs }, daily_quiz_style, shared_today_word_ids, teacher_visible_limit] =
+      await Promise.all([
       listJpVocabWordsWithRefs(env.DB),
       getJpVocabDailyQuizStyle(env.DB),
       listJpVocabSharedTodayWordIds(env.DB),
+      getJpVocabTeacherVisibleLimit(env.DB),
     ]);
     const display_order = await ensureJpVocabDailyDisplayOrder(env.DB, words);
     return jsonResponse({
@@ -38,6 +42,7 @@ export async function GET() {
       daily_quiz_style,
       display_order,
       shared_today_word_ids,
+      teacher_visible_limit,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -73,6 +78,15 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: true, daily_quiz_style });
     }
 
+    if (body.action === "expand_teacher_visible") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+      const teacher_visible_limit = await expandJpVocabTeacherVisibleLimit(env.DB);
+      return jsonResponse({ ok: true, teacher_visible_limit });
+    }
+
     if (body.action === "reset") {
       const result = await resetAllJpVocabReviews(env.DB);
       if (!result.ok) {
@@ -94,6 +108,7 @@ export async function POST(request: Request) {
         ok: true,
         words: result.words,
         display_order: result.display_order,
+        teacher_visible_limit: result.teacher_visible_limit,
       });
     }
 

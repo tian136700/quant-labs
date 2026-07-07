@@ -1,14 +1,20 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
-import { listJpVocabWordsChangedSince } from "@/lib/jp-vocab-db";
+import {
+  getJpVocabTeacherVisibleLimit,
+  listJpVocabWordsChangedSince,
+} from "@/lib/jp-vocab-db";
 
 export async function GET(request: Request) {
   const since = new URL(request.url).searchParams.get("since")?.trim() ?? "";
 
   try {
     const env = await getCloudflareEnv();
-    const words = await listJpVocabWordsChangedSince(env.DB, since);
+    const [words, teacher_visible_limit] = await Promise.all([
+      listJpVocabWordsChangedSince(env.DB, since),
+      getJpVocabTeacherVisibleLimit(env.DB),
+    ]);
     return jsonResponse(
-      { ok: true, words },
+      { ok: true, words, teacher_visible_limit },
       200,
       { "Cache-Control": "no-store" }
     );

@@ -9,10 +9,14 @@ import {
   normalizeJpVocabRoundCheckedIds,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
+import {
+  normalizeJpVocabTeacherVisibleLimit,
+  type JpVocabTeacherVisibleLimit,
+} from "@/lib/jp-vocab-teacher-visible";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 
-export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v4";
+export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v5";
 export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v6";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
@@ -25,6 +29,8 @@ export type JpVocabApiPayload = {
   display_order: JpVocabDailyDisplayOrder;
   /** 今日已共享到「今日背单词」的 word_id 列表（北京时间 0 点清空） */
   shared_today_word_ids: number[];
+  /** 非管理员老师可见的当日序号上限（默认 20，跨日重置） */
+  teacher_visible_limit: JpVocabTeacherVisibleLimit;
 };
 
 export type JpLessonApiPayload = {
@@ -42,6 +48,7 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
     display_order?: Partial<JpVocabDailyDisplayOrder>;
     shared_today_word_ids?: number[];
+    teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
     error?: string;
   };
   if (!data.ok || !Array.isArray(data.words)) {
@@ -88,6 +95,9 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     shared_today_word_ids: Array.isArray(data.shared_today_word_ids)
       ? data.shared_today_word_ids.map((id) => Number(id)).filter((id) => id > 0)
       : [],
+    teacher_visible_limit: normalizeJpVocabTeacherVisibleLimit(
+      data.teacher_visible_limit
+    ),
   };
 }
 
