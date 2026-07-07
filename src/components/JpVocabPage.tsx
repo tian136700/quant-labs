@@ -1555,7 +1555,7 @@ export function JpVocabPage() {
                   const riskBadgeTier =
                     risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const hasNotes = Boolean((w.class_notes || "").trim());
-                  const notesActions = (
+                  const renderNotesActions = () => (
                     <div className="jp-vocab-notes-actions">
                       {hasNotes ? (
                         <button
@@ -1814,7 +1814,7 @@ export function JpVocabPage() {
                           }`}
                           data-label="备注"
                         >
-                          <div className="jp-vocab-notes-desktop">{notesActions}</div>
+                          <div className="jp-vocab-notes-desktop">{renderNotesActions()}</div>
                           <details className="jp-vocab-notes-fold jp-vocab-mobile-only">
                             <summary className="jp-vocab-notes-fold__summary">
                               <span className="jp-vocab-fold-label">备注</span>
@@ -1822,7 +1822,7 @@ export function JpVocabPage() {
                                 {hasNotes ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
                               </span>
                             </summary>
-                            {notesActions}
+                            {renderNotesActions()}
                           </details>
                         </td>
                       ) : null}
@@ -2267,15 +2267,15 @@ export function JpVocabPage() {
         .jp-vocab-notes-view-btn .jp-vocab-notes-view-label {
           display: none;
         }
-        .jp-vocab-notes-view-btn svg {
-          display: block;
-        }
         .jp-vocab-action-row {
           display: contents;
         }
         .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
         .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
           display: none;
+        }
+        .jp-vocab-notes-actions .jp-vocab-notes-view-btn svg {
+          display: block;
         }
         .jp-vocab-ref-hint {
           display: block;
