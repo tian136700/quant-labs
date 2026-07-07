@@ -215,8 +215,6 @@ export function JpVocabPage() {
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
-  const [sharingId, setSharingId] = useState<number | null>(null);
-  const [unsharingId, setUnsharingId] = useState<number | null>(null);
   const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
     () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
   );
@@ -702,7 +700,7 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (sharingId === wordId || savingId === wordId) return;
+    if (savingId === wordId) return;
     if (sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日已共享。");
       return;
@@ -719,6 +717,7 @@ export function JpVocabPage() {
         nowMs,
       }) ?? undefined;
     const displayOrderSnapshot = displayOrderRef.current;
+    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
     const weakLevel: JpVocabLevel = "weak";
     const alreadyMarked =
       prevLevel != null ||
@@ -727,70 +726,74 @@ export function JpVocabPage() {
         snapshot.today_check_date
       ) > 0;
 
-    setHighlightId(wordId);
-    setStatus("");
+    let nextDisplayOrder = displayOrderSnapshot;
+    let nextWords = words;
     if (!alreadyMarked) {
+      nextDisplayOrder = markJpVocabRoundChecked(displayOrderSnapshot, wordId);
+      nextWords = words.map((w) =>
+        w.id === wordId ? bumpWordReview(w, weakLevel, prevLevel) : w
+      );
       setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
       setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-      setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
-      setWords((prev) =>
-        prev.map((w) =>
-          w.id === wordId ? bumpWordReview(w, weakLevel, prevLevel) : w
-        )
-      );
+      setDisplayOrder(nextDisplayOrder);
+      setWords(nextWords);
     }
-    setSharingId(wordId);
+
+    const nextSharedIds = [...sharedIdsSnapshot, wordId];
+    setSharedTodayWordIds(new Set(nextSharedIds));
+    persistVocabCache(nextWords, refs, nextDisplayOrder, nextSharedIds);
+
+    setHighlightId(wordId);
+    setStatus(
+      alreadyMarked
+        ? "已共享到学生「今日背单词」。"
+        : "已共享到学生「今日背单词」，并标记为不熟悉。"
+    );
+    notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
 
     try {
-      const res = await fetch("/api/jp-vocab/share", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_id: wordId }),
+      await jpVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/jp-vocab/share", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        };
+        if (res.status === 401) {
+          await refresh();
+          throw new Error(SAVE_ERR[locale]);
+        }
+        if (res.status === 409 || data.error === "already_shared_today") {
+          return;
+        }
+        if (!data.ok || !data.word) {
+          throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
+        }
+        setWords((prev) => {
+          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+          persistVocabCache(
+            next,
+            refs,
+            displayOrderRef.current,
+            [...sharedTodayWordIdsRef.current]
+          );
+          return next;
+        });
       });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: JpVocabWord;
-        error?: string;
-      };
-      if (res.status === 401) {
-        await refresh();
-        throw new Error(SAVE_ERR[locale]);
-      }
-      if (res.status === 409 || data.error === "already_shared_today") {
-        setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
-        throw new Error("该词今日已共享。");
-      }
-      if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
-      }
-      setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
-      setWords((prev) => {
-        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(
-          next,
-          refs,
-          displayOrderRef.current,
-          [...sharedTodayWordIdsRef.current, wordId]
-        );
-        return next;
-      });
-      setStatus(
-        alreadyMarked
-          ? "已共享到学生「今日背单词」。"
-          : "已共享到学生「今日背单词」，并标记为不熟悉。"
-      );
-      notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
     } catch (err) {
+      setSharedTodayWordIds(new Set(sharedIdsSnapshot));
       if (snapshot && !alreadyMarked) {
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? snapshot : w))
         );
-      }
-      if (!alreadyMarked) {
         setDisplayOrder(displayOrderSnapshot);
         setSessionLevel((prev) => {
           const next = { ...prev };
@@ -804,10 +807,16 @@ export function JpVocabPage() {
           else delete next[wordId];
           return next;
         });
+        persistVocabCache(
+          words.map((w) => (w.id === wordId ? snapshot : w)),
+          refs,
+          displayOrderSnapshot,
+          sharedIdsSnapshot
+        );
+      } else {
+        persistVocabCache(words, refs, displayOrderSnapshot, sharedIdsSnapshot);
       }
       setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSharingId(null);
     }
   };
 
@@ -821,82 +830,94 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (unsharingId === wordId || sharingId === wordId || savingId === wordId) return;
+    if (savingId === wordId) return;
     if (!sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日尚未共享。");
       return;
     }
 
+    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
+    const nextSharedIds = sharedIdsSnapshot.filter((id) => id !== wordId);
+    setSharedTodayWordIds(new Set(nextSharedIds));
+    persistVocabCache(
+      wordsRef.current,
+      refsRef.current,
+      displayOrderRef.current,
+      nextSharedIds
+    );
+
     setHighlightId(wordId);
-    setStatus("");
-    setUnsharingId(wordId);
+    setStatus("已取消共享，学生「今日背单词」中不再显示该词。");
+    notifyJpVocabSharedUpdated({ wordId });
 
     try {
-      const res = await fetch("/api/jp-vocab/share", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_id: wordId }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: JpVocabWord;
-        reverted?: boolean;
-        display_order?: JpVocabDailyDisplayOrder | null;
-        error?: string;
-      };
-      if (res.status === 401) {
-        await refresh();
-        throw new Error(SAVE_ERR[locale]);
-      }
-      if (res.status === 409 || data.error === "not_shared_today") {
-        setSharedTodayWordIds((prev) => {
-          const next = new Set(prev);
-          next.delete(wordId);
-          return next;
+      await jpVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/jp-vocab/share", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId }),
         });
-        throw new Error("该词今日尚未共享。");
-      }
-      if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "取消共享失败" : "Unshare failed"));
-      }
-
-      const nextSharedIds = [...sharedTodayWordIdsRef.current].filter((id) => id !== wordId);
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      setWords((prev) => {
-        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(next, refs, displayOrderRef.current, nextSharedIds);
-        return next;
-      });
-
-      if (data.reverted) {
-        setSessionLevel((prev) => {
-          const next = { ...prev };
-          delete next[wordId];
-          return next;
-        });
-        setSessionReviewAt((prev) => {
-          const next = { ...prev };
-          delete next[wordId];
-          return next;
-        });
-        if (data.display_order) {
-          setDisplayOrder(data.display_order);
-        } else {
-          setDisplayOrder((prev) => unmarkJpVocabRoundChecked(prev, wordId));
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          reverted?: boolean;
+          display_order?: JpVocabDailyDisplayOrder | null;
+          error?: string;
+        };
+        if (res.status === 401) {
+          await refresh();
+          throw new Error(SAVE_ERR[locale]);
         }
-        setStatus("已取消共享，并撤销自动标记的不熟悉。");
-      } else {
-        setStatus("已取消共享，学生「今日背单词」中不再显示该词。");
-      }
-      notifyJpVocabSharedUpdated({ wordId });
+        if (res.status === 409 || data.error === "not_shared_today") {
+          return;
+        }
+        if (!data.ok || !data.word) {
+          throw new Error(data.error || (locale === "zh" ? "取消共享失败" : "Unshare failed"));
+        }
+
+        setWords((prev) => {
+          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+          persistVocabCache(
+            next,
+            refsRef.current,
+            data.display_order ?? displayOrderRef.current,
+            [...sharedTodayWordIdsRef.current]
+          );
+          return next;
+        });
+
+        if (data.reverted) {
+          setSessionLevel((prev) => {
+            const next = { ...prev };
+            delete next[wordId];
+            return next;
+          });
+          setSessionReviewAt((prev) => {
+            const next = { ...prev };
+            delete next[wordId];
+            return next;
+          });
+          if (data.display_order) {
+            setDisplayOrder(data.display_order);
+          } else {
+            setDisplayOrder((prev) => unmarkJpVocabRoundChecked(prev, wordId));
+          }
+          setStatus("已取消共享，并撤销自动标记的不熟悉。");
+        }
+      });
     } catch (err) {
+      setSharedTodayWordIds(new Set(sharedIdsSnapshot));
+      persistVocabCache(
+        wordsRef.current,
+        refsRef.current,
+        displayOrderRef.current,
+        sharedIdsSnapshot
+      );
       setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setUnsharingId(null);
     }
   };
 
@@ -1855,36 +1876,21 @@ export function JpVocabPage() {
                                   <button
                                     type="button"
                                     className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
-                                    disabled={
-                                      unsharingId === w.id ||
-                                      sharingId === w.id ||
-                                      isSaving
-                                    }
-                                    title={
-                                      unsharingId === w.id
-                                        ? "取消共享中…"
-                                        : "从学生「今日背单词」移除；若共享时自动标记了不熟悉，将一并撤销"
-                                    }
+                                    disabled={isSaving}
+                                    title="从学生「今日背单词」移除；若共享时自动标记了不熟悉，将一并撤销"
                                     onClick={() => void unshareWord(w.id)}
                                   >
-                                    {unsharingId === w.id ? "取消中…" : "取消共享"}
+                                    取消共享
                                   </button>
                                 ) : (
                                   <button
                                     type="button"
                                     className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
-                                    disabled={
-                                      sharingId === w.id ||
-                                      isSaving
-                                    }
-                                    title={
-                                      sharingId === w.id
-                                        ? "发送中…"
-                                        : "发给学生「今日背单词」，并标记为不熟悉"
-                                    }
+                                    disabled={isSaving}
+                                    title="发给学生「今日背单词」，并标记为不熟悉"
                                     onClick={() => void shareWord(w.id)}
                                   >
-                                    {sharingId === w.id ? "发送中…" : "发给学生复习"}
+                                    发给学生复习
                                   </button>
                                 )
                               ) : null}

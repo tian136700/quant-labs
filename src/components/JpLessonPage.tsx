@@ -60,8 +60,10 @@ import {
 import {
   mergeJpLessonTeachersCache,
   readJpLessonTeachersCache,
+  syncJpLessonTeachersCache,
   upsertJpLessonTeacherCache,
 } from "@/lib/jp-lesson-teachers-cache";
+import { jpLessonSaveQueue } from "@/lib/request-queue";
 import { SITE_URL } from "@/lib/site";
 import type {
   JpLessonClassScheduleInput,
@@ -306,7 +308,6 @@ export function JpLessonPage() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
-  const [savingTeacherId, setSavingTeacherId] = useState<number | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [mobileStatusFilter, setMobileStatusFilter] =
@@ -507,69 +508,131 @@ export function JpLessonPage() {
     }
   };
 
-  const setLessonTeachers = async (
+  const setLessonTeachers = (
     lessonId: number,
     teacherIds: number[],
     teacherOther: string | null,
+    teacherUpdates: JpLessonTeacherUpdateInput[] = [],
     options?: { keepOpen?: boolean }
   ) => {
-    if (!isAdmin || savingTeacherId === lessonId) return;
+    if (!isAdmin) return;
 
-    const snapshot = lessons.find((l) => l.id === lessonId);
-    setSavingTeacherId(lessonId);
-    setLessons((prev) =>
-      prev.map((l) =>
-        l.id === lessonId ? { ...l, teacher_ids: teacherIds, teacher_other: teacherOther } : l
-      )
-    );
+    const lessonSnapshot = lessons.find((l) => l.id === lessonId);
+    const teachersSnapshot = teachers;
 
-    try {
-      const res = await fetch("/api/jp-lesson", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_teacher",
-          lesson_id: lessonId,
-          teacher_ids: teacherIds,
-          teacher_other: teacherOther,
+    let nextTeachers = teachers;
+    for (const input of teacherUpdates) {
+      const updated = normalizeJpLessonTeacher({
+        ...(nextTeachers.find((t) => t.id === input.id) ?? {
+          id: input.id,
+          sort_order: 0,
+          created_at: "",
+          updated_at: "",
         }),
+        name: input.name,
+        hourly_rate: input.hourly_rate,
+        lesson_minutes: input.lesson_minutes,
       });
-      const data = (await res.json()) as {
-        ok: boolean;
-        lesson?: JpLessonRecord;
-        error?: string;
-      };
-      if (!data.ok || !data.lesson) {
-        throw new Error(data.error || "保存失败");
-      }
-      setLessons((prev) => {
-        const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
-        setTeachers((currentTeachers) => {
-          persistLessonCache(next, refs, notes, currentTeachers);
-          return currentTeachers;
-        });
-        return next;
-      });
-      if (!options?.keepOpen) {
-        setEditingTeacherLesson(null);
-      }
-      setStatus("上课老师已更新");
-      window.setTimeout(() => setStatus(""), 2500);
-    } catch (err) {
-      if (snapshot) {
-        setLessons((prev) =>
-          prev.map((l) => (l.id === lessonId ? snapshot : l))
-        );
-      }
-      setStatus(err instanceof Error ? err.message : "保存失败");
-      throw err;
-    } finally {
-      setSavingTeacherId(null);
+      nextTeachers = nextTeachers
+        .map((t) => (t.id === input.id ? updated : t))
+        .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+      upsertJpLessonTeacherCache(updated);
     }
+    setTeachers(nextTeachers);
+
+    const nextLessons = lessons.map((l) =>
+      l.id === lessonId
+        ? { ...l, teacher_ids: teacherIds, teacher_other: teacherOther }
+        : l
+    );
+    setLessons(nextLessons);
+    persistLessonCache(nextLessons, refs, notes, nextTeachers);
+
+    if (!options?.keepOpen) {
+      setEditingTeacherLesson(null);
+    }
+    setStatus("上课老师已更新");
+    window.setTimeout(() => setStatus(""), 2500);
+
+    void jpLessonSaveQueue.enqueue(async () => {
+      try {
+        for (const input of teacherUpdates) {
+          const res = await fetch("/api/admin/jp-lesson-teachers", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "update",
+              id: input.id,
+              name: input.name,
+              hourly_rate: input.hourly_rate,
+              lesson_minutes: input.lesson_minutes,
+            }),
+          });
+          const data = (await res.json()) as {
+            ok?: boolean;
+            teacher?: JpLessonTeacher;
+            error?: string;
+          };
+          if (!data.ok || !data.teacher) {
+            throw new Error(data.error || "保存老师信息失败");
+          }
+          const teacher = normalizeJpLessonTeacher(data.teacher);
+          upsertJpLessonTeacherCache(teacher);
+          setTeachers((prev) => {
+            const next = prev
+              .map((t) => (t.id === teacher.id ? teacher : t))
+              .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+            return next;
+          });
+        }
+
+        const res = await fetch("/api/jp-lesson", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            action: "set_teacher",
+            lesson_id: lessonId,
+            teacher_ids: teacherIds,
+            teacher_other: teacherOther,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          lesson?: JpLessonRecord;
+          error?: string;
+        };
+        if (!data.ok || !data.lesson) {
+          throw new Error(data.error || "保存失败");
+        }
+
+        setLessons((prev) => {
+          const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
+          setTeachers((currentTeachers) => {
+            persistLessonCache(next, refs, notes, currentTeachers);
+            return currentTeachers;
+          });
+          return next;
+        });
+      } catch (err) {
+        syncJpLessonTeachersCache(teachersSnapshot);
+        setTeachers(teachersSnapshot);
+        if (lessonSnapshot) {
+          setLessons((prev) => {
+            const next = prev.map((l) => (l.id === lessonId ? lessonSnapshot : l));
+            persistLessonCache(next, refs, notes, teachersSnapshot);
+            return next;
+          });
+        } else {
+          persistLessonCache(lessons, refs, notes, teachersSnapshot);
+        }
+        setStatus(err instanceof Error ? err.message : "保存失败");
+      }
+    });
   };
 
   const addLessonTeacher = async (
@@ -899,7 +962,6 @@ export function JpLessonPage() {
             key={`teacher-${lesson.id}`}
             type="button"
             className="jp-lesson-mobile-footer-btn"
-            disabled={savingTeacherId === lesson.id}
             onClick={() => openTeacherEditModal(lesson)}
           >
             <JpLessonMobileIcon name="user" />
@@ -943,7 +1005,6 @@ export function JpLessonPage() {
               <JpEditIconButton
                 key={item.id}
                 title={`设置 #${item.id} 上课老师`}
-                disabled={savingTeacherId === item.id}
                 onClick={() => openTeacherEditModal(item)}
               />
             ))}
@@ -1390,16 +1451,16 @@ export function JpLessonPage() {
         open={editingTeacherLesson != null}
         lesson={editingTeacherLesson}
         teachers={teachers}
-        saving={savingTeacherId === editingTeacherLesson?.id}
         onClose={() => setEditingTeacherLesson(null)}
         onAddTeacher={addLessonTeacher}
         onUpdateTeacher={updateLessonTeacher}
-        onSave={(teacherIds, teacherOther, options) => {
+        onSave={(teacherIds, teacherOther, teacherUpdates, options) => {
           if (editingTeacherLesson) {
-            return setLessonTeachers(
+            setLessonTeachers(
               editingTeacherLesson.id,
               teacherIds,
               teacherOther,
+              teacherUpdates,
               options
             );
           }

@@ -52,8 +52,9 @@ type Props = {
   onSave: (
     teacherIds: number[],
     teacherOther: string | null,
+    teacherUpdates: JpLessonTeacherUpdateInput[],
     options?: { keepOpen?: boolean }
-  ) => void | Promise<void>;
+  ) => void;
   onAddTeacher: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onUpdateTeacher: (input: JpLessonTeacherUpdateInput) => Promise<JpLessonTeacher | null>;
 };
@@ -197,6 +198,7 @@ export function JpLessonTeacherEditModal({
 
     const existing = resolveExistingTeacher(input.name);
     if (existing) {
+      let teacherUpdates: JpLessonTeacherUpdateInput[] = [];
       if (addPrice.trim() && addMinutes.trim()) {
         const hourly = calcHourlyRate(Number(addPrice), Number(addMinutes));
         if (hourly == null) {
@@ -204,17 +206,14 @@ export function JpLessonTeacherEditModal({
           skipAddBlurRef.current = false;
           return;
         }
-        const updated = await onUpdateTeacher({
-          id: existing.id,
-          name: existing.name,
-          hourly_rate: hourly,
-          lesson_minutes: Number(addMinutes),
-        });
-        if (!updated) {
-          setAddError("更新老师课时费失败，请重试");
-          skipAddBlurRef.current = false;
-          return;
-        }
+        teacherUpdates = [
+          {
+            id: existing.id,
+            name: existing.name,
+            hourly_rate: hourly,
+            lesson_minutes: Number(addMinutes),
+          },
+        ];
       }
 
       const nextIds = selectedIds.includes(existing.id)
@@ -224,8 +223,8 @@ export function JpLessonTeacherEditModal({
       setAddName("");
       setAddPrice("");
       setAddMinutes("");
-      if (!selectedIds.includes(existing.id)) {
-        await onSave(nextIds, null, { keepOpen: true });
+      if (!selectedIds.includes(existing.id) || teacherUpdates.length > 0) {
+        onSave(nextIds, null, teacherUpdates, { keepOpen: true });
       }
       skipAddBlurRef.current = false;
       return;
@@ -255,22 +254,19 @@ export function JpLessonTeacherEditModal({
       setAddName("");
       setAddPrice("");
       setAddMinutes("");
-      await onSave(nextIds, null, { keepOpen: true });
+      onSave(nextIds, null, [], { keepOpen: true });
     } finally {
       setAddingTeacher(false);
       skipAddBlurRef.current = false;
     }
   };
 
-  const handleSave = async () => {
-    if (saving || addingTeacher) return;
-    setSaveError("");
-
+  const collectTeacherUpdates = (): JpLessonTeacherUpdateInput[] | null => {
     for (const teacher of sortedTeachers) {
       const draft = drafts[teacher.id];
       if (!draft?.name.trim()) {
         setSaveError("老师名称不能为空");
-        return;
+        return null;
       }
     }
 
@@ -279,6 +275,7 @@ export function JpLessonTeacherEditModal({
       name: drafts[teacher.id]?.name.trim() || teacher.name,
     }));
     const reservedNames = new Set<string>();
+    const updates: JpLessonTeacherUpdateInput[] = [];
 
     for (const teacher of sortedTeachers) {
       const draft = drafts[teacher.id];
@@ -309,26 +306,23 @@ export function JpLessonTeacherEditModal({
         reservedNames
       ).name;
       reservedNames.add(plannedName);
-
-      const updated = await onUpdateTeacher({
+      updates.push({
         id: teacher.id,
         name: plannedName,
         hourly_rate,
         lesson_minutes,
       });
-      if (!updated) {
-        setSaveError("保存老师信息失败，请稍后重试");
-        return;
-      }
-      if (updated.name !== name) {
-        setDrafts((prev) => ({
-          ...prev,
-          [teacher.id]: { ...prev[teacher.id], name: updated.name },
-        }));
-      }
     }
 
-    await onSave(selectedIds, null);
+    return updates;
+  };
+
+  const handleSave = () => {
+    if (addingTeacher) return;
+    setSaveError("");
+    const teacherUpdates = collectTeacherUpdates();
+    if (teacherUpdates == null) return;
+    onSave(selectedIds, null, teacherUpdates);
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -531,7 +525,7 @@ export function JpLessonTeacherEditModal({
             disabled={saving || addingTeacher}
             onClick={() => void handleSave()}
           >
-            {saving ? "保存中…" : "保存"}
+            保存
           </button>
         </div>
       </div>

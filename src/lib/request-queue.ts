@@ -15,3 +15,5 @@ export class RequestQueue {
 /** 日语单词页勾选/保存等写操作共用，避免并发 POST 压垮 Worker */
 export const jpVocabSaveQueue = new RequestQueue();
 export const enVocabSaveQueue = new RequestQueue();
+/** 日语新课页上课老师/日程等写操作串行，便于乐观更新后后台同步 */
+export const jpLessonSaveQueue = new RequestQueue();
