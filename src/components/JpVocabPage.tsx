@@ -1554,6 +1554,43 @@ export function JpVocabPage() {
                   const posTrim = (w.pos || "").trim();
                   const riskBadgeTier =
                     risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+                  const hasNotes = Boolean((w.class_notes || "").trim());
+                  const notesActions = (
+                    <div className="jp-vocab-notes-actions">
+                      {hasNotes ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
+                          title="查看备注"
+                          onClick={() => setViewingRemarksWord(w)}
+                        >
+                          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                            <path
+                              d="M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M10 8.5v3M10 13.5h.01"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <span className="jp-vocab-notes-view-label">查看</span>
+                        </button>
+                      ) : null}
+                      {canOperate ? (
+                        <JpEditIconButton
+                          title="编辑备注"
+                          className="jp-vocab-notes-edit-btn"
+                          onClick={() => setEditingRemarksWord(w)}
+                        />
+                      ) : null}
+                    </div>
+                  );
 
                   return (
                     <tr
@@ -1773,52 +1810,19 @@ export function JpVocabPage() {
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
-                            !(w.class_notes || "").trim() && !canOperate
-                              ? " jp-vocab-field-empty"
-                              : ""
+                            !hasNotes && !canOperate ? " jp-vocab-field-empty" : ""
                           }`}
                           data-label="备注"
                         >
-                          <details className="jp-vocab-notes-fold">
-                            <summary className="jp-vocab-notes-fold__summary jp-vocab-mobile-only">
+                          <div className="jp-vocab-notes-desktop">{notesActions}</div>
+                          <details className="jp-vocab-notes-fold jp-vocab-mobile-only">
+                            <summary className="jp-vocab-notes-fold__summary">
                               <span className="jp-vocab-fold-label">备注</span>
                               <span className="jp-vocab-notes-fold__hint">
-                                {(w.class_notes || "").trim() ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
+                                {hasNotes ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
                               </span>
                             </summary>
-                            <div className="jp-vocab-notes-actions">
-                              {(w.class_notes || "").trim() ? (
-                                <button
-                                  type="button"
-                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
-                                  onClick={() => setViewingRemarksWord(w)}
-                                >
-                                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                                    <path
-                                      d="M10 4.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="1.5"
-                                    />
-                                    <path
-                                      d="M10 8.5v3M10 13.5h.01"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="1.5"
-                                      strokeLinecap="round"
-                                    />
-                                  </svg>
-                                  查看
-                                </button>
-                              ) : null}
-                              {canOperate ? (
-                                <JpEditIconButton
-                                  title="编辑备注"
-                                  className="jp-vocab-notes-edit-btn"
-                                  onClick={() => setEditingRemarksWord(w)}
-                                />
-                              ) : null}
-                            </div>
+                            {notesActions}
                           </details>
                         </td>
                       ) : null}
@@ -2255,8 +2259,16 @@ export function JpVocabPage() {
         .jp-vocab-meaning-fold {
           display: none;
         }
-        .jp-vocab-notes-fold > summary {
+        .jp-vocab-notes-desktop {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .jp-vocab-notes-view-btn .jp-vocab-notes-view-label {
           display: none;
+        }
+        .jp-vocab-notes-view-btn svg {
+          display: block;
         }
         .jp-vocab-action-row {
           display: contents;
@@ -2643,6 +2655,12 @@ export function JpVocabPage() {
           }
           .jp-vocab-mobile-only {
             display: block;
+          }
+          .jp-vocab-notes-desktop {
+            display: none;
+          }
+          .jp-vocab-notes-view-btn .jp-vocab-notes-view-label {
+            display: inline;
           }
           .jp-vocab-mobile-reading-row {
             display: flex;
