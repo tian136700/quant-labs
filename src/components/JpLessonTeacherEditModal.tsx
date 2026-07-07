@@ -25,6 +25,12 @@ type Props = {
   onAddTeacher: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
 };
 
+const TEACHER_LESSON_MINUTE_OPTIONS = [
+  { value: "30", label: "30 分钟" },
+  { value: "45", label: "45 分钟" },
+  { value: "60", label: "60 分钟（1 小时）" },
+] as const;
+
 export function JpLessonTeacherEditModal({
   open,
   lesson,
@@ -242,13 +248,9 @@ export function JpLessonTeacherEditModal({
                     }
                   }}
                 />
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  className="jp-lesson-teacher-add-input jp-lesson-teacher-add-input--short"
+                <select
+                  className="jp-lesson-teacher-add-input jp-lesson-teacher-add-input--short jp-lesson-teacher-add-select"
                   value={addMinutes}
-                  placeholder="分钟"
                   disabled={addingTeacher || saving}
                   onChange={(e) => {
                     setAddMinutes(e.target.value);
@@ -264,7 +266,14 @@ export function JpLessonTeacherEditModal({
                     if (skipAddBlurRef.current) return;
                     if (addName.trim()) void handleAddTeacher();
                   }}
-                />
+                >
+                  <option value="">时长</option>
+                  {TEACHER_LESSON_MINUTE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
                 {addHourlyPreview != null ? (
                   <span className="jp-lesson-teacher-add-preview">
                     ≈ {formatHourlyRate(addHourlyPreview)} 元
@@ -424,6 +433,16 @@ export function JpLessonTeacherEditModal({
 
         .jp-lesson-teacher-add-input--short {
           flex: 0 1 5rem;
+        }
+
+        .jp-lesson-teacher-add-select {
+          flex: 0 1 7.5rem;
+          min-width: 7rem;
+          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-add-select:disabled {
+          cursor: not-allowed;
         }
 
         .jp-lesson-teacher-add-preview {

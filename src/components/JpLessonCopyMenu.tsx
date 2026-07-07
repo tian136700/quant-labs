@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 
 type CopyMode = "withText" | "linkOnly";
 
@@ -32,39 +41,72 @@ export function JpLessonCopyMenu({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
+  const [mounted, setMounted] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  const toggleOpen = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      if (next && fixedPanel && wrapRef.current) {
-        const rect = wrapRef.current.getBoundingClientRect();
-        setPanelStyle({
-          position: "fixed",
-          top: rect.bottom + 4,
-          right: Math.max(8, window.innerWidth - rect.right),
-          left: "auto",
-        });
-      }
-      return next;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const updatePanelStyle = useCallback(() => {
+    if (!wrapRef.current) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    setPanelStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      right: Math.max(8, window.innerWidth - rect.right),
+      left: "auto",
+      zIndex: 10000,
     });
-  }, [fixedPanel]);
+  }, []);
+
+  const toggleOpen = useCallback(
+    (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      setOpen((prev) => {
+        const next = !prev;
+        if (next && fixedPanel) updatePanelStyle();
+        return next;
+      });
+    },
+    [fixedPanel, updatePanelStyle]
+  );
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    if (fixedPanel) updatePanelStyle();
+
+    const onDoc = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
+    const onScrollOrResize = () => {
+      if (fixedPanel) updatePanelStyle();
+      else setOpen(false);
     };
-  }, [open]);
+
+    // Defer so the opening tap does not immediately close the menu (mobile).
+    const timer = window.setTimeout(() => {
+      document.addEventListener("pointerdown", onDoc);
+    }, 0);
+
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [open, fixedPanel, updatePanelStyle]);
 
   const copyLessonLink = async (mode: CopyMode) => {
     try {
@@ -78,7 +120,42 @@ export function JpLessonCopyMenu({
     }
   };
 
+  const pickCopyMode = (mode: CopyMode) => (e: ReactPointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void copyLessonLink(mode);
+  };
+
   const label = copiedId === lessonId ? "已复制" : "复制";
+
+  const panel = (
+    <div
+      ref={panelRef}
+      className={`jp-lesson-copy-panel${fixedPanel ? " is-fixed is-portal" : ""}`}
+      style={fixedPanel ? panelStyle : undefined}
+      role="menu"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        className="jp-lesson-copy-item"
+        onPointerDown={pickCopyMode("withText")}
+      >
+        <span className="jp-lesson-copy-item-title">带文字</span>
+        <span className="jp-lesson-copy-item-desc">附带发给老师的说明</span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="jp-lesson-copy-item"
+        onPointerDown={pickCopyMode("linkOnly")}
+      >
+        <span className="jp-lesson-copy-item-title">仅链接</span>
+        <span className="jp-lesson-copy-item-desc">只复制教案查看地址</span>
+      </button>
+    </div>
+  );
 
   return (
     <div className={`jp-lesson-copy-menu${open ? " is-open" : ""}`} ref={wrapRef}>
@@ -95,33 +172,14 @@ export function JpLessonCopyMenu({
           ▾
         </span>
       </button>
-      {open ? (
-        <div
-          className={`jp-lesson-copy-panel${fixedPanel ? " is-fixed" : ""}`}
-          style={fixedPanel ? panelStyle : undefined}
-          role="menu"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-lesson-copy-item"
-            onClick={() => void copyLessonLink("withText")}
-          >
-            <span className="jp-lesson-copy-item-title">带文字</span>
-            <span className="jp-lesson-copy-item-desc">附带发给老师的说明</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-lesson-copy-item"
-            onClick={() => void copyLessonLink("linkOnly")}
-          >
-            <span className="jp-lesson-copy-item-title">仅链接</span>
-            <span className="jp-lesson-copy-item-desc">只复制教案查看地址</span>
-          </button>
-        </div>
-      ) : null}
-      <style jsx>{copyMenuStyles}</style>
+      {open
+        ? fixedPanel && mounted
+          ? createPortal(panel, document.body)
+          : panel
+        : null}
+      <style jsx global>
+        {copyMenuStyles}
+      </style>
     </div>
   );
 }
@@ -153,7 +211,11 @@ const copyMenuStyles = `
     z-index: 30;
   }
   .jp-lesson-copy-panel.is-fixed {
-    z-index: 1000;
+    z-index: 10000;
+  }
+  .jp-lesson-copy-panel.is-portal {
+    touch-action: manipulation;
+    pointer-events: auto;
   }
   .jp-lesson-copy-item {
     display: flex;
@@ -161,6 +223,7 @@ const copyMenuStyles = `
     align-items: flex-start;
     gap: 0.1rem;
     width: 100%;
+    min-height: 2.75rem;
     padding: 0.55rem 0.65rem;
     border: none;
     border-radius: 6px;
@@ -169,6 +232,8 @@ const copyMenuStyles = `
     text-align: left;
     cursor: pointer;
     font: inherit;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .jp-lesson-copy-item:hover {
     background: color-mix(in srgb, var(--accent) 12%, transparent);
