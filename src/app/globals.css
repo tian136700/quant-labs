@@ -2528,3 +2528,74 @@ textarea:focus {
     backdrop-filter: blur(6px);
   }
 }
+
+/* 日语新课 — 复制教案链接下拉 */
+.jp-lesson-copy-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.jp-lesson-copy-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.jp-lesson-copy-caret {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.jp-lesson-copy-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 10.5rem;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 30;
+}
+
+.jp-lesson-copy-panel.is-fixed {
+  z-index: 10000;
+  touch-action: manipulation;
+}
+
+.jp-lesson-copy-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jp-lesson-copy-item:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.jp-lesson-copy-item-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.jp-lesson-copy-item-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.35;
+}

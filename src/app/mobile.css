@@ -2030,6 +2030,25 @@
     display: none !important;
   }
 
+  /* 复制下拉：fixed 面板加宽，避免选项文字叠在一起 */
+  .jp-lesson-copy-panel.is-fixed {
+    min-width: min(16rem, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+  }
+
+  .jp-lesson-copy-item {
+    min-height: 3rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .jp-lesson-copy-item-title {
+    font-size: 0.9375rem;
+  }
+
+  .jp-lesson-copy-item-desc {
+    font-size: 0.8125rem;
+  }
+
   .jp-lesson-page--ja .jp-lesson-action-btn--download::before,
   .jp-lesson-page--ja .jp-ref-download-trigger.jp-lesson-action-btn--download::before {
     content: "";
