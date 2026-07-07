@@ -10,6 +10,16 @@ dist/
 *.log
 .DS_Store
 
+# IDE / 编辑器本地历史（勿提交）
+.history/
+.idea/
+.vscode/
+*.swp
+*~
+
+# TypeScript 增量构建缓存
+*.tsbuildinfo
+
 # 本地 D1 导出 / 同步缓存（含线上数据副本，勿提交）
 tmp/
 *-dump.sql
@@ -17,6 +27,12 @@ remote-inserts.sql
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+scripts/.remote-d1-snapshot.sql
+.remote-d1-snapshot.sql
+
+# 业务数据 SQL 导出（schema 迁移脚本 scripts/migrate-*.sql 可提交）
+jp_vocab_data.sql
+*-data.sql
 
 # Python
 __pycache__/
@@ -35,13 +51,19 @@ scripts/jp-review-sync.py
 scripts/jp-vocab-sync.py
 scripts/.venv-jp-review/
 scripts/jp-review-sync.env
+scripts/jp-vocab-fill-reading.env
+scripts/en-vocab-fill-reading.env
 
-# 日语单词读音 nightly 补全（launchd 生成的 plist 含本机绝对路径，勿提交）
-scripts/com.infoquests.jp-vocab-fill-reading.plist
-scripts/com.infoquests.jp-vocab-fill-reading-catchup.plist
+# launchd 实装 plist（含本机绝对路径；*.plist.example 可提交）
+com.infoquests.*.plist
+scripts/com.infoquests.*.plist
+!**/*.plist.example
 
 # Git 自动推送 launchd（含本机绝对路径，勿提交）
 scripts/com.infoquests.git-auto-push.plist
+
+# 发布控制台 launchd（含本机绝对路径，勿提交）
+scripts/com.infoquests.publish-console.plist
 
 # 趋势博客离线生成（非线上运行时，勿提交）
 trend_aggregator/
