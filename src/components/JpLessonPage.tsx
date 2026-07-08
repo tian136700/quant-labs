@@ -315,6 +315,7 @@ export function JpLessonPage() {
     useState<JpLessonProgressStatus>("learning");
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
+  const [editingTeacherLessonIds, setEditingTeacherLessonIds] = useState<number[]>([]);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchLessonIds, setBatchLessonIds] = useState<number[]>([]);
@@ -421,9 +422,14 @@ export function JpLessonPage() {
 
   const teacherById = useMemo(() => buildTeacherById(teachers), [teachers]);
 
-  const openTeacherEditModal = useCallback((lesson: JpLessonRecord) => {
+  const openTeacherEditModal = useCallback((lesson: JpLessonRecord, lessonIds?: number[]) => {
     setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
     setEditingTeacherLesson(lesson);
+    setEditingTeacherLessonIds(
+      (lessonIds?.length ? lessonIds : [lesson.id]).filter(
+        (id, index, arr) => arr.indexOf(id) === index
+      )
+    );
   }, []);
 
   const openNextClassEditModal = useCallback((lesson: JpLessonRecord) => {
@@ -633,6 +639,36 @@ export function JpLessonPage() {
     } finally {
       setSavingTeacherLessonId(null);
     }
+  };
+
+  const setLessonTeachersForMany = async (
+    lessonIds: number[],
+    teacherIds: number[],
+    teacherOther: string | null,
+    teacherUpdates: JpLessonTeacherUpdateInput[] = [],
+    options?: { keepOpen?: boolean }
+  ) => {
+    const normalizedLessonIds = lessonIds.filter(
+      (id, index, arr) => Number.isInteger(id) && id > 0 && arr.indexOf(id) === index
+    );
+    if (!normalizedLessonIds.length) return;
+
+    for (let index = 0; index < normalizedLessonIds.length; index += 1) {
+      await setLessonTeachers(
+        normalizedLessonIds[index],
+        teacherIds,
+        teacherOther,
+        index === 0 ? teacherUpdates : [],
+        { keepOpen: true }
+      );
+    }
+
+    if (!options?.keepOpen) {
+      setEditingTeacherLesson(null);
+      setEditingTeacherLessonIds([]);
+    }
+    setStatus(`已更新 ${normalizedLessonIds.length} 条课程的上课老师`);
+    window.setTimeout(() => setStatus(""), 2500);
   };
 
   const addLessonTeacher = async (
@@ -1144,7 +1180,7 @@ export function JpLessonPage() {
                   ? `设置该合并行上课老师（共 ${groupLessons.length} 条）`
                   : `设置 #${lesson.id} 上课老师`
               }
-              onClick={() => openTeacherEditModal(lesson)}
+              onClick={() => openTeacherEditModal(lesson, groupLessons.map((item) => item.id))}
             />
           </div>
         </div>
@@ -1624,14 +1660,19 @@ export function JpLessonPage() {
         lesson={editingTeacherLesson}
         teachers={teachers}
         saving={savingTeacherLessonId === editingTeacherLesson?.id}
-        onClose={() => setEditingTeacherLesson(null)}
+        onClose={() => {
+          setEditingTeacherLesson(null);
+          setEditingTeacherLessonIds([]);
+        }}
         onAddTeacher={addLessonTeacher}
         onUpdateTeacher={updateLessonTeacher}
         onDeleteTeacher={deleteLessonTeacher}
         onSave={async (teacherIds, teacherOther, teacherUpdates, options) => {
           if (editingTeacherLesson) {
-            await setLessonTeachers(
-              editingTeacherLesson.id,
+            await setLessonTeachersForMany(
+              editingTeacherLessonIds.length
+                ? editingTeacherLessonIds
+                : [editingTeacherLesson.id],
               teacherIds,
               teacherOther,
               teacherUpdates,
