@@ -111,6 +111,16 @@ export function formatHourlyRate(rate: number | null | undefined): string {
   return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2)}/h`;
 }
 
+/** 管理页等展示用：带 RMB 单位的每小时课时费，如 80 RMB/h */
+export function formatTeacherHourlyRateDisplay(
+  rate: number | null | undefined
+): string {
+  if (rate == null || !Number.isFinite(rate)) return "—";
+  const rounded = Math.round(rate * 100) / 100;
+  const num = rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2);
+  return `${num} RMB/h`;
+}
+
 export function formatLessonPriceValue(price: number): string {
   const rounded = Math.round(price * 100) / 100;
   return rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2);

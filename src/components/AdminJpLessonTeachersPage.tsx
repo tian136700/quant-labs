@@ -20,6 +20,7 @@ import {
 } from "@/lib/locale-path";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
 import {
+  formatTeacherHourlyRateDisplay,
   formatTeacherLessonMinutes,
   normalizeJpLessonTeacher,
   resolveLessonTeacherRateFields,
@@ -298,7 +299,7 @@ export function AdminJpLessonTeachersPage() {
       ? {
           id: "ID",
           name: "名称",
-          rate: "课时费",
+          rate: "课时费 (RMB/h)",
           minutes: "课时时长",
           hourlyEquiv: "折合时薪",
           score: "平均评分",
@@ -309,7 +310,7 @@ export function AdminJpLessonTeachersPage() {
       : {
           id: "ID",
           name: "Name",
-          rate: "Rate",
+          rate: "Rate (RMB/h)",
           minutes: "Duration",
           hourlyEquiv: "Hourly equiv.",
           score: "Avg score",
@@ -562,7 +563,7 @@ export function AdminJpLessonTeachersPage() {
             />
           </label>
           <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "课时费（元/小时）" : "Rate (per hour)"}</span>
+            <span>{locale === "zh" ? "课时费（RMB/小时）" : "Rate (RMB/h)"}</span>
             <input
               type="number"
               min="0"
@@ -707,7 +708,9 @@ export function AdminJpLessonTeachersPage() {
                 <tr>
                   <th className="col-id">ID</th>
                   <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
-                  <th className="col-rate">{locale === "zh" ? "课时费" : "Rate"}</th>
+                  <th className="col-rate">
+                    {locale === "zh" ? "课时费 (RMB/h)" : "Rate (RMB/h)"}
+                  </th>
                   <th className="col-minutes">{locale === "zh" ? "课时时长" : "Duration"}</th>
                   <th
                     className={`col-hourly-equiv col-hourly-equiv--sortable${
@@ -822,7 +825,7 @@ export function AdminJpLessonTeachersPage() {
                             step="0.01"
                             value={editHourlyRate}
                             disabled={saving}
-                            placeholder={locale === "zh" ? "元/小时" : "Per hour"}
+                            placeholder="RMB/h"
                             onChange={(e) => {
                               const next = e.target.value;
                               setEditHourlyRate(next);
@@ -832,11 +835,9 @@ export function AdminJpLessonTeachersPage() {
                             }}
                           />
                         ) : (
-                          (() => {
-                            const rate = resolveLessonTeacherRateFields(teacher).hourly_rate;
-                            if (rate == null) return "—";
-                            return rate % 1 === 0 ? rate.toFixed(0) : rate.toFixed(2);
-                          })()
+                          formatTeacherHourlyRateDisplay(
+                            resolveLessonTeacherRateFields(teacher).hourly_rate
+                          )
                         )}
                       </td>
                       <td className="col-minutes" data-label={fieldLabels.minutes}>
