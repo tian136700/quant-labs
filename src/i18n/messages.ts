@@ -31,6 +31,23 @@ export type Messages = {
     adminRbac: string;
     adminUsers: string;
     adminToolCodes: string;
+    more: string;
+    allFeatures: string;
+    searchPlaceholder: string;
+    searchResults: string;
+    recent: string;
+    favorites: string;
+    noResults: string;
+    closeMenu: string;
+    favoriteAdd: string;
+    favoriteRemove: string;
+    categories: {
+      teaching: string;
+      admin: string;
+      ai: string;
+      data: string;
+      system: string;
+    };
   };
   about: {
     meta: { title: string; description: string };
@@ -512,6 +529,23 @@ export const messages: Record<Locale, Messages> = {
       adminRbac: "Roles",
       adminUsers: "Users",
       adminToolCodes: "Tool codes",
+      more: "More",
+      allFeatures: "All features",
+      searchPlaceholder: "🔍 Search menu…",
+      searchResults: "Results",
+      recent: "Recent",
+      favorites: "Favorites",
+      noResults: "No matching menu",
+      closeMenu: "Close menu",
+      favoriteAdd: "Add to favorites",
+      favoriteRemove: "Remove from favorites",
+      categories: {
+        teaching: "Teaching",
+        admin: "Admin",
+        ai: "AI tools",
+        data: "Data",
+        system: "System",
+      },
     },
     about: {
       meta: {
@@ -1110,6 +1144,23 @@ export const messages: Record<Locale, Messages> = {
       adminRbac: "角色权限",
       adminUsers: "用户管理",
       adminToolCodes: "工具发码",
+      more: "更多",
+      allFeatures: "全部功能",
+      searchPlaceholder: "🔍 搜索菜单…",
+      searchResults: "搜索结果",
+      recent: "最近使用",
+      favorites: "收藏菜单",
+      noResults: "未找到匹配菜单",
+      closeMenu: "关闭菜单",
+      favoriteAdd: "收藏此菜单",
+      favoriteRemove: "取消收藏",
+      categories: {
+        teaching: "教学",
+        admin: "后台",
+        ai: "AI 工具",
+        data: "数据",
+        system: "系统",
+      },
     },
     about: {
       meta: {

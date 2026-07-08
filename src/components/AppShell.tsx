@@ -30,7 +30,7 @@ import { EnVocabTeacherRouteGuard } from "./EnVocabTeacherRouteGuard";
 import { JpVocabTeacherRouteGuard } from "./JpVocabTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
 import { LangSwitch } from "./LangSwitch";
-import { MobileNavDrawer } from "./MobileNavDrawer";
+import { NavDrawer } from "./NavDrawer";
 import { SiteAuthBar } from "./SiteAuthBar";
 import { SiteNav } from "./SiteNav";
 
@@ -46,6 +46,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const items = useSiteNavItems();
   const { locale, t } = useI18n();
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const toggleDrawer = useCallback(() => setDrawerOpen((v) => !v), []);
 
   const onJpVocabRef = isJpVocabRefPath(pathname);
   const onEnVocabRef = isEnVocabRefPath(pathname);
@@ -104,22 +105,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             type="button"
             className="mobile-menu-toggle"
             aria-expanded={drawerOpen}
-            aria-controls="mobile-nav-drawer"
+            aria-controls="site-nav-drawer"
             aria-label={t("nav").ariaLabel}
-            onClick={() => setDrawerOpen(true)}
+            onClick={toggleDrawer}
           >
             <span className="mobile-menu-icon" aria-hidden />
           </button>
         </div>
-        <SiteNav />
+        <SiteNav drawerOpen={drawerOpen} onToggleDrawer={toggleDrawer} />
         <div className="page-header-tools page-header-tools--desktop">
           <SiteAuthBar />
           {onLearningModule ? null : <LangSwitch />}
         </div>
-        <MobileNavDrawer
-          id="mobile-nav-drawer"
+        <NavDrawer
+          id="site-nav-drawer"
           open={drawerOpen}
           onClose={closeDrawer}
+          showTools
         />
       </header>
       <main>{children}</main>

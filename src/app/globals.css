@@ -43,11 +43,17 @@ body {
   margin-inline: auto;
 }
 
-/* Mobile-only chrome — shown via mobile.css at max-width 767px */
-.mobile-header-bar,
-.mobile-nav-backdrop,
-.mobile-nav-drawer {
+/* Mobile header bar — desktop hidden; drawer works on all breakpoints */
+.mobile-header-bar {
   display: none;
+}
+
+.nav-drawer-backdrop {
+  display: block;
+}
+
+.nav-drawer {
+  display: flex;
 }
 
 .page-header {
@@ -184,48 +190,263 @@ body {
 /* ── Admin 导航（仅 Admin 登录后显示） ── */
 .admin-nav {
   @apply min-w-0 flex-1;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .admin-nav-list {
-  @apply flex gap-1 m-0 p-0 list-none;
+  @apply flex m-0 p-0 list-none;
   flex-wrap: nowrap;
-  width: max-content;
-  max-width: 100%;
-}
-
-@screen md {
-  .admin-nav-list {
-    flex-wrap: wrap;
-    width: auto;
-  }
+  gap: clamp(1.5rem, 2vw, 2rem);
+  align-items: center;
 }
 
 .admin-nav-link {
-  @apply inline-flex items-center text-xs text-muted no-underline rounded border border-transparent;
+  @apply inline-flex items-center text-xs text-muted no-underline rounded-md border border-transparent;
   font: inherit;
   min-height: var(--touch-min);
-  padding: 0.375rem 0.75rem;
+  padding: 0.375rem 0;
+  white-space: nowrap;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 @screen md {
   .admin-nav-link {
     min-height: 0;
-    padding: 0.35rem 0.875rem;
+    padding: 0.35rem 0;
   }
 }
 
 .admin-nav-link:hover {
   @apply text-text;
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+.admin-nav-more {
+  cursor: pointer;
+  background: transparent;
 }
 
 .admin-nav-link.is-active {
   @apply text-accent font-medium;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.admin-nav-more.is-active {
+  @apply text-accent font-medium;
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: none;
+  padding-inline: 0.875rem;
+}
+
+/* ── 导航 Drawer（桌面 + 移动） ── */
+.nav-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.nav-drawer-backdrop.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  width: clamp(22.5rem, 90vw, 26.25rem);
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.35);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  overflow: hidden;
+}
+
+.nav-drawer.is-open {
+  transform: translateX(0);
+}
+
+.nav-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.125rem 0.75rem;
+}
+
+.nav-drawer-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.nav-drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nav-drawer-search-wrap {
+  padding: 0 1.125rem 0.75rem;
+}
+
+.nav-drawer-search {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.nav-drawer-search:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.nav-drawer-search::placeholder {
+  color: var(--muted);
+}
+
+.nav-drawer-tools {
+  display: none;
+}
+
+.nav-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0.75rem 1rem;
+}
+
+.nav-drawer-section {
+  margin-bottom: 0.75rem;
+}
+
+.nav-drawer-section-title {
+  margin: 0 0 0.375rem;
+  padding: 0.5rem 0.5rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.nav-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-drawer-item {
+  position: relative;
+}
+
+.nav-drawer-link {
+  display: flex;
+  align-items: center;
+  min-height: 2.375rem;
+  padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.nav-drawer-link:hover {
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+}
+
+.nav-drawer-link.is-active {
+  color: var(--accent);
+  font-weight: 600;
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.nav-drawer-fav {
+  position: absolute;
+  top: 50%;
+  right: 0.375rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.nav-drawer-item:hover .nav-drawer-fav,
+.nav-drawer-fav.is-fav {
+  opacity: 1;
+}
+
+.nav-drawer-fav.is-fav {
+  color: #f5c542;
+}
+
+.nav-drawer-fav:hover {
+  background: color-mix(in srgb, var(--bg) 65%, var(--panel));
+}
+
+.nav-drawer-empty {
+  margin: 1rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
 }
 
 .lang-switch-sep {
