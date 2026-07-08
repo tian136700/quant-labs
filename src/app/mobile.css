@@ -2372,6 +2372,11 @@
     display: none;
   }
 
+  .admin-jpl-teachers-table .col-name > span {
+    width: auto !important;
+    max-width: 100%;
+  }
+
   .admin-jpl-teachers-table .col-name > span:first-child {
     flex: 1 1 auto;
     min-width: 0;

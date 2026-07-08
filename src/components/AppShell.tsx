@@ -17,8 +17,10 @@ import {
   isJpVocabRefPath,
   isMaintenancePath,
   isComparePath,
+  adminJpLessonTeachersPath,
   enLessonPath,
   enVocabPath,
+  isAdminJpLessonTeachersPath,
   jpLessonPath,
   jpVocabPath,
 } from "@/lib/locale-path";
@@ -42,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     (checking || !user || !isAdmin);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = useSiteNavItems();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const onJpVocabRef = isJpVocabRefPath(pathname);
@@ -60,8 +62,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isEnLessonPath(pathname)) return nav.enLesson;
     if (isEnVocabPath(pathname)) return nav.enVocab;
     if (isJpReviewPath(pathname)) return nav.jpReview;
+    if (isAdminJpLessonTeachersPath(pathname)) {
+      return locale === "zh" ? "日语教师管理" : "JP lesson teachers";
+    }
     return t("meta").title;
-  }, [items, pathname, t]);
+  }, [items, locale, pathname, t]);
 
   const headerHref = useMemo(() => {
     const active = items.find((item) => item.active);
@@ -70,8 +75,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isJpVocabPath(pathname)) return jpVocabPath();
     if (isEnLessonPath(pathname)) return enLessonPath();
     if (isEnVocabPath(pathname)) return enVocabPath();
+    if (isAdminJpLessonTeachersPath(pathname)) return adminJpLessonTeachersPath(locale);
     return items[0]?.href ?? "/";
-  }, [items, pathname]);
+  }, [items, locale, pathname]);
 
   if (onMaintenance || onJpVocabRef || onEnVocabRef || compareGatedShell) {
     return (
