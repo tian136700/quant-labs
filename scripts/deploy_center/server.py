@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import subprocess
 import sys
 from http import HTTPStatus
@@ -9,20 +10,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from datetime import datetime
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 THIS_DIR = Path(__file__).resolve().parent
 SCRIPTS_DIR = THIS_DIR.parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from deploy_center.auto_menu import render_auto_menu
 from deploy_center.hub import PublishHub
 from deploy_center.logger import get_deploy_log, list_deploy_logs
-from deploy_center.logs_menu import render_logs_menu
-from deploy_center.manual_menu import render_manual_menu
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+STATIC_DIR = THIS_DIR / "static"
 HOST = "127.0.0.1"
 PORT = 17823
 HUB = PublishHub()
@@ -129,6 +128,21 @@ def _latest_deploy_row(mode: str) -> dict[str, Any] | None:
 
 
 def auto_runtime_snapshot() -> dict[str, Any]:
+    manual = HUB.snapshot()
+    if manual.get("status") == "running":
+        return {
+            "status": "running",
+            "step": manual.get("step") or "prepare",
+            "progress": int(manual.get("progress") or 0),
+            "message": str(manual.get("message") or "自动触发任务进行中"),
+            "started_at": manual.get("started_at"),
+            "finished_at": manual.get("finished_at"),
+            "exit_code": manual.get("exit_code"),
+            "logs": manual.get("logs") or [],
+            "server_time": manual.get("server_time"),
+            "source": "publish-center-job",
+        }
+
     logs = _tail_lines(AUTO_LOG, 400)
     step, progress = _infer_step_from_logs(logs)
     row = _latest_deploy_row("auto")
@@ -174,260 +188,21 @@ def auto_runtime_snapshot() -> dict[str, Any]:
         "exit_code": exit_code,
         "logs": logs[-500:],
         "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "source": "auto-watch-log",
     }
 
 
-def build_page() -> str:
-    return f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>部署中心 · strategy-compare-cloud</title>
-  <style>
-    :root {{ --bg:#0f1419; --panel:#1a2332; --border:#2d3a4f; --text:#e8edf4; --muted:#8b9cb3; --accent:#4f8cff; --ok:#3fb983; --err:#e85d6f; }}
-    * {{ box-sizing:border-box; }}
-    body {{ margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }}
-    .wrap {{ max-width:980px; margin:0 auto; padding:1.1rem; }}
-    h1 {{ margin:.2rem 0 .8rem; }}
-    .tabs {{ display:flex; gap:.5rem; margin-bottom:1rem; flex-wrap:wrap; }}
-    .tab {{ border:1px solid var(--border); background:#0d1218; color:var(--muted); padding:.55rem .9rem; border-radius:8px; cursor:pointer; }}
-    .tab.active {{ border-color:var(--accent); color:var(--accent); }}
-    .view {{ display:none; }} .view.active {{ display:block; }}
-    .card {{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:1rem 1.1rem; margin-bottom:1rem; }}
-    .sub {{ color:var(--muted); margin:.2rem 0 .9rem; font-size:.92rem; }}
-    label {{ display:block; margin-bottom:.35rem; color:var(--muted); }}
-    input[type="text"] {{ width:100%; padding:.65rem .75rem; border-radius:8px; border:1px solid var(--border); background:#0d1218; color:var(--text); }}
-    .btn-row {{ display:flex; gap:.75rem; margin-top:.8rem; flex-wrap:wrap; }}
-    button {{ border:none; border-radius:8px; padding:.64rem 1rem; cursor:pointer; font-weight:600; }}
-    .btn-primary {{ background:var(--accent); color:#fff; }}
-    .btn-ghost {{ background:transparent; color:var(--muted); border:1px solid var(--border); }}
-    .progress-track {{ height:10px; background:#0d1218; border-radius:999px; overflow:hidden; margin:.75rem 0 .5rem; }}
-    .progress-bar {{ height:100%; width:0%; background:linear-gradient(90deg,var(--accent),#6ea8ff); transition:width .35s ease; }}
-    .steps {{ display:flex; gap:.4rem; flex-wrap:wrap; }}
-    .step {{ font-size:.75rem; padding:.18rem .5rem; border:1px solid var(--border); color:var(--muted); border-radius:999px; }}
-    .step.active {{ color:var(--accent); border-color:var(--accent); }}
-    .step.done {{ color:var(--ok); border-color:var(--ok); }}
-    .status-line {{ margin-top:.5rem; }}
-    .log-box {{ margin:0; height:300px; overflow:auto; white-space:pre-wrap; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem; color:#c5d0e0; }}
-    .log-toolbar {{ display:flex; justify-content:space-between; align-items:center; gap:.8rem; margin-bottom:.6rem; }}
-    .log-toolbar h3 {{ margin:0; }}
-    .kv {{ white-space:pre-wrap; line-height:1.55; color:#d2dded; }}
-    .logs-list details {{ border:1px solid var(--border); border-radius:8px; padding:.5rem .65rem; margin-bottom:.65rem; background:#0d1218; }}
-    .logs-list summary {{ cursor:pointer; color:#d7e4f8; }}
-    .logs-detail {{ margin-top:.45rem; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; color:#c5d0e0; font-size:.8rem; }}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>部署中心</h1>
-    <div class="tabs">
-      <button class="tab" data-view="view-manual">手动部署</button>
-      <button class="tab active" data-view="view-auto">自动部署</button>
-      <button class="tab" data-view="view-logs">部署日志</button>
-    </div>
-    {render_manual_menu()}
-    {render_auto_menu()}
-    {render_logs_menu()}
-  </div>
-  <script>
-    const stepOrder = ["prepare","backup","git_add","commit","push","deploy","done"];
-    const stepLabels = {{prepare:"准备",backup:"库备份",git_add:"暂存",commit:"提交",push:"推送",deploy:"部署",done:"完成"}};
-    const el = (id) => document.getElementById(id);
-    const publishBtn = el("publish");
-    const msgInput = el("msg");
-    const manualCopyBtn = el("manual-copy-log");
-    const autoCopyBtn = el("auto-copy-log");
-    let lastSnapshot = null;
-
-    function bindTabs() {{
-      const tabs = Array.from(document.querySelectorAll(".tab"));
-      const views = Array.from(document.querySelectorAll(".view"));
-      tabs.forEach((tab) => tab.addEventListener("click", () => {{
-        tabs.forEach((t) => t.classList.remove("active"));
-        tab.classList.add("active");
-        const name = tab.getAttribute("data-view");
-        views.forEach((v) => v.classList.toggle("active", v.id === name));
-      }}));
-    }}
-
-    function renderSteps(prefix, current, progress, jobStatus) {{
-      const stepsEl = el(`${{prefix}}-steps`);
-      const barEl = el(`${{prefix}}-bar`);
-      if (!stepsEl || !barEl) return;
-      stepsEl.innerHTML = stepOrder.map((id) => {{
-        let cls = "step";
-        const idx = stepOrder.indexOf(id);
-        const cur = stepOrder.indexOf(current || "prepare");
-        if (jobStatus === "success" || idx < cur) cls += " done";
-        else if (idx === cur) cls += " active";
-        return `<span class="${{cls}}">${{stepLabels[id] || id}}</span>`;
-      }}).join("");
-      barEl.style.width = `${{Math.max(0, Math.min(100, progress || 0))}}%`;
-    }}
-
-    function renderRuntime(prefix, data, idleText) {{
-      const statusEl = el(`${{prefix}}-status`);
-      const logEl = el(`${{prefix}}-log`);
-      if (!statusEl || !logEl) return;
-      renderSteps(prefix, data.step, data.progress, data.status);
-      if (data.status === "running") {{
-        statusEl.textContent = data.message || `${{prefix}} 部署进行中...`;
-      }} else if (data.status === "success") {{
-        statusEl.textContent = data.message || `${{prefix}} 部署成功`;
-      }} else if (data.status === "error") {{
-        statusEl.textContent = data.message || `${{prefix}} 部署失败`;
-      }} else {{
-        statusEl.textContent = idleText || "待命";
-      }}
-      if (Array.isArray(data.logs)) {{
-        logEl.textContent = data.logs.join("\\n") + (data.logs.length ? "\\n" : "");
-        logEl.scrollTop = logEl.scrollHeight;
-      }}
-    }}
-
-    function applySnapshot(data) {{
-      lastSnapshot = data;
-      renderRuntime("manual", data, "待命");
-      if (data.status === "running") {{
-        publishBtn.disabled = true;
-      }} else {{
-        publishBtn.disabled = false;
-      }}
-    }}
-
-    async function refreshManual() {{
-      const data = await (await fetch("/api/status")).json();
-      applySnapshot(data);
-    }}
-
-    async function refreshAuto() {{
-      const data = await (await fetch("/api/auto-status")).json();
-      const runtimeData = await (await fetch("/api/auto-runtime")).json();
-      const modeMap = {{
-        watch: "常驻守护进程",
-        cron: "crontab 定时检查",
-        none: "未配置",
-      }};
-      const lines = [
-        "自动部署模式: " + (modeMap[data.auto.mode] || data.auto.mode || "未知"),
-        "自动部署状态: " + (data.auto.healthy ? "已启用" : "未启用"),
-      ];
-      if (data.auto.mode === "watch") {{
-        lines.push("常驻进程数: " + ((data.auto.processes || []).length));
-      }}
-      if (data.auto.mode === "cron") {{
-        lines.push("crontab 条目数: " + ((data.auto.cron_entries || []).length));
-      }}
-      if (Array.isArray(data.auto.processes) && data.auto.processes.length) {{
-        lines.push("", "进程详情:");
-        lines.push(...data.auto.processes);
-      }}
-      if (Array.isArray(data.auto.cron_entries) && data.auto.cron_entries.length) {{
-        lines.push("", "crontab 条目:");
-        lines.push(...data.auto.cron_entries);
-      }}
-      if (data.auto.last_activity) {{
-        lines.push("", "最近日志时间: " + data.auto.last_activity);
-      }}
-      if (data.auto.last_log) {{
-        lines.push("最近日志: " + data.auto.last_log);
-      }}
-      el("auto-summary").textContent = lines.join("\\n");
-      const runtime = runtimeData.status === "running"
-        ? `当前有部署任务: 是\\n步骤: ${{runtimeData.step}}\\n进度: ${{runtimeData.progress}}%\\n开始: ${{runtimeData.started_at || "-"}}`
-        : "当前有部署任务: 否";
-      el("auto-runtime").textContent = runtime;
-      renderRuntime("auto", runtimeData, "自动部署待命");
-    }}
-
-    function modeLabel(mode) {{
-      return mode === "auto" ? "自动部署" : "手动部署";
-    }}
-
-    async function refreshLogs() {{
-      const data = await (await fetch("/api/deploy-logs?limit=80")).json();
-      const wrap = el("logs-list");
-      const rows = Array.isArray(data.rows) ? data.rows : [];
-      wrap.innerHTML = rows.map((row) => {{
-        const title = `${{row.started_at}} · ${{modeLabel(row.mode)}} · ${{row.status}} · #${{row.id}}`;
-        const extra = [
-          "备注: " + (row.remark || "-"),
-          "提交: " + (row.git_commit_short || "-"),
-          "分支: " + (row.branch || "-"),
-          "摘要: " + (row.summary || "-"),
-          "完成: " + (row.finished_at || "-"),
-          "退出码: " + (row.exit_code ?? "-"),
-        ].join("\\n");
-        return `<details data-log-id="${{row.id}}"><summary>${{title}}</summary><div class="logs-detail">${{extra}}\\n\\n点击展开后自动加载详情...</div></details>`;
-      }}).join("");
-      for (const item of wrap.querySelectorAll("details[data-log-id]")) {{
-        item.addEventListener("toggle", async () => {{
-          if (!item.open || item.dataset.loaded === "1") return;
-          const logId = item.getAttribute("data-log-id");
-          const resp = await (await fetch(`/api/deploy-logs/${{logId}}`)).json();
-          const d = resp.row || {{}};
-          const detail = [
-            "部署详情:",
-            d.details || "(空)",
-          ].join("\\n");
-          const box = item.querySelector(".logs-detail");
-          if (box) box.textContent = box.textContent + "\\n\\n" + detail;
-          item.dataset.loaded = "1";
-        }});
-      }}
-    }}
-
-    publishBtn.addEventListener("click", async () => {{
-      const message = (msgInput.value || "").trim();
-      const res = await fetch("/api/manual/publish", {{
-        method: "POST",
-        headers: {{"Content-Type":"application/json"}},
-        body: JSON.stringify({{ message }}),
-      }});
-      const data = await res.json();
-      if (!data.ok) {{
-        statusEl.textContent = data.error || "启动失败";
-        return;
-      }}
-      await refreshManual();
-    }});
-
-    function copyLog(prefix) {{
-      const node = el(`${{prefix}}-log`);
-      if (!node) return;
-      const text = node.textContent || "";
-      if (!text.trim()) return;
-      if (navigator.clipboard?.writeText) {{
-        navigator.clipboard.writeText(text).catch(() => {{
-          window.prompt("复制失败，请手动复制：", text);
-        }});
-        return;
-      }}
-      window.prompt("请手动复制日志：", text);
-    }}
-
-    manualCopyBtn?.addEventListener("click", () => copyLog("manual"));
-    autoCopyBtn?.addEventListener("click", () => copyLog("auto"));
-
-    el("refresh").addEventListener("click", () => void refreshManual());
-    el("refresh-auto").addEventListener("click", () => void refreshAuto());
-    el("refresh-logs").addEventListener("click", () => void refreshLogs());
-
-    const es = new EventSource("/api/events");
-    es.onmessage = () => {{
-      void refreshManual();
-      void refreshAuto();
-    }};
-
-    bindTabs();
-    refreshManual();
-    refreshAuto();
-    refreshLogs();
-    setInterval(() => {{ void refreshManual(); void refreshAuto(); }}, 5000);
-  </script>
-</body>
-</html>"""
+def _read_static_file(relative_path: str) -> tuple[bytes, str] | None:
+    raw = unquote(relative_path).lstrip("/")
+    target = (STATIC_DIR / raw).resolve()
+    try:
+        target.relative_to(STATIC_DIR.resolve())
+    except ValueError:
+        return None
+    if not target.is_file():
+        return None
+    mime_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+    return target.read_bytes(), mime_type
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -458,9 +233,25 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query)
         if path in ("/", "/index.html"):
-            body = build_page().encode("utf-8")
+            static_result = _read_static_file("index.html")
+            if static_result is None:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            body, content_type = static_result
             self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path.startswith("/static/"):
+            static_result = _read_static_file(path[len("/static/") :])
+            if static_result is None:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            body, content_type = static_result
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
