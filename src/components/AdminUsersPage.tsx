@@ -57,6 +57,7 @@ type UserRow = {
   username: string;
   role: string;
   role_label: string;
+  jp_lesson_teacher_name?: string | null;
   disabled: boolean;
   created_at: string;
 };
@@ -932,6 +933,7 @@ export function AdminUsersPage() {
                 <tr>
                   <th>{locale === "zh" ? "用户名" : "Username"}</th>
                   <th>{locale === "zh" ? "角色" : "Role"}</th>
+                  <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
                   <th>{locale === "zh" ? "状态" : "Status"}</th>
                   <th>{locale === "zh" ? "操作" : "Actions"}</th>
                 </tr>
@@ -953,6 +955,7 @@ export function AdminUsersPage() {
                     <tr key={row.id}>
                       <td className="admin-rbac-username">{row.username}</td>
                       <td>{row.role_label}</td>
+                      <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
                       <td>
                         {row.disabled
                           ? locale === "zh"

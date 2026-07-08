@@ -86,6 +86,19 @@ CREATE TABLE IF NOT EXISTS etr_login_links (
 
 CREATE INDEX IF NOT EXISTS idx_etr_login_links_user ON etr_login_links (user_id);
 
+-- 日语老师账号与日语上课老师的对应关系（便于后台识别账号归属）
+CREATE TABLE IF NOT EXISTS etr_user_jp_lesson_teacher_link (
+  user_id    INTEGER PRIMARY KEY,
+  teacher_id INTEGER NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE,
+  FOREIGN KEY (teacher_id) REFERENCES jp_lesson_teacher(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_user_jp_lesson_teacher_link_teacher
+  ON etr_user_jp_lesson_teacher_link (teacher_id);
+
 -- 管理员：复制登录链接时可选附带的文字模板（支持 {login_url} 占位符）
 CREATE TABLE IF NOT EXISTS etr_login_link_templates (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

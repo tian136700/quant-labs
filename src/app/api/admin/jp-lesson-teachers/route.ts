@@ -1,6 +1,5 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
-import { provisionJpLessonTeacherUser } from "@/lib/etr-auth-db";
+import { jsonResponse } from "@/lib/cloudflare-env";
 import {
   normalizeTeacherLessonMinutes,
   resolveLessonTeacherHourlyRateInput,
@@ -124,21 +123,10 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    const userProvision = await provisionJpLessonTeacherUser(env, result.teacher.name);
-
     return jsonResponse({
       ok: true,
       teacher: result.teacher,
       renamed_teachers: result.renamed_teachers,
-      user_account:
-        userProvision.ok && userProvision.created
-          ? {
-              id: userProvision.user.id,
-              username: userProvision.user.username,
-              password: userProvision.password,
-              disabled: true,
-            }
-          : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

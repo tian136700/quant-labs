@@ -1,11 +1,13 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   deleteJpLessonTeacherReviewRecords,
   listJpLessonTeacherReviewSummaries,
   listJpLessonTeacherReviews,
   saveJpLessonTeacherReview,
 } from "@/lib/jp-lesson-teacher-review-db";
+import { createJpLessonTeacherUserByReview } from "@/lib/etr-auth-db";
+import { getJpLessonTeacherById } from "@/lib/jp-lesson-teacher-db";
 import type { JpLessonTeacherReviewSortField } from "@/lib/types";
 
 const SORT_FIELDS = new Set<JpLessonTeacherReviewSortField>([
@@ -42,6 +44,18 @@ const ERROR_MSG: Record<string, Record<"en" | "zh", string>> = {
   ids_required: {
     en: "No record IDs provided.",
     zh: "未提供要删除的记录 ID。",
+  },
+  user_exists: {
+    en: "A linked account already exists for this teacher.",
+    zh: "该老师账号已存在。",
+  },
+  username_unavailable: {
+    en: "No available username for this teacher.",
+    zh: "该老师暂无可用用户名。",
+  },
+  username_invalid: {
+    en: "Unable to generate a valid username from teacher name.",
+    zh: "无法从老师姓名生成有效用户名。",
   },
 };
 
@@ -102,6 +116,7 @@ export async function POST(request: Request) {
     class_date?: string;
     score?: number | string;
     remark?: string;
+    create_user_account?: boolean;
   };
 
   try {
@@ -146,7 +161,44 @@ export async function POST(request: Request) {
       );
     }
 
-    return jsonResponse({ ok: true, data: result.record });
+    let userAccount:
+      | {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        }
+      | undefined;
+    if (body.create_user_account === true) {
+      const teacher = await getJpLessonTeacherById(env.DB, teacherId);
+      if (!teacher) {
+        return jsonResponse(
+          { ok: false, error: errMsg("teacher_id_invalid", locale) },
+          400
+        );
+      }
+      const provision = await createJpLessonTeacherUserByReview(
+        env,
+        teacher.id,
+        teacher.name
+      );
+      if (!provision.ok) {
+        return jsonResponse(
+          { ok: false, error: errMsg(provision.error, locale) },
+          400
+        );
+      }
+      if (provision.created) {
+        userAccount = {
+          id: provision.user.id,
+          username: provision.user.username,
+          password: provision.password,
+          disabled: (provision.user.disabled ?? 0) !== 0,
+        };
+      }
+    }
+
+    return jsonResponse({ ok: true, data: result.record, user_account: userAccount });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

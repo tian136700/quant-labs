@@ -716,6 +716,72 @@ export type ProvisionJpLessonTeacherUserResult =
   | { ok: true; created: false; reason: "user_exists" | "username_unavailable" }
   | { ok: false; error: string };
 
+let userTeacherLinkSchemaEnsured = false;
+
+async function ensureUserTeacherLinkSchema(db: D1Database): Promise<void> {
+  if (devAuthEnabled || userTeacherLinkSchemaEnsured) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS etr_user_jp_lesson_teacher_link (
+         user_id INTEGER PRIMARY KEY,
+         teacher_id INTEGER NOT NULL,
+         created_at TEXT NOT NULL DEFAULT (datetime('now')),
+         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+         FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE,
+         FOREIGN KEY (teacher_id) REFERENCES jp_lesson_teacher(id) ON DELETE CASCADE
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_etr_user_jp_lesson_teacher_link_teacher
+       ON etr_user_jp_lesson_teacher_link (teacher_id)`
+    )
+    .run();
+  userTeacherLinkSchemaEnsured = true;
+}
+
+async function linkUserToJpLessonTeacher(
+  db: D1Database,
+  userId: number,
+  teacherId: number
+): Promise<void> {
+  if (!Number.isInteger(userId) || userId <= 0) return;
+  if (!Number.isInteger(teacherId) || teacherId <= 0) return;
+  if (devAuthEnabled) return;
+  await ensureUserTeacherLinkSchema(db);
+  const ts = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO etr_user_jp_lesson_teacher_link (user_id, teacher_id, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?3)
+       ON CONFLICT(user_id) DO UPDATE SET teacher_id = excluded.teacher_id, updated_at = excluded.updated_at`
+    )
+    .bind(userId, teacherId, ts)
+    .run();
+}
+
+export async function listJpLessonTeacherNameMapByUserId(
+  db: D1Database
+): Promise<Map<number, string>> {
+  if (devAuthEnabled) return new Map();
+  await ensureUserTeacherLinkSchema(db);
+  const result = await db
+    .prepare(
+      `SELECT link.user_id AS user_id, teacher.name AS teacher_name
+       FROM etr_user_jp_lesson_teacher_link link
+       JOIN jp_lesson_teacher teacher ON teacher.id = link.teacher_id`
+    )
+    .all<{ user_id: number; teacher_name: string }>();
+  const map = new Map<number, string>();
+  for (const row of result.results ?? []) {
+    const userId = Number(row.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) continue;
+    map.set(userId, String(row.teacher_name ?? "").trim());
+  }
+  return map;
+}
+
 /** 添加日语上课老师时，自动创建禁用的 jp_vocab 账号（用户名取自横杠前的称呼拼音） */
 export async function provisionJpLessonTeacherUser(
   env: CloudflareEnv,
@@ -953,6 +1019,89 @@ function generateAdminResetPassword(minLength: number): string {
   const bytes = new Uint8Array(length);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+function generateMemorableTeacherPassword(minLength: number): string {
+  const wordsA = [
+    "sun",
+    "rain",
+    "lake",
+    "star",
+    "moon",
+    "leaf",
+    "wind",
+    "snow",
+  ];
+  const wordsB = [
+    "class",
+    "study",
+    "note",
+    "speak",
+    "learn",
+    "focus",
+    "review",
+    "lesson",
+  ];
+  const pick = (items: string[]) => items[Math.floor(Math.random() * items.length)];
+  const digits = String(Math.floor(Math.random() * 90) + 10);
+  const base = `${pick(wordsA)}${pick(wordsB)}${digits}`;
+  if (base.length >= minLength) return base;
+  return `${base}${"x".repeat(minLength - base.length)}`;
+}
+
+export type CreateJpLessonTeacherUserByReviewResult =
+  | { ok: true; created: true; user: EtrUser; password: string }
+  | { ok: true; created: false; reason: "user_exists" | "username_unavailable" }
+  | { ok: false; error: string };
+
+/** 老师打分后按勾选创建日语账号，并写入老师-用户映射 */
+export async function createJpLessonTeacherUserByReview(
+  env: CloudflareEnv,
+  teacherId: number,
+  teacherName: string
+): Promise<CreateJpLessonTeacherUserByReviewResult> {
+  const { teacherNameToUsername } = await import("./teacher-name-username");
+  const baseUsername = teacherNameToUsername(teacherName);
+  if (!baseUsername) return { ok: false, error: "username_invalid" };
+
+  await ensureBootstrapUsers(env);
+
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+
+  const candidates = [baseUsername];
+  for (let i = 2; i <= 99; i += 1) candidates.push(`${baseUsername}${i}`);
+
+  let chosen: string | null = null;
+  for (const candidate of candidates) {
+    const username = normalizeUsername(candidate);
+    if (!isValidUsername(username)) continue;
+    if (isReservedUsername(username, adminName, jpVocabName, jpVocabUser1Name)) continue;
+    const existing = await findUserByUsername(env.DB, username);
+    if (existing) {
+      if (candidate === baseUsername) return { ok: true, created: false, reason: "user_exists" };
+      continue;
+    }
+    chosen = username;
+    break;
+  }
+
+  if (!chosen) return { ok: true, created: false, reason: "username_unavailable" };
+
+  const password = generateMemorableTeacherPassword(10);
+  const created = await createUserByAdmin(env, chosen, password, "jp_vocab");
+  if (!created.ok) {
+    if (created.error === "username_taken") {
+      return { ok: true, created: false, reason: "user_exists" };
+    }
+    return { ok: false, error: created.error };
+  }
+
+  await linkUserToJpLessonTeacher(env.DB, created.user.id, teacherId);
+  return { ok: true, created: true, user: created.user, password };
 }
 
 export type ResetUserPasswordByAdminResult =

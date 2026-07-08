@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import {
   createUserByAdmin,
   deleteUserByAdmin,
+  listJpLessonTeacherNameMapByUserId,
   listEtrUsers,
   setUserDisabled,
   syncBootstrapUsersFromEnv,
@@ -97,12 +98,13 @@ function serializeUser(user: {
   role: string;
   disabled?: number;
   created_at: string;
-}, locale: "en" | "zh") {
+}, locale: "en" | "zh", jpLessonTeacherName?: string | null) {
   return {
     id: user.id,
     username: user.username,
     role: user.role,
     role_label: roleLabel(user.role as EtrUserRole, locale),
+    jp_lesson_teacher_name: jpLessonTeacherName ?? null,
     disabled: (user.disabled ?? 0) !== 0,
     created_at: user.created_at,
   };
@@ -119,9 +121,12 @@ export async function GET(request: Request) {
     const env = await getCloudflareEnv();
     await syncBootstrapUsersFromEnv(env);
     const users = await listEtrUsers(env.DB);
+    const teacherNameMap = await listJpLessonTeacherNameMapByUserId(env.DB);
     return jsonResponse({
       ok: true,
-      users: users.map((user) => serializeUser(user, locale)),
+      users: users.map((user) =>
+        serializeUser(user, locale, teacherNameMap.get(user.id) ?? null)
+      ),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -162,7 +167,7 @@ export async function POST(request: Request) {
 
     return jsonResponse({
       ok: true,
-      user: serializeUser(result.user, locale),
+      user: serializeUser(result.user, locale, null),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -227,7 +232,7 @@ export async function PATCH(request: Request) {
 
       return jsonResponse({
         ok: true,
-        user: serializeUser(result.user, locale),
+        user: serializeUser(result.user, locale, null),
       });
     }
 
@@ -245,7 +250,7 @@ export async function PATCH(request: Request) {
 
     return jsonResponse({
       ok: true,
-      user: serializeUser(result.user, locale),
+      user: serializeUser(result.user, locale, null),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonTeacher, JpLessonTeacherReviewRecord } from "@/lib/types";
+import {
+  formatAdminUserCredentials,
+  rememberAdminUserPassword,
+} from "@/lib/admin-user-credentials";
 
 type FormState = {
   id: string;
@@ -55,6 +59,7 @@ export function JpLessonTeacherReviewModal({
   const [form, setForm] = useState<FormState>(defaultForm);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [createUserAccount, setCreateUserAccount] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
 
@@ -93,6 +98,7 @@ export function JpLessonTeacherReviewModal({
       }
       const record = data.data?.[0];
       setForm(record ? recordToForm(record) : defaultForm());
+      setCreateUserAccount(false);
     } catch {
       setStatus(zh ? "加载失败" : "Load failed");
       setStatusErr(true);
@@ -137,16 +143,42 @@ export function JpLessonTeacherReviewModal({
           class_date: form.class_date,
           score: parseInt(form.score, 10),
           remark: form.remark.trim(),
+          create_user_account: createUserAccount,
         }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        user_account?: {
+          id: number;
+          username: string;
+          password: string;
+        };
+      };
       if (!data.ok) {
         setStatus(data.error || (zh ? "保存失败" : "Save failed"));
         setStatusErr(true);
         return;
       }
+      if (data.user_account) {
+        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
+        setStatus(
+          zh
+            ? `评分已保存，已创建账号：${formatAdminUserCredentials(
+                data.user_account.username,
+                data.user_account.password,
+                "zh"
+              )}`
+            : `Saved. Created account: ${formatAdminUserCredentials(
+                data.user_account.username,
+                data.user_account.password,
+                "en"
+              )}`
+        );
+        setStatusErr(false);
+      }
       onChanged?.();
-      onClose();
+      if (!data.user_account) onClose();
     } catch {
       setStatus(zh ? "保存失败" : "Save failed");
       setStatusErr(true);
@@ -263,6 +295,21 @@ export function JpLessonTeacherReviewModal({
                   }}
                 />
               </div>
+              <div className="field field--span-2">
+                <label className="jpl-review-create-account">
+                  <input
+                    type="checkbox"
+                    checked={createUserAccount}
+                    disabled={saving}
+                    onChange={(e) => setCreateUserAccount(e.target.checked)}
+                  />
+                  <span>
+                    {zh
+                      ? "为该老师新增登录账号（默认否）"
+                      : "Create login account for this teacher (default: No)"}
+                  </span>
+                </label>
+              </div>
             </div>
 
             <div className="etr-form-actions etr-form-actions--inline">
@@ -357,6 +404,13 @@ export function JpLessonTeacherReviewModal({
 
         .jp-lesson-teacher-review-form {
           margin-bottom: 0.25rem;
+        }
+        .jpl-review-create-account {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+          color: var(--text);
         }
       `}</style>
     </div>,

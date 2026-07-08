@@ -5,10 +5,6 @@ import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
-import {
-  formatAdminUserCredentials,
-  rememberAdminUserPassword,
-} from "@/lib/admin-user-credentials";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { JpLessonTeacherReviewModal } from "@/components/JpLessonTeacherReviewModal";
 import {
@@ -417,12 +413,6 @@ export function AdminJpLessonTeachersPage() {
         error?: string;
         teacher?: JpLessonTeacher;
         renamed_teachers?: JpLessonTeacher[];
-        user_account?: {
-          id: number;
-          username: string;
-          password: string;
-          disabled: boolean;
-        };
       };
       if (!data.ok) {
         setStatus(
@@ -443,24 +433,7 @@ export function AdminJpLessonTeachersPage() {
       setNewHourlyRate("");
       setNewLessonMinutes("");
       setAddModalOpen(false);
-      if (data.user_account) {
-        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
-        setStatus(
-          locale === "zh"
-            ? `已添加。已自动创建禁用账号：${formatAdminUserCredentials(
-                data.user_account.username,
-                data.user_account.password,
-                "zh"
-              )}（请在用户管理中启用后再登录）`
-            : `Added. Auto-created disabled account: ${formatAdminUserCredentials(
-                data.user_account.username,
-                data.user_account.password,
-                "en"
-              )} (enable in Users before login)`
-        );
-      } else {
-        setStatus(locale === "zh" ? "已添加" : "Added");
-      }
+      setStatus(locale === "zh" ? "已添加" : "Added");
       setStatusErr(false);
     } catch {
       setStatus("添加失败");
@@ -1002,8 +975,8 @@ export function AdminJpLessonTeachersPage() {
                     </h2>
                     <p className="jp-lesson-teacher-modal-lesson">
                       {locale === "zh"
-                        ? "新增后会自动创建一个禁用的日语教师账号。"
-                        : "A disabled Japanese-teacher account will be auto-created."}
+                        ? "新增老师后不会自动建账号；请在评分时按需勾选创建。"
+                        : "No account is auto-created on add; create it during review if needed."}
                     </p>
                   </div>
                   <button
@@ -1070,8 +1043,8 @@ export function AdminJpLessonTeachersPage() {
                   </label>
                   <p className="hint admin-user-add-hint">
                     {locale === "zh"
-                      ? "添加后将自动在用户管理中创建禁用的日语教师账号（用户名取自称呼的拼音，随机密码）。启用账号后老师方可登录。"
-                      : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin of the name, random password). Enable it before the teacher can log in."}
+                      ? "评分后在评价弹窗中勾选“新增账号”才会创建老师账号（用户名为老师名拼音，密码随机）。"
+                      : "Create teacher accounts from the review modal only when needed (pinyin username + random password)."}
                   </p>
                   <div className="etr-form-actions etr-form-actions--inline">
                     <button
