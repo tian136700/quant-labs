@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
+import { JpLessonBatchCopyMenu } from "@/components/JpLessonBatchCopyMenu";
 import { JpLessonCopyMenu } from "@/components/JpLessonCopyMenu";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
@@ -311,6 +312,7 @@ export function JpLessonPage() {
   const [savingTeacherLessonId, setSavingTeacherLessonId] = useState<number | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedBatchKey, setCopiedBatchKey] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilter] =
     useState<JpLessonProgressStatus>("learning");
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
@@ -440,6 +442,11 @@ export function JpLessonPage() {
   const handleLessonLinkCopied = useCallback((lessonId: number) => {
     setCopiedId(lessonId);
     window.setTimeout(() => setCopiedId(null), 1000);
+  }, []);
+
+  const handleBatchLinkCopied = useCallback((batchKey: string) => {
+    setCopiedBatchKey(batchKey);
+    window.setTimeout(() => setCopiedBatchKey(null), 1200);
   }, []);
 
   const handleLessonLinkCopyError = useCallback(() => {
@@ -1167,6 +1174,19 @@ export function JpLessonPage() {
 
   const renderSharedTeacherCell = (groupLessons: JpLessonRecord[]) => {
     const lesson = groupLessons[0];
+    const batchKey = `group-${groupLessons.map((item) => item.id).join("-")}`;
+    const batchCopyItems = groupLessons
+      .map((item) => {
+        if (!item.ref_key) return null;
+        const ref = refs[item.ref_key];
+        if (!ref) return null;
+        return {
+          lessonId: item.id,
+          content: formatLessonContentOneLine(item.content),
+          viewUrl: refViewUrl(item.ref_key, ref.updated_at),
+        };
+      })
+      .filter((item): item is { lessonId: number; content: string; viewUrl: string } => item != null);
     return (
       <td data-label="上课老师" className="jp-lesson-teacher-col">
         <div className="jp-lesson-teacher-cell">
@@ -1174,6 +1194,18 @@ export function JpLessonPage() {
             <JpLessonTeacherDisplay lesson={lesson} teachersById={teacherById} />
           </JpLessonMobileFieldValue>
           <div className="jp-lesson-merged-edit-stack">
+            {groupLessons.length > 1 ? (
+              <JpLessonBatchCopyMenu
+                batchKey={batchKey}
+                items={batchCopyItems}
+                siteUrl={JP_SITE_URL}
+                primaryClassName="jp-lesson-action-btn"
+                fixedPanel
+                copiedBatchKey={copiedBatchKey}
+                onCopied={handleBatchLinkCopied}
+                onCopyError={handleLessonLinkCopyError}
+              />
+            ) : null}
             <JpEditIconButton
               title={
                 groupLessons.length > 1
