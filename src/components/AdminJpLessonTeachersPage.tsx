@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
@@ -133,13 +134,19 @@ export function AdminJpLessonTeachersPage() {
   const { locale, t } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
   const nav = t("nav");
+  const addNameInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
   const [loading, setLoading] = useState(() => readJpLessonTeachersCache().length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newHourlyRate, setNewHourlyRate] = useState("");
   const [newLessonMinutes, setNewLessonMinutes] = useState("");
@@ -156,8 +163,28 @@ export function AdminJpLessonTeachersPage() {
   const [hourlySortOrder, setHourlySortOrder] = useState<SortOrder>(null);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
   }, [locale]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const timer = window.setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!addModalOpen) return;
+    const timer = window.setTimeout(() => {
+      addNameInputRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [addModalOpen]);
 
   const loadReviewSummaries = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readJpLessonTeacherReviewCache();
@@ -285,6 +312,24 @@ export function AdminJpLessonTeachersPage() {
     );
   }, [teachers, reviewSummaries, scoreSortOrder, hourlySortOrder]);
 
+  const filteredTeachers = useMemo(() => {
+    const keyword = searchQuery.trim().toLowerCase();
+    if (!keyword) return sortedTeachers;
+    return sortedTeachers.filter((teacher) => {
+      const summary = reviewSummaries.get(teacher.id);
+      const resolved = resolveLessonTeacherRateFields(teacher);
+      const haystack = [
+        String(teacher.id),
+        teacher.name,
+        resolved.name,
+        summary?.latest_remark ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [reviewSummaries, searchQuery, sortedTeachers]);
+
   const toggleScoreSortOrder = useCallback(() => {
     setHourlySortOrder(null);
     setScoreSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -368,6 +413,7 @@ export function AdminJpLessonTeachersPage() {
       setNewName("");
       setNewHourlyRate("");
       setNewLessonMinutes("");
+      setAddModalOpen(false);
       if (data.user_account) {
         rememberAdminUserPassword(data.user_account.id, data.user_account.password);
         setStatus(
@@ -500,6 +546,11 @@ export function AdminJpLessonTeachersPage() {
     }
   };
 
+  const closeAddModal = useCallback(() => {
+    if (saving) return;
+    setAddModalOpen(false);
+  }, [saving]);
+
   if (checking || !isAdmin) {
     return (
       <AdminAuthGate
@@ -541,85 +592,57 @@ export function AdminJpLessonTeachersPage() {
         </p>
       ) : null}
 
-      <section className="section etr-panel admin-rbac-section admin-user-add-section">
-        <h2 className="admin-user-add-title">
-          {locale === "zh" ? "添加老师" : "Add teacher"}
-        </h2>
-        <form
-          className="admin-user-add-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void createTeacher();
-          }}
-        >
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "名称" : "Name"}</span>
-            <input
-              type="text"
-              value={newName}
-              disabled={saving}
-              placeholder={locale === "zh" ? "例如：周老师" : "e.g. Teacher Zhou"}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-          </label>
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "课时费（RMB/小时）" : "Rate (RMB/h)"}</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={newHourlyRate}
-              disabled={saving}
-              placeholder={locale === "zh" ? "选填" : "Optional"}
-              onChange={(e) => {
-                const next = e.target.value;
-                setNewHourlyRate(next);
-                setNewLessonMinutes((prev) =>
-                  defaultLessonMinutesWhenRateSet(next, prev)
-                );
-              }}
-            />
-          </label>
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "单次课时长" : "Lesson duration"}</span>
-            <select
-              value={newLessonMinutes}
-              disabled={saving}
-              onChange={(e) => setNewLessonMinutes(e.target.value)}
-            >
-              <option value="">{locale === "zh" ? "选填" : "Optional"}</option>
-              {LESSON_MINUTE_OPTIONS.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {formatLessonMinuteOptionLabel(minutes, locale)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="submit"
-            className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
-            disabled={saving || !newName.trim()}
-          >
-            {saving
-              ? locale === "zh"
-                ? "提交中…"
-                : "Saving…"
-              : locale === "zh"
-                ? "添加"
-                : "Add"}
-          </button>
-        </form>
-        <p className="hint admin-user-add-hint">
-          {locale === "zh"
-            ? "添加后将自动在用户管理中创建禁用的日语教师账号（用户名取自称呼的拼音，随机密码）。启用账号后老师方可登录。"
-            : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin of the name, random password). Enable it before the teacher can log in."}
-        </p>
-      </section>
-
       <section className="section etr-panel admin-rbac-section">
         <div className="etr-history-head admin-jpl-teachers-head">
           <h2>{locale === "zh" ? "老师列表" : "Teachers"}</h2>
           <div className="admin-jpl-teachers-toolbar">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
+              onClick={() => setAddModalOpen(true)}
+            >
+              {locale === "zh" ? "添加老师" : "Add teacher"}
+            </button>
+            <button
+              type="button"
+              className={`btn-rsi-filter btn-rsi-filter--compact${searchOpen ? " is-active" : ""}`}
+              aria-expanded={searchOpen}
+              aria-controls="admin-jpl-teacher-search"
+              onClick={() => {
+                if (searchOpen && searchQuery.trim()) {
+                  setSearchQuery("");
+                  return;
+                }
+                setSearchOpen((prev) => !prev);
+              }}
+            >
+              {searchOpen && searchQuery.trim()
+                ? locale === "zh"
+                  ? "清空搜索"
+                  : "Clear search"
+                : locale === "zh"
+                  ? "搜索老师"
+                  : "Search teachers"}
+            </button>
+            {searchOpen ? (
+              <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
+                <span className="sr-only">
+                  {locale === "zh" ? "搜索老师" : "Search teachers"}
+                </span>
+                <input
+                  id="admin-jpl-teacher-search"
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  placeholder={
+                    locale === "zh"
+                      ? "按老师名称、ID、备注搜索"
+                      : "Search by name, ID, or note"
+                  }
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </label>
+            ) : null}
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact admin-jpl-mobile-sort-btn"
@@ -701,6 +724,10 @@ export function AdminJpLessonTeachersPage() {
           <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
         ) : teachers.length === 0 ? (
           <p className="hint">{locale === "zh" ? "暂无老师" : "No teachers yet"}</p>
+        ) : filteredTeachers.length === 0 ? (
+          <p className="hint">
+            {locale === "zh" ? "没有匹配的老师，请调整搜索关键词。" : "No matching teachers."}
+          </p>
         ) : (
           <div className="admin-jpl-teachers-table-wrap">
             <table className="admin-jpl-teachers-table">
@@ -792,7 +819,7 @@ export function AdminJpLessonTeachersPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedTeachers.map((teacher) => {
+                {filteredTeachers.map((teacher) => {
                   const isEditing = editingId === teacher.id;
                   const summary = reviewSummaries.get(teacher.id);
                   const latestRemark = summary?.latest_remark ?? null;
@@ -976,6 +1003,149 @@ export function AdminJpLessonTeachersPage() {
         onClose={() => setReviewTeacher(null)}
         onChanged={() => void loadReviewSummaries({ force: true })}
       />
+
+      {mounted && addModalOpen
+        ? createPortal(
+            <div
+              className="jp-lesson-teacher-overlay"
+              role="presentation"
+              onClick={closeAddModal}
+            >
+              <div
+                className="jp-lesson-teacher-modal admin-jpl-add-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-jpl-add-title"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="jp-lesson-teacher-header">
+                  <div>
+                    <h2 id="admin-jpl-add-title">
+                      {locale === "zh" ? "添加老师" : "Add teacher"}
+                    </h2>
+                    <p className="jp-lesson-teacher-modal-lesson">
+                      {locale === "zh"
+                        ? "新增后会自动创建一个禁用的日语教师账号。"
+                        : "A disabled Japanese-teacher account will be auto-created."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="jp-lesson-teacher-close"
+                    aria-label={locale === "zh" ? "关闭" : "Close"}
+                    disabled={saving}
+                    onClick={closeAddModal}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form
+                  className="admin-jpl-add-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void createTeacher();
+                  }}
+                >
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "名称" : "Name"}</span>
+                    <input
+                      ref={addNameInputRef}
+                      type="text"
+                      value={newName}
+                      disabled={saving}
+                      placeholder={locale === "zh" ? "例如：周老师" : "e.g. Teacher Zhou"}
+                      onChange={(e) => setNewName(e.target.value)}
+                    />
+                  </label>
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "课时费（RMB/小时）" : "Rate (RMB/h)"}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newHourlyRate}
+                      disabled={saving}
+                      placeholder={locale === "zh" ? "选填" : "Optional"}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setNewHourlyRate(next);
+                        setNewLessonMinutes((prev) =>
+                          defaultLessonMinutesWhenRateSet(next, prev)
+                        );
+                      }}
+                    />
+                  </label>
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "单次课时长" : "Lesson duration"}</span>
+                    <select
+                      value={newLessonMinutes}
+                      disabled={saving}
+                      onChange={(e) => setNewLessonMinutes(e.target.value)}
+                    >
+                      <option value="">{locale === "zh" ? "选填" : "Optional"}</option>
+                      {LESSON_MINUTE_OPTIONS.map((minutes) => (
+                        <option key={minutes} value={minutes}>
+                          {formatLessonMinuteOptionLabel(minutes, locale)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="hint admin-user-add-hint">
+                    {locale === "zh"
+                      ? "添加后将自动在用户管理中创建禁用的日语教师账号（用户名取自称呼的拼音，随机密码）。启用账号后老师方可登录。"
+                      : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin of the name, random password). Enable it before the teacher can log in."}
+                  </p>
+                  <div className="etr-form-actions etr-form-actions--inline">
+                    <button
+                      type="button"
+                      className="btn-rsi-filter"
+                      disabled={saving}
+                      onClick={closeAddModal}
+                    >
+                      {locale === "zh" ? "取消" : "Cancel"}
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-rsi-filter btn-rsi-filter--primary"
+                      disabled={saving || !newName.trim()}
+                    >
+                      {saving
+                        ? locale === "zh"
+                          ? "提交中…"
+                          : "Saving…"
+                        : locale === "zh"
+                          ? "添加"
+                          : "Add"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <style jsx>{`
+                .admin-jpl-search-field {
+                  flex: 1 1 15rem;
+                  min-width: min(100%, 15rem);
+                }
+
+                .admin-jpl-search-field input {
+                  min-height: 2.25rem;
+                  padding-block: 0.45rem;
+                }
+
+                .admin-jpl-add-modal {
+                  width: min(560px, 100%);
+                }
+
+                .admin-jpl-add-form {
+                  display: grid;
+                  gap: 0.85rem;
+                }
+              `}</style>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }
