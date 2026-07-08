@@ -257,6 +257,28 @@ export async function findUserById(db: D1Database, userId: number): Promise<EtrU
   );
 }
 
+async function ensureUserEnabledById(
+  db: D1Database,
+  userId: number
+): Promise<EtrUser | null> {
+  if (!Number.isInteger(userId) || userId <= 0) return null;
+
+  if (devAuthEnabled) {
+    const row = devUsers.find((u) => u.id === userId);
+    if (!row) return null;
+    row.disabled = 0;
+    const { password_hash: _, ...publicUser } = row;
+    return publicUser;
+  }
+
+  await ensureEtrUsersSchema(db);
+  await db
+    .prepare(`UPDATE etr_users SET disabled = 0 WHERE id = ?1`)
+    .bind(userId)
+    .run();
+  return findUserById(db, userId);
+}
+
 export type AuthResult =
   | { ok: true; user: EtrUser; token: string; expires_at: string }
   | { ok: false; error: string };
@@ -911,7 +933,7 @@ export async function ensureJpLessonTeacherUserAccount(
 ): Promise<EnsureJpLessonTeacherUserAccountResult> {
   const existingLink = await findJpLessonTeacherUserLink(env.DB, teacherId);
   if (existingLink) {
-    const user = await findUserById(env.DB, existingLink.user_id);
+    const user = await ensureUserEnabledById(env.DB, existingLink.user_id);
     if (user) return { ok: true, created: false, user };
   }
 
@@ -942,7 +964,9 @@ export async function ensureJpLessonTeacherUserAccount(
       return { ok: false, error: "username_taken" };
     }
     await linkUserToJpLessonTeacher(env.DB, existing.id, teacherId);
-    return { ok: true, created: false, user: existing };
+    const enabled = await ensureUserEnabledById(env.DB, existing.id);
+    if (!enabled) return { ok: false, error: "user_not_found" };
+    return { ok: true, created: false, user: enabled };
   }
 
   return { ok: false, error: provision.reason ?? "username_unavailable" };
@@ -996,7 +1020,7 @@ export async function provisionJpLessonTeacherUser(
 
   const password = generateAdminResetPassword(10);
   const result = await createUserByAdmin(env, username, password, "jp_vocab", {
-    disabled: true,
+    disabled: false,
   });
   if (!result.ok) {
     if (result.error === "username_taken") {
@@ -1063,7 +1087,7 @@ export async function provisionEnLessonTeacherUser(
 
   const password = generateAdminResetPassword(10);
   const result = await createUserByAdmin(env, username, password, "en_vocab", {
-    disabled: true,
+    disabled: false,
   });
   if (!result.ok) {
     if (result.error === "username_taken") {
@@ -1267,7 +1291,9 @@ export async function createJpLessonTeacherUserByReview(
   }
 
   await linkUserToJpLessonTeacher(env.DB, created.user.id, teacherId);
-  return { ok: true, created: true, user: created.user, password };
+  const enabled = await ensureUserEnabledById(env.DB, created.user.id);
+  if (!enabled) return { ok: false, error: "user_not_found" };
+  return { ok: true, created: true, user: enabled, password };
 }
 
 export type ResetUserPasswordByAdminResult =
