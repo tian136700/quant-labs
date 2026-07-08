@@ -482,6 +482,10 @@ export function JpVocabPage() {
   }, [loading, words.length, applySyncPatches, applyTeacherVisibleSync, isAdmin]);
 
   const displayedWords = useMemo(() => {
+    if (statSort.key === "seq" && displayOrder.ids.length > 0) {
+      const ordered = jpVocabWordsInOrder(words, displayOrder.ids);
+      return statSort.dir === "desc" ? [...ordered].reverse() : ordered;
+    }
     if (useDailyRowOrder && displayOrder.ids.length > 0) {
       return jpVocabWordsInOrder(words, displayOrder.ids);
     }
@@ -1432,7 +1436,28 @@ export function JpVocabPage() {
               <thead>
                 <tr>
                   <th rowSpan={2} className="jp-vocab-seq-col">
-                    序号
+                    <button
+                      type="button"
+                      className="jp-vocab-sort-btn"
+                      aria-sort={
+                        statSort?.key === "seq"
+                          ? statSort.dir === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : "none"
+                      }
+                      title="按当日固定序号排序"
+                      onClick={() => toggleStatSort("seq")}
+                    >
+                      <span>序号</span>
+                      <span className="jp-vocab-sort-indicator" aria-hidden="true">
+                        {statSort?.key === "seq"
+                          ? statSort.dir === "asc"
+                            ? "↑"
+                            : "↓"
+                          : "↕"}
+                      </span>
+                    </button>
                   </th>
                   <th rowSpan={2} className="jp-vocab-kind-col">
                     类型

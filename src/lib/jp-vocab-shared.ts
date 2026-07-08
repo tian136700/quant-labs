@@ -1,6 +1,6 @@
 import type { JpVocabWord } from "@/lib/types";
 
-export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk";
+export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk" | "seq";
 
 /** 单词表默认排序：合计为 0 的置顶，其余按抽查优先级降序 */
 export const JP_VOCAB_DEFAULT_STAT_SORT: {
@@ -53,6 +53,8 @@ function statSortValue(word: JpVocabWord, key: JpVocabStatSortKey): number {
       return jpVocabTotalReviews(word);
     case "risk":
       return jpVocabRiskIndex(word);
+    case "seq":
+      return 0;
   }
 }
 

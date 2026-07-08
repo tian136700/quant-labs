@@ -1423,34 +1423,32 @@ export function JpLessonPage() {
               >
                 <div className="jp-lesson-status-card-head">
                   <h2 className="jp-lesson-status-card-title">{title}</h2>
-                  <div className="jp-lesson-status-card-head-right">
-                    {isAdmin && status === "pending" ? (
-                      <div className="jp-lesson-batch-toolbar">
-                        <button
-                          type="button"
-                          className="jp-lesson-action-btn"
-                          disabled={!batchLessonIds.length}
-                          onClick={() => setBatchModalOpen(true)}
-                        >
-                          设置时间和老师
-                          {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
-                        </button>
-                        {batchLessonIds.length ? (
-                          <button
-                            type="button"
-                            className="jp-lesson-action-btn"
-                            onClick={() => setBatchLessonIds([])}
-                          >
-                            清空勾选
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <span className="jp-lesson-status-card-count">
-                      {sectionCount} 条
-                    </span>
-                  </div>
+                  <span className="jp-lesson-status-card-count">
+                    {sectionCount} 条
+                  </span>
                 </div>
+                {isAdmin && status === "pending" && sectionCount ? (
+                  <div className="jp-lesson-batch-toolbar">
+                    <button
+                      type="button"
+                      className="jp-lesson-action-btn"
+                      disabled={!batchLessonIds.length}
+                      onClick={() => setBatchModalOpen(true)}
+                    >
+                      设置时间和老师
+                      {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
+                    </button>
+                    {batchLessonIds.length ? (
+                      <button
+                        type="button"
+                        className="jp-lesson-action-btn"
+                        onClick={() => setBatchLessonIds([])}
+                      >
+                        清空勾选
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {sectionCount ? (
                   renderLessonTable(
                     sectionGroups,
@@ -1605,12 +1603,13 @@ export function JpLessonPage() {
           gap: 0.75rem;
           margin-bottom: 0.75rem;
         }
-        .jp-lesson-status-card-head-right {
+        .jp-lesson-batch-toolbar {
           display: flex;
           align-items: center;
           flex-wrap: wrap;
           justify-content: flex-end;
-          gap: 0.5rem 0.75rem;
+          gap: 0.5rem;
+          margin: -0.25rem 0 0.75rem;
         }
         .jp-lesson-status-card-title {
           font-size: 1.375rem;
@@ -2046,12 +2045,6 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-        }
-        .jp-lesson-batch-toolbar {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 0.5rem;
         }
         :global(.jp-lesson-batch-id-row) {
           display: inline-flex;
