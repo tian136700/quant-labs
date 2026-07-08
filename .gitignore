@@ -123,5 +123,7 @@ scripts/backfill-visit-geo.py
 
 # auto-ignore-local begin
 scripts/deploy_center/
+scripts/deploy_center/auto_menu.py
+scripts/deploy_center/manual_menu.py
 scripts/deploy_center/server.py
 # auto-ignore-local end

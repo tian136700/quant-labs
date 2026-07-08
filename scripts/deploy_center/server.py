@@ -92,6 +92,91 @@ def auto_watch_status() -> dict[str, Any]:
     }
 
 
+def _infer_step_from_logs(lines: list[str]) -> tuple[str, int]:
+    step = "prepare"
+    progress = 5
+    for line in lines:
+        lower = line.lower()
+        if "[d1-backup]" in line:
+            step, progress = "backup", max(progress, 12)
+        elif "git add" in lower:
+            step, progress = "git_add", max(progress, 22)
+        elif "committed:" in lower:
+            step, progress = "commit", max(progress, 42)
+        elif "pushed to origin" in lower:
+            step, progress = "push", max(progress, 62)
+        elif "npm run deploy" in lower:
+            step, progress = "deploy", max(progress, 78)
+        elif "deploy finished" in lower:
+            step, progress = "deploy", max(progress, 95)
+        elif "自动提交并推送完成" in line:
+            step, progress = "done", 100
+    return step, progress
+
+
+def _latest_deploy_row(mode: str) -> dict[str, Any] | None:
+    try:
+        rows = list_deploy_logs(limit=200)
+    except Exception:
+        return None
+    for row in rows:
+        if row.get("mode") == mode and row.get("status") == "running":
+            return row
+    for row in rows:
+        if row.get("mode") == mode:
+            return row
+    return None
+
+
+def auto_runtime_snapshot() -> dict[str, Any]:
+    logs = _tail_lines(AUTO_LOG, 400)
+    step, progress = _infer_step_from_logs(logs)
+    row = _latest_deploy_row("auto")
+    status = "idle"
+    started_at = None
+    finished_at = None
+    exit_code = None
+    message = "自动部署待命"
+
+    if row:
+        status = str(row.get("status") or "idle")
+        started_at = row.get("started_at")
+        finished_at = row.get("finished_at")
+        exit_code = row.get("exit_code")
+        if status == "running":
+            message = str(row.get("summary") or "自动部署进行中")
+        elif status == "success":
+            message = str(row.get("summary") or "自动部署成功")
+            if progress < 100:
+                step, progress = "done", 100
+        elif status == "error":
+            message = str(row.get("summary") or "自动部署失败")
+        else:
+            message = str(row.get("summary") or message)
+
+        log_id = row.get("id")
+        if isinstance(log_id, int):
+            detail_row = get_deploy_log(log_id)
+            details = str(detail_row.get("details") or "").splitlines() if detail_row else []
+            if details:
+                logs = (logs + ["", "--- deploy_logs 详情 ---", *details])[-600:]
+    elif logs:
+        status = "running" if any("开始自动 commit + push" in line for line in logs[-40:]) else "idle"
+        message = "自动部署进行中（日志推断）" if status == "running" else "自动部署待命"
+
+    return {
+        "status": status,
+        "step": step,
+        "progress": progress,
+        "message": message,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "exit_code": exit_code,
+        "logs": logs[-500:],
+        "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def build_page() -> str:
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -125,6 +210,8 @@ def build_page() -> str:
     .step.done {{ color:var(--ok); border-color:var(--ok); }}
     .status-line {{ margin-top:.5rem; }}
     .log-box {{ margin:0; height:300px; overflow:auto; white-space:pre-wrap; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.8rem; color:#c5d0e0; }}
+    .log-toolbar {{ display:flex; justify-content:space-between; align-items:center; gap:.8rem; margin-bottom:.6rem; }}
+    .log-toolbar h3 {{ margin:0; }}
     .kv {{ white-space:pre-wrap; line-height:1.55; color:#d2dded; }}
     .logs-list details {{ border:1px solid var(--border); border-radius:8px; padding:.5rem .65rem; margin-bottom:.65rem; background:#0d1218; }}
     .logs-list summary {{ cursor:pointer; color:#d7e4f8; }}
@@ -149,10 +236,8 @@ def build_page() -> str:
     const el = (id) => document.getElementById(id);
     const publishBtn = el("publish");
     const msgInput = el("msg");
-    const statusEl = el("status");
-    const stepsEl = el("steps");
-    const barEl = el("bar");
-    const logEl = el("manual-log");
+    const manualCopyBtn = el("manual-copy-log");
+    const autoCopyBtn = el("auto-copy-log");
     let lastSnapshot = null;
 
     function bindTabs() {{
@@ -166,7 +251,10 @@ def build_page() -> str:
       }}));
     }}
 
-    function renderSteps(current, progress, jobStatus) {{
+    function renderSteps(prefix, current, progress, jobStatus) {{
+      const stepsEl = el(`${{prefix}}-steps`);
+      const barEl = el(`${{prefix}}-bar`);
+      if (!stepsEl || !barEl) return;
       stepsEl.innerHTML = stepOrder.map((id) => {{
         let cls = "step";
         const idx = stepOrder.indexOf(id);
@@ -178,25 +266,33 @@ def build_page() -> str:
       barEl.style.width = `${{Math.max(0, Math.min(100, progress || 0))}}%`;
     }}
 
-    function applySnapshot(data) {{
-      lastSnapshot = data;
-      renderSteps(data.step, data.progress, data.status);
+    function renderRuntime(prefix, data, idleText) {{
+      const statusEl = el(`${{prefix}}-status`);
+      const logEl = el(`${{prefix}}-log`);
+      if (!statusEl || !logEl) return;
+      renderSteps(prefix, data.step, data.progress, data.status);
       if (data.status === "running") {{
-        statusEl.textContent = data.message || "手动部署进行中...";
-        publishBtn.disabled = true;
+        statusEl.textContent = data.message || `${{prefix}} 部署进行中...`;
       }} else if (data.status === "success") {{
-        statusEl.textContent = data.message || "手动部署成功";
-        publishBtn.disabled = false;
+        statusEl.textContent = data.message || `${{prefix}} 部署成功`;
       }} else if (data.status === "error") {{
-        statusEl.textContent = data.message || "手动部署失败";
-        publishBtn.disabled = false;
+        statusEl.textContent = data.message || `${{prefix}} 部署失败`;
       }} else {{
-        statusEl.textContent = "待命";
-        publishBtn.disabled = false;
+        statusEl.textContent = idleText || "待命";
       }}
       if (Array.isArray(data.logs)) {{
         logEl.textContent = data.logs.join("\\n") + (data.logs.length ? "\\n" : "");
         logEl.scrollTop = logEl.scrollHeight;
+      }}
+    }}
+
+    function applySnapshot(data) {{
+      lastSnapshot = data;
+      renderRuntime("manual", data, "待命");
+      if (data.status === "running") {{
+        publishBtn.disabled = true;
+      }} else {{
+        publishBtn.disabled = false;
       }}
     }}
 
@@ -207,6 +303,7 @@ def build_page() -> str:
 
     async function refreshAuto() {{
       const data = await (await fetch("/api/auto-status")).json();
+      const runtimeData = await (await fetch("/api/auto-runtime")).json();
       const modeMap = {{
         watch: "常驻守护进程",
         cron: "crontab 定时检查",
@@ -237,10 +334,11 @@ def build_page() -> str:
         lines.push("最近日志: " + data.auto.last_log);
       }}
       el("auto-summary").textContent = lines.join("\\n");
-      const runtime = data.manual.status === "running"
-        ? `当前有部署任务: 是\\n步骤: ${{data.manual.step}}\\n进度: ${{data.manual.progress}}%\\n开始: ${{data.manual.started_at || "-"}}`
+      const runtime = runtimeData.status === "running"
+        ? `当前有部署任务: 是\\n步骤: ${{runtimeData.step}}\\n进度: ${{runtimeData.progress}}%\\n开始: ${{runtimeData.started_at || "-"}}`
         : "当前有部署任务: 否";
       el("auto-runtime").textContent = runtime;
+      renderRuntime("auto", runtimeData, "自动部署待命");
     }}
 
     function modeLabel(mode) {{
@@ -294,6 +392,23 @@ def build_page() -> str:
       }}
       await refreshManual();
     }});
+
+    function copyLog(prefix) {{
+      const node = el(`${{prefix}}-log`);
+      if (!node) return;
+      const text = node.textContent || "";
+      if (!text.trim()) return;
+      if (navigator.clipboard?.writeText) {{
+        navigator.clipboard.writeText(text).catch(() => {{
+          window.prompt("复制失败，请手动复制：", text);
+        }});
+        return;
+      }}
+      window.prompt("请手动复制日志：", text);
+    }}
+
+    manualCopyBtn?.addEventListener("click", () => copyLog("manual"));
+    autoCopyBtn?.addEventListener("click", () => copyLog("auto"));
 
     el("refresh").addEventListener("click", () => void refreshManual());
     el("refresh-auto").addEventListener("click", () => void refreshAuto());
@@ -355,6 +470,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/auto-status":
             self._send_json({"auto": auto_watch_status(), "manual": HUB.snapshot()})
+            return
+        if path == "/api/auto-runtime":
+            self._send_json(auto_runtime_snapshot())
             return
         if path == "/api/deploy-logs":
             limit = int((query.get("limit") or ["80"])[0] or "80")
