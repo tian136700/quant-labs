@@ -36,6 +36,7 @@ def now_str() -> str:
 @dataclass
 class JobState:
     status: str = "idle"
+    mode: str = "manual"
     step: str = "prepare"
     progress: int = 0
     message: str = ""
@@ -67,6 +68,7 @@ class PublishHub:
         with self._lock:
             return {
                 "status": self._job.status,
+                "mode": self._job.mode,
                 "step": self._job.step,
                 "progress": self._job.progress,
                 "message": self._job.message,
@@ -132,13 +134,16 @@ class PublishHub:
         elif "deploy finished" in lower:
             self._set_step("deploy", 95, "部署命令已完成")
 
-    def start(self, commit_message: str = "") -> tuple[bool, str]:
+    def start(self, commit_message: str = "", *, mode: str = "manual") -> tuple[bool, str]:
+        deploy_mode = "auto" if str(mode).strip().lower() == "auto" else "manual"
+        trigger_source = "cursor-hook" if deploy_mode == "auto" else "deploy-center-manual"
+        label = "自动部署" if deploy_mode == "auto" else "手动部署"
         deploy_log_id: int | None = None
         try:
             deploy_log_id = create_deploy_log(
-                mode="manual",
-                trigger_source="deploy-center-manual",
-                summary="manual 任务开始：备份 -> commit -> push -> deploy",
+                mode=deploy_mode,
+                trigger_source=trigger_source,
+                summary=f"{deploy_mode} 任务开始：备份 -> commit -> push -> deploy",
                 remark=commit_message.strip(),
             )
         except Exception:
@@ -148,16 +153,17 @@ class PublishHub:
                 return False, "已有发布任务在进行中"
             self._job = JobState(
                 status="running",
+                mode=deploy_mode,
                 step="prepare",
                 progress=5,
                 message="任务已启动",
                 started_at=now_str(),
-                logs=[f"[{now_str()}] 手动部署任务开始"],
+                logs=[f"[{now_str()}] {label}任务开始"],
                 deploy_log_id=deploy_log_id,
             )
             self._thread = threading.Thread(
                 target=self._run_job,
-                args=(commit_message.strip(),),
+                args=(commit_message.strip(), deploy_mode),
                 daemon=True,
             )
             _set_job_lock(True)
@@ -193,7 +199,9 @@ class PublishHub:
                 merged[key] = value
         return merged
 
-    def _run_job(self, commit_message: str) -> None:
+    def _run_job(self, commit_message: str, deploy_mode: str = "manual") -> None:
+        label = "自动部署" if deploy_mode == "auto" else "手动部署"
+        trigger_source = "cursor-hook" if deploy_mode == "auto" else "publish-console"
         self._set_step("prepare", 8, "检查环境与凭据…")
         try:
             maybe_backup_before_deploy([], log_fn=self._append_log, auth_failure_mode="warn_skip")
@@ -206,7 +214,7 @@ class PublishHub:
                         log_id=self._job.deploy_log_id,
                         status="error",
                         exit_code=1,
-                        summary=f"manual 任务失败（备份失败）",
+                        summary=f"{deploy_mode} 任务失败（备份失败）",
                         details=f"backup_error: {msg}",
                     )
                 except Exception:
@@ -222,7 +230,7 @@ class PublishHub:
                         log_id=self._job.deploy_log_id,
                         status="error",
                         exit_code=1,
-                        summary=f"manual 任务失败（备份失败）",
+                        summary=f"{deploy_mode} 任务失败（备份失败）",
                         details=f"backup_error: {msg}",
                     )
                 except Exception:
@@ -236,8 +244,8 @@ class PublishHub:
 
         env = self._load_deploy_env(os.environ.copy())
         env["PUBLISH_CONSOLE_SKIP_D1_BACKUP"] = "1"
-        env["DEPLOY_LOG_MODE"] = "manual"
-        env["DEPLOY_TRIGGER_SOURCE"] = "publish-console"
+        env["DEPLOY_LOG_MODE"] = deploy_mode
+        env["DEPLOY_TRIGGER_SOURCE"] = trigger_source
         env["DEPLOY_REMARK"] = commit_message
         if self._job.deploy_log_id is not None:
             env["DEPLOY_LOG_ID"] = str(self._job.deploy_log_id)
@@ -265,9 +273,9 @@ class PublishHub:
 
         code = proc.wait()
         if code == 0:
-            self._finish(0, "手动部署成功")
+            self._finish(0, f"{label}成功")
             self._append_log(f"[{now_str()}] 全部完成 ✓")
         else:
-            self._finish(code, "手动部署失败，请查看日志")
+            self._finish(code, f"{label}失败，请查看日志")
             self._append_log(f"[{now_str()}] 失败，退出码 {code}")
 

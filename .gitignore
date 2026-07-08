@@ -124,6 +124,7 @@ scripts/backfill-visit-geo.py
 # auto-ignore-local begin
 scripts/deploy_center/
 scripts/deploy_center/auto_menu.py
+scripts/deploy_center/hub.py
 scripts/deploy_center/logs_menu.py
 scripts/deploy_center/manual_menu.py
 scripts/deploy_center/server.py

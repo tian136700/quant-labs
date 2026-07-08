@@ -58,7 +58,7 @@ def _row_started_at(row: dict[str, Any] | None) -> str:
 
 def _is_manual_ui_visible(hub_snap: dict[str, Any]) -> bool:
     if hub_snap.get("status") == "running":
-        return True
+        return hub_snap.get("mode") != "auto"
 
     auto_row = _latest_deploy_row("auto")
     if auto_row and auto_row.get("status") == "running":
@@ -74,6 +74,8 @@ def _is_manual_ui_visible(hub_snap: dict[str, Any]) -> bool:
             return False
 
     if hub_snap.get("status") in {"success", "error"}:
+        if hub_snap.get("mode") == "auto":
+            return False
         return True
     return False
 
@@ -99,6 +101,21 @@ def _latest_deploy_row(mode: str) -> dict[str, Any] | None:
 
 
 def auto_runtime_snapshot() -> dict[str, Any]:
+    hub = HUB.snapshot()
+    if hub.get("status") == "running" and hub.get("mode") == "auto":
+        return {
+            "status": "running",
+            "step": hub.get("step") or "prepare",
+            "progress": int(hub.get("progress") or 0),
+            "message": str(hub.get("message") or "自动部署进行中"),
+            "started_at": hub.get("started_at"),
+            "finished_at": hub.get("finished_at"),
+            "exit_code": hub.get("exit_code"),
+            "logs": hub.get("logs") or [],
+            "server_time": hub.get("server_time"),
+            "source": "publish-center-job",
+        }
+
     row = _latest_deploy_row("auto")
     status = "idle"
     step = "prepare"
@@ -268,7 +285,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         body = self._read_json_body()
         message = str(body.get("message", "") or "")
-        ok, err = HUB.start(message)
+        source = str(body.get("source", "") or "").strip().lower()
+        mode = "auto" if source == "auto" else "manual"
+        ok, err = HUB.start(message, mode=mode)
         if not ok:
             self._send_json({"ok": False, "error": err}, 409)
             return
