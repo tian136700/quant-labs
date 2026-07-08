@@ -64,7 +64,7 @@ import {
   removeJpLessonTeacherCache,
   upsertJpLessonTeacherCache,
 } from "@/lib/jp-lesson-teachers-cache";
-import { SITE_URL } from "@/lib/site";
+import { JP_SITE_URL } from "@/lib/jp-site-host";
 import type {
   JpLessonClassScheduleInput,
   JpLessonNote,
@@ -1076,7 +1076,7 @@ export function JpLessonPage() {
         key="copy"
         lessonId={lesson.id}
         viewUrl={viewUrl}
-        siteUrl={SITE_URL}
+        siteUrl={JP_SITE_URL}
         primaryClassName="jp-lesson-action-btn"
         fixedPanel
         copiedId={copiedId}
@@ -1746,7 +1746,7 @@ export function JpLessonPage() {
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
         <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
         <p style={{ marginTop: "0.5rem" }}>
-          固定链接：<code>{SITE_URL}/jp-lesson</code>
+          固定链接：<code>{JP_SITE_URL}/jp-lesson</code>
         </p>
         <p>
           上传接口：<code>POST /api/jp-lesson/upload</code>，Header{" "}
@@ -1762,7 +1762,7 @@ export function JpLessonPage() {
             fontSize: "0.8125rem",
           }}
         >
-{`curl -X POST "${SITE_URL}/api/jp-lesson/upload" \\
+{`curl -X POST "${JP_SITE_URL}/api/jp-lesson/upload" \\
   -H "Authorization: Bearer <TOKEN>" \\
   -F "kind=grammar" \\
   -F "content=～ばかり, ～ようになる, ～に来る" \\
