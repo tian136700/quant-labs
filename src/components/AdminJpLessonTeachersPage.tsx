@@ -554,11 +554,6 @@ export function AdminJpLessonTeachersPage() {
   };
 
   const createTeacherUser = async (teacher: JpLessonTeacher) => {
-    if (teacher.linked_user) {
-      window.location.href = adminUsersPath(locale, teacher.linked_user.id);
-      return;
-    }
-
     const ok = window.confirm(
       locale === "zh"
         ? `为「${teacher.name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`
@@ -1024,13 +1019,13 @@ export function AdminJpLessonTeachersPage() {
                                     ? ""
                                     : " btn-rsi-filter--primary"
                                 }`}
-                                disabled={userActionBusy}
+                                disabled={userActionBusy || linkedUser != null}
                                 onClick={() => void createTeacherUser(teacher)}
                                 title={
                                   linkedUser
                                     ? locale === "zh"
-                                      ? `已关联 ${linkedUser.username}，点击查看`
-                                      : `Linked as ${linkedUser.username}; click to view`
+                                      ? `已关联 ${linkedUser.username}；点击老师名称可跳转到用户管理`
+                                      : `Linked as ${linkedUser.username}; click the teacher name to view in Users`
                                     : locale === "zh"
                                       ? "创建日语教师账号并关联"
                                       : "Create and link Japanese-teacher account"
@@ -1042,8 +1037,8 @@ export function AdminJpLessonTeachersPage() {
                                     : "Creating…"
                                   : linkedUser
                                     ? locale === "zh"
-                                      ? "查看用户"
-                                      : "View user"
+                                      ? "已生成"
+                                      : "Created"
                                     : locale === "zh"
                                       ? "一键创建用户"
                                       : "Create user"}
