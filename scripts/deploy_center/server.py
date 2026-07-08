@@ -50,6 +50,40 @@ def auto_watch_status() -> dict[str, Any]:
     }
 
 
+def _row_started_at(row: dict[str, Any] | None) -> str:
+    if not row:
+        return ""
+    return str(row.get("started_at") or "")
+
+
+def _is_manual_ui_visible(hub_snap: dict[str, Any]) -> bool:
+    if hub_snap.get("status") == "running":
+        return True
+
+    auto_row = _latest_deploy_row("auto")
+    if auto_row and auto_row.get("status") == "running":
+        return False
+
+    manual_row = _latest_deploy_row("manual")
+    if auto_row and manual_row:
+        auto_id = int(auto_row.get("id") or 0)
+        manual_id = int(manual_row.get("id") or 0)
+        if auto_id > manual_id:
+            return False
+        if auto_id == manual_id and _row_started_at(auto_row) > _row_started_at(manual_row):
+            return False
+
+    if hub_snap.get("status") in {"success", "error"}:
+        return True
+    return False
+
+
+def manual_status_snapshot() -> dict[str, Any]:
+    snap = HUB.snapshot()
+    snap["visible"] = _is_manual_ui_visible(snap)
+    return snap
+
+
 def _latest_deploy_row(mode: str) -> dict[str, Any] | None:
     try:
         rows = list_deploy_logs(limit=200)
@@ -65,21 +99,6 @@ def _latest_deploy_row(mode: str) -> dict[str, Any] | None:
 
 
 def auto_runtime_snapshot() -> dict[str, Any]:
-    manual = HUB.snapshot()
-    if manual.get("status") == "running":
-        return {
-            "status": "running",
-            "step": manual.get("step") or "prepare",
-            "progress": int(manual.get("progress") or 0),
-            "message": str(manual.get("message") or "自动触发任务进行中"),
-            "started_at": manual.get("started_at"),
-            "finished_at": manual.get("finished_at"),
-            "exit_code": manual.get("exit_code"),
-            "logs": manual.get("logs") or [],
-            "server_time": manual.get("server_time"),
-            "source": "publish-center-job",
-        }
-
     row = _latest_deploy_row("auto")
     status = "idle"
     step = "prepare"
@@ -192,10 +211,10 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path == "/api/status":
-            self._send_json(HUB.snapshot())
+            self._send_json(manual_status_snapshot())
             return
         if path == "/api/auto-status":
-            self._send_json({"auto": auto_watch_status(), "manual": HUB.snapshot()})
+            self._send_json({"auto": auto_watch_status(), "manual": manual_status_snapshot()})
             return
         if path == "/api/auto-runtime":
             self._send_json(auto_runtime_snapshot())
