@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -112,7 +112,7 @@ function formatAdminDateTime(value: string | null | undefined): string {
   return formatBeijingDateTime(value);
 }
 
-export function AdminUsersPage() {
+function AdminUsersPageContent() {
   const { locale } = useI18n();
   const { isAdmin, user: currentUser, checking } = useEtrAuth();
   const searchParams = useSearchParams();
@@ -1415,5 +1415,13 @@ export function AdminUsersPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export function AdminUsersPage() {
+  return (
+    <Suspense fallback={<div className="admin-page"><p className="hint">Loading…</p></div>}>
+      <AdminUsersPageContent />
+    </Suspense>
   );
 }
