@@ -291,6 +291,8 @@ body {
   transform: translateX(100%);
   transition: transform 0.3s ease;
   overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .nav-drawer.is-open {
@@ -360,7 +362,10 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
   padding: 0 0.75rem 1rem;
 }
 

@@ -21,7 +21,6 @@ import {
 } from "@/lib/locale-path";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
 import {
-  formatTeacherHourlyRateDisplay,
   formatTeacherLessonMinutes,
   normalizeJpLessonTeacher,
   resolveLessonTeacherRateFields,
@@ -49,8 +48,16 @@ function scoreClass(score: number): string {
   return "etr-score--mid";
 }
 
-type SortOrder = "asc" | "desc" | null;
-type ScoreSortOrder = "asc" | "desc";
+type SortOrder = "asc" | "desc";
+type TeacherSortKey =
+  | "id"
+  | "name"
+  | "rate"
+  | "minutes"
+  | "hourlyEquiv"
+  | "score"
+  | "remark"
+  | "updated";
 
 /** 按课时费和课时时长计算折合时薪：hourly_rate / lesson_minutes * 60 */
 function calcEquivalentHourlyRate(teacher: JpLessonTeacher): number | null {
@@ -58,20 +65,6 @@ function calcEquivalentHourlyRate(teacher: JpLessonTeacher): number | null {
   if (resolved.hourly_rate == null || resolved.lesson_minutes == null) return null;
   if (resolved.lesson_minutes <= 0) return null;
   return Math.round((resolved.hourly_rate / resolved.lesson_minutes) * 60 * 100) / 100;
-}
-
-function compareTeachersByEquivalentHourly(
-  a: JpLessonTeacher,
-  b: JpLessonTeacher,
-  order: "asc" | "desc"
-): number {
-  const rateA = calcEquivalentHourlyRate(a);
-  const rateB = calcEquivalentHourlyRate(b);
-  if (rateA == null && rateB == null) return a.sort_order - b.sort_order || a.id - b.id;
-  if (rateA == null) return 1;
-  if (rateB == null) return -1;
-  if (rateA !== rateB) return order === "desc" ? rateB - rateA : rateA - rateB;
-  return a.sort_order - b.sort_order || a.id - b.id;
 }
 
 const LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES;
@@ -109,25 +102,29 @@ function resolveLessonMinutesForSave(
   return fallback;
 }
 
-function compareTeachersByAvgScore(
-  a: JpLessonTeacher,
-  b: JpLessonTeacher,
-  reviewSummaries: Map<number, JpLessonTeacherReviewSummary>,
-  order: ScoreSortOrder
-): number {
-  const avgScore = (teacherId: number): number | null => {
-    const summary = reviewSummaries.get(teacherId);
-    if (!summary || summary.review_count <= 0 || summary.avg_score == null) return null;
-    return summary.avg_score;
-  };
+function formatTeacherRateRmbOnly(rate: number | null | undefined): string {
+  if (rate == null || !Number.isFinite(rate)) return "—";
+  const rounded = Math.round(rate * 100) / 100;
+  const num = rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2);
+  return `${num} RMB`;
+}
 
-  const scoreA = avgScore(a.id);
-  const scoreB = avgScore(b.id);
-  if (scoreA == null && scoreB == null) return a.sort_order - b.sort_order || a.id - b.id;
-  if (scoreA == null) return 1;
-  if (scoreB == null) return -1;
-  if (scoreA !== scoreB) return order === "desc" ? scoreB - scoreA : scoreA - scoreB;
-  return a.sort_order - b.sort_order || a.id - b.id;
+function compareNullableNumber(a: number | null, b: number | null, order: SortOrder): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return order === "desc" ? b - a : a - b;
+}
+
+function compareString(a: string, b: string, order: SortOrder): number {
+  const result = a.localeCompare(b, "zh-CN", { sensitivity: "base" });
+  return order === "desc" ? -result : result;
+}
+
+function nextSortOrder(currentKey: TeacherSortKey, key: TeacherSortKey, current: SortOrder): SortOrder {
+  if (currentKey === key) return current === "asc" ? "desc" : "asc";
+  if (key === "name" || key === "remark") return "asc";
+  return "desc";
 }
 
 export function AdminJpLessonTeachersPage() {
@@ -135,7 +132,6 @@ export function AdminJpLessonTeachersPage() {
   const { isAdmin, checking } = useEtrAuth();
   const nav = t("nav");
   const addNameInputRef = useRef<HTMLInputElement | null>(null);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
   const [loading, setLoading] = useState(() => readJpLessonTeachersCache().length === 0);
@@ -144,7 +140,6 @@ export function AdminJpLessonTeachersPage() {
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -159,8 +154,8 @@ export function AdminJpLessonTeachersPage() {
     Map<number, JpLessonTeacherReviewSummary>
   >(() => readJpLessonTeacherReviewCache());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
-  const [scoreSortOrder, setScoreSortOrder] = useState<ScoreSortOrder>("desc");
-  const [hourlySortOrder, setHourlySortOrder] = useState<SortOrder>(null);
+  const [sortKey, setSortKey] = useState<TeacherSortKey>("score");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   useEffect(() => {
     setMounted(true);
@@ -169,14 +164,6 @@ export function AdminJpLessonTeachersPage() {
   useEffect(() => {
     document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
   }, [locale]);
-
-  useEffect(() => {
-    if (!searchOpen) return;
-    const timer = window.setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [searchOpen]);
 
   useEffect(() => {
     if (!addModalOpen) return;
@@ -302,15 +289,61 @@ export function AdminJpLessonTeachersPage() {
   }, []);
 
   const sortedTeachers = useMemo(() => {
-    if (hourlySortOrder) {
-      return [...teachers].sort((a, b) =>
-        compareTeachersByEquivalentHourly(a, b, hourlySortOrder)
-      );
-    }
-    return [...teachers].sort((a, b) =>
-      compareTeachersByAvgScore(a, b, reviewSummaries, scoreSortOrder)
-    );
-  }, [teachers, reviewSummaries, scoreSortOrder, hourlySortOrder]);
+    const getScore = (teacherId: number): number | null => {
+      const summary = reviewSummaries.get(teacherId);
+      if (!summary || summary.review_count <= 0 || summary.avg_score == null) return null;
+      return summary.avg_score;
+    };
+
+    return [...teachers].sort((a, b) => {
+      const resolvedA = resolveLessonTeacherRateFields(a);
+      const resolvedB = resolveLessonTeacherRateFields(b);
+      const remarkA = reviewSummaries.get(a.id)?.latest_remark?.trim() ?? "";
+      const remarkB = reviewSummaries.get(b.id)?.latest_remark?.trim() ?? "";
+      const dateA = new Date(a.updated_at).getTime();
+      const dateB = new Date(b.updated_at).getTime();
+      const comparableDateA = Number.isFinite(dateA) ? dateA : null;
+      const comparableDateB = Number.isFinite(dateB) ? dateB : null;
+
+      let result = 0;
+      switch (sortKey) {
+        case "id":
+          result = compareNullableNumber(a.id, b.id, sortOrder);
+          break;
+        case "name":
+          result = compareString(resolvedA.name, resolvedB.name, sortOrder);
+          break;
+        case "rate":
+          result = compareNullableNumber(resolvedA.hourly_rate, resolvedB.hourly_rate, sortOrder);
+          break;
+        case "minutes":
+          result = compareNullableNumber(
+            resolvedA.lesson_minutes,
+            resolvedB.lesson_minutes,
+            sortOrder
+          );
+          break;
+        case "hourlyEquiv":
+          result = compareNullableNumber(
+            calcEquivalentHourlyRate(a),
+            calcEquivalentHourlyRate(b),
+            sortOrder
+          );
+          break;
+        case "score":
+          result = compareNullableNumber(getScore(a.id), getScore(b.id), sortOrder);
+          break;
+        case "remark":
+          result = compareString(remarkA, remarkB, sortOrder);
+          break;
+        case "updated":
+          result = compareNullableNumber(comparableDateA, comparableDateB, sortOrder);
+          break;
+      }
+      if (result !== 0) return result;
+      return a.sort_order - b.sort_order || a.id - b.id;
+    });
+  }, [reviewSummaries, sortKey, sortOrder, teachers]);
 
   const filteredTeachers = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
@@ -330,21 +363,17 @@ export function AdminJpLessonTeachersPage() {
     });
   }, [reviewSummaries, searchQuery, sortedTeachers]);
 
-  const toggleScoreSortOrder = useCallback(() => {
-    setHourlySortOrder(null);
-    setScoreSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-  }, []);
-
-  const toggleHourlySortOrder = useCallback(() => {
-    setHourlySortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
-  }, []);
+  const toggleSort = useCallback((key: TeacherSortKey) => {
+    setSortOrder((prevOrder) => nextSortOrder(sortKey, key, prevOrder));
+    setSortKey(key);
+  }, [sortKey]);
 
   const fieldLabels =
     locale === "zh"
       ? {
           id: "ID",
           name: "名称",
-          rate: "课时费 (RMB/h)",
+          rate: "课时费 (RMB)",
           minutes: "课时时长",
           hourlyEquiv: "折合时薪",
           score: "平均评分",
@@ -355,7 +384,7 @@ export function AdminJpLessonTeachersPage() {
       : {
           id: "ID",
           name: "Name",
-          rate: "Rate (RMB/h)",
+          rate: "Rate (RMB)",
           minutes: "Duration",
           hourlyEquiv: "Hourly equiv.",
           score: "Avg score",
@@ -603,102 +632,22 @@ export function AdminJpLessonTeachersPage() {
             >
               {locale === "zh" ? "添加老师" : "Add teacher"}
             </button>
-            <button
-              type="button"
-              className={`btn-rsi-filter btn-rsi-filter--compact${searchOpen ? " is-active" : ""}`}
-              aria-expanded={searchOpen}
-              aria-controls="admin-jpl-teacher-search"
-              onClick={() => {
-                if (searchOpen && searchQuery.trim()) {
-                  setSearchQuery("");
-                  return;
+            <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
+              <span className="sr-only">
+                {locale === "zh" ? "搜索老师" : "Search teachers"}
+              </span>
+              <input
+                id="admin-jpl-teacher-search"
+                type="text"
+                value={searchQuery}
+                placeholder={
+                  locale === "zh"
+                    ? "按老师名称、ID、备注搜索"
+                    : "Search by name, ID, or note"
                 }
-                setSearchOpen((prev) => !prev);
-              }}
-            >
-              {searchOpen && searchQuery.trim()
-                ? locale === "zh"
-                  ? "清空搜索"
-                  : "Clear search"
-                : locale === "zh"
-                  ? "搜索老师"
-                  : "Search teachers"}
-            </button>
-            {searchOpen ? (
-              <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
-                <span className="sr-only">
-                  {locale === "zh" ? "搜索老师" : "Search teachers"}
-                </span>
-                <input
-                  id="admin-jpl-teacher-search"
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  placeholder={
-                    locale === "zh"
-                      ? "按老师名称、ID、备注搜索"
-                      : "Search by name, ID, or note"
-                  }
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </label>
-            ) : null}
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact admin-jpl-mobile-sort-btn"
-              title={
-                scoreSortOrder === "desc"
-                  ? locale === "zh"
-                    ? "按平均评分从高到低；点击切换为从低到高"
-                    : "Avg score high to low; click for low to high"
-                  : locale === "zh"
-                    ? "按平均评分从低到高；点击切换为从高到低"
-                    : "Avg score low to high; click for high to low"
-              }
-              aria-label={
-                scoreSortOrder === "desc"
-                  ? locale === "zh"
-                    ? "平均评分降序，点击切换为升序"
-                    : "Avg score descending, click for ascending"
-                  : locale === "zh"
-                    ? "平均评分升序，点击切换为降序"
-                    : "Avg score ascending, click for descending"
-              }
-              onClick={toggleScoreSortOrder}
-            >
-              {fieldLabels.score}
-              <span className="admin-sort-indicator" aria-hidden="true">
-                {scoreSortOrder === "asc" ? "↑" : "↓"}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact admin-jpl-mobile-sort-btn"
-              title={
-                hourlySortOrder === "asc"
-                  ? locale === "zh"
-                    ? "折合时薪从低到高；点击切换为从高到低"
-                    : "Hourly equiv. low to high; click for high to low"
-                  : locale === "zh"
-                    ? "折合时薪从高到低；点击切换为从低到高"
-                    : "Hourly equiv. high to low; click for low to high"
-              }
-              aria-label={
-                hourlySortOrder === "asc"
-                  ? locale === "zh"
-                    ? "折合时薪升序，点击切换为降序"
-                    : "Hourly equiv. ascending, click for descending"
-                  : locale === "zh"
-                    ? "折合时薪降序，点击切换为升序"
-                    : "Hourly equiv. descending, click for ascending"
-              }
-              onClick={toggleHourlySortOrder}
-            >
-              {fieldLabels.hourlyEquiv}
-              <span className="admin-sort-indicator" aria-hidden="true">
-                {hourlySortOrder === "asc" ? "↑" : hourlySortOrder === "desc" ? "↓" : "⇅"}
-              </span>
-            </button>
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </label>
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
@@ -733,88 +682,118 @@ export function AdminJpLessonTeachersPage() {
             <table className="admin-jpl-teachers-table">
               <thead>
                 <tr>
-                  <th className="col-id">ID</th>
-                  <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
-                  <th className="col-rate">
-                    {locale === "zh" ? "课时费 (RMB/h)" : "Rate (RMB/h)"}
+                  <th className="col-id col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "id" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("id")}
+                    >
+                      ID
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "id" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
                   </th>
-                  <th className="col-minutes">{locale === "zh" ? "课时时长" : "Duration"}</th>
+                  <th className="col-name col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "name" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("name")}
+                    >
+                      {locale === "zh" ? "名称" : "Name"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "name" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
+                  </th>
+                  <th className="col-rate col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "rate" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("rate")}
+                    >
+                      {locale === "zh" ? "课时费 (RMB)" : "Rate (RMB)"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "rate" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
+                  </th>
+                  <th className="col-minutes col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "minutes" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("minutes")}
+                    >
+                      {locale === "zh" ? "课时时长" : "Duration"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "minutes" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
+                  </th>
                   <th
                     className={`col-hourly-equiv col-hourly-equiv--sortable${
-                      hourlySortOrder === "asc"
+                      sortKey === "hourlyEquiv" && sortOrder === "asc"
                         ? " col-hourly-equiv--sorted-asc"
-                        : hourlySortOrder === "desc"
+                        : sortKey === "hourlyEquiv" && sortOrder === "desc"
                           ? " col-hourly-equiv--sorted-desc"
                           : ""
                     }`}
                   >
                     <button
                       type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${hourlySortOrder ? " is-active" : ""}`}
-                      title={
-                        hourlySortOrder === "asc"
-                          ? locale === "zh"
-                            ? "折合时薪从低到高；点击切换为从高到低"
-                            : "Hourly equiv. low to high; click for high to low"
-                          : locale === "zh"
-                            ? "折合时薪从高到低；点击切换为从低到高"
-                            : "Hourly equiv. high to low; click for low to high"
-                      }
-                      aria-label={
-                        hourlySortOrder === "asc"
-                          ? locale === "zh"
-                            ? "折合时薪升序，点击切换为降序"
-                            : "Hourly equiv. ascending, click for descending"
-                          : locale === "zh"
-                            ? "折合时薪降序，点击切换为升序"
-                            : "Hourly equiv. descending, click for ascending"
-                      }
-                      onClick={toggleHourlySortOrder}
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "hourlyEquiv" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("hourlyEquiv")}
                     >
                       {locale === "zh" ? "折合时薪" : "Hourly"}
                       <span className="admin-sort-indicator" aria-hidden="true">
-                        {hourlySortOrder === "asc" ? "↑" : hourlySortOrder === "desc" ? "↓" : "⇅"}
+                        {sortKey === "hourlyEquiv" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                       </span>
                     </button>
                   </th>
                   <th
                     className={`col-score col-score--sortable${
-                      scoreSortOrder === "asc"
+                      sortKey === "score" && sortOrder === "asc"
                         ? " col-score--sorted-asc"
-                        : " col-score--sorted-desc"
+                        : sortKey === "score"
+                          ? " col-score--sorted-desc"
+                          : ""
                     }`}
                   >
                     <button
                       type="button"
-                      className="etr-sort-btn is-active admin-jpl-score-sort-btn"
-                      title={
-                        scoreSortOrder === "desc"
-                          ? locale === "zh"
-                            ? "按平均评分从高到低；点击切换为从低到高"
-                            : "Avg score high to low; click for low to high"
-                          : locale === "zh"
-                            ? "按平均评分从低到高；点击切换为从高到低"
-                            : "Avg score low to high; click for high to low"
-                      }
-                      aria-label={
-                        scoreSortOrder === "desc"
-                          ? locale === "zh"
-                            ? "平均评分降序，点击切换为升序"
-                            : "Avg score descending, click for ascending"
-                          : locale === "zh"
-                            ? "平均评分升序，点击切换为降序"
-                            : "Avg score ascending, click for descending"
-                      }
-                      onClick={toggleScoreSortOrder}
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "score" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("score")}
                     >
                       {locale === "zh" ? "平均评分" : "Avg"}
                       <span className="admin-sort-indicator" aria-hidden="true">
-                        {scoreSortOrder === "asc" ? "↑" : "↓"}
+                        {sortKey === "score" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                       </span>
                     </button>
                   </th>
-                  <th className="col-remark">{locale === "zh" ? "最近备注" : "Latest note"}</th>
-                  <th className="col-updated">{locale === "zh" ? "更新时间" : "Updated"}</th>
+                  <th className="col-remark col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "remark" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("remark")}
+                    >
+                      {locale === "zh" ? "最近备注" : "Latest note"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "remark" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
+                  </th>
+                  <th className="col-updated col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "updated" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("updated")}
+                    >
+                      {locale === "zh" ? "更新时间" : "Updated"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "updated" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
+                  </th>
                   <th className="col-actions">{locale === "zh" ? "操作" : "Actions"}</th>
                 </tr>
               </thead>
@@ -852,7 +831,7 @@ export function AdminJpLessonTeachersPage() {
                             step="0.01"
                             value={editHourlyRate}
                             disabled={saving}
-                            placeholder="RMB/h"
+                            placeholder="RMB"
                             onChange={(e) => {
                               const next = e.target.value;
                               setEditHourlyRate(next);
@@ -862,9 +841,7 @@ export function AdminJpLessonTeachersPage() {
                             }}
                           />
                         ) : (
-                          formatTeacherHourlyRateDisplay(
-                            resolveLessonTeacherRateFields(teacher).hourly_rate
-                          )
+                          formatTeacherRateRmbOnly(resolveLessonTeacherRateFields(teacher).hourly_rate)
                         )}
                       </td>
                       <td className="col-minutes" data-label={fieldLabels.minutes}>

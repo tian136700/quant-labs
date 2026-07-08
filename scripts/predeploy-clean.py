@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Remove stale Cloudflare build output before deploy.
 
-If local dev is listening on 3002, leave it running and skip .next cleanup
-so you can keep verifying locally after publish.
+Default to preserving `.next/` so Next.js can reuse its build cache and speed up
+repeated Cloudflare deploys. Pass `--clean-next` (or set `PRESERVE_NEXT_CACHE=0`)
+when you explicitly need a fully clean rebuild.
+
+If local dev is listening on 3002, leave it running and always skip `.next`
+cleanup so you can keep verifying locally after publish.
 """
 
 from __future__ import annotations
@@ -11,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import time
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,8 +53,14 @@ def remove_build_dir(path: Path, attempts: int = 5) -> None:
         raise last_error
 
 
+def should_preserve_next_cache() -> bool:
+    value = os.environ.get("PRESERVE_NEXT_CACHE", "1").strip().lower()
+    return value not in ("0", "false", "no", "off")
+
+
 def main() -> int:
     local_dev = dev_server_running()
+    clean_next = "--clean-next" in sys.argv[1:]
 
     if local_dev:
         print(
@@ -58,8 +69,14 @@ def main() -> int:
         )
         remove_build_dir(ROOT / ".open-next")
     else:
-        for name in (".next", ".open-next"):
-            remove_build_dir(ROOT / name)
+        preserve_next = should_preserve_next_cache() and not clean_next
+        if preserve_next:
+            print("保留 .next/ 缓存，仅清理 .open-next/ 以加速重复部署", flush=True)
+            remove_build_dir(ROOT / ".open-next")
+        else:
+            print("执行干净构建：清理 .next/ 和 .open-next/", flush=True)
+            for name in (".next", ".open-next"):
+                remove_build_dir(ROOT / name)
 
     return 0
 
