@@ -1204,6 +1204,16 @@ export function AdminJpLessonTeachersPage() {
               </div>
 
               <style jsx>{`
+                .admin-jpl-teacher-user-link {
+                  color: var(--accent, #6eb5ff);
+                  font-weight: 600;
+                  text-decoration: none;
+                }
+
+                .admin-jpl-teacher-user-link:hover {
+                  text-decoration: underline;
+                }
+
                 .admin-jpl-search-field {
                   flex: 1 1 15rem;
                   min-width: min(100%, 15rem);
@@ -1227,17 +1237,6 @@ export function AdminJpLessonTeachersPage() {
             document.body
           )
         : null}
-
-      <style jsx>{`
-        .admin-jpl-teacher-user-link {
-          color: var(--accent, #6eb5ff);
-          font-weight: 600;
-          text-decoration: none;
-        }
-        .admin-jpl-teacher-user-link:hover {
-          text-decoration: underline;
-        }
-      `}</style>
     </div>
   );
 }
