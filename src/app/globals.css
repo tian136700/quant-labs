@@ -190,6 +190,8 @@ body {
 /* ── Admin 导航（仅 Admin 登录后显示） ── */
 .admin-nav {
   @apply min-w-0 flex-1;
+  position: relative;
+  overflow: hidden;
 }
 
 .admin-nav-list {
@@ -197,6 +199,16 @@ body {
   flex-wrap: nowrap;
   gap: clamp(1.5rem, 2vw, 2rem);
   align-items: center;
+  overflow: hidden;
+}
+
+.admin-nav-list--ruler {
+  flex-wrap: wrap;
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
 }
 
 .admin-nav-link {

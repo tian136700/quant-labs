@@ -12,6 +12,7 @@ import { matchesNavSearch } from "@/lib/nav-search";
 import { isJpModulePath } from "@/lib/locale-path";
 import {
   NAV_CATEGORY_ORDER,
+  PRIMARY_NAV_ORDER,
   navItemCategory,
   type NavCategory,
 } from "@/lib/site-nav-config";
@@ -124,7 +125,7 @@ export function NavDrawer({
   const nav = t("nav");
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-  const { recent, favorites, recordVisit, toggleFavorite } =
+  const { recent, favorites, visitCounts, recordVisit, toggleFavorite } =
     useNavPreferences();
 
   const favoritesSet = useMemo(() => new Set(favorites), [favorites]);
@@ -196,6 +197,9 @@ export function NavDrawer({
   }, [showFavorites, showRecents, favoriteItems, recentItems]);
 
   const categorizedVisible = useMemo(() => {
+    const orderMap = new Map<string, number>(
+      PRIMARY_NAV_ORDER.map((id, i) => [id, i])
+    );
     const groups = new Map<NavCategory, SiteNavItem[]>();
     for (const cat of NAV_CATEGORY_ORDER) groups.set(cat, []);
     for (const item of filteredItems) {
@@ -203,8 +207,18 @@ export function NavDrawer({
       const cat = navItemCategory(item.id);
       groups.get(cat)?.push(item);
     }
+    // Sort each category by frequency descending (least used last)
+    for (const [, items] of groups) {
+      items.sort((a, b) => {
+        const countDiff = (visitCounts[b.id] ?? 0) - (visitCounts[a.id] ?? 0);
+        if (countDiff !== 0) return countDiff;
+        const aOrder = orderMap.get(a.id) ?? 999;
+        const bOrder = orderMap.get(b.id) ?? 999;
+        return aOrder - bOrder;
+      });
+    }
     return groups;
-  }, [filteredItems, pinnedIds]);
+  }, [filteredItems, pinnedIds, visitCounts]);
 
   const handleNavigate = useCallback(
     (item: SiteNavItem) => {
