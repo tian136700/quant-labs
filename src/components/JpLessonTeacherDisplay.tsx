@@ -18,7 +18,10 @@ export function JpLessonTeacherDisplay({
 
   for (const id of lesson.teacher_ids ?? []) {
     const teacher = teachersById.get(id);
-    if (!teacher) continue;
+    if (!teacher) {
+      entries.push({ key: id, name: `#${id}`, priceDuration: null });
+      continue;
+    }
     const parts = resolveTeacherLessonDisplayParts(teacher, locale);
     entries.push({ key: id, ...parts });
   }

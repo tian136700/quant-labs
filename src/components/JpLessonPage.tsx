@@ -468,7 +468,20 @@ export function JpLessonPage() {
     }
     if (savingId === lessonId) return;
 
+    const snapshot = lessons.find((l) => l.id === lessonId);
+    const optimistic = jpLessonProgressToFields(progressStatus);
     setSavingId(lessonId);
+    setLessons((prev) =>
+      prev.map((l) =>
+        l.id === lessonId
+          ? {
+              ...l,
+              completed: optimistic.completed,
+              learning: optimistic.learning,
+            }
+          : l
+      )
+    );
 
     try {
       const res = await fetch("/api/jp-lesson", {
@@ -488,8 +501,33 @@ export function JpLessonPage() {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
-      await loadLessons({ force: true });
+      setLessons((prev) => {
+        const next = prev.map((l) => {
+          if (l.id !== data.lesson!.id) return l;
+          const server = data.lesson!;
+          return {
+            ...server,
+            teacher_ids: server.teacher_ids?.length
+              ? server.teacher_ids
+              : (l.teacher_ids ?? []),
+            teacher_other: server.teacher_other ?? l.teacher_other,
+            class_schedules: server.class_schedules?.length
+              ? server.class_schedules
+              : l.class_schedules,
+            next_class_at: server.next_class_at ?? l.next_class_at,
+            class_duration_minutes:
+              server.class_duration_minutes ?? l.class_duration_minutes,
+          };
+        });
+        persistLessonCache(next, refs, notes, teachers);
+        return next;
+      });
     } catch (err) {
+      if (snapshot) {
+        setLessons((prev) =>
+          prev.map((l) => (l.id === lessonId ? snapshot : l))
+        );
+      }
       setStatus(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSavingId(null);
@@ -561,7 +599,27 @@ export function JpLessonPage() {
       }
 
       setTeachers(nextTeachers);
-      await loadLessons({ force: true });
+      setLessons((prev) => {
+        const next = prev.map((l) => {
+          if (l.id !== data.lesson!.id) return l;
+          const server = data.lesson!;
+          return {
+            ...server,
+            teacher_ids: server.teacher_ids?.length
+              ? server.teacher_ids
+              : teacherIds,
+            teacher_other: server.teacher_other ?? teacherOther,
+            class_schedules: server.class_schedules?.length
+              ? server.class_schedules
+              : l.class_schedules,
+            next_class_at: server.next_class_at ?? l.next_class_at,
+            class_duration_minutes:
+              server.class_duration_minutes ?? l.class_duration_minutes,
+          };
+        });
+        persistLessonCache(next, refs, notes, nextTeachers);
+        return next;
+      });
 
       if (!options?.keepOpen) {
         setEditingTeacherLesson(null);
@@ -697,8 +755,26 @@ export function JpLessonPage() {
       class_at: item.class_at.trim(),
       duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
     }));
+    const snapshot = lessons.find((l) => l.id === lessonId);
+    const first = normalized[0];
 
     setSavingNextClassId(lessonId);
+    setLessons((prev) =>
+      prev.map((l) =>
+        l.id === lessonId
+          ? {
+              ...l,
+              class_schedules: normalized.map((item, index) => ({
+                id: -(index + 1),
+                class_at: item.class_at,
+                duration_minutes: item.duration_minutes,
+              })),
+              next_class_at: first?.class_at ?? null,
+              class_duration_minutes: first?.duration_minutes ?? null,
+            }
+          : l
+      )
+    );
 
     try {
       const res = await fetch("/api/jp-lesson", {
@@ -722,11 +798,36 @@ export function JpLessonPage() {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
-      await loadLessons({ force: true });
+      setLessons((prev) => {
+        const next = prev.map((l) => {
+          if (l.id !== data.lesson!.id) return l;
+          const server = data.lesson!;
+          return {
+            ...server,
+            teacher_ids: server.teacher_ids?.length
+              ? server.teacher_ids
+              : l.teacher_ids,
+            teacher_other: server.teacher_other ?? l.teacher_other,
+            class_schedules: server.class_schedules?.length
+              ? server.class_schedules
+              : l.class_schedules,
+            next_class_at: server.next_class_at ?? l.next_class_at,
+            class_duration_minutes:
+              server.class_duration_minutes ?? l.class_duration_minutes,
+          };
+        });
+        persistLessonCache(next, refs, notes, teachers);
+        return next;
+      });
       setEditingNextClassLesson(null);
       setStatus("上课时间已更新");
       window.setTimeout(() => setStatus(""), 2500);
     } catch (err) {
+      if (snapshot) {
+        setLessons((prev) =>
+          prev.map((l) => (l.id === lessonId ? snapshot : l))
+        );
+      }
       setStatus(err instanceof Error ? err.message : "保存失败");
     } finally {
       setSavingNextClassId(null);
@@ -744,6 +845,11 @@ export function JpLessonPage() {
       class_at: item.class_at.trim(),
       duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
     }));
+    const snapshotById = new Map(
+      lessons
+        .filter((lesson) => batchLessonIds.includes(lesson.id))
+        .map((lesson) => [lesson.id, lesson] as const)
+    );
     setBatchSaving(true);
     try {
       for (const lessonId of batchLessonIds) {
@@ -800,12 +906,41 @@ export function JpLessonPage() {
         }
       }
 
-      await loadLessons({ force: true });
+      const first = normalized[0];
+      const progressFields = progressStatus
+        ? jpLessonProgressToFields(progressStatus)
+        : null;
+      setLessons((prev) => {
+        const next = prev.map((lesson) => {
+          if (!batchLessonIds.includes(lesson.id)) return lesson;
+          return {
+            ...lesson,
+            teacher_ids: teacherIds,
+            teacher_other: teacherOther,
+            class_schedules: normalized.map((item, index) => ({
+              id: -(index + 1),
+              class_at: item.class_at,
+              duration_minutes: item.duration_minutes,
+            })),
+            next_class_at: first?.class_at ?? null,
+            class_duration_minutes: first?.duration_minutes ?? null,
+            completed: progressFields?.completed ?? lesson.completed,
+            learning: progressFields?.learning ?? lesson.learning,
+          };
+        });
+        persistLessonCache(next, refs, notes, teachers);
+        return next;
+      });
       setStatus(`已批量更新 ${batchLessonIds.length} 条未上课教案`);
       setBatchLessonIds([]);
       setBatchModalOpen(false);
       window.setTimeout(() => setStatus(""), 2500);
     } catch (err) {
+      if (snapshotById.size) {
+        setLessons((prev) =>
+          prev.map((lesson) => snapshotById.get(lesson.id) ?? lesson)
+        );
+      }
       setStatus(err instanceof Error ? err.message : "批量保存失败");
     } finally {
       setBatchSaving(false);
