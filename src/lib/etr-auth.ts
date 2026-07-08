@@ -29,6 +29,8 @@ export interface EtrUser {
   created_at: string;
   /** 1 = 已禁用（登录与已登录会话均视为维护中） */
   disabled?: number;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
 }
 
 export interface EtrSessionUser extends EtrUser {

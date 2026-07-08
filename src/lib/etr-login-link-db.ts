@@ -139,7 +139,8 @@ export async function createLoginLink(
 /** 通过永久登录链接创建会话（可重复使用；停用账号后失效） */
 export async function consumeLoginLink(
   env: CloudflareEnv,
-  token: string
+  token: string,
+  loginIp?: string | null
 ): Promise<AuthResult> {
   const trimmed = normalizeLoginLinkToken(token);
   if (!trimmed) return { ok: false, error: "link_invalid" };
@@ -149,7 +150,7 @@ export async function consumeLoginLink(
   if (devEnabled) {
     const row = devLinks.find((item) => item.token === trimmed);
     if (!row) return { ok: false, error: "link_invalid" };
-    return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS);
+    return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS, { loginIp });
   }
 
   const row = await env.DB
@@ -164,7 +165,7 @@ export async function consumeLoginLink(
 
   if (!row) return { ok: false, error: "link_invalid" };
 
-  return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS);
+  return createSessionForUser(env, row.user_id, ETR_LOGIN_LINK_SESSION_MS, { loginIp });
 }
 
 export async function deleteUserLoginLinks(

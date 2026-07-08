@@ -59,8 +59,12 @@ CREATE TABLE IF NOT EXISTS etr_users (
   password_hash TEXT    NOT NULL,
   role          TEXT    NOT NULL DEFAULT 'user',
   disabled      INTEGER NOT NULL DEFAULT 0,
+  last_login_at TEXT,
+  last_login_ip TEXT,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_etr_users_last_login_at ON etr_users (last_login_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS etr_sessions (
   token      TEXT    NOT NULL PRIMARY KEY,

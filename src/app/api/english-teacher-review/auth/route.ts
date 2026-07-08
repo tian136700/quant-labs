@@ -23,6 +23,7 @@ import {
   jsonResponse,
   localeFromRequest,
 } from "@/lib/cloudflare-env";
+import { clientIp } from "@/lib/locale-pref";
 import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 
 function jsonWithSetCookies(
@@ -209,6 +210,7 @@ export async function POST(request: Request) {
 
   try {
     const env = await getCloudflareEnv();
+    const ip = clientIp(request);
 
     if (action === "login") {
       const rate = await checkLoginRateLimit(env.DB, request);
@@ -223,7 +225,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const result = await loginUser(env, username, password);
+      const result = await loginUser(env, username, password, { loginIp: ip });
       if (!result.ok) {
         if (result.error === "maintenance") {
           return jsonResponse({ ok: false, maintenance: true }, 503);
@@ -264,7 +266,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const result = await registerUser(env, username, password);
+      const result = await registerUser(env, username, password, { loginIp: ip });
       if (!result.ok) {
         return jsonResponse(
           { ok: false, error: errMsg(result.error, locale) },

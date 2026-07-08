@@ -8,6 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 THIS_DIR = Path(__file__).resolve().parent
@@ -25,6 +26,37 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 HOST = "127.0.0.1"
 PORT = 17823
 HUB = PublishHub()
+AUTO_MARKER = "# git-auto-push strategy-compare-cloud"
+AUTO_LOG = Path.home() / "Library" / "Logs" / "git-auto-push.log"
+
+
+def _tail_lines(path: Path, limit: int = 20) -> list[str]:
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return []
+    if limit <= 0:
+        return lines
+    return lines[-limit:]
+
+
+def _cron_auto_status() -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            ["crontab", "-l"],
+            text=True,
+            capture_output=True,
+        )
+        text = proc.stdout if proc.returncode == 0 else ""
+    except OSError:
+        text = ""
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    matched = [line for line in lines if "git-auto-push-once.py" in line or AUTO_MARKER in line]
+    return {
+        "installed": bool(matched),
+        "entries": matched,
+    }
 
 
 def auto_watch_status() -> dict[str, Any]:
@@ -37,9 +69,26 @@ def auto_watch_status() -> dict[str, Any]:
         lines = [line for line in proc.stdout.splitlines() if line.strip()]
     except OSError:
         lines = []
+    cron = _cron_auto_status()
+    log_lines = _tail_lines(AUTO_LOG, 30)
+    last_log = log_lines[-1] if log_lines else ""
+    last_activity = None
+    if AUTO_LOG.is_file():
+        try:
+            last_activity = datetime.fromtimestamp(AUTO_LOG.stat().st_mtime).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+        except OSError:
+            last_activity = None
     return {
         "running": bool(lines),
         "processes": lines,
+        "cron_installed": bool(cron["installed"]),
+        "cron_entries": cron["entries"],
+        "mode": "watch" if lines else ("cron" if cron["installed"] else "none"),
+        "healthy": bool(lines) or bool(cron["installed"]),
+        "last_log": last_log,
+        "last_activity": last_activity,
     }
 
 
@@ -158,13 +207,34 @@ def build_page() -> str:
 
     async function refreshAuto() {{
       const data = await (await fetch("/api/auto-status")).json();
+      const modeMap = {{
+        watch: "常驻守护进程",
+        cron: "crontab 定时检查",
+        none: "未配置",
+      }};
       const lines = [
-        "自动部署守护进程: " + (data.auto.running ? "运行中" : "未运行"),
-        "进程数: " + ((data.auto.processes || []).length),
+        "自动部署模式: " + (modeMap[data.auto.mode] || data.auto.mode || "未知"),
+        "自动部署状态: " + (data.auto.healthy ? "已启用" : "未启用"),
       ];
+      if (data.auto.mode === "watch") {{
+        lines.push("常驻进程数: " + ((data.auto.processes || []).length));
+      }}
+      if (data.auto.mode === "cron") {{
+        lines.push("crontab 条目数: " + ((data.auto.cron_entries || []).length));
+      }}
       if (Array.isArray(data.auto.processes) && data.auto.processes.length) {{
         lines.push("", "进程详情:");
         lines.push(...data.auto.processes);
+      }}
+      if (Array.isArray(data.auto.cron_entries) && data.auto.cron_entries.length) {{
+        lines.push("", "crontab 条目:");
+        lines.push(...data.auto.cron_entries);
+      }}
+      if (data.auto.last_activity) {{
+        lines.push("", "最近日志时间: " + data.auto.last_activity);
+      }}
+      if (data.auto.last_log) {{
+        lines.push("最近日志: " + data.auto.last_log);
       }}
       el("auto-summary").textContent = lines.join("\\n");
       const runtime = data.manual.status === "running"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
@@ -22,7 +22,9 @@ import {
   readAdminUsersCache,
   writeAdminUsersCache,
 } from "@/lib/admin-users-cache";
+import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
+import { formatIpForDisplay } from "@/lib/client-ip";
 import type { LoginLinkTemplate } from "@/lib/types";
 
 const LOGIN_LINK_TEMPLATE_STORAGE_KEY = "admin_login_link_template_id";
@@ -60,7 +62,55 @@ type UserRow = {
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
   created_at: string;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
 };
+
+type UserSortField = "id" | "last_login_at";
+type UserSortDirection = "asc" | "desc";
+
+function compareNullableText(a: string | null | undefined, b: string | null | undefined): number {
+  const av = (a ?? "").trim();
+  const bv = (b ?? "").trim();
+  if (!av && !bv) return 0;
+  if (!av) return 1;
+  if (!bv) return -1;
+  return av.localeCompare(bv, undefined, { sensitivity: "base" });
+}
+
+function sortUsers(
+  rows: UserRow[],
+  field: UserSortField,
+  direction: UserSortDirection
+): UserRow[] {
+  const factor = direction === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (field === "id") {
+      const diff = a.id - b.id;
+      return diff === 0
+        ? a.username.localeCompare(b.username, undefined, { sensitivity: "base" }) * factor
+        : diff * factor;
+    }
+
+    const aTime = a.last_login_at ? Date.parse(a.last_login_at.replace(" ", "T")) : Number.NaN;
+    const bTime = b.last_login_at ? Date.parse(b.last_login_at.replace(" ", "T")) : Number.NaN;
+    const aValid = Number.isFinite(aTime);
+    const bValid = Number.isFinite(bTime);
+    if (!aValid && !bValid) {
+      return compareNullableText(a.last_login_ip, b.last_login_ip) * factor;
+    }
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+    if (aTime !== bTime) return (aTime - bTime) * factor;
+    return (a.id - b.id) * factor;
+  });
+}
+
+function formatLastLogin(value: string | null | undefined, locale: "en" | "zh"): string {
+  if (!value) return "—";
+  const formatted = formatBeijingDateTime(value);
+  return locale === "zh" ? formatted : formatted;
+}
 
 export function AdminUsersPage() {
   const { locale } = useI18n();
@@ -89,6 +139,8 @@ export function AdminUsersPage() {
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
+  const [sortField, setSortField] = useState<UserSortField>("id");
+  const [sortDirection, setSortDirection] = useState<UserSortDirection>("desc");
 
   const persistUsers = useCallback((next: UserRow[]) => {
     writeAdminUsersCache(next);
@@ -168,6 +220,11 @@ export function AdminUsersPage() {
     selectedTemplateId != null
       ? templates.find((item) => item.id === selectedTemplateId) ?? null
       : null;
+
+  const sortedUsers = useMemo(
+    () => sortUsers(users, sortField, sortDirection),
+    [users, sortDirection, sortField]
+  );
 
   const createTemplate = async () => {
     setTemplateSaving(true);
@@ -380,9 +437,7 @@ export function AdminUsersPage() {
         return;
       }
       setUsers((prev) => {
-        const next = [...prev, data.user as UserRow].sort((a, b) =>
-          a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-        );
+        const next = [...prev, data.user as UserRow];
         persistUsers(next);
         return next;
       });
@@ -594,11 +649,7 @@ export function AdminUsersPage() {
   const applyUserUpdate = useCallback(
     (updated: AdminUserEditRow) => {
       setUsers((prev) => {
-        const next = prev
-          .map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
-          .sort((a, b) =>
-            a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-          );
+        const next = prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
         persistUsers(next);
         return next;
       });
@@ -615,19 +666,17 @@ export function AdminUsersPage() {
   const handleUserSaveFailed = useCallback(
     (userId: number, snapshot: AdminUserEditRow, message: string) => {
       setUsers((prev) => {
-        const next = prev
-          .map((item) => {
-            if (item.id !== userId) return item;
-            return {
-              ...item,
-              ...snapshot,
-              disabled: snapshot.disabled ?? item.disabled,
-              created_at: snapshot.created_at ?? item.created_at,
-            };
-          })
-          .sort((a, b) =>
-            a.username.localeCompare(b.username, undefined, { sensitivity: "base" })
-          );
+        const next = prev.map((item) => {
+          if (item.id !== userId) return item;
+          return {
+            ...item,
+            ...snapshot,
+            disabled: snapshot.disabled ?? item.disabled,
+            created_at: snapshot.created_at ?? item.created_at,
+            last_login_at: snapshot.last_login_at ?? item.last_login_at,
+            last_login_ip: snapshot.last_login_ip ?? item.last_login_ip,
+          };
+        });
         persistUsers(next);
         return next;
       });
@@ -647,6 +696,22 @@ export function AdminUsersPage() {
       />
     );
   }
+
+  const toggleSort = (field: UserSortField) => {
+    setSortField((prevField) => {
+      if (prevField === field) {
+        setSortDirection((prevDirection) => (prevDirection === "asc" ? "desc" : "asc"));
+        return prevField;
+      }
+      setSortDirection(field === "last_login_at" ? "desc" : "asc");
+      return field;
+    });
+  };
+
+  const sortLabel = (field: UserSortField): string => {
+    if (sortField !== field) return "";
+    return sortDirection === "asc" ? " ▲" : " ▼";
+  };
 
   return (
     <div className="admin-page">
@@ -931,15 +996,36 @@ export function AdminUsersPage() {
             <table className="admin-rbac-table">
               <thead>
                 <tr>
+                  <th>
+                    <button
+                      type="button"
+                      className="admin-user-sort-btn"
+                      onClick={() => toggleSort("id")}
+                    >
+                      {locale === "zh" ? "ID" : "ID"}
+                      {sortLabel("id")}
+                    </button>
+                  </th>
                   <th>{locale === "zh" ? "用户名" : "Username"}</th>
                   <th>{locale === "zh" ? "角色" : "Role"}</th>
                   <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
+                  <th>
+                    <button
+                      type="button"
+                      className="admin-user-sort-btn"
+                      onClick={() => toggleSort("last_login_at")}
+                    >
+                      {locale === "zh" ? "最后一次登录时间" : "Last login"}
+                      {sortLabel("last_login_at")}
+                    </button>
+                  </th>
+                  <th>{locale === "zh" ? "最后一次登录 IP" : "Last login IP"}</th>
                   <th>{locale === "zh" ? "状态" : "Status"}</th>
                   <th>{locale === "zh" ? "操作" : "Actions"}</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((row) => {
+                {sortedUsers.map((row) => {
                   const isSelf = currentUser?.id === row.id;
                   const isAdminUser = row.role === "admin";
                   const canToggle = !isSelf && !isAdminUser;
@@ -953,9 +1039,12 @@ export function AdminUsersPage() {
                     copyingId === row.id;
                   return (
                     <tr key={row.id}>
+                      <td>{row.id}</td>
                       <td className="admin-rbac-username">{row.username}</td>
                       <td>{row.role_label}</td>
                       <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
+                      <td>{formatLastLogin(row.last_login_at, locale)}</td>
+                      <td>{formatIpForDisplay(row.last_login_ip)}</td>
                       <td>
                         {row.disabled
                           ? locale === "zh"
@@ -1167,6 +1256,16 @@ export function AdminUsersPage() {
         .admin-rbac-table th {
           background: var(--panel);
           font-weight: 600;
+          white-space: nowrap;
+        }
+        .admin-user-sort-btn {
+          border: 0;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          font-weight: inherit;
+          padding: 0;
+          cursor: pointer;
           white-space: nowrap;
         }
         .admin-rbac-table tbody tr:nth-child(even) {

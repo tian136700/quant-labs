@@ -61,7 +61,8 @@ export async function handleLoginLinkHandoff(
   }
 
   const env = await getCloudflareEnv();
-  const result = await consumeLoginLink(env, trimmed);
+  const ip = clientIp(request);
+  const result = await consumeLoginLink(env, trimmed, ip);
   if (!result.ok) {
     return errorRedirect(request, result.error);
   }
@@ -75,7 +76,6 @@ export async function handleLoginLinkHandoff(
   );
   redirectUrl.search = "";
 
-  const ip = clientIp(request);
   if (ip) {
     await setLocalePref(env.DB, ip, locale);
   }

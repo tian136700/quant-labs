@@ -10,6 +10,8 @@ export type AdminUserListRow = {
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
   created_at: string;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
 };
 
 export function readAdminUsersCache(): AdminUserListRow[] | null {

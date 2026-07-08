@@ -13,6 +13,8 @@ export type AdminUserEditRow = {
   role_label: string;
   disabled?: boolean;
   created_at?: string;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
 };
 
 type Props = {

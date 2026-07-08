@@ -22,6 +22,7 @@ import type { CloudflareEnv } from "./types";
 
 type DevUser = EtrUser & { password_hash: string };
 type DevSession = { token: string; user_id: number; expires_at: string; created_at: string };
+type LoginAuditMeta = { loginIp?: string | null };
 
 export type AuthSessionResolve =
   | { status: "authenticated"; user: EtrSessionUser }
@@ -61,6 +62,8 @@ async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
   if (devAuthEnabled) return;
   const info = await db.prepare(`PRAGMA table_info(etr_users)`).all<{ name: string }>();
   const hasDisabled = (info.results ?? []).some((row) => row.name === "disabled");
+  const hasLastLoginAt = (info.results ?? []).some((row) => row.name === "last_login_at");
+  const hasLastLoginIp = (info.results ?? []).some((row) => row.name === "last_login_ip");
   if (!hasDisabled) {
     await db
       .prepare(
@@ -68,6 +71,18 @@ async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
       )
       .run();
   }
+  if (!hasLastLoginAt) {
+    await db.prepare(`ALTER TABLE etr_users ADD COLUMN last_login_at TEXT`).run();
+  }
+  if (!hasLastLoginIp) {
+    await db.prepare(`ALTER TABLE etr_users ADD COLUMN last_login_ip TEXT`).run();
+  }
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_etr_users_last_login_at
+       ON etr_users (last_login_at DESC, id DESC)`
+    )
+    .run();
 }
 
 export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> {
@@ -89,6 +104,8 @@ export async function ensureDefaultAdminUser(env: CloudflareEnv): Promise<void> 
       password_hash: encodePasswordStorage(salt, hash),
       role: "admin",
       disabled: 0,
+      last_login_at: null,
+      last_login_ip: null,
       created_at: nowIso(),
     });
     return;
@@ -152,6 +169,8 @@ async function ensureJpVocabRoleUser(
       password_hash: encodePasswordStorage(salt, hash),
       role: "jp_vocab",
       disabled: 0,
+      last_login_at: null,
+      last_login_ip: null,
       created_at: nowIso(),
     });
     return;
@@ -211,6 +230,7 @@ async function findUserByUsername(
     (await db
       .prepare(
         `SELECT id, username, password_hash, role, disabled, created_at
+         , last_login_at, last_login_ip
          FROM etr_users WHERE username = ?1 LIMIT 1`
       )
       .bind(name)
@@ -229,7 +249,8 @@ export async function findUserById(db: D1Database, userId: number): Promise<EtrU
   return (
     (await db
       .prepare(
-        `SELECT id, username, role, disabled, created_at FROM etr_users WHERE id = ?1 LIMIT 1`
+        `SELECT id, username, role, disabled, created_at, last_login_at, last_login_ip
+         FROM etr_users WHERE id = ?1 LIMIT 1`
       )
       .bind(userId)
       .first<EtrUser>()) ?? null
@@ -265,7 +286,8 @@ async function ensureJpVocabTeacherRoleOnLogin(
 export async function loginUser(
   env: CloudflareEnv,
   username: string,
-  password: string
+  password: string,
+  loginMeta?: LoginAuditMeta
 ): Promise<AuthResult> {
   await ensureBootstrapUsers(env);
 
@@ -278,13 +300,14 @@ export async function loginUser(
   user = await ensureJpVocabTeacherRoleOnLogin(env, user);
   if (isUserDisabled(user)) return { ok: false, error: "maintenance" };
   const { password_hash: _ph, ...publicUser } = user;
-  return createSession(env.DB, publicUser);
+  return createSession(env.DB, publicUser, undefined, loginMeta);
 }
 
 export async function registerUser(
   env: CloudflareEnv,
   username: string,
-  password: string
+  password: string,
+  loginMeta?: LoginAuditMeta
 ): Promise<AuthResult> {
   await ensureBootstrapUsers(env);
 
@@ -312,11 +335,13 @@ export async function registerUser(
       password_hash: encodePasswordStorage(salt, hash),
       role: "user",
       disabled: 0,
+      last_login_at: null,
+      last_login_ip: null,
       created_at: ts,
     };
     devUsers.push(created);
     const { password_hash: _, ...user } = created;
-    return createSession(env.DB, user);
+    return createSession(env.DB, user, undefined, loginMeta);
   }
 
   const result = await env.DB
@@ -333,28 +358,58 @@ export async function registerUser(
   const user = await findUserById(env.DB, userId);
   if (!user) return { ok: false, error: "register_failed" };
 
-  return createSession(env.DB, user);
+  return createSession(env.DB, user, undefined, loginMeta);
+}
+
+async function recordUserLogin(
+  db: D1Database,
+  userId: number,
+  loginMeta?: LoginAuditMeta
+): Promise<void> {
+  const loginAt = nowIso();
+  const loginIp = loginMeta?.loginIp?.trim() || null;
+
+  if (devAuthEnabled) {
+    const row = devUsers.find((item) => item.id === userId);
+    if (!row) return;
+    row.last_login_at = loginAt;
+    row.last_login_ip = loginIp;
+    return;
+  }
+
+  await ensureEtrUsersSchema(db);
+  await db
+    .prepare(
+      `UPDATE etr_users
+       SET last_login_at = ?1, last_login_ip = ?2
+       WHERE id = ?3`
+    )
+    .bind(loginAt, loginIp, userId)
+    .run();
 }
 
 async function createSession(
   db: D1Database,
   user: EtrUser,
-  ttlMs?: number
+  ttlMs?: number,
+  loginMeta?: LoginAuditMeta
 ): Promise<AuthResult> {
   const token = newSessionToken();
   const expiresAt = expiresIso(
     ttlMs ?? sessionTtlMs(user.role as EtrUserRole)
   );
   const ts = nowIso();
+  await recordUserLogin(db, user.id, loginMeta);
 
   if (devAuthEnabled) {
+    const currentUser = devUsers.find((item) => item.id === user.id);
     devSessions.push({
       token,
       user_id: user.id,
       expires_at: expiresAt,
       created_at: ts,
     });
-    return { ok: true, user, token, expires_at: expiresAt };
+    return { ok: true, user: currentUser ?? user, token, expires_at: expiresAt };
   }
 
   await db
@@ -371,7 +426,8 @@ async function createSession(
 export async function createSessionForUser(
   env: CloudflareEnv,
   userId: number,
-  ttlMs: number
+  ttlMs: number,
+  loginMeta?: LoginAuditMeta
 ): Promise<AuthResult> {
   await ensureBootstrapUsers(env);
 
@@ -379,7 +435,7 @@ export async function createSessionForUser(
   if (!user) return { ok: false, error: "user_not_found" };
   if (isUserDisabled(user)) return { ok: false, error: "maintenance" };
 
-  return createSession(env.DB, user, ttlMs);
+  return createSession(env.DB, user, ttlMs, loginMeta);
 }
 
 export async function getSessionUserFromRequest(
@@ -450,6 +506,8 @@ async function lookupSession(
         role: user.role,
         disabled: user.disabled ?? 0,
         created_at: user.created_at,
+        last_login_at: user.last_login_at ?? null,
+        last_login_ip: user.last_login_ip ?? null,
         expires_at: session.expires_at,
       },
     };
@@ -458,6 +516,7 @@ async function lookupSession(
   const row = await db
     .prepare(
       `SELECT u.id, u.username, u.role, u.disabled, u.created_at, s.expires_at
+         , u.last_login_at, u.last_login_ip
        FROM etr_sessions s
        JOIN etr_users u ON u.id = s.user_id
        WHERE s.token = ?1
@@ -485,6 +544,8 @@ async function lookupSession(
       role: row.role,
       disabled: row.disabled ?? 0,
       created_at: row.created_at,
+      last_login_at: row.last_login_at ?? null,
+      last_login_ip: row.last_login_ip ?? null,
       expires_at: row.expires_at,
     },
   };
@@ -512,6 +573,7 @@ export async function listEtrUsers(db: D1Database): Promise<EtrUser[]> {
   const result = await db
     .prepare(
       `SELECT id, username, role, disabled, created_at
+         , last_login_at, last_login_ip
        FROM etr_users
        ORDER BY role ASC, username COLLATE NOCASE ASC`
     )
@@ -686,6 +748,8 @@ export async function createUserByAdmin(
       password_hash: encodePasswordStorage(salt, hash),
       role,
       disabled: disabledFlag,
+      last_login_at: null,
+      last_login_ip: null,
       created_at: ts,
     };
     devUsers.push(created);

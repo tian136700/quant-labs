@@ -120,3 +120,8 @@ scripts/import-trends-json.py
 
 # 一次性数据回填（本地运维，勿提交）
 scripts/backfill-visit-geo.py
+
+# auto-ignore-local begin
+scripts/deploy_center/
+scripts/deploy_center/server.py
+# auto-ignore-local end

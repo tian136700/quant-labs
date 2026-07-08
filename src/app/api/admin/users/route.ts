@@ -98,6 +98,8 @@ function serializeUser(user: {
   role: string;
   disabled?: number;
   created_at: string;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
 }, locale: "en" | "zh", jpLessonTeacherName?: string | null) {
   return {
     id: user.id,
@@ -107,6 +109,8 @@ function serializeUser(user: {
     jp_lesson_teacher_name: jpLessonTeacherName ?? null,
     disabled: (user.disabled ?? 0) !== 0,
     created_at: user.created_at,
+    last_login_at: user.last_login_at ?? null,
+    last_login_ip: user.last_login_ip ?? null,
   };
 }
 
