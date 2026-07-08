@@ -1138,13 +1138,14 @@ export function JpLessonPage() {
             <JpLessonTeacherDisplay lesson={lesson} teachersById={teacherById} />
           </JpLessonMobileFieldValue>
           <div className="jp-lesson-merged-edit-stack">
-            {groupLessons.map((item) => (
-              <JpEditIconButton
-                key={item.id}
-                title={`设置 #${item.id} 上课老师`}
-                onClick={() => openTeacherEditModal(item)}
-              />
-            ))}
+            <JpEditIconButton
+              title={
+                groupLessons.length > 1
+                  ? `设置该合并行上课老师（共 ${groupLessons.length} 条）`
+                  : `设置 #${lesson.id} 上课老师`
+              }
+              onClick={() => openTeacherEditModal(lesson)}
+            />
           </div>
         </div>
       </td>

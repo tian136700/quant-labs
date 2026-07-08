@@ -82,6 +82,7 @@ export function JpLessonTeacherEditModal({
   const [addName, setAddName] = useState("");
   const [addPrice, setAddPrice] = useState("");
   const [addMinutes, setAddMinutes] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
   const [deletingTeacherId, setDeletingTeacherId] = useState<number | null>(null);
   const [addError, setAddError] = useState("");
@@ -114,6 +115,7 @@ export function JpLessonTeacherEditModal({
     setAddName("");
     setAddPrice("");
     setAddMinutes("");
+    setSearchQuery("");
     setAddError("");
     setSaveError("");
   }, [open, lesson?.id]);
@@ -180,6 +182,15 @@ export function JpLessonTeacherEditModal({
 
   const resolveExistingTeacher = (name: string): JpLessonTeacher | undefined =>
     sortedTeachers.find((t) => t.name === name);
+
+  const filteredTeachers = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return sortedTeachers;
+    return sortedTeachers.filter((teacher) => {
+      const label = `${teacher.name} ${teacher.hourly_rate ?? ""} ${teacher.lesson_minutes ?? ""}`.toLowerCase();
+      return label.includes(needle);
+    });
+  }, [searchQuery, sortedTeachers]);
 
   const buildAddInput = (): JpLessonTeacherAddInput | null => {
     const trimmed = addName.trim();
@@ -412,8 +423,15 @@ export function JpLessonTeacherEditModal({
           disabled={saving || addingTeacher || deletingTeacherId != null}
         >
           <legend>上课老师（可多选，可直接改名称、课时费与时长）</legend>
+          <input
+            type="text"
+            className="jp-lesson-teacher-search"
+            value={searchQuery}
+            placeholder="搜索老师、课时费或时长"
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
           <div className="jp-lesson-teacher-options">
-            {sortedTeachers.length ? (
+            {filteredTeachers.length ? (
               <div className="jp-lesson-teacher-edit-head" aria-hidden="true">
                 <span className="jp-lesson-teacher-edit-head__check" />
                 <span className="jp-lesson-teacher-edit-head__name">称呼</span>
@@ -422,7 +440,7 @@ export function JpLessonTeacherEditModal({
                 <span className="jp-lesson-teacher-edit-head__action">操作</span>
               </div>
             ) : null}
-            {sortedTeachers.map((teacher) => {
+            {filteredTeachers.map((teacher) => {
               const draft = drafts[teacher.id] ?? teacherToDraft(teacher);
               return (
                 <div
@@ -568,6 +586,8 @@ export function JpLessonTeacherEditModal({
           {saveError ? <p className="jp-lesson-teacher-add-error">{saveError}</p> : null}
           {!sortedTeachers.length ? (
             <p className="jp-lesson-teacher-hint">暂无老师；可在下方直接添加。</p>
+          ) : !filteredTeachers.length ? (
+            <p className="jp-lesson-teacher-hint">没有匹配的老师，请换个关键词试试。</p>
           ) : null}
         </fieldset>
 
@@ -670,6 +690,18 @@ export function JpLessonTeacherEditModal({
           border: 1px solid var(--border);
           border-radius: 8px;
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+        }
+
+        .jp-lesson-teacher-search {
+          width: 100%;
+          box-sizing: border-box;
+          margin-bottom: 0.55rem;
+          padding: 0.5rem 0.65rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: var(--panel);
+          color: inherit;
+          font-size: 0.875rem;
         }
 
         .jp-lesson-teacher-edit-head {

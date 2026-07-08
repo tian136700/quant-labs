@@ -59,6 +59,7 @@ export function JpLessonBatchScheduleTeacherModal({
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [teacherQuery, setTeacherQuery] = useState("");
   const [progressStatus, setProgressStatus] = useState<JpLessonProgressStatus | "">("learning");
 
   const timeOptions = useMemo(
@@ -83,6 +84,7 @@ export function JpLessonBatchScheduleTeacherModal({
     if (!open) return;
     setRows([emptyRow()]);
     setSelectedIds([]);
+    setTeacherQuery("");
     setProgressStatus("learning");
   }, [open]);
 
@@ -108,6 +110,15 @@ export function JpLessonBatchScheduleTeacherModal({
         : [...prev, teacherId]
     );
   };
+
+  const filteredTeachers = useMemo(() => {
+    const needle = teacherQuery.trim().toLowerCase();
+    if (!needle) return sortedTeachers;
+    return sortedTeachers.filter((teacher) => {
+      const label = `${teacher.name} ${teacher.hourly_rate ?? ""} ${teacher.lesson_minutes ?? ""}`.toLowerCase();
+      return label.includes(needle);
+    });
+  }, [sortedTeachers, teacherQuery]);
 
   const handleSave = () => {
     const schedules: JpLessonClassScheduleInput[] = [];
@@ -149,8 +160,15 @@ export function JpLessonBatchScheduleTeacherModal({
 
         <fieldset className="jp-batch-fieldset" disabled={saving}>
           <legend>上课老师（可多选）</legend>
+          <input
+            type="text"
+            className="jp-batch-input"
+            value={teacherQuery}
+            placeholder="搜索老师、课时费或时长"
+            onChange={(e) => setTeacherQuery(e.target.value)}
+          />
           <div className="jp-batch-teachers">
-            {sortedTeachers.map((teacher) => (
+            {filteredTeachers.map((teacher) => (
               <label key={teacher.id} className="jp-batch-teacher-item">
                 <input
                   type="checkbox"
@@ -166,6 +184,9 @@ export function JpLessonBatchScheduleTeacherModal({
                 </span>
               </label>
             ))}
+            {!filteredTeachers.length ? (
+              <p className="jp-batch-empty">没有匹配的老师</p>
+            ) : null}
           </div>
         </fieldset>
 
@@ -260,6 +281,7 @@ export function JpLessonBatchScheduleTeacherModal({
         .jp-batch-fieldset legend { font-size: .8125rem; color: var(--muted); margin-bottom: .45rem; }
         .jp-batch-teachers { display: grid; gap: .35rem; max-height: 10rem; overflow: auto; padding: .55rem; border: 1px solid var(--border); border-radius: 8px; }
         .jp-batch-teacher-item { display: flex; gap: .5rem; font-size: .875rem; }
+        .jp-batch-empty { margin: 0; color: var(--muted); font-size: .8125rem; }
         .jp-batch-rows { display: grid; gap: .6rem; }
         .jp-batch-row { border: 1px solid var(--border); border-radius: 8px; padding: .55rem; }
         .jp-batch-row-head { display: flex; justify-content: space-between; margin-bottom: .4rem; font-size: .8125rem; color: var(--muted); }
