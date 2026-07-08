@@ -9,6 +9,7 @@ import {
   listNextClassHalfHourTimes,
   nextClassAtFromDatetimeLocalValue,
 } from "@/lib/jp-lesson-shared";
+import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonClassScheduleInput, JpLessonTeacher } from "@/lib/types";
 
@@ -21,7 +22,8 @@ type Props = {
   onSave: (
     schedules: JpLessonClassScheduleInput[],
     teacherIds: number[],
-    teacherOther: string | null
+    teacherOther: string | null,
+    progressStatus: JpLessonProgressStatus | null
   ) => void;
 };
 
@@ -57,6 +59,7 @@ export function JpLessonBatchScheduleTeacherModal({
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [progressStatus, setProgressStatus] = useState<JpLessonProgressStatus | "">("learning");
 
   const timeOptions = useMemo(
     () =>
@@ -80,6 +83,7 @@ export function JpLessonBatchScheduleTeacherModal({
     if (!open) return;
     setRows([emptyRow()]);
     setSelectedIds([]);
+    setProgressStatus("learning");
   }, [open]);
 
   const updateRow = (key: string, patch: Partial<Omit<ScheduleRow, "key">>) => {
@@ -119,7 +123,7 @@ export function JpLessonBatchScheduleTeacherModal({
         duration_minutes: row.duration ? Number(row.duration) : null,
       });
     }
-    onSave(schedules, selectedIds, null);
+    onSave(schedules, selectedIds, null, progressStatus ? progressStatus : null);
   };
 
   if (!open || !mounted) return null;
@@ -212,6 +216,25 @@ export function JpLessonBatchScheduleTeacherModal({
           </button>
         </fieldset>
 
+        <fieldset className="jp-batch-fieldset" disabled={saving}>
+          <legend>学习状态</legend>
+          <div className="jp-batch-status-row">
+            <select
+              className="jp-batch-input"
+              value={progressStatus}
+              onChange={(e) =>
+                setProgressStatus((e.target.value as JpLessonProgressStatus | "") ?? "")
+              }
+              aria-label="批量保存时同时设置学习状态"
+            >
+              <option value="">不修改</option>
+              <option value="pending">未完成</option>
+              <option value="learning">学习中</option>
+              <option value="completed">已完成</option>
+            </select>
+          </div>
+        </fieldset>
+
         <div className="jp-batch-actions">
           <button type="button" className="jp-lesson-action-btn" onClick={onClose} disabled={saving}>
             取消
@@ -243,6 +266,7 @@ export function JpLessonBatchScheduleTeacherModal({
         .jp-batch-row-head button { border: none; background: transparent; color: var(--muted); cursor: pointer; }
         .jp-batch-fields { display: grid; gap: .5rem; }
         .jp-batch-input { width: 100%; box-sizing: border-box; padding: .5rem .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: inherit; }
+        .jp-batch-status-row { display: grid; gap: .5rem; }
         .jp-batch-add { margin-top: .55rem; width: 100%; padding: .5rem; border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--accent) 6%, var(--panel)); color: var(--accent); }
         .jp-batch-actions { display: flex; justify-content: flex-end; gap: .5rem; }
       `}</style>

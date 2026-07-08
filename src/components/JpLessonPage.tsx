@@ -736,7 +736,8 @@ export function JpLessonPage() {
   const setBatchClassSchedulesAndTeachers = async (
     schedules: JpLessonClassScheduleInput[],
     teacherIds: number[],
-    teacherOther: string | null
+    teacherOther: string | null,
+    progressStatus: JpLessonProgressStatus | null
   ) => {
     if (!isAdmin || !batchLessonIds.length) return;
     const normalized = schedules.map((item) => ({
@@ -778,6 +779,25 @@ export function JpLessonPage() {
         });
         const teacherData = (await teacherRes.json()) as { ok: boolean; error?: string };
         if (!teacherData.ok) throw new Error(teacherData.error || `课程 #${lessonId} 老师保存失败`);
+
+        if (progressStatus) {
+          const progressRes = await fetch("/api/jp-lesson", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              lesson_id: lessonId,
+              progress_status: progressStatus,
+            }),
+          });
+          const progressData = (await progressRes.json()) as { ok: boolean; error?: string };
+          if (!progressData.ok) {
+            throw new Error(progressData.error || `课程 #${lessonId} 状态保存失败`);
+          }
+        }
       }
 
       await loadLessons({ force: true });
@@ -1511,8 +1531,13 @@ export function JpLessonPage() {
         onClose={() => {
           if (!batchSaving) setBatchModalOpen(false);
         }}
-        onSave={(schedules, teacherIds, teacherOther) => {
-          void setBatchClassSchedulesAndTeachers(schedules, teacherIds, teacherOther);
+        onSave={(schedules, teacherIds, teacherOther, progressStatus) => {
+          void setBatchClassSchedulesAndTeachers(
+            schedules,
+            teacherIds,
+            teacherOther,
+            progressStatus
+          );
         }}
       />
 
