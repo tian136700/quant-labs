@@ -231,6 +231,29 @@ export function AdminJpLessonTeachersPage() {
     setScoreSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
 
+  const fieldLabels =
+    locale === "zh"
+      ? {
+          id: "ID",
+          name: "名称",
+          rate: "课时费",
+          minutes: "课时时长",
+          score: "平均评分",
+          remark: "最近备注",
+          updated: "更新时间",
+          actions: "操作",
+        }
+      : {
+          id: "ID",
+          name: "Name",
+          rate: "Rate",
+          minutes: "Duration",
+          score: "Avg score",
+          remark: "Latest note",
+          updated: "Updated",
+          actions: "Actions",
+        };
+
   const createTeacher = async () => {
     setSaving(true);
     setStatus("");
@@ -513,22 +536,52 @@ export function AdminJpLessonTeachersPage() {
       </section>
 
       <section className="section etr-panel admin-rbac-section">
-        <div className="etr-history-head">
+        <div className="etr-history-head admin-jpl-teachers-head">
           <h2>{locale === "zh" ? "老师列表" : "Teachers"}</h2>
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => void loadTeachers({ force: true })}
-            disabled={loading || refreshing}
-          >
-            {refreshing
-              ? locale === "zh"
-                ? "同步中…"
-                : "Syncing…"
-              : locale === "zh"
-                ? "刷新"
-                : "Refresh"}
-          </button>
+          <div className="admin-jpl-teachers-toolbar">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact admin-jpl-mobile-sort-btn"
+              title={
+                scoreSortOrder === "desc"
+                  ? locale === "zh"
+                    ? "按平均评分从高到低；点击切换为从低到高"
+                    : "Avg score high to low; click for low to high"
+                  : locale === "zh"
+                    ? "按平均评分从低到高；点击切换为从高到低"
+                    : "Avg score low to high; click for high to low"
+              }
+              aria-label={
+                scoreSortOrder === "desc"
+                  ? locale === "zh"
+                    ? "平均评分降序，点击切换为升序"
+                    : "Avg score descending, click for ascending"
+                  : locale === "zh"
+                    ? "平均评分升序，点击切换为降序"
+                    : "Avg score ascending, click for descending"
+              }
+              onClick={toggleScoreSortOrder}
+            >
+              {fieldLabels.score}
+              <span className="admin-sort-indicator" aria-hidden="true">
+                {scoreSortOrder === "asc" ? "↑" : "↓"}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={() => void loadTeachers({ force: true })}
+              disabled={loading || refreshing}
+            >
+              {refreshing
+                ? locale === "zh"
+                  ? "同步中…"
+                  : "Syncing…"
+                : locale === "zh"
+                  ? "刷新"
+                  : "Refresh"}
+            </button>
+          </div>
         </div>
 
         {refreshing && teachers.length > 0 ? (
@@ -597,8 +650,10 @@ export function AdminJpLessonTeachersPage() {
                   const latestClassDate = summary?.latest_class_date ?? null;
                   return (
                     <tr key={teacher.id}>
-                      <td className="col-id">{teacher.id}</td>
-                      <td className="col-name">
+                      <td className="col-id" data-label={fieldLabels.id}>
+                        {teacher.id}
+                      </td>
+                      <td className="col-name" data-label={fieldLabels.name}>
                         {isEditing ? (
                           <input
                             type="text"
@@ -607,10 +662,13 @@ export function AdminJpLessonTeachersPage() {
                             onChange={(e) => setEditName(e.target.value)}
                           />
                         ) : (
-                          teacher.name
+                          <>
+                            <span>{teacher.name}</span>
+                            <span className="admin-jpl-mobile-id">#{teacher.id}</span>
+                          </>
                         )}
                       </td>
-                      <td className="col-rate">
+                      <td className="col-rate" data-label={fieldLabels.rate}>
                         {isEditing ? (
                           <input
                             type="number"
@@ -627,7 +685,7 @@ export function AdminJpLessonTeachersPage() {
                           )
                         )}
                       </td>
-                      <td className="col-minutes">
+                      <td className="col-minutes" data-label={fieldLabels.minutes}>
                         {isEditing ? (
                           <select
                             value={editLessonMinutes}
@@ -655,7 +713,7 @@ export function AdminJpLessonTeachersPage() {
                           )
                         )}
                       </td>
-                      <td className="col-score">
+                      <td className="col-score" data-label={fieldLabels.score}>
                         {summary && summary.review_count > 0 && summary.avg_score != null ? (
                           <span
                             className={`etr-score-badge ${scoreClass(summary.avg_score)}`}
@@ -669,6 +727,7 @@ export function AdminJpLessonTeachersPage() {
                       </td>
                       <td
                         className={`col-remark${!latestRemark ? " col-remark--empty" : ""}`}
+                        data-label={fieldLabels.remark}
                         title={latestRemark ?? undefined}
                       >
                         {latestRemark ? (
@@ -687,8 +746,10 @@ export function AdminJpLessonTeachersPage() {
                           "—"
                         )}
                       </td>
-                      <td className="col-updated">{formatBeijingDateTime(teacher.updated_at)}</td>
-                      <td className="col-actions">
+                      <td className="col-updated" data-label={fieldLabels.updated}>
+                        {formatBeijingDateTime(teacher.updated_at)}
+                      </td>
+                      <td className="col-actions" data-label={fieldLabels.actions}>
                         <div className="etr-form-actions etr-form-actions--inline">
                           {isEditing ? (
                             <>
