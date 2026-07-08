@@ -1111,8 +1111,8 @@ export function AdminJpLessonTeachersPage() {
                     </h2>
                     <p className="jp-lesson-teacher-modal-lesson">
                       {locale === "zh"
-                        ? "新增老师后不会自动建账号；请在评分时按需勾选创建。"
-                        : "No account is auto-created on add; create it during review if needed."}
+                        ? "新增老师后可在列表中「一键创建用户」；也可在评价弹窗中勾选创建账号。"
+                        : "After adding, use “Create user” in the list, or create from the review modal."}
                     </p>
                   </div>
                   <button
@@ -1179,8 +1179,8 @@ export function AdminJpLessonTeachersPage() {
                   </label>
                   <p className="hint admin-user-add-hint">
                     {locale === "zh"
-                      ? "评分后在评价弹窗中勾选“新增账号”才会创建老师账号（用户名为老师名拼音，密码随机）。"
-                      : "Create teacher accounts from the review modal only when needed (pinyin username + random password)."}
+                      ? "老师列表支持「一键创建用户」（拼音用户名 + 易记密码）；评价弹窗中也可勾选创建。"
+                      : "Use “Create user” on the teacher list (pinyin username + memorable password), or create from review."}
                   </p>
                   <div className="etr-form-actions etr-form-actions--inline">
                     <button

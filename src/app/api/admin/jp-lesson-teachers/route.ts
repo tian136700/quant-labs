@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { jsonResponse } from "@/lib/cloudflare-env";
 import { ensureJpLessonTeacherUserAccount, listJpLessonTeacherUserLinkMapByTeacherId } from "@/lib/etr-auth-db";
 import {
   normalizeTeacherLessonMinutes,
@@ -74,7 +74,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const locale = localeFromRequest(request);
   try {
     const { env, isAdmin } = await requireAdmin(request);
     if (!isAdmin) {
