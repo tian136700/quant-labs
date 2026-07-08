@@ -58,6 +58,10 @@ import {
 } from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath } from "@/lib/locale-path";
 import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
+import {
+  mergeJpLessonTeachersCache,
+  readJpLessonTeachersCache,
+} from "@/lib/jp-lesson-teachers-cache";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
 import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
@@ -648,25 +652,7 @@ export function JpLessonSchedulePage() {
       duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
     }));
 
-    const snapshot = lessons.find((lesson) => lesson.id === lessonId);
-    const first = normalized[0];
     setSavingNextClassId(lessonId);
-    setLessons((prev) =>
-      prev.map((lesson) =>
-        lesson.id === lessonId
-          ? {
-              ...lesson,
-              class_schedules: normalized.map((item, index) => ({
-                id: -(index + 1),
-                class_at: item.class_at,
-                duration_minutes: item.duration_minutes,
-              })),
-              next_class_at: first?.class_at ?? null,
-              class_duration_minutes: first?.duration_minutes ?? null,
-            }
-          : lesson
-      )
-    );
 
     try {
       const res = await fetch("/api/jp-lesson", {
@@ -690,29 +676,11 @@ export function JpLessonSchedulePage() {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
-
-      setLessons((prev) => {
-        const next = prev.map((lesson) =>
-          lesson.id === data.lesson!.id ? data.lesson! : lesson
-        );
-        const cache = readLessonCache();
-        writeClientCache(JP_LESSON_CACHE_KEY, {
-          lessons: next,
-          refs,
-          notes: cache?.notes ?? [],
-          teachers,
-        });
-        return next;
-      });
+      await loadLessons({ force: true });
       setEditingNextClassLesson(null);
       setStatusMessage("上课时间已更新");
       window.setTimeout(() => setStatusMessage(""), 2500);
     } catch (err) {
-      if (snapshot) {
-        setLessons((prev) =>
-          prev.map((lesson) => (lesson.id === lessonId ? snapshot : lesson))
-        );
-      }
       setStatusMessage(err instanceof Error ? err.message : "保存失败");
       window.setTimeout(() => setStatusMessage(""), 3500);
     } finally {
@@ -724,6 +692,7 @@ export function JpLessonSchedulePage() {
     if (!selectedEvent?.lessonId) return;
     const lesson = lessonById.get(selectedEvent.lessonId);
     if (!lesson) return;
+    setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
     setEditingNextClassLesson(lesson);
   };
 

@@ -54,9 +54,10 @@ type Props = {
     teacherOther: string | null,
     teacherUpdates: JpLessonTeacherUpdateInput[],
     options?: { keepOpen?: boolean }
-  ) => void;
+  ) => Promise<void>;
   onAddTeacher: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onUpdateTeacher: (input: JpLessonTeacherUpdateInput) => Promise<JpLessonTeacher | null>;
+  onDeleteTeacher: (id: number, name: string) => Promise<boolean>;
 };
 
 const TEACHER_LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
@@ -73,6 +74,7 @@ export function JpLessonTeacherEditModal({
   onSave,
   onAddTeacher,
   onUpdateTeacher,
+  onDeleteTeacher,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -81,6 +83,7 @@ export function JpLessonTeacherEditModal({
   const [addPrice, setAddPrice] = useState("");
   const [addMinutes, setAddMinutes] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
+  const [deletingTeacherId, setDeletingTeacherId] = useState<number | null>(null);
   const [addError, setAddError] = useState("");
   const [saveError, setSaveError] = useState("");
   const skipAddBlurRef = useRef(false);
@@ -219,12 +222,20 @@ export function JpLessonTeacherEditModal({
       const nextIds = selectedIds.includes(existing.id)
         ? selectedIds
         : [...selectedIds, existing.id];
-      setSelectedIds(nextIds);
-      setAddName("");
-      setAddPrice("");
-      setAddMinutes("");
       if (!selectedIds.includes(existing.id) || teacherUpdates.length > 0) {
-        onSave(nextIds, null, teacherUpdates, { keepOpen: true });
+        try {
+          await onSave(nextIds, null, teacherUpdates, { keepOpen: true });
+          setSelectedIds(nextIds);
+          setAddName("");
+          setAddPrice("");
+          setAddMinutes("");
+        } catch {
+          setAddError("保存失败，请重试");
+        }
+      } else {
+        setAddName("");
+        setAddPrice("");
+        setAddMinutes("");
       }
       skipAddBlurRef.current = false;
       return;
@@ -250,11 +261,15 @@ export function JpLessonTeacherEditModal({
       const nextIds = selectedIds.includes(teacher.id)
         ? selectedIds
         : [...selectedIds, teacher.id];
-      setSelectedIds(nextIds);
-      setAddName("");
-      setAddPrice("");
-      setAddMinutes("");
-      onSave(nextIds, null, [], { keepOpen: true });
+      try {
+        await onSave(nextIds, null, [], { keepOpen: true });
+        setSelectedIds(nextIds);
+        setAddName("");
+        setAddPrice("");
+        setAddMinutes("");
+      } catch {
+        setAddError("已添加老师，但关联课程失败，请重试保存");
+      }
     } finally {
       setAddingTeacher(false);
       skipAddBlurRef.current = false;
@@ -317,12 +332,44 @@ export function JpLessonTeacherEditModal({
     return updates;
   };
 
-  const handleSave = () => {
-    if (addingTeacher) return;
+  const handleDeleteTeacher = async (teacher: JpLessonTeacher) => {
+    if (deletingTeacherId != null || addingTeacher || saving) return;
+
+    const name = (drafts[teacher.id]?.name.trim() || teacher.name).trim();
+    if (!name) return;
+    if (!confirm(`确定删除「${name}」？已关联的新课将变为未指定。`)) return;
+
+    setDeletingTeacherId(teacher.id);
+    setSaveError("");
+    setAddError("");
+    try {
+      const ok = await onDeleteTeacher(teacher.id, name);
+      if (!ok) {
+        setSaveError("删除失败，请重试");
+        return;
+      }
+      setSelectedIds((prev) => prev.filter((id) => id !== teacher.id));
+      delete touchedFieldsRef.current[teacher.id];
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[teacher.id];
+        return next;
+      });
+    } finally {
+      setDeletingTeacherId(null);
+    }
+  };
+
+  const handleSave = async () => {
+    if (addingTeacher || saving || deletingTeacherId != null) return;
     setSaveError("");
     const teacherUpdates = collectTeacherUpdates();
     if (teacherUpdates == null) return;
-    onSave(selectedIds, null, teacherUpdates);
+    try {
+      await onSave(selectedIds, null, teacherUpdates);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "保存失败，请重试");
+    }
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -360,7 +407,10 @@ export function JpLessonTeacherEditModal({
           </button>
         </div>
 
-        <fieldset className="jp-lesson-teacher-fieldset" disabled={saving || addingTeacher}>
+        <fieldset
+          className="jp-lesson-teacher-fieldset"
+          disabled={saving || addingTeacher || deletingTeacherId != null}
+        >
           <legend>上课老师（可多选，可直接改名称、课时费与时长）</legend>
           <div className="jp-lesson-teacher-options">
             {sortedTeachers.length ? (
@@ -369,6 +419,7 @@ export function JpLessonTeacherEditModal({
                 <span className="jp-lesson-teacher-edit-head__name">称呼</span>
                 <span className="jp-lesson-teacher-edit-head__rate">元/小时</span>
                 <span className="jp-lesson-teacher-edit-head__minutes">时长</span>
+                <span className="jp-lesson-teacher-edit-head__action">操作</span>
               </div>
             ) : null}
             {sortedTeachers.map((teacher) => {
@@ -419,6 +470,16 @@ export function JpLessonTeacherEditModal({
                         </option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      className="jp-lesson-teacher-delete-btn"
+                      disabled={
+                        saving || addingTeacher || deletingTeacherId === teacher.id
+                      }
+                      onClick={() => void handleDeleteTeacher(teacher)}
+                    >
+                      {deletingTeacherId === teacher.id ? "删除中…" : "删除"}
+                    </button>
                   </div>
                 </div>
               );
@@ -514,7 +575,7 @@ export function JpLessonTeacherEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn"
-            disabled={saving}
+            disabled={saving || deletingTeacherId != null}
             onClick={onClose}
           >
             取消
@@ -522,10 +583,10 @@ export function JpLessonTeacherEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving || addingTeacher}
+            disabled={saving || addingTeacher || deletingTeacherId != null}
             onClick={() => void handleSave()}
           >
-            保存
+            {saving ? "保存中…" : "保存"}
           </button>
         </div>
       </div>
@@ -638,6 +699,11 @@ export function JpLessonTeacherEditModal({
           flex: 0 1 7.5rem;
         }
 
+        .jp-lesson-teacher-edit-head__action {
+          flex: 0 0 3.5rem;
+          text-align: center;
+        }
+
         .jp-lesson-teacher-option {
           display: flex;
           align-items: center;
@@ -708,6 +774,26 @@ export function JpLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-add-select:disabled {
+          cursor: not-allowed;
+        }
+
+        .jp-lesson-teacher-delete-btn {
+          flex: 0 0 3.5rem;
+          height: 2rem;
+          border: 1px solid color-mix(in srgb, var(--rise) 45%, var(--border));
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
+          color: var(--rise);
+          font-size: 0.75rem;
+          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-delete-btn:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--rise) 18%, var(--panel));
+        }
+
+        .jp-lesson-teacher-delete-btn:disabled {
+          opacity: 0.55;
           cursor: not-allowed;
         }
 

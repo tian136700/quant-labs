@@ -20,6 +20,7 @@ type Props = {
   saving?: boolean;
   onClose: () => void;
   onSave: (schedules: JpLessonClassScheduleInput[]) => void;
+  onEditTeachers?: () => void;
 };
 
 type ScheduleRow = {
@@ -66,6 +67,7 @@ export function JpLessonNextClassEditModal({
   saving = false,
   onClose,
   onSave,
+  onEditTeachers,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
@@ -86,7 +88,7 @@ export function JpLessonNextClassEditModal({
   useEffect(() => {
     if (!open || !lesson) return;
     setRows(rowsFromLesson(lesson));
-  }, [open, lesson]);
+  }, [open, lesson?.id]);
 
   const updateRow = (key: string, patch: Partial<Omit<ScheduleRow, "key">>) => {
     setRows((prev) =>
@@ -164,6 +166,19 @@ export function JpLessonNextClassEditModal({
             ×
           </button>
         </div>
+
+        {onEditTeachers ? (
+          <div className="jp-lesson-next-class-teacher-jump">
+            <button
+              type="button"
+              className="jp-lesson-next-class-teacher-jump-btn"
+              disabled={saving}
+              onClick={onEditTeachers}
+            >
+              去设置老师
+            </button>
+          </div>
+        ) : null}
 
         <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
           <legend>上课时间（北京时间，整点 / 半点）</legend>
@@ -335,6 +350,26 @@ export function JpLessonNextClassEditModal({
           font-size: 0.8125rem;
           color: var(--muted);
           margin-bottom: 0.5rem;
+        }
+
+        .jp-lesson-next-class-teacher-jump {
+          margin: 0 0 0.75rem;
+        }
+
+        .jp-lesson-next-class-teacher-jump-btn {
+          width: 100%;
+          min-height: 2.2rem;
+          padding: 0.45rem 0.75rem;
+          border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: var(--accent);
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+
+        .jp-lesson-next-class-teacher-jump-btn:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
         }
 
         .jp-lesson-next-class-rows {
