@@ -1372,29 +1372,6 @@ export function JpLessonPage() {
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>{status}</p>
       ) : null}
 
-      {isAdmin ? (
-        <div className="jp-lesson-batch-toolbar">
-          <button
-            type="button"
-            className="jp-lesson-action-btn"
-            disabled={!batchLessonIds.length}
-            onClick={() => setBatchModalOpen(true)}
-          >
-            批量设置时间和老师
-            {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
-          </button>
-          {batchLessonIds.length ? (
-            <button
-              type="button"
-              className="jp-lesson-action-btn"
-              onClick={() => setBatchLessonIds([])}
-            >
-              清空勾选
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       {loading ? (
         <p style={{ color: "var(--muted)" }}>加载中…</p>
       ) : !lessons.length ? (
@@ -1446,9 +1423,33 @@ export function JpLessonPage() {
               >
                 <div className="jp-lesson-status-card-head">
                   <h2 className="jp-lesson-status-card-title">{title}</h2>
-                  <span className="jp-lesson-status-card-count">
-                    {sectionCount} 条
-                  </span>
+                  <div className="jp-lesson-status-card-head-right">
+                    {isAdmin && status === "pending" ? (
+                      <div className="jp-lesson-batch-toolbar">
+                        <button
+                          type="button"
+                          className="jp-lesson-action-btn"
+                          disabled={!batchLessonIds.length}
+                          onClick={() => setBatchModalOpen(true)}
+                        >
+                          设置时间和老师
+                          {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
+                        </button>
+                        {batchLessonIds.length ? (
+                          <button
+                            type="button"
+                            className="jp-lesson-action-btn"
+                            onClick={() => setBatchLessonIds([])}
+                          >
+                            清空勾选
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <span className="jp-lesson-status-card-count">
+                      {sectionCount} 条
+                    </span>
+                  </div>
                 </div>
                 {sectionCount ? (
                   renderLessonTable(
@@ -1603,6 +1604,13 @@ export function JpLessonPage() {
           justify-content: space-between;
           gap: 0.75rem;
           margin-bottom: 0.75rem;
+        }
+        .jp-lesson-status-card-head-right {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 0.5rem 0.75rem;
         }
         .jp-lesson-status-card-title {
           font-size: 1.375rem;
@@ -2042,8 +2050,8 @@ export function JpLessonPage() {
         .jp-lesson-batch-toolbar {
           display: flex;
           align-items: center;
+          flex-wrap: wrap;
           gap: 0.5rem;
-          margin-bottom: 0.75rem;
         }
         :global(.jp-lesson-batch-id-row) {
           display: inline-flex;
