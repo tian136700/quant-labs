@@ -222,6 +222,10 @@ function eventContentPreview(event: DayScheduleEvent, maxItems = 3): string {
   return formatContentPreview(event.displayContent, maxItems);
 }
 
+function buildLessonEventDedupKey(event: DayScheduleEvent): string {
+  return `${event.teachers}|${event.start.getTime()}|${event.end.getTime()}`;
+}
+
 export function JpLessonSchedulePage() {
   const { locale } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
@@ -404,8 +408,16 @@ export function JpLessonSchedulePage() {
         ];
       }
     );
+    const dedupedLessonEvents: DayScheduleEvent[] = [];
+    const lessonEventKeys = new Set<string>();
+    for (const event of lessonEvents) {
+      const dedupKey = buildLessonEventDedupKey(event);
+      if (lessonEventKeys.has(dedupKey)) continue;
+      lessonEventKeys.add(dedupKey);
+      dedupedLessonEvents.push(event);
+    }
     const manualEvents = flattenManualSchedulePageEvents(manualSchedules);
-    return [...lessonEvents, ...manualEvents].sort(
+    return [...dedupedLessonEvents, ...manualEvents].sort(
       (a, b) => a.start.getTime() - b.start.getTime()
     );
   }, [lessons, lessonById, teacherNameById, manualSchedules]);
