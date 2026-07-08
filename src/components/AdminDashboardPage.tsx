@@ -203,7 +203,7 @@ export function AdminDashboardPage() {
               </a>
               {" · "}
               <a href={adminJpLessonTeachersPath(locale)}>
-                {locale === "zh" ? "上课老师 →" : "Lesson teachers →"}
+                {locale === "zh" ? "日语老师管理 →" : "JP lesson teachers →"}
               </a>
             </>
           ) : null}

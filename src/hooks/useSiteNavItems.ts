@@ -7,6 +7,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import {
   isAboutPath,
   isAdminDashboardPath,
+  isAdminJpLessonTeachersPath,
   isAdminRbacPath,
   isAdminTrendsPath,
   isAdminToolCodesPath,
@@ -305,6 +306,12 @@ export function useSiteNavItems(): SiteNavItem[] {
                     href: navHref("jpLessonSchedule", locale, navOpts),
                     label: nav.jpLessonSchedule,
                     active: onJpLessonSchedule,
+                  },
+                  {
+                    id: "adminJpLessonTeachers",
+                    href: navHref("adminJpLessonTeachers", locale, navOpts),
+                    label: nav.adminJpLessonTeachers,
+                    active: isAdminJpLessonTeachersPath(pathname),
                   },
                 ]
               : []),

@@ -1362,7 +1362,7 @@ export function JpLessonPage() {
             日程管理
           </a>
           <a href={adminJpLessonTeachersPath(locale)} style={{ color: "var(--accent)" }}>
-            上课老师管理
+            日语老师管理
           </a>
           <span style={{ color: "var(--muted)" }}>（仅管理员可见）</span>
         </div>

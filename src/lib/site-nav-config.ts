@@ -26,6 +26,7 @@ export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
   jpVocabStudy: "teaching",
   enVocabStudy: "teaching",
   jpLesson: "teaching",
+  adminJpLessonTeachers: "teaching",
   enLesson: "teaching",
   admin: "admin",
   adminUsers: "admin",

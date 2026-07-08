@@ -11,6 +11,7 @@ import {
   adminTrendsPath,
   adminUsersPath,
   adminToolCodesPath,
+  adminJpLessonTeachersPath,
   comparePath,
   jpReviewPath,
   jpLessonPath,
@@ -41,6 +42,7 @@ export type NavTarget =
   | "adminRbac"
   | "adminUsers"
   | "adminToolCodes"
+  | "adminJpLessonTeachers"
   | "storeReview"
   | "storeReviewPlaza"
   | "about";
@@ -89,6 +91,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return locale === "zh" ? "/zh/admin/users" : "/admin/users";
     case "adminToolCodes":
       return locale === "zh" ? "/zh/admin/tool-codes" : "/admin/tool-codes";
+    case "adminJpLessonTeachers":
+      return locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
     case "storeReview":
       return locale === "zh" ? "/zh/store-review" : "/store-review";
     case "storeReviewPlaza":
@@ -142,6 +146,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return adminUsersPath(locale);
     case "adminToolCodes":
       return adminToolCodesPath(locale);
+    case "adminJpLessonTeachers":
+      return adminJpLessonTeachersPath(locale);
     case "storeReview":
       return storeReviewPath(locale);
     case "storeReviewPlaza":

@@ -58,14 +58,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     const active = items.find((item) => item.active);
     if (active) return active.label;
     const nav = t("nav");
+    if (isAdminJpLessonTeachersPath(pathname)) return nav.adminJpLessonTeachers;
     if (isJpLessonPath(pathname)) return nav.jpLesson;
     if (isJpVocabPath(pathname)) return nav.jpVocab;
     if (isEnLessonPath(pathname)) return nav.enLesson;
     if (isEnVocabPath(pathname)) return nav.enVocab;
     if (isJpReviewPath(pathname)) return nav.jpReview;
-    if (isAdminJpLessonTeachersPath(pathname)) {
-      return locale === "zh" ? "日语教师管理" : "JP lesson teachers";
-    }
     return t("meta").title;
   }, [items, locale, pathname, t]);
 

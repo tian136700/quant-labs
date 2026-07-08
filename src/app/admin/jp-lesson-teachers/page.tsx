@@ -2,7 +2,7 @@ import { AdminJpLessonTeachersPage } from "@/components/AdminJpLessonTeachersPag
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Lesson Teachers",
+  title: "JP Lesson Teachers",
   description: "Manage JP lesson teachers.",
   robots: { index: false, follow: false },
 };

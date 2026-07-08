@@ -107,8 +107,9 @@ function compareTeachersByAvgScore(
 }
 
 export function AdminJpLessonTeachersPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
+  const nav = t("nav");
 
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
   const [loading, setLoading] = useState(() => readJpLessonTeachersCache().length === 0);
@@ -466,7 +467,7 @@ export function AdminJpLessonTeachersPage() {
   if (checking || !isAdmin) {
     return (
       <AdminAuthGate
-        title={locale === "zh" ? "上课老师管理" : "Lesson teachers"}
+        title={nav.adminJpLessonTeachers}
         required={locale === "zh" ? "需要管理员权限" : "Admin access required"}
         login={locale === "zh" ? "登录" : "Log in"}
         registered={!checking && isAdmin}
@@ -477,7 +478,7 @@ export function AdminJpLessonTeachersPage() {
   return (
     <div className="admin-page">
       <div className="page-hero">
-        <h1>{locale === "zh" ? "上课老师管理" : "Lesson teachers"}</h1>
+        <h1>{nav.adminJpLessonTeachers}</h1>
         <p className="sub">
           {locale === "zh"
             ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"

@@ -31,6 +31,7 @@ export type Messages = {
     adminRbac: string;
     adminUsers: string;
     adminToolCodes: string;
+    adminJpLessonTeachers: string;
     more: string;
     allFeatures: string;
     searchPlaceholder: string;
@@ -529,6 +530,7 @@ export const messages: Record<Locale, Messages> = {
       adminRbac: "Roles",
       adminUsers: "Users",
       adminToolCodes: "Tool codes",
+      adminJpLessonTeachers: "JP Lesson Teachers",
       more: "More",
       allFeatures: "All features",
       searchPlaceholder: "🔍 Search menu…",
@@ -1144,6 +1146,7 @@ export const messages: Record<Locale, Messages> = {
       adminRbac: "角色权限",
       adminUsers: "用户管理",
       adminToolCodes: "工具发码",
+      adminJpLessonTeachers: "日语老师管理",
       more: "更多",
       allFeatures: "全部功能",
       searchPlaceholder: "🔍 搜索菜单…",
