@@ -10,11 +10,16 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .auto_menu import render_auto_menu
-from .hub import PublishHub
-from .logger import get_deploy_log, list_deploy_logs
-from .logs_menu import render_logs_menu
-from .manual_menu import render_manual_menu
+THIS_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = THIS_DIR.parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+
+from deploy_center.auto_menu import render_auto_menu
+from deploy_center.hub import PublishHub
+from deploy_center.logger import get_deploy_log, list_deploy_logs
+from deploy_center.logs_menu import render_logs_menu
+from deploy_center.manual_menu import render_manual_menu
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 HOST = "127.0.0.1"

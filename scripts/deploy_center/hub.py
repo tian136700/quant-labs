@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from d1_backup import maybe_backup_before_deploy, strip_ansi
+from deploy_center.logger import create_deploy_log, finish_deploy_log
 from git_commit_message import ROOT as REPO_ROOT
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -42,6 +43,7 @@ class JobState:
     finished_at: str | None = None
     exit_code: int | None = None
     logs: list[str] = field(default_factory=list)
+    deploy_log_id: int | None = None
 
 
 def _set_job_lock(active: bool) -> None:
@@ -131,6 +133,16 @@ class PublishHub:
             self._set_step("deploy", 95, "部署命令已完成")
 
     def start(self, commit_message: str = "") -> tuple[bool, str]:
+        deploy_log_id: int | None = None
+        try:
+            deploy_log_id = create_deploy_log(
+                mode="manual",
+                trigger_source="deploy-center-manual",
+                summary="manual 任务开始：备份 -> commit -> push -> deploy",
+                remark=commit_message.strip(),
+            )
+        except Exception:
+            deploy_log_id = None
         with self._lock:
             if self._job.status == "running":
                 return False, "已有发布任务在进行中"
@@ -141,6 +153,7 @@ class PublishHub:
                 message="任务已启动",
                 started_at=now_str(),
                 logs=[f"[{now_str()}] 手动部署任务开始"],
+                deploy_log_id=deploy_log_id,
             )
             self._thread = threading.Thread(
                 target=self._run_job,
@@ -187,11 +200,33 @@ class PublishHub:
         except RuntimeError as exc:
             msg = strip_ansi(str(exc))
             self._append_log(f"[d1-backup] 备份失败，已中止发布: {msg}")
+            if self._job.deploy_log_id is not None:
+                try:
+                    finish_deploy_log(
+                        log_id=self._job.deploy_log_id,
+                        status="error",
+                        exit_code=1,
+                        summary=f"manual 任务失败（备份失败）",
+                        details=f"backup_error: {msg}",
+                    )
+                except Exception:
+                    pass
             self._finish(1, f"数据库备份失败: {msg}")
             return
         except OSError as exc:
             msg = strip_ansi(str(exc))
             self._append_log(f"[d1-backup] 备份失败，已中止发布: {msg}")
+            if self._job.deploy_log_id is not None:
+                try:
+                    finish_deploy_log(
+                        log_id=self._job.deploy_log_id,
+                        status="error",
+                        exit_code=1,
+                        summary=f"manual 任务失败（备份失败）",
+                        details=f"backup_error: {msg}",
+                    )
+                except Exception:
+                    pass
             self._finish(1, f"数据库备份失败: {msg}")
             return
 
@@ -204,6 +239,8 @@ class PublishHub:
         env["DEPLOY_LOG_MODE"] = "manual"
         env["DEPLOY_TRIGGER_SOURCE"] = "publish-console"
         env["DEPLOY_REMARK"] = commit_message
+        if self._job.deploy_log_id is not None:
+            env["DEPLOY_LOG_ID"] = str(self._job.deploy_log_id)
 
         self._append_log(f"[publish] 执行: {' '.join(cmd)}")
         try:
