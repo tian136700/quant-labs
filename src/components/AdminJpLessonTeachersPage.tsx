@@ -20,7 +20,6 @@ import {
 } from "@/lib/locale-path";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
 import {
-  formatHourlyRate,
   formatTeacherLessonMinutes,
   normalizeJpLessonTeacher,
   resolveLessonTeacherRateFields,
@@ -48,7 +47,30 @@ function scoreClass(score: number): string {
   return "etr-score--mid";
 }
 
+type SortOrder = "asc" | "desc" | null;
 type ScoreSortOrder = "asc" | "desc";
+
+/** 按课时费和课时时长计算折合时薪：hourly_rate / lesson_minutes * 60 */
+function calcEquivalentHourlyRate(teacher: JpLessonTeacher): number | null {
+  const resolved = resolveLessonTeacherRateFields(teacher);
+  if (resolved.hourly_rate == null || resolved.lesson_minutes == null) return null;
+  if (resolved.lesson_minutes <= 0) return null;
+  return Math.round((resolved.hourly_rate / resolved.lesson_minutes) * 60 * 100) / 100;
+}
+
+function compareTeachersByEquivalentHourly(
+  a: JpLessonTeacher,
+  b: JpLessonTeacher,
+  order: "asc" | "desc"
+): number {
+  const rateA = calcEquivalentHourlyRate(a);
+  const rateB = calcEquivalentHourlyRate(b);
+  if (rateA == null && rateB == null) return a.sort_order - b.sort_order || a.id - b.id;
+  if (rateA == null) return 1;
+  if (rateB == null) return -1;
+  if (rateA !== rateB) return order === "desc" ? rateB - rateA : rateA - rateB;
+  return a.sort_order - b.sort_order || a.id - b.id;
+}
 
 const LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES;
 /** 填写「元/小时」课时费时，未选手动时长则默认按 1 小时计 */
@@ -130,6 +152,7 @@ export function AdminJpLessonTeachersPage() {
   >(() => readJpLessonTeacherReviewCache());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
   const [scoreSortOrder, setScoreSortOrder] = useState<ScoreSortOrder>("desc");
+  const [hourlySortOrder, setHourlySortOrder] = useState<SortOrder>(null);
 
   useEffect(() => {
     document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
@@ -251,13 +274,23 @@ export function AdminJpLessonTeachersPage() {
   }, []);
 
   const sortedTeachers = useMemo(() => {
+    if (hourlySortOrder) {
+      return [...teachers].sort((a, b) =>
+        compareTeachersByEquivalentHourly(a, b, hourlySortOrder)
+      );
+    }
     return [...teachers].sort((a, b) =>
       compareTeachersByAvgScore(a, b, reviewSummaries, scoreSortOrder)
     );
-  }, [teachers, reviewSummaries, scoreSortOrder]);
+  }, [teachers, reviewSummaries, scoreSortOrder, hourlySortOrder]);
 
   const toggleScoreSortOrder = useCallback(() => {
+    setHourlySortOrder(null);
     setScoreSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  }, []);
+
+  const toggleHourlySortOrder = useCallback(() => {
+    setHourlySortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
   }, []);
 
   const fieldLabels =
@@ -267,6 +300,7 @@ export function AdminJpLessonTeachersPage() {
           name: "名称",
           rate: "课时费",
           minutes: "课时时长",
+          hourlyEquiv: "折合时薪",
           score: "平均评分",
           remark: "最近备注",
           updated: "更新时间",
@@ -277,6 +311,7 @@ export function AdminJpLessonTeachersPage() {
           name: "Name",
           rate: "Rate",
           minutes: "Duration",
+          hourlyEquiv: "Hourly equiv.",
           score: "Avg score",
           remark: "Latest note",
           updated: "Updated",
@@ -614,6 +649,34 @@ export function AdminJpLessonTeachersPage() {
             </button>
             <button
               type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact admin-jpl-mobile-sort-btn"
+              title={
+                hourlySortOrder === "asc"
+                  ? locale === "zh"
+                    ? "折合时薪从低到高；点击切换为从高到低"
+                    : "Hourly equiv. low to high; click for high to low"
+                  : locale === "zh"
+                    ? "折合时薪从高到低；点击切换为从低到高"
+                    : "Hourly equiv. high to low; click for low to high"
+              }
+              aria-label={
+                hourlySortOrder === "asc"
+                  ? locale === "zh"
+                    ? "折合时薪升序，点击切换为降序"
+                    : "Hourly equiv. ascending, click for descending"
+                  : locale === "zh"
+                    ? "折合时薪降序，点击切换为升序"
+                    : "Hourly equiv. descending, click for ascending"
+              }
+              onClick={toggleHourlySortOrder}
+            >
+              {fieldLabels.hourlyEquiv}
+              <span className="admin-sort-indicator" aria-hidden="true">
+                {hourlySortOrder === "asc" ? "↑" : hourlySortOrder === "desc" ? "↓" : "⇅"}
+              </span>
+            </button>
+            <button
+              type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
               onClick={() => void loadTeachers({ force: true })}
               disabled={loading || refreshing}
@@ -646,6 +709,44 @@ export function AdminJpLessonTeachersPage() {
                   <th className="col-name">{locale === "zh" ? "名称" : "Name"}</th>
                   <th className="col-rate">{locale === "zh" ? "课时费" : "Rate"}</th>
                   <th className="col-minutes">{locale === "zh" ? "课时时长" : "Duration"}</th>
+                  <th
+                    className={`col-hourly-equiv col-hourly-equiv--sortable${
+                      hourlySortOrder === "asc"
+                        ? " col-hourly-equiv--sorted-asc"
+                        : hourlySortOrder === "desc"
+                          ? " col-hourly-equiv--sorted-desc"
+                          : ""
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${hourlySortOrder ? " is-active" : ""}`}
+                      title={
+                        hourlySortOrder === "asc"
+                          ? locale === "zh"
+                            ? "折合时薪从低到高；点击切换为从高到低"
+                            : "Hourly equiv. low to high; click for high to low"
+                          : locale === "zh"
+                            ? "折合时薪从高到低；点击切换为从低到高"
+                            : "Hourly equiv. high to low; click for low to high"
+                      }
+                      aria-label={
+                        hourlySortOrder === "asc"
+                          ? locale === "zh"
+                            ? "折合时薪升序，点击切换为降序"
+                            : "Hourly equiv. ascending, click for descending"
+                          : locale === "zh"
+                            ? "折合时薪降序，点击切换为升序"
+                            : "Hourly equiv. descending, click for ascending"
+                      }
+                      onClick={toggleHourlySortOrder}
+                    >
+                      {locale === "zh" ? "折合时薪" : "Hourly"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {hourlySortOrder === "asc" ? "↑" : hourlySortOrder === "desc" ? "↓" : "⇅"}
+                      </span>
+                    </button>
+                  </th>
                   <th
                     className={`col-score col-score--sortable${
                       scoreSortOrder === "asc"
@@ -731,9 +832,11 @@ export function AdminJpLessonTeachersPage() {
                             }}
                           />
                         ) : (
-                          formatHourlyRate(
-                            resolveLessonTeacherRateFields(teacher).hourly_rate
-                          )
+                          (() => {
+                            const rate = resolveLessonTeacherRateFields(teacher).hourly_rate;
+                            if (rate == null) return "—";
+                            return rate % 1 === 0 ? rate.toFixed(0) : rate.toFixed(2);
+                          })()
                         )}
                       </td>
                       <td className="col-minutes" data-label={fieldLabels.minutes}>
@@ -763,6 +866,14 @@ export function AdminJpLessonTeachersPage() {
                             locale
                           )
                         )}
+                      </td>
+                      <td className="col-hourly-equiv" data-label={fieldLabels.hourlyEquiv}>
+                        {(() => {
+                          const equiv = calcEquivalentHourlyRate(teacher);
+                          if (equiv == null) return "—";
+                          const display = equiv % 1 === 0 ? equiv.toFixed(0) : equiv.toFixed(2);
+                          return `${display}/h`;
+                        })()}
                       </td>
                       <td className="col-score" data-label={fieldLabels.score}>
                         {summary && summary.review_count > 0 && summary.avg_score != null ? (
