@@ -51,10 +51,38 @@ function scoreClass(score: number): string {
 type ScoreSortOrder = "asc" | "desc";
 
 const LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES;
+/** 填写「元/小时」课时费时，未选手动时长则默认按 1 小时计 */
+const DEFAULT_HOURLY_LESSON_MINUTES = 60;
 
 function formatLessonMinuteOptionLabel(minutes: number, locale: "zh" | "en"): string {
   if (locale === "zh" && minutes === 60) return "60 分钟（1 小时）";
   return locale === "zh" ? `${minutes} 分钟` : `${minutes} min`;
+}
+
+function isPositiveHourlyRate(value: string): boolean {
+  const rate = Number(value.trim());
+  return Number.isFinite(rate) && rate > 0;
+}
+
+/** 有课时费且时长未选时，默认 1 小时 */
+function defaultLessonMinutesWhenRateSet(
+  hourlyRate: string,
+  lessonMinutes: string
+): string {
+  if (!isPositiveHourlyRate(hourlyRate) || lessonMinutes.trim()) {
+    return lessonMinutes;
+  }
+  return String(DEFAULT_HOURLY_LESSON_MINUTES);
+}
+
+function resolveLessonMinutesForSave(
+  hourlyRate: string,
+  lessonMinutes: string,
+  fallback: number | null
+): number | null {
+  if (lessonMinutes.trim()) return Number(lessonMinutes);
+  if (isPositiveHourlyRate(hourlyRate)) return DEFAULT_HOURLY_LESSON_MINUTES;
+  return fallback;
 }
 
 function compareTeachersByAvgScore(
@@ -266,7 +294,11 @@ export function AdminJpLessonTeachersPage() {
         body: JSON.stringify({
           name: newName,
           hourly_rate: newHourlyRate.trim() ? Number(newHourlyRate) : null,
-          lesson_minutes: newLessonMinutes.trim() ? Number(newLessonMinutes) : null,
+          lesson_minutes: resolveLessonMinutesForSave(
+            newHourlyRate,
+            newLessonMinutes,
+            null
+          ),
         }),
       });
       const data = (await res.json()) as {
@@ -334,7 +366,11 @@ export function AdminJpLessonTeachersPage() {
       resolved.hourly_rate != null ? String(resolved.hourly_rate) : ""
     );
     setEditLessonMinutes(
-      resolved.lesson_minutes != null ? String(resolved.lesson_minutes) : ""
+      resolved.lesson_minutes != null
+        ? String(resolved.lesson_minutes)
+        : resolved.hourly_rate != null
+          ? String(DEFAULT_HOURLY_LESSON_MINUTES)
+          : ""
     );
     setEditSortOrder(teacher.sort_order);
   };
@@ -367,9 +403,11 @@ export function AdminJpLessonTeachersPage() {
           hourly_rate: editHourlyRate.trim()
             ? Number(editHourlyRate)
             : baseline.hourly_rate,
-          lesson_minutes: editLessonMinutes.trim()
-            ? Number(editLessonMinutes)
-            : baseline.lesson_minutes,
+          lesson_minutes: resolveLessonMinutesForSave(
+            editHourlyRate,
+            editLessonMinutes,
+            baseline.lesson_minutes
+          ),
           sort_order: editSortOrder,
         }),
       });
@@ -496,7 +534,13 @@ export function AdminJpLessonTeachersPage() {
               value={newHourlyRate}
               disabled={saving}
               placeholder={locale === "zh" ? "选填" : "Optional"}
-              onChange={(e) => setNewHourlyRate(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setNewHourlyRate(next);
+                setNewLessonMinutes((prev) =>
+                  defaultLessonMinutesWhenRateSet(next, prev)
+                );
+              }}
             />
           </label>
           <label className="admin-user-add-field">
@@ -677,7 +721,13 @@ export function AdminJpLessonTeachersPage() {
                             value={editHourlyRate}
                             disabled={saving}
                             placeholder={locale === "zh" ? "元/小时" : "Per hour"}
-                            onChange={(e) => setEditHourlyRate(e.target.value)}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              setEditHourlyRate(next);
+                              setEditLessonMinutes((prev) =>
+                                defaultLessonMinutesWhenRateSet(next, prev)
+                              );
+                            }}
                           />
                         ) : (
                           formatHourlyRate(
