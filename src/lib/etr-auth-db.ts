@@ -846,6 +846,108 @@ export async function listJpLessonTeacherNameMapByUserId(
   return map;
 }
 
+export type JpLessonTeacherUserLink = {
+  user_id: number;
+  username: string;
+};
+
+export async function findJpLessonTeacherUserLink(
+  db: D1Database,
+  teacherId: number
+): Promise<JpLessonTeacherUserLink | null> {
+  if (!Number.isInteger(teacherId) || teacherId <= 0) return null;
+  if (devAuthEnabled) return null;
+  await ensureUserTeacherLinkSchema(db);
+  const row = await db
+    .prepare(
+      `SELECT link.user_id AS user_id, u.username AS username
+       FROM etr_user_jp_lesson_teacher_link link
+       JOIN etr_users u ON u.id = link.user_id
+       WHERE link.teacher_id = ?1
+       LIMIT 1`
+    )
+    .bind(teacherId)
+    .first<{ user_id: number; username: string }>();
+  if (!row) return null;
+  const userId = Number(row.user_id);
+  const username = String(row.username ?? "").trim();
+  if (!Number.isInteger(userId) || userId <= 0 || !username) return null;
+  return { user_id: userId, username };
+}
+
+export async function listJpLessonTeacherUserLinkMapByTeacherId(
+  db: D1Database
+): Promise<Map<number, JpLessonTeacherUserLink>> {
+  if (devAuthEnabled) return new Map();
+  await ensureUserTeacherLinkSchema(db);
+  const result = await db
+    .prepare(
+      `SELECT link.teacher_id AS teacher_id, link.user_id AS user_id, u.username AS username
+       FROM etr_user_jp_lesson_teacher_link link
+       JOIN etr_users u ON u.id = link.user_id`
+    )
+    .all<{ teacher_id: number; user_id: number; username: string }>();
+  const map = new Map<number, JpLessonTeacherUserLink>();
+  for (const row of result.results ?? []) {
+    const teacherId = Number(row.teacher_id);
+    const userId = Number(row.user_id);
+    const username = String(row.username ?? "").trim();
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
+    map.set(teacherId, { user_id: userId, username });
+  }
+  return map;
+}
+
+export type EnsureJpLessonTeacherUserAccountResult =
+  | { ok: true; created: boolean; user: EtrUser; password?: string }
+  | { ok: false; error: string };
+
+/** 一键为日语上课老师创建/关联 jp_vocab 账号（用户名拼音 + 易记密码） */
+export async function ensureJpLessonTeacherUserAccount(
+  env: CloudflareEnv,
+  teacherId: number,
+  teacherName: string
+): Promise<EnsureJpLessonTeacherUserAccountResult> {
+  const existingLink = await findJpLessonTeacherUserLink(env.DB, teacherId);
+  if (existingLink) {
+    const user = await findUserById(env.DB, existingLink.user_id);
+    if (user) return { ok: true, created: false, user };
+  }
+
+  const provision = await createJpLessonTeacherUserByReview(
+    env,
+    teacherId,
+    teacherName
+  );
+  if (provision.ok && provision.created) {
+    return {
+      ok: true,
+      created: true,
+      user: provision.user,
+      password: provision.password,
+    };
+  }
+  if (!provision.ok) {
+    return { ok: false, error: provision.error };
+  }
+
+  if (provision.reason === "user_exists") {
+    const { teacherNameToUsername } = await import("./teacher-name-username");
+    const baseUsername = normalizeUsername(teacherNameToUsername(teacherName));
+    if (!baseUsername) return { ok: false, error: "username_invalid" };
+    const existing = await findUserByUsername(env.DB, baseUsername);
+    if (!existing) return { ok: false, error: "user_exists" };
+    if (existing.role !== "jp_vocab") {
+      return { ok: false, error: "username_taken" };
+    }
+    await linkUserToJpLessonTeacher(env.DB, existing.id, teacherId);
+    return { ok: true, created: false, user: existing };
+  }
+
+  return { ok: false, error: provision.reason ?? "username_unavailable" };
+}
+
 /** 添加日语上课老师时，自动创建禁用的 jp_vocab 账号（用户名取自横杠前的称呼拼音） */
 export async function provisionJpLessonTeacherUser(
   env: CloudflareEnv,

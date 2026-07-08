@@ -15,6 +15,10 @@ import {
   adminUsersPath,
   jpLessonPath,
 } from "@/lib/locale-path";
+import {
+  formatAdminUserCredentials,
+  rememberAdminUserPassword,
+} from "@/lib/admin-user-credentials";
 import type { JpLessonTeacher, JpLessonTeacherReviewSummary } from "@/lib/types";
 import {
   formatTeacherLessonMinutes,
@@ -150,6 +154,7 @@ export function AdminJpLessonTeachersPage() {
     Map<number, JpLessonTeacherReviewSummary>
   >(() => readJpLessonTeacherReviewCache());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
+  const [creatingUserTeacherId, setCreatingUserTeacherId] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<TeacherSortKey>("score");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
@@ -548,6 +553,90 @@ export function AdminJpLessonTeachersPage() {
     }
   };
 
+  const createTeacherUser = async (teacher: JpLessonTeacher) => {
+    if (teacher.linked_user) {
+      window.location.href = adminUsersPath(locale, teacher.linked_user.id);
+      return;
+    }
+
+    const ok = window.confirm(
+      locale === "zh"
+        ? `为「${teacher.name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`
+        : `Create a Japanese-teacher account for "${teacher.name}"?\nUsername will be pinyin (e.g. LiLaoshi); password is a memorable word combo.`
+    );
+    if (!ok) return;
+
+    setCreatingUserTeacherId(teacher.id);
+    setStatus("");
+    setStatusErr(false);
+    try {
+      const res = await fetch("/api/admin/jp-lesson-teachers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create_user", id: teacher.id }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        created?: boolean;
+        user?: { id: number; username: string; disabled: boolean };
+        password?: string;
+        error?: string;
+      };
+      if (!data.ok || !data.user) {
+        const err = data.error ?? "create failed";
+        setStatus(
+          err === "user_exists" || err === "username_taken"
+            ? locale === "zh"
+              ? "用户名已被占用，请在用户管理中手动关联"
+              : "Username taken; link manually in Users"
+            : err === "username_unavailable"
+              ? locale === "zh"
+                ? "无法生成可用用户名"
+                : "Could not derive a valid username"
+              : String(err)
+        );
+        setStatusErr(true);
+        return;
+      }
+
+      const linkedUser = { id: data.user.id, username: data.user.username };
+      setTeachers((prev) =>
+        prev.map((item) =>
+          item.id === teacher.id ? { ...item, linked_user: linkedUser } : item
+        )
+      );
+      if (data.password) {
+        rememberAdminUserPassword(data.user.id, data.password);
+      }
+
+      const creds =
+        data.password != null
+          ? formatAdminUserCredentials(
+              data.user.username,
+              data.password,
+              locale
+            )
+          : data.user.username;
+
+      setStatus(
+        data.created
+          ? locale === "zh"
+            ? `已创建并关联账号：${creds}`
+            : `Account created and linked: ${creds}`
+          : locale === "zh"
+            ? `已关联已有账号：${data.user.username}`
+            : `Linked existing account: ${data.user.username}`
+      );
+      setStatusErr(false);
+    } catch {
+      setStatus(locale === "zh" ? "创建账号失败" : "Failed to create account");
+      setStatusErr(true);
+    } finally {
+      setCreatingUserTeacherId(null);
+    }
+  };
+
   const closeAddModal = useCallback(() => {
     if (saving) return;
     setAddModalOpen(false);
@@ -776,6 +865,8 @@ export function AdminJpLessonTeachersPage() {
                   const summary = reviewSummaries.get(teacher.id);
                   const latestRemark = summary?.latest_remark ?? null;
                   const latestClassDate = summary?.latest_class_date ?? null;
+                  const linkedUser = teacher.linked_user ?? null;
+                  const userActionBusy = creatingUserTeacherId === teacher.id;
                   return (
                     <tr key={teacher.id}>
                       <td className="col-id" data-label={fieldLabels.id}>
@@ -791,7 +882,21 @@ export function AdminJpLessonTeachersPage() {
                           />
                         ) : (
                           <>
-                            <span>{teacher.name}</span>
+                            {linkedUser ? (
+                              <a
+                                href={adminUsersPath(locale, linkedUser.id)}
+                                className="admin-jpl-teacher-user-link"
+                                title={
+                                  locale === "zh"
+                                    ? `查看用户 ${linkedUser.username}`
+                                    : `View user ${linkedUser.username}`
+                                }
+                              >
+                                {teacher.name}
+                              </a>
+                            ) : (
+                              <span>{teacher.name}</span>
+                            )}
                             <span className="admin-jpl-mobile-id">#{teacher.id}</span>
                           </>
                         )}
@@ -912,6 +1017,37 @@ export function AdminJpLessonTeachersPage() {
                             </>
                           ) : (
                             <>
+                              <button
+                                type="button"
+                                className={`btn-rsi-filter btn-rsi-filter--compact${
+                                  linkedUser
+                                    ? ""
+                                    : " btn-rsi-filter--primary"
+                                }`}
+                                disabled={userActionBusy}
+                                onClick={() => void createTeacherUser(teacher)}
+                                title={
+                                  linkedUser
+                                    ? locale === "zh"
+                                      ? `已关联 ${linkedUser.username}，点击查看`
+                                      : `Linked as ${linkedUser.username}; click to view`
+                                    : locale === "zh"
+                                      ? "创建日语教师账号并关联"
+                                      : "Create and link Japanese-teacher account"
+                                }
+                              >
+                                {userActionBusy
+                                  ? locale === "zh"
+                                    ? "创建中…"
+                                    : "Creating…"
+                                  : linkedUser
+                                    ? locale === "zh"
+                                      ? "查看用户"
+                                      : "View user"
+                                    : locale === "zh"
+                                      ? "一键创建用户"
+                                      : "Create user"}
+                              </button>
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
@@ -1096,6 +1232,17 @@ export function AdminJpLessonTeachersPage() {
             document.body
           )
         : null}
+
+      <style jsx>{`
+        .admin-jpl-teacher-user-link {
+          color: var(--accent, #6eb5ff);
+          font-weight: 600;
+          text-decoration: none;
+        }
+        .admin-jpl-teacher-user-link:hover {
+          text-decoration: underline;
+        }
+      `}</style>
     </div>
   );
 }

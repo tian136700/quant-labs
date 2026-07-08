@@ -102,7 +102,6 @@ scripts/com.infoquests.*.plist
 !**/*.plist.example
 
 # Git 自动推送 / 发布控制台（本地运维工具，勿提交）
-git-quick-commit.py
 scripts/git_commit_message.py
 scripts/git-auto-push*.py
 scripts/git-auto-push-*.sh
@@ -111,6 +110,9 @@ scripts/publish-console-*.sh
 scripts/com.infoquests.git-auto-push.plist*
 .git-auto-push-state.json
 .publish-console.job.lock
+
+# 部署中心（本地 17823 控制台 + SQLite 日志，勿提交）
+scripts/deploy_center/
 
 # 趋势博客离线生成（非线上运行时，勿提交）
 trend_aggregator/
@@ -123,8 +125,11 @@ scripts/backfill-visit-geo.py
 
 # auto-ignore-local begin
 scripts/deploy_center/
+scripts/deploy_center/__init__.py
 scripts/deploy_center/auto_menu.py
+scripts/deploy_center/db.py
 scripts/deploy_center/hub.py
+scripts/deploy_center/logger.py
 scripts/deploy_center/logs_menu.py
 scripts/deploy_center/manual_menu.py
 scripts/deploy_center/server.py

@@ -142,8 +142,12 @@ export function adminRbacPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/rbac" : "/admin/rbac";
 }
 
-export function adminUsersPath(locale: Locale): string {
-  return locale === "zh" ? "/zh/admin/users" : "/admin/users";
+export function adminUsersPath(locale: Locale, userId?: number): string {
+  const base = locale === "zh" ? "/zh/admin/users" : "/admin/users";
+  if (userId != null && Number.isInteger(userId) && userId > 0) {
+    return `${base}?user=${userId}`;
+  }
+  return base;
 }
 
 export function adminToolCodesPath(locale: Locale): string {

@@ -201,6 +201,11 @@ export type JpVocabRefUploadInput = {
 
 export type JpLessonKind = "word" | "grammar";
 
+export interface JpLessonTeacherLinkedUser {
+  id: number;
+  username: string;
+}
+
 export interface JpLessonTeacher {
   id: number;
   name: string;
@@ -211,6 +216,8 @@ export interface JpLessonTeacher {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  /** 后台老师列表：已关联的登录账号 */
+  linked_user?: JpLessonTeacherLinkedUser | null;
 }
 
 export interface JpLessonTeacherReviewRecord {

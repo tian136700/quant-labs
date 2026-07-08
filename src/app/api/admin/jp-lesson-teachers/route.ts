@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { jsonResponse } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { ensureJpLessonTeacherUserAccount, listJpLessonTeacherUserLinkMapByTeacherId } from "@/lib/etr-auth-db";
 import {
   normalizeTeacherLessonMinutes,
   resolveLessonTeacherHourlyRateInput,
@@ -8,6 +9,7 @@ import {
 import {
   createJpLessonTeacher,
   deleteJpLessonTeacher,
+  getJpLessonTeacherById,
   listJpLessonTeachers,
   updateJpLessonTeacher,
 } from "@/lib/jp-lesson-teacher-db";
@@ -52,7 +54,19 @@ export async function GET(request: Request) {
     }
 
     const teachers = await listJpLessonTeachers(env.DB);
-    return jsonResponse({ ok: true, teachers });
+    const linkMap = await listJpLessonTeacherUserLinkMapByTeacherId(env.DB);
+    return jsonResponse({
+      ok: true,
+      teachers: teachers.map((teacher) => {
+        const link = linkMap.get(teacher.id);
+        return {
+          ...teacher,
+          linked_user: link
+            ? { id: link.user_id, username: link.username }
+            : null,
+        };
+      }),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
@@ -60,6 +74,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const locale = localeFromRequest(request);
   try {
     const { env, isAdmin } = await requireAdmin(request);
     if (!isAdmin) {
@@ -75,6 +90,39 @@ export async function POST(request: Request) {
       lesson_price?: number;
       lesson_minutes?: number;
     };
+
+    if (body.action === "create_user") {
+      const teacherId = Number(body.id);
+      if (!Number.isInteger(teacherId) || teacherId <= 0) {
+        return jsonResponse({ ok: false, error: "teacher_id_invalid" }, 400);
+      }
+      const teacher = await getJpLessonTeacherById(env.DB, teacherId);
+      if (!teacher) {
+        return jsonResponse({ ok: false, error: "not_found" }, 404);
+      }
+      const result = await ensureJpLessonTeacherUserAccount(
+        env,
+        teacherId,
+        teacher.name
+      );
+      if (!result.ok) {
+        const status =
+          result.error === "user_exists" || result.error === "username_taken"
+            ? 409
+            : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({
+        ok: true,
+        created: result.created,
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          disabled: (result.user.disabled ?? 0) !== 0,
+        },
+        password: result.password,
+      });
+    }
 
     if (body.action === "update") {
       const id = Number(body.id);

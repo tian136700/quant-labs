@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
@@ -106,15 +107,23 @@ function sortUsers(
   });
 }
 
-function formatLastLogin(value: string | null | undefined, locale: "en" | "zh"): string {
+function formatAdminDateTime(value: string | null | undefined): string {
   if (!value) return "—";
-  const formatted = formatBeijingDateTime(value);
-  return locale === "zh" ? formatted : formatted;
+  return formatBeijingDateTime(value);
 }
 
 export function AdminUsersPage() {
   const { locale } = useI18n();
   const { isAdmin, user: currentUser, checking } = useEtrAuth();
+  const searchParams = useSearchParams();
+  const focusUserId = useMemo(() => {
+    const raw = searchParams.get("user");
+    if (!raw) return null;
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }, [searchParams]);
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+  const [highlightUserId, setHighlightUserId] = useState<number | null>(null);
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -140,7 +149,7 @@ export function AdminUsersPage() {
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [sortField, setSortField] = useState<UserSortField>("id");
-  const [sortDirection, setSortDirection] = useState<UserSortDirection>("desc");
+  const [sortDirection, setSortDirection] = useState<UserSortDirection>("asc");
 
   const persistUsers = useCallback((next: UserRow[]) => {
     writeAdminUsersCache(next);
@@ -178,6 +187,18 @@ export function AdminUsersPage() {
     if (checking || !isAdmin || editingUser != null) return;
     void load();
   }, [checking, isAdmin, load, editingUser]);
+
+  useEffect(() => {
+    if (focusUserId == null || loading || users.length === 0) return;
+    const row = rowRefs.current.get(focusUserId);
+    if (!row) return;
+    setHighlightUserId(focusUserId);
+    window.requestAnimationFrame(() => {
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    const timer = window.setTimeout(() => setHighlightUserId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [focusUserId, loading, users]);
 
   const loadTemplates = useCallback(async () => {
     setTemplatesLoading(true);
@@ -1009,6 +1030,7 @@ export function AdminUsersPage() {
                   <th>{locale === "zh" ? "用户名" : "Username"}</th>
                   <th>{locale === "zh" ? "角色" : "Role"}</th>
                   <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
+                  <th>{locale === "zh" ? "创建时间" : "Created"}</th>
                   <th>
                     <button
                       type="button"
@@ -1038,12 +1060,22 @@ export function AdminUsersPage() {
                     linkGeneratingId === row.id ||
                     copyingId === row.id;
                   return (
-                    <tr key={row.id}>
+                    <tr
+                      key={row.id}
+                      ref={(node) => {
+                        if (node) rowRefs.current.set(row.id, node);
+                        else rowRefs.current.delete(row.id);
+                      }}
+                      className={
+                        highlightUserId === row.id ? "admin-user-row--highlight" : undefined
+                      }
+                    >
                       <td>{row.id}</td>
                       <td className="admin-rbac-username">{row.username}</td>
                       <td>{row.role_label}</td>
                       <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
-                      <td>{formatLastLogin(row.last_login_at, locale)}</td>
+                      <td>{formatAdminDateTime(row.created_at)}</td>
+                      <td>{formatAdminDateTime(row.last_login_at)}</td>
                       <td>{formatIpForDisplay(row.last_login_ip)}</td>
                       <td>
                         {row.disabled
@@ -1283,6 +1315,10 @@ export function AdminUsersPage() {
         }
         .admin-user-btn {
           white-space: nowrap;
+        }
+        .admin-user-row--highlight {
+          background: rgba(110, 181, 255, 0.14) !important;
+          box-shadow: inset 0 0 0 1px rgba(110, 181, 255, 0.45);
         }
         .admin-login-link-templates-section {
           margin-bottom: 1.25rem;
