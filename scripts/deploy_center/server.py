@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
-import subprocess
+import socket
 import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -20,97 +20,34 @@ if str(SCRIPTS_DIR) not in sys.path:
 from deploy_center.hub import PublishHub
 from deploy_center.logger import get_deploy_log, list_deploy_logs
 
-ROOT = Path(__file__).resolve().parent.parent.parent
 STATIC_DIR = THIS_DIR / "static"
 HOST = "127.0.0.1"
 PORT = 17823
 HUB = PublishHub()
-AUTO_MARKER = "# git-auto-push strategy-compare-cloud"
-AUTO_LOG = Path.home() / "Library" / "Logs" / "git-auto-push.log"
-
-
-def _tail_lines(path: Path, limit: int = 20) -> list[str]:
-    try:
-        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-    except OSError:
-        return []
-    if limit <= 0:
-        return lines
-    return lines[-limit:]
-
-
-def _cron_auto_status() -> dict[str, Any]:
-    try:
-        proc = subprocess.run(
-            ["crontab", "-l"],
-            text=True,
-            capture_output=True,
-        )
-        text = proc.stdout if proc.returncode == 0 else ""
-    except OSError:
-        text = ""
-
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    matched = [line for line in lines if "git-auto-push-once.py" in line or AUTO_MARKER in line]
-    return {
-        "installed": bool(matched),
-        "entries": matched,
-    }
+STARTED_AT = datetime.now()
 
 
 def auto_watch_status() -> dict[str, Any]:
+    # Detect the deploy-center service itself on 127.0.0.1:17823.
+    service_online = False
     try:
-        proc = subprocess.run(
-            ["pgrep", "-fl", "git-auto-push-watch.py"],
-            text=True,
-            capture_output=True,
-        )
-        lines = [line for line in proc.stdout.splitlines() if line.strip()]
+        with socket.create_connection((HOST, PORT), timeout=0.8):
+            service_online = True
     except OSError:
-        lines = []
-    cron = _cron_auto_status()
-    log_lines = _tail_lines(AUTO_LOG, 30)
-    last_log = log_lines[-1] if log_lines else ""
-    last_activity = None
-    if AUTO_LOG.is_file():
-        try:
-            last_activity = datetime.fromtimestamp(AUTO_LOG.stat().st_mtime).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-        except OSError:
-            last_activity = None
+        service_online = False
     return {
-        "running": bool(lines),
-        "processes": lines,
-        "cron_installed": bool(cron["installed"]),
-        "cron_entries": cron["entries"],
-        "mode": "watch" if lines else ("cron" if cron["installed"] else "none"),
-        "healthy": bool(lines) or bool(cron["installed"]),
-        "last_log": last_log,
-        "last_activity": last_activity,
+        "running": service_online,
+        "mode": "service",
+        "healthy": service_online,
+        "service": {
+            "host": HOST,
+            "port": PORT,
+            "url": f"http://{HOST}:{PORT}/",
+            "online": service_online,
+            "started_at": STARTED_AT.strftime("%Y-%m-%d %H:%M:%S"),
+            "checked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        },
     }
-
-
-def _infer_step_from_logs(lines: list[str]) -> tuple[str, int]:
-    step = "prepare"
-    progress = 5
-    for line in lines:
-        lower = line.lower()
-        if "[d1-backup]" in line:
-            step, progress = "backup", max(progress, 12)
-        elif "git add" in lower:
-            step, progress = "git_add", max(progress, 22)
-        elif "committed:" in lower:
-            step, progress = "commit", max(progress, 42)
-        elif "pushed to origin" in lower:
-            step, progress = "push", max(progress, 62)
-        elif "npm run deploy" in lower:
-            step, progress = "deploy", max(progress, 78)
-        elif "deploy finished" in lower:
-            step, progress = "deploy", max(progress, 95)
-        elif "自动提交并推送完成" in line:
-            step, progress = "done", 100
-    return step, progress
 
 
 def _latest_deploy_row(mode: str) -> dict[str, Any] | None:
@@ -143,13 +80,14 @@ def auto_runtime_snapshot() -> dict[str, Any]:
             "source": "publish-center-job",
         }
 
-    logs = _tail_lines(AUTO_LOG, 400)
-    step, progress = _infer_step_from_logs(logs)
     row = _latest_deploy_row("auto")
     status = "idle"
+    step = "prepare"
+    progress = 0
     started_at = None
     finished_at = None
     exit_code = None
+    logs: list[str] = []
     message = "自动部署待命"
 
     if row:
@@ -161,10 +99,10 @@ def auto_runtime_snapshot() -> dict[str, Any]:
             message = str(row.get("summary") or "自动部署进行中")
         elif status == "success":
             message = str(row.get("summary") or "自动部署成功")
-            if progress < 100:
-                step, progress = "done", 100
+            step, progress = "done", 100
         elif status == "error":
             message = str(row.get("summary") or "自动部署失败")
+            step, progress = "done", 100
         else:
             message = str(row.get("summary") or message)
 
@@ -173,10 +111,7 @@ def auto_runtime_snapshot() -> dict[str, Any]:
             detail_row = get_deploy_log(log_id)
             details = str(detail_row.get("details") or "").splitlines() if detail_row else []
             if details:
-                logs = (logs + ["", "--- deploy_logs 详情 ---", *details])[-600:]
-    elif logs:
-        status = "running" if any("开始自动 commit + push" in line for line in logs[-40:]) else "idle"
-        message = "自动部署进行中（日志推断）" if status == "running" else "自动部署待命"
+                logs = [*details][-600:]
 
     return {
         "status": status,
