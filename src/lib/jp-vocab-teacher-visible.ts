@@ -38,9 +38,16 @@ export function filterJpVocabWordsByTeacherVisibleLimit(
 ): JpVocabWord[] {
   if (limit <= 0 || !words.length) return [];
   const seqMap = buildJpVocabDailySeqMap(displayOrder.ids);
-  return words.filter((word) => (seqMap.get(word.id) ?? Infinity) <= limit);
+  const end = Math.max(0, Math.floor(limit));
+  const start = Math.max(1, end - JP_VOCAB_TEACHER_VISIBLE_STEP + 1);
+  return words.filter((word) => {
+    const seq = seqMap.get(word.id) ?? Infinity;
+    return seq >= start && seq <= end;
+  });
 }
 
 export function jpVocabTeacherVisibleRangeLabel(limit: number): string {
-  return `1–${Math.max(0, limit)}`;
+  const end = Math.max(0, Math.floor(limit));
+  const start = Math.max(1, end - JP_VOCAB_TEACHER_VISIBLE_STEP + 1);
+  return `${start}–${end}`;
 }
