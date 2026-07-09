@@ -559,7 +559,11 @@ export function JpLessonPage() {
     setSavingTeacherLessonId(lessonId);
 
     try {
-      let nextTeachers = teachers;
+      // 新增老师会先 upsert 到 localStorage；此处合并缓存，避免保存关联时用旧列表覆盖导致只显示 #id
+      let nextTeachers = mergeJpLessonTeachersCache(
+        teachers,
+        readJpLessonTeachersCache()
+      );
       for (const input of teacherUpdates) {
         const res = await fetch("/api/admin/jp-lesson-teachers", {
           method: "POST",
@@ -723,7 +727,12 @@ export function JpLessonPage() {
         upsertJpLessonTeacherCache(item);
       }
       upsertJpLessonTeacherCache(teacher);
-      await loadLessons({ force: true });
+      const mergedTeachers = mergeJpLessonTeachersCache(
+        [teacher, ...renamedTeachers],
+        readJpLessonTeachersCache()
+      );
+      setTeachers((prev) => mergeJpLessonTeachersCache(prev, mergedTeachers));
+      void loadLessons({ force: true });
       return teacher;
     } catch {
       return null;
