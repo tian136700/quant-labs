@@ -2,7 +2,7 @@ import { JpVocabStudyPage } from "@/components/JpVocabStudyPage";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "今日背单词",
+  title: "今日日语单词",
   robots: { index: false, follow: false },
 };
 

@@ -139,7 +139,7 @@ export function JpVocabDailyQuizIntroModal({
             <li>
               <strong>发给学生</strong>：若学生答不出或不熟悉，点击
               <span className="jp-vocab-intro-send-label">「发给学生」</span>
-              按钮，该词会同步到学生「今日背单词」页，并同时标记为「不熟悉」，方便课后复习。
+              按钮，该词会同步到学生「今日日语单词」页，并同时标记为「不熟悉」，方便课后复习。
             </li>
           </ol>
         </div>

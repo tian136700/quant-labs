@@ -123,11 +123,13 @@ export function canUserOperateJpVocab(
   return name === ETR_DEFAULT_JP_VOCAB_USERNAME.toLowerCase();
 }
 
-/** 今日背单词：仅 Admin 与日语老师（jp_vocab 角色）可访问 */
+/** 今日日语单词：老师/管理员，或持有 jp_vocab:study 的学生 */
 export function canAccessJpVocabStudy(
-  user: { username?: string; role?: string } | null | undefined
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
 ): boolean {
-  return canUserOperateJpVocab(user);
+  if (!user) return false;
+  if (canUserOperateJpVocab(user)) return true;
+  return user.permissions?.includes("jp_vocab:study") ?? false;
 }
 
 export function canAccessEnVocab(role: EtrUserRole | string | undefined): boolean {

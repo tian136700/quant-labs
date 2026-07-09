@@ -71,6 +71,7 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
     .first<{ c: number }>();
   if ((row?.c ?? 0) > 0) {
     rbacSeededDone = true;
+    await backfillDefaultRolePermissions(db);
     return;
   }
 
@@ -90,6 +91,26 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
   }
   if (inserts.length) await db.batch(inserts);
   rbacSeededDone = true;
+  await backfillDefaultRolePermissions(db);
+}
+
+async function backfillDefaultRolePermissions(db: D1Database): Promise<void> {
+  if (devRbacEnabled) return;
+  const ts = nowIso();
+  const inserts: D1PreparedStatement[] = [];
+  for (const role of Object.keys(RBAC_DEFAULT_ROLE_PERMISSIONS) as EtrUserRole[]) {
+    for (const permission of RBAC_DEFAULT_ROLE_PERMISSIONS[role]) {
+      inserts.push(
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO etr_role_permissions (role, permission_key, created_at)
+             VALUES (?1, ?2, ?3)`
+          )
+          .bind(role, permission, ts)
+      );
+    }
+  }
+  if (inserts.length) await db.batch(inserts);
 }
 
 export async function getPermissionsForRole(

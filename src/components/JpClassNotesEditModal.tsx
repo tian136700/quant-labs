@@ -483,8 +483,8 @@ export function JpClassNotesEditModal({
                   disabled={sharing}
                   title={
                     sharedToday
-                      ? "将该词备注共享到学生「今日背单词」"
-                      : "共享到学生「今日背单词」，并标记为不熟悉"
+                      ? "将该词备注共享到学生「今日日语单词」"
+                      : "共享到学生「今日日语单词」，并标记为不熟悉"
                   }
                   onClick={() => void handleShare()}
                 >

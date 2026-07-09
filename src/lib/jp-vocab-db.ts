@@ -8,6 +8,7 @@ import type {
   JpVocabRef,
   JpVocabRefUploadInput,
   JpVocabSharedItem,
+  JpVocabShareRequest,
   JpVocabUploadInput,
   JpVocabWord,
 } from "@/lib/types";
@@ -112,6 +113,11 @@ const devShared: Array<{
 }> = [];
 let devSharedNextId = 1;
 let jpVocabSharedSchemaReady = false;
+const devShareRequests: JpVocabShareRequest[] = [];
+let devShareRequestNextId = 1;
+let jpVocabShareRequestSchemaReady = false;
+
+const JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS = 30_000;
 
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
@@ -2196,4 +2202,207 @@ export async function getJpVocabDailyQuizProgress(
     teacherVisibleLimit.limit,
     now
   );
+}
+
+async function ensureJpVocabShareRequestSchema(db: D1Database): Promise<void> {
+  if (devStoreEnabled) return;
+  if (!jpVocabShareRequestSchemaReady) {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS jp_vocab_share_request (
+         id            INTEGER PRIMARY KEY AUTOINCREMENT,
+         requested_by  TEXT    NOT NULL,
+         requested_at  TEXT    NOT NULL,
+         request_date  TEXT    NOT NULL,
+         dismissed_at  TEXT,
+         dismissed_by  TEXT
+       )`
+      )
+      .run();
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_jp_vocab_share_request_pending
+       ON jp_vocab_share_request (request_date, dismissed_at)`
+      )
+      .run();
+    jpVocabShareRequestSchemaReady = true;
+  }
+}
+
+function mapShareRequestRow(row: Record<string, unknown>): JpVocabShareRequest {
+  return {
+    id: Number(row.id),
+    requested_by: String(row.requested_by),
+    requested_at: String(row.requested_at),
+    request_date: String(row.request_date),
+    dismissed_at: row.dismissed_at ? String(row.dismissed_at) : null,
+    dismissed_by: row.dismissed_by ? String(row.dismissed_by) : null,
+  };
+}
+
+export type CreateJpVocabShareRequestResult =
+  | { ok: true; item: JpVocabShareRequest; created: boolean }
+  | { ok: false; error: string };
+
+export async function createJpVocabShareRequest(
+  db: D1Database,
+  requestedBy: string,
+  now = new Date()
+): Promise<CreateJpVocabShareRequestResult> {
+  await ensureJpVocabShareRequestSchema(db);
+  const today = beijingDateString(now);
+  const nowIso = now.toISOString();
+
+  if (devStoreEnabled) {
+    const pending = devShareRequests.find(
+      (r) =>
+        r.request_date === today &&
+        r.requested_by === requestedBy &&
+        !r.dismissed_at
+    );
+    if (pending) {
+      const elapsed = now.getTime() - new Date(pending.requested_at).getTime();
+      if (elapsed < JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS) {
+        return { ok: false, error: "too_frequent" };
+      }
+      pending.requested_at = nowIso;
+      return { ok: true, item: pending, created: false };
+    }
+    const item: JpVocabShareRequest = {
+      id: devShareRequestNextId++,
+      requested_by: requestedBy,
+      requested_at: nowIso,
+      request_date: today,
+      dismissed_at: null,
+      dismissed_by: null,
+    };
+    devShareRequests.push(item);
+    return { ok: true, item, created: true };
+  }
+
+  const existing = await db
+    .prepare(
+      `SELECT id, requested_by, requested_at, request_date, dismissed_at, dismissed_by
+       FROM jp_vocab_share_request
+       WHERE request_date = ?1 AND requested_by = ?2 AND dismissed_at IS NULL
+       LIMIT 1`
+    )
+    .bind(today, requestedBy)
+    .first<Record<string, unknown>>();
+
+  if (existing) {
+    const item = mapShareRequestRow(existing);
+    const elapsed = now.getTime() - new Date(item.requested_at).getTime();
+    if (elapsed < JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS) {
+      return { ok: false, error: "too_frequent" };
+    }
+    await db
+      .prepare(`UPDATE jp_vocab_share_request SET requested_at = ?1 WHERE id = ?2`)
+      .bind(nowIso, item.id)
+      .run();
+    return {
+      ok: true,
+      item: { ...item, requested_at: nowIso },
+      created: false,
+    };
+  }
+
+  const result = await db
+    .prepare(
+      `INSERT INTO jp_vocab_share_request (requested_by, requested_at, request_date)
+       VALUES (?1, ?2, ?3)`
+    )
+    .bind(requestedBy, nowIso, today)
+    .run();
+
+  const insertedId = Number(result.meta?.last_row_id);
+  if (!insertedId) return { ok: false, error: "insert_failed" };
+
+  return {
+    ok: true,
+    item: {
+      id: insertedId,
+      requested_by: requestedBy,
+      requested_at: nowIso,
+      request_date: today,
+      dismissed_at: null,
+      dismissed_by: null,
+    },
+    created: true,
+  };
+}
+
+export async function listJpVocabPendingShareRequests(
+  db: D1Database,
+  now = new Date()
+): Promise<JpVocabShareRequest[]> {
+  await ensureJpVocabShareRequestSchema(db);
+  const today = beijingDateString(now);
+
+  if (devStoreEnabled) {
+    return devShareRequests
+      .filter((r) => r.request_date === today && !r.dismissed_at)
+      .sort(
+        (a, b) =>
+          b.requested_at.localeCompare(a.requested_at) || b.id - a.id
+      );
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT id, requested_by, requested_at, request_date, dismissed_at, dismissed_by
+       FROM jp_vocab_share_request
+       WHERE request_date = ?1 AND dismissed_at IS NULL
+       ORDER BY requested_at DESC, id DESC`
+    )
+    .bind(today)
+    .all<Record<string, unknown>>();
+
+  return (result.results ?? []).map(mapShareRequestRow);
+}
+
+export async function dismissJpVocabShareRequests(
+  db: D1Database,
+  dismissedBy: string,
+  requestIds?: number[],
+  now = new Date()
+): Promise<{ dismissed: number }> {
+  await ensureJpVocabShareRequestSchema(db);
+  const today = beijingDateString(now);
+  const dismissedAt = now.toISOString();
+
+  if (devStoreEnabled) {
+    let count = 0;
+    for (const row of devShareRequests) {
+      if (row.request_date !== today || row.dismissed_at) continue;
+      if (requestIds && !requestIds.includes(row.id)) continue;
+      row.dismissed_at = dismissedAt;
+      row.dismissed_by = dismissedBy;
+      count += 1;
+    }
+    return { dismissed: count };
+  }
+
+  if (requestIds && requestIds.length > 0) {
+    const placeholders = requestIds.map((_, i) => `?${i + 4}`).join(", ");
+    const result = await db
+      .prepare(
+        `UPDATE jp_vocab_share_request
+         SET dismissed_at = ?1, dismissed_by = ?2
+         WHERE request_date = ?3 AND dismissed_at IS NULL AND id IN (${placeholders})`
+      )
+      .bind(dismissedAt, dismissedBy, today, ...requestIds)
+      .run();
+    return { dismissed: Number(result.meta?.changes ?? 0) };
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_share_request
+       SET dismissed_at = ?1, dismissed_by = ?2
+       WHERE request_date = ?3 AND dismissed_at IS NULL`
+    )
+    .bind(dismissedAt, dismissedBy, today)
+    .run();
+  return { dismissed: Number(result.meta?.changes ?? 0) };
 }

@@ -181,6 +181,16 @@ export type JpVocabUploadInput = {
   class_notes?: string | null;
 };
 
+/** 学生请求老师发送当前抽查单词（按 request_date 每日清空） */
+export interface JpVocabShareRequest {
+  id: number;
+  requested_by: string;
+  requested_at: string;
+  request_date: string;
+  dismissed_at: string | null;
+  dismissed_by: string | null;
+}
+
 /** 老师共享给学生「今日背单词」的单条记录（按 share_date 每日清空） */
 export interface JpVocabSharedItem {
   id: number;

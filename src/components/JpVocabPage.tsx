@@ -36,6 +36,7 @@ import {
 } from "@/components/JpVocabDailyQuizIntroModal";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
+import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import {
   JP_VOCAB_CACHE_KEY,
@@ -86,7 +87,7 @@ import {
   shouldShowJpVocabTeacherDailyComplete,
 } from "@/lib/jp-vocab-daily-complete-dismiss";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
-import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
+import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
   return readClientCache<JpVocabApiPayload>(JP_VOCAB_CACHE_KEY);
@@ -290,6 +291,10 @@ export function JpVocabPage() {
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
+  const [shareRequests, setShareRequests] = useState<JpVocabShareRequest[]>([]);
+  const [showShareRequestModal, setShowShareRequestModal] = useState(false);
+  const shareRequestPollInFlightRef = useRef(false);
+  const dismissingShareRequestsRef = useRef(false);
   const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
@@ -532,6 +537,83 @@ export function JpVocabPage() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [loading, words.length, applySyncPatches, applyTeacherVisibleSync, isAdmin]);
+
+  useEffect(() => {
+    if (!canOperate) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () =>
+      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS;
+
+    const schedule = (delayMs: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => void poll(), delayMs);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      if (shareRequestPollInFlightRef.current) {
+        schedule(pollDelay());
+        return;
+      }
+      shareRequestPollInFlightRef.current = true;
+      try {
+        const res = await fetch("/api/jp-vocab/share-request", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          items?: JpVocabShareRequest[];
+        };
+        if (data.ok && Array.isArray(data.items)) {
+          setShareRequests(data.items);
+          if (data.items.length > 0 && !dismissingShareRequestsRef.current) {
+            setShowShareRequestModal(true);
+          }
+        }
+      } catch {
+        /* 轮询失败静默 */
+      } finally {
+        shareRequestPollInFlightRef.current = false;
+        if (!cancelled) schedule(pollDelay());
+      }
+    };
+
+    schedule(JP_VOCAB_POLL_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [canOperate]);
+
+  const dismissShareRequests = useCallback(async () => {
+    const ids = shareRequests.map((r) => r.id);
+    if (!ids.length) {
+      setShowShareRequestModal(false);
+      return;
+    }
+    dismissingShareRequestsRef.current = true;
+    setShowShareRequestModal(false);
+    setStatus("请在单词表中找到刚才抽查的单词，点击「发给学生」。");
+    try {
+      const res = await fetch("/api/jp-vocab/share-request", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ request_ids: ids }),
+      });
+      if (res.ok) {
+        setShareRequests([]);
+      }
+    } catch {
+      /* 忽略 */
+    } finally {
+      dismissingShareRequestsRef.current = false;
+    }
+  }, [shareRequests]);
 
   const displayedWords = useMemo(() => {
     if (statSort.key === "seq" && displayOrder.ids.length > 0) {
@@ -857,8 +939,8 @@ export function JpVocabPage() {
       setShareProgress(null);
       setStatus(
         alreadyMarked
-          ? "已共享到学生「今日背单词」。"
-          : "已共享到学生「今日背单词」，并标记为不熟悉。"
+          ? "已共享到学生「今日日语单词」。"
+          : "已共享到学生「今日日语单词」，并标记为不熟悉。"
       );
       notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
     } catch (err) {
@@ -895,7 +977,7 @@ export function JpVocabPage() {
     );
 
     setHighlightId(wordId);
-    setStatus("已取消共享，学生「今日背单词」中不再显示该词。");
+    setStatus("已取消共享，学生「今日日语单词」中不再显示该词。");
     notifyJpVocabSharedUpdated({ wordId });
 
     try {
@@ -1969,7 +2051,7 @@ export function JpVocabPage() {
                                     type="button"
                                     className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
                                     disabled={isSaving || shareProgress != null}
-                                    title="从学生「今日背单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                                    title="从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
                                     onClick={() => void unshareWord(w.id)}
                                   >
                                     取消共享
@@ -1998,7 +2080,7 @@ export function JpVocabPage() {
                                     type="button"
                                     className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
                                     disabled={isSaving || shareProgress != null}
-                                    title="发给学生「今日背单词」，并标记为不熟悉"
+                                    title="发给学生「今日日语单词」，并标记为不熟悉"
                                     onClick={() => void shareWord(w.id)}
                                   >
                                     发给学生
@@ -2064,6 +2146,12 @@ export function JpVocabPage() {
           }}
         />
       ) : null}
+
+      <JpVocabShareRequestModal
+        open={showShareRequestModal}
+        requests={shareRequests}
+        onClose={() => void dismissShareRequests()}
+      />
 
       <JpVocabRemarksViewModal
         open={viewingRemarksWord != null}

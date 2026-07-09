@@ -67,6 +67,8 @@ export function JpVocabStudyPage() {
     cacheVersion?: string | null;
   } | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [requestingShare, setRequestingShare] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
   const pollInFlightRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   const pendingOpenRemarksWordIdRef = useRef<number | null>(null);
@@ -75,8 +77,8 @@ export function JpVocabStudyPage() {
     openAuthPanel({
       mode: "login",
       loginOnly: true,
-      title: "登录 · 今日背单词",
-      subtitle: "仅管理员或日语老师可访问。",
+      title: "登录 · 今日日语单词",
+      subtitle: "登录后可查看老师共享的单词，或请求老师发送。",
     });
   }, [openAuthPanel]);
 
@@ -130,7 +132,7 @@ export function JpVocabStudyPage() {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
-        setError("仅管理员或日语老师可访问今日背单词。");
+        setError("仅管理员、日语老师或已授权学生可访问今日日语单词。");
         return;
       }
       if (!data.ok || !data.items) {
@@ -232,6 +234,36 @@ export function JpVocabStudyPage() {
     setShowDailyComplete(true);
   }, [canViewStudy, user?.id, quizProgress?.complete, quizProgress?.total]);
 
+  const requestTeacherShare = useCallback(async () => {
+    if (!user || canOperate || requestingShare) return;
+    setRequestingShare(true);
+    try {
+      const res = await fetch("/api/jp-vocab/share-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (res.status === 401) {
+        openJpAuth();
+        return;
+      }
+      if (!data.ok) {
+        setStatus(data.error || "请求失败，请稍后再试。");
+        return;
+      }
+      setRequestSent(true);
+      setStatus("已通知老师，请稍候。老师会在单词表中找到刚才抽查的词并点击「发给学生」。");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "请求失败，请稍后再试。");
+    } finally {
+      setRequestingShare(false);
+    }
+  }, [user, canOperate, requestingShare, locale, openJpAuth]);
+
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
 
@@ -245,10 +277,38 @@ export function JpVocabStudyPage() {
       className="page-wrap jp-vocab-page jp-vocab-study-page"
       style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}
     >
-      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>今日背单词</h1>
+      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>今日日语单词</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
         老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
       </p>
+
+      {loggedIn && canViewStudy && !canOperate ? (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--primary"
+            disabled={requestingShare || requestSent}
+            onClick={() => void requestTeacherShare()}
+          >
+            {requestingShare
+              ? "发送中…"
+              : requestSent
+                ? "已通知老师"
+                : "请老师发送当前抽查词"}
+          </button>
+          <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+            没听清或需要复习时，可请老师把正在抽查的单词发到本页。
+          </span>
+        </div>
+      ) : null}
 
       {!loggedIn && !checking ? (
         <p
@@ -272,7 +332,7 @@ export function JpVocabStudyPage() {
           >
             登录
           </button>
-          {" "}后查看今日共享单词（仅管理员或日语老师）。
+          {" "}后查看今日共享单词。
         </p>
       ) : null}
 
@@ -282,7 +342,7 @@ export function JpVocabStudyPage() {
           role="alert"
           style={{ color: "var(--rise)", marginBottom: "1rem" }}
         >
-          当前账号无权访问今日背单词，请使用管理员或日语老师账号登录。
+          当前账号无权访问今日日语单词，请联系老师或管理员开通权限。
         </p>
       ) : null}
 

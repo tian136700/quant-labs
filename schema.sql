@@ -257,6 +257,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_jp_vocab_shared_day_word
   ON jp_vocab_shared (share_date, word_id);
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_shared_date ON jp_vocab_shared (share_date);
 
+-- 日语单词抽问：学生请求老师发送当前抽查单词（北京时间 0 点按 request_date 自然清空）
+CREATE TABLE IF NOT EXISTS jp_vocab_share_request (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  requested_by  TEXT    NOT NULL,
+  requested_at  TEXT    NOT NULL,
+  request_date  TEXT    NOT NULL,
+  dismissed_at  TEXT,
+  dismissed_by  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_share_request_pending
+  ON jp_vocab_share_request (request_date, dismissed_at);
+
 -- 日语新课：上课老师（管理员维护，仅管理员可见）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

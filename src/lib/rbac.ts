@@ -141,6 +141,14 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "Review levels, reset, manual add entries",
   },
   {
+    key: "jp_vocab:study",
+    labelZh: "日语今日单词（学生复习）",
+    labelEn: "JP today's vocab (student review)",
+    category: "jp_vocab",
+    descriptionZh: "查看老师共享的单词并可请求老师发送",
+    descriptionEn: "View shared words and request teacher to send",
+  },
+  {
     key: "jp_lesson:read",
     labelZh: "浏览新课",
     labelEn: "Browse lessons",
@@ -267,6 +275,7 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "store_review:use",
     "store_review:plaza",
     "jp_vocab:read",
+    "jp_vocab:study",
     "jp_lesson:read",
     "about:view",
   ],
