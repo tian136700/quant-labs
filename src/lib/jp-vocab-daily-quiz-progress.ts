@@ -19,7 +19,9 @@ export function computeJpVocabDailyQuizProgress(
 ): JpVocabDailyQuizProgress {
   const today = beijingDateString(now);
   const limit = Math.max(0, Math.floor(teacherVisibleLimit));
-  const maxTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, limit);
+  // 进度统计按「已开放的当日序号 1..limit」计算（例如开放到 40 时：总 40）。
+  // JP_VOCAB_DAILY_QUIZ_TOP 仍用于“建议优先抽查前 N 条”的提示/引导，但不应影响总进度口径。
+  const maxTarget = Math.min(limit, displayOrder.ids.length);
 
   if (displayOrder.date !== today || maxTarget <= 0) {
     return {
