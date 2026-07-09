@@ -41,7 +41,6 @@ import {
 } from "@/lib/jp-vocab-daily-quiz-style";
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
-  JP_VOCAB_TEACHER_VISIBLE_STEP,
   normalizeJpVocabTeacherVisibleLimit,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
@@ -96,6 +95,7 @@ let devDailyQuizStyle: JpVocabDailyQuizStyle = {
 let devTeacherVisibleLimit: JpVocabTeacherVisibleLimit = {
   date: "",
   limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
 };
 let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   date: "",
@@ -1731,12 +1731,15 @@ async function saveJpVocabTeacherVisibleLimit(
 }
 
 export async function expandJpVocabTeacherVisibleLimit(
-  db: D1Database
+  db: D1Database,
+  releaseCount: number
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
+  const count = Math.max(1, Math.floor(releaseCount));
   return saveJpVocabTeacherVisibleLimit(db, {
     date: current.date,
-    limit: current.limit + JP_VOCAB_TEACHER_VISIBLE_STEP,
+    limit: current.limit + count,
+    count,
   });
 }
 
@@ -1747,6 +1750,7 @@ export async function resetJpVocabTeacherVisibleLimit(
   return saveJpVocabTeacherVisibleLimit(db, {
     date: beijingDateString(),
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   });
 }
 

@@ -183,6 +183,28 @@ export function JpLessonTeacherEditModal({
   const resolveExistingTeacher = (name: string): JpLessonTeacher | undefined =>
     sortedTeachers.find((t) => t.name === name);
 
+  const pendingAddName = addName.trim();
+  const pendingExistingTeacher = useMemo(
+    () => (pendingAddName ? resolveExistingTeacher(pendingAddName) : undefined),
+    [pendingAddName, sortedTeachers]
+  );
+
+  useEffect(() => {
+    if (!open || !pendingExistingTeacher) return;
+    setSelectedIds((prev) =>
+      prev.includes(pendingExistingTeacher.id)
+        ? prev
+        : [...prev, pendingExistingTeacher.id]
+    );
+  }, [open, pendingExistingTeacher?.id]);
+
+  const clearPendingAdd = () => {
+    setAddName("");
+    setAddPrice("");
+    setAddMinutes("");
+    setAddError("");
+  };
+
   const filteredTeachers = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
     if (!needle) return sortedTeachers;
@@ -535,6 +557,28 @@ export function JpLessonTeacherEditModal({
               );
             })}
             <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
+              <label className="jp-lesson-teacher-check jp-lesson-teacher-check--pending">
+                <input
+                  type="checkbox"
+                  checked={Boolean(pendingAddName)}
+                  disabled={addingTeacher || saving || !pendingAddName}
+                  aria-label={
+                    pendingAddName
+                      ? `将添加并选择 ${pendingAddName}`
+                      : "填写称呼后自动勾选"
+                  }
+                  onChange={(e) => {
+                    if (!e.target.checked) {
+                      if (pendingExistingTeacher) {
+                        setSelectedIds((prev) =>
+                          prev.filter((id) => id !== pendingExistingTeacher.id)
+                        );
+                      }
+                      clearPendingAdd();
+                    }
+                  }}
+                />
+              </label>
               <div className="jp-lesson-teacher-add-fields">
                 <span className="jp-lesson-teacher-add-label">添加老师</span>
                 <input
@@ -604,16 +648,8 @@ export function JpLessonTeacherEditModal({
                     ≈ {formatHourlyRate(addHourlyPreview)} 元
                   </span>
                 ) : null}
-                <button
-                  type="button"
-                  className="jp-lesson-teacher-add-btn"
-                  disabled={!addName.trim() || addingTeacher || saving}
-                  onClick={() => void handleAddTeacher()}
-                >
-                  {addingTeacher ? "添加中…" : "添加并勾选"}
-                </button>
                 <p className="jp-lesson-teacher-add-optional-hint">
-                  仅填称呼即可添加；金额与时长可稍后再补。
+                  填写称呼即视为勾选；点保存会自动添加并关联本课。金额与时长可稍后再补。
                 </p>
               </div>
             </div>
@@ -801,6 +837,11 @@ export function JpLessonTeacherEditModal({
           cursor: pointer;
         }
 
+        .jp-lesson-teacher-check--pending input[type="checkbox"]:disabled {
+          cursor: default;
+          opacity: 1;
+        }
+
         .jp-lesson-teacher-edit-fields {
           flex: 1 1 12rem;
           display: flex;
@@ -878,28 +919,6 @@ export function JpLessonTeacherEditModal({
           flex: 1 1 100%;
           font-size: 0.75rem;
           color: var(--muted);
-        }
-
-        .jp-lesson-teacher-add-btn {
-          flex: 1 1 100%;
-          min-height: 2.5rem;
-          padding: 0.45rem 0.75rem;
-          border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-          color: var(--accent);
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .jp-lesson-teacher-add-btn:hover:not(:disabled) {
-          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
-        }
-
-        .jp-lesson-teacher-add-btn:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
         }
 
         .jp-lesson-teacher-add-optional-hint {

@@ -13,6 +13,7 @@ import {
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
+import { parseJpVocabTeacherVisibleReleaseCount } from "@/lib/jp-vocab-teacher-visible";
 import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
       word_id?: number;
       level?: JpVocabLevel;
       daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
+      count?: number;
     };
 
     if (body.action === "daily_quiz_style") {
@@ -83,7 +85,14 @@ export async function POST(request: Request) {
       if (!isAdmin) {
         return jsonResponse({ ok: false, error: "forbidden" }, 403);
       }
-      const teacher_visible_limit = await expandJpVocabTeacherVisibleLimit(env.DB);
+      const releaseCount = parseJpVocabTeacherVisibleReleaseCount(body.count);
+      if (releaseCount == null) {
+        return jsonResponse({ ok: false, error: "invalid count" }, 400);
+      }
+      const teacher_visible_limit = await expandJpVocabTeacherVisibleLimit(
+        env.DB,
+        releaseCount
+      );
       return jsonResponse({ ok: true, teacher_visible_limit });
     }
 
