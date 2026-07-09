@@ -35,6 +35,34 @@ type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
 const AUTO_SAVE_MS = 1_000;
 const POLL_MS = 2_000;
+const JP_NOTES_SHARE_DURATION_MS = 5_000;
+
+function jpNotesShareProgressPercent(elapsedMs: number): number {
+  return Math.min(100, Math.round((elapsedMs / JP_NOTES_SHARE_DURATION_MS) * 100));
+}
+
+async function animateJpNotesShareProgressTo100(
+  wordId: number,
+  startedAtMs: number,
+  setShareProgress: (next: { wordId: number; percent: number } | null) => void
+): Promise<void> {
+  const elapsed = Date.now() - startedAtMs;
+  const current = jpNotesShareProgressPercent(elapsed);
+  if (current >= 100) {
+    setShareProgress({ wordId, percent: 100 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return;
+  }
+  const steps = Math.max(4, Math.ceil((100 - current) / 5));
+  const stepMs = Math.min(80, Math.round(400 / steps));
+  for (let i = 1; i <= steps; i++) {
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+    const percent = current + Math.round(((100 - current) * i) / steps);
+    setShareProgress({ wordId, percent });
+  }
+  setShareProgress({ wordId, percent: 100 });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+}
 
 function historyEntriesFromWord(word: JpVocabWord | null): JpVocabClassNoteEntry[] {
   if (!word) return [];
@@ -60,11 +88,15 @@ export function JpClassNotesEditModal({
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [sharing, setSharing] = useState(false);
+  const [shareProgress, setShareProgress] = useState<{ wordId: number; percent: number } | null>(
+    null
+  );
   const dirtyRef = useRef(false);
   const lastSavedDraftRef = useRef("");
   const sessionTsRef = useRef<string | null>(null);
   const [sessionTs, setSessionTs] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wordRef = useRef(word);
   const pollInFlightRef = useRef(false);
 
@@ -86,6 +118,7 @@ export function JpClassNotesEditModal({
       dirtyRef.current = false;
       setError("");
       setSaveStatus("idle");
+      setShareProgress(null);
     }
   }, [open, word?.id]);
 
@@ -157,6 +190,7 @@ export function JpClassNotesEditModal({
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (shareProgressTimerRef.current) clearInterval(shareProgressTimerRef.current);
     };
   }, []);
 
@@ -262,8 +296,24 @@ export function JpClassNotesEditModal({
     const current = wordRef.current;
     if (!current || !canShareToStudy || sharing) return;
 
+    const startedAt = Date.now();
     setSharing(true);
+    setShareProgress({ wordId: current.id, percent: 0 });
     setError("");
+    shareProgressTimerRef.current = setInterval(() => {
+      setShareProgress({
+        wordId: current.id,
+        percent: jpNotesShareProgressPercent(Date.now() - startedAt),
+      });
+    }, 200);
+
+    const clearShareTimer = () => {
+      if (shareProgressTimerRef.current) {
+        clearInterval(shareProgressTimerRef.current);
+        shareProgressTimerRef.current = null;
+      }
+    };
+
     try {
       const res = await fetch("/api/jp-vocab/share", {
         method: "POST",
@@ -276,19 +326,26 @@ export function JpClassNotesEditModal({
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
       if (res.status === 401) {
+        clearShareTimer();
+        setShareProgress(null);
         onNeedAuth();
         return;
       }
       if (!data.ok && res.status !== 409 && data.error !== "already_shared_today") {
         throw new Error(data.error || "共享失败");
       }
+      clearShareTimer();
+      await animateJpNotesShareProgressTo100(current.id, startedAt, setShareProgress);
       notifyJpVocabSharedUpdated({
         wordId: current.id,
         openRemarks: true,
       });
     } catch (err) {
+      clearShareTimer();
+      setShareProgress(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setShareProgress(null);
       setSharing(false);
     }
   };
@@ -402,19 +459,38 @@ export function JpClassNotesEditModal({
               完成
             </button>
             {canShareToStudy ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
-                disabled={sharing}
-                title={
-                  sharedToday
-                    ? "将该词备注共享到学生「今日背单词」"
-                    : "共享到学生「今日背单词」，并标记为不熟悉"
-                }
-                onClick={() => void handleShare()}
-              >
-                {sharing ? "共享中…" : "共享备注给学生"}
-              </button>
+              sharing && shareProgress?.wordId === word.id ? (
+                <div className="jp-notes-share-progress" aria-live="polite">
+                  <span className="jp-notes-share-progress-label">正在发给学生，传输中…</span>
+                  <div
+                    className="jp-notes-share-progress-track"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={shareProgress.percent}
+                    aria-label="共享备注给学生进度"
+                  >
+                    <div
+                      className="jp-notes-share-progress-fill"
+                      style={{ width: `${shareProgress.percent}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
+                  disabled={sharing}
+                  title={
+                    sharedToday
+                      ? "将该词备注共享到学生「今日背单词」"
+                      : "共享到学生「今日背单词」，并标记为不熟悉"
+                  }
+                  onClick={() => void handleShare()}
+                >
+                  共享备注给学生
+                </button>
+              )
             ) : null}
           </div>
         </div>
@@ -556,6 +632,45 @@ export function JpClassNotesEditModal({
 
         .jp-notes-edit-share-btn:disabled {
           opacity: 0.55;
+        }
+
+        .jp-notes-share-progress {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.3rem;
+          min-width: 10.25rem;
+          max-width: 14rem;
+          padding: 0.35rem 0.45rem;
+          border-radius: 6px;
+          border: 1px solid color-mix(in srgb, #f0a840 45%, var(--border));
+          background: color-mix(in srgb, var(--panel) 90%, #f0a840 10%);
+        }
+
+        .jp-notes-share-progress-label {
+          font-size: 0.75rem;
+          line-height: 1.3;
+          color: #f0a840;
+          text-align: center;
+          white-space: nowrap;
+        }
+
+        .jp-notes-share-progress-track {
+          height: 0.4rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--border) 70%, transparent);
+          overflow: hidden;
+        }
+
+        .jp-notes-share-progress-fill {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(
+            90deg,
+            color-mix(in srgb, #f0a840 80%, #fff),
+            #f0a840
+          );
+          transition: width 0.2s linear;
         }
 
         .jp-notes-edit-empty {
