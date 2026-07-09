@@ -1,0 +1,107 @@
+# 功能索引（Feature Index）
+
+改功能前**先查本表**：用户粘贴线上 URL、说中文功能名、或描述页面行为时，从这里定位文件，避免全库盲搜。
+
+线上根域名示例：`https://finance.info-quests.com`（路径与下表一致）。
+
+---
+
+## 怎么用
+
+1. 从 URL 取 **path**（去掉域名），如 `/jp-vocab/study`
+2. 在下方表格搜 path，或搜中文关键词（如「请老师发送」「发给学生」「今日日语单词」）
+3. 按列打开：**页面 → 组件 → API → 数据库/权限**
+
+日语/英语学习模块 URL **不带** `/zh` 前缀（见 `src/lib/locale-path.ts` `isLocaleNeutralPath`）。
+
+---
+
+## 日语单词 / 语法抽问（jp-vocab）
+
+| 线上 path | 中文名 | 页面入口 | 主组件 | 关键 API | 数据 / 逻辑 | 权限 |
+|-----------|--------|----------|--------|----------|-------------|------|
+| `/jp-vocab` | 日语抽问、单词表、老师抽查 | `src/app/jp-vocab/page.tsx` | `src/components/JpVocabPage.tsx` | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share` | `src/lib/jp-vocab-db.ts`、`schema.sql` → `jp_vocab_word`、`jp_vocab_shared` | `jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生 |
+| `/jp-vocab/study` | 今日日语单词、学生复习、请老师发送 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/share-request` | 同上 + `jp_vocab_share_request` | `jp_vocab:study` 学生；`jp_vocab:operate` 老师/管理员 |
+| `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页 |
+
+### jp-vocab 子功能 → 文件速查
+
+| 功能描述 | 改哪里 |
+|----------|--------|
+| 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
+| 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
+| 老师右下角 toast（学生协助请求） | `src/components/JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
+| 今日抽查进度条 / 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx` |
+| 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
+| 课堂备注、共享备注 | `JpClassNotesEditModal.tsx`；`/api/jp-vocab/class-notes` |
+| 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`；`/api/jp-vocab/add`、`/edit` |
+| 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy` |
+| 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()` |
+| 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
+| 共享后刷新复习页 | `src/lib/jp-vocab-shared-notify.ts`（同浏览器多标签） |
+
+---
+
+## 英语单词 / 语法抽问（en-vocab）
+
+| 线上 path | 中文名 | 页面 | 主组件 | 说明 |
+|-----------|--------|------|--------|------|
+| `/en-vocab` | 英语抽背 | `src/app/en-vocab/page.tsx` | `EnVocabPage.tsx` | 与 jp-vocab 结构对称，改日语时可对照 |
+| `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | |
+| `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | | API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
+
+---
+
+## 日语新课（jp-lesson）
+
+| path | 中文名 | 页面 | 主组件 |
+|------|--------|------|--------|
+| `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` |
+| `/jp-lesson/notes` | 课堂笔记 | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
+| `/jp-lesson/schedule` | 日程管理 | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` |
+
+逻辑：`src/lib/jp-lesson-db.ts`；API：`src/app/api/jp-lesson/*`
+
+---
+
+## 英语新课（en-lesson）
+
+| path | 页面 | 主组件 |
+|------|------|--------|
+| `/en-lesson` | `src/app/en-lesson/page.tsx` | `EnLessonPage.tsx` |
+| `/en-lesson/notes` | `src/app/en-lesson/notes/page.tsx` | `EnLessonNotesPage.tsx` |
+| `/en-lesson/schedule` | `src/app/en-lesson/schedule/page.tsx` | `EnLessonSchedulePage.tsx` |
+
+---
+
+## 其他常用页面
+
+| path | 中文名 | 页面 | 主组件 |
+|------|--------|------|--------|
+| `/`、`/zh` | 策略对比 | `src/app/page.tsx`、`zh/page.tsx` | `ComparePage.tsx` |
+| `/english-teacher-review` | 英语老师评价 | `english-teacher-review/page.tsx` | |
+| `/jp-review` | 日语口语复习 | `jp-review/page.tsx` | |
+| `/about` | 关于与反馈 | `about/page.tsx` | `AboutPage.tsx` |
+| `/admin` | 后台管理 | `admin/page.tsx` | `AdminDashboardPage.tsx` |
+| `/admin/rbac` | 角色权限 | `admin/rbac/page.tsx` | `AdminRbacPage.tsx` |
+| `/admin/users` | 用户管理 | `admin/users/page.tsx` | `AdminUsersPage.tsx` |
+| `/store-review` | 外卖评价 | `store-review/page.tsx` | |
+
+---
+
+## 全局横切
+
+| 用途 | 文件 |
+|------|------|
+| 登录 / 会话 / 前端权限 | `src/contexts/EtrAuthProvider.tsx`、`src/lib/etr-auth.ts`、`src/app/api/english-teacher-review/auth/route.ts` |
+| RBAC 权限表 | `src/lib/rbac.ts`、`src/lib/rbac-db.ts`、`schema.sql` → `etr_role_permissions` |
+| 站点导航 | `src/hooks/useSiteNavItems.ts`、`src/components/AppShell.tsx` |
+| 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
+| 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
+
+---
+
+## 维护说明
+
+- 新增页面或改 URL 时，请同步更新本文件对应行。
+- 线上 URL 只需 path 部分即可索引，例如用户发 `https://finance.info-quests.com/jp-vocab/study` → 查 `/jp-vocab/study`。

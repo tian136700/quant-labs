@@ -13,13 +13,6 @@ type Props = {
   onClose: () => void;
 };
 
-function formatStudentNames(requests: JpVocabShareRequest[]): string {
-  const names = [...new Set(requests.map((r) => r.requested_by))];
-  if (names.length === 1) return names[0];
-  if (names.length === 2) return `${names[0]}、${names[1]}`;
-  return `${names.slice(0, 2).join("、")} 等 ${names.length} 人`;
-}
-
 export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<"hidden" | "visible" | "leaving">("hidden");
@@ -74,7 +67,6 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
 
   if (!mounted || !open || requests.length === 0 || phase === "hidden") return null;
 
-  const studentLabel = formatStudentNames(requests);
   const leaving = phase === "leaving";
 
   return createPortal(
@@ -94,10 +86,10 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
       </button>
       <p className="jp-vocab-share-request-toast__title">学生协助请求</p>
       <p className="jp-vocab-share-request-toast__body">
-        学生<strong>「{studentLabel}」</strong>
-        请求你将<strong>当前抽查的单词</strong>
-        发到「今日日语单词」。请找到该词，点
-        <span className="jp-vocab-intro-send-label">「发给学生」</span>。
+        学生请求将<strong>当前正在抽查的单词/语法</strong>发送给他。
+        <br />
+        请找到该词，点击<span className="jp-vocab-intro-send-label">「发给学生」</span>
+        按钮发送。
       </p>
       <style jsx>{`
         .jp-vocab-share-request-toast {
