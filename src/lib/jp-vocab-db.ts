@@ -117,7 +117,7 @@ const devShareRequests: JpVocabShareRequest[] = [];
 let devShareRequestNextId = 1;
 let jpVocabShareRequestSchemaReady = false;
 
-const JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS = 30_000;
+const JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS = 10_000;
 
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";

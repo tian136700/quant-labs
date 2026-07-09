@@ -70,6 +70,7 @@ export function JpVocabStudyPage() {
   const [requestingShare, setRequestingShare] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const pollInFlightRef = useRef(false);
+  const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
   const pendingOpenRemarksWordIdRef = useRef<number | null>(null);
 
@@ -234,6 +235,19 @@ export function JpVocabStudyPage() {
     setShowDailyComplete(true);
   }, [canViewStudy, user?.id, quizProgress?.complete, quizProgress?.total]);
 
+  useEffect(() => {
+    if (!requestSent) return;
+    requestCooldownTimerRef.current = setTimeout(() => {
+      setRequestSent(false);
+    }, 10_000);
+    return () => {
+      if (requestCooldownTimerRef.current) {
+        clearTimeout(requestCooldownTimerRef.current);
+        requestCooldownTimerRef.current = null;
+      }
+    };
+  }, [requestSent]);
+
   const requestTeacherShare = useCallback(async () => {
     if (!user || !canViewStudy || requestingShare) return;
     setRequestingShare(true);
@@ -256,7 +270,7 @@ export function JpVocabStudyPage() {
         return;
       }
       setRequestSent(true);
-      setStatus("已通知老师，请稍候。");
+      setStatus("已发送，请稍候老师共享。");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "请求失败，请稍后再试。");
     } finally {
@@ -298,7 +312,7 @@ export function JpVocabStudyPage() {
             disabled={requestingShare || requestSent}
             onClick={() => void requestTeacherShare()}
           >
-            {requestingShare ? "发送中…" : requestSent ? "已请求" : "请老师发送"}
+            {requestingShare ? "发送中…" : requestSent ? "已发送" : "请老师发送"}
           </button>
           <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
             没听清时，可请老师发送正在抽查的单词/语法。
