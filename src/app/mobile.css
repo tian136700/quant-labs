@@ -1238,6 +1238,15 @@
     width: 100%;
   }
 
+  .jp-lesson-teacher-add-btn {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .jp-lesson-teacher-check {
+    align-self: flex-start;
+  }
+
   /* ── JP Lesson cards — vertical field stack, flex-wrap meta, action bar ── */
   .jp-lesson-table-wrap {
     overflow-x: visible;

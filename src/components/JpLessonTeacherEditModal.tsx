@@ -203,12 +203,37 @@ export function JpLessonTeacherEditModal({
     return input;
   };
 
-  const handleAddTeacher = async () => {
+  const validateAddRateFields = (): boolean => {
+    const hasPrice = Boolean(addPrice.trim());
+    const hasMinutes = Boolean(addMinutes.trim());
+    if (hasPrice !== hasMinutes) {
+      setAddError("金额与时长需同时填写，或都留空");
+      return false;
+    }
+    if (hasPrice && hasMinutes) {
+      const hourly = calcHourlyRate(Number(addPrice), Number(addMinutes));
+      if (hourly == null) {
+        setAddError("请填写有效的金额与分钟数");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleAddTeacher = async (options?: {
+    persist?: boolean;
+  }): Promise<number[] | null> => {
+    const persist = options?.persist !== false;
     const input = buildAddInput();
-    if (!input || addingTeacher || saving) return;
+    if (!input || addingTeacher || saving) return null;
 
     skipAddBlurRef.current = true;
     setAddError("");
+
+    if (!validateAddRateFields()) {
+      skipAddBlurRef.current = false;
+      return null;
+    }
 
     const existing = resolveExistingTeacher(input.name);
     if (existing) {
@@ -218,7 +243,7 @@ export function JpLessonTeacherEditModal({
         if (hourly == null) {
           setAddError("请填写有效的金额与分钟数");
           skipAddBlurRef.current = false;
-          return;
+          return null;
         }
         teacherUpdates = [
           {
@@ -235,13 +260,17 @@ export function JpLessonTeacherEditModal({
         : [...selectedIds, existing.id];
       if (!selectedIds.includes(existing.id) || teacherUpdates.length > 0) {
         try {
-          await onSave(nextIds, null, teacherUpdates, { keepOpen: true });
+          if (persist) {
+            await onSave(nextIds, null, teacherUpdates, { keepOpen: true });
+          }
           setSelectedIds(nextIds);
           setAddName("");
           setAddPrice("");
           setAddMinutes("");
         } catch {
           setAddError("保存失败，请重试");
+          skipAddBlurRef.current = false;
+          return null;
         }
       } else {
         setAddName("");
@@ -249,16 +278,7 @@ export function JpLessonTeacherEditModal({
         setAddMinutes("");
       }
       skipAddBlurRef.current = false;
-      return;
-    }
-
-    if (addPrice.trim() || addMinutes.trim()) {
-      const hourly = calcHourlyRate(Number(addPrice), Number(addMinutes));
-      if (hourly == null) {
-        setAddError("请填写有效的金额与分钟数");
-        skipAddBlurRef.current = false;
-        return;
-      }
+      return nextIds;
     }
 
     setAddingTeacher(true);
@@ -267,19 +287,23 @@ export function JpLessonTeacherEditModal({
       if (!teacher) {
         setAddError("添加失败，请重试");
         skipAddBlurRef.current = false;
-        return;
+        return null;
       }
       const nextIds = selectedIds.includes(teacher.id)
         ? selectedIds
         : [...selectedIds, teacher.id];
       try {
-        await onSave(nextIds, null, [], { keepOpen: true });
+        if (persist) {
+          await onSave(nextIds, null, [], { keepOpen: true });
+        }
         setSelectedIds(nextIds);
         setAddName("");
         setAddPrice("");
         setAddMinutes("");
+        return nextIds;
       } catch {
         setAddError("已添加老师，但关联课程失败，请重试保存");
+        return null;
       }
     } finally {
       setAddingTeacher(false);
@@ -374,10 +398,16 @@ export function JpLessonTeacherEditModal({
   const handleSave = async () => {
     if (addingTeacher || saving || deletingTeacherId != null) return;
     setSaveError("");
+    let idsToSave = selectedIds;
+    if (addName.trim()) {
+      const nextIds = await handleAddTeacher({ persist: false });
+      if (!nextIds) return;
+      idsToSave = nextIds;
+    }
     const teacherUpdates = collectTeacherUpdates();
     if (teacherUpdates == null) return;
     try {
-      await onSave(selectedIds, null, teacherUpdates);
+      await onSave(idsToSave, null, teacherUpdates);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "保存失败，请重试");
     }
@@ -447,12 +477,14 @@ export function JpLessonTeacherEditModal({
                   key={teacher.id}
                   className="jp-lesson-teacher-option jp-lesson-teacher-option--editable"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(teacher.id)}
-                    aria-label={`选择 ${draft.name || teacher.name}`}
-                    onChange={() => toggleTeacher(teacher.id)}
-                  />
+                  <label className="jp-lesson-teacher-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(teacher.id)}
+                      aria-label={`选择 ${draft.name || teacher.name}`}
+                      onChange={() => toggleTeacher(teacher.id)}
+                    />
+                  </label>
                   <div className="jp-lesson-teacher-edit-fields">
                     <input
                       type="text"
@@ -503,13 +535,6 @@ export function JpLessonTeacherEditModal({
               );
             })}
             <div className="jp-lesson-teacher-option jp-lesson-teacher-option--add">
-              <input
-                type="checkbox"
-                checked={false}
-                readOnly
-                tabIndex={-1}
-                aria-hidden="true"
-              />
               <div className="jp-lesson-teacher-add-fields">
                 <span className="jp-lesson-teacher-add-label">添加老师</span>
                 <input
@@ -528,6 +553,10 @@ export function JpLessonTeacherEditModal({
                       void handleAddTeacher();
                     }
                   }}
+                  onBlur={() => {
+                    if (skipAddBlurRef.current) return;
+                    if (addName.trim()) void handleAddTeacher();
+                  }}
                 />
                 <input
                   type="number"
@@ -535,7 +564,7 @@ export function JpLessonTeacherEditModal({
                   step="0.01"
                   className="jp-lesson-teacher-add-input jp-lesson-teacher-add-input--short"
                   value={addPrice}
-                  placeholder="金额"
+                  placeholder="金额（可选）"
                   disabled={addingTeacher || saving}
                   onChange={(e) => {
                     setAddPrice(e.target.value);
@@ -562,12 +591,8 @@ export function JpLessonTeacherEditModal({
                       void handleAddTeacher();
                     }
                   }}
-                  onBlur={() => {
-                    if (skipAddBlurRef.current) return;
-                    if (addName.trim()) void handleAddTeacher();
-                  }}
                 >
-                  <option value="">时长</option>
+                  <option value="">时长（可选）</option>
                   {TEACHER_LESSON_MINUTE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -579,6 +604,17 @@ export function JpLessonTeacherEditModal({
                     ≈ {formatHourlyRate(addHourlyPreview)} 元
                   </span>
                 ) : null}
+                <button
+                  type="button"
+                  className="jp-lesson-teacher-add-btn"
+                  disabled={!addName.trim() || addingTeacher || saving}
+                  onClick={() => void handleAddTeacher()}
+                >
+                  {addingTeacher ? "添加中…" : "添加并勾选"}
+                </button>
+                <p className="jp-lesson-teacher-add-optional-hint">
+                  仅填称呼即可添加；金额与时长可稍后再补。
+                </p>
               </div>
             </div>
           </div>
@@ -747,9 +783,22 @@ export function JpLessonTeacherEditModal({
           align-items: flex-start;
         }
 
-        .jp-lesson-teacher-option input[type="checkbox"] {
+        .jp-lesson-teacher-check {
           flex-shrink: 0;
-          margin-top: 0.45rem;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 2.75rem;
+          min-height: 2.75rem;
+          margin-top: 0;
+          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-check input[type="checkbox"] {
+          width: 1.125rem;
+          height: 1.125rem;
+          margin: 0;
+          cursor: pointer;
         }
 
         .jp-lesson-teacher-edit-fields {
@@ -764,10 +813,6 @@ export function JpLessonTeacherEditModal({
         .jp-lesson-teacher-option--add {
           flex-wrap: wrap;
           align-items: flex-start;
-        }
-
-        .jp-lesson-teacher-option--add input[type="checkbox"] {
-          margin-top: 0.45rem;
         }
 
         .jp-lesson-teacher-add-fields {
@@ -833,6 +878,36 @@ export function JpLessonTeacherEditModal({
           flex: 1 1 100%;
           font-size: 0.75rem;
           color: var(--muted);
+        }
+
+        .jp-lesson-teacher-add-btn {
+          flex: 1 1 100%;
+          min-height: 2.5rem;
+          padding: 0.45rem 0.75rem;
+          border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: var(--accent);
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-add-btn:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+        }
+
+        .jp-lesson-teacher-add-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .jp-lesson-teacher-add-optional-hint {
+          flex: 1 1 100%;
+          margin: 0;
+          font-size: 0.75rem;
+          color: var(--muted);
+          line-height: 1.4;
         }
 
         .jp-lesson-teacher-add-input:disabled {
