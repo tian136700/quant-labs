@@ -124,6 +124,8 @@ scripts/import-trends-json.py
 scripts/backfill-visit-geo.py
 
 # auto-ignore-local begin
+scripts/d1-backup-install.sh
+scripts/d1-backup-uninstall.sh
 scripts/deploy_center/
 scripts/deploy_center/__init__.py
 scripts/deploy_center/auto_menu.py

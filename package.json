@@ -75,7 +75,10 @@
     "db:import-etr:remote": "python3 scripts/import-etr-from-stt.py --remote",
     "db:sync-remote-to-local": "python3 scripts/sync-d1-remote-to-local.py",
     "db:backup:remote": "python3 scripts/d1_backup.py --remote --reason manual",
-    "db:backup:scan": "python3 scripts/d1_backup.py --scan"
+    "db:backup:scan": "python3 scripts/d1_backup.py --scan",
+    "db:backup:daily:once": "python3 scripts/d1-backup-watch.py",
+    "db:backup:daily:install": "bash scripts/d1-backup-install.sh",
+    "db:backup:daily:uninstall": "bash scripts/d1-backup-uninstall.sh"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.0.4",
