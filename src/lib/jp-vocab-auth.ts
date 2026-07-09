@@ -56,7 +56,7 @@ export async function requireJpVocabStudyAccess(request: Request) {
   return { env, user, allowed };
 }
 
-/** 学生请求老师发送单词 */
+/** 学生请求老师发送单词（复习页访客均可：学生、老师、管理员） */
 export async function requireJpVocabShareRequestCreate(request: Request) {
   const env = await getCloudflareEnv();
   const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
@@ -65,6 +65,10 @@ export async function requireJpVocabShareRequestCreate(request: Request) {
   if (user) {
     if (await userHasPermission(env.DB, user, "jp_vocab:study")) {
       allowed = true;
+    } else if (await userHasPermission(env.DB, user, "jp_vocab:operate")) {
+      allowed = true;
+    } else {
+      allowed = canUserOperateJpVocab(user);
     }
   }
 

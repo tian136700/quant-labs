@@ -235,7 +235,7 @@ export function JpVocabStudyPage() {
   }, [canViewStudy, user?.id, quizProgress?.complete, quizProgress?.total]);
 
   const requestTeacherShare = useCallback(async () => {
-    if (!user || canOperate || requestingShare) return;
+    if (!user || !canViewStudy || requestingShare) return;
     setRequestingShare(true);
     try {
       const res = await fetch("/api/jp-vocab/share-request", {
@@ -256,13 +256,13 @@ export function JpVocabStudyPage() {
         return;
       }
       setRequestSent(true);
-      setStatus("已通知老师，请稍候。老师会在单词表中找到刚才抽查的词并点击「发给学生」。");
+      setStatus("已通知老师，请稍候。");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "请求失败，请稍后再试。");
     } finally {
       setRequestingShare(false);
     }
-  }, [user, canOperate, requestingShare, locale, openJpAuth]);
+  }, [user, canViewStudy, requestingShare, locale, openJpAuth]);
 
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
@@ -282,7 +282,7 @@ export function JpVocabStudyPage() {
         老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
       </p>
 
-      {loggedIn && canViewStudy && !canOperate ? (
+      {loggedIn && canViewStudy ? (
         <div
           style={{
             display: "flex",
@@ -298,14 +298,10 @@ export function JpVocabStudyPage() {
             disabled={requestingShare || requestSent}
             onClick={() => void requestTeacherShare()}
           >
-            {requestingShare
-              ? "发送中…"
-              : requestSent
-                ? "已通知老师"
-                : "请老师发送当前抽查词"}
+            {requestingShare ? "发送中…" : requestSent ? "已请求" : "请老师发送"}
           </button>
           <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-            没听清或需要复习时，可请老师把正在抽查的单词发到本页。
+            没听清时，可请老师发送正在抽查的单词/语法。
           </span>
         </div>
       ) : null}
