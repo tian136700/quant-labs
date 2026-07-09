@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
@@ -26,6 +27,7 @@ import {
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
 import { formatIpForDisplay } from "@/lib/client-ip";
+import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { LoginLinkTemplate } from "@/lib/types";
 
 const LOGIN_LINK_TEMPLATE_STORAGE_KEY = "admin_login_link_template_id";
@@ -146,6 +148,9 @@ function AdminUsersPageContent() {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab">("user");
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [sortField, setSortField] = useState<UserSortField>("id");
@@ -232,6 +237,10 @@ function AdminUsersPageContent() {
     if (checking || !isAdmin) return;
     void loadTemplates();
   }, [checking, isAdmin, loadTemplates]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     rememberSelectedTemplateId(selectedTemplateId);
@@ -734,6 +743,38 @@ function AdminUsersPageContent() {
     return sortDirection === "asc" ? " ▲" : " ▼";
   };
 
+  const anyModalOpen = addUserOpen || templatesOpen || editingUser != null;
+
+  useEffect(() => {
+    if (!anyModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.isComposing) return;
+      if (editingUser != null) {
+        setEditingUser(null);
+        return;
+      }
+      if (templatesOpen) {
+        setTemplatesOpen(false);
+        cancelEditTemplate();
+        return;
+      }
+      if (addUserOpen) {
+        setAddUserOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [addUserOpen, templatesOpen, editingUser, anyModalOpen]);
+
+  useEffect(() => {
+    if (!anyModalOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [anyModalOpen]);
+
   return (
     <div className="admin-page">
       <div className="page-hero">
@@ -760,240 +801,36 @@ function AdminUsersPageContent() {
         </p>
       ) : null}
 
-      <section className="section etr-panel admin-rbac-section admin-user-add-section">
-        <h2 className="admin-user-add-title">
-          {locale === "zh" ? "添加用户" : "Add user"}
-        </h2>
-        <form
-          className="admin-user-add-form"
-          autoComplete="off"
-          onSubmit={(e) => void createUser(e)}
-        >
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "用户名" : "Username"}</span>
-            <input
-              type="text"
-              name="admin-user-new-username"
-              value={newUsername}
-              disabled={creating}
-              placeholder={locale === "zh" ? "6–32 个字符" : "6–32 characters"}
-              autoComplete="off"
-              data-1p-ignore
-              data-lpignore="true"
-              onChange={(e) => setNewUsername(e.target.value)}
-            />
-          </label>
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "密码" : "Password"}</span>
-            <input
-              type="password"
-              name="admin-user-new-password"
-              value={newPassword}
-              disabled={creating}
-              placeholder={locale === "zh" ? "至少 6 位" : "Min 6 chars"}
-              autoComplete="new-password"
-              data-1p-ignore
-              data-lpignore="true"
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </label>
-          <label className="admin-user-add-field">
-            <span>{locale === "zh" ? "角色" : "Role"}</span>
-            <select
-              value={newRole}
-              disabled={creating}
-              onChange={(e) => setNewRole(e.target.value as "user" | "jp_vocab" | "en_vocab")}
-            >
-              <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
-              <option value="jp_vocab">
-                {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
-              </option>
-              <option value="en_vocab">
-                {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
-              </option>
-            </select>
-          </label>
-          <button
-            type="submit"
-            className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
-            disabled={creating || !newUsername.trim() || !newPassword}
-          >
-            {creating
-              ? locale === "zh"
-                ? "创建中…"
-                : "Creating…"
-              : locale === "zh"
-                ? "添加用户"
-                : "Add user"}
-          </button>
-        </form>
-        <p className="hint admin-user-add-hint">
-          {locale === "zh"
-            ? "教师角色密码建议至少 10 位。系统保留名 Admin、LiLaoshi、user1 不可重复创建。"
-            : "Teacher passwords should be at least 10 characters. Admin, LiLaoshi and user1 are reserved."}
-        </p>
-      </section>
-
-      <section className="section etr-panel admin-rbac-section admin-login-link-templates-section">
-        <h2 className="admin-user-add-title">
-          {locale === "zh" ? "登录链接文字模板" : "Login link message templates"}
-        </h2>
-        <p className="hint admin-login-link-templates-hint">
-          {locale === "zh"
-            ? "复制登录链接时可选择「仅链接」或「带模板复制」。每次生成都会作废该用户此前的登录链接与已登录状态，便于换人试用同一账号。模板正文会放在链接前面；也可在正文中写 {login_url} 指定链接位置。"
-            : "When copying a login link, choose plain URL or copy with template text before the link. Each new link invalidates that user's previous links and active sessions. Use {login_url} to place the link inline."}
-        </p>
-
-        {templates.length > 0 ? (
-          <label className="admin-login-link-template-select">
-            <span>{locale === "zh" ? "当前选用模板" : "Active template"}</span>
-            <select
-              value={selectedTemplateId ?? ""}
-              disabled={templatesLoading || templateSaving}
-              onChange={(e) => {
-                const id = Number(e.target.value);
-                setSelectedTemplateId(Number.isInteger(id) && id > 0 ? id : null);
-              }}
-            >
-              {templates.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-
-        {templatesLoading ? (
-          <p className="hint">{locale === "zh" ? "加载模板…" : "Loading templates…"}</p>
-        ) : templates.length === 0 ? (
-          <p className="hint">
-            {locale === "zh" ? "暂无模板，可在下方添加。" : "No templates yet. Add one below."}
-          </p>
-        ) : (
-          <div className="admin-login-link-templates-list">
-            {templates.map((template) => (
-              <div key={template.id} className="admin-login-link-template-card">
-                {editingTemplateId === template.id ? (
-                  <>
-                    <label className="admin-login-link-template-field">
-                      <span>{locale === "zh" ? "名称" : "Name"}</span>
-                      <input
-                        type="text"
-                        value={editTemplateName}
-                        disabled={templateSaving}
-                        onChange={(e) => setEditTemplateName(e.target.value)}
-                      />
-                    </label>
-                    <label className="admin-login-link-template-field">
-                      <span>{locale === "zh" ? "正文" : "Body"}</span>
-                      <textarea
-                        rows={4}
-                        value={editTemplateBody}
-                        disabled={templateSaving}
-                        onChange={(e) => setEditTemplateBody(e.target.value)}
-                      />
-                    </label>
-                    <div className="admin-login-link-template-actions">
-                      <button
-                        type="button"
-                        className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                        disabled={templateSaving || !editTemplateName.trim() || !editTemplateBody.trim()}
-                        onClick={() => void saveEditTemplate()}
-                      >
-                        {templateSaving
-                          ? locale === "zh"
-                            ? "保存中…"
-                            : "Saving…"
-                          : locale === "zh"
-                            ? "保存"
-                            : "Save"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-rsi-filter btn-rsi-filter--compact"
-                        disabled={templateSaving}
-                        onClick={cancelEditTemplate}
-                      >
-                        {locale === "zh" ? "取消" : "Cancel"}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="admin-login-link-template-head">
-                      <strong>{template.name}</strong>
-                      <div className="admin-login-link-template-actions">
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
-                          disabled={templateSaving}
-                          onClick={() => startEditTemplate(template)}
-                        >
-                          {locale === "zh" ? "编辑" : "Edit"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger admin-user-btn"
-                          disabled={templateSaving}
-                          onClick={() => void deleteTemplate(template)}
-                        >
-                          {locale === "zh" ? "删除" : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                    <pre className="admin-login-link-template-body">{template.body}</pre>
-                  </>
-                )}
-              </div>
-            ))}
+      <section className="section etr-panel admin-rbac-section admin-users-toolbar-section">
+        <div className="admin-users-toolbar">
+          <div className="admin-users-toolbar-title">
+            <h2 className="admin-user-add-title">{locale === "zh" ? "快捷操作" : "Quick actions"}</h2>
+            <p className="hint admin-users-toolbar-sub">
+              {selectedTemplate
+                ? locale === "zh"
+                  ? `当前模板：${selectedTemplate.name}`
+                  : `Active template: ${selectedTemplate.name}`
+                : locale === "zh"
+                  ? "当前模板：未选择（带模板复制将不可用）"
+                  : "Active template: none (copy with template disabled)"}
+            </p>
           </div>
-        )}
-
-        <div className="admin-login-link-template-add">
-          <h3 className="admin-login-link-template-add-title">
-            {locale === "zh" ? "添加模板" : "Add template"}
-          </h3>
-          <label className="admin-login-link-template-field">
-            <span>{locale === "zh" ? "名称" : "Name"}</span>
-            <input
-              type="text"
-              value={newTemplateName}
-              disabled={templateSaving}
-              placeholder={locale === "zh" ? "例如：日语课提醒" : "e.g. Japanese class reminder"}
-              onChange={(e) => setNewTemplateName(e.target.value)}
-            />
-          </label>
-          <label className="admin-login-link-template-field">
-            <span>{locale === "zh" ? "正文" : "Body"}</span>
-            <textarea
-              rows={4}
-              value={newTemplateBody}
-              disabled={templateSaving}
-              placeholder={
-                locale === "zh"
-                  ? "例如：老师请在上课前十几二十分钟，抽查前 20 个单词。"
-                  : "e.g. Please review the first 20 words 15–20 minutes before class."
-              }
-              onChange={(e) => setNewTemplateBody(e.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--primary"
-            disabled={
-              templateSaving || !newTemplateName.trim() || !newTemplateBody.trim()
-            }
-            onClick={() => void createTemplate()}
-          >
-            {templateSaving
-              ? locale === "zh"
-                ? "添加中…"
-                : "Adding…"
-              : locale === "zh"
-                ? "添加模板"
-                : "Add template"}
-          </button>
+          <div className="admin-users-toolbar-actions">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary"
+              onClick={() => setAddUserOpen(true)}
+            >
+              {locale === "zh" ? "添加用户" : "Add user"}
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={() => setTemplatesOpen(true)}
+            >
+              {locale === "zh" ? "管理登录模板" : "Manage templates"}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1076,7 +913,7 @@ function AdminUsersPageContent() {
                       <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
                       <td>{formatAdminDateTime(row.created_at)}</td>
                       <td>{formatAdminDateTime(row.last_login_at)}</td>
-                      <td>{formatIpForDisplay(row.last_login_ip)}</td>
+                      <td className="admin-user-ip">{formatIpForDisplay(row.last_login_ip)}</td>
                       <td>
                         {row.disabled
                           ? locale === "zh"
@@ -1226,7 +1063,413 @@ function AdminUsersPageContent() {
         onCredentialsStored={rememberAdminUserPassword}
       />
 
+      {mounted && addUserOpen
+        ? createPortal(
+            <div
+              className="admin-users-modal-overlay"
+              onMouseDown={(e) => closeModalOnBackdropMouseDown(e, () => setAddUserOpen(false))}
+            >
+              <div
+                className="admin-users-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-users-add-title"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="admin-users-modal-header">
+                  <div>
+                    <h2 id="admin-users-add-title" className="admin-users-modal-title">
+                      {locale === "zh" ? "添加用户" : "Add user"}
+                    </h2>
+                    <p className="admin-users-modal-subtitle">
+                      {locale === "zh"
+                        ? "新增用户名、密码与角色。"
+                        : "Create a new account with username, password, and role."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-users-modal-close"
+                    aria-label={locale === "zh" ? "关闭" : "Close"}
+                    onClick={() => setAddUserOpen(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form
+                  className="admin-users-modal-body admin-user-add-form"
+                  autoComplete="off"
+                  onSubmit={(e) => void createUser(e)}
+                >
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "用户名" : "Username"}</span>
+                    <input
+                      type="text"
+                      name="admin-user-new-username"
+                      value={newUsername}
+                      disabled={creating}
+                      placeholder={locale === "zh" ? "6–32 个字符" : "6–32 characters"}
+                      autoComplete="off"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      onChange={(e) => setNewUsername(e.target.value)}
+                    />
+                  </label>
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "密码" : "Password"}</span>
+                    <input
+                      type="password"
+                      name="admin-user-new-password"
+                      value={newPassword}
+                      disabled={creating}
+                      placeholder={locale === "zh" ? "至少 6 位" : "Min 6 chars"}
+                      autoComplete="new-password"
+                      data-1p-ignore
+                      data-lpignore="true"
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                  </label>
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "角色" : "Role"}</span>
+                    <select
+                      value={newRole}
+                      disabled={creating}
+                      onChange={(e) =>
+                        setNewRole(e.target.value as "user" | "jp_vocab" | "en_vocab")
+                      }
+                    >
+                      <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
+                      <option value="jp_vocab">
+                        {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
+                      </option>
+                      <option value="en_vocab">
+                        {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
+                      </option>
+                    </select>
+                  </label>
+                  <div className="admin-users-modal-footer">
+                    <p className="hint admin-user-add-hint" style={{ margin: 0 }}>
+                      {locale === "zh"
+                        ? "教师角色密码建议至少 10 位。系统保留名 Admin、LiLaoshi、user1 不可重复创建。"
+                        : "Teacher passwords should be at least 10 characters. Admin, LiLaoshi and user1 are reserved."}
+                    </p>
+                    <button
+                      type="submit"
+                      className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
+                      disabled={creating || !newUsername.trim() || !newPassword}
+                    >
+                      {creating
+                        ? locale === "zh"
+                          ? "创建中…"
+                          : "Creating…"
+                        : locale === "zh"
+                          ? "添加用户"
+                          : "Add user"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
+      {mounted && templatesOpen
+        ? createPortal(
+            <div
+              className="admin-users-modal-overlay"
+              onMouseDown={(e) =>
+                closeModalOnBackdropMouseDown(e, () => {
+                  setTemplatesOpen(false);
+                  cancelEditTemplate();
+                })
+              }
+            >
+              <div
+                className="admin-users-modal admin-users-modal--wide"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="admin-users-templates-title"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="admin-users-modal-header">
+                  <div>
+                    <h2 id="admin-users-templates-title" className="admin-users-modal-title">
+                      {locale === "zh" ? "登录链接文字模板" : "Login link templates"}
+                    </h2>
+                    <p className="admin-users-modal-subtitle">
+                      {locale === "zh"
+                        ? "这里管理模板；列表操作里「带模板复制」会使用当前选用模板。"
+                        : "Manage templates here. 'Copy with template' uses the active template."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-users-modal-close"
+                    aria-label={locale === "zh" ? "关闭" : "Close"}
+                    onClick={() => {
+                      setTemplatesOpen(false);
+                      cancelEditTemplate();
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="admin-users-modal-body admin-users-templates-body">
+                  <p className="hint admin-login-link-templates-hint" style={{ marginTop: 0 }}>
+                    {locale === "zh"
+                      ? "复制登录链接时可选择「仅链接」或「带模板复制」。每次生成都会作废该用户此前的登录链接与已登录状态。正文会放在链接前面；也可写 {login_url} 指定链接位置。"
+                      : "Copy plain URL or copy with template text. Each new link invalidates previous links/sessions. Use {login_url} to place the link inline."}
+                  </p>
+
+                  {templates.length > 0 ? (
+                    <label className="admin-login-link-template-select">
+                      <span>{locale === "zh" ? "当前选用模板" : "Active template"}</span>
+                      <select
+                        value={selectedTemplateId ?? ""}
+                        disabled={templatesLoading || templateSaving}
+                        onChange={(e) => {
+                          const id = Number(e.target.value);
+                          setSelectedTemplateId(Number.isInteger(id) && id > 0 ? id : null);
+                        }}
+                      >
+                        {templates.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  {templatesLoading ? (
+                    <p className="hint">{locale === "zh" ? "加载模板…" : "Loading templates…"}</p>
+                  ) : templates.length === 0 ? (
+                    <p className="hint">
+                      {locale === "zh" ? "暂无模板，可在下方添加。" : "No templates yet. Add one below."}
+                    </p>
+                  ) : (
+                    <div className="admin-login-link-templates-list">
+                      {templates.map((template) => (
+                        <div key={template.id} className="admin-login-link-template-card">
+                          {editingTemplateId === template.id ? (
+                            <>
+                              <label className="admin-login-link-template-field">
+                                <span>{locale === "zh" ? "名称" : "Name"}</span>
+                                <input
+                                  type="text"
+                                  value={editTemplateName}
+                                  disabled={templateSaving}
+                                  onChange={(e) => setEditTemplateName(e.target.value)}
+                                />
+                              </label>
+                              <label className="admin-login-link-template-field">
+                                <span>{locale === "zh" ? "正文" : "Body"}</span>
+                                <textarea
+                                  rows={4}
+                                  value={editTemplateBody}
+                                  disabled={templateSaving}
+                                  onChange={(e) => setEditTemplateBody(e.target.value)}
+                                />
+                              </label>
+                              <div className="admin-login-link-template-actions">
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+                                  disabled={
+                                    templateSaving ||
+                                    !editTemplateName.trim() ||
+                                    !editTemplateBody.trim()
+                                  }
+                                  onClick={() => void saveEditTemplate()}
+                                >
+                                  {templateSaving
+                                    ? locale === "zh"
+                                      ? "保存中…"
+                                      : "Saving…"
+                                    : locale === "zh"
+                                      ? "保存"
+                                      : "Save"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact"
+                                  disabled={templateSaving}
+                                  onClick={cancelEditTemplate}
+                                >
+                                  {locale === "zh" ? "取消" : "Cancel"}
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="admin-login-link-template-head">
+                                <strong>{template.name}</strong>
+                                <div className="admin-login-link-template-actions">
+                                  <button
+                                    type="button"
+                                    className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+                                    disabled={templateSaving}
+                                    onClick={() => startEditTemplate(template)}
+                                  >
+                                    {locale === "zh" ? "编辑" : "Edit"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger admin-user-btn"
+                                    disabled={templateSaving}
+                                    onClick={() => void deleteTemplate(template)}
+                                  >
+                                    {locale === "zh" ? "删除" : "Delete"}
+                                  </button>
+                                </div>
+                              </div>
+                              <pre className="admin-login-link-template-body">{template.body}</pre>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="admin-login-link-template-add">
+                    <h3 className="admin-login-link-template-add-title">
+                      {locale === "zh" ? "添加模板" : "Add template"}
+                    </h3>
+                    <label className="admin-login-link-template-field">
+                      <span>{locale === "zh" ? "名称" : "Name"}</span>
+                      <input
+                        type="text"
+                        value={newTemplateName}
+                        disabled={templateSaving}
+                        placeholder={locale === "zh" ? "例如：日语课提醒" : "e.g. Japanese class reminder"}
+                        onChange={(e) => setNewTemplateName(e.target.value)}
+                      />
+                    </label>
+                    <label className="admin-login-link-template-field">
+                      <span>{locale === "zh" ? "正文" : "Body"}</span>
+                      <textarea
+                        rows={4}
+                        value={newTemplateBody}
+                        disabled={templateSaving}
+                        placeholder={
+                          locale === "zh"
+                            ? "例如：老师请在上课前十几二十分钟，抽查前 20 个单词。"
+                            : "e.g. Please review the first 20 words 15–20 minutes before class."
+                        }
+                        onChange={(e) => setNewTemplateBody(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-rsi-filter btn-rsi-filter--primary"
+                      disabled={templateSaving || !newTemplateName.trim() || !newTemplateBody.trim()}
+                      onClick={() => void createTemplate()}
+                    >
+                      {templateSaving
+                        ? locale === "zh"
+                          ? "添加中…"
+                          : "Adding…"
+                        : locale === "zh"
+                          ? "添加模板"
+                          : "Add template"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
       <style jsx>{`
+        .admin-users-toolbar {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+        .admin-users-toolbar-actions {
+          display: flex;
+          gap: 0.6rem;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        .admin-users-toolbar-sub {
+          margin: 0.25rem 0 0;
+        }
+        .admin-users-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.25rem;
+          z-index: 80;
+        }
+        .admin-users-modal {
+          width: min(720px, 100%);
+          max-height: min(84vh, 860px);
+          overflow: auto;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+        }
+        .admin-users-modal--wide {
+          width: min(920px, 100%);
+        }
+        .admin-users-modal-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 1rem 1.1rem 0.75rem;
+          border-bottom: 1px solid var(--border);
+          background: rgba(0, 0, 0, 0.08);
+        }
+        .admin-users-modal-title {
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 650;
+        }
+        .admin-users-modal-subtitle {
+          margin: 0.35rem 0 0;
+          font-size: 0.85rem;
+          color: var(--muted);
+          line-height: 1.35;
+        }
+        .admin-users-modal-close {
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--muted);
+          border-radius: 10px;
+          width: 2.25rem;
+          height: 2.25rem;
+          font-size: 1.35rem;
+          line-height: 1;
+          cursor: pointer;
+          flex: 0 0 auto;
+        }
+        .admin-users-modal-body {
+          padding: 1rem 1.1rem 1.1rem;
+        }
+        .admin-users-modal-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          margin-top: 0.9rem;
+          flex-wrap: wrap;
+        }
+        .admin-users-templates-body .admin-login-link-template-select {
+          max-width: 24rem;
+        }
         .admin-user-add-section {
           margin-bottom: 1.25rem;
         }
@@ -1283,12 +1526,15 @@ function AdminUsersPageContent() {
           border: 1px solid var(--border);
           padding: 0.55rem 0.65rem;
           vertical-align: middle;
+        }
+        .admin-rbac-table td {
           text-align: left;
         }
         .admin-rbac-table th {
           background: var(--panel);
           font-weight: 600;
           white-space: nowrap;
+          text-align: center;
         }
         .admin-user-sort-btn {
           border: 0;
@@ -1299,6 +1545,22 @@ function AdminUsersPageContent() {
           padding: 0;
           cursor: pointer;
           white-space: nowrap;
+          width: 100%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.25rem;
+        }
+        .admin-user-ip {
+          max-width: 240px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.2;
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+          overflow: hidden;
         }
         .admin-rbac-table tbody tr:nth-child(even) {
           background: rgba(255, 255, 255, 0.02);
