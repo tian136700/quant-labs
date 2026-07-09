@@ -111,8 +111,9 @@ scripts/com.infoquests.git-auto-push.plist*
 .git-auto-push-state.json
 .publish-console.job.lock
 
-# 部署中心（本地 17823 控制台 + SQLite 日志，勿提交）
+# 部署中心（本地 17823 控制台 + SQLite 日志 + 定时备份工具，整目录勿提交）
 scripts/deploy_center/
+scripts/deploy_center/**
 
 # 趋势博客离线生成（非线上运行时，勿提交）
 trend_aggregator/
@@ -124,8 +125,6 @@ scripts/import-trends-json.py
 scripts/backfill-visit-geo.py
 
 # auto-ignore-local begin
-scripts/d1-backup-install.sh
-scripts/d1-backup-uninstall.sh
 scripts/deploy_center/
 scripts/deploy_center/__init__.py
 scripts/deploy_center/auto_menu.py
