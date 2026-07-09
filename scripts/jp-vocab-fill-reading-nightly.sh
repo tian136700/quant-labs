@@ -25,6 +25,7 @@ fi
 
 JISHO="${JP_VOCAB_FILL_READING_JISHO:-1}"
 JISHO_DELAY_MS="${JP_VOCAB_FILL_READING_JISHO_DELAY_MS:-350}"
+PYTHON_BIN="${JP_VOCAB_FILL_READING_PYTHON:-python3}"
 
 ARGS=(--allow-skipped)
 if [[ "$JISHO" == "0" || "$JISHO" == "false" || "$JISHO" == "no" ]]; then
@@ -41,7 +42,12 @@ fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 cd "$ROOT"
-if python3 "$ROOT/scripts/jp-vocab-fill-reading-api.py" "${ARGS[@]}"; then
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "$(date '+%F %T') nightly: python not found: $PYTHON_BIN" >&2
+  exit 1
+fi
+
+if "$PYTHON_BIN" "$ROOT/scripts/jp-vocab-fill-reading-api.py" "${ARGS[@]}"; then
   date +%s > "$STATE_FILE"
   echo "$(date '+%F %T') nightly: done via API, state updated"
 else
