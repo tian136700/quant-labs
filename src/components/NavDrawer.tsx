@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LangSwitch } from "@/components/LangSwitch";
 import { SiteAuthBar } from "@/components/SiteAuthBar";
@@ -36,14 +36,14 @@ function NavDrawerLink({
   item,
   isFavorite,
   onToggleFavorite,
-  onNavigate,
+  onCloseIfActive,
   favoriteAddLabel,
   favoriteRemoveLabel,
 }: {
   item: SiteNavItem;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
-  onNavigate: () => void;
+  onCloseIfActive: () => void;
   favoriteAddLabel: string;
   favoriteRemoveLabel: string;
 }) {
@@ -53,7 +53,7 @@ function NavDrawerLink({
         href={item.href}
         className={`nav-drawer-link${item.active ? " is-active" : ""}`}
         aria-current={item.active ? "page" : undefined}
-        onClick={onNavigate}
+        onClick={item.active ? onCloseIfActive : undefined}
       >
         <span className="nav-drawer-link-label">{item.label}</span>
       </Link>
@@ -78,7 +78,7 @@ function NavDrawerSection({
   items,
   favorites,
   onToggleFavorite,
-  onNavigate,
+  onCloseIfActive,
   favoriteAddLabel,
   favoriteRemoveLabel,
 }: {
@@ -86,7 +86,7 @@ function NavDrawerSection({
   items: SiteNavItem[];
   favorites: Set<string>;
   onToggleFavorite: (id: string) => void;
-  onNavigate: (item: SiteNavItem) => void;
+  onCloseIfActive: () => void;
   favoriteAddLabel: string;
   favoriteRemoveLabel: string;
 }) {
@@ -102,7 +102,7 @@ function NavDrawerSection({
             item={item}
             isFavorite={favorites.has(item.id)}
             onToggleFavorite={onToggleFavorite}
-            onNavigate={() => onNavigate(item)}
+            onCloseIfActive={onCloseIfActive}
             favoriteAddLabel={favoriteAddLabel}
             favoriteRemoveLabel={favoriteRemoveLabel}
           />
@@ -146,10 +146,15 @@ export function NavDrawer({
     }
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const timer = window.setTimeout(() => searchRef.current?.focus(), 120);
+    const canAutoFocus =
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const timer = canAutoFocus
+      ? window.setTimeout(() => searchRef.current?.focus(), 120)
+      : undefined;
     return () => {
       document.body.style.overflow = prev;
-      window.clearTimeout(timer);
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [open]);
 
@@ -220,14 +225,6 @@ export function NavDrawer({
     return groups;
   }, [filteredItems, pinnedIds, visitCounts]);
 
-  const handleNavigate = useCallback(
-    (item: SiteNavItem) => {
-      recordVisit(item.id);
-      onClose();
-    },
-    [onClose, recordVisit]
-  );
-
   return (
     <>
       <button
@@ -282,7 +279,7 @@ export function NavDrawer({
               items={favoriteItems}
               favorites={favoritesSet}
               onToggleFavorite={toggleFavorite}
-              onNavigate={handleNavigate}
+              onCloseIfActive={onClose}
               favoriteAddLabel={nav.favoriteAdd}
               favoriteRemoveLabel={nav.favoriteRemove}
             />
@@ -294,7 +291,7 @@ export function NavDrawer({
               items={recentItems}
               favorites={favoritesSet}
               onToggleFavorite={toggleFavorite}
-              onNavigate={handleNavigate}
+              onCloseIfActive={onClose}
               favoriteAddLabel={nav.favoriteAdd}
               favoriteRemoveLabel={nav.favoriteRemove}
             />
@@ -307,7 +304,7 @@ export function NavDrawer({
                 items={filteredItems}
                 favorites={favoritesSet}
                 onToggleFavorite={toggleFavorite}
-                onNavigate={handleNavigate}
+                onCloseIfActive={onClose}
                 favoriteAddLabel={nav.favoriteAdd}
                 favoriteRemoveLabel={nav.favoriteRemove}
               />
@@ -327,7 +324,7 @@ export function NavDrawer({
                   items={catItems}
                   favorites={favoritesSet}
                   onToggleFavorite={toggleFavorite}
-                  onNavigate={handleNavigate}
+                  onCloseIfActive={onClose}
                   favoriteAddLabel={nav.favoriteAdd}
                   favoriteRemoveLabel={nav.favoriteRemove}
                 />

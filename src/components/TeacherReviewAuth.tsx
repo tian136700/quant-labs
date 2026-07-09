@@ -209,7 +209,7 @@ export function TeacherReviewAuth({
           <h2>{title ?? (mode === "login" ? auth.loginTab : auth.registerTab)}</h2>
           <button
             type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact"
+            className="etr-auth-close"
             onClick={onClose}
             aria-label={auth.close}
           >

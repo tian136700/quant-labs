@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { TeacherReviewAuth } from "./TeacherReviewAuth";
@@ -17,8 +19,37 @@ export function SiteAuthBar() {
   } = useEtrAuth();
   const { locale, t } = useI18n();
   const auth = t("teacherReview").auth;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   if (maintenance) return null;
+
+  const authOverlay =
+    authPanel && !user ? (
+      <div className="site-auth-overlay" onClick={closeAuthPanel}>
+        <div
+          className="site-auth-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label={authPanel.mode === "register" ? auth.registerTab : auth.loginTab}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <TeacherReviewAuth
+            variant="inline"
+            initialMode={authPanel.mode}
+            loginOnly={authPanel.loginOnly}
+            title={authPanel.title}
+            subtitle={authPanel.subtitle}
+            onClose={closeAuthPanel}
+            onAuthenticated={(next) => {
+              setUser(next);
+              closeAuthPanel();
+            }}
+          />
+        </div>
+      </div>
+    ) : null;
 
   return (
     <>
@@ -47,29 +78,7 @@ export function SiteAuthBar() {
         )}
       </div>
 
-      {authPanel && !user ? (
-        <div className="site-auth-overlay">
-          <div
-            className="site-auth-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label={authPanel.mode === "register" ? auth.registerTab : auth.loginTab}
-          >
-            <TeacherReviewAuth
-              variant="inline"
-              initialMode={authPanel.mode}
-              loginOnly={authPanel.loginOnly}
-              title={authPanel.title}
-              subtitle={authPanel.subtitle}
-              onClose={closeAuthPanel}
-              onAuthenticated={(next) => {
-                setUser(next);
-                closeAuthPanel();
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
+      {mounted && authOverlay ? createPortal(authOverlay, document.body) : null}
     </>
   );
 }

@@ -104,7 +104,7 @@ body {
 .site-auth-overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 90;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -114,6 +114,18 @@ body {
 
 .site-auth-dialog {
   width: min(100%, 28rem);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.site-auth-dialog .etr-auth-panel--inline {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 @screen md {
@@ -410,6 +422,7 @@ body {
   font-size: 0.875rem;
   line-height: 1.35;
   text-decoration: none;
+  touch-action: manipulation;
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -446,6 +459,7 @@ body {
   line-height: 1;
   cursor: pointer;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s ease, background 0.15s ease;
 }
 
@@ -455,7 +469,14 @@ body {
 }
 
 .nav-drawer-fav.is-fav {
+  pointer-events: auto;
   color: #f5c542;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav-drawer-item:hover .nav-drawer-fav {
+    pointer-events: auto;
+  }
 }
 
 .nav-drawer-fav:hover {
@@ -1455,6 +1476,27 @@ textarea:focus {
 .etr-auth-inline-head h2 {
   @apply text-muted font-semibold m-0;
   font-size: clamp(0.875rem, 1.2vw + 0.5rem, 1rem);
+}
+
+.etr-auth-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.etr-auth-close:hover {
+  background: color-mix(in srgb, var(--bg) 65%, var(--panel));
 }
 
 .etr-demo-banner {
