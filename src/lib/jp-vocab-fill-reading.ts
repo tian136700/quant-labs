@@ -44,6 +44,7 @@ const KANA_OR_MARK = /^[\u3040-\u309F\u30A0-\u30FFー～〜/\s]+$/;
 const HAS_KANJI = /[\u4E00-\u9FFF]/;
 const PARENS_NOTE = /^(.+?)[（(][^）)]+[）)]$/;
 const DA_ADJ_SUFFIX = /^(.+)だ$/;
+const SURU_VERB_SUFFIX = /^(.+)する$/;
 const SKIP_PHRASE = /(します|ください|てください|お願い)/;
 const MAX_AUTO_READING_CHARS = 9;
 
@@ -188,20 +189,28 @@ export async function inferJpVocabReading(
   const { lookup, suffix, skipReason } = analyzeWord(word);
   if (skipReason) return { reading: null, skipReason, jishoError: false };
 
+  let lookupWord = lookup;
+  let suruSuffix = "";
+  const suruMatch = SURU_VERB_SUFFIX.exec(lookup);
+  if (suruMatch && HAS_KANJI.test(suruMatch[1])) {
+    lookupWord = suruMatch[1].trim();
+    suruSuffix = "する";
+  }
+
   if (word in JP_VOCAB_MANUAL_READINGS) {
     return { reading: JP_VOCAB_MANUAL_READINGS[word], skipReason: null, jishoError: false };
   }
   if (lookup in JP_VOCAB_MANUAL_READINGS) {
     return {
-      reading: attachReadingSuffix(JP_VOCAB_MANUAL_READINGS[lookup], suffix),
+      reading: attachReadingSuffix(JP_VOCAB_MANUAL_READINGS[lookup], suffix) + suruSuffix,
       skipReason: null,
       jishoError: false,
     };
   }
 
-  if (KANA_OR_MARK.test(lookup)) {
+  if (KANA_OR_MARK.test(lookupWord)) {
     return {
-      reading: attachReadingSuffix(lookup, suffix),
+      reading: attachReadingSuffix(lookupWord, suffix) + suruSuffix,
       skipReason: null,
       jishoError: false,
     };
@@ -209,9 +218,9 @@ export async function inferJpVocabReading(
 
   let reading: string | null = null;
   let jishoError = false;
-  if (HAS_KANJI.test(lookup)) {
+  if (HAS_KANJI.test(lookupWord)) {
     if (useJisho) {
-      const result = await lookupJisho(lookup, jishoCache, jishoDelayMs);
+      const result = await lookupJisho(lookupWord, jishoCache, jishoDelayMs);
       reading = result.reading;
       jishoError = result.hadError;
     }
@@ -221,7 +230,7 @@ export async function inferJpVocabReading(
 
   if (!reading) return { reading: null, skipReason: null, jishoError };
   return {
-    reading: attachReadingSuffix(reading, suffix),
+    reading: attachReadingSuffix(reading, suffix) + suruSuffix,
     skipReason: null,
     jishoError,
   };
