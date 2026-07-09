@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import sys
+import ssl
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -44,6 +45,24 @@ def resolve_token(review_cfg: dict[str, str]) -> str:
     ).strip()
 
 
+def build_ssl_context() -> ssl.SSLContext | None:
+    """
+    Python on macOS (especially python.org builds) can occasionally miss system root CAs.
+    Prefer certifi's CA bundle if available; otherwise fall back to default behavior.
+    """
+    cafile = os.environ.get("SSL_CERT_FILE", "").strip()
+    capath = os.environ.get("SSL_CERT_DIR", "").strip()
+    if cafile or capath:
+        return ssl.create_default_context(cafile=cafile or None, capath=capath or None)
+
+    try:
+        import certifi  # type: ignore
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
+
+
 def call_api(
     *,
     api_url: str,
@@ -75,7 +94,8 @@ def call_api(
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=300) as response:
+        context = build_ssl_context()
+        with urllib.request.urlopen(request, timeout=300, context=context) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         detail = err.read().decode("utf-8", errors="replace")
@@ -189,7 +209,7 @@ def main() -> int:
 
     jisho_errors = int(payload.get("jisho_errors") or 0)
     skipped = payload.get("skipped") or []
-    if jisho_errors:
+    if jisho_errors and not args.allow_skipped:
         return 1
     if skipped and not args.allow_skipped:
         return 1
