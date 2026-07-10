@@ -140,8 +140,11 @@ const SHOW_REMARKS_COLUMN = true;
 /** 暂时隐藏「随机高亮」按钮 */
 const SHOW_RANDOM_HIGHLIGHT = false;
 
+/** 暂时隐藏「抽查排行」图表 */
+const SHOW_RISK_CHART = false;
+
 /** 单词表每页条数 */
-const JP_VOCAB_PAGE_SIZE = 40;
+const JP_VOCAB_PAGE_SIZE = 20;
 
 /** 「发给学生」预估传输时长（进度条 0→100%） */
 const JP_VOCAB_SHARE_DURATION_MS = 5000;
@@ -673,12 +676,28 @@ export function JpVocabPage() {
   );
 
   const searchActive = searchQuery.trim().length > 0;
-  const searchBaseWords = displayedWords;
+  /** 搜索始终针对全库（displayedWords），老师端再在结果里隐藏不可操作行 */
+  const hideInoperableRows = canOperate && !isAdmin;
 
-  const filteredDisplayedWords = useMemo(
-    () => filterJpVocabWordsBySearch(searchBaseWords, searchQuery, kindFilter),
-    [searchBaseWords, searchQuery, kindFilter]
+  const searchMatchedWords = useMemo(
+    () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
+    [displayedWords, searchQuery, kindFilter]
   );
+
+  const filteredDisplayedWords = useMemo(() => {
+    if (!hideInoperableRows) return searchMatchedWords;
+    return searchMatchedWords.filter(
+      (w) =>
+        isWordInQuizTarget(w.id) &&
+        !isWordReviewLocked(w, sessionReviewAt[w.id])
+    );
+  }, [
+    hideInoperableRows,
+    searchMatchedWords,
+    isWordInQuizTarget,
+    isWordReviewLocked,
+    sessionReviewAt,
+  ]);
 
   const totalPages = Math.max(
     1,
@@ -759,14 +778,23 @@ export function JpVocabPage() {
     dailyQuizProgress.total,
   ]);
 
-  const unmarkedCount = useMemo(
-    () =>
-      quizTargetWords.filter(
-        (w) =>
-          !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
-      ).length,
-    [quizTargetWords, sessionLevel, displayOrder]
-  );
+  const unmarkedCount = useMemo(() => {
+    const pool = hideInoperableRows
+      ? quizTargetWords.filter(
+          (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
+        )
+      : quizTargetWords;
+    return pool.filter(
+      (w) => !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
+    ).length;
+  }, [
+    hideInoperableRows,
+    quizTargetWords,
+    sessionLevel,
+    displayOrder,
+    sessionReviewAt,
+    isWordReviewLocked,
+  ]);
 
   const todayCheckStats = useMemo(
     () => jpVocabTodayCheckStats(words),
@@ -1181,7 +1209,12 @@ export function JpVocabPage() {
   };
 
   const pickNext = () => {
-    const next = pickRandomWord(quizTargetWords, highlightId ?? undefined);
+    const pool = hideInoperableRows
+      ? quizTargetWords.filter(
+          (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
+        )
+      : quizTargetWords;
+    const next = pickRandomWord(pool, highlightId ?? undefined);
     if (!next) return;
     const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
     if (idx >= 0) {
@@ -1457,6 +1490,7 @@ export function JpVocabPage() {
                 {exporting ? "导出中…" : "导出 Excel"}
               </button>
             ) : null}
+            {SHOW_RISK_CHART ? (
             <button
               type="button"
               className="btn-rsi-filter"
@@ -1466,6 +1500,7 @@ export function JpVocabPage() {
             >
               抽查排行
             </button>
+            ) : null}
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
@@ -1581,14 +1616,16 @@ export function JpVocabPage() {
                     清除
                   </button>
                   <span className="jp-vocab-search__meta">
-                    匹配 {filteredDisplayedWords.length} / {searchBaseWords.length} 条
+                    匹配 {filteredDisplayedWords.length} / {searchMatchedWords.length} 条
                   </span>
                 </>
               ) : null}
             </div>
             {filterActive && !filteredDisplayedWords.length ? (
               <p className="jp-vocab-search__empty">
-                {searchActive
+                {searchActive && searchMatchedWords.length > 0 && hideInoperableRows
+                  ? `全库有匹配「${searchQuery.trim()}」的词条，但超出今日可抽查序号或已满 1 小时不可改，老师端不显示。`
+                  : searchActive
                   ? `没有匹配「${searchQuery.trim()}」的词条，请换个关键词试试。`
                   : kindFilter === "grammar"
                     ? "当前没有语法条目。"
@@ -1596,7 +1633,6 @@ export function JpVocabPage() {
               </p>
             ) : filteredDisplayedWords.length ? (
           <>
-            {renderPaginationNav()}
           <div className="jp-vocab-table-wrap">
             <p className="jp-vocab-scroll-hint" aria-hidden="true">
               表格较宽时可左右滑动查看
@@ -2173,11 +2209,13 @@ export function JpVocabPage() {
         onAdded={handleWordAdded}
       />
 
+      {SHOW_RISK_CHART ? (
       <JpVocabRiskChartModal
         open={showRiskChart}
         words={quizTargetWords}
         onClose={() => setShowRiskChart(false)}
       />
+      ) : null}
 
       {user ? (
         <JpVocabDailyQuizIntroModal
