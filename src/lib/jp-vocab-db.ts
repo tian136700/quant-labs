@@ -45,14 +45,13 @@ import {
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   applyJpVocabQuizTargetVisiblePlan,
-  computeJpVocabStickyVisibleIds,
-  inferJpVocabStickyVisibleIds,
   materializeJpVocabTeacherVisibleLimit,
   normalizeJpVocabTeacherVisibleLimit,
   shouldMaterializeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
+import { formatReviewIso } from "@/lib/jp-vocab-review";
 import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
@@ -1752,32 +1751,10 @@ export async function ensureJpVocabTeacherVisibleLimit(
   db: D1Database,
   ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
 ): Promise<JpVocabTeacherVisibleLimit> {
-  let current = await getJpVocabTeacherVisibleLimit(db);
+  const current = await getJpVocabTeacherVisibleLimit(db);
   const words = ctx?.words ?? (await listJpVocabWords(db));
   const displayOrder =
     ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));
-
-  if (
-    !current.sticky_visible_ids?.length &&
-    current.visible_ids?.length &&
-    current.hide_checked_today !== false
-  ) {
-    const inferred = inferJpVocabStickyVisibleIds(
-      current,
-      displayOrder,
-      words
-    );
-    if (inferred.sticky.length) {
-      current = await saveJpVocabTeacherVisibleLimit(db, {
-        ...current,
-        sticky_visible_ids: inferred.sticky,
-        quiz_target_base_checked: inferred.base_checked,
-        quiz_target_adjusted_at:
-          current.quiz_target_adjusted_at ?? new Date().toISOString(),
-      });
-    }
-  }
-
   if (
     !shouldMaterializeJpVocabTeacherVisibleLimit(current, {
       displayOrder,
@@ -1796,32 +1773,17 @@ export async function ensureJpVocabTeacherVisibleLimit(
   }
   return saveJpVocabTeacherVisibleLimit(db, {
     ...materialized,
-    sticky_visible_ids: current.sticky_visible_ids,
     quiz_target_adjusted_at: current.quiz_target_adjusted_at,
-    quiz_target_base_checked: current.quiz_target_base_checked,
   });
 }
 
-function withJpVocabTargetAdjustmentSticky(
-  previous: JpVocabTeacherVisibleLimit,
+function withJpVocabTargetAdjustmentMarker(
   materialized: JpVocabTeacherVisibleLimit,
-  words: JpVocabWord[],
   now = new Date()
 ): JpVocabTeacherVisibleLimit {
-  const sticky_visible_ids = computeJpVocabStickyVisibleIds(
-    previous.visible_ids ?? [],
-    materialized.visible_ids ?? []
-  );
-  const quiz_target_base_checked = jpVocabTodayCheckStats(words, now).wordCount;
   return {
     ...materialized,
-    sticky_visible_ids: sticky_visible_ids.length
-      ? sticky_visible_ids
-      : previous.sticky_visible_ids,
-    quiz_target_base_checked: sticky_visible_ids.length
-      ? quiz_target_base_checked
-      : previous.quiz_target_base_checked,
-    quiz_target_adjusted_at: now.toISOString(),
+    quiz_target_adjusted_at: formatReviewIso(now),
   };
 }
 
@@ -1887,16 +1849,16 @@ export async function expandJpVocabTeacherVisibleLimit(
   if (materialized.visible_ids.length < newTotal) {
     return saveJpVocabTeacherVisibleLimit(
       db,
-      withJpVocabTargetAdjustmentSticky(current, {
+      withJpVocabTargetAdjustmentMarker({
         ...materialized,
         release_count: materialized.visible_ids.length,
-      }, words)
+      })
     );
   }
 
   return saveJpVocabTeacherVisibleLimit(
     db,
-    withJpVocabTargetAdjustmentSticky(current, materialized, words)
+    withJpVocabTargetAdjustmentMarker(materialized)
   );
 }
 
@@ -1928,7 +1890,7 @@ export async function setJpVocabDailyQuizTarget(
 
   return saveJpVocabTeacherVisibleLimit(
     db,
-    withJpVocabTargetAdjustmentSticky(current, materialized, words)
+    withJpVocabTargetAdjustmentMarker(materialized)
   );
 }
 
@@ -1947,9 +1909,7 @@ export async function resetJpVocabTeacherVisibleLimit(
     hide_checked_today: true,
     excluded_batch_ids: [],
     visible_ids: undefined,
-    sticky_visible_ids: undefined,
     quiz_target_adjusted_at: undefined,
-    quiz_target_base_checked: undefined,
   });
 }
 

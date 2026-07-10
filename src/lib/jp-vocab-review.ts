@@ -7,6 +7,7 @@ import {
   isJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
+import { parseBeijingDateTime } from "@/lib/jp-lesson-shared";
 
 const JP_VOCAB_LEVELS: JpVocabLevel[] = ["very", "normal", "weak"];
 
@@ -48,6 +49,10 @@ export function effectiveJpVocabDisplayLevel(
 
 export function reviewTimestampMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
+  if (!iso.includes("T")) {
+    const beijing = parseBeijingDateTime(iso);
+    if (beijing) return beijing.getTime();
+  }
   const normalized = iso.includes("T") ? iso : iso.replace(" ", "T");
   const ms = Date.parse(normalized);
   return Number.isFinite(ms) ? ms : null;
