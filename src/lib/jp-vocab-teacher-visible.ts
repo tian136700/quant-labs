@@ -1,6 +1,7 @@
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import { buildJpVocabDailySeqMap } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
+import { JP_VOCAB_DAILY_QUIZ_TOP } from "@/lib/jp-vocab-daily-quiz-progress";
 import type { JpVocabWord } from "@/lib/types";
 
 /** 非管理员老师默认仅可见当日序号 1–20 */
@@ -16,7 +17,17 @@ export type JpVocabTeacherVisibleLimit = {
   limit: number;
   /** 当前老师可见的条数（本批窗口大小） */
   count: number;
+  /** 管理员设置的当日抽查目标数量 */
+  quiz_target: number;
 };
+
+function normalizeQuizTarget(raw: unknown): number {
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed >= 1) {
+    return Math.min(Math.floor(parsed), 999);
+  }
+  return JP_VOCAB_DAILY_QUIZ_TOP;
+}
 
 function normalizeVisibleCount(
   rawCount: unknown,
@@ -39,13 +50,20 @@ export function normalizeJpVocabTeacherVisibleLimit(
     Number.isFinite(parsedLimit) && parsedLimit >= JP_VOCAB_TEACHER_VISIBLE_DEFAULT
       ? Math.floor(parsedLimit)
       : JP_VOCAB_TEACHER_VISIBLE_DEFAULT;
+  const quiz_target = normalizeQuizTarget(raw?.quiz_target);
   if (raw?.date === today) {
-    return { date: today, limit, count: normalizeVisibleCount(raw?.count, limit) };
+    return {
+      date: today,
+      limit,
+      count: normalizeVisibleCount(raw?.count, limit),
+      quiz_target,
+    };
   }
   return {
     date: today,
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    quiz_target,
   };
 }
 

@@ -10,6 +10,7 @@ import {
   resetAllJpVocabReviews,
   resetTodayJpVocabRound,
   setJpVocabDailyQuizStyle,
+  setJpVocabDailyQuizTarget,
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -92,6 +93,22 @@ export async function POST(request: Request) {
       const teacher_visible_limit = await expandJpVocabTeacherVisibleLimit(
         env.DB,
         releaseCount
+      );
+      return jsonResponse({ ok: true, teacher_visible_limit });
+    }
+
+    if (body.action === "set_daily_quiz_target") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+      const targetCount = parseJpVocabTeacherVisibleReleaseCount(body.count);
+      if (targetCount == null) {
+        return jsonResponse({ ok: false, error: "invalid count" }, 400);
+      }
+      const teacher_visible_limit = await setJpVocabDailyQuizTarget(
+        env.DB,
+        targetCount
       );
       return jsonResponse({ ok: true, teacher_visible_limit });
     }

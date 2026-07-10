@@ -49,6 +49,7 @@ import {
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
   computeJpVocabDailyQuizProgress,
+  JP_VOCAB_DAILY_QUIZ_TOP,
   type JpVocabDailyQuizProgress,
 } from "@/lib/jp-vocab-daily-quiz-progress";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
@@ -98,6 +99,7 @@ let devTeacherVisibleLimit: JpVocabTeacherVisibleLimit = {
   date: "",
   limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  quiz_target: JP_VOCAB_DAILY_QUIZ_TOP,
 };
 let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   date: "",
@@ -1741,9 +1743,21 @@ export async function expandJpVocabTeacherVisibleLimit(
   const current = await getJpVocabTeacherVisibleLimit(db);
   const count = Math.max(1, Math.floor(releaseCount));
   return saveJpVocabTeacherVisibleLimit(db, {
-    date: current.date,
+    ...current,
     limit: current.limit + count,
     count,
+  });
+}
+
+export async function setJpVocabDailyQuizTarget(
+  db: D1Database,
+  targetCount: number
+): Promise<JpVocabTeacherVisibleLimit> {
+  const current = await getJpVocabTeacherVisibleLimit(db);
+  const quiz_target = Math.min(Math.max(1, Math.floor(targetCount)), 999);
+  return saveJpVocabTeacherVisibleLimit(db, {
+    ...current,
+    quiz_target,
   });
 }
 
@@ -1751,7 +1765,9 @@ export async function expandJpVocabTeacherVisibleLimit(
 export async function resetJpVocabTeacherVisibleLimit(
   db: D1Database
 ): Promise<JpVocabTeacherVisibleLimit> {
+  const current = await getJpVocabTeacherVisibleLimit(db);
   return saveJpVocabTeacherVisibleLimit(db, {
+    ...current,
     date: beijingDateString(),
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
@@ -2193,7 +2209,7 @@ export async function getJpVocabDailyQuizProgress(
   const order = await ensureJpVocabDailyDisplayOrder(db, words);
   return computeJpVocabDailyQuizProgress(
     order,
-    teacherVisibleLimit.limit,
+    teacherVisibleLimit.quiz_target,
     now
   );
 }
