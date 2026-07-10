@@ -47,10 +47,13 @@ const POLL_HIDDEN_MS = 8000;
 
 export function JpVocabStudyPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, canAccessJpVocabStudy, openAuthPanel } =
+  const { user, checking, canAccessJpVocab, canAccessJpVocabStudy, isAdmin, openAuthPanel } =
     useEtrAuth();
   const canOperate = canAccessJpVocab;
   const canViewStudy = canAccessJpVocabStudy;
+  /** 学生与管理员可见；日语老师不可进复习页 */
+  const showRequestTeacherShare =
+    Boolean(user) && canViewStudy && (!canOperate || isAdmin);
   const [items, setItems] = useState<JpVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
@@ -249,7 +252,7 @@ export function JpVocabStudyPage() {
   }, [requestSent]);
 
   const requestTeacherShare = useCallback(async () => {
-    if (!user || !canViewStudy || requestingShare) return;
+    if (!user || !showRequestTeacherShare || requestingShare) return;
     setRequestingShare(true);
     try {
       const res = await fetch("/api/jp-vocab/share-request", {
@@ -276,7 +279,7 @@ export function JpVocabStudyPage() {
     } finally {
       setRequestingShare(false);
     }
-  }, [user, canViewStudy, requestingShare, locale, openJpAuth]);
+  }, [user, showRequestTeacherShare, requestingShare, locale, openJpAuth]);
 
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
@@ -296,7 +299,7 @@ export function JpVocabStudyPage() {
         老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
       </p>
 
-      {loggedIn && canViewStudy ? (
+      {showRequestTeacherShare ? (
         <div
           style={{
             display: "flex",
