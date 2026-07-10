@@ -1891,6 +1891,14 @@ export function JpVocabPage() {
                         </span>
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
+                        {!inQuizTarget ? (
+                          <span
+                            className="jp-vocab-level-unavailable"
+                            title={`仅今日序号 1–${quizTarget} 可勾选熟悉程度`}
+                          >
+                            不可勾选
+                          </span>
+                        ) : (
                         <div
                           className="jp-vocab-levels"
                           role="group"
@@ -1898,7 +1906,7 @@ export function JpVocabPage() {
                         >
                           {LEVELS.map((lv) => {
                             const checked = selected === lv.key;
-                            const levelDisabled = !canOperate || isSaving || !inQuizTarget;
+                            const levelDisabled = !canOperate || isSaving;
                             return (
                               <button
                                 key={lv.key}
@@ -1906,27 +1914,21 @@ export function JpVocabPage() {
                                 className={`jp-vocab-level-opt${
                                   checked ? " is-checked" : ""
                                 }${
-                                  !canOperate || !inQuizTarget
-                                    ? " jp-vocab-level-opt--readonly"
-                                    : ""
-                                }${
-                                  !inQuizTarget ? " jp-vocab-level-opt--out-of-range" : ""
+                                  !canOperate ? " jp-vocab-level-opt--readonly" : ""
                                 }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
                                   lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                 }`}
                                 disabled={levelDisabled}
                                 title={
-                                  !inQuizTarget
-                                    ? `今日抽查范围外（仅序号 1–${quizTarget} 可勾选）`
-                                    : !canOperate
-                                      ? "登录后可勾选"
-                                      : isSaving
-                                        ? "保存中…"
-                                        : checked
-                                          ? "今日已选此项，可点其他选项改选"
-                                          : selected
-                                            ? "改选后以此为准，今日抽查次数不重复计"
-                                            : "勾选熟悉程度"
+                                  !canOperate
+                                    ? "登录后可勾选"
+                                    : isSaving
+                                      ? "保存中…"
+                                      : checked
+                                        ? "今日已选此项，可点其他选项改选"
+                                        : selected
+                                          ? "改选后以此为准，今日抽查次数不重复计"
+                                          : "勾选熟悉程度"
                                 }
                                 aria-pressed={checked}
                                 onClick={() => void recordLevel(w.id, lv.key)}
@@ -1950,6 +1952,7 @@ export function JpVocabPage() {
                             );
                           })}
                         </div>
+                        )}
                       </td>
                       <td className="jp-vocab-stat-detail chg-dn" data-label="非常熟悉">
                         {w.cnt_very}
@@ -2054,17 +2057,13 @@ export function JpVocabPage() {
                                 </svg>
                                 编辑
                               </button>
-                              {canShareToStudy ? (
+                              {canShareToStudy && inQuizTarget ? (
                                 sharedTodayWordIds.has(w.id) ? (
                                     <button
                                       type="button"
                                       className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
-                                      disabled={isSaving || shareProgress != null || !inQuizTarget}
-                                      title={
-                                        !inQuizTarget
-                                          ? `今日抽查范围外（仅序号 1–${quizTarget} 可发给学生）`
-                                          : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
-                                      }
+                                      disabled={isSaving || shareProgress != null}
+                                      title="从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
                                       onClick={() => void unshareWord(w.id)}
                                     >
                                       取消共享
@@ -2093,12 +2092,8 @@ export function JpVocabPage() {
                                     <button
                                       type="button"
                                       className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
-                                      disabled={isSaving || shareProgress != null || !inQuizTarget}
-                                      title={
-                                        !inQuizTarget
-                                          ? `今日抽查范围外（仅序号 1–${quizTarget} 可发给学生）`
-                                          : "发给学生「今日日语单词」，并标记为不熟悉"
-                                      }
+                                      disabled={isSaving || shareProgress != null}
+                                      title="发给学生「今日日语单词」，并标记为不熟悉"
                                       onClick={() => void shareWord(w.id)}
                                     >
                                       发给学生
@@ -2447,14 +2442,12 @@ export function JpVocabPage() {
         .jp-vocab-level-opt--readonly:disabled {
           opacity: 0.72;
         }
-        .jp-vocab-level-opt--out-of-range:disabled {
-          opacity: 0.42;
-          cursor: not-allowed;
-          filter: grayscale(0.35);
-        }
-        .jp-vocab-share-btn:disabled {
-          opacity: 0.45;
-          cursor: not-allowed;
+        .jp-vocab-level-unavailable {
+          display: inline-block;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          opacity: 0.72;
+          white-space: nowrap;
         }
         .jp-vocab-kind-badge {
           display: inline-block;
