@@ -70,7 +70,7 @@ import {
   resolveJpVocabPreviousLevel,
 } from "@/lib/jp-vocab-review";
 import {
-  filterJpVocabWordsByTeacherVisibleLimit,
+  isJpVocabWordInDailyQuizTarget,
   jpVocabTeacherVisibleRangeLabel,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
@@ -311,10 +311,6 @@ export function JpVocabPage() {
       readVocabCache()?.teacher_visible_limit?.quiz_target ??
       normalizeJpVocabTeacherVisibleLimit(null).quiz_target
   );
-  const [hideCheckedTodayInput, setHideCheckedTodayInput] = useState(
-    () =>
-      readVocabCache()?.teacher_visible_limit?.hide_checked_today !== false
-  );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const displayOrderRef = useRef(displayOrder);
   const wordsRef = useRef(words);
@@ -346,8 +342,7 @@ export function JpVocabPage() {
   }, [sharedTodayWordIds]);
   useEffect(() => {
     setQuizTargetInput(teacherVisibleLimit.quiz_target);
-    setHideCheckedTodayInput(teacherVisibleLimit.hide_checked_today !== false);
-  }, [teacherVisibleLimit.quiz_target, teacherVisibleLimit.hide_checked_today]);
+  }, [teacherVisibleLimit.quiz_target]);
 
   useEffect(() => {
     return () => {
@@ -644,20 +639,25 @@ export function JpVocabPage() {
     [displayOrder.ids]
   );
 
-  const teacherVisibleWords = useMemo(() => {
-    if (isAdmin) return displayedWords;
-    return filterJpVocabWordsByTeacherVisibleLimit(
-      displayedWords,
-      displayOrder,
-      teacherVisibleLimit
-    );
-  }, [displayedWords, displayOrder, isAdmin, teacherVisibleLimit]);
+  const quizTarget = teacherVisibleLimit.quiz_target;
+
+  const quizTargetWords = useMemo(
+    () =>
+      displayedWords.filter((w) =>
+        isJpVocabWordInDailyQuizTarget(w.id, quizTarget, dailySeqByWordId)
+      ),
+    [displayedWords, quizTarget, dailySeqByWordId]
+  );
+
+  const isWordInQuizTarget = useCallback(
+    (wordId: number) =>
+      isAdmin ||
+      isJpVocabWordInDailyQuizTarget(wordId, quizTarget, dailySeqByWordId),
+    [isAdmin, quizTarget, dailySeqByWordId]
+  );
 
   const searchActive = searchQuery.trim().length > 0;
-  const searchBaseWords = useMemo(() => {
-    if (isAdmin || searchActive) return displayedWords;
-    return teacherVisibleWords;
-  }, [isAdmin, searchActive, displayedWords, teacherVisibleWords]);
+  const searchBaseWords = displayedWords;
 
   const filteredDisplayedWords = useMemo(
     () => filterJpVocabWordsBySearch(searchBaseWords, searchQuery, kindFilter),
@@ -704,7 +704,7 @@ export function JpVocabPage() {
 
   const filterActive = searchActive || kindFilter !== "all";
 
-  const dailyTarget = Math.min(teacherVisibleLimit.quiz_target, teacherVisibleWords.length);
+  const dailyTarget = quizTarget;
 
   const dailyQuizProgress = useMemo(
     () => computeJpVocabDailyQuizProgress(words, teacherVisibleLimit),
@@ -745,11 +745,11 @@ export function JpVocabPage() {
 
   const unmarkedCount = useMemo(
     () =>
-      teacherVisibleWords.filter(
+      quizTargetWords.filter(
         (w) =>
           !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
       ).length,
-    [teacherVisibleWords, sessionLevel, displayOrder]
+    [quizTargetWords, sessionLevel, displayOrder]
   );
 
   const todayCheckStats = useMemo(
@@ -761,6 +761,10 @@ export function JpVocabPage() {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
       openJpAuth();
+      return;
+    }
+    if (!isWordInQuizTarget(wordId)) {
+      setStatus(`仅今日序号 1–${quizTarget} 可勾选熟悉程度。`);
       return;
     }
   if (savingId === wordId) return;
@@ -853,6 +857,10 @@ export function JpVocabPage() {
     if (!canOperate) {
       setStatus("请登录后再共享。");
       openJpAuth();
+      return;
+    }
+    if (!isWordInQuizTarget(wordId)) {
+      setStatus(`仅今日序号 1–${quizTarget} 可发给学生。`);
       return;
     }
     if (savingId === wordId || shareProgress) return;
@@ -1146,7 +1154,7 @@ export function JpVocabPage() {
   };
 
   const pickNext = () => {
-    const next = pickRandomWord(teacherVisibleWords, highlightId ?? undefined);
+    const next = pickRandomWord(quizTargetWords, highlightId ?? undefined);
     if (!next) return;
     const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
     if (idx >= 0) {
@@ -1237,7 +1245,6 @@ export function JpVocabPage() {
         body: JSON.stringify({
           action: "set_daily_quiz_target",
           count,
-          hide_checked_today: hideCheckedTodayInput,
         }),
       });
       const data = (await res.json()) as {
@@ -1250,9 +1257,6 @@ export function JpVocabPage() {
       }
       setTeacherVisibleLimit(data.teacher_visible_limit);
       setQuizTargetInput(data.teacher_visible_limit.quiz_target);
-      setHideCheckedTodayInput(
-        data.teacher_visible_limit.hide_checked_today !== false
-      );
       const prev = readVocabCache();
       if (prev) {
         writeClientCache(JP_VOCAB_CACHE_KEY, {
@@ -1260,16 +1264,8 @@ export function JpVocabPage() {
           teacher_visible_limit: data.teacher_visible_limit,
         });
       }
-      const poolSize = data.teacher_visible_limit.visible_ids?.length ?? 0;
-      const range = jpVocabTeacherVisibleRangeLabel(
-        data.teacher_visible_limit,
-        displayOrder
-      );
-      const hideNote = data.teacher_visible_limit.hide_checked_today !== false
-        ? "；老师端将隐藏今日已抽查词条"
-        : "；老师端保留显示今日已抽查词条";
       setStatus(
-        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个，老师可见池 ${poolSize} 条（序号 ${range}）${hideNote}；老师刷新页面即可同步。`
+        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端序号 1–${data.teacher_visible_limit.quiz_target} 可勾选、可发给学生）；老师刷新页面即可同步。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -1281,16 +1277,6 @@ export function JpVocabPage() {
   const teacherVisibleRange = jpVocabTeacherVisibleRangeLabel(
     teacherVisibleLimit,
     displayOrder
-  );
-  const teacherPoolSize = teacherVisibleLimit.visible_ids?.length ?? 0;
-  const teacherDisplayedCount = useMemo(
-    () =>
-      filterJpVocabWordsByTeacherVisibleLimit(
-        displayedWords,
-        displayOrder,
-        teacherVisibleLimit
-      ).length,
-    [displayedWords, displayOrder, teacherVisibleLimit]
   );
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
@@ -1365,12 +1351,8 @@ export function JpVocabPage() {
               ? {
                   value: quizTargetInput,
                   savedValue: teacherVisibleLimit.quiz_target,
-                  hideCheckedToday: hideCheckedTodayInput,
-                  savedHideCheckedToday:
-                    teacherVisibleLimit.hide_checked_today !== false,
                   saving: settingQuizTarget,
                   onChange: setQuizTargetInput,
-                  onHideCheckedTodayChange: setHideCheckedTodayInput,
                   onSave: () => void setDailyQuizTarget(),
                 }
               : undefined
@@ -1399,9 +1381,12 @@ export function JpVocabPage() {
             }}
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              共 {isAdmin ? words.length : teacherVisibleWords.length} 条
+              共 {words.length} 条
               {isAdmin && words.length ? (
                 <> · 老师可见序号 {teacherVisibleRange}</>
+              ) : null}
+              {!isAdmin && quizTarget > 0 ? (
+                <> · 可抽查序号 1–{quizTarget}</>
               ) : null}
               {words.length ? (
                 <>
@@ -1426,18 +1411,15 @@ export function JpVocabPage() {
                   </span>
                 </>
               ) : null}
-              {isAdmin && teacherPoolSize > 0 ? (
+              {isAdmin && teacherVisibleLimit.quiz_target > 0 ? (
                 <>
                   {" "}
                   ·{" "}
                   <span
                     className="jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
-                    title="根据今日抽查数量自动生成老师可见词条池；老师刷新页面即可同步"
+                    title="根据今日抽查数量，老师端序号 1–N 可勾选"
                   >
-                    老师可见池 {teacherPoolSize} 条
-                    {teacherVisibleLimit.hide_checked_today !== false
-                      ? `（当前显示 ${teacherDisplayedCount} 条）`
-                      : null}
+                    老师可抽查序号 1–{teacherVisibleLimit.quiz_target}
                   </span>
                 </>
               ) : null}
@@ -1753,6 +1735,7 @@ export function JpVocabPage() {
                   );
                   const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
                   const dailySeq = dailySeqByWordId.get(w.id) ?? rowIndex + 1;
+                  const inQuizTarget = isWordInQuizTarget(w.id);
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
@@ -1915,6 +1898,7 @@ export function JpVocabPage() {
                         >
                           {LEVELS.map((lv) => {
                             const checked = selected === lv.key;
+                            const levelDisabled = !canOperate || isSaving || !inQuizTarget;
                             return (
                               <button
                                 key={lv.key}
@@ -1922,21 +1906,27 @@ export function JpVocabPage() {
                                 className={`jp-vocab-level-opt${
                                   checked ? " is-checked" : ""
                                 }${
-                                  !canOperate ? " jp-vocab-level-opt--readonly" : ""
+                                  !canOperate || !inQuizTarget
+                                    ? " jp-vocab-level-opt--readonly"
+                                    : ""
+                                }${
+                                  !inQuizTarget ? " jp-vocab-level-opt--out-of-range" : ""
                                 }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
                                   lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                 }`}
-                                disabled={!canOperate || isSaving}
+                                disabled={levelDisabled}
                                 title={
-                                  !canOperate
-                                    ? "登录后可勾选"
-                                    : isSaving
-                                      ? "保存中…"
-                                      : checked
-                                        ? "今日已选此项，可点其他选项改选"
-                                        : selected
-                                          ? "改选后以此为准，今日抽查次数不重复计"
-                                          : "勾选熟悉程度"
+                                  !inQuizTarget
+                                    ? `今日抽查范围外（仅序号 1–${quizTarget} 可勾选）`
+                                    : !canOperate
+                                      ? "登录后可勾选"
+                                      : isSaving
+                                        ? "保存中…"
+                                        : checked
+                                          ? "今日已选此项，可点其他选项改选"
+                                          : selected
+                                            ? "改选后以此为准，今日抽查次数不重复计"
+                                            : "勾选熟悉程度"
                                 }
                                 aria-pressed={checked}
                                 onClick={() => void recordLevel(w.id, lv.key)}
@@ -2066,15 +2056,19 @@ export function JpVocabPage() {
                               </button>
                               {canShareToStudy ? (
                                 sharedTodayWordIds.has(w.id) ? (
-                                  <button
-                                    type="button"
-                                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
-                                    disabled={isSaving || shareProgress != null}
-                                    title="从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
-                                    onClick={() => void unshareWord(w.id)}
-                                  >
-                                    取消共享
-                                  </button>
+                                    <button
+                                      type="button"
+                                      className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
+                                      disabled={isSaving || shareProgress != null || !inQuizTarget}
+                                      title={
+                                        !inQuizTarget
+                                          ? `今日抽查范围外（仅序号 1–${quizTarget} 可发给学生）`
+                                          : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                                      }
+                                      onClick={() => void unshareWord(w.id)}
+                                    >
+                                      取消共享
+                                    </button>
                                 ) : isSharing ? (
                                   <div className="jp-vocab-share-progress" aria-live="polite">
                                     <span className="jp-vocab-share-progress-label">
@@ -2099,8 +2093,12 @@ export function JpVocabPage() {
                                     <button
                                       type="button"
                                       className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
-                                      disabled={isSaving || shareProgress != null}
-                                      title="发给学生「今日日语单词」，并标记为不熟悉"
+                                      disabled={isSaving || shareProgress != null || !inQuizTarget}
+                                      title={
+                                        !inQuizTarget
+                                          ? `今日抽查范围外（仅序号 1–${quizTarget} 可发给学生）`
+                                          : "发给学生「今日日语单词」，并标记为不熟悉"
+                                      }
                                       onClick={() => void shareWord(w.id)}
                                     >
                                       发给学生
@@ -2148,7 +2146,7 @@ export function JpVocabPage() {
 
       <JpVocabRiskChartModal
         open={showRiskChart}
-        words={teacherVisibleWords}
+        words={quizTargetWords}
         onClose={() => setShowRiskChart(false)}
       />
 
@@ -2448,6 +2446,15 @@ export function JpVocabPage() {
         }
         .jp-vocab-level-opt--readonly:disabled {
           opacity: 0.72;
+        }
+        .jp-vocab-level-opt--out-of-range:disabled {
+          opacity: 0.42;
+          cursor: not-allowed;
+          filter: grayscale(0.35);
+        }
+        .jp-vocab-share-btn:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
         }
         .jp-vocab-kind-badge {
           display: inline-block;

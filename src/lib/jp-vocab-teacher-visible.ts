@@ -61,6 +61,18 @@ function normalizeQuizTargetBaseChecked(raw: unknown): number | undefined {
   return undefined;
 }
 
+/** 词条当日序号是否在管理员设定的今日抽查数量范围内（1…quiz_target） */
+export function isJpVocabWordInDailyQuizTarget(
+  wordId: number,
+  quizTarget: number,
+  dailySeqByWordId: ReadonlyMap<number, number>
+): boolean {
+  const seq = dailySeqByWordId.get(wordId);
+  if (!seq || seq <= 0) return false;
+  const target = Math.max(0, Math.floor(quizTarget));
+  return target > 0 && seq <= target;
+}
+
 /** 隐藏模式：今日最后一次勾选早于「调整抽查目标时间」则隐藏；今日未勾选则显示 */
 export function isJpVocabWordHiddenBeforeTargetAdjustment(
   word: JpVocabWord,

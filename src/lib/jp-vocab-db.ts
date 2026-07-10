@@ -1865,7 +1865,7 @@ export async function expandJpVocabTeacherVisibleLimit(
 export async function setJpVocabDailyQuizTarget(
   db: D1Database,
   targetCount: number,
-  hideCheckedToday = true
+  hideCheckedToday = false
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
   const quiz_target = Math.min(Math.max(1, Math.floor(targetCount)), 999);
@@ -1906,7 +1906,7 @@ export async function resetJpVocabTeacherVisibleLimit(
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     released_today: false,
     release_count: current.quiz_target,
-    hide_checked_today: true,
+    hide_checked_today: false,
     excluded_batch_ids: [],
     visible_ids: undefined,
     quiz_target_adjusted_at: undefined,

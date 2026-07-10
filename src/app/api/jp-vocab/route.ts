@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       if (targetCount == null) {
         return jsonResponse({ ok: false, error: "invalid count" }, 400);
       }
-      const hideCheckedToday = body.hide_checked_today !== false;
+      const hideCheckedToday = false;
       const teacher_visible_limit = await setJpVocabDailyQuizTarget(
         env.DB,
         targetCount,
