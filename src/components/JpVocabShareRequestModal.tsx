@@ -4,8 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpVocabShareRequest } from "@/lib/types";
 
-const VISIBLE_MS = 3000;
-const FADE_MS = 600;
+/** 完全显示后停留时长 */
+const VISIBLE_MS = 5000;
+/** 淡入 / 淡出动画时长 */
+const FADE_MS = 900;
+
+type ToastPhase = "hidden" | "entering" | "visible" | "leaving";
 
 type Props = {
   open: boolean;
@@ -15,7 +19,7 @@ type Props = {
 
 export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [phase, setPhase] = useState<"hidden" | "visible" | "leaving">("hidden");
+  const [phase, setPhase] = useState<ToastPhase>("hidden");
   const onCloseRef = useRef(onClose);
   const closedRef = useRef(false);
 
@@ -28,7 +32,7 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
   }, []);
 
   const beginLeave = useCallback(() => {
-    setPhase((prev) => (prev === "hidden" ? prev : "leaving"));
+    setPhase((prev) => (prev === "hidden" || prev === "leaving" ? prev : "leaving"));
   }, []);
 
   const requestKey = requests
@@ -44,10 +48,24 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
     }
 
     closedRef.current = false;
-    setPhase("visible");
+    setPhase("entering");
+
+    let visibleFrame = 0;
+    const enterFrame = requestAnimationFrame(() => {
+      visibleFrame = requestAnimationFrame(() => setPhase("visible"));
+    });
+
+    return () => {
+      cancelAnimationFrame(enterFrame);
+      if (visibleFrame) cancelAnimationFrame(visibleFrame);
+    };
+  }, [open, requestKey, requests.length]);
+
+  useEffect(() => {
+    if (phase !== "visible") return;
     const timer = window.setTimeout(beginLeave, VISIBLE_MS);
     return () => window.clearTimeout(timer);
-  }, [open, requestKey, requests.length, beginLeave]);
+  }, [phase, requestKey, beginLeave]);
 
   useEffect(() => {
     if (phase !== "leaving" || closedRef.current) return;
@@ -55,6 +73,7 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
     const timer = window.setTimeout(() => {
       if (closedRef.current) return;
       closedRef.current = true;
+      setPhase("hidden");
       onCloseRef.current();
     }, FADE_MS);
 
@@ -67,11 +86,14 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
 
   if (!mounted || !open || requests.length === 0 || phase === "hidden") return null;
 
+  const shown = phase === "visible";
   const leaving = phase === "leaving";
 
   return createPortal(
     <div
-      className={`jp-vocab-share-request-toast${leaving ? " jp-vocab-share-request-toast--leaving" : ""}`}
+      className={`jp-vocab-share-request-toast${
+        shown ? " jp-vocab-share-request-toast--shown" : ""
+      }${leaving ? " jp-vocab-share-request-toast--leaving" : ""}`}
       role="status"
       aria-live="polite"
       aria-atomic="true"
@@ -103,16 +125,20 @@ export function JpVocabShareRequestModal({ open, requests, onClose }: Props) {
           border: 1px solid color-mix(in srgb, var(--rise) 28%, var(--border));
           border-radius: 10px;
           box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
-          opacity: 1;
-          transform: translateY(0);
+          opacity: 0;
+          transform: translateY(0.65rem);
           transition:
             opacity ${FADE_MS}ms ease,
             transform ${FADE_MS}ms ease;
           pointer-events: auto;
         }
+        .jp-vocab-share-request-toast--shown {
+          opacity: 1;
+          transform: translateY(0);
+        }
         .jp-vocab-share-request-toast--leaving {
           opacity: 0;
-          transform: translateY(0.5rem);
+          transform: translateY(0.65rem);
           pointer-events: none;
         }
         .jp-vocab-share-request-toast__close {
