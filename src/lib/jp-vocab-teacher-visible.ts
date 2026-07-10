@@ -191,10 +191,10 @@ export function normalizeJpVocabTeacherVisibleLimit(
     date: today,
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
-    quiz_target,
+    quiz_target: JP_VOCAB_DAILY_QUIZ_TOP,
     hide_checked_today: true,
     released_today: false,
-    release_count: quiz_target,
+    release_count: JP_VOCAB_DAILY_QUIZ_TOP,
     excluded_batch_ids: [],
   };
 }

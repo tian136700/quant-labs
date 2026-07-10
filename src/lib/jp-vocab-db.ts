@@ -1894,7 +1894,7 @@ export async function setJpVocabDailyQuizTarget(
   );
 }
 
-/** 今日重置时恢复老师默认可见序号 1–20 */
+/** 今日重置时恢复老师默认可见序号 1–20，抽查目标恢复默认 20 */
 export async function resetJpVocabTeacherVisibleLimit(
   db: D1Database
 ): Promise<JpVocabTeacherVisibleLimit> {
@@ -1904,12 +1904,15 @@ export async function resetJpVocabTeacherVisibleLimit(
     date: beijingDateString(),
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    quiz_target: JP_VOCAB_DAILY_QUIZ_TOP,
     released_today: false,
-    release_count: current.quiz_target,
+    release_count: JP_VOCAB_DAILY_QUIZ_TOP,
     hide_checked_today: false,
     excluded_batch_ids: [],
     visible_ids: undefined,
     quiz_target_adjusted_at: undefined,
+    sticky_visible_ids: undefined,
+    quiz_target_base_checked: undefined,
   });
 }
 
