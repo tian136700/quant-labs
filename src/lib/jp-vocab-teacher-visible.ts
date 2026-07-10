@@ -16,13 +16,13 @@ export const JP_VOCAB_TEACHER_VISIBLE_STEP = 20;
 export type JpVocabTeacherVisibleLimit = {
   /** 北京时间 YYYY-MM-DD，跨日自动回到默认 20 */
   date: string;
-  /** 当日已扫描到的最大序号（释放游标） */
+  /** 当前批次最大当日序号（展示用） */
   limit: number;
   /** 当前老师可见的条数（本批窗口大小） */
   count: number;
   /** 管理员设置的当日抽查目标数量 */
   quiz_target: number;
-  /** 释放后老师可见的词条 id（精确列表，排除今日已抽查） */
+  /** 释放后老师可见的词条 id（精确列表） */
   visible_ids?: number[];
 };
 
@@ -88,21 +88,35 @@ export function jpVocabTeacherVisibleRange(
   return { start, end };
 }
 
-/** 今日是否已抽查（含今日抽查次数与本轮序号勾选） */
-export function isJpVocabWordQuizCheckedToday(
+/** 历史复习次数合计是否为 0（从未抽查过） */
+export function isJpVocabWordNeverQuizzed(word: JpVocabWord): boolean {
+  return (
+    (word.cnt_very ?? 0) + (word.cnt_normal ?? 0) + (word.cnt_weak ?? 0) ===
+    0
+  );
+}
+
+/** 今日是否已在数据库中记为抽查过（today_check_count > 0） */
+export function isJpVocabWordTodayCheckedInDb(
   word: JpVocabWord,
-  displayOrder?: JpVocabDailyDisplayOrder,
   now = new Date()
 ): boolean {
-  if (
+  return (
     effectiveTodayCheckCount(
       word.today_check_count ?? 0,
       word.today_check_date,
       now
     ) > 0
-  ) {
-    return true;
-  }
+  );
+}
+
+/** 今日是否已抽查（含 DB 今日次数与本轮序号勾选） */
+export function isJpVocabWordQuizCheckedToday(
+  word: JpVocabWord,
+  displayOrder?: JpVocabDailyDisplayOrder,
+  now = new Date()
+): boolean {
+  if (isJpVocabWordTodayCheckedInDb(word, now)) return true;
   const today = beijingDateString(now);
   return (
     displayOrder?.date === today &&
@@ -110,29 +124,97 @@ export function isJpVocabWordQuizCheckedToday(
   );
 }
 
-/** 从游标往后按序号取 N 个今日尚未抽查的词条 id */
+type ReleaseCandidate = {
+  id: number;
+  seq: number;
+  neverQuizzed: boolean;
+};
+
+function buildJpVocabTeacherVisibleReleaseCandidates(
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  excludeIds: Set<number>,
+  now = new Date()
+): ReleaseCandidate[] {
+  const wordById = new Map(words.map((w) => [w.id, w]));
+  const candidates: ReleaseCandidate[] = [];
+
+  for (let seq = 1; seq <= displayOrder.ids.length; seq++) {
+    const wordId = displayOrder.ids[seq - 1];
+    if (excludeIds.has(wordId)) continue;
+    const word = wordById.get(wordId);
+    if (!word) continue;
+    if (isJpVocabWordTodayCheckedInDb(word, now)) continue;
+    candidates.push({
+      id: wordId,
+      seq,
+      neverQuizzed: isJpVocabWordNeverQuizzed(word),
+    });
+  }
+
+  candidates.sort((a, b) => {
+    if (a.neverQuizzed !== b.neverQuizzed) return a.neverQuizzed ? -1 : 1;
+    return a.seq - b.seq;
+  });
+
+  return candidates;
+}
+
+/**
+ * 选取老师可见批次：
+ * 1. 排除今日已抽查（DB today_check_count > 0）
+ * 2. 优先从未抽查过的词条，再按当日序号升序补足以往抽查过、今日未抽查的词条
+ */
 export function pickJpVocabTeacherVisibleReleaseIds(
   displayOrder: JpVocabDailyDisplayOrder,
   words: JpVocabWord[],
-  cursorLimit: number,
   releaseCount: number,
+  excludeIds: number[] = [],
   now = new Date()
 ): number[] {
-  const totalSeq = displayOrder.ids.length;
-  const cursor = Math.max(0, Math.floor(cursorLimit));
   const target = Math.max(1, Math.floor(releaseCount));
-  const wordById = new Map(words.map((w) => [w.id, w]));
-  const picked: number[] = [];
+  const exclude = new Set(excludeIds);
+  const candidates = buildJpVocabTeacherVisibleReleaseCandidates(
+    displayOrder,
+    words,
+    exclude,
+    now
+  );
+  return candidates.slice(0, target).map((item) => item.id);
+}
 
-  for (let seq = cursor + 1; seq <= totalSeq && picked.length < target; seq++) {
-    const wordId = displayOrder.ids[seq - 1];
-    const word = wordById.get(wordId);
-    if (!word) continue;
-    if (isJpVocabWordQuizCheckedToday(word, displayOrder, now)) continue;
-    picked.push(wordId);
-  }
+export function countJpVocabTeacherVisibleReleaseCandidates(
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  excludeIds: number[] = [],
+  now = new Date()
+): number {
+  const exclude = new Set(excludeIds);
+  return buildJpVocabTeacherVisibleReleaseCandidates(
+    displayOrder,
+    words,
+    exclude,
+    now
+  ).length;
+}
 
-  return picked;
+function buildReleasePlanFromVisibleIds(
+  visible_ids: number[],
+  displayOrder: JpVocabDailyDisplayOrder
+): JpVocabTeacherVisibleReleasePlan {
+  const seqMap = buildJpVocabDailySeqMap(displayOrder.ids);
+  const seqs = visible_ids
+    .map((id) => seqMap.get(id) ?? 0)
+    .filter((seq) => seq > 0);
+  const limit = seqs.length ? Math.max(...seqs) : JP_VOCAB_TEACHER_VISIBLE_DEFAULT;
+  const start = seqs.length ? Math.min(...seqs) : 1;
+  return {
+    limit,
+    count: visible_ids.length,
+    visible_ids,
+    start,
+    end: limit,
+  };
 }
 
 export function filterJpVocabWordsByTeacherVisibleLimit(
@@ -196,67 +278,64 @@ export type JpVocabTeacherVisibleReleasePlan = {
   end: number;
 };
 
-/**
- * 计算释放下一批老师可见词条：从当前游标往后按当日序号扫描，
- * 跳过今日已抽查的词条，精确选取 releaseCount 个未抽查词。
- */
 export function planJpVocabTeacherVisibleRelease(
   displayOrder: JpVocabDailyDisplayOrder,
   words: JpVocabWord[],
-  current: Pick<JpVocabTeacherVisibleLimit, "limit" | "count">,
+  current: JpVocabTeacherVisibleLimit,
   releaseCount: number,
   now = new Date()
 ): JpVocabTeacherVisibleReleasePlan | null {
-  const totalSeq = displayOrder.ids.length;
-  const currentEnd = Math.max(0, Math.floor(current.limit));
-  if (currentEnd >= totalSeq) return null;
-
   const visible_ids = pickJpVocabTeacherVisibleReleaseIds(
     displayOrder,
     words,
-    currentEnd,
     releaseCount,
+    current.visible_ids ?? [],
     now
   );
   if (!visible_ids.length) return null;
-
-  const seqMap = buildJpVocabDailySeqMap(displayOrder.ids);
-  const seqs = visible_ids
-    .map((id) => seqMap.get(id) ?? 0)
-    .filter((seq) => seq > 0);
-  if (!seqs.length) return null;
-
-  const limit = Math.max(...seqs);
-  const start = Math.min(...seqs);
-  return {
-    limit,
-    count: visible_ids.length,
-    visible_ids,
-    start,
-    end: limit,
-  };
+  return buildReleasePlanFromVisibleIds(visible_ids, displayOrder);
 }
 
-/** 修复旧版仅按连续序号释放、未写入 visible_ids 的批次 */
-export function repairJpVocabTeacherVisibleIds(
+/** 补全缺失的 visible_ids（首批或旧数据）；不在加载时因老师已勾选而自动换批 */
+export function repairJpVocabTeacherVisibleVisibleIds(
   displayOrder: JpVocabDailyDisplayOrder,
   words: JpVocabWord[],
   visible: JpVocabTeacherVisibleLimit,
   now = new Date()
 ): JpVocabTeacherVisibleLimit {
   if (visible.visible_ids?.length) return visible;
-  if (visible.count >= visible.limit) return visible;
 
-  const { start, end } = jpVocabTeacherVisibleRange(visible);
-  const wordById = new Map(words.map((w) => [w.id, w]));
-  const visible_ids: number[] = [];
-  for (let seq = start; seq <= end; seq++) {
-    const wordId = displayOrder.ids[seq - 1];
-    const word = wordById.get(wordId);
-    if (!word) continue;
-    if (isJpVocabWordQuizCheckedToday(word, displayOrder, now)) continue;
-    visible_ids.push(wordId);
-  }
+  const batchSize = Math.max(1, Math.floor(visible.count));
+  const visible_ids = pickJpVocabTeacherVisibleReleaseIds(
+    displayOrder,
+    words,
+    batchSize,
+    [],
+    now
+  );
   if (!visible_ids.length) return visible;
-  return { ...visible, visible_ids, count: visible_ids.length };
+
+  const plan = buildReleasePlanFromVisibleIds(visible_ids, displayOrder);
+  return {
+    ...visible,
+    limit: plan.limit,
+    count: plan.count,
+    visible_ids: plan.visible_ids,
+  };
+}
+
+/** 首批默认可见（序号 1 起，按从未抽查优先取 N 条） */
+export function buildJpVocabDefaultTeacherVisibleIds(
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  count = JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  now = new Date()
+): number[] {
+  return pickJpVocabTeacherVisibleReleaseIds(
+    displayOrder,
+    words,
+    count,
+    [],
+    now
+  );
 }

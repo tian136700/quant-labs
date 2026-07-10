@@ -73,6 +73,7 @@ import {
   filterJpVocabWordsByTeacherVisibleLimit,
   jpVocabTeacherVisibleRangeLabel,
   JP_VOCAB_TEACHER_VISIBLE_STEP,
+  countJpVocabTeacherVisibleReleaseCandidates,
   normalizeJpVocabTeacherVisibleLimit,
   planJpVocabTeacherVisibleRelease,
   type JpVocabTeacherVisibleLimit,
@@ -1298,12 +1299,17 @@ export function JpVocabPage() {
     teacherVisibleLimit,
     displayOrder
   );
-  const teacherVisibleAtMax =
-    teacherVisibleLimit.limit >= Math.max(displayOrder.ids.length, words.length);
-  const remainingToRelease = Math.max(
-    0,
-    Math.max(displayOrder.ids.length, words.length) - teacherVisibleLimit.limit
+  const releaseCandidateCount = useMemo(
+    () =>
+      countJpVocabTeacherVisibleReleaseCandidates(
+        displayOrder,
+        words,
+        teacherVisibleLimit.visible_ids ?? []
+      ),
+    [displayOrder, words, teacherVisibleLimit.visible_ids]
   );
+  const teacherVisibleAtMax = releaseCandidateCount === 0;
+  const remainingToRelease = releaseCandidateCount;
   const releasePreview = useMemo(
     () =>
       planJpVocabTeacherVisibleRelease(
@@ -1502,7 +1508,7 @@ export function JpVocabPage() {
                     teacherVisibleAtMax
                       ? "老师已可见全部词条"
                       : releasePreview
-                        ? `当前老师可见序号 ${teacherVisibleRange}；下一批将释放序号 ${releasePreview.start}–${releasePreview.end}（自动跳过今日已抽查）`
+                        ? `当前老师可见 ${teacherVisibleRange}；下一批将释放 ${releasePreview.count} 条（优先从未抽查，跳过今日已抽查；序号约 ${releasePreview.start}–${releasePreview.end}）`
                         : `当前老师可见序号 ${teacherVisibleRange}`
                   }
                 >

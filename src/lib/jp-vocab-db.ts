@@ -45,7 +45,7 @@ import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   normalizeJpVocabTeacherVisibleLimit,
   planJpVocabTeacherVisibleRelease,
-  repairJpVocabTeacherVisibleIds,
+  repairJpVocabTeacherVisibleVisibleIds,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
@@ -1708,19 +1708,16 @@ export async function getJpVocabTeacherVisibleLimit(
   }
 }
 
-/** 读取并修复老师可见批次（排除今日已抽查、补全 visible_ids） */
+/** 读取并修复老师可见批次（补全 visible_ids、刷新含今日已抽查的批次） */
 export async function ensureJpVocabTeacherVisibleLimit(
   db: D1Database,
   ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
-  if (current.visible_ids?.length || current.count >= current.limit) {
-    return current;
-  }
   const words = ctx?.words ?? (await listJpVocabWords(db));
   const displayOrder =
     ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));
-  const repaired = repairJpVocabTeacherVisibleIds(
+  const repaired = repairJpVocabTeacherVisibleVisibleIds(
     displayOrder,
     words,
     current
