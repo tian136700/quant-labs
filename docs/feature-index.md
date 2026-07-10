@@ -30,7 +30,7 @@
 |----------|--------|
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
 | 管理员设今日抽查数量（进度条内输入框 + 确认设置） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()` |
-| **老师可见池 / 隐藏已抽查 / 列表条数与进度不一致**（如设 40、已抽查 30、开隐藏后应剩 10 条却显示 40/20） | **核心** `src/lib/jp-vocab-teacher-visible.ts`（`applyJpVocabQuizTargetVisiblePlan`、`filterJpVocabWordsByTeacherVisibleLimit`、`shouldMaterializeJpVocabTeacherVisibleLimit`）；**进度分子** `jp-vocab-daily-quiz-progress.ts`；**今日抽查计数** `jp-vocab-daily-check.ts`；**页面过滤** `JpVocabPage.tsx` → `teacherVisibleWords`、`teacherDisplayedCount`；**读库重算** `jp-vocab-db.ts` → `ensureJpVocabTeacherVisibleLimit()`；设置存 `jp_vocab_setting` → `teacher_visible_limit`（含 `quiz_target`、`visible_ids`、`hide_checked_today`） |
+| **老师可见池 / 隐藏已抽查 / 列表条数与进度不一致**（如设 40、已抽查 30、开隐藏后应剩 10 条却显示 40/20；从未抽查词超过剩余数时只截取剩余数） | **核心** `src/lib/jp-vocab-teacher-visible.ts`（`buildJpVocabQuizTargetVisibleIds`、`filterJpVocabWordsByTeacherVisibleLimit` 内 `jpVocabDailyQuizRemaining` 截断、`shouldMaterializeJpVocabTeacherVisibleLimit`）；**进度** `jp-vocab-daily-quiz-progress.ts`；**今日抽查计数** `jp-vocab-daily-check.ts`；**页面** `JpVocabPage.tsx` → `teacherVisibleWords`；**读库重算** `jp-vocab-db.ts` → `ensureJpVocabTeacherVisibleLimit()` |
 | 北京时间跨日清理（释放/共享/今日抽查） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | 老师右下角 toast（学生协助请求） | `src/components/JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
@@ -49,7 +49,7 @@
 |--------------------|----------|
 | 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx` |
 | 共 X 条、今日可见序号、本轮未勾选 | `JpVocabPage.tsx`（`teacherVisibleWords`、表头统计） |
-| 隐藏已抽查、老师端仍显示已抽查词、条数对不上 | `jp-vocab-teacher-visible.ts` → `filterJpVocabWordsByTeacherVisibleLimit` |
+| 从未抽查超过剩余、只应显示剩余 N 条 | `jp-vocab-teacher-visible.ts` → `jpVocabDailyQuizRemaining`、`filterJpVocabWordsByTeacherVisibleLimit`（隐藏后 `slice(0, remaining)`） |
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-teacher-visible.ts` → `applyJpVocabQuizTargetVisiblePlan`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`、`ensureJpVocabTeacherVisibleLimit` |
 | 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |
 

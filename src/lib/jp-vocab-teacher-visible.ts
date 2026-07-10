@@ -1,4 +1,4 @@
-import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import { beijingDateString, effectiveTodayCheckCount, jpVocabTodayCheckStats } from "@/lib/jp-vocab-daily-check";
 import {
   buildJpVocabDailySeqMap,
   isJpVocabRoundChecked,
@@ -303,6 +303,50 @@ function jpVocabTeacherVisiblePoolMissingTodayChecked(
   return checkedInPool < expectedInPool;
 }
 
+/** 可见池中「今日未抽查」词条是否超过今日剩余任务数 */
+function jpVocabTeacherVisiblePoolHasExcessUnchecked(
+  visibleIds: number[],
+  todayCheckedIds: number[],
+  target: number
+): boolean {
+  if (!visibleIds.length || target <= 0) return false;
+  const checkedSet = new Set(todayCheckedIds);
+  const uncheckedInPool = visibleIds.filter((id) => !checkedSet.has(id)).length;
+  const remaining = Math.max(0, target - todayCheckedIds.length);
+  return uncheckedInPool > remaining;
+}
+
+function jpVocabTeacherVisiblePoolNeedsRebuild(
+  visibleIds: number[] | undefined,
+  todayCheckedIds: number[],
+  target: number
+): boolean {
+  if (!visibleIds?.length) return true;
+  if (visibleIds.length !== target) return true;
+  if (jpVocabTeacherVisiblePoolMissingTodayChecked(visibleIds, todayCheckedIds, target)) {
+    return true;
+  }
+  return jpVocabTeacherVisiblePoolHasExcessUnchecked(
+    visibleIds,
+    todayCheckedIds,
+    target
+  );
+}
+
+/**
+ * 今日剩余待抽查数量 = 管理员目标 − 全库今日已抽查词条数。
+ */
+export function jpVocabDailyQuizRemaining(
+  words: JpVocabWord[],
+  quizTarget: number,
+  now = new Date()
+): number {
+  const target = Math.max(0, Math.floor(quizTarget));
+  if (target <= 0) return 0;
+  const { wordCount } = jpVocabTodayCheckStats(words, now);
+  return Math.max(0, target - wordCount);
+}
+
 /**
  * 按「今日抽查目标」组装可见池：先纳入今日已抽查词条，再用未抽查词条补足至目标数。
  */
@@ -361,7 +405,7 @@ export function applyJpVocabQuizTargetVisiblePlan(
     words,
     now
   );
-  const poolMissingChecked = jpVocabTeacherVisiblePoolMissingTodayChecked(
+  const poolMissingChecked = jpVocabTeacherVisiblePoolNeedsRebuild(
     previousVisible,
     todayCheckedIds,
     target
@@ -369,14 +413,7 @@ export function applyJpVocabQuizTargetVisiblePlan(
 
   let visible_ids: number[];
 
-  if (!previousVisible.length) {
-    visible_ids = buildJpVocabQuizTargetVisibleIds(
-      displayOrder,
-      words,
-      target,
-      now
-    );
-  } else if (poolMissingChecked) {
+  if (!previousVisible.length || poolMissingChecked) {
     visible_ids = buildJpVocabQuizTargetVisibleIds(
       displayOrder,
       words,
@@ -438,19 +475,29 @@ export function applyJpVocabQuizTargetVisiblePlan(
  * 目标数变大、或池中缺少今日已抽查词条时需重算；避免每次请求全量扫词写库（易触发 Worker CPU 超限）。
  */
 export function shouldMaterializeJpVocabTeacherVisibleLimit(
-  stored: Pick<JpVocabTeacherVisibleLimit, "quiz_target" | "visible_ids">,
+  stored: Pick<
+    JpVocabTeacherVisibleLimit,
+    "quiz_target" | "visible_ids" | "released_today"
+  >,
   ctx?: {
     displayOrder?: JpVocabDailyDisplayOrder;
     words?: JpVocabWord[];
     now?: Date;
   }
 ): boolean {
-  const visibleIds = stored.visible_ids;
-  if (!visibleIds?.length) return false;
   const target = Math.max(1, Math.floor(stored.quiz_target));
-  if (visibleIds.length < target) return true;
-
+  const visibleIds = stored.visible_ids;
   const { displayOrder, words, now } = ctx ?? {};
+
+  if (!visibleIds?.length) {
+    return (
+      stored.released_today === true ||
+      target > JP_VOCAB_TEACHER_VISIBLE_DEFAULT
+    );
+  }
+
+  if (visibleIds.length !== target) return true;
+
   if (!displayOrder?.ids.length || !words?.length) return false;
 
   const todayCheckedIds = jpVocabTodayCheckedIdsInOrder(
@@ -458,7 +505,7 @@ export function shouldMaterializeJpVocabTeacherVisibleLimit(
     words,
     now
   );
-  return jpVocabTeacherVisiblePoolMissingTodayChecked(
+  return jpVocabTeacherVisiblePoolNeedsRebuild(
     visibleIds,
     todayCheckedIds,
     target
@@ -488,16 +535,41 @@ export function filterJpVocabWordsByTeacherVisibleLimit(
   displayOrder: JpVocabDailyDisplayOrder,
   visible: Pick<
     JpVocabTeacherVisibleLimit,
-    "limit" | "count" | "visible_ids" | "hide_checked_today"
+    | "limit"
+    | "count"
+    | "visible_ids"
+    | "hide_checked_today"
+    | "quiz_target"
+    | "released_today"
   >,
   now = new Date()
 ): JpVocabWord[] {
   if (!words.length) return [];
 
+  const quizTarget = Math.max(0, Math.floor(visible.quiz_target ?? 0));
   let filtered: JpVocabWord[];
 
   if (visible.visible_ids?.length) {
     const idSet = new Set(visible.visible_ids);
+    const orderIndex = new Map(displayOrder.ids.map((id, index) => [id, index]));
+    filtered = words
+      .filter((word) => idSet.has(word.id))
+      .sort(
+        (a, b) =>
+          (orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+      );
+  } else if (
+    quizTarget > 0 &&
+    (visible.released_today || quizTarget > JP_VOCAB_TEACHER_VISIBLE_DEFAULT)
+  ) {
+    const resolvedIds = buildJpVocabQuizTargetVisibleIds(
+      displayOrder,
+      words,
+      quizTarget,
+      now
+    );
+    const idSet = new Set(resolvedIds);
     const orderIndex = new Map(displayOrder.ids.map((id, index) => [id, index]));
     filtered = words
       .filter((word) => idSet.has(word.id))
@@ -521,6 +593,10 @@ export function filterJpVocabWordsByTeacherVisibleLimit(
     filtered = filtered.filter(
       (word) => !isJpVocabWordQuizCheckedToday(word, displayOrder, now)
     );
+    if (quizTarget > 0) {
+      const remaining = jpVocabDailyQuizRemaining(words, quizTarget, now);
+      filtered = filtered.slice(0, remaining);
+    }
   }
 
   return filtered;
