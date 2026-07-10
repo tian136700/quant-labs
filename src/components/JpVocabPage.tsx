@@ -1731,9 +1731,12 @@ export function JpVocabPage() {
               <tbody>
                 {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
-                    displayOrder,
-                  });
+                  const reviewLocked = isWordReviewLocked(w, sessionReviewAt[w.id]);
+                  const selected =
+                    effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
+                      displayOrder,
+                    }) ??
+                    (reviewLocked ? w.last_review_level ?? undefined : undefined);
                   const isSaving = savingId === w.id;
                   const isSharing = shareProgress?.wordId === w.id;
                   const sharingPercent = isSharing ? shareProgress.percent : 0;
@@ -1746,7 +1749,6 @@ export function JpVocabPage() {
                   const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
                   const dailySeq = dailySeqByWordId.get(w.id) ?? rowIndex + 1;
                   const inQuizTarget = isWordInQuizTarget(w.id);
-                  const reviewLocked = isWordReviewLocked(w, sessionReviewAt[w.id]);
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
@@ -1909,22 +1911,18 @@ export function JpVocabPage() {
                           >
                             不可勾选
                           </span>
-                        ) : reviewLocked ? (
-                          <span
-                            className="jp-vocab-level-unavailable jp-vocab-level-locked"
-                            title="勾选已满 1 小时，无法再修改"
-                          >
-                            没办法操作
-                          </span>
                         ) : (
                         <div
-                          className="jp-vocab-levels"
+                          className={`jp-vocab-levels${
+                            reviewLocked ? " jp-vocab-levels--locked" : ""
+                          }`}
                           role="group"
                           aria-label={`${w.word} 熟悉程度`}
+                          title={reviewLocked ? "没办法操作" : undefined}
                         >
                           {LEVELS.map((lv) => {
                             const checked = selected === lv.key;
-                            const levelDisabled = !canOperate || isSaving;
+                            const levelDisabled = !canOperate || isSaving || reviewLocked;
                             return (
                               <button
                                 key={lv.key}
@@ -1933,20 +1931,22 @@ export function JpVocabPage() {
                                   checked ? " is-checked" : ""
                                 }${
                                   !canOperate ? " jp-vocab-level-opt--readonly" : ""
-                                }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
-                                  lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
-                                }`}
+                                }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
+                                  lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                                }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
                                 disabled={levelDisabled}
                                 title={
-                                  !canOperate
-                                    ? "登录后可勾选"
-                                    : isSaving
-                                      ? "保存中…"
-                                      : checked
-                                        ? "今日已选此项，可点其他选项改选"
-                                        : selected
-                                          ? "改选后以此为准，今日抽查次数不重复计"
-                                          : "勾选熟悉程度"
+                                  reviewLocked
+                                    ? "没办法操作"
+                                    : !canOperate
+                                      ? "登录后可勾选"
+                                      : isSaving
+                                        ? "保存中…"
+                                        : checked
+                                          ? "今日已选此项，可点其他选项改选"
+                                          : selected
+                                            ? "改选后以此为准，今日抽查次数不重复计"
+                                            : "勾选熟悉程度"
                                 }
                                 aria-pressed={checked}
                                 onClick={() => void recordLevel(w.id, lv.key)}
@@ -2484,6 +2484,16 @@ export function JpVocabPage() {
           white-space: nowrap;
           user-select: none;
           pointer-events: none;
+        }
+        .jp-vocab-levels--locked {
+          opacity: 0.78;
+        }
+        .jp-vocab-level-opt--locked:disabled {
+          cursor: not-allowed;
+          opacity: 1;
+        }
+        .jp-vocab-levels--locked .jp-vocab-level-opt--locked:disabled:not(.is-checked) {
+          opacity: 0.55;
         }
         .jp-vocab-share-btn--locked:disabled {
           opacity: 0.42;
