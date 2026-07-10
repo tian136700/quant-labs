@@ -9,13 +9,23 @@ type Props = {
   variant?: "teacher" | "study";
   /** 仅管理员：在进度条内设置今日抽查总数 */
   adminQuizTarget?: {
-    value: number;
+    value: string;
     savedValue: number;
     saving: boolean;
-    onChange: (value: number) => void;
+    onChange: (value: string) => void;
     onSave: () => void;
   };
 };
+
+function parseQuizTargetDraft(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  const count = Math.floor(parsed);
+  if (count < 1 || count > 999) return null;
+  return count;
+}
 
 export function JpVocabDailyQuizProgressBar({
   progress,
@@ -33,6 +43,10 @@ export function JpVocabDailyQuizProgressBar({
     variant === "study"
       ? `老师抽查进度：${formatJpVocabDailyQuizProgressLabel(progress)}`
       : formatJpVocabDailyQuizProgressLabel(progress);
+
+  const parsedQuizTarget = adminQuizTarget
+    ? parseQuizTargetDraft(adminQuizTarget.value)
+    : null;
 
   return (
     <div
@@ -66,17 +80,15 @@ export function JpVocabDailyQuizProgressBar({
           </label>
           <input
             id="jp-vocab-quiz-target"
-            type="number"
+            type="text"
+            inputMode="numeric"
             className="jp-vocab-quiz-target-admin__input"
-            min={1}
-            max={999}
-            step={1}
             value={adminQuizTarget.value}
             onChange={(e) => {
-              const next = Number(e.target.value);
-              adminQuizTarget.onChange(
-                Number.isFinite(next) && next >= 1 ? Math.floor(next) : 1
-              );
+              const next = e.target.value;
+              if (next === "" || /^\d+$/.test(next)) {
+                adminQuizTarget.onChange(next);
+              }
             }}
             disabled={adminQuizTarget.saving}
             aria-label="今日抽查数量"
@@ -88,8 +100,8 @@ export function JpVocabDailyQuizProgressBar({
             onClick={adminQuizTarget.onSave}
             disabled={
               adminQuizTarget.saving ||
-              adminQuizTarget.value < 1 ||
-              adminQuizTarget.value === adminQuizTarget.savedValue
+              parsedQuizTarget == null ||
+              parsedQuizTarget === adminQuizTarget.savedValue
             }
           >
             {adminQuizTarget.saving ? "保存中…" : "确认设置"}

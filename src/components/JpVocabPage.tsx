@@ -72,7 +72,6 @@ import {
 } from "@/lib/jp-vocab-review";
 import {
   isJpVocabWordInDailyQuizTarget,
-  jpVocabTeacherVisibleRangeLabel,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
@@ -309,8 +308,10 @@ export function JpVocabPage() {
   );
   const [quizTargetInput, setQuizTargetInput] = useState(
     () =>
-      readVocabCache()?.teacher_visible_limit?.quiz_target ??
-      normalizeJpVocabTeacherVisibleLimit(null).quiz_target
+      String(
+        readVocabCache()?.teacher_visible_limit?.quiz_target ??
+          normalizeJpVocabTeacherVisibleLimit(null).quiz_target
+      )
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const [reviewLockNow, setReviewLockNow] = useState(() => Date.now());
@@ -343,7 +344,7 @@ export function JpVocabPage() {
     sharedTodayWordIdsRef.current = sharedTodayWordIds;
   }, [sharedTodayWordIds]);
   useEffect(() => {
-    setQuizTargetInput(teacherVisibleLimit.quiz_target);
+    setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
   }, [teacherVisibleLimit.quiz_target]);
 
   useEffect(() => {
@@ -1258,7 +1259,13 @@ export function JpVocabPage() {
 
   const setDailyQuizTarget = async () => {
     if (!isAdmin || settingQuizTarget) return;
-    const count = Math.max(1, Math.floor(quizTargetInput) || 1);
+    const trimmed = quizTargetInput.trim();
+    const parsed = Number(trimmed);
+    if (!trimmed || !Number.isFinite(parsed)) {
+      setStatus("请输入今日抽查数量。");
+      return;
+    }
+    const count = Math.min(999, Math.max(1, Math.floor(parsed)));
     setSettingQuizTarget(true);
     setStatus("");
     try {
@@ -1283,7 +1290,7 @@ export function JpVocabPage() {
         throw new Error(data.error || "操作失败");
       }
       setTeacherVisibleLimit(data.teacher_visible_limit);
-      setQuizTargetInput(data.teacher_visible_limit.quiz_target);
+      setQuizTargetInput(String(data.teacher_visible_limit.quiz_target));
       const prev = readVocabCache();
       if (prev) {
         writeClientCache(JP_VOCAB_CACHE_KEY, {
@@ -1300,11 +1307,6 @@ export function JpVocabPage() {
       setSettingQuizTarget(false);
     }
   };
-
-  const teacherVisibleRange = jpVocabTeacherVisibleRangeLabel(
-    teacherVisibleLimit,
-    displayOrder
-  );
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
     const meta = resolveJpVocabRefForPreview(refKey, refs, ref);
@@ -1409,12 +1411,6 @@ export function JpVocabPage() {
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               共 {words.length} 条
-              {isAdmin && words.length ? (
-                <> · 老师可见序号 {teacherVisibleRange}</>
-              ) : null}
-              {!isAdmin && quizTarget > 0 ? (
-                <> · 可抽查序号 1–{quizTarget}</>
-              ) : null}
               {words.length ? (
                 <>
                   {" "}
@@ -1435,18 +1431,6 @@ export function JpVocabPage() {
                     {todayCheckStats.totalActions > todayCheckStats.wordCount
                       ? ` · ${todayCheckStats.totalActions} 次`
                       : null}
-                  </span>
-                </>
-              ) : null}
-              {isAdmin && teacherVisibleLimit.quiz_target > 0 ? (
-                <>
-                  {" "}
-                  ·{" "}
-                  <span
-                    className="jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
-                    title="根据今日抽查数量，老师端序号 1–N 可勾选"
-                  >
-                    老师可抽查序号 1–{teacherVisibleLimit.quiz_target}
                   </span>
                 </>
               ) : null}
