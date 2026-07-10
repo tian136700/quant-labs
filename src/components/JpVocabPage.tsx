@@ -658,9 +658,8 @@ export function JpVocabPage() {
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) =>
-      isAdmin ||
       isJpVocabWordInDailyQuizTarget(wordId, quizTarget, dailySeqByWordId),
-    [isAdmin, quizTarget, dailySeqByWordId]
+    [quizTarget, dailySeqByWordId]
   );
 
   const isWordReviewLocked = useCallback(
