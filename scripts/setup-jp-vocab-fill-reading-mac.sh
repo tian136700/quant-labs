@@ -35,10 +35,11 @@ sed \
   "$ROOT/scripts/com.infoquests.jp-vocab-fill-reading.plist.example" > "$PLIST_DST"
 
 launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
-launchctl enable "gui/$(id -u)/${LABEL}"
+# 卸载旧版 22:00 catchup 任务（已改为每分钟执行，不再需要）
 launchctl bootout "gui/$(id -u)/com.infoquests.jp-vocab-fill-reading-catchup" 2>/dev/null || true
 rm -f "${HOME}/Library/LaunchAgents/com.infoquests.jp-vocab-fill-reading-catchup.plist"
+launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
+launchctl enable "gui/$(id -u)/${LABEL}"
 
 echo ""
 echo "OK: launchd 已安装"
