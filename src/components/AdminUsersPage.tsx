@@ -878,7 +878,9 @@ function AdminUsersPageContent() {
                       {sortLabel("last_login_at")}
                     </button>
                   </th>
-                  <th>{locale === "zh" ? "最后一次登录 IP" : "Last login IP"}</th>
+                  <th className="admin-user-ip-col">
+                    {locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
+                  </th>
                   <th>{locale === "zh" ? "状态" : "Status"}</th>
                   <th>{locale === "zh" ? "操作" : "Actions"}</th>
                 </tr>
@@ -913,7 +915,9 @@ function AdminUsersPageContent() {
                       <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
                       <td>{formatAdminDateTime(row.created_at)}</td>
                       <td>{formatAdminDateTime(row.last_login_at)}</td>
-                      <td className="admin-user-ip">{formatIpForDisplay(row.last_login_ip)}</td>
+                      <td className="admin-user-ip-col admin-user-ip">
+                        {formatIpForDisplay(row.last_login_ip)}
+                      </td>
                       <td>
                         {row.disabled
                           ? locale === "zh"
@@ -1518,6 +1522,7 @@ function AdminUsersPageContent() {
         }
         .admin-rbac-table {
           width: 100%;
+          min-width: 72rem;
           border-collapse: collapse;
           font-size: 0.875rem;
         }
@@ -1551,16 +1556,14 @@ function AdminUsersPageContent() {
           justify-content: center;
           gap: 0.25rem;
         }
+        .admin-user-ip-col {
+          min-width: 17.5rem;
+        }
         .admin-user-ip {
-          max-width: 240px;
-          white-space: normal;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          line-height: 1.2;
-          display: -webkit-box;
-          -webkit-box-orient: vertical;
-          -webkit-line-clamp: 3;
-          overflow: hidden;
+          white-space: nowrap;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 0.8125rem;
+          letter-spacing: -0.01em;
         }
         .admin-rbac-table tbody tr:nth-child(even) {
           background: rgba(255, 255, 255, 0.02);
