@@ -74,6 +74,7 @@ import {
   jpVocabTeacherVisibleRangeLabel,
   JP_VOCAB_TEACHER_VISIBLE_STEP,
   normalizeJpVocabTeacherVisibleLimit,
+  planJpVocabTeacherVisibleRelease,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
@@ -1249,7 +1250,7 @@ export function JpVocabPage() {
         });
       }
       setStatus(
-        `已释放 ${count} 条：老师当前可见序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit)}（上一批已自动隐藏）。`
+        `已释放 ${count} 条：老师当前可见序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit)}（上一批已自动隐藏；已跳过今日已抽查的词条）。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -1304,6 +1305,16 @@ export function JpVocabPage() {
   const remainingToRelease = Math.max(
     0,
     Math.max(displayOrder.ids.length, words.length) - teacherVisibleLimit.limit
+  );
+  const releasePreview = useMemo(
+    () =>
+      planJpVocabTeacherVisibleRelease(
+        displayOrder,
+        words,
+        teacherVisibleLimit,
+        Math.max(1, Math.floor(releaseCount) || JP_VOCAB_TEACHER_VISIBLE_STEP)
+      ),
+    [displayOrder, words, teacherVisibleLimit, releaseCount]
   );
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
@@ -1492,7 +1503,9 @@ export function JpVocabPage() {
                   title={
                     teacherVisibleAtMax
                       ? "老师已可见全部词条"
-                      : `当前老师可见序号 ${teacherVisibleRange}；下一批将释放序号 ${teacherVisibleLimit.limit + 1}–${teacherVisibleLimit.limit + Math.max(1, Math.floor(releaseCount) || 1)}`
+                      : releasePreview
+                        ? `当前老师可见序号 ${teacherVisibleRange}；下一批将释放序号 ${releasePreview.start}–${releasePreview.end}（自动跳过今日已抽查）`
+                        : `当前老师可见序号 ${teacherVisibleRange}`
                   }
                 >
                   {expandingTeacherVisible

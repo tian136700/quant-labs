@@ -1,5 +1,8 @@
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { buildJpVocabDailySeqMap } from "@/lib/jp-vocab-daily-order";
+import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import {
+  buildJpVocabDailySeqMap,
+  isJpVocabRoundChecked,
+} from "@/lib/jp-vocab-daily-order";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import { JP_VOCAB_DAILY_QUIZ_TOP } from "@/lib/jp-vocab-daily-quiz-progress";
 import type { JpVocabWord } from "@/lib/types";
@@ -103,4 +106,82 @@ export function parseJpVocabTeacherVisibleReleaseCount(
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 1) return null;
   return Math.min(Math.floor(parsed), 999);
+}
+
+/** 今日是否已抽查（含今日抽查次数与本轮序号勾选） */
+export function isJpVocabWordQuizCheckedToday(
+  word: JpVocabWord,
+  displayOrder?: JpVocabDailyDisplayOrder,
+  now = new Date()
+): boolean {
+  if (
+    effectiveTodayCheckCount(
+      word.today_check_count ?? 0,
+      word.today_check_date,
+      now
+    ) > 0
+  ) {
+    return true;
+  }
+  const today = beijingDateString(now);
+  return (
+    displayOrder?.date === today &&
+    isJpVocabRoundChecked(displayOrder, word.id)
+  );
+}
+
+export type JpVocabTeacherVisibleReleasePlan = {
+  limit: number;
+  count: number;
+  start: number;
+  end: number;
+};
+
+/**
+ * 计算释放下一批老师可见词条：从当前终点往后跳过今日已抽查的序号，
+ * 再连续取 releaseCount 条（避免管理员在全表预勾后，老师仍看到旧词）。
+ */
+export function planJpVocabTeacherVisibleRelease(
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  current: Pick<JpVocabTeacherVisibleLimit, "limit" | "count">,
+  releaseCount: number,
+  now = new Date()
+): JpVocabTeacherVisibleReleasePlan | null {
+  const totalSeq = displayOrder.ids.length;
+  const currentEnd = Math.max(0, Math.floor(current.limit));
+  if (currentEnd >= totalSeq) return null;
+
+  const count = Math.max(1, Math.floor(releaseCount));
+  const wordById = new Map(words.map((w) => [w.id, w]));
+  const isChecked = (wordId: number) => {
+    const word = wordById.get(wordId);
+    return word
+      ? isJpVocabWordQuizCheckedToday(word, displayOrder, now)
+      : false;
+  };
+
+  let seq = currentEnd + 1;
+  while (seq <= totalSeq && isChecked(displayOrder.ids[seq - 1])) {
+    seq++;
+  }
+
+  let released = 0;
+  let lastSeq = currentEnd;
+  for (; seq <= totalSeq && released < count; seq++) {
+    const wordId = displayOrder.ids[seq - 1];
+    if (isChecked(wordId)) continue;
+    released++;
+    lastSeq = seq;
+  }
+
+  if (released === 0) {
+    const limit = Math.min(totalSeq, currentEnd + count);
+    const { start, end } = jpVocabTeacherVisibleRange({ limit, count });
+    return { limit, count, start, end };
+  }
+
+  const limit = lastSeq;
+  const { start, end } = jpVocabTeacherVisibleRange({ limit, count });
+  return { limit, count, start, end };
 }

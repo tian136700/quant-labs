@@ -44,6 +44,7 @@ import {
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   normalizeJpVocabTeacherVisibleLimit,
+  planJpVocabTeacherVisibleRelease,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
@@ -1742,10 +1743,19 @@ export async function expandJpVocabTeacherVisibleLimit(
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
   const count = Math.max(1, Math.floor(releaseCount));
+  const words = await listJpVocabWords(db);
+  const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
+  const plan = planJpVocabTeacherVisibleRelease(
+    displayOrder,
+    words,
+    current,
+    count
+  );
+  if (!plan) return current;
   return saveJpVocabTeacherVisibleLimit(db, {
     ...current,
-    limit: current.limit + count,
-    count,
+    limit: plan.limit,
+    count: plan.count,
   });
 }
 
