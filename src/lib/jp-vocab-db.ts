@@ -53,7 +53,7 @@ import {
 } from "@/lib/jp-vocab-teacher-visible";
 import { formatReviewIso } from "@/lib/jp-vocab-review";
 import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
-import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
+import { applyJpVocabReview, isJpVocabWordReviewLocked, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
   computeJpVocabDailyQuizProgress,
   JP_VOCAB_DAILY_QUIZ_TOP,
@@ -544,6 +544,9 @@ export async function recordJpVocabReview(
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
+    if (isJpVocabWordReviewLocked(devWords[idx])) {
+      return { ok: false, error: "review_locked" };
+    }
     const { word: updated } = applyJpVocabReview(devWords[idx], level);
     devWords[idx] = updated;
     devDailyDisplayOrder = markJpVocabRoundChecked(devDailyDisplayOrder, wordId);
@@ -558,6 +561,9 @@ export async function recordJpVocabReview(
   if (!row) return { ok: false, error: "not_found" };
 
   const current = mapRow(row);
+  if (isJpVocabWordReviewLocked(current)) {
+    return { ok: false, error: "review_locked" };
+  }
   const { word: updated } = applyJpVocabReview(current, level);
 
   const result = await db
@@ -2058,6 +2064,9 @@ export async function shareJpVocabWord(
   if (devStoreEnabled) {
     const word = devWords.find((w) => w.id === wordId);
     if (!word) return { ok: false, error: "not_found" };
+    if (isJpVocabWordReviewLocked(word)) {
+      return { ok: false, error: "review_locked" };
+    }
     if (await isJpVocabWordSharedToday(db, wordId)) {
       return { ok: false, error: "already_shared_today" };
     }
@@ -2092,6 +2101,11 @@ export async function shareJpVocabWord(
     .first<Record<string, unknown>>();
   if (!wordRow) return { ok: false, error: "not_found" };
 
+  const current = mapRow(wordRow);
+  if (isJpVocabWordReviewLocked(current)) {
+    return { ok: false, error: "review_locked" };
+  }
+
   const existingRow = await db
     .prepare(
       `SELECT id, word_id, shared_by, shared_at, share_date
@@ -2105,7 +2119,6 @@ export async function shareJpVocabWord(
     return { ok: false, error: "already_shared_today" };
   }
 
-  const current = mapRow(wordRow);
   let updatedWord = current;
   const autoMarkedLevel: JpVocabLevel | null = isJpVocabWordCheckedToday(current)
     ? null

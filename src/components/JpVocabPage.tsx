@@ -665,12 +665,11 @@ export function JpVocabPage() {
 
   const isWordReviewLocked = useCallback(
     (word: JpVocabWord, sessionReviewAtMs?: number) =>
-      !isAdmin &&
       isJpVocabWordReviewLocked(word, {
         sessionReviewAtMs,
         now: new Date(reviewLockNow),
       }),
-    [isAdmin, reviewLockNow]
+    [reviewLockNow]
   );
 
   const searchActive = searchQuery.trim().length > 0;
