@@ -45,6 +45,7 @@ import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   normalizeJpVocabTeacherVisibleLimit,
   planJpVocabTeacherVisibleRelease,
+  repairJpVocabTeacherVisibleIds,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
@@ -1707,6 +1708,27 @@ export async function getJpVocabTeacherVisibleLimit(
   }
 }
 
+/** 读取并修复老师可见批次（排除今日已抽查、补全 visible_ids） */
+export async function ensureJpVocabTeacherVisibleLimit(
+  db: D1Database,
+  ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
+): Promise<JpVocabTeacherVisibleLimit> {
+  const current = await getJpVocabTeacherVisibleLimit(db);
+  if (current.visible_ids?.length || current.count >= current.limit) {
+    return current;
+  }
+  const words = ctx?.words ?? (await listJpVocabWords(db));
+  const displayOrder =
+    ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));
+  const repaired = repairJpVocabTeacherVisibleIds(
+    displayOrder,
+    words,
+    current
+  );
+  if (repaired === current) return current;
+  return saveJpVocabTeacherVisibleLimit(db, repaired);
+}
+
 async function saveJpVocabTeacherVisibleLimit(
   db: D1Database,
   limit: JpVocabTeacherVisibleLimit
@@ -1756,6 +1778,7 @@ export async function expandJpVocabTeacherVisibleLimit(
     ...current,
     limit: plan.limit,
     count: plan.count,
+    visible_ids: plan.visible_ids,
   });
 }
 
@@ -1781,6 +1804,7 @@ export async function resetJpVocabTeacherVisibleLimit(
     date: beijingDateString(),
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    visible_ids: undefined,
   });
 }
 

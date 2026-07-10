@@ -1,9 +1,9 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   ensureJpVocabDailyDisplayOrder,
+  ensureJpVocabTeacherVisibleLimit,
   expandJpVocabTeacherVisibleLimit,
   getJpVocabDailyQuizStyle,
-  getJpVocabTeacherVisibleLimit,
   listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
@@ -29,14 +29,17 @@ const AUTH_MSG = {
 export async function GET() {
   try {
     const env = await getCloudflareEnv();
-    const [{ words, refs }, daily_quiz_style, shared_today_word_ids, teacher_visible_limit] =
+    const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
       await Promise.all([
       listJpVocabWordsWithRefs(env.DB),
       getJpVocabDailyQuizStyle(env.DB),
       listJpVocabSharedTodayWordIds(env.DB),
-      getJpVocabTeacherVisibleLimit(env.DB),
     ]);
     const display_order = await ensureJpVocabDailyDisplayOrder(env.DB, words);
+    const teacher_visible_limit = await ensureJpVocabTeacherVisibleLimit(env.DB, {
+      words,
+      displayOrder: display_order,
+    });
     return jsonResponse({
       ok: true,
       words,

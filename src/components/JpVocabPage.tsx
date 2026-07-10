@@ -1245,7 +1245,7 @@ export function JpVocabPage() {
         });
       }
       setStatus(
-        `已释放 ${count} 条：老师当前可见序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit)}（上一批已自动隐藏；已跳过今日已抽查的词条）。`
+        `已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条：老师当前可见序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit, displayOrder)}（仅含今日尚未抽查的词条；上一批已自动隐藏）。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -1294,7 +1294,10 @@ export function JpVocabPage() {
     }
   };
 
-  const teacherVisibleRange = jpVocabTeacherVisibleRangeLabel(teacherVisibleLimit);
+  const teacherVisibleRange = jpVocabTeacherVisibleRangeLabel(
+    teacherVisibleLimit,
+    displayOrder
+  );
   const teacherVisibleAtMax =
     teacherVisibleLimit.limit >= Math.max(displayOrder.ids.length, words.length);
   const remainingToRelease = Math.max(
