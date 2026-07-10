@@ -43,11 +43,12 @@ import {
 } from "@/lib/jp-vocab-daily-quiz-style";
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  materializeJpVocabTeacherVisibleLimit,
   normalizeJpVocabTeacherVisibleLimit,
-  planJpVocabTeacherVisibleRelease,
-  repairJpVocabTeacherVisibleVisibleIds,
+  teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
+import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
 import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
   computeJpVocabDailyQuizProgress,
@@ -102,6 +103,9 @@ let devTeacherVisibleLimit: JpVocabTeacherVisibleLimit = {
   limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   quiz_target: JP_VOCAB_DAILY_QUIZ_TOP,
+  released_today: false,
+  release_count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  excluded_batch_ids: [],
 };
 let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   date: "",
@@ -656,15 +660,29 @@ export async function uploadJpVocabWords(
   replace = false,
   refs: JpVocabRefUploadInput[] = []
 ): Promise<UploadJpVocabWordsResult> {
-  const cleaned = words
-    .map((w) => ({
-      word: normalizeWord(w.word),
-      reading: (w.reading || "").trim() || null,
+  const cleaned: Array<{
+    word: string;
+    reading: string | null;
+    meaning: string | null;
+    kind: JpVocabKind;
+    ref_key: string | null;
+  }> = [];
+  for (const w of words) {
+    const word = normalizeWord(w.word);
+    if (!word) continue;
+    const kind = normalizeKind(w.kind);
+    cleaned.push({
+      word,
+      reading: await resolveJpVocabReadingIfMissing(
+        word,
+        kind,
+        (w.reading || "").trim() || null
+      ),
       meaning: (w.meaning || "").trim() || null,
-      kind: normalizeKind(w.kind),
+      kind,
       ref_key: w.ref_key ? normalizeJpVocabRefKey(w.ref_key) || null : null,
-    }))
-    .filter((w) => w.word);
+    });
+  }
 
   if (!cleaned.length) {
     return { ok: false, error: "words_empty" };
@@ -780,11 +798,16 @@ export async function addJpVocabWord(
   const word = normalizeWord(input.word);
   if (!word) return { ok: false, error: "word_required" };
 
+  const kind = normalizeKind(input.kind);
   const item = {
     word,
-    reading: (input.reading || "").trim() || null,
+    reading: await resolveJpVocabReadingIfMissing(
+      word,
+      kind,
+      (input.reading || "").trim() || null
+    ),
     meaning: (input.meaning || "").trim() || null,
-    kind: normalizeKind(input.kind),
+    kind,
     ref_key: input.ref_key
       ? normalizeJpVocabRefKey(input.ref_key) || null
       : null,
@@ -1689,26 +1712,37 @@ export async function getJpVocabTeacherVisibleLimit(
     return normalizeJpVocabTeacherVisibleLimit(devTeacherVisibleLimit);
   }
 
+  const raw = await readJpVocabTeacherVisibleLimitRaw(db);
+  const normalized = normalizeJpVocabTeacherVisibleLimit(raw);
+  const today = beijingDateString();
+  if (raw?.date && raw.date !== today) {
+    await saveJpVocabTeacherVisibleLimit(db, {
+      ...normalized,
+      visible_ids: undefined,
+    });
+  }
+  return normalized;
+}
+
+async function readJpVocabTeacherVisibleLimitRaw(
+  db: D1Database
+): Promise<Partial<JpVocabTeacherVisibleLimit> | null> {
   await ensureJpVocabSettingSchema(db);
   const row = await db
     .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
     .bind(JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY)
     .first<{ value: string }>();
 
-  if (!row?.value) {
-    return normalizeJpVocabTeacherVisibleLimit(null);
-  }
+  if (!row?.value) return null;
 
   try {
-    return normalizeJpVocabTeacherVisibleLimit(
-      JSON.parse(row.value) as Partial<JpVocabTeacherVisibleLimit>
-    );
+    return JSON.parse(row.value) as Partial<JpVocabTeacherVisibleLimit>;
   } catch {
-    return normalizeJpVocabTeacherVisibleLimit(null);
+    return null;
   }
 }
 
-/** 读取并修复老师可见批次（补全 visible_ids、刷新含今日已抽查的批次） */
+/** 读取并按释放标志重算老师可见批次（部署/刷新后自动同步，无需重复点击释放） */
 export async function ensureJpVocabTeacherVisibleLimit(
   db: D1Database,
   ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
@@ -1717,13 +1751,15 @@ export async function ensureJpVocabTeacherVisibleLimit(
   const words = ctx?.words ?? (await listJpVocabWords(db));
   const displayOrder =
     ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));
-  const repaired = repairJpVocabTeacherVisibleVisibleIds(
+  const materialized = materializeJpVocabTeacherVisibleLimit(
+    current,
     displayOrder,
-    words,
-    current
+    words
   );
-  if (repaired === current) return current;
-  return saveJpVocabTeacherVisibleLimit(db, repaired);
+  if (!teacherVisibleLimitNeedsPersist(current, materialized)) {
+    return materialized;
+  }
+  return saveJpVocabTeacherVisibleLimit(db, materialized);
 }
 
 async function saveJpVocabTeacherVisibleLimit(
@@ -1764,19 +1800,27 @@ export async function expandJpVocabTeacherVisibleLimit(
   const count = Math.max(1, Math.floor(releaseCount));
   const words = await listJpVocabWords(db);
   const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
-  const plan = planJpVocabTeacherVisibleRelease(
-    displayOrder,
-    words,
-    current,
-    count
-  );
-  if (!plan) return current;
-  return saveJpVocabTeacherVisibleLimit(db, {
+
+  const excluded_batch_ids = current.released_today
+    ? [
+        ...(current.excluded_batch_ids ?? []),
+        ...(current.visible_ids ?? []),
+      ]
+    : [];
+
+  const draft: JpVocabTeacherVisibleLimit = {
     ...current,
-    limit: plan.limit,
-    count: plan.count,
-    visible_ids: plan.visible_ids,
-  });
+    released_today: true,
+    release_count: count,
+    excluded_batch_ids,
+  };
+
+  const materialized = materializeJpVocabTeacherVisibleLimit(
+    draft,
+    displayOrder,
+    words
+  );
+  return saveJpVocabTeacherVisibleLimit(db, materialized);
 }
 
 export async function setJpVocabDailyQuizTarget(
@@ -1801,6 +1845,9 @@ export async function resetJpVocabTeacherVisibleLimit(
     date: beijingDateString(),
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    released_today: false,
+    release_count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    excluded_batch_ids: [],
     visible_ids: undefined,
   });
 }

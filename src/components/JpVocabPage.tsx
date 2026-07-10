@@ -148,6 +148,11 @@ const JP_VOCAB_PAGE_SIZE = 100;
 /** 「发给学生」预估传输时长（进度条 0→100%） */
 const JP_VOCAB_SHARE_DURATION_MS = 5000;
 
+/** 操作列「发给学生」说明（表头短版 / 按钮下完整版） */
+const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
+const JP_VOCAB_SHARE_HINT =
+  "学生答不上来或不熟悉时，点此发送给他";
+
 function jpVocabShareProgressPercent(elapsedMs: number): number {
   return Math.min(100, Math.round((elapsedMs / JP_VOCAB_SHARE_DURATION_MS) * 100));
 }
@@ -1246,7 +1251,9 @@ export function JpVocabPage() {
         });
       }
       setStatus(
-        `已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条：老师当前可见序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit, displayOrder)}（仅含今日尚未抽查的词条；上一批已自动隐藏）。`
+        data.teacher_visible_limit.released_today
+          ? `今日已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条至老师端（序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit, displayOrder)}）；老师刷新页面即可同步，无需重复点击。`
+          : `已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -1299,14 +1306,25 @@ export function JpVocabPage() {
     teacherVisibleLimit,
     displayOrder
   );
+  const releaseExcludeIds = useMemo(() => {
+    if (!teacherVisibleLimit.released_today) return [];
+    return [
+      ...(teacherVisibleLimit.excluded_batch_ids ?? []),
+      ...(teacherVisibleLimit.visible_ids ?? []),
+    ];
+  }, [
+    teacherVisibleLimit.released_today,
+    teacherVisibleLimit.excluded_batch_ids,
+    teacherVisibleLimit.visible_ids,
+  ]);
   const releaseCandidateCount = useMemo(
     () =>
       countJpVocabTeacherVisibleReleaseCandidates(
         displayOrder,
         words,
-        teacherVisibleLimit.visible_ids ?? []
+        releaseExcludeIds
       ),
-    [displayOrder, words, teacherVisibleLimit.visible_ids]
+    [displayOrder, words, releaseExcludeIds]
   );
   const teacherVisibleAtMax = releaseCandidateCount === 0;
   const remainingToRelease = releaseCandidateCount;
@@ -1452,6 +1470,18 @@ export function JpVocabPage() {
                   </span>
                 </>
               ) : null}
+              {isAdmin && teacherVisibleLimit.released_today ? (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span
+                    className="jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
+                    title="今日释放状态已写入数据库；老师刷新页面会自动同步当前批次，部署后无需重复点击释放"
+                  >
+                    今日已释放 {teacherVisibleLimit.release_count} 条/批
+                  </span>
+                </>
+              ) : null}
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
             </span>
@@ -1516,7 +1546,9 @@ export function JpVocabPage() {
                     ? "释放中…"
                     : teacherVisibleAtMax
                       ? "已全部释放"
-                      : "确认释放"}
+                      : teacherVisibleLimit.released_today
+                        ? "释放下一批"
+                        : "确认释放"}
                 </button>
               </div>
             ) : null}
@@ -2161,15 +2193,23 @@ export function JpVocabPage() {
                                     </div>
                                   </div>
                                 ) : (
-                                  <button
-                                    type="button"
-                                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
-                                    disabled={isSaving || shareProgress != null}
-                                    title="发给学生「今日日语单词」，并标记为不熟悉"
-                                    onClick={() => void shareWord(w.id)}
-                                  >
-                                    发给学生
-                                  </button>
+                                  <div className="jp-vocab-share-stack">
+                                    <button
+                                      type="button"
+                                      className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
+                                      disabled={isSaving || shareProgress != null}
+                                      title="发给学生「今日日语单词」，并标记为不熟悉"
+                                      onClick={() => void shareWord(w.id)}
+                                    >
+                                      发给学生
+                                    </button>
+                                    <span className="jp-vocab-share-hint jp-vocab-share-hint--desktop" role="note">
+                                      {JP_VOCAB_SHARE_HINT_SHORT}
+                                    </span>
+                                    <span className="jp-vocab-share-hint jp-vocab-share-hint--mobile" role="note">
+                                      {JP_VOCAB_SHARE_HINT}
+                                    </span>
+                                  </div>
                                 )
                               ) : null}
                             </div>
@@ -2826,8 +2866,28 @@ export function JpVocabPage() {
           flex-wrap: wrap;
         }
         :global(.jp-vocab-table .jp-vocab-action-col) {
-          white-space: nowrap;
+          white-space: normal;
           min-width: 7.5rem;
+        }
+        .jp-vocab-share-stack {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.2rem;
+          max-width: 5.75rem;
+        }
+        .jp-vocab-share-hint {
+          font-size: 0.625rem;
+          line-height: 1.35;
+          color: var(--muted);
+          text-align: center;
+          font-weight: 400;
+        }
+        .jp-vocab-share-hint--desktop {
+          display: block;
+        }
+        .jp-vocab-share-hint--mobile {
+          display: none;
         }
         .jp-vocab-action-buttons {
           display: inline-flex;
@@ -3280,6 +3340,19 @@ export function JpVocabPage() {
           }
           .jp-vocab-action-row > :only-child {
             grid-column: 1 / -1;
+          }
+          .jp-vocab-share-stack {
+            max-width: none;
+            width: 100%;
+            gap: 0.25rem;
+          }
+          .jp-vocab-share-hint--desktop {
+            display: none;
+          }
+          .jp-vocab-share-hint--mobile {
+            display: block;
+            font-size: clamp(0.6875rem, 2.8vw, 0.75rem);
+            padding: 0 0.125rem 0.125rem;
           }
           :global(.jp-vocab-mobile-action-btn) {
             display: inline-flex !important;

@@ -170,6 +170,19 @@ async function lookupJisho(
   return { reading, hadError };
 }
 
+/** 新增词条时若未填读音，用规则即时推断（不查 Jisho，纯假名会直接复制 surface）。 */
+export async function resolveJpVocabReadingIfMissing(
+  word: string,
+  kind: string,
+  reading: string | null | undefined
+): Promise<string | null> {
+  const trimmed = (reading ?? "").trim();
+  if (trimmed) return trimmed;
+  if (kind === "grammar") return null;
+  const { reading: inferred } = await inferJpVocabReading(word, { useJisho: false });
+  return inferred;
+}
+
 export async function inferJpVocabReading(
   word: string,
   options: {
