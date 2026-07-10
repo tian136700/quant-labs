@@ -9,13 +9,12 @@
     <string>/bin/bash</string>
     <string>__REPO_ROOT__/scripts/jp-vocab-fill-reading-nightly.sh</string>
   </array>
-  <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key>
-    <integer>__HOUR__</integer>
-    <key>Minute</key>
-    <integer>__MINUTE__</integer>
-  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>__INTERVAL__</integer>
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
   <key>StandardOutPath</key>
   <string>/Users/Admin/Library/Logs/jp-vocab-fill-reading.log</string>
   <key>StandardErrorPath</key>
