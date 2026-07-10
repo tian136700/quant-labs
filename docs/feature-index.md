@@ -48,7 +48,7 @@
 | 用户描述或页面文案 | 优先打开 |
 |--------------------|----------|
 | 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx` |
-| 共 X 条、今日可见序号、本轮未勾选 | `JpVocabPage.tsx`（`teacherVisibleWords`、表头统计） |
+| 共 X 条、本轮未勾选 | `JpVocabPage.tsx`（`teacherVisibleWords`、表头统计）；老师端不显示「今日可见序号」（仅管理员保留「老师可见序号」） |
 | 从未抽查超过剩余、只应显示剩余 N 条 | `jp-vocab-teacher-visible.ts` → `jpVocabDailyQuizRemaining`、`filterJpVocabWordsByTeacherVisibleLimit`（隐藏后 `slice(0, remaining)`） |
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-teacher-visible.ts` → `applyJpVocabQuizTargetVisiblePlan`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`、`ensureJpVocabTeacherVisibleLimit` |
 | 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |

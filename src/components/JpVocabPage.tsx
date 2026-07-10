@@ -1395,9 +1395,7 @@ export function JpVocabPage() {
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               共 {isAdmin ? words.length : teacherVisibleWords.length} 条
-              {!isAdmin ? (
-                <> · 今日可见序号 {teacherVisibleRange}</>
-              ) : words.length ? (
+              {isAdmin && words.length ? (
                 <> · 老师可见序号 {teacherVisibleRange}</>
               ) : null}
               {words.length ? (
