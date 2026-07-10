@@ -2,7 +2,6 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import {
   ensureJpVocabDailyDisplayOrder,
   ensureJpVocabTeacherVisibleLimit,
-  expandJpVocabTeacherVisibleLimit,
   getJpVocabDailyQuizStyle,
   listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
@@ -84,22 +83,6 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: true, daily_quiz_style });
     }
 
-    if (body.action === "expand_teacher_visible") {
-      const { isAdmin } = await requireAdmin(request);
-      if (!isAdmin) {
-        return jsonResponse({ ok: false, error: "forbidden" }, 403);
-      }
-      const releaseCount = parseJpVocabTeacherVisibleReleaseCount(body.count);
-      if (releaseCount == null) {
-        return jsonResponse({ ok: false, error: "invalid count" }, 400);
-      }
-      const teacher_visible_limit = await expandJpVocabTeacherVisibleLimit(
-        env.DB,
-        releaseCount
-      );
-      return jsonResponse({ ok: true, teacher_visible_limit });
-    }
-
     if (body.action === "set_daily_quiz_target") {
       const { isAdmin } = await requireAdmin(request);
       if (!isAdmin) {
@@ -109,9 +92,11 @@ export async function POST(request: Request) {
       if (targetCount == null) {
         return jsonResponse({ ok: false, error: "invalid count" }, 400);
       }
+      const hideCheckedToday = body.hide_checked_today !== false;
       const teacher_visible_limit = await setJpVocabDailyQuizTarget(
         env.DB,
-        targetCount
+        targetCount,
+        hideCheckedToday
       );
       return jsonResponse({ ok: true, teacher_visible_limit });
     }

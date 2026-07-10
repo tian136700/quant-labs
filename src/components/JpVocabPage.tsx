@@ -72,11 +72,7 @@ import {
 import {
   filterJpVocabWordsByTeacherVisibleLimit,
   jpVocabTeacherVisibleRangeLabel,
-  JP_VOCAB_TEACHER_VISIBLE_STEP,
-  countJpVocabTeacherVisibleReleaseCandidates,
   normalizeJpVocabTeacherVisibleLimit,
-  planJpVocabTeacherVisibleRelease,
-  jpVocabTeacherVisibleReleasedTotal,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
@@ -309,12 +305,14 @@ export function JpVocabPage() {
       readVocabCache()?.teacher_visible_limit ??
       normalizeJpVocabTeacherVisibleLimit(null)
   );
-  const [expandingTeacherVisible, setExpandingTeacherVisible] = useState(false);
-  const [releaseCount, setReleaseCount] = useState(JP_VOCAB_TEACHER_VISIBLE_STEP);
   const [quizTargetInput, setQuizTargetInput] = useState(
     () =>
       readVocabCache()?.teacher_visible_limit?.quiz_target ??
       normalizeJpVocabTeacherVisibleLimit(null).quiz_target
+  );
+  const [hideCheckedTodayInput, setHideCheckedTodayInput] = useState(
+    () =>
+      readVocabCache()?.teacher_visible_limit?.hide_checked_today !== false
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const displayOrderRef = useRef(displayOrder);
@@ -347,7 +345,8 @@ export function JpVocabPage() {
   }, [sharedTodayWordIds]);
   useEffect(() => {
     setQuizTargetInput(teacherVisibleLimit.quiz_target);
-  }, [teacherVisibleLimit.quiz_target]);
+    setHideCheckedTodayInput(teacherVisibleLimit.hide_checked_today !== false);
+  }, [teacherVisibleLimit.quiz_target, teacherVisibleLimit.hide_checked_today]);
 
   useEffect(() => {
     return () => {
@@ -1220,60 +1219,6 @@ export function JpVocabPage() {
     }
   };
 
-  const expandTeacherVisible = async () => {
-    if (!isAdmin || expandingTeacherVisible) return;
-    const count = Math.max(1, Math.floor(releaseCount) || JP_VOCAB_TEACHER_VISIBLE_STEP);
-    setExpandingTeacherVisible(true);
-    setStatus("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ action: "expand_teacher_visible", count }),
-      });
-      const raw = await res.text();
-      let data: {
-        ok: boolean;
-        teacher_visible_limit?: JpVocabTeacherVisibleLimit;
-        error?: string;
-      };
-      try {
-        data = JSON.parse(raw) as typeof data;
-      } catch {
-        throw new Error(
-          !res.ok
-            ? `请求失败（${res.status}），请刷新页面后重试`
-            : "服务器返回了无效数据，请刷新后重试"
-        );
-      }
-      if (!data.ok || !data.teacher_visible_limit) {
-        throw new Error(data.error || "操作失败");
-      }
-      setTeacherVisibleLimit(data.teacher_visible_limit);
-      const prev = readVocabCache();
-      if (prev) {
-        writeClientCache(JP_VOCAB_CACHE_KEY, {
-          ...prev,
-          teacher_visible_limit: data.teacher_visible_limit,
-        });
-      }
-      const totalReleased = jpVocabTeacherVisibleReleasedTotal(data.teacher_visible_limit);
-      setStatus(
-        data.teacher_visible_limit.released_today
-          ? `今日累计释放 ${totalReleased} 条至老师端（序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit, displayOrder)}）；老师刷新页面即可同步。`
-          : `已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条。`
-      );
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setExpandingTeacherVisible(false);
-    }
-  };
-
   const setDailyQuizTarget = async () => {
     if (!isAdmin || settingQuizTarget) return;
     const count = Math.max(1, Math.floor(quizTargetInput) || 1);
@@ -1287,7 +1232,11 @@ export function JpVocabPage() {
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
-        body: JSON.stringify({ action: "set_daily_quiz_target", count }),
+        body: JSON.stringify({
+          action: "set_daily_quiz_target",
+          count,
+          hide_checked_today: hideCheckedTodayInput,
+        }),
       });
       const data = (await res.json()) as {
         ok: boolean;
@@ -1299,6 +1248,9 @@ export function JpVocabPage() {
       }
       setTeacherVisibleLimit(data.teacher_visible_limit);
       setQuizTargetInput(data.teacher_visible_limit.quiz_target);
+      setHideCheckedTodayInput(
+        data.teacher_visible_limit.hide_checked_today !== false
+      );
       const prev = readVocabCache();
       if (prev) {
         writeClientCache(JP_VOCAB_CACHE_KEY, {
@@ -1306,7 +1258,17 @@ export function JpVocabPage() {
           teacher_visible_limit: data.teacher_visible_limit,
         });
       }
-      setStatus(`今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个。`);
+      const poolSize = data.teacher_visible_limit.visible_ids?.length ?? 0;
+      const range = jpVocabTeacherVisibleRangeLabel(
+        data.teacher_visible_limit,
+        displayOrder
+      );
+      const hideNote = data.teacher_visible_limit.hide_checked_today !== false
+        ? "；老师端将隐藏今日已抽查词条"
+        : "；老师端保留显示今日已抽查词条";
+      setStatus(
+        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个，老师可见池 ${poolSize} 条（序号 ${range}）${hideNote}；老师刷新页面即可同步。`
+      );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1318,22 +1280,15 @@ export function JpVocabPage() {
     teacherVisibleLimit,
     displayOrder
   );
-  const releaseCandidateTotal = useMemo(
-    () => countJpVocabTeacherVisibleReleaseCandidates(displayOrder, words, []),
-    [displayOrder, words]
-  );
-  const releasedTotal = jpVocabTeacherVisibleReleasedTotal(teacherVisibleLimit);
-  const remainingToRelease = Math.max(0, releaseCandidateTotal - releasedTotal);
-  const teacherVisibleAtMax = remainingToRelease === 0;
-  const releasePreview = useMemo(
+  const teacherPoolSize = teacherVisibleLimit.visible_ids?.length ?? 0;
+  const teacherDisplayedCount = useMemo(
     () =>
-      planJpVocabTeacherVisibleRelease(
+      filterJpVocabWordsByTeacherVisibleLimit(
+        displayedWords,
         displayOrder,
-        words,
-        teacherVisibleLimit,
-        Math.max(1, Math.floor(releaseCount) || JP_VOCAB_TEACHER_VISIBLE_STEP)
-      ),
-    [displayOrder, words, teacherVisibleLimit, releaseCount]
+        teacherVisibleLimit
+      ).length,
+    [displayedWords, displayOrder, teacherVisibleLimit]
   );
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
@@ -1408,8 +1363,12 @@ export function JpVocabPage() {
               ? {
                   value: quizTargetInput,
                   savedValue: teacherVisibleLimit.quiz_target,
+                  hideCheckedToday: hideCheckedTodayInput,
+                  savedHideCheckedToday:
+                    teacherVisibleLimit.hide_checked_today !== false,
                   saving: settingQuizTarget,
                   onChange: setQuizTargetInput,
+                  onHideCheckedTodayChange: setHideCheckedTodayInput,
                   onSave: () => void setDailyQuizTarget(),
                 }
               : undefined
@@ -1467,15 +1426,18 @@ export function JpVocabPage() {
                   </span>
                 </>
               ) : null}
-              {isAdmin && teacherVisibleLimit.released_today ? (
+              {isAdmin && teacherPoolSize > 0 ? (
                 <>
                   {" "}
                   ·{" "}
                   <span
                     className="jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
-                    title="今日释放状态已写入数据库；老师刷新页面会自动同步当前批次，部署后无需重复点击释放"
+                    title="根据今日抽查数量自动生成老师可见词条池；老师刷新页面即可同步"
                   >
-                    今日累计释放 {teacherVisibleLimit.release_count} 条
+                    老师可见池 {teacherPoolSize} 条
+                    {teacherVisibleLimit.hide_checked_today !== false
+                      ? `（当前显示 ${teacherDisplayedCount} 条）`
+                      : null}
                   </span>
                 </>
               ) : null}
@@ -1491,63 +1453,6 @@ export function JpVocabPage() {
               >
                 随机高亮
               </button>
-            ) : null}
-            {isAdmin ? (
-              <div className="jp-vocab-release-group">
-                <label className="jp-vocab-release-group__label" htmlFor="jp-vocab-release-count">
-                  释放
-                </label>
-                <input
-                  id="jp-vocab-release-count"
-                  type="number"
-                  className="jp-vocab-release-count"
-                  min={1}
-                  max={remainingToRelease || undefined}
-                  step={1}
-                  value={releaseCount}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    setReleaseCount(
-                      Number.isFinite(next) && next >= 1 ? Math.floor(next) : 1
-                    );
-                  }}
-                  disabled={
-                    loading ||
-                    expandingTeacherVisible ||
-                    !words.length ||
-                    teacherVisibleAtMax
-                  }
-                  aria-label="释放条数"
-                />
-                <span className="jp-vocab-release-group__unit">条</span>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--primary"
-                  onClick={() => void expandTeacherVisible()}
-                  disabled={
-                    loading ||
-                    expandingTeacherVisible ||
-                    !words.length ||
-                    teacherVisibleAtMax ||
-                    releaseCount < 1
-                  }
-                  title={
-                    teacherVisibleAtMax
-                      ? "老师已可见全部词条"
-                      : releasePreview
-                        ? `当前老师可见 ${teacherVisibleRange}（累计 ${releasedTotal} 条）；再释放 ${releaseCount} 条后累计 ${releasePreview.count} 条（优先从未抽查，跳过今日已抽查；序号约 ${releasePreview.start}–${releasePreview.end}）`
-                        : `当前老师可见序号 ${teacherVisibleRange}`
-                  }
-                >
-                  {expandingTeacherVisible
-                    ? "释放中…"
-                    : teacherVisibleAtMax
-                      ? "已全部释放"
-                      : teacherVisibleLimit.released_today
-                        ? "继续释放"
-                        : "确认释放"}
-                </button>
-              </div>
             ) : null}
             {isAdmin ? (
               <button
@@ -1626,7 +1531,7 @@ export function JpVocabPage() {
                 ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
                 为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；同一单词今日内改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次勾选更新统计。
-                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。非管理员老师默认仅可见当日序号 1–20，管理员可自选条数释放下一批（例如已抽完 1–20 后选 20 条即 21–40，选 10 条即 21–30），上一批会自动隐藏；跨日自动回到 1–20。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
+                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员在「今日抽查数量」中设置目标后，系统会自动为老师生成可见词条池：优先从未抽查过的词条，不足时按当日序号升序补足（跳过今日已抽查）；可勾选「隐藏老师端已抽查单词」控制老师是否仍能看到今日已抽查词条。跨日自动回到默认设置。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
                 搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）；旁边可按「全部 / 单词 / 语法」筛选类型。
                 备注编辑后约 1 秒自动保存并写入数据库；其他端约 1 秒自动拉取变更（标签页在后台时会降频）。
               </p>
@@ -2422,45 +2327,6 @@ export function JpVocabPage() {
           box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
         }
         .jp-vocab-search__kind:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .jp-vocab-release-group {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          flex-wrap: wrap;
-        }
-        .jp-vocab-release-group__label,
-        .jp-vocab-release-group__unit {
-          font-size: 0.875rem;
-          color: var(--muted);
-          flex-shrink: 0;
-        }
-        .jp-vocab-release-count {
-          width: 3.5rem;
-          min-width: 3.5rem;
-          padding: 0.4rem 0.35rem;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background-color: var(--panel);
-          color: var(--text);
-          font: inherit;
-          font-size: 0.875rem;
-          text-align: center;
-          -moz-appearance: textfield;
-        }
-        .jp-vocab-release-count::-webkit-outer-spin-button,
-        .jp-vocab-release-count::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-        .jp-vocab-release-count:focus {
-          outline: none;
-          border-color: var(--accent);
-          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
-        }
-        .jp-vocab-release-count:disabled {
           opacity: 0.6;
           cursor: not-allowed;
         }

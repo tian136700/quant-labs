@@ -11,8 +11,11 @@ type Props = {
   adminQuizTarget?: {
     value: number;
     savedValue: number;
+    hideCheckedToday: boolean;
+    savedHideCheckedToday: boolean;
     saving: boolean;
     onChange: (value: number) => void;
+    onHideCheckedTodayChange: (value: boolean) => void;
     onSave: () => void;
   };
 };
@@ -82,6 +85,17 @@ export function JpVocabDailyQuizProgressBar({
             aria-label="今日抽查数量"
           />
           <span className="jp-vocab-quiz-target-admin__unit">个</span>
+          <label className="jp-vocab-quiz-target-admin__checkbox">
+            <input
+              type="checkbox"
+              checked={adminQuizTarget.hideCheckedToday}
+              onChange={(e) =>
+                adminQuizTarget.onHideCheckedTodayChange(e.target.checked)
+              }
+              disabled={adminQuizTarget.saving}
+            />
+            <span>隐藏老师端已抽查单词</span>
+          </label>
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
@@ -89,7 +103,9 @@ export function JpVocabDailyQuizProgressBar({
             disabled={
               adminQuizTarget.saving ||
               adminQuizTarget.value < 1 ||
-              adminQuizTarget.value === adminQuizTarget.savedValue
+              (adminQuizTarget.value === adminQuizTarget.savedValue &&
+                adminQuizTarget.hideCheckedToday ===
+                  adminQuizTarget.savedHideCheckedToday)
             }
           >
             {adminQuizTarget.saving ? "保存中…" : "确认设置"}
@@ -141,6 +157,18 @@ export function JpVocabDailyQuizProgressBar({
         .jp-vocab-quiz-target-admin__unit {
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-vocab-quiz-target-admin__checkbox {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-size: 0.8125rem;
+          color: var(--text);
+          cursor: pointer;
+          user-select: none;
+        }
+        .jp-vocab-quiz-target-admin__checkbox input {
+          margin: 0;
         }
         .jp-vocab-quiz-target-admin__input {
           width: 4.25rem;

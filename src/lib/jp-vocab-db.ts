@@ -43,6 +43,7 @@ import {
 } from "@/lib/jp-vocab-daily-quiz-style";
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  applyJpVocabQuizTargetVisiblePlan,
   materializeJpVocabTeacherVisibleLimit,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
@@ -1833,14 +1834,31 @@ export async function expandJpVocabTeacherVisibleLimit(
 
 export async function setJpVocabDailyQuizTarget(
   db: D1Database,
-  targetCount: number
+  targetCount: number,
+  hideCheckedToday = true
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
   const quiz_target = Math.min(Math.max(1, Math.floor(targetCount)), 999);
-  return saveJpVocabTeacherVisibleLimit(db, {
+  const words = await listJpVocabWords(db);
+  const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
+
+  const draft: JpVocabTeacherVisibleLimit = {
     ...current,
     quiz_target,
-  });
+    hide_checked_today: hideCheckedToday,
+  };
+
+  const materialized = applyJpVocabQuizTargetVisiblePlan(
+    draft,
+    displayOrder,
+    words
+  );
+
+  if (!materialized.visible_ids?.length) {
+    throw new Error("no_release_candidates");
+  }
+
+  return saveJpVocabTeacherVisibleLimit(db, materialized);
 }
 
 /** 今日重置时恢复老师默认可见序号 1–20 */
@@ -1854,7 +1872,8 @@ export async function resetJpVocabTeacherVisibleLimit(
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     released_today: false,
-    release_count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    release_count: current.quiz_target,
+    hide_checked_today: true,
     excluded_batch_ids: [],
     visible_ids: undefined,
   });

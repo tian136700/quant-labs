@@ -20,15 +20,17 @@ export type JpVocabTeacherVisibleLimit = {
   limit: number;
   /** 当前老师可见的条数（本批窗口大小） */
   count: number;
-  /** 管理员设置的当日抽查目标数量 */
+  /** 管理员设置的当日抽查目标数量（同时决定老师端可见词条池大小） */
   quiz_target: number;
-  /** 今日管理员是否已确认释放（持久化；老师端据此自动展示批次） */
+  /** 老师端是否隐藏今日已抽查的词条（默认 true） */
+  hide_checked_today?: boolean;
+  /** 今日是否已根据抽查数量生成可见批次（持久化；老师端据此自动展示） */
   released_today: boolean;
-  /** 今日累计释放条数（管理员每次点击累加） */
+  /** 今日可见词条池大小（与 visible_ids 长度一致，兼容旧字段名） */
   release_count: number;
-  /** @deprecated 累计释放模式下不再使用，保留字段兼容旧数据 */
+  /** @deprecated 保留字段兼容旧数据 */
   excluded_batch_ids?: number[];
-  /** 老师当前可见词条 id（由 release 参数每次加载时重算，非手工维护） */
+  /** 老师当前可见词条 id（由今日抽查数量每次加载时重算） */
   visible_ids?: number[];
 };
 
@@ -78,6 +80,10 @@ function inferReleasedToday(
   );
 }
 
+function normalizeHideCheckedToday(raw: unknown): boolean {
+  return raw !== false;
+}
+
 export function normalizeJpVocabTeacherVisibleLimit(
   raw: Partial<JpVocabTeacherVisibleLimit> | null | undefined,
   now = new Date()
@@ -89,6 +95,7 @@ export function normalizeJpVocabTeacherVisibleLimit(
       ? Math.floor(parsedLimit)
       : JP_VOCAB_TEACHER_VISIBLE_DEFAULT;
   const quiz_target = normalizeQuizTarget(raw?.quiz_target);
+  const hide_checked_today = normalizeHideCheckedToday(raw?.hide_checked_today);
   const released_today = inferReleasedToday(raw);
   const parsedReleaseCount = Number(raw?.release_count ?? raw?.count);
   const release_count =
@@ -96,7 +103,7 @@ export function normalizeJpVocabTeacherVisibleLimit(
     Number.isFinite(parsedReleaseCount) &&
     parsedReleaseCount >= 1
       ? Math.min(Math.floor(parsedReleaseCount), 999)
-      : JP_VOCAB_TEACHER_VISIBLE_DEFAULT;
+      : quiz_target;
 
   if (raw?.date === today) {
     return {
@@ -104,6 +111,7 @@ export function normalizeJpVocabTeacherVisibleLimit(
       limit,
       count: normalizeVisibleCount(raw?.count, limit),
       quiz_target,
+      hide_checked_today,
       released_today,
       release_count,
       excluded_batch_ids: normalizeExcludedBatchIds(raw?.excluded_batch_ids),
@@ -115,8 +123,9 @@ export function normalizeJpVocabTeacherVisibleLimit(
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
     quiz_target,
+    hide_checked_today: true,
     released_today: false,
-    release_count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    release_count: quiz_target,
     excluded_batch_ids: [],
   };
 }
@@ -267,8 +276,60 @@ function visibleIdsEqual(a: number[] | undefined, b: number[] | undefined): bool
 }
 
 /**
- * 根据数据库中的释放标志（released_today / release_count / excluded_batch_ids）
- * 重算老师可见词条。部署或刷新后自动生效，无需管理员重复点击释放。
+ * 根据「今日抽查数量」生成老师可见词条池：
+ * 1. 保留当前池中今日已抽查的词条
+ * 2. 保留当前池中今日未抽查的词条
+ * 3. 不足目标数时，优先从未抽查过的词条补足，再按当日序号升序补足（跳过今日已抽查）
+ */
+export function applyJpVocabQuizTargetVisiblePlan(
+  stored: JpVocabTeacherVisibleLimit,
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  now = new Date()
+): JpVocabTeacherVisibleLimit {
+  const target = Math.max(1, Math.floor(stored.quiz_target));
+  const previousVisible = stored.visible_ids ?? [];
+  const wordById = new Map(words.map((w) => [w.id, w]));
+  const visible_ids: number[] = [];
+
+  for (const id of previousVisible) {
+    const word = wordById.get(id);
+    if (!word) continue;
+    visible_ids.push(id);
+  }
+
+  const needed = Math.max(0, target - visible_ids.length);
+  if (needed > 0) {
+    const newPicks = pickJpVocabTeacherVisibleReleaseIds(
+      displayOrder,
+      words,
+      needed,
+      visible_ids,
+      now
+    );
+    visible_ids.push(...newPicks);
+  } else if (visible_ids.length > target) {
+    visible_ids.splice(target);
+  }
+
+  if (!visible_ids.length) {
+    return stored;
+  }
+
+  const plan = buildReleasePlanFromVisibleIds(visible_ids, displayOrder);
+  return {
+    ...stored,
+    released_today: true,
+    release_count: visible_ids.length,
+    limit: plan.limit,
+    count: plan.count,
+    visible_ids: plan.visible_ids,
+  };
+}
+
+/**
+ * 根据数据库中的抽查数量与可见批次标志重算老师可见词条。
+ * 部署或刷新后自动生效，无需管理员重复操作。
  */
 export function materializeJpVocabTeacherVisibleLimit(
   stored: JpVocabTeacherVisibleLimit,
@@ -281,57 +342,50 @@ export function materializeJpVocabTeacherVisibleLimit(
     return normalizeJpVocabTeacherVisibleLimit(null, now);
   }
 
-  const batchSize = stored.released_today
-    ? Math.max(1, Math.floor(stored.release_count))
-    : JP_VOCAB_TEACHER_VISIBLE_DEFAULT;
-
-  const visible_ids = pickJpVocabTeacherVisibleReleaseIds(
-    displayOrder,
-    words,
-    batchSize,
-    [],
-    now
-  );
-
-  if (!visible_ids.length) {
-    return stored;
-  }
-
-  const plan = buildReleasePlanFromVisibleIds(visible_ids, displayOrder);
-  return {
-    ...stored,
-    limit: plan.limit,
-    count: plan.count,
-    visible_ids: plan.visible_ids,
-  };
+  return applyJpVocabQuizTargetVisiblePlan(stored, displayOrder, words, now);
 }
 
 export function filterJpVocabWordsByTeacherVisibleLimit(
   words: JpVocabWord[],
   displayOrder: JpVocabDailyDisplayOrder,
-  visible: Pick<JpVocabTeacherVisibleLimit, "limit" | "count" | "visible_ids">
+  visible: Pick<
+    JpVocabTeacherVisibleLimit,
+    "limit" | "count" | "visible_ids" | "hide_checked_today"
+  >,
+  now = new Date()
 ): JpVocabWord[] {
   if (!words.length) return [];
+
+  let filtered: JpVocabWord[];
 
   if (visible.visible_ids?.length) {
     const idSet = new Set(visible.visible_ids);
     const orderIndex = new Map(displayOrder.ids.map((id, index) => [id, index]));
-    return words
+    filtered = words
       .filter((word) => idSet.has(word.id))
       .sort(
         (a, b) =>
           (orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
           (orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER)
       );
+  } else if (visible.limit <= 0) {
+    return [];
+  } else {
+    const seqMap = buildJpVocabDailySeqMap(displayOrder.ids);
+    const { start, end } = jpVocabTeacherVisibleRange(visible);
+    filtered = words.filter((word) => {
+      const seq = seqMap.get(word.id) ?? Infinity;
+      return seq >= start && seq <= end;
+    });
   }
 
-  if (visible.limit <= 0) return [];
-  const seqMap = buildJpVocabDailySeqMap(displayOrder.ids);
-  const { start, end } = jpVocabTeacherVisibleRange(visible);
-  return words.filter((word) => {
-    const seq = seqMap.get(word.id) ?? Infinity;
-    return seq >= start && seq <= end;
-  });
+  if (normalizeHideCheckedToday(visible.hide_checked_today)) {
+    filtered = filtered.filter(
+      (word) => !isJpVocabWordQuizCheckedToday(word, displayOrder, now)
+    );
+  }
+
+  return filtered;
 }
 
 export function jpVocabTeacherVisibleRangeLabel(
@@ -405,6 +459,8 @@ export function teacherVisibleLimitNeedsPersist(
     before.count !== after.count ||
     before.released_today !== after.released_today ||
     before.release_count !== after.release_count ||
+    before.quiz_target !== after.quiz_target ||
+    before.hide_checked_today !== after.hide_checked_today ||
     !visibleIdsEqual(before.excluded_batch_ids, after.excluded_batch_ids)
   );
 }
