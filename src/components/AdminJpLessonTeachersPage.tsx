@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
@@ -127,9 +128,18 @@ function nextSortOrder(currentKey: TeacherSortKey, key: TeacherSortKey, current:
   return "desc";
 }
 
-export function AdminJpLessonTeachersPage() {
+export function AdminJpLessonTeachersPageContent() {
   const { locale, t } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
+  const searchParams = useSearchParams();
+  const focusTeacherId = useMemo(() => {
+    const raw = searchParams.get("teacher");
+    if (!raw) return null;
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  }, [searchParams]);
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+  const [highlightTeacherId, setHighlightTeacherId] = useState<number | null>(null);
   const nav = t("nav");
   const addNameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -363,6 +373,26 @@ export function AdminJpLessonTeachersPage() {
       return haystack.includes(keyword);
     });
   }, [reviewSummaries, searchQuery, sortedTeachers]);
+
+  useEffect(() => {
+    if (focusTeacherId == null || loading) return;
+    if (!teachers.some((teacher) => teacher.id === focusTeacherId)) return;
+    if (!filteredTeachers.some((teacher) => teacher.id === focusTeacherId)) {
+      setSearchQuery("");
+    }
+  }, [focusTeacherId, filteredTeachers, loading, teachers]);
+
+  useEffect(() => {
+    if (focusTeacherId == null || loading || teachers.length === 0) return;
+    const row = rowRefs.current.get(focusTeacherId);
+    if (!row) return;
+    setHighlightTeacherId(focusTeacherId);
+    window.requestAnimationFrame(() => {
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+    const timer = window.setTimeout(() => setHighlightTeacherId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [focusTeacherId, filteredTeachers, loading, teachers]);
 
   const toggleSort = useCallback((key: TeacherSortKey) => {
     setSortOrder((prevOrder) => nextSortOrder(sortKey, key, prevOrder));
@@ -863,7 +893,18 @@ export function AdminJpLessonTeachersPage() {
                   const linkedUser = teacher.linked_user ?? null;
                   const userActionBusy = creatingUserTeacherId === teacher.id;
                   return (
-                    <tr key={teacher.id}>
+                    <tr
+                      key={teacher.id}
+                      ref={(node) => {
+                        if (node) rowRefs.current.set(teacher.id, node);
+                        else rowRefs.current.delete(teacher.id);
+                      }}
+                      className={
+                        highlightTeacherId === teacher.id
+                          ? "admin-jpl-teacher-row--highlight"
+                          : undefined
+                      }
+                    >
                       <td className="col-id" data-label={fieldLabels.id}>
                         {teacher.id}
                       </td>
@@ -1237,6 +1278,21 @@ export function AdminJpLessonTeachersPage() {
             document.body
           )
         : null}
+
+      <style jsx>{`
+        .admin-jpl-teacher-row--highlight {
+          background: rgba(110, 181, 255, 0.14) !important;
+          box-shadow: inset 0 0 0 1px rgba(110, 181, 255, 0.45);
+        }
+      `}</style>
     </div>
+  );
+}
+
+export function AdminJpLessonTeachersPage() {
+  return (
+    <Suspense fallback={<div className="admin-page"><p className="hint">Loading…</p></div>}>
+      <AdminJpLessonTeachersPageContent />
+    </Suspense>
   );
 }

@@ -154,8 +154,12 @@ export function adminToolCodesPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/tool-codes" : "/admin/tool-codes";
 }
 
-export function adminJpLessonTeachersPath(locale: Locale): string {
-  return locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
+export function adminJpLessonTeachersPath(locale: Locale, teacherId?: number): string {
+  const base = locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
+  if (teacherId != null && Number.isInteger(teacherId) && teacherId > 0) {
+    return `${base}?teacher=${teacherId}`;
+  }
+  return base;
 }
 
 export function adminEnLessonTeachersPath(locale: Locale): string {

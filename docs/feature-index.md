@@ -59,6 +59,9 @@
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` |
 | `/jp-lesson/notes` | 课堂笔记 | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
 | `/jp-lesson/schedule` | 日程管理 | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` |
+| `/admin/jp-lesson-teachers` | 上课老师管理 | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx` |
+
+日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}` 并自动滚动定位。路径常量：`adminJpLessonTeachersPath()` in `locale-path.ts`。
 
 逻辑：`src/lib/jp-lesson-db.ts`；API：`src/app/api/jp-lesson/*`
 

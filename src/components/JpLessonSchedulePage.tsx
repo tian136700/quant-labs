@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
+import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
 import { type JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -56,7 +57,8 @@ import {
   type JpLessonManualSchedule,
   type JpLessonSchedulePageEvent,
 } from "@/lib/jp-lesson-manual-schedule";
-import { jpLessonPath } from "@/lib/locale-path";
+import { jpLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
+import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 import {
   mergeJpLessonTeachersCache,
@@ -222,6 +224,65 @@ function eventContentPreview(event: DayScheduleEvent, maxItems = 3): string {
   return formatContentPreview(event.displayContent, maxItems);
 }
 
+function parseTeacherNameToken(token: string): string {
+  const trimmed = token.trim();
+  const dotIndex = trimmed.indexOf(" · ");
+  return dotIndex >= 0 ? trimmed.slice(0, dotIndex).trim() : trimmed;
+}
+
+function JpLessonScheduleManualTeacherLinks({
+  text,
+  teachers,
+  locale,
+}: {
+  text: string;
+  teachers: JpLessonTeacher[];
+  locale: "zh" | "en";
+}) {
+  const nameToId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const teacher of teachers) {
+      const resolved = resolveLessonTeacherRateFields(teacher);
+      map.set(resolved.name, teacher.id);
+      map.set(teacher.name.trim(), teacher.id);
+    }
+    return map;
+  }, [teachers]);
+
+  const tokens = text
+    .split(/[、,，]/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (!tokens.length) {
+    return <>—</>;
+  }
+
+  return (
+    <>
+      {tokens.map((token, index) => {
+        const name = parseTeacherNameToken(token);
+        const teacherId = nameToId.get(name) ?? null;
+        const href = teacherId ? adminJpLessonTeachersPath(locale, teacherId) : null;
+        const suffix = token.length > name.length ? token.slice(name.length) : "";
+        return (
+          <span key={`${token}-${index}`}>
+            {index > 0 ? "、" : null}
+            {href ? (
+              <a href={href} className="jpls-teacher-link">
+                {name}
+              </a>
+            ) : (
+              name
+            )}
+            {suffix}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function buildLessonEventDedupKey(event: DayScheduleEvent): string {
   return `${event.teachers}|${event.start.getTime()}|${event.end.getTime()}`;
 }
@@ -370,6 +431,14 @@ export function JpLessonSchedulePage() {
         teacher.id,
         formatTeacherLessonDisplayLabel(teacher, "zh")
       );
+    }
+    return map;
+  }, [teachers]);
+
+  const teachersById = useMemo(() => {
+    const map = new Map<number, JpLessonTeacher>();
+    for (const teacher of teachers) {
+      map.set(teacher.id, teacher);
     }
     return map;
   }, [teachers]);
@@ -529,6 +598,11 @@ export function JpLessonSchedulePage() {
     if (!selectedEvent?.manualId) return null;
     return manualSchedules.find((item) => item.id === selectedEvent.manualId) ?? null;
   }, [selectedEvent, manualSchedules]);
+
+  const selectedLesson = useMemo(() => {
+    if (!selectedEvent?.lessonId) return null;
+    return lessonById.get(selectedEvent.lessonId) ?? null;
+  }, [selectedEvent, lessonById]);
 
   const openManualModal = (
     manual: JpLessonManualSchedule | null = null,
@@ -1171,7 +1245,24 @@ export function JpLessonSchedulePage() {
                   </div>
                   <div>
                     <dt>老师</dt>
-                    <dd>{selectedEvent.teachers}</dd>
+                    <dd>
+                      {selectedLesson ? (
+                        <JpLessonTeacherDisplay
+                          lesson={selectedLesson}
+                          teachersById={teachersById}
+                          locale={locale}
+                          teacherHref={(teacherId) =>
+                            adminJpLessonTeachersPath(locale, teacherId)
+                          }
+                        />
+                      ) : (
+                        <JpLessonScheduleManualTeacherLinks
+                          text={selectedEvent.teachers}
+                          teachers={teachers}
+                          locale={locale}
+                        />
+                      )}
+                    </dd>
                   </div>
                   <div>
                     <dt>时长</dt>
@@ -1981,6 +2072,14 @@ export function JpLessonSchedulePage() {
         }
         .jpls-link-row a {
           color: var(--accent);
+        }
+        .jpls-teacher-link {
+          color: var(--accent);
+          font-weight: 500;
+          text-decoration: none;
+        }
+        .jpls-teacher-link:hover {
+          text-decoration: underline;
         }
         .jpls-link-row button {
           border: 1px solid var(--border);

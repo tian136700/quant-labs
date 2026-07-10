@@ -7,12 +7,15 @@ type Props = {
   lesson: JpLessonRecord;
   teachersById: Map<number, JpLessonTeacher>;
   locale?: "zh" | "en";
+  /** 若提供，老师名称将链到上课老师管理页并定位到该条目 */
+  teacherHref?: (teacherId: number) => string;
 };
 
 export function JpLessonTeacherDisplay({
   lesson,
   teachersById,
   locale = "zh",
+  teacherHref,
 }: Props) {
   const entries: { key: string | number; name: string; priceDuration: string | null }[] = [];
 
@@ -37,14 +40,24 @@ export function JpLessonTeacherDisplay({
 
   return (
     <div className="jp-lesson-teacher-lines">
-      {entries.map((entry) => (
-        <div key={entry.key} className="jp-lesson-teacher-entry">
-          <span className="jp-lesson-teacher-name">{entry.name}</span>
-          {entry.priceDuration ? (
-            <span className="jp-lesson-teacher-rate">{entry.priceDuration}</span>
-          ) : null}
-        </div>
-      ))}
+      {entries.map((entry) => {
+        const href =
+          typeof entry.key === "number" && teacherHref ? teacherHref(entry.key) : null;
+        return (
+          <div key={entry.key} className="jp-lesson-teacher-entry">
+            {href ? (
+              <a href={href} className="jp-lesson-teacher-name jp-lesson-teacher-name--link">
+                {entry.name}
+              </a>
+            ) : (
+              <span className="jp-lesson-teacher-name">{entry.name}</span>
+            )}
+            {entry.priceDuration ? (
+              <span className="jp-lesson-teacher-rate">{entry.priceDuration}</span>
+            ) : null}
+          </div>
+        );
+      })}
 
       <style jsx>{`
         .jp-lesson-teacher-lines {
@@ -63,6 +76,13 @@ export function JpLessonTeacherDisplay({
         }
         .jp-lesson-teacher-name {
           font-weight: 500;
+        }
+        .jp-lesson-teacher-name--link {
+          color: var(--accent);
+          text-decoration: none;
+        }
+        .jp-lesson-teacher-name--link:hover {
+          text-decoration: underline;
         }
         .jp-lesson-teacher-rate {
           color: var(--muted);
