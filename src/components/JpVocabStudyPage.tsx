@@ -695,6 +695,7 @@ export function JpVocabStudyPage() {
       <JpVocabRemarksViewModal
         open={viewingRemarksWord != null}
         word={viewingRemarksWord}
+        canDelete={canOperate}
         onClose={() => setViewingRemarksWord(null)}
         onWordUpdated={(word) => {
           setItems((prev) =>
@@ -704,6 +705,8 @@ export function JpVocabStudyPage() {
           );
           setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
         }}
+        onSaveFailed={handleWordSaveFailed}
+        onNeedAuth={openJpAuth}
       />
 
       <JpClassNotesEditModal

@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   formatBeijingClassNoteTimestamp,
   parseJpVocabClassNotes,
+  removeJpVocabClassNoteAtIndex,
   upsertJpVocabClassNoteSession,
   type JpVocabClassNoteEntry,
 } from "@/lib/jp-vocab-class-notes";
@@ -88,6 +89,7 @@ export function JpClassNotesEditModal({
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [sharing, setSharing] = useState(false);
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   const [shareProgress, setShareProgress] = useState<{ wordId: number; percent: number } | null>(
     null
   );
@@ -268,6 +270,74 @@ export function JpClassNotesEditModal({
     [canEdit, locale, onNeedAuth, onSaveFailed, onSaved]
   );
 
+  const handleDeleteAtIndex = useCallback(
+    async (index: number) => {
+      const current = wordRef.current;
+      if (!current || !canEdit || deletingIndex != null) return;
+
+      const entries = parseJpVocabClassNotes(current.class_notes);
+      const removed = entries[index];
+      if (!removed) return;
+
+      const nextNotes = removeJpVocabClassNoteAtIndex(current.class_notes, index);
+      if (removed.timestamp && removed.timestamp === sessionTsRef.current) {
+        sessionTsRef.current = null;
+        setSessionTs(null);
+        setDraft("");
+        lastSavedDraftRef.current = "";
+      }
+
+      setDeletingIndex(index);
+      setSaveStatus("saving");
+      const snapshot = current;
+      const optimistic = buildOptimisticJpVocabWord(snapshot, {
+        class_notes: nextNotes,
+      });
+      onSaved(optimistic);
+      setHistoryEntries(parseJpVocabClassNotes(nextNotes));
+      dirtyRef.current = false;
+
+      try {
+        await jpVocabSaveQueue.enqueue(async () => {
+          const res = await fetch("/api/jp-vocab/class-notes", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              word_id: snapshot.id,
+              class_notes: nextNotes,
+            }),
+          });
+          const data = (await res.json()) as {
+            ok: boolean;
+            word?: JpVocabWord;
+            error?: string;
+          };
+          await syncJpVocabEditResponse(res, data, locale, {
+            onSaved,
+            onSaveFailed,
+            onNeedAuth,
+          });
+        });
+        setSaveStatus("saved");
+        setError("");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : locale === "zh" ? "删除失败" : "Delete failed";
+        setSaveStatus("error");
+        setError(message);
+        onSaveFailed(snapshot.id, snapshot, message);
+        setHistoryEntries(parseJpVocabClassNotes(snapshot.class_notes));
+      } finally {
+        setDeletingIndex(null);
+      }
+    },
+    [canEdit, deletingIndex, locale, onNeedAuth, onSaveFailed, onSaved]
+  );
+
   useEffect(() => {
     if (!open || !canEdit || !word) return;
 
@@ -350,11 +420,6 @@ export function JpClassNotesEditModal({
     }
   };
 
-  const pastEntries = useMemo(() => {
-    if (!sessionTs) return historyEntries;
-    return historyEntries.filter((e) => e.timestamp !== sessionTs);
-  }, [historyEntries, sessionTs]);
-
   const statusLabel =
     saveStatus === "pending"
       ? "待保存…"
@@ -404,19 +469,37 @@ export function JpClassNotesEditModal({
           </div>
 
           <div className="jp-notes-edit-body">
-            {pastEntries.length > 0 ? (
+            {historyEntries.some((e) => !sessionTs || e.timestamp !== sessionTs) ? (
               <div className="jp-notes-edit-history" aria-label="历史备注">
-                {pastEntries.map((entry, index) => (
-                  <div
-                    key={`${entry.timestamp ?? "legacy"}-${index}`}
-                    className="jp-notes-edit-entry"
-                  >
-                    {entry.timestamp ? (
-                      <div className="jp-notes-edit-entry-ts">{entry.timestamp}</div>
-                    ) : null}
-                    <pre className="jp-notes-edit-entry-body">{entry.content}</pre>
-                  </div>
-                ))}
+                {historyEntries.map((entry, index) => {
+                  if (sessionTs && entry.timestamp === sessionTs) return null;
+                  return (
+                    <div
+                      key={`${entry.timestamp ?? "legacy"}-${index}`}
+                      className="jp-notes-edit-entry"
+                    >
+                      <div className="jp-notes-edit-entry-head">
+                        {entry.timestamp ? (
+                          <div className="jp-notes-edit-entry-ts">{entry.timestamp}</div>
+                        ) : (
+                          <span />
+                        )}
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            className="jp-notes-edit-entry-delete"
+                            disabled={deletingIndex === index}
+                            aria-label="删除本条备注"
+                            onClick={() => void handleDeleteAtIndex(index)}
+                          >
+                            {deletingIndex === index ? "删除中…" : "删除"}
+                          </button>
+                        ) : null}
+                      </div>
+                      <pre className="jp-notes-edit-entry-body">{entry.content}</pre>
+                    </div>
+                  );
+                })}
               </div>
             ) : null}
 
@@ -431,7 +514,7 @@ export function JpClassNotesEditModal({
                   setDraft(e.target.value);
                 }}
               />
-            ) : pastEntries.length === 0 ? (
+            ) : historyEntries.length === 0 ? (
               <p className="jp-notes-edit-empty">暂无备注</p>
             ) : null}
 
@@ -586,11 +669,38 @@ export function JpClassNotesEditModal({
           background: color-mix(in srgb, var(--bg) 45%, var(--panel));
         }
 
+        .jp-notes-edit-entry-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          margin-bottom: 0.35rem;
+        }
+
         .jp-notes-edit-entry-ts {
           font-size: 0.75rem;
           font-variant-numeric: tabular-nums;
           color: var(--muted);
-          margin-bottom: 0.35rem;
+        }
+
+        .jp-notes-edit-entry-delete {
+          flex-shrink: 0;
+          border: none;
+          background: transparent;
+          color: var(--rise);
+          font-size: 0.75rem;
+          padding: 0.1rem 0.25rem;
+          cursor: pointer;
+          font: inherit;
+        }
+
+        .jp-notes-edit-entry-delete:hover:not(:disabled) {
+          text-decoration: underline;
+        }
+
+        .jp-notes-edit-entry-delete:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
 
         .jp-notes-edit-entry-body {

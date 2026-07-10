@@ -87,3 +87,15 @@ export function upsertJpVocabClassNoteSession(
 export function hasJpVocabClassNotes(raw: string | null | undefined): boolean {
   return parseJpVocabClassNotes(raw).some((e) => e.content.trim());
 }
+
+/** 按索引删除一条备注（用于历史记录删除） */
+export function removeJpVocabClassNoteAtIndex(
+  existing: string | null | undefined,
+  index: number
+): string {
+  const entries = parseJpVocabClassNotes(existing);
+  if (index < 0 || index >= entries.length) {
+    return serializeJpVocabClassNotes(entries);
+  }
+  return serializeJpVocabClassNotes(entries.filter((_, i) => i !== index));
+}

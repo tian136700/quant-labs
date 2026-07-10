@@ -1,18 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import { parseJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import {
+  parseJpVocabClassNotes,
+  removeJpVocabClassNoteAtIndex,
+} from "@/lib/jp-vocab-class-notes";
+import {
+  buildOptimisticJpVocabWord,
+  syncJpVocabEditResponse,
+} from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { jpVocabSaveQueue } from "@/lib/request-queue";
 import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
   open: boolean;
   word: JpVocabWord | null;
+  canDelete?: boolean;
   onClose: () => void;
   onWordUpdated?: (word: JpVocabWord) => void;
+  onSaveFailed?: (wordId: number, snapshot: JpVocabWord, message: string) => void;
+  onNeedAuth?: () => void;
 };
 
 const POLL_MS = 2_000;
@@ -20,23 +31,37 @@ const POLL_MS = 2_000;
 export function JpVocabRemarksViewModal({
   open,
   word,
+  canDelete = false,
   onClose,
   onWordUpdated,
+  onSaveFailed,
+  onNeedAuth,
 }: Props) {
   const { locale } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [displayWord, setDisplayWord] = useState<JpVocabWord | null>(word);
+  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const displayWordRef = useRef(displayWord);
+
+  useEffect(() => {
+    displayWordRef.current = displayWord;
+  }, [displayWord]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open && word) setDisplayWord(word);
+    if (open && word) {
+      setDisplayWord(word);
+      setError("");
+      setDeletingIndex(null);
+    }
   }, [open, word?.id, word?.updated_at, word]);
 
   const pullRemoteNotes = useCallback(async () => {
-    if (!open || !word) return;
+    if (!open || !word || deletingIndex != null) return;
     try {
       const res = await fetch(
         `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
@@ -48,14 +73,14 @@ export function JpVocabRemarksViewModal({
       );
       const data = (await res.json()) as { ok: boolean; word?: JpVocabWord };
       if (!data.ok || !data.word) return;
-      if (data.word.updated_at !== displayWord?.updated_at) {
+      if (data.word.updated_at !== displayWordRef.current?.updated_at) {
         setDisplayWord(data.word);
         onWordUpdated?.(data.word);
       }
     } catch {
       /* ignore */
     }
-  }, [displayWord?.updated_at, locale, onWordUpdated, open, word]);
+  }, [deletingIndex, locale, onWordUpdated, open, word]);
 
   useEffect(() => {
     if (!open || !word) return;
@@ -82,6 +107,68 @@ export function JpVocabRemarksViewModal({
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  const handleDeleteAtIndex = async (index: number) => {
+    const current = displayWordRef.current;
+    if (!current || !canDelete || deletingIndex != null) return;
+
+    const entries = parseJpVocabClassNotes(current.class_notes);
+    if (!entries[index]) return;
+
+    const nextNotes = removeJpVocabClassNoteAtIndex(current.class_notes, index);
+    const snapshot = current;
+    const optimistic = buildOptimisticJpVocabWord(snapshot, {
+      class_notes: nextNotes,
+    });
+
+    setDeletingIndex(index);
+    setError("");
+    setDisplayWord(optimistic);
+    onWordUpdated?.(optimistic);
+
+    try {
+      await jpVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/jp-vocab/class-notes", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            word_id: snapshot.id,
+            class_notes: nextNotes,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        };
+        await syncJpVocabEditResponse(res, data, locale, {
+          onSaved: (saved) => {
+            setDisplayWord(saved);
+            onWordUpdated?.(saved);
+          },
+          onSaveFailed: (wordId, snap, message) => {
+            setDisplayWord(snap);
+            onWordUpdated?.(snap);
+            onSaveFailed?.(wordId, snap, message);
+          },
+          onNeedAuth: () => onNeedAuth?.(),
+        });
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : locale === "zh" ? "删除失败" : "Delete failed";
+      setError(message);
+      setDisplayWord(snapshot);
+      onWordUpdated?.(snapshot);
+      onSaveFailed?.(snapshot.id, snapshot, message);
+    } finally {
+      setDeletingIndex(null);
+    }
+  };
 
   if (!open || !mounted || !displayWord) return null;
 
@@ -126,9 +213,24 @@ export function JpVocabRemarksViewModal({
                     key={`${entry.timestamp ?? "legacy"}-${index}`}
                     className="jp-remarks-view-entry"
                   >
-                    {entry.timestamp ? (
-                      <div className="jp-remarks-view-entry-ts">{entry.timestamp}</div>
-                    ) : null}
+                    <div className="jp-remarks-view-entry-head">
+                      {entry.timestamp ? (
+                        <div className="jp-remarks-view-entry-ts">{entry.timestamp}</div>
+                      ) : (
+                        <span />
+                      )}
+                      {canDelete ? (
+                        <button
+                          type="button"
+                          className="jp-remarks-view-entry-delete"
+                          disabled={deletingIndex === index}
+                          aria-label="删除本条备注"
+                          onClick={() => void handleDeleteAtIndex(index)}
+                        >
+                          {deletingIndex === index ? "删除中…" : "删除"}
+                        </button>
+                      ) : null}
+                    </div>
                     <pre className="jp-remarks-view-entry-body">{entry.content}</pre>
                   </div>
                 ))}
@@ -136,6 +238,7 @@ export function JpVocabRemarksViewModal({
             ) : (
               <p className="jp-remarks-view-empty">暂无备注</p>
             )}
+            {error ? <p className="jp-remarks-view-error">{error}</p> : null}
             <p className="jp-remarks-view-sync-hint">每 2 秒自动同步</p>
           </div>
 
@@ -231,11 +334,38 @@ export function JpVocabRemarksViewModal({
           background: color-mix(in srgb, var(--bg) 45%, var(--panel));
         }
 
+        .jp-remarks-view-entry-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          margin-bottom: 0.35rem;
+        }
+
         .jp-remarks-view-entry-ts {
           font-size: 0.75rem;
           font-variant-numeric: tabular-nums;
           color: var(--muted);
-          margin-bottom: 0.35rem;
+        }
+
+        .jp-remarks-view-entry-delete {
+          flex-shrink: 0;
+          border: none;
+          background: transparent;
+          color: var(--rise);
+          font-size: 0.75rem;
+          padding: 0.1rem 0.25rem;
+          cursor: pointer;
+          font: inherit;
+        }
+
+        .jp-remarks-view-entry-delete:hover:not(:disabled) {
+          text-decoration: underline;
+        }
+
+        .jp-remarks-view-entry-delete:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
 
         .jp-remarks-view-entry-body {
@@ -252,6 +382,16 @@ export function JpVocabRemarksViewModal({
           margin: 0;
           font-size: 0.875rem;
           color: var(--muted);
+        }
+
+        .jp-remarks-view-error {
+          margin: 0.75rem 0 0;
+          padding: 0.55rem 0.7rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
+          color: var(--rise);
+          font-size: 0.8125rem;
         }
 
         .jp-remarks-view-sync-hint {

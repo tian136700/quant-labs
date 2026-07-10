@@ -1170,6 +1170,7 @@ export function JpVocabPage() {
         return next;
       });
       setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
+      setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
       if (editingRemarksIdRef.current !== word.id) {
         setStatus("词条已保存。");
       }
@@ -2156,7 +2157,11 @@ export function JpVocabPage() {
       <JpVocabRemarksViewModal
         open={viewingRemarksWord != null}
         word={viewingRemarksWord}
+        canDelete={canOperate}
         onClose={() => setViewingRemarksWord(null)}
+        onWordUpdated={handleWordSaved}
+        onSaveFailed={handleWordSaveFailed}
+        onNeedAuth={openJpAuth}
       />
 
       <JpVocabRefPreviewModal
