@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   jpVocabRefKeyFromBytes,
@@ -118,8 +119,7 @@ export function JpVocabManualAddModal({
       const bytes = await file.arrayBuffer();
       const hash = await sha256HexBytes(bytes);
       const refKey = await jpVocabRefKeyFromBytes(bytes);
-      const alreadySeen =
-        imageRefCache.has(hash) || uploadedImageHashes.has(hash);
+      const reuseUploaded = uploadedImageHashes.has(hash);
       imageRefCache.set(hash, refKey);
 
       const previewUrl = URL.createObjectURL(file);
@@ -128,7 +128,7 @@ export function JpVocabManualAddModal({
         return { file, previewUrl, hash, refKey };
       });
       setDedupeHint(
-        alreadySeen
+        reuseUploaded
           ? "检测到相同教案图片，将共用已有链接（不会重复上传）。"
           : ""
       );
@@ -161,7 +161,7 @@ export function JpVocabManualAddModal({
     setSubmitting(true);
     setError("");
 
-    try {
+    const postAdd = async (reuseRefOnly: boolean) => {
       const form = new FormData();
       form.set("word", trimmedWord);
       form.set("kind", kind);
@@ -171,7 +171,7 @@ export function JpVocabManualAddModal({
       if (refTitle.trim()) form.set("ref_title", refTitle.trim());
 
       if (image) {
-        if (uploadedImageHashes.has(image.hash)) {
+        if (reuseRefOnly && uploadedImageHashes.has(image.hash)) {
           form.set("ref_key", image.refKey);
         } else {
           form.set("file", image.file);
@@ -185,16 +185,37 @@ export function JpVocabManualAddModal({
         body: form,
       });
 
-      const data = (await res.json()) as {
+      return readApiJson<{
         ok: boolean;
         word?: JpVocabWord;
         ref_key?: string | null;
         ref_deduped?: boolean;
         error?: string;
-      };
+      }>(res);
+    };
 
-      if (!res.ok || !data.ok || !data.word) {
-        throw new Error(data.error || "添加失败");
+    try {
+      let parsed = await postAdd(true);
+      const refInvalid =
+        image &&
+        uploadedImageHashes.has(image.hash) &&
+        parsed.ok &&
+        !parsed.data.ok &&
+        (parsed.data.error === "教案链接无效" ||
+          parsed.data.error === "Invalid ref_key");
+
+      if (refInvalid) {
+        uploadedImageHashes.delete(image.hash);
+        parsed = await postAdd(false);
+      }
+
+      if (!parsed.ok) {
+        throw new Error(parsed.error || "添加失败");
+      }
+
+      const { data, status } = parsed;
+      if (status >= 400 || !data.ok || !data.word) {
+        throw new Error(data.error || `添加失败（${status}）`);
       }
 
       if (data.ref_key && image) {

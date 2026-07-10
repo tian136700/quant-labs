@@ -68,8 +68,12 @@ export async function putJpVocabRefFile(
     return { r2_key: r2Key, storage: "r2" };
   }
 
-  const filePath = jpVocabRefPublicPath(refKey, mediaType);
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, Buffer.from(bytes));
-  return { r2_key: jpVocabRefLocalMarker(refKey), storage: "local" };
+  try {
+    const filePath = jpVocabRefPublicPath(refKey, mediaType);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from(bytes));
+    return { r2_key: jpVocabRefLocalMarker(refKey), storage: "local" };
+  } catch {
+    throw new Error("ref_storage_unavailable");
+  }
 }

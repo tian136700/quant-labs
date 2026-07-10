@@ -27,6 +27,10 @@ const ERROR_MSG: Record<string, { en: string; zh: string }> = {
     en: "Use multipart/form-data.",
     zh: "请使用 multipart/form-data 提交。",
   },
+  ref_storage_unavailable: {
+    en: "Lesson image storage is unavailable. Please try again later.",
+    zh: "教案图片存储暂不可用，请稍后再试。",
+  },
 };
 
 function errorText(code: string, locale: "en" | "zh"): string {
@@ -151,6 +155,12 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (message === "ref_storage_unavailable") {
+      return jsonResponse(
+        { ok: false, error: errorText("ref_storage_unavailable", locale) },
+        503
+      );
+    }
     return jsonResponse({ ok: false, error: message }, 500);
   }
 }
