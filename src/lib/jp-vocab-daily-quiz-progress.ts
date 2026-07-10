@@ -1,6 +1,10 @@
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
-import { JP_VOCAB_TEACHER_VISIBLE_DEFAULT } from "@/lib/jp-vocab-teacher-visible";
+import {
+  jpVocabTeacherVisibleRange,
+  JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  type JpVocabTeacherVisibleLimit,
+} from "@/lib/jp-vocab-teacher-visible";
 
 /** 每日建议优先抽查的前 N 条（与单词表序号 1–N 对应） */
 export const JP_VOCAB_DAILY_QUIZ_TOP = 20;
@@ -12,28 +16,38 @@ export type JpVocabDailyQuizProgress = {
   complete: boolean;
 };
 
+function jpVocabDailyQuizTargetIds(
+  displayOrder: JpVocabDailyDisplayOrder,
+  teacherVisible: Pick<JpVocabTeacherVisibleLimit, "limit" | "count" | "quiz_target">
+): number[] {
+  const quizTarget = Math.max(1, Math.floor(teacherVisible.quiz_target));
+  const { start, end } = jpVocabTeacherVisibleRange(teacherVisible);
+  const startIdx = Math.max(0, start - 1);
+  const endIdx = Math.min(displayOrder.ids.length, end);
+  return displayOrder.ids.slice(startIdx, endIdx).slice(0, quizTarget);
+}
+
 export function computeJpVocabDailyQuizProgress(
   displayOrder: JpVocabDailyDisplayOrder,
-  teacherVisibleLimit = JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  teacherVisible: Pick<JpVocabTeacherVisibleLimit, "limit" | "count" | "quiz_target"> = {
+    limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    quiz_target: JP_VOCAB_DAILY_QUIZ_TOP,
+  },
   now = new Date()
 ): JpVocabDailyQuizProgress {
   const today = beijingDateString(now);
-  const limit = Math.max(0, Math.floor(teacherVisibleLimit));
-  // 进度统计按「已开放的当日序号 1..limit」计算（例如开放到 40 时：总 40）。
-  // JP_VOCAB_DAILY_QUIZ_TOP 仍用于“建议优先抽查前 N 条”的提示/引导，但不应影响总进度口径。
-  const maxTarget = Math.min(limit, displayOrder.ids.length);
+  const targetIds = jpVocabDailyQuizTargetIds(displayOrder, teacherVisible);
+  const total = targetIds.length;
 
-  if (displayOrder.date !== today || maxTarget <= 0) {
+  if (displayOrder.date !== today || total <= 0) {
     return {
-      total: maxTarget,
+      total,
       checked: 0,
-      remaining: maxTarget,
-      complete: maxTarget === 0,
+      remaining: total,
+      complete: total === 0,
     };
   }
-
-  const targetIds = displayOrder.ids.slice(0, maxTarget);
-  const total = targetIds.length;
   const checkedSet = new Set(displayOrder.round_checked_ids ?? []);
   const checked = targetIds.filter((id) => checkedSet.has(id)).length;
   const remaining = Math.max(0, total - checked);

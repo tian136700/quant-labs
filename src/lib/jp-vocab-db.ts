@@ -2207,11 +2207,7 @@ export async function getJpVocabDailyQuizProgress(
     getJpVocabTeacherVisibleLimit(db),
   ]);
   const order = await ensureJpVocabDailyDisplayOrder(db, words);
-  return computeJpVocabDailyQuizProgress(
-    order,
-    teacherVisibleLimit.quiz_target,
-    now
-  );
+  return computeJpVocabDailyQuizProgress(order, teacherVisibleLimit, now);
 }
 
 async function ensureJpVocabShareRequestSchema(db: D1Database): Promise<void> {

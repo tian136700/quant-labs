@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 """Remove stale Cloudflare build output before deploy.
 
-Default to preserving `.next/` so Next.js can reuse its build cache and speed up
-repeated Cloudflare deploys. Pass `--clean-next` (or set `PRESERVE_NEXT_CACHE=0`)
-when you explicitly need a fully clean rebuild.
+Production deploy always clears `.next/` and `.open-next/` so dev cache cannot
+conflict with `next build`. If local dev is listening on 3002, it is stopped
+first (SIGTERM) because it locks the same `.next/` directory.
 
-If local dev is listening on 3002, leave it running and always skip `.next`
-cleanup so you can keep verifying locally after publish.
+Pass `--clean-next` for an explicit clean rebuild (same as default when dev was
+running). Set `PRESERVE_NEXT_CACHE=1` only when no dev server is running to
+reuse `.next/` and speed up repeated deploys.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
-import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEV_PORT = 3002
 
 
-def dev_server_running(port: int = DEV_PORT) -> bool:
+def dev_server_pids(port: int = DEV_PORT) -> list[int]:
     try:
         out = subprocess.check_output(
             ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
@@ -30,8 +32,31 @@ def dev_server_running(port: int = DEV_PORT) -> bool:
             stderr=subprocess.DEVNULL,
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+    return [int(line.strip()) for line in out.splitlines() if line.strip().isdigit()]
+
+
+def stop_dev_server(port: int = DEV_PORT) -> bool:
+    pids = dev_server_pids(port)
+    if not pids:
         return False
-    return any(line.strip().isdigit() for line in out.splitlines())
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except OSError:
+            continue
+    # brief grace for next dev to release .next file handles
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if not dev_server_pids(port):
+            break
+        time.sleep(0.2)
+    print(
+        f"已停止本地 dev (:{port})，避免与 production build 争用 .next/",
+        flush=True,
+    )
+    print("部署完成后可运行 npm run dev 恢复本地开发", flush=True)
+    return True
 
 
 def remove_build_dir(path: Path, attempts: int = 5) -> None:
@@ -59,24 +84,20 @@ def should_preserve_next_cache() -> bool:
 
 
 def main() -> int:
-    local_dev = dev_server_running()
     clean_next = "--clean-next" in sys.argv[1:]
+    local_dev = bool(dev_server_pids())
 
     if local_dev:
-        print(
-            f"本地 dev 正在运行 (:{DEV_PORT})，保留 .next/，仅清理 .open-next/",
-            flush=True,
-        )
+        stop_dev_server()
+
+    preserve_next = should_preserve_next_cache() and not clean_next and not local_dev
+    if preserve_next:
+        print("保留 .next/ 缓存，仅清理 .open-next/ 以加速重复部署", flush=True)
         remove_build_dir(ROOT / ".open-next")
     else:
-        preserve_next = should_preserve_next_cache() and not clean_next
-        if preserve_next:
-            print("保留 .next/ 缓存，仅清理 .open-next/ 以加速重复部署", flush=True)
-            remove_build_dir(ROOT / ".open-next")
-        else:
-            print("执行干净构建：清理 .next/ 和 .open-next/", flush=True)
-            for name in (".next", ".open-next"):
-                remove_build_dir(ROOT / name)
+        print("执行干净构建：清理 .next/ 和 .open-next/", flush=True)
+        for name in (".next", ".open-next"):
+            remove_build_dir(ROOT / name)
 
     return 0
 
@@ -87,7 +108,7 @@ if __name__ == "__main__":
     except OSError as exc:
         print(f"predeploy 清理失败: {exc}", file=sys.stderr)
         print(
-            "若 .next 被占用，可暂时停止本地 dev 后重试 npm run deploy",
+            "若 .next 仍被占用，可手动停止占用进程后重试 npm run deploy",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc
