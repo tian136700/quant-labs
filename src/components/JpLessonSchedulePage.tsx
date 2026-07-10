@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { CopyToast } from "@/components/CopyToast";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
@@ -308,7 +309,7 @@ export function JpLessonSchedulePage() {
   }, []);
   const [selectedDate, setSelectedDate] = useState(() => beijingTodayDateString());
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [manualSchedules, setManualSchedules] = useState<JpLessonManualSchedule[]>(() =>
     readJpLessonManualScheduleCache()
@@ -817,12 +818,15 @@ export function JpLessonSchedulePage() {
         ? `${weekDates[0]} ~ ${weekDates[6]}`
         : selectedDate.slice(0, 7);
 
+  const showCopySuccess = () => {
+    setCopyToast(locale === "zh" ? "复制成功" : "Copied");
+  };
+
   const handleExport = async () => {
     const text = exportScheduleText(visibleEvents, rangeLabel);
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedLink(true);
-      window.setTimeout(() => setCopiedLink(false), 1500);
+      showCopySuccess();
     } catch {
       const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -838,8 +842,7 @@ export function JpLessonSchedulePage() {
     if (!selectedViewUrl) return;
     try {
       await navigator.clipboard.writeText(`${SITE_URL}${selectedViewUrl}`);
-      setCopiedLink(true);
-      window.setTimeout(() => setCopiedLink(false), 1500);
+      showCopySuccess();
     } catch {
       /* ignore */
     }
@@ -1392,6 +1395,8 @@ export function JpLessonSchedulePage() {
           }
         }}
       />
+
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-schedule-page)) {

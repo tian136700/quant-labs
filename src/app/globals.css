@@ -718,6 +718,32 @@ textarea:focus {
   @apply text-rise;
 }
 
+.copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(1rem, 3vw, 1.75rem);
+  z-index: 1000;
+  transform: translateX(-50%);
+  padding: 0.65rem 1.15rem;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  opacity: 1;
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+  pointer-events: none;
+}
+
+.copy-toast--leaving {
+  opacity: 0;
+  transform: translateX(-50%) translateY(0.4rem);
+}
+
 .hint {
   @apply text-xs text-muted leading-relaxed;
 }

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { CopyToast } from "@/components/CopyToast";
 import {
   adminPath,
   adminRbacPath,
@@ -153,6 +154,7 @@ function AdminUsersPageContent() {
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [sortField, setSortField] = useState<UserSortField>("id");
   const [sortDirection, setSortDirection] = useState<UserSortDirection>("asc");
 
@@ -488,6 +490,10 @@ function AdminUsersPageContent() {
     }
   };
 
+  const showCopySuccess = () => {
+    setCopyToast(locale === "zh" ? "复制成功" : "Copied");
+  };
+
   const generateLoginLink = async (row: UserRow, withTemplate: boolean) => {
     if (withTemplate && !selectedTemplate) {
       setStatus(
@@ -525,6 +531,7 @@ function AdminUsersPageContent() {
       if (copyText && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(copyText);
         copied = true;
+        showCopySuccess();
       }
       setStatus(
         locale === "zh"
@@ -606,6 +613,7 @@ function AdminUsersPageContent() {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
+        showCopySuccess();
       }
       setStatus(
         locale === "zh"
@@ -1387,6 +1395,8 @@ function AdminUsersPageContent() {
             document.body
           )
         : null}
+
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
         .admin-users-toolbar {

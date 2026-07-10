@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { CopyToast } from "@/components/CopyToast";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
@@ -202,6 +203,7 @@ export function EnLessonSchedulePage() {
   const [selectedDate, setSelectedDate] = useState(() => beijingTodayDateString());
   const [selectedEventKey, setSelectedEventKey] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const sidebarPanelsRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLElement>(null);
@@ -416,12 +418,17 @@ export function EnLessonSchedulePage() {
         ? `${weekDates[0]} ~ ${weekDates[6]}`
         : selectedDate.slice(0, 7);
 
+  const showCopySuccess = () => {
+    setCopyToast(locale === "zh" ? "复制成功" : "Copied");
+  };
+
   const handleExport = async () => {
     const text = exportScheduleText(visibleEvents, rangeLabel);
     try {
       await navigator.clipboard.writeText(text);
       setCopiedLink(true);
       window.setTimeout(() => setCopiedLink(false), 1500);
+      showCopySuccess();
     } catch {
       const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -437,8 +444,7 @@ export function EnLessonSchedulePage() {
     if (!selectedViewUrl) return;
     try {
       await navigator.clipboard.writeText(`${SITE_URL}${selectedViewUrl}`);
-      setCopiedLink(true);
-      window.setTimeout(() => setCopiedLink(false), 1500);
+      showCopySuccess();
     } catch {
       /* ignore */
     }
@@ -852,6 +858,8 @@ export function EnLessonSchedulePage() {
           <p className="jpls-tip">提示：点击课程块查看详情；有教案时可一键复制链接发给老师。</p>
         </aside>
       </div>
+
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-schedule-page)) {
