@@ -67,6 +67,7 @@ import {
 import {
   applyJpVocabReview,
   effectiveJpVocabDisplayLevel,
+  isJpVocabWordReviewLocked,
   resolveJpVocabPreviousLevel,
 } from "@/lib/jp-vocab-review";
 import {
@@ -312,6 +313,7 @@ export function JpVocabPage() {
       normalizeJpVocabTeacherVisibleLimit(null).quiz_target
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
+  const [reviewLockNow, setReviewLockNow] = useState(() => Date.now());
   const displayOrderRef = useRef(displayOrder);
   const wordsRef = useRef(words);
   const refsRef = useRef(refs);
@@ -343,6 +345,11 @@ export function JpVocabPage() {
   useEffect(() => {
     setQuizTargetInput(teacherVisibleLimit.quiz_target);
   }, [teacherVisibleLimit.quiz_target]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setReviewLockNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -656,6 +663,16 @@ export function JpVocabPage() {
     [isAdmin, quizTarget, dailySeqByWordId]
   );
 
+  const isWordReviewLocked = useCallback(
+    (word: JpVocabWord, sessionReviewAtMs?: number) =>
+      !isAdmin &&
+      isJpVocabWordReviewLocked(word, {
+        sessionReviewAtMs,
+        now: new Date(reviewLockNow),
+      }),
+    [isAdmin, reviewLockNow]
+  );
+
   const searchActive = searchQuery.trim().length > 0;
   const searchBaseWords = displayedWords;
 
@@ -767,6 +784,14 @@ export function JpVocabPage() {
       setStatus(`仅今日序号 1–${quizTarget} 可勾选熟悉程度。`);
       return;
     }
+    const snapshotForLock = words.find((w) => w.id === wordId);
+    if (
+      snapshotForLock &&
+      isWordReviewLocked(snapshotForLock, sessionReviewAt[wordId])
+    ) {
+      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
+      return;
+    }
   if (savingId === wordId) return;
 
     const snapshot = words.find((w) => w.id === wordId);
@@ -863,14 +888,17 @@ export function JpVocabPage() {
       setStatus(`仅今日序号 1–${quizTarget} 可发给学生。`);
       return;
     }
+    const snapshot = words.find((w) => w.id === wordId);
+    if (!snapshot) return;
+    if (isWordReviewLocked(snapshot, sessionReviewAt[wordId])) {
+      setStatus("勾选已满 1 小时，无法再发给学生。");
+      return;
+    }
     if (savingId === wordId || shareProgress) return;
     if (sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日已共享。");
       return;
     }
-
-    const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return;
 
     const startedAt = Date.now();
     setShareProgress({ wordId, percent: 0 });
@@ -1736,6 +1764,7 @@ export function JpVocabPage() {
                   const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
                   const dailySeq = dailySeqByWordId.get(w.id) ?? rowIndex + 1;
                   const inQuizTarget = isWordInQuizTarget(w.id);
+                  const reviewLocked = isWordReviewLocked(w, sessionReviewAt[w.id]);
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
@@ -1897,6 +1926,13 @@ export function JpVocabPage() {
                             title={`仅今日序号 1–${quizTarget} 可勾选熟悉程度`}
                           >
                             不可勾选
+                          </span>
+                        ) : reviewLocked ? (
+                          <span
+                            className="jp-vocab-level-unavailable jp-vocab-level-locked"
+                            title="勾选已满 1 小时，无法再修改"
+                          >
+                            没办法操作
                           </span>
                         ) : (
                         <div
@@ -2061,9 +2097,15 @@ export function JpVocabPage() {
                                 sharedTodayWordIds.has(w.id) ? (
                                     <button
                                       type="button"
-                                      className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn"
-                                      disabled={isSaving || shareProgress != null}
-                                      title="从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                                      className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn${
+                                        reviewLocked ? " jp-vocab-share-btn--locked" : ""
+                                      }`}
+                                      disabled={isSaving || shareProgress != null || reviewLocked}
+                                      title={
+                                        reviewLocked
+                                          ? "勾选已满 1 小时，无法再操作"
+                                          : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                                      }
                                       onClick={() => void unshareWord(w.id)}
                                     >
                                       取消共享
@@ -2091,19 +2133,29 @@ export function JpVocabPage() {
                                   <div className="jp-vocab-share-stack">
                                     <button
                                       type="button"
-                                      className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn"
-                                      disabled={isSaving || shareProgress != null}
-                                      title="发给学生「今日日语单词」，并标记为不熟悉"
+                                      className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn${
+                                        reviewLocked ? " jp-vocab-share-btn--locked" : ""
+                                      }`}
+                                      disabled={isSaving || shareProgress != null || reviewLocked}
+                                      title={
+                                        reviewLocked
+                                          ? "勾选已满 1 小时，无法再发给学生"
+                                          : "发给学生「今日日语单词」，并标记为不熟悉"
+                                      }
                                       onClick={() => void shareWord(w.id)}
                                     >
                                       发给学生
                                     </button>
+                                    {!reviewLocked ? (
+                                      <>
                                     <span className="jp-vocab-share-hint jp-vocab-share-hint--desktop" role="note">
                                       {JP_VOCAB_SHARE_HINT_SHORT}
                                     </span>
                                     <span className="jp-vocab-share-hint jp-vocab-share-hint--mobile" role="note">
                                       {JP_VOCAB_SHARE_HINT}
                                     </span>
+                                      </>
+                                    ) : null}
                                   </div>
                                 )
                               ) : null}
@@ -2448,6 +2500,13 @@ export function JpVocabPage() {
           color: var(--muted);
           opacity: 0.72;
           white-space: nowrap;
+          user-select: none;
+          pointer-events: none;
+        }
+        .jp-vocab-share-btn--locked:disabled {
+          opacity: 0.42;
+          cursor: not-allowed;
+          filter: grayscale(0.45);
         }
         .jp-vocab-kind-badge {
           display: inline-block;

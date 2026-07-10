@@ -85,6 +85,48 @@ export function formatReviewIso(now = new Date()): string {
   return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
+/** 勾选熟悉程度后满 1 小时不可再改、不可发给学生 */
+export const JP_VOCAB_REVIEW_LOCK_MS = 60 * 60 * 1000;
+
+function effectiveReviewTimestampMs(
+  word: JpVocabWord,
+  sessionReviewAtMs?: number,
+  now = new Date()
+): number | null {
+  const storedMs = reviewTimestampMs(word.last_review_at);
+  if (sessionReviewAtMs != null) {
+    const sessionDay = beijingDateString(new Date(sessionReviewAtMs));
+    if (sessionDay === beijingDateString(now)) {
+      return Math.max(storedMs ?? 0, sessionReviewAtMs);
+    }
+  }
+  return storedMs;
+}
+
+export function hasJpVocabReviewToday(
+  word: JpVocabWord,
+  sessionReviewAtMs?: number,
+  now = new Date()
+): boolean {
+  if (sessionReviewAtMs != null) {
+    const sessionDay = beijingDateString(new Date(sessionReviewAtMs));
+    if (sessionDay === beijingDateString(now)) return true;
+  }
+  return isJpVocabReviewToday(word.last_review_at, now);
+}
+
+/** 今日已勾选且距上次勾选已满 1 小时 */
+export function isJpVocabWordReviewLocked(
+  word: JpVocabWord,
+  opts?: { sessionReviewAtMs?: number; now?: Date }
+): boolean {
+  const now = opts?.now ?? new Date();
+  if (!hasJpVocabReviewToday(word, opts?.sessionReviewAtMs, now)) return false;
+  const reviewMs = effectiveReviewTimestampMs(word, opts?.sessionReviewAtMs, now);
+  if (reviewMs == null || reviewMs <= 0) return false;
+  return now.getTime() - reviewMs >= JP_VOCAB_REVIEW_LOCK_MS;
+}
+
 function adjustLevelCount(
   word: JpVocabWord,
   level: JpVocabLevel,
