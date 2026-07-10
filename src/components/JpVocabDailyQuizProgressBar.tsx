@@ -94,7 +94,7 @@ export function JpVocabDailyQuizProgressBar({
               }
               disabled={adminQuizTarget.saving}
             />
-            <span>隐藏老师端已抽查单词</span>
+            <span>是否隐藏已抽查的单词</span>
           </label>
           <button
             type="button"

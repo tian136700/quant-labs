@@ -73,6 +73,7 @@ import {
   filterJpVocabWordsByTeacherVisibleLimit,
   jpVocabTeacherVisibleRangeLabel,
   normalizeJpVocabTeacherVisibleLimit,
+  teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
@@ -456,11 +457,7 @@ export function JpVocabPage() {
       if (!raw) return;
       const next = normalizeJpVocabTeacherVisibleLimit(raw);
       setTeacherVisibleLimit((prev) => {
-        if (
-          prev.date === next.date &&
-          prev.limit === next.limit &&
-          prev.count === next.count
-        ) {
+        if (!teacherVisibleLimitNeedsPersist(prev, next)) {
           return prev;
         }
         const cached = readVocabCache();

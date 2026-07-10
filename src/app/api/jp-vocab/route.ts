@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       level?: JpVocabLevel;
       daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
       count?: number;
+      hide_checked_today?: boolean;
     };
 
     if (body.action === "daily_quiz_style") {
@@ -144,7 +145,7 @@ export async function POST(request: Request) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "no_release_candidates") {
-      return jsonResponse({ ok: false, error: "没有可释放的词条" }, 400);
+      return jsonResponse({ ok: false, error: "没有可展示的词条" }, 400);
     }
     return jsonResponse({ ok: false, error: message }, 500);
   }
