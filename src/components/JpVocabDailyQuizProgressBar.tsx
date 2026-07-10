@@ -7,13 +7,22 @@ type Props = {
   progress: JpVocabDailyQuizProgress;
   /** teacher = 单词抽背页；study = 今日背单词 */
   variant?: "teacher" | "study";
+  /** 仅管理员：在进度条内设置今日抽查总数 */
+  adminQuizTarget?: {
+    value: number;
+    savedValue: number;
+    saving: boolean;
+    onChange: (value: number) => void;
+    onSave: () => void;
+  };
 };
 
 export function JpVocabDailyQuizProgressBar({
   progress,
   variant = "study",
+  adminQuizTarget,
 }: Props) {
-  if (progress.total <= 0) return null;
+  if (progress.total <= 0 && !adminQuizTarget) return null;
 
   const pct =
     progress.total > 0
@@ -50,6 +59,43 @@ export function JpVocabDailyQuizProgressBar({
           )}
         </span>
       </div>
+      {adminQuizTarget ? (
+        <div className="jp-vocab-quiz-target-admin">
+          <label className="jp-vocab-quiz-target-admin__label" htmlFor="jp-vocab-quiz-target">
+            今日抽查数量
+          </label>
+          <input
+            id="jp-vocab-quiz-target"
+            type="number"
+            className="jp-vocab-quiz-target-admin__input"
+            min={1}
+            max={999}
+            step={1}
+            value={adminQuizTarget.value}
+            onChange={(e) => {
+              const next = Number(e.target.value);
+              adminQuizTarget.onChange(
+                Number.isFinite(next) && next >= 1 ? Math.floor(next) : 1
+              );
+            }}
+            disabled={adminQuizTarget.saving}
+            aria-label="今日抽查数量"
+          />
+          <span className="jp-vocab-quiz-target-admin__unit">个</span>
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+            onClick={adminQuizTarget.onSave}
+            disabled={
+              adminQuizTarget.saving ||
+              adminQuizTarget.value < 1 ||
+              adminQuizTarget.value === adminQuizTarget.savedValue
+            }
+          >
+            {adminQuizTarget.saving ? "保存中…" : "确认设置"}
+          </button>
+        </div>
+      ) : null}
       <div
         className="jp-vocab-quiz-progress-track"
         aria-hidden="true"
@@ -79,6 +125,39 @@ export function JpVocabDailyQuizProgressBar({
           justify-content: space-between;
           gap: 0.35rem 0.75rem;
           margin-bottom: 0.5rem;
+        }
+        .jp-vocab-quiz-target-admin {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35rem 0.5rem;
+          margin-bottom: 0.55rem;
+          padding: 0.45rem 0.55rem;
+          border-radius: 6px;
+          border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--panel) 94%, var(--accent) 6%);
+        }
+        .jp-vocab-quiz-target-admin__label,
+        .jp-vocab-quiz-target-admin__unit {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .jp-vocab-quiz-target-admin__input {
+          width: 4.25rem;
+          padding: 0.2rem 0.45rem;
+          border-radius: 4px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          font-size: 0.875rem;
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-quiz-target-admin__input:focus {
+          outline: none;
+          border-color: var(--accent);
+        }
+        .jp-vocab-quiz-target-admin__input:disabled {
+          opacity: 0.6;
         }
         .jp-vocab-quiz-progress-title {
           font-size: 0.875rem;

@@ -80,7 +80,6 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import {
   computeJpVocabDailyQuizProgress,
-  JP_VOCAB_DAILY_QUIZ_TOP,
 } from "@/lib/jp-vocab-daily-quiz-progress";
 import {
   markJpVocabTeacherDailyCompleteDismissed,
@@ -304,6 +303,12 @@ export function JpVocabPage() {
   );
   const [expandingTeacherVisible, setExpandingTeacherVisible] = useState(false);
   const [releaseCount, setReleaseCount] = useState(JP_VOCAB_TEACHER_VISIBLE_STEP);
+  const [quizTargetInput, setQuizTargetInput] = useState(
+    () =>
+      readVocabCache()?.teacher_visible_limit?.quiz_target ??
+      normalizeJpVocabTeacherVisibleLimit(null).quiz_target
+  );
+  const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const displayOrderRef = useRef(displayOrder);
   const wordsRef = useRef(words);
   const refsRef = useRef(refs);
@@ -332,6 +337,9 @@ export function JpVocabPage() {
   useEffect(() => {
     sharedTodayWordIdsRef.current = sharedTodayWordIds;
   }, [sharedTodayWordIds]);
+  useEffect(() => {
+    setQuizTargetInput(teacherVisibleLimit.quiz_target);
+  }, [teacherVisibleLimit.quiz_target]);
 
   useEffect(() => {
     return () => {
@@ -687,11 +695,11 @@ export function JpVocabPage() {
   const searchActive = searchQuery.trim().length > 0;
   const filterActive = searchActive || kindFilter !== "all";
 
-  const dailyTarget = Math.min(JP_VOCAB_DAILY_QUIZ_TOP, teacherVisibleWords.length);
+  const dailyTarget = Math.min(teacherVisibleLimit.quiz_target, teacherVisibleWords.length);
 
   const dailyQuizProgress = useMemo(
-    () => computeJpVocabDailyQuizProgress(displayOrder, teacherVisibleLimit.limit),
-    [displayOrder, teacherVisibleLimit.limit]
+    () => computeJpVocabDailyQuizProgress(displayOrder, teacherVisibleLimit.quiz_target),
+    [displayOrder, teacherVisibleLimit.quiz_target]
   );
 
   const dailyCheckedCount = dailyQuizProgress.checked;
@@ -1245,6 +1253,46 @@ export function JpVocabPage() {
     }
   };
 
+  const setDailyQuizTarget = async () => {
+    if (!isAdmin || settingQuizTarget) return;
+    const count = Math.max(1, Math.floor(quizTargetInput) || 1);
+    setSettingQuizTarget(true);
+    setStatus("");
+    try {
+      const res = await fetch("/api/jp-vocab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ action: "set_daily_quiz_target", count }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        teacher_visible_limit?: JpVocabTeacherVisibleLimit;
+        error?: string;
+      };
+      if (!data.ok || !data.teacher_visible_limit) {
+        throw new Error(data.error || "操作失败");
+      }
+      setTeacherVisibleLimit(data.teacher_visible_limit);
+      setQuizTargetInput(data.teacher_visible_limit.quiz_target);
+      const prev = readVocabCache();
+      if (prev) {
+        writeClientCache(JP_VOCAB_CACHE_KEY, {
+          ...prev,
+          teacher_visible_limit: data.teacher_visible_limit,
+        });
+      }
+      setStatus(`今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个。`);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSettingQuizTarget(false);
+    }
+  };
+
   const teacherVisibleRange = jpVocabTeacherVisibleRangeLabel(teacherVisibleLimit);
   const teacherVisibleAtMax =
     teacherVisibleLimit.limit >= Math.max(displayOrder.ids.length, words.length);
@@ -1316,8 +1364,22 @@ export function JpVocabPage() {
         </p>
       ) : null}
 
-      {canOperate && dailyQuizProgress.total > 0 ? (
-        <JpVocabDailyQuizProgressBar progress={dailyQuizProgress} variant="teacher" />
+      {canOperate && (dailyQuizProgress.total > 0 || isAdmin) ? (
+        <JpVocabDailyQuizProgressBar
+          progress={dailyQuizProgress}
+          variant="teacher"
+          adminQuizTarget={
+            isAdmin
+              ? {
+                  value: quizTargetInput,
+                  savedValue: teacherVisibleLimit.quiz_target,
+                  saving: settingQuizTarget,
+                  onChange: setQuizTargetInput,
+                  onSave: () => void setDailyQuizTarget(),
+                }
+              : undefined
+          }
+        />
       ) : null}
 
       <section className="section etr-panel" aria-label="单词表">

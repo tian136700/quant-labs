@@ -1278,13 +1278,6 @@ export function AdminJpLessonTeachersPageContent() {
             document.body
           )
         : null}
-
-      <style jsx>{`
-        .admin-jpl-teacher-row--highlight {
-          background: rgba(110, 181, 255, 0.14) !important;
-          box-shadow: inset 0 0 0 1px rgba(110, 181, 255, 0.45);
-        }
-      `}</style>
     </div>
   );
 }

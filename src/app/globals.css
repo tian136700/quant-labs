@@ -1303,6 +1303,11 @@ textarea:focus {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
+.admin-jpl-teachers-table tbody tr.admin-jpl-teacher-row--highlight {
+  background: rgba(110, 181, 255, 0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(110, 181, 255, 0.45);
+}
+
 .admin-jpl-teachers-table tbody tr:last-child td {
   border-bottom: none;
 }
