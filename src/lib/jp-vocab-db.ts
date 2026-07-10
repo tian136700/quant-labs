@@ -46,6 +46,7 @@ import {
   applyJpVocabQuizTargetVisiblePlan,
   materializeJpVocabTeacherVisibleLimit,
   normalizeJpVocabTeacherVisibleLimit,
+  shouldMaterializeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
@@ -1743,12 +1744,16 @@ async function readJpVocabTeacherVisibleLimitRaw(
   }
 }
 
-/** 读取并按释放标志重算老师可见批次（部署/刷新后自动同步，无需重复点击释放） */
+/** 读取老师可见批次；仅在目标数大于已生成池时重算并落库 */
 export async function ensureJpVocabTeacherVisibleLimit(
   db: D1Database,
   ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
+  if (!shouldMaterializeJpVocabTeacherVisibleLimit(current)) {
+    return current;
+  }
+
   const words = ctx?.words ?? (await listJpVocabWords(db));
   const displayOrder =
     ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));

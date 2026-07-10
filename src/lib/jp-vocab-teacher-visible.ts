@@ -328,8 +328,21 @@ export function applyJpVocabQuizTargetVisiblePlan(
 }
 
 /**
+ * 是否需要在读库后重算可见词条池。
+ * 仅在管理员已生成过 visible_ids 且目标数变大时重算；避免每次请求全量扫词写库（易触发 Worker CPU 超限）。
+ */
+export function shouldMaterializeJpVocabTeacherVisibleLimit(
+  stored: Pick<JpVocabTeacherVisibleLimit, "quiz_target" | "visible_ids">
+): boolean {
+  const visibleIds = stored.visible_ids;
+  if (!visibleIds?.length) return false;
+  const target = Math.max(1, Math.floor(stored.quiz_target));
+  return visibleIds.length < target;
+}
+
+/**
  * 根据数据库中的抽查数量与可见批次标志重算老师可见词条。
- * 部署或刷新后自动生效，无需管理员重复操作。
+ * 仅在 shouldMaterialize 为 true 或管理员确认设置时调用。
  */
 export function materializeJpVocabTeacherVisibleLimit(
   stored: JpVocabTeacherVisibleLimit,
