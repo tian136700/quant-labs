@@ -296,7 +296,7 @@ export function JpVocabStudyPage() {
         老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
       </p>
 
-      {loggedIn && canViewStudy ? (
+      {loggedIn && canViewStudy && !canOperate ? (
         <div
           style={{
             display: "flex",

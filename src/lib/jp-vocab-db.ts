@@ -32,6 +32,7 @@ import {
   markJpVocabRoundChecked,
   mergeJpVocabDailyDisplayOrder,
   normalizeJpVocabRoundCheckedIds,
+  resolveJpVocabRoundCheckedIds,
   unmarkJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
@@ -1495,17 +1496,14 @@ export async function ensureJpVocabDailyDisplayOrder(
 
   if (stored?.date === today && stored.ids.length > 0) {
     const merged = mergeJpVocabDailyDisplayOrder(stored.ids, words);
-    const round_checked_ids =
-      stored.round_checked_ids ??
+    const round_checked_ids = resolveJpVocabRoundCheckedIds(
+      stored.round_checked_ids,
       words
-        .filter(
-          (w) =>
-            effectiveTodayCheckCount(
-              w.today_check_count ?? 0,
-              w.today_check_date
-            ) > 0
-        )
-        .map((w) => w.id);
+    );
+    const prevChecked = normalizeJpVocabRoundCheckedIds(stored.round_checked_ids);
+    const roundCheckedChanged =
+      prevChecked.length !== round_checked_ids.length ||
+      prevChecked.some((id) => !round_checked_ids.includes(id));
     const order = {
       date: today,
       ids: merged,
@@ -1514,7 +1512,7 @@ export async function ensureJpVocabDailyDisplayOrder(
     if (
       merged.length !== stored.ids.length ||
       merged.some((id, i) => id !== stored.ids[i]) ||
-      stored.round_checked_ids === undefined
+      roundCheckedChanged
     ) {
       await saveJpVocabDailyDisplayOrder(db, order);
     }
@@ -2188,15 +2186,11 @@ export async function getJpVocabDailyQuizProgress(
   now = new Date()
 ): Promise<JpVocabDailyQuizProgress> {
   await seedIfEmpty(db);
-  const [stored, teacherVisibleLimit] = await Promise.all([
-    readJpVocabDailyDisplayOrderRaw(db),
+  const [words, teacherVisibleLimit] = await Promise.all([
+    listJpVocabWords(db),
     getJpVocabTeacherVisibleLimit(db),
   ]);
-  const today = beijingDateString(now);
-  const order: JpVocabDailyDisplayOrder =
-    stored?.date === today && stored.ids.length > 0
-      ? stored
-      : { date: today, ids: [], round_checked_ids: [] };
+  const order = await ensureJpVocabDailyDisplayOrder(db, words);
   return computeJpVocabDailyQuizProgress(
     order,
     teacherVisibleLimit.limit,

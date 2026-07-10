@@ -1,4 +1,7 @@
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import {
+  beijingDateString,
+  effectiveTodayCheckCount,
+} from "@/lib/jp-vocab-daily-check";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   sortJpVocabWordsForDailyOrder,
@@ -19,6 +22,26 @@ export function normalizeJpVocabRoundCheckedIds(
 ): number[] {
   if (!Array.isArray(ids)) return [];
   return ids.map((id) => Number(id)).filter((id) => id > 0);
+}
+
+/** 序号列勾选：优先用已存 round_checked_ids，否则按今日抽查次数回填（与老师页一致） */
+export function resolveJpVocabRoundCheckedIds(
+  stored: unknown,
+  words: JpVocabWord[],
+  now = new Date()
+): number[] {
+  const fromStored = normalizeJpVocabRoundCheckedIds(stored);
+  if (fromStored.length > 0) return fromStored;
+  return words
+    .filter(
+      (w) =>
+        effectiveTodayCheckCount(
+          w.today_check_count ?? 0,
+          w.today_check_date,
+          now
+        ) > 0
+    )
+    .map((w) => w.id);
 }
 
 export function isJpVocabRoundChecked(
