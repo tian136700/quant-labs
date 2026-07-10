@@ -29,11 +29,12 @@
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
-| 管理员设今日抽查数量 / 老师可见批次 | `JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-teacher-visible.ts` |
+| 管理员设今日抽查数量（进度条内输入框 + 确认设置） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()` |
+| **老师可见池 / 隐藏已抽查 / 列表条数与进度不一致**（如设 40、已抽查 30、开隐藏后应剩 10 条却显示 40/20） | **核心** `src/lib/jp-vocab-teacher-visible.ts`（`applyJpVocabQuizTargetVisiblePlan`、`filterJpVocabWordsByTeacherVisibleLimit`、`shouldMaterializeJpVocabTeacherVisibleLimit`）；**进度分子** `jp-vocab-daily-quiz-progress.ts`；**今日抽查计数** `jp-vocab-daily-check.ts`；**页面过滤** `JpVocabPage.tsx` → `teacherVisibleWords`、`teacherDisplayedCount`；**读库重算** `jp-vocab-db.ts` → `ensureJpVocabTeacherVisibleLimit()`；设置存 `jp_vocab_setting` → `teacher_visible_limit`（含 `quiz_target`、`visible_ids`、`hide_checked_today`） |
 | 北京时间跨日清理（释放/共享/今日抽查） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | 老师右下角 toast（学生协助请求） | `src/components/JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
-| 今日抽查进度条 / 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；管理员设今日抽查总数与「隐藏已抽查」：`POST /api/jp-vocab` `set_daily_quiz_target` |
+| 今日抽查进度条（30/40、剩余 N）/ 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；进度计算 `jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`；与可见池联动见上条 |
 | 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
 | 课堂备注、共享备注 | `JpClassNotesEditModal.tsx`；`/api/jp-vocab/class-notes` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`；`/api/jp-vocab/add`、`/edit` |
@@ -41,6 +42,16 @@
 | 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()` |
 | 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
 | 共享后刷新复习页 | `src/lib/jp-vocab-shared-notify.ts`（同浏览器多标签） |
+
+#### 症状 / 关键词速查（老师端 `/jp-vocab`）
+
+| 用户描述或页面文案 | 优先打开 |
+|--------------------|----------|
+| 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx` |
+| 共 X 条、今日可见序号、本轮未勾选 | `JpVocabPage.tsx`（`teacherVisibleWords`、表头统计） |
+| 隐藏已抽查、老师端仍显示已抽查词、条数对不上 | `jp-vocab-teacher-visible.ts` → `filterJpVocabWordsByTeacherVisibleLimit` |
+| 管理员设抽查数量后老师列表不对 | `jp-vocab-teacher-visible.ts` → `applyJpVocabQuizTargetVisiblePlan`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`、`ensureJpVocabTeacherVisibleLimit` |
+| 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |
 
 ---
 

@@ -1750,13 +1750,17 @@ export async function ensureJpVocabTeacherVisibleLimit(
   ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
-  if (!shouldMaterializeJpVocabTeacherVisibleLimit(current)) {
-    return current;
-  }
-
   const words = ctx?.words ?? (await listJpVocabWords(db));
   const displayOrder =
     ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));
+  if (
+    !shouldMaterializeJpVocabTeacherVisibleLimit(current, {
+      displayOrder,
+      words,
+    })
+  ) {
+    return current;
+  }
   const materialized = materializeJpVocabTeacherVisibleLimit(
     current,
     displayOrder,

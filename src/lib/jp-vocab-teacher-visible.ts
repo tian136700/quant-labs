@@ -275,11 +275,77 @@ function visibleIdsEqual(a: number[] | undefined, b: number[] | undefined): bool
   return left.every((id, index) => id === right[index]);
 }
 
+/** 今日已在 DB 记为抽查过的词条 id，按当日序号升序 */
+function jpVocabTodayCheckedIdsInOrder(
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  now = new Date()
+): number[] {
+  const wordById = new Map(words.map((w) => [w.id, w]));
+  return displayOrder.ids.filter((id) => {
+    const word = wordById.get(id);
+    return word && isJpVocabWordTodayCheckedInDb(word, now);
+  });
+}
+
+/**
+ * 可见池是否未纳入应有的今日已抽查词条（例如管理员调高目标时只补了未抽查词）。
+ */
+function jpVocabTeacherVisiblePoolMissingTodayChecked(
+  visibleIds: number[],
+  todayCheckedIds: number[],
+  target: number
+): boolean {
+  if (!todayCheckedIds.length || !visibleIds.length) return false;
+  const pool = new Set(visibleIds);
+  const checkedInPool = todayCheckedIds.filter((id) => pool.has(id)).length;
+  const expectedInPool = Math.min(todayCheckedIds.length, target);
+  return checkedInPool < expectedInPool;
+}
+
+/**
+ * 按「今日抽查目标」组装可见池：先纳入今日已抽查词条，再用未抽查词条补足至目标数。
+ */
+function buildJpVocabQuizTargetVisibleIds(
+  displayOrder: JpVocabDailyDisplayOrder,
+  words: JpVocabWord[],
+  target: number,
+  now = new Date()
+): number[] {
+  const goal = Math.max(1, Math.floor(target));
+  const wordById = new Map(words.map((w) => [w.id, w]));
+  const visible_ids: number[] = [];
+  const inPool = new Set<number>();
+
+  for (const id of jpVocabTodayCheckedIdsInOrder(displayOrder, words, now)) {
+    if (visible_ids.length >= goal) break;
+    visible_ids.push(id);
+    inPool.add(id);
+  }
+
+  const needed = goal - visible_ids.length;
+  if (needed > 0) {
+    for (const id of pickJpVocabTeacherVisibleReleaseIds(
+      displayOrder,
+      words,
+      needed,
+      [...inPool],
+      now
+    )) {
+      visible_ids.push(id);
+      inPool.add(id);
+    }
+  }
+
+  return visible_ids.slice(0, goal);
+}
+
 /**
  * 根据「今日抽查数量」生成老师可见词条池：
  * 1. 保留当前池中今日已抽查的词条
  * 2. 保留当前池中今日未抽查的词条
  * 3. 不足目标数时，优先从未抽查过的词条补足，再按当日序号升序补足（跳过今日已抽查）
+ * 4. 若池中缺少今日已抽查词条（与进度条不一致），整池重算为「已抽查 + 待抽查」
  */
 export function applyJpVocabQuizTargetVisiblePlan(
   stored: JpVocabTeacherVisibleLimit,
@@ -290,26 +356,66 @@ export function applyJpVocabQuizTargetVisiblePlan(
   const target = Math.max(1, Math.floor(stored.quiz_target));
   const previousVisible = stored.visible_ids ?? [];
   const wordById = new Map(words.map((w) => [w.id, w]));
-  const visible_ids: number[] = [];
+  const todayCheckedIds = jpVocabTodayCheckedIdsInOrder(
+    displayOrder,
+    words,
+    now
+  );
+  const poolMissingChecked = jpVocabTeacherVisiblePoolMissingTodayChecked(
+    previousVisible,
+    todayCheckedIds,
+    target
+  );
 
-  for (const id of previousVisible) {
-    const word = wordById.get(id);
-    if (!word) continue;
-    visible_ids.push(id);
-  }
+  let visible_ids: number[];
 
-  const needed = Math.max(0, target - visible_ids.length);
-  if (needed > 0) {
-    const newPicks = pickJpVocabTeacherVisibleReleaseIds(
+  if (!previousVisible.length) {
+    visible_ids = buildJpVocabQuizTargetVisibleIds(
       displayOrder,
       words,
-      needed,
-      visible_ids,
+      target,
       now
     );
-    visible_ids.push(...newPicks);
-  } else if (visible_ids.length > target) {
-    visible_ids.splice(target);
+  } else if (poolMissingChecked) {
+    visible_ids = buildJpVocabQuizTargetVisibleIds(
+      displayOrder,
+      words,
+      target,
+      now
+    );
+  } else {
+    visible_ids = [];
+    const inPool = new Set<number>();
+
+    for (const id of previousVisible) {
+      const word = wordById.get(id);
+      if (!word) continue;
+      visible_ids.push(id);
+      inPool.add(id);
+    }
+
+    for (const id of todayCheckedIds) {
+      if (visible_ids.length >= target) break;
+      if (inPool.has(id)) continue;
+      visible_ids.push(id);
+      inPool.add(id);
+    }
+
+    const needed = Math.max(0, target - visible_ids.length);
+    if (needed > 0) {
+      for (const id of pickJpVocabTeacherVisibleReleaseIds(
+        displayOrder,
+        words,
+        needed,
+        [...inPool],
+        now
+      )) {
+        visible_ids.push(id);
+        inPool.add(id);
+      }
+    } else if (visible_ids.length > target) {
+      visible_ids.splice(target);
+    }
   }
 
   if (!visible_ids.length) {
@@ -329,15 +435,34 @@ export function applyJpVocabQuizTargetVisiblePlan(
 
 /**
  * 是否需要在读库后重算可见词条池。
- * 仅在管理员已生成过 visible_ids 且目标数变大时重算；避免每次请求全量扫词写库（易触发 Worker CPU 超限）。
+ * 目标数变大、或池中缺少今日已抽查词条时需重算；避免每次请求全量扫词写库（易触发 Worker CPU 超限）。
  */
 export function shouldMaterializeJpVocabTeacherVisibleLimit(
-  stored: Pick<JpVocabTeacherVisibleLimit, "quiz_target" | "visible_ids">
+  stored: Pick<JpVocabTeacherVisibleLimit, "quiz_target" | "visible_ids">,
+  ctx?: {
+    displayOrder?: JpVocabDailyDisplayOrder;
+    words?: JpVocabWord[];
+    now?: Date;
+  }
 ): boolean {
   const visibleIds = stored.visible_ids;
   if (!visibleIds?.length) return false;
   const target = Math.max(1, Math.floor(stored.quiz_target));
-  return visibleIds.length < target;
+  if (visibleIds.length < target) return true;
+
+  const { displayOrder, words, now } = ctx ?? {};
+  if (!displayOrder?.ids.length || !words?.length) return false;
+
+  const todayCheckedIds = jpVocabTodayCheckedIdsInOrder(
+    displayOrder,
+    words,
+    now
+  );
+  return jpVocabTeacherVisiblePoolMissingTodayChecked(
+    visibleIds,
+    todayCheckedIds,
+    target
+  );
 }
 
 /**
