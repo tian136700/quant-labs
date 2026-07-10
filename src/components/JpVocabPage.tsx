@@ -699,13 +699,8 @@ export function JpVocabPage() {
   const dailyTarget = Math.min(teacherVisibleLimit.quiz_target, teacherVisibleWords.length);
 
   const dailyQuizProgress = useMemo(
-    () => computeJpVocabDailyQuizProgress(displayOrder, teacherVisibleLimit),
-    [
-      displayOrder,
-      teacherVisibleLimit.limit,
-      teacherVisibleLimit.count,
-      teacherVisibleLimit.quiz_target,
-    ]
+    () => computeJpVocabDailyQuizProgress(words, teacherVisibleLimit),
+    [words, teacherVisibleLimit.quiz_target]
   );
 
   const dailyCheckedCount = dailyQuizProgress.checked;
