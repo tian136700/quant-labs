@@ -141,7 +141,7 @@ const SHOW_REMARKS_COLUMN = true;
 const SHOW_RANDOM_HIGHLIGHT = false;
 
 /** 单词表每页条数 */
-const JP_VOCAB_PAGE_SIZE = 100;
+const JP_VOCAB_PAGE_SIZE = 40;
 
 /** 「发给学生」预估传输时长（进度条 0→100%） */
 const JP_VOCAB_SHARE_DURATION_MS = 5000;
