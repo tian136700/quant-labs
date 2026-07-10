@@ -32,7 +32,32 @@ export type JpVocabTeacherVisibleLimit = {
   excluded_batch_ids?: number[];
   /** 老师当前可见词条 id（由今日抽查数量每次加载时重算） */
   visible_ids?: number[];
+  /** 管理员最近一次调高抽查目标时新增的词条；隐藏已抽查模式下仍保持可见 */
+  sticky_visible_ids?: number[];
+  /** 最近一次调整抽查目标的时间（ISO，北京时间写入） */
+  quiz_target_adjusted_at?: string;
 };
+
+function normalizeStickyVisibleIds(raw: unknown): number[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const ids = raw.map((id) => Number(id)).filter((id) => id > 0);
+  return ids.length ? ids : undefined;
+}
+
+function normalizeQuizTargetAdjustedAt(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed || undefined;
+}
+
+/** 管理员调高抽查目标后，相对旧可见池新增的词条 id */
+export function computeJpVocabStickyVisibleIds(
+  previousVisible: number[],
+  nextVisible: number[]
+): number[] {
+  const previousSet = new Set(previousVisible);
+  return nextVisible.filter((id) => !previousSet.has(id));
+}
 
 function normalizeQuizTarget(raw: unknown): number {
   const parsed = Number(raw);
@@ -116,6 +141,10 @@ export function normalizeJpVocabTeacherVisibleLimit(
       release_count,
       excluded_batch_ids: normalizeExcludedBatchIds(raw?.excluded_batch_ids),
       visible_ids: normalizeVisibleIds(raw?.visible_ids),
+      sticky_visible_ids: normalizeStickyVisibleIds(raw?.sticky_visible_ids),
+      quiz_target_adjusted_at: normalizeQuizTargetAdjustedAt(
+        raw?.quiz_target_adjusted_at
+      ),
     };
   }
   return {
@@ -541,6 +570,7 @@ export function filterJpVocabWordsByTeacherVisibleLimit(
     | "hide_checked_today"
     | "quiz_target"
     | "released_today"
+    | "sticky_visible_ids"
   >,
   now = new Date()
 ): JpVocabWord[] {
@@ -590,10 +620,13 @@ export function filterJpVocabWordsByTeacherVisibleLimit(
   }
 
   if (normalizeHideCheckedToday(visible.hide_checked_today)) {
+    const stickySet = new Set(visible.sticky_visible_ids ?? []);
     filtered = filtered.filter(
-      (word) => !isJpVocabWordQuizCheckedToday(word, displayOrder, now)
+      (word) =>
+        stickySet.has(word.id) ||
+        !isJpVocabWordQuizCheckedToday(word, displayOrder, now)
     );
-    if (quizTarget > 0) {
+    if (quizTarget > 0 && stickySet.size === 0) {
       const remaining = jpVocabDailyQuizRemaining(words, quizTarget, now);
       filtered = filtered.slice(0, remaining);
     }
@@ -675,6 +708,8 @@ export function teacherVisibleLimitNeedsPersist(
     before.release_count !== after.release_count ||
     before.quiz_target !== after.quiz_target ||
     before.hide_checked_today !== after.hide_checked_today ||
+    !visibleIdsEqual(before.sticky_visible_ids, after.sticky_visible_ids) ||
+    before.quiz_target_adjusted_at !== after.quiz_target_adjusted_at ||
     !visibleIdsEqual(before.excluded_batch_ids, after.excluded_batch_ids)
   );
 }

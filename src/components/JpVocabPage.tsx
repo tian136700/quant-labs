@@ -653,9 +653,15 @@ export function JpVocabPage() {
     );
   }, [displayedWords, displayOrder, isAdmin, teacherVisibleLimit]);
 
+  const searchActive = searchQuery.trim().length > 0;
+  const searchBaseWords = useMemo(() => {
+    if (isAdmin || searchActive) return displayedWords;
+    return teacherVisibleWords;
+  }, [isAdmin, searchActive, displayedWords, teacherVisibleWords]);
+
   const filteredDisplayedWords = useMemo(
-    () => filterJpVocabWordsBySearch(teacherVisibleWords, searchQuery, kindFilter),
-    [teacherVisibleWords, searchQuery, kindFilter]
+    () => filterJpVocabWordsBySearch(searchBaseWords, searchQuery, kindFilter),
+    [searchBaseWords, searchQuery, kindFilter]
   );
 
   const totalPages = Math.max(
@@ -696,7 +702,6 @@ export function JpVocabPage() {
     return () => cancelAnimationFrame(frame);
   }, [highlightId, safePage]);
 
-  const searchActive = searchQuery.trim().length > 0;
   const filterActive = searchActive || kindFilter !== "all";
 
   const dailyTarget = Math.min(teacherVisibleLimit.quiz_target, teacherVisibleWords.length);
@@ -1553,7 +1558,7 @@ export function JpVocabPage() {
                   className="jp-vocab-search__input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="单词、读音、释义、词性…（本地即时搜索）"
+                  placeholder="单词、读音、释义、词性…（搜索全库，本地即时）"
                   disabled={loading}
                   autoComplete="off"
                   spellCheck={false}
@@ -1584,7 +1589,7 @@ export function JpVocabPage() {
                     清除
                   </button>
                   <span className="jp-vocab-search__meta">
-                    匹配 {filteredDisplayedWords.length} / {teacherVisibleWords.length} 条
+                    匹配 {filteredDisplayedWords.length} / {searchBaseWords.length} 条
                   </span>
                 </>
               ) : null}

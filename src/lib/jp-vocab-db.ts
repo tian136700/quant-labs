@@ -45,6 +45,7 @@ import {
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   applyJpVocabQuizTargetVisiblePlan,
+  computeJpVocabStickyVisibleIds,
   materializeJpVocabTeacherVisibleLimit,
   normalizeJpVocabTeacherVisibleLimit,
   shouldMaterializeJpVocabTeacherVisibleLimit,
@@ -1770,7 +1771,27 @@ export async function ensureJpVocabTeacherVisibleLimit(
   if (!teacherVisibleLimitNeedsPersist(current, materialized)) {
     return materialized;
   }
-  return saveJpVocabTeacherVisibleLimit(db, materialized);
+  return saveJpVocabTeacherVisibleLimit(db, {
+    ...materialized,
+    sticky_visible_ids: current.sticky_visible_ids,
+    quiz_target_adjusted_at: current.quiz_target_adjusted_at,
+  });
+}
+
+function withJpVocabTargetAdjustmentSticky(
+  previous: JpVocabTeacherVisibleLimit,
+  materialized: JpVocabTeacherVisibleLimit,
+  now = new Date()
+): JpVocabTeacherVisibleLimit {
+  const sticky_visible_ids = computeJpVocabStickyVisibleIds(
+    previous.visible_ids ?? [],
+    materialized.visible_ids ?? []
+  );
+  return {
+    ...materialized,
+    sticky_visible_ids: sticky_visible_ids.length ? sticky_visible_ids : undefined,
+    quiz_target_adjusted_at: now.toISOString(),
+  };
 }
 
 async function saveJpVocabTeacherVisibleLimit(
@@ -1833,13 +1854,19 @@ export async function expandJpVocabTeacherVisibleLimit(
   }
 
   if (materialized.visible_ids.length < newTotal) {
-    return saveJpVocabTeacherVisibleLimit(db, {
-      ...materialized,
-      release_count: materialized.visible_ids.length,
-    });
+    return saveJpVocabTeacherVisibleLimit(
+      db,
+      withJpVocabTargetAdjustmentSticky(current, {
+        ...materialized,
+        release_count: materialized.visible_ids.length,
+      })
+    );
   }
 
-  return saveJpVocabTeacherVisibleLimit(db, materialized);
+  return saveJpVocabTeacherVisibleLimit(
+    db,
+    withJpVocabTargetAdjustmentSticky(current, materialized)
+  );
 }
 
 export async function setJpVocabDailyQuizTarget(
@@ -1868,7 +1895,10 @@ export async function setJpVocabDailyQuizTarget(
     throw new Error("no_release_candidates");
   }
 
-  return saveJpVocabTeacherVisibleLimit(db, materialized);
+  return saveJpVocabTeacherVisibleLimit(
+    db,
+    withJpVocabTargetAdjustmentSticky(current, materialized)
+  );
 }
 
 /** 今日重置时恢复老师默认可见序号 1–20 */
@@ -1886,6 +1916,8 @@ export async function resetJpVocabTeacherVisibleLimit(
     hide_checked_today: true,
     excluded_batch_ids: [],
     visible_ids: undefined,
+    sticky_visible_ids: undefined,
+    quiz_target_adjusted_at: undefined,
   });
 }
 
