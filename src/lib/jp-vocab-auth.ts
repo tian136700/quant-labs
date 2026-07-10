@@ -1,6 +1,7 @@
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
 import { canUserOperateJpVocab } from "@/lib/etr-auth";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
+import { isAdminSuperuser } from "@/lib/rbac";
 import { userHasPermission } from "@/lib/rbac-db";
 
 export async function requireJpVocabAccess(request: Request) {
@@ -37,36 +38,41 @@ export async function requireJpVocabRead(request: Request) {
   return { env, user, allowed };
 }
 
-/** 今日日语单词：老师/管理员，或持有 jp_vocab:study 的学生 */
+/** 今日日语单词：管理员，或持有 jp_vocab:study 的学生（日语老师不可访问） */
 export async function requireJpVocabStudyAccess(request: Request) {
   const env = await getCloudflareEnv();
   const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
 
   let allowed = false;
   if (user) {
-    if (await userHasPermission(env.DB, user, "jp_vocab:operate")) {
+    if (isAdminSuperuser(user.role)) {
       allowed = true;
-    } else if (await userHasPermission(env.DB, user, "jp_vocab:study")) {
+    } else if (
+      (await userHasPermission(env.DB, user, "jp_vocab:study")) &&
+      !(await userHasPermission(env.DB, user, "jp_vocab:operate")) &&
+      !canUserOperateJpVocab(user)
+    ) {
       allowed = true;
-    } else {
-      allowed = canUserOperateJpVocab(user);
     }
   }
 
   return { env, user, allowed };
 }
 
-/** 学生请求老师发送单词（仅持有 jp_vocab:study 且非老师/管理员） */
+/** 学生请求老师发送单词（管理员或持有 jp_vocab:study 的学生） */
 export async function requireJpVocabShareRequestCreate(request: Request) {
   const env = await getCloudflareEnv();
   const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
 
   let allowed = false;
   if (user) {
-    const canOperate =
-      (await userHasPermission(env.DB, user, "jp_vocab:operate")) ||
-      canUserOperateJpVocab(user);
-    if (!canOperate && (await userHasPermission(env.DB, user, "jp_vocab:study"))) {
+    if (isAdminSuperuser(user.role)) {
+      allowed = true;
+    } else if (
+      (await userHasPermission(env.DB, user, "jp_vocab:study")) &&
+      !(await userHasPermission(env.DB, user, "jp_vocab:operate")) &&
+      !canUserOperateJpVocab(user)
+    ) {
       allowed = true;
     }
   }

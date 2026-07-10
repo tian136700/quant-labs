@@ -1,6 +1,6 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { shareJpVocabWord, unshareJpVocabWord } from "@/lib/jp-vocab-db";
-import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
+import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 
 const AUTH_MSG = {
   en: "Please log in to share words.",
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabStudyAccess(request);
+    const { env, user, allowed } = await requireJpVocabAccess(request);
     if (!allowed || !user) {
       return jsonResponse(
         { ok: false, error: user ? PERM_MSG[locale] : AUTH_MSG[locale] },
@@ -72,7 +72,7 @@ export async function DELETE(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpVocabStudyAccess(request);
+    const { env, user, allowed } = await requireJpVocabAccess(request);
     if (!allowed || !user) {
       return jsonResponse(
         { ok: false, error: user ? UNSHARE_PERM_MSG[locale] : UNSHARE_AUTH_MSG[locale] },

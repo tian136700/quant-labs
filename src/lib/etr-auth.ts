@@ -123,12 +123,15 @@ export function canUserOperateJpVocab(
   return name === ETR_DEFAULT_JP_VOCAB_USERNAME.toLowerCase();
 }
 
-/** 今日日语单词：老师/管理员，或持有 jp_vocab:study 的学生 */
+/** 今日日语单词：管理员，或持有 jp_vocab:study 的学生（日语老师不可访问） */
 export function canAccessJpVocabStudy(
   user: { username?: string; role?: string; permissions?: string[] } | null | undefined
 ): boolean {
   if (!user) return false;
-  if (canUserOperateJpVocab(user)) return true;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  if (canUserOperateJpVocab(user)) return false;
+  if (user.permissions?.includes("jp_vocab:operate")) return false;
   return user.permissions?.includes("jp_vocab:study") ?? false;
 }
 

@@ -228,10 +228,10 @@ const SAVE_ERR = {
 
 export function JpVocabPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, canAccessJpVocabStudy, refresh, openAuthPanel, isAdmin } =
+  const { user, checking, canAccessJpVocab, refresh, openAuthPanel, isAdmin } =
     useEtrAuth();
   const canOperate = canAccessJpVocab;
-  const canShareToStudy = canAccessJpVocabStudy;
+  const canShareToStudy = canAccessJpVocab;
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({

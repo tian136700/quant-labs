@@ -133,7 +133,7 @@ export function JpVocabStudyPage() {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
-        setError("仅管理员、日语老师或已授权学生可访问今日日语单词。");
+        setError("仅管理员或已授权学生可访问今日日语单词。");
         return;
       }
       if (!data.ok || !data.items) {
@@ -296,7 +296,7 @@ export function JpVocabStudyPage() {
         老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
       </p>
 
-      {loggedIn && canViewStudy && !canOperate ? (
+      {loggedIn && canViewStudy ? (
         <div
           style={{
             display: "flex",

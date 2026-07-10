@@ -4,8 +4,8 @@ import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 
 const AUTH_MSG = {
-  en: "Only Admin or Japanese teachers can access today's vocabulary.",
-  zh: "仅管理员、日语老师或已授权学生可访问今日日语单词。",
+  en: "Only admin or authorized students can access today's vocabulary.",
+  zh: "仅管理员或已授权学生可访问今日日语单词。",
 };
 
 export async function GET(request: Request) {

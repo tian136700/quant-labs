@@ -81,8 +81,8 @@ export function JpClassNotesEditModal({
   onSaveFailed,
   onNeedAuth,
 }: Props) {
-  const { canAccessJpVocabStudy } = useEtrAuth();
-  const canShareToStudy = canAccessJpVocabStudy;
+  const { canAccessJpVocab } = useEtrAuth();
+  const canShareToStudy = canAccessJpVocab;
   const [mounted, setMounted] = useState(false);
   const [draft, setDraft] = useState("");
   const [historyEntries, setHistoryEntries] = useState<JpVocabClassNoteEntry[]>([]);
