@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
+import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
+  appendJpVocabClassNoteImageLine,
   formatBeijingClassNoteTimestamp,
+  parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
   upsertJpVocabClassNoteSession,
@@ -18,6 +21,7 @@ import {
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
+import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -37,6 +41,19 @@ type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 const AUTO_SAVE_MS = 1_000;
 const POLL_MS = 2_000;
 const JP_NOTES_SHARE_DURATION_MS = 5_000;
+
+function pickClipboardImage(items: DataTransferItemList): File | null {
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const blob = item.getAsFile();
+      if (blob) {
+        const ext = item.type.split("/")[1] || "png";
+        return new File([blob], `pasted.${ext}`, { type: item.type });
+      }
+    }
+  }
+  return null;
+}
 
 function jpNotesShareProgressPercent(elapsedMs: number): number {
   return Math.min(100, Math.round((elapsedMs / JP_NOTES_SHARE_DURATION_MS) * 100));
@@ -93,12 +110,14 @@ export function JpClassNotesEditModal({
   const [shareProgress, setShareProgress] = useState<{ wordId: number; percent: number } | null>(
     null
   );
+  const [imageUploading, setImageUploading] = useState(false);
   const dirtyRef = useRef(false);
   const lastSavedDraftRef = useRef("");
   const sessionTsRef = useRef<string | null>(null);
   const [sessionTs, setSessionTs] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const wordRef = useRef(word);
   const pollInFlightRef = useRef(false);
 
@@ -121,6 +140,7 @@ export function JpClassNotesEditModal({
       setError("");
       setSaveStatus("idle");
       setShareProgress(null);
+      setImageUploading(false);
     }
   }, [open, word?.id]);
 
@@ -338,6 +358,67 @@ export function JpClassNotesEditModal({
     [canEdit, deletingIndex, locale, onNeedAuth, onSaveFailed, onSaved]
   );
 
+  const uploadNoteImage = useCallback(
+    async (file: File) => {
+      if (!canEdit || imageUploading) return;
+      setImageUploading(true);
+      setError("");
+      try {
+        const form = new FormData();
+        form.set("file", file);
+        const res = await fetch("/api/jp-vocab/class-notes/upload", {
+          method: "POST",
+          headers: { [LOCALE_HEADER]: locale },
+          credentials: "include",
+          body: form,
+        });
+        const parsed = await readApiJson<{
+          ok: boolean;
+          view_path?: string;
+          error?: string;
+        }>(res);
+        if (!parsed.ok) {
+          throw new Error(parsed.error);
+        }
+        const data = parsed.data;
+        if (parsed.status === 401) {
+          onNeedAuth();
+          return;
+        }
+        if (!data.ok || !data.view_path) {
+          throw new Error(data.error || "图片上传失败");
+        }
+        const viewPath = data.view_path;
+        dirtyRef.current = true;
+        setDraft((prev) => appendJpVocabClassNoteImageLine(prev, viewPath));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setImageUploading(false);
+      }
+    },
+    [canEdit, imageUploading, locale, onNeedAuth]
+  );
+
+  const handleImageFile = useCallback(
+    (file: File | null | undefined) => {
+      if (!file || !file.type.startsWith("image/")) {
+        setError("仅支持图片文件。");
+        return;
+      }
+      void uploadNoteImage(file);
+    },
+    [uploadNoteImage]
+  );
+
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!canEdit || imageUploading) return;
+    const file = pickClipboardImage(e.clipboardData.items);
+    if (!file) return;
+    e.preventDefault();
+    void uploadNoteImage(file);
+  };
+
   useEffect(() => {
     if (!open || !canEdit || !word) return;
 
@@ -435,6 +516,10 @@ export function JpClassNotesEditModal({
 
   if (!open || !mounted || !word) return null;
 
+  const draftHasImages = parseJpVocabClassNoteContent(draft).some(
+    (segment) => segment.type === "image"
+  );
+
   return createPortal(
     <>
       <div
@@ -496,7 +581,7 @@ export function JpClassNotesEditModal({
                           </button>
                         ) : null}
                       </div>
-                      <pre className="jp-notes-edit-entry-body">{entry.content}</pre>
+                      <JpVocabClassNoteContent content={entry.content} />
                     </div>
                   );
                 })}
@@ -504,16 +589,50 @@ export function JpClassNotesEditModal({
             ) : null}
 
             {canEdit ? (
-              <textarea
-                className="jp-notes-edit-textarea"
-                rows={8}
-                value={draft}
-                placeholder="在此输入新备注，保存后自动带上当前时间…"
-                onChange={(e) => {
-                  dirtyRef.current = true;
-                  setDraft(e.target.value);
-                }}
-              />
+              <>
+                <div className="jp-notes-edit-compose">
+                  <div className="jp-notes-edit-compose-toolbar">
+                    <button
+                      type="button"
+                      className="btn-rsi-filter btn-rsi-filter--compact"
+                      disabled={imageUploading}
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      {imageUploading ? "上传中…" : "上传图片"}
+                    </button>
+                    <span className="jp-notes-edit-compose-hint">
+                      支持 Ctrl+V / ⌘V 粘贴截图
+                    </span>
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="jp-notes-edit-image-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        handleImageFile(file);
+                      }}
+                    />
+                  </div>
+                  <textarea
+                    className="jp-notes-edit-textarea"
+                    rows={8}
+                    value={draft}
+                    placeholder="在此输入新备注，可粘贴或上传图片，保存后自动带上当前时间…"
+                    onPaste={onPaste}
+                    onChange={(e) => {
+                      dirtyRef.current = true;
+                      setDraft(e.target.value);
+                    }}
+                  />
+                  {draftHasImages ? (
+                    <div className="jp-notes-edit-draft-preview" aria-label="当前备注预览">
+                      <JpVocabClassNoteContent content={draft} />
+                    </div>
+                  ) : null}
+                </div>
+              </>
             ) : historyEntries.length === 0 ? (
               <p className="jp-notes-edit-empty">暂无备注</p>
             ) : null}
@@ -711,6 +830,35 @@ export function JpClassNotesEditModal({
           font-size: 0.9375rem;
           line-height: 1.55;
           color: var(--text);
+        }
+
+        .jp-notes-edit-compose {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+
+        .jp-notes-edit-compose-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.45rem 0.65rem;
+        }
+
+        .jp-notes-edit-compose-hint {
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
+
+        .jp-notes-edit-image-input {
+          display: none;
+        }
+
+        .jp-notes-edit-draft-preview {
+          padding: 0.55rem 0.65rem;
+          border-radius: 8px;
+          border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 50%, var(--panel));
         }
 
         .jp-notes-edit-textarea {

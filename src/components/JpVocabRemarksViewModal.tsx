@@ -14,6 +14,7 @@ import {
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
+import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -231,7 +232,7 @@ export function JpVocabRemarksViewModal({
                         </button>
                       ) : null}
                     </div>
-                    <pre className="jp-remarks-view-entry-body">{entry.content}</pre>
+                    <JpVocabClassNoteContent content={entry.content} />
                   </div>
                 ))}
               </div>

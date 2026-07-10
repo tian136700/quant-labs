@@ -99,3 +99,52 @@ export function removeJpVocabClassNoteAtIndex(
   }
   return serializeJpVocabClassNotes(entries.filter((_, i) => i !== index));
 }
+
+/** 备注正文中的图片行：![](/api/jp-vocab/ref/{ref_key}) */
+export const JP_VOCAB_CLASS_NOTE_IMAGE_LINE_RE =
+  /^!\[\]\((\/api\/jp-vocab\/ref\/[^)]+)\)$/;
+
+export function formatJpVocabClassNoteImageMarkdown(viewPath: string): string {
+  const trimmed = viewPath.trim();
+  return `![](${trimmed})`;
+}
+
+export type JpVocabClassNoteSegment =
+  | { type: "text"; text: string }
+  | { type: "image"; src: string };
+
+/** 将备注正文拆成文字与图片片段，用于渲染 */
+export function parseJpVocabClassNoteContent(content: string): JpVocabClassNoteSegment[] {
+  const lines = content.split("\n");
+  const segments: JpVocabClassNoteSegment[] = [];
+  let textLines: string[] = [];
+
+  const flushText = () => {
+    if (!textLines.length) return;
+    segments.push({ type: "text", text: textLines.join("\n") });
+    textLines = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(JP_VOCAB_CLASS_NOTE_IMAGE_LINE_RE);
+    if (match) {
+      flushText();
+      segments.push({ type: "image", src: match[1] });
+      continue;
+    }
+    textLines.push(line);
+  }
+
+  flushText();
+  return segments;
+}
+
+export function appendJpVocabClassNoteImageLine(
+  draft: string,
+  viewPath: string
+): string {
+  const line = formatJpVocabClassNoteImageMarkdown(viewPath);
+  const trimmed = draft.trimEnd();
+  return trimmed ? `${trimmed}\n${line}` : line;
+}
