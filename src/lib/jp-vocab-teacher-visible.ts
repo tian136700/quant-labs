@@ -5,7 +5,7 @@ import {
 } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import { JP_VOCAB_DAILY_QUIZ_TOP } from "@/lib/jp-vocab-daily-quiz-progress";
-import { reviewTimestampMs } from "@/lib/jp-vocab-review";
+import { isJpVocabReviewToday, reviewTimestampMs } from "@/lib/jp-vocab-review";
 import type { JpVocabWord } from "@/lib/types";
 
 /** 非管理员老师默认仅可见当日序号 1–20 */
@@ -61,13 +61,15 @@ function normalizeQuizTargetBaseChecked(raw: unknown): number | undefined {
   return undefined;
 }
 
-/** 隐藏模式：最后一次勾选早于「调整抽查目标时间」则隐藏；未勾选过则显示 */
+/** 隐藏模式：今日最后一次勾选早于「调整抽查目标时间」则隐藏；今日未勾选则显示 */
 export function isJpVocabWordHiddenBeforeTargetAdjustment(
   word: JpVocabWord,
-  quizTargetAdjustedAt: string | null | undefined
+  quizTargetAdjustedAt: string | null | undefined,
+  now = new Date()
 ): boolean {
   const adjustedMs = reviewTimestampMs(quizTargetAdjustedAt);
   if (adjustedMs == null) return false;
+  if (!isJpVocabReviewToday(word.last_review_at, now)) return false;
   const reviewMs = reviewTimestampMs(word.last_review_at);
   if (reviewMs == null) return false;
   return reviewMs < adjustedMs;
@@ -649,7 +651,8 @@ export function filterJpVocabWordsByTeacherVisibleLimit(
     const adjustedAt = visible.quiz_target_adjusted_at;
     if (adjustedAt) {
       filtered = filtered.filter(
-        (word) => !isJpVocabWordHiddenBeforeTargetAdjustment(word, adjustedAt)
+        (word) =>
+          !isJpVocabWordHiddenBeforeTargetAdjustment(word, adjustedAt, now)
       );
     }
   }
