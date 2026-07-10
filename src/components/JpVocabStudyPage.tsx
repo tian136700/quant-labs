@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readApiJson } from "@/lib/api-json";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -76,6 +77,7 @@ export function JpVocabStudyPage() {
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
   const pendingOpenRemarksWordIdRef = useRef<number | null>(null);
+  const hasLoadedOnceRef = useRef(false);
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -124,15 +126,22 @@ export function JpVocabStudyPage() {
         credentials: "include",
         cache: "no-store",
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok: boolean;
         items?: JpVocabSharedItem[];
         refs?: Record<string, JpVocabRef>;
         share_date?: string;
         quiz_progress?: JpVocabDailyQuizProgress;
         error?: string;
-      };
-      if (res.status === 401) {
+      }>(res);
+      if (!parsed.ok) {
+        if (!hasLoadedOnceRef.current) {
+          setError(parsed.error);
+        }
+        return;
+      }
+      const { data, status } = parsed;
+      if (status === 401) {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
@@ -140,15 +149,21 @@ export function JpVocabStudyPage() {
         return;
       }
       if (!data.ok || !data.items) {
-        throw new Error(data.error || "加载失败");
+        if (!hasLoadedOnceRef.current) {
+          throw new Error(data.error || "加载失败");
+        }
+        return;
       }
+      hasLoadedOnceRef.current = true;
       setItems(data.items);
       setRefs(data.refs ?? {});
       setShareDate(data.share_date ?? beijingDateString());
       setQuizProgress(data.quiz_progress ?? null);
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (!hasLoadedOnceRef.current) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setLoading(false);
       pollInFlightRef.current = false;
@@ -263,8 +278,13 @@ export function JpVocabStudyPage() {
         },
         credentials: "include",
       });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (res.status === 401) {
+      const parsed = await readApiJson<{ ok: boolean; error?: string }>(res);
+      if (!parsed.ok) {
+        setStatus(parsed.error || "请求失败，请稍后再试。");
+        return;
+      }
+      const { data, status } = parsed;
+      if (status === 401) {
         openJpAuth();
         return;
       }

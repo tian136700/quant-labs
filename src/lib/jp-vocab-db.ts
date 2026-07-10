@@ -25,6 +25,7 @@ import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
 import {
   beijingDateString,
   effectiveTodayCheckCount,
+  jpVocabTodayCheckStats,
 } from "@/lib/jp-vocab-daily-check";
 import {
   appendJpVocabDailyDisplayOrderId,
@@ -2311,16 +2312,44 @@ export async function listJpVocabSharedToday(
   return { items, refs };
 }
 
+/** 轻量统计今日已抽查词条数（复习页轮询用，避免每次全表 listJpVocabWords） */
+async function countJpVocabTodayCheckedWords(
+  db: D1Database,
+  now = new Date()
+): Promise<number> {
+  if (devStoreEnabled) {
+    return jpVocabTodayCheckStats(devWords, now).wordCount;
+  }
+
+  await ensureVocabWordSchema(db);
+  const today = beijingDateString(now);
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM jp_vocab_word
+       WHERE today_check_date = ?1 AND COALESCE(today_check_count, 0) > 0`
+    )
+    .bind(today)
+    .first<{ cnt: number }>();
+  return Math.max(0, Number(row?.cnt ?? 0));
+}
+
 export async function getJpVocabDailyQuizProgress(
   db: D1Database,
   now = new Date()
 ): Promise<JpVocabDailyQuizProgress> {
   await seedIfEmpty(db);
-  const [words, teacherVisibleLimit] = await Promise.all([
-    listJpVocabWords(db),
+  const [checked, teacherVisibleLimit] = await Promise.all([
+    countJpVocabTodayCheckedWords(db, now),
     getJpVocabTeacherVisibleLimit(db),
   ]);
-  return computeJpVocabDailyQuizProgress(words, teacherVisibleLimit, now);
+  const total = Math.max(0, Math.floor(teacherVisibleLimit.quiz_target));
+  const remaining = Math.max(0, total - checked);
+  return {
+    total,
+    checked,
+    remaining,
+    complete: total > 0 && checked >= total,
+  };
 }
 
 async function ensureJpVocabShareRequestSchema(db: D1Database): Promise<void> {
