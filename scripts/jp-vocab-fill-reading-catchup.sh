@@ -5,8 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG_DIR="${HOME}/.config/info-quests"
 ENV_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.env"
-STATE_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.last_success"
-LOCK_DIR="${CONFIG_DIR}/jp-vocab-fill-reading.lock.d"
+STATE_FILE="${CONFIG_DIR}/jp-vocab-nightly.last_success"
+LOCK_DIR="${CONFIG_DIR}/jp-vocab-nightly.lock.d"
 
 if [[ -f "$ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -50,4 +50,4 @@ if [[ "$last_success" -ge "$deadline" ]]; then
 fi
 
 echo "$(date '+%F %T') catchup: missed slot (last=$last_success deadline=$deadline), running nightly..."
-bash "$ROOT/scripts/jp-vocab-fill-reading-nightly.sh"
+bash "$ROOT/scripts/jp-vocab-nightly.sh"

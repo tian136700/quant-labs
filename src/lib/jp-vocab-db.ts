@@ -2489,3 +2489,195 @@ export async function dismissJpVocabShareRequests(
     .run();
   return { dismissed: Number(result.meta?.changes ?? 0) };
 }
+
+export type JpVocabDailyRolloverResult = {
+  date: string;
+  dry_run: boolean;
+  teacher_visible_reset: boolean;
+  display_order_refreshed: boolean;
+  deleted_shared: number;
+  deleted_share_requests: number;
+  cleared_today_checks: number;
+};
+
+function teacherVisibleNeedsDailyReset(
+  raw: Partial<JpVocabTeacherVisibleLimit> | null,
+  today: string
+): boolean {
+  if (!raw?.date || raw.date !== today) return true;
+  if (raw.released_today === true) return true;
+  if (Array.isArray(raw.excluded_batch_ids) && raw.excluded_batch_ids.length > 0) {
+    return true;
+  }
+  if (Array.isArray(raw.visible_ids) && raw.visible_ids.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 北京时间跨日清理：仅当日临时状态（释放批次、共享、协助请求、今日抽查次数等）。
+ * 不删除词条、不重置历史复习统计（cnt_very / cnt_normal / cnt_weak）。
+ */
+export async function runJpVocabDailyRolloverInDb(
+  db: D1Database,
+  options: { dryRun?: boolean; now?: Date } = {}
+): Promise<JpVocabDailyRolloverResult> {
+  const dryRun = Boolean(options.dryRun);
+  const now = options.now ?? new Date();
+  const today = beijingDateString(now);
+  const ts = nowIso();
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const teacher_visible_reset = teacherVisibleNeedsDailyReset(
+      devTeacherVisibleLimit,
+      today
+    );
+    const display_order_refreshed =
+      !devDailyDisplayOrder.date || devDailyDisplayOrder.date !== today;
+    const deleted_shared = devShared.filter((row) => row.share_date < today).length;
+    const deleted_share_requests = devShareRequests.filter(
+      (row) => row.request_date < today
+    ).length;
+    const cleared_today_checks = devWords.filter(
+      (word) => word.today_check_date && word.today_check_date < today
+    ).length;
+
+    if (!dryRun) {
+      if (teacher_visible_reset) {
+        devTeacherVisibleLimit = await resetJpVocabTeacherVisibleLimit(db);
+      }
+      if (display_order_refreshed) {
+        devDailyDisplayOrder = await refreshJpVocabDailyDisplayOrder(db, devWords);
+      }
+      if (deleted_shared > 0) {
+        for (let i = devShared.length - 1; i >= 0; i -= 1) {
+          if (devShared[i].share_date < today) devShared.splice(i, 1);
+        }
+      }
+      if (deleted_share_requests > 0) {
+        for (let i = devShareRequests.length - 1; i >= 0; i -= 1) {
+          if (devShareRequests[i].request_date < today) {
+            devShareRequests.splice(i, 1);
+          }
+        }
+      }
+      if (cleared_today_checks > 0) {
+        for (let i = 0; i < devWords.length; i += 1) {
+          const word = devWords[i];
+          if (word.today_check_date && word.today_check_date < today) {
+            devWords[i] = {
+              ...word,
+              today_check_count: 0,
+              today_check_date: null,
+              updated_at: ts,
+            };
+          }
+        }
+      }
+    }
+
+    return {
+      date: today,
+      dry_run: dryRun,
+      teacher_visible_reset,
+      display_order_refreshed,
+      deleted_shared,
+      deleted_share_requests,
+      cleared_today_checks,
+    };
+  }
+
+  const rawVisible = await readJpVocabTeacherVisibleLimitRaw(db);
+  const teacher_visible_reset = teacherVisibleNeedsDailyReset(rawVisible, today);
+
+  const storedOrder = await readJpVocabDailyDisplayOrderRaw(db);
+  const display_order_refreshed =
+    !storedOrder?.date || storedOrder.date !== today;
+
+  await ensureJpVocabSharedSchema(db);
+  const sharedCountRow = await db
+    .prepare(`SELECT COUNT(*) AS c FROM jp_vocab_shared WHERE share_date < ?1`)
+    .bind(today)
+    .first<{ c: number }>();
+  const deleted_shared = Number(sharedCountRow?.c ?? 0);
+
+  await ensureJpVocabShareRequestSchema(db);
+  const requestCountRow = await db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM jp_vocab_share_request WHERE request_date < ?1`
+    )
+    .bind(today)
+    .first<{ c: number }>();
+  const deleted_share_requests = Number(requestCountRow?.c ?? 0);
+
+  await ensureVocabWordSchema(db);
+  const checkCountRow = await db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM jp_vocab_word
+       WHERE today_check_date IS NOT NULL AND today_check_date < ?1`
+    )
+    .bind(today)
+    .first<{ c: number }>();
+  const cleared_today_checks = Number(checkCountRow?.c ?? 0);
+
+  if (dryRun) {
+    return {
+      date: today,
+      dry_run: true,
+      teacher_visible_reset,
+      display_order_refreshed,
+      deleted_shared,
+      deleted_share_requests,
+      cleared_today_checks,
+    };
+  }
+
+  if (teacher_visible_reset) {
+    await resetJpVocabTeacherVisibleLimit(db);
+  }
+
+  if (display_order_refreshed) {
+    const words = await listJpVocabWords(db);
+    await refreshJpVocabDailyDisplayOrder(db, words);
+  }
+
+  if (deleted_shared > 0) {
+    await db
+      .prepare(`DELETE FROM jp_vocab_shared WHERE share_date < ?1`)
+      .bind(today)
+      .run();
+  }
+
+  if (deleted_share_requests > 0) {
+    await db
+      .prepare(`DELETE FROM jp_vocab_share_request WHERE request_date < ?1`)
+      .bind(today)
+      .run();
+  }
+
+  if (cleared_today_checks > 0) {
+    await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET today_check_count = 0,
+             today_check_date = NULL,
+             updated_at = ?1
+         WHERE today_check_date IS NOT NULL AND today_check_date < ?2`
+      )
+      .bind(ts, today)
+      .run();
+  }
+
+  return {
+    date: today,
+    dry_run: false,
+    teacher_visible_reset,
+    display_order_refreshed,
+    deleted_shared,
+    deleted_share_requests,
+    cleared_today_checks,
+  };
+}

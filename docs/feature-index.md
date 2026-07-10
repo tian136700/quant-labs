@@ -29,6 +29,8 @@
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
+| 管理员「确认释放」、老师可见批次 | `JpVocabPage.tsx` → `expandTeacherVisible`；`POST /api/jp-vocab` `expand_teacher_visible`；`jp-vocab-teacher-visible.ts` |
+| 北京时间跨日清理（释放/共享/今日抽查） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | 老师右下角 toast（学生协助请求） | `src/components/JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
 | 今日抽查进度条 / 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；管理员设今日抽查总数：`POST /api/jp-vocab` `set_daily_quiz_target` |

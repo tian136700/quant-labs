@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac 端一次性安装：日语单词读音按分钟补全（launchd 定时任务）
+# Mac 端一次性安装：jp-vocab 统一定时任务（跨日清理 + 读音补全，launchd）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,7 +25,9 @@ set +a
 
 RUN_INTERVAL="${JP_VOCAB_FILL_READING_INTERVAL_SECONDS:-60}"
 
+chmod +x "$ROOT/scripts/jp-vocab-nightly.sh"
 chmod +x "$ROOT/scripts/jp-vocab-fill-reading-nightly.sh"
+chmod +x "$ROOT/scripts/jp-vocab-daily-rollover-api.py"
 
 sed \
   -e "s|__REPO_ROOT__|${ROOT}|g" \
@@ -48,9 +50,11 @@ echo ""
 echo "若 nightly 日志出现 Operation not permitted："
 echo "  系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 添加 /bin/bash"
 echo ""
-echo "试跑（不写库）:"
+echo "试跑跨日清理（不写库）:"
+echo "  python3 $ROOT/scripts/jp-vocab-daily-rollover-api.py --dry-run"
+echo "试跑读音补全（不写库）:"
 echo "  python3 $ROOT/scripts/jp-vocab-fill-reading-api.py --dry-run"
-echo "立即跑一次:"
-echo "  bash $ROOT/scripts/jp-vocab-fill-reading-nightly.sh"
+echo "立即跑一次（跨日清理 + 读音补全）:"
+echo "  bash $ROOT/scripts/jp-vocab-nightly.sh"
 echo ""
 echo "Bearer Token 直接用 ~/.config/info-quests/jp-review-sync.env 里的 JP_REVIEW_UPLOAD_TOKEN（日语教案上传那串，无需另配）"
