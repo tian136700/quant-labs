@@ -158,6 +158,9 @@ export async function POST(request: Request) {
     return jsonResponse({ ok: true, word: result.word });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (message === "no_release_candidates") {
+      return jsonResponse({ ok: false, error: "没有可释放的词条" }, 400);
+    }
     return jsonResponse({ ok: false, error: message }, 500);
   }
 }

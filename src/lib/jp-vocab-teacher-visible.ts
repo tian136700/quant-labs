@@ -24,9 +24,9 @@ export type JpVocabTeacherVisibleLimit = {
   quiz_target: number;
   /** 今日管理员是否已确认释放（持久化；老师端据此自动展示批次） */
   released_today: boolean;
-  /** 今日释放的每批条数（管理员点击时写入） */
+  /** 今日累计释放条数（管理员每次点击累加） */
   release_count: number;
-  /** 今日较早批次已展示过的词条 id（释放下一批时排除） */
+  /** @deprecated 累计释放模式下不再使用，保留字段兼容旧数据 */
   excluded_batch_ids?: number[];
   /** 老师当前可见词条 id（由 release 参数每次加载时重算，非手工维护） */
   visible_ids?: number[];
@@ -284,15 +284,12 @@ export function materializeJpVocabTeacherVisibleLimit(
   const batchSize = stored.released_today
     ? Math.max(1, Math.floor(stored.release_count))
     : JP_VOCAB_TEACHER_VISIBLE_DEFAULT;
-  const excludeIds = stored.released_today
-    ? (stored.excluded_batch_ids ?? [])
-    : [];
 
   const visible_ids = pickJpVocabTeacherVisibleReleaseIds(
     displayOrder,
     words,
     batchSize,
-    excludeIds,
+    [],
     now
   );
 
@@ -370,6 +367,14 @@ export type JpVocabTeacherVisibleReleasePlan = {
   end: number;
 };
 
+export function jpVocabTeacherVisibleReleasedTotal(
+  visible: Pick<JpVocabTeacherVisibleLimit, "released_today" | "release_count">
+): number {
+  return visible.released_today
+    ? Math.max(0, Math.floor(visible.release_count))
+    : 0;
+}
+
 export function planJpVocabTeacherVisibleRelease(
   displayOrder: JpVocabDailyDisplayOrder,
   words: JpVocabWord[],
@@ -377,17 +382,13 @@ export function planJpVocabTeacherVisibleRelease(
   releaseCount: number,
   now = new Date()
 ): JpVocabTeacherVisibleReleasePlan | null {
-  const excludeIds = current.released_today
-    ? [
-        ...(current.excluded_batch_ids ?? []),
-        ...(current.visible_ids ?? []),
-      ]
-    : [];
+  const previousTotal = jpVocabTeacherVisibleReleasedTotal(current);
+  const newTotal = previousTotal + releaseCount;
   const visible_ids = pickJpVocabTeacherVisibleReleaseIds(
     displayOrder,
     words,
-    releaseCount,
-    excludeIds,
+    newTotal,
+    [],
     now
   );
   if (!visible_ids.length) return null;

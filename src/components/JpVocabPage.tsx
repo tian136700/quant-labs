@@ -76,6 +76,7 @@ import {
   countJpVocabTeacherVisibleReleaseCandidates,
   normalizeJpVocabTeacherVisibleLimit,
   planJpVocabTeacherVisibleRelease,
+  jpVocabTeacherVisibleReleasedTotal,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
@@ -1234,11 +1235,21 @@ export function JpVocabPage() {
         credentials: "include",
         body: JSON.stringify({ action: "expand_teacher_visible", count }),
       });
-      const data = (await res.json()) as {
+      const raw = await res.text();
+      let data: {
         ok: boolean;
         teacher_visible_limit?: JpVocabTeacherVisibleLimit;
         error?: string;
       };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        throw new Error(
+          !res.ok
+            ? `请求失败（${res.status}），请刷新页面后重试`
+            : "服务器返回了无效数据，请刷新后重试"
+        );
+      }
       if (!data.ok || !data.teacher_visible_limit) {
         throw new Error(data.error || "操作失败");
       }
@@ -1250,9 +1261,10 @@ export function JpVocabPage() {
           teacher_visible_limit: data.teacher_visible_limit,
         });
       }
+      const totalReleased = jpVocabTeacherVisibleReleasedTotal(data.teacher_visible_limit);
       setStatus(
         data.teacher_visible_limit.released_today
-          ? `今日已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条至老师端（序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit, displayOrder)}）；老师刷新页面即可同步，无需重复点击。`
+          ? `今日累计释放 ${totalReleased} 条至老师端（序号 ${jpVocabTeacherVisibleRangeLabel(data.teacher_visible_limit, displayOrder)}）；老师刷新页面即可同步。`
           : `已释放 ${data.teacher_visible_limit.visible_ids?.length ?? count} 条。`
       );
     } catch (err) {
@@ -1306,28 +1318,13 @@ export function JpVocabPage() {
     teacherVisibleLimit,
     displayOrder
   );
-  const releaseExcludeIds = useMemo(() => {
-    if (!teacherVisibleLimit.released_today) return [];
-    return [
-      ...(teacherVisibleLimit.excluded_batch_ids ?? []),
-      ...(teacherVisibleLimit.visible_ids ?? []),
-    ];
-  }, [
-    teacherVisibleLimit.released_today,
-    teacherVisibleLimit.excluded_batch_ids,
-    teacherVisibleLimit.visible_ids,
-  ]);
-  const releaseCandidateCount = useMemo(
-    () =>
-      countJpVocabTeacherVisibleReleaseCandidates(
-        displayOrder,
-        words,
-        releaseExcludeIds
-      ),
-    [displayOrder, words, releaseExcludeIds]
+  const releaseCandidateTotal = useMemo(
+    () => countJpVocabTeacherVisibleReleaseCandidates(displayOrder, words, []),
+    [displayOrder, words]
   );
-  const teacherVisibleAtMax = releaseCandidateCount === 0;
-  const remainingToRelease = releaseCandidateCount;
+  const releasedTotal = jpVocabTeacherVisibleReleasedTotal(teacherVisibleLimit);
+  const remainingToRelease = Math.max(0, releaseCandidateTotal - releasedTotal);
+  const teacherVisibleAtMax = remainingToRelease === 0;
   const releasePreview = useMemo(
     () =>
       planJpVocabTeacherVisibleRelease(
@@ -1478,7 +1475,7 @@ export function JpVocabPage() {
                     className="jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
                     title="今日释放状态已写入数据库；老师刷新页面会自动同步当前批次，部署后无需重复点击释放"
                   >
-                    今日已释放 {teacherVisibleLimit.release_count} 条/批
+                    今日累计释放 {teacherVisibleLimit.release_count} 条
                   </span>
                 </>
               ) : null}
@@ -1538,7 +1535,7 @@ export function JpVocabPage() {
                     teacherVisibleAtMax
                       ? "老师已可见全部词条"
                       : releasePreview
-                        ? `当前老师可见 ${teacherVisibleRange}；下一批将释放 ${releasePreview.count} 条（优先从未抽查，跳过今日已抽查；序号约 ${releasePreview.start}–${releasePreview.end}）`
+                        ? `当前老师可见 ${teacherVisibleRange}（累计 ${releasedTotal} 条）；再释放 ${releaseCount} 条后累计 ${releasePreview.count} 条（优先从未抽查，跳过今日已抽查；序号约 ${releasePreview.start}–${releasePreview.end}）`
                         : `当前老师可见序号 ${teacherVisibleRange}`
                   }
                 >
@@ -1547,7 +1544,7 @@ export function JpVocabPage() {
                     : teacherVisibleAtMax
                       ? "已全部释放"
                       : teacherVisibleLimit.released_today
-                        ? "释放下一批"
+                        ? "继续释放"
                         : "确认释放"}
                 </button>
               </div>

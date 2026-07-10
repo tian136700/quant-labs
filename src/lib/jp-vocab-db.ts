@@ -1797,22 +1797,18 @@ export async function expandJpVocabTeacherVisibleLimit(
   releaseCount: number
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
-  const count = Math.max(1, Math.floor(releaseCount));
+  const addCount = Math.max(1, Math.floor(releaseCount));
   const words = await listJpVocabWords(db);
   const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
 
-  const excluded_batch_ids = current.released_today
-    ? [
-        ...(current.excluded_batch_ids ?? []),
-        ...(current.visible_ids ?? []),
-      ]
-    : [];
+  const previousTotal = current.released_today ? current.release_count : 0;
+  const newTotal = previousTotal + addCount;
 
   const draft: JpVocabTeacherVisibleLimit = {
     ...current,
     released_today: true,
-    release_count: count,
-    excluded_batch_ids,
+    release_count: newTotal,
+    excluded_batch_ids: [],
   };
 
   const materialized = materializeJpVocabTeacherVisibleLimit(
@@ -1820,6 +1816,18 @@ export async function expandJpVocabTeacherVisibleLimit(
     displayOrder,
     words
   );
+
+  if (!materialized.visible_ids?.length) {
+    throw new Error("no_release_candidates");
+  }
+
+  if (materialized.visible_ids.length < newTotal) {
+    return saveJpVocabTeacherVisibleLimit(db, {
+      ...materialized,
+      release_count: materialized.visible_ids.length,
+    });
+  }
+
   return saveJpVocabTeacherVisibleLimit(db, materialized);
 }
 
