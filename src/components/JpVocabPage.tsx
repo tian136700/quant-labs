@@ -2576,8 +2576,6 @@ export function JpVocabPage() {
         <JpVocabDailyQuizIntroModal
           userId={user.id}
           open={showDailyIntro}
-          dailyTarget={dailyTarget}
-          dailyCheckedCount={dailyCheckedCount}
           onClose={() => setShowDailyIntro(false)}
         />
       ) : null}

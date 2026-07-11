@@ -1696,8 +1696,6 @@ export function EnVocabPage() {
 
       <EnVocabDailyQuizIntroModal
         open={showDailyIntro}
-        dailyTarget={dailyTarget}
-        dailyCheckedCount={dailyCheckedCount}
         onClose={() => setShowDailyIntro(false)}
       />
 

@@ -42,15 +42,11 @@ export function shouldShowEnVocabDailyIntro(): boolean {
 
 type Props = {
   open: boolean;
-  dailyTarget: number;
-  dailyCheckedCount: number;
   onClose: () => void;
 };
 
 export function EnVocabDailyQuizIntroModal({
   open,
-  dailyTarget,
-  dailyCheckedCount,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -121,15 +117,10 @@ export function EnVocabDailyQuizIntroModal({
           </button>
         </div>
         <div className="jp-vocab-intro-modal-body">
-          <ol className="jp-vocab-intro-modal-list">
-            <li>
-              今日需抽查<strong>序号前 {dailyTarget}</strong> 个单词/语法（即表格第 1～
-              {dailyTarget} 行），当前已抽查 <strong>{dailyCheckedCount}</strong> 个。
-            </li>
-            <li>
-              抽查时向学生提问，学生回答后请勾选「熟悉程度」（非常熟悉 / 一般 / 不熟悉）。
-            </li>
-          </ol>
+          <p className="jp-vocab-intro-modal-text">
+            <strong>提问并勾选</strong>：抽查时向学生提问，学生回答后请勾选「熟悉程度」（非常熟悉 /
+            一般 / 不熟悉）。
+          </p>
         </div>
         <div className="jp-vocab-intro-modal-footer">
           <label className="jp-vocab-intro-modal-never">
@@ -203,19 +194,15 @@ export function EnVocabDailyQuizIntroModal({
         .jp-vocab-intro-modal-body {
           padding: 1rem;
         }
-        .jp-vocab-intro-modal-list {
+        .jp-vocab-intro-modal-text {
           margin: 0;
-          padding-left: 1.25rem;
           color: var(--text);
           font-size: 0.9375rem;
           line-height: 1.65;
         }
-        .jp-vocab-intro-modal-list li + li {
-          margin-top: 0.75rem;
-        }
-        .jp-vocab-intro-modal-list strong {
-          color: var(--accent);
-          font-variant-numeric: tabular-nums;
+        .jp-vocab-intro-modal-text strong {
+          color: var(--text);
+          font-weight: 600;
         }
         .jp-vocab-intro-modal-footer {
           display: flex;
