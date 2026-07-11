@@ -178,11 +178,6 @@ const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
 const JP_VOCAB_SHARE_HINT =
   "学生答不上来或不熟悉时，点此发送给他";
 
-/** 熟悉程度列：勾选后自动同步到学生端 */
-const JP_VOCAB_LEVEL_SYNC_HINT_SHORT = "勾选后同步给学生复习";
-const JP_VOCAB_LEVEL_SYNC_HINT =
-  "勾选后，同步该单词给学生复习";
-
 function jpVocabShareProgressPercent(elapsedMs: number): number {
   return Math.min(100, Math.round((elapsedMs / JP_VOCAB_SHARE_DURATION_MS) * 100));
 }
@@ -2594,22 +2589,7 @@ export function JpVocabPage() {
                                 );
                               })}
                             </div>
-                            <span className="jp-vocab-level-card-entry-hint">
-                              点击打开抽查卡片
-                            </span>
                           </button>
-                          <span
-                            className="jp-vocab-share-hint jp-vocab-level-sync-hint jp-vocab-share-hint--desktop"
-                            role="note"
-                          >
-                            {JP_VOCAB_LEVEL_SYNC_HINT_SHORT}
-                          </span>
-                          <span
-                            className="jp-vocab-share-hint jp-vocab-level-sync-hint jp-vocab-share-hint--mobile"
-                            role="note"
-                          >
-                            {JP_VOCAB_LEVEL_SYNC_HINT}
-                          </span>
                         </div>
                         ) : (
                         <div className="jp-vocab-level-wrap">
@@ -2693,18 +2673,6 @@ export function JpVocabPage() {
                             );
                           })}
                         </div>
-                        <span
-                          className="jp-vocab-share-hint jp-vocab-level-sync-hint jp-vocab-share-hint--desktop"
-                          role="note"
-                        >
-                          {JP_VOCAB_LEVEL_SYNC_HINT_SHORT}
-                        </span>
-                        <span
-                          className="jp-vocab-share-hint jp-vocab-level-sync-hint jp-vocab-share-hint--mobile"
-                          role="note"
-                        >
-                          {JP_VOCAB_LEVEL_SYNC_HINT}
-                        </span>
                         </div>
                         )}
                       </td>
