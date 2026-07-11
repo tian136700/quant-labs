@@ -51,6 +51,12 @@ import {
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
+import {
+  isJpVocabTeacherQuizLiveStudentPeeked,
+  JP_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
+  normalizeJpVocabTeacherQuizLive,
+  type JpVocabTeacherQuizLive,
+} from "@/lib/jp-vocab-teacher-quiz-live";
 import { formatReviewIso } from "@/lib/jp-vocab-review";
 import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
 import { applyJpVocabReview, isJpVocabWordReviewLocked, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
@@ -116,6 +122,10 @@ let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   ids: [],
   round_checked_ids: [],
 };
+let devTeacherQuizLive: JpVocabTeacherQuizLive = {
+  ...JP_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
+  date: beijingDateString(),
+};
 const devShared: Array<{
   id: number;
   word_id: number;
@@ -135,6 +145,7 @@ const JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS = 10_000;
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 const JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
+const JP_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
@@ -2974,4 +2985,183 @@ export async function runJpVocabDailyRolloverInDb(
     deleted_share_requests,
     cleared_today_checks,
   };
+}
+
+async function readJpVocabTeacherQuizLiveRaw(
+  db: D1Database
+): Promise<Partial<JpVocabTeacherQuizLive> | null> {
+  if (devStoreEnabled) {
+    return devTeacherQuizLive;
+  }
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_TEACHER_QUIZ_LIVE_KEY)
+    .first<{ value: string }>();
+  if (!row?.value) return null;
+  try {
+    return JSON.parse(row.value) as Partial<JpVocabTeacherQuizLive>;
+  } catch {
+    return null;
+  }
+}
+
+async function saveJpVocabTeacherQuizLive(
+  db: D1Database,
+  live: JpVocabTeacherQuizLive
+): Promise<JpVocabTeacherQuizLive> {
+  const next = normalizeJpVocabTeacherQuizLive(live);
+  if (devStoreEnabled) {
+    devTeacherQuizLive = next;
+    return next;
+  }
+  await ensureJpVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(JP_VOCAB_TEACHER_QUIZ_LIVE_KEY, JSON.stringify(next), nowIso())
+    .run();
+  return next;
+}
+
+export async function getJpVocabTeacherQuizLive(
+  db: D1Database,
+  now = new Date()
+): Promise<JpVocabTeacherQuizLive> {
+  const raw = await readJpVocabTeacherQuizLiveRaw(db);
+  const normalized = normalizeJpVocabTeacherQuizLive(raw, now);
+  if (!devStoreEnabled && raw?.date && raw.date !== normalized.date) {
+    await saveJpVocabTeacherQuizLive(db, normalized);
+  }
+  return normalized;
+}
+
+export async function setJpVocabTeacherQuizLiveWord(
+  db: D1Database,
+  wordId: number | null,
+  now = new Date()
+): Promise<JpVocabTeacherQuizLive> {
+  const current = await getJpVocabTeacherQuizLive(db, now);
+  const parsedId =
+    wordId != null && Number.isFinite(wordId) && wordId > 0
+      ? Math.floor(wordId)
+      : null;
+  const wordChanged = current.word_id !== parsedId;
+  const next: JpVocabTeacherQuizLive = {
+    ...current,
+    word_id: parsedId,
+    updated_at: parsedId != null ? now.toISOString() : null,
+    ...(wordChanged
+      ? {
+          student_peek_word_id: null,
+          student_peek_by: null,
+          student_peek_at: null,
+        }
+      : {}),
+  };
+  return saveJpVocabTeacherQuizLive(db, next);
+}
+
+async function getJpVocabWordByIdLite(
+  db: D1Database,
+  wordId: number
+): Promise<JpVocabWord | null> {
+  if (devStoreEnabled) {
+    const word = devWords.find((w) => w.id === wordId);
+    if (!word) return null;
+    const hasNotes = Boolean((word.class_notes || "").trim());
+    return {
+      ...word,
+      class_notes: null,
+      class_notes_present: hasNotes,
+    };
+  }
+  const row = await db
+    .prepare(
+      `SELECT id, word, reading, meaning, pos, kind, ref_key,
+              cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
+              last_review_level, last_review_at, created_at, updated_at,
+              (CASE WHEN COALESCE(TRIM(class_notes), '') != '' THEN 1 ELSE 0 END) AS has_class_notes
+       FROM jp_vocab_word
+       WHERE id = ?1`
+    )
+    .bind(wordId)
+    .first<Record<string, unknown>>();
+  if (!row) return null;
+  return mapSharedListWordRow(row);
+}
+
+export type JpVocabTeacherQuizLivePeekResult =
+  | {
+      ok: true;
+      word: JpVocabWord;
+      refs: Record<string, JpVocabRef>;
+      item: JpVocabSharedItem;
+    }
+  | { ok: false; error: "no_active_word" | "word_not_found" };
+
+export async function peekJpVocabTeacherQuizLiveWord(
+  db: D1Database,
+  studentUsername: string,
+  now = new Date()
+): Promise<JpVocabTeacherQuizLivePeekResult> {
+  const live = await getJpVocabTeacherQuizLive(db, now);
+  const wordId = live.word_id;
+  if (!wordId) {
+    return { ok: false, error: "no_active_word" };
+  }
+  const word = await getJpVocabWordByIdLite(db, wordId);
+  if (!word) {
+    return { ok: false, error: "word_not_found" };
+  }
+
+  const nextLive: JpVocabTeacherQuizLive = {
+    ...live,
+    student_peek_word_id: wordId,
+    student_peek_by: studentUsername,
+    student_peek_at: now.toISOString(),
+  };
+  await saveJpVocabTeacherQuizLive(db, nextLive);
+
+  const refs: Record<string, JpVocabRef> = {};
+  if (word.ref_key) {
+    const refList = await listJpVocabRefsByKeys(db, [word.ref_key]);
+    for (const ref of refList) {
+      refs[ref.ref_key] = ref;
+    }
+  }
+
+  const today = beijingDateString(now);
+  const level =
+    word.last_review_level === "very" ||
+    word.last_review_level === "normal" ||
+    word.last_review_level === "weak"
+      ? word.last_review_level
+      : "normal";
+
+  const item: JpVocabSharedItem = {
+    id: 0,
+    word_id: word.id,
+    shared_by: "teacher",
+    shared_at: now.toISOString(),
+    share_date: today,
+    level,
+    word,
+  };
+
+  return { ok: true, word, refs, item };
+}
+
+export async function isJpVocabTeacherQuizLiveStudentPeekedForWord(
+  db: D1Database,
+  wordId: number,
+  now = new Date()
+): Promise<boolean> {
+  const live = await getJpVocabTeacherQuizLive(db, now);
+  return isJpVocabTeacherQuizLiveStudentPeeked(live, wordId);
 }
