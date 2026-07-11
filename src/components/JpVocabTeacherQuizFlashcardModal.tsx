@@ -315,11 +315,11 @@ export function JpVocabTeacherQuizFlashcardModal({
           <dl className="jp-vocab-teacher-quiz__meta">
             <dt>释义</dt>
             <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-              {meaningTrim || "待补全"}
+              {meaningTrim}
             </dd>
             <dt>词性</dt>
             <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-              {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : "—"}
+              {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : null}
             </dd>
             {!showReadingPrimary ? (
               <>
