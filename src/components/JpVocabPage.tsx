@@ -818,13 +818,28 @@ export function JpVocabPage() {
   );
 
   const searchActive = searchQuery.trim().length > 0;
+  /** 老师端隐藏不可操作行（超出今日抽查序号、或已勾选且 1 小时内不可改） */
+  const hideInoperableRows = canOperate && !isAdmin;
 
   const searchMatchedWords = useMemo(
     () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
     [displayedWords, searchQuery, kindFilter]
   );
 
-  const filteredDisplayedWords = searchMatchedWords;
+  const filteredDisplayedWords = useMemo(() => {
+    if (!hideInoperableRows) return searchMatchedWords;
+    return searchMatchedWords.filter(
+      (w) =>
+        isWordInQuizTarget(w.id) &&
+        !isWordReviewLocked(w, sessionReviewAt[w.id])
+    );
+  }, [
+    hideInoperableRows,
+    searchMatchedWords,
+    isWordInQuizTarget,
+    isWordReviewLocked,
+    sessionReviewAt,
+  ]);
 
   const totalPages = Math.max(
     1,
@@ -2172,7 +2187,9 @@ export function JpVocabPage() {
             </div>
             {filterActive && !filteredDisplayedWords.length ? (
               <p className="jp-vocab-search__empty">
-                {searchActive
+                {searchActive && searchMatchedWords.length > 0 && hideInoperableRows
+                  ? `全库有匹配「${searchQuery.trim()}」的词条，但超出今日可抽查序号或已满 1 小时不可改，老师端不显示。`
+                  : searchActive
                   ? `没有匹配「${searchQuery.trim()}」的词条，请换个关键词试试。`
                   : kindFilter === "grammar"
                     ? "当前没有语法条目。"
