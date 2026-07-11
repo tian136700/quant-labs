@@ -767,15 +767,19 @@ export function JpVocabTeacherQuizFlashcardModal({
         }
         .jp-vocab-teacher-quiz__student-peek-hint {
           margin: 0;
-          padding: 0.45rem 0.6rem;
+          padding: 0.55rem 0.75rem;
           border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-          color: var(--accent);
-          font-size: 0.8125rem;
-          font-weight: 600;
+          border: 1.5px solid #f0a840;
+          background: color-mix(in srgb, #f0a840 28%, var(--panel));
+          color: #ffd080;
+          font-size: 0.9rem;
+          font-weight: 700;
           text-align: center;
-          line-height: 1.4;
+          line-height: 1.45;
+          letter-spacing: 0.02em;
+          box-shadow:
+            0 0 0 1px color-mix(in srgb, #f0a840 35%, transparent) inset,
+            0 2px 10px color-mix(in srgb, #f0a840 25%, transparent);
         }
         .jp-vocab-teacher-quiz__hero {
           text-align: center;
