@@ -583,6 +583,28 @@ export function AdminJpLessonTeachersPageContent() {
     }
   };
 
+function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
+  if (err === "user_exists" || err === "username_taken") {
+    return locale === "zh"
+      ? "用户名已被占用，请在用户管理中手动关联"
+      : "Username taken; link manually in Users";
+  }
+  if (err === "username_unavailable") {
+    return locale === "zh" ? "无法生成可用用户名" : "Could not derive a valid username";
+  }
+  if (err === "username_invalid" || err === "teacher_name_empty") {
+    return locale === "zh"
+      ? "老师名称无效，无法生成用户名"
+      : "Invalid teacher name; cannot derive username";
+  }
+  if (/Cannot read properties of|reading 'length'|reading 'map'|reading 'trim'/i.test(err)) {
+    return locale === "zh"
+      ? "创建账号时内部错误，请刷新后重试；仍失败请到用户管理手动创建"
+      : "Internal error while creating account; refresh and retry, or create manually in Users";
+  }
+  return err;
+}
+
   const createTeacherUser = async (teacher: JpLessonTeacher) => {
     const ok = window.confirm(
       locale === "zh"
@@ -610,17 +632,7 @@ export function AdminJpLessonTeachersPageContent() {
       };
       if (!data.ok || !data.user) {
         const err = data.error ?? "create failed";
-        setStatus(
-          err === "user_exists" || err === "username_taken"
-            ? locale === "zh"
-              ? "用户名已被占用，请在用户管理中手动关联"
-              : "Username taken; link manually in Users"
-            : err === "username_unavailable"
-              ? locale === "zh"
-                ? "无法生成可用用户名"
-                : "Could not derive a valid username"
-              : String(err)
-        );
+        setStatus(mapCreateTeacherUserError(String(err), locale));
         setStatusErr(true);
         return;
       }

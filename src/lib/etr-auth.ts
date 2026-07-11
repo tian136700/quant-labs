@@ -174,6 +174,7 @@ export const ETR_USERNAME_MAX_LENGTH = 32;
 export const ETR_PASSWORD_MIN_LENGTH = 6;
 
 export function isValidUsername(username: string): boolean {
+  if (typeof username !== "string") return false;
   if (
     username.length < ETR_USERNAME_MIN_LENGTH ||
     username.length > ETR_USERNAME_MAX_LENGTH

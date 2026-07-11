@@ -99,10 +99,14 @@ export async function POST(request: Request) {
       if (!teacher) {
         return jsonResponse({ ok: false, error: "not_found" }, 404);
       }
+      const teacherName = (teacher.name ?? "").trim();
+      if (!teacherName) {
+        return jsonResponse({ ok: false, error: "teacher_name_empty" }, 400);
+      }
       const result = await ensureJpLessonTeacherUserAccount(
         env,
         teacherId,
-        teacher.name
+        teacherName
       );
       if (!result.ok) {
         const status =

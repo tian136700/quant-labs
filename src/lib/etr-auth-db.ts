@@ -18,6 +18,7 @@ import {
   type EtrUser,
   type EtrUserRole,
 } from "./etr-auth";
+import { teacherNameToUsername } from "./teacher-name-username";
 import type { CloudflareEnv } from "./types";
 
 type DevUser = EtrUser & { password_hash: string };
@@ -949,7 +950,6 @@ export async function ensureJpLessonTeacherUserAccount(
   }
 
   if (provision.reason === "user_exists") {
-    const { teacherNameToUsername } = await import("./teacher-name-username");
     const baseUsername = normalizeUsername(teacherNameToUsername(teacherName));
     if (!baseUsername) return { ok: false, error: "username_invalid" };
     const existing = await findUserByUsername(env.DB, baseUsername);
@@ -971,7 +971,6 @@ export async function provisionJpLessonTeacherUser(
   env: CloudflareEnv,
   teacherName: string
 ): Promise<ProvisionJpLessonTeacherUserResult> {
-  const { teacherNameToUsername } = await import("./teacher-name-username");
   const baseUsername = teacherNameToUsername(teacherName);
   if (!baseUsername) {
     return { ok: false, error: "username_invalid" };
@@ -1038,7 +1037,6 @@ export async function provisionEnLessonTeacherUser(
   env: CloudflareEnv,
   teacherName: string
 ): Promise<ProvisionEnLessonTeacherUserResult> {
-  const { teacherNameToUsername } = await import("./teacher-name-username");
   const baseUsername = teacherNameToUsername(teacherName);
   if (!baseUsername) {
     return { ok: false, error: "username_invalid" };
@@ -1238,8 +1236,12 @@ export async function createJpLessonTeacherUserByReview(
   teacherId: number,
   teacherName: string
 ): Promise<CreateJpLessonTeacherUserByReviewResult> {
-  const { teacherNameToUsername } = await import("./teacher-name-username");
-  const baseUsername = teacherNameToUsername(teacherName);
+  let baseUsername: string;
+  try {
+    baseUsername = teacherNameToUsername(teacherName);
+  } catch {
+    return { ok: false, error: "username_invalid" };
+  }
   if (!baseUsername) return { ok: false, error: "username_invalid" };
 
   await ensureBootstrapUsers(env);

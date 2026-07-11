@@ -17,7 +17,9 @@ function capitalizePinyinSyllable(syllable: string): string {
 }
 
 function chineseToPascalPinyin(text: string): string {
-  const syllables = pinyin(text, { toneType: "none", type: "array" }) as string[];
+  if (!text) return "";
+  const raw = pinyin(text, { toneType: "none", type: "array" });
+  const syllables = Array.isArray(raw) ? raw : [];
   return syllables.map(capitalizePinyinSyllable).join("");
 }
 
@@ -33,6 +35,7 @@ function asciiToPascalUsername(text: string): string {
 
 /** 将老师称呼转为登录用户名，如「李老师」→ LiLaoshi、「周老师」→ ZhouLaoshi */
 export function teacherNameToUsername(displayName: string): string {
+  if (displayName == null || typeof displayName !== "string") return "";
   const name = extractTeacherNameBeforeDash(displayName);
   if (!name) return "";
 
