@@ -200,8 +200,8 @@ export interface JpVocabSharedItem {
   shared_by: string;
   shared_at: string;
   share_date: string;
-  /** 共享时自动标记为不熟悉 */
-  level: JpVocabLevel;
+  /** 老师今日勾选的熟悉程度；老师尚未勾选时为 undefined */
+  level?: JpVocabLevel;
   word: JpVocabWord;
 }
 

@@ -1,6 +1,7 @@
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 import {
   beijingDateString,
+  effectiveTodayCheckCount,
   nextTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
 import {
@@ -18,6 +19,24 @@ export function isJpVocabReviewToday(
 ): boolean {
   if (!lastAt) return false;
   return lastAt.slice(0, 10) === beijingDateString(now);
+}
+
+/** 学生端「老师勾选」：仅当老师今日已勾选熟悉程度时才有值 */
+export function resolveJpVocabSharedTeacherLevel(
+  word: JpVocabWord,
+  now = new Date()
+): JpVocabLevel | undefined {
+  const checkedToday =
+    effectiveTodayCheckCount(
+      word.today_check_count ?? 0,
+      word.today_check_date,
+      now
+    ) > 0 ||
+    isJpVocabReviewToday(word.last_review_at, now);
+  if (!checkedToday) return undefined;
+  const level = word.last_review_level;
+  if (level && JP_VOCAB_LEVELS.includes(level)) return level;
+  return undefined;
 }
 
 /** 表格回显：仅当前轮次（round_checked）且今日勾选显示打勾；跨日/今日重置后清空回显，统计次数保留 */

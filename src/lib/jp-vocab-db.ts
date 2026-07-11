@@ -57,7 +57,7 @@ import {
   normalizeJpVocabTeacherQuizLive,
   type JpVocabTeacherQuizLive,
 } from "@/lib/jp-vocab-teacher-quiz-live";
-import { formatReviewIso } from "@/lib/jp-vocab-review";
+import { formatReviewIso, resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
 import { applyJpVocabReview, isJpVocabWordReviewLocked, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
@@ -2170,19 +2170,13 @@ function mapSharedRow(
   row: Record<string, unknown>,
   word: JpVocabWord
 ): JpVocabSharedItem {
-  const level: JpVocabLevel =
-    word.last_review_level === "very" ||
-    word.last_review_level === "normal" ||
-    word.last_review_level === "weak"
-      ? word.last_review_level
-      : "weak";
   return {
     id: Number(row.id),
     word_id: Number(row.word_id),
     shared_by: String(row.shared_by),
     shared_at: String(row.shared_at),
     share_date: String(row.share_date),
-    level,
+    level: resolveJpVocabSharedTeacherLevel(word),
     word,
   };
 }
@@ -3207,12 +3201,7 @@ export async function peekJpVocabTeacherQuizLiveWord(
     }
   }
 
-  const level =
-    word.last_review_level === "very" ||
-    word.last_review_level === "normal" ||
-    word.last_review_level === "weak"
-      ? word.last_review_level
-      : "normal";
+  const level = resolveJpVocabSharedTeacherLevel(word, now);
 
   const item: JpVocabSharedItem = {
     id: sharedRow.id,
