@@ -609,6 +609,8 @@ export async function recordJpVocabReview(
   const today = beijingDateString();
   const sharedByTrim = (options?.sharedBy || "").trim();
   const shouldShare = Boolean(options?.shareToStudy && sharedByTrim);
+  const alreadySharedToday =
+    shouldShare && (await isJpVocabWordSharedToday(db, wordId));
 
   const batchStmts = [
     db
@@ -637,11 +639,11 @@ export async function recordJpVocabReview(
       ),
   ];
 
-  if (shouldShare) {
+  if (shouldShare && !alreadySharedToday) {
     batchStmts.push(
       db
         .prepare(
-          `INSERT OR IGNORE INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date, auto_marked_level)
+          `INSERT INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date, auto_marked_level)
        VALUES (?1, ?2, ?3, ?4, NULL)`
         )
         .bind(wordId, sharedByTrim, ts, today)
@@ -657,8 +659,8 @@ export async function recordJpVocabReview(
   let shared = false;
   let shared_new = false;
   if (shouldShare) {
-    shared_new = Number(batchResults[1]?.meta?.changes ?? 0) > 0;
-    shared = shared_new || (await isJpVocabWordSharedToday(db, wordId));
+    shared_new = !alreadySharedToday;
+    shared = shared_new || alreadySharedToday;
   }
 
   await markJpVocabWordRoundChecked(db, wordId);

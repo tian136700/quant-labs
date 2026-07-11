@@ -872,21 +872,25 @@ export function JpVocabPage() {
     const wasAlreadyShared = sharedTodayWordIds.has(wordId);
 
     const startedAt = Date.now();
-    setShareProgress({ wordId, percent: 0 });
-    setStatus("正在同步到学生端…");
-    shareProgressTimerRef.current = setInterval(() => {
-      setShareProgress({
-        wordId,
-        percent: jpVocabShareProgressPercent(Date.now() - startedAt),
-      });
-    }, 200);
-
     const clearShareTimer = () => {
       if (shareProgressTimerRef.current) {
         clearInterval(shareProgressTimerRef.current);
         shareProgressTimerRef.current = null;
       }
     };
+
+    if (!wasAlreadyShared) {
+      setShareProgress({ wordId, percent: 0 });
+      setStatus("正在同步到学生端…");
+      shareProgressTimerRef.current = setInterval(() => {
+        setShareProgress({
+          wordId,
+          percent: jpVocabShareProgressPercent(Date.now() - startedAt),
+        });
+      }, 200);
+    } else {
+      setStatus("正在更新熟悉程度…");
+    }
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
@@ -940,10 +944,12 @@ export function JpVocabPage() {
         }
 
         clearShareTimer();
-        await animateJpVocabShareProgressTo100(wordId, startedAt, setShareProgress);
+        if (!wasAlreadyShared) {
+          await animateJpVocabShareProgressTo100(wordId, startedAt, setShareProgress);
+        }
 
         const nextSharedIds =
-          data.shared && !sharedTodayWordIdsRef.current.has(wordId)
+          data.shared_new && !sharedTodayWordIdsRef.current.has(wordId)
             ? [...sharedTodayWordIdsRef.current, wordId]
             : [...sharedTodayWordIdsRef.current];
 
@@ -957,18 +963,20 @@ export function JpVocabPage() {
           );
           return next;
         });
-        if (data.shared) {
+        if (data.shared_new) {
           setSharedTodayWordIds(new Set(nextSharedIds));
         }
         setShareProgress(null);
         setStatus(
           data.shared_new
             ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
-            : data.shared
-              ? "已更新熟悉程度，学生端已同步。"
+            : wasAlreadyShared
+              ? "熟悉程度已更新，学生端已同步。"
               : "熟悉程度已保存。"
         );
-        notifyJpVocabSharedUpdated({ wordId });
+        if (data.shared) {
+          notifyJpVocabSharedUpdated({ wordId, openRemarks: data.shared_new });
+        }
       });
     } catch (err) {
       clearShareTimer();
