@@ -38,6 +38,13 @@ import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgre
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
+import { JpVocabTeacherQuizModeModal } from "@/components/JpVocabTeacherQuizModeModal";
+import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
+import {
+  createJpVocabTeacherQuizSession,
+  type JpVocabTeacherQuizMode,
+  type JpVocabTeacherQuizSession,
+} from "@/lib/jp-vocab-teacher-quiz";
 import {
   JP_VOCAB_CACHE_KEY,
   JP_VOCAB_REFRESH_TTL_MS,
@@ -315,6 +322,12 @@ export function JpVocabPage() {
   const dismissingShareRequestsRef = useRef(false);
   const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
+  const [quizSession, setQuizSession] = useState<JpVocabTeacherQuizSession | null>(
+    null
+  );
+  const [showQuizModeModal, setShowQuizModeModal] = useState(false);
+  const [pendingQuizWordId, setPendingQuizWordId] = useState<number | null>(null);
+  const [showQuizFlashcard, setShowQuizFlashcard] = useState(false);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
       readVocabCache()?.teacher_visible_limit ??
@@ -753,28 +766,13 @@ export function JpVocabPage() {
   );
 
   const searchActive = searchQuery.trim().length > 0;
-  /** 搜索始终针对全库（displayedWords），老师端再在结果里隐藏不可操作行 */
-  const hideInoperableRows = canOperate && !isAdmin;
 
   const searchMatchedWords = useMemo(
     () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
     [displayedWords, searchQuery, kindFilter]
   );
 
-  const filteredDisplayedWords = useMemo(() => {
-    if (!hideInoperableRows) return searchMatchedWords;
-    return searchMatchedWords.filter(
-      (w) =>
-        isWordInQuizTarget(w.id) &&
-        !isWordReviewLocked(w, sessionReviewAt[w.id])
-    );
-  }, [
-    hideInoperableRows,
-    searchMatchedWords,
-    isWordInQuizTarget,
-    isWordReviewLocked,
-    sessionReviewAt,
-  ]);
+  const filteredDisplayedWords = searchMatchedWords;
 
   const totalPages = Math.max(
     1,
@@ -863,22 +861,82 @@ export function JpVocabPage() {
   ]);
 
   const unmarkedCount = useMemo(() => {
-    const pool = hideInoperableRows
-      ? quizTargetWords.filter(
-          (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
-        )
-      : quizTargetWords;
+    const pool = quizTargetWords.filter(
+      (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
+    );
     return pool.filter(
       (w) => !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
     ).length;
   }, [
-    hideInoperableRows,
     quizTargetWords,
     sessionLevel,
     displayOrder,
     sessionReviewAt,
     isWordReviewLocked,
   ]);
+
+  const hasAnyQuizLevelToday = useMemo(
+    () =>
+      quizTargetWords.some(
+        (w) =>
+          effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder }) !=
+          null
+      ),
+    [quizTargetWords, sessionLevel, displayOrder]
+  );
+
+  const wordsById = useMemo(
+    () => new Map(words.map((w) => [w.id, w])),
+    [words]
+  );
+
+  const reviewLockedByWordId = useMemo(() => {
+    const map: Record<number, boolean> = {};
+    for (const w of words) {
+      map[w.id] = isWordReviewLocked(w, sessionReviewAt[w.id]);
+    }
+    return map;
+  }, [words, sessionReviewAt, isWordReviewLocked]);
+
+  const quizFlashcardSavingWordId = useMemo(() => {
+    for (const [wordId, phase] of Object.entries(wordSyncState)) {
+      if (phase === "queued" || phase === "syncing") {
+        return Number(wordId);
+      }
+    }
+    return null;
+  }, [wordSyncState]);
+
+  const startTeacherQuizSession = useCallback(
+    (mode: JpVocabTeacherQuizMode, startWordId?: number) => {
+      const next = createJpVocabTeacherQuizSession(
+        mode,
+        quizTargetWords,
+        dailySeqByWordId,
+        startWordId
+      );
+      if (!next) {
+        setStatus(
+          quizTarget > 0
+            ? `今日序号 1–${quizTarget} 内暂无可抽查词条。`
+            : "请管理员先设置今日抽查数量。"
+        );
+        return;
+      }
+      setQuizSession(next);
+      setShowQuizFlashcard(true);
+    },
+    [quizTargetWords, dailySeqByWordId, quizTarget]
+  );
+
+  const handleTeacherQuizModeSelected = useCallback(
+    (mode: JpVocabTeacherQuizMode) => {
+      setShowQuizModeModal(false);
+      startTeacherQuizSession(mode, pendingQuizWordId ?? undefined);
+      setPendingQuizWordId(null);
+    },
+    [pendingQuizWordId, startTeacherQuizSession]
+  );
 
   const todayCheckStats = useMemo(
     () => jpVocabTodayCheckStats(words),
@@ -1072,6 +1130,35 @@ export function JpVocabPage() {
       }
       setStatus(err instanceof Error ? err.message : String(err));
     }
+  };
+
+  const tryRecordLevel = (wordId: number, level: JpVocabLevel) => {
+    if (!canOperate) {
+      void recordLevel(wordId, level);
+      return;
+    }
+    if (!isWordInQuizTarget(wordId)) {
+      void recordLevel(wordId, level);
+      return;
+    }
+    if (!hasAnyQuizLevelToday && !quizSession) {
+      setPendingQuizWordId(wordId);
+      setShowQuizModeModal(true);
+      return;
+    }
+    if (quizSession && quizSession.wordIds.includes(wordId)) {
+      const idx = quizSession.wordIds.indexOf(wordId);
+      setQuizSession((prev) =>
+        prev ? { ...prev, currentIndex: idx } : prev
+      );
+      setShowQuizFlashcard(true);
+      return;
+    }
+    if (hasAnyQuizLevelToday && isWordInQuizTarget(wordId)) {
+      startTeacherQuizSession(quizSession?.mode ?? "sequential", wordId);
+      return;
+    }
+    void recordLevel(wordId, level);
   };
 
   const shareWord = async (wordId: number) => {
@@ -1475,11 +1562,9 @@ export function JpVocabPage() {
   };
 
   const pickNext = () => {
-    const pool = hideInoperableRows
-      ? quizTargetWords.filter(
-          (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
-        )
-      : quizTargetWords;
+    const pool = quizTargetWords.filter(
+      (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
+    );
     const next = pickRandomWord(pool, highlightId ?? undefined);
     if (!next) return;
     const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
@@ -1754,6 +1839,28 @@ export function JpVocabPage() {
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
             </span>
+            {canOperate && quizTarget > 0 && quizTargetWords.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--primary"
+                  onClick={() => startTeacherQuizSession("sequential")}
+                  disabled={loading}
+                  title={`按今日序号 1–${quizTarget} 逐词抽查`}
+                >
+                  正序抽查
+                </button>
+                <button
+                  type="button"
+                  className="btn-rsi-filter"
+                  onClick={() => startTeacherQuizSession("random")}
+                  disabled={loading}
+                  title="打乱今日可抽查词条顺序"
+                >
+                  随机抽查
+                </button>
+              </>
+            ) : null}
             {SHOW_RANDOM_HIGHLIGHT ? (
               <button
                 type="button"
@@ -1921,9 +2028,7 @@ export function JpVocabPage() {
             </div>
             {filterActive && !filteredDisplayedWords.length ? (
               <p className="jp-vocab-search__empty">
-                {searchActive && searchMatchedWords.length > 0 && hideInoperableRows
-                  ? `全库有匹配「${searchQuery.trim()}」的词条，但超出今日可抽查序号或已满 1 小时不可改，老师端不显示。`
-                  : searchActive
+                {searchActive
                   ? `没有匹配「${searchQuery.trim()}」的词条，请换个关键词试试。`
                   : kindFilter === "grammar"
                     ? "当前没有语法条目。"
@@ -2315,7 +2420,7 @@ export function JpVocabPage() {
                                             : "勾选熟悉程度"
                                 }
                                 aria-pressed={checked}
-                                onClick={() => void recordLevel(w.id, lv.key)}
+                                onClick={() => tryRecordLevel(w.id, lv.key)}
                               >
                                 <span className="jp-vocab-check-box" aria-hidden="true">
                                   {checked ? (
@@ -2649,6 +2754,42 @@ export function JpVocabPage() {
         onSaved={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
+      />
+
+      <JpVocabTeacherQuizModeModal
+        open={showQuizModeModal}
+        onClose={() => {
+          setShowQuizModeModal(false);
+          setPendingQuizWordId(null);
+        }}
+        onSelect={handleTeacherQuizModeSelected}
+      />
+
+      <JpVocabTeacherQuizFlashcardModal
+        open={showQuizFlashcard}
+        session={quizSession}
+        wordsById={wordsById}
+        refs={refs}
+        locale={locale}
+        displayOrder={displayOrder}
+        sessionLevel={sessionLevel}
+        reviewLockedByWordId={reviewLockedByWordId}
+        savingWordId={quizFlashcardSavingWordId}
+        dailySeqByWordId={dailySeqByWordId}
+        onClose={() => setShowQuizFlashcard(false)}
+        onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}
+        onNavigate={(index) =>
+          setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
+        }
+        onOpenRef={openRefPreview}
+        onViewRemarks={setViewingRemarksWord}
+        onWordUpdated={handleWordSaved}
+        nestedModalOpen={
+          viewingRemarksWord != null ||
+          previewRef != null ||
+          editingRemarksWord != null ||
+          editingWord != null
+        }
       />
 
       <style jsx>{`
