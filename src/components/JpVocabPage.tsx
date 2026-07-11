@@ -1355,8 +1355,8 @@ export function JpVocabPage() {
           setStatus(
             data.shared_new
               ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
-              : studentPeekedCurrentWord && data.shared
-                ? "熟悉程度已保存。学生已查看该单词，未重复发送。"
+              : studentPeekedCurrentWord
+                ? "熟悉程度已保存。"
                 : wasAlreadyShared || data.shared
                   ? "熟悉程度已更新，学生端已同步。"
                   : "熟悉程度已保存。"
