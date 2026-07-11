@@ -396,11 +396,11 @@ export function JpVocabTeacherQuizFlashcardModal({
         ) : null}
 
         <div className="jp-vocab-teacher-quiz__level">
-          <span className="jp-vocab-teacher-quiz__level-label">
-            熟悉程度（须勾选后才能下一词）
-          </span>
+          <p className="jp-vocab-teacher-quiz__level-label" role="note">
+            请按学生回答，勾选熟悉程度
+          </p>
           <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
-            <div className="jp-vocab-levels" role="group" aria-label="熟悉程度">
+            <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
               {LEVELS.map((lv) => {
                 const checked = selected === lv.key;
                 const levelDisabled = reviewLocked || isSaving;
@@ -420,7 +420,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                         ? "勾选已满 1 小时，无法再修改"
                         : checked
                           ? "今日已选此项，可点其他选项改选"
-                          : "勾选熟悉程度"
+                          : "勾选学生熟悉程度"
                     }
                     onClick={() => {
                       if (levelDisabled) return;
@@ -450,7 +450,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           </div>
           {nextBlockedHint && !selected ? (
             <p className="jp-vocab-teacher-quiz__level-hint" role="alert">
-              请先勾选当前单词的熟悉程度，再进入下一词。
+              请先勾选学生的熟悉程度，再进入下一词。
             </p>
           ) : null}
           {isSaving ? (
@@ -805,10 +805,12 @@ export function JpVocabTeacherQuizFlashcardModal({
           border: 1px solid color-mix(in srgb, var(--accent) 15%, var(--border));
         }
         .jp-vocab-teacher-quiz__level-label {
-          display: block;
-          margin-bottom: 0.45rem;
-          font-size: 0.75rem;
-          color: var(--muted);
+          margin: 0 0 0.5rem;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          line-height: 1.45;
+          text-align: center;
+          color: var(--rise);
         }
         .jp-vocab-teacher-quiz__level-wrap {
           width: 100%;
@@ -817,71 +819,62 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz-card .jp-vocab-level-wrap {
           display: inline-flex;
           flex-direction: column;
-          align-items: center;
+          align-items: stretch;
           gap: 0.2rem;
           max-width: 100%;
+          width: 100%;
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-levels {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 0.35rem 0.5rem;
-          min-width: 0;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0;
           width: 100%;
+          min-width: 0;
+          border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+          border-radius: 10px;
+          overflow: hidden;
+          background: color-mix(in srgb, var(--bg) 60%, var(--panel));
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt {
           display: inline-flex;
           align-items: center;
-          gap: 0.4rem;
-          font-size: 0.875rem;
+          justify-content: center;
+          gap: 0.35rem;
+          min-height: 2.75rem;
+          padding: 0.45rem 0.35rem;
+          font-size: 0.8125rem;
+          font-weight: 500;
           cursor: pointer;
           white-space: nowrap;
-          padding: 0.45rem 0.65rem;
-          border-radius: 6px;
-          border: 1px solid transparent;
+          border: none;
+          border-radius: 0;
+          border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
           background: transparent;
           color: var(--text);
           font: inherit;
           line-height: 1.3;
-          min-height: 2.25rem;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:last-child {
+          border-right: none;
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-check-box {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 1.125rem;
-          height: 1.125rem;
-          flex-shrink: 0;
-          border: 1.5px solid var(--border);
-          border-radius: 3px;
-          background: var(--bg);
-          color: var(--accent);
+          display: none;
         }
-        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked .jp-vocab-check-box {
-          border-color: var(--accent);
-          background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked {
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+          color: var(--accent);
+          font-weight: 700;
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--very.is-checked {
-          color: var(--fall);
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--very.is-checked .jp-vocab-check-box {
-          border-color: var(--fall);
-          background: color-mix(in srgb, var(--fall) 18%, var(--bg));
+          background: color-mix(in srgb, var(--fall) 16%, var(--panel));
           color: var(--fall);
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--weak.is-checked {
+          background: color-mix(in srgb, var(--rise) 16%, var(--panel));
           color: var(--rise);
         }
-        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--weak.is-checked .jp-vocab-check-box {
-          border-color: var(--rise);
-          background: color-mix(in srgb, var(--rise) 18%, var(--bg));
-          color: var(--rise);
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked {
-          background: rgba(61, 139, 253, 0.08);
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.04);
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:hover:not(:disabled):not(.is-checked) {
+          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:disabled {
           opacity: 0.55;
@@ -1011,46 +1004,9 @@ export function JpVocabTeacherQuizFlashcardModal({
             border-radius: 16px 16px 0 0;
             padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
           }
-          .jp-vocab-teacher-quiz-card .jp-vocab-levels {
-            display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0;
-            border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-            border-radius: 10px;
-            overflow: hidden;
-            background: color-mix(in srgb, var(--bg) 60%, var(--panel));
-          }
           .jp-vocab-teacher-quiz-card .jp-vocab-level-opt {
             min-height: 3rem;
-            padding: 0.5rem 0.35rem;
-            flex: 1 1 0;
-            justify-content: center;
             font-size: clamp(0.75rem, 3.2vw, 0.875rem);
-            font-weight: 500;
-            border: none;
-            border-radius: 0;
-            border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-            background: transparent;
-            white-space: nowrap;
-          }
-          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:last-child {
-            border-right: none;
-          }
-          .jp-vocab-teacher-quiz-card .jp-vocab-check-box {
-            display: none;
-          }
-          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked {
-            background: color-mix(in srgb, var(--accent) 18%, var(--panel));
-            color: var(--accent);
-            font-weight: 700;
-          }
-          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--very.is-checked {
-            background: color-mix(in srgb, var(--fall) 16%, var(--panel));
-            color: var(--fall);
-          }
-          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--weak.is-checked {
-            background: color-mix(in srgb, var(--rise) 16%, var(--panel));
-            color: var(--rise);
           }
           .jp-vocab-teacher-quiz__actions-row {
             display: grid;
