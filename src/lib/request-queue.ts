@@ -1,9 +1,38 @@
 /** 串行执行异步任务，保证同一队列内请求按顺序、一次一个发出 */
 export class RequestQueue {
   private tail: Promise<void> = Promise.resolve();
+  private pending = 0;
+  private listeners = new Set<(pending: number) => void>();
+
+  /** 当前排队 + 正在执行的任务数 */
+  get pendingCount(): number {
+    return this.pending;
+  }
+
+  subscribe(listener: (pending: number) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.pending);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private setPending(next: number): void {
+    this.pending = next;
+    for (const listener of this.listeners) {
+      listener(this.pending);
+    }
+  }
 
   enqueue<T>(task: () => Promise<T>): Promise<T> {
-    const result = this.tail.then(task);
+    this.setPending(this.pending + 1);
+    const result = this.tail.then(async () => {
+      try {
+        return await task();
+      } finally {
+        this.setPending(this.pending - 1);
+      }
+    });
     this.tail = result.then(
       () => undefined,
       () => undefined

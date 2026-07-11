@@ -166,14 +166,12 @@ function jpVocabShareProgressPercent(elapsedMs: number): number {
 async function animateJpVocabShareProgressTo100(
   wordId: number,
   startedAtMs: number,
-  setShareProgress: Dispatch<
-    SetStateAction<{ wordId: number; percent: number } | null>
-  >
+  setPercent: (wordId: number, percent: number) => void
 ): Promise<void> {
   const elapsed = Date.now() - startedAtMs;
   const current = jpVocabShareProgressPercent(elapsed);
   if (current >= 100) {
-    setShareProgress({ wordId, percent: 100 });
+    setPercent(wordId, 100);
     await new Promise((resolve) => setTimeout(resolve, 120));
     return;
   }
@@ -182,9 +180,9 @@ async function animateJpVocabShareProgressTo100(
   for (let i = 1; i <= steps; i++) {
     await new Promise((resolve) => setTimeout(resolve, stepMs));
     const percent = current + Math.round(((100 - current) * i) / steps);
-    setShareProgress({ wordId, percent });
+    setPercent(wordId, percent);
   }
-  setShareProgress({ wordId, percent: 100 });
+  setPercent(wordId, 100);
   await new Promise((resolve) => setTimeout(resolve, 120));
 }
 
@@ -259,12 +257,14 @@ export function JpVocabPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
-  const [savingId, setSavingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [shareProgress, setShareProgress] = useState<{
-    wordId: number;
-    percent: number;
-  } | null>(null);
+  const [wordSyncState, setWordSyncState] = useState<
+    Record<number, "queued" | "syncing">
+  >({});
+  const [shareProgressMap, setShareProgressMap] = useState<Record<number, number>>(
+    {}
+  );
+  const [saveQueuePending, setSaveQueuePending] = useState(0);
   const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
     () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
   );
@@ -332,7 +332,48 @@ export function JpVocabPage() {
   const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
   const pollInFlightRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
-  const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
+    new Map()
+  );
+
+  const patchShareProgress = useCallback((wordId: number, percent: number | null) => {
+    setShareProgressMap((prev) => {
+      if (percent == null) {
+        if (!(wordId in prev)) return prev;
+        const next = { ...prev };
+        delete next[wordId];
+        return next;
+      }
+      return { ...prev, [wordId]: percent };
+    });
+  }, []);
+
+  const setWordSyncPhase = useCallback(
+    (wordId: number, phase: "queued" | "syncing" | null) => {
+      setWordSyncState((prev) => {
+        if (phase == null) {
+          if (!(wordId in prev)) return prev;
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        }
+        return { ...prev, [wordId]: phase };
+      });
+    },
+    []
+  );
+
+  const clearShareTimer = useCallback((wordId: number) => {
+    const timer = shareProgressTimersRef.current.get(wordId);
+    if (timer) {
+      clearInterval(timer);
+      shareProgressTimersRef.current.delete(wordId);
+    }
+  }, []);
+
+  useEffect(() => {
+    return jpVocabSaveQueue.subscribe(setSaveQueuePending);
+  }, []);
 
   useEffect(() => {
     displayOrderRef.current = displayOrder;
@@ -363,9 +404,10 @@ export function JpVocabPage() {
 
   useEffect(() => {
     return () => {
-      if (shareProgressTimerRef.current) {
-        clearInterval(shareProgressTimerRef.current);
+      for (const timer of shareProgressTimersRef.current.values()) {
+        clearInterval(timer);
       }
+      shareProgressTimersRef.current.clear();
     };
   }, []);
 
@@ -856,7 +898,7 @@ export function JpVocabPage() {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
-    if (savingId === wordId || shareProgress) return;
+    if (wordSyncState[wordId]) return;
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -871,27 +913,6 @@ export function JpVocabPage() {
     const displayOrderSnapshot = displayOrderRef.current;
     const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
     const wasAlreadyShared = sharedTodayWordIds.has(wordId);
-
-    const startedAt = Date.now();
-    const clearShareTimer = () => {
-      if (shareProgressTimerRef.current) {
-        clearInterval(shareProgressTimerRef.current);
-        shareProgressTimerRef.current = null;
-      }
-    };
-
-    if (!wasAlreadyShared) {
-      setShareProgress({ wordId, percent: 0 });
-      setStatus("正在同步到学生端…");
-      shareProgressTimerRef.current = setInterval(() => {
-        setShareProgress({
-          wordId,
-          percent: jpVocabShareProgressPercent(Date.now() - startedAt),
-        });
-      }, 200);
-    } else {
-      setStatus("正在更新熟悉程度…");
-    }
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
@@ -914,74 +935,109 @@ export function JpVocabPage() {
         nextSharedIds
       );
     }
-    setSavingId(wordId);
+
+    setWordSyncPhase(wordId, "queued");
+    if (saveQueuePending > 0) {
+      setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
+    } else if (!wasAlreadyShared) {
+      setStatus("已更新界面，正在同步到学生端…");
+    } else {
+      setStatus("已更新界面，正在保存熟悉程度…");
+    }
 
     try {
       await jpVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/jp-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId, level }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: JpVocabWord;
-          shared?: boolean;
-          shared_new?: boolean;
-          error?: string;
-        };
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(SAVE_ERR[locale]);
-        }
-        if (!data.ok || !data.word) {
-          const msg =
-            data.error || (locale === "zh" ? "保存失败" : "Save failed");
-          throw new Error(msg);
-        }
-
-        clearShareTimer();
+        setWordSyncPhase(wordId, "syncing");
+        const startedAt = Date.now();
         if (!wasAlreadyShared) {
-          await animateJpVocabShareProgressTo100(wordId, startedAt, setShareProgress);
-        }
-
-        const nextSharedIds =
-          data.shared_new && !sharedTodayWordIdsRef.current.has(wordId)
-            ? [...sharedTodayWordIdsRef.current, wordId]
-            : [...sharedTodayWordIdsRef.current];
-
-        setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistVocabCache(
-            next,
-            refsRef.current,
-            displayOrderRef.current,
-            nextSharedIds
+          patchShareProgress(wordId, 0);
+          clearShareTimer(wordId);
+          shareProgressTimersRef.current.set(
+            wordId,
+            setInterval(() => {
+              patchShareProgress(
+                wordId,
+                jpVocabShareProgressPercent(Date.now() - startedAt)
+              );
+            }, 200)
           );
-          return next;
-        });
-        if (data.shared_new) {
-          setSharedTodayWordIds(new Set(nextSharedIds));
         }
-        setShareProgress(null);
-        setStatus(
-          data.shared_new
-            ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
-            : wasAlreadyShared
-              ? "熟悉程度已更新，学生端已同步。"
-              : "熟悉程度已保存。"
-        );
-        if (data.shared) {
-          notifyJpVocabSharedUpdated({ wordId, openRemarks: data.shared_new });
+
+        try {
+          const res = await fetch("/api/jp-vocab", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({ word_id: wordId, level }),
+          });
+          const data = (await res.json()) as {
+            ok: boolean;
+            word?: JpVocabWord;
+            shared?: boolean;
+            shared_new?: boolean;
+            error?: string;
+          };
+          if (res.status === 401) {
+            await refresh();
+            throw new Error(SAVE_ERR[locale]);
+          }
+          if (!data.ok || !data.word) {
+            const msg =
+              data.error || (locale === "zh" ? "保存失败" : "Save failed");
+            throw new Error(msg);
+          }
+
+          clearShareTimer(wordId);
+          if (!wasAlreadyShared) {
+            await animateJpVocabShareProgressTo100(
+              wordId,
+              startedAt,
+              (id, percent) => patchShareProgress(id, percent)
+            );
+            patchShareProgress(wordId, null);
+          }
+
+          const nextSharedIds =
+            data.shared_new && !sharedTodayWordIdsRef.current.has(wordId)
+              ? [...sharedTodayWordIdsRef.current, wordId]
+              : [...sharedTodayWordIdsRef.current];
+
+          setWords((prev) => {
+            const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+            persistVocabCache(
+              next,
+              refsRef.current,
+              displayOrderRef.current,
+              nextSharedIds
+            );
+            return next;
+          });
+          if (data.shared_new) {
+            setSharedTodayWordIds(new Set(nextSharedIds));
+          }
+          setStatus(
+            data.shared_new
+              ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
+              : wasAlreadyShared
+                ? "熟悉程度已更新，学生端已同步。"
+                : "熟悉程度已保存。"
+          );
+          if (data.shared) {
+            notifyJpVocabSharedUpdated({ wordId, openRemarks: data.shared_new });
+          }
+        } finally {
+          clearShareTimer(wordId);
+          patchShareProgress(wordId, null);
+          setWordSyncPhase(wordId, null);
         }
       });
     } catch (err) {
-      clearShareTimer();
-      setShareProgress(null);
+      clearShareTimer(wordId);
+      patchShareProgress(wordId, null);
+      setWordSyncPhase(wordId, null);
       if (snapshot) {
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? snapshot : w))
@@ -1010,8 +1066,6 @@ export function JpVocabPage() {
         );
       }
       setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSavingId(null);
     }
   };
 
@@ -1035,65 +1089,76 @@ export function JpVocabPage() {
       setStatus("勾选已满 1 小时，无法再发给学生。");
       return;
     }
-    if (savingId === wordId || shareProgress) return;
+    if (wordSyncState[wordId]) return;
     if (sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日已共享。");
       return;
     }
 
-    const startedAt = Date.now();
-    setShareProgress({ wordId, percent: 0 });
-    setStatus("正在发给学生，传输中…");
-
-    shareProgressTimerRef.current = setInterval(() => {
-      setShareProgress({
-        wordId,
-        percent: jpVocabShareProgressPercent(Date.now() - startedAt),
-      });
-    }, 200);
-
-    const clearShareTimer = () => {
-      if (shareProgressTimerRef.current) {
-        clearInterval(shareProgressTimerRef.current);
-        shareProgressTimerRef.current = null;
-      }
-    };
+    setWordSyncPhase(wordId, "queued");
 
     try {
       const result = await jpVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/jp-vocab/share", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: JpVocabWord;
-          error?: string;
-        };
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(SAVE_ERR[locale]);
+        setWordSyncPhase(wordId, "syncing");
+        const startedAt = Date.now();
+        patchShareProgress(wordId, 0);
+        clearShareTimer(wordId);
+        shareProgressTimersRef.current.set(
+          wordId,
+          setInterval(() => {
+            patchShareProgress(
+              wordId,
+              jpVocabShareProgressPercent(Date.now() - startedAt)
+            );
+          }, 200)
+        );
+        setStatus("正在发给学生，传输中…");
+
+        try {
+          const res = await fetch("/api/jp-vocab/share", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({ word_id: wordId }),
+          });
+          const data = (await res.json()) as {
+            ok: boolean;
+            word?: JpVocabWord;
+            error?: string;
+          };
+          if (res.status === 401) {
+            await refresh();
+            throw new Error(SAVE_ERR[locale]);
+          }
+          if (res.status === 409 || data.error === "already_shared_today") {
+            return { kind: "already" as const, startedAt };
+          }
+          if (!data.ok || !data.word) {
+            throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
+          }
+          return { kind: "ok" as const, word: data.word, startedAt };
+        } finally {
+          clearShareTimer(wordId);
         }
-        if (res.status === 409 || data.error === "already_shared_today") {
-          return { kind: "already" as const };
-        }
-        if (!data.ok || !data.word) {
-          throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
-        }
-        return { kind: "ok" as const, word: data.word };
       });
 
-      clearShareTimer();
-      await animateJpVocabShareProgressTo100(wordId, startedAt, setShareProgress);
+      const startedAt =
+        result.kind === "already" || result.kind === "ok"
+          ? result.startedAt
+          : Date.now();
+      await animateJpVocabShareProgressTo100(
+        wordId,
+        startedAt,
+        (id, percent) => patchShareProgress(id, percent)
+      );
+      patchShareProgress(wordId, null);
+      setWordSyncPhase(wordId, null);
 
       if (result.kind === "already") {
         setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
-        setShareProgress(null);
         setStatus("该词今日已共享。");
         return;
       }
@@ -1130,7 +1195,6 @@ export function JpVocabPage() {
       });
       setSharedTodayWordIds(new Set(nextSharedIds));
       setHighlightId(wordId);
-      setShareProgress(null);
       setStatus(
         alreadyMarked
           ? "已共享到学生「今日日语单词」。"
@@ -1138,8 +1202,9 @@ export function JpVocabPage() {
       );
       notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
     } catch (err) {
-      clearShareTimer();
-      setShareProgress(null);
+      clearShareTimer(wordId);
+      patchShareProgress(wordId, null);
+      setWordSyncPhase(wordId, null);
       setStatus(err instanceof Error ? err.message : String(err));
     }
   };
@@ -1154,7 +1219,7 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (savingId === wordId) return;
+    if (wordSyncState[wordId]) return;
     if (!sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日尚未共享。");
       return;
@@ -1255,7 +1320,7 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (deletingId === word.id || savingId === word.id || shareProgress) return;
+    if (deletingId === word.id || wordSyncState[word.id]) return;
 
     const ok = window.confirm(`确定删除「${word.word}」？此操作不可恢复。`);
     if (!ok) return;
@@ -1265,59 +1330,61 @@ export function JpVocabPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/jp-vocab/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_ids: [word.id] }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        deleted?: number;
-        words?: JpVocabWord[];
-        display_order?: JpVocabDailyDisplayOrder;
-        error?: string;
-      };
-      if (res.status === 403) {
-        throw new Error("仅 Admin 账户可删除词条。");
-      }
-      if (!data.ok || !data.words || !data.display_order) {
-        throw new Error(data.error || "删除失败");
-      }
+      await jpVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/jp-vocab/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_ids: [word.id] }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          deleted?: number;
+          words?: JpVocabWord[];
+          display_order?: JpVocabDailyDisplayOrder;
+          error?: string;
+        };
+        if (res.status === 403) {
+          throw new Error("仅 Admin 账户可删除词条。");
+        }
+        if (!data.ok || !data.words || !data.display_order) {
+          throw new Error(data.error || "删除失败");
+        }
 
-      const wasShared = sharedTodayWordIds.has(word.id);
-      const nextSharedIds = [...sharedTodayWordIdsRef.current].filter(
-        (id) => id !== word.id
-      );
-      setWords(data.words);
-      setDisplayOrder(data.display_order);
-      persistVocabCache(
-        data.words,
-        refsRef.current,
-        data.display_order,
-        nextSharedIds
-      );
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      setSessionLevel((prev) => {
-        const next = { ...prev };
-        delete next[word.id];
-        return next;
+        const wasShared = sharedTodayWordIds.has(word.id);
+        const nextSharedIds = [...sharedTodayWordIdsRef.current].filter(
+          (id) => id !== word.id
+        );
+        setWords(data.words);
+        setDisplayOrder(data.display_order);
+        persistVocabCache(
+          data.words,
+          refsRef.current,
+          data.display_order,
+          nextSharedIds
+        );
+        setSharedTodayWordIds(new Set(nextSharedIds));
+        setSessionLevel((prev) => {
+          const next = { ...prev };
+          delete next[word.id];
+          return next;
+        });
+        setSessionReviewAt((prev) => {
+          const next = { ...prev };
+          delete next[word.id];
+          return next;
+        });
+        if (highlightId === word.id) {
+          setHighlightId(null);
+        }
+        if (wasShared) {
+          notifyJpVocabSharedUpdated({ wordId: word.id });
+        }
+        setStatus(`已删除词条「${word.word}」。`);
       });
-      setSessionReviewAt((prev) => {
-        const next = { ...prev };
-        delete next[word.id];
-        return next;
-      });
-      if (highlightId === word.id) {
-        setHighlightId(null);
-      }
-      if (wasShared) {
-        notifyJpVocabSharedUpdated({ wordId: word.id });
-      }
-      setStatus(`已删除词条「${word.word}」。`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1750,6 +1817,16 @@ export function JpVocabPage() {
           </p>
         ) : null}
 
+        {saveQueuePending > 0 ? (
+          <p
+            className="jp-vocab-save-queue-hint"
+            role="status"
+            style={{ color: "var(--muted)", fontSize: "0.8125rem", marginBottom: "0.75rem" }}
+          >
+            后台同步队列 {saveQueuePending} 项 · 逐项写入数据库，避免免费服务器拥堵
+          </p>
+        ) : null}
+
         {!loading && words.length ? (
           <div className="jp-vocab-help">
             <button
@@ -1986,10 +2063,13 @@ export function JpVocabPage() {
                       displayOrder,
                     }) ??
                     (reviewLocked ? w.last_review_level ?? undefined : undefined);
-                  const isSaving = savingId === w.id;
+                  const syncState = wordSyncState[w.id];
+                  const isQueued = syncState === "queued";
+                  const isSyncing = syncState === "syncing";
                   const isDeleting = deletingId === w.id;
-                  const isSharing = shareProgress?.wordId === w.id;
-                  const sharingPercent = isSharing ? shareProgress.percent : 0;
+                  const sharingPercent = shareProgressMap[w.id] ?? 0;
+                  const isSharing = w.id in shareProgressMap;
+                  const isSaving = isQueued || isSyncing;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = jpVocabRiskIndex(w);
                   const todayChecks = effectiveTodayCheckCount(
@@ -2173,6 +2253,14 @@ export function JpVocabPage() {
                               />
                             </div>
                           </div>
+                        ) : isQueued ? (
+                          <span className="jp-vocab-sync-queued" role="status">
+                            排队同步中…
+                          </span>
+                        ) : isSyncing ? (
+                          <span className="jp-vocab-sync-queued" role="status">
+                            保存中…
+                          </span>
                         ) : !inQuizTarget ? (
                           <span
                             className="jp-vocab-level-unavailable"
