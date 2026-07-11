@@ -39,6 +39,8 @@ type Props = {
   savingWordId: number | null;
   dailySeqByWordId: ReadonlyMap<number, number>;
   onClose: () => void;
+  /** 最后一词勾选后点「完成」 */
+  onComplete: () => void;
   onSelectLevel: (wordId: number, level: JpVocabLevel) => void;
   onNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
@@ -59,6 +61,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   savingWordId,
   dailySeqByWordId,
   onClose,
+  onComplete,
   onSelectLevel,
   onNavigate,
   onOpenRef,
@@ -187,7 +190,7 @@ export function JpVocabTeacherQuizFlashcardModal({
     if (canGoNext) {
       onNavigate(session.currentIndex + 1);
     } else {
-      onClose();
+      onComplete();
     }
   };
 

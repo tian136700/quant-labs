@@ -42,6 +42,7 @@ import { JpVocabTeacherQuizModeModal } from "@/components/JpVocabTeacherQuizMode
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
 import {
   createJpVocabTeacherQuizSession,
+  isJpVocabTeacherQuizSessionComplete,
   type JpVocabTeacherQuizMode,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
@@ -938,6 +939,46 @@ export function JpVocabPage() {
     [pendingQuizWordId, startTeacherQuizSession]
   );
 
+  /** 抽查卡片会话进行中：列表内不可改选，仅能在卡片里用「上一个」修改 */
+  const teacherQuizLocksTable = quizSession != null;
+
+  const quizWordHasLevel = useCallback(
+    (wordId: number) => {
+      const w = wordsById.get(wordId);
+      if (!w) return false;
+      return (
+        effectiveJpVocabDisplayLevel(w, sessionLevel[wordId], { displayOrder }) !=
+        null
+      );
+    },
+    [wordsById, sessionLevel, displayOrder]
+  );
+
+  const finishTeacherQuiz = useCallback(() => {
+    if (!quizSession) {
+      setShowQuizFlashcard(false);
+      return;
+    }
+    if (
+      !isJpVocabTeacherQuizSessionComplete(quizSession, quizWordHasLevel)
+    ) {
+      setStatus("尚有词条未勾选熟悉程度，请继续在卡片内完成抽查。");
+      return;
+    }
+    setShowQuizFlashcard(false);
+    setQuizSession(null);
+    if (!user) return;
+    dailyQuizCompleteWasRef.current = true;
+    if (shouldShowJpVocabTeacherDailyComplete(user.id, dailyQuizProgress.total)) {
+      setShowDailyComplete(true);
+    }
+  }, [
+    quizSession,
+    quizWordHasLevel,
+    user,
+    dailyQuizProgress.total,
+  ]);
+
   const todayCheckStats = useMemo(
     () => jpVocabTodayCheckStats(words),
     [words]
@@ -1141,21 +1182,16 @@ export function JpVocabPage() {
       void recordLevel(wordId, level);
       return;
     }
-    if (!hasAnyQuizLevelToday && !quizSession) {
-      setPendingQuizWordId(wordId);
-      setShowQuizModeModal(true);
-      return;
-    }
-    if (quizSession && quizSession.wordIds.includes(wordId)) {
-      const idx = quizSession.wordIds.indexOf(wordId);
-      setQuizSession((prev) =>
-        prev ? { ...prev, currentIndex: idx } : prev
+    if (teacherQuizLocksTable) {
+      setStatus(
+        "抽查进行中：列表内暂不可改熟悉程度（请在卡片内操作）；词条编辑与备注编辑仍可随时修改。"
       );
       setShowQuizFlashcard(true);
       return;
     }
-    if (hasAnyQuizLevelToday && isWordInQuizTarget(wordId)) {
-      startTeacherQuizSession(quizSession?.mode ?? "sequential", wordId);
+    if (!hasAnyQuizLevelToday) {
+      setPendingQuizWordId(wordId);
+      setShowQuizModeModal(true);
       return;
     }
     void recordLevel(wordId, level);
@@ -1844,18 +1880,40 @@ export function JpVocabPage() {
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--primary"
-                  onClick={() => startTeacherQuizSession("sequential")}
+                  onClick={() => {
+                    if (quizSession) {
+                      setShowQuizFlashcard(true);
+                      setStatus("继续今日抽查…");
+                      return;
+                    }
+                    startTeacherQuizSession("sequential");
+                  }}
                   disabled={loading}
-                  title={`按今日序号 1–${quizTarget} 逐词抽查`}
+                  title={
+                    quizSession
+                      ? "继续抽查卡片"
+                      : `按今日序号 1–${quizTarget} 逐词抽查`
+                  }
                 >
-                  正序抽查
+                  {quizSession ? "继续抽查" : "正序抽查"}
                 </button>
                 <button
                   type="button"
                   className="btn-rsi-filter"
-                  onClick={() => startTeacherQuizSession("random")}
-                  disabled={loading}
-                  title="打乱今日可抽查词条顺序"
+                  onClick={() => {
+                    if (quizSession) {
+                      setShowQuizFlashcard(true);
+                      setStatus("继续今日抽查…");
+                      return;
+                    }
+                    startTeacherQuizSession("random");
+                  }}
+                  disabled={loading || quizSession != null}
+                  title={
+                    quizSession
+                      ? "抽查进行中，请点「继续抽查」"
+                      : "打乱今日可抽查词条顺序"
+                  }
                 >
                   随机抽查
                 </button>
@@ -2192,6 +2250,7 @@ export function JpVocabPage() {
                   const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
                   const dailySeq = dailySeqByWordId.get(w.id) ?? rowIndex + 1;
                   const inQuizTarget = isWordInQuizTarget(w.id);
+                  const tableQuizLocked = teacherQuizLocksTable && inQuizTarget;
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
@@ -2385,15 +2444,24 @@ export function JpVocabPage() {
                         <div className="jp-vocab-level-wrap">
                         <div
                           className={`jp-vocab-levels${
-                            reviewLocked ? " jp-vocab-levels--locked" : ""
+                            reviewLocked || tableQuizLocked
+                              ? " jp-vocab-levels--locked"
+                              : ""
                           }`}
                           role="group"
                           aria-label={`${w.word} 熟悉程度`}
-                          title={reviewLocked ? "没办法操作" : undefined}
+                          title={
+                            tableQuizLocked
+                              ? "抽查进行中：熟悉程度请在卡片内改选；词条编辑与备注编辑不受限"
+                              : reviewLocked
+                                ? "没办法操作"
+                                : undefined
+                          }
                         >
                           {LEVELS.map((lv) => {
                             const checked = selected === lv.key;
-                            const levelDisabled = !canOperate || isSaving || reviewLocked;
+                            const levelDisabled =
+                              !canOperate || isSaving || reviewLocked;
                             return (
                               <button
                                 key={lv.key}
@@ -2403,11 +2471,15 @@ export function JpVocabPage() {
                                 }${
                                   !canOperate ? " jp-vocab-level-opt--readonly" : ""
                                 }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
+                                  tableQuizLocked ? " jp-vocab-level-opt--locked" : ""
+                                }${
                                   lv.key === "very" ? " jp-vocab-level-opt--very" : ""
                                 }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
                                 disabled={levelDisabled}
                                 title={
-                                  reviewLocked
+                                  tableQuizLocked
+                                    ? "抽查进行中，熟悉程度请在卡片内改选（编辑词条/备注不受限）"
+                                    : reviewLocked
                                     ? "没办法操作"
                                     : !canOperate
                                       ? "登录后可勾选"
@@ -2420,7 +2492,16 @@ export function JpVocabPage() {
                                             : "勾选熟悉程度"
                                 }
                                 aria-pressed={checked}
-                                onClick={() => tryRecordLevel(w.id, lv.key)}
+                                onClick={() => {
+                                  if (tableQuizLocked) {
+                                    setShowQuizFlashcard(true);
+                                    setStatus(
+                                      "抽查进行中：熟悉程度请在卡片内改选；词条编辑与备注编辑仍可随时修改。"
+                                    );
+                                    return;
+                                  }
+                                  tryRecordLevel(w.id, lv.key);
+                                }}
                               >
                                 <span className="jp-vocab-check-box" aria-hidden="true">
                                   {checked ? (
@@ -2777,6 +2858,7 @@ export function JpVocabPage() {
         savingWordId={quizFlashcardSavingWordId}
         dailySeqByWordId={dailySeqByWordId}
         onClose={() => setShowQuizFlashcard(false)}
+        onComplete={finishTeacherQuiz}
         onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}
         onNavigate={(index) =>
           setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))

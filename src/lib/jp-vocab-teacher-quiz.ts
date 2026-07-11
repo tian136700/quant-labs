@@ -66,3 +66,11 @@ export function createJpVocabTeacherQuizSession(
   const currentIndex = foundIndex >= 0 ? foundIndex : 0;
   return { mode, wordIds, currentIndex };
 }
+
+/** 抽查卡片内全部词条均已勾选熟悉程度 */
+export function isJpVocabTeacherQuizSessionComplete(
+  session: JpVocabTeacherQuizSession,
+  hasLevel: (wordId: number) => boolean
+): boolean {
+  return session.wordIds.every((id) => hasLevel(id));
+}
