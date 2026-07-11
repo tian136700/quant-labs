@@ -2609,15 +2609,7 @@ function teacherVisibleNeedsDailyReset(
   raw: Partial<JpVocabTeacherVisibleLimit> | null,
   today: string
 ): boolean {
-  if (!raw?.date || raw.date !== today) return true;
-  if (raw.released_today === true) return true;
-  if (Array.isArray(raw.excluded_batch_ids) && raw.excluded_batch_ids.length > 0) {
-    return true;
-  }
-  if (Array.isArray(raw.visible_ids) && raw.visible_ids.length > 0) {
-    return true;
-  }
-  return false;
+  return !raw?.date || raw.date !== today;
 }
 
 /**

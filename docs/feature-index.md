@@ -29,13 +29,13 @@
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
-| 管理员设今日抽查数量（进度条内输入框 + 确认设置；决定老师端序号 1–N 可勾选） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**北京时间跨日自动恢复 20**（`normalizeJpVocabTeacherVisibleLimit`、`resetJpVocabTeacherVisibleLimit`） |
+| 管理员设今日抽查数量（进度条内输入框 + 确认设置；决定老师端序号 1–N 可勾选） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**北京时间跨日自动恢复 20**（`normalizeJpVocabTeacherVisibleLimit`、`resetJpVocabTeacherVisibleLimit`）；保存后 `jp-vocab-quiz-target-notify.ts` 广播 + 轮询 `/api/jp-vocab/sync` 同步 `teacher_visible_limit` |
 | **老师端显示全库 + 序号 1–N 可操作**（取消隐藏；超出今日抽查数量的序号熟悉程度/发给学生禁用） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInDailyQuizTarget`；`JpVocabDailyQuizProgressBar.tsx`（仅保留抽查数量设置） |
 | **老师端列表隐藏不可操作行**（超出序号 1–N、已满 1 小时锁定）；搜索仍扫全库，管理员显示全部 | `JpVocabPage.tsx` → `hideInoperableRows`、`searchMatchedWords`、`filteredDisplayedWords` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | 老师右下角 toast（学生协助请求；淡入 → 停留 5 秒 → 淡出） | `JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
-| 今日抽查进度条（30/40、剩余 N）/ 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；进度计算 `jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`；与可见池联动见上条 |
+| 今日抽查进度条（30/40、剩余 N）/ 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；进度计算 `jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`；弹窗仅在本会话「未完成→已完成」时显示一次（`jp-vocab-daily-complete-dismiss.ts` 按日期+目标数记录） |
 | 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
 | 课堂备注、共享备注（支持粘贴/上传图片） | `JpClassNotesEditModal.tsx`、`JpVocabClassNoteContent.tsx`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`；`/api/jp-vocab/add`、`/edit` |

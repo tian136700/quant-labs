@@ -86,6 +86,10 @@ import {
   shouldShowJpVocabTeacherDailyComplete,
 } from "@/lib/jp-vocab-daily-complete-dismiss";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
+import {
+  notifyJpVocabQuizTargetUpdated,
+  subscribeJpVocabQuizTargetUpdated,
+} from "@/lib/jp-vocab-quiz-target-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -501,11 +505,8 @@ export function JpVocabPage() {
         return;
       }
 
-      const since = maxJpVocabUpdatedAt(wordsRef.current);
-      if (!since) {
-        schedule(pollDelay());
-        return;
-      }
+      const since =
+        maxJpVocabUpdatedAt(wordsRef.current) || new Date(0).toISOString();
 
       if (pollInFlightRef.current) {
         schedule(pollDelay());
@@ -527,9 +528,7 @@ export function JpVocabPage() {
           if (Array.isArray(data.words) && data.words.length) {
             applySyncPatches(data.words);
           }
-          if (!isAdmin) {
-            applyTeacherVisibleSync(data.teacher_visible_limit);
-          }
+          applyTeacherVisibleSync(data.teacher_visible_limit);
         }
       } catch {
         /* 轮询失败静默，下轮再试 */
@@ -554,7 +553,33 @@ export function JpVocabPage() {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [loading, words.length, applySyncPatches, applyTeacherVisibleSync, isAdmin]);
+  }, [loading, words.length, applySyncPatches, applyTeacherVisibleSync]);
+
+  useEffect(() => {
+    const fetchTeacherVisibleLimit = async () => {
+      try {
+        const since =
+          maxJpVocabUpdatedAt(wordsRef.current) || new Date(0).toISOString();
+        const res = await fetch(
+          `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
+          { credentials: "include", cache: "no-store" }
+        );
+        const data = (await res.json()) as {
+          ok: boolean;
+          teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
+        };
+        if (data.ok) {
+          applyTeacherVisibleSync(data.teacher_visible_limit);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    return subscribeJpVocabQuizTargetUpdated(() => {
+      void fetchTeacherVisibleLimit();
+    });
+  }, [applyTeacherVisibleSync]);
 
   useEffect(() => {
     if (!canOperate) return;
@@ -763,12 +788,18 @@ export function JpVocabPage() {
   useEffect(() => {
     if (!canOperate || !user || dailyQuizProgress.total <= 0) return;
 
+    const isComplete = dailyQuizProgress.complete;
     const wasComplete = dailyQuizCompleteWasRef.current;
-    dailyQuizCompleteWasRef.current = dailyQuizProgress.complete;
+    dailyQuizCompleteWasRef.current = isComplete;
 
-    if (!dailyQuizProgress.complete) return;
-    if (!shouldShowJpVocabTeacherDailyComplete(user.id)) return;
-    if (wasComplete === true) return;
+    if (!isComplete) return;
+    if (
+      !shouldShowJpVocabTeacherDailyComplete(user.id, dailyQuizProgress.total)
+    ) {
+      return;
+    }
+    // 仅在本次会话内从「未完成 → 已完成」时弹出，避免每次进入页面重复提示
+    if (wasComplete !== false) return;
 
     setShowDailyComplete(true);
   }, [
@@ -1330,8 +1361,12 @@ export function JpVocabPage() {
           teacher_visible_limit: data.teacher_visible_limit,
         });
       }
+      notifyJpVocabQuizTargetUpdated({
+        quiz_target: data.teacher_visible_limit.quiz_target,
+        quiz_target_adjusted_at: data.teacher_visible_limit.quiz_target_adjusted_at,
+      });
       setStatus(
-        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端序号 1–${data.teacher_visible_limit.quiz_target} 可勾选、可发给学生）；老师刷新页面即可同步。`
+        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端序号 1–${data.teacher_visible_limit.quiz_target} 可勾选、可发给学生）；其他已打开页面约 3 秒内自动同步。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -2233,7 +2268,10 @@ export function JpVocabPage() {
           total={dailyQuizProgress.total}
           variant="teacher"
           onClose={() => {
-            markJpVocabTeacherDailyCompleteDismissed(user.id);
+            markJpVocabTeacherDailyCompleteDismissed(
+              user.id,
+              dailyQuizProgress.total
+            );
             setShowDailyComplete(false);
           }}
         />

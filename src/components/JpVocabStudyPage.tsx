@@ -243,12 +243,15 @@ export function JpVocabStudyPage() {
   useEffect(() => {
     if (!canViewStudy || !user || !quizProgress || quizProgress.total <= 0) return;
 
+    const isComplete = quizProgress.complete;
     const wasComplete = dailyQuizCompleteWasRef.current;
-    dailyQuizCompleteWasRef.current = quizProgress.complete;
+    dailyQuizCompleteWasRef.current = isComplete;
 
-    if (!quizProgress.complete) return;
-    if (!shouldShowJpVocabStudyDailyComplete(user.id)) return;
-    if (wasComplete === true) return;
+    if (!isComplete) return;
+    if (!shouldShowJpVocabStudyDailyComplete(user.id, quizProgress.total)) {
+      return;
+    }
+    if (wasComplete !== false) return;
 
     setShowDailyComplete(true);
   }, [canViewStudy, user?.id, quizProgress?.complete, quizProgress?.total]);
@@ -702,7 +705,7 @@ export function JpVocabStudyPage() {
           total={quizProgress.total}
           variant="study"
           onClose={() => {
-            markJpVocabStudyDailyCompleteDismissed(user.id);
+            markJpVocabStudyDailyCompleteDismissed(user.id, quizProgress.total);
             setShowDailyComplete(false);
           }}
         />
