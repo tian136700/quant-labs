@@ -2,6 +2,7 @@ import {
   JP_LESSON_CLASS_DURATION_MINUTES,
   normalizeClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
+import type { JpLessonTeacher } from "@/lib/types";
 
 const DASH_PATTERN = /[-－—]/;
 
@@ -246,9 +247,55 @@ export function normalizeJpLessonTeacher<T extends {
   name: string;
   hourly_rate?: number | null;
   lesson_minutes?: number | null;
+  lesson_count?: number | null;
 }>(teacher: T): T & LessonTeacherRateFields {
   const resolved = resolveLessonTeacherRateFields(teacher);
-  return { ...teacher, ...resolved };
+  const lesson_count =
+    typeof teacher.lesson_count === "number" && Number.isFinite(teacher.lesson_count)
+      ? Math.max(0, Math.trunc(teacher.lesson_count))
+      : undefined;
+  return {
+    ...teacher,
+    ...resolved,
+    ...(lesson_count !== undefined ? { lesson_count } : {}),
+  };
+}
+
+/** 保存课程老师关联后，按增减同步本地 lesson_count */
+export function adjustJpLessonTeacherLessonCounts(
+  teachers: JpLessonTeacher[],
+  prevTeacherIds: number[],
+  nextTeacherIds: number[]
+): JpLessonTeacher[] {
+  const prev = new Set(prevTeacherIds);
+  const next = new Set(nextTeacherIds);
+  const removed = prevTeacherIds.filter((id) => !next.has(id));
+  const added = nextTeacherIds.filter((id) => !prev.has(id));
+  if (!removed.length && !added.length) return teachers;
+
+  return teachers.map((teacher) => {
+    if (added.includes(teacher.id)) {
+      return { ...teacher, lesson_count: (teacher.lesson_count ?? 0) + 1 };
+    }
+    if (removed.includes(teacher.id)) {
+      return {
+        ...teacher,
+        lesson_count: Math.max(0, (teacher.lesson_count ?? 0) - 1),
+      };
+    }
+    return teacher;
+  });
+}
+
+/** 设置老师弹窗等：上课频次高的排前面，同频次再按 sort_order / id */
+export function sortJpLessonTeachersByLessonCount(
+  teachers: JpLessonTeacher[]
+): JpLessonTeacher[] {
+  return [...teachers].sort((a, b) => {
+    const countDiff = (b.lesson_count ?? 0) - (a.lesson_count ?? 0);
+    if (countDiff !== 0) return countDiff;
+    return a.sort_order - b.sort_order || a.id - b.id;
+  });
 }
 
 /** 新课/课表等前台展示：名称 + 金额/时长，如「李老师 · 80 / 45 min」 */

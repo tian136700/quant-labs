@@ -9,7 +9,7 @@ import {
 } from "@/lib/jp-lesson-db";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
-import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
+import { listJpLessonTeachersWithLessonCounts } from "@/lib/jp-lesson-teacher-db";
 import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
 import type { JpLessonRecord } from "@/lib/types";
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     const refsMap = Object.fromEntries(refs.map((r) => [r.ref_key, r]));
 
     if (isAdmin) {
-      const teachers = await listJpLessonTeachers(env.DB);
+      const teachers = await listJpLessonTeachersWithLessonCounts(env.DB);
       return jsonResponse({ ok: true, lessons, refs: refsMap, notes, teachers });
     }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
-import { formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
+import { formatTeacherDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonTeacher } from "@/lib/types";
 
 type Props = {
@@ -30,7 +30,7 @@ export function JpLessonTeacherSinglePicker({
   const [addError, setAddError] = useState("");
 
   const sortedTeachers = useMemo(
-    () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+    () => sortJpLessonTeachersByLessonCount(teachers),
     [teachers]
   );
 

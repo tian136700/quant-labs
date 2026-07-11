@@ -54,7 +54,11 @@ import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
-import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
+import {
+  adjustJpLessonTeacherLessonCounts,
+  normalizeJpLessonTeacher,
+  sortJpLessonTeachersByLessonCount,
+} from "@/lib/jp-lesson-teacher-rate";
 import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
 import {
   jpVocabRefApiPath,
@@ -612,6 +616,8 @@ export function JpLessonPage() {
 
     setSavingTeacherLessonId(lessonId);
 
+    const prevTeacherIds = lessons.find((l) => l.id === lessonId)?.teacher_ids ?? [];
+
     try {
       // 新增老师会先 upsert 到 localStorage；此处合并缓存，避免保存关联时用旧列表覆盖导致只显示 #id
       let nextTeachers = mergeJpLessonTeachersCache(
@@ -641,9 +647,9 @@ export function JpLessonPage() {
         }
         const teacher = normalizeJpLessonTeacher(data.teacher);
         upsertJpLessonTeacherCache(teacher);
-        nextTeachers = nextTeachers
-          .map((t) => (t.id === teacher.id ? teacher : t))
-          .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+        nextTeachers = sortJpLessonTeachersByLessonCount(
+          nextTeachers.map((t) => (t.id === teacher.id ? teacher : t))
+        );
       }
 
       const res = await fetch("/api/jp-lesson", {
@@ -669,6 +675,9 @@ export function JpLessonPage() {
         throw new Error(data.error || "保存失败");
       }
 
+      nextTeachers = sortJpLessonTeachersByLessonCount(
+        adjustJpLessonTeacherLessonCounts(nextTeachers, prevTeacherIds, teacherIds)
+      );
       setTeachers(nextTeachers);
       setLessons((prev) => {
         const next = prev.map((l) => {

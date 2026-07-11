@@ -60,7 +60,7 @@ import {
 } from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
-import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
+import { formatTeacherLessonDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import {
   mergeJpLessonTeachersCache,
   readJpLessonTeachersCache,
@@ -710,9 +710,10 @@ export function JpLessonSchedulePage() {
           (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
         );
         const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
-        const next = [...merged.filter((teacher) => teacher.id !== data.teacher!.id), data.teacher!].sort(
-          (a, b) => a.sort_order - b.sort_order || a.id - b.id
-        );
+        const next = sortJpLessonTeachersByLessonCount([
+          ...merged.filter((teacher) => teacher.id !== data.teacher!.id),
+          data.teacher!,
+        ]);
         const cache = readLessonCache();
         writeClientCache(JP_LESSON_CACHE_KEY, {
           lessons,

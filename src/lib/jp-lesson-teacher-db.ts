@@ -77,6 +77,48 @@ function mapRow(row: Record<string, unknown>): JpLessonTeacher {
 
 const TEACHER_SELECT = `SELECT id, name, hourly_rate, lesson_minutes, sort_order, created_at, updated_at FROM jp_lesson_teacher`;
 
+function countDevJpLessonTeacherAssignments(): Map<number, number> {
+  const counts = new Map<number, number>();
+  for (const teacherIds of devLessonTeacherLinks.values()) {
+    for (const teacherId of teacherIds) {
+      counts.set(teacherId, (counts.get(teacherId) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+export async function getJpLessonTeacherLessonCounts(
+  db: D1Database
+): Promise<Map<number, number>> {
+  if (devStoreEnabled) {
+    return countDevJpLessonTeacherAssignments();
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT teacher_id, COUNT(DISTINCT lesson_id) AS lesson_count
+       FROM jp_lesson_teacher_link
+       GROUP BY teacher_id`
+    )
+    .all<{ teacher_id: number; lesson_count: number }>();
+
+  const counts = new Map<number, number>();
+  for (const row of result.results ?? []) {
+    counts.set(Number(row.teacher_id), Number(row.lesson_count) || 0);
+  }
+  return counts;
+}
+
+export function attachJpLessonTeacherLessonCounts(
+  teachers: JpLessonTeacher[],
+  counts: Map<number, number>
+): JpLessonTeacher[] {
+  return teachers.map((teacher) => ({
+    ...teacher,
+    lesson_count: counts.get(teacher.id) ?? 0,
+  }));
+}
+
 export async function listJpLessonTeachers(db: D1Database): Promise<JpLessonTeacher[]> {
   if (devStoreEnabled) {
     return [...devTeachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
@@ -89,6 +131,16 @@ export async function listJpLessonTeachers(db: D1Database): Promise<JpLessonTeac
     .all<Record<string, unknown>>();
 
   return (result.results || []).map(mapRow);
+}
+
+export async function listJpLessonTeachersWithLessonCounts(
+  db: D1Database
+): Promise<JpLessonTeacher[]> {
+  const [teachers, counts] = await Promise.all([
+    listJpLessonTeachers(db),
+    getJpLessonTeacherLessonCounts(db),
+  ]);
+  return attachJpLessonTeacherLessonCounts(teachers, counts);
 }
 
 export async function getJpLessonTeacherById(

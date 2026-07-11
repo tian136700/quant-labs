@@ -10,7 +10,7 @@ import {
   nextClassAtFromDatetimeLocalValue,
 } from "@/lib/jp-lesson-shared";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
-import { formatTeacherDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
+import { formatTeacherDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonClassScheduleInput, JpLessonTeacher } from "@/lib/types";
 
 type Props = {
@@ -72,7 +72,7 @@ export function JpLessonBatchScheduleTeacherModal({
   );
 
   const sortedTeachers = useMemo(
-    () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+    () => sortJpLessonTeachersByLessonCount(teachers),
     [teachers]
   );
 

@@ -226,6 +226,8 @@ export interface JpLessonTeacher {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  /** 已关联新课数量（jp_lesson_teacher_link 条数）；用于设置老师时按频次排序 */
+  lesson_count?: number;
   /** 后台老师列表：已关联的登录账号 */
   linked_user?: JpLessonTeacherLinkedUser | null;
 }

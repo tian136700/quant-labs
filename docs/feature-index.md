@@ -81,6 +81,10 @@
 
 逻辑：`src/lib/jp-lesson-db.ts`；API：`src/app/api/jp-lesson/*`
 
+| 功能描述 | 改哪里 |
+|----------|--------|
+| 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
+
 ---
 
 ## 英语新课（en-lesson）

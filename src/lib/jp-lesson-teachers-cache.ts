@@ -1,10 +1,10 @@
 import { patchClientCache, readClientCache } from "@/lib/client-swr-cache";
 import { JP_LESSON_CACHE_KEY, type JpLessonApiPayload } from "@/lib/jp-api-cache";
-import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
+import { normalizeJpLessonTeacher, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonTeacher } from "@/lib/types";
 
 function sortTeachers(teachers: JpLessonTeacher[]): JpLessonTeacher[] {
-  return [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
+  return sortJpLessonTeachersByLessonCount(teachers);
 }
 
 /** 新课页 localStorage 缓存中的老师列表（与「上课老师管理」共用同一份 DB 数据） */

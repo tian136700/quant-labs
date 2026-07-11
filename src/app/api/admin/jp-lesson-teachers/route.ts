@@ -10,7 +10,7 @@ import {
   createJpLessonTeacher,
   deleteJpLessonTeacher,
   getJpLessonTeacherById,
-  listJpLessonTeachers,
+  listJpLessonTeachersWithLessonCounts,
   updateJpLessonTeacher,
 } from "@/lib/jp-lesson-teacher-db";
 
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
-    const teachers = await listJpLessonTeachers(env.DB);
+    const teachers = await listJpLessonTeachersWithLessonCounts(env.DB);
     const linkMap = await listJpLessonTeacherUserLinkMapByTeacherId(env.DB);
     return jsonResponse({
       ok: true,

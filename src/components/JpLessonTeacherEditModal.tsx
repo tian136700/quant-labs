@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
-import { calcHourlyRate, formatHourlyRate, normalizeHourlyRate, normalizeTeacherLessonMinutes, resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
+import { calcHourlyRate, formatHourlyRate, normalizeHourlyRate, normalizeTeacherLessonMinutes, resolveLessonTeacherRateFields, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
 
@@ -98,7 +98,7 @@ export function JpLessonTeacherEditModal({
   }, [addPrice, addMinutes]);
 
   const sortedTeachers = useMemo(
-    () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+    () => sortJpLessonTeachersByLessonCount(teachers),
     [teachers]
   );
 
@@ -209,7 +209,7 @@ export function JpLessonTeacherEditModal({
     const needle = searchQuery.trim().toLowerCase();
     if (!needle) return sortedTeachers;
     return sortedTeachers.filter((teacher) => {
-      const label = `${teacher.name} ${teacher.hourly_rate ?? ""} ${teacher.lesson_minutes ?? ""}`.toLowerCase();
+      const label = `${teacher.name} ${teacher.lesson_count ?? ""} ${teacher.hourly_rate ?? ""} ${teacher.lesson_minutes ?? ""}`.toLowerCase();
       return label.includes(needle);
     });
   }, [searchQuery, sortedTeachers]);
@@ -487,6 +487,7 @@ export function JpLessonTeacherEditModal({
               <div className="jp-lesson-teacher-edit-head" aria-hidden="true">
                 <span className="jp-lesson-teacher-edit-head__check" />
                 <span className="jp-lesson-teacher-edit-head__name">称呼</span>
+                <span className="jp-lesson-teacher-edit-head__count">频次</span>
                 <span className="jp-lesson-teacher-edit-head__rate">元/小时</span>
                 <span className="jp-lesson-teacher-edit-head__minutes">时长</span>
                 <span className="jp-lesson-teacher-edit-head__action">操作</span>
@@ -517,6 +518,12 @@ export function JpLessonTeacherEditModal({
                         updateDraft(teacher.id, { name: e.target.value })
                       }
                     />
+                    <span
+                      className="jp-lesson-teacher-lesson-count"
+                      title="已关联新课数量"
+                    >
+                      {teacher.lesson_count ?? 0}
+                    </span>
                     <input
                       type="number"
                       min="0"
@@ -795,6 +802,11 @@ export function JpLessonTeacherEditModal({
           min-width: 0;
         }
 
+        .jp-lesson-teacher-edit-head__count {
+          flex: 0 0 2.25rem;
+          text-align: center;
+        }
+
         .jp-lesson-teacher-edit-head__rate {
           flex: 0 1 5rem;
         }
@@ -883,6 +895,14 @@ export function JpLessonTeacherEditModal({
 
         .jp-lesson-teacher-add-input--short {
           flex: 0 1 5rem;
+        }
+
+        .jp-lesson-teacher-lesson-count {
+          flex: 0 0 2.25rem;
+          text-align: center;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
         }
 
         .jp-lesson-teacher-add-select {
