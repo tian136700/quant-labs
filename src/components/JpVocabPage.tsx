@@ -90,7 +90,7 @@ import {
   notifyJpVocabQuizTargetUpdated,
   subscribeJpVocabQuizTargetUpdated,
 } from "@/lib/jp-vocab-quiz-target-notify";
-import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
+import { JP_VOCAB_MANUAL_ADD_ENABLED, JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -1786,6 +1786,7 @@ export function JpVocabPage() {
               抽查排行
             </button>
             ) : null}
+            {JP_VOCAB_MANUAL_ADD_ENABLED ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
@@ -1802,6 +1803,7 @@ export function JpVocabPage() {
             >
               手动添加
             </button>
+            ) : null}
             {isAdmin ? (
               <button
                 type="button"
@@ -1865,7 +1867,8 @@ export function JpVocabPage() {
           <p style={{ color: "var(--muted)" }}>加载中…</p>
         ) : !words.length ? (
           <p style={{ color: "var(--muted)" }}>
-            暂无条目。复习词表由「日语新课」自动导入，也可登录后点「手动添加」补充。
+            暂无条目。复习词表由「日语新课」自动导入
+            {JP_VOCAB_MANUAL_ADD_ENABLED ? "，也可登录后点「手动添加」补充" : ""}。
           </p>
         ) : (
           <>
@@ -2557,12 +2560,14 @@ export function JpVocabPage() {
         onResetAll={resetAll}
       />
 
+      {JP_VOCAB_MANUAL_ADD_ENABLED ? (
       <JpVocabManualAddModal
         open={showManualAdd}
         locale={locale}
         onClose={() => setShowManualAdd(false)}
         onAdded={handleWordAdded}
       />
+      ) : null}
 
       {SHOW_RISK_CHART ? (
       <JpVocabRiskChartModal
