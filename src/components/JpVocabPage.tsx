@@ -745,6 +745,7 @@ export function JpVocabPage() {
     safePage * JP_VOCAB_PAGE_SIZE,
     filteredDisplayedWords.length
   );
+  const currentPageCount = pagedDisplayedWords.length;
 
   useEffect(() => {
     setPage(1);
@@ -1387,26 +1388,31 @@ export function JpVocabPage() {
   const renderPaginationNav = () =>
     showPagination ? (
       <nav className="jp-vocab-pagination" aria-label="单词表分页">
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--compact"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={safePage <= 1}
-        >
-          上一页
-        </button>
-        <span className="jp-vocab-pagination__info">
-          第 {safePage} / {totalPages} 页 · 显示 {pageRangeStart}–{pageRangeEnd} /{" "}
-          {filteredDisplayedWords.length} 条
-        </span>
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--compact"
-          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={safePage >= totalPages}
-        >
-          下一页
-        </button>
+        <div className="jp-vocab-pagination__controls">
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--compact"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={safePage <= 1}
+          >
+            上一页
+          </button>
+          <span className="jp-vocab-pagination__info">
+            第 {safePage} / {totalPages} 页 · 显示 {pageRangeStart}–{pageRangeEnd} /{" "}
+            {filteredDisplayedWords.length} 条
+          </span>
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--compact"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage >= totalPages}
+          >
+            下一页
+          </button>
+        </div>
+        <p className="jp-vocab-pagination__page-count">
+          每页显示 {currentPageCount} 条
+        </p>
       </nav>
     ) : null;
 
@@ -2473,16 +2479,30 @@ export function JpVocabPage() {
         }
         .jp-vocab-pagination {
           display: flex;
-          flex-wrap: wrap;
+          flex-direction: column;
           align-items: center;
-          justify-content: center;
-          gap: 0.65rem 0.85rem;
+          gap: 0.45rem;
           margin: 0 0 0.75rem;
         }
         .jp-vocab-pagination:last-of-type {
           margin: 0.75rem 0 0;
         }
+        .jp-vocab-pagination__controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.65rem 0.85rem;
+          width: 100%;
+        }
         .jp-vocab-pagination__info {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
+          text-align: center;
+        }
+        .jp-vocab-pagination__page-count {
+          margin: 0;
           font-size: 0.8125rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
