@@ -1014,11 +1014,11 @@ export function JpVocabPage() {
     [pendingQuizWordId, requestTeacherQuizSession]
   );
 
-  /** 选定正序/随机模式并进入抽查卡片后，即视为抽查进行中（无需先勾选一词） */
-  const teacherQuizInProgress = quizSession != null;
+  /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选 */
+  const teacherQuizLocksTable = canOperate;
 
-  /** 抽查卡片会话进行中：列表内不可改选，仅能在卡片里勾选 */
-  const teacherQuizLocksTable = teacherQuizInProgress;
+  /** 已有活跃抽查会话（用于「继续抽查」按钮） */
+  const teacherQuizInProgress = quizSession != null;
 
   const quizWordHasLevel = useCallback(
     (wordId: number) => {
@@ -1076,7 +1076,11 @@ export function JpVocabPage() {
     [words]
   );
 
-  const recordLevel = async (wordId: number, level: JpVocabLevel) => {
+  const recordLevel = async (
+    wordId: number,
+    level: JpVocabLevel,
+    source: "flashcard" | "table" = "table"
+  ) => {
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
       openJpAuth();
@@ -1084,6 +1088,16 @@ export function JpVocabPage() {
     }
     if (!isWordInQuizTarget(wordId)) {
       setStatus(`仅今日序号 1–${quizTarget} 可勾选熟悉程度。`);
+      return;
+    }
+    if (source !== "flashcard") {
+      if (quizSession != null) {
+        resumeTeacherQuizFlashcard(wordId);
+      } else {
+        setPendingQuizWordId(wordId);
+        setShowQuizModeModal(true);
+      }
+      setStatus("今日抽查范围内的熟悉程度请在单词卡片内勾选。");
       return;
     }
     const snapshotForLock = words.find((w) => w.id === wordId);
@@ -1266,25 +1280,7 @@ export function JpVocabPage() {
   };
 
   const tryRecordLevel = (wordId: number, level: JpVocabLevel) => {
-    if (!canOperate) {
-      void recordLevel(wordId, level);
-      return;
-    }
-    if (!isWordInQuizTarget(wordId)) {
-      void recordLevel(wordId, level);
-      return;
-    }
-    if (quizSession != null && isWordInQuizTarget(wordId)) {
-      resumeTeacherQuizFlashcard(wordId);
-      setStatus("抽查进行中，已重新打开抽查卡片，请继续在卡片内勾选熟悉程度。");
-      return;
-    }
-    if (!hasAnyQuizLevelToday) {
-      setPendingQuizWordId(wordId);
-      setShowQuizModeModal(true);
-      return;
-    }
-    void recordLevel(wordId, level);
+    void recordLevel(wordId, level, "table");
   };
 
   const shareWord = async (wordId: number) => {
@@ -2530,6 +2526,74 @@ export function JpVocabPage() {
                           >
                             不可勾选
                           </span>
+                        ) : tableQuizLocked ? (
+                        <div className="jp-vocab-level-wrap">
+                          <button
+                            type="button"
+                            className="jp-vocab-level-card-entry"
+                            disabled={isSaving}
+                            title="熟悉程度请在单词卡片内勾选"
+                            onClick={() => {
+                              if (quizSession != null) {
+                                resumeTeacherQuizFlashcard(w.id);
+                              } else {
+                                setPendingQuizWordId(w.id);
+                                setShowQuizModeModal(true);
+                              }
+                              setStatus("请在单词卡片内勾选熟悉程度。");
+                            }}
+                          >
+                            <div
+                              className="jp-vocab-levels jp-vocab-levels--locked jp-vocab-levels--readonly"
+                              aria-hidden="true"
+                            >
+                              {LEVELS.map((lv) => {
+                                const checked = selected === lv.key;
+                                return (
+                                  <span
+                                    key={lv.key}
+                                    className={`jp-vocab-level-opt jp-vocab-level-opt--readonly${
+                                      checked ? " is-checked" : ""
+                                    }${
+                                      lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                                    }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
+                                  >
+                                    <span className="jp-vocab-check-box" aria-hidden="true">
+                                      {checked ? (
+                                        <svg viewBox="0 0 12 12" width="10" height="10">
+                                          <path
+                                            d="M2 6l3 3 5-5"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="1.8"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                          />
+                                        </svg>
+                                      ) : null}
+                                    </span>
+                                    <span>{lv.label}</span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            <span className="jp-vocab-level-card-entry-hint">
+                              点击打开抽查卡片
+                            </span>
+                          </button>
+                          <span
+                            className="jp-vocab-share-hint jp-vocab-level-sync-hint jp-vocab-share-hint--desktop"
+                            role="note"
+                          >
+                            {JP_VOCAB_LEVEL_SYNC_HINT_SHORT}
+                          </span>
+                          <span
+                            className="jp-vocab-share-hint jp-vocab-level-sync-hint jp-vocab-share-hint--mobile"
+                            role="note"
+                          >
+                            {JP_VOCAB_LEVEL_SYNC_HINT}
+                          </span>
+                        </div>
                         ) : (
                         <div className="jp-vocab-level-wrap">
                         <div
@@ -2963,7 +3027,7 @@ export function JpVocabPage() {
         sharedTodayWordIds={sharedTodayWordIds}
         onClose={() => setShowQuizFlashcard(false)}
         onComplete={finishTeacherQuiz}
-        onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}
+        onSelectLevel={(wordId, level) => void recordLevel(wordId, level, "flashcard")}
         onNavigate={(index) =>
           setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
         }
@@ -3243,6 +3307,37 @@ export function JpVocabPage() {
         }
         .jp-vocab-levels--locked {
           opacity: 0.78;
+        }
+        .jp-vocab-level-card-entry {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.3rem;
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          border: none;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+        }
+        .jp-vocab-level-card-entry:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .jp-vocab-level-card-entry:not(:disabled):hover .jp-vocab-level-card-entry-hint {
+          color: var(--accent);
+        }
+        .jp-vocab-level-card-entry-hint {
+          font-size: 0.6875rem;
+          line-height: 1.35;
+          color: var(--muted);
+          text-align: center;
+        }
+        .jp-vocab-levels--readonly {
+          pointer-events: none;
         }
         .jp-vocab-level-opt--locked:disabled {
           cursor: not-allowed;

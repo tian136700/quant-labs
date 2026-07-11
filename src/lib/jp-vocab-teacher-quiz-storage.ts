@@ -23,7 +23,7 @@ export function readJpVocabTeacherQuizSession(
 ): JpVocabTeacherQuizSession | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(storageKey(userId));
+    const raw = localStorage.getItem(storageKey(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredTeacherQuizPayload;
     if (!parsed?.session || parsed.token !== sessionToken(quizTarget)) return null;
@@ -57,7 +57,7 @@ export function writeJpVocabTeacherQuizSession(
       token: sessionToken(quizTarget),
       session,
     };
-    sessionStorage.setItem(storageKey(userId), JSON.stringify(payload));
+    localStorage.setItem(storageKey(userId), JSON.stringify(payload));
   } catch {
     /* ignore */
   }
@@ -66,7 +66,7 @@ export function writeJpVocabTeacherQuizSession(
 export function clearJpVocabTeacherQuizSession(userId: number): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.removeItem(storageKey(userId));
+    localStorage.removeItem(storageKey(userId));
   } catch {
     /* ignore */
   }
