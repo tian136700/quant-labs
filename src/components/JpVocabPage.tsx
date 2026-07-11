@@ -260,6 +260,7 @@ export function JpVocabPage() {
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [shareProgress, setShareProgress] = useState<{
     wordId: number;
     percent: number;
@@ -1244,6 +1245,86 @@ export function JpVocabPage() {
     }
   };
 
+  const deleteWord = async (word: JpVocabWord) => {
+    if (!isAdmin) {
+      setStatus("仅 Admin 账户可删除词条。");
+      return;
+    }
+    if (!canOperate) {
+      setStatus("请登录后再删除。");
+      openJpAuth();
+      return;
+    }
+    if (deletingId === word.id || savingId === word.id || shareProgress) return;
+
+    const ok = window.confirm(`确定删除「${word.word}」？此操作不可恢复。`);
+    if (!ok) return;
+
+    setDeletingId(word.id);
+    setStatus("");
+    setError("");
+
+    try {
+      const res = await fetch("/api/jp-vocab/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ word_ids: [word.id] }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        deleted?: number;
+        words?: JpVocabWord[];
+        display_order?: JpVocabDailyDisplayOrder;
+        error?: string;
+      };
+      if (res.status === 403) {
+        throw new Error("仅 Admin 账户可删除词条。");
+      }
+      if (!data.ok || !data.words || !data.display_order) {
+        throw new Error(data.error || "删除失败");
+      }
+
+      const wasShared = sharedTodayWordIds.has(word.id);
+      const nextSharedIds = [...sharedTodayWordIdsRef.current].filter(
+        (id) => id !== word.id
+      );
+      setWords(data.words);
+      setDisplayOrder(data.display_order);
+      persistVocabCache(
+        data.words,
+        refsRef.current,
+        data.display_order,
+        nextSharedIds
+      );
+      setSharedTodayWordIds(new Set(nextSharedIds));
+      setSessionLevel((prev) => {
+        const next = { ...prev };
+        delete next[word.id];
+        return next;
+      });
+      setSessionReviewAt((prev) => {
+        const next = { ...prev };
+        delete next[word.id];
+        return next;
+      });
+      if (highlightId === word.id) {
+        setHighlightId(null);
+      }
+      if (wasShared) {
+        notifyJpVocabSharedUpdated({ wordId: word.id });
+      }
+      setStatus(`已删除词条「${word.word}」。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const runReset = async (action: "reset_today" | "reset") => {
     setResetting(true);
     setStatus("");
@@ -1906,6 +1987,7 @@ export function JpVocabPage() {
                     }) ??
                     (reviewLocked ? w.last_review_level ?? undefined : undefined);
                   const isSaving = savingId === w.id;
+                  const isDeleting = deletingId === w.id;
                   const isSharing = shareProgress?.wordId === w.id;
                   const sharingPercent = isSharing ? shareProgress.percent : 0;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
@@ -2262,6 +2344,22 @@ export function JpVocabPage() {
                                 </svg>
                                 编辑
                               </button>
+                              {isAdmin ? (
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger jp-vocab-mobile-action-btn"
+                                  disabled={
+                                    isSaving ||
+                                    isDeleting ||
+                                    shareProgress != null ||
+                                    deletingId != null
+                                  }
+                                  title="删除此词条（不可恢复）"
+                                  onClick={() => void deleteWord(w)}
+                                >
+                                  {isDeleting ? "删除中…" : "删除"}
+                                </button>
+                              ) : null}
                               {JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy && inQuizTarget ? (
                                 sharedTodayWordIds.has(w.id) ? (
                                     <button

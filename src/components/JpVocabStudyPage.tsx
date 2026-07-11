@@ -25,6 +25,7 @@ import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
+import { JpVocabStudyFlashcardModal } from "@/components/JpVocabStudyFlashcardModal";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
@@ -75,12 +76,14 @@ export function JpVocabStudyPage() {
     cacheVersion?: string | null;
   } | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [flashcardItem, setFlashcardItem] = useState<JpVocabSharedItem | null>(null);
   const [requestingShare, setRequestingShare] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const pollInFlightRef = useRef(false);
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
-  const pendingOpenRemarksWordIdRef = useRef<number | null>(null);
+  const pendingFlashcardWordIdRef = useRef<number | null>(null);
+  const knownSharedWordIdsRef = useRef<Set<number>>(new Set());
   const hasLoadedOnceRef = useRef(false);
 
   const openJpAuth = useCallback(() => {
@@ -98,6 +101,16 @@ export function JpVocabStudyPage() {
     setItems((prev) =>
       prev.map((item) => (item.word_id === word.id ? { ...item, word } : item))
     );
+    setFlashcardItem((prev) => {
+      if (prev?.word_id !== word.id) return prev;
+      const level =
+        word.last_review_level === "very" ||
+        word.last_review_level === "normal" ||
+        word.last_review_level === "weak"
+          ? word.last_review_level
+          : prev.level;
+      return { ...prev, word, level };
+    });
     setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
     setEditingWord((prev) => (prev?.id === word.id ? word : prev));
     setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
@@ -160,12 +173,21 @@ export function JpVocabStudyPage() {
         }
         return;
       }
-      hasLoadedOnceRef.current = true;
+      const wasLoadedBefore = hasLoadedOnceRef.current;
+      const newWordIds = data.items.map((item) => item.word_id);
+      if (wasLoadedBefore) {
+        const brandNew = newWordIds.filter((id) => !knownSharedWordIdsRef.current.has(id));
+        if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
+          pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
+        }
+      }
+      knownSharedWordIdsRef.current = new Set(newWordIds);
       setItems(data.items);
       setRefs(data.refs ?? {});
       setShareDate(data.share_date ?? beijingDateString());
       setQuizProgress(data.quiz_progress ?? null);
       setError("");
+      hasLoadedOnceRef.current = true;
     } catch (err) {
       if (!hasLoadedOnceRef.current) {
         setError(err instanceof Error ? err.message : String(err));
@@ -211,31 +233,27 @@ export function JpVocabStudyPage() {
   useEffect(() => {
     if (!canViewStudy) return;
     return subscribeJpVocabSharedUpdated((detail) => {
-      if (detail.openRemarks && detail.wordId && user) {
-        pendingOpenRemarksWordIdRef.current = detail.wordId;
+      if (detail.wordId && detail.openRemarks) {
+        pendingFlashcardWordIdRef.current = detail.wordId;
       }
       void loadShared({ force: true });
     });
-  }, [user, loadShared, canViewStudy]);
+  }, [loadShared, canViewStudy]);
 
   useEffect(() => {
-    const wordId = pendingOpenRemarksWordIdRef.current;
+    const wordId = pendingFlashcardWordIdRef.current;
     if (!wordId || items.length === 0) return;
-    const item = items.find((entry) => entry.word_id === wordId);
-    if (!item) return;
+    const entry = items.find((item) => item.word_id === wordId);
+    if (!entry) return;
 
-    pendingOpenRemarksWordIdRef.current = null;
+    pendingFlashcardWordIdRef.current = null;
+    setFlashcardItem(entry);
     requestAnimationFrame(() => {
       document
         .getElementById(`jp-vocab-study-row-${wordId}`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
-    if (canOperate) {
-      setEditingRemarksWord(item.word);
-    } else {
-      setViewingRemarksWord(item.word);
-    }
-  }, [items, canOperate]);
+  }, [items]);
 
   useEffect(() => {
     if (!canViewStudy) return;
@@ -716,6 +734,19 @@ export function JpVocabStudyPage() {
           }}
         />
       ) : null}
+
+      <JpVocabStudyFlashcardModal
+        open={flashcardItem != null}
+        item={flashcardItem}
+        refs={refs}
+        locale={locale}
+        canOperate={canOperate}
+        onClose={() => setFlashcardItem(null)}
+        onOpenRef={openRefPreview}
+        onViewRemarks={setViewingRemarksWord}
+        onEditRemarks={setEditingRemarksWord}
+        onEditWord={setEditingWord}
+      />
 
       <JpVocabRefPreviewModal
         open={previewRef != null}
