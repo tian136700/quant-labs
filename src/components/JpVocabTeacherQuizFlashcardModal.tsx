@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
-import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
@@ -154,11 +153,16 @@ export function JpVocabTeacherQuizFlashcardModal({
   useEffect(() => {
     if (!open || nestedModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (nextBlockedHint) {
+        setNextBlockedHint(false);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, nestedModalOpen, onClose]);
+  }, [open, nestedModalOpen, onClose, nextBlockedHint]);
 
   useEffect(() => {
     if (!open) return;
@@ -169,6 +173,15 @@ export function JpVocabTeacherQuizFlashcardModal({
     };
   }, [open]);
 
+  const selectedLevel =
+    word && session
+      ? effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], { displayOrder })
+      : undefined;
+
+  useEffect(() => {
+    if (selectedLevel) setNextBlockedHint(false);
+  }, [selectedLevel]);
+
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
 
   const w = notesWord ?? word;
@@ -177,9 +190,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const wordTrim = w.word.trim();
   const meaningTrim = (w.meaning || "").trim();
   const posTrim = (w.pos || "").trim();
-  const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
-    displayOrder,
-  });
+  const selected = selectedLevel;
   const reviewLocked = reviewLockedByWordId[w.id] ?? false;
   const syncPhase = wordSyncState[w.id];
   const isQueued = syncPhase === "queued";
@@ -340,7 +351,7 @@ export function JpVocabTeacherQuizFlashcardModal({
             <div className="jp-vocab-teacher-quiz__actions-row">
               <button
                 type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn"
                 onClick={() => onEditWord?.(w)}
               >
                 编辑
@@ -488,11 +499,6 @@ export function JpVocabTeacherQuizFlashcardModal({
               {JP_VOCAB_LEVEL_SYNC_HINT}
             </span>
           </div>
-          {nextBlockedHint && !selected ? (
-            <p className="jp-vocab-teacher-quiz__level-hint" role="alert">
-              请先勾选学生的熟悉程度，再进入下一词。
-            </p>
-          ) : null}
           {isSharing ? (
             <div className="jp-vocab-share-progress jp-vocab-teacher-quiz__level-progress" aria-live="polite">
               <span className="jp-vocab-share-progress-label">正在同步到学生端…</span>
@@ -575,11 +581,14 @@ export function JpVocabTeacherQuizFlashcardModal({
                   </button>
                 ) : null}
                 {canOperate ? (
-                  <JpEditIconButton
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
                     title="编辑备注"
-                    className="jp-vocab-teacher-quiz__notes-edit-btn"
                     onClick={() => onEditRemarks?.(w)}
-                  />
+                  >
+                    编辑备注
+                  </button>
                 ) : null}
               </div>
             </div>
@@ -625,6 +634,37 @@ export function JpVocabTeacherQuizFlashcardModal({
           </button>
         </div>
       </article>
+
+      {nextBlockedHint && !selected ? (
+        <div
+          className="jp-vocab-teacher-quiz-alert-overlay"
+          role="presentation"
+          onClick={() => setNextBlockedHint(false)}
+        >
+          <div
+            className="jp-vocab-teacher-quiz-alert"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="jp-vocab-teacher-quiz-alert-title"
+            aria-describedby="jp-vocab-teacher-quiz-alert-desc"
+            onClick={stop}
+          >
+            <h3 id="jp-vocab-teacher-quiz-alert-title" className="jp-vocab-teacher-quiz-alert__title">
+              请先勾选熟悉程度
+            </h3>
+            <p id="jp-vocab-teacher-quiz-alert-desc" className="jp-vocab-teacher-quiz-alert__desc">
+              请先勾选学生的熟悉程度，再进入下一词。
+            </p>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
+              onClick={() => setNextBlockedHint(false)}
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <style jsx global>{`
         .jp-vocab-teacher-quiz-overlay {
@@ -991,10 +1031,44 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz__level-sync-hint--mobile {
           display: none;
         }
-        .jp-vocab-teacher-quiz__level-hint {
-          margin: 0.45rem 0 0;
-          font-size: 0.8125rem;
+        .jp-vocab-teacher-quiz-alert-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 1003;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          background: rgba(0, 0, 0, 0.55);
+        }
+        .jp-vocab-teacher-quiz-alert {
+          width: min(22rem, 92vw);
+          padding: 1rem 1.1rem 0.95rem;
+          border-radius: 12px;
+          border: 1px solid color-mix(in srgb, var(--rise) 45%, var(--border));
+          background: var(--panel);
+          box-shadow:
+            0 16px 40px rgba(0, 0, 0, 0.45),
+            0 0 0 1px color-mix(in srgb, var(--rise) 18%, transparent) inset;
+        }
+        .jp-vocab-teacher-quiz-alert__title {
+          margin: 0 0 0.55rem;
+          font-size: 1rem;
+          font-weight: 700;
           color: var(--rise);
+          text-align: center;
+        }
+        .jp-vocab-teacher-quiz-alert__desc {
+          margin: 0 0 0.85rem;
+          font-size: 0.875rem;
+          line-height: 1.5;
+          color: var(--text);
+          text-align: center;
+        }
+        .jp-vocab-teacher-quiz-alert__close {
+          display: block;
+          width: 100%;
+          min-height: 2.35rem;
         }
         .jp-vocab-teacher-quiz__level-sync-status {
           margin: 0.45rem 0 0;
