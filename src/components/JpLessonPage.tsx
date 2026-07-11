@@ -26,6 +26,7 @@ import {
 } from "@/lib/jp-api-cache";
 import {
   buildJpLessonDisplayGroups,
+  buildJpLessonDisplayGroupsByRecentOperation,
   buildLearningClassDayToneMap,
   formatClassDurationLabel,
   formatClassDurationLabelCompact,
@@ -40,6 +41,7 @@ import {
   parseLessonContent,
   type JpLessonDisplayGroup,
   type JpLessonClassTimeSortOrder,
+  type JpLessonRecentOperationSortOrder,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import {
@@ -107,11 +109,30 @@ const LESSON_STATUS_SECTIONS: {
   { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
 ];
 
+type JpLessonSortField = "classTime" | "recentOperation";
+
+type JpLessonSectionSort = {
+  field: JpLessonSortField;
+  order: JpLessonClassTimeSortOrder | JpLessonRecentOperationSortOrder;
+};
+
+const DEFAULT_JP_LESSON_SECTION_SORT: Record<JpLessonProgressStatus, JpLessonSectionSort> = {
+  learning: { field: "classTime", order: "asc" },
+  pending: { field: "classTime", order: "asc" },
+  completed: { field: "recentOperation", order: "desc" },
+};
+
 function groupLessonsForDisplay(
   lessons: JpLessonRecord[],
-  classTimeSortOrder: JpLessonClassTimeSortOrder
+  sort: JpLessonSectionSort
 ): JpLessonDisplayGroup<JpLessonRecord>[] {
-  return buildJpLessonDisplayGroups(lessons, classTimeSortOrder);
+  if (sort.field === "recentOperation") {
+    return buildJpLessonDisplayGroupsByRecentOperation(
+      lessons,
+      sort.order as JpLessonRecentOperationSortOrder
+    );
+  }
+  return buildJpLessonDisplayGroups(lessons, sort.order as JpLessonClassTimeSortOrder);
 }
 
 function refFilename(refKey: string, ref?: JpVocabRef): string {
@@ -327,11 +348,44 @@ export function JpLessonPage() {
     ref: JpVocabRef;
     viewUrl: string;
   } | null>(null);
-  const [classTimeSortOrder, setClassTimeSortOrder] =
-    useState<JpLessonClassTimeSortOrder>("asc");
+  const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
 
-  const toggleClassTimeSortOrder = useCallback(() => {
-    setClassTimeSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  const toggleRecentOperationSort = useCallback((status: JpLessonProgressStatus) => {
+    setSectionSort((prev) => {
+      const current = prev[status];
+      if (current.field === "recentOperation") {
+        return {
+          ...prev,
+          [status]: {
+            field: "recentOperation",
+            order: current.order === "asc" ? "desc" : "asc",
+          },
+        };
+      }
+      return {
+        ...prev,
+        [status]: { field: "recentOperation", order: "desc" },
+      };
+    });
+  }, []);
+
+  const toggleClassTimeSort = useCallback((status: JpLessonProgressStatus) => {
+    setSectionSort((prev) => {
+      const current = prev[status];
+      if (current.field === "classTime") {
+        return {
+          ...prev,
+          [status]: {
+            field: "classTime",
+            order: current.order === "asc" ? "desc" : "asc",
+          },
+        };
+      }
+      return {
+        ...prev,
+        [status]: { field: "classTime", order: "asc" },
+      };
+    });
   }, []);
 
   const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
@@ -402,12 +456,12 @@ export function JpLessonPage() {
 
   const displayGroupsByStatus = useMemo(() => {
     const groups: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]> = {
-      learning: groupLessonsForDisplay(lessonsByStatus.learning, classTimeSortOrder),
-      pending: groupLessonsForDisplay(lessonsByStatus.pending, classTimeSortOrder),
-      completed: groupLessonsForDisplay(lessonsByStatus.completed, classTimeSortOrder),
+      learning: groupLessonsForDisplay(lessonsByStatus.learning, sectionSort.learning),
+      pending: groupLessonsForDisplay(lessonsByStatus.pending, sectionSort.pending),
+      completed: groupLessonsForDisplay(lessonsByStatus.completed, sectionSort.completed),
     };
     return groups;
-  }, [lessonsByStatus, classTimeSortOrder]);
+  }, [lessonsByStatus, sectionSort]);
 
   const learningDayToneByDate = useMemo(
     () => buildLearningClassDayToneMap(displayGroupsByStatus.learning),
@@ -1280,8 +1334,14 @@ export function JpLessonPage() {
 
   const renderLessonTable = (
     displayGroups: JpLessonDisplayGroup<JpLessonRecord>[],
+    status: JpLessonProgressStatus,
     dayToneByDate?: Map<string, number>
-  ) => (
+  ) => {
+    const sort = sectionSort[status];
+    const recentOperationSorted = sort.field === "recentOperation";
+    const classTimeSorted = sort.field === "classTime";
+
+    return (
     <div className="jp-lesson-table-wrap">
       <table className="compare-table etr-table jp-lesson-table">
         <thead>
@@ -1290,36 +1350,79 @@ export function JpLessonPage() {
             <th>学习类型</th>
             <th>学习内容</th>
             <th className="jp-lesson-uploaded-col">上传日期</th>
-            <th className="jp-lesson-status-at-col">最近操作</th>
+            <th
+              className={`jp-lesson-status-at-col jp-lesson-status-at-col--sortable${
+                recentOperationSorted
+                  ? sort.order === "asc"
+                    ? " jp-lesson-status-at-col--sorted-asc"
+                    : " jp-lesson-status-at-col--sorted-desc"
+                  : ""
+              }`}
+            >
+              <button
+                type="button"
+                className="jp-lesson-sort-btn"
+                title={
+                  recentOperationSorted
+                    ? sort.order === "desc"
+                      ? "按最近操作从新到旧排序；点击切换为从旧到新"
+                      : "按最近操作从旧到新排序；点击切换为从新到旧"
+                    : "按最近操作排序；点击后最近一次操作的排在前面"
+                }
+                aria-label={
+                  recentOperationSorted
+                    ? sort.order === "desc"
+                      ? "最近操作降序，点击切换为升序"
+                      : "最近操作升序，点击切换为降序"
+                    : "按最近操作排序"
+                }
+                onClick={() => toggleRecentOperationSort(status)}
+              >
+                最近操作
+                {recentOperationSorted ? (
+                  <span className="jp-lesson-sort-indicator" aria-hidden="true">
+                    {sort.order === "asc" ? "↑" : "↓"}
+                  </span>
+                ) : null}
+              </button>
+            </th>
             <th className="jp-lesson-operator-col">操作人</th>
             {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
             {isAdmin ? (
               <th
                 className={`jp-lesson-next-class-col jp-lesson-next-class-col--sortable${
-                  classTimeSortOrder === "asc"
-                    ? " jp-lesson-next-class-col--sorted-asc"
-                    : " jp-lesson-next-class-col--sorted-desc"
+                  classTimeSorted
+                    ? sort.order === "asc"
+                      ? " jp-lesson-next-class-col--sorted-asc"
+                      : " jp-lesson-next-class-col--sorted-desc"
+                    : ""
                 }`}
               >
                 <button
                   type="button"
                   className="jp-lesson-sort-btn"
                   title={
-                    classTimeSortOrder === "asc"
-                      ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
-                      : "按上课时间从晚到早排序；点击切换为从早到晚。同一老师同一时段的多条教材会合并为一行"
+                    classTimeSorted
+                      ? sort.order === "asc"
+                        ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
+                        : "按上课时间从晚到早排序；点击切换为从早到晚。同一老师同一时段的多条教材会合并为一行"
+                      : "按上课时间排序；点击后按上课时间从早到晚排列。同一老师同一时段的多条教材会合并为一行"
                   }
                   aria-label={
-                    classTimeSortOrder === "asc"
-                      ? "上课时间升序，点击切换为降序"
-                      : "上课时间降序，点击切换为升序"
+                    classTimeSorted
+                      ? sort.order === "asc"
+                        ? "上课时间升序，点击切换为降序"
+                        : "上课时间降序，点击切换为升序"
+                      : "按上课时间排序"
                   }
-                  onClick={toggleClassTimeSortOrder}
+                  onClick={() => toggleClassTimeSort(status)}
                 >
                   上课时间
-                  <span className="jp-lesson-sort-indicator" aria-hidden="true">
-                    {classTimeSortOrder === "asc" ? "↑" : "↓"}
-                  </span>
+                  {classTimeSorted ? (
+                    <span className="jp-lesson-sort-indicator" aria-hidden="true">
+                      {sort.order === "asc" ? "↑" : "↓"}
+                    </span>
+                  ) : null}
                 </button>
               </th>
             ) : null}
@@ -1557,7 +1660,8 @@ export function JpLessonPage() {
         </tbody>
       </table>
     </div>
-  );
+    );
+  };
 
   return (
     <main
@@ -1685,6 +1789,7 @@ export function JpLessonPage() {
                 {sectionCount ? (
                   renderLessonTable(
                     sectionGroups,
+                    status,
                     status === "learning" ? learningDayToneByDate : undefined
                   )
                 ) : (
@@ -2037,6 +2142,9 @@ export function JpLessonPage() {
           font-variant-numeric: tabular-nums;
           font-size: 0.8125rem;
         }
+        :global(.jp-lesson-status-at-col--sortable) {
+          padding: 0;
+        }
         :global(.jp-lesson-operator-col) {
           white-space: nowrap;
           font-size: 0.8125rem;
@@ -2084,7 +2192,9 @@ export function JpLessonPage() {
           outline-offset: -2px;
         }
         :global(.jp-lesson-next-class-col--sorted-asc .jp-lesson-sort-btn),
-        :global(.jp-lesson-next-class-col--sorted-desc .jp-lesson-sort-btn) {
+        :global(.jp-lesson-next-class-col--sorted-desc .jp-lesson-sort-btn),
+        :global(.jp-lesson-status-at-col--sorted-asc .jp-lesson-sort-btn),
+        :global(.jp-lesson-status-at-col--sorted-desc .jp-lesson-sort-btn) {
           color: var(--accent);
         }
         :global(.jp-lesson-sort-indicator) {

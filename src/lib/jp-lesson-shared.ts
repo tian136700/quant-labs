@@ -79,6 +79,26 @@ export function compareJpLessonsByRecentOperation(
   return b.id - a.id;
 }
 
+/** 列表内排序：最近操作升序；无最近操作记录时回退到上传时间 */
+export function compareJpLessonsByRecentOperationAsc(
+  a: { status_updated_at?: string | null; uploaded_at: string; id: number },
+  b: { status_updated_at?: string | null; uploaded_at: string; id: number }
+): number {
+  const dateCmp = jpLessonRecentOperationAt(a).localeCompare(jpLessonRecentOperationAt(b));
+  if (dateCmp !== 0) return dateCmp;
+  return a.id - b.id;
+}
+
+export type JpLessonRecentOperationSortOrder = "asc" | "desc";
+
+export function compareJpLessonsByRecentOperationOrder(
+  order: JpLessonRecentOperationSortOrder
+): typeof compareJpLessonsByRecentOperation {
+  return order === "desc"
+    ? compareJpLessonsByRecentOperation
+    : compareJpLessonsByRecentOperationAsc;
+}
+
 export function compareJpLessonsByProgress(
   a: {
     completed: boolean;
@@ -225,8 +245,7 @@ export type JpLessonDisplayGroup<T extends { id: number }> = {
   lessons: T[];
 };
 
-/** 按上课时间排序，并将同老师同档期的多条新课合并为一组 */
-export function buildJpLessonDisplayGroups<T extends {
+type JpLessonDisplayGroupLesson = {
   id: number;
   teacher_ids?: number[];
   teacher_other?: string | null;
@@ -237,10 +256,11 @@ export function buildJpLessonDisplayGroups<T extends {
   }>;
   next_class_at?: string | null;
   class_duration_minutes?: number | null;
-  status_updated_at?: string | null;
-  uploaded_at: string;
-}>(lessons: T[], sortOrder: JpLessonClassTimeSortOrder = "asc"): JpLessonDisplayGroup<T>[] {
-  const sorted = [...lessons].sort(compareJpLessonsByClassTimeOrder(sortOrder));
+};
+
+function groupSortedJpLessonsIntoDisplayGroups<T extends JpLessonDisplayGroupLesson>(
+  sorted: T[]
+): JpLessonDisplayGroup<T>[] {
   const groups: JpLessonDisplayGroup<T>[] = [];
   const mergeIndexByKey = new Map<string, number>();
 
@@ -265,6 +285,27 @@ export function buildJpLessonDisplayGroups<T extends {
   }
 
   return groups;
+}
+
+/** 按上课时间排序，并将同老师同档期的多条新课合并为一组 */
+export function buildJpLessonDisplayGroups<T extends JpLessonDisplayGroupLesson & {
+  status_updated_at?: string | null;
+  uploaded_at: string;
+}>(lessons: T[], sortOrder: JpLessonClassTimeSortOrder = "asc"): JpLessonDisplayGroup<T>[] {
+  const sorted = [...lessons].sort(compareJpLessonsByClassTimeOrder(sortOrder));
+  return groupSortedJpLessonsIntoDisplayGroups(sorted);
+}
+
+/** 按最近操作时间排序，并将同老师同档期的多条新课合并为一组 */
+export function buildJpLessonDisplayGroupsByRecentOperation<T extends JpLessonDisplayGroupLesson & {
+  status_updated_at?: string | null;
+  uploaded_at: string;
+}>(
+  lessons: T[],
+  sortOrder: JpLessonRecentOperationSortOrder = "desc"
+): JpLessonDisplayGroup<T>[] {
+  const sorted = [...lessons].sort(compareJpLessonsByRecentOperationOrder(sortOrder));
+  return groupSortedJpLessonsIntoDisplayGroups(sorted);
 }
 
 /** 「学习中」列表按上课日区分背景色时的色阶数量 */
