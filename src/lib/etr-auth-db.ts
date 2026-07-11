@@ -749,12 +749,6 @@ export async function createUserByAdmin(
     return { ok: false, error: "username_reserved" };
   }
   if (password.length < 6) return { ok: false, error: "password_too_short" };
-  if (role === "jp_vocab" && password.length < 10) {
-    return { ok: false, error: "password_too_weak" };
-  }
-  if (role === "en_vocab" && password.length < 10) {
-    return { ok: false, error: "password_too_weak" };
-  }
 
   const existing = await findUserByUsername(env.DB, name);
   if (existing) return { ok: false, error: "username_taken" };
@@ -1162,12 +1156,6 @@ export async function updateUserByAdmin(
   if (hasPassword) {
     const password = input.password!;
     if (password.length < 6) return { ok: false, error: "password_too_short" };
-    if (nextRole === "jp_vocab" && password.length < 10) {
-      return { ok: false, error: "password_too_weak" };
-    }
-    if (nextRole === "en_vocab" && password.length < 10) {
-      return { ok: false, error: "password_too_weak" };
-    }
     const { salt, hash } = await hashPassword(password);
     passwordHash = encodePasswordStorage(salt, hash);
     await revokeUserSessions(env.DB, userId);
@@ -1311,8 +1299,7 @@ export async function resetUserPasswordByAdmin(
   if (!user) return { ok: false, error: "user_not_found" };
   if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
 
-  const minLength = user.role === "jp_vocab" || user.role === "en_vocab" ? 10 : 6;
-  const password = generateAdminResetPassword(minLength);
+  const password = generateAdminResetPassword(6);
   const { salt, hash } = await hashPassword(password);
   const passwordHash = encodePasswordStorage(salt, hash);
 

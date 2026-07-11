@@ -25,6 +25,11 @@ import {
   readAdminUsersCache,
   writeAdminUsersCache,
 } from "@/lib/admin-users-cache";
+import {
+  adminUserFieldErrors,
+  hasAdminUserFieldErrors,
+} from "@/lib/admin-user-validation";
+import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENGTH } from "@/lib/etr-auth";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
 import { formatIpForDisplay } from "@/lib/client-ip";
@@ -150,6 +155,8 @@ function AdminUsersPageContent() {
   const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab">("user");
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [addUserModalError, setAddUserModalError] = useState("");
+  const [addUserSubmitAttempted, setAddUserSubmitAttempted] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
@@ -257,6 +264,29 @@ function AdminUsersPageContent() {
     () => sortUsers(users, sortField, sortDirection),
     [users, sortDirection, sortField]
   );
+
+  const addUserLiveErrors = useMemo(
+    () => adminUserFieldErrors(newUsername, newPassword, locale),
+    [locale, newPassword, newUsername]
+  );
+
+  const addUserSubmitErrors = useMemo(
+    () =>
+      adminUserFieldErrors(newUsername, newPassword, locale, { requireFilled: true }),
+    [locale, newPassword, newUsername]
+  );
+
+  const openAddUserModal = () => {
+    setAddUserModalError("");
+    setAddUserSubmitAttempted(false);
+    setAddUserOpen(true);
+  };
+
+  const closeAddUserModal = () => {
+    setAddUserOpen(false);
+    setAddUserModalError("");
+    setAddUserSubmitAttempted(false);
+  };
 
   const createTemplate = async () => {
     setTemplateSaving(true);
@@ -448,6 +478,13 @@ function AdminUsersPageContent() {
 
   const createUser = async (e: FormEvent) => {
     e.preventDefault();
+    setAddUserSubmitAttempted(true);
+    setAddUserModalError("");
+
+    if (hasAdminUserFieldErrors(addUserSubmitErrors)) {
+      return;
+    }
+
     setCreating(true);
     setStatus("");
     setStatusErr(false);
@@ -464,8 +501,7 @@ function AdminUsersPageContent() {
       });
       const data = await res.json();
       if (!data.ok) {
-        setStatus(String(data.error || "create failed"));
-        setStatusErr(true);
+        setAddUserModalError(String(data.error || "create failed"));
         return;
       }
       setUsers((prev) => {
@@ -477,14 +513,14 @@ function AdminUsersPageContent() {
       setNewUsername("");
       setNewPassword("");
       setNewRole("user");
+      closeAddUserModal();
       setStatus(
         locale === "zh"
           ? `已创建用户：${data.user.username}`
           : `Created user: ${data.user.username}`
       );
     } catch {
-      setStatus(locale === "zh" ? "创建失败" : "Create failed");
-      setStatusErr(true);
+      setAddUserModalError(locale === "zh" ? "创建失败" : "Create failed");
     } finally {
       setCreating(false);
     }
@@ -752,6 +788,7 @@ function AdminUsersPageContent() {
   };
 
   const anyModalOpen = addUserOpen || templatesOpen || editingUser != null;
+  const addUserDisplayedErrors = addUserSubmitAttempted ? addUserSubmitErrors : addUserLiveErrors;
 
   useEffect(() => {
     if (!anyModalOpen) return;
@@ -767,7 +804,7 @@ function AdminUsersPageContent() {
         return;
       }
       if (addUserOpen) {
-        setAddUserOpen(false);
+        closeAddUserModal();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -827,7 +864,7 @@ function AdminUsersPageContent() {
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
-              onClick={() => setAddUserOpen(true)}
+              onClick={openAddUserModal}
             >
               {locale === "zh" ? "添加用户" : "Add user"}
             </button>
@@ -1079,7 +1116,7 @@ function AdminUsersPageContent() {
         ? createPortal(
             <div
               className="admin-users-modal-overlay"
-              onMouseDown={(e) => closeModalOnBackdropMouseDown(e, () => setAddUserOpen(false))}
+              onMouseDown={(e) => closeModalOnBackdropMouseDown(e, closeAddUserModal)}
             >
               <div
                 className="admin-users-modal"
@@ -1103,7 +1140,7 @@ function AdminUsersPageContent() {
                     type="button"
                     className="admin-users-modal-close"
                     aria-label={locale === "zh" ? "关闭" : "Close"}
-                    onClick={() => setAddUserOpen(false)}
+                    onClick={closeAddUserModal}
                   >
                     ×
                   </button>
@@ -1121,12 +1158,27 @@ function AdminUsersPageContent() {
                       name="admin-user-new-username"
                       value={newUsername}
                       disabled={creating}
-                      placeholder={locale === "zh" ? "6–32 个字符" : "6–32 characters"}
+                      placeholder={
+                        locale === "zh"
+                          ? `${ETR_USERNAME_MIN_LENGTH}–${ETR_USERNAME_MAX_LENGTH} 个字符`
+                          : `${ETR_USERNAME_MIN_LENGTH}–${ETR_USERNAME_MAX_LENGTH} characters`
+                      }
                       autoComplete="off"
                       data-1p-ignore
                       data-lpignore="true"
-                      onChange={(e) => setNewUsername(e.target.value)}
+                      className={
+                        addUserDisplayedErrors.username ? "admin-user-add-field--invalid" : undefined
+                      }
+                      onChange={(e) => {
+                        setNewUsername(e.target.value);
+                        setAddUserModalError("");
+                      }}
                     />
+                    {addUserDisplayedErrors.username ? (
+                      <span className="admin-user-add-field-error">
+                        {addUserDisplayedErrors.username}
+                      </span>
+                    ) : null}
                   </label>
                   <label className="admin-user-add-field">
                     <span>{locale === "zh" ? "密码" : "Password"}</span>
@@ -1135,12 +1187,27 @@ function AdminUsersPageContent() {
                       name="admin-user-new-password"
                       value={newPassword}
                       disabled={creating}
-                      placeholder={locale === "zh" ? "至少 6 位" : "Min 6 chars"}
+                      placeholder={
+                        locale === "zh"
+                          ? `至少 ${ETR_PASSWORD_MIN_LENGTH} 位`
+                          : `Min ${ETR_PASSWORD_MIN_LENGTH} chars`
+                      }
                       autoComplete="new-password"
                       data-1p-ignore
                       data-lpignore="true"
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      className={
+                        addUserDisplayedErrors.password ? "admin-user-add-field--invalid" : undefined
+                      }
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        setAddUserModalError("");
+                      }}
                     />
+                    {addUserDisplayedErrors.password ? (
+                      <span className="admin-user-add-field-error">
+                        {addUserDisplayedErrors.password}
+                      </span>
+                    ) : null}
                   </label>
                   <label className="admin-user-add-field">
                     <span>{locale === "zh" ? "角色" : "Role"}</span>
@@ -1160,16 +1227,19 @@ function AdminUsersPageContent() {
                       </option>
                     </select>
                   </label>
+                  {addUserModalError ? (
+                    <p className="admin-user-add-modal-error">{addUserModalError}</p>
+                  ) : null}
                   <div className="admin-users-modal-footer">
                     <p className="hint admin-user-add-hint" style={{ margin: 0 }}>
                       {locale === "zh"
-                        ? "教师角色密码建议至少 10 位。系统保留名 Admin、LiLaoshi、user1 不可重复创建。"
-                        : "Teacher passwords should be at least 10 characters. Admin, LiLaoshi and user1 are reserved."}
+                        ? "系统保留名 Admin、LiLaoshi、user1 不可重复创建。"
+                        : "Reserved: Admin, LiLaoshi, user1."}
                     </p>
                     <button
                       type="submit"
                       className="btn-rsi-filter btn-rsi-filter--primary admin-user-add-submit"
-                      disabled={creating || !newUsername.trim() || !newPassword}
+                      disabled={creating}
                     >
                       {creating
                         ? locale === "zh"
@@ -1516,6 +1586,20 @@ function AdminUsersPageContent() {
           font: inherit;
           font-size: 0.875rem;
           padding: 0.5rem 0.6rem;
+        }
+        .admin-user-add-field input.admin-user-add-field--invalid {
+          border-color: var(--rise);
+        }
+        .admin-user-add-field-error {
+          font-size: 0.75rem;
+          line-height: 1.4;
+          color: var(--rise);
+        }
+        .admin-user-add-modal-error {
+          margin: 0;
+          grid-column: 1 / -1;
+          font-size: 0.8125rem;
+          color: var(--rise);
         }
         .admin-user-add-submit {
           justify-self: start;

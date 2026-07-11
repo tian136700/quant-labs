@@ -50,8 +50,8 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
     zh: "请求数据无效。",
   },
   username_invalid: {
-    en: "Username must be 6–32 characters (letters, numbers, _ . - or Chinese).",
-    zh: "用户名须为 6–32 个字符（字母、数字、_ . - 或中文）。",
+    en: "Username must be 4–32 characters (letters, numbers, _ . - or Chinese).",
+    zh: "用户名须为 4–32 个字符（字母、数字、_ . - 或中文）。",
   },
   username_reserved: {
     en: "This username is reserved.",
@@ -64,10 +64,6 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
   password_too_short: {
     en: "Password must be at least 6 characters.",
     zh: "密码至少 6 位。",
-  },
-  password_too_weak: {
-    en: "Teacher accounts need a password of at least 10 characters.",
-    zh: "教师账号密码至少 10 位。",
   },
   role_invalid: {
     en: "Invalid role.",

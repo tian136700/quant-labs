@@ -169,8 +169,17 @@ export function normalizeUsername(raw: string): string {
   return raw.trim();
 }
 
+export const ETR_USERNAME_MIN_LENGTH = 4;
+export const ETR_USERNAME_MAX_LENGTH = 32;
+export const ETR_PASSWORD_MIN_LENGTH = 6;
+
 export function isValidUsername(username: string): boolean {
-  if (username.length < 6 || username.length > 32) return false;
+  if (
+    username.length < ETR_USERNAME_MIN_LENGTH ||
+    username.length > ETR_USERNAME_MAX_LENGTH
+  ) {
+    return false;
+  }
   return /^[\w\u4e00-\u9fff.-]+$/u.test(username);
 }
 

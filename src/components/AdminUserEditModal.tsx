@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { RBAC_ROLE_LABELS } from "@/lib/rbac";
+import {
+  adminUserFieldErrors,
+} from "@/lib/admin-user-validation";
 import type { EtrUserRole } from "@/lib/etr-auth";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 
@@ -62,7 +65,21 @@ export function AdminUserEditModal({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<AdminUserRole>("user");
   const [error, setError] = useState("");
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const wasOpenRef = useRef(false);
+
+  const passwordErrors = useMemo(
+    () => adminUserFieldErrors(user?.username ?? "", password, locale),
+    [locale, password, user?.username]
+  );
+  const passwordSubmitErrors = useMemo(
+    () =>
+      adminUserFieldErrors(user?.username ?? "", password, locale, { requireFilled: false }),
+    [locale, password, user?.username]
+  );
+  const displayedPasswordError = submitAttempted
+    ? passwordSubmitErrors.password
+    : passwordErrors.password;
 
   useEffect(() => {
     setMounted(true);
@@ -80,6 +97,7 @@ export function AdminUserEditModal({
             : "user"
       );
       setError("");
+      setSubmitAttempted(false);
     }
     wasOpenRef.current = open;
   }, [open, user]);
@@ -108,8 +126,13 @@ export function AdminUserEditModal({
     if (!user) return;
 
     const trimmedUsername = username.trim();
+    setSubmitAttempted(true);
     if (!trimmedUsername) {
       setError(locale === "zh" ? "请填写用户名。" : "Username is required.");
+      return;
+    }
+    if (password && passwordSubmitErrors.password) {
+      setError(passwordSubmitErrors.password);
       return;
     }
 
@@ -235,8 +258,17 @@ export function AdminUserEditModal({
               autoComplete="new-password"
               data-1p-ignore
               data-lpignore="true"
-              onChange={(e) => setPassword(e.target.value)}
+              className={
+                displayedPasswordError ? "admin-user-edit-field--invalid" : undefined
+              }
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError("");
+              }}
             />
+            {displayedPasswordError ? (
+              <span className="admin-user-edit-field-error">{displayedPasswordError}</span>
+            ) : null}
           </label>
           <label className="admin-user-edit-field">
             <span>{locale === "zh" ? "角色" : "Role"}</span>
@@ -267,7 +299,7 @@ export function AdminUserEditModal({
             <button
               type="submit"
               className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              disabled={!username.trim()}
+              disabled={!username.trim() || Boolean(password && passwordErrors.password)}
             >
               {locale === "zh" ? "保存" : "Save"}
             </button>
@@ -349,6 +381,14 @@ export function AdminUserEditModal({
           font: inherit;
           font-size: 0.875rem;
           padding: 0.5rem 0.6rem;
+        }
+        .admin-user-edit-field input.admin-user-edit-field--invalid {
+          border-color: var(--rise);
+        }
+        .admin-user-edit-field-error {
+          font-size: 0.75rem;
+          line-height: 1.4;
+          color: var(--rise);
         }
         .admin-user-edit-error {
           margin: 0;
