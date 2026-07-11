@@ -8,6 +8,7 @@ import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
   jpVocabPriorityLabel,
@@ -131,7 +132,7 @@ export function JpVocabStudyFlashcardModal({
   const wordTrim = w.word.trim();
   const meaningTrim = (w.meaning || "").trim();
   const posTrim = (w.pos || "").trim();
-  const selected = item.level;
+  const selected = resolveJpVocabSharedTeacherLevel(w);
   const risk = jpVocabRiskIndex(w);
   const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(

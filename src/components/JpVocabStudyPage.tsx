@@ -12,6 +12,7 @@ import {
 } from "@/lib/jp-vocab-daily-complete-dismiss";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
   jpVocabRiskIndex,
@@ -118,13 +119,11 @@ export function JpVocabStudyPage() {
     );
     setFlashcardItem((prev) => {
       if (prev?.word_id !== word.id) return prev;
-      const level =
-        word.last_review_level === "very" ||
-        word.last_review_level === "normal" ||
-        word.last_review_level === "weak"
-          ? word.last_review_level
-          : prev.level;
-      return { ...prev, word, level };
+      return {
+        ...prev,
+        word,
+        level: resolveJpVocabSharedTeacherLevel(word),
+      };
     });
     setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
     setEditingWord((prev) => (prev?.id === word.id ? word : prev));
@@ -635,7 +634,7 @@ export function JpVocabStudyPage() {
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
-                  const selected = item.level;
+                  const selected = resolveJpVocabSharedTeacherLevel(w);
                   const risk = jpVocabRiskIndex(w);
                   const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const todayChecks = effectiveTodayCheckCount(

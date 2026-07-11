@@ -26,14 +26,16 @@ export function resolveJpVocabSharedTeacherLevel(
   word: JpVocabWord,
   now = new Date()
 ): JpVocabLevel | undefined {
-  const checkedToday =
+  if (
     effectiveTodayCheckCount(
       word.today_check_count ?? 0,
       word.today_check_date,
       now
-    ) > 0 ||
-    isJpVocabReviewToday(word.last_review_at, now);
-  if (!checkedToday) return undefined;
+    ) <= 0
+  ) {
+    return undefined;
+  }
+  if (!isJpVocabReviewToday(word.last_review_at, now)) return undefined;
   const level = word.last_review_level;
   if (level && JP_VOCAB_LEVELS.includes(level)) return level;
   return undefined;

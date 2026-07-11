@@ -3209,8 +3209,8 @@ export async function peekJpVocabTeacherQuizLiveWord(
     shared_by: sharedRow.shared_by,
     shared_at: sharedRow.shared_at,
     share_date: today,
-    level,
     word,
+    ...(level ? { level } : {}),
   };
 
   return { ok: true, word, refs, item };
