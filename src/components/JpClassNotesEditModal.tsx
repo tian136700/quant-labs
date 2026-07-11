@@ -702,7 +702,7 @@ export function JpClassNotesEditModal({
         .jp-notes-edit-overlay {
           position: fixed;
           inset: 0;
-          z-index: 1000;
+          z-index: 1100;
           display: flex;
           align-items: center;
           justify-content: center;

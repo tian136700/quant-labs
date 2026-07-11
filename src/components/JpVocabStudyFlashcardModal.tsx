@@ -31,6 +31,8 @@ type Props = {
   onViewRemarks: (word: JpVocabSharedItem["word"]) => void;
   onEditRemarks: (word: JpVocabSharedItem["word"]) => void;
   onEditWord: (word: JpVocabSharedItem["word"]) => void;
+  /** 子层弹窗（编辑/备注/教案）打开时不响应 Esc 关闭本卡片 */
+  nestedModalOpen?: boolean;
 };
 
 export function JpVocabStudyFlashcardModal({
@@ -44,6 +46,7 @@ export function JpVocabStudyFlashcardModal({
   onViewRemarks,
   onEditRemarks,
   onEditWord,
+  nestedModalOpen = false,
 }: Props) {
   const [mounted, setMounted] = useState(false);
 
@@ -52,13 +55,13 @@ export function JpVocabStudyFlashcardModal({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || nestedModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, nestedModalOpen, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -113,7 +116,17 @@ export function JpVocabStudyFlashcardModal({
           >
             {w.kind === "grammar" ? "语法" : "单词"}
           </span>
-          <p className="jp-vocab-flashcard__hint">点击卡片任意处关闭</p>
+          <button
+            type="button"
+            className="jp-vocab-flashcard__close-x"
+            aria-label="关闭"
+            onClick={(e) => {
+              stop(e);
+              onClose();
+            }}
+          >
+            ×
+          </button>
         </header>
 
         <div className="jp-vocab-flashcard__hero" id="jp-vocab-flashcard-title">
@@ -280,6 +293,16 @@ export function JpVocabStudyFlashcardModal({
             <span className="jp-vocab-flashcard__footer-muted">暂无教案与备注</span>
           ) : null}
         </footer>
+
+        <div className="jp-vocab-flashcard__close-row" onClick={stop}>
+          <button
+            type="button"
+            className="btn-rsi-filter jp-vocab-flashcard__close-main"
+            onClick={onClose}
+          >
+            关闭
+          </button>
+        </div>
       </article>
 
       <style jsx global>{`
@@ -333,10 +356,21 @@ export function JpVocabStudyFlashcardModal({
           border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
           color: var(--accent);
         }
-        .jp-vocab-flashcard__hint {
-          margin: 0;
-          font-size: 0.75rem;
+        .jp-vocab-flashcard__close-x {
+          flex-shrink: 0;
+          width: 2rem;
+          height: 2rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: transparent;
           color: var(--muted);
+          font-size: 1.25rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+        .jp-vocab-flashcard__close-x:hover {
+          color: var(--text);
+          border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
         }
         .jp-vocab-flashcard__hero {
           text-align: center;
@@ -532,6 +566,15 @@ export function JpVocabStudyFlashcardModal({
         .jp-vocab-flashcard__footer-muted {
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-vocab-flashcard__close-row {
+          display: flex;
+          justify-content: center;
+          padding-top: 0.35rem;
+          cursor: default;
+        }
+        .jp-vocab-flashcard__close-main {
+          min-width: 6.5rem;
         }
       `}</style>
     </div>,

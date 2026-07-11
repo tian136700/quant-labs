@@ -2978,6 +2978,11 @@
     min-height: 2.75rem;
   }
 
+  .jp-vocab-flashcard__close-main {
+    min-height: 2.75rem;
+    min-width: 8rem;
+  }
+
   /* ── Tool-dot pages ── */
   .page-wrap:has(.tool-dot-wrap) {
     max-width: 100%;

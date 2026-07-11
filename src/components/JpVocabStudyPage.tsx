@@ -867,6 +867,12 @@ export function JpVocabStudyPage() {
         refs={refs}
         locale={locale}
         canOperate={canOperate}
+        nestedModalOpen={
+          editingWord != null ||
+          editingRemarksWord != null ||
+          viewingRemarksWord != null ||
+          previewRef != null
+        }
         onClose={() => setFlashcardItem(null)}
         onOpenRef={openRefPreview}
         onViewRemarks={setViewingRemarksWord}
