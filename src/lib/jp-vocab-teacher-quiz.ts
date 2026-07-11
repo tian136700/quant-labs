@@ -96,6 +96,51 @@ export function reconcileJpVocabTeacherQuizSession(
   };
 }
 
+/**
+ * 管理员调高今日抽查数量后，把进行中的抽查会话补全到最新目标词表（保留当前词与已抽查进度）。
+ */
+export function expandJpVocabTeacherQuizSessionForTarget(
+  session: JpVocabTeacherQuizSession,
+  quizTargetWords: JpVocabWord[],
+  dailySeqByWordId: ReadonlyMap<number, number>
+): JpVocabTeacherQuizSession {
+  const targetIds = buildJpVocabTeacherQuizWordIds(
+    session.mode,
+    quizTargetWords,
+    dailySeqByWordId
+  );
+  if (!targetIds.length) return session;
+  if (session.wordIds.length >= targetIds.length) {
+    return reconcileJpVocabTeacherQuizSession(
+      session,
+      new Set(targetIds)
+    ) ?? session;
+  }
+
+  const currentWordId = session.wordIds[session.currentIndex];
+  let wordIds: number[];
+
+  if (session.mode === "sequential") {
+    wordIds = targetIds;
+  } else {
+    const targetSet = new Set(targetIds);
+    const kept = session.wordIds.filter((id) => targetSet.has(id));
+    const inSession = new Set(kept);
+    wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
+  }
+
+  const currentIndex =
+    currentWordId != null
+      ? Math.max(0, wordIds.indexOf(currentWordId))
+      : Math.min(session.currentIndex, wordIds.length - 1);
+
+  return {
+    mode: session.mode,
+    wordIds,
+    currentIndex: currentIndex >= 0 ? currentIndex : 0,
+  };
+}
+
 /** 列表点选或恢复抽查时，定位到点击的词；否则跳到第一个未勾选的词 */
 export function resolveJpVocabTeacherQuizResumeIndex(
   session: JpVocabTeacherQuizSession,

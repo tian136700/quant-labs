@@ -46,6 +46,7 @@ import {
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
 import {
   createJpVocabTeacherQuizSession,
+  expandJpVocabTeacherQuizSessionForTarget,
   isJpVocabTeacherQuizSessionComplete,
   reconcileJpVocabTeacherQuizSession,
   resolveJpVocabTeacherQuizRefreshResumeIndex,
@@ -812,20 +813,26 @@ export function JpVocabPage() {
       return;
     }
 
+    const expanded = expandJpVocabTeacherQuizSessionForTarget(
+      reconciled,
+      quizTargetWords,
+      dailySeqByWordId
+    );
+
     if (canOperate && !isAdmin) {
       const resumeIndex = resolveJpVocabTeacherQuizRefreshResumeIndex(
-        reconciled,
+        expanded,
         new Map(words.map((w) => [w.id, w])),
         sessionReviewAt,
         quizWordHasLevel
       );
-      const session = { ...reconciled, currentIndex: resumeIndex };
+      const session = { ...expanded, currentIndex: resumeIndex };
       setQuizSession(session);
       setShowQuizFlashcard(true);
       return;
     }
 
-    setQuizSession(reconciled);
+    setQuizSession(expanded);
   }, [
     user?.id,
     quizTarget,
@@ -843,6 +850,20 @@ export function JpVocabPage() {
   useEffect(() => {
     persistQuizSession(quizSession);
   }, [quizSession, persistQuizSession]);
+
+  /** 管理员调高今日抽查数量后，补全进行中的抽查卡片词表（如 20 → 30） */
+  useEffect(() => {
+    if (!quizSession || quizTargetWords.length === 0) return;
+    if (quizSession.wordIds.length >= quizTargetWords.length) return;
+    setQuizSession((prev) => {
+      if (!prev || prev.wordIds.length >= quizTargetWords.length) return prev;
+      return expandJpVocabTeacherQuizSessionForTarget(
+        prev,
+        quizTargetWords,
+        dailySeqByWordId
+      );
+    });
+  }, [quizTarget, quizTargetWords, dailySeqByWordId, quizSession?.wordIds.length]);
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) =>
