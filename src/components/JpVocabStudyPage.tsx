@@ -27,6 +27,7 @@ import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabStudyFlashcardModal } from "@/components/JpVocabStudyFlashcardModal";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
+import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
@@ -77,6 +78,7 @@ export function JpVocabStudyPage() {
   } | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
   const [flashcardItem, setFlashcardItem] = useState<JpVocabSharedItem | null>(null);
+  const [saveQueuePending, setSaveQueuePending] = useState(0);
   const [requestingShare, setRequestingShare] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const pollInFlightRef = useRef(false);
@@ -84,6 +86,8 @@ export function JpVocabStudyPage() {
   const pendingRefreshRef = useRef(false);
   const pendingFlashcardWordIdRef = useRef<number | null>(null);
   const knownSharedWordIdsRef = useRef<Set<number>>(new Set());
+  const pendingRefreshAfterSaveRef = useRef(false);
+  const saveQueuePendingRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
 
   const openJpAuth = useCallback(() => {
@@ -96,6 +100,13 @@ export function JpVocabStudyPage() {
         : "登录后可查看老师共享的单词。",
     });
   }, [openAuthPanel]);
+
+  useEffect(() => {
+    return jpVocabSaveQueue.subscribe((pending) => {
+      saveQueuePendingRef.current = pending;
+      setSaveQueuePending(pending);
+    });
+  }, []);
 
   const handleWordSaved = useCallback((word: JpVocabWord) => {
     setItems((prev) =>
@@ -132,6 +143,10 @@ export function JpVocabStudyPage() {
   const loadShared = useCallback(async (opts?: { force?: boolean }) => {
     if (!canViewStudy) {
       setLoading(false);
+      return;
+    }
+    if (saveQueuePendingRef.current > 0) {
+      if (opts?.force) pendingRefreshAfterSaveRef.current = true;
       return;
     }
     if (pollInFlightRef.current) {
@@ -203,6 +218,13 @@ export function JpVocabStudyPage() {
   }, [locale, canViewStudy]);
 
   useEffect(() => {
+    if (saveQueuePending > 0) return;
+    if (!pendingRefreshAfterSaveRef.current) return;
+    pendingRefreshAfterSaveRef.current = false;
+    void loadShared({ force: true });
+  }, [saveQueuePending, loadShared]);
+
+  useEffect(() => {
     if (checking) return;
     if (!canViewStudy) {
       setLoading(false);
@@ -220,6 +242,10 @@ export function JpVocabStudyPage() {
     const schedule = () => {
       const hidden = typeof document !== "undefined" && document.hidden;
       timer = setTimeout(() => {
+        if (saveQueuePendingRef.current > 0) {
+          schedule();
+          return;
+        }
         void loadShared().finally(schedule);
       }, hidden ? POLL_HIDDEN_MS : POLL_MS);
     };
@@ -236,7 +262,11 @@ export function JpVocabStudyPage() {
       if (detail.wordId && detail.openRemarks) {
         pendingFlashcardWordIdRef.current = detail.wordId;
       }
-      void loadShared({ force: true });
+      if (saveQueuePendingRef.current > 0) {
+        pendingRefreshAfterSaveRef.current = true;
+      } else {
+        void loadShared({ force: true });
+      }
     });
   }, [loadShared, canViewStudy]);
 
@@ -418,6 +448,16 @@ export function JpVocabStudyPage() {
         </p>
       ) : null}
 
+      {saveQueuePending > 0 ? (
+        <p
+          className="hint"
+          role="status"
+          style={{ marginBottom: "0.75rem", fontSize: "0.8125rem", color: "var(--muted)" }}
+        >
+          保存队列 {saveQueuePending} 项 · 界面已先更新，后台逐项写入数据库
+        </p>
+      ) : null}
+
       {canViewStudy && quizProgress && quizProgress.total > 0 ? (
         <JpVocabDailyQuizProgressBar progress={quizProgress} variant="study" />
       ) : null}
@@ -529,11 +569,34 @@ export function JpVocabStudyPage() {
                     w.today_check_count ?? 0,
                     w.today_check_date
                   );
+                  const hasNotes = hasJpVocabClassNotes(w.class_notes);
+                  const renderNotesActions = () => (
+                    <div className="jp-vocab-notes-actions">
+                      {hasNotes ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
+                          onClick={() => setViewingRemarksWord(w)}
+                        >
+                          查看
+                        </button>
+                      ) : null}
+                      {canOperate ? (
+                        <JpEditIconButton
+                          title="编辑备注"
+                          className="jp-vocab-notes-edit-btn"
+                          onClick={() => setEditingRemarksWord(w)}
+                        />
+                      ) : null}
+                    </div>
+                  );
 
                   return (
                     <tr key={item.id} id={`jp-vocab-study-row-${w.id}`}>
                       <td className="jp-vocab-seq-col" data-label="序号">
-                        {index + 1}
+                        <span className="jp-vocab-seq-cell">
+                          <span className="jp-vocab-seq-num">{index + 1}</span>
+                        </span>
                       </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
@@ -562,15 +625,35 @@ export function JpVocabStudyPage() {
                             <span className="jp-vocab-word-text">{w.word}</span>
                           )}
                         </div>
+                        <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
+                          {w.kind === "word" ? (
+                            readingTrim ? (
+                              <span className="jp-vocab-reading-text">{readingTrim}</span>
+                            ) : (
+                              <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
+                                待补全
+                              </span>
+                            )
+                          ) : readingTrim ? (
+                            <span className="jp-vocab-reading-text">{readingTrim}</span>
+                          ) : null}
+                        </div>
                       </td>
                       <td
                         className={`jp-vocab-reading-col${
-                          !readingTrim ? " jp-vocab-field-empty" : ""
+                          !readingTrim && w.kind !== "word" ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="读音"
-                        style={{ color: "var(--muted)" }}
                       >
-                        {readingTrim}
+                        <div className="jp-vocab-reading-cell">
+                          {readingTrim ? (
+                            <span className="jp-vocab-reading-text">{readingTrim}</span>
+                          ) : w.kind === "word" ? (
+                            <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
+                              待补全
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
                       <td
                         className={`jp-vocab-meaning-col${
@@ -579,16 +662,27 @@ export function JpVocabStudyPage() {
                         data-label="释义"
                         style={{ color: "var(--muted)" }}
                       >
-                        {meaningTrim}
+                        {meaningTrim ? (
+                          <>
+                            <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
+                            <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
+                              <summary className="jp-vocab-meaning-fold__summary">
+                                <span className="jp-vocab-fold-label">释义</span>
+                                <span className="jp-vocab-meaning-preview">{meaningTrim}</span>
+                              </summary>
+                              <p className="jp-vocab-meaning-full">{meaningTrim}</p>
+                            </details>
+                          </>
+                        ) : null}
                       </td>
                       <td
-                        className={`jp-vocab-pos-col${
-                          !posTrim ? " jp-vocab-field-empty" : ""
-                        }`}
+                        className={`jp-vocab-pos-col${!posTrim ? " jp-vocab-field-empty" : ""}`}
                         data-label="词性"
                         style={{ color: "var(--muted)" }}
                       >
-                        {posTrim}
+                        {posTrim ? (
+                          <span className="jp-vocab-pos-badge">{posTrim}</span>
+                        ) : null}
                       </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
@@ -673,44 +767,76 @@ export function JpVocabStudyPage() {
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
-                            !hasJpVocabClassNotes(w.class_notes) && !canOperate
-                              ? " jp-vocab-field-empty"
-                              : ""
+                            !hasNotes && !canOperate ? " jp-vocab-field-empty" : ""
                           }`}
                           data-label="备注"
                         >
-                          <div className="jp-vocab-notes-actions">
-                            {hasJpVocabClassNotes(w.class_notes) ? (
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
-                                onClick={() => setViewingRemarksWord(w)}
-                              >
-                                查看
-                              </button>
-                            ) : null}
-                            {canOperate ? (
-                              <JpEditIconButton
-                                title="编辑备注"
-                                onClick={() => setEditingRemarksWord(w)}
-                              />
-                            ) : null}
-                          </div>
+                          <div className="jp-vocab-notes-desktop">{renderNotesActions()}</div>
+                          <details className="jp-vocab-notes-fold jp-vocab-mobile-only">
+                            <summary className="jp-vocab-notes-fold__summary">
+                              <span className="jp-vocab-fold-label">备注</span>
+                              <span className="jp-vocab-notes-fold__hint">
+                                {hasNotes ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
+                              </span>
+                            </summary>
+                            {renderNotesActions()}
+                          </details>
                         </td>
                       ) : null}
                       <td
-                        className={`jp-vocab-action-col${!canOperate ? " jp-vocab-field-empty" : ""}`}
+                        className={`jp-vocab-action-col${
+                          !canOperate && !w.ref_key ? " jp-vocab-field-empty" : ""
+                        }`}
                         data-label="操作"
                       >
-                        {canOperate ? (
+                        {canOperate || w.ref_key ? (
                           <div className="jp-vocab-action-buttons">
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact"
-                              onClick={() => setEditingWord(w)}
-                            >
-                              编辑
-                            </button>
+                            {w.ref_key ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-mobile-action-btn--full jp-vocab-mobile-only"
+                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                                onClick={() => openRefPreview(w.ref_key!, ref)}
+                              >
+                                <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                                  <path
+                                    d="M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v7A2.5 2.5 0 0 1 13.5 16h-7A2.5 2.5 0 0 1 4 13.5v-7Z"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                  />
+                                  <path
+                                    d="M8 10.5l1.5 1.5L12.5 9"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                                查看教案
+                              </button>
+                            ) : null}
+                            {canOperate ? (
+                              <div className="jp-vocab-action-row">
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
+                                  onClick={() => setEditingWord(w)}
+                                >
+                                  <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                                    <path
+                                      d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5Z"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="1.5"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                  编辑
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                       </td>
@@ -801,25 +927,43 @@ export function JpVocabStudyPage() {
           font-size: 0.8125rem;
           color: var(--muted);
         }
-        .jp-vocab-study-page .jp-vocab-levels {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 0.35rem 0.5rem;
+        .jp-vocab-study-page .jp-vocab-mobile-only {
+          display: none;
         }
-        .jp-vocab-study-page .jp-vocab-level-opt {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          font-size: 0.8125rem;
-          white-space: nowrap;
-          padding: 0.35rem 0.5rem;
-          border-radius: 6px;
-          border: 1px solid transparent;
-          background: transparent;
-          color: var(--text);
-          line-height: 1.3;
-          min-height: 2rem;
+        .jp-vocab-study-page .jp-vocab-notes-fold {
+          display: none;
+        }
+        @media (min-width: 768px) {
+          .jp-vocab-study-page .jp-vocab-levels {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.35rem 0.5rem;
+          }
+          .jp-vocab-study-page .jp-vocab-level-opt {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8125rem;
+            white-space: nowrap;
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--text);
+            line-height: 1.3;
+            min-height: 2rem;
+          }
+          .jp-vocab-study-page .jp-vocab-table {
+            min-width: 1180px;
+          }
+          .jp-vocab-study-page .jp-vocab-word-cell {
+            align-items: center;
+            text-align: center;
+          }
+        }
+        .jp-vocab-study-page .jp-vocab-level-opt--readonly {
+          cursor: default;
         }
         .jp-vocab-study-page .jp-vocab-check-box {
           display: inline-flex;
@@ -890,9 +1034,7 @@ export function JpVocabStudyPage() {
         .jp-vocab-study-page .jp-vocab-word-cell {
           display: flex;
           flex-direction: column;
-          align-items: center;
           justify-content: center;
-          text-align: center;
           min-width: 0;
         }
         .jp-vocab-study-page .jp-vocab-ref-hint {
@@ -910,7 +1052,6 @@ export function JpVocabStudyPage() {
         }
         .jp-vocab-study-page .jp-vocab-table {
           width: 100%;
-          min-width: 1180px;
         }
         .jp-vocab-study-page .jp-vocab-notes-actions,
         .jp-vocab-study-page .jp-vocab-action-buttons {

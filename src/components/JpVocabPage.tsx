@@ -2439,7 +2439,6 @@ export function JpVocabPage() {
                                   disabled={
                                     isSaving ||
                                     isDeleting ||
-                                    shareProgress != null ||
                                     deletingId != null
                                   }
                                   title="删除此词条（不可恢复）"
@@ -2455,7 +2454,7 @@ export function JpVocabPage() {
                                       className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn${
                                         reviewLocked ? " jp-vocab-share-btn--locked" : ""
                                       }`}
-                                      disabled={isSaving || shareProgress != null || reviewLocked}
+                                      disabled={isSaving || isSharing || reviewLocked}
                                       title={
                                         reviewLocked
                                           ? "勾选已满 1 小时，无法再操作"
@@ -2491,7 +2490,7 @@ export function JpVocabPage() {
                                       className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn${
                                         reviewLocked ? " jp-vocab-share-btn--locked" : ""
                                       }`}
-                                      disabled={isSaving || shareProgress != null || reviewLocked}
+                                      disabled={isSaving || isSharing || reviewLocked}
                                       title={
                                         reviewLocked
                                           ? "勾选已满 1 小时，无法再发给学生"
