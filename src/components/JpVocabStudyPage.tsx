@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readApiJson } from "@/lib/api-json";
+import { readApiJson, sanitizeApiClientError } from "@/lib/api-json";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -205,7 +205,8 @@ export function JpVocabStudyPage() {
       hasLoadedOnceRef.current = true;
     } catch (err) {
       if (!hasLoadedOnceRef.current) {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setError(sanitizeApiClientError(message));
       }
     } finally {
       setLoading(false);
@@ -569,7 +570,7 @@ export function JpVocabStudyPage() {
                     w.today_check_count ?? 0,
                     w.today_check_date
                   );
-                  const hasNotes = hasJpVocabClassNotes(w.class_notes);
+                  const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
                   const renderNotesActions = () => (
                     <div className="jp-vocab-notes-actions">
                       {hasNotes ? (
@@ -878,6 +879,7 @@ export function JpVocabStudyPage() {
         onViewRemarks={setViewingRemarksWord}
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
+        onWordUpdated={handleWordSaved}
       />
 
       <JpVocabRefPreviewModal

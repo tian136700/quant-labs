@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { readApiJson } from "@/lib/api-json";
+import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
@@ -12,7 +14,7 @@ import {
   jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
-import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem } from "@/lib/types";
+import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
@@ -31,6 +33,7 @@ type Props = {
   onViewRemarks: (word: JpVocabSharedItem["word"]) => void;
   onEditRemarks: (word: JpVocabSharedItem["word"]) => void;
   onEditWord: (word: JpVocabSharedItem["word"]) => void;
+  onWordUpdated?: (word: JpVocabWord) => void;
   /** 子层弹窗（编辑/备注/教案）打开时不响应 Esc 关闭本卡片 */
   nestedModalOpen?: boolean;
 };
@@ -46,13 +49,61 @@ export function JpVocabStudyFlashcardModal({
   onViewRemarks,
   onEditRemarks,
   onEditWord,
+  onWordUpdated,
   nestedModalOpen = false,
 }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open || !item) {
+      setNotesWord(null);
+      return;
+    }
+    setNotesWord(item.word);
+  }, [open, item?.word_id, item?.word.updated_at, item?.word]);
+
+  useEffect(() => {
+    const word = item?.word;
+    if (!open || !word) return;
+    if (!word.class_notes_present || word.class_notes) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
+          {
+            headers: { [LOCALE_HEADER]: locale },
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+        const parsed = await readApiJson<{ ok: boolean; word?: JpVocabWord }>(res);
+        if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
+        setNotesWord(parsed.data.word);
+        onWordUpdated?.(parsed.data.word);
+      } catch {
+        /* ignore */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    open,
+    item?.word_id,
+    item?.word.class_notes_present,
+    item?.word.class_notes,
+    locale,
+    onWordUpdated,
+    item?.word,
+  ]);
 
   useEffect(() => {
     if (!open || nestedModalOpen) return;
@@ -74,7 +125,7 @@ export function JpVocabStudyFlashcardModal({
 
   if (!open || !mounted || !item) return null;
 
-  const w = item.word;
+  const w = notesWord ?? item.word;
   const ref = w.ref_key ? refs[w.ref_key] : undefined;
   const readingTrim = (w.reading || "").trim();
   const wordTrim = w.word.trim();
@@ -91,7 +142,7 @@ export function JpVocabStudyFlashcardModal({
   const showReadingPrimary = Boolean(readingTrim);
   const showKanjiAside =
     showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
-  const hasNotes = hasJpVocabClassNotes(w.class_notes);
+  const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 

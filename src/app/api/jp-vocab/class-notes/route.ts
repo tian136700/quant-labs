@@ -3,7 +3,7 @@ import {
   getJpVocabClassNotes,
   updateJpVocabClassNotes,
 } from "@/lib/jp-vocab-db";
-import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
+import { requireJpVocabAccess, requireJpVocabRead, requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 
 const AUTH_MSG = {
   en: "Please log in to edit class notes.",
@@ -24,8 +24,11 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
     }
 
-    const { env, allowed } = await requireJpVocabRead(request);
-    if (!allowed) {
+    const [{ env, allowed: readAllowed }, { allowed: studyAllowed }] = await Promise.all([
+      requireJpVocabRead(request),
+      requireJpVocabStudyAccess(request),
+    ]);
+    if (!readAllowed && !studyAllowed) {
       return jsonResponse({ ok: false, error: READ_MSG[locale] }, 401);
     }
 

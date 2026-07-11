@@ -165,6 +165,8 @@ export interface JpVocabWord {
   today_check_date?: string | null;
   /** 来自日语新课的课堂笔记（标记完成时同步） */
   class_notes: string | null;
+  /** 列表/轮询接口可能省略 class_notes 正文，仅返回是否有备注 */
+  class_notes_present?: boolean;
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;

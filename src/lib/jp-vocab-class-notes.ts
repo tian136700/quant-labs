@@ -84,7 +84,12 @@ export function upsertJpVocabClassNoteSession(
   ]);
 }
 
-export function hasJpVocabClassNotes(raw: string | null | undefined): boolean {
+export function hasJpVocabClassNotes(
+  raw: string | null | undefined,
+  presentHint?: boolean
+): boolean {
+  if (presentHint === true) return true;
+  if (presentHint === false) return false;
   return parseJpVocabClassNotes(raw).some((e) => e.content.trim());
 }
 

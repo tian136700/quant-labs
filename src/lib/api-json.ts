@@ -10,6 +10,19 @@ function htmlApiError(status: number): string {
   return `服务器返回了异常页面（${status}），请稍后重试。`;
 }
 
+/** 将 fetch/json 异常转为用户可读文案（避免页面上出现 Unexpected token '<'） */
+export function sanitizeApiClientError(message: string): string {
+  const trimmed = message.trim();
+  if (
+    trimmed.includes("<!DOCTYPE") ||
+    trimmed.includes("Unexpected token '<'") ||
+    trimmed.includes("Unexpected token \'<\'")
+  ) {
+    return "服务器暂时不可用，请稍后刷新页面。";
+  }
+  return trimmed || "请求失败，请稍后重试。";
+}
+
 export async function readApiJson<T extends Record<string, unknown>>(
   res: Response
 ): Promise<ApiJsonResult<T>> {

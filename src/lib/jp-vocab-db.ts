@@ -407,6 +407,42 @@ export async function listJpVocabRefs(db: D1Database): Promise<JpVocabRef[]> {
   return (result.results || []).map(mapRefRow);
 }
 
+async function listJpVocabRefsByKeys(
+  db: D1Database,
+  refKeys: string[]
+): Promise<JpVocabRef[]> {
+  const unique = [...new Set(refKeys.filter(Boolean))];
+  if (!unique.length) return [];
+
+  if (devStoreEnabled) {
+    return unique
+      .map((key) => devRefs.get(key))
+      .filter((ref): ref is JpVocabRef => ref != null);
+  }
+
+  const placeholders = unique.map((_, i) => `?${i + 1}`).join(", ");
+  const result = await db
+    .prepare(
+      `SELECT ref_key, title, media_type, r2_key, created_at, updated_at
+       FROM jp_vocab_ref
+       WHERE ref_key IN (${placeholders})
+       ORDER BY ref_key ASC`
+    )
+    .bind(...unique)
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(mapRefRow);
+}
+
+function mapSharedListWordRow(row: Record<string, unknown>): JpVocabWord {
+  const word = mapRow({ ...row, class_notes: null });
+  return {
+    ...word,
+    class_notes: null,
+    class_notes_present: Boolean(Number(row.has_class_notes)),
+  };
+}
+
 async function seedIfEmpty(db: D1Database): Promise<void> {
   if (devStoreEnabled) {
     if (devSeeded || devWords.length > 0) return;
@@ -2445,7 +2481,13 @@ export async function listJpVocabSharedToday(
       .map((s) => {
         const word = devWords.find((w) => w.id === s.word_id);
         if (!word) return null;
-        return mapSharedRow(s, word);
+        const hasNotes = Boolean((word.class_notes || "").trim());
+        const liteWord: JpVocabWord = {
+          ...word,
+          class_notes: null,
+          class_notes_present: hasNotes,
+        };
+        return mapSharedRow(s, liteWord);
       })
       .filter((item): item is JpVocabSharedItem => item != null)
       .sort(
@@ -2461,7 +2503,8 @@ export async function listJpVocabSharedToday(
       `SELECT s.id, s.word_id, s.shared_by, s.shared_at, s.share_date,
               w.id AS w_id, w.word, w.reading, w.meaning, w.pos, w.kind, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
-              w.class_notes, w.last_review_level, w.last_review_at, w.created_at, w.updated_at
+              w.last_review_level, w.last_review_at, w.created_at, w.updated_at,
+              (CASE WHEN COALESCE(TRIM(w.class_notes), '') != '' THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
        WHERE s.share_date = ?1
@@ -2471,7 +2514,7 @@ export async function listJpVocabSharedToday(
     .all<Record<string, unknown>>();
 
   const items = (result.results ?? []).map((row) => {
-    const word = mapRow({
+    const word = mapSharedListWordRow({
       id: row.w_id,
       word: row.word,
       reading: row.reading,
@@ -2484,11 +2527,11 @@ export async function listJpVocabSharedToday(
       cnt_weak: row.cnt_weak,
       today_check_count: row.today_check_count,
       today_check_date: row.today_check_date,
-      class_notes: row.class_notes,
       last_review_level: row.last_review_level,
       last_review_at: row.last_review_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      has_class_notes: row.has_class_notes,
     });
     return mapSharedRow(row, word);
   });
@@ -2498,11 +2541,9 @@ export async function listJpVocabSharedToday(
   ] as string[];
   const refs: Record<string, JpVocabRef> = {};
   if (refKeys.length) {
-    const refList = await listJpVocabRefs(db);
+    const refList = await listJpVocabRefsByKeys(db, refKeys);
     for (const ref of refList) {
-      if (refKeys.includes(ref.ref_key)) {
-        refs[ref.ref_key] = ref;
-      }
+      refs[ref.ref_key] = ref;
     }
   }
 
@@ -2534,7 +2575,6 @@ export async function getJpVocabDailyQuizProgress(
   db: D1Database,
   now = new Date()
 ): Promise<JpVocabDailyQuizProgress> {
-  await seedIfEmpty(db);
   const [checked, teacherVisibleLimit] = await Promise.all([
     countJpVocabTodayCheckedWords(db, now),
     getJpVocabTeacherVisibleLimit(db),
