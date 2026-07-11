@@ -521,14 +521,28 @@ export async function listJpVocabWordsChangedSince(
   return (result.results || []).map(mapRow);
 }
 
+export type RecordJpVocabReviewOptions = {
+  /** 勾选后同步到学生「今日日语单词」 */
+  shareToStudy?: boolean;
+  sharedBy?: string;
+};
+
 export type RecordJpVocabReviewResult =
-  | { ok: true; word: JpVocabWord }
+  | {
+      ok: true;
+      word: JpVocabWord;
+      /** 该词今日已在共享列表（含本次新写入或原本已共享） */
+      shared?: boolean;
+      /** 本次新写入 jp_vocab_shared */
+      shared_new?: boolean;
+    }
   | { ok: false; error: string };
 
 export async function recordJpVocabReview(
   db: D1Database,
   wordId: number,
-  level: JpVocabLevel
+  level: JpVocabLevel,
+  options?: RecordJpVocabReviewOptions
 ): Promise<RecordJpVocabReviewResult> {
   if (!Number.isInteger(wordId) || wordId <= 0) {
     return { ok: false, error: "word_id_invalid" };
@@ -550,7 +564,33 @@ export async function recordJpVocabReview(
     const { word: updated } = applyJpVocabReview(devWords[idx], level);
     devWords[idx] = updated;
     devDailyDisplayOrder = markJpVocabRoundChecked(devDailyDisplayOrder, wordId);
-    return { ok: true, word: updated };
+
+    const sharedByTrim = (options?.sharedBy || "").trim();
+    const shouldShare = Boolean(options?.shareToStudy && sharedByTrim);
+    let shared = false;
+    let shared_new = false;
+    if (shouldShare) {
+      const today = beijingDateString();
+      const already = devShared.some(
+        (s) => s.share_date === today && s.word_id === wordId
+      );
+      shared = already;
+      if (!already) {
+        const ts = nowIso();
+        devShared.push({
+          id: devSharedNextId++,
+          word_id: wordId,
+          shared_by: sharedByTrim,
+          shared_at: ts,
+          share_date: today,
+          auto_marked_level: null,
+        });
+        shared = true;
+        shared_new = true;
+      }
+    }
+
+    return { ok: true, word: updated, shared, shared_new };
   }
 
   const row = await db
@@ -565,10 +605,15 @@ export async function recordJpVocabReview(
     return { ok: false, error: "review_locked" };
   }
   const { word: updated } = applyJpVocabReview(current, level);
+  const ts = updated.updated_at;
+  const today = beijingDateString();
+  const sharedByTrim = (options?.sharedBy || "").trim();
+  const shouldShare = Boolean(options?.shareToStudy && sharedByTrim);
 
-  const result = await db
-    .prepare(
-      `UPDATE jp_vocab_word
+  const batchStmts = [
+    db
+      .prepare(
+        `UPDATE jp_vocab_word
        SET cnt_very = ?1,
            cnt_normal = ?2,
            cnt_weak = ?3,
@@ -578,27 +623,47 @@ export async function recordJpVocabReview(
            last_review_at = ?7,
            updated_at = ?8
        WHERE id = ?9`
-    )
-    .bind(
-      updated.cnt_very,
-      updated.cnt_normal,
-      updated.cnt_weak,
-      updated.today_check_count,
-      updated.today_check_date,
-      updated.last_review_level,
-      updated.last_review_at,
-      updated.updated_at,
-      wordId
-    )
-    .run();
+      )
+      .bind(
+        updated.cnt_very,
+        updated.cnt_normal,
+        updated.cnt_weak,
+        updated.today_check_count,
+        updated.today_check_date,
+        updated.last_review_level,
+        updated.last_review_at,
+        updated.updated_at,
+        wordId
+      ),
+  ];
 
-  if (!result.meta?.changes) {
+  if (shouldShare) {
+    batchStmts.push(
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date, auto_marked_level)
+       VALUES (?1, ?2, ?3, ?4, NULL)`
+        )
+        .bind(wordId, sharedByTrim, ts, today)
+    );
+  }
+
+  const batchResults = await db.batch(batchStmts);
+
+  if (!batchResults[0]?.meta?.changes) {
     return { ok: false, error: "not_found" };
+  }
+
+  let shared = false;
+  let shared_new = false;
+  if (shouldShare) {
+    shared_new = Number(batchResults[1]?.meta?.changes ?? 0) > 0;
+    shared = shared_new || (await isJpVocabWordSharedToday(db, wordId));
   }
 
   await markJpVocabWordRoundChecked(db, wordId);
 
-  return { ok: true, word: updated };
+  return { ok: true, word: updated, shared, shared_new };
 }
 
 export type ResetJpVocabReviewsResult =

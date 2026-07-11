@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, allowed } = await requireJpVocabAccess(request);
+    const { env, user, allowed } = await requireJpVocabAccess(request);
     if (!allowed) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
@@ -134,14 +134,22 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "level_invalid" }, 400);
     }
 
-    const result = await recordJpVocabReview(env.DB, wordId, level);
+    const result = await recordJpVocabReview(env.DB, wordId, level, {
+      shareToStudy: true,
+      sharedBy: user?.username ?? "",
+    });
 
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400;
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    return jsonResponse({ ok: true, word: result.word });
+    return jsonResponse({
+      ok: true,
+      word: result.word,
+      shared: result.shared,
+      shared_new: result.shared_new,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === "no_release_candidates") {

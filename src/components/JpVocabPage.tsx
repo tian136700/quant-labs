@@ -855,7 +855,7 @@ export function JpVocabPage() {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
-  if (savingId === wordId) return;
+    if (savingId === wordId || shareProgress) return;
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -868,17 +868,47 @@ export function JpVocabPage() {
         nowMs,
       }) ?? undefined;
     const displayOrderSnapshot = displayOrderRef.current;
+    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
+    const wasAlreadyShared = sharedTodayWordIds.has(wordId);
+
+    const startedAt = Date.now();
+    setShareProgress({ wordId, percent: 0 });
+    setStatus("正在同步到学生端…");
+    shareProgressTimerRef.current = setInterval(() => {
+      setShareProgress({
+        wordId,
+        percent: jpVocabShareProgressPercent(Date.now() - startedAt),
+      });
+    }, 200);
+
+    const clearShareTimer = () => {
+      if (shareProgressTimerRef.current) {
+        clearInterval(shareProgressTimerRef.current);
+        shareProgressTimerRef.current = null;
+      }
+    };
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
     setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
     setHighlightId(wordId);
-    setStatus("");
     setWords((prev) =>
       prev.map((w) =>
         w.id === wordId ? bumpWordReview(w, level, prevLevel) : w
       )
     );
+    if (!wasAlreadyShared) {
+      const nextSharedIds = [...sharedIdsSnapshot, wordId];
+      setSharedTodayWordIds(new Set(nextSharedIds));
+      persistVocabCache(
+        wordsRef.current.map((w) =>
+          w.id === wordId ? bumpWordReview(w, level, prevLevel) : w
+        ),
+        refsRef.current,
+        markJpVocabRoundChecked(displayOrderSnapshot, wordId),
+        nextSharedIds
+      );
+    }
     setSavingId(wordId);
 
     try {
@@ -895,6 +925,8 @@ export function JpVocabPage() {
         const data = (await res.json()) as {
           ok: boolean;
           word?: JpVocabWord;
+          shared?: boolean;
+          shared_new?: boolean;
           error?: string;
         };
         if (res.status === 401) {
@@ -906,13 +938,41 @@ export function JpVocabPage() {
             data.error || (locale === "zh" ? "保存失败" : "Save failed");
           throw new Error(msg);
         }
+
+        clearShareTimer();
+        await animateJpVocabShareProgressTo100(wordId, startedAt, setShareProgress);
+
+        const nextSharedIds =
+          data.shared && !sharedTodayWordIdsRef.current.has(wordId)
+            ? [...sharedTodayWordIdsRef.current, wordId]
+            : [...sharedTodayWordIdsRef.current];
+
         setWords((prev) => {
           const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistVocabCache(next, refs, displayOrderRef.current);
+          persistVocabCache(
+            next,
+            refsRef.current,
+            displayOrderRef.current,
+            nextSharedIds
+          );
           return next;
         });
+        if (data.shared) {
+          setSharedTodayWordIds(new Set(nextSharedIds));
+        }
+        setShareProgress(null);
+        setStatus(
+          data.shared_new
+            ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
+            : data.shared
+              ? "已更新熟悉程度，学生端已同步。"
+              : "熟悉程度已保存。"
+        );
+        notifyJpVocabSharedUpdated({ wordId });
       });
     } catch (err) {
+      clearShareTimer();
+      setShareProgress(null);
       if (snapshot) {
         setWords((prev) =>
           prev.map((w) => (w.id === wordId ? snapshot : w))
@@ -931,6 +991,15 @@ export function JpVocabPage() {
         else delete next[wordId];
         return next;
       });
+      if (!wasAlreadyShared) {
+        setSharedTodayWordIds(new Set(sharedIdsSnapshot));
+        persistVocabCache(
+          wordsRef.current,
+          refsRef.current,
+          displayOrderSnapshot,
+          sharedIdsSnapshot
+        );
+      }
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingId(null);
@@ -1427,7 +1496,9 @@ export function JpVocabPage() {
             <strong>系统自动标记为不熟悉</strong>），供学生复习。
           </>
         ) : (
-          "按序号抽查 → 提问后勾选熟悉程度。"
+          <>
+            按序号抽查 → 提问后勾选熟悉程度，自动同步到学生「今日日语单词」（学生端仅可查看，不可改选）。
+          </>
         )}
       </p>
 
@@ -1993,7 +2064,26 @@ export function JpVocabPage() {
                         </span>
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
-                        {!inQuizTarget ? (
+                        {isSharing ? (
+                          <div className="jp-vocab-share-progress" aria-live="polite">
+                            <span className="jp-vocab-share-progress-label">
+                              正在同步到学生端…
+                            </span>
+                            <div
+                              className="jp-vocab-share-progress-track"
+                              role="progressbar"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={sharingPercent}
+                              aria-label="同步到学生端进度"
+                            >
+                              <div
+                                className="jp-vocab-share-progress-fill"
+                                style={{ width: `${sharingPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : !inQuizTarget ? (
                           <span
                             className="jp-vocab-level-unavailable"
                             title={`仅今日序号 1–${quizTarget} 可勾选熟悉程度`}
