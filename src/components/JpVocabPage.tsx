@@ -39,6 +39,10 @@ import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizComp
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import { JpVocabTeacherQuizModeModal } from "@/components/JpVocabTeacherQuizModeModal";
+import {
+  JpVocabTeacherQuizIntroModal,
+  shouldShowJpVocabTeacherQuizIntro,
+} from "@/components/JpVocabTeacherQuizIntroModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
 import {
   createJpVocabTeacherQuizSession,
@@ -336,6 +340,9 @@ export function JpVocabPage() {
   const [showQuizModeModal, setShowQuizModeModal] = useState(false);
   const [pendingQuizWordId, setPendingQuizWordId] = useState<number | null>(null);
   const [showQuizFlashcard, setShowQuizFlashcard] = useState(false);
+  const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
+  const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
+    useState<JpVocabTeacherQuizSession | null>(null);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
       readVocabCache()?.teacher_visible_limit ??
@@ -952,7 +959,12 @@ export function JpVocabPage() {
     return null;
   }, [wordSyncState]);
 
-  const startTeacherQuizSession = useCallback(
+  const launchTeacherQuizSession = useCallback((session: JpVocabTeacherQuizSession) => {
+    setQuizSession(session);
+    setShowQuizFlashcard(true);
+  }, []);
+
+  const requestTeacherQuizSession = useCallback(
     (mode: JpVocabTeacherQuizMode, startWordId?: number) => {
       const next = createJpVocabTeacherQuizSession(
         mode,
@@ -968,19 +980,38 @@ export function JpVocabPage() {
         );
         return;
       }
-      setQuizSession(next);
-      setShowQuizFlashcard(true);
+      if (user && shouldShowJpVocabTeacherQuizIntro(user.id)) {
+        setPendingTeacherQuizSession(next);
+        setShowTeacherQuizIntro(true);
+        return;
+      }
+      launchTeacherQuizSession(next);
     },
-    [quizTargetWords, dailySeqByWordId, quizTarget]
+    [quizTargetWords, dailySeqByWordId, quizTarget, user, launchTeacherQuizSession]
   );
+
+  const handleTeacherQuizIntroConfirm = useCallback(() => {
+    if (!pendingTeacherQuizSession) {
+      setShowTeacherQuizIntro(false);
+      return;
+    }
+    launchTeacherQuizSession(pendingTeacherQuizSession);
+    setPendingTeacherQuizSession(null);
+    setShowTeacherQuizIntro(false);
+  }, [pendingTeacherQuizSession, launchTeacherQuizSession]);
+
+  const handleTeacherQuizIntroClose = useCallback(() => {
+    setPendingTeacherQuizSession(null);
+    setShowTeacherQuizIntro(false);
+  }, []);
 
   const handleTeacherQuizModeSelected = useCallback(
     (mode: JpVocabTeacherQuizMode) => {
       setShowQuizModeModal(false);
-      startTeacherQuizSession(mode, pendingQuizWordId ?? undefined);
+      requestTeacherQuizSession(mode, pendingQuizWordId ?? undefined);
       setPendingQuizWordId(null);
     },
-    [pendingQuizWordId, startTeacherQuizSession]
+    [pendingQuizWordId, requestTeacherQuizSession]
   );
 
   /** 选定正序/随机模式并进入抽查卡片后，即视为抽查进行中（无需先勾选一词） */
@@ -1945,7 +1976,7 @@ export function JpVocabPage() {
                       setStatus("继续今日抽查…");
                       return;
                     }
-                    startTeacherQuizSession("sequential");
+                    requestTeacherQuizSession("sequential");
                   }}
                   disabled={loading}
                   title={
@@ -1965,7 +1996,7 @@ export function JpVocabPage() {
                       setStatus("继续今日抽查…");
                       return;
                     }
-                    startTeacherQuizSession("random");
+                    requestTeacherQuizSession("random");
                   }}
                   disabled={loading || teacherQuizInProgress}
                   title={
@@ -2904,6 +2935,15 @@ export function JpVocabPage() {
         }}
         onSelect={handleTeacherQuizModeSelected}
       />
+
+      {user ? (
+        <JpVocabTeacherQuizIntroModal
+          userId={user.id}
+          open={showTeacherQuizIntro}
+          onConfirm={handleTeacherQuizIntroConfirm}
+          onClose={handleTeacherQuizIntroClose}
+        />
+      ) : null}
 
       <JpVocabTeacherQuizFlashcardModal
         open={showQuizFlashcard}
