@@ -940,8 +940,11 @@ export function JpVocabPage() {
     [pendingQuizWordId, startTeacherQuizSession]
   );
 
+  /** 今日目标范围内至少勾选一词后，视为抽查已开始，锁定列表并固定模式 */
+  const teacherQuizInProgress = quizSession != null && hasAnyQuizLevelToday;
+
   /** 抽查卡片会话进行中：列表内不可改选，仅能在卡片里用「上一个」修改 */
-  const teacherQuizLocksTable = quizSession != null;
+  const teacherQuizLocksTable = teacherQuizInProgress;
 
   const quizWordHasLevel = useCallback(
     (wordId: number) => {
@@ -1894,7 +1897,7 @@ export function JpVocabPage() {
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--primary"
                   onClick={() => {
-                    if (quizSession) {
+                    if (teacherQuizInProgress) {
                       resumeTeacherQuizFlashcard();
                       setStatus("继续今日抽查…");
                       return;
@@ -1903,27 +1906,27 @@ export function JpVocabPage() {
                   }}
                   disabled={loading}
                   title={
-                    quizSession
+                    teacherQuizInProgress
                       ? "继续抽查卡片"
                       : `按今日序号 1–${quizTarget} 逐词抽查`
                   }
                 >
-                  {quizSession ? "继续抽查" : "正序抽查"}
+                  {teacherQuizInProgress ? "继续抽查" : "正序抽查"}
                 </button>
                 <button
                   type="button"
                   className="btn-rsi-filter"
                   onClick={() => {
-                    if (quizSession) {
+                    if (teacherQuizInProgress) {
                       resumeTeacherQuizFlashcard();
                       setStatus("继续今日抽查…");
                       return;
                     }
                     startTeacherQuizSession("random");
                   }}
-                  disabled={loading || quizSession != null}
+                  disabled={loading || teacherQuizInProgress}
                   title={
-                    quizSession
+                    teacherQuizInProgress
                       ? "抽查进行中，请点「继续抽查」"
                       : "打乱今日可抽查词条顺序"
                   }
