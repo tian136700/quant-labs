@@ -397,8 +397,19 @@ export function JpVocabStudyPage() {
         setRefs((prev) => ({ ...prev, ...data.refs }));
       }
       knownSharedWordIdsRef.current.add(data.item.word_id);
+      setItems((prev) => {
+        const next = data.item!;
+        const existingIndex = prev.findIndex((item) => item.word_id === next.word_id);
+        if (existingIndex >= 0) {
+          const copy = [...prev];
+          copy[existingIndex] = next;
+          return copy;
+        }
+        return [next, ...prev];
+      });
+      hasLoadedOnceRef.current = true;
       setFlashcardItem(data.item);
-      setStatus("已打开老师正在抽查的单词。");
+      setStatus("已打开老师正在抽查的单词，并加入今日列表。");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "暂时无法查看，请稍后再试。");
     } finally {
