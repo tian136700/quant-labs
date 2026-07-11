@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
@@ -38,6 +39,10 @@ type Props = {
   reviewLockedByWordId: Record<number, boolean>;
   savingWordId: number | null;
   dailySeqByWordId: ReadonlyMap<number, number>;
+  canOperate?: boolean;
+  shareUiEnabled?: boolean;
+  shareProgressMap?: Record<number, number>;
+  sharedTodayWordIds?: ReadonlySet<number>;
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
@@ -45,6 +50,10 @@ type Props = {
   onNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
   onViewRemarks: (word: JpVocabWord) => void;
+  onEditRemarks?: (word: JpVocabWord) => void;
+  onEditWord?: (word: JpVocabWord) => void;
+  onShare?: (wordId: number) => void;
+  onUnshare?: (wordId: number) => void;
   onWordUpdated?: (word: JpVocabWord) => void;
   nestedModalOpen?: boolean;
 };
@@ -60,12 +69,20 @@ export function JpVocabTeacherQuizFlashcardModal({
   reviewLockedByWordId,
   savingWordId,
   dailySeqByWordId,
+  canOperate = false,
+  shareUiEnabled = false,
+  shareProgressMap = {},
+  sharedTodayWordIds,
   onClose,
   onComplete,
   onSelectLevel,
   onNavigate,
   onOpenRef,
   onViewRemarks,
+  onEditRemarks,
+  onEditWord,
+  onShare,
+  onUnshare,
   onWordUpdated,
   nestedModalOpen = false,
 }: Props) {
@@ -178,6 +195,9 @@ export function JpVocabTeacherQuizFlashcardModal({
   const canGoPrev = session.currentIndex > 0;
   const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = session.currentIndex === session.wordIds.length - 1;
+  const isSharing = w.id in shareProgressMap;
+  const sharingPercent = shareProgressMap[w.id] ?? 0;
+  const isShared = sharedTodayWordIds?.has(w.id) ?? false;
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -234,79 +254,199 @@ export function JpVocabTeacherQuizFlashcardModal({
             <div className="jp-vocab-teacher-quiz__reading-row">
               <span className="jp-vocab-teacher-quiz__reading">{readingTrim}</span>
               {showKanjiAside ? (
-                <span className="jp-vocab-teacher-quiz__kanji">{wordTrim}</span>
+                w.ref_key ? (
+                  <button
+                    type="button"
+                    className="jp-vocab-teacher-quiz__word-link"
+                    title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                    onClick={() => onOpenRef(w.ref_key!, ref)}
+                  >
+                    {wordTrim}
+                  </button>
+                ) : (
+                  <span className="jp-vocab-teacher-quiz__kanji">{wordTrim}</span>
+                )
               ) : null}
             </div>
+          ) : w.ref_key ? (
+            <button
+              type="button"
+              className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main"
+              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+              onClick={() => onOpenRef(w.ref_key!, ref)}
+            >
+              {wordTrim || "—"}
+            </button>
           ) : (
-            <span className="jp-vocab-teacher-quiz__word-main">{wordTrim}</span>
+            <span className="jp-vocab-teacher-quiz__word-main">{wordTrim || "—"}</span>
           )}
-          {!showReadingPrimary && !wordTrim ? (
-            <span className="jp-vocab-teacher-quiz__word-main jp-vocab-teacher-quiz__empty">
-              —
-            </span>
+          {w.ref_key ? (
+            <span className="jp-vocab-teacher-quiz__ref-hint">（点击查看教案）</span>
           ) : null}
         </div>
 
-        <dl className="jp-vocab-teacher-quiz__meta">
-          {meaningTrim ? (
-            <>
-              <dt>释义</dt>
-              <dd>{meaningTrim}</dd>
-            </>
-          ) : null}
-          {posTrim ? (
-            <>
-              <dt>词性</dt>
-              <dd>{posTrim}</dd>
-            </>
-          ) : null}
-          {readingTrim && !showReadingPrimary ? (
-            <>
-              <dt>读音</dt>
-              <dd>{readingTrim}</dd>
-            </>
-          ) : null}
-        </dl>
+        <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
+          <dl className="jp-vocab-teacher-quiz__meta">
+            <dt>释义</dt>
+            <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
+              {meaningTrim || "待补全"}
+            </dd>
+            <dt>词性</dt>
+            <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
+              {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : "—"}
+            </dd>
+            <dt>读音</dt>
+            <dd
+              className={
+                readingTrim || w.kind !== "word"
+                  ? ""
+                  : "jp-vocab-teacher-quiz__meta-empty"
+              }
+            >
+              {readingTrim || (w.kind === "word" ? "待补全" : "—")}
+            </dd>
+          </dl>
+        </section>
+
+        {canOperate ? (
+          <section className="jp-vocab-teacher-quiz__actions" aria-label="词条操作">
+            <div className="jp-vocab-teacher-quiz__actions-row">
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                onClick={() => onEditWord?.(w)}
+              >
+                编辑
+              </button>
+              {w.ref_key ? (
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                  title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                  onClick={() => onOpenRef(w.ref_key!, ref)}
+                >
+                  查看教案
+                </button>
+              ) : null}
+            </div>
+            {shareUiEnabled ? (
+              <div className="jp-vocab-teacher-quiz__share">
+                {isShared ? (
+                  <button
+                    type="button"
+                    className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-teacher-quiz__action-btn${
+                      reviewLocked ? " jp-vocab-share-btn--locked" : ""
+                    }`}
+                    disabled={isSaving || isSharing || reviewLocked}
+                    title={
+                      reviewLocked
+                        ? "勾选已满 1 小时，无法再操作"
+                        : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                    }
+                    onClick={() => onUnshare?.(w.id)}
+                  >
+                    取消共享
+                  </button>
+                ) : isSharing ? (
+                  <div className="jp-vocab-share-progress" aria-live="polite">
+                    <span className="jp-vocab-share-progress-label">
+                      正在发给学生，传输中…
+                    </span>
+                    <div
+                      className="jp-vocab-share-progress-track"
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={sharingPercent}
+                      aria-label="发给学生进度"
+                    >
+                      <div
+                        className="jp-vocab-share-progress-fill"
+                        style={{ width: `${sharingPercent}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="jp-vocab-teacher-quiz__share-stack">
+                    <button
+                      type="button"
+                      className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-teacher-quiz__action-btn${
+                        reviewLocked ? " jp-vocab-share-btn--locked" : ""
+                      }`}
+                      disabled={isSaving || isSharing || reviewLocked}
+                      title={
+                        reviewLocked
+                          ? "勾选已满 1 小时，无法再发给学生"
+                          : "发给学生「今日日语单词」，并标记为不熟悉"
+                      }
+                      onClick={() => onShare?.(w.id)}
+                    >
+                      发给学生
+                    </button>
+                    {!reviewLocked ? (
+                      <span className="jp-vocab-teacher-quiz__share-hint" role="note">
+                        学生答不上来或不熟悉时，点此发送给他
+                      </span>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <div className="jp-vocab-teacher-quiz__level">
           <span className="jp-vocab-teacher-quiz__level-label">
             熟悉程度（须勾选后才能下一词）
           </span>
-          <div className="jp-vocab-teacher-quiz__levels" role="group" aria-label="熟悉程度">
-            {LEVELS.map((lv) => {
-              const checked = selected === lv.key;
-              const levelDisabled = reviewLocked || isSaving;
-              return (
-                <button
-                  key={lv.key}
-                  type="button"
-                  className={`jp-vocab-teacher-quiz__level-opt${
-                    checked ? " is-checked" : ""
-                  }${reviewLocked ? " is-locked" : ""}${
-                    lv.key === "very" ? " jp-vocab-teacher-quiz__level-opt--very" : ""
-                  }${lv.key === "weak" ? " jp-vocab-teacher-quiz__level-opt--weak" : ""}`}
-                  disabled={levelDisabled}
-                  aria-pressed={checked}
-                  title={
-                    reviewLocked
-                      ? "勾选已满 1 小时，无法再修改"
-                      : checked
-                        ? "今日已选此项，可点其他选项改选"
-                        : "勾选熟悉程度"
-                  }
-                  onClick={() => {
-                    if (levelDisabled) return;
-                    setNextBlockedHint(false);
-                    onSelectLevel(w.id, lv.key);
-                  }}
-                >
-                  <span className="jp-vocab-teacher-quiz__check" aria-hidden="true">
-                    {checked ? "✓" : ""}
-                  </span>
-                  {lv.label}
-                </button>
-              );
-            })}
+          <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
+            <div className="jp-vocab-levels" role="group" aria-label="熟悉程度">
+              {LEVELS.map((lv) => {
+                const checked = selected === lv.key;
+                const levelDisabled = reviewLocked || isSaving;
+                return (
+                  <button
+                    key={lv.key}
+                    type="button"
+                    className={`jp-vocab-level-opt${
+                      checked ? " is-checked" : ""
+                    }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
+                      lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                    }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
+                    disabled={levelDisabled}
+                    aria-pressed={checked}
+                    title={
+                      reviewLocked
+                        ? "勾选已满 1 小时，无法再修改"
+                        : checked
+                          ? "今日已选此项，可点其他选项改选"
+                          : "勾选熟悉程度"
+                    }
+                    onClick={() => {
+                      if (levelDisabled) return;
+                      setNextBlockedHint(false);
+                      onSelectLevel(w.id, lv.key);
+                    }}
+                  >
+                    <span className="jp-vocab-check-box" aria-hidden="true">
+                      {checked ? (
+                        <svg viewBox="0 0 12 12" width="10" height="10">
+                          <path
+                            d="M2 6l3 3 5-5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      ) : null}
+                    </span>
+                    <span>{lv.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {nextBlockedHint && !selected ? (
             <p className="jp-vocab-teacher-quiz__level-hint" role="alert">
@@ -359,58 +499,68 @@ export function JpVocabTeacherQuizFlashcardModal({
           </div>
         </div>
 
-        {hasNotes ? (
+        {hasNotes || canOperate ? (
           <section className="jp-vocab-teacher-quiz__notes">
             <div className="jp-vocab-teacher-quiz__notes-head">
               <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
-              {!notesInline ? (
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => onViewRemarks(w)}
-                >
-                  查看
-                </button>
-              ) : null}
-            </div>
-            {notesInline ? (
-              <div className="jp-vocab-teacher-quiz__notes-body">
-                <JpVocabClassNoteContent content={w.class_notes || ""} />
+              <div className="jp-vocab-teacher-quiz__notes-actions">
+                {hasNotes ? (
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                    onClick={() => onViewRemarks(w)}
+                  >
+                    查看
+                  </button>
+                ) : null}
+                {canOperate ? (
+                  <JpEditIconButton
+                    title="编辑备注"
+                    className="jp-vocab-teacher-quiz__notes-edit-btn"
+                    onClick={() => onEditRemarks?.(w)}
+                  />
+                ) : null}
               </div>
-            ) : null}
+            </div>
+            {hasNotes ? (
+              notesInline ? (
+                <div className="jp-vocab-teacher-quiz__notes-body">
+                  <JpVocabClassNoteContent content={w.class_notes || ""} />
+                </div>
+              ) : (
+                <p className="jp-vocab-teacher-quiz__notes-preview">备注较长，请点「查看」</p>
+              )
+            ) : (
+              <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
+                {canOperate ? "暂无备注，可点铅笔图标编辑" : "暂无备注"}
+              </p>
+            )}
           </section>
         ) : null}
-
-        <footer className="jp-vocab-teacher-quiz__footer">
-          {w.ref_key ? (
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__ref-btn"
-              onClick={() => onOpenRef(w.ref_key!, ref)}
-            >
-              {ref?.title ? `教案：${ref.title}` : "查看教案"}
-            </button>
-          ) : null}
-        </footer>
 
         <div className="jp-vocab-teacher-quiz__nav">
           <button
             type="button"
-            className="btn-rsi-filter jp-vocab-teacher-quiz__nav-btn"
+            className="btn-rsi-filter jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--prev"
             disabled={!canGoPrev}
             onClick={() => onNavigate(session.currentIndex - 1)}
           >
-            上一个
+            <span className="jp-vocab-teacher-quiz__nav-btn-main">上一个</span>
           </button>
           <button
             type="button"
-            className={`btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn${
+            className={`btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
               !selected ? " jp-vocab-teacher-quiz__nav-btn--blocked" : ""
             }`}
             disabled={isSaving}
             onClick={tryGoNext}
           >
-            {isLast ? "完成" : "下一个"}
+            <span className="jp-vocab-teacher-quiz__nav-btn-main">
+              {isLast ? "完成抽查" : "下一个"}
+            </span>
+            {!isLast ? (
+              <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
+            ) : null}
           </button>
         </div>
       </article>
@@ -428,8 +578,8 @@ export function JpVocabTeacherQuizFlashcardModal({
           backdrop-filter: blur(8px);
         }
         .jp-vocab-teacher-quiz-card {
-          width: min(28rem, 96vw);
-          max-height: min(90vh, 44rem);
+          width: min(32rem, 96vw);
+          max-height: min(90vh, 48rem);
           overflow: auto;
           display: flex;
           flex-direction: column;
@@ -524,14 +674,36 @@ export function JpVocabTeacherQuizFlashcardModal({
           font-weight: 700;
           line-height: 1.25;
         }
-        .jp-vocab-teacher-quiz__empty {
+        .jp-vocab-teacher-quiz__word-link {
+          border: none;
+          background: transparent;
+          padding: 0;
+          font: inherit;
+          color: var(--accent);
+          cursor: pointer;
+          text-decoration: underline;
+          text-underline-offset: 0.15em;
+        }
+        .jp-vocab-teacher-quiz__word-link:hover {
+          color: color-mix(in srgb, var(--accent) 80%, #fff);
+        }
+        .jp-vocab-teacher-quiz__ref-hint {
+          display: block;
+          margin-top: 0.25rem;
+          font-size: 0.75rem;
           color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__info {
+          padding: 0.65rem 0.75rem;
+          border-radius: 10px;
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
         }
         .jp-vocab-teacher-quiz__meta {
           margin: 0;
           display: grid;
-          grid-template-columns: auto 1fr;
-          gap: 0.25rem 0.65rem;
+          grid-template-columns: 3.25rem 1fr;
+          gap: 0.35rem 0.75rem;
           font-size: 0.9375rem;
           line-height: 1.5;
         }
@@ -539,9 +711,92 @@ export function JpVocabTeacherQuizFlashcardModal({
           margin: 0;
           color: var(--muted);
           white-space: nowrap;
+          font-weight: 500;
         }
         .jp-vocab-teacher-quiz__meta dd {
           margin: 0;
+          color: var(--text);
+        }
+        .jp-vocab-teacher-quiz__meta-empty {
+          color: var(--muted);
+          font-style: italic;
+        }
+        .jp-vocab-teacher-quiz__pos {
+          display: inline-block;
+          padding: 0.1rem 0.45rem;
+          border-radius: 999px;
+          border: 1px solid var(--border);
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__actions {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          padding: 0.65rem 0.75rem;
+          border-radius: 10px;
+          border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+          background: color-mix(in srgb, var(--accent) 4%, var(--bg));
+        }
+        .jp-vocab-teacher-quiz__actions-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.4rem 0.5rem;
+        }
+        .jp-vocab-teacher-quiz__action-btn {
+          min-height: 2rem;
+        }
+        .jp-vocab-teacher-quiz__share {
+          width: 100%;
+        }
+        .jp-vocab-teacher-quiz__share-stack {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.25rem;
+        }
+        .jp-vocab-teacher-quiz__share-hint {
+          font-size: 0.75rem;
+          line-height: 1.4;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.3rem;
+          width: 100%;
+          padding: 0.35rem 0.45rem;
+          border-radius: 6px;
+          border: 1px solid color-mix(in srgb, #f0a840 45%, var(--border));
+          background: color-mix(in srgb, var(--panel) 90%, #f0a840 10%);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress-label {
+          font-size: 0.75rem;
+          line-height: 1.3;
+          color: #f0a840;
+          text-align: center;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress-track {
+          height: 0.4rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--border) 70%, transparent);
+          overflow: hidden;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress-fill {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(
+            90deg,
+            color-mix(in srgb, #f0a840 80%, #fff),
+            #f0a840
+          );
+          transition: width 0.2s linear;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn):hover {
+          color: #ffc860;
+          border-color: color-mix(in srgb, #f0a840 65%, var(--border));
         }
         .jp-vocab-teacher-quiz__level {
           padding: 0.65rem 0.7rem;
@@ -555,46 +810,82 @@ export function JpVocabTeacherQuizFlashcardModal({
           font-size: 0.75rem;
           color: var(--muted);
         }
-        .jp-vocab-teacher-quiz__levels {
+        .jp-vocab-teacher-quiz__level-wrap {
+          width: 100%;
+          align-items: stretch;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-wrap {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.2rem;
+          max-width: 100%;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-levels {
           display: flex;
           flex-wrap: wrap;
+          justify-content: center;
           gap: 0.35rem 0.5rem;
+          min-width: 0;
+          width: 100%;
         }
-        .jp-vocab-teacher-quiz__level-opt {
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt {
           display: inline-flex;
           align-items: center;
-          gap: 0.35rem;
-          padding: 0.35rem 0.6rem;
-          border-radius: 6px;
-          font-size: 0.8125rem;
-          border: 1px solid var(--border);
-          color: var(--muted);
-          background: var(--bg);
+          gap: 0.4rem;
+          font-size: 0.875rem;
           cursor: pointer;
+          white-space: nowrap;
+          padding: 0.45rem 0.65rem;
+          border-radius: 6px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--text);
+          font: inherit;
+          line-height: 1.3;
+          min-height: 2.25rem;
         }
-        .jp-vocab-teacher-quiz__level-opt:disabled {
+        .jp-vocab-teacher-quiz-card .jp-vocab-check-box {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 1.125rem;
+          height: 1.125rem;
+          flex-shrink: 0;
+          border: 1.5px solid var(--border);
+          border-radius: 3px;
+          background: var(--bg);
+          color: var(--accent);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked .jp-vocab-check-box {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--very.is-checked {
+          color: var(--fall);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--very.is-checked .jp-vocab-check-box {
+          border-color: var(--fall);
+          background: color-mix(in srgb, var(--fall) 18%, var(--bg));
+          color: var(--fall);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--weak.is-checked {
+          color: var(--rise);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--weak.is-checked .jp-vocab-check-box {
+          border-color: var(--rise);
+          background: color-mix(in srgb, var(--rise) 18%, var(--bg));
+          color: var(--rise);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked {
+          background: rgba(61, 139, 253, 0.08);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.04);
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:disabled {
           opacity: 0.55;
           cursor: not-allowed;
-        }
-        .jp-vocab-teacher-quiz__level-opt.is-checked {
-          color: var(--accent);
-          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-          background: color-mix(in srgb, var(--accent) 10%, var(--bg));
-        }
-        .jp-vocab-teacher-quiz__level-opt--very.is-checked {
-          color: var(--fall);
-          border-color: color-mix(in srgb, var(--fall) 45%, var(--border));
-          background: color-mix(in srgb, var(--fall) 10%, var(--bg));
-        }
-        .jp-vocab-teacher-quiz__level-opt--weak.is-checked {
-          color: var(--rise);
-          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
-          background: color-mix(in srgb, var(--rise) 10%, var(--bg));
-        }
-        .jp-vocab-teacher-quiz__check {
-          width: 1rem;
-          text-align: center;
-          font-weight: 700;
         }
         .jp-vocab-teacher-quiz__level-hint {
           margin: 0.45rem 0 0;
@@ -657,21 +948,27 @@ export function JpVocabTeacherQuizFlashcardModal({
           gap: 0.5rem;
           margin-bottom: 0.45rem;
         }
+        .jp-vocab-teacher-quiz__notes-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
         .jp-vocab-teacher-quiz__notes-title {
           margin: 0;
           font-size: 0.8125rem;
           font-weight: 600;
           color: var(--muted);
         }
+        .jp-vocab-teacher-quiz__notes-preview {
+          margin: 0;
+          font-size: 0.8125rem;
+          line-height: 1.5;
+          color: var(--muted);
+        }
         .jp-vocab-teacher-quiz__notes-body {
           max-height: 8rem;
           overflow: auto;
           font-size: 0.875rem;
-        }
-        .jp-vocab-teacher-quiz__footer {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.45rem;
         }
         .jp-vocab-teacher-quiz__nav {
           display: flex;
@@ -681,9 +978,126 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz__nav-btn {
           flex: 1 1 0;
           min-width: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.1rem;
+          min-height: 2.5rem;
+        }
+        .jp-vocab-teacher-quiz__nav-btn-main {
+          font-size: 0.9375rem;
+          font-weight: 600;
+          line-height: 1.2;
+        }
+        .jp-vocab-teacher-quiz__nav-btn-sub {
+          display: none;
+          font-size: 0.6875rem;
+          font-weight: 400;
+          opacity: 0.85;
+          line-height: 1.2;
         }
         .jp-vocab-teacher-quiz__nav-btn--blocked:not(:disabled) {
           opacity: 0.85;
+        }
+        @media (max-width: 768px) {
+          .jp-vocab-teacher-quiz-overlay {
+            align-items: flex-end;
+            padding: 0;
+          }
+          .jp-vocab-teacher-quiz-card {
+            width: 100%;
+            max-height: 92vh;
+            border-radius: 16px 16px 0 0;
+            padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-levels {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0;
+            border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+            border-radius: 10px;
+            overflow: hidden;
+            background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt {
+            min-height: 3rem;
+            padding: 0.5rem 0.35rem;
+            flex: 1 1 0;
+            justify-content: center;
+            font-size: clamp(0.75rem, 3.2vw, 0.875rem);
+            font-weight: 500;
+            border: none;
+            border-radius: 0;
+            border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+            background: transparent;
+            white-space: nowrap;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:last-child {
+            border-right: none;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-check-box {
+            display: none;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt.is-checked {
+            background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+            color: var(--accent);
+            font-weight: 700;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--very.is-checked {
+            background: color-mix(in srgb, var(--fall) 16%, var(--panel));
+            color: var(--fall);
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--weak.is-checked {
+            background: color-mix(in srgb, var(--rise) 16%, var(--panel));
+            color: var(--rise);
+          }
+          .jp-vocab-teacher-quiz__actions-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.45rem;
+            width: 100%;
+          }
+          .jp-vocab-teacher-quiz__action-btn {
+            width: 100%;
+            min-height: 2.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+          }
+          .jp-vocab-teacher-quiz__share-stack .jp-vocab-teacher-quiz__action-btn {
+            width: 100%;
+          }
+          .jp-vocab-teacher-quiz__nav {
+            position: sticky;
+            bottom: 0;
+            z-index: 1;
+            gap: 0.65rem;
+            margin: 0 -0.15rem;
+            padding: 0.75rem 0.15rem 0.35rem;
+            background: linear-gradient(
+              180deg,
+              transparent 0%,
+              color-mix(in srgb, var(--panel) 88%, transparent) 28%,
+              var(--panel) 100%
+            );
+          }
+          .jp-vocab-teacher-quiz__nav-btn {
+            min-height: 3.25rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: 10px;
+          }
+          .jp-vocab-teacher-quiz__nav-btn--prev {
+            flex: 0 0 5.5rem;
+          }
+          .jp-vocab-teacher-quiz__nav-btn--next {
+            flex: 1 1 auto;
+          }
+          .jp-vocab-teacher-quiz__nav-btn-main {
+            font-size: 1rem;
+          }
+          .jp-vocab-teacher-quiz__nav-btn-sub {
+            display: block;
+          }
         }
       `}</style>
     </div>,

@@ -2873,6 +2873,10 @@ export function JpVocabPage() {
         reviewLockedByWordId={reviewLockedByWordId}
         savingWordId={quizFlashcardSavingWordId}
         dailySeqByWordId={dailySeqByWordId}
+        canOperate={canOperate}
+        shareUiEnabled={JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy}
+        shareProgressMap={shareProgressMap}
+        sharedTodayWordIds={sharedTodayWordIds}
         onClose={() => setShowQuizFlashcard(false)}
         onComplete={finishTeacherQuiz}
         onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}
@@ -2881,6 +2885,10 @@ export function JpVocabPage() {
         }
         onOpenRef={openRefPreview}
         onViewRemarks={setViewingRemarksWord}
+        onEditRemarks={setEditingRemarksWord}
+        onEditWord={setEditingWord}
+        onShare={(wordId) => void shareWord(wordId)}
+        onUnshare={(wordId) => void unshareWord(wordId)}
         onWordUpdated={handleWordSaved}
         nestedModalOpen={
           viewingRemarksWord != null ||
