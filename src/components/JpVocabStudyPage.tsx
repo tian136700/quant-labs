@@ -26,6 +26,7 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
+import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -54,7 +55,10 @@ export function JpVocabStudyPage() {
   const canViewStudy = canAccessJpVocabStudy;
   /** 学生与管理员可见；日语老师不可进复习页 */
   const showRequestTeacherShare =
-    Boolean(user) && canViewStudy && (!canOperate || isAdmin);
+    JP_VOCAB_SHARE_UI_ENABLED &&
+    Boolean(user) &&
+    canViewStudy &&
+    (!canOperate || isAdmin);
   const [items, setItems] = useState<JpVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
@@ -84,7 +88,9 @@ export function JpVocabStudyPage() {
       mode: "login",
       loginOnly: true,
       title: "登录 · 今日日语单词",
-      subtitle: "登录后可查看老师共享的单词，或请求老师发送。",
+      subtitle: JP_VOCAB_SHARE_UI_ENABLED
+        ? "登录后可查看老师共享的单词，或请求老师发送。"
+        : "登录后可查看老师共享的单词。",
     });
   }, [openAuthPanel]);
 

@@ -90,6 +90,7 @@ import {
   notifyJpVocabQuizTargetUpdated,
   subscribeJpVocabQuizTargetUpdated,
 } from "@/lib/jp-vocab-quiz-target-notify";
+import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -585,7 +586,7 @@ export function JpVocabPage() {
   }, [syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
-    if (!canOperate) return;
+    if (!canOperate || !JP_VOCAB_SHARE_UI_ENABLED) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1420,7 +1421,14 @@ export function JpVocabPage() {
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        按序号抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时<strong>系统自动标记为不熟悉</strong>），供学生复习。
+        {JP_VOCAB_SHARE_UI_ENABLED ? (
+          <>
+            按序号抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时
+            <strong>系统自动标记为不熟悉</strong>），供学生复习。
+          </>
+        ) : (
+          "按序号抽查 → 提问后勾选熟悉程度。"
+        )}
       </p>
 
       {!canOperate && !checking ? (
@@ -2156,7 +2164,7 @@ export function JpVocabPage() {
                                 </svg>
                                 编辑
                               </button>
-                              {canShareToStudy && inQuizTarget ? (
+                              {JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy && inQuizTarget ? (
                                 sharedTodayWordIds.has(w.id) ? (
                                     <button
                                       type="button"
@@ -2287,11 +2295,13 @@ export function JpVocabPage() {
         />
       ) : null}
 
-      <JpVocabShareRequestModal
-        open={showShareRequestModal}
-        requests={shareRequests}
-        onClose={() => void dismissShareRequests()}
-      />
+      {JP_VOCAB_SHARE_UI_ENABLED ? (
+        <JpVocabShareRequestModal
+          open={showShareRequestModal}
+          requests={shareRequests}
+          onClose={() => void dismissShareRequests()}
+        />
+      ) : null}
 
       <JpVocabRemarksViewModal
         open={viewingRemarksWord != null}
