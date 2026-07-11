@@ -3120,13 +3120,84 @@ export async function peekJpVocabTeacherQuizLiveWord(
     return { ok: false, error: "word_not_found" };
   }
 
+  const studentBy = studentUsername.trim();
+  const peekAt = now.toISOString();
   const nextLive: JpVocabTeacherQuizLive = {
     ...live,
     student_peek_word_id: wordId,
-    student_peek_by: studentUsername,
-    student_peek_at: now.toISOString(),
+    student_peek_by: studentBy,
+    student_peek_at: peekAt,
   };
   await saveJpVocabTeacherQuizLive(db, nextLive);
+
+  await ensureJpVocabSharedSchema(db);
+  const today = beijingDateString(now);
+  let sharedRow: { id: number; shared_by: string; shared_at: string };
+
+  if (devStoreEnabled) {
+    const existing = devShared.find(
+      (s) => s.share_date === today && s.word_id === wordId
+    );
+    if (existing) {
+      sharedRow = {
+        id: existing.id,
+        shared_by: existing.shared_by,
+        shared_at: existing.shared_at,
+      };
+    } else {
+      const id = devSharedNextId++;
+      devShared.push({
+        id,
+        word_id: wordId,
+        shared_by: studentBy,
+        shared_at: peekAt,
+        share_date: today,
+        auto_marked_level: null,
+      });
+      sharedRow = { id, shared_by: studentBy, shared_at: peekAt };
+    }
+  } else {
+    const existing = await db
+      .prepare(
+        `SELECT id, shared_by, shared_at FROM jp_vocab_shared
+         WHERE share_date = ?1 AND word_id = ?2
+         LIMIT 1`
+      )
+      .bind(today, wordId)
+      .first<{ id: number; shared_by: string; shared_at: string }>();
+
+    if (existing) {
+      sharedRow = {
+        id: Number(existing.id),
+        shared_by: String(existing.shared_by),
+        shared_at: String(existing.shared_at),
+      };
+    } else {
+      await db
+        .prepare(
+          `INSERT INTO jp_vocab_shared (word_id, shared_by, shared_at, share_date, auto_marked_level)
+           VALUES (?1, ?2, ?3, ?4, NULL)`
+        )
+        .bind(wordId, studentBy, peekAt, today)
+        .run();
+      const inserted = await db
+        .prepare(
+          `SELECT id, shared_by, shared_at FROM jp_vocab_shared
+           WHERE share_date = ?1 AND word_id = ?2
+           LIMIT 1`
+        )
+        .bind(today, wordId)
+        .first<{ id: number; shared_by: string; shared_at: string }>();
+      if (!inserted) {
+        return { ok: false, error: "word_not_found" };
+      }
+      sharedRow = {
+        id: Number(inserted.id),
+        shared_by: String(inserted.shared_by),
+        shared_at: String(inserted.shared_at),
+      };
+    }
+  }
 
   const refs: Record<string, JpVocabRef> = {};
   if (word.ref_key) {
@@ -3136,7 +3207,6 @@ export async function peekJpVocabTeacherQuizLiveWord(
     }
   }
 
-  const today = beijingDateString(now);
   const level =
     word.last_review_level === "very" ||
     word.last_review_level === "normal" ||
@@ -3145,10 +3215,10 @@ export async function peekJpVocabTeacherQuizLiveWord(
       : "normal";
 
   const item: JpVocabSharedItem = {
-    id: 0,
+    id: sharedRow.id,
     word_id: word.id,
-    shared_by: "teacher",
-    shared_at: now.toISOString(),
+    shared_by: sharedRow.shared_by,
+    shared_at: sharedRow.shared_at,
     share_date: today,
     level,
     word,

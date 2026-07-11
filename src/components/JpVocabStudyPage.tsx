@@ -61,6 +61,9 @@ export function JpVocabStudyPage() {
     Boolean(user) &&
     canViewStudy &&
     (!canOperate || isAdmin);
+  /** 学生自行查看老师当前抽查词（不依赖发给学生 UI 开关） */
+  const showPeekTeacherQuiz =
+    Boolean(user) && canViewStudy && (!canOperate || isAdmin);
   const [items, setItems] = useState<JpVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
@@ -81,6 +84,7 @@ export function JpVocabStudyPage() {
   const [saveQueuePending, setSaveQueuePending] = useState(0);
   const [requestingShare, setRequestingShare] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [peekingTeacherQuiz, setPeekingTeacherQuiz] = useState(false);
   const pollInFlightRef = useRef(false);
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
@@ -359,6 +363,50 @@ export function JpVocabStudyPage() {
     }
   }, [user, showRequestTeacherShare, requestingShare, locale, openJpAuth]);
 
+  const peekTeacherQuizWord = useCallback(async () => {
+    if (!user || !showPeekTeacherQuiz || peekingTeacherQuiz) return;
+    setPeekingTeacherQuiz(true);
+    try {
+      const res = await fetch("/api/jp-vocab/teacher-quiz-live", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+      });
+      const parsed = await readApiJson<{
+        ok: boolean;
+        error?: string;
+        item?: JpVocabSharedItem;
+        refs?: Record<string, JpVocabRef>;
+      }>(res);
+      if (!parsed.ok) {
+        setStatus(parsed.error || "暂时无法查看，请稍后再试。");
+        return;
+      }
+      const { data, status } = parsed;
+      if (status === 401) {
+        openJpAuth();
+        return;
+      }
+      if (!data.ok || !data.item) {
+        setStatus(data.error || "老师当前没有在抽查单词，请稍后再试。");
+        return;
+      }
+      if (data.refs) {
+        setRefs((prev) => ({ ...prev, ...data.refs }));
+      }
+      knownSharedWordIdsRef.current.add(data.item.word_id);
+      setFlashcardItem(data.item);
+      setStatus("已打开老师正在抽查的单词。");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "暂时无法查看，请稍后再试。");
+    } finally {
+      setPeekingTeacherQuiz(false);
+    }
+  }, [user, showPeekTeacherQuiz, peekingTeacherQuiz, locale, openJpAuth]);
+
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
 
@@ -376,6 +424,30 @@ export function JpVocabStudyPage() {
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
         老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
       </p>
+
+      {showPeekTeacherQuiz ? (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginBottom: showRequestTeacherShare ? "0.5rem" : "1rem",
+          }}
+        >
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--primary"
+            disabled={peekingTeacherQuiz}
+            onClick={() => void peekTeacherQuizWord()}
+          >
+            {peekingTeacherQuiz ? "加载中…" : "查看老师正在抽查的单词"}
+          </button>
+          <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+            没听清时，可立即查看老师当前正在抽问的单词。
+          </span>
+        </div>
+      ) : null}
 
       {showRequestTeacherShare ? (
         <div

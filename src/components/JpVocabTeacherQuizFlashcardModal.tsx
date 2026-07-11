@@ -46,6 +46,8 @@ type Props = {
   shareUiEnabled?: boolean;
   shareProgressMap?: Record<number, number>;
   sharedTodayWordIds?: ReadonlySet<number>;
+  /** 学生已自行查看老师当前抽查词 */
+  studentPeeked?: boolean;
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
@@ -77,6 +79,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   shareUiEnabled = false,
   shareProgressMap = {},
   sharedTodayWordIds,
+  studentPeeked = false,
   onClose,
   onComplete,
   onSelectLevel,
@@ -267,6 +270,12 @@ export function JpVocabTeacherQuizFlashcardModal({
             ×
           </button>
         </header>
+
+        {studentPeeked ? (
+          <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
+            该学生已查看该单词
+          </p>
+        ) : null}
 
         <div className="jp-vocab-teacher-quiz__hero" id="jp-vocab-teacher-quiz-title">
           {showReadingPrimary ? (
@@ -755,6 +764,18 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz__close-x:hover {
           color: var(--text);
           border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+        }
+        .jp-vocab-teacher-quiz__student-peek-hint {
+          margin: 0;
+          padding: 0.45rem 0.6rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+          color: var(--accent);
+          font-size: 0.8125rem;
+          font-weight: 600;
+          text-align: center;
+          line-height: 1.4;
         }
         .jp-vocab-teacher-quiz__hero {
           text-align: center;

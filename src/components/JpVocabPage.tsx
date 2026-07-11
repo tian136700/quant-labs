@@ -339,6 +339,8 @@ export function JpVocabPage() {
   const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<JpVocabTeacherQuizSession | null>(null);
+  const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
+  const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
       readVocabCache()?.teacher_visible_limit ??
@@ -1125,6 +1127,73 @@ export function JpVocabPage() {
     dailyQuizProgress.total,
   ]);
 
+  const syncTeacherQuizLiveWord = useCallback(
+    async (wordId: number | null) => {
+      if (!canOperate) return;
+      if (teacherQuizLiveWordRef.current === wordId) return;
+      teacherQuizLiveWordRef.current = wordId;
+      try {
+        await fetch("/api/jp-vocab/teacher-quiz-live", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId }),
+        });
+      } catch {
+        teacherQuizLiveWordRef.current = undefined;
+      }
+    },
+    [canOperate, locale]
+  );
+
+  const quizFlashcardWordId =
+    quizSession?.wordIds[quizSession.currentIndex] ?? null;
+
+  useEffect(() => {
+    if (!canOperate) return;
+    if (!quizSession) {
+      void syncTeacherQuizLiveWord(null);
+      return;
+    }
+    void syncTeacherQuizLiveWord(quizFlashcardWordId);
+  }, [canOperate, quizSession, quizFlashcardWordId, syncTeacherQuizLiveWord]);
+
+  useEffect(() => {
+    if (!canOperate || !showQuizFlashcard || !quizFlashcardWordId) {
+      setStudentPeekedCurrentWord(false);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(
+          `/api/jp-vocab/teacher-quiz-live?word_id=${encodeURIComponent(
+            String(quizFlashcardWordId)
+          )}`,
+          { credentials: "include", cache: "no-store" }
+        );
+        const data = (await res.json()) as {
+          ok: boolean;
+          student_peeked?: boolean;
+        };
+        if (!cancelled && data.ok) {
+          setStudentPeekedCurrentWord(Boolean(data.student_peeked));
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [canOperate, showQuizFlashcard, quizFlashcardWordId]);
+
   const todayCheckStats = useMemo(
     () => jpVocabTodayCheckStats(words),
     [words]
@@ -1177,6 +1246,7 @@ export function JpVocabPage() {
     const displayOrderSnapshot = displayOrderRef.current;
     const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
     const wasAlreadyShared = sharedTodayWordIds.has(wordId);
+    const skipShareUi = wasAlreadyShared || studentPeekedCurrentWord;
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
@@ -1203,7 +1273,7 @@ export function JpVocabPage() {
     setWordSyncPhase(wordId, "queued");
     if (saveQueuePending > 0) {
       setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
-    } else if (!wasAlreadyShared) {
+    } else if (!skipShareUi) {
       setStatus("已更新界面，正在同步到学生端…");
     } else {
       setStatus("已更新界面，正在保存熟悉程度…");
@@ -1213,7 +1283,7 @@ export function JpVocabPage() {
       await jpVocabSaveQueue.enqueue(async () => {
         setWordSyncPhase(wordId, "syncing");
         const startedAt = Date.now();
-        if (!wasAlreadyShared) {
+        if (!skipShareUi) {
           patchShareProgress(wordId, 0);
           clearShareTimer(wordId);
           shareProgressTimersRef.current.set(
@@ -1255,7 +1325,7 @@ export function JpVocabPage() {
           }
 
           clearShareTimer(wordId);
-          if (!wasAlreadyShared) {
+          if (!skipShareUi && data.shared_new) {
             await animateJpVocabShareProgressTo100(
               wordId,
               startedAt,
@@ -1265,7 +1335,7 @@ export function JpVocabPage() {
           }
 
           const nextSharedIds =
-            data.shared_new && !sharedTodayWordIdsRef.current.has(wordId)
+            data.shared && !sharedTodayWordIdsRef.current.has(wordId)
               ? [...sharedTodayWordIdsRef.current, wordId]
               : [...sharedTodayWordIdsRef.current];
 
@@ -1279,18 +1349,20 @@ export function JpVocabPage() {
             );
             return next;
           });
-          if (data.shared_new) {
+          if (data.shared) {
             setSharedTodayWordIds(new Set(nextSharedIds));
           }
           setStatus(
             data.shared_new
               ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
-              : wasAlreadyShared
-                ? "熟悉程度已更新，学生端已同步。"
-                : "熟悉程度已保存。"
+              : studentPeekedCurrentWord && data.shared
+                ? "熟悉程度已保存。学生已查看该单词，未重复发送。"
+                : wasAlreadyShared || data.shared
+                  ? "熟悉程度已更新，学生端已同步。"
+                  : "熟悉程度已保存。"
           );
-          if (data.shared) {
-            notifyJpVocabSharedUpdated({ wordId, openRemarks: data.shared_new });
+          if (data.shared_new) {
+            notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
           }
         } finally {
           clearShareTimer(wordId);
@@ -3069,6 +3141,7 @@ export function JpVocabPage() {
         shareUiEnabled={JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy}
         shareProgressMap={shareProgressMap}
         sharedTodayWordIds={sharedTodayWordIds}
+        studentPeeked={studentPeekedCurrentWord}
         onClose={() => setShowQuizFlashcard(false)}
         onComplete={finishTeacherQuiz}
         onSelectLevel={(wordId, level) => void recordLevel(wordId, level, "flashcard")}
