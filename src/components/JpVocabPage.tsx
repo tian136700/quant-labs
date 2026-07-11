@@ -48,6 +48,7 @@ import {
   createJpVocabTeacherQuizSession,
   isJpVocabTeacherQuizSessionComplete,
   reconcileJpVocabTeacherQuizSession,
+  resolveJpVocabTeacherQuizRefreshResumeIndex,
   resolveJpVocabTeacherQuizResumeIndex,
   type JpVocabTeacherQuizMode,
   type JpVocabTeacherQuizSession,
@@ -767,6 +768,18 @@ export function JpVocabPage() {
 
   const quizSessionRestoredRef = useRef(false);
 
+  const quizWordHasLevel = useCallback(
+    (wordId: number) => {
+      const w = words.find((item) => item.id === wordId);
+      if (!w) return false;
+      return (
+        effectiveJpVocabDisplayLevel(w, sessionLevel[wordId], { displayOrder }) !=
+        null
+      );
+    },
+    [words, sessionLevel, displayOrder]
+  );
+
   const persistQuizSession = useCallback(
     (session: JpVocabTeacherQuizSession | null) => {
       if (!user?.id) return;
@@ -780,18 +793,50 @@ export function JpVocabPage() {
   );
 
   useEffect(() => {
-    if (!user?.id || quizTarget <= 0 || quizTargetWords.length === 0) return;
+    if (!user?.id || quizTarget <= 0 || loading || checking) return;
     if (quizSessionRestoredRef.current) return;
+    if (quizTargetWords.length === 0) {
+      quizSessionRestoredRef.current = true;
+      return;
+    }
+
     quizSessionRestoredRef.current = true;
     const stored = readJpVocabTeacherQuizSession(user.id, quizTarget);
     if (!stored) return;
+
     const reconciled = reconcileJpVocabTeacherQuizSession(stored, quizTargetWordIds);
-    if (reconciled) {
-      setQuizSession(reconciled);
-    } else {
+    if (!reconciled) {
       clearJpVocabTeacherQuizSession(user.id);
+      return;
     }
-  }, [user?.id, quizTarget, quizTargetWords.length, quizTargetWordIds]);
+
+    if (canOperate && !isAdmin) {
+      const resumeIndex = resolveJpVocabTeacherQuizRefreshResumeIndex(
+        reconciled,
+        new Map(words.map((w) => [w.id, w])),
+        sessionReviewAt,
+        quizWordHasLevel
+      );
+      const session = { ...reconciled, currentIndex: resumeIndex };
+      setQuizSession(session);
+      setShowQuizFlashcard(true);
+      return;
+    }
+
+    setQuizSession(reconciled);
+  }, [
+    user?.id,
+    quizTarget,
+    loading,
+    checking,
+    quizTargetWords.length,
+    quizTargetWordIds,
+    canOperate,
+    isAdmin,
+    words,
+    sessionReviewAt,
+    quizWordHasLevel,
+  ]);
 
   useEffect(() => {
     persistQuizSession(quizSession);
@@ -1030,30 +1075,29 @@ export function JpVocabPage() {
   /** 已有活跃抽查会话（用于「继续抽查」按钮） */
   const teacherQuizInProgress = quizSession != null;
 
-  const quizWordHasLevel = useCallback(
-    (wordId: number) => {
-      const w = wordsById.get(wordId);
-      if (!w) return false;
-      return (
-        effectiveJpVocabDisplayLevel(w, sessionLevel[wordId], { displayOrder }) !=
-        null
-      );
-    },
-    [wordsById, sessionLevel, displayOrder]
-  );
+  /** 老师抽查进行中：不展示单词列表，避免在列表里随意点选 */
+  const hideTeacherQuizList = canOperate && !isAdmin && teacherQuizInProgress;
 
   const resumeTeacherQuizFlashcard = useCallback(
     (preferredWordId?: number) => {
       if (!quizSession) return;
-      const index = resolveJpVocabTeacherQuizResumeIndex(
-        quizSession,
-        preferredWordId,
-        quizWordHasLevel
-      );
+      const index =
+        preferredWordId != null
+          ? resolveJpVocabTeacherQuizResumeIndex(
+              quizSession,
+              preferredWordId,
+              quizWordHasLevel
+            )
+          : resolveJpVocabTeacherQuizRefreshResumeIndex(
+              quizSession,
+              wordsById,
+              sessionReviewAt,
+              quizWordHasLevel
+            );
       setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev));
       setShowQuizFlashcard(true);
     },
-    [quizSession, quizWordHasLevel]
+    [quizSession, quizWordHasLevel, wordsById, sessionReviewAt]
   );
 
   const finishTeacherQuiz = useCallback(() => {
@@ -2131,6 +2175,21 @@ export function JpVocabPage() {
             暂无条目。复习词表由「日语新课」自动导入
             {JP_VOCAB_MANUAL_ADD_ENABLED ? "，也可登录后点「手动添加」补充" : ""}。
           </p>
+        ) : hideTeacherQuizList ? (
+          <div className="jp-vocab-teacher-quiz-resume" role="status">
+            <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
+              今日抽查进行中，请在单词卡片内逐词勾选熟悉程度。
+            </p>
+            {!showQuizFlashcard ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--primary"
+                onClick={() => resumeTeacherQuizFlashcard()}
+              >
+                继续抽查
+              </button>
+            ) : null}
+          </div>
         ) : (
           <>
             <div className="jp-vocab-search" role="search">
