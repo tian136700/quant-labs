@@ -386,6 +386,48 @@ export function JpVocabPage() {
     setTeacherVisibleLimit(payload.teacher_visible_limit);
   }, []);
 
+  const applyTeacherVisibleSync = useCallback(
+    (raw: Partial<JpVocabTeacherVisibleLimit> | undefined) => {
+      if (!raw) return;
+      const next = normalizeJpVocabTeacherVisibleLimit(raw);
+      setTeacherVisibleLimit((prev) => {
+        if (!teacherVisibleLimitNeedsPersist(prev, next)) {
+          return prev;
+        }
+        const cached = readVocabCache();
+        if (cached) {
+          writeClientCache(JP_VOCAB_CACHE_KEY, {
+            ...cached,
+            teacher_visible_limit: next,
+          });
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  /** 从服务端拉取今日抽查目标（跨域名：finance 管理员 vs japanese 老师 localStorage 不共享，只能靠服务端） */
+  const syncTeacherVisibleLimitFromServer = useCallback(async () => {
+    try {
+      const since =
+        maxJpVocabUpdatedAt(wordsRef.current) || new Date(0).toISOString();
+      const res = await fetch(
+        `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
+        { credentials: "include", cache: "no-store" }
+      );
+      const data = (await res.json()) as {
+        ok: boolean;
+        teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
+      };
+      if (data.ok) {
+        applyTeacherVisibleSync(data.teacher_visible_limit);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [applyTeacherVisibleSync]);
+
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readVocabCache();
     const hasCache = cached != null;
@@ -404,6 +446,8 @@ export function JpVocabPage() {
       setLoading(true);
     }
     setError("");
+    // 词表可走本地缓存，但抽查目标必须每次从服务端拉（finance / japanese 域名 localStorage 不共享）
+    void syncTeacherVisibleLimitFromServer();
     try {
       const payload = await fetchWithClientCache(
         JP_VOCAB_CACHE_KEY,
@@ -424,7 +468,7 @@ export function JpVocabPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [applyVocabPayload]);
+  }, [applyVocabPayload, syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
     void loadWords();
@@ -462,30 +506,7 @@ export function JpVocabPage() {
     });
   }, []);
 
-  const applyTeacherVisibleSync = useCallback(
-    (raw: Partial<JpVocabTeacherVisibleLimit> | undefined) => {
-      if (!raw) return;
-      const next = normalizeJpVocabTeacherVisibleLimit(raw);
-      setTeacherVisibleLimit((prev) => {
-        if (!teacherVisibleLimitNeedsPersist(prev, next)) {
-          return prev;
-        }
-        const cached = readVocabCache();
-        if (cached) {
-          writeClientCache(JP_VOCAB_CACHE_KEY, {
-            ...cached,
-            teacher_visible_limit: next,
-          });
-        }
-        return next;
-      });
-    },
-    []
-  );
-
   useEffect(() => {
-    if (loading || !words.length) return;
-
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -517,7 +538,7 @@ export function JpVocabPage() {
       try {
         const res = await fetch(
           `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
-          { credentials: "include" }
+          { credentials: "include", cache: "no-store" }
         );
         const data = (await res.json()) as {
           ok: boolean;
@@ -541,10 +562,12 @@ export function JpVocabPage() {
     const onVisibility = () => {
       if (!document.hidden && !cancelled) {
         if (timer) clearTimeout(timer);
+        void syncTeacherVisibleLimitFromServer();
         schedule(300);
       }
     };
 
+    void syncTeacherVisibleLimitFromServer();
     document.addEventListener("visibilitychange", onVisibility);
     schedule(JP_VOCAB_POLL_MS);
 
@@ -553,33 +576,13 @@ export function JpVocabPage() {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [loading, words.length, applySyncPatches, applyTeacherVisibleSync]);
+  }, [applySyncPatches, applyTeacherVisibleSync, syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
-    const fetchTeacherVisibleLimit = async () => {
-      try {
-        const since =
-          maxJpVocabUpdatedAt(wordsRef.current) || new Date(0).toISOString();
-        const res = await fetch(
-          `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
-          { credentials: "include", cache: "no-store" }
-        );
-        const data = (await res.json()) as {
-          ok: boolean;
-          teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
-        };
-        if (data.ok) {
-          applyTeacherVisibleSync(data.teacher_visible_limit);
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-
     return subscribeJpVocabQuizTargetUpdated(() => {
-      void fetchTeacherVisibleLimit();
+      void syncTeacherVisibleLimitFromServer();
     });
-  }, [applyTeacherVisibleSync]);
+  }, [syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
     if (!canOperate) return;
@@ -1366,7 +1369,8 @@ export function JpVocabPage() {
         quiz_target_adjusted_at: data.teacher_visible_limit.quiz_target_adjusted_at,
       });
       setStatus(
-        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端序号 1–${data.teacher_visible_limit.quiz_target} 可勾选、可发给学生）；其他已打开页面约 3 秒内自动同步。`
+        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端序号 1–${data.teacher_visible_limit.quiz_target} 可勾选、可发给学生）。` +
+          ` japanese 域名下已打开的老师页约 3 秒内自动同步；若未打开请刷新 japanese.info-quests.com/jp-vocab。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
