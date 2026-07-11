@@ -2872,6 +2872,7 @@ export function JpVocabPage() {
         sessionLevel={sessionLevel}
         reviewLockedByWordId={reviewLockedByWordId}
         savingWordId={quizFlashcardSavingWordId}
+        wordSyncState={wordSyncState}
         dailySeqByWordId={dailySeqByWordId}
         canOperate={canOperate}
         shareUiEnabled={JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy}
