@@ -30,7 +30,7 @@
 |----------|--------|
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
 | 管理员设今日抽查数量（进度条内输入框 + 确认设置；决定老师端序号 1–N 可勾选） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**finance / japanese 共用 D1**，但 **localStorage 按域名隔离**，老师端靠 `/api/jp-vocab/sync` 轮询拉 `teacher_visible_limit`（非 BroadcastChannel） |
-| **老师端正序/随机抽查卡片**（须勾选熟悉程度才能下一词；未完成前列表不可改选；点「完成」弹出祝贺） | `JpVocabPage.tsx` → `finishTeacherQuiz`、`teacherQuizLocksTable`；`JpVocabTeacherQuizFlashcardModal.tsx`；`JpVocabDailyQuizCompleteModal.tsx` |
+| **老师端正序/随机抽查卡片**（选定模式后即锁定列表；熟悉程度仅能在卡片内勾选；关闭卡片后点列表会重新打开卡片；未完成前列表不可直改；点「完成」弹出祝贺；会话按用户+日期+抽查数存 sessionStorage） | `JpVocabPage.tsx` → `finishTeacherQuiz`、`teacherQuizLocksTable`；`JpVocabTeacherQuizFlashcardModal.tsx`；`JpVocabDailyQuizCompleteModal.tsx`；`jp-vocab-teacher-quiz-storage.ts` |
 | **老师端显示全库 + 序号 1–N 可操作**（列表展示全部词条；超出今日抽查数量的序号熟悉程度/发给学生禁用） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInDailyQuizTarget`；`JpVocabDailyQuizProgressBar.tsx`（仅保留抽查数量设置） |
 | **老师端列表隐藏不可操作行**（已取消；老师端现显示全库，仅禁用超范围操作） | `JpVocabPage.tsx` → `hideInoperableRows`（恒为 false） |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |

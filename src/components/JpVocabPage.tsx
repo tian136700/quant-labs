@@ -43,10 +43,16 @@ import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQui
 import {
   createJpVocabTeacherQuizSession,
   isJpVocabTeacherQuizSessionComplete,
+  reconcileJpVocabTeacherQuizSession,
   resolveJpVocabTeacherQuizResumeIndex,
   type JpVocabTeacherQuizMode,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
+import {
+  clearJpVocabTeacherQuizSession,
+  readJpVocabTeacherQuizSession,
+  writeJpVocabTeacherQuizSession,
+} from "@/lib/jp-vocab-teacher-quiz-storage";
 import {
   JP_VOCAB_CACHE_KEY,
   JP_VOCAB_REFRESH_TTL_MS,
@@ -752,6 +758,43 @@ export function JpVocabPage() {
     [displayedWords, quizTarget, dailySeqByWordId]
   );
 
+  const quizTargetWordIds = useMemo(
+    () => new Set(quizTargetWords.map((w) => w.id)),
+    [quizTargetWords]
+  );
+
+  const quizSessionRestoredRef = useRef(false);
+
+  const persistQuizSession = useCallback(
+    (session: JpVocabTeacherQuizSession | null) => {
+      if (!user?.id) return;
+      if (!session) {
+        clearJpVocabTeacherQuizSession(user.id);
+        return;
+      }
+      writeJpVocabTeacherQuizSession(user.id, quizTarget, session);
+    },
+    [user?.id, quizTarget]
+  );
+
+  useEffect(() => {
+    if (!user?.id || quizTarget <= 0 || quizTargetWords.length === 0) return;
+    if (quizSessionRestoredRef.current) return;
+    quizSessionRestoredRef.current = true;
+    const stored = readJpVocabTeacherQuizSession(user.id, quizTarget);
+    if (!stored) return;
+    const reconciled = reconcileJpVocabTeacherQuizSession(stored, quizTargetWordIds);
+    if (reconciled) {
+      setQuizSession(reconciled);
+    } else {
+      clearJpVocabTeacherQuizSession(user.id);
+    }
+  }, [user?.id, quizTarget, quizTargetWords.length, quizTargetWordIds]);
+
+  useEffect(() => {
+    persistQuizSession(quizSession);
+  }, [quizSession, persistQuizSession]);
+
   const isWordInQuizTarget = useCallback(
     (wordId: number) =>
       isJpVocabWordInDailyQuizTarget(wordId, quizTarget, dailySeqByWordId),
@@ -940,10 +983,10 @@ export function JpVocabPage() {
     [pendingQuizWordId, startTeacherQuizSession]
   );
 
-  /** 今日目标范围内至少勾选一词后，视为抽查已开始，锁定列表并固定模式 */
-  const teacherQuizInProgress = quizSession != null && hasAnyQuizLevelToday;
+  /** 选定正序/随机模式并进入抽查卡片后，即视为抽查进行中（无需先勾选一词） */
+  const teacherQuizInProgress = quizSession != null;
 
-  /** 抽查卡片会话进行中：列表内不可改选，仅能在卡片里用「上一个」修改 */
+  /** 抽查卡片会话进行中：列表内不可改选，仅能在卡片里勾选 */
   const teacherQuizLocksTable = teacherQuizInProgress;
 
   const quizWordHasLevel = useCallback(
@@ -1200,7 +1243,7 @@ export function JpVocabPage() {
       void recordLevel(wordId, level);
       return;
     }
-    if (teacherQuizLocksTable) {
+    if (quizSession != null && isWordInQuizTarget(wordId)) {
       resumeTeacherQuizFlashcard(wordId);
       setStatus("抽查进行中，已重新打开抽查卡片，请继续在卡片内勾选熟悉程度。");
       return;

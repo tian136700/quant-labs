@@ -75,6 +75,25 @@ export function isJpVocabTeacherQuizSessionComplete(
   return session.wordIds.every((id) => hasLevel(id));
 }
 
+/** 恢复持久化会话时，剔除已不在今日抽查范围内的词并保持索引有效 */
+export function reconcileJpVocabTeacherQuizSession(
+  session: JpVocabTeacherQuizSession,
+  validWordIds: ReadonlySet<number>
+): JpVocabTeacherQuizSession | null {
+  const wordIds = session.wordIds.filter((id) => validWordIds.has(id));
+  if (!wordIds.length) return null;
+  const currentWordId = session.wordIds[session.currentIndex];
+  const currentIndex =
+    currentWordId != null
+      ? Math.max(0, wordIds.indexOf(currentWordId))
+      : Math.min(session.currentIndex, wordIds.length - 1);
+  return {
+    mode: session.mode,
+    wordIds,
+    currentIndex: currentIndex >= 0 ? currentIndex : 0,
+  };
+}
+
 /** 列表点选或恢复抽查时，定位到点击的词；否则跳到第一个未勾选的词 */
 export function resolveJpVocabTeacherQuizResumeIndex(
   session: JpVocabTeacherQuizSession,
