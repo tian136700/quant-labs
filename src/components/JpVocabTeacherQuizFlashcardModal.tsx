@@ -425,7 +425,7 @@ export function JpVocabTeacherQuizFlashcardModal({
 
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">
-            根据学生熟悉程度，勾选以下选项
+            请根据学生熟悉程度，勾选以下选项
           </p>
           <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
             <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
