@@ -74,3 +74,21 @@ export function isJpVocabTeacherQuizSessionComplete(
 ): boolean {
   return session.wordIds.every((id) => hasLevel(id));
 }
+
+/** 列表点选或恢复抽查时，定位到点击的词；否则跳到第一个未勾选的词 */
+export function resolveJpVocabTeacherQuizResumeIndex(
+  session: JpVocabTeacherQuizSession,
+  preferredWordId: number | undefined,
+  hasLevel: (wordId: number) => boolean
+): number {
+  if (preferredWordId != null) {
+    const preferredIndex = session.wordIds.indexOf(preferredWordId);
+    if (preferredIndex >= 0) return preferredIndex;
+  }
+  const firstUnchecked = session.wordIds.findIndex((id) => !hasLevel(id));
+  if (firstUnchecked >= 0) return firstUnchecked;
+  return Math.max(
+    0,
+    Math.min(session.currentIndex, session.wordIds.length - 1)
+  );
+}

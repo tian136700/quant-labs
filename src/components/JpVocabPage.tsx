@@ -43,6 +43,7 @@ import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQui
 import {
   createJpVocabTeacherQuizSession,
   isJpVocabTeacherQuizSessionComplete,
+  resolveJpVocabTeacherQuizResumeIndex,
   type JpVocabTeacherQuizMode,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
@@ -954,6 +955,20 @@ export function JpVocabPage() {
     [wordsById, sessionLevel, displayOrder]
   );
 
+  const resumeTeacherQuizFlashcard = useCallback(
+    (preferredWordId?: number) => {
+      if (!quizSession) return;
+      const index = resolveJpVocabTeacherQuizResumeIndex(
+        quizSession,
+        preferredWordId,
+        quizWordHasLevel
+      );
+      setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev));
+      setShowQuizFlashcard(true);
+    },
+    [quizSession, quizWordHasLevel]
+  );
+
   const finishTeacherQuiz = useCallback(() => {
     if (!quizSession) {
       setShowQuizFlashcard(false);
@@ -1183,10 +1198,8 @@ export function JpVocabPage() {
       return;
     }
     if (teacherQuizLocksTable) {
-      setStatus(
-        "抽查进行中：列表内暂不可改熟悉程度（请在卡片内操作）；词条编辑与备注编辑仍可随时修改。"
-      );
-      setShowQuizFlashcard(true);
+      resumeTeacherQuizFlashcard(wordId);
+      setStatus("抽查进行中，已重新打开抽查卡片，请继续在卡片内勾选熟悉程度。");
       return;
     }
     if (!hasAnyQuizLevelToday) {
@@ -1882,7 +1895,7 @@ export function JpVocabPage() {
                   className="btn-rsi-filter btn-rsi-filter--primary"
                   onClick={() => {
                     if (quizSession) {
-                      setShowQuizFlashcard(true);
+                      resumeTeacherQuizFlashcard();
                       setStatus("继续今日抽查…");
                       return;
                     }
@@ -1902,7 +1915,7 @@ export function JpVocabPage() {
                   className="btn-rsi-filter"
                   onClick={() => {
                     if (quizSession) {
-                      setShowQuizFlashcard(true);
+                      resumeTeacherQuizFlashcard();
                       setStatus("继续今日抽查…");
                       return;
                     }
@@ -2494,9 +2507,9 @@ export function JpVocabPage() {
                                 aria-pressed={checked}
                                 onClick={() => {
                                   if (tableQuizLocked) {
-                                    setShowQuizFlashcard(true);
+                                    resumeTeacherQuizFlashcard(w.id);
                                     setStatus(
-                                      "抽查进行中：熟悉程度请在卡片内改选；词条编辑与备注编辑仍可随时修改。"
+                                      "抽查进行中，已重新打开抽查卡片，请继续在卡片内勾选熟悉程度。"
                                     );
                                     return;
                                   }
