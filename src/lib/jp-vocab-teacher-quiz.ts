@@ -1,5 +1,3 @@
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { reviewTimestampMs } from "@/lib/jp-vocab-review";
 import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabTeacherQuizMode = "sequential" | "random";
@@ -159,43 +157,15 @@ export function resolveJpVocabTeacherQuizResumeIndex(
   );
 }
 
-function quizWordReviewTimestampMs(
-  word: JpVocabWord,
-  sessionReviewAtMs: number | undefined,
-  now = new Date()
-): number {
-  const storedMs = reviewTimestampMs(word.last_review_at) ?? 0;
-  if (sessionReviewAtMs == null) return storedMs;
-  const sessionDay = beijingDateString(new Date(sessionReviewAtMs));
-  if (sessionDay !== beijingDateString(now)) return storedMs;
-  return Math.max(storedMs, sessionReviewAtMs);
-}
-
 /**
- * 刷新/掉线恢复：定位到本会话内最近一次勾选熟悉程度的词；
- * 若尚未勾选任何词，则落到第一个未勾选或会话起始索引。
+ * 刷新/掉线恢复：定位到本会话内第一个尚未勾选熟悉程度的词（正序即「下一个待抽查」）；
+ * 若已全部勾选，则落到会话内最后一词或起始索引。
  */
 export function resolveJpVocabTeacherQuizRefreshResumeIndex(
   session: JpVocabTeacherQuizSession,
-  wordsById: ReadonlyMap<number, JpVocabWord>,
-  sessionReviewAt: Readonly<Record<number, number>>,
-  hasLevel: (wordId: number) => boolean,
-  now = new Date()
+  _wordsById: ReadonlyMap<number, JpVocabWord>,
+  _sessionReviewAt: Readonly<Record<number, number>>,
+  hasLevel: (wordId: number) => boolean
 ): number {
-  let bestIndex = -1;
-  let bestMs = -1;
-
-  for (let i = 0; i < session.wordIds.length; i++) {
-    const id = session.wordIds[i];
-    const word = wordsById.get(id);
-    if (!word || !hasLevel(id)) continue;
-    const ms = quizWordReviewTimestampMs(word, sessionReviewAt[id], now);
-    if (ms > bestMs) {
-      bestMs = ms;
-      bestIndex = i;
-    }
-  }
-
-  if (bestIndex >= 0) return bestIndex;
   return resolveJpVocabTeacherQuizResumeIndex(session, undefined, hasLevel);
 }
