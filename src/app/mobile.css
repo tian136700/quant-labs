@@ -1247,6 +1247,11 @@
     height: 2.75rem;
   }
 
+  /* 编辑词条：手机端备注另有独立入口，此处隐藏避免重复 */
+  .jp-vocab-edit-notes-field {
+    display: none !important;
+  }
+
   .jp-lesson-next-class-input,
   .jp-lesson-teacher-add-input {
     width: 100%;

@@ -952,6 +952,11 @@ export function JpVocabPage() {
     [filteredDisplayedWords]
   );
 
+  const adminReviewedWordIds = useMemo(
+    () => new Set(adminDailyReview.reviewed_word_ids),
+    [adminDailyReview.reviewed_word_ids]
+  );
+
   const startAdminReview = useCallback(
     (wordId: number) => {
       const session = createJpVocabAdminReviewSession(adminReviewWordIds, wordId);
@@ -2615,6 +2620,18 @@ export function JpVocabPage() {
                       <span>抽查次数</span>
                     </span>
                   </th>
+                  {isAdmin ? (
+                    <th
+                      rowSpan={2}
+                      className="jp-vocab-admin-review-col"
+                      title="管理员复习卡片点「下一个」后记为今日已复习"
+                    >
+                      <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                        <span>今日</span>
+                        <span>复习</span>
+                      </span>
+                    </th>
+                  ) : null}
                   {SHOW_REMARKS_COLUMN ? (
                     <th rowSpan={2} className="jp-vocab-notes-col">
                       备注
@@ -3056,6 +3073,25 @@ export function JpVocabPage() {
                           {todayChecks}
                         </span>
                       </td>
+                      {isAdmin ? (
+                        <td className="jp-vocab-admin-review-col" data-label="今日复习">
+                          {adminReviewedWordIds.has(w.id) ? (
+                            <span
+                              className="jp-vocab-admin-review-badge"
+                              title="管理员复习卡片已点「下一个」，今日已复习"
+                            >
+                              已复习
+                            </span>
+                          ) : (
+                            <span
+                              className="jp-vocab-admin-review-pending"
+                              title="今日尚未通过复习卡片完成"
+                            >
+                              —
+                            </span>
+                          )}
+                        </td>
+                      ) : null}
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
@@ -3385,6 +3421,7 @@ export function JpVocabPage() {
         sessionLevel={sessionLevel}
         dailySeqByWordId={dailySeqByWordId}
         todayReviewCount={adminDailyReview.count}
+        reviewedWordIds={adminReviewedWordIds}
         recordingNext={adminReviewRecordingNext}
         onClose={() => setShowAdminReviewFlashcard(false)}
         onNavigate={(index) =>
@@ -3901,6 +3938,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-stat-detail),
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
+        :global(.jp-vocab-table .jp-vocab-admin-review-col),
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
         :global(.jp-vocab-table .jp-vocab-reading-col),
@@ -3952,6 +3990,26 @@ export function JpVocabPage() {
           font-weight: 700;
           font-size: 0.9375rem;
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+        }
+        :global(.jp-vocab-table .jp-vocab-admin-review-col) {
+          white-space: nowrap;
+          min-width: 3.75rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-admin-review-badge) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0.12rem 0.45rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--fall) 18%, transparent);
+          color: var(--fall);
+          font-weight: 700;
+          font-size: 0.8125rem;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 35%, transparent);
+        }
+        :global(.jp-vocab-table .jp-vocab-admin-review-pending) {
+          color: var(--muted);
+          font-size: 0.875rem;
         }
         :global(.jp-vocab-table .jp-vocab-word-col) {
           font-size: 0.9375rem;

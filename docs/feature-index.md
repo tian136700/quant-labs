@@ -43,7 +43,7 @@
 | **保存/同步橙色进度条**（D1 写入较慢；**改保存 UI 必引**） | `src/components/JpVocabSaveProgressBar.tsx`；`src/lib/jp-vocab-save-progress.ts` → `jpVocabSaveProgressLabel`；`.cursor/rules/save-progress-ui.mdc` |
 | 课堂备注、共享备注（支持粘贴/上传图片） | `JpClassNotesEditModal.tsx`、`JpVocabClassNoteContent.tsx`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`（含**巧记**字段，仅管理员）；`/api/jp-vocab/add`、`/edit`；`jp_vocab_word.mnemonic` |
-| **管理员「复习本单词」**（操作列按钮；卡片同老师抽查样式；按当前列表排序点「下一个」；顶部「今日已复习 N 个单词」；计数存 `jp_vocab_setting` → `admin_daily_review`；跨日 rollover 清零） | `JpVocabPage.tsx` → `startAdminReview`；`JpVocabAdminReviewFlashcardModal.tsx`；`POST /api/jp-vocab` `admin_review_next`；`jp-vocab-admin-daily-review.ts`、`jp-vocab-db.ts` |
+| **管理员「复习本单词」**（操作列按钮；卡片同老师抽查样式；按当前列表排序点「下一个」；顶部「今日已复习 N 个单词」；**列表「今日复习」列仅管理员可见**；计数存 `jp_vocab_setting` → `admin_daily_review`；跨日 rollover 清零） | `JpVocabPage.tsx` → `startAdminReview`、`recordAdminReviewNext`；`JpVocabAdminReviewFlashcardModal.tsx`；`POST /api/jp-vocab` `admin_review_next`；`jp-vocab-admin-daily-review.ts`、`jp-vocab-db.ts` |
 | 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy` |
 | 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()` |
 | 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |

@@ -272,7 +272,7 @@ export function JpVocabEditModal({
               />
             </div>
 
-            <div className="field">
+            <div className="field jp-vocab-edit-notes-field">
               <label htmlFor="jp-vocab-edit-notes" className="jp-vocab-edit-label">
                 备注
               </label>
@@ -312,13 +312,6 @@ export function JpVocabEditModal({
           </div>
 
           <div className="jp-vocab-edit-footer">
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              onClick={onClose}
-            >
-              取消
-            </button>
             {canEdit ? (
               <button
                 type="button"

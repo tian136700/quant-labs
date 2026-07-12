@@ -32,6 +32,16 @@ export function normalizeJpVocabAdminDailyReview(
   };
 }
 
+/** 管理员今日是否已通过复习卡片「下一个」完成该词 */
+export function isJpVocabAdminWordReviewedToday(
+  wordId: number,
+  review: JpVocabAdminDailyReview
+): boolean {
+  const id = Math.floor(Number(wordId));
+  if (!Number.isFinite(id) || id <= 0) return false;
+  return review.reviewed_word_ids.includes(id);
+}
+
 export type JpVocabAdminReviewSession = {
   wordIds: number[];
   currentIndex: number;
