@@ -3226,7 +3226,7 @@ export function JpVocabPage() {
                                   title="按当前列表排序打开复习卡片"
                                   onClick={() => startAdminReview(w.id)}
                                 >
-                                  复习本单词
+                                  复习
                                 </button>
                               ) : null}
                               {isAdmin ? (
@@ -3916,13 +3916,14 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table) {
           width: 100%;
-          min-width: 900px;
+          table-layout: fixed;
+          min-width: 0;
         }
         :global(.jp-vocab-table th),
         :global(.jp-vocab-table td) {
           white-space: normal;
           vertical-align: middle;
-          padding: 0.5rem 0.55rem;
+          padding: 0.4rem 0.35rem;
           text-align: center;
         }
         :global(.jp-vocab-table thead th) {
@@ -3960,7 +3961,8 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-level-col) {
           text-align: center;
-          min-width: 8.75rem;
+          width: 11%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-stats-group) {
           text-align: center;
@@ -4008,19 +4010,22 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           white-space: nowrap;
-          min-width: 3.5rem;
+          width: 4%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-risk-value) {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
         }
         :global(.jp-vocab-table .jp-vocab-stat-detail) {
-          min-width: 2.85rem;
+          min-width: 0;
+          width: 3.5%;
           font-variant-numeric: tabular-nums;
         }
         :global(.jp-vocab-table .jp-vocab-stat-total) {
           white-space: nowrap;
-          min-width: 2.75rem;
+          width: 4%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-total-never) {
           color: var(--muted);
@@ -4029,7 +4034,8 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-today-check-col) {
           white-space: nowrap;
-          min-width: 3.75rem;
+          width: 4.5%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-today-check-value) {
           display: inline-flex;
@@ -4052,7 +4058,8 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-admin-review-col) {
           white-space: nowrap;
-          min-width: 3.75rem;
+          width: 4%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-admin-review-badge) {
           display: inline-flex;
@@ -4071,15 +4078,17 @@ export function JpVocabPage() {
           font-size: 0.875rem;
         }
         :global(.jp-vocab-table .jp-vocab-word-col) {
-          font-size: 0.9375rem;
-          min-width: 7rem;
-          padding-left: 0.65rem;
-          padding-right: 0.65rem;
+          font-size: 0.875rem;
+          width: 9%;
+          min-width: 0;
+          padding-left: 0.4rem;
+          padding-right: 0.4rem;
         }
         :global(.jp-vocab-table .jp-vocab-reading-col) {
-          min-width: 6.5rem;
-          padding-left: 0.65rem;
-          padding-right: 0.65rem;
+          width: 7%;
+          min-width: 0;
+          padding-left: 0.4rem;
+          padding-right: 0.4rem;
           word-break: break-word;
           line-height: 1.45;
         }
@@ -4099,22 +4108,25 @@ export function JpVocabPage() {
           opacity: 0.72;
         }
         :global(.jp-vocab-table .jp-vocab-meaning-col) {
-          min-width: 6.5rem;
-          padding-left: 0.65rem;
-          padding-right: 0.65rem;
+          width: 8%;
+          min-width: 0;
+          padding-left: 0.4rem;
+          padding-right: 0.4rem;
           word-break: break-word;
           line-height: 1.45;
         }
         :global(.jp-vocab-table .jp-vocab-pos-col) {
-          min-width: 4rem;
+          width: 4%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
-          min-width: 7rem;
-          max-width: 12rem;
+          width: 8%;
+          min-width: 0;
+          max-width: none;
         }
         .jp-vocab-mnemonic-text {
           display: -webkit-box;
-          -webkit-line-clamp: 3;
+          -webkit-line-clamp: 1;
           -webkit-box-orient: vertical;
           overflow: hidden;
           line-height: 1.45;
@@ -4125,7 +4137,8 @@ export function JpVocabPage() {
           color: color-mix(in srgb, var(--muted) 70%, transparent);
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
-          min-width: 6.5rem;
+          width: 6%;
+          min-width: 0;
           white-space: nowrap;
         }
         :global(.jp-vocab-table thead .jp-vocab-notes-col) {
@@ -4144,15 +4157,28 @@ export function JpVocabPage() {
           flex-wrap: wrap;
         }
         :global(.jp-vocab-table .jp-vocab-action-col) {
+          position: sticky;
+          right: 0;
+          z-index: 2;
+          width: 13%;
+          min-width: 0;
           white-space: normal;
-          min-width: 7.5rem;
+          background: color-mix(in srgb, var(--panel) 94%, var(--bg));
+          box-shadow: -6px 0 10px color-mix(in srgb, var(--bg) 55%, transparent);
+        }
+        :global(.jp-vocab-table thead .jp-vocab-action-col) {
+          z-index: 3;
+          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+        }
+        :global(.jp-vocab-table tbody tr:hover .jp-vocab-action-col) {
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
         .jp-vocab-share-stack {
           display: inline-flex;
           flex-direction: column;
           align-items: center;
           gap: 0.2rem;
-          max-width: 5.75rem;
+          max-width: 100%;
         }
         .jp-vocab-share-hint {
           font-size: 0.625rem;
@@ -4172,7 +4198,12 @@ export function JpVocabPage() {
           flex-wrap: wrap;
           align-items: center;
           justify-content: center;
-          gap: 0.35rem;
+          gap: 0.25rem;
+        }
+        .jp-vocab-action-buttons :global(.btn-rsi-filter--compact) {
+          min-width: 0;
+          padding-inline: 0.35rem;
+          font-size: 0.6875rem;
         }
         .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn) {
           color: var(--accent);
@@ -4187,11 +4218,13 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;
-          min-width: 3rem;
+          width: 3.5%;
+          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-seq-col) {
           white-space: nowrap;
-          min-width: 2.5rem;
+          width: 3%;
+          min-width: 0;
           color: var(--muted);
         }
         :global(.jp-vocab-table .jp-vocab-seq-cell) {
@@ -4218,7 +4251,46 @@ export function JpVocabPage() {
           line-height: 1;
         }
 
-        /* 中等屏幕：隐藏分项统计，保留合计，减少横向滚动 */
+        /* 16 寸屏 / 中等桌面：隐藏分项统计与巧记，操作列固定可见 */
+        @media (max-width: 1440px) {
+          .jp-vocab-scroll-hint {
+            display: block;
+          }
+          :global(.jp-vocab-table .jp-vocab-stat-detail) {
+            display: none;
+          }
+          :global(.jp-vocab-table thead tr:nth-child(2) .jp-vocab-stat-detail) {
+            display: none;
+          }
+          :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
+            display: none;
+          }
+          .jp-vocab-share-hint--desktop {
+            display: none;
+          }
+          .jp-vocab-level-opt {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.3rem;
+            gap: 0.2rem;
+            min-height: 1.75rem;
+          }
+          .jp-vocab-check-box {
+            width: 0.85rem;
+            height: 0.85rem;
+          }
+        }
+
+        @media (max-width: 1280px) {
+          .jp-vocab-section-head {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .jp-vocab-toolbar {
+            justify-content: flex-start;
+          }
+        }
+
+        /* 中等屏幕（旧断点保留给更窄窗口） */
         @media (max-width: 1100px) {
           .jp-vocab-scroll-hint {
             display: block;
