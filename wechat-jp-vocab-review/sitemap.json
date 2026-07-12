@@ -1,4 +1,0 @@
-{
-  "desc": "日语复习小程序",
-  "rules": [{ "action": "disallow", "page": "*" }]
-}

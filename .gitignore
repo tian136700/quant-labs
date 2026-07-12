@@ -124,7 +124,9 @@ scripts/import-trends-json.py
 # 一次性数据回填（本地运维，勿提交）
 scripts/backfill-visit-geo.py
 
-# auto-ignore-local begin
+# 微信小程序 · 日语复习（含 AppID，仅本机/微信后台，勿提交远程仓库）
+wechat-jp-vocab-review/
+
 scripts/deploy_center/
 scripts/deploy_center/__init__.py
 scripts/deploy_center/auto_menu.py
@@ -134,4 +136,8 @@ scripts/deploy_center/logger.py
 scripts/deploy_center/logs_menu.py
 scripts/deploy_center/manual_menu.py
 scripts/deploy_center/server.py
+# auto-ignore-local end
+
+# auto-ignore-local begin
+scripts/deploy_center/
 # auto-ignore-local end
