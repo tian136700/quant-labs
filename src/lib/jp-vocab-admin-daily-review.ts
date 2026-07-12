@@ -58,3 +58,26 @@ export function createJpVocabAdminReviewSession(
     currentIndex: foundIndex >= 0 ? foundIndex : 0,
   };
 }
+
+export type JpVocabAdminReviewResume = {
+  index: number;
+  /** 当前列表顺序下今日均已复习 */
+  allReviewed: boolean;
+};
+
+/** 按当前列表排序，定位第一个尚未计入今日复习的词；若均已复习则 index 为 0 */
+export function resolveJpVocabAdminReviewResumeIndex(
+  orderedWordIds: number[],
+  reviewedWordIds: ReadonlySet<number>
+): JpVocabAdminReviewResume {
+  if (!orderedWordIds.length) {
+    return { index: 0, allReviewed: false };
+  }
+  const firstUnreviewed = orderedWordIds.findIndex(
+    (id) => !reviewedWordIds.has(id)
+  );
+  if (firstUnreviewed >= 0) {
+    return { index: firstUnreviewed, allReviewed: false };
+  }
+  return { index: 0, allReviewed: true };
+}

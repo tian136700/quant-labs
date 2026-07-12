@@ -48,6 +48,7 @@ import { JpVocabAdminReviewFlashcardModal } from "@/components/JpVocabAdminRevie
 import {
   createJpVocabAdminReviewSession,
   normalizeJpVocabAdminDailyReview,
+  resolveJpVocabAdminReviewResumeIndex,
   type JpVocabAdminDailyReview,
   type JpVocabAdminReviewSession,
 } from "@/lib/jp-vocab-admin-daily-review";
@@ -971,6 +972,31 @@ export function JpVocabPage() {
     },
     [adminReviewWordIds]
   );
+
+  const continueAdminReview = useCallback(() => {
+    if (!adminReviewWordIds.length) {
+      setStatus("当前列表没有可复习的词条。");
+      return;
+    }
+    const { index, allReviewed } = resolveJpVocabAdminReviewResumeIndex(
+      adminReviewWordIds,
+      adminReviewedWordIds
+    );
+    const wordId = adminReviewWordIds[index];
+    if (wordId == null) return;
+    const session = createJpVocabAdminReviewSession(adminReviewWordIds, wordId);
+    if (!session) {
+      setStatus("当前列表没有可复习的词条。");
+      return;
+    }
+    setAdminReviewSession(session);
+    setShowAdminReviewFlashcard(true);
+    if (allReviewed) {
+      setStatus("今日列表已全部复习，从第一个继续。");
+    } else {
+      setStatus(`继续复习：当前排序第 ${index + 1} 个词条。`);
+    }
+  }, [adminReviewWordIds, adminReviewedWordIds]);
 
   const recordAdminReviewNext = useCallback(
     async (wordId: number) => {
@@ -2241,6 +2267,19 @@ export function JpVocabPage() {
                 mobileToolbarExpanded ? " jp-vocab-toolbar-actions--expanded" : ""
               }`}
             >
+            {isAdmin ? (
+              <button
+                type="button"
+                className={`btn-rsi-filter${
+                  adminDailyReview.count > 0 ? " btn-rsi-filter--primary" : ""
+                }`}
+                onClick={() => continueAdminReview()}
+                disabled={loading || !adminReviewWordIds.length}
+                title="按当前列表排序，打开第一个尚未计入今日复习的词条卡片"
+              >
+                继续复习
+              </button>
+            ) : null}
             {canOperate && quizTarget > 0 && quizTargetWords.length > 0 ? (
               <>
                 <button
