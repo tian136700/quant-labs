@@ -31,6 +31,8 @@ import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
+  JP_VOCAB_QUIZ_LIVE_POLL_MS,
+  JP_VOCAB_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_POLL_MS,
   JP_VOCAB_STUDY_QUIZ_EVERY_N,
@@ -87,6 +89,7 @@ export function JpVocabStudyPage() {
   const [saveQueuePending, setSaveQueuePending] = useState(0);
   const [requestingShare, setRequestingShare] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [teacherLiveWordId, setTeacherLiveWordId] = useState<number | null>(null);
   const [peekingTeacherQuiz, setPeekingTeacherQuiz] = useState(false);
   const pollInFlightRef = useRef(false);
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -345,6 +348,58 @@ export function JpVocabStudyPage() {
     };
   }, [requestSent]);
 
+  const teacherLiveWordShared =
+    teacherLiveWordId != null &&
+    items.some((item) => item.word_id === teacherLiveWordId);
+
+  useEffect(() => {
+    if (!showRequestTeacherShare) {
+      setTeacherLiveWordId(null);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () =>
+      typeof document !== "undefined" && document.hidden
+        ? JP_VOCAB_POLL_HIDDEN_MS
+        : JP_VOCAB_QUIZ_LIVE_POLL_MS;
+
+    const schedule = (delayMs: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => void poll(), delayMs);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch("/api/jp-vocab/teacher-quiz-live", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          live?: { word_id?: number | null };
+        };
+        if (!cancelled && data.ok) {
+          const id = Number(data.live?.word_id);
+          setTeacherLiveWordId(Number.isFinite(id) && id > 0 ? Math.floor(id) : null);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) schedule(pollDelay());
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [showRequestTeacherShare]);
+
   const requestTeacherShare = useCallback(async () => {
     if (!user || !showRequestTeacherShare || requestingShare) return;
     setRequestingShare(true);
@@ -490,13 +545,21 @@ export function JpVocabStudyPage() {
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--primary"
-            disabled={requestingShare || requestSent}
+            disabled={requestingShare || requestSent || teacherLiveWordShared}
             onClick={() => void requestTeacherShare()}
           >
-            {requestingShare ? "发送中…" : requestSent ? "已发送" : "请老师发送"}
+            {requestingShare
+              ? "发送中…"
+              : teacherLiveWordShared
+                ? "老师已发送"
+                : requestSent
+                  ? "已发送"
+                  : "请老师发送"}
           </button>
           <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-            没听清时，可请老师发送正在抽查的单词/语法。
+            {teacherLiveWordShared
+              ? "老师已发送正在抽查的单词，无需重复请求。"
+              : "没听清时，可请老师发送正在抽查的单词/语法。"}
           </span>
         </div>
       ) : null}

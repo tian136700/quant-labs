@@ -29,6 +29,9 @@ const LEVELS: { key: JpVocabLevel; label: string }[] = [
 
 const JP_VOCAB_LEVEL_SYNC_HINT_SHORT = "勾选后同步给学生复习查看";
 const JP_VOCAB_LEVEL_SYNC_HINT = "勾选后，该单词将同步给学生复习查看";
+const JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT = "已发给学生，勾选仅更新熟悉程度";
+const JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED =
+  "已发给学生，勾选熟悉程度仅更新记录，不会重复发送";
 
 type Props = {
   open: boolean;
@@ -225,12 +228,18 @@ export function JpVocabTeacherQuizFlashcardModal({
     locale === "zh"
       ? `还剩 ${uncheckedCount} 个未抽查`
       : `${uncheckedCount} left to quiz`;
-  const canGoPrev = session.currentIndex > 0;
-  const canGoNext = session.currentIndex < session.wordIds.length - 1;
-  const isLast = session.currentIndex === session.wordIds.length - 1;
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
+  const levelSyncHintShort = isShared
+    ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
+    : JP_VOCAB_LEVEL_SYNC_HINT_SHORT;
+  const levelSyncHint = isShared
+    ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
+    : JP_VOCAB_LEVEL_SYNC_HINT;
+  const canGoPrev = session.currentIndex > 0;
+  const canGoNext = session.currentIndex < session.wordIds.length - 1;
+  const isLast = session.currentIndex === session.wordIds.length - 1;
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -511,13 +520,13 @@ export function JpVocabTeacherQuizFlashcardModal({
               className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
               role="note"
             >
-              {JP_VOCAB_LEVEL_SYNC_HINT_SHORT}
+              {levelSyncHintShort}
             </span>
             <span
               className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--mobile"
               role="note"
             >
-              {JP_VOCAB_LEVEL_SYNC_HINT}
+              {levelSyncHint}
             </span>
           </div>
           {isSharing ? (
