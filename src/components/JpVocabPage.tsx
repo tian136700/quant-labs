@@ -24,10 +24,11 @@ import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
 } from "@/lib/jp-vocab-search";
+import { copyTextToClipboard } from "@/lib/copy-text";
+import { jpVocabFlashcardCopyText } from "@/lib/jp-vocab-flashcard-copy";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
-import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
 import { JpVocabMnemonicViewModal } from "@/components/JpVocabMnemonicViewModal";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
@@ -2641,6 +2642,13 @@ export function JpVocabPage() {
                   const riskBadgeTier =
                     risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const hasNotes = Boolean((w.class_notes || "").trim());
+                  const readingCopyText = jpVocabFlashcardCopyText(readingTrim, wordTrim);
+                  const copyReading = () => {
+                    if (!readingCopyText) return;
+                    void copyTextToClipboard(readingCopyText).then((ok) =>
+                      setStatus(ok ? "已复制" : "复制失败")
+                    );
+                  };
                   const renderNotesActions = () => (
                     <div className="jp-vocab-notes-actions">
                       {hasNotes ? (
@@ -2745,17 +2753,24 @@ export function JpVocabPage() {
                       >
                         <div className="jp-vocab-reading-cell">
                           {readingTrim ? (
-                            <span className="jp-vocab-reading-text">{readingTrim}</span>
+                            readingCopyText ? (
+                              <button
+                                type="button"
+                                className="jp-vocab-reading-text jp-vocab-reading-text--copy"
+                                title={`点击复制「${readingCopyText}」`}
+                                aria-label={`点击复制读音「${readingCopyText}」`}
+                                onClick={copyReading}
+                              >
+                                {readingTrim}
+                              </button>
+                            ) : (
+                              <span className="jp-vocab-reading-text">{readingTrim}</span>
+                            )
                           ) : w.kind === "word" ? (
                             <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
                               待补全
                             </span>
                           ) : null}
-                          <JpVocabFlashcardCopyButton
-                            readingTrim={readingTrim}
-                            wordTrim={wordTrim}
-                            onCopied={setStatus}
-                          />
                         </div>
                       </td>
                       <td
@@ -3926,12 +3941,23 @@ export function JpVocabPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.4rem;
           color: var(--muted);
         }
         .jp-vocab-reading-text {
           flex: 1 1 auto;
           min-width: 0;
+        }
+        .jp-vocab-reading-text--copy {
+          border: none;
+          background: transparent;
+          padding: 0;
+          font: inherit;
+          color: inherit;
+          cursor: pointer;
+          text-align: inherit;
+        }
+        .jp-vocab-reading-text--copy:hover {
+          color: var(--accent);
         }
         .jp-vocab-reading-text--pending {
           font-size: 0.8125rem;
