@@ -27,10 +27,6 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
-import {
-  jpVocabDailyQuizProgressDisplayChecked,
-  type JpVocabDailyQuizProgress,
-} from "@/lib/jp-vocab-daily-quiz-progress";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -63,8 +59,6 @@ type Props = {
   sharedTodayWordIds?: ReadonlySet<number>;
   /** 学生已自行查看老师当前抽查词 */
   studentPeeked?: boolean;
-  /** 今日抽查进度（卡片内展示，列表被隐藏时仍可见） */
-  dailyQuizProgress?: JpVocabDailyQuizProgress | null;
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
@@ -97,7 +91,6 @@ export function JpVocabTeacherQuizFlashcardModal({
   shareProgressMap = {},
   sharedTodayWordIds,
   studentPeeked = false,
-  dailyQuizProgress = null,
   onClose,
   onComplete,
   onSelectLevel,
@@ -248,17 +241,6 @@ export function JpVocabTeacherQuizFlashcardModal({
       ? Math.min(100, Math.round((sessionChecked / sessionTotal) * 100))
       : 0;
   const sessionComplete = sessionTotal > 0 && uncheckedCount === 0;
-  const dailyProgress =
-    dailyQuizProgress && dailyQuizProgress.total > 0 ? dailyQuizProgress : null;
-  const dailyDisplayChecked = dailyProgress
-    ? jpVocabDailyQuizProgressDisplayChecked(dailyProgress)
-    : 0;
-  const dailyPct = dailyProgress
-    ? Math.min(
-        100,
-        Math.round((dailyDisplayChecked / dailyProgress.total) * 100)
-      )
-    : 0;
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
@@ -335,48 +317,6 @@ export function JpVocabTeacherQuizFlashcardModal({
               ×
             </button>
           </div>
-          {dailyProgress ? (
-            <div
-              className={`jp-vocab-teacher-quiz__header-progress jp-vocab-teacher-quiz__header-progress--daily${
-                dailyProgress.complete
-                  ? " jp-vocab-teacher-quiz__header-progress--complete"
-                  : ""
-              }`}
-            >
-              <div className="jp-vocab-teacher-quiz__header-progress-head">
-                <span className="jp-vocab-teacher-quiz__header-progress-title">
-                  今日抽查进度
-                </span>
-                <span className="jp-vocab-teacher-quiz__header-progress-stats">
-                  <strong>{dailyDisplayChecked}</strong>
-                  <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
-                  {dailyProgress.total}
-                  {!dailyProgress.complete ? (
-                    <span className="jp-vocab-teacher-quiz__header-progress-remaining">
-                      （剩余 {dailyProgress.remaining}）
-                    </span>
-                  ) : (
-                    <span className="jp-vocab-teacher-quiz__header-progress-done">
-                      （已完成）
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div
-                className="jp-vocab-teacher-quiz__progress-track"
-                role="progressbar"
-                aria-valuenow={dailyPct}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`今日抽查进度 ${dailyDisplayChecked} / ${dailyProgress.total}`}
-              >
-                <div
-                  className="jp-vocab-teacher-quiz__progress-fill"
-                  style={{ width: `${dailyPct}%` }}
-                />
-              </div>
-            </div>
-          ) : null}
           <div
             className={`jp-vocab-teacher-quiz__header-progress${
               sessionComplete ? " jp-vocab-teacher-quiz__header-progress--complete" : ""
@@ -390,6 +330,15 @@ export function JpVocabTeacherQuizFlashcardModal({
                 <strong>{sessionChecked}</strong>
                 <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
                 {sessionTotal}
+                {!sessionComplete ? (
+                  <span className="jp-vocab-teacher-quiz__header-progress-remaining">
+                    （剩余 {uncheckedCount}）
+                  </span>
+                ) : (
+                  <span className="jp-vocab-teacher-quiz__header-progress-done">
+                    （已完成）
+                  </span>
+                )}
               </span>
             </div>
             <div

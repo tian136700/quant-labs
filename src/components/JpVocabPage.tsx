@@ -3393,7 +3393,6 @@ export function JpVocabPage() {
         shareProgressMap={shareProgressMap}
         sharedTodayWordIds={sharedTodayWordIds}
         studentPeeked={studentPeekedCurrentWord}
-        dailyQuizProgress={dailyQuizProgress}
         onClose={() => setShowQuizFlashcard(false)}
         onComplete={finishTeacherQuiz}
         onSelectLevel={(wordId, level) => void recordLevel(wordId, level, "flashcard")}
