@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type HalfHourTimeOption = { value: string; label: string };
+
+/** 默认隐藏 0:00–6:30，7:00 起正常展示 */
+const EARLY_MORNING_CUTOFF_HOUR = 7;
+
+function isEarlyMorningHalfHourTime(time: string): boolean {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return false;
+  return Number(match[1]) < EARLY_MORNING_CUTOFF_HOUR;
+}
 
 type Props = {
   value: string;
@@ -18,9 +27,33 @@ export function EnLessonHalfHourTimeGridPicker({
   onChange,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [showEarlyMorning, setShowEarlyMorning] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selectedLabel =
     options.find((option) => option.value === value)?.label ?? "请选择";
+
+  const { earlyOptions, regularOptions } = useMemo(() => {
+    const early: HalfHourTimeOption[] = [];
+    const regular: HalfHourTimeOption[] = [];
+    for (const option of options) {
+      if (isEarlyMorningHalfHourTime(option.value)) {
+        early.push(option);
+      } else {
+        regular.push(option);
+      }
+    }
+    return { earlyOptions: early, regularOptions: regular };
+  }, [options]);
+
+  useEffect(() => {
+    if (!open) {
+      setShowEarlyMorning(false);
+      return;
+    }
+    if (value && isEarlyMorningHalfHourTime(value)) {
+      setShowEarlyMorning(true);
+    }
+  }, [open, value]);
 
   useEffect(() => {
     if (!open) return;
@@ -34,6 +67,25 @@ export function EnLessonHalfHourTimeGridPicker({
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, [open]);
+
+  const renderTimeTile = (option: HalfHourTimeOption) => {
+    const selected = value === option.value;
+    return (
+      <button
+        key={option.value}
+        type="button"
+        role="option"
+        aria-selected={selected}
+        className={`jp-lesson-time-grid-tile${selected ? " is-selected" : ""}`}
+        onClick={() => {
+          onChange(option.value);
+          setOpen(false);
+        }}
+      >
+        {option.label}
+      </button>
+    );
+  };
 
   return (
     <div ref={rootRef} className="jp-lesson-time-grid-picker">
@@ -58,26 +110,26 @@ export function EnLessonHalfHourTimeGridPicker({
           role="listbox"
           aria-label="选择时间"
         >
-          {options.map((option) => {
-            const selected = value === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={`jp-lesson-time-grid-tile${
-                  selected ? " is-selected" : ""
-                }`}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+          {!showEarlyMorning && earlyOptions.length > 0 ? (
+            <button
+              type="button"
+              className="jp-lesson-time-grid-early-toggle"
+              onClick={() => setShowEarlyMorning(true)}
+            >
+              展开凌晨时段（0:00–6:30）
+            </button>
+          ) : null}
+          {showEarlyMorning ? earlyOptions.map(renderTimeTile) : null}
+          {showEarlyMorning && earlyOptions.length > 0 ? (
+            <button
+              type="button"
+              className="jp-lesson-time-grid-early-toggle jp-lesson-time-grid-early-toggle--collapse"
+              onClick={() => setShowEarlyMorning(false)}
+            >
+              收起凌晨时段
+            </button>
+          ) : null}
+          {regularOptions.map(renderTimeTile)}
         </div>
       ) : null}
 
@@ -169,6 +221,31 @@ export function EnLessonHalfHourTimeGridPicker({
           background: color-mix(in srgb, var(--accent) 16%, var(--panel));
           color: var(--accent);
           font-weight: 600;
+        }
+
+        .jp-lesson-time-grid-early-toggle {
+          grid-column: 1 / -1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 2rem;
+          padding: 0.35rem 0.5rem;
+          border: 1px dashed color-mix(in srgb, var(--border) 85%, var(--muted));
+          border-radius: 8px;
+          background: transparent;
+          color: var(--muted);
+          font-size: 0.75rem;
+          line-height: 1.3;
+          cursor: pointer;
+        }
+
+        .jp-lesson-time-grid-early-toggle:hover {
+          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+          color: var(--accent);
+        }
+
+        .jp-lesson-time-grid-early-toggle--collapse {
+          margin-bottom: 0.1rem;
         }
       `}</style>
     </div>
