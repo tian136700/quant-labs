@@ -9,9 +9,10 @@ const FADE_MS = 350;
 type Props = {
   message: string | null;
   onDismiss: () => void;
+  className?: string;
 };
 
-export function CopyToast({ message, onDismiss }: Props) {
+export function CopyToast({ message, onDismiss, className }: Props) {
   const [mounted, setMounted] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const onDismissRef = useRef(onDismiss);
@@ -47,7 +48,9 @@ export function CopyToast({ message, onDismiss }: Props) {
 
   return createPortal(
     <div
-      className={`copy-toast${leaving ? " copy-toast--leaving" : ""}`}
+      className={`copy-toast${leaving ? " copy-toast--leaving" : ""}${
+        className ? ` ${className}` : ""
+      }`}
       role="status"
       aria-live="polite"
       aria-atomic="true"

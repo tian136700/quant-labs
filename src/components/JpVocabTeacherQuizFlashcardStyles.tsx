@@ -119,9 +119,35 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__reading-row {
           display: flex;
           flex-wrap: wrap;
-          align-items: baseline;
+          align-items: center;
           justify-content: center;
           gap: 0.5rem 0.75rem;
+        }
+        .jp-vocab-teacher-quiz__hero-term {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          max-width: 100%;
+        }
+        .jp-vocab-flashcard-copy-btn {
+          flex-shrink: 0;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.2rem;
+          padding: 0.2rem 0.45rem;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--bg) 70%, var(--panel));
+          color: var(--muted);
+          font-size: 0.6875rem;
+          font-weight: 500;
+          line-height: 1;
+          cursor: pointer;
+        }
+        .jp-vocab-flashcard-copy-btn:hover {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
         .jp-vocab-teacher-quiz__reading {
           font-size: clamp(1.85rem, 7vw, 2.35rem);
@@ -190,7 +216,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__meta {
           margin: 0;
           display: grid;
-          grid-template-columns: 3rem 1fr;
+          grid-template-columns: auto 1fr;
           gap: 0.25rem 0.65rem;
           font-size: 0.875rem;
           line-height: 1.4;
@@ -659,6 +685,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz__nav-btn-sub {
             display: block;
             font-size: 0.625rem;
+          }
+          .jp-vocab-flashcard-copy-btn {
+            min-height: 1.75rem;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.75rem;
           }
         }
     `}</style>

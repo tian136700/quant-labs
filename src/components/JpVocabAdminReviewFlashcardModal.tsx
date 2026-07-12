@@ -6,6 +6,7 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
+import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
@@ -167,8 +168,6 @@ export function JpVocabAdminReviewFlashcardModal({
   );
   const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
   const showReadingPrimary = Boolean(readingTrim);
-  const showKanjiAside =
-    showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
@@ -237,67 +236,22 @@ export function JpVocabAdminReviewFlashcardModal({
           </button>
         </header>
 
-        <div className="jp-vocab-teacher-quiz__hero" id="jp-vocab-admin-review-title">
-          {showReadingPrimary ? (
-            <div className="jp-vocab-teacher-quiz__reading-row">
-              {w.ref_key ? (
-                <button
-                  type="button"
-                  className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__reading"
-                  title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                  onClick={() => onOpenRef(w.ref_key!, ref)}
-                >
-                  {readingTrim}
-                </button>
-              ) : (
-                <span className="jp-vocab-teacher-quiz__reading">{readingTrim}</span>
-              )}
-              {showKanjiAside ? (
-                w.ref_key ? (
-                  <button
-                    type="button"
-                    className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__kanji"
-                    title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                    onClick={() => onOpenRef(w.ref_key!, ref)}
-                  >
-                    {wordTrim}
-                  </button>
-                ) : (
-                  <span className="jp-vocab-teacher-quiz__kanji">{wordTrim}</span>
-                )
-              ) : null}
-            </div>
-          ) : w.ref_key ? (
-            <button
-              type="button"
-              className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main"
-              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-              onClick={() => onOpenRef(w.ref_key!, ref)}
-            >
-              {wordTrim || "—"}
-            </button>
-          ) : (
-            <span className="jp-vocab-teacher-quiz__word-main">{wordTrim || "—"}</span>
-          )}
-          {w.ref_key ? (
-            <button
-              type="button"
-              className="jp-vocab-teacher-quiz__ref-hint"
-              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-              onClick={() => onOpenRef(w.ref_key!, ref)}
-            >
-              （点击查看教案）
-            </button>
-          ) : null}
-        </div>
+        <JpVocabFlashcardWordHero
+          readingTrim={readingTrim}
+          wordTrim={wordTrim}
+          refKey={w.ref_key}
+          ref={ref}
+          onOpenRef={onOpenRef}
+          titleId="jp-vocab-admin-review-title"
+        />
 
         <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
           <dl className="jp-vocab-teacher-quiz__meta">
-            <dt>释义</dt>
+            <dt>释义：</dt>
             <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
               {meaningTrim}
             </dd>
-            <dt>词性</dt>
+            <dt>词性：</dt>
             <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
               {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : null}
             </dd>

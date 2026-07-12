@@ -25,6 +25,7 @@ import {
 } from "@/lib/jp-vocab-save-progress";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
+import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -217,8 +218,6 @@ export function JpVocabTeacherQuizFlashcardModal({
   );
   const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
   const showReadingPrimary = Boolean(readingTrim);
-  const showKanjiAside =
-    showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
@@ -317,67 +316,22 @@ export function JpVocabTeacherQuizFlashcardModal({
           </p>
         ) : null}
 
-        <div className="jp-vocab-teacher-quiz__hero" id="jp-vocab-teacher-quiz-title">
-          {showReadingPrimary ? (
-            <div className="jp-vocab-teacher-quiz__reading-row">
-              {w.ref_key ? (
-                <button
-                  type="button"
-                  className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__reading"
-                  title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                  onClick={() => onOpenRef(w.ref_key!, ref)}
-                >
-                  {readingTrim}
-                </button>
-              ) : (
-                <span className="jp-vocab-teacher-quiz__reading">{readingTrim}</span>
-              )}
-              {showKanjiAside ? (
-                w.ref_key ? (
-                  <button
-                    type="button"
-                    className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__kanji"
-                    title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                    onClick={() => onOpenRef(w.ref_key!, ref)}
-                  >
-                    {wordTrim}
-                  </button>
-                ) : (
-                  <span className="jp-vocab-teacher-quiz__kanji">{wordTrim}</span>
-                )
-              ) : null}
-            </div>
-          ) : w.ref_key ? (
-            <button
-              type="button"
-              className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main"
-              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-              onClick={() => onOpenRef(w.ref_key!, ref)}
-            >
-              {wordTrim || "—"}
-            </button>
-          ) : (
-            <span className="jp-vocab-teacher-quiz__word-main">{wordTrim || "—"}</span>
-          )}
-          {w.ref_key ? (
-            <button
-              type="button"
-              className="jp-vocab-teacher-quiz__ref-hint"
-              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-              onClick={() => onOpenRef(w.ref_key!, ref)}
-            >
-              （点击查看教案）
-            </button>
-          ) : null}
-        </div>
+        <JpVocabFlashcardWordHero
+          readingTrim={readingTrim}
+          wordTrim={wordTrim}
+          refKey={w.ref_key}
+          ref={ref}
+          onOpenRef={onOpenRef}
+          titleId="jp-vocab-teacher-quiz-title"
+        />
 
         <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
           <dl className="jp-vocab-teacher-quiz__meta">
-            <dt>释义</dt>
+            <dt>释义：</dt>
             <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
               {meaningTrim}
             </dd>
-            <dt>词性</dt>
+            <dt>词性：</dt>
             <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
               {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : null}
             </dd>

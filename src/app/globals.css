@@ -744,6 +744,10 @@ textarea:focus {
   transform: translateX(-50%) translateY(0.4rem);
 }
 
+.copy-toast--above-modal {
+  z-index: 1010;
+}
+
 .hint {
   @apply text-xs text-muted leading-relaxed;
 }
