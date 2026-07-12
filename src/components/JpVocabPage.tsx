@@ -44,6 +44,13 @@ import {
   shouldShowJpVocabTeacherQuizIntro,
 } from "@/components/JpVocabTeacherQuizIntroModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
+import { JpVocabAdminReviewFlashcardModal } from "@/components/JpVocabAdminReviewFlashcardModal";
+import {
+  createJpVocabAdminReviewSession,
+  normalizeJpVocabAdminDailyReview,
+  type JpVocabAdminDailyReview,
+  type JpVocabAdminReviewSession,
+} from "@/lib/jp-vocab-admin-daily-review";
 import {
   createJpVocabTeacherQuizSession,
   expandJpVocabTeacherQuizSessionForTarget,
@@ -335,6 +342,13 @@ export function JpVocabPage() {
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<JpVocabTeacherQuizSession | null>(null);
   const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
+  const [adminReviewSession, setAdminReviewSession] =
+    useState<JpVocabAdminReviewSession | null>(null);
+  const [showAdminReviewFlashcard, setShowAdminReviewFlashcard] = useState(false);
+  const [adminDailyReview, setAdminDailyReview] = useState<JpVocabAdminDailyReview>(() =>
+    normalizeJpVocabAdminDailyReview(null)
+  );
+  const [adminReviewRecordingNext, setAdminReviewRecordingNext] = useState(false);
   const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
@@ -454,6 +468,9 @@ export function JpVocabPage() {
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
     setTeacherVisibleLimit(payload.teacher_visible_limit);
+    if (payload.admin_daily_review) {
+      setAdminDailyReview(normalizeJpVocabAdminDailyReview(payload.admin_daily_review));
+    }
   }, []);
 
   const applyTeacherVisibleSync = useCallback(
@@ -921,6 +938,65 @@ export function JpVocabPage() {
     isWordReviewLocked,
     sessionReviewAt,
   ]);
+
+  const adminReviewWordIds = useMemo(
+    () => filteredDisplayedWords.map((w) => w.id),
+    [filteredDisplayedWords]
+  );
+
+  const startAdminReview = useCallback(
+    (wordId: number) => {
+      const session = createJpVocabAdminReviewSession(adminReviewWordIds, wordId);
+      if (!session) {
+        setStatus("当前列表没有可复习的词条。");
+        return;
+      }
+      setAdminReviewSession(session);
+      setShowAdminReviewFlashcard(true);
+    },
+    [adminReviewWordIds]
+  );
+
+  const recordAdminReviewNext = useCallback(
+    async (wordId: number) => {
+      if (adminReviewRecordingNext) return;
+      setAdminReviewRecordingNext(true);
+      try {
+        const res = await fetch("/api/jp-vocab", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ action: "admin_review_next", word_id: wordId }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          admin_daily_review?: Partial<JpVocabAdminDailyReview>;
+          error?: string;
+        };
+        if (!data.ok || !data.admin_daily_review) {
+          throw new Error(data.error || "记录复习失败");
+        }
+        const next = normalizeJpVocabAdminDailyReview(data.admin_daily_review);
+        setAdminDailyReview(next);
+        const cached = readVocabCache();
+        if (cached) {
+          writeClientCache(JP_VOCAB_CACHE_KEY, {
+            ...cached,
+            admin_daily_review: next,
+          });
+        }
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : String(err));
+        throw err;
+      } finally {
+        setAdminReviewRecordingNext(false);
+      }
+    },
+    [adminReviewRecordingNext, locale]
+  );
 
   const totalPages = Math.max(
     1,
@@ -2937,6 +3013,16 @@ export function JpVocabPage() {
                               {isAdmin ? (
                                 <button
                                   type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
+                                  title="按当前列表排序打开复习卡片"
+                                  onClick={() => startAdminReview(w.id)}
+                                >
+                                  复习本单词
+                                </button>
+                              ) : null}
+                              {isAdmin ? (
+                                <button
+                                  type="button"
                                   className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger jp-vocab-mobile-action-btn"
                                   disabled={
                                     isSaving ||
@@ -3164,6 +3250,35 @@ export function JpVocabPage() {
         onEditWord={setEditingWord}
         onShare={(wordId) => void shareWord(wordId)}
         onUnshare={(wordId) => void unshareWord(wordId)}
+        onWordUpdated={handleWordSaved}
+        nestedModalOpen={
+          viewingRemarksWord != null ||
+          previewRef != null ||
+          editingRemarksWord != null ||
+          editingWord != null
+        }
+      />
+
+      <JpVocabAdminReviewFlashcardModal
+        open={showAdminReviewFlashcard}
+        session={adminReviewSession}
+        wordsById={wordsById}
+        refs={refs}
+        locale={locale}
+        displayOrder={displayOrder}
+        sessionLevel={sessionLevel}
+        dailySeqByWordId={dailySeqByWordId}
+        todayReviewCount={adminDailyReview.count}
+        recordingNext={adminReviewRecordingNext}
+        onClose={() => setShowAdminReviewFlashcard(false)}
+        onNavigate={(index) =>
+          setAdminReviewSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
+        }
+        onReviewNext={recordAdminReviewNext}
+        onOpenRef={openRefPreview}
+        onViewRemarks={setViewingRemarksWord}
+        onEditRemarks={setEditingRemarksWord}
+        onEditWord={setEditingWord}
         onWordUpdated={handleWordSaved}
         nestedModalOpen={
           viewingRemarksWord != null ||

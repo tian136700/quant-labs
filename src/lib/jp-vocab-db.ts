@@ -23,6 +23,10 @@ import {
 } from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
 import {
+  normalizeJpVocabAdminDailyReview,
+  type JpVocabAdminDailyReview,
+} from "@/lib/jp-vocab-admin-daily-review";
+import {
   beijingDateString,
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
@@ -126,6 +130,11 @@ let devTeacherQuizLive: JpVocabTeacherQuizLive = {
   ...JP_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
   date: beijingDateString(),
 };
+let devAdminDailyReview: JpVocabAdminDailyReview = {
+  date: beijingDateString(),
+  count: 0,
+  reviewed_word_ids: [],
+};
 const devShared: Array<{
   id: number;
   word_id: number;
@@ -148,6 +157,7 @@ const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 const JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 const JP_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
+const JP_VOCAB_ADMIN_DAILY_REVIEW_KEY = "admin_daily_review";
 
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
@@ -2808,6 +2818,7 @@ export type JpVocabDailyRolloverResult = {
   deleted_shared: number;
   deleted_share_requests: number;
   cleared_today_checks: number;
+  admin_daily_review_reset: boolean;
 };
 
 function teacherVisibleNeedsDailyReset(
@@ -2846,6 +2857,8 @@ export async function runJpVocabDailyRolloverInDb(
     const cleared_today_checks = devWords.filter(
       (word) => word.today_check_date && word.today_check_date < today
     ).length;
+    const admin_daily_review_reset =
+      !devAdminDailyReview.date || devAdminDailyReview.date !== today;
 
     if (!dryRun) {
       if (teacher_visible_reset) {
@@ -2853,6 +2866,9 @@ export async function runJpVocabDailyRolloverInDb(
       }
       if (display_order_refreshed) {
         devDailyDisplayOrder = await refreshJpVocabDailyDisplayOrder(db, devWords);
+      }
+      if (admin_daily_review_reset) {
+        devAdminDailyReview = await resetJpVocabAdminDailyReview(db, now);
       }
       if (deleted_shared > 0) {
         for (let i = devShared.length - 1; i >= 0; i -= 1) {
@@ -2889,6 +2905,7 @@ export async function runJpVocabDailyRolloverInDb(
       deleted_shared,
       deleted_share_requests,
       cleared_today_checks,
+      admin_daily_review_reset,
     };
   }
 
@@ -2925,6 +2942,10 @@ export async function runJpVocabDailyRolloverInDb(
     .first<{ c: number }>();
   const cleared_today_checks = Number(checkCountRow?.c ?? 0);
 
+  const rawAdminReview = await readJpVocabAdminDailyReviewRaw(db);
+  const admin_daily_review_reset =
+    !rawAdminReview?.date || rawAdminReview.date !== today;
+
   if (dryRun) {
     return {
       date: today,
@@ -2934,6 +2955,7 @@ export async function runJpVocabDailyRolloverInDb(
       deleted_shared,
       deleted_share_requests,
       cleared_today_checks,
+      admin_daily_review_reset,
     };
   }
 
@@ -2973,6 +2995,10 @@ export async function runJpVocabDailyRolloverInDb(
       .run();
   }
 
+  if (admin_daily_review_reset) {
+    await resetJpVocabAdminDailyReview(db, now);
+  }
+
   return {
     date: today,
     dry_run: false,
@@ -2981,6 +3007,7 @@ export async function runJpVocabDailyRolloverInDb(
     deleted_shared,
     deleted_share_requests,
     cleared_today_checks,
+    admin_daily_review_reset,
   };
 }
 
@@ -3226,4 +3253,85 @@ export async function isJpVocabTeacherQuizLiveStudentPeekedForWord(
 ): Promise<boolean> {
   const live = await getJpVocabTeacherQuizLive(db, now);
   return isJpVocabTeacherQuizLiveStudentPeeked(live, wordId);
+}
+
+async function readJpVocabAdminDailyReviewRaw(
+  db: D1Database
+): Promise<Partial<JpVocabAdminDailyReview> | null> {
+  if (devStoreEnabled) {
+    return devAdminDailyReview;
+  }
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_ADMIN_DAILY_REVIEW_KEY)
+    .first<{ value: string }>();
+  if (!row?.value) return null;
+  try {
+    return JSON.parse(row.value) as Partial<JpVocabAdminDailyReview>;
+  } catch {
+    return null;
+  }
+}
+
+async function saveJpVocabAdminDailyReview(
+  db: D1Database,
+  review: JpVocabAdminDailyReview
+): Promise<void> {
+  const next = normalizeJpVocabAdminDailyReview(review);
+  if (devStoreEnabled) {
+    devAdminDailyReview = next;
+    return;
+  }
+  await ensureJpVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(JP_VOCAB_ADMIN_DAILY_REVIEW_KEY, JSON.stringify(next), nowIso())
+    .run();
+}
+
+export async function getJpVocabAdminDailyReview(
+  db: D1Database,
+  now = new Date()
+): Promise<JpVocabAdminDailyReview> {
+  const raw = await readJpVocabAdminDailyReviewRaw(db);
+  return normalizeJpVocabAdminDailyReview(raw, now);
+}
+
+/** 管理员复习卡片点「下一个」：记录当前词已完成今日复习（去重计数） */
+export async function recordJpVocabAdminReviewNext(
+  db: D1Database,
+  wordId: number,
+  now = new Date()
+): Promise<JpVocabAdminDailyReview> {
+  const id = Math.floor(Number(wordId));
+  if (!Number.isFinite(id) || id <= 0) {
+    return getJpVocabAdminDailyReview(db, now);
+  }
+  const current = await getJpVocabAdminDailyReview(db, now);
+  if (current.reviewed_word_ids.includes(id)) {
+    return current;
+  }
+  const next: JpVocabAdminDailyReview = {
+    date: current.date,
+    reviewed_word_ids: [...current.reviewed_word_ids, id],
+    count: current.reviewed_word_ids.length + 1,
+  };
+  await saveJpVocabAdminDailyReview(db, next);
+  return next;
+}
+
+export async function resetJpVocabAdminDailyReview(
+  db: D1Database,
+  now = new Date()
+): Promise<JpVocabAdminDailyReview> {
+  const next = normalizeJpVocabAdminDailyReview(null, now);
+  await saveJpVocabAdminDailyReview(db, next);
+  return next;
 }
