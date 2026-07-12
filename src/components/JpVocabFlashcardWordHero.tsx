@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
-import { copyTextToClipboard } from "@/lib/copy-text";
+import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import type { JpVocabRef } from "@/lib/types";
 
 type Props = {
@@ -13,69 +13,6 @@ type Props = {
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
   titleId?: string;
 };
-
-function FlashcardCopyBtn({
-  text,
-  onCopied,
-}: {
-  text: string;
-  onCopied: (message: string) => void;
-}) {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-
-  return (
-    <button
-      type="button"
-      className="jp-vocab-flashcard-copy-btn"
-      title={`复制「${trimmed}」`}
-      aria-label={`复制「${trimmed}」`}
-      onClick={(e) => {
-        e.stopPropagation();
-        void copyTextToClipboard(trimmed).then((ok) =>
-          onCopied(ok ? "已复制" : "复制失败")
-        );
-      }}
-    >
-      <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
-        <rect
-          x="7"
-          y="7"
-          width="9"
-          height="9"
-          rx="1.5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-        <path
-          d="M5 13H4.5A1.5 1.5 0 0 1 3 11.5v-8A1.5 1.5 0 0 1 4.5 2h8A1.5 1.5 0 0 1 14 3.5V4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-      </svg>
-      <span>复制</span>
-    </button>
-  );
-}
-
-function HeroTerm({
-  children,
-  copyText,
-  onCopied,
-}: {
-  children: ReactNode;
-  copyText: string;
-  onCopied: (message: string) => void;
-}) {
-  return (
-    <span className="jp-vocab-teacher-quiz__hero-term">
-      {children}
-      <FlashcardCopyBtn text={copyText} onCopied={onCopied} />
-    </span>
-  );
-}
 
 export function JpVocabFlashcardWordHero({
   readingTrim,
@@ -139,19 +76,23 @@ export function JpVocabFlashcardWordHero({
       <div className="jp-vocab-teacher-quiz__hero" id={titleId}>
         {showReadingPrimary ? (
           <div className="jp-vocab-teacher-quiz__reading-row">
-            <HeroTerm copyText={readingTrim} onCopied={onCopied}>
-              {renderReading()}
-            </HeroTerm>
-            {showKanjiAside ? (
-              <HeroTerm copyText={wordTrim} onCopied={onCopied}>
-                {renderKanji()}
-              </HeroTerm>
-            ) : null}
+            {renderReading()}
+            {showKanjiAside ? renderKanji() : null}
+            <JpVocabFlashcardCopyButton
+              readingTrim={readingTrim}
+              wordTrim={wordTrim}
+              onCopied={onCopied}
+            />
           </div>
         ) : (
-          <HeroTerm copyText={wordTrim} onCopied={onCopied}>
+          <div className="jp-vocab-teacher-quiz__reading-row">
             {renderWordMain()}
-          </HeroTerm>
+            <JpVocabFlashcardCopyButton
+              readingTrim={readingTrim}
+              wordTrim={wordTrim}
+              onCopied={onCopied}
+            />
+          </div>
         )}
         {refKey ? (
           <button

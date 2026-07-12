@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import { CopyToast } from "@/components/CopyToast";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
+import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
 import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
@@ -55,6 +57,8 @@ export function JpVocabStudyFlashcardModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  const onCopied = useCallback((message: string) => setCopyToast(message), []);
 
   useEffect(() => {
     setMounted(true);
@@ -188,9 +192,21 @@ export function JpVocabStudyFlashcardModal({
               {showKanjiAside ? (
                 <span className="jp-vocab-flashcard__kanji">{wordTrim}</span>
               ) : null}
+              <JpVocabFlashcardCopyButton
+                readingTrim={readingTrim}
+                wordTrim={wordTrim}
+                onCopied={onCopied}
+              />
             </div>
           ) : (
-            <span className="jp-vocab-flashcard__word-main">{wordTrim}</span>
+            <div className="jp-vocab-flashcard__reading-row">
+              <span className="jp-vocab-flashcard__word-main">{wordTrim}</span>
+              <JpVocabFlashcardCopyButton
+                readingTrim={readingTrim}
+                wordTrim={wordTrim}
+                onCopied={onCopied}
+              />
+            </div>
           )}
           {!showReadingPrimary && !wordTrim ? (
             <span className="jp-vocab-flashcard__word-main jp-vocab-flashcard__empty">
@@ -357,6 +373,12 @@ export function JpVocabStudyFlashcardModal({
         </div>
       </article>
 
+      <CopyToast
+        message={copyToast}
+        onDismiss={() => setCopyToast(null)}
+        className="copy-toast--above-modal"
+      />
+
       <style jsx global>{`
         .jp-vocab-flashcard-overlay {
           position: fixed;
@@ -431,7 +453,7 @@ export function JpVocabStudyFlashcardModal({
         .jp-vocab-flashcard__reading-row {
           display: flex;
           flex-wrap: wrap;
-          align-items: baseline;
+          align-items: center;
           justify-content: center;
           gap: 0.5rem 0.75rem;
         }
