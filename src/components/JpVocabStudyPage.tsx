@@ -7,8 +7,10 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import {
+  evaluateJpVocabDailyCompleteModal,
   markJpVocabStudyDailyCompleteDismissed,
   shouldShowJpVocabStudyDailyComplete,
+  type JpVocabDailyCompleteSnapshot,
 } from "@/lib/jp-vocab-daily-complete-dismiss";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
@@ -74,7 +76,7 @@ export function JpVocabStudyPage() {
   const [shareDate, setShareDate] = useState("");
   const [quizProgress, setQuizProgress] = useState<JpVocabDailyQuizProgress | null>(null);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
-  const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
+  const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -322,18 +324,23 @@ export function JpVocabStudyPage() {
   useEffect(() => {
     if (!canViewStudy || !user || !quizProgress || quizProgress.total <= 0) return;
 
-    const isComplete = quizProgress.complete;
-    const wasComplete = dailyQuizCompleteWasRef.current;
-    dailyQuizCompleteWasRef.current = isComplete;
-
-    if (!isComplete) return;
-    if (!shouldShowJpVocabStudyDailyComplete(user.id, quizProgress.total)) {
-      return;
-    }
-    if (wasComplete !== false) return;
-
-    setShowDailyComplete(true);
-  }, [canViewStudy, user?.id, quizProgress?.complete, quizProgress?.total]);
+    const { nextSnapshot, open } = evaluateJpVocabDailyCompleteModal({
+      ready: !loading && !checking && hasLoadedOnceRef.current,
+      userId: user.id,
+      progress: quizProgress,
+      prevSnapshot: dailyCompleteSnapshotRef.current,
+      shouldShow: shouldShowJpVocabStudyDailyComplete,
+    });
+    dailyCompleteSnapshotRef.current = nextSnapshot;
+    if (open) setShowDailyComplete(true);
+  }, [
+    loading,
+    checking,
+    canViewStudy,
+    user?.id,
+    quizProgress?.complete,
+    quizProgress?.total,
+  ]);
 
   useEffect(() => {
     if (!requestSent) return;

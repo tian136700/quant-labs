@@ -112,8 +112,10 @@ import {
   computeJpVocabDailyQuizProgress,
 } from "@/lib/jp-vocab-daily-quiz-progress";
 import {
+  evaluateJpVocabDailyCompleteModal,
   markJpVocabTeacherDailyCompleteDismissed,
   shouldShowJpVocabTeacherDailyComplete,
+  type JpVocabDailyCompleteSnapshot,
 } from "@/lib/jp-vocab-daily-complete-dismiss";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import {
@@ -330,7 +332,7 @@ export function JpVocabPage() {
   const [showShareRequestModal, setShowShareRequestModal] = useState(false);
   const shareRequestPollInFlightRef = useRef(false);
   const dismissingShareRequestsRef = useRef(false);
-  const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
+  const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   /** 手机端默认收起操作按钮，避免误触导出 Excel 等 */
   const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
@@ -1076,23 +1078,21 @@ export function JpVocabPage() {
   useEffect(() => {
     if (!canOperate || !user || dailyQuizProgress.total <= 0) return;
 
-    const isComplete = dailyQuizProgress.complete;
-    const wasComplete = dailyQuizCompleteWasRef.current;
-    dailyQuizCompleteWasRef.current = isComplete;
-
-    if (!isComplete) return;
-    if (
-      !shouldShowJpVocabTeacherDailyComplete(user.id, dailyQuizProgress.total)
-    ) {
-      return;
-    }
-    // 仅在本次会话内从「未完成 → 已完成」时弹出，避免每次进入页面重复提示
-    if (wasComplete !== false) return;
-
-    setShowDailyComplete(true);
+    const { nextSnapshot, open } = evaluateJpVocabDailyCompleteModal({
+      ready: !loading && !checking && words.length > 0,
+      userId: user.id,
+      progress: dailyQuizProgress,
+      prevSnapshot: dailyCompleteSnapshotRef.current,
+      shouldShow: shouldShowJpVocabTeacherDailyComplete,
+    });
+    dailyCompleteSnapshotRef.current = nextSnapshot;
+    if (open) setShowDailyComplete(true);
   }, [
+    loading,
+    checking,
     canOperate,
     user?.id,
+    words.length,
     dailyQuizProgress.complete,
     dailyQuizProgress.total,
   ]);
@@ -1244,7 +1244,10 @@ export function JpVocabPage() {
     setShowQuizFlashcard(false);
     setQuizSession(null);
     if (!user) return;
-    dailyQuizCompleteWasRef.current = true;
+    dailyCompleteSnapshotRef.current = {
+      complete: dailyQuizProgress.complete,
+      total: dailyQuizProgress.total,
+    };
     if (shouldShowJpVocabTeacherDailyComplete(user.id, dailyQuizProgress.total)) {
       setShowDailyComplete(true);
     }
