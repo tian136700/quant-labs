@@ -105,6 +105,25 @@ export function removeJpVocabClassNoteAtIndex(
   return serializeJpVocabClassNotes(entries.filter((_, i) => i !== index));
 }
 
+/** 按索引更新一条备注（用于无时间戳的旧条目编辑） */
+export function replaceJpVocabClassNoteAtIndex(
+  existing: string | null | undefined,
+  index: number,
+  newContent: string
+): string {
+  const entries = parseJpVocabClassNotes(existing);
+  if (index < 0 || index >= entries.length) {
+    return serializeJpVocabClassNotes(entries);
+  }
+  const trimmed = newContent.trim();
+  if (!trimmed) {
+    return serializeJpVocabClassNotes(entries.filter((_, i) => i !== index));
+  }
+  return serializeJpVocabClassNotes(
+    entries.map((entry, i) => (i === index ? { ...entry, content: trimmed } : entry))
+  );
+}
+
 /** 备注正文中的图片行：![](/api/jp-vocab/ref/{ref_key}) */
 export const JP_VOCAB_CLASS_NOTE_IMAGE_LINE_RE =
   /^!\[\]\((\/api\/jp-vocab\/ref\/[^)]+)\)$/;

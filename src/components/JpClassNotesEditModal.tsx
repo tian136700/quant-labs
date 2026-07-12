@@ -11,6 +11,7 @@ import {
   parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
+  replaceJpVocabClassNoteAtIndex,
   upsertJpVocabClassNoteSession,
   type JpVocabClassNoteEntry,
 } from "@/lib/jp-vocab-class-notes";
@@ -37,6 +38,11 @@ type Props = {
 };
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+
+type EditTarget =
+  | { mode: "new" }
+  | { mode: "timestamp"; timestamp: string }
+  | { mode: "index"; index: number };
 
 const AUTO_SAVE_MS = 1_000;
 const POLL_MS = 2_000;
@@ -111,13 +117,16 @@ export function JpClassNotesEditModal({
     null
   );
   const [imageUploading, setImageUploading] = useState(false);
+  const [editTarget, setEditTarget] = useState<EditTarget>({ mode: "new" });
   const dirtyRef = useRef(false);
   const lastSavedDraftRef = useRef("");
   const sessionTsRef = useRef<string | null>(null);
+  const editTargetRef = useRef<EditTarget>({ mode: "new" });
   const [sessionTs, setSessionTs] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wordRef = useRef(word);
   const pollInFlightRef = useRef(false);
 
@@ -136,6 +145,8 @@ export function JpClassNotesEditModal({
       lastSavedDraftRef.current = "";
       sessionTsRef.current = null;
       setSessionTs(null);
+      editTargetRef.current = { mode: "new" };
+      setEditTarget({ mode: "new" });
       dirtyRef.current = false;
       setError("");
       setSaveStatus("idle");
@@ -236,11 +247,15 @@ export function JpClassNotesEditModal({
         setSessionTs(sessionTsRef.current);
       }
 
-      const nextNotes = upsertJpVocabClassNoteSession(
-        current.class_notes,
-        sessionTsRef.current,
-        trimmed
-      );
+      const target = editTargetRef.current;
+      const nextNotes =
+        target.mode === "index"
+          ? replaceJpVocabClassNoteAtIndex(current.class_notes, target.index, trimmed)
+          : upsertJpVocabClassNoteSession(
+              current.class_notes,
+              sessionTsRef.current,
+              trimmed
+            );
 
       setSaveStatus("saving");
       const snapshot = current;
@@ -305,6 +320,25 @@ export function JpClassNotesEditModal({
         setSessionTs(null);
         setDraft("");
         lastSavedDraftRef.current = "";
+        editTargetRef.current = { mode: "new" };
+        setEditTarget({ mode: "new" });
+      } else if (
+        editTargetRef.current.mode === "index" &&
+        editTargetRef.current.index === index
+      ) {
+        editTargetRef.current = { mode: "new" };
+        setEditTarget({ mode: "new" });
+        setDraft("");
+        lastSavedDraftRef.current = "";
+      } else if (
+        editTargetRef.current.mode === "index" &&
+        editTargetRef.current.index > index
+      ) {
+        editTargetRef.current = {
+          mode: "index",
+          index: editTargetRef.current.index - 1,
+        };
+        setEditTarget(editTargetRef.current);
       }
 
       setDeletingIndex(index);
@@ -357,6 +391,40 @@ export function JpClassNotesEditModal({
     },
     [canEdit, deletingIndex, locale, onNeedAuth, onSaveFailed, onSaved]
   );
+
+  const handleEditAtIndex = useCallback((index: number) => {
+    const current = wordRef.current;
+    if (!current) return;
+
+    const entries = parseJpVocabClassNotes(current.class_notes);
+    const entry = entries[index];
+    if (!entry) return;
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    setDraft(entry.content);
+    lastSavedDraftRef.current = entry.content;
+    dirtyRef.current = false;
+    setSaveStatus("saved");
+    setError("");
+
+    if (entry.timestamp) {
+      sessionTsRef.current = entry.timestamp;
+      setSessionTs(entry.timestamp);
+      editTargetRef.current = { mode: "timestamp", timestamp: entry.timestamp };
+      setEditTarget({ mode: "timestamp", timestamp: entry.timestamp });
+    } else {
+      sessionTsRef.current = null;
+      setSessionTs(null);
+      editTargetRef.current = { mode: "index", index };
+      setEditTarget({ mode: "index", index });
+    }
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      textareaRef.current?.focus();
+    });
+  }, []);
 
   const uploadNoteImage = useCallback(
     async (file: File) => {
@@ -520,6 +588,21 @@ export function JpClassNotesEditModal({
     (segment) => segment.type === "image"
   );
 
+  const isEntryHiddenInHistory = (entry: JpVocabClassNoteEntry, index: number) => {
+    if (sessionTs && entry.timestamp === sessionTs) return true;
+    if (editTarget.mode === "index" && editTarget.index === index) return true;
+    return false;
+  };
+
+  const editingHint =
+    editTarget.mode === "timestamp"
+      ? `正在编辑 ${editTarget.timestamp} 的备注`
+      : editTarget.mode === "index"
+        ? "正在编辑本条备注"
+        : sessionTs
+          ? `正在编辑 ${sessionTs} 的备注`
+          : null;
+
   return createPortal(
     <>
       <div
@@ -554,10 +637,10 @@ export function JpClassNotesEditModal({
           </div>
 
           <div className="jp-notes-edit-body">
-            {historyEntries.some((e) => !sessionTs || e.timestamp !== sessionTs) ? (
+            {historyEntries.some((entry, index) => !isEntryHiddenInHistory(entry, index)) ? (
               <div className="jp-notes-edit-history" aria-label="历史备注">
                 {historyEntries.map((entry, index) => {
-                  if (sessionTs && entry.timestamp === sessionTs) return null;
+                  if (isEntryHiddenInHistory(entry, index)) return null;
                   return (
                     <div
                       key={`${entry.timestamp ?? "legacy"}-${index}`}
@@ -570,15 +653,24 @@ export function JpClassNotesEditModal({
                           <span />
                         )}
                         {canEdit ? (
-                          <button
-                            type="button"
-                            className="jp-notes-edit-entry-delete"
-                            disabled={deletingIndex === index}
-                            aria-label="删除本条备注"
-                            onClick={() => void handleDeleteAtIndex(index)}
-                          >
-                            {deletingIndex === index ? "删除中…" : "删除"}
-                          </button>
+                          <div className="jp-notes-edit-entry-actions">
+                            <button
+                              type="button"
+                              className="jp-notes-edit-entry-edit"
+                              onClick={() => handleEditAtIndex(index)}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              type="button"
+                              className="jp-notes-edit-entry-delete"
+                              disabled={deletingIndex === index}
+                              aria-label="删除本条备注"
+                              onClick={() => void handleDeleteAtIndex(index)}
+                            >
+                              {deletingIndex === index ? "删除中…" : "删除"}
+                            </button>
+                          </div>
                         ) : null}
                       </div>
                       <JpVocabClassNoteContent content={entry.content} />
@@ -591,6 +683,9 @@ export function JpClassNotesEditModal({
             {canEdit ? (
               <>
                 <div className="jp-notes-edit-compose">
+                  {editingHint ? (
+                    <p className="jp-notes-edit-editing-hint">{editingHint}</p>
+                  ) : null}
                   <div className="jp-notes-edit-compose-toolbar">
                     <button
                       type="button"
@@ -616,6 +711,7 @@ export function JpClassNotesEditModal({
                     />
                   </div>
                   <textarea
+                    ref={textareaRef}
                     className="jp-notes-edit-textarea"
                     rows={8}
                     value={draft}
@@ -802,6 +898,28 @@ export function JpClassNotesEditModal({
           color: var(--muted);
         }
 
+        .jp-notes-edit-entry-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          flex-shrink: 0;
+        }
+
+        .jp-notes-edit-entry-edit {
+          flex-shrink: 0;
+          border: none;
+          background: transparent;
+          color: var(--accent);
+          font-size: 0.75rem;
+          padding: 0.1rem 0.25rem;
+          cursor: pointer;
+          font: inherit;
+        }
+
+        .jp-notes-edit-entry-edit:hover {
+          text-decoration: underline;
+        }
+
         .jp-notes-edit-entry-delete {
           flex-shrink: 0;
           border: none;
@@ -836,6 +954,12 @@ export function JpClassNotesEditModal({
           display: flex;
           flex-direction: column;
           gap: 0.55rem;
+        }
+
+        .jp-notes-edit-editing-hint {
+          margin: 0;
+          font-size: 0.8125rem;
+          color: var(--accent);
         }
 
         .jp-notes-edit-compose-toolbar {
