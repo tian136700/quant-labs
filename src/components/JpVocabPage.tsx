@@ -27,6 +27,7 @@ import {
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
+import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
@@ -2754,6 +2755,7 @@ export function JpVocabPage() {
                   const inQuizTarget = isWordInQuizTarget(w.id);
                   const tableQuizLocked = teacherQuizLocksTable && inQuizTarget;
                   const readingTrim = (w.reading || "").trim();
+                  const wordTrim = (w.word || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
                   const mnemonicTrim = (w.mnemonic || "").trim();
@@ -2870,6 +2872,11 @@ export function JpVocabPage() {
                               待补全
                             </span>
                           ) : null}
+                          <JpVocabFlashcardCopyButton
+                            readingTrim={readingTrim}
+                            wordTrim={wordTrim}
+                            onCopied={setStatus}
+                          />
                         </div>
                       </td>
                       <td
@@ -4078,7 +4085,8 @@ export function JpVocabPage() {
         }
         .jp-vocab-reading-cell {
           display: inline-flex;
-          align-items: flex-start;
+          align-items: center;
+          justify-content: center;
           gap: 0.4rem;
           color: var(--muted);
         }
