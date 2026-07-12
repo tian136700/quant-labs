@@ -1,0 +1,100 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="center muted">加载中…</view>
+
+  <block wx:else>
+    <view class="top-bar">
+      <text class="muted">已登录：{{username}}</text>
+      <text class="logout" bindtap="onLogout">退出</text>
+    </view>
+
+    <text wx:if="{{status}}" class="status">{{status}}</text>
+
+    <view class="panel config">
+      <view class="config-row">
+        <text class="label">复习数量</text>
+        <input
+          class="count-input"
+          type="number"
+          value="{{countInput}}"
+          bindinput="onCountInput"
+          bindblur="onCountBlur"
+        />
+        <text class="muted hint">共 {{totalWords}} 条</text>
+      </view>
+
+      <view class="config-row">
+        <text class="label">排序</text>
+        <radio-group class="sort-group" bindchange="onSortChange">
+          <label class="sort-opt">
+            <radio value="seq" checked="{{sortMode === 'seq'}}" color="#e85d6f" />
+            <text>按序号</text>
+          </label>
+          <label class="sort-opt">
+            <radio value="risk" checked="{{sortMode === 'risk'}}" color="#e85d6f" />
+            <text>按抽查优先级</text>
+          </label>
+        </radio-group>
+      </view>
+
+      <view class="summary muted">
+        本轮 {{reviewTotal}} 个 · 已复习 {{sessionReviewed}} 个
+        <text wx:if="{{cumulativeReviewed > sessionReviewed}}"> · 累计 {{cumulativeReviewed}} 个</text>
+      </view>
+
+      <view wx:if="{{clearBusy}}" class="clear-progress">
+        <text class="muted">正在清除… {{clearPercent}}%</text>
+        <view class="progress-bar progress-bar--orange">
+          <view class="progress-bar__fill" style="width: {{clearPercent}}%;"></view>
+        </view>
+      </view>
+
+      <view class="actions">
+        <button class="btn btn-primary action-btn" bindtap="startReview">开始复习</button>
+        <button class="btn btn-secondary action-btn" bindtap="startReview">继续复习</button>
+        <button
+          class="btn btn-danger action-btn"
+          disabled="{{clearBusy || cumulativeReviewed === 0}}"
+          bindtap="onClearReview"
+        >
+          清除已复习
+        </button>
+      </view>
+    </view>
+
+    <view class="list-head">
+      <text class="list-title">本轮词条</text>
+      <text wx:if="{{refreshing}}" class="muted">刷新中…</text>
+    </view>
+
+    <view class="word-list">
+      <view
+        wx:for="{{reviewWords}}"
+        wx:key="id"
+        class="word-card {{item.reviewed ? 'word-card--done' : ''}}"
+      >
+        <view class="word-card__main">
+          <text class="word-card__seq">#{{item.seq}}</text>
+          <view class="word-card__body">
+            <text class="word-card__word">{{item.word}}</text>
+            <text wx:if="{{item.reading}}" class="word-card__reading">{{item.reading}}</text>
+            <text class="word-card__meaning">{{item.meaning}}</text>
+            <text class="word-card__meta muted">优先级 {{item.risk}} · {{item.totalLabel}}</text>
+          </view>
+          <view class="word-card__status">
+            <text wx:if="{{item.reviewed}}" class="badge-done">已复习</text>
+            <text wx:else class="badge-pending">待复习</text>
+          </view>
+        </view>
+        <button
+          class="btn btn-secondary start-one-btn"
+          data-word-id="{{item.id}}"
+          bindtap="startReview"
+        >
+          从此开始
+        </button>
+      </view>
+
+      <view wx:if="{{reviewWords.length === 0}}" class="center muted empty">暂无词条</view>
+    </view>
+  </block>
+</view>

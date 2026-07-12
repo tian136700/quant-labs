@@ -1,0 +1,87 @@
+page {
+  background: #12141a;
+  color: #e8eaed;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88rpx;
+  padding: 0 32rpx;
+  border-radius: 16rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border: none;
+  box-sizing: border-box;
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn-primary {
+  background: #e85d6f;
+  color: #fff;
+}
+
+.btn-secondary {
+  background: #2a2f3a;
+  color: #e8eaed;
+}
+
+.btn-danger {
+  background: #3a2528;
+  color: #e85d6f;
+  border: 2rpx solid rgba(232, 93, 111, 0.45);
+}
+
+.btn[disabled] {
+  opacity: 0.45;
+}
+
+.panel {
+  background: #1a1d24;
+  border: 2rpx solid #2e3440;
+  border-radius: 20rpx;
+  padding: 28rpx;
+}
+
+.muted {
+  color: #9aa0a6;
+}
+
+.badge-done {
+  display: inline-block;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #3fb983;
+  background: rgba(63, 185, 131, 0.16);
+}
+
+.badge-pending {
+  color: #9aa0a6;
+  font-size: 24rpx;
+}
+
+.progress-bar {
+  height: 12rpx;
+  background: #2e3440;
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: #e85d6f;
+  border-radius: 999rpx;
+  transition: width 0.25s ease;
+}
+
+.progress-bar--orange .progress-bar__fill {
+  background: #f59e42;
+}

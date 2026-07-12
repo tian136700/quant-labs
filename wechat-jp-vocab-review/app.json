@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/index/index",
+    "pages/flashcard/flashcard"
+  ],
+  "window": {
+    "navigationBarTitleText": "日语复习",
+    "navigationBarBackgroundColor": "#1a1d24",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#12141a",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
