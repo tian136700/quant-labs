@@ -270,6 +270,13 @@ CREATE TABLE IF NOT EXISTS jp_vocab_share_request (
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_share_request_pending
   ON jp_vocab_share_request (request_date, dismissed_at);
 
+-- 日语复习：管理员卡片复习进度（仅手动清除，跨日不自动清零）
+CREATE TABLE IF NOT EXISTS jp_vocab_review_done (
+  word_id      INTEGER PRIMARY KEY,
+  reviewed_at  TEXT    NOT NULL,
+  FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
+);
+
 -- 日语新课：上课老师（管理员维护，仅管理员可见）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

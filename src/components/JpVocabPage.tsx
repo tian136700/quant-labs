@@ -47,14 +47,6 @@ import {
   shouldShowJpVocabTeacherQuizIntro,
 } from "@/components/JpVocabTeacherQuizIntroModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
-import { JpVocabAdminReviewFlashcardModal } from "@/components/JpVocabAdminReviewFlashcardModal";
-import {
-  createJpVocabAdminReviewSession,
-  normalizeJpVocabAdminDailyReview,
-  resolveJpVocabAdminReviewResumeIndex,
-  type JpVocabAdminDailyReview,
-  type JpVocabAdminReviewSession,
-} from "@/lib/jp-vocab-admin-daily-review";
 import {
   createJpVocabTeacherQuizSession,
   expandJpVocabTeacherQuizSessionForTarget,
@@ -360,13 +352,6 @@ export function JpVocabPage() {
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<JpVocabTeacherQuizSession | null>(null);
   const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
-  const [adminReviewSession, setAdminReviewSession] =
-    useState<JpVocabAdminReviewSession | null>(null);
-  const [showAdminReviewFlashcard, setShowAdminReviewFlashcard] = useState(false);
-  const [adminDailyReview, setAdminDailyReview] = useState<JpVocabAdminDailyReview>(() =>
-    normalizeJpVocabAdminDailyReview(readVocabCache()?.admin_daily_review ?? null)
-  );
-  const [adminReviewRecordingNext, setAdminReviewRecordingNext] = useState(false);
   const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
@@ -492,9 +477,6 @@ export function JpVocabPage() {
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
     setTeacherVisibleLimit(payload.teacher_visible_limit);
-    if (payload.admin_daily_review) {
-      setAdminDailyReview(normalizeJpVocabAdminDailyReview(payload.admin_daily_review));
-    }
   }, []);
 
   const applyTeacherVisibleSync = useCallback(
@@ -962,95 +944,6 @@ export function JpVocabPage() {
     isWordReviewLocked,
     sessionReviewAt,
   ]);
-
-  const adminReviewWordIds = useMemo(
-    () => filteredDisplayedWords.map((w) => w.id),
-    [filteredDisplayedWords]
-  );
-
-  const adminReviewedWordIds = useMemo(
-    () => new Set(adminDailyReview.reviewed_word_ids),
-    [adminDailyReview.reviewed_word_ids]
-  );
-
-  const startAdminReview = useCallback(
-    (wordId: number) => {
-      const session = createJpVocabAdminReviewSession(adminReviewWordIds, wordId);
-      if (!session) {
-        setStatus("当前列表没有可复习的词条。");
-        return;
-      }
-      setAdminReviewSession(session);
-      setShowAdminReviewFlashcard(true);
-    },
-    [adminReviewWordIds]
-  );
-
-  const continueAdminReview = useCallback(() => {
-    if (!adminReviewWordIds.length) {
-      setStatus("当前列表没有可复习的词条。");
-      return;
-    }
-    const { index, allReviewed } = resolveJpVocabAdminReviewResumeIndex(
-      adminReviewWordIds,
-      adminReviewedWordIds
-    );
-    const wordId = adminReviewWordIds[index];
-    if (wordId == null) return;
-    const session = createJpVocabAdminReviewSession(adminReviewWordIds, wordId);
-    if (!session) {
-      setStatus("当前列表没有可复习的词条。");
-      return;
-    }
-    setAdminReviewSession(session);
-    setShowAdminReviewFlashcard(true);
-    if (allReviewed) {
-      setStatus("今日列表已全部复习，从第一个继续。");
-    } else {
-      setStatus(`继续复习：当前排序第 ${index + 1} 个词条。`);
-    }
-  }, [adminReviewWordIds, adminReviewedWordIds]);
-
-  const recordAdminReviewNext = useCallback(
-    async (wordId: number) => {
-      if (adminReviewRecordingNext) return;
-      setAdminReviewRecordingNext(true);
-      try {
-        const res = await fetch("/api/jp-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ action: "admin_review_next", word_id: wordId }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          admin_daily_review?: Partial<JpVocabAdminDailyReview>;
-          error?: string;
-        };
-        if (!data.ok || !data.admin_daily_review) {
-          throw new Error(data.error || "记录复习失败");
-        }
-        const next = normalizeJpVocabAdminDailyReview(data.admin_daily_review);
-        setAdminDailyReview(next);
-        const cached = readVocabCache();
-        if (cached) {
-          writeClientCache(JP_VOCAB_CACHE_KEY, {
-            ...cached,
-            admin_daily_review: next,
-          });
-        }
-      } catch (err) {
-        setStatus(err instanceof Error ? err.message : String(err));
-        throw err;
-      } finally {
-        setAdminReviewRecordingNext(false);
-      }
-    },
-    [adminReviewRecordingNext, locale]
-  );
 
   const totalPages = Math.max(
     1,
@@ -2246,22 +2139,6 @@ export function JpVocabPage() {
                   </span>
                 </>
               ) : null}
-              {isAdmin ? (
-                <>
-                  {" "}
-                  · 今日已复习{" "}
-                  <span
-                    className={
-                      adminDailyReview.count > 0
-                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
-                        : "jp-vocab-today-summary-value"
-                    }
-                    title="管理员复习卡片点「下一个」后计入（北京时间 0 点归零）"
-                  >
-                    {adminDailyReview.count} 个
-                  </span>
-                </>
-              ) : null}
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
             </span>
@@ -2280,19 +2157,6 @@ export function JpVocabPage() {
                 mobileToolbarExpanded ? " jp-vocab-toolbar-actions--expanded" : ""
               }`}
             >
-            {isAdmin ? (
-              <button
-                type="button"
-                className={`btn-rsi-filter${
-                  adminDailyReview.count > 0 ? " btn-rsi-filter--primary" : ""
-                }`}
-                onClick={() => continueAdminReview()}
-                disabled={loading || !adminReviewWordIds.length}
-                title="按当前列表排序，打开第一个尚未计入今日复习的词条卡片"
-              >
-                继续复习
-              </button>
-            ) : null}
             {canOperate && quizTarget > 0 && quizTargetWords.length > 0 ? (
               <>
                 <button
@@ -2675,18 +2539,6 @@ export function JpVocabPage() {
                       <span>抽查次数</span>
                     </span>
                   </th>
-                  {isAdmin ? (
-                    <th
-                      rowSpan={2}
-                      className="jp-vocab-admin-review-col"
-                      title="管理员复习卡片点「下一个」后记为今日已复习"
-                    >
-                      <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                        <span>今日</span>
-                        <span>复习</span>
-                      </span>
-                    </th>
-                  ) : null}
                   {SHOW_REMARKS_COLUMN ? (
                     <th rowSpan={2} className="jp-vocab-notes-col">
                       备注
@@ -3134,25 +2986,6 @@ export function JpVocabPage() {
                           {todayChecks}
                         </span>
                       </td>
-                      {isAdmin ? (
-                        <td className="jp-vocab-admin-review-col" data-label="今日复习">
-                          {adminReviewedWordIds.has(w.id) ? (
-                            <span
-                              className="jp-vocab-admin-review-badge"
-                              title="管理员复习卡片已点「下一个」，今日已复习"
-                            >
-                              已复习
-                            </span>
-                          ) : (
-                            <span
-                              className="jp-vocab-admin-review-pending"
-                              title="今日尚未通过复习卡片完成"
-                            >
-                              —
-                            </span>
-                          )}
-                        </td>
-                      ) : null}
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
@@ -3219,16 +3052,6 @@ export function JpVocabPage() {
                                 </svg>
                                 编辑
                               </button>
-                              {isAdmin ? (
-                                <button
-                                  type="button"
-                                  className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
-                                  title="按当前列表排序打开复习卡片"
-                                  onClick={() => startAdminReview(w.id)}
-                                >
-                                  复习
-                                </button>
-                              ) : null}
                               {isAdmin ? (
                                 <button
                                   type="button"
@@ -3461,36 +3284,6 @@ export function JpVocabPage() {
         onEditWord={setEditingWord}
         onShare={(wordId) => void shareWord(wordId)}
         onUnshare={(wordId) => void unshareWord(wordId)}
-        onWordUpdated={handleWordSaved}
-        nestedModalOpen={
-          viewingRemarksWord != null ||
-          previewRef != null ||
-          editingRemarksWord != null ||
-          editingWord != null
-        }
-      />
-
-      <JpVocabAdminReviewFlashcardModal
-        open={showAdminReviewFlashcard}
-        session={adminReviewSession}
-        wordsById={wordsById}
-        refs={refs}
-        locale={locale}
-        displayOrder={displayOrder}
-        sessionLevel={sessionLevel}
-        dailySeqByWordId={dailySeqByWordId}
-        todayReviewCount={adminDailyReview.count}
-        reviewedWordIds={adminReviewedWordIds}
-        recordingNext={adminReviewRecordingNext}
-        onClose={() => setShowAdminReviewFlashcard(false)}
-        onNavigate={(index) =>
-          setAdminReviewSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
-        }
-        onReviewNext={recordAdminReviewNext}
-        onOpenRef={openRefPreview}
-        onViewRemarks={openRemarksWord}
-        onEditRemarks={setEditingRemarksWord}
-        onEditWord={setEditingWord}
         onWordUpdated={handleWordSaved}
         nestedModalOpen={
           viewingRemarksWord != null ||

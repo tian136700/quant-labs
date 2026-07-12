@@ -20,7 +20,7 @@ import {
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
 import { jpVocabTeacherQuizNotesInline } from "@/lib/jp-vocab-teacher-quiz";
-import type { JpVocabAdminReviewSession } from "@/lib/jp-vocab-admin-daily-review";
+import type { JpVocabReviewSession } from "@/lib/jp-vocab-review-session";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -32,7 +32,7 @@ const LEVELS: { key: JpVocabLevel; label: string }[] = [
 
 type Props = {
   open: boolean;
-  session: JpVocabAdminReviewSession | null;
+  session: JpVocabReviewSession | null;
   wordsById: Map<number, JpVocabWord>;
   refs: Record<string, JpVocabRef>;
   locale: "zh" | "en";
@@ -214,7 +214,7 @@ export function JpVocabAdminReviewFlashcardModal({
         onClick={stop}
       >
         <p className="jp-vocab-admin-review__today-banner" role="status">
-          今日已复习 {todayReviewCount} 个单词
+          已复习 {todayReviewCount} 个单词
         </p>
 
         <header className="jp-vocab-teacher-quiz__header">
@@ -233,8 +233,8 @@ export function JpVocabAdminReviewFlashcardModal({
                 </span>
               ) : null}
               {reviewedToday ? (
-                <span className="jp-vocab-admin-review__word-badge" title="今日已通过「下一个」完成复习">
-                  今日已复习
+                <span className="jp-vocab-admin-review__word-badge" title="已通过「下一个」完成复习">
+                  已复习
                 </span>
               ) : null}
               <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
@@ -481,7 +481,7 @@ export function JpVocabAdminReviewFlashcardModal({
               {recordingNext ? "记录中…" : isLast ? "完成复习" : "下一个"}
             </span>
             {!isLast ? (
-              <span className="jp-vocab-teacher-quiz__nav-btn-sub">点击后计入今日复习</span>
+              <span className="jp-vocab-teacher-quiz__nav-btn-sub">点击后计入复习进度</span>
             ) : null}
           </button>
         </div>

@@ -13,10 +13,6 @@ import {
   normalizeJpVocabTeacherVisibleLimit,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
-import {
-  normalizeJpVocabAdminDailyReview,
-  type JpVocabAdminDailyReview,
-} from "@/lib/jp-vocab-admin-daily-review";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
@@ -39,8 +35,6 @@ export type JpVocabApiPayload = {
   shared_today_word_ids: number[];
   /** 非管理员老师可见的当日序号上限（默认 20，跨日重置） */
   teacher_visible_limit: JpVocabTeacherVisibleLimit;
-  /** 管理员今日复习计数（仅 admin GET 返回） */
-  admin_daily_review?: JpVocabAdminDailyReview;
 };
 
 export type JpLessonApiPayload = {
@@ -59,7 +53,6 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     display_order?: Partial<JpVocabDailyDisplayOrder>;
     shared_today_word_ids?: number[];
     teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
-    admin_daily_review?: Partial<JpVocabAdminDailyReview>;
     error?: string;
   };
   if (!data.ok || !Array.isArray(data.words)) {
@@ -109,13 +102,6 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     teacher_visible_limit: normalizeJpVocabTeacherVisibleLimit(
       data.teacher_visible_limit
     ),
-    ...(data.admin_daily_review
-      ? {
-          admin_daily_review: normalizeJpVocabAdminDailyReview(
-            data.admin_daily_review
-          ),
-        }
-      : {}),
   };
 }
 

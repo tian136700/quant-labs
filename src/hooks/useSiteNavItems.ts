@@ -17,6 +17,7 @@ import {
   isJpLessonSchedulePath,
   isJpVocabPath,
   isJpVocabStudyPath,
+  isJpVocabReviewPath,
   isEnLessonPath,
   isEnVocabPath,
   isEnVocabStudyPath,
@@ -52,10 +53,11 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onJpLessonMain = onJpLesson && !onJpLessonSchedule;
   const onJpVocab = isJpVocabPath(pathname);
   const onJpVocabStudy = isJpVocabStudyPath(pathname);
+  const onJpVocabReview = isJpVocabReviewPath(pathname);
   const onEnLesson = isEnLessonPath(pathname);
   const onEnVocab = isEnVocabPath(pathname);
   const onEnVocabStudy = isEnVocabStudyPath(pathname);
-  const onHiddenJp = onJpLesson || onJpVocab || onJpVocabStudy;
+  const onHiddenJp = onJpLesson || onJpVocab || onJpVocabStudy || onJpVocabReview;
   const onHiddenEn = onEnLesson || onEnVocab || onEnVocabStudy;
 
   if (!loggedIn && !checking) {
@@ -108,7 +110,7 @@ export function useSiteNavItems(): SiteNavItem[] {
         id: "jpVocab",
         href: navHref("jpVocab", locale, navOpts),
         label: nav.jpVocab,
-        active: onJpVocab && !onJpVocabStudy,
+        active: onJpVocab && !onJpVocabStudy && !onJpVocabReview,
       },
       ...(canAccessJpVocabStudy
         ? [
@@ -188,7 +190,7 @@ export function useSiteNavItems(): SiteNavItem[] {
               id: "jpVocab",
               href: navHref("jpVocab", locale, navOpts),
               label: nav.jpVocab,
-              active: !onJpVocabStudy,
+              active: !onJpVocabStudy && !onJpVocabReview,
             },
           ]
         : []),
@@ -198,6 +200,16 @@ export function useSiteNavItems(): SiteNavItem[] {
               id: "jpVocabStudy",
               href: navHref("jpVocabStudy", locale, navOpts),
               label: nav.jpVocabStudy,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onJpVocabReview && isAdmin
+        ? [
+            {
+              id: "jpVocabReview",
+              href: navHref("jpVocabReview", locale, navOpts),
+              label: nav.jpVocabReview,
               active: true,
             },
           ]
@@ -322,7 +334,7 @@ export function useSiteNavItems(): SiteNavItem[] {
                     id: "jpVocab",
                     href: navHref("jpVocab", locale, navOpts),
                     label: nav.jpVocab,
-                    active: onJpVocab && !onJpVocabStudy,
+                    active: onJpVocab && !onJpVocabStudy && !onJpVocabReview,
                   },
                   ...(canAccessJpVocabStudy
                     ? [
@@ -331,6 +343,16 @@ export function useSiteNavItems(): SiteNavItem[] {
                           href: navHref("jpVocabStudy", locale, navOpts),
                           label: nav.jpVocabStudy,
                           active: onJpVocabStudy,
+                        },
+                      ]
+                    : []),
+                  ...(isAdmin
+                    ? [
+                        {
+                          id: "jpVocabReview",
+                          href: navHref("jpVocabReview", locale, navOpts),
+                          label: nav.jpVocabReview,
+                          active: onJpVocabReview,
                         },
                       ]
                     : []),

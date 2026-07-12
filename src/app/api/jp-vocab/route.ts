@@ -2,11 +2,9 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import {
   ensureJpVocabDailyDisplayOrder,
   ensureJpVocabTeacherVisibleLimit,
-  getJpVocabAdminDailyReview,
   getJpVocabDailyQuizStyle,
   listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
-  recordJpVocabAdminReviewNext,
   recordJpVocabReview,
   resetAllJpVocabReviews,
   resetTodayJpVocabRound,
@@ -43,9 +41,6 @@ export async function GET(request: Request) {
       displayOrder: display_order,
     });
     const { isAdmin } = await requireAdmin(request);
-    const admin_daily_review = isAdmin
-      ? await getJpVocabAdminDailyReview(env.DB)
-      : undefined;
     const clientWords = redactJpVocabWordsMnemonicForClient(words, isAdmin);
     return jsonResponse({
       ok: true,
@@ -55,7 +50,6 @@ export async function GET(request: Request) {
       display_order,
       shared_today_word_ids,
       teacher_visible_limit,
-      ...(admin_daily_review ? { admin_daily_review } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -109,22 +103,6 @@ export async function POST(request: Request) {
         hideCheckedToday
       );
       return jsonResponse({ ok: true, teacher_visible_limit });
-    }
-
-    if (body.action === "admin_review_next") {
-      const { isAdmin } = await requireAdmin(request);
-      if (!isAdmin) {
-        return jsonResponse({ ok: false, error: "forbidden" }, 403);
-      }
-      const wordId = Number(body.word_id);
-      if (!Number.isFinite(wordId) || wordId <= 0) {
-        return jsonResponse({ ok: false, error: "invalid word_id" }, 400);
-      }
-      const admin_daily_review = await recordJpVocabAdminReviewNext(
-        env.DB,
-        wordId
-      );
-      return jsonResponse({ ok: true, admin_daily_review });
     }
 
     if (body.action === "reset") {

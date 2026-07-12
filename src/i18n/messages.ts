@@ -21,6 +21,7 @@ export type Messages = {
     jpLessonSchedule: string;
     jpVocab: string;
     jpVocabStudy: string;
+    jpVocabReview: string;
     enLesson: string;
     enVocab: string;
     enVocabStudy: string;
@@ -520,6 +521,7 @@ export const messages: Record<Locale, Messages> = {
       jpLessonSchedule: "Schedule",
       jpVocab: "Japanese Vocab",
       jpVocabStudy: "Today's Japanese Vocab",
+      jpVocabReview: "Japanese Vocab Review",
       enLesson: "English Lesson",
       enVocab: "English Vocab",
       enVocabStudy: "Today's English Words",
@@ -1136,6 +1138,7 @@ export const messages: Record<Locale, Messages> = {
       jpLessonSchedule: "日程管理",
       jpVocab: "日语抽问",
       jpVocabStudy: "今日日语单词",
+      jpVocabReview: "日语复习",
       enLesson: "英语新课",
       enVocab: "英语抽背",
       enVocabStudy: "今日英语单词",

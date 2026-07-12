@@ -22,6 +22,7 @@
 |-----------|--------|----------|--------|----------|-------------|------|
 | `/jp-vocab` | 日语抽问、单词表、老师抽查 | `src/app/jp-vocab/page.tsx` | `src/components/JpVocabPage.tsx` | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share` | `src/lib/jp-vocab-db.ts`、`schema.sql` → `jp_vocab_word`、`jp_vocab_shared` | `jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生 |
 | `/jp-vocab/study` | 今日日语单词、学生复习、请老师发送 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/share-request` | 同上 + `jp_vocab_share_request` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
+| `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
 | `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页 |
 
 ### jp-vocab 子功能 → 文件速查
@@ -43,9 +44,9 @@
 | **保存/同步橙色进度条**（D1 写入较慢；**改保存 UI 必引**） | `src/components/JpVocabSaveProgressBar.tsx`；`src/lib/jp-vocab-save-progress.ts` → `jpVocabSaveProgressLabel`；`.cursor/rules/save-progress-ui.mdc` |
 | 课堂备注、共享备注（支持粘贴/上传图片） | `JpClassNotesEditModal.tsx`、`JpVocabClassNoteContent.tsx`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`（含**巧记**字段，仅管理员）；`/api/jp-vocab/add`、`/edit`；`jp_vocab_word.mnemonic` |
-| **管理员「继续复习」/「复习本单词」**（工具栏「继续复习」按当前列表排序打开第一个未计入今日复习的卡片；操作列「复习本单词」从指定词开始；卡片内点「下一个」计入今日复习；顶部「今日已复习 N 个单词」；**列表「今日复习」列仅管理员可见**；计数存 `jp_vocab_setting` → `admin_daily_review`；跨日 rollover 清零） | `JpVocabPage.tsx` → `continueAdminReview`、`startAdminReview`、`recordAdminReviewNext`；`JpVocabAdminReviewFlashcardModal.tsx`；`resolveJpVocabAdminReviewResumeIndex`（`jp-vocab-admin-daily-review.ts`）；`POST /api/jp-vocab` `admin_review_next`；`jp-vocab-db.ts` |
-| 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy` |
-| 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()` |
+| **日语复习**（选数量、按序号/抽查优先级排序、卡片上/下一个、清除已复习） | `JpVocabReviewPage.tsx`；`JpVocabAdminReviewFlashcardModal.tsx`；`jp-vocab-review-plan.ts`、`jp-vocab-review-session.ts`；`POST /api/jp-vocab/review`；`jp_vocab_review_done` |
+| 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy`、`nav.jpVocabReview` |
+| 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()`、`jpVocabReviewPath()` |
 | 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
 | 共享后刷新复习页 | `src/lib/jp-vocab-shared-notify.ts`（同浏览器多标签） |
 

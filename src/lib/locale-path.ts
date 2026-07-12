@@ -251,9 +251,18 @@ export function jpVocabStudyPath(): string {
   return "/jp-vocab/study";
 }
 
+export function jpVocabReviewPath(): string {
+  return "/jp-vocab/review";
+}
+
 export function isJpVocabStudyPath(pathname: string): boolean {
   const path = stripZhPrefix(pathname);
   return path === "/jp-vocab/study";
+}
+
+export function isJpVocabReviewPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-vocab/review";
 }
 
 export function isJpVocabPath(pathname: string): boolean {
