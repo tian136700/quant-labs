@@ -8,7 +8,14 @@ export function isTransientApiStatus(status: number): boolean {
   return status === 502 || status === 503 || status === 504;
 }
 
-function htmlApiError(status: number): string {
+function htmlApiError(status: number, body = ""): string {
+  if (
+    body.includes("Error 1102") ||
+    body.includes("Worker exceeded") ||
+    body.includes("exceeded resource limits")
+  ) {
+    return "服务器繁忙（课堂并发请求较多），请稍等几秒后刷新页面。";
+  }
   if (status === 404) return "接口不存在，请刷新页面后重试。";
   if (status === 401 || status === 403) return "登录已失效，请重新登录后再试。";
   if (status >= 500) return `服务器错误（${status}），请稍后重试。`;
@@ -40,7 +47,7 @@ export async function readApiJson<T extends Record<string, unknown>>(
     !contentType.includes("application/json") &&
     (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html"))
   ) {
-    return { ok: false, status, error: htmlApiError(status) };
+    return { ok: false, status, error: htmlApiError(status, trimmed) };
   }
 
   if (!text) {
@@ -52,7 +59,7 @@ export async function readApiJson<T extends Record<string, unknown>>(
     return { ok: true, data, status };
   } catch {
     if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html")) {
-      return { ok: false, status, error: htmlApiError(status) };
+      return { ok: false, status, error: htmlApiError(status, trimmed) };
     }
     return { ok: false, status, error: "服务器返回了无效的数据格式。" };
   }

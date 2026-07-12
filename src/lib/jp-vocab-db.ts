@@ -136,6 +136,7 @@ const devShared: Array<{
 }> = [];
 let devSharedNextId = 1;
 let jpVocabSharedSchemaReady = false;
+let jpVocabSharedColumnsReady = false;
 const devShareRequests: JpVocabShareRequest[] = [];
 let devShareRequestNextId = 1;
 let jpVocabShareRequestSchemaReady = false;
@@ -550,7 +551,6 @@ export async function listJpVocabWordsChangedSince(
   const marker = since.trim();
   if (!marker) return [];
 
-  await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
 
   if (devStoreEnabled) {
@@ -2157,6 +2157,7 @@ async function ensureJpVocabSharedSchema(db: D1Database): Promise<void> {
       .run();
     jpVocabSharedSchemaReady = true;
   }
+  if (jpVocabSharedColumnsReady) return;
   const info = await db
     .prepare(`PRAGMA table_info(jp_vocab_shared)`)
     .all<{ name: string }>();
@@ -2166,6 +2167,7 @@ async function ensureJpVocabSharedSchema(db: D1Database): Promise<void> {
       .prepare(`ALTER TABLE jp_vocab_shared ADD COLUMN auto_marked_level TEXT`)
       .run();
   }
+  jpVocabSharedColumnsReady = true;
 }
 
 function mapSharedRow(

@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  isTransientApiStatus,
-  readApiJson,
-  sanitizeApiClientError,
-} from "@/lib/api-json";
+import { readApiJson, sanitizeApiClientError } from "@/lib/api-json";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -55,13 +51,6 @@ const STAT_COLUMNS = [
 ] as const;
 
 const SHOW_REMARKS_COLUMN = true;
-
-const SHARED_LOAD_MAX_ATTEMPTS = 3;
-const SHARED_LOAD_RETRY_MS = 800;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export function JpVocabStudyPage() {
   const { locale } = useI18n();
@@ -187,41 +176,16 @@ export function JpVocabStudyPage() {
         error?: string;
       };
 
-      let parsed:
-        | { ok: true; data: SharedPayload; status: number }
-        | { ok: false; status: number; error: string }
-        | null = null;
-
       const sharedUrl = includeQuiz
         ? "/api/jp-vocab/shared"
         : "/api/jp-vocab/shared?lite=1";
 
-      for (let attempt = 0; attempt < SHARED_LOAD_MAX_ATTEMPTS; attempt++) {
-        const res = await fetch(sharedUrl, {
-          headers: { [LOCALE_HEADER]: locale },
-          credentials: "include",
-          cache: "no-store",
-        });
-        const next = await readApiJson<SharedPayload>(res);
-        parsed = next;
-
-        if (
-          !next.ok &&
-          isTransientApiStatus(next.status) &&
-          attempt + 1 < SHARED_LOAD_MAX_ATTEMPTS
-        ) {
-          await sleep(SHARED_LOAD_RETRY_MS * (attempt + 1));
-          continue;
-        }
-        break;
-      }
-
-      if (!parsed) {
-        if (!hasLoadedOnceRef.current) {
-          setError("加载失败，请稍后重试。");
-        }
-        return;
-      }
+      const res = await fetch(sharedUrl, {
+        headers: { [LOCALE_HEADER]: locale },
+        credentials: "include",
+        cache: "no-store",
+      });
+      const parsed = await readApiJson<SharedPayload>(res);
 
       if (!parsed.ok) {
         if (!hasLoadedOnceRef.current) {

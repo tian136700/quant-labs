@@ -75,6 +75,8 @@ import { jpVocabSaveQueue } from "@/lib/request-queue";
 import {
   JP_VOCAB_POLL_MS,
   JP_VOCAB_POLL_HIDDEN_MS,
+  JP_VOCAB_QUIZ_LIVE_POLL_MS,
+  JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
   maxJpVocabUpdatedAt,
   mergeJpVocabSyncPatches,
 } from "@/lib/jp-vocab-sync";
@@ -486,12 +488,10 @@ export function JpVocabPage() {
   /** 从服务端拉取今日抽查目标（跨域名：finance 管理员 vs japanese 老师 localStorage 不共享，只能靠服务端） */
   const syncTeacherVisibleLimitFromServer = useCallback(async () => {
     try {
-      const since =
-        maxJpVocabUpdatedAt(wordsRef.current) || new Date(0).toISOString();
-      const res = await fetch(
-        `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
-        { credentials: "include", cache: "no-store" }
-      );
+      const res = await fetch("/api/jp-vocab/teacher-visible", {
+        credentials: "include",
+        cache: "no-store",
+      });
       const data = (await res.json()) as {
         ok: boolean;
         teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
@@ -613,19 +613,17 @@ export function JpVocabPage() {
       pollInFlightRef.current = true;
       try {
         const res = await fetch(
-          `/api/jp-vocab/sync?since=${encodeURIComponent(since)}`,
+          `/api/jp-vocab/sync?since=${encodeURIComponent(since)}&limit=0`,
           { credentials: "include", cache: "no-store" }
         );
         const data = (await res.json()) as {
           ok: boolean;
           words?: JpVocabWord[];
-          teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
         };
         if (data.ok) {
           if (Array.isArray(data.words) && data.words.length) {
             applySyncPatches(data.words);
           }
-          applyTeacherVisibleSync(data.teacher_visible_limit);
         }
       } catch {
         /* 轮询失败静默，下轮再试 */
@@ -638,12 +636,10 @@ export function JpVocabPage() {
     const onVisibility = () => {
       if (!document.hidden && !cancelled) {
         if (timer) clearTimeout(timer);
-        void syncTeacherVisibleLimitFromServer();
         schedule(300);
       }
     };
 
-    void syncTeacherVisibleLimitFromServer();
     document.addEventListener("visibilitychange", onVisibility);
     schedule(JP_VOCAB_POLL_MS);
 
@@ -652,7 +648,37 @@ export function JpVocabPage() {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applySyncPatches, applyTeacherVisibleSync, syncTeacherVisibleLimitFromServer]);
+  }, [applySyncPatches]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = (delayMs = JP_VOCAB_TEACHER_VISIBLE_POLL_MS) => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void syncTeacherVisibleLimitFromServer().finally(() => schedule());
+      }, delayMs);
+    };
+
+    void syncTeacherVisibleLimitFromServer();
+    schedule();
+
+    const onVisible = () => {
+      if (!document.hidden && !cancelled) {
+        if (timer) clearTimeout(timer);
+        void syncTeacherVisibleLimitFromServer();
+        schedule();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
     return subscribeJpVocabQuizTargetUpdated(() => {
@@ -1208,7 +1234,7 @@ export function JpVocabPage() {
       }
     };
     void poll();
-    const timer = setInterval(poll, JP_VOCAB_POLL_MS);
+    const timer = setInterval(poll, JP_VOCAB_QUIZ_LIVE_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);
