@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  resolveJpVocabMobileNotesPreview,
-  type JpVocabMobileNotesPreview,
+  formatJpVocabClassNotesForDisplay,
+  splitJpVocabClassNoteDraftForEdit,
 } from "@/lib/jp-vocab-class-notes";
 
 type Props = {
@@ -76,36 +76,6 @@ function renderImageBlock(src: string, onZoom: (src: string) => void) {
   );
 }
 
-function renderInlinePreview(
-  preview: JpVocabMobileNotesPreview,
-  onZoom: (src: string) => void
-) {
-  if (preview.kind === "short-text") {
-    return <p className="jp-vocab-mobile-notes-snippet">{preview.text}</p>;
-  }
-
-  if (preview.kind === "image-only") {
-    return renderImageBlock(preview.src, onZoom);
-  }
-
-  if (preview.kind === "short-mixed") {
-    return (
-      <>
-        <p className="jp-vocab-mobile-notes-snippet">{preview.text}</p>
-        {renderImageBlock(preview.src, onZoom)}
-      </>
-    );
-  }
-
-  if (preview.kind === "long") {
-    return (
-      <p className="jp-vocab-mobile-notes-long-hint">内容较长，点「查看」阅读完整备注</p>
-    );
-  }
-
-  return null;
-}
-
 export function JpVocabMobileNotesCell({
   classNotes,
   hasNotes,
@@ -115,17 +85,15 @@ export function JpVocabMobileNotesCell({
 }: Props) {
   const [zoomSrc, setZoomSrc] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const preview = resolveJpVocabMobileNotesPreview(classNotes);
+  const display = formatJpVocabClassNotesForDisplay(classNotes).trim();
+  const { text, imageSrcs } = splitJpVocabClassNoteDraftForEdit(display);
+  const textTrim = text.trim();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const showContent =
-    preview.kind === "short-text" ||
-    preview.kind === "image-only" ||
-    preview.kind === "short-mixed" ||
-    preview.kind === "long";
+  const showContent = Boolean(textTrim || imageSrcs.length > 0);
 
   return (
     <>
@@ -166,7 +134,16 @@ export function JpVocabMobileNotesCell({
             ) : null}
           </div>
         </div>
-        {showContent ? renderInlinePreview(preview, setZoomSrc) : null}
+        {showContent ? (
+          <>
+            {textTrim ? (
+              <p className="jp-vocab-mobile-notes-body">{textTrim}</p>
+            ) : null}
+            {imageSrcs.map((src) => (
+              <Fragment key={src}>{renderImageBlock(src, setZoomSrc)}</Fragment>
+            ))}
+          </>
+        ) : null}
       </div>
 
       {mounted && zoomSrc ? (
@@ -175,14 +152,19 @@ export function JpVocabMobileNotesCell({
 
       <style jsx>{`
         .jp-vocab-mobile-notes {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.35rem;
           width: 100%;
           max-width: 100%;
           min-width: 0;
           overflow: hidden;
+        }
+
+        @media (max-width: 767px) {
+          .jp-vocab-mobile-notes {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.35rem;
+          }
         }
 
         .jp-vocab-mobile-notes-head {
@@ -243,21 +225,14 @@ export function JpVocabMobileNotesCell({
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
 
-        .jp-vocab-mobile-notes-snippet {
+        .jp-vocab-mobile-notes-body {
           margin: 0;
-          font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
+          font-size: clamp(0.8125rem, 3vw, 0.9375rem);
           line-height: 1.45;
-          color: color-mix(in srgb, var(--text) 88%, var(--muted));
+          color: var(--muted);
           white-space: pre-wrap;
           word-break: break-word;
           max-width: 100%;
-        }
-
-        .jp-vocab-mobile-notes-long-hint {
-          margin: 0;
-          font-size: clamp(0.6875rem, 2.6vw, 0.75rem);
-          line-height: 1.4;
-          color: var(--muted);
         }
 
         .jp-vocab-mobile-notes-image-block {
@@ -301,6 +276,12 @@ export function JpVocabMobileNotesCell({
         }
       `}</style>
       <style jsx global>{`
+        @media (min-width: 768px) {
+          .jp-vocab-table .jp-vocab-notes-col .jp-vocab-mobile-notes.jp-vocab-mobile-only {
+            display: none !important;
+          }
+        }
+
         .jp-vocab-mobile-notes-zoom {
           position: fixed;
           inset: 0;

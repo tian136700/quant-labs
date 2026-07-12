@@ -29,6 +29,7 @@ import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
+import { JpVocabMnemonicViewModal } from "@/components/JpVocabMnemonicViewModal";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
@@ -192,6 +193,29 @@ const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
 const JP_VOCAB_SHARE_HINT =
   "学生答不上来或不熟悉时，点此发送给他";
 
+function MobileLevelHistorySummary({ word }: { word: JpVocabWord }) {
+  return (
+    <div
+      className="jp-vocab-level-history jp-vocab-mobile-only"
+      aria-label="熟悉程度历史次数"
+    >
+      <span className="jp-vocab-level-history__item jp-vocab-level-history__item--very">
+        非常熟悉 {word.cnt_very}
+      </span>
+      <span className="jp-vocab-level-history__sep" aria-hidden="true">
+        ·
+      </span>
+      <span className="jp-vocab-level-history__item">一般 {word.cnt_normal}</span>
+      <span className="jp-vocab-level-history__sep" aria-hidden="true">
+        ·
+      </span>
+      <span className="jp-vocab-level-history__item jp-vocab-level-history__item--weak">
+        不熟悉 {word.cnt_weak}
+      </span>
+    </div>
+  );
+}
+
 function jpVocabShareProgressPercent(elapsedMs: number): number {
   return jpVocabSaveProgressPercent(elapsedMs);
 }
@@ -300,6 +324,7 @@ export function JpVocabPage() {
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [viewingMnemonicWord, setViewingMnemonicWord] = useState<JpVocabWord | null>(null);
   const [previewRef, setPreviewRef] = useState<{
     ref: JpVocabRef;
     cacheVersion?: string | null;
@@ -2771,12 +2796,16 @@ export function JpVocabPage() {
                           style={{ color: "var(--muted)" }}
                         >
                           {mnemonicTrim ? (
-                            <span
-                              className="jp-vocab-mnemonic-text"
-                              title={mnemonicTrim}
-                            >
-                              {mnemonicTrim}
-                            </span>
+                            <div className="jp-vocab-mnemonic-actions">
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mnemonic-view-btn"
+                                title="查看巧记"
+                                onClick={() => setViewingMnemonicWord(w)}
+                              >
+                                查看
+                              </button>
+                            </div>
                           ) : (
                             <span className="jp-vocab-mnemonic-empty" title="可在「编辑」中填写巧记">
                               —
@@ -2815,6 +2844,7 @@ export function JpVocabPage() {
                           </span>
                         ) : tableQuizLocked ? (
                         <div className="jp-vocab-level-wrap">
+                          <MobileLevelHistorySummary word={w} />
                           <button
                             type="button"
                             className="jp-vocab-level-card-entry"
@@ -2868,6 +2898,7 @@ export function JpVocabPage() {
                         </div>
                         ) : (
                         <div className="jp-vocab-level-wrap">
+                        <MobileLevelHistorySummary word={w} />
                         <div
                           className={`jp-vocab-levels${
                             reviewLocked || tableQuizLocked
@@ -3201,6 +3232,12 @@ export function JpVocabPage() {
         onWordUpdated={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
+      />
+
+      <JpVocabMnemonicViewModal
+        open={viewingMnemonicWord != null}
+        word={viewingMnemonicWord}
+        onClose={() => setViewingMnemonicWord(null)}
       />
 
       <JpVocabRefPreviewModal
@@ -3913,18 +3950,23 @@ export function JpVocabPage() {
           min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
-          width: 8%;
+          width: 5%;
           min-width: 0;
           max-width: none;
+          white-space: nowrap;
         }
-        .jp-vocab-mnemonic-text {
-          display: -webkit-box;
-          -webkit-line-clamp: 1;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          line-height: 1.45;
-          word-break: break-word;
-          white-space: pre-wrap;
+        :global(.jp-vocab-table thead .jp-vocab-mnemonic-col) {
+          text-align: center;
+          vertical-align: middle;
+        }
+        :global(.jp-vocab-table tbody .jp-vocab-mnemonic-col) {
+          text-align: center;
+          vertical-align: middle;
+        }
+        .jp-vocab-mnemonic-actions {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
         .jp-vocab-mnemonic-empty {
           color: color-mix(in srgb, var(--muted) 70%, transparent);
@@ -4403,6 +4445,26 @@ export function JpVocabPage() {
             width: 100%;
             align-items: stretch;
           }
+          .jp-vocab-level-history {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.25rem 0.375rem;
+            width: 100%;
+            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
+            font-weight: 500;
+            line-height: 1.35;
+            color: var(--muted);
+          }
+          .jp-vocab-level-history__item--very {
+            color: var(--fall);
+          }
+          .jp-vocab-level-history__item--weak {
+            color: var(--rise);
+          }
+          .jp-vocab-level-history__sep {
+            color: color-mix(in srgb, var(--muted) 70%, transparent);
+          }
           .jp-vocab-level-sync-hint {
             max-width: none;
             padding: 0.2rem 0.35rem 0.05rem;
@@ -4522,6 +4584,10 @@ export function JpVocabPage() {
           }
           .jp-vocab-action-row > :only-child {
             grid-column: 1 / -1;
+          }
+          .jp-vocab-action-row > .jp-vocab-share-stack,
+          .jp-vocab-action-row > :global(.jp-vocab-unshare-btn) {
+            display: none !important;
           }
           .jp-vocab-share-stack {
             display: flex;
