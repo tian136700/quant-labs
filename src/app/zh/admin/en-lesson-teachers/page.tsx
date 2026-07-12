@@ -1,12 +1,8 @@
-import { AdminEnLessonTeachersPage } from "@/components/AdminEnLessonTeachersPage";
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { adminJpLessonTeachersPath } from "@/lib/locale-path";
 
-export const metadata: Metadata = {
-  title: "上课老师管理",
-  description: "管理英语新课的上课老师。",
-  robots: { index: false, follow: false },
-};
+export const dynamic = "force-dynamic";
 
 export default function Page() {
-  return <AdminEnLessonTeachersPage />;
+  redirect(adminJpLessonTeachersPath("zh", undefined, "en"));
 }

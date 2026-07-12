@@ -167,6 +167,9 @@ export async function loadJpLessonManualSchedulesWithLegacyMigration(): Promise<
   return schedules;
 }
 
+/** 统一日程：日语新课 / 英语新课 / 手动添加 */
+export type LessonScheduleSubject = "jp" | "en" | "manual";
+
 export type JpLessonSchedulePageEvent = {
   key: string;
   classAt: string;
@@ -176,6 +179,7 @@ export type JpLessonSchedulePageEvent = {
   teachers: string;
   displayContent: string;
   source: "lesson" | "manual";
+  subject: LessonScheduleSubject;
   lessonId?: number;
   scheduleId?: number;
   lesson?: {
@@ -202,6 +206,7 @@ export function manualScheduleToPageEvent(
     teachers: manual.teacher.trim() || "手动日程",
     displayContent: manual.title,
     source: "manual",
+    subject: "manual",
     manualId: manual.id,
     manualNote: manual.note.trim() || undefined,
   };

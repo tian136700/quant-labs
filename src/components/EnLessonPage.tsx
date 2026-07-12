@@ -40,7 +40,7 @@ import {
 } from "@/lib/en-lesson-shared";
 import { fetchWithClientCache, readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import {
-  adminEnLessonTeachersPath,
+  adminJpLessonTeachersPath,
   enLessonSchedulePath,
 } from "@/lib/locale-path";
 import {
@@ -967,7 +967,7 @@ export function EnLessonPage() {
           <a href={enLessonSchedulePath()} style={{ color: "var(--accent)" }}>
             日程管理
           </a>
-          <a href={adminEnLessonTeachersPath(locale)} style={{ color: "var(--accent)" }}>
+          <a href={adminJpLessonTeachersPath(locale, undefined, "en")} style={{ color: "var(--accent)" }}>
             上课老师管理
           </a>
           <span style={{ color: "var(--muted)" }}>（仅管理员可见）</span>

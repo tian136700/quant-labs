@@ -154,16 +154,30 @@ export function adminToolCodesPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/tool-codes" : "/admin/tool-codes";
 }
 
-export function adminJpLessonTeachersPath(locale: Locale, teacherId?: number): string {
-  const base = locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
-  if (teacherId != null && Number.isInteger(teacherId) && teacherId > 0) {
-    return `${base}?teacher=${teacherId}`;
-  }
-  return base;
+export type LessonTeacherSubject = "jp" | "en";
+
+export function parseLessonTeacherSubject(raw: string | null | undefined): LessonTeacherSubject {
+  return raw === "en" ? "en" : "jp";
 }
 
-export function adminEnLessonTeachersPath(locale: Locale): string {
-  return locale === "zh" ? "/zh/admin/en-lesson-teachers" : "/admin/en-lesson-teachers";
+export function adminJpLessonTeachersPath(
+  locale: Locale,
+  teacherId?: number,
+  subject: LessonTeacherSubject = "jp"
+): string {
+  const base = locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
+  const params = new URLSearchParams();
+  if (subject === "en") params.set("subject", "en");
+  if (teacherId != null && Number.isInteger(teacherId) && teacherId > 0) {
+    params.set("teacher", String(teacherId));
+  }
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
+}
+
+/** @deprecated 已合并至 adminJpLessonTeachersPath(..., "en") */
+export function adminEnLessonTeachersPath(locale: Locale, teacherId?: number): string {
+  return adminJpLessonTeachersPath(locale, teacherId, "en");
 }
 
 export function maintenancePath(locale: Locale): string {
@@ -356,7 +370,7 @@ export function enLessonPath(): string {
 }
 
 export function enLessonSchedulePath(): string {
-  return "/en-lesson/schedule";
+  return jpLessonSchedulePath();
 }
 
 export function isEnLessonPath(pathname: string): boolean {

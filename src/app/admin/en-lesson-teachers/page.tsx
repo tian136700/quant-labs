@@ -1,12 +1,8 @@
-import { AdminEnLessonTeachersPage } from "@/components/AdminEnLessonTeachersPage";
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { adminJpLessonTeachersPath } from "@/lib/locale-path";
 
-export const metadata: Metadata = {
-  title: "Lesson Teachers",
-  description: "Manage JP lesson teachers.",
-  robots: { index: false, follow: false },
-};
+export const dynamic = "force-dynamic";
 
 export default function Page() {
-  return <AdminEnLessonTeachersPage />;
+  redirect(adminJpLessonTeachersPath("en", undefined, "en"));
 }

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
+import { EnLessonTeacherReviewModal } from "@/components/EnLessonTeacherReviewModal";
 import { JpLessonTeacherReviewModal } from "@/components/JpLessonTeacherReviewModal";
 import {
   adminPath,
@@ -14,7 +15,10 @@ import {
   adminToolCodesPath,
   adminTrendsPath,
   adminUsersPath,
+  enLessonPath,
   jpLessonPath,
+  parseLessonTeacherSubject,
+  type LessonTeacherSubject,
 } from "@/lib/locale-path";
 import {
   formatAdminUserCredentials,
@@ -42,6 +46,16 @@ import {
   syncJpLessonTeacherReviewCache,
 } from "@/lib/jp-lesson-teacher-review-cache";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
+
+function teachersApiBase(subject: LessonTeacherSubject): string {
+  return subject === "en" ? "/api/admin/en-lesson-teachers" : "/api/admin/jp-lesson-teachers";
+}
+
+function teacherReviewApiBase(subject: LessonTeacherSubject): string {
+  return subject === "en"
+    ? "/api/admin/en-lesson-teacher-review"
+    : "/api/admin/jp-lesson-teacher-review";
+}
 
 function scoreClass(score: number): string {
   if (score >= 8) return "etr-score--high";
@@ -131,7 +145,13 @@ function nextSortOrder(currentKey: TeacherSortKey, key: TeacherSortKey, current:
 export function AdminJpLessonTeachersPageContent() {
   const { locale, t } = useI18n();
   const { isAdmin, checking } = useEtrAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const teacherSubject = useMemo(
+    () => parseLessonTeacherSubject(searchParams.get("subject")),
+    [searchParams]
+  );
   const focusTeacherId = useMemo(() => {
     const raw = searchParams.get("teacher");
     if (!raw) return null;
@@ -168,6 +188,18 @@ export function AdminJpLessonTeachersPageContent() {
   const [sortKey, setSortKey] = useState<TeacherSortKey>("score");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
+  const switchTeacherSubject = useCallback(
+    (next: LessonTeacherSubject) => {
+      if (next === teacherSubject) return;
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "en") params.set("subject", "en");
+      else params.delete("subject");
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname);
+    },
+    [pathname, router, searchParams, teacherSubject]
+  );
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -185,21 +217,25 @@ export function AdminJpLessonTeachersPageContent() {
   }, [addModalOpen]);
 
   const loadReviewSummaries = useCallback(async (opts?: { force?: boolean }) => {
-    const cached = readJpLessonTeacherReviewCache();
-    const cacheAge = readClientCacheAge(JP_LESSON_TEACHER_REVIEW_CACHE_KEY);
-    const cacheFresh =
-      !opts?.force &&
-      cached.size > 0 &&
-      cacheAge != null &&
-      cacheAge < JP_LESSON_TEACHER_REVIEW_TTL_MS;
+    if (teacherSubject === "jp") {
+      const cached = readJpLessonTeacherReviewCache();
+      const cacheAge = readClientCacheAge(JP_LESSON_TEACHER_REVIEW_CACHE_KEY);
+      const cacheFresh =
+        !opts?.force &&
+        cached.size > 0 &&
+        cacheAge != null &&
+        cacheAge < JP_LESSON_TEACHER_REVIEW_TTL_MS;
 
-    if (cached.size > 0) {
-      setReviewSummaries(cached);
+      if (cached.size > 0) {
+        setReviewSummaries(cached);
+      }
+      if (cacheFresh) return;
+    } else {
+      setReviewSummaries(new Map());
     }
-    if (cacheFresh) return;
 
     try {
-      const res = await fetch("/api/admin/jp-lesson-teacher-review?summary=1", {
+      const res = await fetch(`${teacherReviewApiBase(teacherSubject)}?summary=1`, {
         credentials: "include",
       });
       const data = (await res.json()) as {
@@ -212,17 +248,20 @@ export function AdminJpLessonTeachersPageContent() {
         map.set(item.teacher_id, item);
       }
       setReviewSummaries(map);
-      syncJpLessonTeacherReviewCache(data.summaries ?? []);
+      if (teacherSubject === "jp") {
+        syncJpLessonTeacherReviewCache(data.summaries ?? []);
+      }
     } catch {
       /* summary is optional; ignore load errors */
     }
-  }, []);
+  }, [teacherSubject]);
 
   const loadTeachers = useCallback(async (opts?: { force?: boolean }) => {
-    const cached = readJpLessonTeachersCache();
+    const cached = teacherSubject === "jp" ? readJpLessonTeachersCache() : [];
     const hasCache = cached.length > 0;
     const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
     const cacheFresh =
+      teacherSubject === "jp" &&
       !opts?.force &&
       hasCache &&
       cacheAge != null &&
@@ -233,6 +272,7 @@ export function AdminJpLessonTeachersPageContent() {
       setLoading(false);
       if (!cacheFresh) setRefreshing(true);
     } else {
+      setTeachers([]);
       setLoading(true);
     }
 
@@ -242,7 +282,7 @@ export function AdminJpLessonTeachersPageContent() {
       if (!cacheFresh) {
         tasks.push(
           (async () => {
-            const res = await fetch("/api/admin/jp-lesson-teachers", {
+            const res = await fetch(teachersApiBase(teacherSubject), {
               credentials: "include",
             });
             const data = (await res.json()) as {
@@ -261,7 +301,9 @@ export function AdminJpLessonTeachersPageContent() {
               normalizeJpLessonTeacher(teacher)
             );
             setTeachers(list);
-            syncJpLessonTeachersCache(list);
+            if (teacherSubject === "jp") {
+              syncJpLessonTeachersCache(list);
+            }
           })()
         );
       }
@@ -276,14 +318,21 @@ export function AdminJpLessonTeachersPageContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [loadReviewSummaries]);
+  }, [loadReviewSummaries, teacherSubject]);
 
   useEffect(() => {
-    if (!checking && isAdmin) void loadTeachers();
-  }, [checking, isAdmin, loadTeachers]);
+    setEditingId(null);
+    setEditName("");
+    setEditHourlyRate("");
+    setEditLessonMinutes("");
+    setEditSortOrder(0);
+    setReviewTeacher(null);
+    if (!checking && isAdmin) void loadTeachers({ force: true });
+  }, [checking, isAdmin, teacherSubject, loadTeachers]);
 
   /** 与日语新课页共用 localStorage 老师缓存；切回此页时合并新课页刚保存的数据 */
   useEffect(() => {
+    if (teacherSubject !== "jp") return;
     const refreshFromSharedCache = () => {
       const cached = readJpLessonTeachersCache();
       if (!cached.length) return;
@@ -297,7 +346,7 @@ export function AdminJpLessonTeachersPageContent() {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, []);
+  }, [teacherSubject]);
 
   const sortedTeachers = useMemo(() => {
     const getScore = (teacherId: number): number | null => {
@@ -429,7 +478,7 @@ export function AdminJpLessonTeachersPageContent() {
     setStatus("");
     setStatusErr(false);
     try {
-      const res = await fetch("/api/admin/jp-lesson-teachers", {
+      const res = await fetch(teachersApiBase(teacherSubject), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -448,6 +497,12 @@ export function AdminJpLessonTeachersPageContent() {
         error?: string;
         teacher?: JpLessonTeacher;
         renamed_teachers?: JpLessonTeacher[];
+        user_account?: {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        };
       };
       if (!data.ok) {
         setStatus(
@@ -458,17 +513,38 @@ export function AdminJpLessonTeachersPageContent() {
       }
       if (data.teacher) {
         const teacher = normalizeJpLessonTeacher(data.teacher);
-        for (const item of data.renamed_teachers ?? []) {
-          upsertJpLessonTeacherCache(normalizeJpLessonTeacher(item));
+        if (teacherSubject === "jp") {
+          for (const item of data.renamed_teachers ?? []) {
+            upsertJpLessonTeacherCache(normalizeJpLessonTeacher(item));
+          }
+          upsertJpLessonTeacherCache(teacher);
+          setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
+        } else {
+          setTeachers((prev) => [...prev.filter((item) => item.id !== teacher.id), teacher]);
         }
-        upsertJpLessonTeacherCache(teacher);
-        setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
       }
       setNewName("");
       setNewHourlyRate("");
       setNewLessonMinutes("");
       setAddModalOpen(false);
-      setStatus(locale === "zh" ? "已添加" : "Added");
+      if (data.user_account) {
+        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
+        setStatus(
+          locale === "zh"
+            ? `已添加。已自动创建禁用账号：${formatAdminUserCredentials(
+                data.user_account.username,
+                data.user_account.password,
+                locale
+              )}（请在用户管理中启用后再登录）`
+            : `Added. Auto-created disabled account: ${formatAdminUserCredentials(
+                data.user_account.username,
+                data.user_account.password,
+                locale
+              )} (enable in Users before login)`
+        );
+      } else {
+        setStatus(locale === "zh" ? "已添加" : "Added");
+      }
       setStatusErr(false);
     } catch {
       setStatus("添加失败");
@@ -512,7 +588,7 @@ export function AdminJpLessonTeachersPageContent() {
     setStatus("");
     setStatusErr(false);
     try {
-      const res = await fetch("/api/admin/jp-lesson-teachers", {
+      const res = await fetch(teachersApiBase(teacherSubject), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -545,8 +621,12 @@ export function AdminJpLessonTeachersPageContent() {
       }
       if (data.teacher) {
         const teacher = normalizeJpLessonTeacher(data.teacher);
-        upsertJpLessonTeacherCache(teacher);
-        setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
+        if (teacherSubject === "jp") {
+          upsertJpLessonTeacherCache(teacher);
+          setTeachers((prev) => mergeJpLessonTeachersCache(prev, [teacher]));
+        } else {
+          setTeachers((prev) => prev.map((item) => (item.id === teacher.id ? teacher : item)));
+        }
       }
       cancelEdit();
       setStatus("已保存");
@@ -562,7 +642,7 @@ export function AdminJpLessonTeachersPageContent() {
   const deleteTeacher = async (id: number, name: string) => {
     if (!confirm(`确定删除「${name}」？已关联的新课将变为未指定。`)) return;
     try {
-      const res = await fetch(`/api/admin/jp-lesson-teachers?id=${id}`, {
+      const res = await fetch(`${teachersApiBase(teacherSubject)}?id=${id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -573,7 +653,9 @@ export function AdminJpLessonTeachersPageContent() {
         return;
       }
       if (editingId === id) cancelEdit();
-      removeJpLessonTeacherCache(id);
+      if (teacherSubject === "jp") {
+        removeJpLessonTeacherCache(id);
+      }
       setTeachers((prev) => prev.filter((teacher) => teacher.id !== id));
       setStatus("已删除");
       setStatusErr(false);
@@ -606,6 +688,7 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
 }
 
   const createTeacherUser = async (teacher: JpLessonTeacher) => {
+    if (teacherSubject !== "jp") return;
     const ok = window.confirm(
       locale === "zh"
         ? `为「${teacher.name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`
@@ -695,14 +778,41 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
       <div className="page-hero">
         <h1>{nav.adminJpLessonTeachers}</h1>
         <p className="sub">
-          {locale === "zh"
-            ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"
-            : "Manage lesson teachers for JP lessons. Only admins can assign them."}
+          {teacherSubject === "en"
+            ? locale === "zh"
+              ? "维护英语新课的上课老师列表；仅管理员可在新课页面看到并分配。英语老师评价已合并到本页。"
+              : "Manage English lesson teachers. Teacher reviews are managed here."
+            : locale === "zh"
+              ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"
+              : "Manage lesson teachers for JP lessons. Only admins can assign them."}
         </p>
+        <div className="admin-jpl-subject-switch">
+          <label htmlFor="admin-jpl-teacher-subject">
+            {locale === "zh" ? "老师类型" : "Teacher type"}
+          </label>
+          <select
+            id="admin-jpl-teacher-subject"
+            value={teacherSubject}
+            onChange={(event) =>
+              switchTeacherSubject(parseLessonTeacherSubject(event.target.value))
+            }
+          >
+            <option value="jp">{locale === "zh" ? "日语老师" : "Japanese teachers"}</option>
+            <option value="en">{locale === "zh" ? "英语老师" : "English teachers"}</option>
+          </select>
+        </div>
         <p className="hint">
           <a href={adminPath(locale)}>{locale === "zh" ? "← 返回后台管理" : "← Back to admin"}</a>
           {" · "}
-          <a href={jpLessonPath()}>{locale === "zh" ? "日语新课" : "JP lessons"}</a>
+          <a href={teacherSubject === "en" ? enLessonPath() : jpLessonPath()}>
+            {teacherSubject === "en"
+              ? locale === "zh"
+                ? "英语新课"
+                : "English lessons"
+              : locale === "zh"
+                ? "日语新课"
+                : "JP lessons"}
+          </a>
           {" · "}
           <a href={adminUsersPath(locale)}>{locale === "zh" ? "用户管理" : "Users"}</a>
           {" · "}
@@ -1072,10 +1182,16 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                                     ? ""
                                     : " btn-rsi-filter--primary"
                                 }`}
-                                disabled={userActionBusy || linkedUser != null}
+                                disabled={
+                                  userActionBusy || linkedUser != null || teacherSubject === "en"
+                                }
                                 onClick={() => void createTeacherUser(teacher)}
                                 title={
-                                  linkedUser
+                                  teacherSubject === "en"
+                                    ? locale === "zh"
+                                      ? "添加英语老师时已自动创建禁用账号"
+                                      : "Disabled account is auto-created when adding an English teacher"
+                                    : linkedUser
                                     ? locale === "zh"
                                       ? `已关联 ${linkedUser.username}；点击老师名称可跳转到用户管理`
                                       : `Linked as ${linkedUser.username}; click the teacher name to view in Users`
@@ -1130,13 +1246,23 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
         )}
       </section>
 
-      <JpLessonTeacherReviewModal
-        open={reviewTeacher != null}
-        teacher={reviewTeacher}
-        locale={locale}
-        onClose={() => setReviewTeacher(null)}
-        onChanged={() => void loadReviewSummaries({ force: true })}
-      />
+      {teacherSubject === "en" ? (
+        <EnLessonTeacherReviewModal
+          open={reviewTeacher != null}
+          teacher={reviewTeacher}
+          locale={locale}
+          onClose={() => setReviewTeacher(null)}
+          onChanged={() => void loadReviewSummaries({ force: true })}
+        />
+      ) : (
+        <JpLessonTeacherReviewModal
+          open={reviewTeacher != null}
+          teacher={reviewTeacher}
+          locale={locale}
+          onClose={() => setReviewTeacher(null)}
+          onChanged={() => void loadReviewSummaries({ force: true })}
+        />
+      )}
 
       {mounted && addModalOpen
         ? createPortal(
@@ -1269,6 +1395,27 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
 
         .admin-jpl-teacher-user-link:hover {
           text-decoration: underline;
+        }
+
+        .admin-jpl-subject-switch {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          margin: 0.75rem 0 0.35rem;
+        }
+
+        .admin-jpl-subject-switch label {
+          font-size: 0.875rem;
+          color: var(--muted);
+        }
+
+        .admin-jpl-subject-switch select {
+          min-height: 2.25rem;
+          padding: 0.35rem 0.65rem;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
         }
 
         .admin-jpl-search-field {

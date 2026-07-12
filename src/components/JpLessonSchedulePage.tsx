@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { CopyToast } from "@/components/CopyToast";
+import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
@@ -13,6 +14,15 @@ import {
   formatAdminUserCredentials,
   rememberAdminUserPassword,
 } from "@/lib/admin-user-credentials";
+import {
+  JP_LESSON_CACHE_KEY as EN_LESSON_CACHE_KEY,
+  parseEnLessonApi,
+  type EnLessonApiPayload,
+} from "@/lib/en-api-cache";
+import {
+  flattenEnLessonScheduleEvents,
+  normalizeClassDurationMinutes as normalizeEnClassDurationMinutes,
+} from "@/lib/en-lesson-shared";
 import {
   JP_LESSON_CACHE_KEY,
   JP_LESSON_REFRESH_TTL_MS,
@@ -57,8 +67,9 @@ import {
   updateJpLessonManualSchedule,
   type JpLessonManualSchedule,
   type JpLessonSchedulePageEvent,
+  type LessonScheduleSubject,
 } from "@/lib/jp-lesson-manual-schedule";
-import { jpLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
+import { jpLessonPath, enLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import { formatTeacherLessonDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import {
@@ -67,7 +78,17 @@ import {
 } from "@/lib/jp-lesson-teachers-cache";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
-import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
+import { enVocabRefViewerPath } from "@/lib/en-vocab-ref-shared";
+import type {
+  EnLessonClassScheduleInput,
+  EnLessonRecord,
+  EnLessonTeacher,
+  EnVocabRef,
+  JpLessonClassScheduleInput,
+  JpLessonRecord,
+  JpLessonTeacher,
+  JpVocabRef,
+} from "@/lib/types";
 
 type ViewMode = "day" | "week" | "month";
 
@@ -167,8 +188,19 @@ function readLessonCache(): JpLessonApiPayload | null {
   return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
 }
 
+function scheduleSubjectLabel(subject: LessonScheduleSubject): string {
+  if (subject === "jp") return "日语";
+  if (subject === "en") return "英语";
+  return "手动";
+}
+
+function scheduleSubjectCssClass(subject: LessonScheduleSubject): string {
+  if (subject === "manual") return "manual";
+  return subject;
+}
+
 function formatLessonTeacherNames(
-  lesson: JpLessonRecord,
+  lesson: JpLessonRecord | EnLessonRecord,
   teacherNameById: Map<number, string>
 ): string {
   const names = (lesson.teacher_ids ?? [])
@@ -208,9 +240,14 @@ function monthGrid(dateStr: string): string[] {
 }
 
 function exportScheduleText(events: DayScheduleEvent[], rangeLabel: string): string {
-  const lines = [`日语新课日程 · ${rangeLabel}`, ""];
+  const lines = [`课程日程 · ${rangeLabel}`, ""];
   for (const event of events) {
-    const prefix = event.source === "manual" ? "[手动] " : "";
+    const prefix =
+      event.subject === "manual"
+        ? "[手动] "
+        : event.subject === "en"
+          ? "[英语] "
+          : "[日语] ";
     lines.push(
       `${prefix}${event.classAt.slice(0, 16)} - ${beijingTimeHm(event.end)} · ${event.teachers}`,
       formatLessonContentLines(event.displayContent, 4).join("\n")
@@ -285,7 +322,11 @@ function JpLessonScheduleManualTeacherLinks({
 }
 
 function buildLessonEventDedupKey(event: DayScheduleEvent): string {
-  return `${event.teachers}|${event.start.getTime()}|${event.end.getTime()}`;
+  return `${event.subject}|${event.teachers}|${event.start.getTime()}|${event.end.getTime()}`;
+}
+
+function readEnLessonCache(): EnLessonApiPayload | null {
+  return readClientCache<EnLessonApiPayload>(EN_LESSON_CACHE_KEY);
 }
 
 export function JpLessonSchedulePage() {
@@ -293,9 +334,18 @@ export function JpLessonSchedulePage() {
   const { isAdmin, checking } = useEtrAuth();
 
   const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
+  const [enLessons, setEnLessons] = useState<EnLessonRecord[]>(
+    () => readEnLessonCache()?.lessons ?? []
+  );
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readLessonCache()?.refs ?? {});
+  const [enRefs, setEnRefs] = useState<Record<string, EnVocabRef>>(
+    () => readEnLessonCache()?.refs ?? {}
+  );
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(
     () => readLessonCache()?.teachers ?? []
+  );
+  const [enTeachers, setEnTeachers] = useState<EnLessonTeacher[]>(
+    () => readEnLessonCache()?.teachers ?? []
   );
   const [loading, setLoading] = useState(() => readLessonCache() == null);
   const [refreshing, setRefreshing] = useState(false);
@@ -323,13 +373,22 @@ export function JpLessonSchedulePage() {
   const [manualModalMode, setManualModalMode] = useState<"full" | "time">("full");
   const [editingManual, setEditingManual] = useState<JpLessonManualSchedule | null>(null);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<JpLessonRecord | null>(null);
+  const [editingEnNextClassLesson, setEditingEnNextClassLesson] = useState<EnLessonRecord | null>(
+    null
+  );
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const sidebarPanelsRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    document.title = "日程管理 · 日语新课";
+    document.title = "日程管理";
+  }, []);
+
+  const applyEnLessonPayload = useCallback((payload: EnLessonApiPayload) => {
+    setEnLessons(payload.lessons);
+    setEnRefs(payload.refs);
+    if (payload.teachers) setEnTeachers(payload.teachers);
   }, []);
 
   useEffect(() => {
@@ -425,6 +484,57 @@ export function JpLessonSchedulePage() {
     if (!checking && isAdmin) void loadLessons();
   }, [checking, isAdmin, loadLessons]);
 
+  const loadEnLessons = useCallback(async (opts?: { force?: boolean }) => {
+    const cached = readEnLessonCache();
+    const hasCache = cached != null;
+    setError("");
+    try {
+      const payload = await fetchWithClientCache(
+        EN_LESSON_CACHE_KEY,
+        "/api/en-lesson",
+        parseEnLessonApi,
+        {
+          onCached: applyEnLessonPayload,
+          ttlMs: JP_LESSON_REFRESH_TTL_MS,
+          force: opts?.force,
+        }
+      );
+      applyEnLessonPayload(payload);
+    } catch (err) {
+      if (!hasCache) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    }
+  }, [applyEnLessonPayload]);
+
+  useEffect(() => {
+    if (!checking && isAdmin) void loadEnLessons();
+  }, [checking, isAdmin, loadEnLessons]);
+
+  const enTeacherNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const teacher of enTeachers) {
+      map.set(teacher.id, teacher.name);
+    }
+    return map;
+  }, [enTeachers]);
+
+  const enTeachersById = useMemo(() => {
+    const map = new Map<number, EnLessonTeacher>();
+    for (const teacher of enTeachers) {
+      map.set(teacher.id, teacher);
+    }
+    return map;
+  }, [enTeachers]);
+
+  const enLessonById = useMemo(() => {
+    const map = new Map<number, EnLessonRecord>();
+    for (const lesson of enLessons) {
+      map.set(lesson.id, lesson);
+    }
+    return map;
+  }, [enLessons]);
+
   const teacherNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const teacher of teachers) {
@@ -453,13 +563,13 @@ export function JpLessonSchedulePage() {
   }, [lessons]);
 
   const allEvents = useMemo(() => {
-    const lessonEvents: DayScheduleEvent[] = flattenJpLessonScheduleEvents(lessons).flatMap(
+    const jpLessonEvents: DayScheduleEvent[] = flattenJpLessonScheduleEvents(lessons).flatMap(
       (event) => {
         const lesson = lessonById.get(event.lessonId);
         if (!lesson) return [];
         return [
           {
-            key: event.key,
+            key: `jp-${event.key}`,
             classAt: event.classAt,
             start: event.start,
             end: event.end,
@@ -467,6 +577,7 @@ export function JpLessonSchedulePage() {
             teachers: formatLessonTeacherNames(lesson, teacherNameById),
             displayContent: lesson.content,
             source: "lesson" as const,
+            subject: "jp" as const,
             lessonId: event.lessonId,
             scheduleId: event.scheduleId,
             lesson: {
@@ -478,6 +589,33 @@ export function JpLessonSchedulePage() {
         ];
       }
     );
+    const enLessonEvents: DayScheduleEvent[] = flattenEnLessonScheduleEvents(enLessons).flatMap(
+      (event) => {
+        const lesson = enLessonById.get(event.lessonId);
+        if (!lesson) return [];
+        return [
+          {
+            key: `en-${event.key}`,
+            classAt: event.classAt,
+            start: event.start,
+            end: event.end,
+            durationMinutes: event.durationMinutes,
+            teachers: formatLessonTeacherNames(lesson, enTeacherNameById),
+            displayContent: lesson.content,
+            source: "lesson" as const,
+            subject: "en" as const,
+            lessonId: event.lessonId,
+            scheduleId: event.scheduleId,
+            lesson: {
+              id: lesson.id,
+              content: lesson.content,
+              ref_key: lesson.ref_key,
+            },
+          },
+        ];
+      }
+    );
+    const lessonEvents = [...jpLessonEvents, ...enLessonEvents];
     const dedupedLessonEvents: DayScheduleEvent[] = [];
     const lessonEventKeys = new Set<string>();
     for (const event of lessonEvents) {
@@ -490,7 +628,15 @@ export function JpLessonSchedulePage() {
     return [...dedupedLessonEvents, ...manualEvents].sort(
       (a, b) => a.start.getTime() - b.start.getTime()
     );
-  }, [lessons, lessonById, teacherNameById, manualSchedules]);
+  }, [
+    lessons,
+    enLessons,
+    lessonById,
+    enLessonById,
+    teacherNameById,
+    enTeacherNameById,
+    manualSchedules,
+  ]);
 
   const weekDates = useMemo(() => {
     const start = weekStartDate(selectedDate);
@@ -591,19 +737,38 @@ export function JpLessonSchedulePage() {
 
   const selectedViewUrl = useMemo(() => {
     if (!selectedEvent?.lesson?.ref_key) return null;
+    if (selectedEvent.subject === "en") {
+      const ref = enRefs[selectedEvent.lesson.ref_key];
+      return enVocabRefViewerPath(selectedEvent.lesson.ref_key, ref?.updated_at);
+    }
     const ref = refs[selectedEvent.lesson.ref_key];
     return jpVocabRefViewerPath(selectedEvent.lesson.ref_key, ref?.updated_at);
-  }, [selectedEvent, refs]);
+  }, [selectedEvent, refs, enRefs]);
 
   const selectedManualSchedule = useMemo(() => {
     if (!selectedEvent?.manualId) return null;
     return manualSchedules.find((item) => item.id === selectedEvent.manualId) ?? null;
   }, [selectedEvent, manualSchedules]);
 
-  const selectedLesson = useMemo(() => {
-    if (!selectedEvent?.lessonId) return null;
+  const selectedJpLesson = useMemo(() => {
+    if (!selectedEvent?.lessonId || selectedEvent.subject !== "jp") return null;
     return lessonById.get(selectedEvent.lessonId) ?? null;
   }, [selectedEvent, lessonById]);
+
+  const selectedEnLesson = useMemo(() => {
+    if (!selectedEvent?.lessonId || selectedEvent.subject !== "en") return null;
+    return enLessonById.get(selectedEvent.lessonId) ?? null;
+  }, [selectedEvent, enLessonById]);
+
+  const selectedTeacherHref = useCallback(
+    (teacherId: number) =>
+      adminJpLessonTeachersPath(
+        locale,
+        teacherId,
+        selectedEvent?.subject === "en" ? "en" : "jp"
+      ),
+    [locale, selectedEvent?.subject]
+  );
 
   const openManualModal = (
     manual: JpLessonManualSchedule | null = null,
@@ -776,8 +941,62 @@ export function JpLessonSchedulePage() {
     }
   };
 
+  const setEnLessonClassSchedules = async (
+    lessonId: number,
+    schedules: EnLessonClassScheduleInput[]
+  ) => {
+    if (!isAdmin || savingNextClassId === lessonId) return;
+
+    const normalized = schedules.map((item) => ({
+      class_at: item.class_at.trim(),
+      duration_minutes: normalizeEnClassDurationMinutes(item.duration_minutes),
+    }));
+
+    setSavingNextClassId(lessonId);
+
+    try {
+      const res = await fetch("/api/en-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "set_class_schedules",
+          lesson_id: lessonId,
+          class_schedules: normalized,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        lesson?: EnLessonRecord;
+        error?: string;
+      };
+      if (!data.ok || !data.lesson) {
+        throw new Error(data.error || "保存失败");
+      }
+      await loadEnLessons({ force: true });
+      setEditingEnNextClassLesson(null);
+      setStatusMessage("上课时间已更新");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+    } catch (err) {
+      setStatusMessage(err instanceof Error ? err.message : "保存失败");
+      window.setTimeout(() => setStatusMessage(""), 3500);
+    } finally {
+      setSavingNextClassId(null);
+    }
+  };
+
   const openLessonReschedule = () => {
     if (!selectedEvent?.lessonId) return;
+    if (selectedEvent.subject === "en") {
+      const lesson = enLessonById.get(selectedEvent.lessonId);
+      if (!lesson) return;
+      setEditingEnNextClassLesson(lesson);
+      return;
+    }
+    if (selectedEvent.subject !== "jp") return;
     const lesson = lessonById.get(selectedEvent.lessonId);
     if (!lesson) return;
     setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
@@ -865,11 +1084,18 @@ export function JpLessonSchedulePage() {
       <header className="jpls-header">
         <div>
           <h1>日程管理</h1>
-          <p className="jpls-sub">查看今日及未来的日语新课预约时间（北京时间），支持手动添加仅日程页可见、各端同步的日程</p>
+          <p className="jpls-sub">
+            统一查看日语新课、英语新课与手动添加的预约时间（北京时间），手动日程仅在本页可见、各端同步
+          </p>
         </div>
-        <a className="jpls-back-btn" href={jpLessonPath()}>
-          ← 返回日语新课
-        </a>
+        <div className="jpls-header-links">
+          <a className="jpls-back-btn" href={jpLessonPath()}>
+            ← 日语新课
+          </a>
+          <a className="jpls-back-btn" href={enLessonPath()}>
+            ← 英语新课
+          </a>
+        </div>
       </header>
 
       <div className="jpls-toolbar">
@@ -948,10 +1174,10 @@ export function JpLessonSchedulePage() {
 
         <div className="jpls-toolbar-right">
           <span className="jpls-legend">
-            <span className="jpls-legend-dot jpls-legend-dot--free" /> 空闲
+            <span className="jpls-legend-dot jpls-legend-dot--jp" /> 日语
           </span>
           <span className="jpls-legend">
-            <span className="jpls-legend-dot jpls-legend-dot--busy" /> 有课
+            <span className="jpls-legend-dot jpls-legend-dot--en" /> 英语
           </span>
           <span className="jpls-legend">
             <span className="jpls-legend-dot jpls-legend-dot--manual" /> 手动
@@ -1036,7 +1262,7 @@ export function JpLessonSchedulePage() {
                         type="button"
                         className={`jpls-slot-cell${event ? " is-busy" : " is-free"}${
                           event && status ? ` jpls-slot-cell--${status}` : ""
-                        }${event?.source === "manual" ? " jpls-slot-cell--manual" : ""}${
+                        }${event?.subject ? ` jpls-slot-cell--${scheduleSubjectCssClass(event.subject)}` : ""}${
                           event && selectedEventKey === event.key ? " is-selected" : ""
                         }`}
                         disabled={!event}
@@ -1050,9 +1276,11 @@ export function JpLessonSchedulePage() {
                               }`}
                             >
                               {status
-                                ? event.source === "manual" && status !== "past"
+                                ? event.subject === "manual" && status !== "past"
                                   ? "手动日程"
-                                  : eventTimelinePrimaryLabel(status)
+                                  : event.subject !== "manual" && status !== "past"
+                                    ? `${scheduleSubjectLabel(event.subject)}课`
+                                    : eventTimelinePrimaryLabel(status)
                                 : "要上课"}
                             </span>
                             {encourageLabel ? (
@@ -1131,15 +1359,19 @@ export function JpLessonSchedulePage() {
                               className={`jpls-week-item${
                                 selectedEventKey === event.key ? " is-selected" : ""
                               }${status ? ` jpls-week-item--${status}` : ""}${
-                                event.source === "manual" ? " jpls-week-item--manual" : ""
+                                event.subject ? ` jpls-week-item--${scheduleSubjectCssClass(event.subject)}` : ""
                               }`}
                               onClick={() => setSelectedEventKey(event.key)}
                             >
                               {status === "past" ? (
                                 <span className="jpls-week-item-done">✓ 已结束</span>
-                              ) : event.source === "manual" ? (
-                                <span className="jpls-week-item-manual">手动</span>
-                              ) : null}
+                              ) : (
+                                <span
+                                  className={`jpls-week-item-subject jpls-week-item-subject--${scheduleSubjectCssClass(event.subject)}`}
+                                >
+                                  {scheduleSubjectLabel(event.subject)}
+                                </span>
+                              )}
                               <span className="jpls-week-item-time">
                                 {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
                               </span>
@@ -1207,20 +1439,26 @@ export function JpLessonSchedulePage() {
         <aside className="jpls-sidebar">
           <div className="jpls-sidebar-panels" ref={sidebarPanelsRef}>
           <section className="section etr-panel jpls-detail">
-            <h2>{selectedEvent?.source === "manual" ? "手动日程详情" : "课程详情"}</h2>
+            <h2>
+              {selectedEvent?.subject === "manual"
+                ? "手动日程详情"
+                : `${scheduleSubjectLabel(selectedEvent?.subject ?? "jp")}课程详情`}
+            </h2>
             {selectedEvent ? (
               <>
                 <dl className="jpls-detail-list">
-                  {selectedEvent.source === "manual" ? (
-                    <div>
-                      <dt>类型</dt>
-                      <dd>
-                        <span className="jpls-status-badge jpls-status-badge--manual">
-                          手动日程 · 不同步到日语新课
-                        </span>
-                      </dd>
-                    </div>
-                  ) : null}
+                  <div>
+                    <dt>类型</dt>
+                    <dd>
+                      <span
+                        className={`jpls-status-badge jpls-status-badge--${scheduleSubjectCssClass(selectedEvent.subject)}`}
+                      >
+                        {selectedEvent.subject === "manual"
+                          ? "手动日程 · 不同步到新课列表"
+                          : `${scheduleSubjectLabel(selectedEvent.subject)}新课`}
+                      </span>
+                    </dd>
+                  </div>
                   <div>
                     <dt>上课时间</dt>
                     <dd>
@@ -1250,14 +1488,19 @@ export function JpLessonSchedulePage() {
                   <div>
                     <dt>老师</dt>
                     <dd>
-                      {selectedLesson ? (
+                      {selectedJpLesson ? (
                         <JpLessonTeacherDisplay
-                          lesson={selectedLesson}
+                          lesson={selectedJpLesson}
                           teachersById={teachersById}
                           locale={locale}
-                          teacherHref={(teacherId) =>
-                            adminJpLessonTeachersPath(locale, teacherId)
-                          }
+                          teacherHref={selectedTeacherHref}
+                        />
+                      ) : selectedEnLesson ? (
+                        <JpLessonTeacherDisplay
+                          lesson={selectedEnLesson}
+                          teachersById={enTeachersById}
+                          locale={locale}
+                          teacherHref={selectedTeacherHref}
                         />
                       ) : (
                         <JpLessonScheduleManualTeacherLinks
@@ -1324,7 +1567,7 @@ export function JpLessonSchedulePage() {
               </>
             ) : (
               <p className="jpls-muted">
-                当前日期暂无课程，可在日语新课列表中设置「下次上课时间」，或点击「手动添加日程」。
+                当前日期暂无课程，可在日语/英语新课列表中设置「下次上课时间」，或点击「手动添加日程」。
               </p>
             )}
           </section>
@@ -1344,7 +1587,7 @@ export function JpLessonSchedulePage() {
                         className={`jpls-today-item${
                           selectedEventKey === event.key ? " is-selected" : ""
                         }${status === "past" ? " jpls-today-item--past" : ""}${
-                          event.source === "manual" ? " jpls-today-item--manual" : ""
+                          event.subject ? ` jpls-today-item--${scheduleSubjectCssClass(event.subject)}` : ""
                         }`}
                         onClick={() => setSelectedEventKey(event.key)}
                       >
@@ -1352,8 +1595,7 @@ export function JpLessonSchedulePage() {
                           {beijingTimeHm(event.start)} - {beijingTimeHm(event.end)}
                         </span>
                         <span className="jpls-today-meta">
-                          {event.source === "manual" ? "手动 · " : ""}
-                          {event.teachers} ·{" "}
+                          {scheduleSubjectLabel(event.subject)} · {event.teachers} ·{" "}
                           {status === "past" ? "✓ 已结束 · 已上完课了，真棒" : eventStatusLabel(status)}
                         </span>
                         <span className="jpls-today-content">
@@ -1397,6 +1639,18 @@ export function JpLessonSchedulePage() {
         }}
       />
 
+      <EnLessonNextClassEditModal
+        open={editingEnNextClassLesson != null}
+        lesson={editingEnNextClassLesson}
+        saving={savingNextClassId === editingEnNextClassLesson?.id}
+        onClose={() => setEditingEnNextClassLesson(null)}
+        onSave={(schedules) => {
+          if (editingEnNextClassLesson) {
+            void setEnLessonClassSchedules(editingEnNextClassLesson.id, schedules);
+          }
+        }}
+      />
+
       <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
@@ -1413,6 +1667,12 @@ export function JpLessonSchedulePage() {
           justify-content: space-between;
           gap: 1rem;
           margin-bottom: 1rem;
+        }
+        .jpls-header-links {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 0.35rem;
         }
         .jpls-header h1 {
           margin: 0 0 0.25rem;
@@ -1643,14 +1903,14 @@ export function JpLessonSchedulePage() {
           height: 0.65rem;
           border-radius: 999px;
         }
-        .jpls-legend-dot--free {
-          background: color-mix(in srgb, var(--fall) 55%, transparent);
-        }
-        .jpls-legend-dot--busy {
+        .jpls-legend-dot--jp {
           background: color-mix(in srgb, var(--rise) 70%, transparent);
+        }
+        .jpls-legend-dot--en {
+          background: color-mix(in srgb, var(--accent) 70%, transparent);
         }
         .jpls-legend-dot--manual {
-          background: color-mix(in srgb, var(--rise) 70%, transparent);
+          background: color-mix(in srgb, #f59e0b 70%, transparent);
         }
         .jpls-layout {
           display: grid;
@@ -1805,6 +2065,12 @@ export function JpLessonSchedulePage() {
         .jpls-slot-cell.is-busy.jpls-slot-cell--ongoing {
           background: color-mix(in srgb, var(--accent) 78%, var(--panel));
           color: #fff;
+        }
+        .jpls-slot-cell.is-busy.jpls-slot-cell--en {
+          background: color-mix(in srgb, var(--accent) 82%, var(--panel));
+        }
+        .jpls-slot-cell.is-busy.jpls-slot-cell--manual {
+          background: color-mix(in srgb, #f59e0b 82%, var(--panel));
         }
         .jpls-slot-cell.is-busy.jpls-slot-cell--manual.jpls-slot-cell--past {
           background: color-mix(in srgb, var(--fall) 22%, var(--panel));
@@ -1964,6 +2230,19 @@ export function JpLessonSchedulePage() {
           font-weight: 600;
           color: color-mix(in srgb, var(--fall) 82%, var(--text));
         }
+        .jpls-week-item-subject {
+          font-size: 0.6875rem;
+          font-weight: 600;
+        }
+        .jpls-week-item-subject--jp {
+          color: var(--rise);
+        }
+        .jpls-week-item-subject--en {
+          color: var(--accent);
+        }
+        .jpls-week-item-subject--manual {
+          color: #f59e0b;
+        }
         .jpls-week-item-manual {
           font-size: 0.6875rem;
           font-weight: 600;
@@ -2113,6 +2392,14 @@ export function JpLessonSchedulePage() {
         .jpls-status-badge--upcoming {
           background: color-mix(in srgb, var(--rise) 16%, transparent);
           color: var(--rise);
+        }
+        .jpls-status-badge--jp {
+          background: color-mix(in srgb, var(--rise) 16%, transparent);
+          color: var(--rise);
+        }
+        .jpls-status-badge--en {
+          background: color-mix(in srgb, var(--accent) 16%, transparent);
+          color: var(--accent);
         }
         .jpls-status-badge--manual {
           background: color-mix(in srgb, var(--rise) 16%, transparent);
