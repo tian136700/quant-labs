@@ -178,6 +178,38 @@ const STAT_SORT_COLUMNS: {
   { key: "total", label: "合计", className: "jp-vocab-stat-total" },
 ];
 
+function JpVocabStatSortButton({
+  col,
+  statSort,
+  onSort,
+}: {
+  col: (typeof STAT_SORT_COLUMNS)[number];
+  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null;
+  onSort: (key: JpVocabStatSortKey) => void;
+}) {
+  const active = statSort?.key === col.key;
+  const ariaSort = active
+    ? statSort.dir === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+
+  return (
+    <button
+      type="button"
+      className="jp-vocab-stats-sort-btn"
+      aria-sort={ariaSort}
+      title={`按${col.label}排序`}
+      onClick={() => onSort(col.key)}
+    >
+      <span className="jp-vocab-stats-sort-btn__label">{col.label}</span>
+      <span className="jp-vocab-sort-indicator" aria-hidden="true">
+        {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
+}
+
 /** 单词表「备注」列 */
 const SHOW_REMARKS_COLUMN = true;
 
@@ -2576,8 +2608,20 @@ export function JpVocabPage() {
                       <span className="jp-vocab-th-multiline__sub">(老师勾选)</span>
                     </span>
                   </th>
-                  <th colSpan={4} className="jp-vocab-stats-group">
-                    复习次数统计
+                  <th rowSpan={2} className="jp-vocab-stats-col">
+                    <div className="jp-vocab-stats-col-head">
+                      <span className="jp-vocab-stats-col__title">复习次数统计</span>
+                      <div className="jp-vocab-stats-sort-grid" aria-label="按复习次数排序">
+                        {STAT_SORT_COLUMNS.map((col) => (
+                          <JpVocabStatSortButton
+                            key={col.key}
+                            col={col}
+                            statSort={statSort}
+                            onSort={toggleStatSort}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </th>
                   <th rowSpan={2} className="jp-vocab-today-check-col" title="今日抽查次数">
                     <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
@@ -2593,39 +2637,6 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-action-col">
                     操作
                   </th>
-                </tr>
-                <tr>
-                  {STAT_SORT_COLUMNS.map((col) => {
-                    const active = statSort?.key === col.key;
-                    const ariaSort = active
-                      ? statSort.dir === "asc"
-                        ? "ascending"
-                        : "descending"
-                      : "none";
-                    return (
-                      <th key={col.key} className={col.className}>
-                        <button
-                          type="button"
-                          className="jp-vocab-sort-btn"
-                          aria-sort={ariaSort}
-                          title={`按${col.label}排序`}
-                          onClick={() => toggleStatSort(col.key)}
-                        >
-                          {col.labelLines ? (
-                            <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                              <span>{col.labelLines[0]}</span>
-                              <span>{col.labelLines[1]}</span>
-                            </span>
-                          ) : (
-                            <span>{col.label}</span>
-                          )}
-                          <span className="jp-vocab-sort-indicator" aria-hidden="true">
-                            {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
-                          </span>
-                        </button>
-                      </th>
-                    );
-                  })}
                 </tr>
               </thead>
               <tbody>
@@ -2663,6 +2674,17 @@ export function JpVocabPage() {
                     risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const hasNotes = Boolean((w.class_notes || "").trim());
                   const readingCopyText = jpVocabFlashcardCopyText(readingTrim, wordTrim);
+                  const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
+                  const totalStatLabel = totalDisplay.isZero ? (
+                    <span
+                      className="jp-vocab-total-never"
+                      title={jpVocabTotalReviewsZeroHint(locale)}
+                    >
+                      {totalDisplay.label}
+                    </span>
+                  ) : (
+                    totalDisplay.label
+                  );
                   const renderNotesActions = () => (
                     <div className="jp-vocab-notes-actions">
                       {hasNotes ? (
@@ -3011,30 +3033,21 @@ export function JpVocabPage() {
                         </div>
                         )}
                       </td>
-                      <td className="jp-vocab-stat-detail chg-dn" data-label="非常熟悉">
-                        {w.cnt_very}
-                      </td>
-                      <td className="jp-vocab-stat-detail" data-label="一般">
-                        {w.cnt_normal}
-                      </td>
-                      <td className="jp-vocab-stat-detail chg-up" data-label="不熟悉">
-                        {w.cnt_weak}
-                      </td>
-                      <td className="jp-vocab-stat-total" data-label="复习合计">
-                        {(() => {
-                          const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
-                          if (totalDisplay.isZero) {
-                            return (
-                              <span
-                                className="jp-vocab-total-never"
-                                title={jpVocabTotalReviewsZeroHint(locale)}
-                              >
-                                {totalDisplay.label}
-                              </span>
-                            );
-                          }
-                          return totalDisplay.label;
-                        })()}
+                      <td className="jp-vocab-stats-col" data-label="复习统计">
+                        <div className="jp-vocab-stats-grid">
+                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--very">
+                            非常熟悉 {w.cnt_very}
+                          </span>
+                          <span className="jp-vocab-stats-grid__item">
+                            一般 {w.cnt_normal}
+                          </span>
+                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--weak">
+                            不熟悉 {w.cnt_weak}
+                          </span>
+                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--total">
+                            合计 {totalStatLabel}
+                          </span>
+                        </div>
                       </td>
                       <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
                         <span
@@ -3126,59 +3139,6 @@ export function JpVocabPage() {
                                 >
                                   {isDeleting ? "删除中…" : "删除"}
                                 </button>
-                              ) : null}
-                              {JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy && inQuizTarget ? (
-                                sharedTodayWordIds.has(w.id) ? (
-                                    <button
-                                      type="button"
-                                      className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-mobile-action-btn${
-                                        reviewLocked ? " jp-vocab-share-btn--locked" : ""
-                                      }`}
-                                      disabled={isSaving || isSharing || reviewLocked}
-                                      title={
-                                        reviewLocked
-                                          ? "勾选已满 1 小时，无法再操作"
-                                          : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
-                                      }
-                                      onClick={() => void unshareWord(w.id)}
-                                    >
-                                      取消共享
-                                    </button>
-                                ) : isSharing ? (
-                                  <JpVocabSaveProgressBar
-                                    label={jpVocabSaveProgressLabel("share")}
-                                    percent={sharingPercent}
-                                    fullWidth
-                                  />
-                                ) : (
-                                  <div className="jp-vocab-share-stack">
-                                    <button
-                                      type="button"
-                                      className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-mobile-action-btn${
-                                        reviewLocked ? " jp-vocab-share-btn--locked" : ""
-                                      }`}
-                                      disabled={isSaving || isSharing || reviewLocked}
-                                      title={
-                                        reviewLocked
-                                          ? "勾选已满 1 小时，无法再发给学生"
-                                          : "发给学生「今日日语单词」，并标记为不熟悉"
-                                      }
-                                      onClick={() => void shareWord(w.id)}
-                                    >
-                                      发给学生
-                                    </button>
-                                    {!reviewLocked ? (
-                                      <>
-                                    <span className="jp-vocab-share-hint jp-vocab-share-hint--desktop" role="note">
-                                      {JP_VOCAB_SHARE_HINT_SHORT}
-                                    </span>
-                                    <span className="jp-vocab-share-hint jp-vocab-share-hint--mobile" role="note">
-                                      {JP_VOCAB_SHARE_HINT}
-                                    </span>
-                                      </>
-                                    ) : null}
-                                  </div>
-                                )
                               ) : null}
                             </div>
                           </div>
@@ -3700,6 +3660,14 @@ export function JpVocabPage() {
         .jp-vocab-mobile-only {
           display: none;
         }
+        .jp-vocab-level-history {
+          display: none;
+        }
+        @media (min-width: 769px) {
+          :global(.jp-vocab-table .jp-vocab-level-history) {
+            display: none !important;
+          }
+        }
         .jp-vocab-toolbar {
           display: flex;
           flex-wrap: wrap;
@@ -3818,8 +3786,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
         :global(.jp-vocab-table .jp-vocab-risk-col),
-        :global(.jp-vocab-table .jp-vocab-stat-detail),
-        :global(.jp-vocab-table .jp-vocab-stat-total),
+        :global(.jp-vocab-table .jp-vocab-stats-col),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
         :global(.jp-vocab-table .jp-vocab-notes-col),
         :global(.jp-vocab-table .jp-vocab-mnemonic-col),
@@ -3832,8 +3799,75 @@ export function JpVocabPage() {
           width: 11%;
           min-width: 0;
         }
-        :global(.jp-vocab-table .jp-vocab-stats-group) {
+        :global(.jp-vocab-table .jp-vocab-stats-col) {
           text-align: center;
+          vertical-align: middle;
+          width: 8.5%;
+          min-width: 5.5rem;
+        }
+        .jp-vocab-stats-col-head {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
+        }
+        .jp-vocab-stats-col__title {
+          display: block;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          line-height: 1.25;
+        }
+        .jp-vocab-stats-sort-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.2rem 0.35rem;
+        }
+        .jp-vocab-stats-sort-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.12rem;
+          min-width: 0;
+          border: none;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          font-size: 0.6875rem;
+          line-height: 1.2;
+          cursor: pointer;
+          padding: 0.1rem 0;
+        }
+        .jp-vocab-stats-sort-btn:hover {
+          color: var(--accent);
+        }
+        .jp-vocab-stats-sort-btn__label {
+          min-width: 0;
+          white-space: nowrap;
+        }
+        .jp-vocab-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.2rem 0.45rem;
+          width: 100%;
+          font-size: 0.6875rem;
+          line-height: 1.35;
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-stats-grid__item {
+          min-width: 0;
+          white-space: nowrap;
+        }
+        .jp-vocab-stats-grid__item--very {
+          color: var(--fall);
+        }
+        .jp-vocab-stats-grid__item--weak {
+          color: var(--rise);
+        }
+        .jp-vocab-stats-grid__item--total {
+          font-weight: 600;
+        }
+        .jp-vocab-stats-grid__item--total :global(.jp-vocab-total-never) {
+          font-weight: 500;
         }
         :global(.jp-vocab-table .jp-vocab-sort-btn) {
           display: inline-flex;
@@ -3864,16 +3898,13 @@ export function JpVocabPage() {
           opacity: 1;
           color: var(--accent);
         }
-        :global(.jp-vocab-table .jp-vocab-stat-detail),
-        :global(.jp-vocab-table .jp-vocab-stat-total),
-        :global(.jp-vocab-table .jp-vocab-today-check-col),
-        :global(.jp-vocab-table .jp-vocab-admin-review-col),
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
         :global(.jp-vocab-table .jp-vocab-reading-col),
         :global(.jp-vocab-table .jp-vocab-meaning-col),
         :global(.jp-vocab-table .jp-vocab-pos-col),
-        :global(.jp-vocab-table .jp-vocab-risk-col) {
+        :global(.jp-vocab-table .jp-vocab-risk-col),
+        :global(.jp-vocab-table .jp-vocab-stats-col) {
           text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-risk-col) {
@@ -3885,25 +3916,16 @@ export function JpVocabPage() {
           font-weight: 600;
           font-variant-numeric: tabular-nums;
         }
-        :global(.jp-vocab-table .jp-vocab-stat-detail) {
-          min-width: 0;
-          width: 3.5%;
-          font-variant-numeric: tabular-nums;
-        }
-        :global(.jp-vocab-table .jp-vocab-stat-total) {
+        :global(.jp-vocab-table .jp-vocab-today-check-col) {
           white-space: nowrap;
-          width: 4%;
+          width: 4.5%;
           min-width: 0;
+          text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-total-never) {
           color: var(--muted);
           font-size: 0.8125rem;
           letter-spacing: 0.02em;
-        }
-        :global(.jp-vocab-table .jp-vocab-today-check-col) {
-          white-space: nowrap;
-          width: 4.5%;
-          min-width: 0;
         }
         :global(.jp-vocab-table .jp-vocab-today-check-value) {
           display: inline-flex;
@@ -4136,16 +4158,10 @@ export function JpVocabPage() {
           line-height: 1;
         }
 
-        /* 16 寸屏 / 中等桌面：隐藏分项统计与巧记，操作列固定可见 */
+        /* 16 寸屏 / 中等桌面：隐藏巧记，操作列固定可见 */
         @media (max-width: 1440px) {
           .jp-vocab-scroll-hint {
             display: block;
-          }
-          :global(.jp-vocab-table .jp-vocab-stat-detail) {
-            display: none;
-          }
-          :global(.jp-vocab-table thead tr:nth-child(2) .jp-vocab-stat-detail) {
-            display: none;
           }
           :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
             display: none;
@@ -4179,12 +4195,6 @@ export function JpVocabPage() {
         @media (max-width: 1100px) {
           .jp-vocab-scroll-hint {
             display: block;
-          }
-          :global(.jp-vocab-table .jp-vocab-stat-detail) {
-            display: none;
-          }
-          :global(.jp-vocab-table thead tr:nth-child(2) .jp-vocab-stat-detail) {
-            display: none;
           }
         }
 
@@ -4576,8 +4586,7 @@ export function JpVocabPage() {
             background: color-mix(in srgb, var(--rise) 16%, var(--panel));
             color: var(--rise);
           }
-          :global(.jp-vocab-table .jp-vocab-stat-detail),
-          :global(.jp-vocab-table .jp-vocab-stat-total),
+          :global(.jp-vocab-table .jp-vocab-stats-col),
           :global(.jp-vocab-table .jp-vocab-today-check-col) {
             display: none;
           }
