@@ -875,10 +875,16 @@ export async function resetTodayJpVocabRound(
 > {
   await seedIfEmpty(db);
   const words = await listJpVocabWords(db);
-  const [display_order, teacher_visible_limit] = await Promise.all([
-    refreshJpVocabDailyDisplayOrder(db, words),
-    resetJpVocabTeacherVisibleLimit(db),
-  ]);
+  const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
+  const current = await getJpVocabTeacherVisibleLimit(db);
+  const teacher_visible_limit = await saveJpVocabTeacherVisibleLimit(
+    db,
+    applyJpVocabQuizTargetVisiblePlan(
+      { ...current, date: beijingDateString() },
+      display_order,
+      words
+    )
+  );
   return { ok: true, words, display_order, teacher_visible_limit };
 }
 
@@ -2130,7 +2136,7 @@ export async function setJpVocabDailyQuizTarget(
   );
 }
 
-/** 今日重置时恢复老师默认可见序号 1–20，抽查目标恢复默认 20 */
+/** 北京时间跨日清理时恢复老师默认可见序号 1–20，抽查目标恢复默认 20 */
 export async function resetJpVocabTeacherVisibleLimit(
   db: D1Database
 ): Promise<JpVocabTeacherVisibleLimit> {

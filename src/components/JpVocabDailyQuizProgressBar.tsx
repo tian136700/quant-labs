@@ -1,7 +1,10 @@
 "use client";
 
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
-import { formatJpVocabDailyQuizProgressLabel } from "@/lib/jp-vocab-daily-quiz-progress";
+import {
+  formatJpVocabDailyQuizProgressLabel,
+  jpVocabDailyQuizProgressDisplayChecked,
+} from "@/lib/jp-vocab-daily-quiz-progress";
 
 type Props = {
   progress: JpVocabDailyQuizProgress;
@@ -34,9 +37,11 @@ export function JpVocabDailyQuizProgressBar({
 }: Props) {
   if (progress.total <= 0 && !adminQuizTarget) return null;
 
+  const displayChecked = jpVocabDailyQuizProgressDisplayChecked(progress);
+
   const pct =
     progress.total > 0
-      ? Math.min(100, Math.round((progress.checked / progress.total) * 100))
+      ? Math.min(100, Math.round((displayChecked / progress.total) * 100))
       : 0;
 
   const label =
@@ -61,7 +66,7 @@ export function JpVocabDailyQuizProgressBar({
           {variant === "study" ? "老师抽查进度" : "今日抽查进度"}
         </span>
         <span className="jp-vocab-quiz-progress-stats">
-          <strong>{progress.checked}</strong>
+          <strong>{displayChecked}</strong>
           <span className="jp-vocab-quiz-progress-sep">/</span>
           {progress.total}
           {!progress.complete ? (

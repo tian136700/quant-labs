@@ -38,12 +38,21 @@ export function computeJpVocabDailyQuizProgress(
   };
 }
 
+/** 进度条分子：相对今日目标封顶，避免已抽 45、目标 20 时显示 45/20 */
+export function jpVocabDailyQuizProgressDisplayChecked(
+  progress: JpVocabDailyQuizProgress
+): number {
+  if (progress.total <= 0) return progress.checked;
+  return Math.min(progress.checked, progress.total);
+}
+
 export function formatJpVocabDailyQuizProgressLabel(
   progress: JpVocabDailyQuizProgress
 ): string {
   if (progress.total <= 0) return "今日暂无抽查任务";
+  const shown = jpVocabDailyQuizProgressDisplayChecked(progress);
   if (progress.complete) {
     return `今日 ${progress.total} 个已全部抽查完成`;
   }
-  return `已抽查 ${progress.checked} / ${progress.total}，剩余 ${progress.remaining} 个`;
+  return `已抽查 ${shown} / ${progress.total}，剩余 ${progress.remaining} 个`;
 }

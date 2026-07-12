@@ -1908,7 +1908,7 @@ export function JpVocabPage() {
       setShowResetChoice(false);
       setStatus(
         action === "reset_today"
-          ? "已今日重置：单词顺序已更新，当前轮次勾选已清空，老师可见范围已恢复为序号 1–20，统计次数保持不变。"
+          ? "已今日重置：单词顺序已更新，当前轮次勾选已清空；今日抽查数量与统计次数保持不变。"
           : "已全部重置，可以开始新一轮复习。"
       );
     } catch (err) {
