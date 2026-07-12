@@ -214,6 +214,17 @@ export function JpVocabTeacherQuizFlashcardModal({
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
+  const uncheckedCount = session.wordIds.reduce((count, id) => {
+    const item = wordsById.get(id);
+    if (!item) return count + 1;
+    return effectiveJpVocabDisplayLevel(item, sessionLevel[id], { displayOrder }) == null
+      ? count + 1
+      : count;
+  }, 0);
+  const remainingLabel =
+    locale === "zh"
+      ? `还剩 ${uncheckedCount} 个未抽查`
+      : `${uncheckedCount} left to quiz`;
   const canGoPrev = session.currentIndex > 0;
   const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = session.currentIndex === session.wordIds.length - 1;
@@ -260,6 +271,7 @@ export function JpVocabTeacherQuizFlashcardModal({
               </span>
             ) : null}
             <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
+            <span className="jp-vocab-teacher-quiz__remaining">{remainingLabel}</span>
           </div>
           <button
             type="button"
@@ -740,7 +752,8 @@ export function JpVocabTeacherQuizFlashcardModal({
           color: var(--accent);
         }
         .jp-vocab-teacher-quiz__seq,
-        .jp-vocab-teacher-quiz__progress {
+        .jp-vocab-teacher-quiz__progress,
+        .jp-vocab-teacher-quiz__remaining {
           font-size: 0.75rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
@@ -748,6 +761,9 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz__progress {
           font-weight: 600;
           color: var(--accent);
+        }
+        .jp-vocab-teacher-quiz__remaining {
+          color: color-mix(in srgb, var(--muted) 88%, var(--rise) 12%);
         }
         .jp-vocab-teacher-quiz__close-x {
           flex-shrink: 0;
