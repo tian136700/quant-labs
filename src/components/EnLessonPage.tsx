@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnLessonAnnotateModal } from "@/components/EnLessonAnnotateModal";
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
-import { EnLessonTeacherEditModal } from "@/components/EnLessonTeacherEditModal";
+import {
+  EnLessonTeacherEditModal,
+  type EnLessonTeacherUpdateInput,
+} from "@/components/EnLessonTeacherEditModal";
 import { EnVocabRefDownloadMenu } from "@/components/EnVocabRefDownloadMenu";
 import { EnVocabRefEditModal } from "@/components/EnVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -362,6 +365,7 @@ export function EnLessonPage() {
     lessonId: number,
     teacherIds: number[],
     teacherOther: string | null,
+    teacherUpdates: EnLessonTeacherUpdateInput[] = [],
     options?: { keepOpen?: boolean }
   ) => {
     if (!isAdmin || savingTeacherId === lessonId) return;
@@ -375,6 +379,31 @@ export function EnLessonPage() {
     );
 
     try {
+      let nextTeachers = [...teachers];
+      for (const input of teacherUpdates) {
+        const res = await fetch("/api/admin/en-lesson-teachers", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update",
+            id: input.id,
+            name: input.name,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          teacher?: EnLessonTeacher;
+          error?: string;
+        };
+        if (!data.ok || !data.teacher) {
+          throw new Error(data.error || "保存老师信息失败");
+        }
+        nextTeachers = nextTeachers.map((t) =>
+          t.id === data.teacher!.id ? data.teacher! : t
+        );
+      }
+
       const res = await fetch("/api/en-lesson", {
         method: "POST",
         headers: {
@@ -397,9 +426,24 @@ export function EnLessonPage() {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
+      setTeachers(nextTeachers);
       setLessons((prev) => {
-        const next = prev.map((l) => (l.id === data.lesson!.id ? data.lesson! : l));
-        persistLessonCache(next, refs, notes, teachers);
+        const next = prev.map((l) => {
+          if (l.id !== data.lesson!.id) return l;
+          const server = data.lesson!;
+          return {
+            ...server,
+            teacher_ids: server.teacher_ids?.length ? server.teacher_ids : teacherIds,
+            teacher_other: server.teacher_other ?? teacherOther,
+            class_schedules: server.class_schedules?.length
+              ? server.class_schedules
+              : l.class_schedules,
+            next_class_at: server.next_class_at ?? l.next_class_at,
+            class_duration_minutes:
+              server.class_duration_minutes ?? l.class_duration_minutes,
+          };
+        });
+        persistLessonCache(next, refs, notes, nextTeachers);
         return next;
       });
       if (!options?.keepOpen) {
@@ -417,6 +461,42 @@ export function EnLessonPage() {
       throw err;
     } finally {
       setSavingTeacherId(null);
+    }
+  };
+
+  const deleteLessonTeacher = async (id: number, name: string): Promise<boolean> => {
+    if (!isAdmin) return false;
+    try {
+      const res = await fetch(`/api/admin/en-lesson-teachers?id=${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!data.ok) {
+        setStatus(data.error || "删除失败");
+        return false;
+      }
+      setTeachers((prev) => {
+        const next = prev.filter((teacher) => teacher.id !== id);
+        persistLessonCache(lessons, refs, notes, next);
+        return next;
+      });
+      setLessons((prev) =>
+        prev.map((lesson) =>
+          lesson.teacher_ids?.includes(id)
+            ? {
+                ...lesson,
+                teacher_ids: (lesson.teacher_ids ?? []).filter((teacherId) => teacherId !== id),
+              }
+            : lesson
+        )
+      );
+      setStatus(`已删除老师：${name}`);
+      window.setTimeout(() => setStatus(""), 2500);
+      return true;
+    } catch {
+      setStatus("删除失败");
+      return false;
     }
   };
 
@@ -1060,12 +1140,14 @@ export function EnLessonPage() {
         saving={savingTeacherId === editingTeacherLesson?.id}
         onClose={() => setEditingTeacherLesson(null)}
         onAddTeacher={addLessonTeacher}
-        onSave={(teacherIds, teacherOther, options) => {
+        onDeleteTeacher={deleteLessonTeacher}
+        onSave={(teacherIds, teacherOther, teacherUpdates, options) => {
           if (editingTeacherLesson) {
             return setLessonTeachers(
               editingTeacherLesson.id,
               teacherIds,
               teacherOther,
+              teacherUpdates,
               options
             );
           }
