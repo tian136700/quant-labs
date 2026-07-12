@@ -169,7 +169,7 @@ export function AdminToolCodesPage() {
           <a href={adminRbacPath(locale)}>{locale === "zh" ? "角色权限" : "Roles"}</a>
           {" · "}
           <a href={adminJpLessonTeachersPath(locale)}>
-            {locale === "zh" ? "日语老师管理" : "JP lesson teachers"}
+            {locale === "zh" ? "老师管理" : "JP lesson teachers"}
           </a>
         </p>
       </div>

@@ -528,6 +528,16 @@ export function nextClassAtFromDatetimeLocalValue(local: string): string | null 
   return `${match[1]} ${time}:00`;
 }
 
+import {
+  DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
+  JP_LESSON_CLASS_DURATION_MINUTES,
+  formatClassDurationLabel,
+  formatClassDurationLabelCompact,
+  normalizeClassDurationMinutes,
+  resolveClassDurationMinutes,
+  type JpLessonClassDurationMinutes,
+} from "@/lib/jp-lesson-shared";
+
 export {
   JP_LESSON_CLASS_DURATION_MINUTES,
   DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
@@ -536,7 +546,7 @@ export {
   formatClassDurationLabelCompact,
   resolveClassDurationMinutes,
   type JpLessonClassDurationMinutes as EnLessonClassDurationMinutes,
-} from "@/lib/jp-lesson-shared";
+};
 
 export type EnLessonScheduleEvent = {
   key: string;

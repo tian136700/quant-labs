@@ -1146,7 +1146,7 @@ export const messages: Record<Locale, Messages> = {
       adminRbac: "角色权限",
       adminUsers: "用户管理",
       adminToolCodes: "工具发码",
-      adminJpLessonTeachers: "日语老师管理",
+      adminJpLessonTeachers: "老师管理",
       more: "更多",
       allFeatures: "全部功能",
       searchPlaceholder: "🔍 搜索菜单…",
