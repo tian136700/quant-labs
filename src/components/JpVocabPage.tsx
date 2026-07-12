@@ -348,7 +348,7 @@ export function JpVocabPage() {
     useState<JpVocabAdminReviewSession | null>(null);
   const [showAdminReviewFlashcard, setShowAdminReviewFlashcard] = useState(false);
   const [adminDailyReview, setAdminDailyReview] = useState<JpVocabAdminDailyReview>(() =>
-    normalizeJpVocabAdminDailyReview(null)
+    normalizeJpVocabAdminDailyReview(readVocabCache()?.admin_daily_review ?? null)
   );
   const [adminReviewRecordingNext, setAdminReviewRecordingNext] = useState(false);
   const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
@@ -3170,6 +3170,7 @@ export function JpVocabPage() {
                                   <JpVocabSaveProgressBar
                                     label={jpVocabSaveProgressLabel("share")}
                                     percent={sharingPercent}
+                                    fullWidth
                                   />
                                 ) : (
                                   <div className="jp-vocab-share-stack">
@@ -4524,13 +4525,29 @@ export function JpVocabPage() {
             gap: 0.5rem;
             width: 100%;
           }
+          .jp-vocab-action-row > :global(.btn-rsi-filter),
+          .jp-vocab-action-row > .jp-vocab-share-stack,
+          .jp-vocab-action-row > :global(.jp-vocab-save-progress) {
+            width: 100%;
+            min-width: 0;
+          }
           .jp-vocab-action-row > :only-child {
             grid-column: 1 / -1;
           }
           .jp-vocab-share-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
             max-width: none;
             width: 100%;
             gap: 0.25rem;
+          }
+          .jp-vocab-share-stack :global(.jp-vocab-share-btn) {
+            width: 100%;
+          }
+          .jp-vocab-action-row :global(.jp-vocab-save-progress) {
+            max-width: none;
+            min-width: 0;
           }
           .jp-vocab-share-hint--desktop {
             display: none;
