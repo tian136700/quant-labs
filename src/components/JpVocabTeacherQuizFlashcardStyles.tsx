@@ -44,6 +44,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .jp-vocab-teacher-quiz__header {
           display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+        .jp-vocab-teacher-quiz__header-top {
+          display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 0.5rem;
@@ -79,6 +84,85 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .jp-vocab-teacher-quiz__remaining {
           color: color-mix(in srgb, var(--muted) 88%, var(--rise) 12%);
+        }
+        .jp-vocab-teacher-quiz__header-progress {
+          display: flex;
+          flex-direction: column;
+          gap: 0.3rem;
+          padding: 0.45rem 0.55rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+        }
+        .jp-vocab-teacher-quiz__header-progress--daily {
+          border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+          background: color-mix(in srgb, var(--panel) 90%, var(--accent) 10%);
+        }
+        .jp-vocab-teacher-quiz__header-progress--complete {
+          border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+          background: color-mix(in srgb, var(--panel) 88%, var(--fall) 12%);
+        }
+        .jp-vocab-teacher-quiz__header-progress-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.25rem 0.5rem;
+        }
+        .jp-vocab-teacher-quiz__header-progress-title {
+          font-size: 0.6875rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__header-progress-stats {
+          font-size: 0.6875rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-teacher-quiz__header-progress-stats strong {
+          color: var(--accent);
+          font-weight: 700;
+        }
+        .jp-vocab-teacher-quiz__header-progress--complete
+          .jp-vocab-teacher-quiz__header-progress-stats
+          strong {
+          color: var(--fall);
+        }
+        .jp-vocab-teacher-quiz__header-progress-sep {
+          margin: 0 0.1rem;
+        }
+        .jp-vocab-teacher-quiz__header-progress-remaining,
+        .jp-vocab-teacher-quiz__header-progress-done {
+          margin-left: 0.15rem;
+          font-size: 0.625rem;
+        }
+        .jp-vocab-teacher-quiz__header-progress-done {
+          color: var(--fall);
+          font-weight: 600;
+        }
+        .jp-vocab-teacher-quiz__progress-track {
+          height: 0.4rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--border) 70%, transparent);
+          overflow: hidden;
+        }
+        .jp-vocab-teacher-quiz__progress-fill {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--accent) 85%, #fff),
+            var(--accent)
+          );
+          transition: width 0.35s ease;
+        }
+        .jp-vocab-teacher-quiz__header-progress--complete
+          .jp-vocab-teacher-quiz__progress-fill {
+          background: linear-gradient(
+            90deg,
+            color-mix(in srgb, var(--fall) 80%, #fff),
+            var(--fall)
+          );
         }
         .jp-vocab-teacher-quiz__close-x {
           flex-shrink: 0;

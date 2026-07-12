@@ -173,6 +173,15 @@ export function JpVocabAdminReviewFlashcardModal({
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
+  const sessionTotal = session.wordIds.length;
+  const sessionReviewed = session.wordIds.reduce((count, id) => {
+    return reviewedWordIds.has(id) ? count + 1 : count;
+  }, 0);
+  const sessionPct =
+    sessionTotal > 0
+      ? Math.min(100, Math.round((sessionReviewed / sessionTotal) * 100))
+      : 0;
+  const sessionComplete = sessionTotal > 0 && sessionReviewed >= sessionTotal;
   const canGoPrev = session.currentIndex > 0;
   const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = !canGoNext;
@@ -206,34 +215,65 @@ export function JpVocabAdminReviewFlashcardModal({
         </p>
 
         <header className="jp-vocab-teacher-quiz__header">
-          <div className="jp-vocab-teacher-quiz__header-left">
-            <span
-              className={`jp-vocab-teacher-quiz__kind${
-                w.kind === "grammar" ? " jp-vocab-teacher-quiz__kind--grammar" : ""
-              }`}
+          <div className="jp-vocab-teacher-quiz__header-top">
+            <div className="jp-vocab-teacher-quiz__header-left">
+              <span
+                className={`jp-vocab-teacher-quiz__kind${
+                  w.kind === "grammar" ? " jp-vocab-teacher-quiz__kind--grammar" : ""
+                }`}
+              >
+                {w.kind === "grammar" ? "语法" : "单词"}
+              </span>
+              {dailySeq != null ? (
+                <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
+                  序号 {dailySeq}
+                </span>
+              ) : null}
+              {reviewedToday ? (
+                <span className="jp-vocab-admin-review__word-badge" title="今日已通过「下一个」完成复习">
+                  今日已复习
+                </span>
+              ) : null}
+              <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
+            </div>
+            <button
+              type="button"
+              className="jp-vocab-teacher-quiz__close-x"
+              aria-label="关闭复习"
+              onClick={onClose}
             >
-              {w.kind === "grammar" ? "语法" : "单词"}
-            </span>
-            {dailySeq != null ? (
-              <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
-                序号 {dailySeq}
-              </span>
-            ) : null}
-            {reviewedToday ? (
-              <span className="jp-vocab-admin-review__word-badge" title="今日已通过「下一个」完成复习">
-                今日已复习
-              </span>
-            ) : null}
-            <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            className="jp-vocab-teacher-quiz__close-x"
-            aria-label="关闭复习"
-            onClick={onClose}
+          <div
+            className={`jp-vocab-teacher-quiz__header-progress${
+              sessionComplete ? " jp-vocab-teacher-quiz__header-progress--complete" : ""
+            }`}
           >
-            ×
-          </button>
+            <div className="jp-vocab-teacher-quiz__header-progress-head">
+              <span className="jp-vocab-teacher-quiz__header-progress-title">
+                本轮复习进度
+              </span>
+              <span className="jp-vocab-teacher-quiz__header-progress-stats">
+                <strong>{sessionReviewed}</strong>
+                <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
+                {sessionTotal}
+              </span>
+            </div>
+            <div
+              className="jp-vocab-teacher-quiz__progress-track"
+              role="progressbar"
+              aria-valuenow={sessionPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`本轮已复习 ${sessionReviewed} / ${sessionTotal}`}
+            >
+              <div
+                className="jp-vocab-teacher-quiz__progress-fill"
+                style={{ width: `${sessionPct}%` }}
+              />
+            </div>
+          </div>
         </header>
 
         <JpVocabFlashcardWordHero
