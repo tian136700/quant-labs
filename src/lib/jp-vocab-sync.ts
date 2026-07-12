@@ -6,6 +6,15 @@ export const JP_VOCAB_POLL_MS = 3_000;
 /** 标签页在后台时降频，避免浪费 Worker 配额 */
 export const JP_VOCAB_POLL_HIDDEN_MS = 10_000;
 
+/** 学生复习页：共享列表轮询（比老师端略慢，减轻 Worker CPU） */
+export const JP_VOCAB_STUDY_POLL_MS = 5_000;
+
+/** 学生复习页：后台轮询 */
+export const JP_VOCAB_STUDY_POLL_HIDDEN_MS = 15_000;
+
+/** 学生复习页：每隔 N 次列表轮询再拉一次抽查进度 */
+export const JP_VOCAB_STUDY_QUIZ_EVERY_N = 6;
+
 export function maxJpVocabUpdatedAt(words: JpVocabWord[]): string {
   let max = "";
   for (const w of words) {

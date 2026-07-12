@@ -2,7 +2,7 @@ import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
 import { canUserOperateJpVocab } from "@/lib/etr-auth";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { isAdminSuperuser } from "@/lib/rbac";
-import { userHasPermission } from "@/lib/rbac-db";
+import { getUserPermissions, userHasPermission } from "@/lib/rbac-db";
 
 export async function requireJpVocabAccess(request: Request) {
   const env = await getCloudflareEnv();
@@ -47,12 +47,12 @@ export async function requireJpVocabStudyAccess(request: Request) {
   if (user) {
     if (isAdminSuperuser(user.role)) {
       allowed = true;
-    } else if (
-      (await userHasPermission(env.DB, user, "jp_vocab:study")) &&
-      !(await userHasPermission(env.DB, user, "jp_vocab:operate")) &&
-      !canUserOperateJpVocab(user)
-    ) {
-      allowed = true;
+    } else {
+      const perms = await getUserPermissions(env.DB, user);
+      allowed =
+        perms.includes("jp_vocab:study") &&
+        !perms.includes("jp_vocab:operate") &&
+        !canUserOperateJpVocab(user);
     }
   }
 
@@ -68,12 +68,12 @@ export async function requireJpVocabShareRequestCreate(request: Request) {
   if (user) {
     if (isAdminSuperuser(user.role)) {
       allowed = true;
-    } else if (
-      (await userHasPermission(env.DB, user, "jp_vocab:study")) &&
-      !(await userHasPermission(env.DB, user, "jp_vocab:operate")) &&
-      !canUserOperateJpVocab(user)
-    ) {
-      allowed = true;
+    } else {
+      const perms = await getUserPermissions(env.DB, user);
+      allowed =
+        perms.includes("jp_vocab:study") &&
+        !perms.includes("jp_vocab:operate") &&
+        !canUserOperateJpVocab(user);
     }
   }
 

@@ -3,6 +3,11 @@ export type ApiJsonResult<T extends Record<string, unknown>> =
   | { ok: true; data: T; status: number }
   | { ok: false; status: number; error: string };
 
+/** Cloudflare / 网关短暂不可用时可自动重试 */
+export function isTransientApiStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
+
 function htmlApiError(status: number): string {
   if (status === 404) return "接口不存在，请刷新页面后重试。";
   if (status === 401 || status === 403) return "登录已失效，请重新登录后再试。";

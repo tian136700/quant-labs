@@ -1208,7 +1208,7 @@ export function JpVocabPage() {
       }
     };
     void poll();
-    const timer = setInterval(poll, 2000);
+    const timer = setInterval(poll, JP_VOCAB_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(timer);

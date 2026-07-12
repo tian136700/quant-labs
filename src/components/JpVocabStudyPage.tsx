@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readApiJson, sanitizeApiClientError } from "@/lib/api-json";
+import {
+  isTransientApiStatus,
+  readApiJson,
+  sanitizeApiClientError,
+} from "@/lib/api-json";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -30,6 +34,11 @@ import { JpVocabStudyFlashcardModal } from "@/components/JpVocabStudyFlashcardMo
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
+import {
+  JP_VOCAB_STUDY_POLL_HIDDEN_MS,
+  JP_VOCAB_STUDY_POLL_MS,
+  JP_VOCAB_STUDY_QUIZ_EVERY_N,
+} from "@/lib/jp-vocab-sync";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -47,8 +56,12 @@ const STAT_COLUMNS = [
 
 const SHOW_REMARKS_COLUMN = true;
 
-const POLL_MS = 2000;
-const POLL_HIDDEN_MS = 8000;
+const SHARED_LOAD_MAX_ATTEMPTS = 3;
+const SHARED_LOAD_RETRY_MS = 800;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function JpVocabStudyPage() {
   const { locale } = useI18n();
@@ -94,6 +107,7 @@ export function JpVocabStudyPage() {
   const pendingRefreshAfterSaveRef = useRef(false);
   const saveQueuePendingRef = useRef(0);
   const hasLoadedOnceRef = useRef(false);
+  const sharedPollCountRef = useRef(0);
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -143,7 +157,7 @@ export function JpVocabStudyPage() {
     []
   );
 
-  const loadShared = useCallback(async (opts?: { force?: boolean }) => {
+  const loadShared = useCallback(async (opts?: { force?: boolean; includeQuiz?: boolean }) => {
     if (!canViewStudy) {
       setLoading(false);
       return;
@@ -158,19 +172,57 @@ export function JpVocabStudyPage() {
     }
     pollInFlightRef.current = true;
     try {
-      const res = await fetch("/api/jp-vocab/shared", {
-        headers: { [LOCALE_HEADER]: locale },
-        credentials: "include",
-        cache: "no-store",
-      });
-      const parsed = await readApiJson<{
+      const includeQuiz =
+        opts?.includeQuiz ??
+        (!hasLoadedOnceRef.current ||
+          sharedPollCountRef.current % JP_VOCAB_STUDY_QUIZ_EVERY_N === 0);
+      sharedPollCountRef.current += 1;
+
+      type SharedPayload = {
         ok: boolean;
         items?: JpVocabSharedItem[];
         refs?: Record<string, JpVocabRef>;
         share_date?: string;
         quiz_progress?: JpVocabDailyQuizProgress;
         error?: string;
-      }>(res);
+      };
+
+      let parsed:
+        | { ok: true; data: SharedPayload; status: number }
+        | { ok: false; status: number; error: string }
+        | null = null;
+
+      const sharedUrl = includeQuiz
+        ? "/api/jp-vocab/shared"
+        : "/api/jp-vocab/shared?lite=1";
+
+      for (let attempt = 0; attempt < SHARED_LOAD_MAX_ATTEMPTS; attempt++) {
+        const res = await fetch(sharedUrl, {
+          headers: { [LOCALE_HEADER]: locale },
+          credentials: "include",
+          cache: "no-store",
+        });
+        const next = await readApiJson<SharedPayload>(res);
+        parsed = next;
+
+        if (
+          !next.ok &&
+          isTransientApiStatus(next.status) &&
+          attempt + 1 < SHARED_LOAD_MAX_ATTEMPTS
+        ) {
+          await sleep(SHARED_LOAD_RETRY_MS * (attempt + 1));
+          continue;
+        }
+        break;
+      }
+
+      if (!parsed) {
+        if (!hasLoadedOnceRef.current) {
+          setError("加载失败，请稍后重试。");
+        }
+        return;
+      }
+
       if (!parsed.ok) {
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error);
@@ -203,7 +255,9 @@ export function JpVocabStudyPage() {
       setItems(data.items);
       setRefs(data.refs ?? {});
       setShareDate(data.share_date ?? beijingDateString());
-      setQuizProgress(data.quiz_progress ?? null);
+      if (data.quiz_progress) {
+        setQuizProgress(data.quiz_progress);
+      }
       setError("");
       hasLoadedOnceRef.current = true;
     } catch (err) {
@@ -251,7 +305,7 @@ export function JpVocabStudyPage() {
           return;
         }
         void loadShared().finally(schedule);
-      }, hidden ? POLL_HIDDEN_MS : POLL_MS);
+      }, hidden ? JP_VOCAB_STUDY_POLL_HIDDEN_MS : JP_VOCAB_STUDY_POLL_MS);
     };
 
     schedule();

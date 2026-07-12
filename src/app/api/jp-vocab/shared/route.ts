@@ -10,6 +10,7 @@ const AUTH_MSG = {
 
 export async function GET(request: Request) {
   const locale = localeFromRequest(request);
+  const lite = new URL(request.url).searchParams.get("lite") === "1";
 
   try {
     const { env, allowed } = await requireJpVocabStudyAccess(request);
@@ -17,9 +18,11 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
 
+    const listPromise = listJpVocabSharedToday(env.DB);
+    const quizPromise = lite ? null : getJpVocabDailyQuizProgress(env.DB);
     const [{ items, refs }, quiz_progress] = await Promise.all([
-      listJpVocabSharedToday(env.DB),
-      getJpVocabDailyQuizProgress(env.DB),
+      listPromise,
+      quizPromise ?? Promise.resolve(null),
     ]);
     return jsonResponse(
       {
@@ -27,7 +30,7 @@ export async function GET(request: Request) {
         items,
         refs,
         share_date: beijingDateString(),
-        quiz_progress,
+        ...(quiz_progress ? { quiz_progress } : {}),
       },
       200,
       { "Cache-Control": "no-store" }

@@ -139,6 +139,7 @@ let jpVocabSharedSchemaReady = false;
 const devShareRequests: JpVocabShareRequest[] = [];
 let devShareRequestNextId = 1;
 let jpVocabShareRequestSchemaReady = false;
+let jpVocabSettingSchemaReady = false;
 
 const JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS = 10_000;
 
@@ -1851,7 +1852,7 @@ export async function appendJpVocabWordToDailyDisplayOrder(
 }
 
 async function ensureJpVocabSettingSchema(db: D1Database): Promise<void> {
-  if (devStoreEnabled) return;
+  if (devStoreEnabled || jpVocabSettingSchemaReady) return;
   await db
     .prepare(
       `CREATE TABLE IF NOT EXISTS jp_vocab_setting (
@@ -1861,6 +1862,7 @@ async function ensureJpVocabSettingSchema(db: D1Database): Promise<void> {
       )`
     )
     .run();
+  jpVocabSettingSchemaReady = true;
 }
 
 export async function getJpVocabDailyQuizStyle(
@@ -2474,7 +2476,6 @@ export async function listJpVocabSharedToday(
   db: D1Database,
   now = new Date()
 ): Promise<{ items: JpVocabSharedItem[]; refs: Record<string, JpVocabRef> }> {
-  await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
   await ensureJpVocabSharedSchema(db);
 
