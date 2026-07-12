@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
+import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { EnLessonRecord, EnLessonTeacher } from "@/lib/types";
 
 export type EnLessonTeacherUpdateInput = {
@@ -64,6 +67,9 @@ export function EnLessonTeacherEditModal({
     () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
     [teachers]
   );
+
+  const saveBusy = saving || addingTeacher || deletingTeacherId != null;
+  const saveProgress = useSaveProgressBar(saveBusy);
 
   useEffect(() => {
     setMounted(true);
@@ -450,11 +456,19 @@ export function EnLessonTeacherEditModal({
           ) : null}
         </fieldset>
 
+        {saveProgress.visible ? (
+          <JpVocabSaveProgressBar
+            label={jpVocabSaveProgressLabel("save")}
+            percent={saveProgress.percent}
+            fullWidth
+          />
+        ) : null}
+
         <div className="jp-lesson-teacher-actions">
           <button
             type="button"
             className="jp-lesson-action-btn"
-            disabled={saving || deletingTeacherId != null}
+            disabled={saveBusy}
             onClick={onClose}
           >
             取消
@@ -462,10 +476,10 @@ export function EnLessonTeacherEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving || addingTeacher || deletingTeacherId != null}
+            disabled={saveBusy}
             onClick={() => void handleSave()}
           >
-            {saving ? "保存中…" : "保存"}
+            保存
           </button>
         </div>
       </div>
@@ -701,6 +715,7 @@ export function EnLessonTeacherEditModal({
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
+          margin-top: 0.65rem;
         }
 
         :global(.jp-lesson-action-btn--primary) {

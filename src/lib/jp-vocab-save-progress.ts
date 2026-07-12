@@ -8,7 +8,8 @@ export const JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT = 12;
 export type JpVocabSaveProgressKind =
   | "share"
   | "sync_to_student"
-  | "save_level";
+  | "save_level"
+  | "save";
 
 export function jpVocabSaveProgressPercent(
   elapsedMs: number,
@@ -29,6 +30,8 @@ export function jpVocabSaveProgressLabel(
       return "正在同步到学生端…";
     case "save_level":
       return "正在保存熟悉程度…";
+    case "save":
+      return "正在保存，传输中…";
   }
 }
 
