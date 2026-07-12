@@ -7,10 +7,13 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   appendJpVocabClassNoteImageLine,
+  mergeJpVocabClassNoteDraftFromEdit,
   parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
+  removeJpVocabClassNoteImageAt,
   saveJpVocabClassNoteDraft,
+  splitJpVocabClassNoteDraftForEdit,
   type JpVocabClassNoteEditTarget,
   type JpVocabClassNoteEntry,
 } from "@/lib/jp-vocab-class-notes";
@@ -617,6 +620,8 @@ export function JpClassNotesEditModal({
   const draftHasImages = parseJpVocabClassNoteContent(draft).some(
     (segment) => segment.type === "image"
   );
+  const { text: draftText, imageSrcs: draftImageSrcs } =
+    splitJpVocabClassNoteDraftForEdit(draft);
 
   const isEntryHiddenInHistory = (entry: JpVocabClassNoteEntry, index: number) => {
     if (sessionTs && entry.timestamp === sessionTs) return true;
@@ -768,17 +773,47 @@ export function JpClassNotesEditModal({
                     ref={textareaRef}
                     className="jp-notes-edit-textarea"
                     rows={8}
-                    value={draft}
+                    value={draftText}
                     placeholder="在此输入新备注，可粘贴或上传图片，保存后自动带上当前时间…"
                     onPaste={onPaste}
                     onChange={(e) => {
                       dirtyRef.current = true;
-                      setDraft(e.target.value);
+                      setDraft(
+                        mergeJpVocabClassNoteDraftFromEdit(
+                          e.target.value,
+                          draftImageSrcs
+                        )
+                      );
                     }}
                   />
-                  {draftHasImages ? (
+                  {draftHasImages || draftText.trim() ? (
                     <div className="jp-notes-edit-draft-preview" aria-label="当前备注预览">
-                      <JpVocabClassNoteContent content={draft} />
+                      {draftText.trim() ? (
+                        <JpVocabClassNoteContent content={draftText} />
+                      ) : null}
+                      {draftImageSrcs.length ? (
+                        <div className="jp-notes-edit-draft-images">
+                          {draftImageSrcs.map((src, index) => (
+                            <div
+                              key={`${src}-${index}`}
+                              className="jp-notes-edit-draft-image-item"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={src} alt={`备注图片 ${index + 1}`} loading="lazy" />
+                              <button
+                                type="button"
+                                className="jp-notes-edit-draft-image-remove"
+                                onClick={() => {
+                                  dirtyRef.current = true;
+                                  setDraft(removeJpVocabClassNoteImageAt(draft, index));
+                                }}
+                              >
+                                移除图片
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -1037,6 +1072,48 @@ export function JpClassNotesEditModal({
           border-radius: 8px;
           border: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
           background: color-mix(in srgb, var(--bg) 50%, var(--panel));
+        }
+
+        .jp-notes-edit-draft-images {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+          margin-top: 0.55rem;
+        }
+
+        .jp-notes-edit-draft-image-item {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
+          padding: 0.45rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+        }
+
+        .jp-notes-edit-draft-image-item :global(img) {
+          display: block;
+          width: auto;
+          max-width: 100%;
+          max-height: 240px;
+          margin: 0 auto;
+          object-fit: contain;
+        }
+
+        .jp-notes-edit-draft-image-remove {
+          align-self: flex-end;
+          border: none;
+          background: transparent;
+          color: var(--rise);
+          font: inherit;
+          font-size: 0.75rem;
+          cursor: pointer;
+          padding: 0.1rem 0.25rem;
+        }
+
+        .jp-notes-edit-draft-image-remove:hover {
+          text-decoration: underline;
         }
 
         .jp-notes-edit-textarea {

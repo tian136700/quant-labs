@@ -1,3 +1,4 @@
+import { jpVocabClassNotesDisplayLength } from "@/lib/jp-vocab-class-notes";
 import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabTeacherQuizMode = "sequential" | "random";
@@ -12,7 +13,7 @@ export type JpVocabTeacherQuizSession = {
 export const JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX = 200;
 
 export function jpVocabTeacherQuizNotesInline(notes: string | null | undefined): boolean {
-  return (notes ?? "").trim().length <= JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX;
+  return jpVocabClassNotesDisplayLength(notes) <= JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX;
 }
 
 function shuffleWordIds(ids: number[]): number[] {

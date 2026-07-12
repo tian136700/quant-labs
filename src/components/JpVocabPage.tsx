@@ -28,7 +28,7 @@ import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
-import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
+import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
 import {
@@ -3159,15 +3159,13 @@ export function JpVocabPage() {
                           data-label="备注"
                         >
                           <div className="jp-vocab-notes-desktop">{renderNotesActions()}</div>
-                          <details className="jp-vocab-notes-fold jp-vocab-mobile-only">
-                            <summary className="jp-vocab-notes-fold__summary">
-                              <span className="jp-vocab-fold-label">备注</span>
-                              <span className="jp-vocab-notes-fold__hint">
-                                {hasNotes ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
-                              </span>
-                            </summary>
-                            {renderNotesActions()}
-                          </details>
+                          <JpVocabMobileNotesCell
+                            classNotes={w.class_notes}
+                            hasNotes={hasNotes}
+                            canOperate={canOperate}
+                            onView={() => openRemarksWord(w)}
+                            onEdit={() => setEditingRemarksWord(w)}
+                          />
                         </td>
                       ) : null}
                       <td

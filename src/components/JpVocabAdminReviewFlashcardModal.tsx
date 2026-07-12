@@ -8,7 +8,10 @@ import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
-import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import {
+  formatJpVocabClassNotesForDisplay,
+  hasJpVocabClassNotes,
+} from "@/lib/jp-vocab-class-notes";
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -449,7 +452,9 @@ export function JpVocabAdminReviewFlashcardModal({
             </div>
             {notesInline ? (
               <div className="jp-vocab-teacher-quiz__notes-body">
-                <JpVocabClassNoteContent content={w.class_notes || ""} />
+                <JpVocabClassNoteContent
+                  content={formatJpVocabClassNotesForDisplay(w.class_notes)}
+                />
               </div>
             ) : (
               <p className="jp-vocab-teacher-quiz__notes-preview">备注较长，请点「查看」</p>

@@ -9,7 +9,10 @@ import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
-import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import {
+  formatJpVocabClassNotesForDisplay,
+  hasJpVocabClassNotes,
+} from "@/lib/jp-vocab-class-notes";
 import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -312,7 +315,9 @@ export function JpVocabStudyFlashcardModal({
               </div>
             </div>
             <div className="jp-vocab-flashcard__notes-body">
-              <JpVocabClassNoteContent content={w.class_notes || ""} />
+              <JpVocabClassNoteContent
+                content={formatJpVocabClassNotesForDisplay(w.class_notes)}
+              />
             </div>
           </section>
         ) : canOperate ? (

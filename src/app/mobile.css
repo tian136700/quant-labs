@@ -2900,8 +2900,18 @@
   .jp-vocab-table .jp-vocab-notes-col {
     order: unset;
     grid-column: 1 / -1;
+    flex-direction: column !important;
+    align-items: stretch !important;
     padding-top: 0.25rem !important;
     border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  }
+
+  .jp-vocab-mobile-notes-inline {
+    width: 100%;
+  }
+
+  .jp-vocab-mobile-notes-inline .jp-vocab-notes-actions {
+    justify-content: flex-end;
   }
 
   .jp-vocab-table .jp-vocab-notes-col::before {
