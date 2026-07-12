@@ -41,7 +41,6 @@ import {
   jpVocabSaveProgressPercent,
 } from "@/lib/jp-vocab-save-progress";
 import {
-  formatJpVocabTotalReviewsDisplay,
   jpVocabPriorityLabel,
   jpVocabRiskIndex,
 } from "@/lib/jp-vocab-shared";
@@ -507,7 +506,6 @@ export function JpVocabReviewPage() {
                     ? fullDailySeqByWordId.get(w.id)
                     : dailySeqByWordId.get(w.id);
                 const reviewed = reviewedWordIds.has(w.id);
-                const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
                 return (
                   <tr key={w.id} className={reviewed ? "jp-vocab-review-row--done" : undefined}>
                     <td data-label="序号">{seq ?? "—"}</td>
@@ -520,10 +518,6 @@ export function JpVocabReviewPage() {
                     <td data-label="释义">{w.meaning || "—"}</td>
                     <td data-label={jpVocabPriorityLabel(locale)}>
                       {jpVocabRiskIndex(w).toFixed(1)}
-                      <span className="jp-vocab-review-total" title="复习合计">
-                        {" "}
-                        · {totalDisplay.label}
-                      </span>
                     </td>
                     <td data-label="状态">
                       {reviewed ? (
@@ -555,8 +549,6 @@ export function JpVocabReviewPage() {
         wordsById={wordsById}
         refs={refs}
         locale={locale}
-        displayOrder={displayOrder}
-        sessionLevel={{}}
         dailySeqByWordId={
           prefs.sortMode === "seq" ? fullDailySeqByWordId : dailySeqByWordId
         }

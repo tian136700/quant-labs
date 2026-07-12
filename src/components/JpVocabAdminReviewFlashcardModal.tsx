@@ -12,7 +12,6 @@ import {
   formatJpVocabClassNotesForDisplay,
   hasJpVocabClassNotes,
 } from "@/lib/jp-vocab-class-notes";
-import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
   jpVocabPriorityLabel,
@@ -21,14 +20,7 @@ import {
 } from "@/lib/jp-vocab-shared";
 import { jpVocabTeacherQuizNotesInline } from "@/lib/jp-vocab-teacher-quiz";
 import type { JpVocabReviewSession } from "@/lib/jp-vocab-review-session";
-import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
-import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
-
-const LEVELS: { key: JpVocabLevel; label: string }[] = [
-  { key: "very", label: "非常熟悉" },
-  { key: "normal", label: "一般" },
-  { key: "weak", label: "不熟悉" },
-];
+import type { JpVocabRef, JpVocabWord } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -36,8 +28,6 @@ type Props = {
   wordsById: Map<number, JpVocabWord>;
   refs: Record<string, JpVocabRef>;
   locale: "zh" | "en";
-  displayOrder: JpVocabDailyDisplayOrder;
-  sessionLevel: Record<number, JpVocabLevel | undefined>;
   dailySeqByWordId: ReadonlyMap<number, number>;
   todayReviewCount: number;
   reviewedWordIds: ReadonlySet<number>;
@@ -59,8 +49,6 @@ export function JpVocabAdminReviewFlashcardModal({
   wordsById,
   refs,
   locale,
-  displayOrder,
-  sessionLevel,
   dailySeqByWordId,
   todayReviewCount,
   reviewedWordIds,
@@ -77,6 +65,7 @@ export function JpVocabAdminReviewFlashcardModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
+  const [contentExpanded, setContentExpanded] = useState(false);
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
@@ -94,6 +83,7 @@ export function JpVocabAdminReviewFlashcardModal({
       return;
     }
     setNotesWord(word);
+    setContentExpanded(false);
   }, [open, word?.id, word?.updated_at, word]);
 
   useEffect(() => {
@@ -160,9 +150,6 @@ export function JpVocabAdminReviewFlashcardModal({
   const meaningTrim = (w.meaning || "").trim();
   const posTrim = (w.pos || "").trim();
   const mnemonicTrim = (w.mnemonic || "").trim();
-  const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
-    displayOrder,
-  });
   const risk = jpVocabRiskIndex(w);
   const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(
@@ -286,43 +273,63 @@ export function JpVocabAdminReviewFlashcardModal({
           ref={ref}
           onOpenRef={onOpenRef}
           titleId="jp-vocab-admin-review-title"
+          hideReading={!contentExpanded}
         />
 
-        <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
-          <dl className="jp-vocab-teacher-quiz__meta">
-            <dt>释义：</dt>
-            <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-              {meaningTrim}
-            </dd>
-            <dt>词性：</dt>
-            <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-              {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : null}
-            </dd>
-            {!showReadingPrimary ? (
-              <>
-                <dt>读音</dt>
-                <dd
-                  className={
-                    readingTrim || w.kind !== "word"
-                      ? ""
-                      : "jp-vocab-teacher-quiz__meta-empty"
-                  }
-                >
-                  {readingTrim || (w.kind === "word" ? "待补全" : "—")}
-                </dd>
-              </>
-            ) : null}
-          </dl>
-          {mnemonicTrim ? (
-            <div className="jp-vocab-teacher-quiz__mnemonic">
-              <p className="jp-vocab-teacher-quiz__mnemonic-label">巧记</p>
-              <p className="jp-vocab-teacher-quiz__mnemonic-body">{mnemonicTrim}</p>
-            </div>
-          ) : (
-            <p className="jp-vocab-teacher-quiz__mnemonic-empty" role="note">
-              巧记：暂未填写，可在「编辑」中补充联想记忆
+        {!contentExpanded ? (
+          <div className="jp-vocab-admin-review__reveal-bar">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-admin-review__reveal-btn"
+              onClick={() => setContentExpanded(true)}
+            >
+              展开所有内容
+            </button>
+            <p className="jp-vocab-admin-review__reveal-hint" role="note">
+              先回忆读音与释义，再点击展开核对
             </p>
-          )}
+          </div>
+        ) : null}
+
+        <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
+          {contentExpanded ? (
+            <>
+              <dl className="jp-vocab-teacher-quiz__meta">
+                <dt>释义：</dt>
+                <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
+                  {meaningTrim}
+                </dd>
+                <dt>词性：</dt>
+                <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
+                  {posTrim ? <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span> : null}
+                </dd>
+                {!showReadingPrimary ? (
+                  <>
+                    <dt>读音</dt>
+                    <dd
+                      className={
+                        readingTrim || w.kind !== "word"
+                          ? ""
+                          : "jp-vocab-teacher-quiz__meta-empty"
+                      }
+                    >
+                      {readingTrim || (w.kind === "word" ? "待补全" : "—")}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+              {mnemonicTrim ? (
+                <div className="jp-vocab-teacher-quiz__mnemonic">
+                  <p className="jp-vocab-teacher-quiz__mnemonic-label">巧记</p>
+                  <p className="jp-vocab-teacher-quiz__mnemonic-body">{mnemonicTrim}</p>
+                </div>
+              ) : (
+                <p className="jp-vocab-teacher-quiz__mnemonic-empty" role="note">
+                  巧记：暂未填写，可在「编辑」中补充联想记忆
+                </p>
+              )}
+            </>
+          ) : null}
           <div className="jp-vocab-teacher-quiz__actions-row">
             <div className="jp-vocab-teacher-quiz__actions-left">
               <button
@@ -345,49 +352,6 @@ export function JpVocabAdminReviewFlashcardModal({
             </div>
           </div>
         </section>
-
-        <div className="jp-vocab-teacher-quiz__level">
-          <p className="jp-vocab-teacher-quiz__level-label" role="note">
-            当前熟悉程度
-          </p>
-          <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
-            <div
-              className="jp-vocab-levels jp-vocab-levels--locked jp-vocab-levels--readonly"
-              role="group"
-              aria-label="熟悉程度"
-            >
-              {LEVELS.map((lv) => {
-                const checked = selected === lv.key;
-                return (
-                  <span
-                    key={lv.key}
-                    className={`jp-vocab-level-opt jp-vocab-level-opt--readonly${
-                      checked ? " is-checked" : ""
-                    }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
-                      lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
-                    }`}
-                  >
-                    <span className="jp-vocab-check-box" aria-hidden="true">
-                      {checked ? (
-                        <svg viewBox="0 0 12 12" width="10" height="10">
-                          <path
-                            d="M2 6l3 3 5-5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      ) : null}
-                    </span>
-                    <span>{lv.label}</span>
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </div>
 
         <div className="jp-vocab-teacher-quiz__stats">
           <div className="jp-vocab-teacher-quiz__stat">
@@ -535,6 +499,27 @@ export function JpVocabAdminReviewFlashcardModal({
           margin: 0.65rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-vocab-admin-review__reveal-bar {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.45rem;
+          margin: 0.65rem 0 0.25rem;
+          padding: 0.65rem 0.75rem;
+          border-radius: 12px;
+          border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--border));
+          background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+        }
+        .jp-vocab-admin-review__reveal-btn {
+          min-width: 10rem;
+          font-weight: 600;
+        }
+        .jp-vocab-admin-review__reveal-hint {
+          margin: 0;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          text-align: center;
         }
       `}</style>
     </div>,

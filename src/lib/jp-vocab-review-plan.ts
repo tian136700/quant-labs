@@ -1,11 +1,13 @@
 import { buildJpVocabDailySeqMap } from "@/lib/jp-vocab-daily-order";
+import { JP_VOCAB_DAILY_QUIZ_TOP } from "@/lib/jp-vocab-daily-quiz-progress";
 import { sortJpVocabWordsByStat } from "@/lib/jp-vocab-shared";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabReviewSortMode = "seq" | "risk";
 
-export const JP_VOCAB_REVIEW_DEFAULT_COUNT = 30;
+/** 与日语抽问「今日抽查数量」默认值一致 */
+export const JP_VOCAB_REVIEW_DEFAULT_COUNT = JP_VOCAB_DAILY_QUIZ_TOP;
 
 export function normalizeJpVocabReviewCount(
   raw: unknown,

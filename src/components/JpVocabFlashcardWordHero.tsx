@@ -12,6 +12,8 @@ type Props = {
   ref?: JpVocabRef;
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
   titleId?: string;
+  /** 复习卡片：先隐藏假名/读音，展开后再显示 */
+  hideReading?: boolean;
 };
 
 export function JpVocabFlashcardWordHero({
@@ -21,11 +23,12 @@ export function JpVocabFlashcardWordHero({
   ref,
   onOpenRef,
   titleId,
+  hideReading = false,
 }: Props) {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const onCopied = useCallback((message: string) => setCopyToast(message), []);
 
-  const showReadingPrimary = Boolean(readingTrim);
+  const showReadingPrimary = Boolean(readingTrim) && !hideReading;
   const showKanjiAside =
     showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
 
