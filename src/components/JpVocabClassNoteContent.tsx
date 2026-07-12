@@ -117,25 +117,26 @@ export function JpVocabClassNoteContent({ content, className = "" }: Props) {
 
         .jp-vocab-note-content__image-btn {
           position: relative;
-          display: block;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           width: 100%;
-          padding: 0;
+          padding: 0.55rem;
           border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
           border-radius: 8px;
           background: color-mix(in srgb, var(--bg) 55%, var(--panel));
           cursor: zoom-in;
           overflow: hidden;
-          text-align: left;
         }
 
         .jp-vocab-note-content__image {
           display: block;
-          width: 100%;
+          width: auto;
+          max-width: 100%;
           max-height: 320px;
           height: auto;
           object-fit: contain;
-          object-position: left top;
-          vertical-align: top;
+          margin: 0 auto;
         }
 
         .jp-vocab-note-content__image-hint {
@@ -191,7 +192,7 @@ export function JpVocabClassNoteContent({ content, className = "" }: Props) {
           min-height: 0;
           overflow: auto;
           display: flex;
-          align-items: flex-start;
+          align-items: center;
           justify-content: center;
           padding: 1rem;
         }
