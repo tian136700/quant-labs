@@ -247,6 +247,35 @@ export function JpLessonHalfHourTimeGridPicker({
         .jp-lesson-time-grid-early-toggle--collapse {
           margin-bottom: 0.1rem;
         }
+
+        @media (max-width: 767px) {
+          .jp-lesson-time-grid-trigger {
+            min-height: 2.75rem;
+            padding: 0.65rem 0.75rem;
+            font-size: 1rem;
+          }
+
+          .jp-lesson-time-grid-panel {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0.5rem;
+            padding: 0.75rem;
+          }
+
+          .jp-lesson-time-grid-tile {
+            aspect-ratio: auto;
+            min-height: 2.75rem;
+            padding: 0.4rem 0.3rem;
+            font-size: 0.9375rem;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+          }
+
+          .jp-lesson-time-grid-early-toggle {
+            min-height: 2.5rem;
+            padding: 0.5rem 0.65rem;
+            font-size: 0.8125rem;
+          }
+        }
       `}</style>
     </div>
   );

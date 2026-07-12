@@ -569,7 +569,7 @@ export function nextClassAtFromDatetimeLocalValue(local: string): string | null 
   return `${match[1]} ${time}:00`;
 }
 
-export const JP_LESSON_CLASS_DURATION_MINUTES = [20, 30, 45, 55, 60] as const;
+export const JP_LESSON_CLASS_DURATION_MINUTES = [20, 25, 30, 45, 55, 60] as const;
 
 export type JpLessonClassDurationMinutes =
   (typeof JP_LESSON_CLASS_DURATION_MINUTES)[number];

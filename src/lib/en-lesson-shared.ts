@@ -528,39 +528,15 @@ export function nextClassAtFromDatetimeLocalValue(local: string): string | null 
   return `${match[1]} ${time}:00`;
 }
 
-export const JP_LESSON_CLASS_DURATION_MINUTES = [20, 30, 45, 55, 60] as const;
-
-export type EnLessonClassDurationMinutes =
-  (typeof JP_LESSON_CLASS_DURATION_MINUTES)[number];
-
-export function normalizeClassDurationMinutes(
-  raw: number | null | undefined
-): number | null {
-  if (raw == null) return null;
-  const n = Number(raw);
-  return JP_LESSON_CLASS_DURATION_MINUTES.includes(n as EnLessonClassDurationMinutes)
-    ? n
-    : null;
-}
-
-export function formatClassDurationLabel(
-  minutes: number | null | undefined
-): string | null {
-  const normalized = normalizeClassDurationMinutes(minutes);
-  if (normalized == null) return null;
-  return `时长：${normalized}min`;
-}
-
-export function formatClassDurationLabelCompact(
-  minutes: number | null | undefined
-): string | null {
-  const normalized = normalizeClassDurationMinutes(minutes);
-  if (normalized == null) return null;
-  return `${normalized}min`;
-}
-
-/** 日程视图未填写时长时的默认分钟数 */
-export const DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES = 55;
+export {
+  JP_LESSON_CLASS_DURATION_MINUTES,
+  DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
+  normalizeClassDurationMinutes,
+  formatClassDurationLabel,
+  formatClassDurationLabelCompact,
+  resolveClassDurationMinutes,
+  type JpLessonClassDurationMinutes as EnLessonClassDurationMinutes,
+} from "@/lib/jp-lesson-shared";
 
 export type EnLessonScheduleEvent = {
   key: string;
@@ -571,12 +547,6 @@ export type EnLessonScheduleEvent = {
   end: Date;
   durationMinutes: number;
 };
-
-export function resolveClassDurationMinutes(
-  minutes: number | null | undefined
-): number {
-  return normalizeClassDurationMinutes(minutes) ?? DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES;
-}
 
 export function formatLessonScheduleDurationLabel(totalMinutes: number): string {
   const hours = Math.floor(totalMinutes / 60);
