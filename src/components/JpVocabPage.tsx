@@ -2197,6 +2197,22 @@ export function JpVocabPage() {
                   </span>
                 </>
               ) : null}
+              {isAdmin ? (
+                <>
+                  {" "}
+                  · 今日已复习{" "}
+                  <span
+                    className={
+                      adminDailyReview.count > 0
+                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
+                        : "jp-vocab-today-summary-value"
+                    }
+                    title="管理员复习卡片点「下一个」后计入（北京时间 0 点归零）"
+                  >
+                    {adminDailyReview.count} 个
+                  </span>
+                </>
+              ) : null}
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
             </span>
