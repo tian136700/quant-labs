@@ -16,6 +16,8 @@ type Props = {
   word: JpVocabWord | null;
   locale: "en" | "zh";
   canEdit: boolean;
+  /** 管理员可见/可编辑巧记 */
+  showMnemonic?: boolean;
   onClose: () => void;
   onSaved: (word: JpVocabWord) => void;
   onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
@@ -32,6 +34,7 @@ export function JpVocabEditModal({
   word,
   locale,
   canEdit,
+  showMnemonic = false,
   onClose,
   onSaved,
   onSaveFailed,
@@ -44,6 +47,7 @@ export function JpVocabEditModal({
   const [meaning, setMeaning] = useState("");
   const [pos, setPos] = useState("");
   const [classNotes, setClassNotes] = useState("");
+  const [mnemonic, setMnemonic] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -58,6 +62,7 @@ export function JpVocabEditModal({
       setMeaning(word.meaning || "");
       setPos(word.pos || "");
       setClassNotes(word.class_notes || "");
+      setMnemonic(word.mnemonic || "");
       setError("");
     }
   }, [open, word]);
@@ -103,6 +108,7 @@ export function JpVocabEditModal({
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
       class_notes: classNotes.trim() || null,
+      ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
     onSaved(optimistic);
@@ -125,6 +131,7 @@ export function JpVocabEditModal({
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
             class_notes: classNotes.trim() || null,
+            ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
         const data = (await res.json()) as {
@@ -280,6 +287,26 @@ export function JpVocabEditModal({
               />
               <p className="jp-vocab-edit-hint">备注保存后会同步到日语新课。</p>
             </div>
+
+            {showMnemonic ? (
+              <div className="field">
+                <label htmlFor="jp-vocab-edit-mnemonic" className="jp-vocab-edit-label">
+                  巧记
+                </label>
+                <textarea
+                  id="jp-vocab-edit-mnemonic"
+                  className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
+                  rows={4}
+                  value={mnemonic}
+                  disabled={!canEdit}
+                  placeholder="联想记忆、谐音梗、拆分口诀等（仅管理员可见）"
+                  onChange={(e) => setMnemonic(e.target.value)}
+                />
+                <p className="jp-vocab-edit-hint">
+                  用于管理员复习与自查，不会展示给老师或学生端。
+                </p>
+              </div>
+            ) : null}
 
             {error ? <p className="jp-vocab-edit-error">{error}</p> : null}
           </div>

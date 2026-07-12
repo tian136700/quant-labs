@@ -216,6 +216,10 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.class_notes != null && String(row.class_notes).trim()
         ? String(row.class_notes)
         : null,
+    mnemonic:
+      row.mnemonic != null && String(row.mnemonic).trim()
+        ? String(row.mnemonic)
+        : null,
     last_review_level:
       row.last_review_level === "very" ||
       row.last_review_level === "normal" ||
@@ -256,11 +260,14 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("last_review_at")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN last_review_at TEXT`).run();
   }
+  if (!cols.has("mnemonic")) {
+    await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN mnemonic TEXT`).run();
+  }
   vocabWordSchemaReady = true;
 }
 
 const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
   last_review_level, last_review_at, created_at, updated_at FROM jp_vocab_word`;
 
 function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
@@ -1550,6 +1557,7 @@ export type JpVocabWordEntryInput = {
   meaning?: string | null;
   pos?: string | null;
   class_notes?: string | null;
+  mnemonic?: string | null;
 };
 
 /** 一次性更新词条可编辑字段，并同步备注到关联新课 */
@@ -1602,6 +1610,10 @@ export async function updateJpVocabWordEntry(
     input.class_notes !== undefined
       ? (input.class_notes || "").trim() || null
       : current.class_notes;
+  const nextMnemonic =
+    input.mnemonic !== undefined
+      ? (input.mnemonic || "").trim() || null
+      : current.mnemonic;
 
   if (!nextWord) return { ok: false, error: "word_required" };
 
@@ -1630,6 +1642,7 @@ export async function updateJpVocabWordEntry(
       meaning: nextMeaning,
       pos: nextPos,
       class_notes: nextNotes,
+      mnemonic: nextMnemonic,
       updated_at: ts,
     };
     current = devWords[idx];
@@ -1637,8 +1650,8 @@ export async function updateJpVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE jp_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, pos = ?5, class_notes = ?6, updated_at = ?7
-         WHERE id = ?8`
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, pos = ?5, class_notes = ?6, mnemonic = ?7, updated_at = ?8
+         WHERE id = ?9`
       )
       .bind(
         nextKind,
@@ -1647,6 +1660,7 @@ export async function updateJpVocabWordEntry(
         nextMeaning,
         nextPos,
         nextNotes,
+        nextMnemonic,
         ts,
         wordId
       )

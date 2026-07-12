@@ -153,6 +153,7 @@ export function JpVocabAdminReviewFlashcardModal({
   const wordTrim = w.word.trim();
   const meaningTrim = (w.meaning || "").trim();
   const posTrim = (w.pos || "").trim();
+  const mnemonicTrim = (w.mnemonic || "").trim();
   const selected = effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
     displayOrder,
   });
@@ -307,6 +308,16 @@ export function JpVocabAdminReviewFlashcardModal({
               </>
             ) : null}
           </dl>
+          {mnemonicTrim ? (
+            <div className="jp-vocab-teacher-quiz__mnemonic">
+              <p className="jp-vocab-teacher-quiz__mnemonic-label">巧记</p>
+              <p className="jp-vocab-teacher-quiz__mnemonic-body">{mnemonicTrim}</p>
+            </div>
+          ) : (
+            <p className="jp-vocab-teacher-quiz__mnemonic-empty" role="note">
+              巧记：暂未填写，可在「编辑」中补充联想记忆
+            </p>
+          )}
           <div className="jp-vocab-teacher-quiz__actions-row">
             <div className="jp-vocab-teacher-quiz__actions-left">
               <button
@@ -481,6 +492,31 @@ export function JpVocabAdminReviewFlashcardModal({
           color: color-mix(in srgb, var(--accent) 88%, var(--text));
           background: color-mix(in srgb, var(--accent) 14%, var(--panel));
           border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+        }
+        :global(.jp-vocab-teacher-quiz__mnemonic) {
+          margin: 0.65rem 0 0;
+          padding: 0.55rem 0.65rem;
+          border-radius: 10px;
+          border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        }
+        :global(.jp-vocab-teacher-quiz__mnemonic-label) {
+          margin: 0 0 0.25rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--accent);
+        }
+        :global(.jp-vocab-teacher-quiz__mnemonic-body) {
+          margin: 0;
+          font-size: 0.875rem;
+          line-height: 1.55;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        :global(.jp-vocab-teacher-quiz__mnemonic-empty) {
+          margin: 0.65rem 0 0;
+          font-size: 0.8125rem;
+          color: var(--muted);
         }
       `}</style>
     </div>,

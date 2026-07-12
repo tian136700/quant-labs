@@ -1,7 +1,9 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { listJpVocabSharedToday, getJpVocabDailyQuizProgress } from "@/lib/jp-vocab-db";
 import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
+import { requireAdmin } from "@/lib/admin-auth";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import { redactJpVocabMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 
 const AUTH_MSG = {
   en: "Only admin or authorized students can access today's vocabulary.",
@@ -18,16 +20,23 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
 
+    const { isAdmin } = await requireAdmin(request);
     const listPromise = listJpVocabSharedToday(env.DB);
     const quizPromise = lite ? null : getJpVocabDailyQuizProgress(env.DB);
     const [{ items, refs }, quiz_progress] = await Promise.all([
       listPromise,
       quizPromise ?? Promise.resolve(null),
     ]);
+    const clientItems = isAdmin
+      ? items
+      : items.map((item) => ({
+          ...item,
+          word: redactJpVocabMnemonicForClient(item.word, false),
+        }));
     return jsonResponse(
       {
         ok: true,
-        items,
+        items: clientItems,
         refs,
         share_date: beijingDateString(),
         ...(quiz_progress ? { quiz_progress } : {}),

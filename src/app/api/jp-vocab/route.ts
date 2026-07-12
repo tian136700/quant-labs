@@ -15,6 +15,7 @@ import {
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
+import { redactJpVocabMnemonicForClient, redactJpVocabWordsMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import { parseJpVocabTeacherVisibleReleaseCount } from "@/lib/jp-vocab-teacher-visible";
 import {
   normalizeJpVocabDailyQuizStyle,
@@ -45,9 +46,10 @@ export async function GET(request: Request) {
     const admin_daily_review = isAdmin
       ? await getJpVocabAdminDailyReview(env.DB)
       : undefined;
+    const clientWords = redactJpVocabWordsMnemonicForClient(words, isAdmin);
     return jsonResponse({
       ok: true,
-      words,
+      words: clientWords,
       refs,
       daily_quiz_style,
       display_order,
@@ -157,6 +159,8 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "level_invalid" }, 400);
     }
 
+    const { isAdmin: isAdminForReview } = await requireAdmin(request);
+
     const result = await recordJpVocabReview(env.DB, wordId, level, {
       shareToStudy: true,
       sharedBy: user?.username ?? "",
@@ -169,7 +173,7 @@ export async function POST(request: Request) {
 
     return jsonResponse({
       ok: true,
-      word: result.word,
+      word: redactJpVocabMnemonicForClient(result.word, isAdminForReview),
       shared: result.shared,
       shared_new: result.shared_new,
     });

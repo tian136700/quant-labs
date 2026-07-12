@@ -1,6 +1,8 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { updateJpVocabWordEntry } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireAdmin } from "@/lib/admin-auth";
+import { redactJpVocabMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import type { JpVocabKind } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -38,11 +40,17 @@ export async function POST(request: Request) {
       meaning?: string | null;
       pos?: string | null;
       class_notes?: string | null;
+      mnemonic?: string | null;
     };
 
     const wordId = Number(body.word_id);
     if (!Number.isInteger(wordId) || wordId <= 0) {
       return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
+    }
+
+    const { isAdmin } = await requireAdmin(request);
+    if (body.mnemonic !== undefined && !isAdmin) {
+      return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
     const result = await updateJpVocabWordEntry(
@@ -55,6 +63,9 @@ export async function POST(request: Request) {
         meaning: body.meaning,
         pos: body.pos,
         class_notes: body.class_notes,
+        ...(isAdmin && body.mnemonic !== undefined
+          ? { mnemonic: body.mnemonic }
+          : {}),
       },
       user.username
     );
@@ -70,7 +81,10 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: msg || result.error }, status);
     }
 
-    return jsonResponse({ ok: true, word: result.word });
+    return jsonResponse({
+      ok: true,
+      word: redactJpVocabMnemonicForClient(result.word, isAdmin),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

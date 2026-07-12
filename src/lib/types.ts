@@ -167,6 +167,8 @@ export interface JpVocabWord {
   class_notes: string | null;
   /** 列表/轮询接口可能省略 class_notes 正文，仅返回是否有备注 */
   class_notes_present?: boolean;
+  /** 巧记 / 联想记忆（仅管理员可见与编辑） */
+  mnemonic?: string | null;
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;

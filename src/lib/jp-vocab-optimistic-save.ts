@@ -3,9 +3,9 @@ import type { JpVocabKind, JpVocabWord } from "@/lib/types";
 export function buildOptimisticJpVocabWord(
   base: JpVocabWord,
   patch: Partial<
-    Pick<
+      Pick<
       JpVocabWord,
-      "kind" | "word" | "reading" | "meaning" | "pos" | "class_notes"
+      "kind" | "word" | "reading" | "meaning" | "pos" | "class_notes" | "mnemonic"
     >
   >
 ): JpVocabWord {

@@ -2498,6 +2498,11 @@ export function JpVocabPage() {
                   <th rowSpan={2} className="jp-vocab-pos-col">
                     词性
                   </th>
+                  {isAdmin ? (
+                    <th rowSpan={2} className="jp-vocab-mnemonic-col" title="联想记忆 / 巧记口诀（仅管理员）">
+                      巧记
+                    </th>
+                  ) : null}
                   <th rowSpan={2} className="jp-vocab-risk-col">
                     <button
                       type="button"
@@ -2612,6 +2617,7 @@ export function JpVocabPage() {
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
+                  const mnemonicTrim = (w.mnemonic || "").trim();
                   const riskBadgeTier =
                     risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const hasNotes = Boolean((w.class_notes || "").trim());
@@ -2756,6 +2762,28 @@ export function JpVocabPage() {
                           <span className="jp-vocab-pos-badge">{posTrim}</span>
                         ) : null}
                       </td>
+                      {isAdmin ? (
+                        <td
+                          className={`jp-vocab-mnemonic-col${
+                            !mnemonicTrim ? " jp-vocab-field-empty" : ""
+                          }`}
+                          data-label="巧记"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          {mnemonicTrim ? (
+                            <span
+                              className="jp-vocab-mnemonic-text"
+                              title={mnemonicTrim}
+                            >
+                              {mnemonicTrim}
+                            </span>
+                          ) : (
+                            <span className="jp-vocab-mnemonic-empty" title="可在「编辑」中填写巧记">
+                              —
+                            </span>
+                          )}
+                        </td>
+                      ) : null}
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
                           className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
@@ -3213,6 +3241,7 @@ export function JpVocabPage() {
         word={editingWord}
         locale={locale}
         canEdit={canOperate}
+        showMnemonic={isAdmin}
         onClose={() => setEditingWord(null)}
         onSaved={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
@@ -3737,6 +3766,7 @@ export function JpVocabPage() {
         :global(.jp-vocab-table .jp-vocab-stat-total),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
         :global(.jp-vocab-table .jp-vocab-notes-col),
+        :global(.jp-vocab-table .jp-vocab-mnemonic-col),
         :global(.jp-vocab-table .jp-vocab-action-col) {
           padding-left: 0.35rem;
           padding-right: 0.35rem;
@@ -3868,6 +3898,22 @@ export function JpVocabPage() {
         }
         :global(.jp-vocab-table .jp-vocab-pos-col) {
           min-width: 4rem;
+        }
+        :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
+          min-width: 7rem;
+          max-width: 12rem;
+        }
+        .jp-vocab-mnemonic-text {
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          line-height: 1.45;
+          word-break: break-word;
+          white-space: pre-wrap;
+        }
+        .jp-vocab-mnemonic-empty {
+          color: color-mix(in srgb, var(--muted) 70%, transparent);
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
           min-width: 6.5rem;

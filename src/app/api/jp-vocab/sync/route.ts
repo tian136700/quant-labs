@@ -3,6 +3,8 @@ import {
   getJpVocabTeacherVisibleLimit,
   listJpVocabWordsChangedSince,
 } from "@/lib/jp-vocab-db";
+import { requireAdmin } from "@/lib/admin-auth";
+import { redactJpVocabWordsMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -11,6 +13,7 @@ export async function GET(request: Request) {
 
   try {
     const env = await getCloudflareEnv();
+    const { isAdmin } = await requireAdmin(request);
     const [words, teacher_visible_limit] = await Promise.all([
       since ? listJpVocabWordsChangedSince(env.DB, since) : Promise.resolve([]),
       includeLimit
@@ -20,7 +23,7 @@ export async function GET(request: Request) {
     return jsonResponse(
       {
         ok: true,
-        words,
+        words: redactJpVocabWordsMnemonicForClient(words, isAdmin),
         ...(teacher_visible_limit ? { teacher_visible_limit } : {}),
       },
       200,
