@@ -2493,13 +2493,13 @@
   }
 
   /* ── JP Vocab toolbar (section head with action buttons) ── */
-  .jp-vocab-page .section.etr-panel > div:first-child {
+  .jp-vocab-page .jp-vocab-section-head {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 0.75rem !important;
   }
 
-  .jp-vocab-page .section.etr-panel > div:first-child > div:last-child {
+  .jp-vocab-page .jp-vocab-toolbar {
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -2507,14 +2507,48 @@
     width: 100%;
   }
 
-  .jp-vocab-page .section.etr-panel > div:first-child > div:last-child .btn-rsi-filter {
+  .jp-vocab-page .jp-vocab-toolbar-actions .btn-rsi-filter {
     width: 100%;
     min-height: 2.75rem;
   }
 
-  .jp-vocab-page .section.etr-panel > div:first-child > div:last-child > span {
+  .jp-vocab-page .jp-vocab-toolbar-actions:not(.jp-vocab-toolbar-actions--expanded) {
+    display: none;
+  }
+
+  .jp-vocab-page .jp-vocab-toolbar-actions.jp-vocab-toolbar-actions--expanded {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .jp-vocab-page .jp-vocab-toolbar-summary {
     font-size: 0.9375rem;
     line-height: 1.45;
+  }
+
+  .jp-vocab-mobile-sort {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .jp-vocab-mobile-sort-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: clamp(0.8125rem, 3vw, 0.875rem);
+  }
+
+  .jp-vocab-toolbar-toggle {
+    width: 100%;
+    min-height: 2.75rem;
   }
 
   .jp-vocab-pagination {

@@ -332,6 +332,8 @@ export function JpVocabPage() {
   const dismissingShareRequestsRef = useRef(false);
   const dailyQuizCompleteWasRef = useRef<boolean | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
+  /** 手机端默认收起操作按钮，避免误触导出 Excel 等 */
+  const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
   const [quizSession, setQuizSession] = useState<JpVocabTeacherQuizSession | null>(
     null
   );
@@ -460,6 +462,12 @@ export function JpVocabPage() {
       }
       return { key, dir: "desc" };
     });
+  };
+
+  const restoreDailyRowOrder = () => {
+    setUseDailyRowOrder(true);
+    setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
+    setPage(1);
   };
 
   const applyVocabPayload = useCallback((payload: JpVocabApiPayload) => {
@@ -2154,6 +2162,7 @@ export function JpVocabPage() {
 
       <section className="section etr-panel" aria-label="单词表">
         <div
+          className="jp-vocab-section-head"
           style={{
             display: "flex",
             flexWrap: "wrap",
@@ -2164,15 +2173,8 @@ export function JpVocabPage() {
           }}
         >
           <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词表</h2>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.5rem",
-              alignItems: "center",
-            }}
-          >
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+          <div className="jp-vocab-toolbar">
+            <span className="jp-vocab-toolbar-summary" style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
               共 {words.length} 条
               {words.length ? (
                 <>
@@ -2216,6 +2218,21 @@ export function JpVocabPage() {
               {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
             </span>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-toolbar-toggle jp-vocab-mobile-only"
+              onClick={() => setMobileToolbarExpanded((v) => !v)}
+              aria-expanded={mobileToolbarExpanded}
+              aria-controls="jp-vocab-toolbar-actions"
+            >
+              {mobileToolbarExpanded ? "收起操作 ▲" : "展开操作 ▼"}
+            </button>
+            <div
+              id="jp-vocab-toolbar-actions"
+              className={`jp-vocab-toolbar-actions${
+                mobileToolbarExpanded ? " jp-vocab-toolbar-actions--expanded" : ""
+              }`}
+            >
             {canOperate && quizTarget > 0 && quizTargetWords.length > 0 ? (
               <>
                 <button
@@ -2321,6 +2338,7 @@ export function JpVocabPage() {
                 {resetting ? "重置中…" : "重置"}
               </button>
             ) : null}
+            </div>
           </div>
         </div>
 
@@ -2393,6 +2411,58 @@ export function JpVocabPage() {
           </div>
         ) : (
           <>
+            <div
+              className="jp-vocab-mobile-sort jp-vocab-mobile-only"
+              role="group"
+              aria-label="单词表排序"
+            >
+              <button
+                type="button"
+                className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-sort-btn${
+                  useDailyRowOrder ? " jp-vocab-mobile-sort-btn--active" : ""
+                }`}
+                onClick={restoreDailyRowOrder}
+                title="恢复当日固定顺序（北京时间 0 点重排，当天内不变）"
+              >
+                默认顺序
+              </button>
+              <button
+                type="button"
+                className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-sort-btn${
+                  !useDailyRowOrder && statSort.key === "risk"
+                    ? " jp-vocab-mobile-sort-btn--active"
+                    : ""
+                }`}
+                aria-pressed={!useDailyRowOrder && statSort.key === "risk"}
+                title={`按${jpVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）；再次点击切换升降序`}
+                onClick={() => toggleStatSort("risk")}
+              >
+                {jpVocabPriorityLabel(locale)}
+                {!useDailyRowOrder && statSort.key === "risk" ? (
+                  <span className="jp-vocab-mobile-sort-indicator" aria-hidden="true">
+                    {statSort.dir === "desc" ? " ↓" : " ↑"}
+                  </span>
+                ) : null}
+              </button>
+              <button
+                type="button"
+                className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-sort-btn${
+                  !useDailyRowOrder && statSort.key === "seq"
+                    ? " jp-vocab-mobile-sort-btn--active"
+                    : ""
+                }`}
+                aria-pressed={!useDailyRowOrder && statSort.key === "seq"}
+                title="按当日固定序号排序；再次点击切换升降序"
+                onClick={() => toggleStatSort("seq")}
+              >
+                当日序号
+                {!useDailyRowOrder && statSort.key === "seq" ? (
+                  <span className="jp-vocab-mobile-sort-indicator" aria-hidden="true">
+                    {statSort.dir === "desc" ? " ↓" : " ↑"}
+                  </span>
+                ) : null}
+              </button>
+            </div>
             <div className="jp-vocab-search" role="search">
               <label htmlFor="jp-vocab-search" className="jp-vocab-search__label">
                 搜索
@@ -3665,6 +3735,26 @@ export function JpVocabPage() {
         .jp-vocab-mobile-only {
           display: none;
         }
+        .jp-vocab-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+          justify-content: flex-end;
+        }
+        .jp-vocab-toolbar-summary {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .jp-vocab-toolbar-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+        }
+        .jp-vocab-mobile-sort {
+          display: none;
+        }
         .jp-vocab-mobile-reading-row {
           display: none;
         }
@@ -4024,6 +4114,56 @@ export function JpVocabPage() {
 
         /* 手机 / 小屏：紧凑卡片布局 */
         @media (max-width: 768px) {
+          .jp-vocab-section-head {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .jp-vocab-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+          }
+          .jp-vocab-toolbar-summary {
+            font-size: 0.9375rem;
+            line-height: 1.45;
+          }
+          .jp-vocab-toolbar-toggle {
+            width: 100%;
+            min-height: 2.75rem;
+          }
+          .jp-vocab-toolbar-actions {
+            display: none;
+            flex-direction: column;
+            align-items: stretch;
+            width: 100%;
+            gap: 0.5rem;
+          }
+          .jp-vocab-toolbar-actions--expanded {
+            display: flex;
+          }
+          .jp-vocab-toolbar-actions :global(.btn-rsi-filter) {
+            width: 100%;
+            min-height: 2.75rem;
+          }
+          .jp-vocab-mobile-sort {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+          }
+          .jp-vocab-mobile-sort-btn {
+            min-height: 2.75rem;
+            width: 100%;
+            font-size: clamp(0.8125rem, 3vw, 0.875rem);
+          }
+          .jp-vocab-mobile-sort-btn--active {
+            border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+            background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+            color: var(--text);
+          }
+          .jp-vocab-mobile-sort-indicator {
+            font-weight: 700;
+          }
           .jp-vocab-scroll-hint {
             display: none;
           }
