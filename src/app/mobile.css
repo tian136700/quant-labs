@@ -2598,6 +2598,7 @@
 
   .jp-vocab-table {
     min-width: 0 !important;
+    table-layout: auto !important;
   }
 
   .jp-vocab-table thead {
@@ -2627,6 +2628,11 @@
     white-space: normal;
     line-height: 1.35;
     min-width: 0;
+    width: auto !important;
+    max-width: none;
+    position: static !important;
+    box-shadow: none !important;
+    background: transparent !important;
   }
 
   .jp-vocab-table tbody td::before {

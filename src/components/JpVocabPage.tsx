@@ -4363,6 +4363,7 @@ export function JpVocabPage() {
           }
           :global(.jp-vocab-table) {
             min-width: 0;
+            table-layout: auto;
           }
           :global(.jp-vocab-table thead) {
             display: none;
@@ -4388,6 +4389,11 @@ export function JpVocabPage() {
             text-align: left;
             line-height: 1.35;
             min-width: 0;
+            width: auto !important;
+            max-width: none;
+            position: static !important;
+            box-shadow: none !important;
+            background: transparent !important;
           }
           :global(.jp-vocab-table tbody td::before) {
             content: attr(data-label) "：";
