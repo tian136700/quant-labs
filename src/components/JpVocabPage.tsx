@@ -28,6 +28,7 @@ import { copyTextToClipboard } from "@/lib/copy-text";
 import { jpVocabFlashcardCopyText } from "@/lib/jp-vocab-flashcard-copy";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
+import { CopyToast } from "@/components/CopyToast";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
 import { JpVocabMnemonicViewModal } from "@/components/JpVocabMnemonicViewModal";
@@ -315,6 +316,7 @@ export function JpVocabPage() {
   );
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   /** 本轮复习：每词当前勾选（仅前端，重置后清空） */
   const [sessionLevel, setSessionLevel] = useState<
@@ -340,6 +342,24 @@ export function JpVocabPage() {
       }
     },
     [canOperate]
+  );
+  const showReadingCopyToast = useCallback(
+    (readingTrim: string, wordTrim: string) => {
+      const text = jpVocabFlashcardCopyText(readingTrim, wordTrim);
+      if (!text) return;
+      void copyTextToClipboard(text).then((ok) =>
+        setCopyToast(
+          ok
+            ? locale === "zh"
+              ? "复制成功"
+              : "Copied"
+            : locale === "zh"
+              ? "复制失败"
+              : "Copy failed"
+        )
+      );
+    },
+    [locale]
   );
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
@@ -2643,12 +2663,6 @@ export function JpVocabPage() {
                     risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const hasNotes = Boolean((w.class_notes || "").trim());
                   const readingCopyText = jpVocabFlashcardCopyText(readingTrim, wordTrim);
-                  const copyReading = () => {
-                    if (!readingCopyText) return;
-                    void copyTextToClipboard(readingCopyText).then((ok) =>
-                      setStatus(ok ? "已复制" : "复制失败")
-                    );
-                  };
                   const renderNotesActions = () => (
                     <div className="jp-vocab-notes-actions">
                       {hasNotes ? (
@@ -2759,7 +2773,7 @@ export function JpVocabPage() {
                                 className="jp-vocab-reading-text jp-vocab-reading-text--copy"
                                 title={`点击复制「${readingCopyText}」`}
                                 aria-label={`点击复制读音「${readingCopyText}」`}
-                                onClick={copyReading}
+                                onClick={() => showReadingCopyToast(readingTrim, wordTrim)}
                               >
                                 {readingTrim}
                               </button>
@@ -3255,6 +3269,8 @@ export function JpVocabPage() {
         onClose={() => setViewingMnemonicWord(null)}
       />
 
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
+
       <JpVocabRefPreviewModal
         open={previewRef != null}
         refMeta={previewRef?.ref ?? null}
@@ -3666,12 +3682,19 @@ export function JpVocabPage() {
         }
         .jp-vocab-pos-badge {
           display: inline-block;
+          box-sizing: border-box;
+          max-width: 5em;
           font-size: 0.75rem;
-          padding: 0.15rem 0.45rem;
-          border-radius: 999px;
+          padding: 0.2rem 0.35rem;
+          border-radius: 8px;
           border: 1px solid var(--border);
           color: var(--muted);
-          white-space: nowrap;
+          white-space: normal;
+          word-break: break-all;
+          overflow-wrap: anywhere;
+          line-height: 1.35;
+          text-align: center;
+          vertical-align: middle;
           background: color-mix(in srgb, var(--panel) 88%, var(--bg));
         }
         .jp-vocab-mobile-only {
@@ -3972,8 +3995,9 @@ export function JpVocabPage() {
           line-height: 1.45;
         }
         :global(.jp-vocab-table .jp-vocab-pos-col) {
-          width: 4%;
-          min-width: 0;
+          width: 5%;
+          min-width: 3.25rem;
+          vertical-align: middle;
         }
         :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
           width: 5%;
@@ -4424,8 +4448,7 @@ export function JpVocabPage() {
             font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
             font-weight: 500;
           }
-          :global(.jp-vocab-table .jp-vocab-kind-badge),
-          .jp-vocab-pos-badge {
+          :global(.jp-vocab-table .jp-vocab-kind-badge) {
             flex: 0 0 auto;
             font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
             padding: 0.1875rem 0.5rem !important;
@@ -4434,6 +4457,22 @@ export function JpVocabPage() {
             background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
             color: var(--text) !important;
             white-space: nowrap;
+          }
+          .jp-vocab-pos-badge {
+            flex: 1 1 auto;
+            min-width: 0;
+            max-width: 5em;
+            font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
+            padding: 0.2rem 0.35rem !important;
+            border-radius: 8px !important;
+            border: 1px solid var(--border) !important;
+            background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
+            color: var(--text) !important;
+            white-space: normal !important;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+            line-height: 1.35 !important;
+            text-align: center;
           }
           :global(.jp-vocab-table .jp-vocab-kind-badge--grammar) {
             color: var(--accent) !important;
