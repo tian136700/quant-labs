@@ -1110,8 +1110,8 @@ export function JpVocabPage() {
     [pendingQuizWordId, requestTeacherQuizSession]
   );
 
-  /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选 */
-  const teacherQuizLocksTable = canOperate;
+  /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选（管理员可直接在列表改） */
+  const teacherQuizLocksTable = canOperate && !isAdmin;
 
   /** 已有活跃抽查会话（用于「继续抽查」按钮） */
   const teacherQuizInProgress = quizSession != null;
@@ -1248,11 +1248,11 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (!isWordInQuizTarget(wordId)) {
+    if (!isWordInQuizTarget(wordId) && !isAdmin) {
       setStatus(`仅今日序号 1–${quizTarget} 可勾选熟悉程度。`);
       return;
     }
-    if (source !== "flashcard") {
+    if (source !== "flashcard" && !isAdmin) {
       if (quizSession != null) {
         resumeTeacherQuizFlashcard(wordId);
       } else {
@@ -2686,7 +2686,7 @@ export function JpVocabPage() {
                                 : jpVocabSaveProgressDisplayPercent(null)
                             }
                           />
-                        ) : !inQuizTarget ? (
+                        ) : !inQuizTarget && !isAdmin ? (
                           <span
                             className="jp-vocab-level-unavailable"
                             title={`仅今日序号 1–${quizTarget} 可勾选熟悉程度`}
