@@ -400,121 +400,94 @@ export function JpVocabTeacherQuizFlashcardModal({
           ) : null}
         </section>
 
-        {canOperate && shareUiEnabled ? (
-          <section className="jp-vocab-teacher-quiz__share" aria-label="发给学生">
-            {isShared ? (
-              <button
-                type="button"
-                className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-unshare-btn jp-vocab-teacher-quiz__action-btn${
-                  reviewLocked ? " jp-vocab-share-btn--locked" : ""
-                }`}
-                disabled={isSaving || isSharing || reviewLocked}
-                title={
-                  reviewLocked
-                    ? "勾选已满 1 小时，无法再操作"
-                    : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
-                }
-                onClick={() => onUnshare?.(w.id)}
-              >
-                取消共享
-              </button>
-            ) : isSharing ? (
-              <div className="jp-vocab-share-progress" aria-live="polite">
-                <span className="jp-vocab-share-progress-label">
-                  正在发给学生，传输中…
-                </span>
-                <div
-                  className="jp-vocab-share-progress-track"
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={sharingPercent}
-                  aria-label="发给学生进度"
-                >
-                  <div
-                    className="jp-vocab-share-progress-fill"
-                    style={{ width: `${sharingPercent}%` }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="jp-vocab-teacher-quiz__share-stack">
-                <button
-                  type="button"
-                  className={`btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn jp-vocab-teacher-quiz__action-btn${
-                    reviewLocked ? " jp-vocab-share-btn--locked" : ""
-                  }`}
-                  disabled={isSaving || isSharing || reviewLocked}
-                  title={
-                    reviewLocked
-                      ? "勾选已满 1 小时，无法再发给学生"
-                      : "发给学生「今日日语单词」，并标记为不熟悉"
-                  }
-                  onClick={() => onShare?.(w.id)}
-                >
-                  发给学生
-                </button>
-                {!reviewLocked ? (
-                  <span className="jp-vocab-teacher-quiz__share-hint" role="note">
-                    学生答不上来或不熟悉时，点此发送给他
-                  </span>
-                ) : null}
-              </div>
-            )}
-          </section>
-        ) : null}
-
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">
             请根据学生熟悉程度，勾选以下选项
           </p>
           <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
-            <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
-              {LEVELS.map((lv) => {
-                const checked = selected === lv.key;
-                const levelDisabled = reviewLocked || isSaving;
-                return (
-                  <button
-                    key={lv.key}
-                    type="button"
-                    className={`jp-vocab-level-opt${
-                      checked ? " is-checked" : ""
-                    }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
-                      lv.key === "very" ? " jp-vocab-level-opt--very" : ""
-                    }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
-                    disabled={levelDisabled}
-                    aria-pressed={checked}
-                    title={
-                      reviewLocked
-                        ? "勾选已满 1 小时，无法再修改"
-                        : checked
-                          ? "今日已选此项，可点其他选项改选"
-                          : "勾选学生熟悉程度"
-                    }
-                    onClick={() => {
-                      if (levelDisabled) return;
-                      setNextBlockedHint(false);
-                      onSelectLevel(w.id, lv.key);
-                    }}
-                  >
-                    <span className="jp-vocab-check-box" aria-hidden="true">
-                      {checked ? (
-                        <svg viewBox="0 0 12 12" width="10" height="10">
-                          <path
-                            d="M2 6l3 3 5-5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      ) : null}
-                    </span>
-                    <span>{lv.label}</span>
-                  </button>
-                );
-              })}
+            <div className="jp-vocab-teacher-quiz__level-main">
+              <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
+                {LEVELS.map((lv) => {
+                  const checked = selected === lv.key;
+                  const levelDisabled = reviewLocked || isSaving;
+                  return (
+                    <button
+                      key={lv.key}
+                      type="button"
+                      className={`jp-vocab-level-opt${
+                        checked ? " is-checked" : ""
+                      }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
+                        lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                      }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
+                      disabled={levelDisabled}
+                      aria-pressed={checked}
+                      title={
+                        reviewLocked
+                          ? "勾选已满 1 小时，无法再修改"
+                          : checked
+                            ? "今日已选此项，可点其他选项改选"
+                            : "勾选学生熟悉程度"
+                      }
+                      onClick={() => {
+                        if (levelDisabled) return;
+                        setNextBlockedHint(false);
+                        onSelectLevel(w.id, lv.key);
+                      }}
+                    >
+                      <span className="jp-vocab-check-box" aria-hidden="true">
+                        {checked ? (
+                          <svg viewBox="0 0 12 12" width="10" height="10">
+                            <path
+                              d="M2 6l3 3 5-5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        ) : null}
+                      </span>
+                      <span>{lv.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {canOperate && shareUiEnabled ? (
+                <div className="jp-vocab-teacher-quiz__share-slot" aria-label="发给学生">
+                  {isShared ? (
+                    <button
+                      type="button"
+                      className="jp-vocab-teacher-quiz__share-btn jp-vocab-teacher-quiz__share-btn--unshare"
+                      disabled={isSaving || isSharing || reviewLocked}
+                      title={
+                        reviewLocked
+                          ? "勾选已满 1 小时，无法再操作"
+                          : "从学生「今日日语单词」移除；若共享时自动标记了不熟悉，将一并撤销"
+                      }
+                      onClick={() => onUnshare?.(w.id)}
+                    >
+                      取消共享
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`jp-vocab-teacher-quiz__share-btn${
+                        reviewLocked ? " jp-vocab-teacher-quiz__share-btn--locked" : ""
+                      }`}
+                      disabled={isSaving || isSharing || reviewLocked}
+                      title={
+                        reviewLocked
+                          ? "勾选已满 1 小时，无法再发给学生"
+                          : "发给学生「今日日语单词」，并标记为不熟悉"
+                      }
+                      onClick={() => onShare?.(w.id)}
+                    >
+                      发给学生
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </div>
             <span
               className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
@@ -531,14 +504,16 @@ export function JpVocabTeacherQuizFlashcardModal({
           </div>
           {isSharing ? (
             <div className="jp-vocab-share-progress jp-vocab-teacher-quiz__level-progress" aria-live="polite">
-              <span className="jp-vocab-share-progress-label">正在同步到学生端…</span>
+              <span className="jp-vocab-share-progress-label">
+                {isShared ? "正在同步到学生端…" : "正在发给学生，传输中…"}
+              </span>
               <div
                 className="jp-vocab-share-progress-track"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={sharingPercent}
-                aria-label="同步到学生端进度"
+                aria-label={isShared ? "同步到学生端进度" : "发给学生进度"}
               >
                 <div
                   className="jp-vocab-share-progress-fill"
@@ -922,19 +897,67 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz__action-btn {
           min-height: 1.85rem;
         }
-        .jp-vocab-teacher-quiz__share {
+        .jp-vocab-teacher-quiz__level-main {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem 0.5rem;
           width: 100%;
         }
-        .jp-vocab-teacher-quiz__share-stack {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.25rem;
+        .jp-vocab-teacher-quiz__share-slot {
+          flex: 0 0 auto;
         }
-        .jp-vocab-teacher-quiz__share-hint {
-          font-size: 0.75rem;
-          line-height: 1.4;
+        .jp-vocab-teacher-quiz__share-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 2rem;
+          padding: 0.38rem 0.85rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, #f0a840 55%, #b87818);
+          background: linear-gradient(
+            180deg,
+            color-mix(in srgb, #ffd080 88%, #fff) 0%,
+            #f0a840 48%,
+            #d89028 100%
+          );
+          color: #1f1406;
+          font-size: 0.8125rem;
+          font-weight: 700;
+          line-height: 1.2;
+          white-space: nowrap;
+          cursor: pointer;
+          box-shadow:
+            0 1px 0 color-mix(in srgb, #fff 35%, transparent) inset,
+            0 2px 8px color-mix(in srgb, #f0a840 28%, transparent);
+          transition:
+            filter 0.15s ease,
+            transform 0.1s ease;
+        }
+        .jp-vocab-teacher-quiz__share-btn:hover:not(:disabled) {
+          filter: brightness(1.05);
+        }
+        .jp-vocab-teacher-quiz__share-btn:active:not(:disabled) {
+          transform: translateY(1px);
+        }
+        .jp-vocab-teacher-quiz__share-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .jp-vocab-teacher-quiz__share-btn--locked {
+          filter: grayscale(0.35);
+        }
+        .jp-vocab-teacher-quiz__share-btn--unshare {
+          background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+          border-color: color-mix(in srgb, var(--border) 80%, #f0a840 20%);
           color: var(--muted);
+          font-weight: 600;
+          box-shadow: none;
+        }
+        .jp-vocab-teacher-quiz__share-btn--unshare:hover:not(:disabled) {
+          color: var(--text);
+          border-color: color-mix(in srgb, #f0a840 45%, var(--border));
         }
         .jp-vocab-teacher-quiz-card .jp-vocab-share-progress {
           display: flex;
@@ -969,9 +992,8 @@ export function JpVocabTeacherQuizFlashcardModal({
           );
           transition: width 0.2s linear;
         }
-        .jp-vocab-teacher-quiz-card .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn):hover {
-          color: #ffc860;
-          border-color: color-mix(in srgb, #f0a840 65%, var(--border));
+        .jp-vocab-teacher-quiz__level-progress {
+          margin-top: 0.35rem;
         }
         .jp-vocab-teacher-quiz__level {
           padding: 0.5rem 0.6rem;
@@ -1280,6 +1302,20 @@ export function JpVocabTeacherQuizFlashcardModal({
             border-radius: 10px;
             overflow: hidden;
             background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+            width: 100%;
+          }
+          .jp-vocab-teacher-quiz__level-main {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.45rem;
+          }
+          .jp-vocab-teacher-quiz__share-slot {
+            width: 100%;
+          }
+          .jp-vocab-teacher-quiz__share-btn {
+            width: 100%;
+            min-height: 2.45rem;
+            font-size: 0.875rem;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-level-opt {
             min-height: 2.65rem;
@@ -1331,9 +1367,6 @@ export function JpVocabTeacherQuizFlashcardModal({
             min-height: 2.25rem;
             font-size: 0.8125rem;
             font-weight: 600;
-          }
-          .jp-vocab-teacher-quiz__share-stack .jp-vocab-teacher-quiz__action-btn {
-            width: 100%;
           }
           .jp-vocab-teacher-quiz__nav {
             gap: 0.5rem;
