@@ -18,6 +18,7 @@ import {
   jpVocabTeacherQuizNotesInline,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
+import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -231,6 +232,17 @@ export function JpVocabTeacherQuizFlashcardModal({
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
+  const saveBusy = isSharing || isQueued || isSyncing;
+  const saveProgressPercent = isSharing
+    ? sharingPercent
+    : JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT;
+  const saveProgressLabel = isQueued
+    ? "排队同步中…"
+    : isShared
+      ? "正在保存熟悉程度…"
+      : selected
+        ? "正在同步到学生端…"
+        : "正在发给学生，传输中…";
   const levelSyncHintShort = isShared
     ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
     : JP_VOCAB_LEVEL_SYNC_HINT_SHORT;
@@ -502,33 +514,23 @@ export function JpVocabTeacherQuizFlashcardModal({
               {levelSyncHint}
             </span>
           </div>
-          {isSharing ? (
+          {saveBusy ? (
             <div className="jp-vocab-share-progress jp-vocab-teacher-quiz__level-progress" aria-live="polite">
-              <span className="jp-vocab-share-progress-label">
-                {isShared ? "正在同步到学生端…" : "正在发给学生，传输中…"}
-              </span>
+              <span className="jp-vocab-share-progress-label">{saveProgressLabel}</span>
               <div
                 className="jp-vocab-share-progress-track"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={sharingPercent}
-                aria-label={isShared ? "同步到学生端进度" : "发给学生进度"}
+                aria-valuenow={saveProgressPercent}
+                aria-label={saveProgressLabel}
               >
                 <div
                   className="jp-vocab-share-progress-fill"
-                  style={{ width: `${sharingPercent}%` }}
+                  style={{ width: `${saveProgressPercent}%` }}
                 />
               </div>
             </div>
-          ) : isQueued ? (
-            <p className="jp-vocab-teacher-quiz__level-sync-status" role="status">
-              排队同步中…
-            </p>
-          ) : isSyncing ? (
-            <p className="jp-vocab-teacher-quiz__level-sync-status" role="status">
-              保存中…
-            </p>
           ) : null}
         </div>
 

@@ -114,6 +114,11 @@ import {
   subscribeJpVocabQuizTargetUpdated,
 } from "@/lib/jp-vocab-quiz-target-notify";
 import { JP_VOCAB_MANUAL_ADD_ENABLED, JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
+import {
+  animateJpVocabSaveProgressTo100,
+  jpVocabSaveProgressPercent,
+  JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
+} from "@/lib/jp-vocab-save-progress";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -174,16 +179,13 @@ const SHOW_RISK_CHART = false;
 /** 单词表每页条数 */
 const JP_VOCAB_PAGE_SIZE = 20;
 
-/** 「发给学生」预估传输时长（进度条 0→100%） */
-const JP_VOCAB_SHARE_DURATION_MS = 5000;
-
 /** 操作列「发给学生」说明（表头短版 / 按钮下完整版） */
 const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
 const JP_VOCAB_SHARE_HINT =
   "学生答不上来或不熟悉时，点此发送给他";
 
 function jpVocabShareProgressPercent(elapsedMs: number): number {
-  return Math.min(100, Math.round((elapsedMs / JP_VOCAB_SHARE_DURATION_MS) * 100));
+  return jpVocabSaveProgressPercent(elapsedMs);
 }
 
 async function animateJpVocabShareProgressTo100(
@@ -191,22 +193,9 @@ async function animateJpVocabShareProgressTo100(
   startedAtMs: number,
   setPercent: (wordId: number, percent: number) => void
 ): Promise<void> {
-  const elapsed = Date.now() - startedAtMs;
-  const current = jpVocabShareProgressPercent(elapsed);
-  if (current >= 100) {
-    setPercent(wordId, 100);
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    return;
-  }
-  const steps = Math.max(4, Math.ceil((100 - current) / 5));
-  const stepMs = Math.min(80, Math.round(400 / steps));
-  for (let i = 1; i <= steps; i++) {
-    await new Promise((resolve) => setTimeout(resolve, stepMs));
-    const percent = current + Math.round(((100 - current) * i) / steps);
-    setPercent(wordId, percent);
-  }
-  setPercent(wordId, 100);
-  await new Promise((resolve) => setTimeout(resolve, 120));
+  await animateJpVocabSaveProgressTo100(startedAtMs, (percent) =>
+    setPercent(wordId, percent)
+  );
 }
 
 function jpVocabCheckedInRound(
@@ -1318,6 +1307,7 @@ export function JpVocabPage() {
     }
 
     setWordSyncPhase(wordId, "queued");
+    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
     if (saveQueuePending > 0) {
       setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
     } else if (!skipShareUi) {
@@ -1330,19 +1320,17 @@ export function JpVocabPage() {
       await jpVocabSaveQueue.enqueue(async () => {
         setWordSyncPhase(wordId, "syncing");
         const startedAt = Date.now();
-        if (!skipShareUi) {
-          patchShareProgress(wordId, 0);
-          clearShareTimer(wordId);
-          shareProgressTimersRef.current.set(
-            wordId,
-            setInterval(() => {
-              patchShareProgress(
-                wordId,
-                jpVocabShareProgressPercent(Date.now() - startedAt)
-              );
-            }, 200)
-          );
-        }
+        patchShareProgress(wordId, 0);
+        clearShareTimer(wordId);
+        shareProgressTimersRef.current.set(
+          wordId,
+          setInterval(() => {
+            patchShareProgress(
+              wordId,
+              jpVocabShareProgressPercent(Date.now() - startedAt)
+            );
+          }, 200)
+        );
 
         try {
           const res = await fetch("/api/jp-vocab", {
@@ -1372,14 +1360,12 @@ export function JpVocabPage() {
           }
 
           clearShareTimer(wordId);
-          if (!skipShareUi && data.shared_new) {
-            await animateJpVocabShareProgressTo100(
-              wordId,
-              startedAt,
-              (id, percent) => patchShareProgress(id, percent)
-            );
-            patchShareProgress(wordId, null);
-          }
+          await animateJpVocabShareProgressTo100(
+            wordId,
+            startedAt,
+            (id, percent) => patchShareProgress(id, percent)
+          );
+          patchShareProgress(wordId, null);
 
           const nextSharedIds =
             data.shared && !sharedTodayWordIdsRef.current.has(wordId)
@@ -1483,6 +1469,7 @@ export function JpVocabPage() {
     }
 
     setWordSyncPhase(wordId, "queued");
+    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
 
     try {
       const result = await jpVocabSaveQueue.enqueue(async () => {
@@ -2682,33 +2669,37 @@ export function JpVocabPage() {
                         </span>
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
-                        {isSharing ? (
+                        {isSharing || isQueued || isSyncing ? (
                           <div className="jp-vocab-share-progress" aria-live="polite">
                             <span className="jp-vocab-share-progress-label">
-                              正在同步到学生端…
+                              {isQueued
+                                ? "排队同步中…"
+                                : sharedTodayWordIds.has(w.id)
+                                  ? "正在保存熟悉程度…"
+                                  : "正在同步到学生端…"}
                             </span>
                             <div
                               className="jp-vocab-share-progress-track"
                               role="progressbar"
                               aria-valuemin={0}
                               aria-valuemax={100}
-                              aria-valuenow={sharingPercent}
-                              aria-label="同步到学生端进度"
+                              aria-valuenow={
+                                isSharing ? sharingPercent : JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT
+                              }
+                              aria-label="保存进度"
                             >
                               <div
                                 className="jp-vocab-share-progress-fill"
-                                style={{ width: `${sharingPercent}%` }}
+                                style={{
+                                  width: `${
+                                    isSharing
+                                      ? sharingPercent
+                                      : JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT
+                                  }%`,
+                                }}
                               />
                             </div>
                           </div>
-                        ) : isQueued ? (
-                          <span className="jp-vocab-sync-queued" role="status">
-                            排队同步中…
-                          </span>
-                        ) : isSyncing ? (
-                          <span className="jp-vocab-sync-queued" role="status">
-                            保存中…
-                          </span>
                         ) : !inQuizTarget ? (
                           <span
                             className="jp-vocab-level-unavailable"
