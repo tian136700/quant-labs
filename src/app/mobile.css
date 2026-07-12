@@ -2904,14 +2904,35 @@
     align-items: stretch !important;
     padding-top: 0.25rem !important;
     border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+    overflow: hidden;
+  }
+
+  .jp-vocab-table .jp-vocab-notes-col > * {
+    flex: 0 1 auto !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .jp-vocab-mobile-notes-inline {
     width: 100%;
   }
 
-  .jp-vocab-mobile-notes-inline .jp-vocab-notes-actions {
-    justify-content: flex-end;
+  .jp-vocab-mobile-notes {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .jp-vocab-table .jp-vocab-notes-col .jp-vocab-mobile-notes-thumb :global(img) {
+    max-width: 3rem !important;
+    max-height: 3rem !important;
+  }
+
+  .jp-vocab-table .jp-vocab-notes-col .jp-vocab-note-content__image,
+  .jp-vocab-table .jp-vocab-notes-col .jp-vocab-note-content__image-btn {
+    max-width: 4.5rem !important;
   }
 
   .jp-vocab-table .jp-vocab-notes-col::before {
