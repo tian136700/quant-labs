@@ -824,7 +824,12 @@ export async function deleteJpVocabWordsByIds(
 }
 
 export type ResetJpVocabReviewsResult =
-  | { ok: true; words: JpVocabWord[]; display_order: JpVocabDailyDisplayOrder }
+  | {
+      ok: true;
+      words: JpVocabWord[];
+      display_order: JpVocabDailyDisplayOrder;
+      teacher_visible_limit: JpVocabTeacherVisibleLimit;
+    }
   | { ok: false; error: string };
 
 export async function resetAllJpVocabReviews(
@@ -849,7 +854,8 @@ export async function resetAllJpVocabReviews(
     }
     const words = sortJpVocabWords(devWords);
     devDailyDisplayOrder = await refreshJpVocabDailyDisplayOrder(db, words);
-    return { ok: true, words, display_order: devDailyDisplayOrder };
+    const teacher_visible_limit = await getJpVocabTeacherVisibleLimit(db);
+    return { ok: true, words, display_order: devDailyDisplayOrder, teacher_visible_limit };
   }
 
   await db
@@ -865,22 +871,27 @@ export async function resetAllJpVocabReviews(
 
   const words = await listJpVocabWords(db);
   const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
-  return { ok: true, words, display_order };
+  const teacher_visible_limit = await getJpVocabTeacherVisibleLimit(db);
+  return { ok: true, words, display_order, teacher_visible_limit };
 }
 
 export async function resetTodayJpVocabRound(
   db: D1Database
-): Promise<
-  ResetJpVocabReviewsResult & { teacher_visible_limit: JpVocabTeacherVisibleLimit }
-> {
+): Promise<ResetJpVocabReviewsResult> {
   await seedIfEmpty(db);
   const words = await listJpVocabWords(db);
   const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
-  const current = await getJpVocabTeacherVisibleLimit(db);
+  const raw = await readJpVocabTeacherVisibleLimitRaw(db);
+  const today = beijingDateString();
+  const current = normalizeJpVocabTeacherVisibleLimit(raw);
   const teacher_visible_limit = await saveJpVocabTeacherVisibleLimit(
     db,
     applyJpVocabQuizTargetVisiblePlan(
-      { ...current, date: beijingDateString() },
+      {
+        ...current,
+        date: today,
+        quiz_target: current.quiz_target,
+      },
       display_order,
       words
     )
@@ -2033,7 +2044,10 @@ async function saveJpVocabTeacherVisibleLimit(
   db: D1Database,
   limit: JpVocabTeacherVisibleLimit
 ): Promise<JpVocabTeacherVisibleLimit> {
-  const next = normalizeJpVocabTeacherVisibleLimit(limit);
+  const next = normalizeJpVocabTeacherVisibleLimit({
+    ...limit,
+    date: limit.date ?? beijingDateString(),
+  });
 
   if (devStoreEnabled) {
     devTeacherVisibleLimit = next;

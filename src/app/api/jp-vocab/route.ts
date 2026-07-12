@@ -136,6 +136,7 @@ export async function POST(request: Request) {
         ok: true,
         words: result.words,
         display_order: result.display_order,
+        teacher_visible_limit: result.teacher_visible_limit,
       });
     }
 

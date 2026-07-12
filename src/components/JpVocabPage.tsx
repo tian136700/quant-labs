@@ -1887,7 +1887,7 @@ export function JpVocabPage() {
       }
       setWords(data.words);
       setDisplayOrder(data.display_order);
-      if (action === "reset_today" && data.teacher_visible_limit) {
+      if (data.teacher_visible_limit) {
         setTeacherVisibleLimit(data.teacher_visible_limit);
         persistVocabCache(
           data.words,

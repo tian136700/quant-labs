@@ -187,6 +187,43 @@ export function normalizeJpVocabTeacherVisibleLimit(
       ),
     };
   }
+
+  /** 明确跨日：恢复默认可见批次，抽查目标回到 20（由 nightly rollover 触发） */
+  if (raw?.date && raw.date !== today) {
+    return {
+      date: today,
+      limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+      count: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
+      quiz_target: JP_VOCAB_DAILY_QUIZ_TOP,
+      hide_checked_today: true,
+      released_today: false,
+      release_count: JP_VOCAB_DAILY_QUIZ_TOP,
+      excluded_batch_ids: [],
+    };
+  }
+
+  /** 缺少 date 的旧数据：视为当日记录，保留管理员设置的 quiz_target */
+  if (raw) {
+    return {
+      date: today,
+      limit,
+      count: normalizeVisibleCount(raw?.count, limit),
+      quiz_target,
+      hide_checked_today,
+      released_today,
+      release_count,
+      excluded_batch_ids: normalizeExcludedBatchIds(raw?.excluded_batch_ids),
+      visible_ids: normalizeVisibleIds(raw?.visible_ids),
+      sticky_visible_ids: normalizeStickyVisibleIds(raw?.sticky_visible_ids),
+      quiz_target_adjusted_at: normalizeQuizTargetAdjustedAt(
+        raw?.quiz_target_adjusted_at
+      ),
+      quiz_target_base_checked: normalizeQuizTargetBaseChecked(
+        raw?.quiz_target_base_checked
+      ),
+    };
+  }
+
   return {
     date: today,
     limit: JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
