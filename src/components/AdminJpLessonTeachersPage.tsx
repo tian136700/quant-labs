@@ -453,12 +453,12 @@ export function AdminJpLessonTeachersPageContent() {
       ? {
           id: "ID",
           name: "名称",
-          rate: "课时费 (RMB)",
+          rate: "课时费",
           minutes: "课时时长",
           hourlyEquiv: "折合时薪",
           score: "平均评分",
-          remark: "最近备注",
-          updated: "更新时间",
+          remark: "备注",
+          updated: "更新",
           actions: "操作",
         }
       : {
@@ -786,21 +786,6 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
               ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"
               : "Manage lesson teachers for JP lessons. Only admins can assign them."}
         </p>
-        <div className="admin-jpl-subject-switch">
-          <label htmlFor="admin-jpl-teacher-subject">
-            {locale === "zh" ? "老师类型" : "Teacher type"}
-          </label>
-          <select
-            id="admin-jpl-teacher-subject"
-            value={teacherSubject}
-            onChange={(event) =>
-              switchTeacherSubject(parseLessonTeacherSubject(event.target.value))
-            }
-          >
-            <option value="jp">{locale === "zh" ? "日语老师" : "Japanese teachers"}</option>
-            <option value="en">{locale === "zh" ? "英语老师" : "English teachers"}</option>
-          </select>
-        </div>
         <p className="hint">
           <a href={adminPath(locale)}>{locale === "zh" ? "← 返回后台管理" : "← Back to admin"}</a>
           {" · "}
@@ -841,6 +826,18 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
             >
               {locale === "zh" ? "添加老师" : "Add teacher"}
             </button>
+            <select
+              id="admin-jpl-teacher-subject"
+              className="admin-jpl-subject-select"
+              value={teacherSubject}
+              aria-label={locale === "zh" ? "老师类型" : "Teacher type"}
+              onChange={(event) =>
+                switchTeacherSubject(parseLessonTeacherSubject(event.target.value))
+              }
+            >
+              <option value="jp">{locale === "zh" ? "日语老师" : "Japanese"}</option>
+              <option value="en">{locale === "zh" ? "英语老师" : "English"}</option>
+            </select>
             <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
               <span className="sr-only">
                 {locale === "zh" ? "搜索老师" : "Search teachers"}
@@ -921,7 +918,7 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                       className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "rate" ? " is-active" : ""}`}
                       onClick={() => toggleSort("rate")}
                     >
-                      {locale === "zh" ? "课时费 (RMB)" : "Rate (RMB)"}
+                      {locale === "zh" ? "课时费" : "Rate (RMB)"}
                       <span className="admin-sort-indicator" aria-hidden="true">
                         {sortKey === "rate" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                       </span>
@@ -985,7 +982,7 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                       className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "remark" ? " is-active" : ""}`}
                       onClick={() => toggleSort("remark")}
                     >
-                      {locale === "zh" ? "最近备注" : "Latest note"}
+                      {locale === "zh" ? "备注" : "Latest note"}
                       <span className="admin-sort-indicator" aria-hidden="true">
                         {sortKey === "remark" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                       </span>
@@ -997,7 +994,7 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                       className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "updated" ? " is-active" : ""}`}
                       onClick={() => toggleSort("updated")}
                     >
-                      {locale === "zh" ? "更新时间" : "Updated"}
+                      {locale === "zh" ? "更新" : "Updated"}
                       <span className="admin-sort-indicator" aria-hidden="true">
                         {sortKey === "updated" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                       </span>
@@ -1209,7 +1206,7 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                                       ? "已生成"
                                       : "Created"
                                     : locale === "zh"
-                                      ? "一键创建用户"
+                                      ? "创建用户"
                                       : "Create user"}
                               </button>
                               <button
@@ -1395,27 +1392,6 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
 
         .admin-jpl-teacher-user-link:hover {
           text-decoration: underline;
-        }
-
-        .admin-jpl-subject-switch {
-          display: flex;
-          align-items: center;
-          gap: 0.65rem;
-          margin: 0.75rem 0 0.35rem;
-        }
-
-        .admin-jpl-subject-switch label {
-          font-size: 0.875rem;
-          color: var(--muted);
-        }
-
-        .admin-jpl-subject-switch select {
-          min-height: 2.25rem;
-          padding: 0.35rem 0.65rem;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--panel);
-          color: var(--text);
         }
 
         .admin-jpl-search-field {

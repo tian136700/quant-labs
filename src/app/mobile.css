@@ -2218,6 +2218,16 @@
     width: 100%;
   }
 
+  .admin-jpl-teachers-toolbar .admin-jpl-subject-select {
+    width: 100%;
+    max-width: none;
+    min-height: 2.75rem;
+  }
+
+  .admin-jpl-teachers-toolbar .admin-jpl-search-field {
+    grid-column: 1 / -1;
+  }
+
   .admin-jpl-teachers-toolbar .btn-rsi-filter,
   .admin-jpl-mobile-sort-btn {
     display: inline-flex;
