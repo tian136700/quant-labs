@@ -84,6 +84,51 @@ export function upsertJpVocabClassNoteSession(
   ]);
 }
 
+export type JpVocabClassNoteEditTarget =
+  | { mode: "new" }
+  | { mode: "existing-timestamp"; originalTimestamp: string }
+  | { mode: "existing-index"; originalIndex: number };
+
+/** 保存备注草稿：编辑已有条目时移除旧记录并写入新时间戳 */
+export function saveJpVocabClassNoteDraft(
+  existing: string | null | undefined,
+  target: JpVocabClassNoteEditTarget,
+  sessionTimestamp: string | null,
+  draftContent: string,
+  now = new Date()
+): {
+  nextNotes: string;
+  sessionTimestamp: string;
+  nextTarget: JpVocabClassNoteEditTarget;
+} {
+  let entries = parseJpVocabClassNotes(existing);
+  let nextTarget = target;
+
+  if (target.mode === "existing-timestamp") {
+    entries = entries.filter((entry) => entry.timestamp !== target.originalTimestamp);
+    nextTarget = { mode: "new" };
+  } else if (target.mode === "existing-index") {
+    entries = entries.filter((_, index) => index !== target.originalIndex);
+    nextTarget = { mode: "new" };
+  }
+
+  const nextSessionTimestamp =
+    sessionTimestamp ?? formatBeijingClassNoteTimestamp(now);
+  const trimmed = draftContent.trim();
+  entries = entries.filter((entry) => entry.timestamp !== nextSessionTimestamp);
+
+  const nextNotes = serializeJpVocabClassNotes([
+    ...entries,
+    { timestamp: nextSessionTimestamp, content: trimmed },
+  ]);
+
+  return {
+    nextNotes,
+    sessionTimestamp: nextSessionTimestamp,
+    nextTarget,
+  };
+}
+
 export function hasJpVocabClassNotes(
   raw: string | null | undefined,
   presentHint?: boolean

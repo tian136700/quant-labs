@@ -310,6 +310,16 @@ export function JpVocabPage() {
     cacheVersion?: string | null;
   } | null>(null);
   const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
+  const openRemarksWord = useCallback(
+    (word: JpVocabWord) => {
+      if (canOperate) {
+        setEditingRemarksWord(word);
+      } else {
+        setViewingRemarksWord(word);
+      }
+    },
+    [canOperate]
+  );
   const [statSort, setStatSort] = useState<{
     key: JpVocabStatSortKey;
     dir: "asc" | "desc";
@@ -2757,7 +2767,7 @@ export function JpVocabPage() {
                           type="button"
                           className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
                           title="查看备注"
-                          onClick={() => setViewingRemarksWord(w)}
+                          onClick={() => openRemarksWord(w)}
                         >
                           查看
                         </button>
@@ -3439,7 +3449,7 @@ export function JpVocabPage() {
           setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
         }
         onOpenRef={openRefPreview}
-        onViewRemarks={setViewingRemarksWord}
+        onViewRemarks={openRemarksWord}
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
         onShare={(wordId) => void shareWord(wordId)}
@@ -3471,7 +3481,7 @@ export function JpVocabPage() {
         }
         onReviewNext={recordAdminReviewNext}
         onOpenRef={openRefPreview}
-        onViewRemarks={setViewingRemarksWord}
+        onViewRemarks={openRemarksWord}
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
         onWordUpdated={handleWordSaved}

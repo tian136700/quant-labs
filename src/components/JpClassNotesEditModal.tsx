@@ -7,12 +7,11 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   appendJpVocabClassNoteImageLine,
-  formatBeijingClassNoteTimestamp,
   parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
-  replaceJpVocabClassNoteAtIndex,
-  upsertJpVocabClassNoteSession,
+  saveJpVocabClassNoteDraft,
+  type JpVocabClassNoteEditTarget,
   type JpVocabClassNoteEntry,
 } from "@/lib/jp-vocab-class-notes";
 import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
@@ -38,11 +37,6 @@ type Props = {
 };
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
-
-type EditTarget =
-  | { mode: "new" }
-  | { mode: "timestamp"; timestamp: string }
-  | { mode: "index"; index: number };
 
 const AUTO_SAVE_MS = 1_000;
 const POLL_MS = 2_000;
@@ -93,6 +87,16 @@ function historyEntriesFromWord(word: JpVocabWord | null): JpVocabClassNoteEntry
   return parseJpVocabClassNotes(word.class_notes);
 }
 
+function editTargetForEntry(
+  entry: JpVocabClassNoteEntry,
+  index: number
+): JpVocabClassNoteEditTarget {
+  if (entry.timestamp) {
+    return { mode: "existing-timestamp", originalTimestamp: entry.timestamp };
+  }
+  return { mode: "existing-index", originalIndex: index };
+}
+
 export function JpClassNotesEditModal({
   open,
   word,
@@ -117,11 +121,11 @@ export function JpClassNotesEditModal({
     null
   );
   const [imageUploading, setImageUploading] = useState(false);
-  const [editTarget, setEditTarget] = useState<EditTarget>({ mode: "new" });
+  const [editTarget, setEditTarget] = useState<JpVocabClassNoteEditTarget>({ mode: "new" });
   const dirtyRef = useRef(false);
   const lastSavedDraftRef = useRef("");
   const sessionTsRef = useRef<string | null>(null);
-  const editTargetRef = useRef<EditTarget>({ mode: "new" });
+  const editTargetRef = useRef<JpVocabClassNoteEditTarget>({ mode: "new" });
   const [sessionTs, setSessionTs] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -140,7 +144,8 @@ export function JpClassNotesEditModal({
 
   useEffect(() => {
     if (open && word) {
-      setHistoryEntries(historyEntriesFromWord(word));
+      const entries = historyEntriesFromWord(word);
+      setHistoryEntries(entries);
       setDraft("");
       lastSavedDraftRef.current = "";
       sessionTsRef.current = null;
@@ -152,8 +157,18 @@ export function JpClassNotesEditModal({
       setSaveStatus("idle");
       setShareProgress(null);
       setImageUploading(false);
+
+      if (canEdit && entries.length > 0) {
+        const latestIndex = entries.length - 1;
+        const latest = entries[latestIndex]!;
+        setDraft(latest.content);
+        lastSavedDraftRef.current = latest.content;
+        const target = editTargetForEntry(latest, latestIndex);
+        editTargetRef.current = target;
+        setEditTarget(target);
+      }
     }
-  }, [open, word?.id]);
+  }, [open, word?.id, canEdit]);
 
   useEffect(() => {
     if (!open || !word || dirtyRef.current) return;
@@ -242,20 +257,17 @@ export function JpClassNotesEditModal({
         return;
       }
 
-      if (!sessionTsRef.current) {
-        sessionTsRef.current = formatBeijingClassNoteTimestamp();
-        setSessionTs(sessionTsRef.current);
-      }
-
-      const target = editTargetRef.current;
-      const nextNotes =
-        target.mode === "index"
-          ? replaceJpVocabClassNoteAtIndex(current.class_notes, target.index, trimmed)
-          : upsertJpVocabClassNoteSession(
-              current.class_notes,
-              sessionTsRef.current,
-              trimmed
-            );
+      const saved = saveJpVocabClassNoteDraft(
+        current.class_notes,
+        editTargetRef.current,
+        sessionTsRef.current,
+        trimmed
+      );
+      sessionTsRef.current = saved.sessionTimestamp;
+      setSessionTs(saved.sessionTimestamp);
+      editTargetRef.current = saved.nextTarget;
+      setEditTarget(saved.nextTarget);
+      const nextNotes = saved.nextNotes;
 
       setSaveStatus("saving");
       const snapshot = current;
@@ -323,20 +335,30 @@ export function JpClassNotesEditModal({
         editTargetRef.current = { mode: "new" };
         setEditTarget({ mode: "new" });
       } else if (
-        editTargetRef.current.mode === "index" &&
-        editTargetRef.current.index === index
+        editTargetRef.current.mode === "existing-timestamp" &&
+        removed.timestamp === editTargetRef.current.originalTimestamp
+      ) {
+        sessionTsRef.current = null;
+        setSessionTs(null);
+        editTargetRef.current = { mode: "new" };
+        setEditTarget({ mode: "new" });
+        setDraft("");
+        lastSavedDraftRef.current = "";
+      } else if (
+        editTargetRef.current.mode === "existing-index" &&
+        editTargetRef.current.originalIndex === index
       ) {
         editTargetRef.current = { mode: "new" };
         setEditTarget({ mode: "new" });
         setDraft("");
         lastSavedDraftRef.current = "";
       } else if (
-        editTargetRef.current.mode === "index" &&
-        editTargetRef.current.index > index
+        editTargetRef.current.mode === "existing-index" &&
+        editTargetRef.current.originalIndex > index
       ) {
         editTargetRef.current = {
-          mode: "index",
-          index: editTargetRef.current.index - 1,
+          mode: "existing-index",
+          originalIndex: editTargetRef.current.originalIndex - 1,
         };
         setEditTarget(editTargetRef.current);
       }
@@ -407,23 +429,31 @@ export function JpClassNotesEditModal({
     dirtyRef.current = false;
     setSaveStatus("saved");
     setError("");
+    sessionTsRef.current = null;
+    setSessionTs(null);
 
-    if (entry.timestamp) {
-      sessionTsRef.current = entry.timestamp;
-      setSessionTs(entry.timestamp);
-      editTargetRef.current = { mode: "timestamp", timestamp: entry.timestamp };
-      setEditTarget({ mode: "timestamp", timestamp: entry.timestamp });
-    } else {
-      sessionTsRef.current = null;
-      setSessionTs(null);
-      editTargetRef.current = { mode: "index", index };
-      setEditTarget({ mode: "index", index });
-    }
+    const target = editTargetForEntry(entry, index);
+    editTargetRef.current = target;
+    setEditTarget(target);
 
     requestAnimationFrame(() => {
       textareaRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
       textareaRef.current?.focus();
     });
+  }, []);
+
+  const handleStartNewNote = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setDraft("");
+    lastSavedDraftRef.current = "";
+    sessionTsRef.current = null;
+    setSessionTs(null);
+    editTargetRef.current = { mode: "new" };
+    setEditTarget({ mode: "new" });
+    dirtyRef.current = false;
+    setSaveStatus("idle");
+    setError("");
+    requestAnimationFrame(() => textareaRef.current?.focus());
   }, []);
 
   const uploadNoteImage = useCallback(
@@ -590,18 +620,33 @@ export function JpClassNotesEditModal({
 
   const isEntryHiddenInHistory = (entry: JpVocabClassNoteEntry, index: number) => {
     if (sessionTs && entry.timestamp === sessionTs) return true;
-    if (editTarget.mode === "index" && editTarget.index === index) return true;
+    if (
+      editTarget.mode === "existing-timestamp" &&
+      entry.timestamp === editTarget.originalTimestamp
+    ) {
+      return true;
+    }
+    if (editTarget.mode === "existing-index" && editTarget.originalIndex === index) {
+      return true;
+    }
     return false;
   };
 
   const editingHint =
-    editTarget.mode === "timestamp"
-      ? `正在编辑 ${editTarget.timestamp} 的备注`
-      : editTarget.mode === "index"
-        ? "正在编辑本条备注"
+    editTarget.mode === "existing-timestamp"
+      ? `正在编辑 ${editTarget.originalTimestamp} 的备注，保存后将更新为当前编辑时间`
+      : editTarget.mode === "existing-index"
+        ? "正在编辑本条备注，保存后将更新为当前编辑时间"
         : sessionTs
-          ? `正在编辑 ${sessionTs} 的备注`
+          ? `最后编辑：${sessionTs}`
           : null;
+
+  const showNewNoteButton =
+    canEdit &&
+    (historyEntries.length > 0 ||
+      editTarget.mode !== "new" ||
+      Boolean(draft.trim()) ||
+      sessionTs != null);
 
   return createPortal(
     <>
@@ -687,6 +732,15 @@ export function JpClassNotesEditModal({
                     <p className="jp-notes-edit-editing-hint">{editingHint}</p>
                   ) : null}
                   <div className="jp-notes-edit-compose-toolbar">
+                    {showNewNoteButton ? (
+                      <button
+                        type="button"
+                        className="btn-rsi-filter btn-rsi-filter--compact"
+                        onClick={handleStartNewNote}
+                      >
+                        新建备注
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="btn-rsi-filter btn-rsi-filter--compact"
