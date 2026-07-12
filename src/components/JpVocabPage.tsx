@@ -3789,12 +3789,15 @@ export function JpVocabPage() {
           gap: 0.35rem;
         }
         .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn) {
-          color: #f0a840;
-          border-color: color-mix(in srgb, #f0a840 45%, var(--border));
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+          font-weight: 600;
         }
         .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn):hover {
-          color: #ffc860;
-          border-color: color-mix(in srgb, #f0a840 65%, var(--border));
+          color: var(--accent);
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 16%, var(--panel));
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;
