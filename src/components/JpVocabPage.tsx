@@ -29,6 +29,7 @@ import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
 import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
+import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
 import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
