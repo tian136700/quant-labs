@@ -18,7 +18,12 @@ import {
   jpVocabTeacherQuizNotesInline,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
-import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
+import {
+  jpVocabSaveProgressDisplayPercent,
+  jpVocabSaveProgressLabel,
+  type JpVocabSaveProgressKind,
+} from "@/lib/jp-vocab-save-progress";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -233,16 +238,17 @@ export function JpVocabTeacherQuizFlashcardModal({
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
   const saveBusy = isSharing || isQueued || isSyncing;
+  const saveProgressKind: JpVocabSaveProgressKind = isShared
+    ? "save_level"
+    : selected
+      ? "sync_to_student"
+      : "share";
+  const saveProgressLabel = jpVocabSaveProgressLabel(saveProgressKind, {
+    queued: isQueued && !isSyncing,
+  });
   const saveProgressPercent = isSharing
     ? sharingPercent
-    : JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT;
-  const saveProgressLabel = isQueued
-    ? "排队同步中…"
-    : isShared
-      ? "正在保存熟悉程度…"
-      : selected
-        ? "正在同步到学生端…"
-        : "正在发给学生，传输中…";
+    : jpVocabSaveProgressDisplayPercent(null);
   const levelSyncHintShort = isShared
     ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
     : JP_VOCAB_LEVEL_SYNC_HINT_SHORT;
@@ -515,22 +521,12 @@ export function JpVocabTeacherQuizFlashcardModal({
             </span>
           </div>
           {saveBusy ? (
-            <div className="jp-vocab-share-progress jp-vocab-teacher-quiz__level-progress" aria-live="polite">
-              <span className="jp-vocab-share-progress-label">{saveProgressLabel}</span>
-              <div
-                className="jp-vocab-share-progress-track"
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={saveProgressPercent}
-                aria-label={saveProgressLabel}
-              >
-                <div
-                  className="jp-vocab-share-progress-fill"
-                  style={{ width: `${saveProgressPercent}%` }}
-                />
-              </div>
-            </div>
+            <JpVocabSaveProgressBar
+              label={saveProgressLabel}
+              percent={saveProgressPercent}
+              fullWidth
+              className="jp-vocab-teacher-quiz__level-progress"
+            />
           ) : null}
         </div>
 
@@ -960,39 +956,6 @@ export function JpVocabTeacherQuizFlashcardModal({
         .jp-vocab-teacher-quiz__share-btn--unshare:hover:not(:disabled) {
           color: var(--text);
           border-color: color-mix(in srgb, #f0a840 45%, var(--border));
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.3rem;
-          width: 100%;
-          padding: 0.35rem 0.45rem;
-          border-radius: 6px;
-          border: 1px solid color-mix(in srgb, #f0a840 45%, var(--border));
-          background: color-mix(in srgb, var(--panel) 90%, #f0a840 10%);
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress-label {
-          font-size: 0.75rem;
-          line-height: 1.3;
-          color: #f0a840;
-          text-align: center;
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress-track {
-          height: 0.4rem;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--border) 70%, transparent);
-          overflow: hidden;
-        }
-        .jp-vocab-teacher-quiz-card .jp-vocab-share-progress-fill {
-          height: 100%;
-          border-radius: inherit;
-          background: linear-gradient(
-            90deg,
-            color-mix(in srgb, #f0a840 80%, #fff),
-            #f0a840
-          );
-          transition: width 0.2s linear;
         }
         .jp-vocab-teacher-quiz__level-progress {
           margin-top: 0.35rem;

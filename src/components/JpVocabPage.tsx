@@ -116,9 +116,12 @@ import {
 import { JP_VOCAB_MANUAL_ADD_ENABLED, JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
   animateJpVocabSaveProgressTo100,
+  jpVocabSaveProgressDisplayPercent,
+  jpVocabSaveProgressLabel,
   jpVocabSaveProgressPercent,
   JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
 } from "@/lib/jp-vocab-save-progress";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
 function readVocabCache(): JpVocabApiPayload | null {
@@ -2670,36 +2673,19 @@ export function JpVocabPage() {
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         {isSharing || isQueued || isSyncing ? (
-                          <div className="jp-vocab-share-progress" aria-live="polite">
-                            <span className="jp-vocab-share-progress-label">
-                              {isQueued
-                                ? "排队同步中…"
-                                : sharedTodayWordIds.has(w.id)
-                                  ? "正在保存熟悉程度…"
-                                  : "正在同步到学生端…"}
-                            </span>
-                            <div
-                              className="jp-vocab-share-progress-track"
-                              role="progressbar"
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={
-                                isSharing ? sharingPercent : JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT
-                              }
-                              aria-label="保存进度"
-                            >
-                              <div
-                                className="jp-vocab-share-progress-fill"
-                                style={{
-                                  width: `${
-                                    isSharing
-                                      ? sharingPercent
-                                      : JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT
-                                  }%`,
-                                }}
-                              />
-                            </div>
-                          </div>
+                          <JpVocabSaveProgressBar
+                            label={jpVocabSaveProgressLabel(
+                              sharedTodayWordIds.has(w.id)
+                                ? "save_level"
+                                : "sync_to_student",
+                              { queued: isQueued && !isSyncing }
+                            )}
+                            percent={
+                              isSharing
+                                ? sharingPercent
+                                : jpVocabSaveProgressDisplayPercent(null)
+                            }
+                          />
                         ) : !inQuizTarget ? (
                           <span
                             className="jp-vocab-level-unavailable"
@@ -2981,24 +2967,10 @@ export function JpVocabPage() {
                                       取消共享
                                     </button>
                                 ) : isSharing ? (
-                                  <div className="jp-vocab-share-progress" aria-live="polite">
-                                    <span className="jp-vocab-share-progress-label">
-                                      正在发给学生，传输中…
-                                    </span>
-                                    <div
-                                      className="jp-vocab-share-progress-track"
-                                      role="progressbar"
-                                      aria-valuemin={0}
-                                      aria-valuemax={100}
-                                      aria-valuenow={sharingPercent}
-                                      aria-label="发给学生进度"
-                                    >
-                                      <div
-                                        className="jp-vocab-share-progress-fill"
-                                        style={{ width: `${sharingPercent}%` }}
-                                      />
-                                    </div>
-                                  </div>
+                                  <JpVocabSaveProgressBar
+                                    label={jpVocabSaveProgressLabel("share")}
+                                    percent={sharingPercent}
+                                  />
                                 ) : (
                                   <div className="jp-vocab-share-stack">
                                     <button
@@ -3823,41 +3795,6 @@ export function JpVocabPage() {
         .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn):hover {
           color: #ffc860;
           border-color: color-mix(in srgb, #f0a840 65%, var(--border));
-        }
-        .jp-vocab-share-progress {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.3rem;
-          min-width: 7.5rem;
-          max-width: 11rem;
-          padding: 0.35rem 0.45rem;
-          border-radius: 6px;
-          border: 1px solid color-mix(in srgb, #f0a840 45%, var(--border));
-          background: color-mix(in srgb, var(--panel) 90%, #f0a840 10%);
-        }
-        .jp-vocab-share-progress-label {
-          font-size: 0.75rem;
-          line-height: 1.3;
-          color: #f0a840;
-          text-align: center;
-          white-space: nowrap;
-        }
-        .jp-vocab-share-progress-track {
-          height: 0.4rem;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--border) 70%, transparent);
-          overflow: hidden;
-        }
-        .jp-vocab-share-progress-fill {
-          height: 100%;
-          border-radius: inherit;
-          background: linear-gradient(
-            90deg,
-            color-mix(in srgb, #f0a840 80%, #fff),
-            #f0a840
-          );
-          transition: width 0.2s linear;
         }
         :global(.jp-vocab-table .jp-vocab-kind-col) {
           white-space: nowrap;
