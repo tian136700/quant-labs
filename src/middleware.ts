@@ -154,6 +154,19 @@ function redirectStoreReviewToFoodSubdomain(
 }
 
 export function middleware(request: NextRequest) {
+  // Global maintenance switch:
+  // MAINTENANCE_MODE === "1" → normal service
+  // MAINTENANCE_MODE === "0" → maintenance mode (short‑circuit everything)
+  if (process.env.MAINTENANCE_MODE === "0") {
+    return new NextResponse("站点维护中，请稍后再试。", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const host = request.headers.get("host");
 
   if (isTrendBlogSubdomainHost(host)) {

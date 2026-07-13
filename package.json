@@ -24,6 +24,8 @@
     "cf:deploy": "opennextjs-cloudflare deploy",
     "deploy": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "deploy:clean": "python3 scripts/predeploy-clean.py --clean-next && NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "maintenance:on": "npx wrangler deploy --keep-vars --var MAINTENANCE_MODE:0",
+    "maintenance:off": "npx wrangler deploy --keep-vars --var MAINTENANCE_MODE:1",
     "cf:preview": "NODE_ENV=production opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "db:migrate:local": "wrangler d1 execute strategy-compare-db --local --file=./schema.sql",
     "db:migrate:remote": "wrangler d1 execute strategy-compare-db --remote --file=./schema.sql",

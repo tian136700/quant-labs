@@ -59,9 +59,9 @@ NEXT_PUBLIC_JP_SITE_HOST = "japanese.info-quests.com"
 NEXT_PUBLIC_JP_SITE_URL = "https://japanese.info-quests.com"
 # 登录 Cookie 共享到所有 *.info-quests.com 子域名
 ETR_COOKIE_DOMAIN = ".info-quests.com"
-# 全站维护模式：设为 "1" 时，所有请求直接返回「站点维护中」
+# 全站维护模式：MAINTENANCE_MODE="1" 正常；"0" 进入维护
 # 部署后可在 Dashboard → Workers → quant-labs → Settings → Variables 中在线调整
-MAINTENANCE_MODE = "0"
+MAINTENANCE_MODE = "1"
 # Google Search Console HTML 验证（填 meta content 值，部署后回 GSC 点「验证」）
 # FOOD_GOOGLE_SITE_VERIFICATION = "在这里粘贴 Google 给你的验证码"
 # BLOG_GOOGLE_SITE_VERIFICATION = "blog 子域名验证码（也可 DNS 验证 blog.info-quests.com）"
