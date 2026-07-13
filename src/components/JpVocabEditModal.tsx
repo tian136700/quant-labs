@@ -730,21 +730,6 @@ export function JpVocabEditModal({
             {canEdit ? (
               <button
                 type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact"
-                disabled={uploadingRef || !newRefFile || !currentRefKey}
-                onClick={() => void saveRef()}
-                title={
-                  currentRefKey
-                    ? "替换这个共享教案地址对应的文件"
-                    : "当前词条还没绑定教案地址"
-                }
-              >
-                {uploadingRef ? "上传中…" : "保存教案"}
-              </button>
-            ) : null}
-            {canEdit ? (
-              <button
-                type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
                 onClick={save}
               >
