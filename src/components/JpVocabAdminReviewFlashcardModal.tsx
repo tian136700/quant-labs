@@ -77,13 +77,20 @@ export function JpVocabAdminReviewFlashcardModal({
     setMounted(true);
   }, []);
 
+  const sessionWordIdsKey = session?.wordIds.join(",") ?? "";
+
+  useEffect(() => {
+    if (open) {
+      setContentExpanded(false);
+    }
+  }, [open, sessionWordIdsKey]);
+
   useEffect(() => {
     if (!open || !word) {
       setNotesWord(null);
       return;
     }
     setNotesWord(word);
-    setContentExpanded(false);
   }, [open, word?.id, word?.updated_at, word]);
 
   useEffect(() => {
