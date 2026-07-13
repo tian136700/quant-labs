@@ -2996,3 +2996,8 @@ textarea:focus {
   color: var(--muted);
   line-height: 1.35;
 }
+
+/* jp-vocab：手机端专用块默认隐藏（JpVocabPageStyles 失效时的兜底） */
+.jp-vocab-page .jp-vocab-mobile-only {
+  display: none;
+}

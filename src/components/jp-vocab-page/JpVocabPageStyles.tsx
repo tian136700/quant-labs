@@ -2,7 +2,7 @@
 
 export function JpVocabPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
         :global(.page-wrap:has(.jp-vocab-page)) {
           max-width: min(1480px, 96vw);
         }
@@ -891,12 +891,18 @@ export function JpVocabPageStyles() {
             width: 100%;
           }
           .jp-vocab-toolbar-summary {
+            display: block;
+            width: 100%;
             font-size: 0.9375rem;
             line-height: 1.45;
           }
           .jp-vocab-toolbar-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             width: 100%;
             min-height: 2.75rem;
+            flex-shrink: 0;
           }
           .jp-vocab-toolbar-actions {
             display: none;
