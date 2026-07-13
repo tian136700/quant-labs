@@ -10,26 +10,25 @@ import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
 export type JpVocabExportScope = "all" | "today_weak";
 
-function classNotesToExportText(raw: string | null | undefined): string {
-  const entries = parseJpVocabClassNotes(raw);
-  if (!entries.length) return "";
+/** 备注图片每行最多几张 */
+const EXPORT_IMAGES_PER_ROW = 3;
+/** 图片超过此行数时，该词条独占一页 */
+const EXPORT_OWN_PAGE_MIN_IMAGES = 4;
 
-  return entries
-    .map((entry) => {
-      const body = parseJpVocabClassNoteContent(entry.content)
-        .map((segment) => {
-          if (segment.type === "text") return segment.text.trim();
-          return "[图片]";
-        })
-        .filter(Boolean)
-        .join("\n");
-      if (!body) return "";
-      if (entry.timestamp) return `${entry.timestamp}\n${body}`;
-      return body;
-    })
-    .filter(Boolean)
-    .join("\n\n");
-}
+/** A4 内容区约宽（px，与教案分页导出一致） */
+const EXPORT_CONTENT_WIDTH_PX = 642;
+const EXPORT_IMAGE_CELL_GAP_PX = 8;
+const EXPORT_IMAGE_MAX_HEIGHT_PX = 220;
+
+type NoteImagePayload = {
+  data: Uint8Array;
+  width: number;
+  height: number;
+  type: "png" | "jpg";
+};
+
+type DocxModule = typeof import("docx");
+type DocxChild = InstanceType<DocxModule["Paragraph"]> | InstanceType<DocxModule["Table"]>;
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -40,22 +39,151 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-function cellParagraphs(
-  text: string,
-  Paragraph: typeof import("docx").Paragraph,
-  TextRun: typeof import("docx").TextRun,
-  opts?: { bold?: boolean; size?: number }
+function calcImageDrawSize(
+  imgW: number,
+  imgH: number,
+  maxW: number,
+  maxH: number
+): { width: number; height: number } {
+  let drawW = maxW;
+  let drawH = (imgH / imgW) * drawW;
+  if (drawH > maxH) {
+    drawH = maxH;
+    drawW = (imgW / imgH) * drawH;
+  }
+  return { width: Math.round(drawW), height: Math.round(drawH) };
+}
+
+function imageTypeFromContentType(contentType: string | null): "png" | "jpg" {
+  if (contentType?.includes("jpeg") || contentType?.includes("jpg")) return "jpg";
+  return "png";
+}
+
+async function readImageDimensions(
+  data: Uint8Array,
+  type: "png" | "jpg"
+): Promise<{ width: number; height: number }> {
+  const mime = type === "jpg" ? "image/jpeg" : "image/png";
+  const blob = new Blob([data.slice()], { type: mime });
+  const url = URL.createObjectURL(blob);
+  try {
+    const bitmap = await createImageBitmap(blob);
+    bitmap.close();
+    return { width: bitmap.width, height: bitmap.height };
+  } catch {
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => reject(new Error("图片尺寸读取失败"));
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function fetchNoteImage(src: string): Promise<NoteImagePayload | null> {
+  try {
+    const url = src.startsWith("http")
+      ? src
+      : `${window.location.origin}${src.startsWith("/") ? src : `/${src}`}`;
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (!res.ok) return null;
+    const type = imageTypeFromContentType(res.headers.get("Content-Type"));
+    const buffer = await res.arrayBuffer();
+    const data = new Uint8Array(buffer);
+    const { width, height } = await readImageDimensions(data, type);
+    return { data, width, height, type };
+  } catch {
+    return null;
+  }
+}
+
+function collectNoteImageSrcs(words: JpVocabWord[]): string[] {
+  const seen = new Set<string>();
+  const srcs: string[] = [];
+  for (const word of words) {
+    for (const entry of parseJpVocabClassNotes(word.class_notes)) {
+      for (const segment of parseJpVocabClassNoteContent(entry.content)) {
+        if (segment.type !== "image" || seen.has(segment.src)) continue;
+        seen.add(segment.src);
+        srcs.push(segment.src);
+      }
+    }
+  }
+  return srcs;
+}
+
+async function prefetchNoteImages(
+  words: JpVocabWord[]
+): Promise<Map<string, NoteImagePayload>> {
+  const srcs = collectNoteImageSrcs(words);
+  const entries = await Promise.all(
+    srcs.map(async (src) => [src, await fetchNoteImage(src)] as const)
+  );
+  const map = new Map<string, NoteImagePayload>();
+  for (const [src, payload] of entries) {
+    if (payload) map.set(src, payload);
+  }
+  return map;
+}
+
+function countWordNoteImages(word: JpVocabWord): number {
+  let count = 0;
+  for (const entry of parseJpVocabClassNotes(word.class_notes)) {
+    for (const segment of parseJpVocabClassNoteContent(entry.content)) {
+      if (segment.type === "image") count++;
+    }
+  }
+  return count;
+}
+
+function labeledParagraph(
+  docx: DocxModule,
+  label: string,
+  value: string,
+  opts?: { valueBold?: boolean; valueSize?: number; after?: number }
 ) {
-  const lines = (text || "—").split("\n");
-  return lines.map(
-    (line, index) =>
+  const { Paragraph, TextRun } = docx;
+  return new Paragraph({
+    spacing: opts?.after != null ? { after: opts.after } : { after: 60 },
+    children: [
+      new TextRun({
+        text: `${label}：`,
+        bold: true,
+        size: 20,
+        font: "Microsoft YaHei",
+      }),
+      new TextRun({
+        text: value.trim() || "—",
+        bold: opts?.valueBold,
+        size: opts?.valueSize ?? 22,
+        font: "Microsoft YaHei",
+      }),
+    ],
+  });
+}
+
+function textParagraphs(
+  docx: DocxModule,
+  text: string,
+  opts?: { size?: number; color?: string; spacingAfter?: number }
+) {
+  const { Paragraph, TextRun } = docx;
+  return text.split("\n").map(
+    (line, index, lines) =>
       new Paragraph({
-        spacing: index < lines.length - 1 ? { after: 80 } : undefined,
+        spacing:
+          index < lines.length - 1
+            ? { after: 40 }
+            : opts?.spacingAfter != null
+              ? { after: opts.spacingAfter }
+              : undefined,
         children: [
           new TextRun({
             text: line || " ",
-            bold: opts?.bold,
             size: opts?.size ?? 20,
+            color: opts?.color,
             font: "Microsoft YaHei",
           }),
         ],
@@ -63,75 +191,237 @@ function cellParagraphs(
   );
 }
 
-function buildExportTable(
-  words: JpVocabWord[],
-  docx: typeof import("docx"),
-  dailySeqByWordId: Map<number, number>
-) {
+function buildNoteImageGrid(
+  docx: DocxModule,
+  images: NoteImagePayload[]
+): InstanceType<DocxModule["Table"]> {
   const {
+    AlignmentType,
     BorderStyle,
+    ImageRun,
     Paragraph,
     Table,
     TableCell,
     TableRow,
-    TextRun,
-    VerticalAlign,
     WidthType,
   } = docx;
 
-  const border = { style: BorderStyle.SINGLE, size: 1, color: "B8B8B8" };
-  const borders = { top: border, bottom: border, left: border, right: border };
+  const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+  const borders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder };
+  const cellWidthPx =
+    (EXPORT_CONTENT_WIDTH_PX - EXPORT_IMAGE_CELL_GAP_PX * (EXPORT_IMAGES_PER_ROW - 1)) /
+    EXPORT_IMAGES_PER_ROW;
+  const colPercent = Math.floor(100 / EXPORT_IMAGES_PER_ROW);
+  const rows: InstanceType<DocxModule["TableRow"]>[] = [];
 
-  const headerRow = new TableRow({
-    tableHeader: true,
-    children: ["序号", "ID", "单词 / 语法", "读音", "释义", "词性", "备注"].map(
-      (label) =>
-        new TableCell({
-          borders,
-          verticalAlign: VerticalAlign.CENTER,
-          width: { size: label === "备注" ? 22 : 11, type: WidthType.PERCENTAGE },
-          children: cellParagraphs(label, Paragraph, TextRun, { bold: true, size: 20 }),
-        })
-    ),
-  });
-
-  const dataRows = words.map((word, index) => {
-    const seq = dailySeqByWordId.get(word.id);
-    const kindLabel = word.kind === "grammar" ? "语法" : "";
-    const wordText = kindLabel ? `${word.word}（${kindLabel}）` : word.word;
-    const columns = [
-      seq != null ? String(seq) : String(index + 1),
-      String(word.id),
-      wordText,
-      word.reading?.trim() || "—",
-      word.meaning?.trim() || "—",
-      word.pos?.trim() || "—",
-      classNotesToExportText(word.class_notes) || "—",
-    ];
-
-    return new TableRow({
-      children: columns.map(
-        (value, colIndex) =>
+  for (let row = 0; row < Math.ceil(images.length / EXPORT_IMAGES_PER_ROW); row++) {
+    const cells: InstanceType<DocxModule["TableCell"]>[] = [];
+    for (let col = 0; col < EXPORT_IMAGES_PER_ROW; col++) {
+      const image = images[row * EXPORT_IMAGES_PER_ROW + col];
+      if (image) {
+        const { width, height } = calcImageDrawSize(
+          image.width,
+          image.height,
+          cellWidthPx,
+          EXPORT_IMAGE_MAX_HEIGHT_PX
+        );
+        cells.push(
           new TableCell({
             borders,
-            verticalAlign: VerticalAlign.TOP,
-            width: {
-              size: colIndex === 6 ? 22 : 11,
-              type: WidthType.PERCENTAGE,
-            },
-            children: cellParagraphs(value, Paragraph, TextRun, {
-              size: colIndex <= 2 ? 22 : 20,
-              bold: colIndex === 2,
-            }),
+            width: { size: colPercent, type: WidthType.PERCENTAGE },
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 80 },
+                children: [
+                  new ImageRun({
+                    type: image.type,
+                    data: image.data,
+                    transformation: { width, height },
+                  }),
+                ],
+              }),
+            ],
           })
-      ),
-    });
-  });
+        );
+      } else {
+        cells.push(
+          new TableCell({
+            borders,
+            width: { size: colPercent, type: WidthType.PERCENTAGE },
+            children: [new Paragraph({ children: [] })],
+          })
+        );
+      }
+    }
+    rows.push(new TableRow({ children: cells }));
+  }
 
   return new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [headerRow, ...dataRows],
+    rows,
   });
+}
+
+function buildNoteEntryBlocks(
+  docx: DocxModule,
+  content: string,
+  imageCache: Map<string, NoteImagePayload>
+): DocxChild[] {
+  const { Paragraph, TextRun } = docx;
+  const segments = parseJpVocabClassNoteContent(content);
+  const blocks: DocxChild[] = [];
+  let pendingImages: NoteImagePayload[] = [];
+
+  const flushImages = () => {
+    if (!pendingImages.length) return;
+    blocks.push(buildNoteImageGrid(docx, pendingImages));
+    pendingImages = [];
+  };
+
+  for (const segment of segments) {
+    if (segment.type === "text") {
+      flushImages();
+      const trimmed = segment.text.trim();
+      if (trimmed) {
+        blocks.push(...textParagraphs(docx, trimmed, { spacingAfter: 80 }));
+      }
+      continue;
+    }
+
+    const image = imageCache.get(segment.src);
+    if (image) {
+      pendingImages.push(image);
+    } else {
+      flushImages();
+      blocks.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "[图片加载失败]",
+              size: 18,
+              color: "999999",
+              font: "Microsoft YaHei",
+            }),
+          ],
+        })
+      );
+    }
+  }
+
+  flushImages();
+  return blocks;
+}
+
+function buildWordBlock(
+  docx: DocxModule,
+  word: JpVocabWord,
+  index: number,
+  dailySeqByWordId: Map<number, number>,
+  imageCache: Map<string, NoteImagePayload>,
+  opts: { pageBreakBefore: boolean }
+): DocxChild[] {
+  const { BorderStyle, convertMillimetersToTwip, PageBreak, Paragraph, TextRun } = docx;
+  const seq = dailySeqByWordId.get(word.id);
+  const kindLabel = word.kind === "grammar" ? "语法" : "";
+  const wordText = kindLabel ? `${word.word}（${kindLabel}）` : word.word;
+  const header =
+    seq != null ? `序号 ${seq} · ID ${word.id}` : `ID ${word.id}`;
+
+  const blocks: DocxChild[] = [];
+
+  if (opts.pageBreakBefore) {
+    blocks.push(new Paragraph({ children: [new PageBreak()] }));
+  }
+
+  blocks.push(
+    new Paragraph({
+      spacing: { after: 100 },
+      children: [
+        new TextRun({
+          text: header,
+          bold: true,
+          size: 24,
+          font: "Microsoft YaHei",
+        }),
+      ],
+    }),
+    labeledParagraph(docx, "单词 / 语法", wordText, { valueBold: true, valueSize: 28 }),
+    labeledParagraph(docx, "读音", word.reading?.trim() || "—"),
+    labeledParagraph(docx, "释义", word.meaning?.trim() || "—"),
+    labeledParagraph(docx, "词性", word.pos?.trim() || "—", { after: 80 })
+  );
+
+  const noteEntries = parseJpVocabClassNotes(word.class_notes);
+  if (noteEntries.length) {
+    blocks.push(
+      new Paragraph({
+        spacing: { after: 60 },
+        children: [
+          new TextRun({
+            text: "备注：",
+            bold: true,
+            size: 20,
+            font: "Microsoft YaHei",
+          }),
+        ],
+      })
+    );
+
+    noteEntries.forEach((entry, entryIndex) => {
+      if (entry.timestamp) {
+        blocks.push(
+          ...textParagraphs(docx, entry.timestamp, {
+            size: 18,
+            color: "666666",
+            spacingAfter: 60,
+          })
+        );
+      }
+      blocks.push(...buildNoteEntryBlocks(docx, entry.content, imageCache));
+      if (entryIndex < noteEntries.length - 1) {
+        blocks.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+      }
+    });
+  }
+
+  blocks.push(
+    new Paragraph({
+      spacing: {
+        before: convertMillimetersToTwip(index === 0 ? 2 : 4),
+        after: convertMillimetersToTwip(4),
+      },
+      border: {
+        bottom: { style: BorderStyle.SINGLE, size: 4, color: "D8D8D8" },
+      },
+      children: [],
+    })
+  );
+
+  return blocks;
+}
+
+async function buildExportWordBlocks(
+  words: JpVocabWord[],
+  docx: DocxModule,
+  dailySeqByWordId: Map<number, number>
+): Promise<DocxChild[]> {
+  const imageCache = await prefetchNoteImages(words);
+  const blocks: DocxChild[] = [];
+
+  words.forEach((word, index) => {
+    const imageCount = countWordNoteImages(word);
+    const pageBreakBefore =
+      index > 0 && imageCount >= EXPORT_OWN_PAGE_MIN_IMAGES;
+    blocks.push(
+      ...buildWordBlock(docx, word, index, dailySeqByWordId, imageCache, {
+        pageBreakBefore,
+      })
+    );
+  });
+
+  return blocks;
 }
 
 /** 今日抽查后勾选为「一般」或「不熟悉」的词条（用于次日带读） */
@@ -196,6 +486,8 @@ export async function exportJpVocabToWord(
       ? `${date} · 含今日抽查勾选为「一般」「不熟悉」的词条，便于次日课堂带读`
       : `${date} · 共 ${words.length} 条`;
 
+  const wordBlocks = await buildExportWordBlocks(words, docx, dailySeqByWordId);
+
   const children = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -221,7 +513,7 @@ export async function exportJpVocabToWord(
         }),
       ],
     }),
-    buildExportTable(words, docx, dailySeqByWordId),
+    ...wordBlocks,
   ];
 
   const doc = new Document({
