@@ -159,6 +159,13 @@ async function refKeyExists(db: D1Database, refKey: string): Promise<boolean> {
   return Boolean(row?.ok);
 }
 
+function lessonContentMatchesNormalized(
+  storedContent: string,
+  normalizedContent: string
+): boolean {
+  return normalizeLessonContentForStorage(storedContent) === normalizedContent;
+}
+
 async function enLessonContentExists(
   db: D1Database,
   kind: EnLessonKind,
@@ -168,15 +175,24 @@ async function enLessonContentExists(
     return devLessons.some(
       (lesson) =>
         lesson.kind === kind &&
-        normalizeLessonContentForStorage(lesson.content) === normalizedContent
+        lessonContentMatchesNormalized(lesson.content, normalizedContent)
     );
   }
 
-  const row = await db
+  const exact = await db
     .prepare("SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 LIMIT 1")
     .bind(kind, normalizedContent)
     .first<{ ok: number }>();
-  return Boolean(row?.ok);
+  if (exact?.ok) return true;
+
+  const result = await db
+    .prepare("SELECT content FROM en_lesson WHERE kind = ?1")
+    .bind(kind)
+    .all<{ content: string }>();
+
+  return (result.results ?? []).some((row) =>
+    lessonContentMatchesNormalized(String(row.content), normalizedContent)
+  );
 }
 
 export async function listEnLessons(db: D1Database): Promise<EnLessonRecord[]> {

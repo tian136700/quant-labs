@@ -14,6 +14,7 @@ import {
 } from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonTeacher } from "@/lib/types";
 import {
+  beijingTodayDateString,
   formatNextClassHalfHourLabel,
   JP_LESSON_CLASS_DURATION_MINUTES,
   listNextClassHalfHourTimes,
@@ -57,7 +58,7 @@ function draftFromSchedule(
   if (!schedule) {
     return {
       title: "",
-      date: initialDate,
+      date: initialDate || beijingTodayDateString(),
       time: "",
       duration: "",
       teacher: "",
@@ -69,7 +70,7 @@ function draftFromSchedule(
   const parts = local ? splitNextClassAtLocalValue(local) : null;
   return {
     title: schedule.title,
-    date: parts?.date ?? initialDate,
+    date: parts?.date ?? initialDate || beijingTodayDateString(),
     time: parts?.time ?? "",
     duration: schedule.duration_minutes != null ? String(schedule.duration_minutes) : "",
     teacher: schedule.teacher,

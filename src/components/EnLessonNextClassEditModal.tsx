@@ -6,6 +6,7 @@ import { EnLessonHalfHourTimeGridPicker } from "@/components/EnLessonHalfHourTim
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
+  beijingTodayDateString,
   formatNextClassHalfHourLabel,
   getLessonClassSchedules,
   JP_LESSON_CLASS_DURATION_MINUTES,
@@ -43,7 +44,12 @@ function createRowKey(): string {
 }
 
 function emptyRow(): ScheduleRow {
-  return { key: createRowKey(), date: "", time: "", duration: "" };
+  return {
+    key: createRowKey(),
+    date: beijingTodayDateString(),
+    time: "",
+    duration: "",
+  };
 }
 
 function rowsFromLesson(lesson: EnLessonRecord): ScheduleRow[] {

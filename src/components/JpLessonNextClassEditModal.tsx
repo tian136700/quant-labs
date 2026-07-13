@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
 import {
+  beijingTodayDateString,
   formatNextClassHalfHourLabel,
   getLessonClassSchedules,
   JP_LESSON_CLASS_DURATION_MINUTES,
@@ -41,7 +42,12 @@ function createRowKey(): string {
 }
 
 function emptyRow(): ScheduleRow {
-  return { key: createRowKey(), date: "", time: "", duration: "" };
+  return {
+    key: createRowKey(),
+    date: beijingTodayDateString(),
+    time: "",
+    duration: "",
+  };
 }
 
 function rowsFromLesson(lesson: JpLessonRecord): ScheduleRow[] {
