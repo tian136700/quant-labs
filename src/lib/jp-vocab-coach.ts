@@ -37,6 +37,22 @@ export function isJpVocabCoachDateWithinRetention(
   return trimmed >= jpVocabCoachRetentionCutoffDate(now, retentionDays);
 }
 
+/** 课堂带读默认日期：优先今天；今天无数据时取线上最近一批 */
+export function resolveJpVocabCoachDefaultDate(
+  batches: Array<{ coach_date: string; item_count: number }>,
+  now = new Date()
+): string {
+  const today = beijingDateString(now);
+  if (!isJpVocabCoachDateWithinRetention(today, now)) {
+    return batches[0]?.coach_date ?? today;
+  }
+  const todayHasData = batches.some(
+    (batch) => batch.coach_date === today && batch.item_count > 0
+  );
+  if (todayHasData) return today;
+  return batches[0]?.coach_date ?? today;
+}
+
 export function jpVocabCoachLevelLabel(level: JpVocabLevel): string {
   if (level === "weak") return "不熟悉";
   if (level === "normal") return "一般";

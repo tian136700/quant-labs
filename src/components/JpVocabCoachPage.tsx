@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
@@ -15,6 +15,7 @@ import {
   JP_VOCAB_COACH_RETENTION_DAYS,
   isJpVocabCoachDateWithinRetention,
   jpVocabCoachLevelLabel,
+  resolveJpVocabCoachDefaultDate,
 } from "@/lib/jp-vocab-coach";
 import type { JpVocabCoachBatchSummary, JpVocabCoachItem } from "@/lib/jp-vocab-coach-db";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
@@ -28,6 +29,13 @@ export function JpVocabCoachPage() {
   const { locale } = useI18n();
   const { user, checking, openAuthPanel } = useEtrAuth();
 
+  const hasUrlDateRef = useRef(
+    typeof window !== "undefined" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(
+        new URLSearchParams(window.location.search).get("date") ?? ""
+      )
+  );
+  const defaultDateResolvedRef = useRef(false);
   const [selectedDate, setSelectedDate] = useState(() => {
     if (typeof window !== "undefined") {
       const date = new URLSearchParams(window.location.search).get("date");
@@ -116,9 +124,27 @@ export function JpVocabCoachPage() {
   }, [checking, user, refresh]);
 
   useEffect(() => {
-    if (isJpVocabCoachDateWithinRetention(selectedDate)) return;
-    setSelectedDate(batches[0]?.coach_date ?? beijingDateString());
-  }, [batches, selectedDate]);
+    if (defaultDateResolvedRef.current) {
+      if (!isJpVocabCoachDateWithinRetention(selectedDate)) {
+        setSelectedDate(batches[0]?.coach_date ?? beijingDateString());
+      }
+      return;
+    }
+    if (loading) return;
+
+    defaultDateResolvedRef.current = true;
+    if (hasUrlDateRef.current) {
+      if (!isJpVocabCoachDateWithinRetention(selectedDate)) {
+        setSelectedDate(batches[0]?.coach_date ?? beijingDateString());
+      }
+      return;
+    }
+
+    const resolved = resolveJpVocabCoachDefaultDate(batches);
+    if (resolved !== selectedDate) {
+      setSelectedDate(resolved);
+    }
+  }, [batches, loading, selectedDate]);
 
   const dateExpired = !isJpVocabCoachDateWithinRetention(selectedDate);
 
@@ -204,7 +230,10 @@ export function JpVocabCoachPage() {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={(e) => {
+              defaultDateResolvedRef.current = true;
+              setSelectedDate(e.target.value);
+            }}
           />
         </label>
         {batches.length ? (
@@ -218,7 +247,10 @@ export function JpVocabCoachPage() {
                     ? "btn-rsi-filter btn-rsi-filter--primary"
                     : "btn-rsi-filter"
                 }
-                onClick={() => setSelectedDate(batch.coach_date)}
+                onClick={() => {
+                  defaultDateResolvedRef.current = true;
+                  setSelectedDate(batch.coach_date);
+                }}
               >
                 {batch.coach_date}（{batch.item_count}）
               </button>

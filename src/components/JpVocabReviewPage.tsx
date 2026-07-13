@@ -51,25 +51,47 @@ const JP_VOCAB_REVIEW_PREFS_KEY = "jp_vocab_review_prefs";
 type ReviewPrefs = {
   count: number;
   sortMode: JpVocabReviewSortMode;
+  /** 上次保存时管理员设置的今日抽查数量；变化时自动同步复习数量 */
+  quizTargetAtSave?: number;
 };
 
-function readReviewPrefs(): ReviewPrefs {
-  if (typeof window === "undefined") {
-    return { count: JP_VOCAB_REVIEW_DEFAULT_COUNT, sortMode: "seq" };
+function resolveReviewPrefs(
+  stored: Partial<ReviewPrefs> | null | undefined,
+  quizTarget: number
+): ReviewPrefs {
+  const sortMode = normalizeJpVocabReviewSortMode(stored?.sortMode);
+  const savedTarget = stored?.quizTargetAtSave;
+  if (
+    stored?.count == null ||
+    savedTarget == null ||
+    savedTarget !== quizTarget
+  ) {
+    return {
+      count: normalizeJpVocabReviewCount(quizTarget, 9999),
+      sortMode,
+      quizTargetAtSave: quizTarget,
+    };
   }
+  return {
+    count: normalizeJpVocabReviewCount(stored.count, 9999),
+    sortMode,
+    quizTargetAtSave: quizTarget,
+  };
+}
+
+function readStoredReviewPrefs(): Partial<ReviewPrefs> | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(JP_VOCAB_REVIEW_PREFS_KEY);
-    if (!raw) {
-      return { count: JP_VOCAB_REVIEW_DEFAULT_COUNT, sortMode: "seq" };
-    }
-    const parsed = JSON.parse(raw) as Partial<ReviewPrefs>;
-    return {
-      count: normalizeJpVocabReviewCount(parsed.count, 9999),
-      sortMode: normalizeJpVocabReviewSortMode(parsed.sortMode),
-    };
+    if (!raw) return null;
+    return JSON.parse(raw) as Partial<ReviewPrefs>;
   } catch {
-    return { count: JP_VOCAB_REVIEW_DEFAULT_COUNT, sortMode: "seq" };
+    return null;
   }
+}
+
+function readReviewPrefs(quizTarget = JP_VOCAB_REVIEW_DEFAULT_COUNT): ReviewPrefs {
+  return resolveReviewPrefs(readStoredReviewPrefs(), quizTarget);
 }
 
 function writeReviewPrefs(prefs: ReviewPrefs) {
@@ -91,8 +113,11 @@ export function JpVocabReviewPage() {
   const [reviewProgress, setReviewProgress] = useState<JpVocabReviewProgress>(
     normalizeJpVocabReviewProgress(null)
   );
+  const [quizTarget, setQuizTarget] = useState(JP_VOCAB_REVIEW_DEFAULT_COUNT);
   const [prefs, setPrefs] = useState<ReviewPrefs>(() => readReviewPrefs());
-  const [countInput, setCountInput] = useState(String(readReviewPrefs().count));
+  const [countInput, setCountInput] = useState(
+    () => String(readReviewPrefs().count)
+  );
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
   const [session, setSession] = useState<JpVocabReviewSession | null>(null);
@@ -128,6 +153,13 @@ export function JpVocabReviewPage() {
     setWords(payload.words);
     setRefs(payload.refs);
     setDisplayOrder(payload.display_order);
+
+    const nextQuizTarget = payload.teacher_visible_limit.quiz_target;
+    setQuizTarget(nextQuizTarget);
+    const nextPrefs = resolveReviewPrefs(readStoredReviewPrefs(), nextQuizTarget);
+    setPrefs(nextPrefs);
+    setCountInput(String(nextPrefs.count));
+    writeReviewPrefs(nextPrefs);
 
     const reviewJson = (await reviewRes.json()) as {
       ok: boolean;
@@ -206,15 +238,19 @@ export function JpVocabReviewPage() {
     [displayOrder.ids]
   );
 
-  const applyPrefs = useCallback((next: ReviewPrefs) => {
-    const normalized: ReviewPrefs = {
-      count: normalizeJpVocabReviewCount(next.count, 9999),
-      sortMode: normalizeJpVocabReviewSortMode(next.sortMode),
-    };
-    setPrefs(normalized);
-    setCountInput(String(normalized.count));
-    writeReviewPrefs(normalized);
-  }, []);
+  const applyPrefs = useCallback(
+    (next: ReviewPrefs) => {
+      const normalized: ReviewPrefs = {
+        count: normalizeJpVocabReviewCount(next.count, 9999),
+        sortMode: normalizeJpVocabReviewSortMode(next.sortMode),
+        quizTargetAtSave: quizTarget,
+      };
+      setPrefs(normalized);
+      setCountInput(String(normalized.count));
+      writeReviewPrefs(normalized);
+    },
+    [quizTarget]
+  );
 
   const commitCountInput = useCallback(() => {
     applyPrefs({
@@ -383,7 +419,7 @@ export function JpVocabReviewPage() {
       <header className="jp-vocab-review-header">
         <h1 className="page-title">日语复习</h1>
         <p className="jp-vocab-review-sub">
-          选择复习数量与排序方式，开始卡片复习。进度保存在独立记录中，仅手动清除时归零（凌晨不自动清除）。
+          选择复习数量与排序方式，开始卡片复习。默认复习数量与「今日抽查数量」（当前 {quizTarget} 个）一致；进度保存在独立记录中，仅手动清除时归零（凌晨不自动清除）。
         </p>
       </header>
 
