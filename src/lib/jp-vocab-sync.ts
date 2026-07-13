@@ -4,22 +4,28 @@ import type { JpVocabWord } from "@/lib/types";
 export const JP_VOCAB_POLL_MS = 5_000;
 
 /** 标签页在后台时降频，避免浪费 Worker 配额 */
-export const JP_VOCAB_POLL_HIDDEN_MS = 15_000;
+export const JP_VOCAB_POLL_HIDDEN_MS = 20_000;
 
-/** 老师抽查卡片：学生是否自行查看（低频即可） */
-export const JP_VOCAB_QUIZ_LIVE_POLL_MS = 6_000;
+/** 老师抽查卡片：学生是否自行查看 */
+export const JP_VOCAB_QUIZ_LIVE_POLL_MS = 8_000;
+
+/** 学生端：老师当前抽查词提示（比老师端更慢） */
+export const JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS = 15_000;
+
+/** 学生端：老师当前抽查词提示（后台） */
+export const JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS = 45_000;
 
 /** 今日抽查目标跨域名同步（D1 读取，不必与词条补丁同频） */
-export const JP_VOCAB_TEACHER_VISIBLE_POLL_MS = 20_000;
+export const JP_VOCAB_TEACHER_VISIBLE_POLL_MS = 30_000;
 
 /** 学生复习页：共享列表轮询（比老师端略慢，减轻 Worker CPU） */
-export const JP_VOCAB_STUDY_POLL_MS = 10_000;
+export const JP_VOCAB_STUDY_POLL_MS = 15_000;
 
 /** 学生复习页：后台轮询 */
-export const JP_VOCAB_STUDY_POLL_HIDDEN_MS = 25_000;
+export const JP_VOCAB_STUDY_POLL_HIDDEN_MS = 45_000;
 
 /** 学生复习页：每隔 N 次列表轮询再拉一次抽查进度 */
-export const JP_VOCAB_STUDY_QUIZ_EVERY_N = 8;
+export const JP_VOCAB_STUDY_QUIZ_EVERY_N = 12;
 
 export function maxJpVocabUpdatedAt(words: JpVocabWord[]): string {
   let max = "";

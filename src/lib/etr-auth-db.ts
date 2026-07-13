@@ -500,7 +500,46 @@ type SessionLookupResult =
   | { kind: "expired" }
   | { kind: "missing" };
 
+/** 同一 Worker isolate 内缓存 session 查询，减轻高频轮询对 D1 的压力 */
+const SESSION_LOOKUP_CACHE_MS = 10_000;
+const sessionLookupCache = new Map<
+  string,
+  { at: number; result: SessionLookupResult }
+>();
+
+function invalidateSessionLookupCache(token: string) {
+  sessionLookupCache.delete(token);
+}
+
 async function lookupSession(
+  env: CloudflareEnv,
+  token: string
+): Promise<SessionLookupResult> {
+  if (!token) return { kind: "missing" };
+
+  const now = Date.now();
+  const cached = sessionLookupCache.get(token);
+  if (cached && now - cached.at < SESSION_LOOKUP_CACHE_MS) {
+    if (
+      cached.result.kind === "valid" &&
+      isExpired(cached.result.user.expires_at)
+    ) {
+      sessionLookupCache.delete(token);
+    } else {
+      return cached.result;
+    }
+  }
+
+  const result = await lookupSessionFromDb(env, token);
+  if (result.kind === "valid" || result.kind === "maintenance") {
+    sessionLookupCache.set(token, { at: now, result });
+  } else {
+    sessionLookupCache.delete(token);
+  }
+  return result;
+}
+
+async function lookupSessionFromDb(
   env: CloudflareEnv,
   token: string
 ): Promise<SessionLookupResult> {
@@ -704,6 +743,7 @@ export async function logoutSession(
   token: string | null | undefined
 ): Promise<void> {
   if (!token) return;
+  invalidateSessionLookupCache(token);
 
   if (devAuthEnabled) {
     const idx = devSessions.findIndex((s) => s.token === token);

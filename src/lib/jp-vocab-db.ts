@@ -155,6 +155,17 @@ const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 const JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 const JP_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 
+/** 同一 Worker isolate 内缓存高频只读 setting，减轻轮询对 D1 的压力 */
+const JP_VOCAB_SETTING_READ_CACHE_MS = 5_000;
+let teacherQuizLiveReadCache: {
+  at: number;
+  value: JpVocabTeacherQuizLive;
+} | null = null;
+let teacherVisibleLimitReadCache: {
+  at: number;
+  value: JpVocabTeacherVisibleLimit;
+} | null = null;
+
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
 }
@@ -1989,15 +2000,30 @@ export async function getJpVocabTeacherVisibleLimit(
     return normalizeJpVocabTeacherVisibleLimit(devTeacherVisibleLimit);
   }
 
+  const now = Date.now();
+  if (
+    teacherVisibleLimitReadCache &&
+    now - teacherVisibleLimitReadCache.at < JP_VOCAB_SETTING_READ_CACHE_MS
+  ) {
+    const cached = teacherVisibleLimitReadCache.value;
+    const today = beijingDateString();
+    if (!cached.date || cached.date === today) {
+      return cached;
+    }
+  }
+
   const raw = await readJpVocabTeacherVisibleLimitRaw(db);
   const normalized = normalizeJpVocabTeacherVisibleLimit(raw);
   const today = beijingDateString();
   if (raw?.date && raw.date !== today) {
-    await saveJpVocabTeacherVisibleLimit(db, {
+    const rolled = await saveJpVocabTeacherVisibleLimit(db, {
       ...normalized,
       visible_ids: undefined,
     });
+    teacherVisibleLimitReadCache = { at: now, value: rolled };
+    return rolled;
   }
+  teacherVisibleLimitReadCache = { at: now, value: normalized };
   return normalized;
 }
 
@@ -2090,6 +2116,7 @@ async function saveJpVocabTeacherVisibleLimit(
     )
     .run();
 
+  teacherVisibleLimitReadCache = { at: Date.now(), value: next };
   return next;
 }
 
@@ -3087,6 +3114,7 @@ async function saveJpVocabTeacherQuizLive(
     )
     .bind(JP_VOCAB_TEACHER_QUIZ_LIVE_KEY, JSON.stringify(next), nowIso())
     .run();
+  teacherQuizLiveReadCache = { at: Date.now(), value: next };
   return next;
 }
 
@@ -3094,11 +3122,21 @@ export async function getJpVocabTeacherQuizLive(
   db: D1Database,
   now = new Date()
 ): Promise<JpVocabTeacherQuizLive> {
+  const at = Date.now();
+  if (
+    teacherQuizLiveReadCache &&
+    at - teacherQuizLiveReadCache.at < JP_VOCAB_SETTING_READ_CACHE_MS
+  ) {
+    return normalizeJpVocabTeacherQuizLive(teacherQuizLiveReadCache.value, now);
+  }
+
   const raw = await readJpVocabTeacherQuizLiveRaw(db);
   const normalized = normalizeJpVocabTeacherQuizLive(raw, now);
   if (!devStoreEnabled && raw?.date && raw.date !== normalized.date) {
-    await saveJpVocabTeacherQuizLive(db, normalized);
+    const saved = await saveJpVocabTeacherQuizLive(db, normalized);
+    return saved;
   }
+  teacherQuizLiveReadCache = { at, value: normalized };
   return normalized;
 }
 

@@ -33,11 +33,11 @@ import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
-  JP_VOCAB_QUIZ_LIVE_POLL_MS,
-  JP_VOCAB_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_POLL_MS,
   JP_VOCAB_STUDY_QUIZ_EVERY_N,
+  JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
+  JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
 } from "@/lib/jp-vocab-sync";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
@@ -370,8 +370,8 @@ export function JpVocabStudyPage() {
 
     const pollDelay = () =>
       typeof document !== "undefined" && document.hidden
-        ? JP_VOCAB_POLL_HIDDEN_MS
-        : JP_VOCAB_QUIZ_LIVE_POLL_MS;
+        ? JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS
+        : JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS;
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -381,7 +381,7 @@ export function JpVocabStudyPage() {
     const poll = async () => {
       if (cancelled) return;
       try {
-        const res = await fetch("/api/jp-vocab/teacher-quiz-live", {
+        const res = await fetch("/api/jp-vocab/teacher-quiz-live?scope=study", {
           credentials: "include",
           cache: "no-store",
         });

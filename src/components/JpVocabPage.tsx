@@ -1140,7 +1140,18 @@ export function JpVocabPage() {
       return;
     }
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () =>
+      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_QUIZ_LIVE_POLL_MS;
+
+    const schedule = (delayMs: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => void poll(), delayMs);
+    };
+
     const poll = async () => {
+      if (cancelled) return;
       try {
         const res = await fetch(
           `/api/jp-vocab/teacher-quiz-live?word_id=${encodeURIComponent(
@@ -1157,13 +1168,15 @@ export function JpVocabPage() {
         }
       } catch {
         /* ignore */
+      } finally {
+        if (!cancelled) schedule(pollDelay());
       }
     };
+
     void poll();
-    const timer = setInterval(poll, JP_VOCAB_QUIZ_LIVE_POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
   }, [canOperate, showQuizFlashcard, quizFlashcardWordId]);
 

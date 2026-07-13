@@ -37,10 +37,29 @@ const WORD_NOT_FOUND_MSG = {
 
 export async function GET(request: Request) {
   const locale = localeFromRequest(request);
-  const wordIdRaw = new URL(request.url).searchParams.get("word_id");
+  const url = new URL(request.url);
+  const scope = url.searchParams.get("scope");
+  const wordIdRaw = url.searchParams.get("word_id");
   const wordId = wordIdRaw != null ? Number(wordIdRaw) : NaN;
 
   try {
+    if (scope === "study") {
+      const { env, allowed } = await requireJpVocabStudyAccess(request);
+      if (!allowed) {
+        return jsonResponse({ ok: false, error: STUDY_AUTH_MSG[locale] }, 401);
+      }
+
+      const live = await getJpVocabTeacherQuizLive(env.DB);
+      return jsonResponse(
+        {
+          ok: true,
+          live: { word_id: live.word_id },
+        },
+        200,
+        { "Cache-Control": "no-store" }
+      );
+    }
+
     const { env, user, allowed } = await requireJpVocabAccess(request);
     if (!allowed || !user) {
       return jsonResponse(
