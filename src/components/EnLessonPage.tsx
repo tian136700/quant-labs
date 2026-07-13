@@ -136,13 +136,26 @@ function formatLessonTeacherNames(
   lesson: EnLessonRecord,
   teacherNameById: Map<number, string>
 ): string {
-  const names = (lesson.teacher_ids ?? [])
-    .map((id) => teacherNameById.get(id))
-    .filter((name): name is string => Boolean(name));
+  const names = (lesson.teacher_ids ?? []).map(
+    (id) => teacherNameById.get(id) || `#${id}`
+  );
   if (lesson.teacher_other?.trim()) {
     names.push(lesson.teacher_other.trim());
   }
   return names.length ? names.join("、") : "—";
+}
+
+function mergeEnLessonTeachers(
+  primary: EnLessonTeacher[],
+  updates: EnLessonTeacher[]
+): EnLessonTeacher[] {
+  const map = new Map(primary.map((teacher) => [teacher.id, teacher]));
+  for (const teacher of updates) {
+    map.set(teacher.id, teacher);
+  }
+  return [...map.values()].sort(
+    (a, b) => a.sort_order - b.sort_order || a.id - b.id
+  );
 }
 
 export function EnLessonPage() {
@@ -369,7 +382,10 @@ export function EnLessonPage() {
     teacherUpdates: EnLessonTeacherUpdateInput[] = [],
     options?: { keepOpen?: boolean }
   ) => {
-    if (!isAdmin || savingTeacherId === lessonId) return;
+    if (!isAdmin) return;
+    if (savingTeacherId === lessonId) {
+      throw new Error("保存进行中，请稍候");
+    }
 
     const snapshot = lessons.find((l) => l.id === lessonId);
     setSavingTeacherId(lessonId);
@@ -380,7 +396,8 @@ export function EnLessonPage() {
     );
 
     try {
-      let nextTeachers = [...teachers];
+      // 只收集本次 update 返回的老师；合并进当前 state，避免覆盖刚 add 的新老师
+      const updatedTeachers: EnLessonTeacher[] = [];
       for (const input of teacherUpdates) {
         const res = await fetch("/api/admin/en-lesson-teachers", {
           method: "POST",
@@ -400,9 +417,7 @@ export function EnLessonPage() {
         if (!data.ok || !data.teacher) {
           throw new Error(data.error || "保存老师信息失败");
         }
-        nextTeachers = nextTeachers.map((t) =>
-          t.id === data.teacher!.id ? data.teacher! : t
-        );
+        updatedTeachers.push(data.teacher);
       }
 
       const res = await fetch("/api/en-lesson", {
@@ -427,7 +442,14 @@ export function EnLessonPage() {
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
       }
-      setTeachers(nextTeachers);
+
+      let mergedTeachers: EnLessonTeacher[] = [];
+      setTeachers((prev) => {
+        mergedTeachers = updatedTeachers.length
+          ? mergeEnLessonTeachers(prev, updatedTeachers)
+          : prev;
+        return mergedTeachers;
+      });
       setLessons((prev) => {
         const next = prev.map((l) => {
           if (l.id !== data.lesson!.id) return l;
@@ -444,10 +466,22 @@ export function EnLessonPage() {
               server.class_duration_minutes ?? l.class_duration_minutes,
           };
         });
-        persistLessonCache(next, refs, notes, nextTeachers);
+        persistLessonCache(next, refs, notes, mergedTeachers);
         return next;
       });
-      if (!options?.keepOpen) {
+      if (options?.keepOpen) {
+        setEditingTeacherLesson((prev) =>
+          prev && prev.id === data.lesson!.id
+            ? {
+                ...prev,
+                teacher_ids: data.lesson!.teacher_ids?.length
+                  ? data.lesson!.teacher_ids
+                  : teacherIds,
+                teacher_other: data.lesson!.teacher_other ?? teacherOther,
+              }
+            : prev
+        );
+      } else {
         setEditingTeacherLesson(null);
       }
       setStatus("上课老师已更新");

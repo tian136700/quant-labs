@@ -60,7 +60,6 @@ export function EnLessonTeacherEditModal({
   const [deletingTeacherId, setDeletingTeacherId] = useState<number | null>(null);
   const [addError, setAddError] = useState("");
   const [saveError, setSaveError] = useState("");
-  const skipAddBlurRef = useRef(false);
   const touchedFieldsRef = useRef<Record<number, TeacherDraftTouched>>({});
 
   const sortedTeachers = useMemo(
@@ -167,7 +166,6 @@ export function EnLessonTeacherEditModal({
     const trimmed = addName.trim();
     if (!trimmed || addingTeacher || saving) return null;
 
-    skipAddBlurRef.current = true;
     setAddError("");
 
     const existing = resolveExistingTeacher(trimmed);
@@ -184,13 +182,11 @@ export function EnLessonTeacherEditModal({
           setAddName("");
         } catch {
           setAddError("保存失败，请重试");
-          skipAddBlurRef.current = false;
           return null;
         }
       } else {
         setAddName("");
       }
-      skipAddBlurRef.current = false;
       return nextIds;
     }
 
@@ -199,7 +195,6 @@ export function EnLessonTeacherEditModal({
       const teacher = await onAddTeacher(trimmed);
       if (!teacher) {
         setAddError("添加失败，请重试");
-        skipAddBlurRef.current = false;
         return null;
       }
       const nextIds = selectedIds.includes(teacher.id)
@@ -218,7 +213,6 @@ export function EnLessonTeacherEditModal({
       }
     } finally {
       setAddingTeacher(false);
-      skipAddBlurRef.current = false;
     }
   };
 
@@ -436,13 +430,18 @@ export function EnLessonTeacherEditModal({
                       void handleAddTeacher();
                     }
                   }}
-                  onBlur={() => {
-                    if (skipAddBlurRef.current) return;
-                    if (addName.trim()) void handleAddTeacher();
-                  }}
                 />
+                <button
+                  type="button"
+                  className="jp-lesson-teacher-add-save-btn"
+                  disabled={addingTeacher || saving || !pendingAddName}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void handleAddTeacher()}
+                >
+                  {addingTeacher ? "保存中…" : "保存"}
+                </button>
                 <p className="jp-lesson-teacher-add-optional-hint">
-                  填写称呼即视为勾选；点保存会自动添加并关联本课。
+                  填写称呼后点右侧保存，会添加并关联本课；也可点底部保存一并提交。
                 </p>
               </div>
             </div>
@@ -477,6 +476,8 @@ export function EnLessonTeacherEditModal({
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
             disabled={saveBusy}
+            // 避免点保存时先 blur 输入框触发添加，导致按钮变 disabled 吞掉 click
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => void handleSave()}
           >
             保存
@@ -682,6 +683,26 @@ export function EnLessonTeacherEditModal({
         }
 
         .jp-lesson-teacher-delete-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .jp-lesson-teacher-add-save-btn {
+          flex: 0 0 3.5rem;
+          height: 2rem;
+          border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+          color: var(--accent);
+          font-size: 0.75rem;
+          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-add-save-btn:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+        }
+
+        .jp-lesson-teacher-add-save-btn:disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }

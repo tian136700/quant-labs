@@ -113,6 +113,10 @@
 | `/en-lesson/schedule` | **重定向** → `/jp-lesson/schedule` | |
 | `/english-teacher-review` | **重定向** → `/admin/jp-lesson-teachers?subject=en`（评价已合并） | |
 
+| 功能描述 | 改哪里 |
+|----------|--------|
+| 设置上课老师弹窗（弹窗内新增老师并保存） | `EnLessonTeacherEditModal.tsx`（添加行右侧「保存」）；`EnLessonPage.tsx` → `addLessonTeacher` / `setLessonTeachers`（合并老师列表，勿用旧闭包覆盖刚添加的老师）；API：`/api/admin/en-lesson-teachers`、`POST /api/en-lesson` `set_teacher` |
+
 ---
 
 ## 其他常用页面
