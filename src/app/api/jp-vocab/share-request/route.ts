@@ -35,23 +35,13 @@ const FREQUENT_MSG = {
 };
 
 export async function GET(request: Request) {
-  const locale = localeFromRequest(request);
-
-  try {
-    const { env, user, allowed } = await requireJpVocabShareRequestTeacher(request);
-    if (!allowed || !user) {
-      return jsonResponse(
-        { ok: false, error: user ? TEACHER_PERM_MSG[locale] : TEACHER_AUTH_MSG[locale] },
-        user ? 403 : 401
-      );
-    }
-
-    const items = await listJpVocabPendingShareRequests(env.DB);
-    return jsonResponse({ ok: true, items }, 200, { "Cache-Control": "no-store" });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ ok: false, error: message }, 500);
-  }
+  // Temporarily disable polling endpoint to reduce Worker load.
+  // Keep a lightweight successful response so old clients won't retry on errors.
+  return jsonResponse(
+    { ok: true, items: [], disabled: true },
+    200,
+    { "Cache-Control": "no-store" }
+  );
 }
 
 export async function POST(request: Request) {
