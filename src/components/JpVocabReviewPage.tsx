@@ -317,9 +317,15 @@ export function JpVocabReviewPage() {
     [locale, recordingNext]
   );
 
-  const clearReviewProgress = useCallback(async () => {
+  const resetReviewStatus = useCallback(async () => {
     if (clearBusy) return;
-    if (!window.confirm("确定清除全部已复习记录？此操作不可撤销。")) return;
+    if (
+      !window.confirm(
+        "确定将全部词条的复习状态重置为「待复习」？进度不会每天自动清空，仅在此手动重置时归零。此操作不可撤销。"
+      )
+    ) {
+      return;
+    }
     setClearBusy(true);
     setClearProgress(jpVocabSaveProgressDisplayPercent(null));
     clearStartedAtRef.current = Date.now();
@@ -349,7 +355,7 @@ export function JpVocabReviewPage() {
       }
       await animateJpVocabSaveProgressTo100(clearStartedAtRef.current, setClearProgress);
       setReviewProgress(normalizeJpVocabReviewProgress(data.review_progress));
-      setStatus("已清除全部复习记录。");
+      setStatus("已将全部词条重置为待复习。");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
@@ -419,7 +425,7 @@ export function JpVocabReviewPage() {
       <header className="jp-vocab-review-header">
         <h1 className="page-title">日语复习</h1>
         <p className="jp-vocab-review-sub">
-          选择复习数量与排序方式，开始卡片复习。默认复习数量与「今日抽查数量」（当前 {quizTarget} 个）一致；进度保存在独立记录中，仅手动清除时归零（凌晨不自动清除）。
+          选择复习数量与排序方式，开始卡片复习。默认复习数量与「今日抽查数量」（当前 {quizTarget} 个）一致。下方表格的「复习状态」会随卡片复习进度更新，<strong>不会每天北京时间 0 点自动清空</strong>，需点击「重置复习状态」才会将全部词条恢复为待复习。
         </p>
       </header>
 
@@ -500,9 +506,10 @@ export function JpVocabReviewPage() {
               type="button"
               className="btn-rsi-filter btn-rsi-filter--danger"
               disabled={clearBusy || reviewProgress.count === 0}
-              onClick={() => void clearReviewProgress()}
+              title="将全部词条的复习状态重置为待复习（不会每天自动清空）"
+              onClick={() => void resetReviewStatus()}
             >
-              清除已复习
+              重置复习状态
             </button>
           </div>
         </div>
