@@ -423,6 +423,26 @@ export function JpVocabEditModal({
           </div>
 
           <div className="jp-vocab-edit-body">
+            {showMnemonic ? (
+              <div className="field">
+                <label htmlFor="jp-vocab-edit-mnemonic" className="jp-vocab-edit-label">
+                  巧记
+                </label>
+                <textarea
+                  id="jp-vocab-edit-mnemonic"
+                  className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
+                  rows={4}
+                  value={mnemonic}
+                  disabled={!canEdit}
+                  placeholder="联想记忆、谐音梗、拆分口诀等（仅管理员可见）"
+                  onChange={(e) => setMnemonic(e.target.value)}
+                />
+                <p className="jp-vocab-edit-hint">
+                  用于管理员复习与自查，不会展示给老师或学生端。
+                </p>
+              </div>
+            ) : null}
+
             <div className="field">
               <label htmlFor="jp-vocab-edit-kind" className="jp-vocab-edit-label">
                 类型
@@ -724,26 +744,6 @@ export function JpVocabEditModal({
 
               {refError ? <p className="jp-vocab-edit-error">{refError}</p> : null}
             </div>
-
-            {showMnemonic ? (
-              <div className="field">
-                <label htmlFor="jp-vocab-edit-mnemonic" className="jp-vocab-edit-label">
-                  巧记
-                </label>
-                <textarea
-                  id="jp-vocab-edit-mnemonic"
-                  className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
-                  rows={4}
-                  value={mnemonic}
-                  disabled={!canEdit}
-                  placeholder="联想记忆、谐音梗、拆分口诀等（仅管理员可见）"
-                  onChange={(e) => setMnemonic(e.target.value)}
-                />
-                <p className="jp-vocab-edit-hint">
-                  用于管理员复习与自查，不会展示给老师或学生端。
-                </p>
-              </div>
-            ) : null}
 
             {error ? <p className="jp-vocab-edit-error">{error}</p> : null}
           </div>
