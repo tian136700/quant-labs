@@ -624,18 +624,27 @@ export function JpVocabWordTable({
                         )}
                       </td>
                       <td className="jp-vocab-stats-col" data-label="复习统计">
-                        <div className="jp-vocab-stats-grid">
-                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--very">
-                            非常熟悉 {w.cnt_very}
+                        <div className="jp-vocab-stats-grid" aria-label="复习次数统计">
+                          <span
+                            className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--very chg-dn"
+                            title="非常熟悉"
+                          >
+                            {w.cnt_very}
                           </span>
-                          <span className="jp-vocab-stats-grid__item">
-                            一般 {w.cnt_normal}
+                          <span className="jp-vocab-stats-grid__item" title="一般">
+                            {w.cnt_normal}
                           </span>
-                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--weak">
-                            不熟悉 {w.cnt_weak}
+                          <span
+                            className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--weak chg-up"
+                            title="不熟悉"
+                          >
+                            {w.cnt_weak}
                           </span>
-                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--total">
-                            合计 {totalStatLabel}
+                          <span
+                            className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--total"
+                            title="合计"
+                          >
+                            {totalStatLabel}
                           </span>
                         </div>
                       </td>

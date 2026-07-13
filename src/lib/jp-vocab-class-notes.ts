@@ -255,34 +255,35 @@ export function parseJpVocabClassNoteContent(content: string): JpVocabClassNoteS
   return segments;
 }
 
-/** 编辑框只展示文字；图片地址保存在 imageSrcs 中 */
+/** 编辑框只展示文字；图片地址保存在 imageSrcs 中（保留行尾换行供 textarea 编辑） */
 export function splitJpVocabClassNoteDraftForEdit(content: string): {
   text: string;
   imageSrcs: string[];
 } {
-  const segments = parseJpVocabClassNoteContent(content);
-  const textParts: string[] = [];
+  const lines = content.split("\n");
+  const textLines: string[] = [];
   const imageSrcs: string[] = [];
-  for (const segment of segments) {
-    if (segment.type === "image") {
-      imageSrcs.push(segment.src);
-    } else if (segment.text.trim()) {
-      textParts.push(segment.text.trimEnd());
+  for (const line of lines) {
+    const imageSrc = parseJpVocabClassNoteImageSrc(line);
+    if (imageSrc) {
+      imageSrcs.push(imageSrc);
+      continue;
     }
+    textLines.push(line);
   }
-  return { text: textParts.join("\n\n"), imageSrcs };
+  return { text: textLines.join("\n"), imageSrcs };
 }
 
 export function mergeJpVocabClassNoteDraftFromEdit(
   text: string,
   imageSrcs: readonly string[]
 ): string {
-  const trimmed = text.trimEnd();
   const imageLines = imageSrcs.map((src) => formatJpVocabClassNoteImageMarkdown(src));
-  if (!trimmed && !imageLines.length) return "";
-  if (!trimmed) return imageLines.join("\n");
-  if (!imageLines.length) return trimmed;
-  return `${trimmed}\n${imageLines.join("\n")}`;
+  const hasText = text.trim().length > 0;
+  if (!hasText && !imageLines.length) return "";
+  if (!hasText) return imageLines.join("\n");
+  if (!imageLines.length) return text;
+  return `${text.trimEnd()}\n${imageLines.join("\n")}`;
 }
 
 export function removeJpVocabClassNoteImageAt(content: string, index: number): string {

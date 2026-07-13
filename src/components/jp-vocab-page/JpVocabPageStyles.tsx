@@ -483,8 +483,8 @@ export function JpVocabPageStyles() {
         :global(.jp-vocab-table .jp-vocab-stats-col) {
           text-align: center;
           vertical-align: middle;
-          width: 8.5%;
-          min-width: 5.5rem;
+          width: 9%;
+          min-width: 6.25rem;
         }
         .jp-vocab-stats-col-head {
           display: flex;
@@ -505,9 +505,10 @@ export function JpVocabPageStyles() {
         }
         .jp-vocab-stats-sort-btn {
           display: inline-flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 0.12rem;
+          gap: 0.05rem;
           min-width: 0;
           border: none;
           background: transparent;
@@ -528,15 +529,17 @@ export function JpVocabPageStyles() {
         .jp-vocab-stats-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 0.2rem 0.45rem;
+          gap: 0.28rem 0.35rem;
           width: 100%;
-          font-size: 0.6875rem;
-          line-height: 1.35;
+          font-size: 0.75rem;
+          line-height: 1.25;
           font-variant-numeric: tabular-nums;
+          justify-items: center;
+          align-items: center;
         }
         .jp-vocab-stats-grid__item {
           min-width: 0;
-          white-space: nowrap;
+          text-align: center;
         }
         .jp-vocab-stats-grid__item--very {
           color: var(--fall);
@@ -546,6 +549,10 @@ export function JpVocabPageStyles() {
         }
         .jp-vocab-stats-grid__item--total {
           font-weight: 600;
+          white-space: normal;
+          line-height: 1.2;
+          font-size: 0.6875rem;
+          word-break: keep-all;
         }
         .jp-vocab-stats-grid__item--total :global(.jp-vocab-total-never) {
           font-weight: 500;
