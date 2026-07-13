@@ -54,7 +54,7 @@ async function ensureJpLessonLinkCopyCountColumn(db: D1Database): Promise<void> 
 }
 
 async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
-  await ensureJpLessonSchemaColumns(db);
+  await ensureJpLessonMeaningsColumn(db);
   await ensureJpLessonLinkCopyCountColumn(db);
 }
 
