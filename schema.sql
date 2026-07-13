@@ -277,6 +277,27 @@ CREATE TABLE IF NOT EXISTS jp_vocab_review_done (
   FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
 );
 
+-- 课堂带读：按日期保存「一般」「不熟悉」词条快照（备注仍用 jp_vocab_word.class_notes）
+CREATE TABLE IF NOT EXISTS jp_vocab_coach_batch (
+  coach_date   TEXT    NOT NULL PRIMARY KEY,
+  created_by   TEXT,
+  created_at   TEXT    NOT NULL,
+  updated_at   TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS jp_vocab_coach_item (
+  coach_date     TEXT    NOT NULL,
+  word_id        INTEGER NOT NULL,
+  level          TEXT    NOT NULL,
+  display_order  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (coach_date, word_id),
+  FOREIGN KEY (coach_date) REFERENCES jp_vocab_coach_batch (coach_date) ON DELETE CASCADE,
+  FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_coach_item_date_order
+  ON jp_vocab_coach_item (coach_date, display_order);
+
 -- 日语新课：上课老师（管理员维护，仅管理员可见）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,

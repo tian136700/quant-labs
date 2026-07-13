@@ -255,6 +255,15 @@ export function jpVocabReviewPath(): string {
   return "/jp-vocab/review";
 }
 
+export function jpVocabCoachPath(date?: string | null): string {
+  const base = "/jp-vocab/coach";
+  const trimmed = (date || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return `${base}?date=${encodeURIComponent(trimmed)}`;
+  }
+  return base;
+}
+
 export function isJpVocabStudyPath(pathname: string): boolean {
   const path = stripZhPrefix(pathname);
   return path === "/jp-vocab/study";
@@ -263,6 +272,11 @@ export function isJpVocabStudyPath(pathname: string): boolean {
 export function isJpVocabReviewPath(pathname: string): boolean {
   const path = stripZhPrefix(pathname);
   return path === "/jp-vocab/review";
+}
+
+export function isJpVocabCoachPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/jp-vocab/coach";
 }
 
 export function isJpVocabPath(pathname: string): boolean {

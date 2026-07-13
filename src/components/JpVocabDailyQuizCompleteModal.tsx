@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import type { JpVocabCoachLevelCounts } from "@/lib/jp-vocab-coach";
 
 type Variant = "teacher" | "study";
 
@@ -9,6 +10,9 @@ type Props = {
   open: boolean;
   total: number;
   variant: Variant;
+  levelCounts?: JpVocabCoachLevelCounts;
+  coachBusy?: boolean;
+  onGoToCoach?: () => void;
   onClose: () => void;
 };
 
@@ -20,7 +24,7 @@ const COPY: Record<
     title: "恭喜你，今日单词已抽完",
     lines: [
       "今日单词/语法已全部抽查完毕，辛苦了！",
-      "可以稍作休息，明天继续加油。",
+      "可点击下方进入课堂带读，带着「一般」「不熟悉」的词条再读一遍。",
     ],
     button: "好的",
   },
@@ -38,10 +42,18 @@ export function JpVocabDailyQuizCompleteModal({
   open,
   total,
   variant,
+  levelCounts,
+  coachBusy = false,
+  onGoToCoach,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const copy = COPY[variant];
+  const coachCount =
+    variant === "teacher" && levelCounts
+      ? levelCounts.normal + levelCounts.weak
+      : 0;
+  const showCoachAction = variant === "teacher" && coachCount > 0 && onGoToCoach;
 
   useEffect(() => {
     setMounted(true);
@@ -50,11 +62,11 @@ export function JpVocabDailyQuizCompleteModal({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !coachBusy) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, coachBusy, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -71,7 +83,9 @@ export function JpVocabDailyQuizCompleteModal({
     <div
       className="jp-vocab-complete-modal-overlay"
       role="presentation"
-      onClick={onClose}
+      onClick={() => {
+        if (!coachBusy) onClose();
+      }}
     >
       <div
         className="jp-vocab-complete-modal"
@@ -89,18 +103,54 @@ export function JpVocabDailyQuizCompleteModal({
         <p className="jp-vocab-complete-modal-sub">
           今日共 {total} 个单词/语法
         </p>
+
+        {variant === "teacher" && levelCounts ? (
+          <div className="jp-vocab-complete-modal-stats" aria-label="今日熟悉程度统计">
+            <div className="jp-vocab-complete-modal-stat">
+              <span className="jp-vocab-complete-modal-stat-label">非常熟悉</span>
+              <strong>{levelCounts.very}</strong>
+            </div>
+            <div className="jp-vocab-complete-modal-stat">
+              <span className="jp-vocab-complete-modal-stat-label">一般</span>
+              <strong>{levelCounts.normal}</strong>
+            </div>
+            <div className="jp-vocab-complete-modal-stat">
+              <span className="jp-vocab-complete-modal-stat-label">不熟悉</span>
+              <strong>{levelCounts.weak}</strong>
+            </div>
+          </div>
+        ) : null}
+
         <div className="jp-vocab-complete-modal-body">
           {copy.lines.map((line) => (
             <p key={line}>{line}</p>
           ))}
         </div>
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-complete-modal-btn"
-          onClick={onClose}
-        >
-          {copy.button}
-        </button>
+
+        <div className="jp-vocab-complete-modal-actions">
+          {showCoachAction ? (
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-complete-modal-btn"
+              disabled={coachBusy}
+              onClick={() => onGoToCoach?.()}
+            >
+              {coachBusy
+                ? "正在准备课堂带读…"
+                : `进入今日课堂带读（${coachCount} 条）`}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`btn-rsi-filter jp-vocab-complete-modal-btn${
+              showCoachAction ? "" : " btn-rsi-filter--primary"
+            }`}
+            disabled={coachBusy}
+            onClick={onClose}
+          >
+            {copy.button}
+          </button>
+        </div>
       </div>
       <style jsx>{`
         .jp-vocab-complete-modal-overlay {
@@ -115,7 +165,7 @@ export function JpVocabDailyQuizCompleteModal({
           backdrop-filter: blur(2px);
         }
         .jp-vocab-complete-modal {
-          width: min(24rem, 96vw);
+          width: min(26rem, 96vw);
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -151,6 +201,29 @@ export function JpVocabDailyQuizCompleteModal({
           font-size: 0.8125rem;
           color: var(--muted);
         }
+        .jp-vocab-complete-modal-stats {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 0.5rem;
+          margin-bottom: 0.85rem;
+        }
+        .jp-vocab-complete-modal-stat {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          padding: 0.55rem 0.4rem;
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--border) 35%, var(--panel));
+        }
+        .jp-vocab-complete-modal-stat-label {
+          font-size: 0.78rem;
+          color: var(--muted);
+        }
+        .jp-vocab-complete-modal-stat strong {
+          font-size: 1.15rem;
+          color: var(--text);
+        }
         .jp-vocab-complete-modal-body {
           width: 100%;
           margin-bottom: 1rem;
@@ -164,8 +237,14 @@ export function JpVocabDailyQuizCompleteModal({
         .jp-vocab-complete-modal-body p + p {
           margin-top: 0.35rem;
         }
+        .jp-vocab-complete-modal-actions {
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
         .jp-vocab-complete-modal-btn {
-          min-width: 7rem;
+          width: 100%;
         }
         @media (max-width: 480px) {
           .jp-vocab-complete-modal-overlay {

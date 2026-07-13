@@ -19,6 +19,7 @@ import {
   jpVocabPath,
   jpVocabStudyPath,
   jpVocabReviewPath,
+  jpVocabCoachPath,
   enLessonPath,
   enVocabPath,
   enVocabStudyPath,
@@ -36,6 +37,7 @@ export type NavTarget =
   | "jpVocab"
   | "jpVocabStudy"
   | "jpVocabReview"
+  | "jpVocabCoach"
   | "enLesson"
   | "enVocab"
   | "enVocabStudy"
@@ -79,6 +81,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return "/jp-vocab/study";
     case "jpVocabReview":
       return "/jp-vocab/review";
+    case "jpVocabCoach":
+      return "/jp-vocab/coach";
     case "enLesson":
       return "/en-lesson";
     case "enVocab":
@@ -136,6 +140,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return jpVocabStudyPath();
     case "jpVocabReview":
       return jpVocabReviewPath();
+    case "jpVocabCoach":
+      return jpVocabCoachPath();
     case "enLesson":
       return enLessonPath();
     case "enVocab":

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -89,6 +90,12 @@ import {
   type JpVocabExportScope,
 } from "@/lib/jp-vocab-export";
 import {
+  buildJpVocabCoachExportItems,
+  countJpVocabCoachLevelCounts,
+  postJpVocabCoachBatch,
+} from "@/lib/jp-vocab-coach";
+import { jpVocabCoachPath } from "@/lib/locale-path";
+import {
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
   beijingDateString,
@@ -152,6 +159,7 @@ import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from 
 
 export function JpVocabPage() {
   const { locale } = useI18n();
+  const router = useRouter();
   const { user, checking, canAccessJpVocab, refresh, openAuthPanel, isAdmin } =
     useEtrAuth();
   const canOperate = canAccessJpVocab;
@@ -246,6 +254,7 @@ export function JpVocabPage() {
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
   const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [exporting, setExporting] = useState(false);
+  const [coachNavBusy, setCoachNavBusy] = useState(false);
   const [showExportChoice, setShowExportChoice] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -974,6 +983,11 @@ export function JpVocabPage() {
   const todayWeakExportWords = useMemo(
     () => filterJpVocabTodayWeakWords(words, sessionLevel, displayOrder),
     [words, sessionLevel, displayOrder]
+  );
+
+  const dailyCoachLevelCounts = useMemo(
+    () => countJpVocabCoachLevelCounts(quizTargetWords, sessionLevel, displayOrder),
+    [quizTargetWords, sessionLevel, displayOrder]
   );
 
   const wordsById = useMemo(
@@ -1896,6 +1910,55 @@ export function JpVocabPage() {
     }
   };
 
+  const runCoachExport = async () => {
+    if (exporting) return;
+    const items = buildJpVocabCoachExportItems(words, sessionLevel, displayOrder);
+    if (!items.length) {
+      setError("今日暂无勾选为「一般」或「不熟悉」的词条。");
+      return;
+    }
+
+    setExporting(true);
+    setStatus("");
+    setError("");
+    try {
+      const result = await postJpVocabCoachBatch(locale, items);
+      setShowExportChoice(false);
+      setStatus(
+        `已导出 ${result.item_count} 条到课堂带读（${result.coach_date}）。可打开「课堂带读」页面带读。`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const goToCoachFromComplete = async () => {
+    if (coachNavBusy) return;
+    const items = buildJpVocabCoachExportItems(words, sessionLevel, displayOrder);
+    if (!items.length) {
+      setError("今日暂无勾选为「一般」或「不熟悉」的词条。");
+      return;
+    }
+
+    const coachDate = beijingDateString();
+    setCoachNavBusy(true);
+    setError("");
+    try {
+      await postJpVocabCoachBatch(locale, items, coachDate);
+      if (user) {
+        markJpVocabTeacherDailyCompleteDismissed(user.id, dailyQuizProgress.total);
+      }
+      setShowDailyComplete(false);
+      router.push(jpVocabCoachPath(coachDate));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCoachNavBusy(false);
+    }
+  };
+
   const setDailyQuizTarget = async () => {
     if (!isAdmin || settingQuizTarget) return;
     const trimmed = quizTargetInput.trim();
@@ -2430,6 +2493,7 @@ export function JpVocabPage() {
           if (!exporting) setShowExportChoice(false);
         }}
         onExport={(scope) => void runExport(scope)}
+        onExportToCoach={() => void runCoachExport()}
       />
 
       <JpVocabResetChoiceModal
@@ -2470,6 +2534,9 @@ export function JpVocabPage() {
           open={showDailyComplete}
           total={dailyQuizProgress.total}
           variant="teacher"
+          levelCounts={dailyCoachLevelCounts}
+          coachBusy={coachNavBusy}
+          onGoToCoach={() => void goToCoachFromComplete()}
           onClose={() => {
             markJpVocabTeacherDailyCompleteDismissed(
               user.id,

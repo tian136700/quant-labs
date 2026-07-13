@@ -11,6 +11,7 @@ type Props = {
   allCount: number;
   onClose: () => void;
   onExport: (scope: JpVocabExportScope) => void;
+  onExportToCoach?: () => void;
 };
 
 export function JpVocabExportChoiceModal({
@@ -20,6 +21,7 @@ export function JpVocabExportChoiceModal({
   allCount,
   onClose,
   onExport,
+  onExportToCoach,
 }: Props) {
   const [mounted, setMounted] = useState(false);
 
@@ -79,13 +81,19 @@ export function JpVocabExportChoiceModal({
           </button>
         </div>
         <div className="jp-vocab-export-modal-body">
-          <p>导出为 Word 文档（.docx），包含 ID、单词/语法、读音、释义、词性与备注；不含熟悉程度与巧记。</p>
           <p>
-            <strong>导出全部数据</strong>：导出当前单词表全部 {allCount} 条，按当日序号排列。
+            <strong>导出 Word</strong>：生成 .docx 文档（序号、日语、读音、类型、备注图片等）。
           </p>
           <p>
-            <strong>导出今日未掌握</strong>：仅导出今日抽查后勾选为「一般」或「不熟悉」的词条（当前{" "}
-            {todayWeakCount} 条），便于次日课堂带读复习。
+            <strong>导出全部数据</strong>：导出当前单词表全部 {allCount} 条。
+          </p>
+          <p>
+            <strong>导出今日未掌握（Word）</strong>：仅导出今日勾选为「一般」或「不熟悉」的词条（当前{" "}
+            {todayWeakCount} 条）。
+          </p>
+          <p>
+            <strong>导出到课堂带读</strong>：将今日「一般」「不熟悉」词条（{todayWeakCount}{" "}
+            条）写入课堂带读页，按日期带读；备注与抽问页同步，熟悉程度为导出时快照且不可在带读页修改。
           </p>
         </div>
         <div className="jp-vocab-export-modal-footer">
@@ -98,6 +106,19 @@ export function JpVocabExportChoiceModal({
             disabled={busy}
           >
             取消
+          </button>
+          <button
+            type="button"
+            className="btn-rsi-filter"
+            onClick={() => onExportToCoach?.()}
+            disabled={busy || todayWeakCount <= 0 || !onExportToCoach}
+            title={
+              todayWeakCount <= 0
+                ? "今日暂无勾选为「一般」或「不熟悉」的词条"
+                : undefined
+            }
+          >
+            导出到课堂带读
           </button>
           <button
             type="button"
