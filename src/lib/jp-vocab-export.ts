@@ -128,11 +128,48 @@ async function prefetchNoteImages(
   return map;
 }
 
-function countWordNoteImages(word: JpVocabWord): number {
+/** 界面占位符，导出时视为无内容 */
+const EXPORT_FIELD_PLACEHOLDERS = new Set([
+  "—",
+  "-",
+  "–",
+  "待补全",
+  "无",
+  "暂无",
+  "n/a",
+  "N/A",
+]);
+
+function normalizeExportFieldValue(value: string | null | undefined): string {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return "";
+  if (EXPORT_FIELD_PLACEHOLDERS.has(trimmed)) return "";
+  return trimmed;
+}
+
+function hasExportableFieldValue(value: string | null | undefined): boolean {
+  return Boolean(normalizeExportFieldValue(value));
+}
+
+function entryHasExportableContent(
+  content: string,
+  imageCache: Map<string, NoteImagePayload>
+): boolean {
+  return parseJpVocabClassNoteContent(content).some(
+    (segment) =>
+      (segment.type === "text" && segment.text.trim()) ||
+      (segment.type === "image" && imageCache.has(segment.src))
+  );
+}
+
+function countWordExportableNoteImages(
+  word: JpVocabWord,
+  imageCache: Map<string, NoteImagePayload>
+): number {
   let count = 0;
   for (const entry of parseJpVocabClassNotes(word.class_notes)) {
     for (const segment of parseJpVocabClassNoteContent(entry.content)) {
-      if (segment.type === "image") count++;
+      if (segment.type === "image" && imageCache.has(segment.src)) count++;
     }
   }
   return count;
@@ -155,7 +192,7 @@ function labeledParagraph(
         font: "Microsoft YaHei",
       }),
       new TextRun({
-        text: value.trim() || "—",
+        text: value.trim(),
         bold: opts?.valueBold,
         size: opts?.valueSize ?? 22,
         font: "Microsoft YaHei",
@@ -211,48 +248,42 @@ function buildNoteImageGrid(
   const cellWidthPx =
     (EXPORT_CONTENT_WIDTH_PX - EXPORT_IMAGE_CELL_GAP_PX * (EXPORT_IMAGES_PER_ROW - 1)) /
     EXPORT_IMAGES_PER_ROW;
-  const colPercent = Math.floor(100 / EXPORT_IMAGES_PER_ROW);
   const rows: InstanceType<DocxModule["TableRow"]>[] = [];
 
   for (let row = 0; row < Math.ceil(images.length / EXPORT_IMAGES_PER_ROW); row++) {
+    const rowImages = images.slice(
+      row * EXPORT_IMAGES_PER_ROW,
+      row * EXPORT_IMAGES_PER_ROW + EXPORT_IMAGES_PER_ROW
+    );
+    const colPercent = Math.floor(100 / rowImages.length);
     const cells: InstanceType<DocxModule["TableCell"]>[] = [];
-    for (let col = 0; col < EXPORT_IMAGES_PER_ROW; col++) {
-      const image = images[row * EXPORT_IMAGES_PER_ROW + col];
-      if (image) {
-        const { width, height } = calcImageDrawSize(
-          image.width,
-          image.height,
-          cellWidthPx,
-          EXPORT_IMAGE_MAX_HEIGHT_PX
-        );
-        cells.push(
-          new TableCell({
-            borders,
-            width: { size: colPercent, type: WidthType.PERCENTAGE },
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                spacing: { after: 80 },
-                children: [
-                  new ImageRun({
-                    type: image.type,
-                    data: image.data,
-                    transformation: { width, height },
-                  }),
-                ],
-              }),
-            ],
-          })
-        );
-      } else {
-        cells.push(
-          new TableCell({
-            borders,
-            width: { size: colPercent, type: WidthType.PERCENTAGE },
-            children: [new Paragraph({ children: [] })],
-          })
-        );
-      }
+
+    for (const image of rowImages) {
+      const { width, height } = calcImageDrawSize(
+        image.width,
+        image.height,
+        cellWidthPx,
+        EXPORT_IMAGE_MAX_HEIGHT_PX
+      );
+      cells.push(
+        new TableCell({
+          borders,
+          width: { size: colPercent, type: WidthType.PERCENTAGE },
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 80 },
+              children: [
+                new ImageRun({
+                  type: image.type,
+                  data: image.data,
+                  transformation: { width, height },
+                }),
+              ],
+            }),
+          ],
+        })
+      );
     }
     rows.push(new TableRow({ children: cells }));
   }
@@ -268,7 +299,6 @@ function buildNoteEntryBlocks(
   content: string,
   imageCache: Map<string, NoteImagePayload>
 ): DocxChild[] {
-  const { Paragraph, TextRun } = docx;
   const segments = parseJpVocabClassNoteContent(content);
   const blocks: DocxChild[] = [];
   let pendingImages: NoteImagePayload[] = [];
@@ -292,26 +322,61 @@ function buildNoteEntryBlocks(
     const image = imageCache.get(segment.src);
     if (image) {
       pendingImages.push(image);
-    } else {
-      flushImages();
-      blocks.push(
-        new Paragraph({
-          spacing: { after: 80 },
-          children: [
-            new TextRun({
-              text: "[图片加载失败]",
-              size: 18,
-              color: "999999",
-              font: "Microsoft YaHei",
-            }),
-          ],
-        })
-      );
     }
   }
 
   flushImages();
   return blocks;
+}
+
+function buildClassNotesBlocks(
+  docx: DocxModule,
+  word: JpVocabWord,
+  imageCache: Map<string, NoteImagePayload>
+): DocxChild[] {
+  const { Paragraph, TextRun } = docx;
+  const exportableEntries = parseJpVocabClassNotes(word.class_notes).filter((entry) =>
+    entryHasExportableContent(entry.content, imageCache)
+  );
+  if (!exportableEntries.length) return [];
+
+  const contentBlocks: DocxChild[] = [];
+
+  exportableEntries.forEach((entry, entryIndex) => {
+    const entryBlocks = buildNoteEntryBlocks(docx, entry.content, imageCache);
+    if (!entryBlocks.length) return;
+
+    if (entry.timestamp) {
+      contentBlocks.push(
+        ...textParagraphs(docx, entry.timestamp, {
+          size: 18,
+          color: "666666",
+          spacingAfter: 60,
+        })
+      );
+    }
+    contentBlocks.push(...entryBlocks);
+    if (entryIndex < exportableEntries.length - 1) {
+      contentBlocks.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+    }
+  });
+
+  if (!contentBlocks.length) return [];
+
+  return [
+    new Paragraph({
+      spacing: { after: 60 },
+      children: [
+        new TextRun({
+          text: "备注：",
+          bold: true,
+          size: 20,
+          font: "Microsoft YaHei",
+        }),
+      ],
+    }),
+    ...contentBlocks,
+  ];
 }
 
 function buildWordBlock(
@@ -324,8 +389,9 @@ function buildWordBlock(
 ): DocxChild[] {
   const { BorderStyle, convertMillimetersToTwip, PageBreak, Paragraph, TextRun } = docx;
   const seq = dailySeqByWordId.get(word.id);
-  const kindLabel = word.kind === "grammar" ? "语法" : "";
-  const wordText = kindLabel ? `${word.word}（${kindLabel}）` : word.word;
+  const isGrammar = word.kind === "grammar";
+  const primaryLabel = isGrammar ? "语法" : "单词 / 语法";
+  const wordText = word.word.trim();
   const header =
     seq != null ? `序号 ${seq} · ID ${word.id}` : `ID ${word.id}`;
 
@@ -347,43 +413,31 @@ function buildWordBlock(
         }),
       ],
     }),
-    labeledParagraph(docx, "单词 / 语法", wordText, { valueBold: true, valueSize: 28 }),
-    labeledParagraph(docx, "读音", word.reading?.trim() || "—"),
-    labeledParagraph(docx, "释义", word.meaning?.trim() || "—"),
-    labeledParagraph(docx, "词性", word.pos?.trim() || "—", { after: 80 })
+    labeledParagraph(docx, primaryLabel, wordText, { valueBold: true, valueSize: 28 })
   );
 
-  const noteEntries = parseJpVocabClassNotes(word.class_notes);
-  if (noteEntries.length) {
+  const reading = normalizeExportFieldValue(word.reading);
+  const meaning = normalizeExportFieldValue(word.meaning);
+  const pos = normalizeExportFieldValue(word.pos);
+  const optionalFields: { label: string; value: string }[] = [];
+  if (hasExportableFieldValue(reading)) optionalFields.push({ label: "读音", value: reading });
+  if (hasExportableFieldValue(meaning)) optionalFields.push({ label: "释义", value: meaning });
+  if (hasExportableFieldValue(pos)) optionalFields.push({ label: "词性", value: pos });
+
+  const noteBlocks = buildClassNotesBlocks(docx, word, imageCache);
+
+  optionalFields.forEach((field, fieldIndex) => {
+    const isLastField =
+      fieldIndex === optionalFields.length - 1 && !noteBlocks.length;
     blocks.push(
-      new Paragraph({
-        spacing: { after: 60 },
-        children: [
-          new TextRun({
-            text: "备注：",
-            bold: true,
-            size: 20,
-            font: "Microsoft YaHei",
-          }),
-        ],
+      labeledParagraph(docx, field.label, field.value, {
+        after: isLastField ? 80 : undefined,
       })
     );
+  });
 
-    noteEntries.forEach((entry, entryIndex) => {
-      if (entry.timestamp) {
-        blocks.push(
-          ...textParagraphs(docx, entry.timestamp, {
-            size: 18,
-            color: "666666",
-            spacingAfter: 60,
-          })
-        );
-      }
-      blocks.push(...buildNoteEntryBlocks(docx, entry.content, imageCache));
-      if (entryIndex < noteEntries.length - 1) {
-        blocks.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
-      }
-    });
+  if (noteBlocks.length) {
+    blocks.push(...noteBlocks);
   }
 
   blocks.push(
@@ -411,7 +465,7 @@ async function buildExportWordBlocks(
   const blocks: DocxChild[] = [];
 
   words.forEach((word, index) => {
-    const imageCount = countWordNoteImages(word);
+    const imageCount = countWordExportableNoteImages(word, imageCache);
     const pageBreakBefore =
       index > 0 && imageCount >= EXPORT_OWN_PAGE_MIN_IMAGES;
     blocks.push(
