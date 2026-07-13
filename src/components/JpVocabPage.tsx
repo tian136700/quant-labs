@@ -32,6 +32,7 @@ import { JpVocabMnemonicViewModal } from "@/components/JpVocabMnemonicViewModal"
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
+import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import {
   JpVocabDailyQuizIntroModal,
   shouldShowJpVocabDailyIntro,
@@ -174,8 +175,15 @@ const JpVocabExportChoiceModal = dynamic(
 export function JpVocabPage() {
   const { locale } = useI18n();
   const router = useRouter();
-  const { user, checking, canAccessJpVocab, refresh, openAuthPanel, isAdmin } =
-    useEtrAuth();
+  const {
+    user,
+    checking,
+    canAccessJpVocab,
+    refresh,
+    openAuthPanel,
+    setUser,
+    isAdmin,
+  } = useEtrAuth();
   const canOperate = canAccessJpVocab;
   const canShareToStudy = canAccessJpVocab;
 
@@ -503,8 +511,9 @@ export function JpVocabPage() {
   }, [applyVocabPayload, syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
+    if (checking || !user) return;
     void loadWords();
-  }, [loadWords]);
+  }, [loadWords, checking, user]);
 
   /** 北京时间跨日后清空前端勾选回显，并拉取当日新顺序 */
   useEffect(() => {
@@ -2064,6 +2073,30 @@ export function JpVocabPage() {
     const meta = resolveJpVocabRefForPreview(refKey, refs, ref);
     setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
   };
+
+  if (checking) {
+    return (
+      <main
+        className="page-wrap jp-vocab-page"
+        style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}
+      >
+        <p style={{ color: "var(--muted)" }}>验证中…</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <TeacherReviewAuth
+        variant="page"
+        loginOnly
+        title="登录 · 日语单词"
+        subtitle="请登录后继续访问日语单词 / 语法抽问。"
+        onAuthenticated={(next) => setUser(next)}
+      />
+    );
+  }
+
   return (
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>

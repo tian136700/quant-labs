@@ -1,6 +1,13 @@
 import { readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import { JP_SITE_URL } from "@/lib/jp-site-host";
+import { jpVocabPath } from "@/lib/locale-path";
 
 export const ADMIN_USER_CREDENTIALS_CACHE_KEY = "admin-user-credentials:v1";
+
+/** 复制账号密码时附带的日语抽问入口（日语子域名） */
+function jpVocabShareUrl(): string {
+  return `${JP_SITE_URL}${jpVocabPath()}`;
+}
 
 export function readAdminUserPassword(userId: number): string | null {
   const map =
@@ -39,8 +46,9 @@ export function formatAdminUserCredentials(
   password: string,
   locale: "en" | "zh"
 ): string {
+  const url = jpVocabShareUrl();
   if (locale === "zh") {
-    return `用户名：${username}\n密码：${password}`;
+    return `用户名：${username}\n密码：${password}\n日语抽问：${url}`;
   }
-  return `Username: ${username}\nPassword: ${password}`;
+  return `Username: ${username}\nPassword: ${password}\nJP vocab: ${url}`;
 }

@@ -132,6 +132,7 @@
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 用户列表、关联日语老师、创建/禁用/登录链接 | `AdminUsersPage.tsx`；`GET/PATCH /api/admin/users` |
+| **复制账号密码**（含日语子域名 `/jp-vocab` 入口） | `AdminUsersPage.tsx` → `copyUserCredentials`；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` + `jpVocabPath()`） |
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
 | **今日有课老师账号自动启用**（北京时间 05:00；查日语新课排课 + 英语新课排课 + 手动日程；`admin` / `user1` / `test` 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |
 
