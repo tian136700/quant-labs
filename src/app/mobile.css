@@ -1470,6 +1470,24 @@
     content: "学习类型";
   }
 
+  .jp-lesson-content-count-col {
+    order: 10;
+    flex: 1 1 auto;
+    min-width: 3.75rem;
+    max-width: calc(50% - 0.3125rem);
+    text-align: center !important;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+
+  .jp-lesson-content-count-col::before {
+    content: attr(data-label);
+  }
+
+  .jp-lesson-content-count-col > * {
+    font-size: 0.8125rem;
+  }
+
   /* 短字段：操作人、老师 */
   .jp-lesson-operator-col {
     order: 11;
@@ -1710,6 +1728,7 @@
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-labeled-col,
+  .jp-lesson-page--ja .jp-lesson-content-count-col,
   .jp-lesson-page--ja .jp-lesson-next-class-col,
   .jp-lesson-page--ja .jp-lesson-teacher-col,
   .jp-lesson-page--ja .jp-lesson-operator-col,
@@ -1720,6 +1739,7 @@
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-labeled-col > *,
+  .jp-lesson-page--ja .jp-lesson-content-count-col > *,
   .jp-lesson-page--ja .jp-lesson-next-class-col > *,
   .jp-lesson-page--ja .jp-lesson-teacher-col > *,
   .jp-lesson-page--ja .jp-lesson-operator-col > *,
@@ -1891,10 +1911,21 @@
   }
 
   .jp-lesson-page--ja .jp-lesson-notes-col {
-    grid-column: 2 / -1;
+    grid-column: 2;
     grid-row: 2;
     border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
     border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-content-count-col {
+    grid-column: 3;
+    grid-row: 2;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-content-count-col::before {
+    content: "词/语法数";
   }
 
   .jp-lesson-page--ja .jp-lesson-complete-wrap {

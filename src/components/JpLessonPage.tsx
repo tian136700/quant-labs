@@ -1395,6 +1395,9 @@ export function JpLessonPage() {
             <th>ID</th>
             <th>学习类型</th>
             <th>学习内容</th>
+            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计">
+              词/语法数
+            </th>
             <th>释义</th>
             <th className="jp-lesson-uploaded-col">上传日期</th>
             <th
@@ -1584,6 +1587,15 @@ export function JpLessonPage() {
                             ) : null}
                           </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </td>
+                <td data-label="词/语法数" className="jp-lesson-content-count-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                        {parseLessonContent(lesson.content).length}
                       </div>
                     ))}
                   </div>
@@ -2111,6 +2123,14 @@ export function JpLessonPage() {
         :global(.jp-lesson-content-col) {
           min-width: 9rem;
           max-width: 14rem;
+        }
+        :global(.jp-lesson-content-count-col) {
+          width: 4.5rem;
+          min-width: 4.5rem;
+          text-align: center;
+          font-variant-numeric: tabular-nums;
+          font-size: 0.8125rem;
+          color: var(--muted);
         }
         :global(.jp-lesson-meanings-col) {
           min-width: 8rem;
