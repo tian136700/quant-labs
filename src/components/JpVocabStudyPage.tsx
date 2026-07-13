@@ -134,7 +134,6 @@ export function JpVocabStudyPage() {
       };
     });
     setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
-    setEditingWord((prev) => (prev?.id === word.id ? word : prev));
     setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
     setStatus("词条已保存。");
   }, []);

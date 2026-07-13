@@ -105,32 +105,43 @@ export function JpVocabEditModal({
   const [uploadingRef, setUploadingRef] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressEvent | null>(null);
   const refFileInputRef = useRef<HTMLInputElement>(null);
+  const initializedWordIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open && word) {
-      setKind(word.kind);
-      setWordText(word.word);
-      setReading(word.reading || "");
-      setMeaning(word.meaning || "");
-      setPos(word.pos || "");
-      setClassNotes(word.class_notes || "");
-      setMnemonic(word.mnemonic || "");
-      setError("");
-      setRefError("");
-      setCurrentRefMeta(word.ref_key ? refs[word.ref_key] ?? null : null);
-      setNewRefFile(null);
-      setNewRefPreviewUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return null;
-      });
-      setZoomTarget(null);
-      setUploadProgress(null);
+    if (!open) {
+      initializedWordIdRef.current = null;
+      return;
     }
-  }, [open, refs, word]);
+    if (!word || initializedWordIdRef.current === word.id) return;
+
+    initializedWordIdRef.current = word.id;
+    setKind(word.kind);
+    setWordText(word.word);
+    setReading(word.reading || "");
+    setMeaning(word.meaning || "");
+    setPos(word.pos || "");
+    setClassNotes(word.class_notes || "");
+    setMnemonic(word.mnemonic || "");
+    setError("");
+    setRefError("");
+    setCurrentRefMeta(word.ref_key ? refs[word.ref_key] ?? null : null);
+    setNewRefFile(null);
+    setNewRefPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setZoomTarget(null);
+    setUploadProgress(null);
+  }, [open, word, refs]);
+
+  useEffect(() => {
+    if (!open || !word?.ref_key) return;
+    setCurrentRefMeta(refs[word.ref_key] ?? null);
+  }, [open, word?.ref_key, refs]);
 
   useEffect(() => {
     if (!open) return;

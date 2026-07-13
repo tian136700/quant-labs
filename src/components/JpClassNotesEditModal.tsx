@@ -176,7 +176,7 @@ export function JpClassNotesEditModal({
   useEffect(() => {
     if (!open || !word || dirtyRef.current) return;
     setHistoryEntries(historyEntriesFromWord(word));
-  }, [open, word?.id, word?.class_notes, word?.updated_at, word]);
+  }, [open, word?.id, word?.class_notes, word?.updated_at]);
 
   const pullRemoteNotes = useCallback(async () => {
     const current = wordRef.current;
@@ -217,7 +217,7 @@ export function JpClassNotesEditModal({
     void pullRemoteNotes();
     const timer = setInterval(() => void pullRemoteNotes(), POLL_MS);
     return () => clearInterval(timer);
-  }, [open, word?.id, pullRemoteNotes, word]);
+  }, [open, word?.id, pullRemoteNotes]);
 
   useEffect(() => {
     if (!open) return;
@@ -542,7 +542,7 @@ export function JpClassNotesEditModal({
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [draft, open, canEdit, word, flushSave]);
+  }, [draft, open, canEdit, flushSave]);
 
   const handleShare = async () => {
     const current = wordRef.current;
