@@ -1,15 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   jpVocabPriorityLabel,
-  jpVocabRiskIndex,
-  formatJpVocabTotalReviewsDisplay,
-  jpVocabTotalReviewsZeroHint,
   sortJpVocabWordsForDisplay,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
@@ -29,8 +26,6 @@ import { jpVocabFlashcardCopyText } from "@/lib/jp-vocab-flashcard-copy";
 import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { CopyToast } from "@/components/CopyToast";
-import { JpEditIconButton } from "@/components/JpEditIconButton";
-import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
 import { JpVocabMnemonicViewModal } from "@/components/JpVocabMnemonicViewModal";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
@@ -73,7 +68,6 @@ import {
 } from "@/lib/jp-api-cache";
 import {
   fetchWithClientCache,
-  readClientCache,
   readClientCacheAge,
   writeClientCache,
 } from "@/lib/client-swr-cache";
@@ -94,7 +88,6 @@ import {
   beijingDateString,
 } from "@/lib/jp-vocab-daily-check";
 import {
-  applyJpVocabReview,
   effectiveJpVocabDisplayLevel,
   isJpVocabWordReviewLocked,
   resolveJpVocabPreviousLevel,
@@ -123,217 +116,33 @@ import {
 } from "@/lib/jp-vocab-quiz-target-notify";
 import { JP_VOCAB_MANUAL_ADD_ENABLED, JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
-  animateJpVocabSaveProgressTo100,
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
-  jpVocabSaveProgressPercent,
   JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
 } from "@/lib/jp-vocab-save-progress";
-import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { JpVocabPagination } from "@/components/jp-vocab-page/JpVocabPagination";
+import { JpVocabPageStyles } from "@/components/jp-vocab-page/JpVocabPageStyles";
+import { JpVocabWordTable } from "@/components/jp-vocab-page/JpVocabWordTable";
+import {
+  readJpVocabPageCache,
+  persistJpVocabPageCache,
+} from "@/lib/jp-vocab-page-cache";
+import {
+  JP_VOCAB_PAGE_SIZE,
+  SHOW_RANDOM_HIGHLIGHT,
+  SHOW_RISK_CHART,
+} from "@/lib/jp-vocab-page-constants";
+import {
+  animateJpVocabShareProgressTo100,
+  bumpJpVocabWordReview,
+  jpVocabShareProgressPercent,
+  jpVocabWordsInOrder,
+  JP_VOCAB_SAVE_ERR,
+  pickRandomJpVocabWord,
+  readStoredJpVocabPage,
+  writeStoredJpVocabPage,
+} from "@/lib/jp-vocab-page-helpers";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
-
-function readVocabCache(): JpVocabApiPayload | null {
-  return readClientCache<JpVocabApiPayload>(JP_VOCAB_CACHE_KEY);
-}
-
-function persistVocabCache(
-  words: JpVocabWord[],
-  refs: Record<string, JpVocabRef>,
-  display_order: JpVocabDailyDisplayOrder,
-  shared_today_word_ids?: number[],
-  teacher_visible_limit?: JpVocabTeacherVisibleLimit
-) {
-  const prev = readVocabCache();
-  writeClientCache(JP_VOCAB_CACHE_KEY, {
-    words,
-    refs,
-    daily_quiz_style: prev?.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
-    display_order,
-    shared_today_word_ids:
-      shared_today_word_ids ??
-      prev?.shared_today_word_ids ??
-      [],
-    teacher_visible_limit:
-      teacher_visible_limit ??
-      prev?.teacher_visible_limit ??
-      normalizeJpVocabTeacherVisibleLimit(null),
-  });
-}
-
-const LEVELS: { key: JpVocabLevel; label: string }[] = [
-  { key: "very", label: "非常熟悉" },
-  { key: "normal", label: "一般" },
-  { key: "weak", label: "不熟悉" },
-];
-
-const STAT_SORT_COLUMNS: {
-  key: JpVocabStatSortKey;
-  label: string;
-  labelLines?: [string, string];
-  className: string;
-}[] = [
-  { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"], className: "jp-vocab-stat-detail" },
-  { key: "normal", label: "一般", className: "jp-vocab-stat-detail" },
-  { key: "weak", label: "不熟悉", labelLines: ["不", "熟悉"], className: "jp-vocab-stat-detail" },
-  { key: "total", label: "合计", className: "jp-vocab-stat-total" },
-];
-
-function JpVocabStatSortButton({
-  col,
-  statSort,
-  onSort,
-}: {
-  col: (typeof STAT_SORT_COLUMNS)[number];
-  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null;
-  onSort: (key: JpVocabStatSortKey) => void;
-}) {
-  const active = statSort?.key === col.key;
-  const ariaSort = active
-    ? statSort.dir === "asc"
-      ? "ascending"
-      : "descending"
-    : "none";
-
-  return (
-    <button
-      type="button"
-      className="jp-vocab-stats-sort-btn"
-      aria-sort={ariaSort}
-      title={`按${col.label}排序`}
-      onClick={() => onSort(col.key)}
-    >
-      <span className="jp-vocab-stats-sort-btn__label">{col.label}</span>
-      <span className="jp-vocab-sort-indicator" aria-hidden="true">
-        {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
-      </span>
-    </button>
-  );
-}
-
-/** 单词表「备注」列 */
-const SHOW_REMARKS_COLUMN = true;
-
-/** 暂时隐藏「随机高亮」按钮 */
-const SHOW_RANDOM_HIGHLIGHT = false;
-
-/** 暂时隐藏「抽查排行」图表 */
-const SHOW_RISK_CHART = false;
-
-/** 单词表每页条数 */
-const JP_VOCAB_PAGE_SIZE = 20;
-
-/** 操作列「发给学生」说明（表头短版 / 按钮下完整版） */
-const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
-const JP_VOCAB_SHARE_HINT =
-  "学生答不上来或不熟悉时，点此发送给他";
-const JP_VOCAB_PAGE_STORAGE_KEY = "jp_vocab_current_page";
-
-function readStoredJpVocabPage(): number {
-  if (typeof window === "undefined") return 1;
-  try {
-    const raw = window.localStorage.getItem(JP_VOCAB_PAGE_STORAGE_KEY);
-    const page = Number(raw);
-    return Number.isInteger(page) && page > 0 ? page : 1;
-  } catch {
-    return 1;
-  }
-}
-
-function writeStoredJpVocabPage(page: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(JP_VOCAB_PAGE_STORAGE_KEY, String(page));
-  } catch {
-    /* ignore storage errors */
-  }
-}
-
-function MobileLevelHistorySummary({ word }: { word: JpVocabWord }) {
-  return (
-    <div
-      className="jp-vocab-level-history jp-vocab-mobile-only"
-      aria-label="熟悉程度历史次数"
-    >
-      <span className="jp-vocab-level-history__item jp-vocab-level-history__item--very">
-        非常熟悉 {word.cnt_very}
-      </span>
-      <span className="jp-vocab-level-history__sep" aria-hidden="true">
-        ·
-      </span>
-      <span className="jp-vocab-level-history__item">一般 {word.cnt_normal}</span>
-      <span className="jp-vocab-level-history__sep" aria-hidden="true">
-        ·
-      </span>
-      <span className="jp-vocab-level-history__item jp-vocab-level-history__item--weak">
-        不熟悉 {word.cnt_weak}
-      </span>
-    </div>
-  );
-}
-
-function jpVocabShareProgressPercent(elapsedMs: number): number {
-  return jpVocabSaveProgressPercent(elapsedMs);
-}
-
-async function animateJpVocabShareProgressTo100(
-  wordId: number,
-  startedAtMs: number,
-  setPercent: (wordId: number, percent: number) => void
-): Promise<void> {
-  await animateJpVocabSaveProgressTo100(startedAtMs, (percent) =>
-    setPercent(wordId, percent)
-  );
-}
-
-function jpVocabCheckedInRound(
-  order: JpVocabDailyDisplayOrder,
-  word: JpVocabWord
-): boolean {
-  if (order.date !== beijingDateString()) return false;
-  return isJpVocabRoundChecked(order, word.id);
-}
-
-function jpVocabWordsInOrder(
-  words: JpVocabWord[],
-  order: number[]
-): JpVocabWord[] {
-  const byId = new Map(words.map((w) => [w.id, w]));
-  const seen = new Set<number>();
-  const ordered: JpVocabWord[] = [];
-  for (const id of order) {
-    const word = byId.get(id);
-    if (word) {
-      ordered.push(word);
-      seen.add(id);
-    }
-  }
-  for (const word of words) {
-    if (!seen.has(word.id)) ordered.push(word);
-  }
-  return ordered;
-}
-
-function pickRandomWord(words: JpVocabWord[], excludeId?: number): JpVocabWord | null {
-  if (!words.length) return null;
-  const pool =
-    excludeId != null && words.length > 1
-      ? words.filter((w) => w.id !== excludeId)
-      : words;
-  return pool[Math.floor(Math.random() * pool.length)] ?? null;
-}
-
-function bumpWordReview(
-  word: JpVocabWord,
-  level: JpVocabLevel,
-  previousLevel?: JpVocabLevel
-): JpVocabWord {
-  return applyJpVocabReview(word, level, new Date(), previousLevel).word;
-}
-
-const SAVE_ERR = {
-  en: "Please log in to save changes.",
-  zh: "请登录后再操作。",
-};
 
 export function JpVocabPage() {
   const { locale } = useI18n();
@@ -350,9 +159,11 @@ export function JpVocabPage() {
       subtitle: "登录用户方可修改数据。",
     });
   }, [openAuthPanel]);
-  const [words, setWords] = useState<JpVocabWord[]>([]);
-  const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
-  const [loading, setLoading] = useState(true);
+  const [words, setWords] = useState<JpVocabWord[]>(() => readJpVocabPageCache()?.words ?? []);
+  const [refs, setRefs] = useState<Record<string, JpVocabRef>>(
+    () => readJpVocabPageCache()?.refs ?? {}
+  );
+  const [loading, setLoading] = useState(() => readJpVocabPageCache() == null);
   const [refreshing, setRefreshing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
@@ -365,7 +176,7 @@ export function JpVocabPage() {
   );
   const [saveQueuePending, setSaveQueuePending] = useState(0);
   const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
-    () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
+    () => new Set(readJpVocabPageCache()?.shared_today_word_ids ?? [])
   );
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -421,10 +232,9 @@ export function JpVocabPage() {
   /** 未手动点列头排序时，行顺序用当日固定 display_order；点过后按列头数值排序 */
   const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
   /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
-  const [displayOrder, setDisplayOrder] = useState<JpVocabDailyDisplayOrder>({
-    date: "",
-    ids: [],
-    round_checked_ids: [],
+  const [displayOrder, setDisplayOrder] = useState<JpVocabDailyDisplayOrder>(() => {
+    const cached = readJpVocabPageCache()?.display_order;
+    return cached ?? { date: "", ids: [], round_checked_ids: [] };
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
@@ -454,13 +264,13 @@ export function JpVocabPage() {
   const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
     () =>
-      readVocabCache()?.teacher_visible_limit ??
+      readJpVocabPageCache()?.teacher_visible_limit ??
       normalizeJpVocabTeacherVisibleLimit(null)
   );
   const [quizTargetInput, setQuizTargetInput] = useState(
     () =>
       String(
-        readVocabCache()?.teacher_visible_limit?.quiz_target ??
+        readJpVocabPageCache()?.teacher_visible_limit?.quiz_target ??
           normalizeJpVocabTeacherVisibleLimit(null).quiz_target
       )
   );
@@ -586,7 +396,7 @@ export function JpVocabPage() {
         if (!teacherVisibleLimitNeedsPersist(prev, next)) {
           return prev;
         }
-        const cached = readVocabCache();
+        const cached = readJpVocabPageCache();
         if (cached) {
           writeClientCache(JP_VOCAB_CACHE_KEY, {
             ...cached,
@@ -619,7 +429,7 @@ export function JpVocabPage() {
   }, [applyTeacherVisibleSync]);
 
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
-    const cached = readVocabCache();
+    const cached = readJpVocabPageCache();
     const hasCache = cached != null;
     const cacheAge = readClientCacheAge(JP_VOCAB_CACHE_KEY);
     const cacheFresh =
@@ -685,7 +495,7 @@ export function JpVocabPage() {
     if (!patches.length) return;
     setWords((prev) => {
       const next = mergeJpVocabSyncPatches(prev, patches);
-      persistVocabCache(next, refsRef.current, displayOrderRef.current);
+      persistJpVocabPageCache(next, refsRef.current, displayOrderRef.current);
       return next;
     });
     setViewingRemarksWord((prev) => {
@@ -1065,12 +875,9 @@ export function JpVocabPage() {
   const currentPageCount = pagedDisplayedWords.length;
 
   useEffect(() => {
-    setPage(1);
-  }, [searchQuery, kindFilter]);
-
-  useEffect(() => {
+    if (loading) return;
     if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  }, [page, totalPages, loading]);
 
   useEffect(() => {
     writeStoredJpVocabPage(safePage);
@@ -1420,15 +1227,15 @@ export function JpVocabPage() {
     setHighlightId(wordId);
     setWords((prev) =>
       prev.map((w) =>
-        w.id === wordId ? bumpWordReview(w, level, prevLevel) : w
+        w.id === wordId ? bumpJpVocabWordReview(w, level, prevLevel) : w
       )
     );
     if (!wasAlreadyShared) {
       const nextSharedIds = [...sharedIdsSnapshot, wordId];
       setSharedTodayWordIds(new Set(nextSharedIds));
-      persistVocabCache(
+      persistJpVocabPageCache(
         wordsRef.current.map((w) =>
-          w.id === wordId ? bumpWordReview(w, level, prevLevel) : w
+          w.id === wordId ? bumpJpVocabWordReview(w, level, prevLevel) : w
         ),
         refsRef.current,
         markJpVocabRoundChecked(displayOrderSnapshot, wordId),
@@ -1481,7 +1288,7 @@ export function JpVocabPage() {
           };
           if (res.status === 401) {
             await refresh();
-            throw new Error(SAVE_ERR[locale]);
+            throw new Error(JP_VOCAB_SAVE_ERR[locale]);
           }
           if (!data.ok || !data.word) {
             const msg =
@@ -1504,7 +1311,7 @@ export function JpVocabPage() {
 
           setWords((prev) => {
             const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-            persistVocabCache(
+            persistJpVocabPageCache(
               next,
               refsRef.current,
               displayOrderRef.current,
@@ -1557,7 +1364,7 @@ export function JpVocabPage() {
       });
       if (!wasAlreadyShared) {
         setSharedTodayWordIds(new Set(sharedIdsSnapshot));
-        persistVocabCache(
+        persistJpVocabPageCache(
           wordsRef.current,
           refsRef.current,
           displayOrderSnapshot,
@@ -1635,7 +1442,7 @@ export function JpVocabPage() {
           };
           if (res.status === 401) {
             await refresh();
-            throw new Error(SAVE_ERR[locale]);
+            throw new Error(JP_VOCAB_SAVE_ERR[locale]);
           }
           if (res.status === 409 || data.error === "already_shared_today") {
             return { kind: "already" as const, startedAt };
@@ -1694,7 +1501,7 @@ export function JpVocabPage() {
       const nextSharedIds = [...sharedTodayWordIdsRef.current, wordId];
       setWords((prev) => {
         const next = prev.map((w) => (w.id === wordId ? updatedWord : w));
-        persistVocabCache(next, refsRef.current, nextDisplayOrder, nextSharedIds);
+        persistJpVocabPageCache(next, refsRef.current, nextDisplayOrder, nextSharedIds);
         return next;
       });
       setSharedTodayWordIds(new Set(nextSharedIds));
@@ -1732,7 +1539,7 @@ export function JpVocabPage() {
     const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
     const nextSharedIds = sharedIdsSnapshot.filter((id) => id !== wordId);
     setSharedTodayWordIds(new Set(nextSharedIds));
-    persistVocabCache(
+    persistJpVocabPageCache(
       wordsRef.current,
       refsRef.current,
       displayOrderRef.current,
@@ -1763,7 +1570,7 @@ export function JpVocabPage() {
         };
         if (res.status === 401) {
           await refresh();
-          throw new Error(SAVE_ERR[locale]);
+          throw new Error(JP_VOCAB_SAVE_ERR[locale]);
         }
         if (res.status === 409 || data.error === "not_shared_today") {
           return;
@@ -1774,7 +1581,7 @@ export function JpVocabPage() {
 
         setWords((prev) => {
           const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistVocabCache(
+          persistJpVocabPageCache(
             next,
             refsRef.current,
             data.display_order ?? displayOrderRef.current,
@@ -1804,7 +1611,7 @@ export function JpVocabPage() {
       });
     } catch (err) {
       setSharedTodayWordIds(new Set(sharedIdsSnapshot));
-      persistVocabCache(
+      persistJpVocabPageCache(
         wordsRef.current,
         refsRef.current,
         displayOrderRef.current,
@@ -1864,7 +1671,7 @@ export function JpVocabPage() {
         );
         setWords(data.words);
         setDisplayOrder(data.display_order);
-        persistVocabCache(
+        persistJpVocabPageCache(
           data.words,
           refsRef.current,
           data.display_order,
@@ -1924,7 +1731,7 @@ export function JpVocabPage() {
       setDisplayOrder(data.display_order);
       if (data.teacher_visible_limit) {
         setTeacherVisibleLimit(data.teacher_visible_limit);
-        persistVocabCache(
+        persistJpVocabPageCache(
           data.words,
           refs,
           data.display_order,
@@ -1932,7 +1739,7 @@ export function JpVocabPage() {
           data.teacher_visible_limit
         );
       } else {
-        persistVocabCache(data.words, refs, data.display_order);
+        persistJpVocabPageCache(data.words, refs, data.display_order);
       }
       setSessionLevel({});
       setSessionReviewAt({});
@@ -1977,7 +1784,7 @@ export function JpVocabPage() {
     const pool = quizTargetWords.filter(
       (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
     );
-    const next = pickRandomWord(pool, highlightId ?? undefined);
+    const next = pickRandomJpVocabWord(pool, highlightId ?? undefined);
     if (!next) return;
     const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
     if (idx >= 0) {
@@ -2004,7 +1811,7 @@ export function JpVocabPage() {
     setWords(nextWords);
     setRefs(nextRefs);
     setDisplayOrder(nextDisplayOrder);
-    persistVocabCache(nextWords, nextRefs, nextDisplayOrder);
+    persistJpVocabPageCache(nextWords, nextRefs, nextDisplayOrder);
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
@@ -2014,7 +1821,7 @@ export function JpVocabPage() {
     (word: JpVocabWord) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === word.id ? word : w));
-        persistVocabCache(next, refs, displayOrderRef.current);
+        persistJpVocabPageCache(next, refs, displayOrderRef.current);
         return next;
       });
       setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
@@ -2030,7 +1837,7 @@ export function JpVocabPage() {
     (wordId: number, snapshot: JpVocabWord, message: string) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === wordId ? snapshot : w));
-        persistVocabCache(next, refs, displayOrderRef.current);
+        persistJpVocabPageCache(next, refs, displayOrderRef.current);
         return next;
       });
       setStatus(message);
@@ -2086,7 +1893,7 @@ export function JpVocabPage() {
       }
       setTeacherVisibleLimit(data.teacher_visible_limit);
       setQuizTargetInput(String(data.teacher_visible_limit.quiz_target));
-      const prev = readVocabCache();
+      const prev = readJpVocabPageCache();
       if (prev) {
         writeClientCache(JP_VOCAB_CACHE_KEY, {
           ...prev,
@@ -2112,38 +1919,6 @@ export function JpVocabPage() {
     const meta = resolveJpVocabRefForPreview(refKey, refs, ref);
     setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
   };
-
-  const renderPaginationNav = () =>
-    showPagination ? (
-      <nav className="jp-vocab-pagination" aria-label="单词表分页">
-        <div className="jp-vocab-pagination__controls">
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={safePage <= 1}
-          >
-            上一页
-          </button>
-          <span className="jp-vocab-pagination__info">
-            第 {safePage} / {totalPages} 页 · 显示 {pageRangeStart}–{pageRangeEnd} /{" "}
-            {filteredDisplayedWords.length} 条
-          </span>
-          <button
-            type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={safePage >= totalPages}
-          >
-            下一页
-          </button>
-        </div>
-        <p className="jp-vocab-pagination__page-count">
-          每页显示 {currentPageCount} 条
-        </p>
-      </nav>
-    ) : null;
-
   return (
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
@@ -2500,7 +2275,10 @@ export function JpVocabPage() {
                   type="search"
                   className="jp-vocab-search__input"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
                   placeholder="单词、读音、释义、词性…（搜索全库，本地即时）"
                   disabled={loading}
                   autoComplete="off"
@@ -2510,7 +2288,10 @@ export function JpVocabPage() {
                   id="jp-vocab-kind-filter"
                   className="jp-vocab-search__kind"
                   value={kindFilter}
-                  onChange={(e) => setKindFilter(e.target.value as JpVocabKindFilter)}
+                  onChange={(e) => {
+                    setKindFilter(e.target.value as JpVocabKindFilter);
+                    setPage(1);
+                  }}
                   disabled={loading}
                   aria-label="类型筛选"
                 >
@@ -2527,6 +2308,7 @@ export function JpVocabPage() {
                     onClick={() => {
                       setSearchQuery("");
                       setKindFilter("all");
+                      setPage(1);
                     }}
                   >
                     清除
@@ -2549,633 +2331,53 @@ export function JpVocabPage() {
               </p>
             ) : filteredDisplayedWords.length ? (
           <>
-          <div className="jp-vocab-table-wrap">
-            <p className="jp-vocab-scroll-hint" aria-hidden="true">
-              表格较宽时可左右滑动查看
-            </p>
-            <table className="compare-table etr-table jp-vocab-table">
-              <thead>
-                <tr>
-                  <th rowSpan={2} className="jp-vocab-seq-col">
-                    <button
-                      type="button"
-                      className="jp-vocab-sort-btn"
-                      aria-sort={
-                        statSort?.key === "seq"
-                          ? statSort.dir === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : "none"
-                      }
-                      title="按当日固定序号排序"
-                      onClick={() => toggleStatSort("seq")}
-                    >
-                      <span>序号</span>
-                      <span className="jp-vocab-sort-indicator" aria-hidden="true">
-                        {statSort?.key === "seq"
-                          ? statSort.dir === "asc"
-                            ? "↑"
-                            : "↓"
-                          : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-kind-col">
-                    类型
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-word-col">
-                    单词 / 语法
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-reading-col">
-                    读音
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-meaning-col">
-                    释义
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-pos-col">
-                    词性
-                  </th>
-                  {isAdmin ? (
-                    <th rowSpan={2} className="jp-vocab-mnemonic-col" title="联想记忆 / 巧记口诀（仅管理员）">
-                      巧记
-                    </th>
-                  ) : null}
-                  <th rowSpan={2} className="jp-vocab-risk-col">
-                    <button
-                      type="button"
-                      className="jp-vocab-sort-btn"
-                      aria-sort={
-                        statSort?.key === "risk"
-                          ? statSort.dir === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : "none"
-                      }
-                      title={`按${jpVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）`}
-                      onClick={() => toggleStatSort("risk")}
-                    >
-                      <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                        <span>抽查</span>
-                        <span>优先级</span>
-                      </span>
-                      <span className="jp-vocab-sort-indicator" aria-hidden="true">
-                        {statSort?.key === "risk"
-                          ? statSort.dir === "asc"
-                            ? "↑"
-                            : "↓"
-                          : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-level-col">
-                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                      <span>熟悉程度</span>
-                      <span className="jp-vocab-th-multiline__sub">(老师勾选)</span>
-                    </span>
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-stats-col">
-                    <div className="jp-vocab-stats-col-head">
-                      <span className="jp-vocab-stats-col__title">复习次数统计</span>
-                      <div className="jp-vocab-stats-sort-grid" aria-label="按复习次数排序">
-                        {STAT_SORT_COLUMNS.map((col) => (
-                          <JpVocabStatSortButton
-                            key={col.key}
-                            col={col}
-                            statSort={statSort}
-                            onSort={toggleStatSort}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </th>
-                  <th rowSpan={2} className="jp-vocab-today-check-col" title="今日抽查次数">
-                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                      <span>今日</span>
-                      <span>抽查次数</span>
-                    </span>
-                  </th>
-                  {SHOW_REMARKS_COLUMN ? (
-                    <th rowSpan={2} className="jp-vocab-notes-col">
-                      备注
-                    </th>
-                  ) : null}
-                  <th rowSpan={2} className="jp-vocab-action-col">
-                    操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedDisplayedWords.map((w, rowIndex) => {
-                  const isHighlight = highlightId === w.id;
-                  const reviewLocked = isWordReviewLocked(w, sessionReviewAt[w.id]);
-                  const selected =
-                    effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], {
-                      displayOrder,
-                    }) ??
-                    (reviewLocked ? w.last_review_level ?? undefined : undefined);
-                  const syncState = wordSyncState[w.id];
-                  const isQueued = syncState === "queued";
-                  const isSyncing = syncState === "syncing";
-                  const isDeleting = deletingId === w.id;
-                  const sharingPercent = shareProgressMap[w.id] ?? 0;
-                  const isSharing = w.id in shareProgressMap;
-                  const isSaving = isQueued || isSyncing;
-                  const ref = w.ref_key ? refs[w.ref_key] : undefined;
-                  const risk = jpVocabRiskIndex(w);
-                  const todayChecks = effectiveTodayCheckCount(
-                    w.today_check_count ?? 0,
-                    w.today_check_date
-                  );
-                  const checkedInRound = jpVocabCheckedInRound(displayOrder, w);
-                  const dailySeq = dailySeqByWordId.get(w.id) ?? rowIndex + 1;
-                  const inQuizTarget = isWordInQuizTarget(w.id);
-                  const tableQuizLocked = teacherQuizLocksTable && inQuizTarget;
-                  const readingTrim = (w.reading || "").trim();
-                  const wordTrim = (w.word || "").trim();
-                  const meaningTrim = (w.meaning || "").trim();
-                  const posTrim = (w.pos || "").trim();
-                  const mnemonicTrim = (w.mnemonic || "").trim();
-                  const riskBadgeTier =
-                    risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
-                  const hasNotes = Boolean((w.class_notes || "").trim());
-                  const readingCopyText = jpVocabFlashcardCopyText(readingTrim, wordTrim);
-                  const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
-                  const totalStatLabel = totalDisplay.isZero ? (
-                    <span
-                      className="jp-vocab-total-never"
-                      title={jpVocabTotalReviewsZeroHint(locale)}
-                    >
-                      {totalDisplay.label}
-                    </span>
-                  ) : (
-                    totalDisplay.label
-                  );
-                  const renderNotesActions = () => (
-                    <div className="jp-vocab-notes-actions">
-                      {hasNotes ? (
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
-                          title="查看备注"
-                          onClick={() => openRemarksWord(w)}
-                        >
-                          查看
-                        </button>
-                      ) : null}
-                      {canOperate ? (
-                        <JpEditIconButton
-                          title="编辑备注"
-                          className="jp-vocab-notes-edit-btn"
-                          onClick={() => setEditingRemarksWord(w)}
-                        />
-                      ) : null}
-                    </div>
-                  );
-
-                  return (
-                    <tr
-                      key={w.id}
-                      id={`jp-vocab-row-${w.id}`}
-                      style={{
-                        background: isHighlight
-                          ? "rgba(61, 139, 253, 0.12)"
-                          : undefined,
-                      }}
-                    >
-                      <td className="jp-vocab-seq-col" data-label="序号">
-                        <span className="jp-vocab-seq-cell">
-                          <span className="jp-vocab-seq-num">{dailySeq}</span>
-                          {checkedInRound ? (
-                            <span
-                              className="jp-vocab-seq-checked"
-                              title="当前轮次已抽查"
-                              aria-label={`序号 ${dailySeq}，当前轮次已抽查`}
-                            >
-                              <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
-                                <path
-                                  d="M2 6l3 3 5-5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.8"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </span>
-                          ) : null}
-                        </span>
-                      </td>
-                      <td className="jp-vocab-kind-col" data-label="类型">
-                        <span
-                          className={`jp-vocab-kind-badge${
-                            w.kind === "grammar" ? " jp-vocab-kind-badge--grammar" : ""
-                          }`}
-                        >
-                          {w.kind === "grammar" ? "语法" : "单词"}
-                        </span>
-                      </td>
-                      <td className="jp-vocab-word-col" data-label="单词 / 语法">
-                        <div className="jp-vocab-word-cell">
-                          {w.ref_key ? (
-                            <>
-                              <button
-                                type="button"
-                                className="jp-vocab-word-link"
-                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                                onClick={() => openRefPreview(w.ref_key!, ref)}
-                              >
-                                {w.word}
-                              </button>
-                              <span className="jp-vocab-ref-hint">（点击查看教案）</span>
-                            </>
-                          ) : (
-                            <span className="jp-vocab-word-text">{w.word}</span>
-                          )}
-                        </div>
-                        <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
-                          {w.kind === "word" ? (
-                            readingTrim ? (
-                              <span className="jp-vocab-reading-text">{readingTrim}</span>
-                            ) : (
-                              <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                                待补全
-                              </span>
-                            )
-                          ) : readingTrim ? (
-                            <span className="jp-vocab-reading-text">{readingTrim}</span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td
-                        className={`jp-vocab-reading-col${
-                          !readingTrim && w.kind !== "word" ? " jp-vocab-field-empty" : ""
-                        }`}
-                        data-label="读音"
-                      >
-                        <div className="jp-vocab-reading-cell">
-                          {readingTrim ? (
-                            readingCopyText ? (
-                              <button
-                                type="button"
-                                className="jp-vocab-reading-text jp-vocab-reading-text--copy"
-                                title={`点击复制「${readingCopyText}」`}
-                                aria-label={`点击复制读音「${readingCopyText}」`}
-                                onClick={() => showReadingCopyToast(readingTrim, wordTrim)}
-                              >
-                                {readingTrim}
-                              </button>
-                            ) : (
-                              <span className="jp-vocab-reading-text">{readingTrim}</span>
-                            )
-                          ) : w.kind === "word" ? (
-                            <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                              待补全
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td
-                        className={`jp-vocab-meaning-col${
-                          !meaningTrim ? " jp-vocab-field-empty" : ""
-                        }`}
-                        data-label="释义"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        {meaningTrim ? (
-                          <>
-                            <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
-                            <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
-                              <summary className="jp-vocab-meaning-fold__summary">
-                                <span className="jp-vocab-fold-label">释义</span>
-                                <span className="jp-vocab-meaning-preview">{meaningTrim}</span>
-                              </summary>
-                              <p className="jp-vocab-meaning-full">{meaningTrim}</p>
-                            </details>
-                          </>
-                        ) : null}
-                      </td>
-                      <td
-                        className={`jp-vocab-pos-col${!posTrim ? " jp-vocab-field-empty" : ""}`}
-                        data-label="词性"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        {posTrim ? (
-                          <span className="jp-vocab-pos-badge">{posTrim}</span>
-                        ) : null}
-                      </td>
-                      {isAdmin ? (
-                        <td
-                          className={`jp-vocab-mnemonic-col${
-                            !mnemonicTrim ? " jp-vocab-field-empty" : ""
-                          }`}
-                          data-label="巧记"
-                          style={{ color: "var(--muted)" }}
-                        >
-                          {mnemonicTrim ? (
-                            <div className="jp-vocab-mnemonic-actions">
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mnemonic-view-btn"
-                                title="查看巧记"
-                                onClick={() => setViewingMnemonicWord(w)}
-                              >
-                                查看
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="jp-vocab-mnemonic-empty" title="可在「编辑」中填写巧记">
-                              —
-                            </span>
-                          )}
-                        </td>
-                      ) : null}
-                      <td className="jp-vocab-risk-col" data-label="优先级">
-                        <span
-                          className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
-                        >
-                          {risk.toFixed(1)}
-                        </span>
-                      </td>
-                      <td className="jp-vocab-level-col" data-label="熟悉程度">
-                        {isSharing || isQueued || isSyncing ? (
-                          <JpVocabSaveProgressBar
-                            label={jpVocabSaveProgressLabel(
-                              sharedTodayWordIds.has(w.id)
-                                ? "save_level"
-                                : "sync_to_student",
-                              { queued: isQueued && !isSyncing }
-                            )}
-                            percent={
-                              isSharing
-                                ? sharingPercent
-                                : jpVocabSaveProgressDisplayPercent(null)
-                            }
-                          />
-                        ) : !inQuizTarget && !isAdmin ? (
-                          <span
-                            className="jp-vocab-level-unavailable"
-                            title={`仅今日序号 1–${quizTarget} 可勾选熟悉程度`}
-                          >
-                            不可勾选
-                          </span>
-                        ) : tableQuizLocked ? (
-                        <div className="jp-vocab-level-wrap">
-                          <MobileLevelHistorySummary word={w} />
-                          <button
-                            type="button"
-                            className="jp-vocab-level-card-entry"
-                            disabled={isSaving}
-                            title="熟悉程度请在单词卡片内勾选"
-                            onClick={() => {
-                              if (quizSession != null) {
-                                resumeTeacherQuizFlashcard(w.id);
-                              } else {
-                                setPendingQuizWordId(w.id);
-                                setShowQuizModeModal(true);
-                              }
-                              setStatus("请在单词卡片内勾选熟悉程度。");
-                            }}
-                          >
-                            <div
-                              className="jp-vocab-levels jp-vocab-levels--locked jp-vocab-levels--readonly"
-                              aria-hidden="true"
-                            >
-                              {LEVELS.map((lv) => {
-                                const checked = selected === lv.key;
-                                return (
-                                  <span
-                                    key={lv.key}
-                                    className={`jp-vocab-level-opt jp-vocab-level-opt--readonly${
-                                      checked ? " is-checked" : ""
-                                    }${
-                                      lv.key === "very" ? " jp-vocab-level-opt--very" : ""
-                                    }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
-                                  >
-                                    <span className="jp-vocab-check-box" aria-hidden="true">
-                                      {checked ? (
-                                        <svg viewBox="0 0 12 12" width="10" height="10">
-                                          <path
-                                            d="M2 6l3 3 5-5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="1.8"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                          />
-                                        </svg>
-                                      ) : null}
-                                    </span>
-                                    <span>{lv.label}</span>
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </button>
-                        </div>
-                        ) : (
-                        <div className="jp-vocab-level-wrap">
-                        <MobileLevelHistorySummary word={w} />
-                        <div
-                          className={`jp-vocab-levels${
-                            reviewLocked || tableQuizLocked
-                              ? " jp-vocab-levels--locked"
-                              : ""
-                          }`}
-                          role="group"
-                          aria-label={`${w.word} 熟悉程度`}
-                          title={
-                            tableQuizLocked
-                              ? "抽查进行中：熟悉程度请在卡片内改选；词条编辑与备注编辑不受限"
-                              : reviewLocked
-                                ? "没办法操作"
-                                : undefined
-                          }
-                        >
-                          {LEVELS.map((lv) => {
-                            const checked = selected === lv.key;
-                            const levelDisabled =
-                              !canOperate || isSaving || reviewLocked;
-                            return (
-                              <button
-                                key={lv.key}
-                                type="button"
-                                className={`jp-vocab-level-opt${
-                                  checked ? " is-checked" : ""
-                                }${
-                                  !canOperate ? " jp-vocab-level-opt--readonly" : ""
-                                }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
-                                  tableQuizLocked ? " jp-vocab-level-opt--locked" : ""
-                                }${
-                                  lv.key === "very" ? " jp-vocab-level-opt--very" : ""
-                                }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
-                                disabled={levelDisabled}
-                                title={
-                                  tableQuizLocked
-                                    ? "抽查进行中，熟悉程度请在卡片内改选（编辑词条/备注不受限）"
-                                    : reviewLocked
-                                    ? "没办法操作"
-                                    : !canOperate
-                                      ? "登录后可勾选"
-                                      : isSaving
-                                        ? "保存中…"
-                                        : checked
-                                          ? "今日已选此项，可点其他选项改选"
-                                          : selected
-                                            ? "改选后以此为准，今日抽查次数不重复计"
-                                            : "勾选熟悉程度"
-                                }
-                                aria-pressed={checked}
-                                onClick={() => {
-                                  if (tableQuizLocked) {
-                                    resumeTeacherQuizFlashcard(w.id);
-                                    setStatus(
-                                      "抽查进行中，已重新打开抽查卡片，请继续在卡片内勾选熟悉程度。"
-                                    );
-                                    return;
-                                  }
-                                  tryRecordLevel(w.id, lv.key);
-                                }}
-                              >
-                                <span className="jp-vocab-check-box" aria-hidden="true">
-                                  {checked ? (
-                                    <svg viewBox="0 0 12 12" width="10" height="10">
-                                      <path
-                                        d="M2 6l3 3 5-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.8"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      />
-                                    </svg>
-                                  ) : null}
-                                </span>
-                                <span>{lv.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        </div>
-                        )}
-                      </td>
-                      <td className="jp-vocab-stats-col" data-label="复习统计">
-                        <div className="jp-vocab-stats-grid">
-                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--very">
-                            非常熟悉 {w.cnt_very}
-                          </span>
-                          <span className="jp-vocab-stats-grid__item">
-                            一般 {w.cnt_normal}
-                          </span>
-                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--weak">
-                            不熟悉 {w.cnt_weak}
-                          </span>
-                          <span className="jp-vocab-stats-grid__item jp-vocab-stats-grid__item--total">
-                            合计 {totalStatLabel}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="jp-vocab-today-check-col" data-label="今日抽查次数">
-                        <span
-                          className={`jp-vocab-today-check-value${
-                            todayChecks > 0 ? " jp-vocab-today-check-value--active" : ""
-                          }`}
-                          title={todayChecks > 0 ? `今日已抽查 ${todayChecks} 次` : "今日尚未抽查"}
-                        >
-                          {todayChecks}
-                        </span>
-                      </td>
-                      {SHOW_REMARKS_COLUMN ? (
-                        <td
-                          className={`jp-vocab-notes-col${
-                            !hasNotes && !canOperate ? " jp-vocab-field-empty" : ""
-                          }`}
-                          data-label="备注"
-                        >
-                          <div className="jp-vocab-notes-desktop">{renderNotesActions()}</div>
-                          <JpVocabMobileNotesCell
-                            classNotes={w.class_notes}
-                            hasNotes={hasNotes}
-                            canOperate={canOperate}
-                            onView={() => openRemarksWord(w)}
-                            onEdit={() => setEditingRemarksWord(w)}
-                          />
-                        </td>
-                      ) : null}
-                      <td
-                        className={`jp-vocab-action-col${!canOperate ? " jp-vocab-field-empty" : ""}`}
-                        data-label="操作"
-                      >
-                        {canOperate ? (
-                          <div className="jp-vocab-action-buttons">
-                            {w.ref_key ? (
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-mobile-action-btn--full jp-vocab-mobile-only"
-                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                                onClick={() => openRefPreview(w.ref_key!, ref)}
-                              >
-                                <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                                  <path
-                                    d="M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v7A2.5 2.5 0 0 1 13.5 16h-7A2.5 2.5 0 0 1 4 13.5v-7Z"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                  />
-                                  <path
-                                    d="M8 10.5l1.5 1.5L12.5 9"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                                查看教案
-                              </button>
-                            ) : null}
-                            <div className="jp-vocab-action-row">
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
-                                onClick={() => setEditingWord(w)}
-                              >
-                                <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                                  <path
-                                    d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5Z"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                                编辑
-                              </button>
-                              {isAdmin ? (
-                                <button
-                                  type="button"
-                                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger jp-vocab-mobile-action-btn"
-                                  disabled={
-                                    isSaving ||
-                                    isDeleting ||
-                                    deletingId != null
-                                  }
-                                  title="删除此词条（不可恢复）"
-                                  onClick={() => void deleteWord(w)}
-                                >
-                                  {isDeleting ? "删除中…" : "删除"}
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-            {renderPaginationNav()}
+          <JpVocabWordTable
+            locale={locale}
+            isAdmin={isAdmin}
+            canOperate={canOperate}
+            statSort={statSort}
+            onStatSort={toggleStatSort}
+            words={pagedDisplayedWords}
+            highlightId={highlightId}
+            displayOrder={displayOrder}
+            sessionLevel={sessionLevel}
+            sessionReviewAt={sessionReviewAt}
+            wordSyncState={wordSyncState}
+            deletingId={deletingId}
+            shareProgressMap={shareProgressMap}
+            sharedTodayWordIds={sharedTodayWordIds}
+            refs={refs}
+            dailySeqByWordId={dailySeqByWordId}
+            quizTarget={quizTarget}
+            teacherQuizLocksTable={teacherQuizLocksTable}
+            isWordInQuizTarget={isWordInQuizTarget}
+            isWordReviewLocked={isWordReviewLocked}
+            quizSession={quizSession}
+            openRemarksWord={openRemarksWord}
+            onEditRemarks={setEditingRemarksWord}
+            onReadingCopy={showReadingCopyToast}
+            onRefPreview={openRefPreview}
+            onEditWord={setEditingWord}
+            onDeleteWord={(w) => void deleteWord(w)}
+            onViewMnemonic={setViewingMnemonicWord}
+            onRecordLevel={(wordId, level) => void tryRecordLevel(wordId, level)}
+            onResumeQuiz={(wordId) => resumeTeacherQuizFlashcard(wordId)}
+            onRequestQuizMode={(wordId) => {
+              setPendingQuizWordId(wordId);
+              setShowQuizModeModal(true);
+            }}
+            onStatus={setStatus}
+          />
+            <JpVocabPagination
+              safePage={safePage}
+              totalPages={totalPages}
+              pageRangeStart={pageRangeStart}
+              pageRangeEnd={pageRangeEnd}
+              totalItems={filteredDisplayedWords.length}
+              currentPageCount={currentPageCount}
+              pageSize={JP_VOCAB_PAGE_SIZE}
+              onPageChange={setPage}
+            />
           </>
             ) : null}
           </>
@@ -3350,1401 +2552,7 @@ export function JpVocabPage() {
         }
       />
 
-      <style jsx>{`
-        :global(.page-wrap:has(.jp-vocab-page)) {
-          max-width: min(1480px, 96vw);
-        }
-        .jp-vocab-scroll-hint {
-          display: none;
-          margin: 0 0 0.5rem;
-          font-size: 0.8125rem;
-          color: var(--muted);
-        }
-        .jp-vocab-today-summary-value {
-          font-variant-numeric: tabular-nums;
-          font-weight: 500;
-        }
-        .jp-vocab-today-summary-value--active {
-          color: var(--accent);
-          font-weight: 700;
-        }
-        .jp-vocab-help {
-          margin-bottom: 0.75rem;
-        }
-        .jp-vocab-help-toggle {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          padding: 0;
-          border: none;
-          background: transparent;
-          color: var(--muted);
-          font: inherit;
-          font-size: 0.8125rem;
-          cursor: pointer;
-        }
-        .jp-vocab-help-toggle:hover {
-          color: var(--accent);
-        }
-        .jp-vocab-help-toggle-icon {
-          font-size: 0.625rem;
-          opacity: 0.7;
-        }
-        .jp-vocab-risk-hint {
-          margin: 0.5rem 0 0;
-          padding: 0.65rem 0.85rem;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: color-mix(in srgb, var(--panel) 92%, var(--bg));
-          font-size: 0.8125rem;
-          line-height: 1.55;
-          color: var(--muted);
-        }
-        .jp-vocab-risk-hint strong {
-          color: var(--text);
-        }
-        .jp-vocab-search {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.5rem 0.65rem;
-          margin: 0 0 0.75rem;
-        }
-        .jp-vocab-search__label {
-          font-size: 0.875rem;
-          color: var(--muted);
-          flex-shrink: 0;
-        }
-        .jp-vocab-search__row {
-          display: flex;
-          align-items: center;
-          gap: 0.35rem;
-          flex: 1 1 auto;
-          min-width: 0;
-          max-width: 24rem;
-        }
-        .jp-vocab-search__kind {
-          flex: 0 0 auto;
-          width: 3.4rem;
-          min-width: 3.4rem;
-          padding: 0.45rem 1.15rem 0.45rem 0.35rem;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background-color: var(--panel);
-          color: var(--text);
-          font: inherit;
-          font-size: 0.8125rem;
-          cursor: pointer;
-          appearance: none;
-          -webkit-appearance: none;
-          -moz-appearance: none;
-          background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-            linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-          background-position:
-            calc(100% - 0.55rem) calc(50% + 0.12rem),
-            calc(100% - 0.35rem) calc(50% + 0.12rem);
-          background-size: 0.3rem 0.3rem;
-          background-repeat: no-repeat;
-          text-align: center;
-          text-align-last: center;
-        }
-        .jp-vocab-search__kind:focus {
-          outline: none;
-          border-color: var(--accent);
-          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
-        }
-        .jp-vocab-search__kind:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .jp-vocab-search__input {
-          flex: 1 1 auto;
-          min-width: 0;
-          width: auto;
-          max-width: none;
-          padding: 0.45rem 0.65rem;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: var(--panel);
-          color: var(--text);
-          font: inherit;
-          font-size: 0.875rem;
-        }
-        .jp-vocab-search__input:focus {
-          outline: none;
-          border-color: var(--accent);
-          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
-        }
-        .jp-vocab-search__input:disabled {
-          opacity: 0.6;
-        }
-        .jp-vocab-search__meta {
-          font-size: 0.8125rem;
-          color: var(--muted);
-          font-variant-numeric: tabular-nums;
-        }
-        .jp-vocab-search__empty {
-          margin: 0 0 0.75rem;
-          padding: 0.65rem 0.85rem;
-          border-radius: 6px;
-          border: 1px dashed var(--border);
-          color: var(--muted);
-          font-size: 0.875rem;
-        }
-        .jp-vocab-pagination {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.45rem;
-          margin: 0 0 0.75rem;
-        }
-        .jp-vocab-pagination:last-of-type {
-          margin: 0.75rem 0 0;
-        }
-        .jp-vocab-pagination__controls {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-          gap: 0.65rem 0.85rem;
-          width: 100%;
-        }
-        .jp-vocab-pagination__info {
-          font-size: 0.8125rem;
-          color: var(--muted);
-          font-variant-numeric: tabular-nums;
-          text-align: center;
-        }
-        .jp-vocab-pagination__page-count {
-          margin: 0;
-          font-size: 0.8125rem;
-          color: var(--muted);
-          font-variant-numeric: tabular-nums;
-          text-align: center;
-        }
-        .jp-vocab-level-wrap {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.2rem;
-          max-width: 100%;
-        }
-        .jp-vocab-level-sync-hint {
-          max-width: 8.75rem;
-        }
-        .jp-vocab-levels {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 0.35rem 0.5rem;
-          min-width: 0;
-        }
-        .jp-vocab-level-opt {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          font-size: 0.8125rem;
-          cursor: pointer;
-          white-space: nowrap;
-          padding: 0.35rem 0.5rem;
-          border-radius: 6px;
-          border: 1px solid transparent;
-          background: transparent;
-          color: var(--text);
-          font: inherit;
-          line-height: 1.3;
-          min-height: 2rem;
-        }
-        .jp-vocab-check-box {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 1rem;
-          height: 1rem;
-          flex-shrink: 0;
-          border: 1.5px solid var(--border);
-          border-radius: 3px;
-          background: var(--bg);
-          color: var(--accent);
-        }
-        .jp-vocab-level-opt.is-checked .jp-vocab-check-box {
-          border-color: var(--accent);
-          background: color-mix(in srgb, var(--accent) 18%, var(--bg));
-        }
-        .jp-vocab-level-opt--very.is-checked {
-          color: var(--fall);
-        }
-        .jp-vocab-level-opt--very.is-checked .jp-vocab-check-box {
-          border-color: var(--fall);
-          background: color-mix(in srgb, var(--fall) 18%, var(--bg));
-          color: var(--fall);
-        }
-        .jp-vocab-level-opt--weak.is-checked {
-          color: var(--rise);
-        }
-        .jp-vocab-level-opt--weak.is-checked .jp-vocab-check-box {
-          border-color: var(--rise);
-          background: color-mix(in srgb, var(--rise) 18%, var(--bg));
-          color: var(--rise);
-        }
-        .jp-vocab-level-opt.is-checked {
-          background: rgba(61, 139, 253, 0.08);
-        }
-        .jp-vocab-level-opt:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.04);
-        }
-        .jp-vocab-level-opt:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-        .jp-vocab-level-opt--readonly:disabled {
-          opacity: 0.72;
-        }
-        .jp-vocab-level-unavailable {
-          display: inline-block;
-          font-size: 0.8125rem;
-          color: var(--muted);
-          opacity: 0.72;
-          white-space: nowrap;
-          user-select: none;
-          pointer-events: none;
-        }
-        .jp-vocab-levels--locked {
-          opacity: 0.78;
-        }
-        .jp-vocab-level-card-entry {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.3rem;
-          width: 100%;
-          margin: 0;
-          padding: 0;
-          border: none;
-          background: transparent;
-          color: inherit;
-          font: inherit;
-          text-align: left;
-          cursor: pointer;
-        }
-        .jp-vocab-level-card-entry:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-        .jp-vocab-level-card-entry:not(:disabled):hover .jp-vocab-level-card-entry-hint {
-          color: var(--accent);
-        }
-        .jp-vocab-level-card-entry-hint {
-          font-size: 0.6875rem;
-          line-height: 1.35;
-          color: var(--muted);
-          text-align: center;
-        }
-        .jp-vocab-levels--readonly {
-          pointer-events: none;
-        }
-        .jp-vocab-level-opt--locked:disabled {
-          cursor: not-allowed;
-          opacity: 1;
-        }
-        .jp-vocab-levels--locked .jp-vocab-level-opt--locked:disabled:not(.is-checked) {
-          opacity: 0.55;
-        }
-        .jp-vocab-share-btn--locked:disabled {
-          opacity: 0.42;
-          cursor: not-allowed;
-          filter: grayscale(0.45);
-        }
-        .jp-vocab-kind-badge {
-          display: inline-block;
-          font-size: 0.75rem;
-          padding: 0.15rem 0.45rem;
-          border-radius: 999px;
-          border: 1px solid var(--border);
-          color: var(--muted);
-          white-space: nowrap;
-        }
-        .jp-vocab-kind-badge--grammar {
-          color: var(--accent);
-          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-          background: color-mix(in srgb, var(--accent) 10%, transparent);
-        }
-        .jp-vocab-pos-badge {
-          display: inline-block;
-          box-sizing: border-box;
-          max-width: 5em;
-          font-size: 0.75rem;
-          padding: 0.2rem 0.35rem;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          color: var(--muted);
-          white-space: normal;
-          word-break: break-all;
-          overflow-wrap: anywhere;
-          line-height: 1.35;
-          text-align: center;
-          vertical-align: middle;
-          background: color-mix(in srgb, var(--panel) 88%, var(--bg));
-        }
-        .jp-vocab-mobile-only {
-          display: none;
-        }
-        .jp-vocab-level-history {
-          display: none;
-        }
-        @media (min-width: 769px) {
-          :global(.jp-vocab-table .jp-vocab-level-history) {
-            display: none !important;
-          }
-        }
-        .jp-vocab-toolbar {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          align-items: center;
-          justify-content: flex-end;
-        }
-        .jp-vocab-toolbar-summary {
-          flex: 1 1 auto;
-          min-width: 0;
-        }
-        .jp-vocab-toolbar-actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          align-items: center;
-        }
-        .jp-vocab-mobile-sort {
-          display: none;
-        }
-        .jp-vocab-mobile-reading-row {
-          display: none;
-        }
-        .jp-vocab-meaning-desktop {
-          display: inline;
-        }
-        .jp-vocab-meaning-fold {
-          display: none;
-        }
-        .jp-vocab-notes-desktop {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .jp-vocab-action-row {
-          display: contents;
-        }
-        .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
-        .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
-          display: none;
-        }
-        .jp-vocab-ref-hint {
-          display: block;
-          margin-left: 0;
-          margin-top: 0.2rem;
-          font-size: 0.75rem;
-          color: var(--muted);
-          text-align: center;
-        }
-        .jp-vocab-word-link {
-          font-weight: 500;
-          color: var(--accent);
-          text-decoration: underline;
-          text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
-          text-underline-offset: 2px;
-          border: none;
-          background: transparent;
-          padding: 0;
-          font: inherit;
-          cursor: pointer;
-        }
-        .jp-vocab-word-link:hover {
-          text-decoration: underline;
-        }
-        .jp-vocab-word-text {
-          font-weight: 500;
-        }
-        .jp-vocab-word-cell {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          flex: 1;
-          min-width: 0;
-        }
-        :global(.jp-vocab-table-wrap) {
-          display: block;
-          width: 100%;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-        }
-        :global(.jp-vocab-table) {
-          width: 100%;
-          table-layout: fixed;
-          min-width: 0;
-        }
-        :global(.jp-vocab-table th),
-        :global(.jp-vocab-table td) {
-          white-space: normal;
-          vertical-align: middle;
-          padding: 0.4rem 0.35rem;
-          text-align: center;
-        }
-        :global(.jp-vocab-table thead th) {
-          font-size: 0.8125rem;
-          line-height: 1.3;
-          overflow: hidden;
-        }
-        :global(.jp-vocab-table .jp-vocab-th-multiline) {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 0.05rem;
-          line-height: 1.2;
-          max-width: 100%;
-        }
-        :global(.jp-vocab-table .jp-vocab-th-multiline--compact) {
-          font-size: 0.8125rem;
-        }
-        :global(.jp-vocab-table .jp-vocab-th-multiline__sub) {
-          font-size: 0.8125em;
-          color: var(--rise);
-        }
-        :global(.jp-vocab-table .jp-vocab-seq-col),
-        :global(.jp-vocab-table .jp-vocab-kind-col),
-        :global(.jp-vocab-table .jp-vocab-risk-col),
-        :global(.jp-vocab-table .jp-vocab-stats-col),
-        :global(.jp-vocab-table .jp-vocab-today-check-col),
-        :global(.jp-vocab-table .jp-vocab-notes-col),
-        :global(.jp-vocab-table .jp-vocab-mnemonic-col),
-        :global(.jp-vocab-table .jp-vocab-action-col) {
-          padding-left: 0.35rem;
-          padding-right: 0.35rem;
-        }
-        :global(.jp-vocab-table .jp-vocab-level-col) {
-          text-align: center;
-          width: 11%;
-          min-width: 0;
-        }
-        :global(.jp-vocab-table .jp-vocab-stats-col) {
-          text-align: center;
-          vertical-align: middle;
-          width: 8.5%;
-          min-width: 5.5rem;
-        }
-        .jp-vocab-stats-col-head {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.35rem;
-        }
-        .jp-vocab-stats-col__title {
-          display: block;
-          font-size: 0.8125rem;
-          font-weight: 600;
-          line-height: 1.25;
-        }
-        .jp-vocab-stats-sort-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 0.2rem 0.35rem;
-        }
-        .jp-vocab-stats-sort-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.12rem;
-          min-width: 0;
-          border: none;
-          background: transparent;
-          color: inherit;
-          font: inherit;
-          font-size: 0.6875rem;
-          line-height: 1.2;
-          cursor: pointer;
-          padding: 0.1rem 0;
-        }
-        .jp-vocab-stats-sort-btn:hover {
-          color: var(--accent);
-        }
-        .jp-vocab-stats-sort-btn__label {
-          min-width: 0;
-          white-space: nowrap;
-        }
-        .jp-vocab-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 0.2rem 0.45rem;
-          width: 100%;
-          font-size: 0.6875rem;
-          line-height: 1.35;
-          font-variant-numeric: tabular-nums;
-        }
-        .jp-vocab-stats-grid__item {
-          min-width: 0;
-          white-space: nowrap;
-        }
-        .jp-vocab-stats-grid__item--very {
-          color: var(--fall);
-        }
-        .jp-vocab-stats-grid__item--weak {
-          color: var(--rise);
-        }
-        .jp-vocab-stats-grid__item--total {
-          font-weight: 600;
-        }
-        .jp-vocab-stats-grid__item--total :global(.jp-vocab-total-never) {
-          font-weight: 500;
-        }
-        :global(.jp-vocab-table .jp-vocab-sort-btn) {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.15rem;
-          width: 100%;
-          max-width: 100%;
-          min-width: 0;
-          border: none;
-          background: transparent;
-          color: inherit;
-          font: inherit;
-          font-size: inherit;
-          cursor: pointer;
-          padding: 0;
-        }
-        :global(.jp-vocab-table .jp-vocab-sort-btn:hover) {
-          color: var(--accent);
-        }
-        :global(.jp-vocab-table .jp-vocab-sort-indicator) {
-          font-size: 0.6875rem;
-          opacity: 0.45;
-          line-height: 1;
-        }
-        :global(.jp-vocab-table .jp-vocab-sort-btn[aria-sort="ascending"] .jp-vocab-sort-indicator),
-        :global(.jp-vocab-table .jp-vocab-sort-btn[aria-sort="descending"] .jp-vocab-sort-indicator) {
-          opacity: 1;
-          color: var(--accent);
-        }
-        :global(.jp-vocab-table .jp-vocab-seq-col),
-        :global(.jp-vocab-table .jp-vocab-kind-col),
-        :global(.jp-vocab-table .jp-vocab-reading-col),
-        :global(.jp-vocab-table .jp-vocab-meaning-col),
-        :global(.jp-vocab-table .jp-vocab-pos-col),
-        :global(.jp-vocab-table .jp-vocab-risk-col),
-        :global(.jp-vocab-table .jp-vocab-stats-col) {
-          text-align: center;
-        }
-        :global(.jp-vocab-table .jp-vocab-risk-col) {
-          white-space: nowrap;
-          width: 4%;
-          min-width: 0;
-        }
-        :global(.jp-vocab-table .jp-vocab-risk-value) {
-          font-weight: 600;
-          font-variant-numeric: tabular-nums;
-        }
-        :global(.jp-vocab-table .jp-vocab-today-check-col) {
-          white-space: nowrap;
-          width: 4.5%;
-          min-width: 0;
-          text-align: center;
-        }
-        :global(.jp-vocab-table .jp-vocab-total-never) {
-          color: var(--muted);
-          font-size: 0.8125rem;
-          letter-spacing: 0.02em;
-        }
-        :global(.jp-vocab-table .jp-vocab-today-check-value) {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 1.35rem;
-          font-weight: 500;
-          font-variant-numeric: tabular-nums;
-          color: var(--muted);
-        }
-        :global(.jp-vocab-table .jp-vocab-today-check-value--active) {
-          min-width: 1.5rem;
-          padding: 0.12rem 0.4rem;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--accent) 22%, transparent);
-          color: var(--accent);
-          font-weight: 700;
-          font-size: 0.9375rem;
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
-        }
-        :global(.jp-vocab-table .jp-vocab-admin-review-col) {
-          white-space: nowrap;
-          width: 4%;
-          min-width: 0;
-        }
-        :global(.jp-vocab-table .jp-vocab-admin-review-badge) {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 0.12rem 0.45rem;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--fall) 18%, transparent);
-          color: var(--fall);
-          font-weight: 700;
-          font-size: 0.8125rem;
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 35%, transparent);
-        }
-        :global(.jp-vocab-table .jp-vocab-admin-review-pending) {
-          color: var(--muted);
-          font-size: 0.875rem;
-        }
-        :global(.jp-vocab-table .jp-vocab-word-col) {
-          font-size: 0.875rem;
-          width: 9%;
-          min-width: 0;
-          padding-left: 0.4rem;
-          padding-right: 0.4rem;
-        }
-        :global(.jp-vocab-table .jp-vocab-reading-col) {
-          width: 7%;
-          min-width: 0;
-          padding-left: 0.4rem;
-          padding-right: 0.4rem;
-          word-break: break-word;
-          line-height: 1.45;
-        }
-        .jp-vocab-reading-cell {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--muted);
-        }
-        .jp-vocab-reading-text {
-          flex: 1 1 auto;
-          min-width: 0;
-        }
-        .jp-vocab-reading-text--copy {
-          border: none;
-          background: transparent;
-          padding: 0;
-          font: inherit;
-          color: inherit;
-          cursor: pointer;
-          text-align: inherit;
-        }
-        .jp-vocab-reading-text--copy:hover {
-          color: var(--accent);
-        }
-        .jp-vocab-reading-text--pending {
-          font-size: 0.8125rem;
-          opacity: 0.72;
-        }
-        :global(.jp-vocab-table .jp-vocab-meaning-col) {
-          width: 8%;
-          min-width: 0;
-          padding-left: 0.4rem;
-          padding-right: 0.4rem;
-          word-break: break-word;
-          line-height: 1.45;
-        }
-        :global(.jp-vocab-table .jp-vocab-pos-col) {
-          width: 5%;
-          min-width: 3.25rem;
-          vertical-align: middle;
-        }
-        :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
-          width: 5%;
-          min-width: 0;
-          max-width: none;
-          white-space: nowrap;
-        }
-        :global(.jp-vocab-table thead .jp-vocab-mnemonic-col) {
-          text-align: center;
-          vertical-align: middle;
-        }
-        :global(.jp-vocab-table tbody .jp-vocab-mnemonic-col) {
-          text-align: center;
-          vertical-align: middle;
-        }
-        .jp-vocab-mnemonic-actions {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .jp-vocab-mnemonic-empty {
-          color: color-mix(in srgb, var(--muted) 70%, transparent);
-        }
-        :global(.jp-vocab-table .jp-vocab-notes-col) {
-          width: 6%;
-          min-width: 0;
-          white-space: nowrap;
-        }
-        :global(.jp-vocab-table thead .jp-vocab-notes-col) {
-          text-align: center;
-          vertical-align: middle;
-        }
-        :global(.jp-vocab-table tbody .jp-vocab-notes-col) {
-          text-align: center;
-          vertical-align: middle;
-        }
-        .jp-vocab-notes-actions {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.35rem;
-          flex-wrap: wrap;
-        }
-        :global(.jp-vocab-table .jp-vocab-action-col) {
-          position: sticky;
-          right: 0;
-          z-index: 2;
-          width: 13%;
-          min-width: 0;
-          white-space: normal;
-          background: color-mix(in srgb, var(--panel) 94%, var(--bg));
-          box-shadow: -6px 0 10px color-mix(in srgb, var(--bg) 55%, transparent);
-        }
-        :global(.jp-vocab-table thead .jp-vocab-action-col) {
-          z-index: 3;
-          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
-        }
-        :global(.jp-vocab-table tbody tr:hover .jp-vocab-action-col) {
-          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
-        }
-        .jp-vocab-share-stack {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.2rem;
-          max-width: 100%;
-        }
-        .jp-vocab-share-hint {
-          font-size: 0.625rem;
-          line-height: 1.35;
-          color: var(--muted);
-          text-align: center;
-          font-weight: 400;
-        }
-        .jp-vocab-share-hint--desktop {
-          display: block;
-        }
-        .jp-vocab-share-hint--mobile {
-          display: none;
-        }
-        .jp-vocab-action-buttons {
-          display: inline-flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-          gap: 0.25rem;
-        }
-        .jp-vocab-action-buttons :global(.btn-rsi-filter--compact) {
-          min-width: 0;
-          padding-inline: 0.35rem;
-          font-size: 0.6875rem;
-        }
-        .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn) {
-          color: var(--accent);
-          border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-          font-weight: 600;
-        }
-        .jp-vocab-share-btn:not(:disabled):not(.jp-vocab-unshare-btn):hover {
-          color: var(--accent);
-          border-color: var(--accent);
-          background: color-mix(in srgb, var(--accent) 16%, var(--panel));
-        }
-        :global(.jp-vocab-table .jp-vocab-kind-col) {
-          white-space: nowrap;
-          width: 3.5%;
-          min-width: 0;
-        }
-        :global(.jp-vocab-table .jp-vocab-seq-col) {
-          white-space: nowrap;
-          width: 3%;
-          min-width: 0;
-          color: var(--muted);
-        }
-        :global(.jp-vocab-table .jp-vocab-seq-cell) {
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 0.12rem;
-          min-height: 1.75rem;
-        }
-        :global(.jp-vocab-table .jp-vocab-seq-checked) {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 1rem;
-          height: 1rem;
-          border-radius: 999px;
-          color: var(--fall);
-          background: color-mix(in srgb, var(--fall) 18%, transparent);
-          box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 35%, transparent);
-        }
-        :global(.jp-vocab-table .jp-vocab-seq-num) {
-          font-variant-numeric: tabular-nums;
-          line-height: 1;
-        }
-
-        /* 16 寸屏 / 中等桌面：隐藏巧记，操作列固定可见 */
-        @media (max-width: 1440px) {
-          .jp-vocab-scroll-hint {
-            display: block;
-          }
-          :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
-            display: none;
-          }
-          .jp-vocab-share-hint--desktop {
-            display: none;
-          }
-          .jp-vocab-level-opt {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.3rem;
-            gap: 0.2rem;
-            min-height: 1.75rem;
-          }
-          .jp-vocab-check-box {
-            width: 0.85rem;
-            height: 0.85rem;
-          }
-        }
-
-        @media (max-width: 1280px) {
-          .jp-vocab-section-head {
-            flex-direction: column !important;
-            align-items: stretch !important;
-          }
-          .jp-vocab-toolbar {
-            justify-content: flex-start;
-          }
-        }
-
-        /* 中等屏幕（旧断点保留给更窄窗口） */
-        @media (max-width: 1100px) {
-          .jp-vocab-scroll-hint {
-            display: block;
-          }
-        }
-
-        /* 手机 / 小屏：紧凑卡片布局 */
-        @media (max-width: 768px) {
-          .jp-vocab-section-head {
-            flex-direction: column !important;
-            align-items: stretch !important;
-          }
-          .jp-vocab-toolbar {
-            flex-direction: column;
-            align-items: stretch;
-            width: 100%;
-          }
-          .jp-vocab-toolbar-summary {
-            font-size: 0.9375rem;
-            line-height: 1.45;
-          }
-          .jp-vocab-toolbar-toggle {
-            width: 100%;
-            min-height: 2.75rem;
-          }
-          .jp-vocab-toolbar-actions {
-            display: none;
-            flex-direction: column;
-            align-items: stretch;
-            width: 100%;
-            gap: 0.5rem;
-          }
-          .jp-vocab-toolbar-actions--expanded {
-            display: flex;
-          }
-          .jp-vocab-toolbar-actions :global(.btn-rsi-filter) {
-            width: 100%;
-            min-height: 2.75rem;
-          }
-          .jp-vocab-mobile-sort {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.5rem;
-            margin-bottom: 0.75rem;
-          }
-          .jp-vocab-mobile-sort-btn {
-            min-height: 2.75rem;
-            width: 100%;
-            font-size: clamp(0.8125rem, 3vw, 0.875rem);
-          }
-          .jp-vocab-mobile-sort-btn--active {
-            border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-            background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-            color: var(--text);
-          }
-          .jp-vocab-mobile-sort-indicator {
-            font-weight: 700;
-          }
-          .jp-vocab-scroll-hint {
-            display: none;
-          }
-          :global(.jp-vocab-page) {
-            padding-top: 0.75rem !important;
-          }
-          :global(.jp-vocab-table) {
-            min-width: 0;
-            table-layout: auto;
-          }
-          :global(.jp-vocab-table thead) {
-            display: none;
-          }
-          :global(.jp-vocab-table tbody tr) {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.5rem 0.75rem;
-            margin-bottom: 0.625rem;
-            padding: 0.875rem 1rem;
-            border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-            border-radius: 15px;
-            background: color-mix(in srgb, var(--panel) 94%, var(--bg));
-          }
-          :global(.jp-vocab-table tbody td) {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 0.25rem;
-            padding: 0;
-            border: none;
-            text-align: left;
-            line-height: 1.35;
-            min-width: 0;
-            width: auto !important;
-            max-width: none;
-            position: static !important;
-            box-shadow: none !important;
-            background: transparent !important;
-          }
-          :global(.jp-vocab-table tbody td::before) {
-            content: attr(data-label) "：";
-            flex: 0 0 auto;
-            font-size: clamp(0.8125rem, 3.2vw, 0.9375rem);
-            font-weight: 400;
-            color: var(--muted);
-            white-space: nowrap;
-          }
-          :global(.jp-vocab-table tbody td.jp-vocab-field-empty) {
-            display: none;
-          }
-          :global(.jp-vocab-table tbody td > *) {
-            flex: 1;
-            min-width: 0;
-            font-size: clamp(0.875rem, 3.4vw, 1rem);
-          }
-          :global(.jp-vocab-table .jp-vocab-seq-num) {
-            font-size: clamp(0.875rem, 3.4vw, 1rem);
-            font-weight: 600;
-          }
-          :global(.jp-vocab-table .jp-vocab-word-col) {
-            grid-column: 1 / -1;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.25rem;
-            padding: 0 0 0.5rem;
-            margin-bottom: 0.125rem;
-            border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-          }
-          :global(.jp-vocab-table .jp-vocab-word-col::before) {
-            display: none;
-          }
-          .jp-vocab-word-cell {
-            text-align: left;
-            width: 100%;
-            align-items: flex-start;
-          }
-          .jp-vocab-word-link,
-          .jp-vocab-word-text {
-            font-size: clamp(1.5rem, 6.5vw, 1.75rem);
-            font-weight: 700;
-            line-height: 1.2;
-            text-align: left;
-          }
-          .jp-vocab-mobile-only {
-            display: block;
-          }
-          .jp-vocab-notes-desktop {
-            display: none;
-          }
-          .jp-vocab-mobile-reading-row {
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-            width: 100%;
-          }
-          .jp-vocab-mobile-reading-row:empty {
-            display: none;
-            min-height: 0;
-          }
-          .jp-vocab-mobile-reading-row .jp-vocab-reading-text {
-            font-size: clamp(0.875rem, 3.5vw, 1rem);
-            color: var(--muted);
-          }
-          .jp-vocab-ref-hint {
-            display: block;
-            width: 100%;
-            margin: 0;
-            text-align: left;
-            font-size: clamp(0.6875rem, 2.8vw, 0.75rem);
-            color: color-mix(in srgb, var(--muted) 85%, transparent);
-          }
-          :global(.jp-vocab-table .jp-vocab-seq-col) {
-            display: flex !important;
-            grid-column: 1;
-          }
-          :global(.jp-vocab-table .jp-vocab-seq-col::before) {
-            content: "编号：";
-          }
-          :global(.jp-vocab-table .jp-vocab-kind-col) {
-            grid-column: 2;
-          }
-          :global(.jp-vocab-table .jp-vocab-kind-col::before) {
-            content: "类型：";
-          }
-          :global(.jp-vocab-table .jp-vocab-reading-col) {
-            display: none !important;
-          }
-          :global(.jp-vocab-table .jp-vocab-meaning-col) {
-            grid-column: 1 / -1;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 0;
-          }
-          :global(.jp-vocab-table .jp-vocab-meaning-col::before) {
-            display: none;
-          }
-          .jp-vocab-meaning-desktop {
-            display: none;
-          }
-          .jp-vocab-meaning-fold {
-            display: block;
-            width: 100%;
-          }
-          .jp-vocab-meaning-fold__summary {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 0.125rem;
-            list-style: none;
-            cursor: pointer;
-            padding: 0.375rem 0;
-          }
-          .jp-vocab-meaning-fold__summary::-webkit-details-marker {
-            display: none;
-          }
-          .jp-vocab-fold-label {
-            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
-            color: var(--muted);
-            font-weight: 500;
-          }
-          .jp-vocab-meaning-preview {
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-            overflow: hidden;
-            font-size: clamp(0.8125rem, 3vw, 0.9375rem);
-            color: var(--muted);
-            line-height: 1.4;
-            width: 100%;
-          }
-          .jp-vocab-meaning-fold[open] .jp-vocab-meaning-preview {
-            display: none;
-          }
-          .jp-vocab-meaning-full {
-            margin: 0;
-            font-size: clamp(0.8125rem, 3vw, 0.9375rem);
-            color: var(--muted);
-            line-height: 1.45;
-          }
-          :global(.jp-vocab-table .jp-vocab-pos-col) {
-            grid-column: 1;
-          }
-          :global(.jp-vocab-table .jp-vocab-pos-col::before) {
-            content: "词性：";
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-col) {
-            grid-column: 2;
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-col::before) {
-            content: "优先级：";
-          }
-          :global(.jp-vocab-table .jp-vocab-level-col) {
-            grid-column: 1 / -1;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 0.375rem;
-            padding-top: 0.375rem;
-            margin-top: 0.125rem;
-            border-top: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
-          }
-          :global(.jp-vocab-table .jp-vocab-level-col::before) {
-            flex: 0 0 auto;
-            width: auto;
-            max-width: none;
-            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
-            font-weight: 500;
-          }
-          :global(.jp-vocab-table .jp-vocab-kind-badge) {
-            flex: 0 0 auto;
-            font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
-            padding: 0.1875rem 0.5rem !important;
-            border-radius: 999px !important;
-            border: 1px solid var(--border) !important;
-            background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
-            color: var(--text) !important;
-            white-space: nowrap;
-          }
-          .jp-vocab-pos-badge {
-            flex: 1 1 auto;
-            min-width: 0;
-            max-width: 5em;
-            font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
-            padding: 0.2rem 0.35rem !important;
-            border-radius: 8px !important;
-            border: 1px solid var(--border) !important;
-            background: color-mix(in srgb, var(--panel) 88%, var(--bg)) !important;
-            color: var(--text) !important;
-            white-space: normal !important;
-            word-break: break-all;
-            overflow-wrap: anywhere;
-            line-height: 1.35 !important;
-            text-align: center;
-          }
-          :global(.jp-vocab-table .jp-vocab-kind-badge--grammar) {
-            color: var(--accent) !important;
-            border-color: color-mix(in srgb, var(--accent) 35%, var(--border)) !important;
-            background: color-mix(in srgb, var(--accent) 10%, var(--panel)) !important;
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-badge) {
-            display: inline-flex !important;
-            align-items: center;
-            flex: 0 0 auto !important;
-            padding: 0.125rem 0.4375rem;
-            border-radius: 999px;
-            font-size: clamp(0.75rem, 3vw, 0.875rem) !important;
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-            border: 1px solid var(--border);
-            background: color-mix(in srgb, var(--panel) 88%, var(--bg));
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-badge--low) {
-            color: var(--fall);
-            border-color: color-mix(in srgb, var(--fall) 30%, var(--border));
-            background: color-mix(in srgb, var(--fall) 12%, var(--panel));
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-badge--mid) {
-            color: var(--accent);
-            border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-            background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-          }
-          :global(.jp-vocab-table .jp-vocab-risk-badge--high) {
-            color: var(--rise);
-            border-color: color-mix(in srgb, var(--rise) 30%, var(--border));
-            background: color-mix(in srgb, var(--rise) 12%, var(--panel));
-          }
-          .jp-vocab-level-wrap {
-            width: 100%;
-            align-items: stretch;
-          }
-          .jp-vocab-level-history {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.25rem 0.375rem;
-            width: 100%;
-            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
-            font-weight: 500;
-            line-height: 1.35;
-            color: var(--muted);
-          }
-          .jp-vocab-level-history__item--very {
-            color: var(--fall);
-          }
-          .jp-vocab-level-history__item--weak {
-            color: var(--rise);
-          }
-          .jp-vocab-level-history__sep {
-            color: color-mix(in srgb, var(--muted) 70%, transparent);
-          }
-          .jp-vocab-level-sync-hint {
-            max-width: none;
-            padding: 0.2rem 0.35rem 0.05rem;
-            text-align: center;
-          }
-          .jp-vocab-levels {
-            display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0;
-            width: 100%;
-            border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-            border-radius: 10px;
-            overflow: hidden;
-            background: color-mix(in srgb, var(--bg) 60%, var(--panel));
-          }
-          .jp-vocab-level-opt {
-            min-height: 2.75rem;
-            padding: 0.375rem 0.25rem;
-            flex: 1 1 0;
-            justify-content: center;
-            font-size: clamp(0.6875rem, 2.8vw, 0.8125rem);
-            border: none;
-            border-radius: 0;
-            border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-            background: transparent;
-            white-space: nowrap;
-          }
-          .jp-vocab-level-opt:last-child {
-            border-right: none;
-          }
-          .jp-vocab-check-box {
-            display: none;
-          }
-          .jp-vocab-level-opt.is-checked {
-            background: color-mix(in srgb, var(--accent) 18%, var(--panel));
-            color: var(--accent);
-            font-weight: 600;
-          }
-          .jp-vocab-level-opt--very.is-checked {
-            background: color-mix(in srgb, var(--fall) 16%, var(--panel));
-            color: var(--fall);
-          }
-          .jp-vocab-level-opt--weak.is-checked {
-            background: color-mix(in srgb, var(--rise) 16%, var(--panel));
-            color: var(--rise);
-          }
-          :global(.jp-vocab-table .jp-vocab-stats-col),
-          :global(.jp-vocab-table .jp-vocab-today-check-col) {
-            display: none;
-          }
-          :global(.jp-vocab-table .jp-vocab-notes-col) {
-            grid-column: 1 / -1;
-            flex-direction: column;
-            align-items: stretch;
-            padding-top: 0.25rem;
-            border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
-          }
-          :global(.jp-vocab-table .jp-vocab-notes-col::before) {
-            display: none;
-          }
-          .jp-vocab-notes-fold {
-            width: 100%;
-          }
-          .jp-vocab-notes-fold > summary {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-            min-height: 2.75rem;
-            list-style: none;
-            cursor: pointer;
-            padding: 0.125rem 0;
-          }
-          .jp-vocab-notes-fold > summary::-webkit-details-marker {
-            display: none;
-          }
-          .jp-vocab-notes-fold__hint {
-            font-size: clamp(0.75rem, 2.8vw, 0.8125rem);
-            color: var(--accent);
-          }
-          .jp-vocab-notes-fold:not([open]) .jp-vocab-notes-actions {
-            display: none;
-          }
-          .jp-vocab-notes-actions {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding-bottom: 0.25rem;
-          }
-          :global(.jp-vocab-table .jp-vocab-action-col) {
-            grid-column: 1 / -1;
-            flex-direction: column;
-            align-items: stretch;
-            padding-top: 0.25rem;
-          }
-          :global(.jp-vocab-table .jp-vocab-action-col::before) {
-            display: none;
-          }
-          .jp-vocab-action-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            width: 100%;
-          }
-          .jp-vocab-action-row {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.5rem;
-            width: 100%;
-          }
-          .jp-vocab-action-row > :global(.btn-rsi-filter),
-          .jp-vocab-action-row > .jp-vocab-share-stack,
-          .jp-vocab-action-row > :global(.jp-vocab-save-progress) {
-            width: 100%;
-            min-width: 0;
-          }
-          .jp-vocab-action-row > :only-child {
-            grid-column: 1 / -1;
-          }
-          .jp-vocab-action-row > .jp-vocab-share-stack,
-          .jp-vocab-action-row > :global(.jp-vocab-unshare-btn) {
-            display: none !important;
-          }
-          .jp-vocab-share-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            max-width: none;
-            width: 100%;
-            gap: 0.25rem;
-          }
-          .jp-vocab-share-stack :global(.jp-vocab-share-btn) {
-            width: 100%;
-          }
-          .jp-vocab-action-row :global(.jp-vocab-save-progress) {
-            max-width: none;
-            min-width: 0;
-          }
-          .jp-vocab-share-hint--desktop {
-            display: none;
-          }
-          .jp-vocab-share-hint--mobile {
-            display: block;
-            font-size: clamp(0.6875rem, 2.8vw, 0.75rem);
-            padding: 0 0.125rem 0.125rem;
-          }
-          :global(.jp-vocab-mobile-action-btn) {
-            display: inline-flex !important;
-            align-items: center;
-            justify-content: center;
-            gap: 0.375rem;
-            min-height: 2.75rem;
-            width: 100%;
-            font-size: clamp(0.8125rem, 3vw, 0.875rem);
-            border-radius: 10px;
-          }
-          :global(.jp-vocab-mobile-action-btn--full) {
-            grid-column: 1 / -1;
-          }
-          .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
-          .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
-            display: block;
-            flex-shrink: 0;
-          }
-          :global(.jp-vocab-table .jp-vocab-notes-col.jp-vocab-field-empty) {
-            display: none;
-          }
-        }
-
-        @media (max-width: 480px) {
-          :global(.jp-vocab-table tbody tr) {
-            padding: 0.75rem 0.875rem;
-            gap: 0.4375rem 0.625rem;
-          }
-        }
-      `}</style>
+      <JpVocabPageStyles />
 
       <MobileScrollToTopButton />
     </main>
