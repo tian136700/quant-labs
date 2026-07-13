@@ -162,8 +162,8 @@ function AdminUsersPageContent() {
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [copyToast, setCopyToast] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<UserSortField>("id");
-  const [sortDirection, setSortDirection] = useState<UserSortDirection>("asc");
+  const [sortField, setSortField] = useState<UserSortField>("last_login_at");
+  const [sortDirection, setSortDirection] = useState<UserSortDirection>("desc");
 
   const persistUsers = useCallback((next: UserRow[]) => {
     writeAdminUsersCache(next);
