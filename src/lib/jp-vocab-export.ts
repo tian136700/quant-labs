@@ -204,12 +204,23 @@ function labeledParagraph(
 function textParagraphs(
   docx: DocxModule,
   text: string,
-  opts?: { size?: number; color?: string; spacingAfter?: number }
+  opts?: {
+    size?: number;
+    color?: string;
+    spacingAfter?: number;
+    /** 备注正文：首行缩进约 2 个中文字符 */
+    firstLineIndent?: boolean;
+  }
 ) {
-  const { Paragraph, TextRun } = docx;
+  const { Paragraph, TextRun, convertMillimetersToTwip } = docx;
+  const firstLine = opts?.firstLineIndent
+    ? convertMillimetersToTwip(7.5)
+    : undefined;
+
   return text.split("\n").map(
     (line, index, lines) =>
       new Paragraph({
+        indent: firstLine != null ? { firstLine } : undefined,
         spacing:
           index < lines.length - 1
             ? { after: 40 }
@@ -314,7 +325,9 @@ function buildNoteEntryBlocks(
       flushImages();
       const trimmed = segment.text.trim();
       if (trimmed) {
-        blocks.push(...textParagraphs(docx, trimmed, { spacingAfter: 80 }));
+        blocks.push(
+          ...textParagraphs(docx, trimmed, { spacingAfter: 80, firstLineIndent: true })
+        );
       }
       continue;
     }
@@ -383,17 +396,14 @@ function buildWordBlock(
   docx: DocxModule,
   word: JpVocabWord,
   index: number,
-  dailySeqByWordId: Map<number, number>,
   imageCache: Map<string, NoteImagePayload>,
   opts: { pageBreakBefore: boolean }
 ): DocxChild[] {
   const { BorderStyle, convertMillimetersToTwip, PageBreak, Paragraph, TextRun } = docx;
-  const seq = dailySeqByWordId.get(word.id);
+  const exportNum = index + 1;
   const isGrammar = word.kind === "grammar";
-  const primaryLabel = isGrammar ? "语法" : "单词 / 语法";
   const wordText = word.word.trim();
-  const header =
-    seq != null ? `序号 ${seq} · ID ${word.id}` : `ID ${word.id}`;
+  const typeLabel = isGrammar ? "语法" : "单词";
 
   const blocks: DocxChild[] = [];
 
@@ -403,17 +413,22 @@ function buildWordBlock(
 
   blocks.push(
     new Paragraph({
-      spacing: { after: 100 },
+      spacing: { after: 80 },
       children: [
         new TextRun({
-          text: header,
+          text: `${exportNum}. `,
           bold: true,
-          size: 24,
+          size: 28,
+          font: "Microsoft YaHei",
+        }),
+        new TextRun({
+          text: wordText,
+          bold: true,
+          size: 28,
           font: "Microsoft YaHei",
         }),
       ],
-    }),
-    labeledParagraph(docx, primaryLabel, wordText, { valueBold: true, valueSize: 28 })
+    })
   );
 
   const reading = normalizeExportFieldValue(word.reading);
@@ -421,6 +436,7 @@ function buildWordBlock(
   const pos = normalizeExportFieldValue(word.pos);
   const optionalFields: { label: string; value: string }[] = [];
   if (hasExportableFieldValue(reading)) optionalFields.push({ label: "读音", value: reading });
+  optionalFields.push({ label: "类型", value: typeLabel });
   if (hasExportableFieldValue(meaning)) optionalFields.push({ label: "释义", value: meaning });
   if (hasExportableFieldValue(pos)) optionalFields.push({ label: "词性", value: pos });
 
@@ -458,8 +474,7 @@ function buildWordBlock(
 
 async function buildExportWordBlocks(
   words: JpVocabWord[],
-  docx: DocxModule,
-  dailySeqByWordId: Map<number, number>
+  docx: DocxModule
 ): Promise<DocxChild[]> {
   const imageCache = await prefetchNoteImages(words);
   const blocks: DocxChild[] = [];
@@ -469,7 +484,7 @@ async function buildExportWordBlocks(
     const pageBreakBefore =
       index > 0 && imageCount >= EXPORT_OWN_PAGE_MIN_IMAGES;
     blocks.push(
-      ...buildWordBlock(docx, word, index, dailySeqByWordId, imageCache, {
+      ...buildWordBlock(docx, word, index, imageCache, {
         pageBreakBefore,
       })
     );
@@ -512,7 +527,7 @@ export function resolveJpVocabExportWords(
 export async function exportJpVocabToWord(
   words: JpVocabWord[],
   scope: JpVocabExportScope,
-  dailySeqByWordId: Map<number, number>
+  _dailySeqByWordId: Map<number, number>
 ): Promise<void> {
   if (!words.length) {
     throw new Error(
@@ -540,7 +555,7 @@ export async function exportJpVocabToWord(
       ? `${date} · 含今日抽查勾选为「一般」「不熟悉」的词条，便于次日课堂带读`
       : `${date} · 共 ${words.length} 条`;
 
-  const wordBlocks = await buildExportWordBlocks(words, docx, dailySeqByWordId);
+  const wordBlocks = await buildExportWordBlocks(words, docx);
 
   const children = [
     new Paragraph({
