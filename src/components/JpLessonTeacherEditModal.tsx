@@ -233,8 +233,9 @@ export function JpLessonTeacherEditModal({
       return false;
     }
     if (hasPrice && hasMinutes) {
-      const hourly = calcHourlyRate(Number(addPrice), Number(addMinutes));
-      if (hourly == null) {
+      const price = normalizeHourlyRate(addPrice);
+      const minutes = normalizeTeacherLessonMinutes(addMinutes);
+      if (price == null || minutes == null) {
         setAddError("请填写有效的金额与分钟数");
         return false;
       }
@@ -261,8 +262,9 @@ export function JpLessonTeacherEditModal({
     if (existing) {
       let teacherUpdates: JpLessonTeacherUpdateInput[] = [];
       if (addPrice.trim() && addMinutes.trim()) {
-        const hourly = calcHourlyRate(Number(addPrice), Number(addMinutes));
-        if (hourly == null) {
+        const price = normalizeHourlyRate(addPrice);
+        const minutes = normalizeTeacherLessonMinutes(addMinutes);
+        if (price == null || minutes == null) {
           setAddError("请填写有效的金额与分钟数");
           skipAddBlurRef.current = false;
           return null;
@@ -271,8 +273,8 @@ export function JpLessonTeacherEditModal({
           {
             id: existing.id,
             name: existing.name,
-            hourly_rate: hourly,
-            lesson_minutes: Number(addMinutes),
+            hourly_rate: price,
+            lesson_minutes: minutes,
           },
         ];
       }
@@ -488,7 +490,7 @@ export function JpLessonTeacherEditModal({
                 <span className="jp-lesson-teacher-edit-head__check" />
                 <span className="jp-lesson-teacher-edit-head__name">称呼</span>
                 <span className="jp-lesson-teacher-edit-head__count">频次</span>
-                <span className="jp-lesson-teacher-edit-head__rate">元/小时</span>
+                <span className="jp-lesson-teacher-edit-head__rate">课时费</span>
                 <span className="jp-lesson-teacher-edit-head__minutes">时长</span>
                 <span className="jp-lesson-teacher-edit-head__action">操作</span>
               </div>
@@ -530,7 +532,7 @@ export function JpLessonTeacherEditModal({
                       step="0.01"
                       className="jp-lesson-teacher-add-input jp-lesson-teacher-add-input--short"
                       value={draft.hourlyRate}
-                      placeholder="元/小时"
+                      placeholder="课时费"
                       onChange={(e) =>
                         updateDraft(teacher.id, { hourlyRate: e.target.value })
                       }
@@ -652,7 +654,7 @@ export function JpLessonTeacherEditModal({
                 </select>
                 {addHourlyPreview != null ? (
                   <span className="jp-lesson-teacher-add-preview">
-                    ≈ {formatHourlyRate(addHourlyPreview)} 元
+                    折合时薪 ≈ {formatHourlyRate(addHourlyPreview)}
                   </span>
                 ) : null}
                 <p className="jp-lesson-teacher-add-optional-hint">

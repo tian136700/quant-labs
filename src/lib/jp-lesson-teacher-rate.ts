@@ -24,7 +24,7 @@ function parseRateSuffix(suffix: string): {
       lesson_minutes != null
     ) {
       return {
-        hourly_rate: Math.round((price / lesson_minutes) * 60 * 100) / 100,
+        hourly_rate: Math.round(price * 100) / 100,
         lesson_minutes,
       };
     }
@@ -91,14 +91,14 @@ export function normalizeHourlyRate(raw: unknown): number | null {
   return Math.round(value * 100) / 100;
 }
 
-/** 从 API 请求体解析 hourly_rate：仅在有 lesson_price 时按单次课金额换算，否则读 hourly_rate */
+/** 从 API 请求体解析 hourly_rate（单次课金额）：有 lesson_price 时直接存金额，否则读 hourly_rate */
 export function resolveLessonTeacherHourlyRateInput(body: {
   hourly_rate?: unknown;
   lesson_price?: unknown;
   lesson_minutes?: unknown;
 }): number | null | undefined {
   if (body.lesson_price !== undefined) {
-    return calcHourlyRate(Number(body.lesson_price), Number(body.lesson_minutes));
+    return normalizeHourlyRate(body.lesson_price);
   }
   if (body.hourly_rate !== undefined) {
     return body.hourly_rate === null ? null : normalizeHourlyRate(body.hourly_rate);
@@ -156,12 +156,11 @@ export function resolveTeacherLessonDisplayParts(
   if (!resolved.name) return { name: "—", priceDuration: null };
 
   if (resolved.hourly_rate != null && resolved.lesson_minutes != null) {
-    const price = calcLessonPrice(resolved.hourly_rate, resolved.lesson_minutes);
     const duration = formatLessonDurationShort(resolved.lesson_minutes, locale);
-    if (price != null && duration) {
+    if (duration) {
       return {
         name: resolved.name,
-        priceDuration: `${formatLessonPriceValue(price)} / ${duration}`,
+        priceDuration: `${formatLessonPriceValue(resolved.hourly_rate)} / ${duration}`,
       };
     }
   }
