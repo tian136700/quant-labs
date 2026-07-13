@@ -29,6 +29,7 @@ const devLessons: JpLessonRecord[] = [];
 let devNextId = 1;
 let devSeeded = false;
 let jpLessonMeaningsColumnReady = false;
+let jpLessonLinkCopyCountColumnReady = false;
 
 async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
   if (devStoreEnabled || jpLessonMeaningsColumnReady) return;
@@ -38,6 +39,23 @@ async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
     /* column may already exist */
   }
   jpLessonMeaningsColumnReady = true;
+}
+
+async function ensureJpLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || jpLessonLinkCopyCountColumnReady) return;
+  try {
+    await db
+      .prepare(`ALTER TABLE jp_lesson ADD COLUMN link_copy_count INTEGER NOT NULL DEFAULT 0`)
+      .run();
+  } catch {
+    /* column may already exist */
+  }
+  jpLessonLinkCopyCountColumnReady = true;
+}
+
+async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
+  await ensureJpLessonSchemaColumns(db);
+  await ensureJpLessonLinkCopyCountColumn(db);
 }
 
 export function enableJpLessonDevStore() {
@@ -87,6 +105,7 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
     class_schedules: [],
     next_class_at: nextClassAt,
     class_duration_minutes: classDurationMinutes,
+    link_copy_count: Number(row.link_copy_count) || 0,
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -132,7 +151,7 @@ async function attachTeacherIds(
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, meanings, title, ref_key, completed, learning,
-  status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, uploaded_at, created_at, updated_at FROM jp_lesson`;
+  status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (!devStoreEnabled) return;
@@ -157,6 +176,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       class_schedules: [],
       next_class_at: null,
       class_duration_minutes: null,
+      link_copy_count: 0,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -180,7 +200,7 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
     return attachTeacherIds(db, [...devLessons].sort(compareJpLessonsByProgress));
   }
 
-  await ensureJpLessonMeaningsColumn(db);
+  await ensureJpLessonSchemaColumns(db);
 
   const result = await db
     .prepare(
@@ -214,7 +234,7 @@ export async function getJpLessonById(
     return withTeachers;
   }
 
-  await ensureJpLessonMeaningsColumn(db);
+  await ensureJpLessonSchemaColumns(db);
 
   const row = await db
     .prepare(`${LESSON_SELECT} WHERE id = ?1`)
@@ -341,6 +361,7 @@ export async function createJpLesson(
       class_schedules: [],
       next_class_at: null,
       class_duration_minutes: null,
+      link_copy_count: 0,
       uploaded_at: ts,
       created_at: ts,
       updated_at: ts,
@@ -353,7 +374,7 @@ export async function createJpLesson(
     return { ok: false, error: "ref_key_not_found" };
   }
 
-  await ensureJpLessonMeaningsColumn(db);
+  await ensureJpLessonSchemaColumns(db);
 
   const result = await db
     .prepare(
@@ -622,4 +643,50 @@ export async function syncJpLessonTitleByRefKey(
     )
     .bind(trimmedTitle, ts, key)
     .run();
+}
+
+export type IncrementJpLessonLinkCopyCountResult =
+  | { ok: true; link_copy_count: number }
+  | { ok: false; error: string };
+
+export async function incrementJpLessonLinkCopyCount(
+  db: D1Database,
+  lessonId: number
+): Promise<IncrementJpLessonLinkCopyCountResult> {
+  if (!Number.isInteger(lessonId) || lessonId <= 0) {
+    return { ok: false, error: "lesson_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    const next = (devLessons[idx].link_copy_count ?? 0) + 1;
+    devLessons[idx] = { ...devLessons[idx], link_copy_count: next };
+    return { ok: true, link_copy_count: next };
+  }
+
+  await ensureJpLessonLinkCopyCountColumn(db);
+
+  const ts = nowIso();
+  const result = await db
+    .prepare(
+      `UPDATE jp_lesson
+       SET link_copy_count = COALESCE(link_copy_count, 0) + 1, updated_at = ?2
+       WHERE id = ?1`
+    )
+    .bind(lessonId, ts)
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const row = await db
+    .prepare(`SELECT link_copy_count FROM jp_lesson WHERE id = ?1`)
+    .bind(lessonId)
+    .first<{ link_copy_count: number | null }>();
+
+  return { ok: true, link_copy_count: Number(row?.link_copy_count) || 0 };
 }

@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 const RECENT_KEY = "nav-recent-v1";
 const FAVORITES_KEY = "nav-favorites-v1";
@@ -52,7 +59,18 @@ function writeCounts(counts: Record<string, number>) {
   }
 }
 
-export function useNavPreferences() {
+type NavPreferencesContextValue = {
+  recent: string[];
+  favorites: string[];
+  visitCounts: Record<string, number>;
+  recordVisit: (id: string) => void;
+  toggleFavorite: (id: string) => void;
+  isFavorite: (id: string) => boolean;
+};
+
+const NavPreferencesContext = createContext<NavPreferencesContextValue | null>(null);
+
+export function NavPreferencesProvider({ children }: { children: ReactNode }) {
   const [recent, setRecent] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [visitCounts, setVisitCounts] = useState<Record<string, number>>({});
@@ -92,5 +110,19 @@ export function useNavPreferences() {
     [favorites]
   );
 
-  return { recent, favorites, visitCounts, recordVisit, toggleFavorite, isFavorite };
+  return (
+    <NavPreferencesContext.Provider
+      value={{ recent, favorites, visitCounts, recordVisit, toggleFavorite, isFavorite }}
+    >
+      {children}
+    </NavPreferencesContext.Provider>
+  );
+}
+
+export function useNavPreferences(): NavPreferencesContextValue {
+  const ctx = useContext(NavPreferencesContext);
+  if (!ctx) {
+    throw new Error("useNavPreferences must be used within NavPreferencesProvider");
+  }
+  return ctx;
 }

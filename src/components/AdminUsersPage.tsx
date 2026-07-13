@@ -30,7 +30,7 @@ import {
   hasAdminUserFieldErrors,
 } from "@/lib/admin-user-validation";
 import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENGTH } from "@/lib/etr-auth";
-import { formatBeijingDateTime } from "@/lib/format-datetime";
+import { formatBeijingDateTime, parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
 import { formatIpForDisplay } from "@/lib/client-ip";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
@@ -101,8 +101,8 @@ function sortUsers(
         : diff * factor;
     }
 
-    const aTime = a.last_login_at ? Date.parse(a.last_login_at.replace(" ", "T")) : Number.NaN;
-    const bTime = b.last_login_at ? Date.parse(b.last_login_at.replace(" ", "T")) : Number.NaN;
+    const aTime = a.last_login_at ? parseStoredUtcDateTimeMs(a.last_login_at) : Number.NaN;
+    const bTime = b.last_login_at ? parseStoredUtcDateTimeMs(b.last_login_at) : Number.NaN;
     const aValid = Number.isFinite(aTime);
     const bValid = Number.isFinite(bTime);
     if (!aValid && !bValid) {
@@ -912,14 +912,14 @@ function AdminUsersPageContent() {
                   <th>{locale === "zh" ? "用户名" : "Username"}</th>
                   <th>{locale === "zh" ? "角色" : "Role"}</th>
                   <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
-                  <th>{locale === "zh" ? "创建时间" : "Created"}</th>
+                  <th>{locale === "zh" ? "创建时间（北京时间）" : "Created (Beijing)"}</th>
                   <th>
                     <button
                       type="button"
                       className="admin-user-sort-btn"
                       onClick={() => toggleSort("last_login_at")}
                     >
-                      {locale === "zh" ? "最后一次登录时间" : "Last login"}
+                      {locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
                       {sortLabel("last_login_at")}
                     </button>
                   </th>

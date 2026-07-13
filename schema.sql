@@ -329,6 +329,8 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   next_class_at       TEXT,
   /** 上课时长（分钟：20 / 30 / 45 / 55 / 60；仅管理员可见与编辑） */
   class_duration_minutes INTEGER,
+  /** 教案链接复制次数 */
+  link_copy_count     INTEGER NOT NULL DEFAULT 0,
   uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),

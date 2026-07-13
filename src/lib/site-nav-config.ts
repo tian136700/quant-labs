@@ -3,6 +3,7 @@ export type NavCategory = "teaching" | "admin" | "ai" | "data" | "system";
 /** Top bar: most-used items only; everything else lives in the drawer. */
 export const PRIMARY_NAV_ORDER = [
   "jpVocab",
+  "jpVocabCoach",
   "enVocab",
   "jpVocabStudy",
   "admin",

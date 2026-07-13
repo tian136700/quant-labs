@@ -77,8 +77,14 @@ import { jpVocabSaveQueue } from "@/lib/request-queue";
 import {
   JP_VOCAB_POLL_MS,
   JP_VOCAB_POLL_HIDDEN_MS,
+  JP_VOCAB_POLL_IDLE_COMPLETE_HIDDEN_MS,
+  JP_VOCAB_POLL_IDLE_COMPLETE_MS,
   JP_VOCAB_QUIZ_LIVE_POLL_MS,
+  JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS,
+  JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
+  JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS,
   JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
+  jpVocabPollIntervalMs,
   maxJpVocabUpdatedAt,
   mergeJpVocabSyncPatches,
 } from "@/lib/jp-vocab-sync";
@@ -107,6 +113,7 @@ import {
 } from "@/lib/jp-vocab-review";
 import {
   isJpVocabWordInDailyQuizTarget,
+  isJpVocabWordQuizCheckedToday,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
@@ -299,6 +306,8 @@ export function JpVocabPage() {
   const editingWordIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
   const pollInFlightRef = useRef(false);
+  /** 老师（非管理员）今日抽查已全部完成 → 轮询大幅降频，减轻 Worker 压力 */
+  const teacherIdleCompleteRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
   const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
     new Map()
@@ -527,7 +536,13 @@ export function JpVocabPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS;
+      jpVocabPollIntervalMs(
+        JP_VOCAB_POLL_MS,
+        JP_VOCAB_POLL_HIDDEN_MS,
+        JP_VOCAB_POLL_IDLE_COMPLETE_MS,
+        JP_VOCAB_POLL_IDLE_COMPLETE_HIDDEN_MS,
+        teacherIdleCompleteRef.current
+      );
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -594,7 +609,12 @@ export function JpVocabPage() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const schedule = (delayMs = JP_VOCAB_TEACHER_VISIBLE_POLL_MS) => {
+    const pollDelay = () =>
+      teacherIdleCompleteRef.current
+        ? JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS
+        : JP_VOCAB_TEACHER_VISIBLE_POLL_MS;
+
+    const schedule = (delayMs = pollDelay()) => {
       if (cancelled) return;
       timer = setTimeout(() => {
         void syncTeacherVisibleLimitFromServer().finally(() => schedule());
@@ -633,7 +653,13 @@ export function JpVocabPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS;
+      jpVocabPollIntervalMs(
+        JP_VOCAB_POLL_MS,
+        JP_VOCAB_POLL_HIDDEN_MS,
+        JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
+        JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS,
+        teacherIdleCompleteRef.current
+      );
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -733,6 +759,11 @@ export function JpVocabPage() {
   const quizTargetWordIds = useMemo(
     () => new Set(quizTargetWords.map((w) => w.id)),
     [quizTargetWords]
+  );
+
+  const dailyQuizProgress = useMemo(
+    () => computeJpVocabDailyQuizProgress(words, teacherVisibleLimit),
+    [words, teacherVisibleLimit.quiz_target]
   );
 
   const quizSessionRestoredRef = useRef(false);
@@ -847,7 +878,7 @@ export function JpVocabPage() {
   );
 
   const searchActive = searchQuery.trim().length > 0;
-  /** 老师端隐藏不可操作行（超出今日抽查序号、或已勾选且 1 小时内不可改） */
+  /** 老师端隐藏不可操作行（进行中：仅见今日序号内且未锁定；已完成：展示今日已抽查列表） */
   const hideInoperableRows = canOperate && !isAdmin;
 
   const searchMatchedWords = useMemo(
@@ -857,6 +888,12 @@ export function JpVocabPage() {
 
   const filteredDisplayedWords = useMemo(() => {
     if (!hideInoperableRows) return searchMatchedWords;
+    const now = new Date(reviewLockNow);
+    if (dailyQuizProgress.complete) {
+      return searchMatchedWords.filter((w) =>
+        isJpVocabWordQuizCheckedToday(w, displayOrder, now)
+      );
+    }
     return searchMatchedWords.filter(
       (w) =>
         isWordInQuizTarget(w.id) &&
@@ -865,6 +902,9 @@ export function JpVocabPage() {
   }, [
     hideInoperableRows,
     searchMatchedWords,
+    dailyQuizProgress.complete,
+    displayOrder,
+    reviewLockNow,
     isWordInQuizTarget,
     isWordReviewLocked,
     sessionReviewAt,
@@ -914,10 +954,10 @@ export function JpVocabPage() {
 
   const dailyTarget = quizTarget;
 
-  const dailyQuizProgress = useMemo(
-    () => computeJpVocabDailyQuizProgress(words, teacherVisibleLimit),
-    [words, teacherVisibleLimit.quiz_target]
-  );
+  useEffect(() => {
+    teacherIdleCompleteRef.current =
+      canOperate && !isAdmin && dailyQuizProgress.complete;
+  }, [canOperate, isAdmin, dailyQuizProgress.complete]);
 
   const dailyCheckedCount = dailyQuizProgress.checked;
 
@@ -1934,19 +1974,16 @@ export function JpVocabPage() {
     }
   };
 
-  const goToCoachFromComplete = async () => {
+  const goToCoachPage = async () => {
     if (coachNavBusy) return;
     const items = buildJpVocabCoachExportItems(words, sessionLevel, displayOrder);
-    if (!items.length) {
-      setError("今日暂无勾选为「一般」或「不熟悉」的词条。");
-      return;
-    }
-
     const coachDate = beijingDateString();
     setCoachNavBusy(true);
     setError("");
     try {
-      await postJpVocabCoachBatch(locale, items, coachDate);
+      if (items.length) {
+        await postJpVocabCoachBatch(locale, items, coachDate);
+      }
       if (user) {
         markJpVocabTeacherDailyCompleteDismissed(user.id, dailyQuizProgress.total);
       }
@@ -2072,6 +2109,16 @@ export function JpVocabPage() {
                   saving: settingQuizTarget,
                   onChange: setQuizTargetInput,
                   onSave: () => void setDailyQuizTarget(),
+                }
+              : undefined
+          }
+          coachAction={
+            dailyQuizProgress.complete
+              ? {
+                  busy: coachNavBusy,
+                  coachCount:
+                    dailyCoachLevelCounts.normal + dailyCoachLevelCounts.weak,
+                  onClick: () => void goToCoachPage(),
                 }
               : undefined
           }
@@ -2421,13 +2468,23 @@ export function JpVocabPage() {
             </div>
             {filterActive && !filteredDisplayedWords.length ? (
               <p className="jp-vocab-search__empty">
-                {searchActive && searchMatchedWords.length > 0 && hideInoperableRows
+                {searchActive &&
+                searchMatchedWords.length > 0 &&
+                hideInoperableRows &&
+                !dailyQuizProgress.complete
                   ? `全库有匹配「${searchQuery.trim()}」的词条，但超出今日可抽查序号或已满 1 小时不可改，老师端不显示。`
                   : searchActive
                   ? `没有匹配「${searchQuery.trim()}」的词条，请换个关键词试试。`
                   : kindFilter === "grammar"
                     ? "当前没有语法条目。"
                     : "当前没有单词条目。"}
+              </p>
+            ) : !filterActive &&
+              !filteredDisplayedWords.length &&
+              hideInoperableRows &&
+              dailyQuizProgress.complete ? (
+              <p className="jp-vocab-search__empty">
+                今日抽查已完成，但暂无已抽查词条记录。
               </p>
             ) : filteredDisplayedWords.length ? (
           <>
@@ -2536,7 +2593,7 @@ export function JpVocabPage() {
           variant="teacher"
           levelCounts={dailyCoachLevelCounts}
           coachBusy={coachNavBusy}
-          onGoToCoach={() => void goToCoachFromComplete()}
+          onGoToCoach={() => void goToCoachPage()}
           onClose={() => {
             markJpVocabTeacherDailyCompleteDismissed(
               user.id,

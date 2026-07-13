@@ -306,6 +306,8 @@ export interface JpLessonRecord {
   next_class_at: string | null;
   /** @deprecated 兼容旧字段，等于 class_schedules[0]?.duration_minutes */
   class_duration_minutes: number | null;
+  /** 教案链接复制次数 */
+  link_copy_count: number;
   uploaded_at: string;
   created_at: string;
   updated_at: string;

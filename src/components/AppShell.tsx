@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
+import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { useSiteNavItems } from "@/hooks/useSiteNavItems";
 import {
@@ -44,9 +45,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     (checking || !user || !isAdmin);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const items = useSiteNavItems();
+  const { recordVisit } = useNavPreferences();
   const { locale, t } = useI18n();
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const toggleDrawer = useCallback(() => setDrawerOpen((v) => !v), []);
+
+  const activeItemId = useMemo(
+    () => items.find((item) => item.active)?.id,
+    [items]
+  );
+
+  useEffect(() => {
+    if (activeItemId) recordVisit(activeItemId);
+  }, [activeItemId, recordVisit]);
 
   const onJpVocabRef = isJpVocabRefPath(pathname);
   const onEnVocabRef = isEnVocabRefPath(pathname);

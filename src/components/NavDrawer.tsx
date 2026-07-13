@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LangSwitch } from "@/components/LangSwitch";
 import { SiteAuthBar } from "@/components/SiteAuthBar";
-import { useNavPreferences } from "@/hooks/useNavPreferences";
+import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
 import { useSiteNavItems, type SiteNavItem } from "@/hooks/useSiteNavItems";
 import { useI18n } from "@/i18n/I18nProvider";
 import { matchesNavSearch } from "@/lib/nav-search";
@@ -125,19 +125,13 @@ export function NavDrawer({
   const nav = t("nav");
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
-  const { recent, favorites, visitCounts, recordVisit, toggleFavorite } =
-    useNavPreferences();
+  const { recent, favorites, visitCounts, toggleFavorite } = useNavPreferences();
 
   const favoritesSet = useMemo(() => new Set(favorites), [favorites]);
-  const activeItemId = items.find((item) => item.active)?.id;
 
   useEffect(() => {
     onClose();
   }, [pathname, onClose]);
-
-  useEffect(() => {
-    if (activeItemId) recordVisit(activeItemId);
-  }, [activeItemId, recordVisit]);
 
   useEffect(() => {
     if (!open) {

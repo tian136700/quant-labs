@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useSiteNavSplit } from "@/hooks/useSiteNavSplit";
-import { useNavPreferences } from "@/hooks/useNavPreferences";
 import { useI18n } from "@/i18n/I18nProvider";
 
 type SiteNavProps = {
@@ -14,7 +13,6 @@ type SiteNavProps = {
 export function SiteNav({ drawerOpen, onToggleDrawer }: SiteNavProps) {
   const { primaryItems, showMore, drawerOnlyActive, sortedItems, navRef, onMeasured } =
     useSiteNavSplit();
-  const { recordVisit } = useNavPreferences();
   const { t } = useI18n();
   const nav = t("nav");
   const rulerRef = useRef<HTMLUListElement>(null);
@@ -78,7 +76,6 @@ export function SiteNav({ drawerOpen, onToggleDrawer }: SiteNavProps) {
               href={item.href}
               className={`admin-nav-link${item.active ? " is-active" : ""}`}
               aria-current={item.active ? "page" : undefined}
-              onClick={() => recordVisit(item.id)}
             >
               {item.label}
             </Link>

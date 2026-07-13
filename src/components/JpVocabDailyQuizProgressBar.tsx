@@ -18,6 +18,12 @@ type Props = {
     onChange: (value: string) => void;
     onSave: () => void;
   };
+  /** 今日抽查已完成：进入课堂带读 */
+  coachAction?: {
+    busy: boolean;
+    coachCount: number;
+    onClick: () => void;
+  };
 };
 
 function parseQuizTargetDraft(value: string): number | null {
@@ -34,6 +40,7 @@ export function JpVocabDailyQuizProgressBar({
   progress,
   variant = "study",
   adminQuizTarget,
+  coachAction,
 }: Props) {
   if (progress.total <= 0 && !adminQuizTarget) return null;
 
@@ -122,6 +129,20 @@ export function JpVocabDailyQuizProgressBar({
           style={{ width: `${pct}%` }}
         />
       </div>
+      {progress.complete && variant === "teacher" && coachAction ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-quiz-progress-coach-btn"
+          disabled={coachAction.busy}
+          onClick={coachAction.onClick}
+        >
+          {coachAction.busy
+            ? "正在准备课堂带读…"
+            : coachAction.coachCount > 0
+              ? `课堂带读（${coachAction.coachCount} 条）`
+              : "课堂带读"}
+        </button>
+      ) : null}
 
       <style jsx>{`
         .jp-vocab-quiz-progress {
@@ -227,6 +248,10 @@ export function JpVocabDailyQuizProgressBar({
             color-mix(in srgb, var(--fall) 80%, #fff),
             var(--fall)
           );
+        }
+        .jp-vocab-quiz-progress-coach-btn {
+          width: 100%;
+          margin-top: 0.65rem;
         }
       `}</style>
     </div>

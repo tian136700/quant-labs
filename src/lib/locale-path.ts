@@ -275,7 +275,7 @@ export function isJpVocabReviewPath(pathname: string): boolean {
 }
 
 export function isJpVocabCoachPath(pathname: string): boolean {
-  const path = stripZhPrefix(pathname);
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
   return path === "/jp-vocab/coach";
 }
 

@@ -27,6 +27,33 @@ export const JP_VOCAB_STUDY_POLL_HIDDEN_MS = 45_000;
 /** 学生复习页：每隔 N 次列表轮询再拉一次抽查进度 */
 export const JP_VOCAB_STUDY_QUIZ_EVERY_N = 12;
 
+/** 老师今日抽查已全部完成：词条增量同步（可见 / 后台） */
+export const JP_VOCAB_POLL_IDLE_COMPLETE_MS = 120_000;
+
+export const JP_VOCAB_POLL_IDLE_COMPLETE_HIDDEN_MS = 300_000;
+
+/** 老师今日抽查已全部完成：今日抽查目标跨域同步 */
+export const JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS = 300_000;
+
+/** 老师今日抽查已全部完成：学生「请老师发送」轮询 */
+export const JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS = 120_000;
+
+export const JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS = 300_000;
+
+/** 按是否「老师 + 今日已抽完」选择轮询间隔 */
+export function jpVocabPollIntervalMs(
+  activeMs: number,
+  hiddenMs: number,
+  idleCompleteMs: number,
+  idleCompleteHiddenMs: number,
+  idleComplete: boolean
+): number {
+  if (idleComplete) {
+    return document.hidden ? idleCompleteHiddenMs : idleCompleteMs;
+  }
+  return document.hidden ? hiddenMs : activeMs;
+}
+
 export function maxJpVocabUpdatedAt(words: JpVocabWord[]): string {
   let max = "";
   for (const w of words) {

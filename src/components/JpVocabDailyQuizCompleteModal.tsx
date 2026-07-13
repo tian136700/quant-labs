@@ -53,7 +53,7 @@ export function JpVocabDailyQuizCompleteModal({
     variant === "teacher" && levelCounts
       ? levelCounts.normal + levelCounts.weak
       : 0;
-  const showCoachAction = variant === "teacher" && coachCount > 0 && onGoToCoach;
+  const showCoachAction = variant === "teacher" && onGoToCoach;
 
   useEffect(() => {
     setMounted(true);
@@ -137,7 +137,9 @@ export function JpVocabDailyQuizCompleteModal({
             >
               {coachBusy
                 ? "正在准备课堂带读…"
-                : `进入今日课堂带读（${coachCount} 条）`}
+                : coachCount > 0
+                  ? `进入今日课堂带读（${coachCount} 条）`
+                  : "进入今日课堂带读"}
             </button>
           ) : null}
           <button

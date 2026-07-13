@@ -192,6 +192,8 @@ export function useSiteNavItems(): SiteNavItem[] {
   }
 
   if (onHiddenJp && loggedIn && !hasPermission("nav:full")) {
+    const showJpVocabCoach =
+      hasPermission("jp_vocab:read") || hasPermission("jp_vocab:operate");
     return [
       ...(onJpVocab
         ? [
@@ -203,13 +205,13 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      ...(onJpVocabCoach
+      ...(showJpVocabCoach
         ? [
             {
               id: "jpVocabCoach",
               href: navHref("jpVocabCoach", locale, navOpts),
               label: nav.jpVocabCoach,
-              active: true,
+              active: onJpVocabCoach,
             },
           ]
         : []),

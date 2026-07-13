@@ -2943,6 +2943,20 @@ textarea:focus {
   opacity: 0.85;
 }
 
+.jp-lesson-copy-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  color: var(--accent);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .jp-lesson-copy-panel {
   position: absolute;
   top: calc(100% + 0.35rem);

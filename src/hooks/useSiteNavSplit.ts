@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PRIMARY_NAV_ORDER } from "@/lib/site-nav-config";
 import { useSiteNavItems, type SiteNavItem } from "@/hooks/useSiteNavItems";
-import { useNavPreferences } from "@/hooks/useNavPreferences";
+import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
 
 /**
  * Sort items by visit frequency (descending).

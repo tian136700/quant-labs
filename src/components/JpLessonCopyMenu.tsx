@@ -16,6 +16,7 @@ type Props = {
   lessonId: number;
   viewUrl: string;
   siteUrl: string;
+  copyCount?: number;
   primaryClassName?: string;
   fixedPanel?: boolean;
   copiedId: number | null;
@@ -31,6 +32,7 @@ export function JpLessonCopyMenu({
   lessonId,
   viewUrl,
   siteUrl,
+  copyCount = 0,
   primaryClassName = "jp-lesson-action-btn",
   fixedPanel = false,
   copiedId,
@@ -140,6 +142,11 @@ export function JpLessonCopyMenu({
         <span className="jp-lesson-copy-caret" aria-hidden>
           ▾
         </span>
+        {copyCount > 0 ? (
+          <span className="jp-lesson-copy-count" aria-label={`已复制 ${copyCount} 次`}>
+            {copyCount}
+          </span>
+        ) : null}
       </button>
       {open ? (
         <div

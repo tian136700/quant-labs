@@ -1,6 +1,7 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  incrementJpLessonLinkCopyCount,
   listJpLessons,
   updateJpLessonClassSchedules,
   updateJpLessonNextClassAt,
@@ -94,11 +95,6 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireJpLessonOperate(request);
-    if (!allowed || !user) {
-      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
-    }
-
     const body = (await request.json()) as {
       action?: string;
       lesson_id?: number;
@@ -114,6 +110,35 @@ export async function POST(request: Request) {
         duration_minutes: number | null;
       }>;
     };
+
+    if (body.action === "record_link_copy") {
+      const FORBIDDEN = {
+        en: "You do not have permission to view Japanese lessons.",
+        zh: "您没有日语新课的查看权限。",
+      };
+      const { env, allowed } = await requireJpLessonRead(request);
+      if (!allowed) {
+        return jsonResponse({ ok: false, error: FORBIDDEN[locale] }, 403);
+      }
+
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      const result = await incrementJpLessonLinkCopyCount(env.DB, lessonId);
+      if (!result.ok) {
+        const status = result.error === "not_found" ? 404 : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+
+      return jsonResponse({ ok: true, link_copy_count: result.link_copy_count });
+    }
+
+    const { env, user, allowed } = await requireJpLessonOperate(request);
+    if (!allowed || !user) {
+      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+    }
 
     if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {
       const { isAdmin } = await requireAdmin(request);
