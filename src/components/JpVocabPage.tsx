@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -31,7 +32,6 @@ import { JpVocabMnemonicViewModal } from "@/components/JpVocabMnemonicViewModal"
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { JpVocabManualAddModal } from "@/components/JpVocabManualAddModal";
-import { JpVocabRiskChartModal } from "@/components/JpVocabRiskChartModal";
 import {
   JpVocabDailyQuizIntroModal,
   shouldShowJpVocabDailyIntro,
@@ -39,7 +39,6 @@ import {
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
-import { JpVocabExportChoiceModal } from "@/components/JpVocabExportChoiceModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import { JpVocabTeacherQuizModeModal } from "@/components/JpVocabTeacherQuizModeModal";
 import {
@@ -90,7 +89,6 @@ import {
 } from "@/lib/jp-vocab-sync";
 import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/jp-vocab-daily-quiz-style";
 import {
-  exportJpVocabToWord,
   filterJpVocabTodayWeakWords,
   resolveJpVocabExportWords,
   type JpVocabExportScope,
@@ -163,6 +161,15 @@ import {
   writeStoredJpVocabPage,
 } from "@/lib/jp-vocab-page-helpers";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
+
+const JpVocabRiskChartModal = dynamic(
+  () => import("@/components/JpVocabRiskChartModal").then((m) => m.JpVocabRiskChartModal),
+  { ssr: false }
+);
+const JpVocabExportChoiceModal = dynamic(
+  () => import("@/components/JpVocabExportChoiceModal").then((m) => m.JpVocabExportChoiceModal),
+  { ssr: false }
+);
 
 export function JpVocabPage() {
   const { locale } = useI18n();
@@ -1936,6 +1943,7 @@ export function JpVocabPage() {
     setStatus("");
     setError("");
     try {
+      const { exportJpVocabToWord } = await import("@/lib/jp-vocab-export");
       await exportJpVocabToWord(exportWords, scope, dailySeqByWordId);
       setShowExportChoice(false);
       setStatus(

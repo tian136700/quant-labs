@@ -1,9 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { EnVocabRiskChart } from "@/components/EnVocabRiskChart";
 import type { EnVocabWord } from "@/lib/types";
+
+const EnVocabRiskChart = dynamic(
+  () => import("@/components/EnVocabRiskChart").then((m) => m.EnVocabRiskChart),
+  { ssr: false, loading: () => <p style={{ padding: 16, color: "var(--muted)" }}>加载图表…</p> }
+);
 
 type Props = {
   open: boolean;

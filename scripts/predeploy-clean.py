@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Remove stale Cloudflare build output before deploy.
 
-Production deploy always clears `.next/` and `.open-next/` so dev cache cannot
-conflict with `next build`. If local dev is listening on 3002, it is stopped
-first (SIGTERM) because it locks the same `.next/` directory.
+Production deploy clears `.next/` and `.open-next/` by default so dev cache cannot
+inflate the Worker bundle or conflict with `next build`. If local dev is listening
+on 3002, it is stopped first (SIGTERM) because it locks the same `.next/` directory.
 
-Pass `--clean-next` for an explicit clean rebuild (same as default when dev was
-running). Set `PRESERVE_NEXT_CACHE=1` only when no dev server is running to
-reuse `.next/` and speed up repeated deploys.
+Pass `--clean-next` for the same full clean (also used when dev was running).
+Set `PRESERVE_NEXT_CACHE=1` only when no dev server is running to reuse `.next/`
+and speed up repeated deploys.
 """
 
 from __future__ import annotations
@@ -79,8 +79,8 @@ def remove_build_dir(path: Path, attempts: int = 5) -> None:
 
 
 def should_preserve_next_cache() -> bool:
-    value = os.environ.get("PRESERVE_NEXT_CACHE", "1").strip().lower()
-    return value not in ("0", "false", "no", "off")
+    value = os.environ.get("PRESERVE_NEXT_CACHE", "0").strip().lower()
+    return value in ("1", "true", "yes", "on")
 
 
 def main() -> int:

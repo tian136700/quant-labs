@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ToolDotConverterPage } from "@/tool-dot/components/ToolDotConverterPage";
+import { ToolDotConverterClient } from "@/tool-dot/components/ToolDotConverterClient";
 import { getToolDefinition } from "@/tool-dot/tools";
 import type { Metadata } from "next";
 
@@ -21,5 +21,5 @@ export default async function Page({ params }: Props) {
   const { tool: slug } = await params;
   const tool = getToolDefinition(slug);
   if (!tool) notFound();
-  return <ToolDotConverterPage tool={tool} />;
+  return <ToolDotConverterClient tool={tool} />;
 }

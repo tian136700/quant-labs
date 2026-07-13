@@ -1,9 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { JpVocabRiskChart } from "@/components/JpVocabRiskChart";
 import type { JpVocabWord } from "@/lib/types";
+
+const JpVocabRiskChart = dynamic(
+  () => import("@/components/JpVocabRiskChart").then((m) => m.JpVocabRiskChart),
+  { ssr: false, loading: () => <p style={{ padding: 16, color: "var(--muted)" }}>加载图表…</p> }
+);
 
 type Props = {
   open: boolean;

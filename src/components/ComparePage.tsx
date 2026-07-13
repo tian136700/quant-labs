@@ -1,12 +1,17 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n/I18nProvider";
 import { trackEvent } from "@/lib/analytics-client";
 import type { ComparePayload } from "@/lib/types";
-import { CompareChart } from "./CompareChart";
 import { CompareTable } from "./CompareTable";
 import { SeoContent } from "./SeoContent";
+
+const CompareChart = dynamic(() => import("./CompareChart").then((m) => m.CompareChart), {
+  ssr: false,
+  loading: () => <p style={{ padding: 16, color: "var(--muted)" }}>加载图表…</p>,
+});
 
 const LS_SYMBOL = "strategy_compare_symbol";
 const LS_YEARS = "strategy_compare_years";

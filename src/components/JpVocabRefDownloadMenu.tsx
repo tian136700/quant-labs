@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import {
-  downloadBlobAsFile,
-  exportJpVocabRefPaginatedDocx,
-  exportJpVocabRefPaginatedPdf,
-} from "@/lib/jp-vocab-ref-pdf-export";
 import type { JpVocabMediaType } from "@/lib/types";
+
+async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 type Props = {
   downloadUrl: string;
@@ -201,6 +205,7 @@ export function JpVocabRefDownloadMenu({
     setBusy("pdf");
     setOpen(false);
     try {
+      const { exportJpVocabRefPaginatedPdf } = await import("@/lib/jp-vocab-ref-pdf-export");
       await exportJpVocabRefPaginatedPdf(mediaUrl, filename);
     } catch (err) {
       window.alert(
@@ -216,6 +221,7 @@ export function JpVocabRefDownloadMenu({
     setBusy("word");
     setOpen(false);
     try {
+      const { exportJpVocabRefPaginatedDocx } = await import("@/lib/jp-vocab-ref-pdf-export");
       await exportJpVocabRefPaginatedDocx(mediaUrl, filename);
     } catch (err) {
       window.alert(
