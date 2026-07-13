@@ -5,6 +5,38 @@ import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
+/** 课堂带读列表仅保留最近 N 个北京时间自然日（含今天） */
+export const JP_VOCAB_COACH_RETENTION_DAYS = 5;
+
+function addBeijingCalendarDays(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + deltaDays);
+  const y2 = dt.getUTCFullYear();
+  const m2 = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const d2 = String(dt.getUTCDate()).padStart(2, "0");
+  return `${y2}-${m2}-${d2}`;
+}
+
+/** 仍保留的最早带读日期（含）；早于此日期的 batch 应清除 */
+export function jpVocabCoachRetentionCutoffDate(
+  now = new Date(),
+  retentionDays = JP_VOCAB_COACH_RETENTION_DAYS
+): string {
+  const today = beijingDateString(now);
+  return addBeijingCalendarDays(today, -(retentionDays - 1));
+}
+
+export function isJpVocabCoachDateWithinRetention(
+  coachDate: string,
+  now = new Date(),
+  retentionDays = JP_VOCAB_COACH_RETENTION_DAYS
+): boolean {
+  const trimmed = coachDate.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
+  return trimmed >= jpVocabCoachRetentionCutoffDate(now, retentionDays);
+}
+
 export function jpVocabCoachLevelLabel(level: JpVocabLevel): string {
   if (level === "weak") return "不熟悉";
   if (level === "normal") return "一般";

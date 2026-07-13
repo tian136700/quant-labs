@@ -1,4 +1,8 @@
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import {
+  isJpVocabCoachDateWithinRetention,
+  jpVocabCoachRetentionCutoffDate,
+} from "@/lib/jp-vocab-coach";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
 export type JpVocabCoachBatchSummary = {
@@ -71,18 +75,36 @@ export async function ensureJpVocabCoachSchema(db: D1Database): Promise<void> {
   coachSchemaReady = true;
 }
 
+/** 删除超过保留期的带读批次（仅 jp_vocab_coach_*；不触及 jp_vocab_word） */
+export async function pruneJpVocabCoachBatchesOlderThanRetention(
+  db: D1Database,
+  now = new Date()
+): Promise<number> {
+  await ensureJpVocabCoachSchema(db);
+  const cutoff = jpVocabCoachRetentionCutoffDate(now);
+  const result = await db
+    .prepare(`DELETE FROM jp_vocab_coach_batch WHERE coach_date < ?1`)
+    .bind(cutoff)
+    .run();
+  return Number(result.meta?.changes) || 0;
+}
+
 export async function listJpVocabCoachBatchSummaries(
-  db: D1Database
+  db: D1Database,
+  now = new Date()
 ): Promise<JpVocabCoachBatchSummary[]> {
   await ensureJpVocabCoachSchema(db);
+  const cutoff = jpVocabCoachRetentionCutoffDate(now);
   const { results } = await db
     .prepare(
       `SELECT b.coach_date, b.updated_at, COUNT(i.word_id) AS item_count
        FROM jp_vocab_coach_batch b
        LEFT JOIN jp_vocab_coach_item i ON i.coach_date = b.coach_date
+       WHERE b.coach_date >= ?1
        GROUP BY b.coach_date
        ORDER BY b.coach_date DESC`
     )
+    .bind(cutoff)
     .all<{ coach_date: string; updated_at: string; item_count: number }>();
 
   return (results ?? []).map((row) => ({
@@ -145,6 +167,7 @@ export async function replaceJpVocabCoachBatch(
   ];
 
   await db.batch(statements);
+  await pruneJpVocabCoachBatchesOlderThanRetention(db);
 
   return { coach_date, item_count: deduped.length };
 }
@@ -152,10 +175,14 @@ export async function replaceJpVocabCoachBatch(
 export async function getJpVocabCoachItems(
   db: D1Database,
   coachDateInput: string,
-  wordsById: Map<number, JpVocabWord>
+  wordsById: Map<number, JpVocabWord>,
+  now = new Date()
 ): Promise<{ coach_date: string; items: JpVocabCoachItem[] }> {
   await ensureJpVocabCoachSchema(db);
   const coach_date = normalizeCoachDate(coachDateInput);
+  if (!isJpVocabCoachDateWithinRetention(coach_date, now)) {
+    return { coach_date, items: [] };
+  }
   const { results } = await db
     .prepare(
       `SELECT coach_date, word_id, level, display_order

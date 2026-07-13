@@ -11,7 +11,11 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { readApiJson } from "@/lib/api-json";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { jpVocabCoachLevelLabel } from "@/lib/jp-vocab-coach";
+import {
+  JP_VOCAB_COACH_RETENTION_DAYS,
+  isJpVocabCoachDateWithinRetention,
+  jpVocabCoachLevelLabel,
+} from "@/lib/jp-vocab-coach";
 import type { JpVocabCoachBatchSummary, JpVocabCoachItem } from "@/lib/jp-vocab-coach-db";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
@@ -111,6 +115,13 @@ export function JpVocabCoachPage() {
     };
   }, [checking, user, refresh]);
 
+  useEffect(() => {
+    if (isJpVocabCoachDateWithinRetention(selectedDate)) return;
+    setSelectedDate(batches[0]?.coach_date ?? beijingDateString());
+  }, [batches, selectedDate]);
+
+  const dateExpired = !isJpVocabCoachDateWithinRetention(selectedDate);
+
   const wordsById = useMemo(
     () => new Map(items.map((item) => [item.word_id, item.word])),
     [items]
@@ -178,7 +189,8 @@ export function JpVocabCoachPage() {
         <div>
           <h1>课堂带读</h1>
           <p>
-            从「日语抽问」导出今日未掌握词条后，在此按日期带读。熟悉程度为导出时快照，此处不可修改；备注与抽问页共用同一份数据。
+            从「日语抽问」导出今日未掌握词条后，在此按日期带读。熟悉程度为导出时快照，此处不可修改；备注与抽问页共用同一份数据。带读列表仅保留最近{" "}
+            {JP_VOCAB_COACH_RETENTION_DAYS} 天（北京时间），更早的批次会自动清除，不会删除抽问词库中的单词。
           </p>
         </div>
         <Link href="/jp-vocab" className="btn-rsi-filter">
@@ -233,6 +245,9 @@ export function JpVocabCoachPage() {
         </div>
         <p className="jp-vocab-coach-summary">
           {selectedDate} 共 <strong>{items.length}</strong> 条
+          <span className="jp-vocab-coach-retention">
+            （仅保留最近 {JP_VOCAB_COACH_RETENTION_DAYS} 天带读列表）
+          </span>
         </p>
       </section>
 
@@ -254,7 +269,9 @@ export function JpVocabCoachPage() {
             {!items.length && !loading ? (
               <tr className="jp-vocab-coach-empty-row">
                 <td colSpan={5} className="jp-vocab-coach-empty">
-                  该日期暂无带读列表。请在「日语抽问」→ 导出 →「导出到课堂带读」。
+                  {dateExpired
+                    ? `该日期的带读列表已过期（仅保留最近 ${JP_VOCAB_COACH_RETENTION_DAYS} 天）。`
+                    : "该日期暂无带读列表。请在「日语抽问」→ 导出 →「导出到课堂带读」。"}
                 </td>
               </tr>
             ) : (
@@ -414,6 +431,11 @@ export function JpVocabCoachPage() {
         .jp-vocab-coach-summary {
           margin: 0;
           color: var(--muted);
+        }
+        .jp-vocab-coach-retention {
+          display: inline;
+          margin-left: 0.25rem;
+          font-size: 0.85em;
         }
         .jp-vocab-coach-status {
           margin: 0;

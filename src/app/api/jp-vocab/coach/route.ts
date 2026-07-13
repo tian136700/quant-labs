@@ -3,8 +3,13 @@ import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import {
   getJpVocabCoachItems,
   listJpVocabCoachBatchSummaries,
+  pruneJpVocabCoachBatchesOlderThanRetention,
   replaceJpVocabCoachBatch,
 } from "@/lib/jp-vocab-coach-db";
+import {
+  JP_VOCAB_COACH_RETENTION_DAYS,
+  jpVocabCoachRetentionCutoffDate,
+} from "@/lib/jp-vocab-coach";
 import { listJpVocabWordsWithRefs } from "@/lib/jp-vocab-db";
 import type { JpVocabLevel } from "@/lib/types";
 
@@ -30,9 +35,17 @@ export async function GET(request: Request) {
     const coachDate = url.searchParams.get("date");
 
     if (!coachDate) {
+      await pruneJpVocabCoachBatchesOlderThanRetention(env.DB);
       const batches = await listJpVocabCoachBatchSummaries(env.DB);
-      return jsonResponse({ ok: true, batches });
+      return jsonResponse({
+        ok: true,
+        batches,
+        retention_days: JP_VOCAB_COACH_RETENTION_DAYS,
+        retention_cutoff: jpVocabCoachRetentionCutoffDate(),
+      });
     }
+
+    await pruneJpVocabCoachBatchesOlderThanRetention(env.DB);
 
     const { words, refs } = await listJpVocabWordsWithRefs(env.DB);
     const wordsById = new Map(words.map((word) => [word.id, word]));
