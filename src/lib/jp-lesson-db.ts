@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, alignLessonItemMeanings } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -19,6 +19,7 @@ const SEED_LESSONS: JpLessonUploadInput[] = [
   {
     kind: "grammar",
     content: "～ばかり, ～ようになる, ～に来る",
+    meanings: "（刚刚，只是……）|（变得能够……）|（来……做……）",
     ref_key: "lesson02-grammar",
   },
 ];
@@ -27,6 +28,17 @@ let devStoreEnabled = false;
 const devLessons: JpLessonRecord[] = [];
 let devNextId = 1;
 let devSeeded = false;
+let jpLessonMeaningsColumnReady = false;
+
+async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || jpLessonMeaningsColumnReady) return;
+  try {
+    await db.prepare(`ALTER TABLE jp_lesson ADD COLUMN meanings TEXT`).run();
+  } catch {
+    /* column may already exist */
+  }
+  jpLessonMeaningsColumnReady = true;
+}
 
 export function enableJpLessonDevStore() {
   devStoreEnabled = true;
@@ -55,6 +67,10 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
     id: Number(row.id),
     kind: row.kind === "grammar" ? "grammar" : "word",
     content: String(row.content),
+    meanings:
+      row.meanings != null && String(row.meanings).trim()
+        ? String(row.meanings).trim()
+        : null,
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
@@ -115,7 +131,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, meanings, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -124,10 +140,12 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (devSeeded || devLessons.length > 0) return;
   const ts = nowIso();
   for (const item of SEED_LESSONS) {
+    const content = item.content.trim();
     devLessons.push({
       id: devNextId++,
       kind: normalizeKind(item.kind),
-      content: item.content.trim(),
+      content,
+      meanings: normalizeLessonMeaningsForStorage(content, item.meanings),
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
       completed: false,
@@ -162,6 +180,8 @@ export async function listJpLessons(db: D1Database): Promise<JpLessonRecord[]> {
     return attachTeacherIds(db, [...devLessons].sort(compareJpLessonsByProgress));
   }
 
+  await ensureJpLessonMeaningsColumn(db);
+
   const result = await db
     .prepare(
       `${LESSON_SELECT}
@@ -193,6 +213,8 @@ export async function getJpLessonById(
     const [withTeachers] = await attachTeacherIds(db, [lesson]);
     return withTeachers;
   }
+
+  await ensureJpLessonMeaningsColumn(db);
 
   const row = await db
     .prepare(`${LESSON_SELECT} WHERE id = ?1`)
@@ -244,6 +266,7 @@ async function syncLessonToVocab(
   const items = parseLessonContent(lesson.content);
   if (!items.length) return;
 
+  const itemMeanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
   const refKey = lesson.ref_key;
   const refs = refKey
     ? [
@@ -257,10 +280,11 @@ async function syncLessonToVocab(
 
   await upsertJpVocabFromLesson(
     db,
-    items.map((word) => ({
+    items.map((word, index) => ({
       word,
       kind: lesson.kind,
       ref_key: refKey,
+      meaning: itemMeanings[index] ?? null,
     })),
     refs
   );
@@ -292,17 +316,20 @@ export async function createJpLesson(
 
   const kind = normalizeKind(input.kind);
   const title = (input.title || "").trim() || null;
+  const meanings = normalizeLessonMeaningsForStorage(content, input.meanings);
   const refKey = input.ref_key
     ? normalizeJpVocabRefKey(input.ref_key) || null
     : null;
   const ts = nowIso();
+  const storedContent = items.join(", ");
 
   if (devStoreEnabled) {
     await seedIfEmpty(db);
     const lesson: JpLessonRecord = {
       id: devNextId++,
       kind,
-      content: items.join(", "),
+      content: storedContent,
+      meanings,
       title,
       ref_key: refKey,
       completed: false,
@@ -326,12 +353,14 @@ export async function createJpLesson(
     return { ok: false, error: "ref_key_not_found" };
   }
 
+  await ensureJpLessonMeaningsColumn(db);
+
   const result = await db
     .prepare(
-      `INSERT INTO jp_lesson (kind, content, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?5, ?5)`
+      `INSERT INTO jp_lesson (kind, content, meanings, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6, ?6)`
     )
-    .bind(kind, items.join(", "), title, refKey, ts)
+    .bind(kind, storedContent, meanings, title, refKey, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);

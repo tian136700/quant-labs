@@ -1166,7 +1166,12 @@ export async function getOrUploadJpVocabRefByContent(
 /** 新课标记完成时：仅写入尚不存在的词条（已存在则跳过）并带上教案 ref_key */
 export async function upsertJpVocabFromLesson(
   db: D1Database,
-  items: { word: string; kind: JpVocabKind; ref_key: string | null }[],
+  items: {
+    word: string;
+    kind: JpVocabKind;
+    ref_key: string | null;
+    meaning?: string | null;
+  }[],
   refs: JpVocabRefUploadInput[] = []
 ): Promise<void> {
   if (!items.length) return;
@@ -1180,15 +1185,23 @@ export async function upsertJpVocabFromLesson(
       if (!word) continue;
       const kind = normalizeKind(item.kind);
       const refKey = item.ref_key;
+      const meaning = (item.meaning || "").trim() || null;
       const idx = devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
+        if (meaning && !devWords[idx].meaning?.trim()) {
+          devWords[idx] = {
+            ...devWords[idx],
+            meaning,
+            updated_at: ts,
+          };
+        }
         continue;
       }
       devWords.push({
           id: devNextId++,
           word,
           reading: null,
-          meaning: null,
+          meaning,
           pos: null,
           kind,
           ref_key: refKey,
@@ -1210,20 +1223,31 @@ export async function upsertJpVocabFromLesson(
     if (!word) continue;
     const kind = normalizeKind(item.kind);
     const refKey = item.ref_key;
+    const meaning = (item.meaning || "").trim() || null;
 
     const existing = await db
-      .prepare("SELECT id FROM jp_vocab_word WHERE word = ?1 LIMIT 1")
+      .prepare("SELECT id, meaning FROM jp_vocab_word WHERE word = ?1 LIMIT 1")
       .bind(word)
-      .first<{ id: number }>();
+      .first<{ id: number; meaning: string | null }>();
 
-    if (existing) continue;
+    if (existing) {
+      if (meaning && !(existing.meaning || "").trim()) {
+        await db
+          .prepare(
+            `UPDATE jp_vocab_word SET meaning = ?1, updated_at = ?2 WHERE id = ?3`
+          )
+          .bind(meaning, ts, existing.id)
+          .run();
+      }
+      continue;
+    }
 
     await db
       .prepare(
         `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, 0, NULL, NULL, ?4, ?4)`
+         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?5)`
       )
-      .bind(word, kind, refKey, ts)
+      .bind(word, meaning, kind, refKey, ts)
       .run();
   }
 }

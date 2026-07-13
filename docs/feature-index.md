@@ -91,6 +91,7 @@
 
 | 功能描述 | 改哪里 |
 |----------|--------|
+| **API 上传新课**（`content` + 可选 `meanings`，`|` 分隔释义；已完成同步释义到 `/jp-vocab`） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings` |
 | 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
 | 统一日程（日语/英语/手动） | `JpLessonSchedulePage.tsx`；`jp-lesson-manual-schedule.ts` → `LessonScheduleSubject` |
 | 英语老师管理 / 评价（合并） | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此 |

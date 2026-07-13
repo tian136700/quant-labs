@@ -31,6 +31,7 @@ import {
   formatClassDurationLabel,
   formatClassDurationLabelCompact,
   formatLessonContentLines,
+  formatLessonMeaningsLines,
   formatNextClassAtLabel,
   formatNextClassAtLabelCompact,
   getJpLessonProgressStatus,
@@ -147,6 +148,15 @@ function formatLessonContentOneLine(raw: string): string {
   const items = parseLessonContent(raw);
   if (!items.length) return raw.trim() || "—";
   return items.join("、");
+}
+
+function formatLessonMeaningsOneLine(
+  content: string,
+  meanings: string | null | undefined
+): string {
+  const aligned = formatLessonMeaningsLines(content, meanings, 99);
+  if (!aligned.length || aligned.every((line) => line === "—")) return "—";
+  return aligned.join(" · ");
 }
 
 function renderLessonDateTime(iso: string) {
@@ -1358,6 +1368,7 @@ export function JpLessonPage() {
             <th>ID</th>
             <th>学习类型</th>
             <th>学习内容</th>
+            <th>释义</th>
             <th className="jp-lesson-uploaded-col">上传日期</th>
             <th
               className={`jp-lesson-status-at-col jp-lesson-status-at-col--sortable${
@@ -1529,6 +1540,10 @@ export function JpLessonPage() {
                             <p className="jp-lesson-mobile-content-text">
                               {formatLessonContentOneLine(lesson.content)}
                             </p>
+                            <p className="jp-lesson-mobile-meanings-inline">
+                              <span className="jp-lesson-mobile-meanings-label">释义</span>
+                              {formatLessonMeaningsOneLine(lesson.content, lesson.meanings)}
+                            </p>
                             {canOperate ? (
                               <button
                                 type="button"
@@ -1542,6 +1557,29 @@ export function JpLessonPage() {
                             ) : null}
                           </div>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                </td>
+                <td data-label="释义" className="jp-lesson-meanings-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        <div className="jp-lesson-meanings-lines jp-lesson-meanings-desktop">
+                          {formatLessonMeaningsLines(lesson.content, lesson.meanings).map(
+                            (line, lineIdx) => (
+                              <span key={lineIdx} className="jp-lesson-meanings-line">
+                                {line}
+                              </span>
+                            )
+                          )}
+                        </div>
+                        <p className="jp-lesson-mobile-meanings-text">
+                          {formatLessonMeaningsOneLine(lesson.content, lesson.meanings)}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -1921,14 +1959,16 @@ export function JpLessonPage() {
   -H "Authorization: Bearer <TOKEN>" \\
   -F "kind=grammar" \\
   -F "content=～ばかり, ～ようになる, ～に来る" \\
+  -F "meanings=（刚刚，只是……）|（变得能够……）|（来……做……）" \\
   -F "media_type=image" \\
   -F "file=@lesson02.png"`}
         </pre>
         <p>
-          <code>content</code> 中多个单词/语法用英文或中文逗号分隔。
+          <code>content</code> 中多个单词/语法用英文或中文逗号分隔；可选 <code>meanings</code> 与
+          <code>content</code> 各项一一对应，多项释义用竖线 <code>|</code> 分隔（释义内可含逗号）。
           上传带 <code>file</code> 时，系统会自动生成教案标识（如 <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
           上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
-          日语单词抽问并带上教案链接。
+          日语单词抽问并带上教案链接与释义。
         </p>
       </details>
         </>
@@ -2045,6 +2085,26 @@ export function JpLessonPage() {
           min-width: 9rem;
           max-width: 14rem;
         }
+        :global(.jp-lesson-meanings-col) {
+          min-width: 8rem;
+          max-width: 16rem;
+          color: var(--muted);
+        }
+        :global(.jp-lesson-meanings-lines) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          line-height: 1.45;
+        }
+        :global(.jp-lesson-meanings-line) {
+          display: block;
+        }
+        :global(.jp-lesson-mobile-meanings-text) {
+          display: none;
+        }
+        :global(.jp-lesson-mobile-meanings-inline) {
+          display: none;
+        }
         :global(.jp-lesson-content-lines) {
           display: flex;
           flex-direction: column;
@@ -2143,6 +2203,21 @@ export function JpLessonPage() {
           :global(.jp-lesson-page--ja .jp-lesson-next-class-dt-compact),
           :global(.jp-lesson-page--ja .jp-lesson-class-duration-dt-compact) {
             display: inline !important;
+          }
+          :global(.jp-lesson-page--ja .jp-lesson-meanings-col) {
+            display: none !important;
+          }
+          :global(.jp-lesson-page--ja .jp-lesson-mobile-meanings-inline) {
+            display: block;
+            margin: 0.35rem 0 0;
+            font-size: 0.8125rem;
+            line-height: 1.45;
+            color: var(--muted);
+          }
+          :global(.jp-lesson-page--ja .jp-lesson-mobile-meanings-label) {
+            margin-right: 0.35rem;
+            color: var(--text);
+            font-weight: 500;
           }
         }
         :global(.jp-lesson-uploaded-col),

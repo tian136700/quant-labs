@@ -296,6 +296,7 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   kind        TEXT    NOT NULL DEFAULT 'word',
   content     TEXT    NOT NULL,
+  meanings    TEXT,
   title       TEXT,
   ref_key     TEXT,
   completed           INTEGER NOT NULL DEFAULT 0,
@@ -549,6 +550,7 @@ CREATE INDEX IF NOT EXISTS idx_en_lesson_note_lesson ON en_lesson_note (lesson_i
 -- CREATE INDEX IF NOT EXISTS idx_jp_vocab_ref_key ON jp_vocab_word (ref_key);
 -- ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT;
 -- CREATE TABLE IF NOT EXISTS jp_vocab_setting (...);  -- 同上
+-- ALTER TABLE jp_lesson ADD COLUMN meanings TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN teacher_other TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN next_class_at TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN class_duration_minutes INTEGER;

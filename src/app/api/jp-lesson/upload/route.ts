@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     const contentType = request.headers.get("content-type") || "";
     let kind: JpLessonKind = "word";
     let content = "";
+    let meanings: string | null = null;
     let title: string | null = null;
     let refKey = "";
     let fileBytes: ArrayBuffer | null = null;
@@ -28,6 +29,11 @@ export async function POST(request: Request) {
       const form = await request.formData();
       kind = form.get("kind") === "grammar" ? "grammar" : "word";
       content = String(form.get("content") || "").trim();
+      const meaningsRaw = form.get("meanings");
+      meanings =
+        typeof meaningsRaw === "string" && meaningsRaw.trim()
+          ? meaningsRaw.trim()
+          : null;
       const titleRaw = form.get("title");
       title =
         typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : null;
@@ -47,11 +53,13 @@ export async function POST(request: Request) {
       const body = (await request.json()) as {
         kind?: JpLessonKind;
         content?: string;
+        meanings?: string | null;
         title?: string | null;
         ref_key?: string | null;
       };
       kind = body.kind === "grammar" ? "grammar" : "word";
       content = String(body.content || "").trim();
+      meanings = (body.meanings || "").trim() || null;
       title = (body.title || "").trim() || null;
       refKey = normalizeJpVocabRefKey(String(body.ref_key || ""));
     }
@@ -65,6 +73,7 @@ export async function POST(request: Request) {
     const result = await createJpLesson(env.DB, {
       kind,
       content,
+      meanings,
       title,
       ref_key: hasFile ? null : refKey || null,
     });

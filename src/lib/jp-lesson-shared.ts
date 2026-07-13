@@ -6,6 +6,55 @@ export function parseLessonContent(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** 将上传时的 meanings 拆成与 content 一一对应的释义（用 | 分隔，避免释义内含逗号） */
+export function parseLessonMeanings(raw: string | null | undefined): string[] {
+  const text = (raw || "").trim();
+  if (!text) return [];
+  return text.split("|").map((s) => s.trim());
+}
+
+/** 按 content 项数对齐释义；缺失项为 null */
+export function alignLessonItemMeanings(
+  content: string,
+  meaningsRaw: string | null | undefined
+): (string | null)[] {
+  const items = parseLessonContent(content);
+  const meanings = parseLessonMeanings(meaningsRaw);
+  return items.map((_, index) => {
+    const meaning = meanings[index];
+    return meaning && meaning.trim() ? meaning.trim() : null;
+  });
+}
+
+/** 入库前规范化 meanings 字符串（与 content 项数对齐，用 | 连接） */
+export function normalizeLessonMeaningsForStorage(
+  content: string,
+  meaningsRaw: string | null | undefined
+): string | null {
+  const aligned = alignLessonItemMeanings(content, meaningsRaw);
+  if (!aligned.some(Boolean)) return null;
+  return aligned.map((item) => item ?? "").join("|");
+}
+
+/** 将释义按每行若干项拆成多行（默认每行 3 个，与学习内容对齐） */
+export function formatLessonMeaningsLines(
+  content: string,
+  meaningsRaw: string | null | undefined,
+  perLine = 3
+): string[] {
+  const aligned = alignLessonItemMeanings(content, meaningsRaw);
+  if (!aligned.some(Boolean)) return ["—"];
+  const lines: string[] = [];
+  for (let i = 0; i < aligned.length; i += perLine) {
+    const chunk = aligned
+      .slice(i, i + perLine)
+      .map((item) => item || "—")
+      .join(" · ");
+    lines.push(chunk);
+  }
+  return lines;
+}
+
 /** 将学习内容按每行若干项拆成多行（默认每行 3 个） */
 export function formatLessonContentLines(raw: string, perLine = 3): string[] {
   const items = parseLessonContent(raw);

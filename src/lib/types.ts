@@ -285,6 +285,8 @@ export interface JpLessonRecord {
   id: number;
   kind: JpLessonKind;
   content: string;
+  /** 与 content 各项一一对应的释义，库内用 | 分隔 */
+  meanings: string | null;
   title: string | null;
   ref_key: string | null;
   completed: boolean;
@@ -312,6 +314,8 @@ export interface JpLessonRecord {
 export type JpLessonUploadInput = {
   kind: JpLessonKind;
   content: string;
+  /** 与 content 各项一一对应，多项用 | 分隔（释义内可含逗号） */
+  meanings?: string | null;
   title?: string | null;
   ref_key?: string | null;
 };
