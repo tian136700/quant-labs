@@ -169,6 +169,8 @@ export interface JpVocabWord {
   class_notes_present?: boolean;
   /** 巧记 / 联想记忆（仅管理员可见与编辑） */
   mnemonic?: string | null;
+  /** 例句（课堂带读展示；日语抽问列表不显示，编辑时可填） */
+  example_sentences?: string | null;
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;
@@ -183,6 +185,7 @@ export type JpVocabUploadInput = {
   kind?: JpVocabKind | null;
   ref_key?: string | null;
   class_notes?: string | null;
+  example_sentences?: string | null;
 };
 
 /** 学生请求老师发送当前抽查单词（按 request_date 每日清空） */

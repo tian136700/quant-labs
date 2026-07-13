@@ -56,6 +56,7 @@ export function JpVocabManualAddModal({
   const [reading, setReading] = useState("");
   const [meaning, setMeaning] = useState("");
   const [classNotes, setClassNotes] = useState("");
+  const [exampleSentences, setExampleSentences] = useState("");
   const [refTitle, setRefTitle] = useState("");
   const [image, setImage] = useState<ImageState | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -76,6 +77,7 @@ export function JpVocabManualAddModal({
     setReading("");
     setMeaning("");
     setClassNotes("");
+    setExampleSentences("");
     setRefTitle("");
     setImage((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl);
@@ -168,6 +170,7 @@ export function JpVocabManualAddModal({
       if (reading.trim()) form.set("reading", reading.trim());
       if (meaning.trim()) form.set("meaning", meaning.trim());
       if (classNotes.trim()) form.set("class_notes", classNotes.trim());
+      if (exampleSentences.trim()) form.set("example_sentences", exampleSentences.trim());
       if (refTitle.trim()) form.set("ref_title", refTitle.trim());
 
       if (image) {
@@ -341,6 +344,19 @@ export function JpVocabManualAddModal({
                 value={meaning}
                 onChange={(e) => setMeaning(e.target.value)}
                 placeholder="例如：学习"
+                disabled={submitting}
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="jp-vocab-add-example-sentences">例句（可选）</label>
+              <textarea
+                id="jp-vocab-add-example-sentences"
+                className="jp-vocab-add-textarea"
+                rows={3}
+                value={exampleSentences}
+                onChange={(e) => setExampleSentences(e.target.value)}
+                placeholder="每行一条例句，例如：彼は毎日勉強している。"
                 disabled={submitting}
               />
             </div>

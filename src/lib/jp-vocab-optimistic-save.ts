@@ -5,7 +5,7 @@ export function buildOptimisticJpVocabWord(
   patch: Partial<
       Pick<
       JpVocabWord,
-      "kind" | "word" | "reading" | "meaning" | "pos" | "class_notes" | "mnemonic"
+      "kind" | "word" | "reading" | "meaning" | "pos" | "class_notes" | "mnemonic" | "example_sentences"
     >
   >
 ): JpVocabWord {

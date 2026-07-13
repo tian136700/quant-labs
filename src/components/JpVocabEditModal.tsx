@@ -95,6 +95,7 @@ export function JpVocabEditModal({
   const [meaning, setMeaning] = useState("");
   const [pos, setPos] = useState("");
   const [classNotes, setClassNotes] = useState("");
+  const [exampleSentences, setExampleSentences] = useState("");
   const [mnemonic, setMnemonic] = useState("");
   const [error, setError] = useState("");
   const [refError, setRefError] = useState("");
@@ -125,6 +126,7 @@ export function JpVocabEditModal({
     setMeaning(word.meaning || "");
     setPos(word.pos || "");
     setClassNotes(word.class_notes || "");
+    setExampleSentences(word.example_sentences || "");
     setMnemonic(word.mnemonic || "");
     setError("");
     setRefError("");
@@ -341,6 +343,7 @@ export function JpVocabEditModal({
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
       class_notes: classNotes.trim() || null,
+      example_sentences: exampleSentences.trim() || null,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
@@ -364,6 +367,7 @@ export function JpVocabEditModal({
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
             class_notes: classNotes.trim() || null,
+            example_sentences: exampleSentences.trim() || null,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
@@ -523,6 +527,24 @@ export function JpVocabEditModal({
                 placeholder="例如：名词、动词、形容词"
                 onChange={(e) => setPos(e.target.value)}
               />
+            </div>
+
+            <div className="field">
+              <label htmlFor="jp-vocab-edit-example-sentences" className="jp-vocab-edit-label">
+                例句
+              </label>
+              <textarea
+                id="jp-vocab-edit-example-sentences"
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
+                rows={3}
+                value={exampleSentences}
+                disabled={!canEdit}
+                placeholder="每行一条例句，例如：彼は毎日勉強している。"
+                onChange={(e) => setExampleSentences(e.target.value)}
+              />
+              <p className="jp-vocab-edit-hint">
+                保存后会在「课堂带读」列表中展示；日语抽问表格不显示此列。
+              </p>
             </div>
 
             <div className="field jp-vocab-edit-notes-field">

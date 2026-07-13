@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
+import { JpVocabExampleSentencesCell } from "@/components/JpVocabExampleSentencesCell";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
@@ -292,6 +293,7 @@ export function JpVocabCoachPage() {
             <tr>
               <th>序号</th>
               <th>单词 / 语法</th>
+              <th>例句</th>
               <th>熟悉程度</th>
               <th>备注</th>
               <th>操作</th>
@@ -300,7 +302,7 @@ export function JpVocabCoachPage() {
           <tbody>
             {!items.length && !loading ? (
               <tr className="jp-vocab-coach-empty-row">
-                <td colSpan={5} className="jp-vocab-coach-empty">
+                <td colSpan={6} className="jp-vocab-coach-empty">
                   {dateExpired
                     ? `该日期的带读列表已过期（仅保留最近 ${JP_VOCAB_COACH_RETENTION_DAYS} 天）。`
                     : "该日期暂无带读列表。请在「日语抽问」→ 导出 →「导出到课堂带读」。"}
@@ -320,6 +322,9 @@ export function JpVocabCoachPage() {
                       {w.reading ? (
                         <span className="jp-vocab-coach-reading">{w.reading}</span>
                       ) : null}
+                    </td>
+                    <td data-label="例句" className="jp-vocab-coach-example-col">
+                      <JpVocabExampleSentencesCell text={w.example_sentences} />
                     </td>
                     <td data-label="熟悉程度" className="jp-vocab-coach-level-col">
                       <span className="jp-vocab-coach-level">{jpVocabCoachLevelLabel(item.level)}</span>
@@ -496,6 +501,20 @@ export function JpVocabCoachPage() {
           color: var(--muted);
           font-size: 0.88rem;
         }
+        .jp-vocab-coach-example-col {
+          max-width: 11rem;
+          font-size: 0.9rem;
+          line-height: 1.45;
+        }
+        .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-block + .jp-vocab-example-sentences-block) {
+          margin-top: 0.35rem;
+        }
+        .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-line) {
+          word-break: break-all;
+        }
+        .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-empty) {
+          color: var(--muted);
+        }
         .jp-vocab-coach-level {
           display: inline-block;
           padding: 0.15rem 0.45rem;
@@ -591,6 +610,16 @@ export function JpVocabCoachPage() {
             padding-bottom: 0.5rem;
             margin-bottom: 0.125rem;
             border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+          }
+          .jp-vocab-coach-example-col {
+            grid-column: 1 / -1;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.15rem;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.125rem;
+            border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+            max-width: none;
           }
           .jp-vocab-coach-word-col::before {
             display: none;
