@@ -14,6 +14,8 @@
 
 日语/英语学习模块 URL **不带** `/zh` 前缀（见 `src/lib/locale-path.ts` `isLocaleNeutralPath`）。
 
+> 维护说明：本文档仅作开发索引，修改不影响线上功能。（自动部署钩子验证用）
+
 ---
 
 ## 日语单词 / 语法抽问（jp-vocab）
