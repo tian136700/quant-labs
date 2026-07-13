@@ -297,6 +297,44 @@ export function sortJpLessonTeachersByLessonCount(
   });
 }
 
+/** 日程等老师选择器：合并日语/英语老师，按称呼去重后排序 */
+export function mergeScheduleTeacherPickerLists(
+  jpTeachers: JpLessonTeacher[],
+  enTeachers: JpLessonTeacher[]
+): JpLessonTeacher[] {
+  const byName = new Map<string, JpLessonTeacher>();
+  const add = (teacher: JpLessonTeacher) => {
+    const name = resolveLessonTeacherRateFields(teacher).name;
+    const key = name.toLowerCase();
+    if (!key || byName.has(key)) return;
+    byName.set(key, teacher);
+  };
+  for (const teacher of jpTeachers) add(teacher);
+  for (const teacher of enTeachers) add(teacher);
+  return sortJpLessonTeachersByLessonCount([...byName.values()]);
+}
+
+/** 手动日程标题推断老师科目：含「英语」→ 英语，含「日语」→ 日语，否则不限 */
+export function detectScheduleTeacherSubjectFromTitle(
+  title: string
+): "en" | "jp" | null {
+  const text = title.trim();
+  if (!text) return null;
+  if (text.includes("英语")) return "en";
+  if (text.includes("日语")) return "jp";
+  return null;
+}
+
+export function scheduleTeacherPickerListForSubject(
+  subject: "en" | "jp" | null,
+  jpTeachers: JpLessonTeacher[],
+  enTeachers: JpLessonTeacher[]
+): JpLessonTeacher[] {
+  if (subject === "en") return sortJpLessonTeachersByLessonCount(enTeachers);
+  if (subject === "jp") return sortJpLessonTeachersByLessonCount(jpTeachers);
+  return mergeScheduleTeacherPickerLists(jpTeachers, enTeachers);
+}
+
 /** 新课/课表等前台展示：名称 + 金额/时长，如「李老师 · 80 / 45 min」 */
 export function formatTeacherDisplayLabel(
   name: string,

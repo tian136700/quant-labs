@@ -8,6 +8,10 @@ import {
 } from "@/components/JpLessonTeacherSinglePicker";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import type { JpLessonManualSchedule, JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
+import {
+  detectScheduleTeacherSubjectFromTitle,
+  scheduleTeacherPickerListForSubject,
+} from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonTeacher } from "@/lib/types";
 import {
   formatNextClassHalfHourLabel,
@@ -25,8 +29,10 @@ type Props = {
   initialDate?: string;
   editing?: JpLessonManualSchedule | null;
   mode?: ManualScheduleModalMode;
-  teachers?: JpLessonTeacher[];
-  onAddTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
+  jpTeachers?: JpLessonTeacher[];
+  enTeachers?: JpLessonTeacher[];
+  onAddJpTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
+  onAddEnTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onClose: () => void;
   onSave: (draft: JpLessonManualScheduleDraft) => void;
 };
@@ -76,8 +82,10 @@ export function JpLessonManualScheduleModal({
   initialDate = "",
   editing = null,
   mode = "full",
-  teachers = [],
-  onAddTeacher,
+  jpTeachers = [],
+  enTeachers = [],
+  onAddJpTeacher,
+  onAddEnTeacher,
   onClose,
   onSave,
 }: Props) {
@@ -114,6 +122,37 @@ export function JpLessonManualScheduleModal({
     setNote(next.note);
     setError("");
   }, [open, editing, initialDate]);
+
+  const teacherSubject = useMemo(
+    () => detectScheduleTeacherSubjectFromTitle(title),
+    [title]
+  );
+
+  const pickerTeachers = useMemo(
+    () => scheduleTeacherPickerListForSubject(teacherSubject, jpTeachers, enTeachers),
+    [teacherSubject, jpTeachers, enTeachers]
+  );
+
+  const onAddTeacher =
+    teacherSubject === "en"
+      ? onAddEnTeacher
+      : teacherSubject === "jp"
+        ? onAddJpTeacher
+        : onAddJpTeacher ?? onAddEnTeacher;
+
+  const teacherFieldLabel =
+    teacherSubject === "en"
+      ? "老师（可选 · 英语）"
+      : teacherSubject === "jp"
+        ? "老师（可选 · 日语）"
+        : "老师（可选）";
+
+  const teacherPlaceholder =
+    teacherSubject === "en"
+      ? "选择英语老师，或输入后添加"
+      : teacherSubject === "jp"
+        ? "选择日语老师，或输入后添加"
+        : "选择系统老师，或输入后添加";
 
   const handleSave = () => {
     const trimmedTitle = title.trim();
@@ -234,12 +273,12 @@ export function JpLessonManualScheduleModal({
                 {showFullFields ? (
                   <>
                     <label className="jp-lesson-next-class-field">
-                      <span>老师（可选）</span>
+                      <span>{teacherFieldLabel}</span>
                       {onAddTeacher ? (
                         <JpLessonTeacherSinglePicker
                           value={teacher}
-                          teachers={teachers}
-                          placeholder="选择系统老师，或输入后添加"
+                          teachers={pickerTeachers}
+                          placeholder={teacherPlaceholder}
                           onChange={setTeacher}
                           onAddTeacher={onAddTeacher}
                         />

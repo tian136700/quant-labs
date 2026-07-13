@@ -2,7 +2,11 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
-import { formatTeacherDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
+import {
+  formatTeacherDisplayLabel,
+  resolveLessonTeacherRateFields,
+  sortJpLessonTeachersByLessonCount,
+} from "@/lib/jp-lesson-teacher-rate";
 import type { JpLessonTeacher } from "@/lib/types";
 
 type Props = {
@@ -51,14 +55,20 @@ export function JpLessonTeacherSinglePicker({
 
   const trimmedQuery = query.trim();
 
+  const teacherPickerName = (teacher: JpLessonTeacher) =>
+    resolveLessonTeacherRateFields(teacher).name;
+
   const filteredTeachers = useMemo(() => {
     if (!trimmedQuery) return sortedTeachers;
     const needle = trimmedQuery.toLowerCase();
-    return sortedTeachers.filter((teacher) => teacher.name.toLowerCase().includes(needle));
+    return sortedTeachers.filter((teacher) =>
+      teacherPickerName(teacher).toLowerCase().includes(needle)
+    );
   }, [sortedTeachers, trimmedQuery]);
 
   const exactMatch = useMemo(
-    () => sortedTeachers.find((teacher) => teacher.name === trimmedQuery),
+    () =>
+      sortedTeachers.find((teacher) => teacherPickerName(teacher) === trimmedQuery),
     [sortedTeachers, trimmedQuery]
   );
 
@@ -74,7 +84,7 @@ export function JpLessonTeacherSinglePicker({
   const handleAddTeacher = async () => {
     if (!trimmedQuery || adding || disabled) return;
     if (exactMatch) {
-      selectTeacher(exactMatch.name);
+      selectTeacher(teacherPickerName(exactMatch));
       return;
     }
 
@@ -86,7 +96,7 @@ export function JpLessonTeacherSinglePicker({
         setAddError("添加失败，请重试");
         return;
       }
-      selectTeacher(teacher.name);
+      selectTeacher(teacherPickerName(teacher));
     } finally {
       setAdding(false);
     }
@@ -97,8 +107,9 @@ export function JpLessonTeacherSinglePicker({
       if (!containerRef.current?.contains(document.activeElement)) {
         setOpen(false);
         if (exactMatch) {
-          onChange(exactMatch.name);
-          setQuery(exactMatch.name);
+          const name = teacherPickerName(exactMatch);
+          onChange(name);
+          setQuery(name);
         } else {
           onChange(trimmedQuery);
         }
@@ -152,19 +163,22 @@ export function JpLessonTeacherSinglePicker({
               </button>
             </li>
           ) : null}
-          {filteredTeachers.map((teacher) => (
-            <li key={teacher.id} role="option" aria-selected={value === teacher.name}>
+          {filteredTeachers.map((teacher) => {
+            const pickerName = teacherPickerName(teacher);
+            return (
+            <li key={pickerName} role="option" aria-selected={value === pickerName}>
               <button
                 type="button"
                 className="jp-lesson-teacher-single-picker-option"
                 disabled={disabled}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => selectTeacher(teacher.name)}
+                onClick={() => selectTeacher(pickerName)}
               >
                 {formatTeacherDisplayLabel(teacher.name, teacher.hourly_rate, teacher.lesson_minutes)}
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       ) : null}
 

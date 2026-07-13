@@ -71,7 +71,10 @@ import {
 } from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath, enLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
-import { formatTeacherLessonDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
+import {
+  formatTeacherLessonDisplayLabel,
+  sortJpLessonTeachersByLessonCount,
+} from "@/lib/jp-lesson-teacher-rate";
 import {
   mergeJpLessonTeachersCache,
   readJpLessonTeachersCache,
@@ -894,6 +897,68 @@ export function JpLessonSchedulePage() {
     }
   };
 
+  const addEnLessonTeacher = async (
+    input: JpLessonTeacherAddInput
+  ): Promise<EnLessonTeacher | null> => {
+    if (!isAdmin) return null;
+
+    try {
+      const res = await fetch("/api/admin/en-lesson-teachers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teacher?: EnLessonTeacher;
+        renamed_teachers?: EnLessonTeacher[];
+        error?: string;
+        user_account?: {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        };
+      };
+      if (!data.ok || !data.teacher) {
+        return null;
+      }
+      if (data.user_account) {
+        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
+        setStatusMessage(
+          `已添加英语老师，并自动创建禁用账号：${formatAdminUserCredentials(
+            data.user_account.username,
+            data.user_account.password,
+            "zh"
+          )}`
+        );
+        window.setTimeout(() => setStatusMessage(""), 4500);
+      }
+      setEnTeachers((prev) => {
+        const renamedMap = new Map(
+          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
+        );
+        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
+        const next = sortJpLessonTeachersByLessonCount([
+          ...merged.filter((teacher) => teacher.id !== data.teacher!.id),
+          data.teacher!,
+        ]);
+        const cache = readEnLessonCache();
+        writeClientCache(EN_LESSON_CACHE_KEY, {
+          lessons: enLessons,
+          refs: enRefs,
+          notes: cache?.notes ?? [],
+          teachers: next,
+        });
+        return next;
+      });
+      return data.teacher;
+    } catch {
+      return null;
+    }
+  };
+
   const setLessonClassSchedules = async (
     lessonId: number,
     schedules: JpLessonClassScheduleInput[]
@@ -1621,8 +1686,10 @@ export function JpLessonSchedulePage() {
         initialDate={selectedDate}
         editing={editingManual}
         mode={manualModalMode}
-        teachers={teachers}
-        onAddTeacher={addLessonTeacher}
+        jpTeachers={teachers}
+        enTeachers={enTeachers}
+        onAddJpTeacher={addLessonTeacher}
+        onAddEnTeacher={addEnLessonTeacher}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
       />
