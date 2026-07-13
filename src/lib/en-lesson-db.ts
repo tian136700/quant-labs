@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { EnLessonKind, EnLessonRecord, EnLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
+import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 import {
   removeEnVocabLessonWords,
@@ -159,6 +159,26 @@ async function refKeyExists(db: D1Database, refKey: string): Promise<boolean> {
   return Boolean(row?.ok);
 }
 
+async function enLessonContentExists(
+  db: D1Database,
+  kind: EnLessonKind,
+  normalizedContent: string
+): Promise<boolean> {
+  if (devStoreEnabled) {
+    return devLessons.some(
+      (lesson) =>
+        lesson.kind === kind &&
+        normalizeLessonContentForStorage(lesson.content) === normalizedContent
+    );
+  }
+
+  const row = await db
+    .prepare("SELECT 1 AS ok FROM en_lesson WHERE kind = ?1 AND content = ?2 LIMIT 1")
+    .bind(kind, normalizedContent)
+    .first<{ ok: number }>();
+  return Boolean(row?.ok);
+}
+
 export async function listEnLessons(db: D1Database): Promise<EnLessonRecord[]> {
   await seedIfEmpty(db);
 
@@ -295,6 +315,11 @@ export async function createEnLesson(
   }
 
   const kind = normalizeKind(input.kind);
+  const storedContent = normalizeLessonContentForStorage(content);
+
+  if (await enLessonContentExists(db, kind, storedContent)) {
+    return { ok: false, error: "content_duplicate" };
+  }
   const title = (input.title || "").trim() || null;
   const refKey = input.ref_key
     ? normalizeEnVocabRefKey(input.ref_key) || null
@@ -306,7 +331,7 @@ export async function createEnLesson(
     const lesson: EnLessonRecord = {
       id: devNextId++,
       kind,
-      content: items.join(", "),
+      content: storedContent,
       meanings: null,
       title,
       ref_key: refKey,
@@ -337,7 +362,7 @@ export async function createEnLesson(
       `INSERT INTO en_lesson (kind, content, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
        VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?5, ?5)`
     )
-    .bind(kind, items.join(", "), title, refKey, ts)
+    .bind(kind, storedContent, title, refKey, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);
@@ -566,6 +591,68 @@ export async function updateEnLessonNextClassAt(
         classDurationMinutes === undefined ? null : classDurationMinutes,
     },
   ]);
+}
+
+export type DeleteEnLessonResult = { ok: true } | { ok: false; error: string };
+
+export async function deleteEnLesson(
+  db: D1Database,
+  lessonId: number
+): Promise<DeleteEnLessonResult> {
+  if (!Number.isInteger(lessonId) || lessonId <= 0) {
+    return { ok: false, error: "lesson_id_invalid" };
+  }
+
+  const lesson = await getEnLessonById(db, lessonId);
+  if (!lesson) return { ok: false, error: "not_found" };
+
+  if (lesson.completed) {
+    await unsyncLessonFromVocab(db, lesson);
+  }
+
+  const refKey = lesson.ref_key;
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    devLessons.splice(idx, 1);
+    return { ok: true };
+  }
+
+  await db
+    .prepare("DELETE FROM en_lesson_note WHERE lesson_id = ?1")
+    .bind(lessonId)
+    .run();
+  await db
+    .prepare("DELETE FROM en_lesson_teacher_link WHERE lesson_id = ?1")
+    .bind(lessonId)
+    .run();
+  await db
+    .prepare("DELETE FROM en_lesson_class_schedule WHERE lesson_id = ?1")
+    .bind(lessonId)
+    .run();
+
+  const result = await db
+    .prepare("DELETE FROM en_lesson WHERE id = ?1")
+    .bind(lessonId)
+    .run();
+
+  if (!result.meta?.changes) return { ok: false, error: "not_found" };
+
+  if (refKey) {
+    const other = await db
+      .prepare("SELECT 1 AS ok FROM en_lesson WHERE ref_key = ?1 LIMIT 1")
+      .bind(refKey)
+      .first<{ ok: number }>();
+    if (!other?.ok) {
+      await db
+        .prepare("DELETE FROM en_vocab_ref WHERE ref_key = ?1")
+        .bind(refKey)
+        .run();
+    }
+  }
+
+  return { ok: true };
 }
 
 /** 教案 ref 更新标题时，同步关联的新课记录 */

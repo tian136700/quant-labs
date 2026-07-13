@@ -6,6 +6,11 @@ export function parseLessonContent(raw: string): string[] {
     .filter(Boolean);
 }
 
+/** 规范化学习内容存储格式（与入库一致，用于去重比对） */
+export function normalizeLessonContentForStorage(raw: string): string {
+  return parseLessonContent(raw).join(", ");
+}
+
 /** 将学习内容按每行若干项拆成多行（默认每行 3 个） */
 export function formatLessonContentLines(raw: string, perLine = 3): string[] {
   const items = parseLessonContent(raw);

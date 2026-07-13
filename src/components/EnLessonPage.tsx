@@ -171,6 +171,7 @@ export function EnLessonPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTeacherId, setSavingTeacherId] = useState<number | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [mobileStatusFilter, setMobileStatusFilter] =
     useState<EnLessonProgressStatus>("learning");
@@ -651,6 +652,65 @@ export function EnLessonPage() {
     });
   };
 
+  const deleteLesson = async (lesson: EnLessonRecord) => {
+    if (!canOperate) {
+      openEnAuth();
+      return;
+    }
+    if (deletingId === lesson.id) return;
+
+    const preview = formatLessonContentLines(lesson.content, 5).join(" / ");
+    const ok = window.confirm(
+      `确定删除新课 #${lesson.id}（${preview}）？此操作不可恢复。`
+    );
+    if (!ok) return;
+
+    setDeletingId(lesson.id);
+    setStatus("");
+    try {
+      const res = await fetch("/api/en-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ action: "delete", lesson_id: lesson.id }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (!data.ok) {
+        throw new Error(data.error || "删除失败");
+      }
+
+      setLessons((prev) => {
+        const next = prev.filter((l) => l.id !== lesson.id);
+        const nextNotes = notes.filter((n) => n.lesson_id !== lesson.id);
+        persistLessonCache(next, refs, nextNotes, teachers);
+        return next;
+      });
+      setNotes((prev) => prev.filter((n) => n.lesson_id !== lesson.id));
+      setStatus(`已删除新课 #${lesson.id}`);
+      window.setTimeout(() => setStatus(""), 2500);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const renderLessonDeleteButton = (lesson: EnLessonRecord) =>
+    canOperate ? (
+      <button
+        key="delete"
+        type="button"
+        className="jp-lesson-action-btn jp-lesson-action-btn--danger"
+        disabled={deletingId === lesson.id}
+        onClick={() => void deleteLesson(lesson)}
+      >
+        {deletingId === lesson.id ? "删除中…" : "删除"}
+      </button>
+    ) : null;
+
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
   const renderLessonActions = (lesson: EnLessonRecord) => {
@@ -660,13 +720,16 @@ export function EnLessonPage() {
 
     if (!hasRef) {
       return canOperate ? (
-        <button
-          type="button"
-          className="jp-lesson-action-btn"
-          onClick={() => setEditingLesson(lesson)}
-        >
-          上传教案
-        </button>
+        <div className="jp-lesson-actions">
+          <button
+            type="button"
+            className="jp-lesson-action-btn"
+            onClick={() => setEditingLesson(lesson)}
+          >
+            上传教案
+          </button>
+          {renderLessonDeleteButton(lesson)}
+        </div>
       ) : (
         <span style={{ color: "var(--muted)" }}>—</span>
       );
@@ -725,6 +788,8 @@ export function EnLessonPage() {
           onClick={() => setEditingLesson(lesson)}
         />
       );
+      const deleteBtn = renderLessonDeleteButton(lesson);
+      if (deleteBtn) actionItems.push(deleteBtn);
     }
     return <div className="jp-lesson-actions">{actionItems}</div>;
   };
@@ -1219,6 +1284,7 @@ export function EnLessonPage() {
         </pre>
         <p>
           <code>content</code> 中多个单词/语法用英文或中文逗号分隔。
+          相同学习类型与内容已存在时将返回 <code>content_duplicate</code>（HTTP 409）。
           上传带 <code>file</code> 时，系统会自动生成教案标识（如 <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
           上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
           英语单词抽问并带上教案链接。
@@ -1666,6 +1732,16 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        :global(.jp-lesson-action-btn--danger) {
+          color: var(--rise);
+        }
+        :global(.jp-lesson-action-btn--danger:hover) {
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
+        }
+        :global(.jp-lesson-action-btn--danger:disabled) {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </main>

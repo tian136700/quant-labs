@@ -70,7 +70,8 @@ export async function POST(request: Request) {
     });
 
     if (!result.ok) {
-      return jsonResponse({ ok: false, error: result.error }, 400);
+      const status = result.error === "content_duplicate" ? 409 : 400;
+      return jsonResponse({ ok: false, error: result.error }, status);
     }
 
     let lesson = result.lesson;

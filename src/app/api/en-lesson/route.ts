@@ -1,6 +1,7 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  deleteEnLesson,
   listEnLessons,
   updateEnLessonClassSchedules,
   updateEnLessonNextClassAt,
@@ -104,6 +105,21 @@ export async function POST(request: Request) {
         duration_minutes: number | null;
       }>;
     };
+
+    if (body.action === "delete") {
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      const result = await deleteEnLesson(env.DB, lessonId);
+      if (!result.ok) {
+        const status = result.error === "not_found" ? 404 : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+
+      return jsonResponse({ ok: true });
+    }
 
     if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {
       const { isAdmin } = await requireAdmin(request);
