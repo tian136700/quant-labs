@@ -40,7 +40,8 @@
 | 老师右下角 toast（学生协助请求；淡入 → 停留 5 秒 → 淡出） | `JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
 | 今日抽查进度条（30/40、剩余 N）/ 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；进度计算 `jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`；弹窗仅在本会话「未完成→已完成」时显示一次（`jp-vocab-daily-complete-dismiss.ts` 按日期+目标数记录） |
 | 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
-| **手机端排序 / 操作栏折叠**（表头隐藏时提供「默认顺序 / 抽查优先级 / 当日序号」；操作按钮默认收起，点「展开操作」才显示导出 Excel 等） | `JpVocabPage.tsx` → `toggleStatSort`、`restoreDailyRowOrder`、`mobileToolbarExpanded`；`mobile.css` |
+| **手机端排序 / 操作栏折叠**（表头隐藏时提供「默认顺序 / 抽查优先级 / 当日序号」；操作按钮默认收起，点「展开操作」才显示导出等） | `JpVocabPage.tsx` → `toggleStatSort`、`restoreDailyRowOrder`、`mobileToolbarExpanded`；`mobile.css` |
+| **导出 Word**（全部数据 / 今日未掌握；不含熟悉程度与巧记） | `JpVocabPage.tsx` → `runExport`；`JpVocabExportChoiceModal.tsx`；`jp-vocab-export.ts` → `exportJpVocabToWord` |
 | 老师端列表、分页、表格样式 | `JpVocabPage.tsx`（编排）；`jp-vocab-page/JpVocabWordTable.tsx`、`JpVocabPagination.tsx`、`JpVocabPageStyles.tsx`；`lib/jp-vocab-page-*.ts`、`lib/vocab-page-shared.ts` |
 | **保存/同步橙色进度条**（D1 写入较慢；**改保存 UI 必引**） | `src/components/JpVocabSaveProgressBar.tsx`；`src/lib/jp-vocab-save-progress.ts` → `jpVocabSaveProgressLabel`；`.cursor/rules/save-progress-ui.mdc` |
 | 课堂备注、共享备注（支持粘贴/上传图片） | `JpClassNotesEditModal.tsx`、`JpVocabClassNoteContent.tsx`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload` |

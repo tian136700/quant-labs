@@ -38,6 +38,7 @@ import {
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
+import { JpVocabExportChoiceModal } from "@/components/JpVocabExportChoiceModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
 import { JpVocabTeacherQuizModeModal } from "@/components/JpVocabTeacherQuizModeModal";
 import {
@@ -81,7 +82,12 @@ import {
   mergeJpVocabSyncPatches,
 } from "@/lib/jp-vocab-sync";
 import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/jp-vocab-daily-quiz-style";
-import { exportJpVocabToExcel } from "@/lib/jp-vocab-export";
+import {
+  exportJpVocabToWord,
+  filterJpVocabTodayWeakWords,
+  resolveJpVocabExportWords,
+  type JpVocabExportScope,
+} from "@/lib/jp-vocab-export";
 import {
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
@@ -240,6 +246,7 @@ export function JpVocabPage() {
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
   const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [exporting, setExporting] = useState(false);
+  const [showExportChoice, setShowExportChoice] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
@@ -249,7 +256,7 @@ export function JpVocabPage() {
   const dismissingShareRequestsRef = useRef(false);
   const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
-  /** 手机端默认收起操作按钮，避免误触导出 Excel 等 */
+  /** 手机端默认收起操作按钮，避免误触导出等 */
   const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
   const [quizSession, setQuizSession] = useState<JpVocabTeacherQuizSession | null>(
     null
@@ -962,6 +969,11 @@ export function JpVocabPage() {
           null
       ),
     [quizTargetWords, sessionLevel, displayOrder]
+  );
+
+  const todayWeakExportWords = useMemo(
+    () => filterJpVocabTodayWeakWords(words, sessionLevel, displayOrder),
+    [words, sessionLevel, displayOrder]
   );
 
   const wordsById = useMemo(
@@ -1858,13 +1870,25 @@ export function JpVocabPage() {
     [refs]
   );
 
-  const exportExcel = async () => {
-    if (exporting || !displayedWords.length) return;
+  const runExport = async (scope: JpVocabExportScope) => {
+    if (exporting) return;
+    const exportWords = resolveJpVocabExportWords(
+      scope,
+      words,
+      displayOrder,
+      sessionLevel
+    );
     setExporting(true);
     setStatus("");
+    setError("");
     try {
-      await exportJpVocabToExcel(displayedWords, refs, sessionLevel);
-      setStatus(`已导出 ${displayedWords.length} 条到 Excel。`);
+      await exportJpVocabToWord(exportWords, scope, dailySeqByWordId);
+      setShowExportChoice(false);
+      setStatus(
+        scope === "today_weak"
+          ? `已导出今日未掌握 ${exportWords.length} 条到 Word。`
+          : `已导出全部 ${exportWords.length} 条到 Word。`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -2106,11 +2130,11 @@ export function JpVocabPage() {
               <button
                 type="button"
                 className="btn-rsi-filter"
-                onClick={() => void exportExcel()}
+                onClick={() => setShowExportChoice(true)}
                 disabled={loading || exporting || !words.length}
-                title="导出当前单词表为 Excel 文件"
+                title="导出单词表为 Word 文档"
               >
-                {exporting ? "导出中…" : "导出 Excel"}
+                {exporting ? "导出中…" : "导出"}
               </button>
             ) : null}
             {SHOW_RISK_CHART ? (
@@ -2396,6 +2420,17 @@ export function JpVocabPage() {
           </>
         )}
       </section>
+
+      <JpVocabExportChoiceModal
+        open={showExportChoice}
+        busy={exporting}
+        allCount={words.length}
+        todayWeakCount={todayWeakExportWords.length}
+        onClose={() => {
+          if (!exporting) setShowExportChoice(false);
+        }}
+        onExport={(scope) => void runExport(scope)}
+      />
 
       <JpVocabResetChoiceModal
         open={showResetChoice}

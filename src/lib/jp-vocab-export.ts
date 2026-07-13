@@ -1,54 +1,251 @@
-import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
-import { jpVocabTotalReviews } from "@/lib/jp-vocab-shared";
-import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
+import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import {
+  parseJpVocabClassNoteContent,
+  parseJpVocabClassNotes,
+} from "@/lib/jp-vocab-class-notes";
+import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
+import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
+import { jpVocabWordsInOrder } from "@/lib/jp-vocab-page-helpers";
+import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
-const LEVEL_LABELS: Record<JpVocabLevel, string> = {
-  very: "非常熟悉",
-  normal: "一般",
-  weak: "不熟悉",
-};
+export type JpVocabExportScope = "all" | "today_weak";
 
-export async function exportJpVocabToExcel(
+function classNotesToExportText(raw: string | null | undefined): string {
+  const entries = parseJpVocabClassNotes(raw);
+  if (!entries.length) return "";
+
+  return entries
+    .map((entry) => {
+      const body = parseJpVocabClassNoteContent(entry.content)
+        .map((segment) => {
+          if (segment.type === "text") return segment.text.trim();
+          return "[图片]";
+        })
+        .filter(Boolean)
+        .join("\n");
+      if (!body) return "";
+      if (entry.timestamp) return `${entry.timestamp}\n${body}`;
+      return body;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function cellParagraphs(
+  text: string,
+  Paragraph: typeof import("docx").Paragraph,
+  TextRun: typeof import("docx").TextRun,
+  opts?: { bold?: boolean; size?: number }
+) {
+  const lines = (text || "—").split("\n");
+  return lines.map(
+    (line, index) =>
+      new Paragraph({
+        spacing: index < lines.length - 1 ? { after: 80 } : undefined,
+        children: [
+          new TextRun({
+            text: line || " ",
+            bold: opts?.bold,
+            size: opts?.size ?? 20,
+            font: "Microsoft YaHei",
+          }),
+        ],
+      })
+  );
+}
+
+function buildExportTable(
   words: JpVocabWord[],
-  refs: Record<string, JpVocabRef>,
-  sessionLevel?: Record<number, JpVocabLevel | undefined>
-): Promise<void> {
-  const XLSX = await import("xlsx");
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  docx: typeof import("docx"),
+  dailySeqByWordId: Map<number, number>
+) {
+  const {
+    BorderStyle,
+    Paragraph,
+    Table,
+    TableCell,
+    TableRow,
+    TextRun,
+    VerticalAlign,
+    WidthType,
+  } = docx;
 
-  const rows = words.map((w) => {
-    const ref = w.ref_key ? refs[w.ref_key] : undefined;
-    const refUrl = w.ref_key
-      ? `${origin}/api/jp-vocab/ref/${encodeURIComponent(w.ref_key)}`
-      : "";
-    const selected = sessionLevel?.[w.id];
+  const border = { style: BorderStyle.SINGLE, size: 1, color: "B8B8B8" };
+  const borders = { top: border, bottom: border, left: border, right: border };
 
-    return {
-      ID: w.id,
-      类型: w.kind === "grammar" ? "语法" : "单词",
-      "单词 / 语法": w.word,
-      读音: w.reading ?? "",
-      释义: w.meaning ?? "",
-      词性: w.pos ?? "",
-      课堂笔记: w.class_notes ?? "",
-      本轮熟悉程度: selected ? LEVEL_LABELS[selected] : "",
-      非常熟悉: w.cnt_very,
-      一般: w.cnt_normal,
-      不熟悉: w.cnt_weak,
-      复习合计: jpVocabTotalReviews(w),
-      今日抽查次数: effectiveTodayCheckCount(
-        w.today_check_count ?? 0,
-        w.today_check_date
-      ),
-      教案标题: ref?.title ?? "",
-      教案链接: refUrl,
-    };
+  const headerRow = new TableRow({
+    tableHeader: true,
+    children: ["序号", "ID", "单词 / 语法", "读音", "释义", "词性", "备注"].map(
+      (label) =>
+        new TableCell({
+          borders,
+          verticalAlign: VerticalAlign.CENTER,
+          width: { size: label === "备注" ? 22 : 11, type: WidthType.PERCENTAGE },
+          children: cellParagraphs(label, Paragraph, TextRun, { bold: true, size: 20 }),
+        })
+    ),
   });
 
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "单词表");
+  const dataRows = words.map((word, index) => {
+    const seq = dailySeqByWordId.get(word.id);
+    const kindLabel = word.kind === "grammar" ? "语法" : "";
+    const wordText = kindLabel ? `${word.word}（${kindLabel}）` : word.word;
+    const columns = [
+      seq != null ? String(seq) : String(index + 1),
+      String(word.id),
+      wordText,
+      word.reading?.trim() || "—",
+      word.meaning?.trim() || "—",
+      word.pos?.trim() || "—",
+      classNotesToExportText(word.class_notes) || "—",
+    ];
 
-  const date = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `日语单词表-${date}.xlsx`);
+    return new TableRow({
+      children: columns.map(
+        (value, colIndex) =>
+          new TableCell({
+            borders,
+            verticalAlign: VerticalAlign.TOP,
+            width: {
+              size: colIndex === 6 ? 22 : 11,
+              type: WidthType.PERCENTAGE,
+            },
+            children: cellParagraphs(value, Paragraph, TextRun, {
+              size: colIndex <= 2 ? 22 : 20,
+              bold: colIndex === 2,
+            }),
+          })
+      ),
+    });
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [headerRow, ...dataRows],
+  });
+}
+
+/** 今日抽查后勾选为「一般」或「不熟悉」的词条（用于次日带读） */
+export function filterJpVocabTodayWeakWords(
+  words: JpVocabWord[],
+  sessionLevel: Record<number, JpVocabLevel | undefined>,
+  displayOrder: JpVocabDailyDisplayOrder
+): JpVocabWord[] {
+  const weak = words.filter((word) => {
+    const level = effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], {
+      displayOrder,
+    });
+    return level === "normal" || level === "weak";
+  });
+  if (!displayOrder.ids.length) return weak;
+  return jpVocabWordsInOrder(weak, displayOrder.ids);
+}
+
+export function resolveJpVocabExportWords(
+  scope: JpVocabExportScope,
+  words: JpVocabWord[],
+  displayOrder: JpVocabDailyDisplayOrder,
+  sessionLevel: Record<number, JpVocabLevel | undefined>
+): JpVocabWord[] {
+  if (scope === "today_weak") {
+    return filterJpVocabTodayWeakWords(words, sessionLevel, displayOrder);
+  }
+  if (displayOrder.ids.length > 0) {
+    return jpVocabWordsInOrder(words, displayOrder.ids);
+  }
+  return [...words];
+}
+
+export async function exportJpVocabToWord(
+  words: JpVocabWord[],
+  scope: JpVocabExportScope,
+  dailySeqByWordId: Map<number, number>
+): Promise<void> {
+  if (!words.length) {
+    throw new Error(
+      scope === "today_weak"
+        ? "今日暂无勾选为「一般」或「不熟悉」的单词，无法导出。"
+        : "单词表为空，无法导出。"
+    );
+  }
+
+  const docx = await import("docx");
+  const {
+    AlignmentType,
+    convertMillimetersToTwip,
+    Document,
+    Packer,
+    Paragraph,
+    TextRun,
+  } = docx;
+
+  const date = beijingDateString();
+  const title =
+    scope === "today_weak" ? "今日待巩固单词 / 语法" : "日语单词 / 语法表";
+  const subtitle =
+    scope === "today_weak"
+      ? `${date} · 含今日抽查勾选为「一般」「不熟悉」的词条，便于次日课堂带读`
+      : `${date} · 共 ${words.length} 条`;
+
+  const children = [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: convertMillimetersToTwip(2) },
+      children: [
+        new TextRun({
+          text: title,
+          bold: true,
+          size: 32,
+          font: "Microsoft YaHei",
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: convertMillimetersToTwip(6) },
+      children: [
+        new TextRun({
+          text: subtitle,
+          size: 18,
+          color: "666666",
+          font: "Microsoft YaHei",
+        }),
+      ],
+    }),
+    buildExportTable(words, docx, dailySeqByWordId),
+  ];
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {
+          page: {
+            margin: {
+              top: convertMillimetersToTwip(14),
+              bottom: convertMillimetersToTwip(14),
+              left: convertMillimetersToTwip(12),
+              right: convertMillimetersToTwip(12),
+            },
+          },
+        },
+        children,
+      },
+    ],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const filenameBase =
+    scope === "today_weak"
+      ? `今日待巩固单词-${date}`
+      : `日语单词表-${date}`;
+  downloadBlob(blob, `${filenameBase}.docx`);
 }
