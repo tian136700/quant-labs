@@ -70,7 +70,7 @@ function draftFromSchedule(
   const parts = local ? splitNextClassAtLocalValue(local) : null;
   return {
     title: schedule.title,
-    date: parts?.date ?? initialDate || beijingTodayDateString(),
+    date: parts?.date ?? (initialDate || beijingTodayDateString()),
     time: parts?.time ?? "",
     duration: schedule.duration_minutes != null ? String(schedule.duration_minutes) : "",
     teacher: schedule.teacher,
