@@ -12,7 +12,7 @@
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
-  <integer>__INTERVAL__</integer>
+  <integer>3600</integer>
   <key>ThrottleInterval</key>
   <integer>60</integer>
   <key>StandardOutPath</key>
