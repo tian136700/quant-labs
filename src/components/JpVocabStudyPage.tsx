@@ -1091,10 +1091,14 @@ export function JpVocabStudyPage() {
       <JpVocabEditModal
         open={editingWord != null}
         word={editingWord}
+        refs={refs}
         locale={locale}
         canEdit={canOperate}
         onClose={() => setEditingWord(null)}
         onSaved={handleWordSaved}
+        onRefUpdated={(ref) => {
+          setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
+        }}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
       />

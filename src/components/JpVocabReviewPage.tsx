@@ -610,11 +610,15 @@ export function JpVocabReviewPage() {
         <JpVocabEditModal
           open
           word={editingWord}
+          refs={refs}
           locale={locale}
           canEdit
           showMnemonic
           onClose={() => setEditingWord(null)}
           onSaved={handleWordSaved}
+          onRefUpdated={(ref) => {
+            setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
+          }}
           onSaveFailed={() => {}}
           onNeedAuth={() => openAuthPanel({ mode: "login" })}
         />

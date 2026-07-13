@@ -3256,11 +3256,15 @@ export function JpVocabPage() {
       <JpVocabEditModal
         open={editingWord != null}
         word={editingWord}
+        refs={refs}
         locale={locale}
         canEdit={canOperate}
         showMnemonic={isAdmin}
         onClose={() => setEditingWord(null)}
         onSaved={handleWordSaved}
+        onRefUpdated={(ref) => {
+          setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
+        }}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
       />
