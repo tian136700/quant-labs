@@ -226,6 +226,27 @@ const JP_VOCAB_PAGE_SIZE = 20;
 const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
 const JP_VOCAB_SHARE_HINT =
   "学生答不上来或不熟悉时，点此发送给他";
+const JP_VOCAB_PAGE_STORAGE_KEY = "jp_vocab_current_page";
+
+function readStoredJpVocabPage(): number {
+  if (typeof window === "undefined") return 1;
+  try {
+    const raw = window.localStorage.getItem(JP_VOCAB_PAGE_STORAGE_KEY);
+    const page = Number(raw);
+    return Number.isInteger(page) && page > 0 ? page : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function writeStoredJpVocabPage(page: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(JP_VOCAB_PAGE_STORAGE_KEY, String(page));
+  } catch {
+    /* ignore storage errors */
+  }
+}
 
 function MobileLevelHistorySummary({ word }: { word: JpVocabWord }) {
   return (
@@ -407,7 +428,7 @@ export function JpVocabPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [exporting, setExporting] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -1050,6 +1071,10 @@ export function JpVocabPage() {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    writeStoredJpVocabPage(safePage);
+  }, [safePage]);
 
   useEffect(() => {
     if (!scrollToHighlightRef.current || highlightId == null) return;
