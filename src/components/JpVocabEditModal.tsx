@@ -223,19 +223,19 @@ export function JpVocabEditModal({
     setZoomTarget("current");
   };
 
-  const saveRef = async () => {
-    if (!word) return;
+  const saveRef = async (): Promise<JpVocabRef | null> => {
+    if (!word) return null;
     if (!canEdit) {
       onNeedAuth();
-      return;
+      return null;
     }
     if (!currentRefKey) {
       setRefError(REF_ERR[locale].no_ref_key);
-      return;
+      return null;
     }
     if (!newRefFile) {
       setRefError(REF_ERR[locale].file_required);
-      return;
+      return null;
     }
 
     setUploadingRef(true);
@@ -289,15 +289,17 @@ export function JpVocabEditModal({
         total: newRefFile.size,
       });
       clearRefFile();
+      return data.ref;
     } catch (err) {
       setRefError(err instanceof Error ? err.message : REF_ERR[locale].upload_failed);
       setUploadProgress(null);
+      return null;
     } finally {
       setUploadingRef(false);
     }
   };
 
-  const save = () => {
+  const save = async () => {
     if (!word) return;
     if (!canEdit) {
       onNeedAuth();
@@ -311,6 +313,15 @@ export function JpVocabEditModal({
     }
 
     setError("");
+    setRefError("");
+
+    if (newRefFile) {
+      const savedRef = await saveRef();
+      if (!savedRef) {
+        return;
+      }
+    }
+
     const snapshot = word;
     const optimistic = buildOptimisticJpVocabWord(snapshot, {
       kind,
@@ -731,9 +742,10 @@ export function JpVocabEditModal({
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                onClick={save}
+                disabled={uploadingRef}
+                onClick={() => void save()}
               >
-                保存
+                {uploadingRef ? "上传中…" : "保存"}
               </button>
             ) : null}
           </div>
