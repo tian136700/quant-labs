@@ -22,7 +22,7 @@
 
 | 线上 path | 中文名 | 页面入口 | 主组件 | 关键 API | 数据 / 逻辑 | 权限 |
 |-----------|--------|----------|--------|----------|-------------|------|
-| `/jp-vocab` | 日语抽问、单词表、老师抽查 | `src/app/jp-vocab/page.tsx` | `src/components/JpVocabPage.tsx` | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share` | `src/lib/jp-vocab-db.ts`、`schema.sql` → `jp_vocab_word`、`jp_vocab_shared` | `jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生 |
+| `/jp-vocab` | 日语抽问、单词表、老师抽查 | `src/app/jp-vocab/page.tsx` | `src/components/JpVocabPage.tsx`（未登录 → 全页登录，不可浏览） | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share`（GET 需 `requireJpVocabRead`） | `src/lib/jp-vocab-db.ts`、`schema.sql` → `jp_vocab_word`、`jp_vocab_shared` | 须登录；`jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生 |
 | `/jp-vocab/study` | 今日日语单词、学生复习、请老师发送 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/share-request` | 同上 + `jp_vocab_share_request` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
 | `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
 | `/jp-vocab/coach` | **课堂带读**（按日期带读「一般」「不熟悉」；熟悉程度快照不可改；备注与抽问同步；**仅保留最近 5 天** `jp_vocab_coach_*`，不删 `jp_vocab_word`） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach` | `jp_vocab_coach_batch`、`jp_vocab_coach_item` | `jp_vocab:read` 浏览；`jp_vocab:operate` 导出 |
@@ -54,6 +54,7 @@
 | 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach` |
 | 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()`、`jpVocabReviewPath()`、`jpVocabCoachPath()` |
 | 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
+| 未登录访问 `/jp-vocab` | `JpVocabPage.tsx` → `TeacherReviewAuth` 全页登录；`GET /api/jp-vocab`、`/api/jp-vocab/sync` → `requireJpVocabRead` |
 | 共享后刷新复习页 | `src/lib/jp-vocab-shared-notify.ts`（同浏览器多标签） |
 | **微信小程序 · 日语复习** | `wechat-jp-vocab-review/`（独立目录；对接同上 API；见该目录 `README.md`） |
 

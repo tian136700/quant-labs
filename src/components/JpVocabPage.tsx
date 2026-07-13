@@ -517,6 +517,7 @@ export function JpVocabPage() {
 
   /** 北京时间跨日后清空前端勾选回显，并拉取当日新顺序 */
   useEffect(() => {
+    if (checking || !user) return;
     let today = beijingDateString();
     const onDayRollover = () => {
       const next = beijingDateString();
@@ -530,7 +531,7 @@ export function JpVocabPage() {
     onDayRollover();
     const timer = window.setInterval(onDayRollover, 60_000);
     return () => window.clearInterval(timer);
-  }, [loadWords]);
+  }, [loadWords, checking, user]);
 
   const applySyncPatches = useCallback((patches: JpVocabWord[]) => {
     if (!patches.length) return;
@@ -548,6 +549,8 @@ export function JpVocabPage() {
   }, []);
 
   useEffect(() => {
+    if (checking || !user) return;
+
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -619,9 +622,11 @@ export function JpVocabPage() {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applySyncPatches]);
+  }, [applySyncPatches, checking, user]);
 
   useEffect(() => {
+    if (checking || !user) return;
+
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -654,7 +659,7 @@ export function JpVocabPage() {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [syncTeacherVisibleLimitFromServer]);
+  }, [syncTeacherVisibleLimitFromServer, checking, user]);
 
   useEffect(() => {
     return subscribeJpVocabQuizTargetUpdated(() => {

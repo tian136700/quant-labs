@@ -11,7 +11,7 @@ import {
   setJpVocabDailyQuizStyle,
   setJpVocabDailyQuizTarget,
 } from "@/lib/jp-vocab-db";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
 import { redactJpVocabMnemonicForClient, redactJpVocabWordsMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import { parseJpVocabTeacherVisibleReleaseCount } from "@/lib/jp-vocab-teacher-visible";
@@ -26,9 +26,20 @@ const AUTH_MSG = {
   zh: "请登录后再操作。",
 };
 
+const READ_AUTH_MSG = {
+  en: "Please log in to view vocabulary.",
+  zh: "请登录后查看单词。",
+};
+
 export async function GET(request: Request) {
+  const locale = localeFromRequest(request);
+
   try {
-    const env = await getCloudflareEnv();
+    const { env, allowed } = await requireJpVocabRead(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
+    }
+
     const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
       await Promise.all([
       listJpVocabWordsWithRefs(env.DB),
