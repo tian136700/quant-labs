@@ -146,7 +146,7 @@ export function JpVocabPageStyles() {
         .jp-vocab-pagination {
           display: flex;
           flex-direction: column;
-          align-items: center;
+          align-items: flex-start;
           gap: 0.45rem;
           margin: 0 0 0.75rem;
         }
@@ -157,7 +157,7 @@ export function JpVocabPageStyles() {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
           gap: 0.65rem 0.85rem;
           width: 100%;
         }
@@ -165,14 +165,14 @@ export function JpVocabPageStyles() {
           font-size: 0.8125rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
-          text-align: center;
+          text-align: left;
         }
         .jp-vocab-pagination__page-count {
           margin: 0;
           font-size: 0.8125rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
-          text-align: center;
+          text-align: left;
         }
         .jp-vocab-level-wrap {
           display: inline-flex;
