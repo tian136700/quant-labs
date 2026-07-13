@@ -13,6 +13,8 @@ import {
 let devRbacEnabled = false;
 const devRolePermissions = new Map<EtrUserRole, Set<string>>();
 let rbacSeededDone = false;
+/** 同一 Worker isolate 内缓存角色权限，避免高频 API 轮询重复查 D1 */
+const rolePermissionsCache = new Map<EtrUserRole, string[]>();
 
 export function enableRbacDevStore() {
   devRbacEnabled = true;
@@ -119,10 +121,15 @@ export async function getPermissionsForRole(
 ): Promise<string[]> {
   if (isAdminSuperuser(role)) return [...RBAC_ALL_PERMISSION_KEYS];
 
+  const cached = rolePermissionsCache.get(role);
+  if (cached) return cached;
+
   await ensureRbacSeeded(db);
 
   if (devRbacEnabled) {
-    return [...(devRolePermissions.get(role) ?? new Set())];
+    const perms = [...(devRolePermissions.get(role) ?? new Set())];
+    rolePermissionsCache.set(role, perms);
+    return perms;
   }
 
   const result = await db
@@ -132,7 +139,9 @@ export async function getPermissionsForRole(
     .bind(role)
     .all<{ permission_key: string }>();
 
-  return (result.results ?? []).map((r) => r.permission_key);
+  const perms = (result.results ?? []).map((r) => r.permission_key);
+  rolePermissionsCache.set(role, perms);
+  return perms;
 }
 
 export async function getUserPermissions(
@@ -227,6 +236,7 @@ export async function updateRolePermissions(
 
   if (devRbacEnabled) {
     devRolePermissions.set(role, new Set(cleaned));
+    rolePermissionsCache.set(role, cleaned);
     return { ok: true, role, permissions: cleaned };
   }
 
@@ -248,6 +258,7 @@ export async function updateRolePermissions(
 
   if (statements.length) await db.batch(statements);
 
+  rolePermissionsCache.set(role, cleaned);
   return { ok: true, role, permissions: cleaned };
 }
 
