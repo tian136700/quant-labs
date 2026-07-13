@@ -49,7 +49,7 @@ export function formatLessonMeaningsLines(
     const chunk = aligned
       .slice(i, i + perLine)
       .map((item) => item || "—")
-      .join(" - ");
+      .join(", ");
     lines.push(chunk);
   }
   return lines;

@@ -156,7 +156,7 @@ function formatLessonMeaningsOneLine(
 ): string {
   const aligned = formatLessonMeaningsLines(content, meanings, 99);
   if (!aligned.length || aligned.every((line) => line === "—")) return "—";
-  return aligned.join(" - ");
+  return aligned.join(", ");
 }
 
 function renderLessonDateTime(iso: string) {
