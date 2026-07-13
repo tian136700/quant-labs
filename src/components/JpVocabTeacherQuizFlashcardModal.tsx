@@ -26,6 +26,7 @@ import {
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
+import { jpVocabCoachLevelLabel } from "@/lib/jp-vocab-coach";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -59,6 +60,10 @@ type Props = {
   sharedTodayWordIds?: ReadonlySet<number>;
   /** 学生已自行查看老师当前抽查词 */
   studentPeeked?: boolean;
+  /** 课堂带读：复用卡片 UI，隐藏勾选与发给学生 */
+  mode?: "quiz" | "coach";
+  /** 课堂带读：导出时熟悉程度快照 */
+  coachLevelByWordId?: ReadonlyMap<number, JpVocabLevel>;
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
@@ -91,6 +96,8 @@ export function JpVocabTeacherQuizFlashcardModal({
   shareProgressMap = {},
   sharedTodayWordIds,
   studentPeeked = false,
+  mode = "quiz",
+  coachLevelByWordId,
   onClose,
   onComplete,
   onSelectLevel,
@@ -198,6 +205,7 @@ export function JpVocabTeacherQuizFlashcardModal({
 
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
 
+  const isCoach = mode === "coach";
   const w = notesWord ?? word;
   const ref = w.ref_key ? refs[w.ref_key] : undefined;
   const readingTrim = (w.reading || "").trim();
@@ -223,24 +231,35 @@ export function JpVocabTeacherQuizFlashcardModal({
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
-  const uncheckedCount = session.wordIds.reduce((count, id) => {
-    const item = wordsById.get(id);
-    if (!item) return count + 1;
-    return effectiveJpVocabDisplayLevel(item, sessionLevel[id], { displayOrder }) == null
-      ? count + 1
-      : count;
-  }, 0);
-  const remainingLabel =
-    locale === "zh"
+  const coachExportLevel = isCoach ? coachLevelByWordId?.get(w.id) : undefined;
+  const uncheckedCount = isCoach
+    ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
+    : session.wordIds.reduce((count, id) => {
+        const item = wordsById.get(id);
+        if (!item) return count + 1;
+        return effectiveJpVocabDisplayLevel(item, sessionLevel[id], { displayOrder }) ==
+          null
+          ? count + 1
+          : count;
+      }, 0);
+  const remainingLabel = isCoach
+    ? locale === "zh"
+      ? `还剩 ${uncheckedCount} 个未带读`
+      : `${uncheckedCount} left to read`
+    : locale === "zh"
       ? `还剩 ${uncheckedCount} 个未抽查`
       : `${uncheckedCount} left to quiz`;
   const sessionTotal = session.wordIds.length;
-  const sessionChecked = Math.max(0, sessionTotal - uncheckedCount);
+  const sessionChecked = isCoach
+    ? session.currentIndex + 1
+    : Math.max(0, sessionTotal - uncheckedCount);
   const sessionPct =
     sessionTotal > 0
       ? Math.min(100, Math.round((sessionChecked / sessionTotal) * 100))
       : 0;
-  const sessionComplete = sessionTotal > 0 && uncheckedCount === 0;
+  const sessionComplete = isCoach
+    ? session.currentIndex >= sessionTotal - 1
+    : sessionTotal > 0 && uncheckedCount === 0;
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
@@ -269,7 +288,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   const tryGoNext = () => {
-    if (!selected) {
+    if (!isCoach && !selected) {
       setNextBlockedHint(true);
       return;
     }
@@ -295,10 +314,12 @@ export function JpVocabTeacherQuizFlashcardModal({
             <div className="jp-vocab-teacher-quiz__header-left">
               <span
                 className={`jp-vocab-teacher-quiz__kind${
-                  w.kind === "grammar" ? " jp-vocab-teacher-quiz__kind--grammar" : ""
-                }`}
+                  !isCoach && w.kind === "grammar"
+                    ? " jp-vocab-teacher-quiz__kind--grammar"
+                    : ""
+                }${isCoach ? " jp-vocab-teacher-quiz__kind--coach" : ""}`}
               >
-                {w.kind === "grammar" ? "语法" : "单词"}
+                {isCoach ? "课堂带读" : w.kind === "grammar" ? "语法" : "单词"}
               </span>
               {dailySeq != null ? (
                 <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
@@ -311,7 +332,7 @@ export function JpVocabTeacherQuizFlashcardModal({
             <button
               type="button"
               className="jp-vocab-teacher-quiz__close-x"
-              aria-label="关闭抽查"
+              aria-label={isCoach ? "关闭带读" : "关闭抽查"}
               onClick={onClose}
             >
               ×
@@ -324,7 +345,13 @@ export function JpVocabTeacherQuizFlashcardModal({
           >
             <div className="jp-vocab-teacher-quiz__header-progress-head">
               <span className="jp-vocab-teacher-quiz__header-progress-title">
-                {locale === "zh" ? "本轮抽查进度" : "Round progress"}
+                {locale === "zh"
+                  ? isCoach
+                    ? "本轮带读进度"
+                    : "本轮抽查进度"
+                  : isCoach
+                    ? "Read-along progress"
+                    : "Round progress"}
               </span>
               <span className="jp-vocab-teacher-quiz__header-progress-stats">
                 <strong>{sessionChecked}</strong>
@@ -349,8 +376,12 @@ export function JpVocabTeacherQuizFlashcardModal({
               aria-valuemax={100}
               aria-label={
                 locale === "zh"
-                  ? `本轮已抽查 ${sessionChecked} / ${sessionTotal}`
-                  : `Round ${sessionChecked} / ${sessionTotal}`
+                  ? isCoach
+                    ? `本轮已带读 ${sessionChecked} / ${sessionTotal}`
+                    : `本轮已抽查 ${sessionChecked} / ${sessionTotal}`
+                  : isCoach
+                    ? `Read-along ${sessionChecked} / ${sessionTotal}`
+                    : `Round ${sessionChecked} / ${sessionTotal}`
               }
             >
               <div
@@ -361,7 +392,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           </div>
         </header>
 
-        {studentPeeked ? (
+        {studentPeeked && !isCoach ? (
           <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
             该学生已查看该单词
           </p>
@@ -422,7 +453,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                   </button>
                 ) : null}
               </div>
-              {shareUiEnabled ? (
+              {shareUiEnabled && !isCoach ? (
                 <div className="jp-vocab-teacher-quiz__actions-right" aria-label="发给学生">
                   {isShared ? (
                     <button
@@ -462,80 +493,104 @@ export function JpVocabTeacherQuizFlashcardModal({
         </section>
 
         <div className="jp-vocab-teacher-quiz__level">
-          <p className="jp-vocab-teacher-quiz__level-label" role="note">
-            请根据学生熟悉程度，勾选以下选项
-          </p>
-          <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
-            <div className="jp-vocab-teacher-quiz__level-main">
-              <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
-                {LEVELS.map((lv) => {
-                  const checked = selected === lv.key;
-                  const levelDisabled = reviewLocked || isSaving;
-                  return (
-                    <button
-                      key={lv.key}
-                      type="button"
-                      className={`jp-vocab-level-opt${
-                        checked ? " is-checked" : ""
-                      }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
-                        lv.key === "very" ? " jp-vocab-level-opt--very" : ""
-                      }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
-                      disabled={levelDisabled}
-                      aria-pressed={checked}
-                      title={
-                        reviewLocked
-                          ? "勾选已满 1 小时，无法再修改"
-                          : checked
-                            ? "今日已选此项，可点其他选项改选"
-                            : "勾选学生熟悉程度"
-                      }
-                      onClick={() => {
-                        if (levelDisabled) return;
-                        setNextBlockedHint(false);
-                        onSelectLevel(w.id, lv.key);
-                      }}
-                    >
-                      <span className="jp-vocab-check-box" aria-hidden="true">
-                        {checked ? (
-                          <svg viewBox="0 0 12 12" width="10" height="10">
-                            <path
-                              d="M2 6l3 3 5-5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        ) : null}
-                      </span>
-                      <span>{lv.label}</span>
-                    </button>
-                  );
-                })}
+          {isCoach ? (
+            <>
+              <p className="jp-vocab-teacher-quiz__level-label" role="note">
+                熟悉程度：
+                <strong className="jp-vocab-teacher-quiz__coach-export-level">
+                  {coachExportLevel ? jpVocabCoachLevelLabel(coachExportLevel) : "—"}
+                </strong>
+                <span className="jp-vocab-teacher-quiz__coach-export-hint">
+                  （带读页不可修改）
+                </span>
+              </p>
+              <div
+                className="jp-vocab-teacher-quiz__stat-grid jp-vocab-teacher-quiz__stat-grid--coach"
+                aria-label="历史熟悉程度统计"
+              >
+                <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
+                <span>一般 {w.cnt_normal}</span>
+                <span className="chg-up">不熟悉 {w.cnt_weak}</span>
               </div>
-            </div>
-            <span
-              className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
-              role="note"
-            >
-              {levelSyncHintShort}
-            </span>
-            <span
-              className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--mobile"
-              role="note"
-            >
-              {levelSyncHint}
-            </span>
-          </div>
-          {saveBusy ? (
-            <JpVocabSaveProgressBar
-              label={saveProgressLabel}
-              percent={saveProgressPercent}
-              fullWidth
-              className="jp-vocab-teacher-quiz__level-progress"
-            />
-          ) : null}
+            </>
+          ) : (
+            <>
+              <p className="jp-vocab-teacher-quiz__level-label" role="note">
+                请根据学生熟悉程度，勾选以下选项
+              </p>
+              <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
+                <div className="jp-vocab-teacher-quiz__level-main">
+                  <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
+                    {LEVELS.map((lv) => {
+                      const checked = selected === lv.key;
+                      const levelDisabled = reviewLocked || isSaving;
+                      return (
+                        <button
+                          key={lv.key}
+                          type="button"
+                          className={`jp-vocab-level-opt${
+                            checked ? " is-checked" : ""
+                          }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
+                            lv.key === "very" ? " jp-vocab-level-opt--very" : ""
+                          }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
+                          disabled={levelDisabled}
+                          aria-pressed={checked}
+                          title={
+                            reviewLocked
+                              ? "勾选已满 1 小时，无法再修改"
+                              : checked
+                                ? "今日已选此项，可点其他选项改选"
+                                : "勾选学生熟悉程度"
+                          }
+                          onClick={() => {
+                            if (levelDisabled) return;
+                            setNextBlockedHint(false);
+                            onSelectLevel(w.id, lv.key);
+                          }}
+                        >
+                          <span className="jp-vocab-check-box" aria-hidden="true">
+                            {checked ? (
+                              <svg viewBox="0 0 12 12" width="10" height="10">
+                                <path
+                                  d="M2 6l3 3 5-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            ) : null}
+                          </span>
+                          <span>{lv.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <span
+                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
+                  role="note"
+                >
+                  {levelSyncHintShort}
+                </span>
+                <span
+                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--mobile"
+                  role="note"
+                >
+                  {levelSyncHint}
+                </span>
+              </div>
+              {saveBusy ? (
+                <JpVocabSaveProgressBar
+                  label={saveProgressLabel}
+                  percent={saveProgressPercent}
+                  fullWidth
+                  className="jp-vocab-teacher-quiz__level-progress"
+                />
+              ) : null}
+            </>
+          )}
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">
@@ -570,11 +625,13 @@ export function JpVocabTeacherQuizFlashcardModal({
               {totalDisplay.label}
             </span>
           </div>
-          <div className="jp-vocab-teacher-quiz__stat-grid">
-            <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
-            <span>一般 {w.cnt_normal}</span>
-            <span className="chg-up">不熟悉 {w.cnt_weak}</span>
-          </div>
+          {!isCoach ? (
+            <div className="jp-vocab-teacher-quiz__stat-grid">
+              <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
+              <span>一般 {w.cnt_normal}</span>
+              <span className="chg-up">不熟悉 {w.cnt_weak}</span>
+            </div>
+          ) : null}
         </div>
 
         {hasNotes || canOperate ? (
@@ -632,23 +689,23 @@ export function JpVocabTeacherQuizFlashcardModal({
           </button>
           <button
             type="button"
-            className={`btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
-              !selected ? " jp-vocab-teacher-quiz__nav-btn--blocked" : ""
+            className={`btn-rsi-filter btn-rfi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
+              !isCoach && !selected ? " jp-vocab-teacher-quiz__nav-btn--blocked" : ""
             }`}
             disabled={isSaving}
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
-              {isLast ? "完成抽查" : "下一个"}
+              {isLast ? (isCoach ? "完成带读" : "完成抽查") : "下一个"}
             </span>
-            {!isLast ? (
+            {!isLast && !isCoach ? (
               <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
             ) : null}
           </button>
         </div>
       </article>
 
-      {nextBlockedHint && !selected ? (
+      {nextBlockedHint && !isCoach && !selected ? (
         <div
           className="jp-vocab-teacher-quiz-alert-overlay"
           role="presentation"

@@ -254,6 +254,12 @@ export function JpVocabDailyQuizCompleteModal({
           .jp-vocab-complete-modal {
             width: 100%;
             border-radius: 12px 12px 0 0;
+            padding-bottom: calc(1.15rem + env(safe-area-inset-bottom, 0px));
+          }
+          .jp-vocab-complete-modal-btn {
+            font-size: clamp(0.8125rem, 3.4vw, 0.9375rem);
+            line-height: 1.35;
+            min-height: 2.75rem;
           }
         }
       `}</style>

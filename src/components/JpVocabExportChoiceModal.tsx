@@ -213,6 +213,41 @@ export function JpVocabExportChoiceModal({
           padding: 0.75rem 1rem 1rem;
           border-top: 1px solid var(--border);
         }
+        @media (max-width: 768px) {
+          .jp-vocab-export-modal-overlay {
+            align-items: flex-end;
+            padding: 0;
+          }
+          .jp-vocab-export-modal {
+            width: 100%;
+            max-height: min(92vh, 100%);
+            border-radius: 16px 16px 0 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+          }
+          .jp-vocab-export-modal-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: var(--panel);
+          }
+          .jp-vocab-export-modal-body {
+            font-size: 0.875rem;
+          }
+          .jp-vocab-export-modal-footer {
+            flex-direction: column;
+            align-items: stretch;
+            position: sticky;
+            bottom: 0;
+            background: var(--panel);
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+          }
+          .jp-vocab-export-modal-footer :global(.btn-rsi-filter) {
+            width: 100%;
+            min-height: 2.75rem;
+            justify-content: center;
+          }
+        }
       `}</style>
     </div>,
     document.body
