@@ -9,6 +9,7 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   jpVocabPriorityLabel,
+  jpVocabTotalReviews,
   sortJpVocabWordsForDisplay,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
@@ -1032,6 +1033,12 @@ export function JpVocabPage() {
     sessionReviewAt,
     isWordReviewLocked,
   ]);
+
+  /** 复习合计为 0：历史上从未勾选过熟悉程度 */
+  const neverQuizzedCount = useMemo(
+    () => words.filter((w) => jpVocabTotalReviews(w) === 0).length,
+    [words]
+  );
 
   const hasAnyQuizLevelToday = useMemo(
     () =>
@@ -2199,6 +2206,18 @@ export function JpVocabPage() {
               共 {words.length} 条
               {words.length ? (
                 <>
+                  {" "}
+                  · 从未抽查{" "}
+                  <span
+                    className={
+                      neverQuizzedCount > 0
+                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--never"
+                        : "jp-vocab-today-summary-value"
+                    }
+                    title="复习合计为 0：历史上从未勾选过熟悉程度的词条数"
+                  >
+                    {neverQuizzedCount}
+                  </span>
                   {" "}
                   · 今日抽查{" "}
                   <span

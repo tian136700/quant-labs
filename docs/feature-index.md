@@ -65,7 +65,7 @@
 | 用户描述或页面文案 | 优先打开 |
 |--------------------|----------|
 | 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx` |
-| 共 X 条、本轮未勾选 | `JpVocabPage.tsx`（老师端列表仅显示可操作行；`unmarkedCount` 仅统计序号 1–N） |
+| 共 X 条、从未抽查、本轮未勾选 | `JpVocabPage.tsx`（`neverQuizzedCount` = 复习合计 0；老师端列表仅显示可操作行；`unmarkedCount` 仅统计序号 1–N） |
 | 序号超出今日抽查数量不可勾选 | `isJpVocabWordInDailyQuizTarget`；`JpVocabPage.tsx` → `inQuizTarget` |
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`；`JpVocabPage.tsx` → `quizTarget` |
 | 调高目标后老师勾选词条消失 | 老师列表隐藏不可操作行，管理员仍见全库 |
