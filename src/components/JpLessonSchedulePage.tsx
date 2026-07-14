@@ -55,6 +55,7 @@ import {
   flattenJpLessonScheduleEvents,
   formatLessonContentLines,
   formatLessonScheduleDaySummary,
+  formatLessonScheduleDurationLabel,
   getJpLessonScheduleEventStatus,
   normalizeClassDurationMinutes,
   type JpLessonScheduleEventStatus,
@@ -711,6 +712,36 @@ export function JpLessonSchedulePage() {
   const visibleEvents =
     viewMode === "day" ? dayEvents : viewMode === "week" ? weekEvents : monthEvents;
 
+  const visibleDurationTotals = useMemo(() => {
+    let jpMinutes = 0;
+    let enMinutes = 0;
+    for (const event of visibleEvents) {
+      if (event.subject === "jp") {
+        jpMinutes += event.durationMinutes;
+        continue;
+      }
+      if (event.subject === "en") {
+        enMinutes += event.durationMinutes;
+        continue;
+      }
+      // 手动日程：标题含「日语」→日语，含「英语」→英语；同时含则按先出现的归类
+      const title = event.displayContent ?? "";
+      const jpIdx = title.indexOf("日语");
+      const enIdx = title.indexOf("英语");
+      if (jpIdx < 0 && enIdx < 0) continue;
+      if (enIdx < 0 || (jpIdx >= 0 && jpIdx <= enIdx)) {
+        jpMinutes += event.durationMinutes;
+      } else {
+        enMinutes += event.durationMinutes;
+      }
+    }
+    return {
+      jpMinutes,
+      enMinutes,
+      totalMinutes: jpMinutes + enMinutes,
+    };
+  }, [visibleEvents]);
+
   useEffect(() => {
     const pool =
       viewMode === "day"
@@ -1247,15 +1278,30 @@ export function JpLessonSchedulePage() {
         </div>
 
         <div className="jpls-toolbar-right">
-          <span className="jpls-legend">
-            <span className="jpls-legend-dot jpls-legend-dot--jp" /> 日语
-          </span>
-          <span className="jpls-legend">
-            <span className="jpls-legend-dot jpls-legend-dot--en" /> 英语
-          </span>
-          <span className="jpls-legend">
-            <span className="jpls-legend-dot jpls-legend-dot--manual" /> 手动
-          </span>
+          <div
+            className="jpls-duration-totals"
+            aria-label={`当前视图上课时间：日语${formatLessonScheduleDurationLabel(visibleDurationTotals.jpMinutes)}，英语${formatLessonScheduleDurationLabel(visibleDurationTotals.enMinutes)}，总计${formatLessonScheduleDurationLabel(visibleDurationTotals.totalMinutes)}`}
+          >
+            <span className="jpls-legend jpls-duration-total">
+              <span className="jpls-legend-dot jpls-legend-dot--jp" />
+              日语{" "}
+              <strong>{formatLessonScheduleDurationLabel(visibleDurationTotals.jpMinutes)}</strong>
+            </span>
+            <span className="jpls-legend jpls-duration-total">
+              <span className="jpls-legend-dot jpls-legend-dot--en" />
+              英语{" "}
+              <strong>{formatLessonScheduleDurationLabel(visibleDurationTotals.enMinutes)}</strong>
+            </span>
+            <span className="jpls-legend jpls-duration-total jpls-duration-total--sum">
+              总计{" "}
+              <strong>
+                {formatLessonScheduleDurationLabel(visibleDurationTotals.totalMinutes)}
+              </strong>
+            </span>
+            <span className="jpls-legend" title="手动添加的日程">
+              <span className="jpls-legend-dot jpls-legend-dot--manual" /> 手动
+            </span>
+          </div>
           <button
             type="button"
             className="jpls-manual-add-btn"
@@ -1968,12 +2014,27 @@ export function JpLessonSchedulePage() {
             white-space: normal;
           }
         }
+        .jpls-duration-totals {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.55rem 0.85rem;
+        }
         .jpls-legend {
           display: inline-flex;
           align-items: center;
           gap: 0.35rem;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jpls-duration-total strong {
+          color: var(--text);
+          font-weight: 650;
+          font-variant-numeric: tabular-nums;
+        }
+        .jpls-duration-total--sum {
+          padding-left: 0.65rem;
+          border-left: 1px solid var(--border);
         }
         .jpls-legend-dot {
           width: 0.65rem;
