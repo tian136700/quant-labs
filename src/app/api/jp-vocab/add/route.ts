@@ -17,21 +17,6 @@ const AUTH_MSG = {
 
 const ERROR_MSG: Record<string, { en: string; zh: string }> = {
   word_required: { en: "Word is required.", zh: "请填写单词或语法。" },
-  reading_required: { en: "Reading is required.", zh: "请填写读音。" },
-  meaning_required: { en: "Meaning is required.", zh: "请填写释义。" },
-  example_sentences_required: {
-    en: "Example sentences are required.",
-    zh: "请填写例句。",
-  },
-  class_notes_required: { en: "Notes are required.", zh: "请填写备注。" },
-  ref_title_required: {
-    en: "Lesson title is required.",
-    zh: "请填写教案标题。",
-  },
-  ref_image_required: {
-    en: "Lesson image is required.",
-    zh: "请上传或粘贴教案图片。",
-  },
   word_duplicate: { en: "This entry already exists.", zh: "该词条已存在。" },
   file_too_large: {
     en: "File too large (max 20MB).",
@@ -102,43 +87,6 @@ export async function POST(request: Request) {
         ? exampleSentencesRaw.trim()
         : null;
 
-    if (!word) {
-      return jsonResponse(
-        { ok: false, error: errorText("word_required", locale) },
-        400
-      );
-    }
-    if (kind === "word" && !reading) {
-      return jsonResponse(
-        { ok: false, error: errorText("reading_required", locale) },
-        400
-      );
-    }
-    if (!meaning) {
-      return jsonResponse(
-        { ok: false, error: errorText("meaning_required", locale) },
-        400
-      );
-    }
-    if (!exampleSentences) {
-      return jsonResponse(
-        { ok: false, error: errorText("example_sentences_required", locale) },
-        400
-      );
-    }
-    if (!classNotes) {
-      return jsonResponse(
-        { ok: false, error: errorText("class_notes_required", locale) },
-        400
-      );
-    }
-    if (!refTitle) {
-      return jsonResponse(
-        { ok: false, error: errorText("ref_title_required", locale) },
-        400
-      );
-    }
-
     const existingRefKey = normalizeJpVocabRefKey(
       String(form.get("ref_key") || "")
     );
@@ -185,13 +133,6 @@ export async function POST(request: Request) {
         );
       }
       refDeduped = true;
-    }
-
-    if (!refKey) {
-      return jsonResponse(
-        { ok: false, error: errorText("ref_image_required", locale) },
-        400
-      );
     }
 
     const result = await addJpVocabWord(env.DB, {
