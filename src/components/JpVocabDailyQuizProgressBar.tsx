@@ -46,8 +46,9 @@ export function JpVocabDailyQuizProgressBar({
 
   const displayChecked = jpVocabDailyQuizProgressDisplayChecked(progress);
 
-  const pct =
-    progress.total > 0
+  const pct = progress.complete
+    ? 100
+    : progress.total > 0
       ? Math.min(100, Math.round((displayChecked / progress.total) * 100))
       : 0;
 
@@ -60,6 +61,13 @@ export function JpVocabDailyQuizProgressBar({
     ? parseQuizTargetDraft(adminQuizTarget.value)
     : null;
 
+  const title =
+    variant === "study"
+      ? "老师抽查进度"
+      : adminQuizTarget
+        ? "今日抽查进度"
+        : "抽查进度";
+
   return (
     <div
       className={`jp-vocab-quiz-progress jp-vocab-quiz-progress--${variant}${
@@ -69,19 +77,19 @@ export function JpVocabDailyQuizProgressBar({
       aria-label={label}
     >
       <div className="jp-vocab-quiz-progress-head">
-        <span className="jp-vocab-quiz-progress-title">
-          {variant === "study" ? "老师抽查进度" : "今日抽查进度"}
-        </span>
+        <span className="jp-vocab-quiz-progress-title">{title}</span>
         <span className="jp-vocab-quiz-progress-stats">
-          <strong>{displayChecked}</strong>
-          <span className="jp-vocab-quiz-progress-sep">/</span>
-          {progress.total}
-          {!progress.complete ? (
-            <span className="jp-vocab-quiz-progress-remaining">
-              （剩余 {progress.remaining}）
-            </span>
+          {progress.complete ? (
+            <span className="jp-vocab-quiz-progress-done">已完成</span>
           ) : (
-            <span className="jp-vocab-quiz-progress-done">（已完成）</span>
+            <>
+              <strong>{displayChecked}</strong>
+              <span className="jp-vocab-quiz-progress-sep">/</span>
+              {progress.total}
+              <span className="jp-vocab-quiz-progress-remaining">
+                （剩余 {progress.remaining}）
+              </span>
+            </>
           )}
         </span>
       </div>

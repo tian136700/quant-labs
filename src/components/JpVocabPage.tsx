@@ -115,6 +115,7 @@ import {
 import {
   isJpVocabWordInDailyQuizTarget,
   isJpVocabWordQuizCheckedToday,
+  isJpVocabWordHiddenBeforeTargetAdjustment,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
@@ -123,6 +124,7 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import {
   computeJpVocabDailyQuizProgress,
+  computeJpVocabTeacherPageQuizProgress,
 } from "@/lib/jp-vocab-daily-quiz-progress";
 import {
   evaluateJpVocabDailyCompleteModal,
@@ -924,6 +926,64 @@ export function JpVocabPage() {
     [reviewLockNow]
   );
 
+  /**
+   * 老师端可操作词池：今日序号 1–N、未锁定；
+   * 开启「隐藏已抽查」且刚调高目标时，还去掉调整前已勾选的词（与列表一致）。
+   */
+  const teacherOperableWords = useMemo(() => {
+    const now = new Date(reviewLockNow);
+    let pool = displayedWords.filter(
+      (w) =>
+        isWordInQuizTarget(w.id) &&
+        !isWordReviewLocked(w, sessionReviewAt[w.id])
+    );
+    if (
+      teacherVisibleLimit.hide_checked_today !== false &&
+      teacherVisibleLimit.quiz_target_adjusted_at
+    ) {
+      const adjustedAt = teacherVisibleLimit.quiz_target_adjusted_at;
+      pool = pool.filter(
+        (w) => !isJpVocabWordHiddenBeforeTargetAdjustment(w, adjustedAt, now)
+      );
+    }
+    return pool;
+  }, [
+    displayedWords,
+    isWordInQuizTarget,
+    isWordReviewLocked,
+    sessionReviewAt,
+    reviewLockNow,
+    teacherVisibleLimit.hide_checked_today,
+    teacherVisibleLimit.quiz_target_adjusted_at,
+  ]);
+
+  const teacherOperableWordIds = useMemo(
+    () => new Set(teacherOperableWords.map((w) => w.id)),
+    [teacherOperableWords]
+  );
+
+  /** 老师看页面可操作进度；管理员仍看全天目标进度 */
+  const displayQuizProgress = useMemo(() => {
+    if (isAdmin) return dailyQuizProgress;
+    return computeJpVocabTeacherPageQuizProgress(
+      teacherOperableWords,
+      quizWordHasLevel,
+      {
+        forceComplete:
+          dailyQuizProgress.complete ||
+          (quizTarget > 0 &&
+            teacherOperableWords.length === 0 &&
+            dailyQuizProgress.checked > 0),
+      }
+    );
+  }, [
+    isAdmin,
+    dailyQuizProgress,
+    teacherOperableWords,
+    quizWordHasLevel,
+    quizTarget,
+  ]);
+
   const searchActive = searchQuery.trim().length > 0;
   /** 老师端隐藏不可操作行（进行中：仅见今日序号内且未锁定；已完成：展示今日已抽查列表） */
   const hideInoperableRows = canOperate && !isAdmin;
@@ -941,20 +1001,14 @@ export function JpVocabPage() {
         isJpVocabWordQuizCheckedToday(w, displayOrder, now)
       );
     }
-    return searchMatchedWords.filter(
-      (w) =>
-        isWordInQuizTarget(w.id) &&
-        !isWordReviewLocked(w, sessionReviewAt[w.id])
-    );
+    return searchMatchedWords.filter((w) => teacherOperableWordIds.has(w.id));
   }, [
     hideInoperableRows,
     searchMatchedWords,
     dailyQuizProgress.complete,
     displayOrder,
     reviewLockNow,
-    isWordInQuizTarget,
-    isWordReviewLocked,
-    sessionReviewAt,
+    teacherOperableWordIds,
   ]);
 
   const totalPages = Math.max(
@@ -2191,9 +2245,9 @@ export function JpVocabPage() {
         </p>
       ) : null}
 
-      {canOperate && (dailyQuizProgress.total > 0 || isAdmin) ? (
+      {canOperate && (displayQuizProgress.total > 0 || displayQuizProgress.complete || isAdmin) ? (
         <JpVocabDailyQuizProgressBar
-          progress={dailyQuizProgress}
+          progress={displayQuizProgress}
           variant="teacher"
           adminQuizTarget={
             isAdmin
@@ -2804,7 +2858,7 @@ export function JpVocabPage() {
         savingWordId={quizFlashcardSavingWordId}
         wordSyncState={wordSyncState}
         dailySeqByWordId={dailySeqByWordId}
-        dailyQuizProgress={dailyQuizProgress}
+        dailyQuizProgress={displayQuizProgress}
         canOperate={canOperate}
         shareUiEnabled={JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy}
         shareProgressMap={shareProgressMap}

@@ -353,7 +353,9 @@ export function JpVocabTeacherQuizFlashcardModal({
                 </span>
               ) : null}
               <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
-              <span className="jp-vocab-teacher-quiz__remaining">{remainingLabel}</span>
+              {!sessionComplete ? (
+                <span className="jp-vocab-teacher-quiz__remaining">{remainingLabel}</span>
+              ) : null}
             </div>
             <button
               type="button"
@@ -380,17 +382,19 @@ export function JpVocabTeacherQuizFlashcardModal({
                     : "Round progress"}
               </span>
               <span className="jp-vocab-teacher-quiz__header-progress-stats">
-                <strong>{sessionChecked}</strong>
-                <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
-                {sessionTotal}
-                {!sessionComplete ? (
-                  <span className="jp-vocab-teacher-quiz__header-progress-remaining">
-                    （剩余 {uncheckedCount}）
+                {sessionComplete ? (
+                  <span className="jp-vocab-teacher-quiz__header-progress-done">
+                    {locale === "zh" ? "已完成" : "Done"}
                   </span>
                 ) : (
-                  <span className="jp-vocab-teacher-quiz__header-progress-done">
-                    （已完成）
-                  </span>
+                  <>
+                    <strong>{sessionChecked}</strong>
+                    <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
+                    {sessionTotal}
+                    <span className="jp-vocab-teacher-quiz__header-progress-remaining">
+                      （剩余 {uncheckedCount}）
+                    </span>
+                  </>
                 )}
               </span>
             </div>

@@ -16,7 +16,8 @@ export type JpVocabDailyQuizProgress = {
 };
 
 /**
- * 今日抽查进度：分母 = 管理员设置的今日抽查数量；分子 = 今日已抽查过的词条数（每词只计 1 次，与「今日抽查次数」列一致，不按累计抽查次数计）。
+ * 今日抽查进度（管理员视角）：分母 = 管理员设置的今日抽查数量；
+ * 分子 = 今日已抽查过的词条数（每词只计 1 次，与「今日抽查次数」列一致，不按累计抽查次数计）。
  */
 export function computeJpVocabDailyQuizProgress(
   words: JpVocabWord[],
@@ -38,6 +39,32 @@ export function computeJpVocabDailyQuizProgress(
   };
 }
 
+/**
+ * 老师端页面进度：分母 = 当前页面可操作词条数（与列表可见池一致）；
+ * 分子 = 其中已勾选熟悉程度的数量。完成后只展示「已完成」，避免显示全天累计造成「谁抽的」困惑。
+ */
+export function computeJpVocabTeacherPageQuizProgress(
+  operableWords: ReadonlyArray<{ id: number }>,
+  hasLevel: (wordId: number) => boolean,
+  options?: { forceComplete?: boolean }
+): JpVocabDailyQuizProgress {
+  if (options?.forceComplete) {
+    return { total: 0, checked: 0, remaining: 0, complete: true };
+  }
+  const total = operableWords.length;
+  let checked = 0;
+  for (const word of operableWords) {
+    if (hasLevel(word.id)) checked += 1;
+  }
+  const remaining = Math.max(0, total - checked);
+  return {
+    total,
+    checked,
+    remaining,
+    complete: total > 0 && remaining === 0,
+  };
+}
+
 /** 进度条分子：相对今日目标封顶，避免已抽 45、目标 20 时显示 45/20 */
 export function jpVocabDailyQuizProgressDisplayChecked(
   progress: JpVocabDailyQuizProgress
@@ -49,10 +76,8 @@ export function jpVocabDailyQuizProgressDisplayChecked(
 export function formatJpVocabDailyQuizProgressLabel(
   progress: JpVocabDailyQuizProgress
 ): string {
+  if (progress.complete) return "已抽查完成";
   if (progress.total <= 0) return "今日暂无抽查任务";
   const shown = jpVocabDailyQuizProgressDisplayChecked(progress);
-  if (progress.complete) {
-    return `今日 ${progress.total} 个已全部抽查完成`;
-  }
   return `已抽查 ${shown} / ${progress.total}，剩余 ${progress.remaining} 个`;
 }
