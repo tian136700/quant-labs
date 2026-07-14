@@ -37,7 +37,17 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo "$(date '+%F %T') fill-reading: already running, skip"
   exit 0
 fi
+# 不能用 exec：否则 bash 被替换，EXIT trap 不会跑，锁目录会永久残留
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 cd "$ROOT"
-exec "$PYTHON_BIN" "$ROOT/scripts/jp-vocab-fill-reading-api.py" "${FILL_ARGS[@]}"
+echo "$(date '+%F %T') fill-reading: start"
+"$PYTHON_BIN" "$ROOT/scripts/jp-vocab-fill-reading-api.py" "${FILL_ARGS[@]}"
+status=$?
+if [[ "$status" -eq 0 ]]; then
+  date +%s > "${CONFIG_DIR}/jp-vocab-fill-reading.last_success"
+  echo "$(date '+%F %T') fill-reading: done"
+else
+  echo "$(date '+%F %T') fill-reading: FAILED (exit $status)" >&2
+fi
+exit "$status"
