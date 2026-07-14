@@ -4,7 +4,7 @@ import {
   getJpVocabRef,
   getOrUploadJpVocabRefByContent,
 } from "@/lib/jp-vocab-db";
-import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { requireJpVocabManualAddAccess } from "@/lib/jp-vocab-auth";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import type { JpVocabKind, JpVocabMediaType } from "@/lib/types";
 
@@ -17,6 +17,21 @@ const AUTH_MSG = {
 
 const ERROR_MSG: Record<string, { en: string; zh: string }> = {
   word_required: { en: "Word is required.", zh: "请填写单词或语法。" },
+  reading_required: { en: "Reading is required.", zh: "请填写读音。" },
+  meaning_required: { en: "Meaning is required.", zh: "请填写释义。" },
+  example_sentences_required: {
+    en: "Example sentences are required.",
+    zh: "请填写例句。",
+  },
+  class_notes_required: { en: "Notes are required.", zh: "请填写备注。" },
+  ref_title_required: {
+    en: "Lesson title is required.",
+    zh: "请填写教案标题。",
+  },
+  ref_image_required: {
+    en: "Lesson image is required.",
+    zh: "请上传或粘贴教案图片。",
+  },
   word_duplicate: { en: "This entry already exists.", zh: "该词条已存在。" },
   file_too_large: {
     en: "File too large (max 20MB).",
@@ -41,7 +56,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, allowed } = await requireJpVocabAccess(request);
+    const { env, allowed } = await requireJpVocabManualAddAccess(request);
     if (!allowed) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }

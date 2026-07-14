@@ -84,3 +84,20 @@ export async function requireJpVocabShareRequestCreate(request: Request) {
 export async function requireJpVocabShareRequestTeacher(request: Request) {
   return requireJpVocabAccess(request);
 }
+
+/** 手动添加词条：管理员或持有 jp_vocab:manual_add */
+export async function requireJpVocabManualAddAccess(request: Request) {
+  const env = await getCloudflareEnv();
+  const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
+
+  let allowed = false;
+  if (user) {
+    if (isAdminSuperuser(user.role)) {
+      allowed = true;
+    } else {
+      allowed = await userHasPermission(env.DB, user, "jp_vocab:manual_add");
+    }
+  }
+
+  return { env, user, allowed };
+}

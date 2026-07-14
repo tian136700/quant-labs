@@ -137,8 +137,16 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     labelZh: "操作单词/语法",
     labelEn: "Edit vocab & grammar",
     category: "jp_vocab",
-    descriptionZh: "勾选熟悉度、重置、手动添加词条",
-    descriptionEn: "Review levels, reset, manual add entries",
+    descriptionZh: "勾选熟悉度、编辑备注等日常抽查操作",
+    descriptionEn: "Review levels, edit notes, and daily spot-check actions",
+  },
+  {
+    key: "jp_vocab:manual_add",
+    labelZh: "手动添加词条",
+    labelEn: "Manual add entries",
+    category: "jp_vocab",
+    descriptionZh: "手动补充单词或语法并关联教案",
+    descriptionEn: "Manually add vocab or grammar entries with lesson materials",
   },
   {
     key: "jp_vocab:study",
@@ -324,10 +332,11 @@ export function rbacModuleLabel(
   return locale === "zh" ? map[module].zh : map[module].en;
 }
 
-/** 日语教师角色不应持有的新课权限（默认关闭，可由管理员手动开启） */
+/** 日语教师角色不应持有的权限（默认关闭，保存时自动剔除） */
 export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "jp_lesson:read",
   "jp_lesson:operate",
+  "jp_vocab:manual_add",
 ] as const;
 
 /** 英语教师角色不应持有的新课权限（默认关闭，可由管理员手动开启） */
