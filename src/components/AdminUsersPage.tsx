@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -120,6 +128,181 @@ function formatAdminDateTime(value: string | null | undefined): string {
   return formatBeijingDateTime(value);
 }
 
+function AdminUserCardField({
+  label,
+  value,
+  wide = false,
+}: {
+  label: string;
+  value: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div className={`strategy-card-item${wide ? " strategy-card-item--wide" : ""}`}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+type AdminUserActionsProps = {
+  row: UserRow;
+  locale: "zh" | "en";
+  currentUserId: number | undefined;
+  selectedTemplate: LoginLinkTemplate | null;
+  deletingId: number | null;
+  linkGeneratingId: number | null;
+  linkGeneratingWithTemplate: boolean;
+  copyingId: number | null;
+  onEdit: (row: UserRow) => void;
+  onCopyCredentials: (row: UserRow) => void;
+  onGenerateLoginLink: (row: UserRow, withTemplate: boolean) => void;
+  onToggleDisabled: (row: UserRow) => void;
+  onDelete: (row: UserRow) => void;
+};
+
+function AdminUserActions({
+  row,
+  locale,
+  currentUserId,
+  selectedTemplate,
+  deletingId,
+  linkGeneratingId,
+  linkGeneratingWithTemplate,
+  copyingId,
+  onEdit,
+  onCopyCredentials,
+  onGenerateLoginLink,
+  onToggleDisabled,
+  onDelete,
+}: AdminUserActionsProps) {
+  const isSelf = currentUserId === row.id;
+  const isAdminUser = row.role === "admin";
+  const canToggle = !isSelf && !isAdminUser;
+  const canEdit = !isAdminUser;
+  const canDelete = !isSelf && !isAdminUser;
+  const canGenerateLink = !row.disabled && !isAdminUser;
+  const canCopyCredentials = !isAdminUser;
+  const busy =
+    deletingId === row.id || linkGeneratingId === row.id || copyingId === row.id;
+
+  return (
+    <div className="admin-user-actions">
+      {canEdit ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+          disabled={busy}
+          onClick={() => onEdit(row)}
+        >
+          {locale === "zh" ? "编辑" : "Edit"}
+        </button>
+      ) : null}
+      {canCopyCredentials ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+          disabled={busy}
+          onClick={() => void onCopyCredentials(row)}
+          title={
+            locale === "zh"
+              ? "复制用户名与密码（密码来自本机缓存；若无则重置后复制）"
+              : "Copy username and password (from local cache, or reset first)"
+          }
+        >
+          {copyingId === row.id
+            ? locale === "zh"
+              ? "处理中…"
+              : "Working…"
+            : locale === "zh"
+              ? "复制账号密码"
+              : "Copy credentials"}
+        </button>
+      ) : null}
+      {canGenerateLink ? (
+        <>
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-btn"
+            disabled={busy}
+            onClick={() => void onGenerateLoginLink(row, false)}
+            title={
+              locale === "zh"
+                ? "生成并复制登录链接（不含模板文字）"
+                : "Generate and copy login link only"
+            }
+          >
+            {linkGeneratingId === row.id && !linkGeneratingWithTemplate
+              ? locale === "zh"
+                ? "生成中…"
+                : "Generating…"
+              : locale === "zh"
+                ? "复制链接"
+                : "Copy link"}
+          </button>
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+            disabled={busy || !selectedTemplate}
+            onClick={() => void onGenerateLoginLink(row, true)}
+            title={
+              locale === "zh"
+                ? selectedTemplate
+                  ? `带模板「${selectedTemplate.name}」复制登录链接`
+                  : "请先在上方添加并选择文字模板"
+                : selectedTemplate
+                  ? `Copy login link with template "${selectedTemplate.name}"`
+                  : "Add and select a template above first"
+            }
+          >
+            {linkGeneratingId === row.id && linkGeneratingWithTemplate
+              ? locale === "zh"
+                ? "复制中…"
+                : "Copying…"
+              : locale === "zh"
+                ? "带模板复制"
+                : "Copy with template"}
+          </button>
+        </>
+      ) : null}
+      {canToggle ? (
+        <button
+          type="button"
+          className={`btn-rsi-filter btn-rsi-filter--compact admin-user-btn${
+            row.disabled ? " btn-rsi-filter--success" : " btn-rsi-filter--danger"
+          }`}
+          disabled={busy}
+          onClick={() => onToggleDisabled(row)}
+        >
+          {row.disabled
+            ? locale === "zh"
+              ? "启用"
+              : "Enable"
+            : locale === "zh"
+              ? "禁用"
+              : "Disable"}
+        </button>
+      ) : null}
+      {canDelete ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger admin-user-btn"
+          disabled={busy}
+          onClick={() => void onDelete(row)}
+        >
+          {deletingId === row.id
+            ? locale === "zh"
+              ? "删除中…"
+              : "Deleting…"
+            : locale === "zh"
+              ? "删除"
+              : "Delete"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function AdminUsersPageContent() {
   const { locale } = useI18n();
   const { isAdmin, user: currentUser, checking } = useEtrAuth();
@@ -130,7 +313,6 @@ function AdminUsersPageContent() {
     const id = Number(raw);
     return Number.isInteger(id) && id > 0 ? id : null;
   }, [searchParams]);
-  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
   const [highlightUserId, setHighlightUserId] = useState<number | null>(null);
 
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -204,7 +386,11 @@ function AdminUsersPageContent() {
 
   useEffect(() => {
     if (focusUserId == null || loading || users.length === 0) return;
-    const row = rowRefs.current.get(focusUserId);
+    const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+    const selector = isDesktop
+      ? `.admin-table-wrap [data-admin-user-id="${focusUserId}"]`
+      : `.admin-cards [data-admin-user-id="${focusUserId}"]`;
+    const row = document.querySelector(selector);
     if (!row) return;
     setHighlightUserId(focusUserId);
     window.requestAnimationFrame(() => {
@@ -895,61 +1081,143 @@ function AdminUsersPageContent() {
                 {locale === "zh" ? "同步中…" : "Syncing…"}
               </p>
             ) : null}
-          <div className="admin-rbac-table-wrap">
-            <table className="admin-rbac-table">
-              <thead>
-                <tr>
-                  <th>
-                    <button
-                      type="button"
-                      className="admin-user-sort-btn"
-                      onClick={() => toggleSort("id")}
-                    >
-                      {locale === "zh" ? "ID" : "ID"}
-                      {sortLabel("id")}
-                    </button>
-                  </th>
-                  <th>{locale === "zh" ? "用户名" : "Username"}</th>
-                  <th>{locale === "zh" ? "角色" : "Role"}</th>
-                  <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
-                  <th>{locale === "zh" ? "创建时间（北京时间）" : "Created (Beijing)"}</th>
-                  <th>
-                    <button
-                      type="button"
-                      className="admin-user-sort-btn"
-                      onClick={() => toggleSort("last_login_at")}
-                    >
-                      {locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
-                      {sortLabel("last_login_at")}
-                    </button>
-                  </th>
-                  <th className="admin-user-ip-col">
-                    {locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
-                  </th>
-                  <th>{locale === "zh" ? "状态" : "Status"}</th>
-                  <th>{locale === "zh" ? "操作" : "Actions"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedUsers.map((row) => {
-                  const isSelf = currentUser?.id === row.id;
-                  const isAdminUser = row.role === "admin";
-                  const canToggle = !isSelf && !isAdminUser;
-                  const canEdit = !isAdminUser;
-                  const canDelete = !isSelf && !isAdminUser;
-                  const canGenerateLink = !row.disabled && !isAdminUser;
-                  const canCopyCredentials = !isAdminUser;
-                  const busy =
-                    deletingId === row.id ||
-                    linkGeneratingId === row.id ||
-                    copyingId === row.id;
-                  return (
+
+            <div className="admin-users-mobile-sort">
+              <span className="admin-users-mobile-sort-label">
+                {locale === "zh" ? "排序" : "Sort"}
+              </span>
+              <button
+                type="button"
+                className={`btn-rsi-filter btn-rsi-filter--compact admin-users-mobile-sort-btn${
+                  sortField === "id" ? " btn-rsi-filter--primary" : ""
+                }`}
+                onClick={() => toggleSort("id")}
+              >
+                {locale === "zh" ? "ID" : "ID"}
+                {sortLabel("id")}
+              </button>
+              <button
+                type="button"
+                className={`btn-rsi-filter btn-rsi-filter--compact admin-users-mobile-sort-btn${
+                  sortField === "last_login_at" ? " btn-rsi-filter--primary" : ""
+                }`}
+                onClick={() => toggleSort("last_login_at")}
+              >
+                {locale === "zh" ? "最近登录" : "Last login"}
+                {sortLabel("last_login_at")}
+              </button>
+            </div>
+
+            <div className="admin-cards">
+              {sortedUsers.map((row) => (
+                <article
+                  key={row.id}
+                  data-admin-user-id={row.id}
+                  className={`strategy-card admin-card admin-user-card${
+                    highlightUserId === row.id ? " admin-user-row--highlight" : ""
+                  }`}
+                >
+                  <h3 className="strategy-card-title">
+                    {row.username}
+                    <span className="admin-card-meta">#{row.id}</span>
+                  </h3>
+                  <dl className="strategy-card-grid">
+                    <AdminUserCardField
+                      label={locale === "zh" ? "角色" : "Role"}
+                      value={row.role_label}
+                    />
+                    <AdminUserCardField
+                      label={locale === "zh" ? "状态" : "Status"}
+                      value={
+                        row.disabled
+                          ? locale === "zh"
+                            ? "已禁用"
+                            : "Disabled"
+                          : locale === "zh"
+                            ? "正常"
+                            : "Active"
+                      }
+                    />
+                    <AdminUserCardField
+                      label={locale === "zh" ? "对应日语老师" : "JP teacher"}
+                      value={row.jp_lesson_teacher_name?.trim() || "—"}
+                      wide
+                    />
+                    <AdminUserCardField
+                      label={locale === "zh" ? "创建时间（北京时间）" : "Created (Beijing)"}
+                      value={formatAdminDateTime(row.created_at)}
+                      wide
+                    />
+                    <AdminUserCardField
+                      label={locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
+                      value={formatAdminDateTime(row.last_login_at)}
+                      wide
+                    />
+                    <AdminUserCardField
+                      label={locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
+                      value={formatIpForDisplay(row.last_login_ip)}
+                      wide
+                    />
+                  </dl>
+                  <AdminUserActions
+                    row={row}
+                    locale={locale}
+                    currentUserId={currentUser?.id}
+                    selectedTemplate={selectedTemplate}
+                    deletingId={deletingId}
+                    linkGeneratingId={linkGeneratingId}
+                    linkGeneratingWithTemplate={linkGeneratingWithTemplate}
+                    copyingId={copyingId}
+                    onEdit={setEditingUser}
+                    onCopyCredentials={copyUserCredentials}
+                    onGenerateLoginLink={generateLoginLink}
+                    onToggleDisabled={toggleDisabled}
+                    onDelete={deleteUser}
+                  />
+                </article>
+              ))}
+            </div>
+
+            <div className="admin-table-wrap">
+              <table className="admin-rbac-table">
+                <thead>
+                  <tr>
+                    <th>
+                      <button
+                        type="button"
+                        className="admin-user-sort-btn"
+                        onClick={() => toggleSort("id")}
+                      >
+                        {locale === "zh" ? "ID" : "ID"}
+                        {sortLabel("id")}
+                      </button>
+                    </th>
+                    <th>{locale === "zh" ? "用户名" : "Username"}</th>
+                    <th>{locale === "zh" ? "角色" : "Role"}</th>
+                    <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
+                    <th>{locale === "zh" ? "创建时间（北京时间）" : "Created (Beijing)"}</th>
+                    <th>
+                      <button
+                        type="button"
+                        className="admin-user-sort-btn"
+                        onClick={() => toggleSort("last_login_at")}
+                      >
+                        {locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
+                        {sortLabel("last_login_at")}
+                      </button>
+                    </th>
+                    <th className="admin-user-ip-col">
+                      {locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
+                    </th>
+                    <th>{locale === "zh" ? "状态" : "Status"}</th>
+                    <th>{locale === "zh" ? "操作" : "Actions"}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedUsers.map((row) => (
                     <tr
                       key={row.id}
-                      ref={(node) => {
-                        if (node) rowRefs.current.set(row.id, node);
-                        else rowRefs.current.delete(row.id);
-                      }}
+                      data-admin-user-id={row.id}
                       className={
                         highlightUserId === row.id ? "admin-user-row--highlight" : undefined
                       }
@@ -973,128 +1241,27 @@ function AdminUsersPageContent() {
                             : "Active"}
                       </td>
                       <td>
-                        <div className="admin-user-actions">
-                          {canEdit ? (
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
-                              disabled={busy}
-                              onClick={() => setEditingUser(row)}
-                            >
-                              {locale === "zh" ? "编辑" : "Edit"}
-                            </button>
-                          ) : null}
-                          {canCopyCredentials ? (
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
-                              disabled={busy}
-                              onClick={() => void copyUserCredentials(row)}
-                              title={
-                                locale === "zh"
-                                  ? "复制用户名与密码（密码来自本机缓存；若无则重置后复制）"
-                                  : "Copy username and password (from local cache, or reset first)"
-                              }
-                            >
-                              {copyingId === row.id
-                                ? locale === "zh"
-                                  ? "处理中…"
-                                  : "Working…"
-                                : locale === "zh"
-                                  ? "复制账号密码"
-                                  : "Copy credentials"}
-                            </button>
-                          ) : null}
-                          {canGenerateLink ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-btn"
-                                disabled={busy}
-                                onClick={() => void generateLoginLink(row, false)}
-                                title={
-                                  locale === "zh"
-                                    ? "生成并复制登录链接（不含模板文字）"
-                                    : "Generate and copy login link only"
-                                }
-                              >
-                                {linkGeneratingId === row.id && !linkGeneratingWithTemplate
-                                  ? locale === "zh"
-                                    ? "生成中…"
-                                    : "Generating…"
-                                  : locale === "zh"
-                                    ? "复制链接"
-                                    : "Copy link"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
-                                disabled={busy || !selectedTemplate}
-                                onClick={() => void generateLoginLink(row, true)}
-                                title={
-                                  locale === "zh"
-                                    ? selectedTemplate
-                                      ? `带模板「${selectedTemplate.name}」复制登录链接`
-                                      : "请先在上方添加并选择文字模板"
-                                    : selectedTemplate
-                                      ? `Copy login link with template "${selectedTemplate.name}"`
-                                      : "Add and select a template above first"
-                                }
-                              >
-                                {linkGeneratingId === row.id && linkGeneratingWithTemplate
-                                  ? locale === "zh"
-                                    ? "复制中…"
-                                    : "Copying…"
-                                  : locale === "zh"
-                                    ? "带模板复制"
-                                    : "Copy with template"}
-                              </button>
-                            </>
-                          ) : null}
-                          {canToggle ? (
-                            <button
-                              type="button"
-                              className={`btn-rsi-filter btn-rsi-filter--compact admin-user-btn${
-                                row.disabled
-                                  ? " btn-rsi-filter--success"
-                                  : " btn-rsi-filter--danger"
-                              }`}
-                              disabled={busy}
-                              onClick={() => toggleDisabled(row)}
-                            >
-                              {row.disabled
-                                ? locale === "zh"
-                                  ? "启用"
-                                  : "Enable"
-                                : locale === "zh"
-                                  ? "禁用"
-                                  : "Disable"}
-                            </button>
-                          ) : null}
-                          {canDelete ? (
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger admin-user-btn"
-                              disabled={busy}
-                              onClick={() => void deleteUser(row)}
-                            >
-                              {deletingId === row.id
-                                ? locale === "zh"
-                                  ? "删除中…"
-                                  : "Deleting…"
-                                : locale === "zh"
-                                  ? "删除"
-                                  : "Delete"}
-                            </button>
-                          ) : null}
-                        </div>
+                        <AdminUserActions
+                          row={row}
+                          locale={locale}
+                          currentUserId={currentUser?.id}
+                          selectedTemplate={selectedTemplate}
+                          deletingId={deletingId}
+                          linkGeneratingId={linkGeneratingId}
+                          linkGeneratingWithTemplate={linkGeneratingWithTemplate}
+                          copyingId={copyingId}
+                          onEdit={setEditingUser}
+                          onCopyCredentials={copyUserCredentials}
+                          onGenerateLoginLink={generateLoginLink}
+                          onToggleDisabled={toggleDisabled}
+                          onDelete={deleteUser}
+                        />
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
       </section>
@@ -1484,6 +1651,27 @@ function AdminUsersPageContent() {
         }
         .admin-users-toolbar-sub {
           margin: 0.25rem 0 0;
+        }
+        .admin-users-mobile-sort {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          align-items: center;
+          margin-bottom: 0.85rem;
+        }
+        @media (min-width: 1024px) {
+          .admin-users-mobile-sort {
+            display: none;
+          }
+        }
+        .admin-users-mobile-sort-label {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .admin-user-card .admin-user-actions {
+          margin-top: 0.85rem;
+          padding-top: 0.85rem;
+          border-top: 1px solid var(--border);
         }
         .admin-users-modal-overlay {
           position: fixed;

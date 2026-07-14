@@ -2472,6 +2472,45 @@
     min-height: 2.75rem;
   }
 
+  .admin-users-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .admin-users-toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .admin-users-toolbar-actions .btn-rsi-filter {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .admin-users-mobile-sort {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .admin-users-mobile-sort-btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .admin-user-card .admin-user-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-user-card .admin-user-actions .admin-user-btn {
+    width: 100%;
+    min-height: 2.75rem;
+    white-space: normal;
+  }
+
   /* ── ETR / forms ── */
   .etr-form-actions,
   .etr-auth-form-actions {
