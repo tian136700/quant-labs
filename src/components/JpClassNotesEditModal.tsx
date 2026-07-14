@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
-import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   appendJpVocabClassNoteImageLine,
@@ -24,7 +23,13 @@ import {
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
+import {
+  formatUploadBytes,
+  uploadFormWithProgress,
+  type UploadProgressEvent,
+} from "@/lib/upload-form-progress";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -56,6 +61,28 @@ function pickClipboardImage(items: DataTransferItemList): File | null {
     }
   }
   return null;
+}
+
+function noteImageUploadLabel(event: UploadProgressEvent): string {
+  if (event.phase === "processing") {
+    return "图片已传完，服务器保存中…";
+  }
+  if (event.phase === "done") {
+    return "图片上传完成";
+  }
+  if (event.total > 0) {
+    return `正在上传图片 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
+  }
+  if (event.loaded > 0) {
+    return `正在上传图片 ${formatUploadBytes(event.loaded)}…`;
+  }
+  return "正在上传图片…";
+}
+
+function noteImageUploadPercent(event: UploadProgressEvent): number {
+  if (event.phase === "processing") return 95;
+  if (event.phase === "done") return 100;
+  return Math.max(0, Math.min(92, event.percent));
 }
 
 function jpNotesShareProgressPercent(elapsedMs: number): number {
@@ -124,6 +151,9 @@ export function JpClassNotesEditModal({
     null
   );
   const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState<UploadProgressEvent | null>(
+    null
+  );
   const [editTarget, setEditTarget] = useState<JpVocabClassNoteEditTarget>({ mode: "new" });
   const dirtyRef = useRef(false);
   const lastSavedDraftRef = useRef("");
@@ -133,6 +163,7 @@ export function JpClassNotesEditModal({
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const imageUploadingRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wordRef = useRef(word);
   const pollInFlightRef = useRef(false);
@@ -159,7 +190,9 @@ export function JpClassNotesEditModal({
       setError("");
       setSaveStatus("idle");
       setShareProgress(null);
+      imageUploadingRef.current = false;
       setImageUploading(false);
+      setImageUploadProgress(null);
 
       if (canEdit && entries.length > 0) {
         const latestIndex = entries.length - 1;
@@ -466,44 +499,61 @@ export function JpClassNotesEditModal({
 
   const uploadNoteImage = useCallback(
     async (file: File) => {
-      if (!canEdit || imageUploading) return;
+      if (!canEdit) return;
+      // 同步锁：避免连贴/连点时 React state 尚未更新导致并发上传打爆 Worker（1102）
+      if (imageUploadingRef.current) {
+        setError("请等待当前图片上传完成后再传下一张");
+        return;
+      }
+      imageUploadingRef.current = true;
       setImageUploading(true);
+      setImageUploadProgress({
+        phase: "uploading",
+        percent: 0,
+        loaded: 0,
+        total: file.size,
+      });
       setError("");
       try {
         const form = new FormData();
         form.set("file", file);
-        const res = await fetch("/api/jp-vocab/class-notes/upload", {
-          method: "POST",
+        const result = await uploadFormWithProgress({
+          url: "/api/jp-vocab/class-notes/upload",
+          form,
           headers: { [LOCALE_HEADER]: locale },
-          credentials: "include",
-          body: form,
+          onProgress: setImageUploadProgress,
         });
-        const parsed = await readApiJson<{
-          ok: boolean;
+        const data = (result.data ?? {}) as {
+          ok?: boolean;
           view_path?: string;
           error?: string;
-        }>(res);
-        if (!parsed.ok) {
-          throw new Error(parsed.error);
-        }
-        const data = parsed.data;
-        if (parsed.status === 401) {
+        };
+        if (result.status === 401) {
           onNeedAuth();
           return;
         }
-        if (!data.ok || !data.view_path) {
+        if (!result.ok || !data.ok || !data.view_path) {
           throw new Error(data.error || "图片上传失败");
         }
+        setImageUploadProgress({
+          phase: "done",
+          percent: 100,
+          loaded: file.size,
+          total: file.size,
+        });
         const viewPath = data.view_path;
         dirtyRef.current = true;
         setDraft((prev) => appendJpVocabClassNoteImageLine(prev, viewPath));
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
+        setImageUploadProgress(null);
       } finally {
+        imageUploadingRef.current = false;
         setImageUploading(false);
+        setImageUploadProgress(null);
       }
     },
-    [canEdit, imageUploading, locale, onNeedAuth]
+    [canEdit, locale, onNeedAuth]
   );
 
   const handleImageFile = useCallback(
@@ -518,15 +568,21 @@ export function JpClassNotesEditModal({
   );
 
   const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!canEdit || imageUploading) return;
+    if (!canEdit) return;
     const file = pickClipboardImage(e.clipboardData.items);
     if (!file) return;
     e.preventDefault();
+    if (imageUploadingRef.current) {
+      setError("请等待当前图片上传完成后再传下一张");
+      return;
+    }
     void uploadNoteImage(file);
   };
 
   useEffect(() => {
     if (!open || !canEdit || !word) return;
+    // 图片上传进行中不触发自动保存，避免与上传请求叠压 Worker
+    if (imageUploading) return;
 
     if (!draft.trim()) {
       setSaveStatus((s) => (s === "pending" ? "saved" : s));
@@ -547,7 +603,7 @@ export function JpClassNotesEditModal({
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [draft, open, canEdit, flushSave]);
+  }, [draft, open, canEdit, flushSave, imageUploading]);
 
   const handleShare = async () => {
     const current = wordRef.current;
@@ -760,13 +816,16 @@ export function JpClassNotesEditModal({
                       {imageUploading ? "上传中…" : "上传图片"}
                     </button>
                     <span className="jp-notes-edit-compose-hint">
-                      支持 Ctrl+V / ⌘V 粘贴截图
+                      {imageUploading
+                        ? "上传完成前不可再贴图或选图"
+                        : "支持 Ctrl+V / ⌘V 粘贴截图"}
                     </span>
                     <input
                       ref={imageInputRef}
                       type="file"
                       accept="image/*"
                       className="jp-notes-edit-image-input"
+                      disabled={imageUploading}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         e.target.value = "";
@@ -774,6 +833,13 @@ export function JpClassNotesEditModal({
                       }}
                     />
                   </div>
+                  {imageUploading && imageUploadProgress ? (
+                    <JpVocabSaveProgressBar
+                      label={noteImageUploadLabel(imageUploadProgress)}
+                      percent={noteImageUploadPercent(imageUploadProgress)}
+                      fullWidth
+                    />
+                  ) : null}
                   <textarea
                     ref={textareaRef}
                     className="jp-notes-edit-textarea"
