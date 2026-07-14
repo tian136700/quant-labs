@@ -116,7 +116,11 @@ export function EnClassNotesEditModal({
         setHistoryEntries(parseEnVocabClassNotes(data.word.class_notes));
         return;
       }
-      if (data.word.updated_at !== wordRef.current?.updated_at) {
+      const local = wordRef.current;
+      const notesChanged =
+        (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
+      const stampChanged = data.word.updated_at !== local?.updated_at;
+      if (notesChanged || stampChanged) {
         onSaved(data.word);
         setHistoryEntries(parseEnVocabClassNotes(data.word.class_notes));
       }

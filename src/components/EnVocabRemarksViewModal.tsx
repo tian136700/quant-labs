@@ -48,14 +48,18 @@ export function EnVocabRemarksViewModal({
       );
       const data = (await res.json()) as { ok: boolean; word?: EnVocabWord };
       if (!data.ok || !data.word) return;
-      if (data.word.updated_at !== displayWord?.updated_at) {
+      // Shared/sync list payloads may omit class_notes; hydrate when body differs.
+      const notesChanged =
+        (data.word.class_notes ?? null) !== (displayWord?.class_notes ?? null);
+      const stampChanged = data.word.updated_at !== displayWord?.updated_at;
+      if (notesChanged || stampChanged) {
         setDisplayWord(data.word);
         onWordUpdated?.(data.word);
       }
     } catch {
       /* ignore */
     }
-  }, [displayWord?.updated_at, locale, onWordUpdated, open, word]);
+  }, [displayWord?.class_notes, displayWord?.updated_at, locale, onWordUpdated, open, word]);
 
   useEffect(() => {
     if (!open || !word) return;

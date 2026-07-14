@@ -201,7 +201,12 @@ export function JpClassNotesEditModal({
         setHistoryEntries(parseJpVocabClassNotes(data.word.class_notes));
         return;
       }
-      if (data.word.updated_at !== wordRef.current?.updated_at) {
+      const local = wordRef.current;
+      // Lite list payloads omit class_notes; hydrate when body differs, not only stamp.
+      const notesChanged =
+        (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
+      const stampChanged = data.word.updated_at !== local?.updated_at;
+      if (notesChanged || stampChanged) {
         onSaved(data.word);
         setHistoryEntries(parseJpVocabClassNotes(data.word.class_notes));
       }

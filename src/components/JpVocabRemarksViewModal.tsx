@@ -74,7 +74,13 @@ export function JpVocabRemarksViewModal({
       );
       const data = (await res.json()) as { ok: boolean; word?: JpVocabWord };
       if (!data.ok || !data.word) return;
-      if (data.word.updated_at !== displayWordRef.current?.updated_at) {
+      const local = displayWordRef.current;
+      // Shared/sync list payloads often omit class_notes (null + class_notes_present).
+      // Must hydrate when notes body differs, not only when updated_at changes.
+      const notesChanged =
+        (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
+      const stampChanged = data.word.updated_at !== local?.updated_at;
+      if (notesChanged || stampChanged) {
         setDisplayWord(data.word);
         onWordUpdated?.(data.word);
       }
