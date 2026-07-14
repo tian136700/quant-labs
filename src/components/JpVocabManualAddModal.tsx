@@ -8,6 +8,7 @@ import {
   jpVocabRefKeyFromBytes,
   sha256HexBytes,
 } from "@/lib/jp-vocab-ref-shared";
+import { findDuplicateJpVocabExamplePrimaries } from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -158,6 +159,19 @@ export function JpVocabManualAddModal({
     if (!trimmedWord) {
       setError("请填写单词或语法。");
       return;
+    }
+
+    const duplicateExamples = findDuplicateJpVocabExamplePrimaries(exampleSentences);
+    if (duplicateExamples.length > 0) {
+      const listed = duplicateExamples.map((s) => `「${s}」`).join("\n");
+      if (
+        !window.confirm(
+          `检测到重复的日语例句，请查证后再保存：\n\n${listed}\n\n仍要强制保存吗？`
+        )
+      ) {
+        setError(`例句重复，请查证后再保存：${duplicateExamples.join("；")}`);
+        return;
+      }
     }
 
     setSubmitting(true);

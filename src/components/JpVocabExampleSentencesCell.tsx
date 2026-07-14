@@ -20,11 +20,21 @@ export function JpVocabExampleSentencesCell({
     <div className="jp-vocab-example-sentences">
       {blocks.map((block) => (
         <div key={block.index} className="jp-vocab-example-sentences-block">
-          {block.lines.map((line, lineIndex) => (
-            <div key={lineIndex} className="jp-vocab-example-sentences-line">
-              {lineIndex === 0 ? `${block.index}. ${line}` : line}
-            </div>
-          ))}
+          {block.lines.map((line, lineIndex) => {
+            const showIndex = lineIndex === 0 && line.kind === "primary";
+            return (
+              <div
+                key={lineIndex}
+                className={
+                  line.kind === "gloss"
+                    ? "jp-vocab-example-sentences-line jp-vocab-example-sentences-line--gloss"
+                    : "jp-vocab-example-sentences-line"
+                }
+              >
+                {showIndex ? `${block.index}. ${line.text}` : line.text}
+              </div>
+            );
+          })}
         </div>
       ))}
     </div>

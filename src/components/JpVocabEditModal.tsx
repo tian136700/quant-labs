@@ -10,6 +10,7 @@ import {
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
+import { findDuplicateJpVocabExamplePrimaries } from "@/lib/jp-vocab-example-sentences";
 import { formatUploadBytes, uploadFormWithProgress, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -325,6 +326,23 @@ export function JpVocabEditModal({
       return;
     }
 
+    const duplicateExamples = findDuplicateJpVocabExamplePrimaries(exampleSentences);
+    if (duplicateExamples.length > 0) {
+      const listed = duplicateExamples.map((s) => `「${s}」`).join("\n");
+      const message =
+        locale === "zh"
+          ? `检测到重复的日语例句，请查证后再保存：\n\n${listed}\n\n仍要强制保存吗？`
+          : `Duplicate example sentences found. Please review before saving:\n\n${listed}\n\nSave anyway?`;
+      if (!window.confirm(message)) {
+        setError(
+          locale === "zh"
+            ? `例句重复，请查证后再保存：${duplicateExamples.join("；")}`
+            : `Duplicate examples: ${duplicateExamples.join("; ")}`
+        );
+        return;
+      }
+    }
+
     setError("");
     setRefError("");
 
@@ -543,7 +561,7 @@ export function JpVocabEditModal({
                 onChange={(e) => setExampleSentences(e.target.value)}
               />
               <p className="jp-vocab-edit-hint">
-                保存后会在「课堂带读」列表中展示；日语抽问表格不显示此列。
+                日语例句占 1、2、3…；下一行汉语/英文译义不占序号。两条例句完全相同会在保存前提醒查证。课堂带读列表会展示；日语抽问表格不显示此列。
               </p>
             </div>
 
