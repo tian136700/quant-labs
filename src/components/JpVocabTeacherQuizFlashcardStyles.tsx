@@ -568,6 +568,53 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           padding-top: 0.15rem;
           border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
         }
+        .jp-vocab-teacher-quiz__examples {
+          padding: 0.55rem 0.7rem;
+          border-radius: 10px;
+          border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+        }
+        .jp-vocab-teacher-quiz__examples-title {
+          margin: 0 0 0.4rem;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--accent);
+        }
+        .jp-vocab-teacher-quiz__examples-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+        .jp-vocab-teacher-quiz__examples-item {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 0.35rem 0.45rem;
+          align-items: baseline;
+        }
+        .jp-vocab-teacher-quiz__examples-index {
+          font-size: 0.95rem;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: var(--accent);
+        }
+        .jp-vocab-teacher-quiz__examples-text {
+          font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+          font-weight: 600;
+          line-height: 1.55;
+          letter-spacing: 0.02em;
+          color: var(--text);
+          word-break: break-word;
+        }
+        .jp-vocab-teacher-quiz__examples-empty {
+          margin: 0;
+          font-size: 0.8125rem;
+          line-height: 1.4;
+          color: var(--muted);
+          font-style: italic;
+        }
         .jp-vocab-teacher-quiz__notes {
           padding: 0.45rem 0.6rem;
           border-radius: 10px;

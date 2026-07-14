@@ -27,6 +27,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import { jpVocabCoachLevelLabel } from "@/lib/jp-vocab-coach";
+import { parseJpVocabExampleSentences } from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -229,6 +230,9 @@ export function JpVocabTeacherQuizFlashcardModal({
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
+  const coachExampleSentences = isCoach
+    ? parseJpVocabExampleSentences(w.example_sentences)
+    : [];
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
   const coachExportLevel = isCoach ? coachLevelByWordId?.get(w.id) : undefined;
@@ -491,6 +495,26 @@ export function JpVocabTeacherQuizFlashcardModal({
             </div>
           ) : null}
         </section>
+
+        {isCoach ? (
+          <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
+            <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
+            {coachExampleSentences.length > 0 ? (
+              <ol className="jp-vocab-teacher-quiz__examples-list">
+                {coachExampleSentences.map((sentence, index) => (
+                  <li key={`${index}-${sentence}`} className="jp-vocab-teacher-quiz__examples-item">
+                    <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
+                      {index + 1}.
+                    </span>
+                    <span className="jp-vocab-teacher-quiz__examples-text">{sentence}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="jp-vocab-teacher-quiz__examples-empty">暂无例句</p>
+            )}
+          </section>
+        ) : null}
 
         <div className="jp-vocab-teacher-quiz__level">
           {isCoach ? (
