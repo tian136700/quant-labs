@@ -83,7 +83,7 @@ type UserRow = {
   last_login_ip?: string | null;
 };
 
-type UserSortField = "id" | "last_login_at";
+type UserSortField = "id" | "last_login_at" | "disabled";
 type UserSortDirection = "asc" | "desc";
 
 function compareNullableText(a: string | null | undefined, b: string | null | undefined): number {
@@ -107,6 +107,12 @@ function sortUsers(
       return diff === 0
         ? a.username.localeCompare(b.username, undefined, { sensitivity: "base" }) * factor
         : diff * factor;
+    }
+
+    if (field === "disabled") {
+      // asc: 正常 → 已禁用；desc: 已禁用 → 正常
+      const diff = Number(a.disabled) - Number(b.disabled);
+      return diff === 0 ? (a.id - b.id) * factor : diff * factor;
     }
 
     const aTime = a.last_login_at ? parseStoredUtcDateTimeMs(a.last_login_at) : Number.NaN;
@@ -1109,6 +1115,16 @@ function AdminUsersPageContent() {
                 {locale === "zh" ? "最近登录" : "Last login"}
                 {sortLabel("last_login_at")}
               </button>
+              <button
+                type="button"
+                className={`btn-rsi-filter btn-rsi-filter--compact admin-users-mobile-sort-btn${
+                  sortField === "disabled" ? " btn-rsi-filter--primary" : ""
+                }`}
+                onClick={() => toggleSort("disabled")}
+              >
+                {locale === "zh" ? "状态" : "Status"}
+                {sortLabel("disabled")}
+              </button>
             </div>
 
             <div className="admin-cards">
@@ -1212,7 +1228,16 @@ function AdminUsersPageContent() {
                     <th className="admin-user-ip-col">
                       {locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
                     </th>
-                    <th>{locale === "zh" ? "状态" : "Status"}</th>
+                    <th>
+                      <button
+                        type="button"
+                        className="admin-user-sort-btn"
+                        onClick={() => toggleSort("disabled")}
+                      >
+                        {locale === "zh" ? "状态" : "Status"}
+                        {sortLabel("disabled")}
+                      </button>
+                    </th>
                     <th>{locale === "zh" ? "操作" : "Actions"}</th>
                   </tr>
                 </thead>

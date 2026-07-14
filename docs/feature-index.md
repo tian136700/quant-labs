@@ -140,6 +140,7 @@
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 用户列表、关联日语老师、创建/禁用/登录链接 | `AdminUsersPage.tsx`；`GET/PATCH /api/admin/users` |
+| **列表排序**（ID / 最近登录 / **状态**正常↔已禁用；手机端排序按钮同字段） | `AdminUsersPage.tsx` → `sortUsers`、`toggleSort`、`UserSortField` |
 | **手机端用户卡片**（&lt; lg 显示卡片 + 排序；桌面端表格） | `AdminUsersPage.tsx` → `admin-cards` / `admin-table-wrap`；`mobile.css` |
 | **复制账号密码**（含日语子域名 `/jp-vocab` 入口） | `AdminUsersPage.tsx` → `copyUserCredentials`；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` + `jpVocabPath()`） |
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
