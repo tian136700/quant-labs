@@ -539,7 +539,7 @@ export function JpVocabEditModal({
                 rows={3}
                 value={exampleSentences}
                 disabled={!canEdit}
-                placeholder="每行一条例句，例如：彼は毎日勉強している。"
+                placeholder="日语例句与下一行汉语意思可成对写。例：&#10;日本語を習います。&#10;我学习日语。&#10;ピアノを習いたいです。&#10;我想学钢琴。"
                 onChange={(e) => setExampleSentences(e.target.value)}
               />
               <p className="jp-vocab-edit-hint">

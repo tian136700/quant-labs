@@ -31,7 +31,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import { jpVocabCoachLevelLabel } from "@/lib/jp-vocab-coach";
-import { parseJpVocabExampleSentences } from "@/lib/jp-vocab-example-sentences";
+import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -240,7 +240,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
-  const exampleSentences = parseJpVocabExampleSentences(w.example_sentences);
+  const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
   const showExamples = isCoach || exampleSentences.length > 0;
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
@@ -528,12 +528,27 @@ export function JpVocabTeacherQuizFlashcardModal({
             <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
             {exampleSentences.length > 0 ? (
               <ol className="jp-vocab-teacher-quiz__examples-list">
-                {exampleSentences.map((sentence, index) => (
-                  <li key={`${index}-${sentence}`} className="jp-vocab-teacher-quiz__examples-item">
+                {exampleSentences.map((item, index) => (
+                  <li
+                    key={`${index}-${item.text}`}
+                    className="jp-vocab-teacher-quiz__examples-item"
+                  >
                     <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
                       {index + 1}.
                     </span>
-                    <span className="jp-vocab-teacher-quiz__examples-text">{sentence}</span>
+                    <span className="jp-vocab-teacher-quiz__examples-text">
+                      <span className="jp-vocab-teacher-quiz__examples-primary">
+                        {item.text}
+                      </span>
+                      {item.glossLines.map((gloss, glossIndex) => (
+                        <span
+                          key={`${index}-gloss-${glossIndex}`}
+                          className="jp-vocab-teacher-quiz__examples-gloss"
+                        >
+                          {gloss}
+                        </span>
+                      ))}
+                    </span>
                   </li>
                 ))}
               </ol>

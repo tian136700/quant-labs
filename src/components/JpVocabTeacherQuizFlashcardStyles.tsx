@@ -664,12 +664,20 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: var(--accent);
         }
         .jp-vocab-teacher-quiz__examples-text {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
           font-size: clamp(1.05rem, 3.8vw, 1.25rem);
           font-weight: 600;
           line-height: 1.55;
           letter-spacing: 0.02em;
           color: var(--text);
           word-break: break-word;
+        }
+        .jp-vocab-teacher-quiz__examples-gloss {
+          font-size: 0.9em;
+          font-weight: 500;
+          color: var(--muted);
         }
         .jp-vocab-teacher-quiz__examples-empty {
           margin: 0;
