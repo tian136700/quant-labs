@@ -712,10 +712,11 @@ export function JpLessonSchedulePage() {
   const visibleEvents =
     viewMode === "day" ? dayEvents : viewMode === "week" ? weekEvents : monthEvents;
 
-  const visibleDurationTotals = useMemo(() => {
+  /** 历史总计：全部已排课（不限当前日/周/月视图） */
+  const historicalDurationTotals = useMemo(() => {
     let jpMinutes = 0;
     let enMinutes = 0;
-    for (const event of visibleEvents) {
+    for (const event of allEvents) {
       if (event.subject === "jp") {
         jpMinutes += event.durationMinutes;
         continue;
@@ -740,7 +741,7 @@ export function JpLessonSchedulePage() {
       enMinutes,
       totalMinutes: jpMinutes + enMinutes,
     };
-  }, [visibleEvents]);
+  }, [allEvents]);
 
   useEffect(() => {
     const pool =
@@ -1280,22 +1281,22 @@ export function JpLessonSchedulePage() {
         <div className="jpls-toolbar-right">
           <div
             className="jpls-duration-totals"
-            aria-label={`当前视图上课时间：日语${formatLessonScheduleDurationLabel(visibleDurationTotals.jpMinutes)}，英语${formatLessonScheduleDurationLabel(visibleDurationTotals.enMinutes)}，总计${formatLessonScheduleDurationLabel(visibleDurationTotals.totalMinutes)}`}
+            aria-label={`历史总计上课时间：日语${formatLessonScheduleDurationLabel(historicalDurationTotals.jpMinutes)}，英语${formatLessonScheduleDurationLabel(historicalDurationTotals.enMinutes)}，总计${formatLessonScheduleDurationLabel(historicalDurationTotals.totalMinutes)}`}
           >
             <span className="jpls-legend jpls-duration-total">
               <span className="jpls-legend-dot jpls-legend-dot--jp" />
               日语{" "}
-              <strong>{formatLessonScheduleDurationLabel(visibleDurationTotals.jpMinutes)}</strong>
+              <strong>{formatLessonScheduleDurationLabel(historicalDurationTotals.jpMinutes)}</strong>
             </span>
             <span className="jpls-legend jpls-duration-total">
               <span className="jpls-legend-dot jpls-legend-dot--en" />
               英语{" "}
-              <strong>{formatLessonScheduleDurationLabel(visibleDurationTotals.enMinutes)}</strong>
+              <strong>{formatLessonScheduleDurationLabel(historicalDurationTotals.enMinutes)}</strong>
             </span>
             <span className="jpls-legend jpls-duration-total jpls-duration-total--sum">
               总计{" "}
               <strong>
-                {formatLessonScheduleDurationLabel(visibleDurationTotals.totalMinutes)}
+                {formatLessonScheduleDurationLabel(historicalDurationTotals.totalMinutes)}
               </strong>
             </span>
             <span className="jpls-legend" title="手动添加的日程">
