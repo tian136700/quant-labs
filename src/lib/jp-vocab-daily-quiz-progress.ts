@@ -40,20 +40,22 @@ export function computeJpVocabDailyQuizProgress(
 }
 
 /**
- * 老师端页面进度：分母 = 当前页面可操作词条数（与列表可见池一致）；
- * 分子 = 其中已勾选熟悉程度的数量。完成后只展示「已完成」，避免显示全天累计造成「谁抽的」困惑。
+ * 老师端页面进度：分母 = 待抽查词数（未勾选 + 本会话刚勾选）；
+ * 不按 1 小时锁定统计。已勾过的不进分母。完成后只展示「已完成」。
  */
 export function computeJpVocabTeacherPageQuizProgress(
-  operableWords: ReadonlyArray<{ id: number }>,
+  pendingWords: ReadonlyArray<{ id: number }>,
   hasLevel: (wordId: number) => boolean,
-  options?: { forceComplete?: boolean }
+  options?: {
+    forceComplete?: boolean;
+  }
 ): JpVocabDailyQuizProgress {
   if (options?.forceComplete) {
     return { total: 0, checked: 0, remaining: 0, complete: true };
   }
-  const total = operableWords.length;
+  const total = pendingWords.length;
   let checked = 0;
-  for (const word of operableWords) {
+  for (const word of pendingWords) {
     if (hasLevel(word.id)) checked += 1;
   }
   const remaining = Math.max(0, total - checked);

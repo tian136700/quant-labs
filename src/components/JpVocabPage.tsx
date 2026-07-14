@@ -115,7 +115,6 @@ import {
 import {
   isJpVocabWordInDailyQuizTarget,
   isJpVocabWordQuizCheckedToday,
-  isJpVocabWordHiddenBeforeTargetAdjustment,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
@@ -927,65 +926,49 @@ export function JpVocabPage() {
   );
 
   /**
-   * 老师端可操作词池：今日序号 1–N、未锁定；
-   * 开启「隐藏已抽查」且刚调高目标时，还去掉调整前已勾选的词（与列表一致）。
+   * 老师「待抽查」词池：今日序号 1–N 内尚未勾选熟悉程度的词；
+   * 本会话刚勾选的仍保留（可改选、进度分子可涨）。
+   * 不按 1 小时锁定统计——已勾过的（别人的或更早的）一律不进列表、不进总分。
    */
-  const teacherOperableWords = useMemo(() => {
-    const now = new Date(reviewLockNow);
-    let pool = displayedWords.filter(
-      (w) =>
-        isWordInQuizTarget(w.id) &&
-        !isWordReviewLocked(w, sessionReviewAt[w.id])
-    );
-    if (
-      teacherVisibleLimit.hide_checked_today !== false &&
-      teacherVisibleLimit.quiz_target_adjusted_at
-    ) {
-      const adjustedAt = teacherVisibleLimit.quiz_target_adjusted_at;
-      pool = pool.filter(
-        (w) => !isJpVocabWordHiddenBeforeTargetAdjustment(w, adjustedAt, now)
-      );
-    }
-    return pool;
-  }, [
-    displayedWords,
-    isWordInQuizTarget,
-    isWordReviewLocked,
-    sessionReviewAt,
-    reviewLockNow,
-    teacherVisibleLimit.hide_checked_today,
-    teacherVisibleLimit.quiz_target_adjusted_at,
-  ]);
-
-  const teacherOperableWordIds = useMemo(
-    () => new Set(teacherOperableWords.map((w) => w.id)),
-    [teacherOperableWords]
+  const teacherPendingWords = useMemo(
+    () =>
+      displayedWords.filter(
+        (w) =>
+          isWordInQuizTarget(w.id) &&
+          (!quizWordHasLevel(w.id) || sessionLevel[w.id] != null)
+      ),
+    [displayedWords, isWordInQuizTarget, quizWordHasLevel, sessionLevel]
   );
 
-  /** 老师看页面可操作进度；管理员仍看全天目标进度 */
+  const teacherPendingWordIds = useMemo(
+    () => new Set(teacherPendingWords.map((w) => w.id)),
+    [teacherPendingWords]
+  );
+
+  /** 老师看待抽查进度（分母=待抽查数）；管理员仍看全天目标进度 */
   const displayQuizProgress = useMemo(() => {
     if (isAdmin) return dailyQuizProgress;
     return computeJpVocabTeacherPageQuizProgress(
-      teacherOperableWords,
+      teacherPendingWords,
       quizWordHasLevel,
       {
         forceComplete:
           dailyQuizProgress.complete ||
           (quizTarget > 0 &&
-            teacherOperableWords.length === 0 &&
+            teacherPendingWords.length === 0 &&
             dailyQuizProgress.checked > 0),
       }
     );
   }, [
     isAdmin,
     dailyQuizProgress,
-    teacherOperableWords,
+    teacherPendingWords,
     quizWordHasLevel,
     quizTarget,
   ]);
 
   const searchActive = searchQuery.trim().length > 0;
-  /** 老师端隐藏不可操作行（进行中：仅见今日序号内且未锁定；已完成：展示今日已抽查列表） */
+  /** 老师端隐藏不可操作行（进行中：仅见待抽查；已完成：展示今日已抽查列表） */
   const hideInoperableRows = canOperate && !isAdmin;
 
   const searchMatchedWords = useMemo(
@@ -1001,14 +984,14 @@ export function JpVocabPage() {
         isJpVocabWordQuizCheckedToday(w, displayOrder, now)
       );
     }
-    return searchMatchedWords.filter((w) => teacherOperableWordIds.has(w.id));
+    return searchMatchedWords.filter((w) => teacherPendingWordIds.has(w.id));
   }, [
     hideInoperableRows,
     searchMatchedWords,
     dailyQuizProgress.complete,
     displayOrder,
     reviewLockNow,
-    teacherOperableWordIds,
+    teacherPendingWordIds,
   ]);
 
   const totalPages = Math.max(
@@ -1096,20 +1079,14 @@ export function JpVocabPage() {
     dailyQuizProgress.total,
   ]);
 
-  const unmarkedCount = useMemo(() => {
-    const pool = quizTargetWords.filter(
-      (w) => !isWordReviewLocked(w, sessionReviewAt[w.id])
-    );
-    return pool.filter(
-      (w) => !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
-    ).length;
-  }, [
-    quizTargetWords,
-    sessionLevel,
-    displayOrder,
-    sessionReviewAt,
-    isWordReviewLocked,
-  ]);
+  const unmarkedCount = useMemo(
+    () =>
+      quizTargetWords.filter(
+        (w) =>
+          !effectiveJpVocabDisplayLevel(w, sessionLevel[w.id], { displayOrder })
+      ).length,
+    [quizTargetWords, sessionLevel, displayOrder]
+  );
 
   /** 复习合计为 0：历史上从未勾选过熟悉程度 */
   const neverQuizzedCount = useMemo(

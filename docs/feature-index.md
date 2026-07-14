@@ -35,14 +35,14 @@
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
 | 管理员设今日抽查数量（进度条内输入框 + 确认设置；决定老师端序号 1–N 可勾选） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**finance / japanese 共用 D1**，但 **localStorage 按域名隔离**，老师端靠 `/api/jp-vocab/sync` 轮询拉 `teacher_visible_limit`（非 BroadcastChannel） |
 | **老师端正序/随机抽查卡片**（开始前弹出操作说明；今日序号 1–N 熟悉程度**仅能在卡片内勾选**；卡片内可**发给学生**；已发送后勾选仅更新熟悉程度、不重复同步；**开始/随机抽查队列只含未勾选词**（调高目标如 50→60 后从剩余未抽查起，正序按序号、随机在剩余中洗牌；已抽过的不进卡片）；刷新/掉线后自动回到**第一个未勾选**词卡片，进行中不展示列表） | `JpVocabPage.tsx` → `requestTeacherQuizSession`、`recordLevel(..., "flashcard")`、`shareWord`、`hideTeacherQuizList`、`teacherQuizLocksTable`；**管理员**在列表内直接改熟悉程度，不弹正序/随机抽查框；`JpVocabTeacherQuizIntroModal.tsx`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-teacher-quiz.ts` → `createJpVocabTeacherQuizSession`、`filterJpVocabTeacherQuizUncheckedWords`、`expandJpVocabTeacherQuizSessionForTarget`、`resolveJpVocabTeacherQuizRefreshResumeIndex`；`jp-vocab-teacher-quiz-storage.ts`；`jp-vocab-share-ui.ts` |
-| **老师端列表隐藏不可操作行**（进行中：非管理员老师仅见今日序号 1–N 且未锁定的词条；**已完成**：展示今日已抽查列表，含已锁定词条） | `JpVocabPage.tsx` → `hideInoperableRows`（`canOperate && !isAdmin`）、`filteredDisplayedWords` |
+| **老师端列表隐藏不可操作行**（进行中：非管理员老师仅见今日序号 1–N 内**尚未勾选**的词条，本会话刚勾选仍可见；**已完成**：展示今日已抽查列表） | `JpVocabPage.tsx` → `hideInoperableRows`、`teacherPendingWords`、`filteredDisplayedWords` |
 | **老师端序号 1–N 可操作**（列表内超出今日抽查数量的序号熟悉程度/发给学生禁用；管理员仍见全库） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInDailyQuizTarget`；`JpVocabDailyQuizProgressBar.tsx` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | **今日共享列表本地缓存**（打开立刻显示；后台刷新；跨日自动失效） | `jp-vocab-study-cache.ts`；`JpVocabStudyPage.tsx` → `loadShared`；Worker 内短缓存 `listJpVocabSharedToday`（`jp-vocab-db.ts`） |
 | 学生点「查看老师正在抽查的单词」、老师卡片提示已自行查看 | `JpVocabStudyPage.tsx` → `peekTeacherQuizWord`；`POST /api/jp-vocab/teacher-quiz-live`（学生自行查看时写入 `jp_vocab_shared`，老师后续勾选不重复发送）；`JpVocabPage.tsx` → `syncTeacherQuizLiveWord`、`studentPeekedCurrentWord`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-db.ts` → `peekJpVocabTeacherQuizLiveWord`、`setJpVocabTeacherQuizLiveWord`；`jp-vocab-teacher-quiz-live.ts` |
 | 老师右下角 toast（学生协助请求；淡入 → 停留 5 秒 → 淡出） | `JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
-| 今日抽查进度条（老师=当前可操作数；管理员=全天目标；完成后只显示「已完成」） / 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；`jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`、`computeJpVocabTeacherPageQuizProgress()`；`JpVocabPage.tsx` → `displayQuizProgress`；弹窗仅在本会话「未完成→已完成」时显示一次（`jp-vocab-daily-complete-dismiss.ts` 按日期+目标数记录） |
+| 今日抽查进度条（老师=待抽查数，不按 1 小时锁定；管理员=全天目标；完成后只显示「已完成」） / 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；`jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`、`computeJpVocabTeacherPageQuizProgress()`；`JpVocabPage.tsx` → `displayQuizProgress`、`teacherPendingWords`；弹窗仅在本会话「未完成→已完成」时显示一次（`jp-vocab-daily-complete-dismiss.ts` 按日期+目标数记录） |
 | 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
 | **手机端排序 / 操作栏折叠**（表头隐藏时提供「默认顺序 / 抽查优先级 / 当日序号」；操作按钮默认收起，点「展开操作」才显示导出等） | `JpVocabPage.tsx` → `toggleStatSort`、`restoreDailyRowOrder`、`mobileToolbarExpanded`；`mobile.css` |
 | **导出 Word**（全部数据 / 今日未掌握；导出序号 1. 2. 3.…、日语、读音、类型单词/语法；词条分块、备注图片三列；图片 ≥4 张独占一页；不含熟悉程度与巧记） | `JpVocabPage.tsx` → `runExport`；`JpVocabExportChoiceModal.tsx`；`jp-vocab-export.ts` → `exportJpVocabToWord` |
@@ -64,13 +64,13 @@
 
 | 用户描述或页面文案 | 优先打开 |
 |--------------------|----------|
-| 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx`（**管理员**看全天目标；**老师**看当前页可操作数，完成后只显示「已完成」） |
-| 共 X 条、从未抽查、本轮未勾选 | `JpVocabPage.tsx`（`neverQuizzedCount` = 复习合计 0；老师端列表仅显示可操作行；`unmarkedCount` 仅统计序号 1–N） |
+| 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx`（**管理员**看全天目标；**老师**看待抽查数，剩 10 就显示总分 10，完成后只显示「已完成」） |
+| 共 X 条、从未抽查、本轮未勾选 | `JpVocabPage.tsx`（`neverQuizzedCount` = 复习合计 0；老师端列表仅显示待抽查；`unmarkedCount` 仅统计序号 1–N 未勾选） |
 | 序号超出今日抽查数量不可勾选 | `isJpVocabWordInDailyQuizTarget`；`JpVocabPage.tsx` → `inQuizTarget` |
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`；`JpVocabPage.tsx` → `quizTarget` |
-| 调高目标后老师勾选词条消失 | 老师列表隐藏不可操作行，管理员仍见全库 |
+| 调高目标后老师勾选词条消失 | 老师列表只显示未勾选，管理员仍见全库 |
 | 调高抽查数量后开始抽查仍从序号 1 起、已抽过的还出现在卡片 | `jp-vocab-teacher-quiz.ts` → `filterJpVocabTeacherQuizUncheckedWords`；`JpVocabPage.tsx` → `requestTeacherQuizSession`（队列仅未勾选） |
-| 下午老师看到 30/40 疑惑谁抽的 | `computeJpVocabTeacherPageQuizProgress`；`JpVocabPage.tsx` → `displayQuizProgress`（老师进度=当前可操作词） |
+| 下午老师看到 3/13（其实只剩 10 没抽） | `teacherPendingWords`：只计未勾选，不按 1 小时锁定 |
 | 老师搜索 | `JpVocabPage.tsx` → `searchMatchedWords` 扫全库，`filteredDisplayedWords` 老师端再滤掉不可操作行 |
 | 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |
 
