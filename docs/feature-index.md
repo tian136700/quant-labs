@@ -34,7 +34,7 @@
 |----------|--------|
 | 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
 | 管理员设今日抽查数量（进度条内输入框 + 确认设置；决定老师端序号 1–N 可勾选） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**finance / japanese 共用 D1**，但 **localStorage 按域名隔离**，老师端靠 `/api/jp-vocab/sync` 轮询拉 `teacher_visible_limit`（非 BroadcastChannel） |
-| **老师端正序/随机抽查卡片**（开始前弹出操作说明；今日序号 1–N 熟悉程度**仅能在卡片内勾选**；卡片内可**发给学生**；已发送后勾选仅更新熟悉程度、不重复同步；刷新/掉线后自动回到**第一个未勾选**词卡片，进行中不展示列表） | `JpVocabPage.tsx` → `recordLevel(..., "flashcard")`、`shareWord`、`hideTeacherQuizList`、`teacherQuizLocksTable`；**管理员**在列表内直接改熟悉程度，不弹正序/随机抽查框；`JpVocabTeacherQuizIntroModal.tsx`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-teacher-quiz.ts` → `resolveJpVocabTeacherQuizRefreshResumeIndex`；`jp-vocab-teacher-quiz-storage.ts`；`jp-vocab-share-ui.ts` |
+| **老师端正序/随机抽查卡片**（开始前弹出操作说明；今日序号 1–N 熟悉程度**仅能在卡片内勾选**；卡片内可**发给学生**；已发送后勾选仅更新熟悉程度、不重复同步；**开始/随机抽查队列只含未勾选词**（调高目标如 50→60 后从剩余未抽查起，正序按序号、随机在剩余中洗牌；已抽过的不进卡片）；刷新/掉线后自动回到**第一个未勾选**词卡片，进行中不展示列表） | `JpVocabPage.tsx` → `requestTeacherQuizSession`、`recordLevel(..., "flashcard")`、`shareWord`、`hideTeacherQuizList`、`teacherQuizLocksTable`；**管理员**在列表内直接改熟悉程度，不弹正序/随机抽查框；`JpVocabTeacherQuizIntroModal.tsx`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-teacher-quiz.ts` → `createJpVocabTeacherQuizSession`、`filterJpVocabTeacherQuizUncheckedWords`、`expandJpVocabTeacherQuizSessionForTarget`、`resolveJpVocabTeacherQuizRefreshResumeIndex`；`jp-vocab-teacher-quiz-storage.ts`；`jp-vocab-share-ui.ts` |
 | **老师端列表隐藏不可操作行**（进行中：非管理员老师仅见今日序号 1–N 且未锁定的词条；**已完成**：展示今日已抽查列表，含已锁定词条） | `JpVocabPage.tsx` → `hideInoperableRows`（`canOperate && !isAdmin`）、`filteredDisplayedWords` |
 | **老师端序号 1–N 可操作**（列表内超出今日抽查数量的序号熟悉程度/发给学生禁用；管理员仍见全库） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInDailyQuizTarget`；`JpVocabDailyQuizProgressBar.tsx` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
@@ -69,6 +69,7 @@
 | 序号超出今日抽查数量不可勾选 | `isJpVocabWordInDailyQuizTarget`；`JpVocabPage.tsx` → `inQuizTarget` |
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`；`JpVocabPage.tsx` → `quizTarget` |
 | 调高目标后老师勾选词条消失 | 老师列表隐藏不可操作行，管理员仍见全库 |
+| 调高抽查数量后开始抽查仍从序号 1 起、已抽过的还出现在卡片 | `jp-vocab-teacher-quiz.ts` → `filterJpVocabTeacherQuizUncheckedWords`；`JpVocabPage.tsx` → `requestTeacherQuizSession`（队列仅未勾选） |
 | 老师搜索 | `JpVocabPage.tsx` → `searchMatchedWords` 扫全库，`filteredDisplayedWords` 老师端再滤掉不可操作行 |
 | 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |
 

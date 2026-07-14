@@ -51,6 +51,7 @@ import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQui
 import {
   createJpVocabTeacherQuizSession,
   expandJpVocabTeacherQuizSessionForTarget,
+  filterJpVocabTeacherQuizUncheckedWords,
   isJpVocabTeacherQuizSessionComplete,
   reconcileJpVocabTeacherQuizSession,
   resolveJpVocabTeacherQuizRefreshResumeIndex,
@@ -837,7 +838,8 @@ export function JpVocabPage() {
     const expanded = expandJpVocabTeacherQuizSessionForTarget(
       reconciled,
       quizTargetWords,
-      dailySeqByWordId
+      dailySeqByWordId,
+      quizWordHasLevel
     );
 
     if (canOperate && !isAdmin) {
@@ -872,19 +874,40 @@ export function JpVocabPage() {
     persistQuizSession(quizSession);
   }, [quizSession, persistQuizSession]);
 
-  /** 管理员调高今日抽查数量后，补全进行中的抽查卡片词表（如 20 → 30） */
+  /** 管理员调高今日抽查数量后：只把新增的未勾选词补进进行中的抽查队列 */
   useEffect(() => {
     if (!quizSession || quizTargetWords.length === 0) return;
-    if (quizSession.wordIds.length >= quizTargetWords.length) return;
+    const sessionSet = new Set(quizSession.wordIds);
+    const hasNewUnchecked = filterJpVocabTeacherQuizUncheckedWords(
+      quizTargetWords,
+      quizWordHasLevel
+    ).some((w) => !sessionSet.has(w.id));
+    if (!hasNewUnchecked) return;
     setQuizSession((prev) => {
-      if (!prev || prev.wordIds.length >= quizTargetWords.length) return prev;
-      return expandJpVocabTeacherQuizSessionForTarget(
+      if (!prev) return prev;
+      const next = expandJpVocabTeacherQuizSessionForTarget(
         prev,
         quizTargetWords,
-        dailySeqByWordId
+        dailySeqByWordId,
+        quizWordHasLevel
       );
+      if (
+        next.mode === prev.mode &&
+        next.currentIndex === prev.currentIndex &&
+        next.wordIds.length === prev.wordIds.length &&
+        next.wordIds.every((id, i) => id === prev.wordIds[i])
+      ) {
+        return prev;
+      }
+      return next;
     });
-  }, [quizTarget, quizTargetWords, dailySeqByWordId, quizSession?.wordIds.length]);
+  }, [
+    quizTarget,
+    quizTargetWords,
+    dailySeqByWordId,
+    quizWordHasLevel,
+    quizSession,
+  ]);
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) =>
@@ -1093,12 +1116,13 @@ export function JpVocabPage() {
         mode,
         quizTargetWords,
         dailySeqByWordId,
-        startWordId
+        startWordId,
+        quizWordHasLevel
       );
       if (!next) {
         setStatus(
           quizTarget > 0
-            ? `今日序号 1–${quizTarget} 内暂无可抽查词条。`
+            ? `今日序号 1–${quizTarget} 内暂无未抽查词条（已抽过的不会再进入抽查卡片）。`
             : "请管理员先设置今日抽查数量。"
         );
         return;
@@ -1110,7 +1134,14 @@ export function JpVocabPage() {
       }
       launchTeacherQuizSession(next);
     },
-    [quizTargetWords, dailySeqByWordId, quizTarget, user, launchTeacherQuizSession]
+    [
+      quizTargetWords,
+      dailySeqByWordId,
+      quizTarget,
+      quizWordHasLevel,
+      user,
+      launchTeacherQuizSession,
+    ]
   );
 
   const handleTeacherQuizIntroConfirm = useCallback(() => {
@@ -2773,6 +2804,7 @@ export function JpVocabPage() {
         savingWordId={quizFlashcardSavingWordId}
         wordSyncState={wordSyncState}
         dailySeqByWordId={dailySeqByWordId}
+        dailyQuizProgress={dailyQuizProgress}
         canOperate={canOperate}
         shareUiEnabled={JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy}
         shareProgressMap={shareProgressMap}

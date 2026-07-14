@@ -19,6 +19,10 @@ import {
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
 import {
+  jpVocabDailyQuizProgressDisplayChecked,
+  type JpVocabDailyQuizProgress,
+} from "@/lib/jp-vocab-daily-quiz-progress";
+import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
   type JpVocabSaveProgressKind,
@@ -55,6 +59,8 @@ type Props = {
   savingWordId: number | null;
   wordSyncState?: Record<number, "queued" | "syncing">;
   dailySeqByWordId: ReadonlyMap<number, number>;
+  /** 今日抽查进度（队列仅含未抽查词时，进度条仍按今日目标 已抽/总数 展示） */
+  dailyQuizProgress?: JpVocabDailyQuizProgress | null;
   canOperate?: boolean;
   shareUiEnabled?: boolean;
   shareProgressMap?: Record<number, number>;
@@ -94,6 +100,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   savingWordId,
   wordSyncState = {},
   dailySeqByWordId,
+  dailyQuizProgress = null,
   canOperate = false,
   shareUiEnabled = false,
   shareProgressMap = {},
@@ -238,7 +245,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
   const coachExportLevel = isCoach ? coachLevelByWordId?.get(w.id) : undefined;
-  const uncheckedCount = isCoach
+  const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
     : session.wordIds.reduce((count, id) => {
         const item = wordsById.get(id);
@@ -248,6 +255,10 @@ export function JpVocabTeacherQuizFlashcardModal({
           ? count + 1
           : count;
       }, 0);
+  const useDailyProgress = !isCoach && dailyQuizProgress != null && dailyQuizProgress.total > 0;
+  const uncheckedCount = useDailyProgress
+    ? dailyQuizProgress.remaining
+    : sessionUncheckedCount;
   const remainingLabel = isCoach
     ? locale === "zh"
       ? `还剩 ${uncheckedCount} 个未带读`
@@ -255,17 +266,23 @@ export function JpVocabTeacherQuizFlashcardModal({
     : locale === "zh"
       ? `还剩 ${uncheckedCount} 个未抽查`
       : `${uncheckedCount} left to quiz`;
-  const sessionTotal = session.wordIds.length;
+  const sessionTotal = useDailyProgress
+    ? dailyQuizProgress.total
+    : session.wordIds.length;
   const sessionChecked = isCoach
     ? session.currentIndex + 1
-    : Math.max(0, sessionTotal - uncheckedCount);
+    : useDailyProgress
+      ? jpVocabDailyQuizProgressDisplayChecked(dailyQuizProgress)
+      : Math.max(0, session.wordIds.length - sessionUncheckedCount);
   const sessionPct =
     sessionTotal > 0
       ? Math.min(100, Math.round((sessionChecked / sessionTotal) * 100))
       : 0;
   const sessionComplete = isCoach
-    ? session.currentIndex >= sessionTotal - 1
-    : sessionTotal > 0 && uncheckedCount === 0;
+    ? session.currentIndex >= session.wordIds.length - 1
+    : useDailyProgress
+      ? dailyQuizProgress.complete
+      : session.wordIds.length > 0 && sessionUncheckedCount === 0;
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;

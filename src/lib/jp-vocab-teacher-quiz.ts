@@ -37,6 +37,14 @@ export function sortJpVocabQuizTargetWordsByDailySeq(
   });
 }
 
+/** 抽查队列只保留尚未勾选熟悉程度的词（已抽过的不再进入卡片） */
+export function filterJpVocabTeacherQuizUncheckedWords(
+  words: JpVocabWord[],
+  hasLevel: (wordId: number) => boolean
+): JpVocabWord[] {
+  return words.filter((w) => !hasLevel(w.id));
+}
+
 export function buildJpVocabTeacherQuizWordIds(
   mode: JpVocabTeacherQuizMode,
   quizTargetWords: JpVocabWord[],
@@ -50,15 +58,54 @@ export function buildJpVocabTeacherQuizWordIds(
   return mode === "random" ? shuffleWordIds(ids) : ids;
 }
 
+function clampSessionIndex(
+  wordIds: number[],
+  preferredWordId: number | undefined,
+  fallbackIndex: number
+): number {
+  if (!wordIds.length) return 0;
+  if (preferredWordId != null) {
+    const found = wordIds.indexOf(preferredWordId);
+    if (found >= 0) return found;
+  }
+  return Math.max(0, Math.min(fallbackIndex, wordIds.length - 1));
+}
+
+/**
+ * 从会话中剔除已勾选词；可选保留当前正在看的词（方便改选熟悉程度后再点「下一个」）。
+ * 无剩余词时返回 null。
+ */
+export function pruneJpVocabTeacherQuizSessionChecked(
+  session: JpVocabTeacherQuizSession,
+  hasLevel: (wordId: number) => boolean,
+  options?: { keepWordId?: number | null }
+): JpVocabTeacherQuizSession | null {
+  const keepWordId = options?.keepWordId ?? null;
+  const wordIds = session.wordIds.filter(
+    (id) => !hasLevel(id) || id === keepWordId
+  );
+  if (!wordIds.length) return null;
+  const currentWordId = session.wordIds[session.currentIndex];
+  return {
+    mode: session.mode,
+    wordIds,
+    currentIndex: clampSessionIndex(wordIds, currentWordId, 0),
+  };
+}
+
 export function createJpVocabTeacherQuizSession(
   mode: JpVocabTeacherQuizMode,
   quizTargetWords: JpVocabWord[],
   dailySeqByWordId: ReadonlyMap<number, number>,
-  startWordId?: number
+  startWordId?: number,
+  hasLevel?: (wordId: number) => boolean
 ): JpVocabTeacherQuizSession | null {
+  const pool = hasLevel
+    ? filterJpVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
+    : quizTargetWords;
   const wordIds = buildJpVocabTeacherQuizWordIds(
     mode,
-    quizTargetWords,
+    pool,
     dailySeqByWordId
   );
   if (!wordIds.length) return null;
@@ -84,59 +131,80 @@ export function reconcileJpVocabTeacherQuizSession(
   const wordIds = session.wordIds.filter((id) => validWordIds.has(id));
   if (!wordIds.length) return null;
   const currentWordId = session.wordIds[session.currentIndex];
-  const currentIndex =
-    currentWordId != null
-      ? Math.max(0, wordIds.indexOf(currentWordId))
-      : Math.min(session.currentIndex, wordIds.length - 1);
   return {
     mode: session.mode,
     wordIds,
-    currentIndex: currentIndex >= 0 ? currentIndex : 0,
+    currentIndex: clampSessionIndex(wordIds, currentWordId, session.currentIndex),
   };
 }
 
 /**
- * 管理员调高今日抽查数量后，把进行中的抽查会话补全到最新目标词表（保留当前词与已抽查进度）。
+ * 管理员调高今日抽查数量后，把进行中的抽查会话补全到最新目标词表。
+ * 传入 hasLevel 时：队列只保留未勾选词（含新增目标内的未抽查词），已抽过的不再出现。
  */
 export function expandJpVocabTeacherQuizSessionForTarget(
   session: JpVocabTeacherQuizSession,
   quizTargetWords: JpVocabWord[],
-  dailySeqByWordId: ReadonlyMap<number, number>
+  dailySeqByWordId: ReadonlyMap<number, number>,
+  hasLevel?: (wordId: number) => boolean
 ): JpVocabTeacherQuizSession {
+  const pool = hasLevel
+    ? filterJpVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
+    : quizTargetWords;
   const targetIds = buildJpVocabTeacherQuizWordIds(
     session.mode,
-    quizTargetWords,
+    pool,
     dailySeqByWordId
   );
-  if (!targetIds.length) return session;
-  if (session.wordIds.length >= targetIds.length) {
-    return reconcileJpVocabTeacherQuizSession(
-      session,
-      new Set(targetIds)
-    ) ?? session;
+  if (!targetIds.length) {
+    if (!hasLevel) return session;
+    return (
+      pruneJpVocabTeacherQuizSessionChecked(session, hasLevel) ?? session
+    );
   }
 
   const currentWordId = session.wordIds[session.currentIndex];
   let wordIds: number[];
 
-  if (session.mode === "sequential") {
-    wordIds = targetIds;
+  if (hasLevel) {
+    // 未勾选池即为完整待抽查队列；正序用序号序，随机保留未完成项并追加新增
+    if (session.mode === "sequential") {
+      wordIds = targetIds;
+    } else {
+      const targetSet = new Set(targetIds);
+      const kept = session.wordIds.filter(
+        (id) => targetSet.has(id) && !hasLevel(id)
+      );
+      const inSession = new Set(kept);
+      wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
+    }
   } else {
-    const targetSet = new Set(targetIds);
-    const kept = session.wordIds.filter((id) => targetSet.has(id));
-    const inSession = new Set(kept);
-    wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
+    if (session.wordIds.length >= targetIds.length) {
+      return (
+        reconcileJpVocabTeacherQuizSession(session, new Set(targetIds)) ??
+        session
+      );
+    }
+    if (session.mode === "sequential") {
+      wordIds = targetIds;
+    } else {
+      const targetSet = new Set(targetIds);
+      const kept = session.wordIds.filter((id) => targetSet.has(id));
+      const inSession = new Set(kept);
+      wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
+    }
   }
 
-  const currentIndex =
-    currentWordId != null
-      ? Math.max(0, wordIds.indexOf(currentWordId))
-      : Math.min(session.currentIndex, wordIds.length - 1);
+  // 当前词若已勾选（或不在未勾选池中），落到第一个待抽查词
+  const preferredId =
+    currentWordId != null && (!hasLevel || !hasLevel(currentWordId))
+      ? currentWordId
+      : undefined;
 
   return {
     mode: session.mode,
     wordIds,
-    currentIndex: currentIndex >= 0 ? currentIndex : 0,
+    currentIndex: clampSessionIndex(wordIds, preferredId, 0),
   };
 }
 
