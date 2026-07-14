@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   beijingTodayDateString,
   formatNextClassHalfHourLabel,
@@ -13,6 +15,7 @@ import {
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
 } from "@/lib/jp-lesson-shared";
+import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { JpLessonClassScheduleInput, JpLessonRecord } from "@/lib/types";
 
 type Props = {
@@ -77,6 +80,7 @@ export function JpLessonNextClassEditModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
+  const saveProgress = useSaveProgressBar(saving);
 
   const timeOptions = useMemo(
     () =>
@@ -259,6 +263,14 @@ export function JpLessonNextClassEditModal({
           </p>
         </fieldset>
 
+        {saveProgress.visible ? (
+          <JpVocabSaveProgressBar
+            label={jpVocabSaveProgressLabel("save")}
+            percent={saveProgress.percent}
+            fullWidth
+          />
+        ) : null}
+
         <div className="jp-lesson-next-class-actions">
           <button
             type="button"
@@ -282,7 +294,7 @@ export function JpLessonNextClassEditModal({
             disabled={saving}
             onClick={handleSave}
           >
-            {saving ? "保存中…" : "保存"}
+            保存
           </button>
         </div>
       </div>

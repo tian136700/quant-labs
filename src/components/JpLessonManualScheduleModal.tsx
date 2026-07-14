@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
   JpLessonTeacherSinglePicker,
 } from "@/components/JpLessonTeacherSinglePicker";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
+import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import type { JpLessonManualSchedule, JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
+import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import {
   detectScheduleTeacherSubjectFromTitle,
   scheduleTeacherPickerListForSubject,
@@ -34,6 +37,7 @@ type Props = {
   enTeachers?: JpLessonTeacher[];
   onAddJpTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onAddEnTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
+  saving?: boolean;
   onClose: () => void;
   onSave: (draft: JpLessonManualScheduleDraft) => void;
 };
@@ -87,6 +91,7 @@ export function JpLessonManualScheduleModal({
   enTeachers = [],
   onAddJpTeacher,
   onAddEnTeacher,
+  saving = false,
   onClose,
   onSave,
 }: Props) {
@@ -98,6 +103,8 @@ export function JpLessonManualScheduleModal({
   const [teacher, setTeacher] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
+  const saveInitiatedRef = useRef(false);
+  const saveProgress = useSaveProgressBar(saving);
 
   const timeOptions = useMemo(
     () =>
@@ -113,7 +120,10 @@ export function JpLessonManualScheduleModal({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      saveInitiatedRef.current = false;
+      return;
+    }
     const next = draftFromSchedule(editing, initialDate);
     setTitle(next.title);
     setDate(next.date);
@@ -122,7 +132,14 @@ export function JpLessonManualScheduleModal({
     setTeacher(next.teacher);
     setNote(next.note);
     setError("");
+    saveInitiatedRef.current = false;
   }, [open, editing, initialDate]);
+
+  useEffect(() => {
+    if (!saving) {
+      saveInitiatedRef.current = false;
+    }
+  }, [saving]);
 
   const teacherSubject = useMemo(
     () => detectScheduleTeacherSubjectFromTitle(title),
@@ -156,6 +173,11 @@ export function JpLessonManualScheduleModal({
         : "选择系统老师，或输入后添加";
 
   const handleSave = () => {
+    if (saving || saveInitiatedRef.current) {
+      setError("正在提交，请勿重复提交");
+      return;
+    }
+
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError("请填写日程标题");
@@ -172,6 +194,8 @@ export function JpLessonManualScheduleModal({
       return;
     }
 
+    saveInitiatedRef.current = true;
+    setError("");
     onSave({
       title: trimmedTitle,
       class_at: classAt,
@@ -194,7 +218,9 @@ export function JpLessonManualScheduleModal({
     <div
       className="jp-lesson-next-class-overlay"
       role="presentation"
-      onClick={onClose}
+      onClick={() => {
+        if (!saving) onClose();
+      }}
     >
       <div
         className="jp-lesson-next-class-modal"
@@ -214,13 +240,14 @@ export function JpLessonManualScheduleModal({
             type="button"
             className="jp-lesson-next-class-close"
             aria-label="关闭"
+            disabled={saving}
             onClick={onClose}
           >
             ×
           </button>
         </div>
 
-        <fieldset className="jp-lesson-next-class-fieldset">
+        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
           <legend>
             {showFullFields ? "日程信息（北京时间，整点 / 半点）" : "上课时间（北京时间，整点 / 半点）"}
           </legend>
@@ -319,13 +346,27 @@ export function JpLessonManualScheduleModal({
           )}
         </fieldset>
 
+        {saveProgress.visible ? (
+          <JpVocabSaveProgressBar
+            label={jpVocabSaveProgressLabel("save")}
+            percent={saveProgress.percent}
+            fullWidth
+          />
+        ) : null}
+
         <div className="jp-lesson-next-class-actions">
-          <button type="button" className="jp-lesson-action-btn" onClick={onClose}>
+          <button
+            type="button"
+            className="jp-lesson-action-btn"
+            disabled={saving}
+            onClick={onClose}
+          >
             取消
           </button>
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
+            disabled={saving}
             onClick={handleSave}
           >
             保存

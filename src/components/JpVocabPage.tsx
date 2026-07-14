@@ -1304,7 +1304,10 @@ export function JpVocabPage() {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
-    if (wordSyncState[wordId]) return;
+    if (wordSyncState[wordId]) {
+      setStatus("正在提交，请勿重复提交");
+      return;
+    }
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -1499,7 +1502,10 @@ export function JpVocabPage() {
       setStatus("勾选已满 1 小时，无法再发给学生。");
       return;
     }
-    if (wordSyncState[wordId]) return;
+    if (wordSyncState[wordId]) {
+      setStatus("正在提交，请勿重复提交");
+      return;
+    }
     if (sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日已共享。");
       return;
@@ -1630,7 +1636,10 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (wordSyncState[wordId]) return;
+    if (wordSyncState[wordId]) {
+      setStatus("正在提交，请勿重复提交");
+      return;
+    }
     if (!sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日尚未共享。");
       return;

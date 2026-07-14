@@ -383,6 +383,8 @@ export function JpLessonSchedulePage() {
   const [statusMessage, setStatusMessage] = useState("");
   const sidebarPanelsRef = useRef<HTMLDivElement>(null);
   const calendarRef = useRef<HTMLElement>(null);
+  const savingManualScheduleRef = useRef(false);
+  const savingNextClassRef = useRef<number | null>(null);
 
   useEffect(() => {
     document.title = "日程管理";
@@ -791,10 +793,17 @@ export function JpLessonSchedulePage() {
   const handleSaveManualSchedule = async (
     draft: Parameters<typeof createJpLessonManualSchedule>[0]
   ) => {
+    if (savingManualScheduleRef.current) {
+      setStatusMessage("正在提交，请勿重复提交");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+      return;
+    }
+    savingManualScheduleRef.current = true;
     setSavingManualSchedule(true);
     setError("");
+    const isEditing = editingManual != null;
     try {
-      const saved = editingManual
+      const saved = isEditing
         ? await updateJpLessonManualSchedule(editingManual.id, draft)
         : await createJpLessonManualSchedule(draft);
       if (!saved) {
@@ -802,7 +811,7 @@ export function JpLessonSchedulePage() {
         return;
       }
       setManualSchedules((prev) => {
-        const next = editingManual
+        const next = isEditing
           ? prev.map((item) => (item.id === saved.id ? saved : item))
           : [...prev, saved];
         const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
@@ -811,9 +820,12 @@ export function JpLessonSchedulePage() {
       });
       setSelectedEventKey(`manual-${saved.id}`);
       closeManualModal();
+      setStatusMessage(isEditing ? "手动日程已保存" : "手动日程已添加");
+      window.setTimeout(() => setStatusMessage(""), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      savingManualScheduleRef.current = false;
       setSavingManualSchedule(false);
     }
   };
@@ -946,13 +958,19 @@ export function JpLessonSchedulePage() {
     lessonId: number,
     schedules: JpLessonClassScheduleInput[]
   ) => {
-    if (!isAdmin || savingNextClassId === lessonId) return;
+    if (!isAdmin) return;
+    if (savingNextClassRef.current === lessonId || savingNextClassId === lessonId) {
+      setStatusMessage("正在提交，请勿重复提交");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+      return;
+    }
 
     const normalized = schedules.map((item) => ({
       class_at: item.class_at.trim(),
       duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
     }));
 
+    savingNextClassRef.current = lessonId;
     setSavingNextClassId(lessonId);
 
     try {
@@ -985,6 +1003,7 @@ export function JpLessonSchedulePage() {
       setStatusMessage(err instanceof Error ? err.message : "保存失败");
       window.setTimeout(() => setStatusMessage(""), 3500);
     } finally {
+      savingNextClassRef.current = null;
       setSavingNextClassId(null);
     }
   };
@@ -993,13 +1012,19 @@ export function JpLessonSchedulePage() {
     lessonId: number,
     schedules: EnLessonClassScheduleInput[]
   ) => {
-    if (!isAdmin || savingNextClassId === lessonId) return;
+    if (!isAdmin) return;
+    if (savingNextClassRef.current === lessonId || savingNextClassId === lessonId) {
+      setStatusMessage("正在提交，请勿重复提交");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+      return;
+    }
 
     const normalized = schedules.map((item) => ({
       class_at: item.class_at.trim(),
       duration_minutes: normalizeEnClassDurationMinutes(item.duration_minutes),
     }));
 
+    savingNextClassRef.current = lessonId;
     setSavingNextClassId(lessonId);
 
     try {
@@ -1032,6 +1057,7 @@ export function JpLessonSchedulePage() {
       setStatusMessage(err instanceof Error ? err.message : "保存失败");
       window.setTimeout(() => setStatusMessage(""), 3500);
     } finally {
+      savingNextClassRef.current = null;
       setSavingNextClassId(null);
     }
   };
@@ -1673,6 +1699,7 @@ export function JpLessonSchedulePage() {
         enTeachers={enTeachers}
         onAddJpTeacher={addLessonTeacher}
         onAddEnTeacher={addEnLessonTeacher}
+        saving={savingManualSchedule}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
       />
