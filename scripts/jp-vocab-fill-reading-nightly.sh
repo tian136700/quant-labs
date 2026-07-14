@@ -7,6 +7,7 @@ CONFIG_DIR="${HOME}/.config/info-quests"
 REVIEW_ENV_FILE="${CONFIG_DIR}/jp-review-sync.env"
 ENV_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.env"
 LOCK_DIR="${CONFIG_DIR}/jp-vocab-fill-reading.lock.d"
+STATE_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.last_success"
 
 if [[ -f "$REVIEW_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -25,6 +26,10 @@ fi
 PYTHON_BIN="${JP_VOCAB_FILL_READING_PYTHON:-python3}"
 JISHO="${JP_VOCAB_FILL_READING_JISHO:-1}"
 JISHO_DELAY_MS="${JP_VOCAB_FILL_READING_JISHO_DELAY_MS:-350}"
+# 锁超过该秒数仍未释放 → 视为残留锁并回收（默认 30 分钟）
+LOCK_STALE_SECONDS="${JP_VOCAB_FILL_READING_LOCK_STALE_SECONDS:-1800}"
+# last_success 超过该秒数未更新 → 打 WARNING（默认 2 小时）
+SUCCESS_STALE_SECONDS="${JP_VOCAB_FILL_READING_SUCCESS_STALE_SECONDS:-7200}"
 
 FILL_ARGS=(--allow-skipped "--jisho-delay-ms=$JISHO_DELAY_MS")
 if [[ "$JISHO" == "0" || "$JISHO" == "false" || "$JISHO" == "no" ]]; then
@@ -33,19 +38,19 @@ fi
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "$(date '+%F %T') fill-reading: already running, skip"
-  exit 0
-fi
+# shellcheck source=scripts/lib/dirlock.sh
+source "$ROOT/scripts/lib/dirlock.sh"
+
+dirlock_warn_if_success_stale "$STATE_FILE" "fill-reading" "$SUCCESS_STALE_SECONDS"
 # 不能用 exec：否则 bash 被替换，EXIT trap 不会跑，锁目录会永久残留
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+dirlock_acquire "$LOCK_DIR" "fill-reading" "$LOCK_STALE_SECONDS"
 
 cd "$ROOT"
 echo "$(date '+%F %T') fill-reading: start"
 "$PYTHON_BIN" "$ROOT/scripts/jp-vocab-fill-reading-api.py" "${FILL_ARGS[@]}"
 status=$?
 if [[ "$status" -eq 0 ]]; then
-  date +%s > "${CONFIG_DIR}/jp-vocab-fill-reading.last_success"
+  date +%s > "$STATE_FILE"
   echo "$(date '+%F %T') fill-reading: done"
 else
   echo "$(date '+%F %T') fill-reading: FAILED (exit $status)" >&2

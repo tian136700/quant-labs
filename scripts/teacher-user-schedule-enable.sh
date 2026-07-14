@@ -42,11 +42,10 @@ if [[ "$FORCE" != "1" ]]; then
   fi
 fi
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  echo "$(date '+%F %T') teacher-user-schedule-enable: already running, skip"
-  exit 0
-fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+# shellcheck source=scripts/lib/dirlock.sh
+source "$ROOT/scripts/lib/dirlock.sh"
+dirlock_acquire "$LOCK_DIR" "teacher-user-schedule-enable" \
+  "${TEACHER_USER_SCHEDULE_ENABLE_LOCK_STALE_SECONDS:-1800}"
 
 cd "$ROOT"
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then

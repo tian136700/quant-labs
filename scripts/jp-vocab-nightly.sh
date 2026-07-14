@@ -9,6 +9,7 @@ ENV_FILE="${CONFIG_DIR}/jp-vocab-fill-reading.env"
 STATE_FILE="${CONFIG_DIR}/jp-vocab-nightly.last_success"
 LOCK_DIR="${CONFIG_DIR}/jp-vocab-nightly.lock.d"
 LOCK_WAIT_SECONDS="${JP_VOCAB_NIGHTLY_LOCK_WAIT_SECONDS:-${JP_VOCAB_FILL_READING_LOCK_WAIT_SECONDS:-0}}"
+LOCK_STALE_SECONDS="${JP_VOCAB_NIGHTLY_LOCK_STALE_SECONDS:-${JP_VOCAB_FILL_READING_LOCK_STALE_SECONDS:-1800}}"
 
 if [[ -f "$REVIEW_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -36,10 +37,23 @@ FILL_ARGS+=("--jisho-delay-ms=$JISHO_DELAY_MS")
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
+# shellcheck source=scripts/lib/dirlock.sh
+source "$ROOT/scripts/lib/dirlock.sh"
+
 if [[ "$LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] && [[ "$LOCK_WAIT_SECONDS" -gt 0 ]]; then
   echo "$(date '+%F %T') nightly: waiting lock (max ${LOCK_WAIT_SECONDS}s)..."
   waited=0
-  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  while true; do
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+      echo $$ >"${LOCK_DIR}/pid"
+      date +%s >"${LOCK_DIR}/started_at"
+      # shellcheck disable=SC2064
+      trap 'rm -f "${LOCK_DIR}/pid" "${LOCK_DIR}/started_at" 2>/dev/null || true; rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
+      break
+    fi
+    if dirlock_try_reclaim "$LOCK_DIR" "nightly" "$LOCK_STALE_SECONDS"; then
+      continue
+    fi
     if [[ "$waited" -ge "$LOCK_WAIT_SECONDS" ]]; then
       echo "$(date '+%F %T') nightly: lock wait timeout after ${LOCK_WAIT_SECONDS}s, skip"
       exit 0
@@ -48,12 +62,8 @@ if [[ "$LOCK_WAIT_SECONDS" =~ ^[0-9]+$ ]] && [[ "$LOCK_WAIT_SECONDS" -gt 0 ]]; t
     waited=$((waited + 2))
   done
 else
-  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    echo "$(date '+%F %T') nightly: already running, wait disabled, skip"
-    exit 0
-  fi
+  dirlock_acquire "$LOCK_DIR" "nightly" "$LOCK_STALE_SECONDS"
 fi
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 cd "$ROOT"
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
