@@ -65,6 +65,8 @@ type Props = {
   mode?: "quiz" | "coach";
   /** 课堂带读：导出时熟悉程度快照 */
   coachLevelByWordId?: ReadonlyMap<number, JpVocabLevel>;
+  /** 课堂带读：点「已带读，下一个」时标记 */
+  onMarkCoached?: (wordId: number) => void;
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
@@ -111,6 +113,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   onUnshare,
   onWordUpdated,
   nestedModalOpen = false,
+  onMarkCoached,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
@@ -230,9 +233,8 @@ export function JpVocabTeacherQuizFlashcardModal({
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
-  const coachExampleSentences = isCoach
-    ? parseJpVocabExampleSentences(w.example_sentences)
-    : [];
+  const exampleSentences = parseJpVocabExampleSentences(w.example_sentences);
+  const showExamples = isCoach || exampleSentences.length > 0;
   const dailySeq = dailySeqByWordId.get(w.id);
   const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
   const coachExportLevel = isCoach ? coachLevelByWordId?.get(w.id) : undefined;
@@ -297,6 +299,9 @@ export function JpVocabTeacherQuizFlashcardModal({
       return;
     }
     if (isSaving) return;
+    if (isCoach) {
+      onMarkCoached?.(w.id);
+    }
     if (canGoNext) {
       onNavigate(session.currentIndex + 1);
     } else {
@@ -307,7 +312,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   return createPortal(
     <div className="jp-vocab-teacher-quiz-overlay" role="presentation">
       <article
-        className="jp-vocab-teacher-quiz-card"
+        className={`jp-vocab-teacher-quiz-card${isCoach ? " jp-vocab-teacher-quiz-card--coach" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="jp-vocab-teacher-quiz-title"
@@ -396,6 +401,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           </div>
         </header>
 
+        <div className="jp-vocab-teacher-quiz__scroll-body">
         {studentPeeked && !isCoach ? (
           <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
             该学生已查看该单词
@@ -496,12 +502,12 @@ export function JpVocabTeacherQuizFlashcardModal({
           ) : null}
         </section>
 
-        {isCoach ? (
+        {showExamples ? (
           <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
             <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
-            {coachExampleSentences.length > 0 ? (
+            {exampleSentences.length > 0 ? (
               <ol className="jp-vocab-teacher-quiz__examples-list">
-                {coachExampleSentences.map((sentence, index) => (
+                {exampleSentences.map((sentence, index) => (
                   <li key={`${index}-${sentence}`} className="jp-vocab-teacher-quiz__examples-item">
                     <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
                       {index + 1}.
@@ -515,6 +521,51 @@ export function JpVocabTeacherQuizFlashcardModal({
             )}
           </section>
         ) : null}
+
+        {hasNotes || canOperate ? (
+          <section className="jp-vocab-teacher-quiz__notes">
+            <div className="jp-vocab-teacher-quiz__notes-head">
+              <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
+              <div className="jp-vocab-teacher-quiz__notes-actions">
+                {hasNotes ? (
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                    onClick={() => onViewRemarks(w)}
+                  >
+                    查看
+                  </button>
+                ) : null}
+                {canOperate ? (
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
+                    title="编辑备注"
+                    onClick={() => onEditRemarks?.(w)}
+                  >
+                    编辑备注
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {hasNotes ? (
+              notesInline ? (
+                <div className="jp-vocab-teacher-quiz__notes-body">
+                  <JpVocabClassNoteContent
+                    content={formatJpVocabClassNotesForDisplay(w.class_notes)}
+                  />
+                </div>
+              ) : (
+                <p className="jp-vocab-teacher-quiz__notes-preview">备注较长，请点「查看」</p>
+              )
+            ) : (
+              <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
+                暂无备注
+              </p>
+            )}
+          </section>
+        ) : null}
+        </div>
 
         <div className="jp-vocab-teacher-quiz__level">
           {isCoach ? (
@@ -658,50 +709,6 @@ export function JpVocabTeacherQuizFlashcardModal({
           ) : null}
         </div>
 
-        {hasNotes || canOperate ? (
-          <section className="jp-vocab-teacher-quiz__notes">
-            <div className="jp-vocab-teacher-quiz__notes-head">
-              <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
-              <div className="jp-vocab-teacher-quiz__notes-actions">
-                {hasNotes ? (
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
-                    onClick={() => onViewRemarks(w)}
-                  >
-                    查看
-                  </button>
-                ) : null}
-                {canOperate ? (
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
-                    title="编辑备注"
-                    onClick={() => onEditRemarks?.(w)}
-                  >
-                    编辑备注
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            {hasNotes ? (
-              notesInline ? (
-                <div className="jp-vocab-teacher-quiz__notes-body">
-                  <JpVocabClassNoteContent
-                    content={formatJpVocabClassNotesForDisplay(w.class_notes)}
-                  />
-                </div>
-              ) : (
-                <p className="jp-vocab-teacher-quiz__notes-preview">备注较长，请点「查看」</p>
-              )
-            ) : (
-              <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
-                暂无备注
-              </p>
-            )}
-          </section>
-        ) : null}
-
         <div className="jp-vocab-teacher-quiz__nav">
           <button
             type="button"
@@ -720,7 +727,13 @@ export function JpVocabTeacherQuizFlashcardModal({
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
-              {isLast ? (isCoach ? "完成带读" : "完成抽查") : "下一个"}
+              {isLast
+                ? isCoach
+                  ? "完成带读"
+                  : "完成抽查"
+                : isCoach
+                  ? "已带读，下一个"
+                  : "下一个"}
             </span>
             {!isLast && !isCoach ? (
               <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>

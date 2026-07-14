@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
@@ -11,14 +11,13 @@ import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQui
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { readApiJson } from "@/lib/api-json";
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import {
   JP_VOCAB_COACH_RETENTION_DAYS,
-  isJpVocabCoachDateWithinRetention,
   jpVocabCoachLevelLabel,
-  resolveJpVocabCoachDefaultDate,
+  jpVocabCoachStatusLabel,
+  markJpVocabCoachCoachedClient,
 } from "@/lib/jp-vocab-coach";
-import type { JpVocabCoachBatchSummary, JpVocabCoachItem } from "@/lib/jp-vocab-coach-db";
+import type { JpVocabCoachItem, JpVocabCoachQueueSummary } from "@/lib/jp-vocab-coach-db";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
@@ -30,21 +29,6 @@ export function JpVocabCoachPage() {
   const { locale } = useI18n();
   const { user, checking, openAuthPanel } = useEtrAuth();
 
-  const hasUrlDateRef = useRef(
-    typeof window !== "undefined" &&
-      /^\d{4}-\d{2}-\d{2}$/.test(
-        new URLSearchParams(window.location.search).get("date") ?? ""
-      )
-  );
-  const defaultDateResolvedRef = useRef(false);
-  const [selectedDate, setSelectedDate] = useState(() => {
-    if (typeof window !== "undefined") {
-      const date = new URLSearchParams(window.location.search).get("date");
-      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
-    }
-    return beijingDateString();
-  });
-  const [batches, setBatches] = useState<JpVocabCoachBatchSummary[]>([]);
   const [items, setItems] = useState<JpVocabCoachItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [loading, setLoading] = useState(true);
@@ -58,46 +42,34 @@ export function JpVocabCoachPage() {
   } | null>(null);
   const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
 
-  const loadBatches = useCallback(async () => {
+  const summary = useMemo<JpVocabCoachQueueSummary>(() => {
+    const pending_count = items.filter((i) => !i.coached_at).length;
+    return {
+      total: items.length,
+      pending_count,
+      done_count: items.length - pending_count,
+    };
+  }, [items]);
+
+  const refresh = useCallback(async () => {
     const res = await fetch("/api/jp-vocab/coach", {
       headers: { [LOCALE_HEADER]: locale },
       credentials: "include",
       cache: "no-store",
     });
-    const parsed = await readApiJson<{ ok: boolean; batches?: JpVocabCoachBatchSummary[]; error?: string }>(
-      res
-    );
+    const parsed = await readApiJson<{
+      ok: boolean;
+      items?: JpVocabCoachItem[];
+      refs?: Record<string, JpVocabRef>;
+      summary?: JpVocabCoachQueueSummary;
+      error?: string;
+    }>(res);
     if (!parsed.ok || !parsed.data.ok) {
-      throw new Error(parsed.ok ? parsed.data.error || "加载日期列表失败" : parsed.error);
+      throw new Error(parsed.ok ? parsed.data.error || "加载带读列表失败" : parsed.error);
     }
-    setBatches(parsed.data.batches ?? []);
+    setItems(parsed.data.items ?? []);
+    setRefs(parsed.data.refs ?? {});
   }, [locale]);
-
-  const loadDate = useCallback(
-    async (date: string) => {
-      const res = await fetch(`/api/jp-vocab/coach?date=${encodeURIComponent(date)}`, {
-        headers: { [LOCALE_HEADER]: locale },
-        credentials: "include",
-        cache: "no-store",
-      });
-      const parsed = await readApiJson<{
-        ok: boolean;
-        items?: JpVocabCoachItem[];
-        refs?: Record<string, JpVocabRef>;
-        error?: string;
-      }>(res);
-      if (!parsed.ok || !parsed.data.ok) {
-        throw new Error(parsed.ok ? parsed.data.error || "加载带读列表失败" : parsed.error);
-      }
-      setItems(parsed.data.items ?? []);
-      setRefs(parsed.data.refs ?? {});
-    },
-    [locale]
-  );
-
-  const refresh = useCallback(async () => {
-    await Promise.all([loadBatches(), loadDate(selectedDate)]);
-  }, [loadBatches, loadDate, selectedDate]);
 
   useEffect(() => {
     if (checking) return;
@@ -124,45 +96,28 @@ export function JpVocabCoachPage() {
     };
   }, [checking, user, refresh]);
 
-  useEffect(() => {
-    if (defaultDateResolvedRef.current) {
-      if (!isJpVocabCoachDateWithinRetention(selectedDate)) {
-        setSelectedDate(batches[0]?.coach_date ?? beijingDateString());
-      }
-      return;
-    }
-    if (loading) return;
-
-    defaultDateResolvedRef.current = true;
-    if (hasUrlDateRef.current) {
-      if (!isJpVocabCoachDateWithinRetention(selectedDate)) {
-        setSelectedDate(batches[0]?.coach_date ?? beijingDateString());
-      }
-      return;
-    }
-
-    const resolved = resolveJpVocabCoachDefaultDate(batches);
-    if (resolved !== selectedDate) {
-      setSelectedDate(resolved);
-    }
-  }, [batches, loading, selectedDate]);
-
-  const dateExpired = !isJpVocabCoachDateWithinRetention(selectedDate);
-
   const wordsById = useMemo(
     () => new Map(items.map((item) => [item.word_id, item.word])),
     [items]
   );
 
-  const wordIds = useMemo(() => items.map((item) => item.word_id), [items]);
+  const pendingItems = useMemo(
+    () => items.filter((item) => !item.coached_at),
+    [items]
+  );
+
+  const pendingWordIds = useMemo(
+    () => pendingItems.map((item) => item.word_id),
+    [pendingItems]
+  );
 
   const dailySeqByWordId = useMemo(() => {
     const map = new Map<number, number>();
-    items.forEach((item, index) => {
-      map.set(item.word_id, item.display_order || index + 1);
+    pendingItems.forEach((item, index) => {
+      map.set(item.word_id, index + 1);
     });
     return map;
-  }, [items]);
+  }, [pendingItems]);
 
   const coachLevelByWordId = useMemo(() => {
     const map = new Map<number, JpVocabLevel>();
@@ -171,8 +126,8 @@ export function JpVocabCoachPage() {
   }, [items]);
 
   const coachDisplayOrder = useMemo<JpVocabDailyDisplayOrder>(
-    () => ({ date: selectedDate, ids: wordIds }),
-    [selectedDate, wordIds]
+    () => ({ date: "coach-queue", ids: pendingWordIds }),
+    [pendingWordIds]
   );
 
   const handleWordUpdated = useCallback((word: JpVocabWord) => {
@@ -181,17 +136,48 @@ export function JpVocabCoachPage() {
     );
   }, []);
 
+  const markCoachedLocal = useCallback((wordId: number) => {
+    const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
+    setItems((prev) => {
+      const target = prev.find((i) => i.word_id === wordId);
+      if (!target || target.coached_at) return prev;
+      return prev.map((item) =>
+        item.word_id === wordId
+          ? { ...item, coached_at: ts, updated_at: ts }
+          : item
+      );
+    });
+  }, []);
+
+  const handleMarkCoached = useCallback(
+    async (wordId: number) => {
+      markCoachedLocal(wordId);
+      try {
+        await markJpVocabCoachCoachedClient(locale, [wordId]);
+      } catch (err) {
+        setStatus(err instanceof Error ? err.message : String(err));
+        await refresh().catch(() => {});
+      }
+    },
+    [locale, markCoachedLocal, refresh]
+  );
+
   const startCoach = useCallback(
-    (startIndex = 0) => {
-      if (!wordIds.length) return;
+    (startWordId?: number) => {
+      if (!pendingWordIds.length) return;
+      let startIndex = 0;
+      if (startWordId != null) {
+        const idx = pendingWordIds.indexOf(startWordId);
+        if (idx >= 0) startIndex = idx;
+      }
       setSession({
         mode: "sequential",
-        wordIds,
-        currentIndex: Math.max(0, Math.min(startIndex, wordIds.length - 1)),
+        wordIds: pendingWordIds,
+        currentIndex: startIndex,
       });
       setShowFlashcard(true);
     },
-    [wordIds]
+    [pendingWordIds]
   );
 
   if (checking) {
@@ -202,7 +188,9 @@ export function JpVocabCoachPage() {
     return (
       <div className="jp-vocab-coach-gate">
         <h1>课堂带读</h1>
-        <p>老师按日期查看「一般」「不熟悉」词条，带着学生逐条朗读；备注与日语抽问同步。</p>
+        <p>
+          老师带着学生朗读「一般」「不熟悉」词条。抽问完成后自动合并进本页队列；备注与日语抽问同步。
+        </p>
         <button type="button" className="btn-rsi-filter btn-rsi-filter--primary" onClick={() => openAuthPanel({ mode: "login" })}>
           登录
         </button>
@@ -216,8 +204,8 @@ export function JpVocabCoachPage() {
         <div>
           <h1>课堂带读</h1>
           <p>
-            从「日语抽问」导出今日未掌握词条后，在此按日期带读。熟悉程度为导出时快照，此处不可修改；备注与抽问页共用同一份数据。带读列表仅保留最近{" "}
-            {JP_VOCAB_COACH_RETENTION_DAYS} 天（北京时间），更早的批次会自动清除，不会删除抽问词库中的单词。
+            抽问完成或导出后，「一般」「不熟悉」会与未带读词条合并为一张表（去重；已带读不再拉回）。熟悉程度为导出时快照，此处不可修改；备注与抽问页共用。已带读超过{" "}
+            {JP_VOCAB_COACH_RETENTION_DAYS} 天会自动清理，未带读会一直保留。
           </p>
         </div>
         <Link href="/jp-vocab" className="btn-rsi-filter">
@@ -226,46 +214,15 @@ export function JpVocabCoachPage() {
       </header>
 
       <section className="jp-vocab-coach-toolbar card">
-        <label className="jp-vocab-coach-date-field">
-          <span>带读日期</span>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => {
-              defaultDateResolvedRef.current = true;
-              setSelectedDate(e.target.value);
-            }}
-          />
-        </label>
-        {batches.length ? (
-          <div className="jp-vocab-coach-date-chips" aria-label="已有带读日期">
-            {batches.slice(0, 8).map((batch) => (
-              <button
-                key={batch.coach_date}
-                type="button"
-                className={
-                  batch.coach_date === selectedDate
-                    ? "btn-rsi-filter btn-rsi-filter--primary"
-                    : "btn-rsi-filter"
-                }
-                onClick={() => {
-                  defaultDateResolvedRef.current = true;
-                  setSelectedDate(batch.coach_date);
-                }}
-              >
-                {batch.coach_date}（{batch.item_count}）
-              </button>
-            ))}
-          </div>
-        ) : null}
         <div className="jp-vocab-coach-actions">
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--primary"
-            disabled={!items.length}
-            onClick={() => startCoach(0)}
+            disabled={!pendingWordIds.length}
+            onClick={() => startCoach()}
           >
             开始带读
+            {pendingWordIds.length ? `（${pendingWordIds.length}）` : ""}
           </button>
           <button
             type="button"
@@ -277,10 +234,9 @@ export function JpVocabCoachPage() {
           </button>
         </div>
         <p className="jp-vocab-coach-summary">
-          {selectedDate} 共 <strong>{items.length}</strong> 条
-          <span className="jp-vocab-coach-retention">
-            （仅保留最近 {JP_VOCAB_COACH_RETENTION_DAYS} 天带读列表）
-          </span>
+          共 <strong>{summary.total}</strong> 条 · 未带读{" "}
+          <strong>{summary.pending_count}</strong> · 已带读{" "}
+          <strong>{summary.done_count}</strong>
         </p>
       </section>
 
@@ -295,6 +251,7 @@ export function JpVocabCoachPage() {
               <th>单词 / 语法</th>
               <th>例句</th>
               <th>熟悉程度</th>
+              <th>带读状态</th>
               <th>备注</th>
               <th>操作</th>
             </tr>
@@ -302,18 +259,20 @@ export function JpVocabCoachPage() {
           <tbody>
             {!items.length && !loading ? (
               <tr className="jp-vocab-coach-empty-row">
-                <td colSpan={6} className="jp-vocab-coach-empty">
-                  {dateExpired
-                    ? `该日期的带读列表已过期（仅保留最近 ${JP_VOCAB_COACH_RETENTION_DAYS} 天）。`
-                    : "该日期暂无带读列表。请在「日语抽问」→ 导出 →「导出到课堂带读」。"}
+                <td colSpan={7} className="jp-vocab-coach-empty">
+                  暂无带读列表。请在「日语抽问」抽完后进入课堂带读，或使用导出 →「导出到课堂带读」。
                 </td>
               </tr>
             ) : (
               items.map((item, index) => {
                 const w = item.word;
                 const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
+                const done = Boolean(item.coached_at);
                 return (
-                  <tr key={item.word_id}>
+                  <tr
+                    key={item.word_id}
+                    className={done ? "jp-vocab-coach-row--done" : undefined}
+                  >
                     <td data-label="序号" className="jp-vocab-coach-seq-col">
                       {index + 1}
                     </td>
@@ -327,19 +286,36 @@ export function JpVocabCoachPage() {
                       <JpVocabExampleSentencesCell text={w.example_sentences} />
                     </td>
                     <td data-label="熟悉程度" className="jp-vocab-coach-level-col">
-                      <span className="jp-vocab-coach-level">{jpVocabCoachLevelLabel(item.level)}</span>
+                      <span className="jp-vocab-coach-level">
+                        {jpVocabCoachLevelLabel(item.level)}
+                      </span>
+                    </td>
+                    <td data-label="带读状态" className="jp-vocab-coach-status-col">
+                      <span
+                        className={
+                          done
+                            ? "jp-vocab-coach-badge jp-vocab-coach-badge--done"
+                            : "jp-vocab-coach-badge jp-vocab-coach-badge--pending"
+                        }
+                      >
+                        {jpVocabCoachStatusLabel(item.coached_at)}
+                      </span>
                     </td>
                     <td data-label="备注" className="jp-vocab-coach-notes-col">
                       {hasNotes ? "有备注" : "—"}
                     </td>
                     <td data-label="操作" className="jp-vocab-coach-action-col">
-                      <button
-                        type="button"
-                        className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-coach-action-btn"
-                        onClick={() => startCoach(index)}
-                      >
-                        带读
-                      </button>
+                      {done ? (
+                        <span className="jp-vocab-coach-action-done">—</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-coach-action-btn"
+                          onClick={() => startCoach(item.word_id)}
+                        >
+                          带读
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -367,6 +343,7 @@ export function JpVocabCoachPage() {
         onClose={() => setShowFlashcard(false)}
         onComplete={() => setShowFlashcard(false)}
         onSelectLevel={() => {}}
+        onMarkCoached={(wordId) => void handleMarkCoached(wordId)}
         onNavigate={(index) => {
           setSession((prev) => (prev ? { ...prev, currentIndex: index } : prev));
         }}
@@ -442,24 +419,6 @@ export function JpVocabCoachPage() {
           gap: 0.75rem;
           padding: 1rem;
         }
-        .jp-vocab-coach-date-field {
-          display: flex;
-          flex-direction: column;
-          gap: 0.35rem;
-          max-width: 14rem;
-        }
-        .jp-vocab-coach-date-field input {
-          padding: 0.45rem 0.55rem;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--panel);
-          color: var(--text);
-        }
-        .jp-vocab-coach-date-chips {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.45rem;
-        }
         .jp-vocab-coach-actions {
           display: flex;
           flex-wrap: wrap;
@@ -468,11 +427,6 @@ export function JpVocabCoachPage() {
         .jp-vocab-coach-summary {
           margin: 0;
           color: var(--muted);
-        }
-        .jp-vocab-coach-retention {
-          display: inline;
-          margin-left: 0.25rem;
-          font-size: 0.85em;
         }
         .jp-vocab-coach-status {
           margin: 0;
@@ -492,6 +446,9 @@ export function JpVocabCoachPage() {
           text-align: left;
           vertical-align: top;
         }
+        .jp-vocab-coach-row--done {
+          opacity: 0.72;
+        }
         .jp-vocab-coach-word {
           display: block;
           font-weight: 600;
@@ -502,7 +459,7 @@ export function JpVocabCoachPage() {
           font-size: 0.88rem;
         }
         .jp-vocab-coach-example-col {
-          max-width: 11rem;
+          max-width: 14rem;
           font-size: 0.9rem;
           line-height: 1.45;
         }
@@ -522,6 +479,21 @@ export function JpVocabCoachPage() {
           background: rgba(255, 152, 60, 0.14);
           font-size: 0.85rem;
         }
+        .jp-vocab-coach-badge {
+          display: inline-block;
+          padding: 0.15rem 0.45rem;
+          border-radius: 999px;
+          font-size: 0.85rem;
+          font-weight: 600;
+        }
+        .jp-vocab-coach-badge--pending {
+          background: color-mix(in srgb, var(--accent) 16%, transparent);
+          color: var(--accent);
+        }
+        .jp-vocab-coach-badge--done {
+          background: color-mix(in srgb, var(--fall) 14%, transparent);
+          color: var(--fall);
+        }
         .jp-vocab-coach-empty {
           text-align: center;
           color: var(--muted);
@@ -536,6 +508,9 @@ export function JpVocabCoachPage() {
         .jp-vocab-coach-action-btn {
           min-width: 4.5rem;
         }
+        .jp-vocab-coach-action-done {
+          color: var(--muted);
+        }
         @media (max-width: 768px) {
           .jp-vocab-coach-header {
             flex-direction: column;
@@ -544,17 +519,6 @@ export function JpVocabCoachPage() {
           .jp-vocab-coach-header :global(.btn-rsi-filter) {
             width: 100%;
             min-height: 2.75rem;
-          }
-          .jp-vocab-coach-date-field {
-            max-width: none;
-          }
-          .jp-vocab-coach-date-field input {
-            min-height: 2.75rem;
-            font-size: 1rem;
-          }
-          .jp-vocab-coach-date-chips :global(.btn-rsi-filter) {
-            min-height: 2.5rem;
-            font-size: clamp(0.8125rem, 3vw, 0.875rem);
           }
           .jp-vocab-coach-actions {
             flex-direction: column;
@@ -637,8 +601,11 @@ export function JpVocabCoachPage() {
           .jp-vocab-coach-level-col {
             grid-column: 2;
           }
-          .jp-vocab-coach-notes-col {
+          .jp-vocab-coach-status-col {
             grid-column: 1;
+          }
+          .jp-vocab-coach-notes-col {
+            grid-column: 2;
           }
           .jp-vocab-coach-action-col {
             grid-column: 1 / -1;

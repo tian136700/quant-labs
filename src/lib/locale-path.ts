@@ -255,13 +255,8 @@ export function jpVocabReviewPath(): string {
   return "/jp-vocab/review";
 }
 
-export function jpVocabCoachPath(date?: string | null): string {
-  const base = "/jp-vocab/coach";
-  const trimmed = (date || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return `${base}?date=${encodeURIComponent(trimmed)}`;
-  }
-  return base;
+export function jpVocabCoachPath(_date?: string | null): string {
+  return "/jp-vocab/coach";
 }
 
 export function isJpVocabStudyPath(pathname: string): boolean {

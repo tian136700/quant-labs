@@ -42,6 +42,69 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             0 20px 50px rgba(0, 0, 0, 0.38),
             0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent) inset;
         }
+        .jp-vocab-teacher-quiz__scroll-body {
+          display: contents;
+        }
+        /* 网页端：加宽加高，中间区域滚动，尽量完整显示例句/备注 */
+        @media (min-width: 769px) {
+          .jp-vocab-teacher-quiz-card {
+            width: min(44rem, 92vw);
+            max-height: min(90vh, 58rem);
+            overflow: hidden;
+            gap: 0.55rem;
+            padding: 1.05rem 1.25rem 1.05rem;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__header,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__stats,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav {
+            flex-shrink: 0;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body {
+            display: flex;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            flex-direction: column;
+            gap: 0.55rem;
+            padding-right: 0.4rem;
+            margin-right: -0.1rem;
+            scrollbar-width: auto;
+            scrollbar-color: color-mix(in srgb, var(--accent) 55%, var(--muted))
+              color-mix(in srgb, var(--border) 70%, transparent);
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar {
+            width: 10px;
+            display: block;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-track {
+            background: color-mix(in srgb, var(--border) 55%, transparent);
+            border-radius: 8px;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-thumb {
+            background: color-mix(in srgb, var(--accent) 50%, var(--muted));
+            border-radius: 8px;
+            border: 2px solid color-mix(in srgb, var(--panel) 80%, transparent);
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__examples,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__notes {
+            max-height: none;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__notes-body {
+            overflow: visible;
+            max-height: none;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__examples-text {
+            font-size: clamp(1.1rem, 1.5vw, 1.3rem);
+            line-height: 1.6;
+          }
+        }
+        .jp-vocab-teacher-quiz-card--coach {
+          /* 带读与抽问网页端共用加宽布局；手机端见下方 max-width */
+        }
         .jp-vocab-teacher-quiz__header {
           display: flex;
           flex-direction: column;
@@ -690,6 +753,41 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             border-radius: 16px 16px 0 0;
             gap: 0.4rem;
             padding: 0.65rem 0.8rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+            max-height: min(92vh, 100dvh);
+            overflow: hidden;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__header,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__stats,
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav {
+            flex-shrink: 0;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body {
+            display: flex;
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            flex-direction: column;
+            gap: 0.4rem;
+            padding-right: 0.25rem;
+            scrollbar-width: auto;
+            scrollbar-color: color-mix(in srgb, var(--accent) 55%, var(--muted))
+              color-mix(in srgb, var(--border) 70%, transparent);
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar {
+            width: 8px;
+            display: block;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-track {
+            background: color-mix(in srgb, var(--border) 55%, transparent);
+            border-radius: 8px;
+          }
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-thumb {
+            background: color-mix(in srgb, var(--accent) 50%, var(--muted));
+            border-radius: 8px;
           }
           .jp-vocab-teacher-quiz__reading {
             font-size: clamp(1.45rem, 6vw, 1.85rem);

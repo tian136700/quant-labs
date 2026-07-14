@@ -97,7 +97,7 @@ import {
 import {
   buildJpVocabCoachExportItems,
   countJpVocabCoachLevelCounts,
-  postJpVocabCoachBatch,
+  postJpVocabCoachMerge,
 } from "@/lib/jp-vocab-coach";
 import { jpVocabCoachPath } from "@/lib/locale-path";
 import {
@@ -1995,10 +1995,10 @@ export function JpVocabPage() {
     setStatus("");
     setError("");
     try {
-      const result = await postJpVocabCoachBatch(locale, items);
+      const result = await postJpVocabCoachMerge(locale, items);
       setShowExportChoice(false);
       setStatus(
-        `已导出 ${result.item_count} 条到课堂带读（${result.coach_date}）。可打开「课堂带读」页面带读。`
+        `已合并到课堂带读：未带读 ${result.pending_count} 条（新增 ${result.added_count}）。可打开「课堂带读」页面带读。`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -2010,18 +2010,17 @@ export function JpVocabPage() {
   const goToCoachPage = async () => {
     if (coachNavBusy) return;
     const items = buildJpVocabCoachExportItems(words, sessionLevel, displayOrder);
-    const coachDate = beijingDateString();
     setCoachNavBusy(true);
     setError("");
     try {
       if (items.length) {
-        await postJpVocabCoachBatch(locale, items, coachDate);
+        await postJpVocabCoachMerge(locale, items);
       }
       if (user) {
         markJpVocabTeacherDailyCompleteDismissed(user.id, dailyQuizProgress.total);
       }
       setShowDailyComplete(false);
-      router.push(jpVocabCoachPath(coachDate));
+      router.push(jpVocabCoachPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

@@ -1,10 +1,11 @@
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import {
-  getJpVocabCoachItems,
-  listJpVocabCoachBatchSummaries,
-  pruneJpVocabCoachBatchesOlderThanRetention,
-  replaceJpVocabCoachBatch,
+  getJpVocabCoachQueueSummary,
+  listJpVocabCoachQueue,
+  markJpVocabCoachCoached,
+  mergeJpVocabCoachQueue,
+  pruneJpVocabCoachCoachedOlderThanRetention,
 } from "@/lib/jp-vocab-coach-db";
 import {
   JP_VOCAB_COACH_RETENTION_DAYS,
@@ -19,8 +20,8 @@ const READ_MSG = {
 };
 
 const WRITE_MSG = {
-  en: "Please log in to export to classroom read-along.",
-  zh: "请登录后再导出到课堂带读。",
+  en: "Please log in to update classroom read-along.",
+  zh: "请登录后再更新课堂带读。",
 };
 
 export async function GET(request: Request) {
@@ -31,31 +32,19 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: READ_MSG[locale] }, 401);
     }
 
-    const url = new URL(request.url);
-    const coachDate = url.searchParams.get("date");
-
-    if (!coachDate) {
-      await pruneJpVocabCoachBatchesOlderThanRetention(env.DB);
-      const batches = await listJpVocabCoachBatchSummaries(env.DB);
-      return jsonResponse({
-        ok: true,
-        batches,
-        retention_days: JP_VOCAB_COACH_RETENTION_DAYS,
-        retention_cutoff: jpVocabCoachRetentionCutoffDate(),
-      });
-    }
-
-    await pruneJpVocabCoachBatchesOlderThanRetention(env.DB);
+    await pruneJpVocabCoachCoachedOlderThanRetention(env.DB);
 
     const { words, refs } = await listJpVocabWordsWithRefs(env.DB);
     const wordsById = new Map(words.map((word) => [word.id, word]));
-    const payload = await getJpVocabCoachItems(env.DB, coachDate, wordsById);
+    const { items, summary } = await listJpVocabCoachQueue(env.DB, wordsById);
 
     return jsonResponse({
       ok: true,
-      coach_date: payload.coach_date,
-      items: payload.items,
+      items,
       refs,
+      summary,
+      retention_days: JP_VOCAB_COACH_RETENTION_DAYS,
+      retention_cutoff: jpVocabCoachRetentionCutoffDate(),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -73,35 +62,58 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as {
       action?: string;
-      coach_date?: string;
       items?: Array<{
         word_id?: number;
         level?: JpVocabLevel;
         display_order?: number;
       }>;
+      word_ids?: number[];
+      word_id?: number;
+      /** @deprecated */
+      coach_date?: string;
     };
 
-    if (body.action !== "export_batch") {
-      return jsonResponse({ ok: false, error: "unknown action" }, 400);
+    if (body.action === "merge_queue" || body.action === "export_batch") {
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (!items.length) {
+        // 允许空合并（仅跳转进入带读页看已有队列）
+        await pruneJpVocabCoachCoachedOlderThanRetention(env.DB);
+        const summary = await getJpVocabCoachQueueSummary(env.DB);
+        return jsonResponse({
+          ok: true,
+          added_count: 0,
+          merged_count: 0,
+          ...summary,
+        });
+      }
+
+      const result = await mergeJpVocabCoachQueue(
+        env.DB,
+        items.map((item, index) => ({
+          word_id: Number(item.word_id),
+          level: item.level ?? "normal",
+          display_order: Number(item.display_order) || index + 1,
+        })),
+        user.username
+      );
+
+      return jsonResponse({ ok: true, ...result });
     }
 
-    const items = Array.isArray(body.items) ? body.items : [];
-    if (!items.length) {
-      return jsonResponse({ ok: false, error: "empty_items" }, 400);
+    if (body.action === "mark_coached") {
+      const ids = Array.isArray(body.word_ids)
+        ? body.word_ids
+        : body.word_id != null
+          ? [body.word_id]
+          : [];
+      if (!ids.length) {
+        return jsonResponse({ ok: false, error: "empty_word_ids" }, 400);
+      }
+      const result = await markJpVocabCoachCoached(env.DB, ids.map(Number));
+      return jsonResponse({ ok: true, ...result });
     }
 
-    const result = await replaceJpVocabCoachBatch(
-      env.DB,
-      body.coach_date ?? "",
-      items.map((item, index) => ({
-        word_id: Number(item.word_id),
-        level: item.level ?? "normal",
-        display_order: Number(item.display_order) || index + 1,
-      })),
-      user.username
-    );
-
-    return jsonResponse({ ok: true, ...result });
+    return jsonResponse({ ok: false, error: "unknown action" }, 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

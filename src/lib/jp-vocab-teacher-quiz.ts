@@ -9,8 +9,8 @@ export type JpVocabTeacherQuizSession = {
   currentIndex: number;
 };
 
-/** 备注 ≤ 此字数时抽查弹窗内直接展示，超出则折叠为「查看」 */
-export const JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX = 200;
+/** 备注 ≤ 此字数时抽查弹窗内直接展示；网页端卡片可滚动后放宽阈值 */
+export const JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX = 4000;
 
 export function jpVocabTeacherQuizNotesInline(notes: string | null | undefined): boolean {
   return jpVocabClassNotesDisplayLength(notes) <= JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX;

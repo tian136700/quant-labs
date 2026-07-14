@@ -24,7 +24,7 @@ const COPY: Record<
     title: "恭喜你，今日单词已抽完",
     lines: [
       "今日单词/语法已全部抽查完毕，辛苦了！",
-      "可点击下方进入课堂带读，带着「一般」「不熟悉」的词条再读一遍。",
+      "可点击下方进入课堂带读：把「一般」「不熟悉」与未带读词条合并后一起带读。",
     ],
     button: "好的",
   },
@@ -138,8 +138,8 @@ export function JpVocabDailyQuizCompleteModal({
               {coachBusy
                 ? "正在准备课堂带读…"
                 : coachCount > 0
-                  ? `进入今日课堂带读（${coachCount} 条）`
-                  : "进入今日课堂带读"}
+                  ? `进入课堂带读（本次 ${coachCount} 条）`
+                  : "进入课堂带读"}
             </button>
           ) : null}
           <button

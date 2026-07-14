@@ -277,26 +277,23 @@ CREATE TABLE IF NOT EXISTS jp_vocab_review_done (
   FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
 );
 
--- 课堂带读：按日期保存「一般」「不熟悉」词条快照（备注仍用 jp_vocab_word.class_notes）
-CREATE TABLE IF NOT EXISTS jp_vocab_coach_batch (
-  coach_date   TEXT    NOT NULL PRIMARY KEY,
-  created_by   TEXT,
-  created_at   TEXT    NOT NULL,
-  updated_at   TEXT    NOT NULL
-);
-
+-- 课堂带读：合并队列（按 word_id；备注仍用 jp_vocab_word.class_notes）
+-- coached_at 空=未带读；已带读超过保留期可清，未带读不过期
 CREATE TABLE IF NOT EXISTS jp_vocab_coach_item (
-  coach_date     TEXT    NOT NULL,
-  word_id        INTEGER NOT NULL,
+  word_id        INTEGER PRIMARY KEY,
   level          TEXT    NOT NULL,
   display_order  INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (coach_date, word_id),
-  FOREIGN KEY (coach_date) REFERENCES jp_vocab_coach_batch (coach_date) ON DELETE CASCADE,
+  coached_at     TEXT,
+  added_at       TEXT    NOT NULL,
+  updated_at     TEXT    NOT NULL,
   FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_jp_vocab_coach_item_date_order
-  ON jp_vocab_coach_item (coach_date, display_order);
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_coach_item_order
+  ON jp_vocab_coach_item (display_order, word_id);
+
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_coach_item_coached
+  ON jp_vocab_coach_item (coached_at);
 
 -- 日语新课：上课老师（管理员维护，仅管理员可见）
 CREATE TABLE IF NOT EXISTS jp_lesson_teacher (

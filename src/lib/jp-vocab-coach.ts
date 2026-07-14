@@ -5,7 +5,7 @@ import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
-/** 课堂带读列表仅保留最近 N 个北京时间自然日（含今天） */
+/** 已带读条目超过此天数后清理；未带读不过期 */
 export const JP_VOCAB_COACH_RETENTION_DAYS = 5;
 
 function addBeijingCalendarDays(dateStr: string, deltaDays: number): string {
@@ -18,7 +18,7 @@ function addBeijingCalendarDays(dateStr: string, deltaDays: number): string {
   return `${y2}-${m2}-${d2}`;
 }
 
-/** 仍保留的最早带读日期（含）；早于此日期的 batch 应清除 */
+/** 仍保留的最早已带读日期（含）；早于此的已带读条目可清除 */
 export function jpVocabCoachRetentionCutoffDate(
   now = new Date(),
   retentionDays = JP_VOCAB_COACH_RETENTION_DAYS
@@ -27,36 +27,22 @@ export function jpVocabCoachRetentionCutoffDate(
   return addBeijingCalendarDays(today, -(retentionDays - 1));
 }
 
-export function isJpVocabCoachDateWithinRetention(
-  coachDate: string,
-  now = new Date(),
-  retentionDays = JP_VOCAB_COACH_RETENTION_DAYS
-): boolean {
-  const trimmed = coachDate.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return false;
-  return trimmed >= jpVocabCoachRetentionCutoffDate(now, retentionDays);
-}
-
-/** 课堂带读默认日期：优先今天；今天无数据时取线上最近一批 */
-export function resolveJpVocabCoachDefaultDate(
-  batches: Array<{ coach_date: string; item_count: number }>,
-  now = new Date()
-): string {
-  const today = beijingDateString(now);
-  if (!isJpVocabCoachDateWithinRetention(today, now)) {
-    return batches[0]?.coach_date ?? today;
-  }
-  const todayHasData = batches.some(
-    (batch) => batch.coach_date === today && batch.item_count > 0
-  );
-  if (todayHasData) return today;
-  return batches[0]?.coach_date ?? today;
+export function weakerJpVocabCoachLevel(
+  a: JpVocabLevel,
+  b: JpVocabLevel
+): "normal" | "weak" {
+  if (a === "weak" || b === "weak") return "weak";
+  return "normal";
 }
 
 export function jpVocabCoachLevelLabel(level: JpVocabLevel): string {
   if (level === "weak") return "不熟悉";
   if (level === "normal") return "一般";
   return "非常熟悉";
+}
+
+export function jpVocabCoachStatusLabel(coachedAt: string | null | undefined): string {
+  return coachedAt ? "已带读" : "未带读";
 }
 
 export type JpVocabCoachLevelCounts = {
@@ -109,15 +95,19 @@ export function buildJpVocabCoachExportItems(
     );
 }
 
-export async function postJpVocabCoachBatch(
-  locale: "zh" | "en",
-  items: Array<{ word_id: number; level: "normal" | "weak"; display_order: number }>,
-  coachDate = beijingDateString()
-): Promise<{ coach_date: string; item_count: number }> {
-  if (!items.length) {
-    throw new Error("今日暂无勾选为「一般」或「不熟悉」的词条。");
-  }
+export type JpVocabCoachMergeResult = {
+  total: number;
+  pending_count: number;
+  done_count: number;
+  added_count: number;
+  merged_count: number;
+};
 
+/** 合并进课堂带读队列（剔除已带读 → 与未带读去重） */
+export async function postJpVocabCoachMerge(
+  locale: "zh" | "en",
+  items: Array<{ word_id: number; level: "normal" | "weak"; display_order: number }>
+): Promise<JpVocabCoachMergeResult> {
   const res = await fetch("/api/jp-vocab/coach", {
     method: "POST",
     headers: {
@@ -126,22 +116,67 @@ export async function postJpVocabCoachBatch(
     },
     credentials: "include",
     body: JSON.stringify({
-      action: "export_batch",
-      coach_date: coachDate,
+      action: "merge_queue",
       items,
     }),
   });
   const data = (await res.json()) as {
     ok: boolean;
-    coach_date?: string;
-    item_count?: number;
+    total?: number;
+    pending_count?: number;
+    done_count?: number;
+    added_count?: number;
+    merged_count?: number;
     error?: string;
   };
   if (!data.ok) {
-    throw new Error(data.error || "导出到课堂带读失败");
+    throw new Error(data.error || "合并到课堂带读失败");
   }
   return {
-    coach_date: data.coach_date ?? coachDate,
-    item_count: data.item_count ?? items.length,
+    total: data.total ?? 0,
+    pending_count: data.pending_count ?? 0,
+    done_count: data.done_count ?? 0,
+    added_count: data.added_count ?? 0,
+    merged_count: data.merged_count ?? 0,
   };
+}
+
+/** @deprecated 使用 postJpVocabCoachMerge */
+export async function postJpVocabCoachBatch(
+  locale: "zh" | "en",
+  items: Array<{ word_id: number; level: "normal" | "weak"; display_order: number }>,
+  _coachDate?: string
+): Promise<JpVocabCoachMergeResult & { item_count: number }> {
+  if (!items.length) {
+    throw new Error("今日暂无勾选为「一般」或「不熟悉」的词条。");
+  }
+  const result = await postJpVocabCoachMerge(locale, items);
+  return { ...result, item_count: result.total };
+}
+
+export async function markJpVocabCoachCoachedClient(
+  locale: "zh" | "en",
+  wordIds: number[]
+): Promise<{ marked_count: number }> {
+  const res = await fetch("/api/jp-vocab/coach", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      [LOCALE_HEADER]: locale,
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      action: "mark_coached",
+      word_ids: wordIds,
+    }),
+  });
+  const data = (await res.json()) as {
+    ok: boolean;
+    marked_count?: number;
+    error?: string;
+  };
+  if (!data.ok) {
+    throw new Error(data.error || "标记已带读失败");
+  }
+  return { marked_count: data.marked_count ?? wordIds.length };
 }
