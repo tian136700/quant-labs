@@ -17,14 +17,22 @@ import type { JpVocabRef } from "@/lib/types";
 type Props = {
   refMeta: JpVocabRef;
   cacheVersion?: string | null;
+  /** 新课下载名（有关联 lesson 时由服务端传入） */
+  downloadFilename?: string;
 };
 
-export function JpVocabRefViewer({ refMeta, cacheVersion }: Props) {
+export function JpVocabRefViewer({
+  refMeta,
+  cacheVersion,
+  downloadFilename,
+}: Props) {
   const { isAdmin } = useEtrAuth();
   const v = cacheVersion ?? refMeta.updated_at;
   const mediaUrl = jpVocabRefApiPath(refMeta.ref_key, { v });
   const downloadUrl = jpVocabRefApiPath(refMeta.ref_key, { download: true, v });
-  const filename = jpVocabRefFilename(refMeta.ref_key, refMeta.media_type);
+  const filename =
+    downloadFilename?.trim() ||
+    jpVocabRefFilename(refMeta.ref_key, refMeta.media_type);
   const title = refMeta.title?.trim() || refMeta.ref_key;
   const isPdf = refMeta.media_type === "pdf";
   const zoomApi = useVocabRefImageZoom(isPdf ? undefined : `${refMeta.ref_key}:${v ?? ""}`);

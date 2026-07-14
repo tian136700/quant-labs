@@ -1,7 +1,91 @@
-import type { JpVocabMediaType, JpVocabRef } from "@/lib/types";
+import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import type {
+  JpLessonKind,
+  JpVocabMediaType,
+  JpVocabRef,
+} from "@/lib/types";
 
 /** 教案文件 R2 前缀；与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
 export const JP_VOCAB_REF_R2_PREFIX = "vocab-ref/";
+
+/** Windows / 跨平台文件名非法字符；顿号、括号、日文可保留 */
+const UNSAFE_FILENAME_CHARS = /[\\/:*?"<>|\x00-\x1f]/g;
+
+/** 下载 basename 最长（留扩展名与「-分页」后缀；避免 Windows 路径过长） */
+const MAX_DOWNLOAD_BASENAME_LEN = 140;
+
+/**
+ * 清洗下载文件名：去掉 OS 非法字符，保留顿号、括号、中日文。
+ * 现代 macOS / Windows 10+ / Linux 对 UTF-8 文件名均安全。
+ */
+export function sanitizeJpVocabRefDownloadBasename(raw: string): string {
+  const cleaned = (raw || "")
+    .replace(UNSAFE_FILENAME_CHARS, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/g, "");
+  if (!cleaned) return "教案";
+  if (cleaned.length <= MAX_DOWNLOAD_BASENAME_LEN) return cleaned;
+  return `${cleaned.slice(0, MAX_DOWNLOAD_BASENAME_LEN - 1).trimEnd()}…`;
+}
+
+function joinDownloadItems(items: string[], maxItemsLen: number): string {
+  if (!items.length) return "";
+  const parts: string[] = [];
+  let used = 0;
+  for (const item of items) {
+    const next = parts.length ? `, ${item}` : item;
+    if (used + next.length > maxItemsLen && parts.length > 0) {
+      parts.push("…");
+      break;
+    }
+    parts.push(item);
+    used += next.length;
+  }
+  return parts.join(", ");
+}
+
+/**
+ * 新课下载名（无扩展名）：`27、单词学习 (軽い, 全部, 雪)`
+ * PDF/Word 分页导出会再加 `-分页` 与扩展名。
+ */
+export function jpLessonRefDownloadBasename(lesson: {
+  id: number;
+  kind: JpLessonKind;
+  content: string;
+}): string {
+  const kindLabel = lesson.kind === "grammar" ? "语法学习" : "单词学习";
+  const prefix = `${lesson.id}、${kindLabel} (`;
+  const suffix = ")";
+  const itemsBudget = Math.max(
+    24,
+    MAX_DOWNLOAD_BASENAME_LEN - prefix.length - suffix.length
+  );
+  const items = parseLessonContent(lesson.content);
+  const itemsText = items.length
+    ? joinDownloadItems(items, itemsBudget)
+    : (lesson.content || "").trim() || "—";
+  return sanitizeJpVocabRefDownloadBasename(`${prefix}${itemsText}${suffix}`);
+}
+
+export function jpLessonRefDownloadFilename(
+  lesson: { id: number; kind: JpLessonKind; content: string },
+  mediaType: JpVocabMediaType
+): string {
+  const ext = mediaType === "pdf" ? "pdf" : "png";
+  return `${jpLessonRefDownloadBasename(lesson)}.${ext}`;
+}
+
+/** Content-Disposition：ASCII fallback + UTF-8 filename*（浏览器原图直链下载用） */
+export function contentDispositionAttachment(filename: string): string {
+  const ascii =
+    filename.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_") || "download";
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
 
 export function normalizeJpVocabRefKey(raw: string): string {
   return (raw || "")

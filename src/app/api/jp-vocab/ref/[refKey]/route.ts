@@ -1,5 +1,6 @@
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
+import { getJpLessonByRefKey } from "@/lib/jp-lesson-db";
 import { getJpVocabRef } from "@/lib/jp-vocab-db";
 import { isAdminSuperuser } from "@/lib/rbac";
 import {
@@ -7,8 +8,11 @@ import {
   readLocalJpVocabRefFile,
 } from "@/lib/jp-vocab-ref-server";
 import {
+  contentDispositionAttachment,
   isLocalJpVocabRefMarker,
+  jpLessonRefDownloadFilename,
   jpVocabRefContentType,
+  jpVocabRefFilename,
 } from "@/lib/jp-vocab-ref-shared";
 
 function refResponseHeaders(
@@ -23,10 +27,7 @@ function refResponseHeaders(
   });
 
   if (asDownload) {
-    headers.set(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`
-    );
+    headers.set("Content-Disposition", contentDispositionAttachment(filename));
     headers.set("Cache-Control", "private, no-transform, max-age=0");
     headers.set("Content-Encoding", "identity");
   } else {
@@ -62,8 +63,13 @@ export async function GET(
       }
     }
 
-    const ext = ref.media_type === "pdf" ? "pdf" : "png";
-    const filename = `${ref.ref_key}.${ext}`;
+    let filename = jpVocabRefFilename(ref.ref_key, ref.media_type);
+    if (asDownload) {
+      const lesson = await getJpLessonByRefKey(env.DB, refKey);
+      if (lesson) {
+        filename = jpLessonRefDownloadFilename(lesson, ref.media_type);
+      }
+    }
 
     if (isLocalJpVocabRefMarker(ref.r2_key)) {
       const bytes = await readLocalJpVocabRefFile(ref.ref_key, ref.media_type);

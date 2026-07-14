@@ -246,6 +246,35 @@ export async function getJpLessonById(
   return lesson;
 }
 
+/** 按教案 ref_key 查新课（下载命名、查看页用） */
+export async function getJpLessonByRefKey(
+  db: D1Database,
+  refKey: string
+): Promise<JpLessonRecord | null> {
+  const key = normalizeJpVocabRefKey(refKey);
+  if (!key) return null;
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const lesson = devLessons.find((l) => l.ref_key === key) ?? null;
+    if (!lesson) return null;
+    const [withTeachers] = await attachTeacherIds(db, [lesson]);
+    return withTeachers;
+  }
+
+  await ensureJpLessonSchemaColumns(db);
+
+  const row = await db
+    .prepare(`${LESSON_SELECT} WHERE ref_key = ?1 LIMIT 1`)
+    .bind(key)
+    .first<Record<string, unknown>>();
+
+  if (!row) return null;
+  const [lesson] = await attachTeacherIds(db, [mapRow(row)]);
+  return lesson;
+}
+
 export async function updateJpLessonRefKey(
   db: D1Database,
   lessonId: number,

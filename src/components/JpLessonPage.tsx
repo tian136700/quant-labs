@@ -62,8 +62,8 @@ import {
 } from "@/lib/jp-lesson-teacher-rate";
 import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
 import {
+  jpLessonRefDownloadFilename,
   jpVocabRefApiPath,
-  jpVocabRefFilename,
   jpVocabRefViewerPath,
 } from "@/lib/jp-vocab-ref-shared";
 import {
@@ -140,8 +140,9 @@ function groupLessonsForDisplay(
   return buildJpLessonDisplayGroups(lessons, sort.order as JpLessonClassTimeSortOrder);
 }
 
-function refFilename(refKey: string, ref?: JpVocabRef): string {
-  return jpVocabRefFilename(refKey, ref?.media_type === "pdf" ? "pdf" : "image");
+function refFilename(lesson: JpLessonRecord, ref?: JpVocabRef): string {
+  const mediaType = ref?.media_type === "pdf" ? "pdf" : "image";
+  return jpLessonRefDownloadFilename(lesson, mediaType);
 }
 
 function formatLessonContentOneLine(raw: string): string {
@@ -1179,7 +1180,7 @@ export function JpLessonPage() {
         key="download"
         downloadUrl={jpVocabRefApiPath(lesson.ref_key!, { download: true })}
         mediaUrl={jpVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })}
-        filename={refFilename(lesson.ref_key!, ref)}
+        filename={refFilename(lesson, ref)}
         mediaType={ref?.media_type ?? "image"}
         primaryClassName="jp-lesson-action-btn jp-lesson-action-btn--download"
         fixedPanel

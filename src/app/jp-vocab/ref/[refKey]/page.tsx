@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { JpVocabRefViewer } from "@/components/JpVocabRefViewer";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
+import { getJpLessonByRefKey } from "@/lib/jp-lesson-db";
 import { getJpVocabRef } from "@/lib/jp-vocab-db";
+import { jpLessonRefDownloadFilename } from "@/lib/jp-vocab-ref-shared";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -33,5 +35,16 @@ export default async function JpVocabRefViewerPage({
   const ref = await getJpVocabRef(env.DB, refKey);
   if (!ref) notFound();
 
-  return <JpVocabRefViewer refMeta={ref} cacheVersion={v ?? null} />;
+  const lesson = await getJpLessonByRefKey(env.DB, refKey);
+  const downloadFilename = lesson
+    ? jpLessonRefDownloadFilename(lesson, ref.media_type)
+    : undefined;
+
+  return (
+    <JpVocabRefViewer
+      refMeta={ref}
+      cacheVersion={v ?? null}
+      downloadFilename={downloadFilename}
+    />
+  );
 }
