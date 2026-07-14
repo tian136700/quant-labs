@@ -914,26 +914,9 @@ export function JpLessonSchedulePage() {
         teacher?: EnLessonTeacher;
         renamed_teachers?: EnLessonTeacher[];
         error?: string;
-        user_account?: {
-          id: number;
-          username: string;
-          password: string;
-          disabled: boolean;
-        };
       };
       if (!data.ok || !data.teacher) {
         return null;
-      }
-      if (data.user_account) {
-        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
-        setStatusMessage(
-          `已添加英语老师，并自动创建禁用账号：${formatAdminUserCredentials(
-            data.user_account.username,
-            data.user_account.password,
-            "zh"
-          )}`
-        );
-        window.setTimeout(() => setStatusMessage(""), 4500);
       }
       setEnTeachers((prev) => {
         const renamedMap = new Map(

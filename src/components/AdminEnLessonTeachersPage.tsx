@@ -4,10 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
-import {
-  formatAdminUserCredentials,
-  rememberAdminUserPassword,
-} from "@/lib/admin-user-credentials";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { EnLessonTeacherReviewModal } from "@/components/EnLessonTeacherReviewModal";
 import {
@@ -126,12 +122,6 @@ export function AdminEnLessonTeachersPage() {
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
-        user_account?: {
-          id: number;
-          username: string;
-          password: string;
-          disabled: boolean;
-        };
       };
       if (!data.ok) {
         setStatus(
@@ -141,24 +131,7 @@ export function AdminEnLessonTeachersPage() {
         return;
       }
       setNewName("");
-      if (data.user_account) {
-        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
-        setStatus(
-          locale === "zh"
-            ? `已添加。已自动创建禁用账号：${formatAdminUserCredentials(
-                data.user_account.username,
-                data.user_account.password,
-                "zh"
-              )}（请在用户管理中启用后再登录）`
-            : `Added. Auto-created disabled account: ${formatAdminUserCredentials(
-                data.user_account.username,
-                data.user_account.password,
-                "en"
-              )} (enable in Users before login)`
-        );
-      } else {
-        setStatus(locale === "zh" ? "已添加" : "Added");
-      }
+      setStatus(locale === "zh" ? "已添加" : "Added");
       setStatusErr(false);
       void loadTeachers();
     } catch {
@@ -319,8 +292,8 @@ export function AdminEnLessonTeachersPage() {
         </form>
         <p className="hint admin-user-add-hint">
           {locale === "zh"
-            ? "添加后将自动在用户管理中创建禁用的英语教师账号（用户名取自横杠前称呼的拼音，随机密码）。启用账号后老师方可登录。"
-            : "A disabled Japanese-teacher account is auto-created in Users (username from pinyin before “-”, random password). Enable it before the teacher can log in."}
+            ? "英语老师仅用于排课与评价，不创建系统登录账号，也不纳入「今日有课自动启用」定时任务。"
+            : "English teachers are for scheduling and reviews only — no system login accounts, and they are excluded from the daily class-day auto-enable job."}
         </p>
       </section>
 

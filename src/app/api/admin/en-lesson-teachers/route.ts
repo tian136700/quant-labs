@@ -1,6 +1,5 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
-import { provisionEnLessonTeacherUser } from "@/lib/etr-auth-db";
+import { jsonResponse } from "@/lib/cloudflare-env";
 import {
   createEnLessonTeacher,
   deleteEnLessonTeacher,
@@ -124,21 +123,11 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    const userProvision = await provisionEnLessonTeacherUser(env, result.teacher.name);
-
+    // 英语老师不提供系统登录账号，也不纳入「今日有课自动启用」定时任务
     return jsonResponse({
       ok: true,
       teacher: result.teacher,
       renamed_teachers: result.renamed_teachers,
-      user_account:
-        userProvision.ok && userProvision.created
-          ? {
-              id: userProvision.user.id,
-              username: userProvision.user.username,
-              password: userProvision.password,
-              disabled: true,
-            }
-          : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

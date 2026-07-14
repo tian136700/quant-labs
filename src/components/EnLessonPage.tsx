@@ -13,10 +13,6 @@ import { EnVocabRefEditModal } from "@/components/EnVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime, formatBeijingDateTimeCompact } from "@/lib/format-datetime";
-import {
-  formatAdminUserCredentials,
-  rememberAdminUserPassword,
-} from "@/lib/admin-user-credentials";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
@@ -550,25 +546,9 @@ export function EnLessonPage() {
         teacher?: EnLessonTeacher;
         renamed_teachers?: EnLessonTeacher[];
         error?: string;
-        user_account?: {
-          id: number;
-          username: string;
-          password: string;
-          disabled: boolean;
-        };
       };
       if (!data.ok || !data.teacher) {
         return null;
-      }
-      if (data.user_account) {
-        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
-        setStatus(
-          `已添加老师，并自动创建禁用账号：${formatAdminUserCredentials(
-            data.user_account.username,
-            data.user_account.password,
-            "zh"
-          )}`
-        );
       }
       setTeachers((prev) => {
         const renamedMap = new Map(

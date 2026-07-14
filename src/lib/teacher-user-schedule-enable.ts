@@ -38,20 +38,13 @@ async function listTeacherIdsWithClassOnDate(
   dateStr: string
 ): Promise<number[]> {
   const datePrefix = `${dateStr}%`;
+  // 仅日语新课排课 + 手动日程。英语老师不提供系统登录账号，不纳入自动启用。
   const result = await db
     .prepare(
       `SELECT DISTINCT teacher_id FROM (
          SELECT tl.teacher_id AS teacher_id
          FROM jp_lesson_teacher_link tl
          INNER JOIN jp_lesson_class_schedule cs ON cs.lesson_id = tl.lesson_id
-         WHERE cs.class_at LIKE ?1
-         UNION
-         SELECT jt.id AS teacher_id
-         FROM jp_lesson_teacher jt
-         INNER JOIN en_lesson_teacher et
-           ON lower(trim(et.name)) = lower(trim(jt.name))
-         INNER JOIN en_lesson_teacher_link etl ON etl.teacher_id = et.id
-         INNER JOIN en_lesson_class_schedule cs ON cs.lesson_id = etl.lesson_id
          WHERE cs.class_at LIKE ?1
          UNION
          SELECT jt.id AS teacher_id

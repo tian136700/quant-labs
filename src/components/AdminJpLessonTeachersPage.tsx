@@ -780,8 +780,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
         <p className="sub">
           {teacherSubject === "en"
             ? locale === "zh"
-              ? "维护英语新课的上课老师列表；仅管理员可在新课页面看到并分配。英语老师评价已合并到本页。"
-              : "Manage English lesson teachers. Teacher reviews are managed here."
+              ? "维护英语新课的上课老师列表与评价；英语老师不创建系统登录账号，也不纳入「今日有课自动启用」。"
+              : "Manage English lesson teachers and reviews. No system login accounts; excluded from daily class-day auto-enable."
             : locale === "zh"
               ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"
               : "Manage lesson teachers for JP lessons. Only admins can assign them."}
@@ -1186,8 +1186,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                                 title={
                                   teacherSubject === "en"
                                     ? locale === "zh"
-                                      ? "添加英语老师时已自动创建禁用账号"
-                                      : "Disabled account is auto-created when adding an English teacher"
+                                      ? "英语老师不提供系统登录账号"
+                                      : "English teachers do not get system login accounts"
                                     : linkedUser
                                     ? locale === "zh"
                                       ? `已关联 ${linkedUser.username}；点击老师名称可跳转到用户管理`
