@@ -166,15 +166,18 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-    setUser(null);
-    setMaintenance(false);
-    setAuthPanel(null);
     clearClientCache(AUTH_USER_CACHE_KEY);
-    setChecking(false);
+    // Navigate away before clearing React auth state so protected pages
+    // (e.g. admin users) do not re-render as guest and trip Rules of Hooks.
     if (typeof window !== "undefined") {
       const locale = readStoredLocale() ?? "zh";
       window.location.href = aboutPath(locale);
+      return;
     }
+    setUser(null);
+    setMaintenance(false);
+    setAuthPanel(null);
+    setChecking(false);
   }, []);
 
   const permissions = user?.permissions ?? [];

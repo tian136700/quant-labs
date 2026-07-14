@@ -946,36 +946,12 @@ function AdminUsersPageContent() {
     [persistUsers]
   );
 
-  if (checking || !isAdmin) {
-    return (
-      <AdminAuthGate
-        title={locale === "zh" ? "用户管理" : "User management"}
-        required={locale === "zh" ? "请使用管理员账号登录。" : "Please log in as admin."}
-        login={locale === "zh" ? "去登录" : "Log in"}
-        registered={!checking && isAdmin}
-      />
-    );
-  }
-
-  const toggleSort = (field: UserSortField) => {
-    setSortField((prevField) => {
-      if (prevField === field) {
-        setSortDirection((prevDirection) => (prevDirection === "asc" ? "desc" : "asc"));
-        return prevField;
-      }
-      setSortDirection(field === "last_login_at" ? "desc" : "asc");
-      return field;
-    });
-  };
-
-  const sortLabel = (field: UserSortField): string => {
-    if (sortField !== field) return "";
-    return sortDirection === "asc" ? " ▲" : " ▼";
-  };
-
   const anyModalOpen = addUserOpen || templatesOpen || editingUser != null;
   const addUserDisplayedErrors = addUserSubmitAttempted ? addUserSubmitErrors : addUserLiveErrors;
 
+  // Hooks must stay above the auth early-return: logout / stale cache flip
+  // checking→admin can change whether we hit that return, and React #310/#300
+  // if these effects only run on the admin path.
   useEffect(() => {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1005,6 +981,33 @@ function AdminUsersPageContent() {
       document.body.style.overflow = prev;
     };
   }, [anyModalOpen]);
+
+  if (checking || !isAdmin) {
+    return (
+      <AdminAuthGate
+        title={locale === "zh" ? "用户管理" : "User management"}
+        required={locale === "zh" ? "请使用管理员账号登录。" : "Please log in as admin."}
+        login={locale === "zh" ? "去登录" : "Log in"}
+        registered={!checking && isAdmin}
+      />
+    );
+  }
+
+  const toggleSort = (field: UserSortField) => {
+    setSortField((prevField) => {
+      if (prevField === field) {
+        setSortDirection((prevDirection) => (prevDirection === "asc" ? "desc" : "asc"));
+        return prevField;
+      }
+      setSortDirection(field === "last_login_at" ? "desc" : "asc");
+      return field;
+    });
+  };
+
+  const sortLabel = (field: UserSortField): string => {
+    if (sortField !== field) return "";
+    return sortDirection === "asc" ? " ▲" : " ▼";
+  };
 
   return (
     <div className="admin-page">
