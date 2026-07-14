@@ -18,6 +18,7 @@ import {
 } from "@/lib/jp-api-cache";
 import { fetchWithClientCache } from "@/lib/client-swr-cache";
 import { buildJpVocabDailySeqMap } from "@/lib/jp-vocab-daily-order";
+import { isJpVocabWordQuizzedToday } from "@/lib/jp-vocab-daily-check";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import {
   JP_VOCAB_REVIEW_DEFAULT_COUNT,
@@ -425,7 +426,7 @@ export function JpVocabReviewPage() {
       <header className="jp-vocab-review-header">
         <h1 className="page-title">日语复习</h1>
         <p className="jp-vocab-review-sub">
-          选择复习数量与排序方式，开始卡片复习。默认复习数量与「今日抽查数量」（当前 {quizTarget} 个）一致。下方表格的「复习状态」会随卡片复习进度更新，<strong>不会每天北京时间 0 点自动清空</strong>，需点击「重置复习状态」才会将全部词条恢复为待复习。
+          选择复习数量与排序方式，开始卡片复习。默认复习数量与「今日抽查数量」（当前 {quizTarget} 个）一致。下方表格的「复习状态」：今日已在抽问页抽查过的显示「已抽问」；卡片复习后显示「已复习」；其余为「待复习」。复习进度<strong>不会每天北京时间 0 点自动清空</strong>，需点击「重置复习状态」才会将全部词条恢复为待复习。
         </p>
       </header>
 
@@ -549,8 +550,18 @@ export function JpVocabReviewPage() {
                     ? fullDailySeqByWordId.get(w.id)
                     : dailySeqByWordId.get(w.id);
                 const reviewed = reviewedWordIds.has(w.id);
+                const quizzedToday = !reviewed && isJpVocabWordQuizzedToday(w);
                 return (
-                  <tr key={w.id} className={reviewed ? "jp-vocab-review-row--done" : undefined}>
+                  <tr
+                    key={w.id}
+                    className={
+                      reviewed
+                        ? "jp-vocab-review-row--done"
+                        : quizzedToday
+                          ? "jp-vocab-review-row--quizzed"
+                          : undefined
+                    }
+                  >
                     <td data-label="序号">{seq ?? "—"}</td>
                     <td data-label="单词">
                       <span className="jp-vocab-review-word">{w.word}</span>
@@ -565,6 +576,10 @@ export function JpVocabReviewPage() {
                     <td data-label="状态">
                       {reviewed ? (
                         <span className="jp-vocab-admin-review-badge">已复习</span>
+                      ) : quizzedToday ? (
+                        <span className="jp-vocab-admin-review-badge jp-vocab-admin-review-badge--quizzed">
+                          已抽问
+                        </span>
                       ) : (
                         <span className="jp-vocab-admin-review-pending">待复习</span>
                       )}
@@ -774,6 +789,9 @@ export function JpVocabReviewPage() {
         .jp-vocab-review-row--done {
           opacity: 0.72;
         }
+        .jp-vocab-review-row--quizzed {
+          opacity: 0.88;
+        }
         .jp-vocab-review-word {
           display: block;
           font-weight: 600;
@@ -800,6 +818,10 @@ export function JpVocabReviewPage() {
           font-weight: 700;
           color: var(--fall);
           background: color-mix(in srgb, var(--fall) 16%, transparent);
+        }
+        :global(.jp-vocab-admin-review-badge--quizzed) {
+          color: color-mix(in srgb, var(--accent) 88%, var(--text));
+          background: color-mix(in srgb, var(--accent) 16%, transparent);
         }
         :global(.jp-vocab-admin-review-pending) {
           color: var(--muted);

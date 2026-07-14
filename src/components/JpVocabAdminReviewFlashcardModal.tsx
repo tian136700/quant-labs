@@ -7,7 +7,10 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
-import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import {
+  effectiveTodayCheckCount,
+  isJpVocabWordQuizzedToday,
+} from "@/lib/jp-vocab-daily-check";
 import {
   formatJpVocabClassNotesForDisplay,
   hasJpVocabClassNotes,
@@ -183,6 +186,7 @@ export function JpVocabAdminReviewFlashcardModal({
   const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = !canGoNext;
   const reviewedToday = reviewedWordIds.has(w.id);
+  const quizzedToday = !reviewedToday && isJpVocabWordQuizzedToday(w);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -229,6 +233,13 @@ export function JpVocabAdminReviewFlashcardModal({
               {reviewedToday ? (
                 <span className="jp-vocab-admin-review__word-badge" title="已通过「下一个」完成复习">
                   已复习
+                </span>
+              ) : quizzedToday ? (
+                <span
+                  className="jp-vocab-admin-review__word-badge jp-vocab-admin-review__word-badge--quizzed"
+                  title="今日已在抽问页抽查过"
+                >
+                  已抽问
                 </span>
               ) : null}
               <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
@@ -481,6 +492,11 @@ export function JpVocabAdminReviewFlashcardModal({
           color: var(--fall);
           background: color-mix(in srgb, var(--fall) 16%, transparent);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--fall) 32%, transparent);
+        }
+        .jp-vocab-admin-review__word-badge--quizzed {
+          color: color-mix(in srgb, var(--accent) 88%, var(--text));
+          background: color-mix(in srgb, var(--accent) 16%, transparent);
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
         }
         :global(.jp-vocab-teacher-quiz__mnemonic) {
           margin: 0.65rem 0 0;
