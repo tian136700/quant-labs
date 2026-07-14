@@ -155,8 +155,38 @@ export function JpVocabManualAddModal({
   const submit = async () => {
     if (submitting) return;
     const trimmedWord = word.trim();
+    const trimmedReading = reading.trim();
+    const trimmedMeaning = meaning.trim();
+    const trimmedExampleSentences = exampleSentences.trim();
+    const trimmedClassNotes = classNotes.trim();
+    const trimmedRefTitle = refTitle.trim();
+
     if (!trimmedWord) {
       setError("请填写单词或语法。");
+      return;
+    }
+    if (kind === "word" && !trimmedReading) {
+      setError("请填写读音。");
+      return;
+    }
+    if (!trimmedMeaning) {
+      setError("请填写释义。");
+      return;
+    }
+    if (!trimmedExampleSentences) {
+      setError("请填写例句。");
+      return;
+    }
+    if (!trimmedClassNotes) {
+      setError("请填写备注。");
+      return;
+    }
+    if (!trimmedRefTitle) {
+      setError("请填写教案标题。");
+      return;
+    }
+    if (!image) {
+      setError("请上传或粘贴教案图片。");
       return;
     }
 
@@ -167,11 +197,11 @@ export function JpVocabManualAddModal({
       const form = new FormData();
       form.set("word", trimmedWord);
       form.set("kind", kind);
-      if (reading.trim()) form.set("reading", reading.trim());
-      if (meaning.trim()) form.set("meaning", meaning.trim());
-      if (classNotes.trim()) form.set("class_notes", classNotes.trim());
-      if (exampleSentences.trim()) form.set("example_sentences", exampleSentences.trim());
-      if (refTitle.trim()) form.set("ref_title", refTitle.trim());
+      form.set("reading", trimmedReading);
+      form.set("meaning", trimmedMeaning);
+      form.set("class_notes", trimmedClassNotes);
+      form.set("example_sentences", trimmedExampleSentences);
+      form.set("ref_title", trimmedRefTitle);
 
       if (image) {
         if (reuseRefOnly && uploadedImageHashes.has(image.hash)) {
@@ -271,7 +301,7 @@ export function JpVocabManualAddModal({
               <h2 id="jp-vocab-add-title" className="jp-vocab-add-title">
                 手动添加词条
               </h2>
-              <p className="jp-vocab-add-subtitle">补充单词或语法，可选关联教案</p>
+              <p className="jp-vocab-add-subtitle">补充单词或语法，并关联教案（所有字段必填）</p>
             </div>
             <button
               type="button"
@@ -324,7 +354,10 @@ export function JpVocabManualAddModal({
 
             {kind === "word" ? (
               <div className="field">
-                <label htmlFor="jp-vocab-add-reading">读音（可选）</label>
+                <label htmlFor="jp-vocab-add-reading">
+                  读音
+                  <span className="etr-required">*</span>
+                </label>
                 <input
                   id="jp-vocab-add-reading"
                   type="text"
@@ -337,7 +370,10 @@ export function JpVocabManualAddModal({
             ) : null}
 
             <div className="field">
-              <label htmlFor="jp-vocab-add-meaning">释义</label>
+              <label htmlFor="jp-vocab-add-meaning">
+                释义
+                <span className="etr-required">*</span>
+              </label>
               <input
                 id="jp-vocab-add-meaning"
                 type="text"
@@ -349,7 +385,10 @@ export function JpVocabManualAddModal({
             </div>
 
             <div className="field">
-              <label htmlFor="jp-vocab-add-example-sentences">例句（可选）</label>
+              <label htmlFor="jp-vocab-add-example-sentences">
+                例句
+                <span className="etr-required">*</span>
+              </label>
               <textarea
                 id="jp-vocab-add-example-sentences"
                 className="jp-vocab-add-textarea"
@@ -362,7 +401,10 @@ export function JpVocabManualAddModal({
             </div>
 
             <div className="field">
-              <label htmlFor="jp-vocab-add-notes">备注（可选）</label>
+              <label htmlFor="jp-vocab-add-notes">
+                备注
+                <span className="etr-required">*</span>
+              </label>
               <textarea
                 id="jp-vocab-add-notes"
                 className="jp-vocab-add-textarea"
@@ -375,7 +417,10 @@ export function JpVocabManualAddModal({
             </div>
 
             <div className="field">
-              <label htmlFor="jp-vocab-add-ref-title">教案标题（可选）</label>
+              <label htmlFor="jp-vocab-add-ref-title">
+                教案标题
+                <span className="etr-required">*</span>
+              </label>
               <input
                 id="jp-vocab-add-ref-title"
                 type="text"
@@ -387,7 +432,10 @@ export function JpVocabManualAddModal({
             </div>
 
             <div className="field">
-              <span className="jp-vocab-add-field-label">教案图片（可选）</span>
+              <span className="jp-vocab-add-field-label">
+                教案图片
+                <span className="etr-required">*</span>
+              </span>
               <div
                 ref={dropRef}
                 className="jp-vocab-add-drop"

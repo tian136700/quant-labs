@@ -133,7 +133,7 @@ import {
   notifyJpVocabQuizTargetUpdated,
   subscribeJpVocabQuizTargetUpdated,
 } from "@/lib/jp-vocab-quiz-target-notify";
-import { JP_VOCAB_MANUAL_ADD_ENABLED, JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
+import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
@@ -183,8 +183,10 @@ export function JpVocabPage() {
     openAuthPanel,
     setUser,
     isAdmin,
+    hasPermission,
   } = useEtrAuth();
   const canOperate = canAccessJpVocab;
+  const canManualAdd = hasPermission("jp_vocab:manual_add");
   const canShareToStudy = canAccessJpVocab;
 
   const openJpAuth = useCallback(() => {
@@ -2313,12 +2315,12 @@ export function JpVocabPage() {
               抽查排行
             </button>
             ) : null}
-            {JP_VOCAB_MANUAL_ADD_ENABLED ? (
+            {canManualAdd ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
               onClick={() => {
-                if (!canOperate) {
+                if (!user) {
                   setStatus("请登录后再手动添加。");
                   openJpAuth();
                   return;
@@ -2326,7 +2328,7 @@ export function JpVocabPage() {
                 setShowManualAdd(true);
               }}
               disabled={loading}
-              title={canOperate ? undefined : "登录后可添加"}
+              title={user ? undefined : "登录后可添加"}
             >
               手动添加
             </button>
@@ -2396,7 +2398,7 @@ export function JpVocabPage() {
         ) : !words.length ? (
           <p style={{ color: "var(--muted)" }}>
             暂无条目。复习词表由「日语新课」自动导入
-            {JP_VOCAB_MANUAL_ADD_ENABLED ? "，也可登录后点「手动添加」补充" : ""}。
+            {canManualAdd ? "，也可点「手动添加」补充" : ""}。
           </p>
         ) : hideTeacherQuizList ? (
           <div className="jp-vocab-teacher-quiz-resume" role="status">
@@ -2616,7 +2618,7 @@ export function JpVocabPage() {
         onResetAll={resetAll}
       />
 
-      {JP_VOCAB_MANUAL_ADD_ENABLED ? (
+      {canManualAdd ? (
       <JpVocabManualAddModal
         open={showManualAdd}
         locale={locale}

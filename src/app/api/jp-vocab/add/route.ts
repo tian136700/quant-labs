@@ -102,6 +102,43 @@ export async function POST(request: Request) {
         ? exampleSentencesRaw.trim()
         : null;
 
+    if (!word) {
+      return jsonResponse(
+        { ok: false, error: errorText("word_required", locale) },
+        400
+      );
+    }
+    if (kind === "word" && !reading) {
+      return jsonResponse(
+        { ok: false, error: errorText("reading_required", locale) },
+        400
+      );
+    }
+    if (!meaning) {
+      return jsonResponse(
+        { ok: false, error: errorText("meaning_required", locale) },
+        400
+      );
+    }
+    if (!exampleSentences) {
+      return jsonResponse(
+        { ok: false, error: errorText("example_sentences_required", locale) },
+        400
+      );
+    }
+    if (!classNotes) {
+      return jsonResponse(
+        { ok: false, error: errorText("class_notes_required", locale) },
+        400
+      );
+    }
+    if (!refTitle) {
+      return jsonResponse(
+        { ok: false, error: errorText("ref_title_required", locale) },
+        400
+      );
+    }
+
     const existingRefKey = normalizeJpVocabRefKey(
       String(form.get("ref_key") || "")
     );
@@ -148,6 +185,13 @@ export async function POST(request: Request) {
         );
       }
       refDeduped = true;
+    }
+
+    if (!refKey) {
+      return jsonResponse(
+        { ok: false, error: errorText("ref_image_required", locale) },
+        400
+      );
     }
 
     const result = await addJpVocabWord(env.DB, {
