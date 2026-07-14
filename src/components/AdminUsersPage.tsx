@@ -1883,10 +1883,13 @@ function AdminUsersPageContent() {
           white-space: nowrap;
         }
         .admin-user-actions {
-          display: flex;
-          flex-wrap: wrap;
+          display: grid;
+          grid-template-columns: repeat(3, max-content);
           gap: 0.45rem;
           align-items: center;
+          justify-items: stretch;
+          width: max-content;
+          max-width: 100%;
         }
         .admin-user-btn {
           white-space: nowrap;
