@@ -50,8 +50,6 @@ type ItemFields = Record<string, NoteField[]>;
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
-const AUTO_SAVE_MS = 800;
-
 function kindLabel(kind: JpLessonKind): string {
   return kind === "grammar" ? "语法" : "单词";
 }
@@ -90,7 +88,7 @@ function saveStatusLabel(status: SaveStatus): string {
     case "saving":
       return "保存中…";
     case "saved":
-      return "已自动保存";
+      return "已保存";
     case "error":
       return "保存失败";
     default:
@@ -129,12 +127,9 @@ export function JpLessonNotesPage() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [submitting, setSubmitting] = useState(false);
   const initialFieldsRef = useRef<ItemFields>({});
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const pendingAfterSaveRef = useRef(false);
-  const saveNotesRef = useRef<(opts?: { auto?: boolean }) => Promise<void>>(
-    async () => {}
-  );
+  const saveNotesRef = useRef<() => Promise<void>>(async () => {});
 
   const items = useMemo(
     () => (lesson ? parseLessonContent(lesson.content) : []),
@@ -219,25 +214,12 @@ export function JpLessonNotesPage() {
     initFields();
   }, [lesson?.id, loading, initFields]);
 
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, []);
-
   const saveNotes = useCallback(
-    async (opts?: { auto?: boolean }) => {
+    async () => {
       if (!lesson) return;
       if (!canEdit) {
-        if (!opts?.auto) {
-          if (!user) openJpAuth();
-        }
+        if (!user) openJpAuth();
         return;
-      }
-
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
       }
 
       if (savingRef.current) {
@@ -248,7 +230,7 @@ export function JpLessonNotesPage() {
       savingRef.current = true;
       setSubmitting(true);
       setSaveStatus("saving");
-      if (!opts?.auto) setError("");
+      setError("");
 
       try {
         let nextNotes = notes.filter((n) => n.lesson_id !== lesson.id);
@@ -389,7 +371,7 @@ export function JpLessonNotesPage() {
         setSubmitting(false);
         if (pendingAfterSaveRef.current) {
           pendingAfterSaveRef.current = false;
-          void saveNotesRef.current({ auto: true });
+          void saveNotesRef.current();
         }
       }
     },
@@ -398,13 +380,9 @@ export function JpLessonNotesPage() {
 
   saveNotesRef.current = saveNotes;
 
-  const scheduleAutoSave = useCallback(() => {
+  const markDirty = useCallback(() => {
     if (!canEdit) return;
     setSaveStatus("pending");
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      void saveNotesRef.current({ auto: true });
-    }, AUTO_SAVE_MS);
   }, [canEdit]);
 
   const updateFieldBody = (item: string, key: string, body: string) => {
@@ -414,7 +392,7 @@ export function JpLessonNotesPage() {
         f.key === key ? { ...f, body } : f
       ),
     }));
-    scheduleAutoSave();
+    markDirty();
   };
 
   const addField = (item: string) => {
@@ -442,7 +420,7 @@ export function JpLessonNotesPage() {
         [item]: next.length ? next : [{ key: newFieldKey(item), body: "" }],
       };
     });
-    scheduleAutoSave();
+    markDirty();
   };
 
   const canRemoveField = (item: string, field: NoteField): boolean => {
@@ -482,7 +460,7 @@ export function JpLessonNotesPage() {
         </p>
       ) : (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-          输入后会自动保存；也可随时点「保存笔记」手动保存。
+          修改后请点击「保存笔记」保存。
         </p>
       )}
 
