@@ -160,6 +160,8 @@ const JP_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 
 /** 同一 Worker isolate 内缓存高频只读 setting，减轻轮询对 D1 的压力 */
 const JP_VOCAB_SETTING_READ_CACHE_MS = 5_000;
+/** 学生「今日共享」列表短缓存：合并多端轮询，降低 D1 timeout */
+const JP_VOCAB_SHARED_LIST_CACHE_MS = 5_000;
 let teacherQuizLiveReadCache: {
   at: number;
   value: JpVocabTeacherQuizLive;
@@ -168,6 +170,21 @@ let teacherVisibleLimitReadCache: {
   at: number;
   value: JpVocabTeacherVisibleLimit;
 } | null = null;
+let sharedTodayListCache: {
+  at: number;
+  date: string;
+  value: { items: JpVocabSharedItem[]; refs: Record<string, JpVocabRef> };
+} | null = null;
+let sharedTodayListCacheGen = 0;
+let sharedTodayListInflight: Promise<{
+  items: JpVocabSharedItem[];
+  refs: Record<string, JpVocabRef>;
+}> | null = null;
+
+function invalidateJpVocabSharedTodayCache() {
+  sharedTodayListCache = null;
+  sharedTodayListCacheGen += 1;
+}
 
 export function enableJpVocabDevStore() {
   devStoreEnabled = true;
@@ -672,6 +689,10 @@ export async function recordJpVocabReview(
       }
     }
 
+    if (shared_new) {
+      invalidateJpVocabSharedTodayCache();
+    }
+
     return { ok: true, word: updated, shared, shared_new };
   }
 
@@ -746,6 +767,10 @@ export async function recordJpVocabReview(
   }
 
   await markJpVocabWordRoundChecked(db, wordId);
+
+  if (shared_new) {
+    invalidateJpVocabSharedTodayCache();
+  }
 
   return { ok: true, word: updated, shared, shared_new };
 }
@@ -2401,6 +2426,7 @@ export async function shareJpVocabWord(
       auto_marked_level: autoMarkedLevel,
     };
     devShared.push(sharedRow);
+    invalidateJpVocabSharedTodayCache();
     return {
       ok: true,
       item: mapSharedRow(sharedRow, updatedWord),
@@ -2459,6 +2485,8 @@ export async function shareJpVocabWord(
     auto_marked_level: autoMarkedLevel,
   };
 
+  invalidateJpVocabSharedTodayCache();
+
   return {
     ok: true,
     item: mapSharedRow(sharedRow, updatedWord),
@@ -2516,6 +2544,7 @@ export async function unshareJpVocabWord(
       display_order = await unmarkJpVocabWordRoundChecked(db, wordId);
     }
 
+    invalidateJpVocabSharedTodayCache();
     return { ok: true, word: updatedWord, reverted, display_order };
   }
 
@@ -2582,10 +2611,48 @@ export async function unshareJpVocabWord(
       .run();
   }
 
+  invalidateJpVocabSharedTodayCache();
   return { ok: true, word: updatedWord, reverted, display_order };
 }
 
 export async function listJpVocabSharedToday(
+  db: D1Database,
+  now = new Date()
+): Promise<{ items: JpVocabSharedItem[]; refs: Record<string, JpVocabRef> }> {
+  const today = beijingDateString(now);
+  const nowMs = Date.now();
+  if (
+    sharedTodayListCache &&
+    sharedTodayListCache.date === today &&
+    nowMs - sharedTodayListCache.at < JP_VOCAB_SHARED_LIST_CACHE_MS
+  ) {
+    return sharedTodayListCache.value;
+  }
+  if (sharedTodayListInflight) {
+    return sharedTodayListInflight;
+  }
+
+  const gen = sharedTodayListCacheGen;
+  sharedTodayListInflight = (async () => {
+    try {
+      const value = await queryJpVocabSharedToday(db, now);
+      if (gen === sharedTodayListCacheGen) {
+        sharedTodayListCache = {
+          at: Date.now(),
+          date: beijingDateString(now),
+          value,
+        };
+      }
+      return value;
+    } finally {
+      sharedTodayListInflight = null;
+    }
+  })();
+
+  return sharedTodayListInflight;
+}
+
+async function queryJpVocabSharedToday(
   db: D1Database,
   now = new Date()
 ): Promise<{ items: JpVocabSharedItem[]; refs: Record<string, JpVocabRef> }> {
@@ -2969,6 +3036,7 @@ export async function runJpVocabDailyRolloverInDb(
         for (let i = devShared.length - 1; i >= 0; i -= 1) {
           if (devShared[i].share_date < today) devShared.splice(i, 1);
         }
+        invalidateJpVocabSharedTodayCache();
       }
       if (deleted_share_requests > 0) {
         for (let i = devShareRequests.length - 1; i >= 0; i -= 1) {
@@ -3062,6 +3130,7 @@ export async function runJpVocabDailyRolloverInDb(
       .prepare(`DELETE FROM jp_vocab_shared WHERE share_date < ?1`)
       .bind(today)
       .run();
+    invalidateJpVocabSharedTodayCache();
   }
 
   if (deleted_share_requests > 0) {
@@ -3338,6 +3407,7 @@ export async function peekJpVocabTeacherQuizLiveWord(
     ...(level ? { level } : {}),
   };
 
+  invalidateJpVocabSharedTodayCache();
   return { ok: true, word, refs, item };
 }
 

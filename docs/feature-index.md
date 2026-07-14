@@ -39,6 +39,7 @@
 | **老师端序号 1–N 可操作**（列表内超出今日抽查数量的序号熟悉程度/发给学生禁用；管理员仍见全库） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInDailyQuizTarget`；`JpVocabDailyQuizProgressBar.tsx` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
+| **今日共享列表本地缓存**（打开立刻显示；后台刷新；跨日自动失效） | `jp-vocab-study-cache.ts`；`JpVocabStudyPage.tsx` → `loadShared`；Worker 内短缓存 `listJpVocabSharedToday`（`jp-vocab-db.ts`） |
 | 学生点「查看老师正在抽查的单词」、老师卡片提示已自行查看 | `JpVocabStudyPage.tsx` → `peekTeacherQuizWord`；`POST /api/jp-vocab/teacher-quiz-live`（学生自行查看时写入 `jp_vocab_shared`，老师后续勾选不重复发送）；`JpVocabPage.tsx` → `syncTeacherQuizLiveWord`、`studentPeekedCurrentWord`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-db.ts` → `peekJpVocabTeacherQuizLiveWord`、`setJpVocabTeacherQuizLiveWord`；`jp-vocab-teacher-quiz-live.ts` |
 | 老师右下角 toast（学生协助请求；淡入 → 停留 5 秒 → 淡出） | `JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
 | 今日抽查进度条（30/40、剩余 N）/ 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；进度计算 `jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`；弹窗仅在本会话「未完成→已完成」时显示一次（`jp-vocab-daily-complete-dismiss.ts` 按日期+目标数记录） |

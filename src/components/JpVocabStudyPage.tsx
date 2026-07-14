@@ -30,6 +30,14 @@ import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabStudyFlashcardModal } from "@/components/JpVocabStudyFlashcardModal";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
+import {
+  clearJpVocabStudyCache,
+  JP_VOCAB_STUDY_REFRESH_TTL_MS,
+  persistJpVocabStudyCache,
+  readJpVocabStudyCache,
+  readJpVocabStudyCacheAge,
+  type JpVocabStudyApiPayload,
+} from "@/lib/jp-vocab-study-cache";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
@@ -71,13 +79,21 @@ export function JpVocabStudyPage() {
   /** 学生自行查看老师当前抽查词（不依赖发给学生 UI 开关） */
   const showPeekTeacherQuiz =
     Boolean(user) && canViewStudy && (!canOperate || isAdmin);
-  const [items, setItems] = useState<JpVocabSharedItem[]>([]);
-  const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
-  const [shareDate, setShareDate] = useState("");
-  const [quizProgress, setQuizProgress] = useState<JpVocabDailyQuizProgress | null>(null);
+  const [items, setItems] = useState<JpVocabSharedItem[]>(
+    () => readJpVocabStudyCache()?.items ?? []
+  );
+  const [refs, setRefs] = useState<Record<string, JpVocabRef>>(
+    () => readJpVocabStudyCache()?.refs ?? {}
+  );
+  const [shareDate, setShareDate] = useState(
+    () => readJpVocabStudyCache()?.share_date ?? ""
+  );
+  const [quizProgress, setQuizProgress] = useState<JpVocabDailyQuizProgress | null>(
+    () => readJpVocabStudyCache()?.quiz_progress ?? null
+  );
   const [showDailyComplete, setShowDailyComplete] = useState(false);
   const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => readJpVocabStudyCache() == null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
@@ -97,11 +113,16 @@ export function JpVocabStudyPage() {
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
   const pendingFlashcardWordIdRef = useRef<number | null>(null);
-  const knownSharedWordIdsRef = useRef<Set<number>>(new Set());
+  const knownSharedWordIdsRef = useRef<Set<number>>(
+    new Set((readJpVocabStudyCache()?.items ?? []).map((item) => item.word_id))
+  );
   const pendingRefreshAfterSaveRef = useRef(false);
   const saveQueuePendingRef = useRef(0);
-  const hasLoadedOnceRef = useRef(false);
+  const hasLoadedOnceRef = useRef(readJpVocabStudyCache() != null);
   const sharedPollCountRef = useRef(0);
+  const quizProgressRef = useRef<JpVocabDailyQuizProgress | null>(
+    readJpVocabStudyCache()?.quiz_progress ?? null
+  );
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -122,9 +143,19 @@ export function JpVocabStudyPage() {
   }, []);
 
   const handleWordSaved = useCallback((word: JpVocabWord) => {
-    setItems((prev) =>
-      prev.map((item) => (item.word_id === word.id ? { ...item, word } : item))
-    );
+    setItems((prev) => {
+      const nextItems = prev.map((item) =>
+        item.word_id === word.id ? { ...item, word } : item
+      );
+      const cached = readJpVocabStudyCache();
+      persistJpVocabStudyCache({
+        items: nextItems,
+        refs: cached?.refs ?? {},
+        share_date: cached?.share_date || beijingDateString(),
+        quiz_progress: quizProgressRef.current ?? cached?.quiz_progress ?? null,
+      });
+      return nextItems;
+    });
     setFlashcardItem((prev) => {
       if (prev?.word_id !== word.id) return prev;
       return {
@@ -150,6 +181,26 @@ export function JpVocabStudyPage() {
     []
   );
 
+  const applyStudyPayload = useCallback((payload: JpVocabStudyApiPayload) => {
+    const wasLoadedBefore = hasLoadedOnceRef.current;
+    const newWordIds = payload.items.map((item) => item.word_id);
+    if (wasLoadedBefore) {
+      const brandNew = newWordIds.filter((id) => !knownSharedWordIdsRef.current.has(id));
+      if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
+        pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
+      }
+    }
+    knownSharedWordIdsRef.current = new Set(newWordIds);
+    setItems(payload.items);
+    setRefs(payload.refs ?? {});
+    setShareDate(payload.share_date || beijingDateString());
+    if (payload.quiz_progress) {
+      quizProgressRef.current = payload.quiz_progress;
+      setQuizProgress(payload.quiz_progress);
+    }
+    hasLoadedOnceRef.current = true;
+  }, []);
+
   const loadShared = useCallback(async (opts?: { force?: boolean; includeQuiz?: boolean }) => {
     if (!canViewStudy) {
       setLoading(false);
@@ -163,12 +214,35 @@ export function JpVocabStudyPage() {
       if (opts?.force) pendingRefreshRef.current = true;
       return;
     }
+
+    const includeQuiz =
+      opts?.includeQuiz ??
+      (!hasLoadedOnceRef.current ||
+        sharedPollCountRef.current % JP_VOCAB_STUDY_QUIZ_EVERY_N === 0);
+
+    const cached = readJpVocabStudyCache();
+    const cacheAge = readJpVocabStudyCacheAge();
+    const cacheFresh =
+      !opts?.force &&
+      cached != null &&
+      cacheAge != null &&
+      cacheAge < JP_VOCAB_STUDY_REFRESH_TTL_MS;
+
+    if (cached) {
+      applyStudyPayload(cached);
+      setLoading(false);
+      setError("");
+    }
+
+    // 本地仍新鲜且本次不需要抽查进度时，跳过 D1 请求
+    if (cacheFresh && !includeQuiz) {
+      sharedPollCountRef.current += 1;
+      return;
+    }
+
     pollInFlightRef.current = true;
+    if (!cached) setLoading(true);
     try {
-      const includeQuiz =
-        opts?.includeQuiz ??
-        (!hasLoadedOnceRef.current ||
-          sharedPollCountRef.current % JP_VOCAB_STUDY_QUIZ_EVERY_N === 0);
       sharedPollCountRef.current += 1;
 
       type SharedPayload = {
@@ -199,9 +273,13 @@ export function JpVocabStudyPage() {
       }
       const { data, status } = parsed;
       if (status === 401) {
+        clearJpVocabStudyCache();
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
+        setQuizProgress(null);
+        quizProgressRef.current = null;
+        hasLoadedOnceRef.current = false;
         setError("仅管理员或已授权学生可访问今日日语单词。");
         return;
       }
@@ -211,23 +289,15 @@ export function JpVocabStudyPage() {
         }
         return;
       }
-      const wasLoadedBefore = hasLoadedOnceRef.current;
-      const newWordIds = data.items.map((item) => item.word_id);
-      if (wasLoadedBefore) {
-        const brandNew = newWordIds.filter((id) => !knownSharedWordIdsRef.current.has(id));
-        if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
-          pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
-        }
-      }
-      knownSharedWordIdsRef.current = new Set(newWordIds);
-      setItems(data.items);
-      setRefs(data.refs ?? {});
-      setShareDate(data.share_date ?? beijingDateString());
-      if (data.quiz_progress) {
-        setQuizProgress(data.quiz_progress);
-      }
+      const next: JpVocabStudyApiPayload = {
+        items: data.items,
+        refs: data.refs ?? {},
+        share_date: data.share_date ?? beijingDateString(),
+        quiz_progress: data.quiz_progress ?? quizProgressRef.current,
+      };
+      applyStudyPayload(next);
+      persistJpVocabStudyCache(next);
       setError("");
-      hasLoadedOnceRef.current = true;
     } catch (err) {
       if (!hasLoadedOnceRef.current) {
         const message = err instanceof Error ? err.message : String(err);
@@ -241,7 +311,7 @@ export function JpVocabStudyPage() {
         void loadShared({ force: true });
       }
     }
-  }, [locale, canViewStudy]);
+  }, [locale, canViewStudy, applyStudyPayload]);
 
   useEffect(() => {
     if (saveQueuePending > 0) return;
@@ -478,13 +548,22 @@ export function JpVocabStudyPage() {
       knownSharedWordIdsRef.current.add(data.item.word_id);
       setItems((prev) => {
         const next = data.item!;
+        let nextItems: JpVocabSharedItem[];
         const existingIndex = prev.findIndex((item) => item.word_id === next.word_id);
         if (existingIndex >= 0) {
-          const copy = [...prev];
-          copy[existingIndex] = next;
-          return copy;
+          nextItems = [...prev];
+          nextItems[existingIndex] = next;
+        } else {
+          nextItems = [next, ...prev];
         }
-        return [next, ...prev];
+        const mergedRefs = data.refs ? { ...refs, ...data.refs } : refs;
+        persistJpVocabStudyCache({
+          items: nextItems,
+          refs: mergedRefs,
+          share_date: shareDate || beijingDateString(),
+          quiz_progress: quizProgressRef.current,
+        });
+        return nextItems;
       });
       hasLoadedOnceRef.current = true;
       setFlashcardItem(data.item);
@@ -494,7 +573,15 @@ export function JpVocabStudyPage() {
     } finally {
       setPeekingTeacherQuiz(false);
     }
-  }, [user, showPeekTeacherQuiz, peekingTeacherQuiz, locale, openJpAuth]);
+  }, [
+    user,
+    showPeekTeacherQuiz,
+    peekingTeacherQuiz,
+    locale,
+    openJpAuth,
+    refs,
+    shareDate,
+  ]);
 
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
