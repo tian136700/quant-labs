@@ -16,8 +16,13 @@ import {
   patchClientCache,
   readClientCache,
 } from "@/lib/client-swr-cache";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { JpLessonKind, JpLessonNote, JpLessonRecord } from "@/lib/types";
+
+type SavingTarget = string | "__all__" | null;
 
 function readLessonCache(): JpLessonApiPayload | null {
   return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
@@ -96,6 +101,67 @@ function saveStatusLabel(status: SaveStatus): string {
   }
 }
 
+function ItemSectionSaveFooter({
+  canEdit,
+  saving,
+  status,
+  showSyncHint,
+  disabled,
+  onSave,
+}: {
+  canEdit: boolean;
+  saving: boolean;
+  status: SaveStatus;
+  showSyncHint: boolean;
+  disabled: boolean;
+  onSave: () => void;
+}) {
+  const saveProgress = useSaveProgressBar(saving);
+  const hint = saveStatusLabel(status);
+  const progressLabel = showSyncHint
+    ? "正在保存并同步到单词复习备注…"
+    : jpVocabSaveProgressLabel("save");
+
+  return (
+    <div className="jp-lesson-notes-section-footer">
+      <div className="jp-lesson-notes-section-footer-status">
+        {saveProgress.visible ? (
+          <JpVocabSaveProgressBar
+            label={progressLabel}
+            percent={saveProgress.percent}
+            fullWidth
+          />
+        ) : hint ? (
+          <span
+            className={`jp-lesson-notes-status${
+              status === "saved"
+                ? " jp-lesson-notes-status--saved"
+                : status === "error"
+                  ? " jp-lesson-notes-status--error"
+                  : ""
+            }`}
+          >
+            {hint}
+            {status === "saved" && showSyncHint ? "，已同步到单词复习备注" : ""}
+          </span>
+        ) : showSyncHint ? (
+          <span className="jp-lesson-notes-sync-hint">保存后同步到日语抽问备注</span>
+        ) : null}
+      </div>
+      {canEdit ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+          disabled={disabled}
+          onClick={onSave}
+        >
+          保存
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function JpLessonNotesPage() {
   const searchParams = useSearchParams();
   const lessonId = Number(searchParams.get("id"));
@@ -125,6 +191,9 @@ export function JpLessonNotesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [itemSaveStatus, setItemSaveStatus] = useState<Record<string, SaveStatus>>({});
+  const [dirtyItems, setDirtyItems] = useState<Set<string>>(() => new Set());
+  const [savingTarget, setSavingTarget] = useState<SavingTarget>(null);
   const [submitting, setSubmitting] = useState(false);
   const initialFieldsRef = useRef<ItemFields>({});
   const savingRef = useRef(false);
@@ -150,6 +219,8 @@ export function JpLessonNotesPage() {
     const next = buildItemFields(items, lessonNotes);
     initialFieldsRef.current = next;
     setItemFields(next);
+    setDirtyItems(new Set());
+    setItemSaveStatus({});
     setError("");
     setSaveStatus("idle");
   }, [items, lessonNotes]);
@@ -215,12 +286,14 @@ export function JpLessonNotesPage() {
   }, [lesson?.id, loading, initFields]);
 
   const saveNotes = useCallback(
-    async () => {
+    async (onlyItem?: string) => {
       if (!lesson) return;
       if (!canEdit) {
         if (!user) openJpAuth();
         return;
       }
+
+      const target: SavingTarget = onlyItem ?? "__all__";
 
       if (savingRef.current) {
         pendingAfterSaveRef.current = true;
@@ -229,14 +302,28 @@ export function JpLessonNotesPage() {
 
       savingRef.current = true;
       setSubmitting(true);
+      setSavingTarget(target);
       setSaveStatus("saving");
+      if (onlyItem) {
+        setItemSaveStatus((prev) => ({ ...prev, [onlyItem]: "saving" }));
+      } else {
+        setItemSaveStatus((prev) => {
+          const next = { ...prev };
+          for (const item of items) next[item] = "saving";
+          return next;
+        });
+      }
       setError("");
 
-      try {
-        let nextNotes = notes.filter((n) => n.lesson_id !== lesson.id);
-        const lessonResult: JpLessonNote[] = [];
+      const itemsToSave = onlyItem ? [onlyItem] : items;
 
-        for (const item of items) {
+      try {
+        const otherLessonNotes = notes.filter(
+          (n) => n.lesson_id === lesson.id && !itemsToSave.includes(n.item_word)
+        );
+        const lessonResult: JpLessonNote[] = [...otherLessonNotes];
+
+        for (const item of itemsToSave) {
           const fields = itemFields[item] ?? [];
           const initial = initialFieldsRef.current[item] ?? [];
           const initialById = new Map(
@@ -335,7 +422,10 @@ export function JpLessonNotesPage() {
           }
         }
 
-        nextNotes = [...lessonResult, ...nextNotes];
+        const nextNotes = [
+          ...lessonResult,
+          ...notes.filter((n) => n.lesson_id !== lesson.id),
+        ];
         setNotes(nextNotes);
         persistLessonNotesCache(nextNotes);
 
@@ -355,35 +445,74 @@ export function JpLessonNotesPage() {
           }
         }
 
-        const nextFields = buildItemFields(items, lessonResult);
-        initialFieldsRef.current = nextFields;
-        setItemFields(nextFields);
-        setSaveStatus("saved");
-        window.setTimeout(() => {
-          setSaveStatus((prev) => (prev === "saved" ? "idle" : prev));
-        }, 2000);
+        if (onlyItem) {
+          const itemNotes = lessonResult.filter((n) => n.item_word === onlyItem);
+          const itemFieldUpdate = buildItemFields([onlyItem], itemNotes);
+          initialFieldsRef.current = {
+            ...initialFieldsRef.current,
+            ...itemFieldUpdate,
+          };
+          setItemFields((prev) => ({ ...prev, ...itemFieldUpdate }));
+          setItemSaveStatus((prev) => ({ ...prev, [onlyItem]: "saved" }));
+          setDirtyItems((prev) => {
+            const next = new Set(prev);
+            next.delete(onlyItem);
+            setSaveStatus(next.size > 0 ? "pending" : "idle");
+            return next;
+          });
+          window.setTimeout(() => {
+            setItemSaveStatus((prev) =>
+              prev[onlyItem] === "saved" ? { ...prev, [onlyItem]: "idle" } : prev
+            );
+          }, 2000);
+        } else {
+          const nextFields = buildItemFields(items, lessonResult);
+          initialFieldsRef.current = nextFields;
+          setItemFields(nextFields);
+          setDirtyItems(new Set());
+          setItemSaveStatus({});
+          setSaveStatus("saved");
+          window.setTimeout(() => {
+            setSaveStatus((prev) => (prev === "saved" ? "idle" : prev));
+          }, 2000);
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "保存失败";
         setSaveStatus("error");
+        if (onlyItem) {
+          setItemSaveStatus((prev) => ({ ...prev, [onlyItem]: "error" }));
+        } else {
+          setItemSaveStatus((prev) => {
+            const next = { ...prev };
+            for (const item of itemsToSave) next[item] = "error";
+            return next;
+          });
+        }
         setError(message);
       } finally {
         savingRef.current = false;
         setSubmitting(false);
+        setSavingTarget(null);
         if (pendingAfterSaveRef.current) {
           pendingAfterSaveRef.current = false;
           void saveNotesRef.current();
         }
       }
     },
-    [canEdit, itemFields, items, lesson, lessonNotes, locale, notes]
+    [canEdit, itemFields, items, lesson, lessonNotes, locale, notes, user, openJpAuth]
   );
 
   saveNotesRef.current = saveNotes;
 
-  const markDirty = useCallback(() => {
-    if (!canEdit) return;
-    setSaveStatus("pending");
-  }, [canEdit]);
+  const markItemDirty = useCallback(
+    (item: string) => {
+      if (!canEdit) return;
+      setDirtyItems((prev) => new Set(prev).add(item));
+      setItemSaveStatus((prev) => ({ ...prev, [item]: "pending" }));
+      setSaveStatus("pending");
+    },
+    [canEdit]
+  );
 
   const updateFieldBody = (item: string, key: string, body: string) => {
     setItemFields((prev) => ({
@@ -392,7 +521,7 @@ export function JpLessonNotesPage() {
         f.key === key ? { ...f, body } : f
       ),
     }));
-    markDirty();
+    markItemDirty(item);
   };
 
   const addField = (item: string) => {
@@ -404,6 +533,7 @@ export function JpLessonNotesPage() {
       ...prev,
       [item]: [...(prev[item] ?? []), { key: newFieldKey(item), body: "" }],
     }));
+    markItemDirty(item);
   };
 
   const removeField = (item: string, key: string) => {
@@ -420,7 +550,7 @@ export function JpLessonNotesPage() {
         [item]: next.length ? next : [{ key: newFieldKey(item), body: "" }],
       };
     });
-    markDirty();
+    markItemDirty(item);
   };
 
   const canRemoveField = (item: string, field: NoteField): boolean => {
@@ -429,7 +559,11 @@ export function JpLessonNotesPage() {
     return Boolean(field.noteId || field.body.trim());
   };
 
+  const footerSaveProgress = useSaveProgressBar(savingTarget === "__all__");
   const statusHint = saveStatusLabel(saveStatus);
+  const footerProgressLabel = lesson?.completed
+    ? "正在保存全部并同步到单词复习备注…"
+    : jpVocabSaveProgressLabel("save");
 
   return (
     <main
@@ -446,7 +580,7 @@ export function JpLessonNotesPage() {
             <p className="jp-lesson-notes-subtitle">
               ID {lesson.id} · {kindLabel(lesson.kind)} · 共 {items.length}{" "}
               个知识点
-              {lesson.completed ? " · 已完成（保存后同步到单词复习）" : ""}
+              {lesson.completed ? " · 已完成（保存后同步到日语抽问备注）" : ""}
             </p>
           ) : null}
         </div>
@@ -460,7 +594,7 @@ export function JpLessonNotesPage() {
         </p>
       ) : (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-          修改后请点击「保存笔记」保存。
+          每条知识点下方可单独保存；教案标记为「已完成」后，保存的笔记会同步到日语抽问卡片的备注。
         </p>
       )}
 
@@ -530,6 +664,15 @@ export function JpLessonNotesPage() {
                       </div>
                     ))}
                   </div>
+
+                  <ItemSectionSaveFooter
+                    canEdit={canEdit}
+                    saving={savingTarget === item}
+                    status={itemSaveStatus[item] ?? "idle"}
+                    showSyncHint={Boolean(lesson.completed)}
+                    disabled={submitting}
+                    onSave={() => void saveNotes(item)}
+                  />
                 </section>
               );
             })}
@@ -540,30 +683,45 @@ export function JpLessonNotesPage() {
           </div>
 
           <div className="jp-lesson-notes-footer">
-            {statusHint ? (
-              <span
-                className={`jp-lesson-notes-status${
-                  saveStatus === "saved"
-                    ? " jp-lesson-notes-status--saved"
-                    : saveStatus === "error"
-                      ? " jp-lesson-notes-status--error"
-                      : ""
-                }`}
-              >
-                {statusHint}
-              </span>
-            ) : (
-              <span />
-            )}
+            <div className="jp-lesson-notes-footer-status">
+              {footerSaveProgress.visible ? (
+                <JpVocabSaveProgressBar
+                  label={footerProgressLabel}
+                  percent={footerSaveProgress.percent}
+                  fullWidth
+                />
+              ) : statusHint ? (
+                <span
+                  className={`jp-lesson-notes-status${
+                    saveStatus === "saved"
+                      ? " jp-lesson-notes-status--saved"
+                      : saveStatus === "error"
+                        ? " jp-lesson-notes-status--error"
+                        : ""
+                  }`}
+                >
+                  {statusHint}
+                  {saveStatus === "saved" && lesson.completed
+                    ? "，已同步到日语抽问备注"
+                    : ""}
+                </span>
+              ) : dirtyItems.size > 0 ? (
+                <span className="jp-lesson-notes-status">
+                  {dirtyItems.size} 条知识点待保存
+                </span>
+              ) : (
+                <span />
+              )}
+            </div>
             <div className="jp-lesson-notes-footer-actions">
               {canEdit ? (
                 <button
                   type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                  disabled={submitting}
+                  className="btn-rsi-filter btn-rsi-filter--compact"
+                  disabled={submitting || dirtyItems.size === 0}
                   onClick={() => void saveNotes()}
                 >
-                  {submitting ? "保存中…" : "保存笔记"}
+                  保存全部
                 </button>
               ) : null}
             </div>
@@ -709,6 +867,26 @@ export function JpLessonNotesPage() {
           color: var(--rise);
         }
 
+        .jp-lesson-notes-section-footer {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 0.75rem;
+          margin-top: 0.65rem;
+          padding-top: 0.55rem;
+          border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+        }
+
+        .jp-lesson-notes-section-footer-status {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .jp-lesson-notes-sync-hint {
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
+
         .jp-lesson-notes-error {
           margin: 0;
           padding: 0.55rem 0.7rem;
@@ -721,11 +899,16 @@ export function JpLessonNotesPage() {
 
         .jp-lesson-notes-footer {
           display: flex;
-          align-items: center;
+          align-items: flex-end;
           justify-content: space-between;
           gap: 0.75rem;
           padding: 0.85rem 1.1rem 1rem;
           border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+        }
+
+        .jp-lesson-notes-footer-status {
+          flex: 1;
+          min-width: 0;
         }
 
         .jp-lesson-notes-status {
