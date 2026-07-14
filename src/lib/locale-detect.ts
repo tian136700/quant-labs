@@ -2,6 +2,10 @@ import type { NextRequest } from "next/server";
 import { LS_LOCALE, type Locale } from "@/i18n/messages";
 import { clientCountryCode, localeFromCountry } from "@/lib/geoip";
 import { isJpModulePath } from "@/lib/locale-path";
+import {
+  clientZhForcedHost,
+  isZhForcedHost,
+} from "@/lib/zh-forced-host";
 
 export const LOCALE_HEADER = "x-locale";
 
@@ -47,11 +51,13 @@ export function readRouteLocale(): Locale | null {
 
 /** SSR / 首次 hydration：仅使用服务端已解析的语言，避免读 localStorage 导致不一致 */
 export function resolveHydrationLocale(serverLocale?: Locale | null): Locale {
+  if (clientZhForcedHost()) return "zh";
   return serverLocale ?? "en";
 }
 
-/** /zh 路径 > Cookie > localStorage > 服务端预判 > 默认英文 */
+/** finance/japanese 强制中文；否则 /zh 路径 > Cookie > localStorage > 服务端预判 > 默认英文 */
 export function resolveClientLocale(serverLocale?: Locale | null): Locale {
+  if (clientZhForcedHost()) return "zh";
   const routeLocale = readRouteLocale();
   if (routeLocale) return routeLocale;
   return (
@@ -62,8 +68,11 @@ export function resolveClientLocale(serverLocale?: Locale | null): Locale {
   );
 }
 
-/** /zh 路径 > Cookie > Cloudflare 国家码 > 英文 */
+/** finance/japanese 强制中文；否则 /zh 路径 > Cookie > Cloudflare 国家码 > 英文 */
 export function resolveServerLocale(request: NextRequest): Locale {
+  const host =
+    request.headers.get("host") ?? request.nextUrl.hostname ?? null;
+  if (isZhForcedHost(host)) return "zh";
   const routeLocale = localeFromPathname(request.nextUrl.pathname);
   if (routeLocale) return routeLocale;
   return (

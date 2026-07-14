@@ -24,6 +24,7 @@ import {
   resolveClientLocale,
   resolveHydrationLocale,
 } from "@/lib/locale-detect";
+import { clientZhForcedHost } from "@/lib/zh-forced-host";
 
 type I18nContextValue = {
   locale: Locale;
@@ -66,16 +67,24 @@ export function I18nProvider({
   const pathname = usePathname() ?? "/";
   const initialServerLocale = useRef(serverLocale).current;
   const [locale, setLocaleState] = useState<Locale>(() => {
+    if (clientZhForcedHost()) return "zh";
     const routeLocale = localeFromPathname(pathname);
     if (routeLocale) return routeLocale;
     return resolveHydrationLocale(initialServerLocale);
   });
   const [ready, setReady] = useState(() => {
-    if (localeFromPathname(pathname)) return true;
+    if (clientZhForcedHost() || localeFromPathname(pathname)) return true;
     return !needsGeoLocale(initialServerLocale);
   });
 
   useEffect(() => {
+    if (clientZhForcedHost()) {
+      setLocaleState("zh");
+      persistLocale("zh");
+      setReady(true);
+      return;
+    }
+
     const routeLocale = localeFromPathname(pathname);
     const resolved = routeLocale ?? resolveClientLocale(initialServerLocale);
     setLocaleState(resolved);
@@ -102,6 +111,7 @@ export function I18nProvider({
   }, [initialServerLocale, pathname]);
 
   useEffect(() => {
+    if (clientZhForcedHost()) return;
     const routeLocale = localeFromPathname(pathname);
     if (!routeLocale) return;
     setLocaleState((prev) => {
@@ -112,9 +122,10 @@ export function I18nProvider({
   }, [pathname]);
 
   const setLocale = useCallback((next: Locale) => {
-    setLocaleState(next);
-    persistLocale(next);
-    saveIpLocale(next);
+    const locale = clientZhForcedHost() ? "zh" : next;
+    setLocaleState(locale);
+    persistLocale(locale);
+    saveIpLocale(locale);
   }, []);
 
   useEffect(() => {
