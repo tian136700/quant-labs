@@ -6,6 +6,8 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   appendJpVocabClassNoteImageLine,
+  collectJpVocabClassNoteImageRefKeys,
+  jpVocabClassNoteImageRefKeyFromSrc,
   mergeJpVocabClassNoteDraftFromEdit,
   parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
@@ -164,6 +166,7 @@ export function JpClassNotesEditModal({
   const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const imageUploadingRef = useRef(false);
+  const draftRef = useRef("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const wordRef = useRef(word);
   const pollInFlightRef = useRef(false);
@@ -171,6 +174,10 @@ export function JpClassNotesEditModal({
   useEffect(() => {
     wordRef.current = word;
   }, [word]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   useEffect(() => {
     setMounted(true);
@@ -526,6 +533,8 @@ export function JpClassNotesEditModal({
         const data = (result.data ?? {}) as {
           ok?: boolean;
           view_path?: string;
+          ref_key?: string;
+          deduped?: boolean;
           error?: string;
         };
         if (result.status === 401) {
@@ -535,13 +544,25 @@ export function JpClassNotesEditModal({
         if (!result.ok || !data.ok || !data.view_path) {
           throw new Error(data.error || "图片上传失败");
         }
+        const viewPath = data.view_path;
+        const refKey =
+          (typeof data.ref_key === "string" && data.ref_key.trim()) ||
+          jpVocabClassNoteImageRefKeyFromSrc(viewPath);
+        const existingKeys = collectJpVocabClassNoteImageRefKeys(
+          wordRef.current?.class_notes,
+          draftRef.current
+        );
+        if (refKey && existingKeys.has(refKey)) {
+          setError("请审核你的图片：备注里已经有一张相同的了，请勿重复粘贴。");
+          setImageUploadProgress(null);
+          return;
+        }
         setImageUploadProgress({
           phase: "done",
           percent: 100,
           loaded: file.size,
           total: file.size,
         });
-        const viewPath = data.view_path;
         dirtyRef.current = true;
         setDraft((prev) => appendJpVocabClassNoteImageLine(prev, viewPath));
       } catch (err) {
@@ -818,7 +839,7 @@ export function JpClassNotesEditModal({
                     <span className="jp-notes-edit-compose-hint">
                       {imageUploading
                         ? "上传完成前不可再贴图或选图"
-                        : "支持 Ctrl+V / ⌘V 粘贴截图"}
+                        : "支持 Ctrl+V / ⌘V 粘贴截图；相同图片不会重复加入"}
                     </span>
                     <input
                       ref={imageInputRef}

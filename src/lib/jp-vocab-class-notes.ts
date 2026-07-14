@@ -359,3 +359,50 @@ export function appendJpVocabClassNoteImageLine(
   const trimmed = draft.trimEnd();
   return trimmed ? `${trimmed}\n${line}` : line;
 }
+
+/** 从备注图片 src / view_path 取出 ref_key（忽略 ?v= 查询串） */
+export function jpVocabClassNoteImageRefKeyFromSrc(
+  src: string | null | undefined
+): string | null {
+  const normalized = normalizeJpVocabClassNoteImageSrc(src || "");
+  if (!normalized) return null;
+  const match = normalized.match(/^\/api\/jp-vocab\/ref\/([^/?#]+)/);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+/** 收集一段备注正文里已有图片的 ref_key */
+export function collectJpVocabClassNoteImageRefKeysFromContent(
+  content: string | null | undefined
+): Set<string> {
+  const keys = new Set<string>();
+  if (!content?.trim()) return keys;
+  for (const src of splitJpVocabClassNoteDraftForEdit(content).imageSrcs) {
+    const key = jpVocabClassNoteImageRefKeyFromSrc(src);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+/** 收集该词全部历史备注 + 当前草稿中的图片 ref_key */
+export function collectJpVocabClassNoteImageRefKeys(
+  storedNotes: string | null | undefined,
+  draftContent?: string | null
+): Set<string> {
+  const keys = new Set<string>();
+  for (const entry of parseJpVocabClassNotes(storedNotes)) {
+    for (const key of collectJpVocabClassNoteImageRefKeysFromContent(entry.content)) {
+      keys.add(key);
+    }
+  }
+  if (draftContent?.trim()) {
+    for (const key of collectJpVocabClassNoteImageRefKeysFromContent(draftContent)) {
+      keys.add(key);
+    }
+  }
+  return keys;
+}
