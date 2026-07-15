@@ -284,6 +284,50 @@ function cropSectionToDataUrl(
   return canvas.toDataURL("image/png");
 }
 
+function imageToPngDataUrl(img: HTMLImageElement): string {
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("无法处理图片");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+/**
+ * 整图 PDF：不拆分，按图片像素尺寸建一页，把整张图嵌入 PDF（图片转 PDF）。
+ */
+export async function exportEnVocabRefFullImagePdf(
+  imageUrl: string,
+  filenameBase: string
+): Promise<void> {
+  const [{ jsPDF }, img] = await Promise.all([
+    import("jspdf"),
+    loadImage(imageUrl),
+  ]);
+
+  const imgW = img.naturalWidth;
+  const imgH = img.naturalHeight;
+  if (!imgW || !imgH) throw new Error("教案图片无效");
+
+  // 96dpi px → mm，页尺寸与整张图一致
+  const pxToMm = (px: number) => (px * 25.4) / 96;
+  const pageW = pxToMm(imgW);
+  const pageH = pxToMm(imgH);
+  const orientation = pageW >= pageH ? "landscape" : "portrait";
+  const pdf = new jsPDF({
+    orientation,
+    unit: "mm",
+    format: [pageW, pageH],
+  });
+  pdf.addImage(imageToPngDataUrl(img), "PNG", 0, 0, pageW, pageH);
+  pdf.save(`${paginatedExportBasename(filenameBase)}.pdf`);
+}
+
 /** 导出分页 PDF；返回页数 */
 export async function exportEnVocabRefPaginatedPdf(
   imageUrl: string,

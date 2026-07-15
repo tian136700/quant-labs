@@ -246,6 +246,32 @@ export async function getEnLessonById(
   return lesson;
 }
 
+export async function getEnLessonByRefKey(
+  db: D1Database,
+  refKey: string
+): Promise<EnLessonRecord | null> {
+  const key = normalizeEnVocabRefKey(refKey);
+  if (!key) return null;
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const lesson = devLessons.find((l) => l.ref_key === key) ?? null;
+    if (!lesson) return null;
+    const [withTeachers] = await attachTeacherIds(db, [lesson]);
+    return withTeachers;
+  }
+
+  const row = await db
+    .prepare(`${LESSON_SELECT} WHERE ref_key = ?1 LIMIT 1`)
+    .bind(key)
+    .first<Record<string, unknown>>();
+
+  if (!row) return null;
+  const [lesson] = await attachTeacherIds(db, [mapRow(row)]);
+  return lesson;
+}
+
 export async function updateEnLessonRefKey(
   db: D1Database,
   lessonId: number,

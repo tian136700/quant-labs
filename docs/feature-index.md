@@ -84,7 +84,7 @@
 |-----------|--------|------|--------|------|
 | `/en-vocab` | 英语抽背 | `src/app/en-vocab/page.tsx` | `EnVocabPage.tsx` | 与 jp-vocab 结构对称，改日语时可对照 |
 | `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | |
-| `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | | API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
+| `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
 
 ---
 
@@ -125,6 +125,8 @@
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 设置上课老师弹窗（弹窗内新增老师并保存） | `EnLessonTeacherEditModal.tsx`（添加行右侧「保存」）；`EnLessonPage.tsx` → `addLessonTeacher` / `setLessonTeachers`（合并老师列表，勿用旧闭包覆盖刚添加的老师）；API：`/api/admin/en-lesson-teachers`、`POST /api/en-lesson` `set_teacher` |
+| **教案下载文件名**（与日语一致：`{id}、单词学习|语法学习 (词1, 词2, …)`；列表下载与「查看」页一致） | `en-vocab-ref-shared.ts` → `enLessonRefDownloadFilename`；`EnLessonPage.tsx`；`EnVocabRefViewer` + `en-vocab/ref/[refKey]/page.tsx`；`GET /api/en-vocab/ref/[refKey]?download=1`；`getEnLessonByRefKey` |
+| **教案下载格式**（整图 PDF：整张图嵌入一页、不拆分；另保留分页 PDF / Word；管理员可下原图） | `EnVocabRefDownloadMenu.tsx`；`en-vocab-ref-pdf-export.ts` → `exportEnVocabRefFullImagePdf` / `exportEnVocabRefPaginatedPdf` |
 
 ---
 

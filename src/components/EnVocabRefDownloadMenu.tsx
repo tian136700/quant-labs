@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   downloadBlobAsFile,
+  exportEnVocabRefFullImagePdf,
   exportEnVocabRefPaginatedDocx,
   exportEnVocabRefPaginatedPdf,
 } from "@/lib/en-vocab-ref-pdf-export";
@@ -17,26 +18,32 @@ type Props = {
   primaryClassName?: string;
   /** 表格等滚动容器内用 fixed 定位，避免下拉被裁切 */
   fixedPanel?: boolean;
-  /** 管理员可下载原图；非管理员仅提供分页 PDF / Word */
+  /** 管理员可下载原图；非管理员仅提供整图 PDF / 分页 PDF / Word */
   allowOriginalDownload?: boolean;
 };
 
-type BusyKind = "image" | "pdf" | "word";
+type BusyKind = "image" | "fullPdf" | "pdf" | "word";
 
-function PaginatedFormatMenu({
-  onPdf,
+function ImageExportFormatMenu({
+  onFullPdf,
+  onPaginatedPdf,
   onWord,
   busy,
   className,
   primaryClassName,
   fixedPanel,
+  showOriginal,
+  onOriginal,
 }: {
-  onPdf: () => void;
+  onFullPdf: () => void;
+  onPaginatedPdf: () => void;
   onWord: () => void;
   busy: BusyKind | null;
   className?: string;
   primaryClassName: string;
   fixedPanel: boolean;
+  showOriginal?: boolean;
+  onOriginal?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
@@ -75,11 +82,13 @@ function PaginatedFormatMenu({
   }, [open]);
 
   const label =
-    busy === "pdf"
-      ? "生成 PDF…"
-      : busy === "word"
-        ? "生成 Word…"
-        : "下载";
+    busy === "image"
+      ? "下载中…"
+      : busy === "fullPdf" || busy === "pdf"
+        ? "生成 PDF…"
+        : busy === "word"
+          ? "生成 Word…"
+          : "下载";
 
   return (
     <div className={`jp-ref-download-menu${open ? " is-open" : ""}`} ref={wrapRef}>
@@ -102,13 +111,39 @@ function PaginatedFormatMenu({
           style={fixedPanel ? panelStyle : undefined}
           role="menu"
         >
+          {showOriginal && onOriginal ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="jp-ref-download-item"
+              onClick={() => {
+                setOpen(false);
+                onOriginal();
+              }}
+            >
+              <span className="jp-ref-download-item-title">原图</span>
+              <span className="jp-ref-download-item-desc">完整教案 PNG</span>
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
             className="jp-ref-download-item"
             onClick={() => {
               setOpen(false);
-              onPdf();
+              onFullPdf();
+            }}
+          >
+            <span className="jp-ref-download-item-title">整图 PDF</span>
+            <span className="jp-ref-download-item-desc">整张图片嵌入 PDF，不拆分</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => {
+              setOpen(false);
+              onPaginatedPdf();
             }}
           >
             <span className="jp-ref-download-item-title">分页 PDF</span>
@@ -143,47 +178,11 @@ export function EnVocabRefDownloadMenu({
   fixedPanel = false,
   allowOriginalDownload = false,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<BusyKind | null>(null);
-  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  const toggleOpen = useCallback(() => {
-    setOpen((prev) => {
-      const next = !prev;
-      if (next && fixedPanel && wrapRef.current) {
-        const rect = wrapRef.current.getBoundingClientRect();
-        setPanelStyle({
-          position: "fixed",
-          top: rect.bottom + 4,
-          right: Math.max(8, window.innerWidth - rect.right),
-          left: "auto",
-        });
-      }
-      return next;
-    });
-  }, [fixedPanel]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDoc);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
 
   const downloadOriginal = useCallback(async () => {
     if (busy) return;
     setBusy("image");
-    setOpen(false);
     try {
       const res = await fetch(downloadUrl, { credentials: "include" });
       if (!res.ok) throw new Error("下载失败");
@@ -196,10 +195,23 @@ export function EnVocabRefDownloadMenu({
     }
   }, [busy, downloadUrl, filename]);
 
+  const downloadFullImagePdf = useCallback(async () => {
+    if (busy) return;
+    setBusy("fullPdf");
+    try {
+      await exportEnVocabRefFullImagePdf(mediaUrl, filename);
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : "整图 PDF 生成失败，请稍后重试"
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [busy, mediaUrl, filename]);
+
   const downloadPaginatedPdf = useCallback(async () => {
     if (busy) return;
     setBusy("pdf");
-    setOpen(false);
     try {
       await exportEnVocabRefPaginatedPdf(mediaUrl, filename);
     } catch (err) {
@@ -214,7 +226,6 @@ export function EnVocabRefDownloadMenu({
   const downloadPaginatedWord = useCallback(async () => {
     if (busy) return;
     setBusy("word");
-    setOpen(false);
     try {
       await exportEnVocabRefPaginatedDocx(mediaUrl, filename);
     } catch (err) {
@@ -230,90 +241,37 @@ export function EnVocabRefDownloadMenu({
   const label =
     busy === "image"
       ? "下载中…"
-      : busy === "pdf"
+      : busy === "fullPdf" || busy === "pdf"
         ? "生成 PDF…"
         : busy === "word"
           ? "生成 Word…"
           : "下载";
 
-  if (isImage && !allowOriginalDownload) {
+  if (isImage) {
     return (
-      <PaginatedFormatMenu
-        onPdf={() => void downloadPaginatedPdf()}
+      <ImageExportFormatMenu
+        onFullPdf={() => void downloadFullImagePdf()}
+        onPaginatedPdf={() => void downloadPaginatedPdf()}
         onWord={() => void downloadPaginatedWord()}
         busy={busy}
         className={className}
         primaryClassName={primaryClassName}
         fixedPanel={fixedPanel}
+        showOriginal={allowOriginalDownload}
+        onOriginal={allowOriginalDownload ? () => void downloadOriginal() : undefined}
       />
     );
   }
 
-  if (!isImage) {
-    return (
-      <button
-        type="button"
-        className={`${primaryClassName} ${className}`.trim()}
-        onClick={() => void downloadOriginal()}
-        disabled={busy != null}
-      >
-        {label}
-      </button>
-    );
-  }
-
   return (
-    <div className={`jp-ref-download-menu${open ? " is-open" : ""}`} ref={wrapRef}>
-      <button
-        type="button"
-        className={`${primaryClassName} jp-ref-download-trigger ${className}`.trim()}
-        onClick={toggleOpen}
-        disabled={busy != null}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        {label}
-        <span className="jp-ref-download-caret" aria-hidden>
-          ▾
-        </span>
-      </button>
-      {open ? (
-        <div
-          className={`jp-ref-download-panel${fixedPanel ? " is-fixed" : ""}`}
-          style={fixedPanel ? panelStyle : undefined}
-          role="menu"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-ref-download-item"
-            onClick={() => void downloadOriginal()}
-          >
-            <span className="jp-ref-download-item-title">原图</span>
-            <span className="jp-ref-download-item-desc">完整教案 PNG</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-ref-download-item"
-            onClick={() => void downloadPaginatedPdf()}
-          >
-            <span className="jp-ref-download-item-title">分页 PDF</span>
-            <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="jp-ref-download-item"
-            onClick={() => void downloadPaginatedWord()}
-          >
-            <span className="jp-ref-download-item-title">分页 Word</span>
-            <span className="jp-ref-download-item-desc">两部分同页，中间留白供板书</span>
-          </button>
-        </div>
-      ) : null}
-      <style jsx>{downloadMenuStyles}</style>
-    </div>
+    <button
+      type="button"
+      className={`${primaryClassName} ${className}`.trim()}
+      onClick={() => void downloadOriginal()}
+      disabled={busy != null}
+    >
+      {label}
+    </button>
   );
 }
 

@@ -1,5 +1,6 @@
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
+import { getEnLessonByRefKey } from "@/lib/en-lesson-db";
 import { getEnVocabRef } from "@/lib/en-vocab-db";
 import { isAdminSuperuser } from "@/lib/rbac";
 import {
@@ -7,8 +8,11 @@ import {
   readLocalEnVocabRefFile,
 } from "@/lib/en-vocab-ref-server";
 import {
-  isLocalEnVocabRefMarker,
+  contentDispositionAttachment,
+  enLessonRefDownloadFilename,
   enVocabRefContentType,
+  enVocabRefFilename,
+  isLocalEnVocabRefMarker,
 } from "@/lib/en-vocab-ref-shared";
 
 function refResponseHeaders(
@@ -23,10 +27,7 @@ function refResponseHeaders(
   });
 
   if (asDownload) {
-    headers.set(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`
-    );
+    headers.set("Content-Disposition", contentDispositionAttachment(filename));
     headers.set("Cache-Control", "private, no-transform, max-age=0");
     headers.set("Content-Encoding", "identity");
   } else {
@@ -62,8 +63,13 @@ export async function GET(
       }
     }
 
-    const ext = ref.media_type === "pdf" ? "pdf" : "png";
-    const filename = `${ref.ref_key}.${ext}`;
+    let filename = enVocabRefFilename(ref.ref_key, ref.media_type);
+    if (asDownload) {
+      const lesson = await getEnLessonByRefKey(env.DB, refKey);
+      if (lesson) {
+        filename = enLessonRefDownloadFilename(lesson, ref.media_type);
+      }
+    }
 
     if (isLocalEnVocabRefMarker(ref.r2_key)) {
       const bytes = await readLocalEnVocabRefFile(ref.ref_key, ref.media_type);

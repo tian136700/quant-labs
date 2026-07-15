@@ -11,14 +11,22 @@ import type { EnVocabRef } from "@/lib/types";
 type Props = {
   refMeta: EnVocabRef;
   cacheVersion?: string | null;
+  /** 新课下载名（有关联 lesson 时由服务端传入） */
+  downloadFilename?: string;
 };
 
-export function EnVocabRefViewer({ refMeta, cacheVersion }: Props) {
+export function EnVocabRefViewer({
+  refMeta,
+  cacheVersion,
+  downloadFilename,
+}: Props) {
   const { isAdmin } = useEtrAuth();
   const v = cacheVersion ?? refMeta.updated_at;
   const mediaUrl = enVocabRefApiPath(refMeta.ref_key, { v });
   const downloadUrl = enVocabRefApiPath(refMeta.ref_key, { download: true, v });
-  const filename = enVocabRefFilename(refMeta.ref_key, refMeta.media_type);
+  const filename =
+    downloadFilename?.trim() ||
+    enVocabRefFilename(refMeta.ref_key, refMeta.media_type);
   const title = refMeta.title?.trim() || refMeta.ref_key;
 
   return (

@@ -43,8 +43,8 @@ import {
   enLessonSchedulePath,
 } from "@/lib/locale-path";
 import {
+  enLessonRefDownloadFilename,
   enVocabRefApiPath,
-  enVocabRefFilename,
   enVocabRefViewerPath,
 } from "@/lib/en-vocab-ref-shared";
 import { SITE_URL } from "@/lib/site";
@@ -90,8 +90,9 @@ function groupLessonsForDisplay(
   return buildEnLessonDisplayGroups(lessons, classTimeSortOrder);
 }
 
-function refFilename(refKey: string, ref?: EnVocabRef): string {
-  return enVocabRefFilename(refKey, ref?.media_type === "pdf" ? "pdf" : "image");
+function refFilename(lesson: EnLessonRecord, ref?: EnVocabRef): string {
+  const mediaType = ref?.media_type === "pdf" ? "pdf" : "image";
+  return enLessonRefDownloadFilename(lesson, mediaType);
 }
 
 function renderLessonDateTime(iso: string) {
@@ -777,7 +778,7 @@ export function EnLessonPage() {
         key="download"
         downloadUrl={enVocabRefApiPath(lesson.ref_key!, { download: true })}
         mediaUrl={enVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })}
-        filename={refFilename(lesson.ref_key!, ref)}
+        filename={refFilename(lesson, ref)}
         mediaType={ref?.media_type ?? "image"}
         primaryClassName="jp-lesson-action-btn"
         fixedPanel

@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { EnVocabRefViewer } from "@/components/EnVocabRefViewer";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
+import { getEnLessonByRefKey } from "@/lib/en-lesson-db";
 import { getEnVocabRef } from "@/lib/en-vocab-db";
+import { enLessonRefDownloadFilename } from "@/lib/en-vocab-ref-shared";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -33,5 +35,16 @@ export default async function EnVocabRefViewerPage({
   const ref = await getEnVocabRef(env.DB, refKey);
   if (!ref) notFound();
 
-  return <EnVocabRefViewer refMeta={ref} cacheVersion={v ?? null} />;
+  const lesson = await getEnLessonByRefKey(env.DB, refKey);
+  const downloadFilename = lesson
+    ? enLessonRefDownloadFilename(lesson, ref.media_type)
+    : undefined;
+
+  return (
+    <EnVocabRefViewer
+      refMeta={ref}
+      cacheVersion={v ?? null}
+      downloadFilename={downloadFilename}
+    />
+  );
 }
