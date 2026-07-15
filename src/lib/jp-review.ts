@@ -47,8 +47,20 @@ export function verifyUploadAuth(request: Request, env: CloudflareEnv): boolean 
 
   const header = request.headers.get("authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return false;
-  return match[1].trim() === expected;
+  if (match && match[1].trim() === expected) return true;
+  return false;
+}
+
+/** 日历订阅链接只能带 query，不能设 Bearer：`?token=` */
+export function verifyUploadAuthOrQueryToken(
+  request: Request,
+  env: CloudflareEnv
+): boolean {
+  if (verifyUploadAuth(request, env)) return true;
+  const expected = uploadToken(env);
+  if (!expected) return false;
+  const token = new URL(request.url).searchParams.get("token")?.trim() ?? "";
+  return token.length > 0 && token === expected;
 }
 
 export function verifyDownloadAccess(

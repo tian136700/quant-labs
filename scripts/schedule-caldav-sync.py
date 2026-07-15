@@ -135,10 +135,9 @@ def build_vevent(event: dict[str, Any]) -> bytes:
     summary = str(event.get("summary") or "日程").strip() or "日程"
     description = str(event.get("description") or "").strip()
     stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    # 网易 CalDAV 常忽略 TZID、把本地墙上时间当 UTC，导致 UTC+7 手机整体偏 7 小时。
-    # 网站日程是北京墙钟；这里写「浮动本地时间」（无 TZID / 无 Z），网易按原数字显示。
-    start_s = start.strftime("%Y%m%dT%H%M%S")
-    end_s = end.strftime("%Y%m%dT%H%M%S")
+    # 显式 +0800（北京墙钟）。裸浮动时间在网易 App 上常被当成 UTC，UTC+7 手机会偏 7 小时。
+    start_s = start.strftime("%Y%m%dT%H%M%S+0800")
+    end_s = end.strftime("%Y%m%dT%H%M%S+0800")
 
     lines = [
         "BEGIN:VCALENDAR",
@@ -148,6 +147,7 @@ def build_vevent(event: dict[str, Any]) -> bytes:
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{stamp}",
+        "SEQUENCE:2",
         f"DTSTART:{start_s}",
         f"DTEND:{end_s}",
         fold_ical_line(f"SUMMARY:{ical_escape(summary)}"),

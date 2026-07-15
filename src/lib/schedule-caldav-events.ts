@@ -160,3 +160,113 @@ export async function listScheduleCalDavEvents(
   events.sort((a, b) => a.class_at.localeCompare(b.class_at));
   return events;
 }
+
+function icalEscape(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\n/g, "\\n");
+}
+
+function foldIcalLine(line: string): string {
+  if (line.length <= 75) return line;
+  const chunks: string[] = [line.slice(0, 75)];
+  let rest = line.slice(75);
+  while (rest.length) {
+    chunks.push(` ${rest.slice(0, 74)}`);
+    rest = rest.slice(74);
+  }
+  return chunks.join("\r\n");
+}
+
+function classAtToIcalLocal(classAt: string): string | null {
+  const match = classAt
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s = "00"] = match;
+  return `${y}${mo}${d}T${h}${mi}${s}`;
+}
+
+function addMinutesToClassAt(classAt: string, minutes: number): string | null {
+  const match = classAt
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s = "00"] = match;
+  const start = new Date(
+    Date.UTC(
+      Number(y),
+      Number(mo) - 1,
+      Number(d),
+      Number(h),
+      Number(mi),
+      Number(s)
+    )
+  );
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + minutes * 60_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${end.getUTCFullYear()}${pad(end.getUTCMonth() + 1)}${pad(end.getUTCDate())}T${pad(end.getUTCHours())}${pad(end.getUTCMinutes())}${pad(end.getUTCSeconds())}`;
+}
+
+/** Apple 日历订阅用 ICS（含 Asia/Shanghai VTIMEZONE，系统日历能正确显示北京时间） */
+export function buildScheduleIcs(
+  events: ScheduleCalDavEvent[],
+  options?: { calendarName?: string }
+): string {
+  const calendarName = options?.calendarName ?? "Info Quests 日程";
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
+
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//info-quests//schedule-ics//CN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    foldIcalLine(`X-WR-CALNAME:${icalEscape(calendarName)}`),
+    "X-WR-TIMEZONE:Asia/Shanghai",
+    "X-PUBLISHED-TTL:PT30M",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT30M",
+    "BEGIN:VTIMEZONE",
+    "TZID:Asia/Shanghai",
+    "BEGIN:STANDARD",
+    "TZOFFSETFROM:+0800",
+    "TZOFFSETTO:+0800",
+    "TZNAME:CST",
+    "DTSTART:19700101T000000",
+    "END:STANDARD",
+    "END:VTIMEZONE",
+  ];
+
+  for (const event of events) {
+    const start = classAtToIcalLocal(event.class_at);
+    const end = addMinutesToClassAt(event.class_at, event.duration_minutes);
+    if (!start || !end) continue;
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${event.uid}`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;TZID=Asia/Shanghai:${start}`,
+      `DTEND;TZID=Asia/Shanghai:${end}`,
+      foldIcalLine(`SUMMARY:${icalEscape(event.summary)}`)
+    );
+    if (event.description.trim()) {
+      lines.push(
+        foldIcalLine(`DESCRIPTION:${icalEscape(event.description)}`)
+      );
+    }
+    lines.push(
+      "CATEGORIES:info-quests-schedule",
+      "TRANSP:OPAQUE",
+      "END:VEVENT"
+    );
+  }
+
+  lines.push("END:VCALENDAR", "");
+  return lines.join("\r\n");
+}

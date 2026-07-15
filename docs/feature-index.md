@@ -106,6 +106,7 @@
 | 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
 | 统一日程（日语/英语/手动） | `JpLessonSchedulePage.tsx`；`jp-lesson-manual-schedule.ts` → `LessonScheduleSubject` |
 | **日程同步到网易日历 / iPhone（CalDAV）** | `GET /api/admin/schedule-events`（Bearer=`JP_REVIEW_UPLOAD_TOKEN`）；`src/lib/schedule-caldav-events.ts`；Mac：`scripts/schedule-caldav-sync.py` + `setup-schedule-caldav-mac.sh`；配置 `~/.config/info-quests/schedule-caldav.env`（邮箱/授权码留空自填；服务器默认 `https://caldav.163.com/` 端口 443） |
+| **日程订阅到 iPhone / Mac 系统日历（ICS，推荐）** | `GET /api/admin/schedule.ics?token=`（同 `JP_REVIEW_UPLOAD_TOKEN`）；`buildScheduleIcs()`；手机：日历 → 添加订阅日历；Mac：日历 → 文件 → 新建日历订阅 |
 | 英语老师管理 / 评价（合并）；**不建登录账号** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` **不再** `provisionEnLessonTeacherUser` |
 
 ---
