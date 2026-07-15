@@ -843,6 +843,20 @@ export function JpVocabPage() {
       quizWordHasLevel
     );
 
+    // 已抽完：清会话，勿再自动弹出单词卡片；列表展示今日已抽查词条
+    if (
+      !expanded ||
+      isJpVocabTeacherQuizSessionComplete(expanded, quizWordHasLevel) ||
+      computeJpVocabDailyQuizProgress(words, {
+        quiz_target: quizTarget,
+      }).complete
+    ) {
+      clearJpVocabTeacherQuizSession(user.id);
+      setQuizSession(null);
+      setShowQuizFlashcard(false);
+      return;
+    }
+
     if (canOperate && !isAdmin) {
       const resumeIndex = resolveJpVocabTeacherQuizRefreshResumeIndex(
         expanded,
@@ -892,6 +906,7 @@ export function JpVocabPage() {
         dailySeqByWordId,
         quizWordHasLevel
       );
+      if (!next) return null;
       if (
         next.mode === prev.mode &&
         next.currentIndex === prev.currentIndex &&
@@ -979,7 +994,8 @@ export function JpVocabPage() {
   const filteredDisplayedWords = useMemo(() => {
     if (!hideInoperableRows) return searchMatchedWords;
     const now = new Date(reviewLockNow);
-    if (dailyQuizProgress.complete) {
+    // 今日目标已满，或老师端本轮待抽池已空：展示今日已抽查列表（而非空的「进行中」池）
+    if (dailyQuizProgress.complete || displayQuizProgress.complete) {
       return searchMatchedWords.filter((w) =>
         isJpVocabWordQuizCheckedToday(w, displayOrder, now)
       );
@@ -989,6 +1005,7 @@ export function JpVocabPage() {
     hideInoperableRows,
     searchMatchedWords,
     dailyQuizProgress.complete,
+    displayQuizProgress.complete,
     displayOrder,
     reviewLockNow,
     teacherPendingWordIds,
@@ -1205,8 +1222,49 @@ export function JpVocabPage() {
   /** 已有活跃抽查会话（用于「继续抽查」按钮） */
   const teacherQuizInProgress = quizSession != null;
 
-  /** 老师抽查进行中：不展示单词列表，避免在列表里随意点选 */
-  const hideTeacherQuizList = canOperate && !isAdmin && teacherQuizInProgress;
+  /**
+   * 老师抽查进行中：不展示单词列表，避免在列表里随意点选。
+   * 今日/本轮已抽完时必须放开列表（展示已抽查词条），不能再藏表。
+   */
+  const hideTeacherQuizList =
+    canOperate &&
+    !isAdmin &&
+    teacherQuizInProgress &&
+    !dailyQuizProgress.complete &&
+    !displayQuizProgress.complete;
+
+  /**
+   * 本轮/今日抽完后立即关卡片、清会话，回到已抽完列表；
+   * 避免进度条已「已完成」仍停在单词弹窗。
+   */
+  useEffect(() => {
+    if (!canOperate || isAdmin || !quizSession) return;
+    const sessionDone = isJpVocabTeacherQuizSessionComplete(
+      quizSession,
+      quizWordHasLevel
+    );
+    if (
+      !dailyQuizProgress.complete &&
+      !displayQuizProgress.complete &&
+      !sessionDone
+    ) {
+      return;
+    }
+    setShowQuizFlashcard(false);
+    setQuizSession(null);
+  }, [
+    canOperate,
+    isAdmin,
+    quizSession,
+    quizWordHasLevel,
+    dailyQuizProgress.complete,
+    displayQuizProgress.complete,
+  ]);
+
+  /** 会话已清空时同步关掉卡片（避免 expand 返回 null 后 open 仍为 true） */
+  useEffect(() => {
+    if (quizSession == null) setShowQuizFlashcard(false);
+  }, [quizSession]);
 
   const resumeTeacherQuizFlashcard = useCallback(
     (preferredWordId?: number) => {
@@ -2619,7 +2677,7 @@ export function JpVocabPage() {
             ) : !filterActive &&
               !filteredDisplayedWords.length &&
               hideInoperableRows &&
-              dailyQuizProgress.complete ? (
+              (dailyQuizProgress.complete || displayQuizProgress.complete) ? (
               <p className="jp-vocab-search__empty">
                 今日抽查已完成，但暂无已抽查词条记录。
               </p>

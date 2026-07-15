@@ -327,6 +327,10 @@ export function JpVocabTeacherQuizFlashcardModal({
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   const tryGoNext = () => {
+    if (!isCoach && sessionComplete) {
+      onComplete();
+      return;
+    }
     if (!isCoach && !selected) {
       setNextBlockedHint(true);
       return;
@@ -354,15 +358,11 @@ export function JpVocabTeacherQuizFlashcardModal({
         <header className="jp-vocab-teacher-quiz__header">
           <div className="jp-vocab-teacher-quiz__header-top">
             <div className="jp-vocab-teacher-quiz__header-left">
-              <span
-                className={`jp-vocab-teacher-quiz__kind${
-                  !isCoach && w.kind === "grammar"
-                    ? " jp-vocab-teacher-quiz__kind--grammar"
-                    : ""
-                }${isCoach ? " jp-vocab-teacher-quiz__kind--coach" : ""}`}
-              >
-                {isCoach ? "课堂带读" : w.kind === "grammar" ? "语法" : "单词"}
-              </span>
+              {isCoach ? (
+                <span className="jp-vocab-teacher-quiz__kind jp-vocab-teacher-quiz__kind--coach">
+                  课堂带读
+                </span>
+              ) : null}
               {dailySeq != null ? (
                 <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
                   序号 {dailySeq}
@@ -448,6 +448,7 @@ export function JpVocabTeacherQuizFlashcardModal({
         <JpVocabFlashcardWordHero
           readingTrim={readingTrim}
           wordTrim={wordTrim}
+          kind={w.kind}
           refKey={w.ref_key}
           ref={ref}
           onOpenRef={onOpenRef}
@@ -788,15 +789,17 @@ export function JpVocabTeacherQuizFlashcardModal({
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
-              {isLast
-                ? isCoach
-                  ? "完成带读"
-                  : "完成抽查"
-                : isCoach
-                  ? "已带读，下一个"
-                  : "下一个"}
+              {!isCoach && sessionComplete
+                ? "完成抽查"
+                : isLast
+                  ? isCoach
+                    ? "完成带读"
+                    : "完成抽查"
+                  : isCoach
+                    ? "已带读，下一个"
+                    : "下一个"}
             </span>
-            {!isLast && !isCoach ? (
+            {!isLast && !isCoach && !sessionComplete ? (
               <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
             ) : null}
           </button>

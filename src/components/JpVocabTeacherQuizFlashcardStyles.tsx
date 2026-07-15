@@ -282,9 +282,20 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__reading-row {
           display: flex;
           flex-wrap: wrap;
-          align-items: center;
+          align-items: baseline;
           justify-content: center;
-          gap: 0.5rem 0.75rem;
+          gap: 0.35rem 0.55rem;
+        }
+        .jp-vocab-teacher-quiz__kind-prefix {
+          flex-shrink: 0;
+          font-size: clamp(1.2rem, 4.5vw, 1.55rem);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          line-height: 1.25;
+          color: var(--text);
+        }
+        .jp-vocab-teacher-quiz__kind-prefix--grammar {
+          color: var(--accent);
         }
         .jp-vocab-teacher-quiz__reading {
           font-size: clamp(1.85rem, 7vw, 2.35rem);
@@ -796,6 +807,9 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-thumb {
             background: color-mix(in srgb, var(--accent) 50%, var(--muted));
             border-radius: 8px;
+          }
+          .jp-vocab-teacher-quiz__kind-prefix {
+            font-size: clamp(1.05rem, 4vw, 1.25rem);
           }
           .jp-vocab-teacher-quiz__reading {
             font-size: clamp(1.45rem, 6vw, 1.85rem);

@@ -3,11 +3,13 @@
 import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabFlashcardCopyButton } from "@/components/JpVocabFlashcardCopyButton";
-import type { JpVocabRef } from "@/lib/types";
+import type { JpVocabKind, JpVocabRef } from "@/lib/types";
 
 type Props = {
   readingTrim: string;
   wordTrim: string;
+  /** 单词/语法：显示在词条旁的醒目前缀（「单词：」「语法：」） */
+  kind?: JpVocabKind;
   refKey?: string | null;
   ref?: JpVocabRef;
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
@@ -19,6 +21,7 @@ type Props = {
 export function JpVocabFlashcardWordHero({
   readingTrim,
   wordTrim,
+  kind,
   refKey,
   ref,
   onOpenRef,
@@ -31,6 +34,8 @@ export function JpVocabFlashcardWordHero({
   const showReadingPrimary = Boolean(readingTrim) && !hideReading;
   const showKanjiAside =
     showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
+  const kindLabel =
+    kind === "grammar" ? "语法：" : kind === "word" ? "单词：" : null;
 
   const renderReading = () =>
     refKey ? (
@@ -79,6 +84,17 @@ export function JpVocabFlashcardWordHero({
       <div className="jp-vocab-teacher-quiz__hero" id={titleId}>
         {showReadingPrimary ? (
           <div className="jp-vocab-teacher-quiz__reading-row">
+            {kindLabel ? (
+              <span
+                className={`jp-vocab-teacher-quiz__kind-prefix${
+                  kind === "grammar"
+                    ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
+                    : ""
+                }`}
+              >
+                {kindLabel}
+              </span>
+            ) : null}
             {renderReading()}
             {showKanjiAside ? renderKanji() : null}
             <JpVocabFlashcardCopyButton
@@ -89,6 +105,17 @@ export function JpVocabFlashcardWordHero({
           </div>
         ) : (
           <div className="jp-vocab-teacher-quiz__reading-row">
+            {kindLabel ? (
+              <span
+                className={`jp-vocab-teacher-quiz__kind-prefix${
+                  kind === "grammar"
+                    ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
+                    : ""
+                }`}
+              >
+                {kindLabel}
+              </span>
+            ) : null}
             {renderWordMain()}
             <JpVocabFlashcardCopyButton
               readingTrim={readingTrim}

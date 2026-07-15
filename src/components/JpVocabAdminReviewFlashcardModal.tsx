@@ -218,13 +218,6 @@ export function JpVocabAdminReviewFlashcardModal({
         <header className="jp-vocab-teacher-quiz__header">
           <div className="jp-vocab-teacher-quiz__header-top">
             <div className="jp-vocab-teacher-quiz__header-left">
-              <span
-                className={`jp-vocab-teacher-quiz__kind${
-                  w.kind === "grammar" ? " jp-vocab-teacher-quiz__kind--grammar" : ""
-                }`}
-              >
-                {w.kind === "grammar" ? "语法" : "单词"}
-              </span>
               {dailySeq != null ? (
                 <span className="jp-vocab-teacher-quiz__seq" title="今日固定序号">
                   序号 {dailySeq}
@@ -287,6 +280,7 @@ export function JpVocabAdminReviewFlashcardModal({
         <JpVocabFlashcardWordHero
           readingTrim={readingTrim}
           wordTrim={wordTrim}
+          kind={w.kind}
           refKey={w.ref_key}
           ref={ref}
           onOpenRef={onOpenRef}

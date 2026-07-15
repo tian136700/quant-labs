@@ -141,13 +141,14 @@ export function reconcileJpVocabTeacherQuizSession(
 /**
  * 管理员调高今日抽查数量后，把进行中的抽查会话补全到最新目标词表。
  * 传入 hasLevel 时：队列只保留未勾选词（含新增目标内的未抽查词），已抽过的不再出现。
+ * 若未勾选池已空（本轮/今日目标已抽完），返回 null——调用方应清空会话并关闭卡片，展示已抽完列表。
  */
 export function expandJpVocabTeacherQuizSessionForTarget(
   session: JpVocabTeacherQuizSession,
   quizTargetWords: JpVocabWord[],
   dailySeqByWordId: ReadonlyMap<number, number>,
   hasLevel?: (wordId: number) => boolean
-): JpVocabTeacherQuizSession {
+): JpVocabTeacherQuizSession | null {
   const pool = hasLevel
     ? filterJpVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
     : quizTargetWords;
@@ -158,9 +159,8 @@ export function expandJpVocabTeacherQuizSessionForTarget(
   );
   if (!targetIds.length) {
     if (!hasLevel) return session;
-    return (
-      pruneJpVocabTeacherQuizSessionChecked(session, hasLevel) ?? session
-    );
+    // 禁止 `prune ?? session`：全部勾选后 prune 为 null 时若回退旧会话，弹窗会永远关不掉
+    return pruneJpVocabTeacherQuizSessionChecked(session, hasLevel);
   }
 
   const currentWordId = session.wordIds[session.currentIndex];
