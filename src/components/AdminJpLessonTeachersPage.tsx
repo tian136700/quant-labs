@@ -172,7 +172,15 @@ export function AdminJpLessonTeachersPageContent() {
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  /** 搜索框输入草稿；点「搜索」或从候选选中后才写入 appliedSearchQuery */
+  const [searchDraft, setSearchDraft] = useState("");
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
+  /** 从候选点选时精确定位该老师；文本搜索时为 null */
+  const [selectedSearchTeacherId, setSelectedSearchTeacherId] = useState<number | null>(
+    null
+  );
+  const [searchSuggestOpen, setSearchSuggestOpen] = useState(false);
+  const searchFieldRef = useRef<HTMLDivElement | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newHourlyRate, setNewHourlyRate] = useState("");
@@ -329,6 +337,10 @@ export function AdminJpLessonTeachersPageContent() {
     setEditLessonMinutes("");
     setEditSortOrder(0);
     setReviewTeacher(null);
+    setSearchDraft("");
+    setAppliedSearchQuery("");
+    setSelectedSearchTeacherId(null);
+    setSearchSuggestOpen(false);
     if (!checking && isAdmin) void loadTeachers({ force: true });
   }, [checking, isAdmin, teacherSubject, loadTeachers]);
 
@@ -410,21 +422,75 @@ export function AdminJpLessonTeachersPageContent() {
     });
   }, [reviewSummaries, sortKey, sortOrder, teachers]);
 
-  const filteredTeachers = useMemo(() => {
-    const remarksById = new Map(
-      teachers.map((teacher) => [
-        teacher.id,
-        { remark: reviewSummaries.get(teacher.id)?.latest_remark ?? "" },
-      ])
+  const searchRemarksById = useMemo(
+    () =>
+      new Map(
+        teachers.map((teacher) => [
+          teacher.id,
+          { remark: reviewSummaries.get(teacher.id)?.latest_remark ?? "" },
+        ])
+      ),
+    [reviewSummaries, teachers]
+  );
+
+  const searchSuggestions = useMemo(() => {
+    const q = searchDraft.trim();
+    if (!q) return [];
+    return filterLessonTeachersBySearch(sortedTeachers, q, searchRemarksById).slice(
+      0,
+      12
     );
-    return filterLessonTeachersBySearch(sortedTeachers, searchQuery, remarksById);
-  }, [reviewSummaries, searchQuery, sortedTeachers, teachers]);
+  }, [searchDraft, searchRemarksById, sortedTeachers]);
+
+  const filteredTeachers = useMemo(() => {
+    if (selectedSearchTeacherId != null) {
+      return sortedTeachers.filter((teacher) => teacher.id === selectedSearchTeacherId);
+    }
+    return filterLessonTeachersBySearch(
+      sortedTeachers,
+      appliedSearchQuery,
+      searchRemarksById
+    );
+  }, [
+    appliedSearchQuery,
+    searchRemarksById,
+    selectedSearchTeacherId,
+    sortedTeachers,
+  ]);
+
+  const applySearch = useCallback((query: string) => {
+    setSearchDraft(query);
+    setAppliedSearchQuery(query.trim());
+    setSelectedSearchTeacherId(null);
+    setSearchSuggestOpen(false);
+  }, []);
+
+  const selectSearchTeacher = useCallback((teacher: JpLessonTeacher) => {
+    const name = resolveLessonTeacherRateFields(teacher).name;
+    setSearchDraft(name);
+    setAppliedSearchQuery(name);
+    setSelectedSearchTeacherId(teacher.id);
+    setSearchSuggestOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!searchSuggestOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!searchFieldRef.current?.contains(event.target as Node)) {
+        setSearchSuggestOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [searchSuggestOpen]);
 
   useEffect(() => {
     if (focusTeacherId == null || loading) return;
     if (!teachers.some((teacher) => teacher.id === focusTeacherId)) return;
     if (!filteredTeachers.some((teacher) => teacher.id === focusTeacherId)) {
-      setSearchQuery("");
+      setSearchDraft("");
+      setAppliedSearchQuery("");
+      setSelectedSearchTeacherId(null);
     }
   }, [focusTeacherId, filteredTeachers, loading, teachers]);
 
@@ -837,36 +903,85 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
               <option value="jp">{locale === "zh" ? "日语老师" : "Japanese"}</option>
               <option value="en">{locale === "zh" ? "英语老师" : "English"}</option>
             </select>
-            <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
-              <span className="sr-only">
-                {locale === "zh" ? "搜索老师" : "Search teachers"}
-              </span>
-              <input
-                id="admin-jpl-teacher-search"
-                type="text"
-                value={searchQuery}
-                placeholder={
-                  locale === "zh"
-                    ? "模糊搜索：名称、ID、上课频次、课时费、备注等（空格分隔多词）"
-                    : "Fuzzy search: name, ID, lesson count, rate, note…"
-                }
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </label>
+            <div className="admin-jpl-search-combo" ref={searchFieldRef}>
+              <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
+                <span className="sr-only">
+                  {locale === "zh" ? "搜索老师" : "Search teachers"}
+                </span>
+                <input
+                  id="admin-jpl-teacher-search"
+                  type="text"
+                  value={searchDraft}
+                  placeholder={
+                    locale === "zh"
+                      ? "输入老师名，如「周」；可从下方候选点选"
+                      : "Type a name, e.g. Zhou; pick from suggestions"
+                  }
+                  autoComplete="off"
+                  role="combobox"
+                  aria-expanded={searchSuggestOpen && searchSuggestions.length > 0}
+                  aria-controls="admin-jpl-teacher-search-list"
+                  aria-autocomplete="list"
+                  onFocus={() => setSearchSuggestOpen(true)}
+                  onChange={(e) => {
+                    setSearchDraft(e.target.value);
+                    setSelectedSearchTeacherId(null);
+                    setSearchSuggestOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applySearch(searchDraft);
+                    } else if (e.key === "Escape") {
+                      setSearchSuggestOpen(false);
+                    }
+                  }}
+                />
+              </label>
+              {searchSuggestOpen && searchDraft.trim() && searchSuggestions.length > 0 ? (
+                <ul
+                  id="admin-jpl-teacher-search-list"
+                  className="admin-jpl-search-suggest"
+                  role="listbox"
+                >
+                  {searchSuggestions.map((teacher) => {
+                    const name = resolveLessonTeacherRateFields(teacher).name;
+                    return (
+                      <li key={teacher.id} role="option">
+                        <button
+                          type="button"
+                          className="admin-jpl-search-suggest-item"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectSearchTeacher(teacher)}
+                        >
+                          <span className="admin-jpl-search-suggest-name">{name}</span>
+                          <span className="admin-jpl-search-suggest-meta">
+                            {locale === "zh" ? "频次" : "Lessons"}{" "}
+                            {teacher.lesson_count ?? 0}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
             <button
               type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              onClick={() => void loadTeachers({ force: true })}
-              disabled={loading || refreshing}
+              className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
+              onClick={() => applySearch(searchDraft)}
             >
-              {refreshing
-                ? locale === "zh"
-                  ? "同步中…"
-                  : "Syncing…"
-                : locale === "zh"
-                  ? "刷新"
-                  : "Refresh"}
+              {locale === "zh" ? "搜索" : "Search"}
             </button>
+            {appliedSearchQuery || selectedSearchTeacherId != null ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact"
+                onClick={() => applySearch("")}
+              >
+                {locale === "zh" ? "清除" : "Clear"}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -1408,14 +1523,73 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
           text-decoration: underline;
         }
 
-        .admin-jpl-search-field {
+        .admin-jpl-search-combo {
+          position: relative;
           flex: 1 1 15rem;
           min-width: min(100%, 15rem);
         }
 
+        .admin-jpl-search-field {
+          display: block;
+          width: 100%;
+        }
+
         .admin-jpl-search-field input {
+          width: 100%;
+          box-sizing: border-box;
           min-height: 2.25rem;
           padding-block: 0.45rem;
+        }
+
+        .admin-jpl-search-suggest {
+          position: absolute;
+          z-index: 20;
+          top: calc(100% + 0.25rem);
+          left: 0;
+          right: 0;
+          margin: 0;
+          padding: 0.3rem;
+          list-style: none;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: var(--panel);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+          max-height: 14rem;
+          overflow: auto;
+        }
+
+        .admin-jpl-search-suggest-item {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          color: inherit;
+          text-align: left;
+          padding: 0.5rem 0.55rem;
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+
+        .admin-jpl-search-suggest-item:hover {
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+        }
+
+        .admin-jpl-search-suggest-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .admin-jpl-search-suggest-meta {
+          flex-shrink: 0;
+          font-size: 0.75rem;
+          color: var(--muted);
+          font-variant-numeric: tabular-nums;
         }
 
         .jp-lesson-teacher-overlay {
