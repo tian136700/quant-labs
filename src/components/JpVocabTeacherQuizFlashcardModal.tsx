@@ -531,6 +531,14 @@ export function JpVocabTeacherQuizFlashcardModal({
                     查看教案
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
+                  title="编辑备注"
+                  onClick={() => onEditRemarks?.(w)}
+                >
+                  编辑备注
+                </button>
               </div>
               {shareUiEnabled && !isCoach ? (
                 <div className="jp-vocab-teacher-quiz__actions-right" aria-label="发给学生">
