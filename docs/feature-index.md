@@ -25,7 +25,7 @@
 | `/jp-vocab` | 日语抽问、单词表、老师抽查 | `src/app/jp-vocab/page.tsx` | `src/components/JpVocabPage.tsx`（未登录 → 全页登录，不可浏览） | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share`（GET 需 `requireJpVocabRead`） | `src/lib/jp-vocab-db.ts`、`schema.sql` → `jp_vocab_word`、`jp_vocab_shared` | 须登录；`jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生 |
 | `/jp-vocab/study` | 今日日语单词、学生复习、请老师发送 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/share-request` | 同上 + `jp_vocab_share_request` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
 | `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
-| `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；已带读不拉回；熟悉程度快照不可改；备注与抽问同步；**带读卡片显示例句**；列表有例句列与带读状态；已带读约保留 5 天，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach` | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`） | `jp_vocab:read` 浏览；`jp_vocab:operate` 导出 |
+| `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；已带读不拉回；**带读页可改熟悉程度/编辑词条**；备注与抽问同步；**带读卡片显示例句**；列表有例句列与带读状态；已带读约保留 5 天，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach`（`update_level` / `mark_coached`） | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`） | `jp_vocab:read` 浏览；`jp_vocab:operate` 编辑/带读 |
 | `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页；下载名见「日语新课 → 教案下载文件名」 |
 
 ### jp-vocab 子功能 → 文件速查
@@ -39,6 +39,7 @@
 | **老师端序号 1–N 可操作**（列表内超出今日抽查数量的序号熟悉程度/发给学生禁用；管理员仍见全库） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInDailyQuizTarget`；`JpVocabDailyQuizProgressBar.tsx` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | **读音「待补全」**（Mac 每分钟补 `reading`；助词尾/斜杠异写有 fallback；长句跳过） | `scripts/jp-vocab-fill-reading-nightly.sh` → `jp-vocab-fill-reading-api.py`；`POST /api/jp-vocab/fill-reading`；`jp-vocab-fill-reading.ts`；规则 `.cursor/rules/jp-vocab-fill-reading.mdc` |
+| **例句 AI 补全**（缺例句先内置 N5 词表，再 OpenAI 生成 2 条口语例句；汉字旁 `漢字(かな)` + 中文译义） | `scripts/jp-vocab-fill-example-sentences-ai.py`；`POST /api/jp-vocab/fill-example-sentences`；`jp-vocab-example-sentences-ai.ts`；规则 `.cursor/rules/jp-vocab-fill-example-sentences.mdc` |
 | 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | **今日共享列表本地缓存**（打开立刻显示；后台刷新；跨日自动失效） | `jp-vocab-study-cache.ts`；`JpVocabStudyPage.tsx` → `loadShared`；Worker 内短缓存 `listJpVocabSharedToday`（`jp-vocab-db.ts`） |
 | 学生点「查看老师正在抽查的单词」、老师卡片提示已自行查看 | `JpVocabStudyPage.tsx` → `peekTeacherQuizWord`；`POST /api/jp-vocab/teacher-quiz-live`（学生自行查看时写入 `jp_vocab_shared`，老师后续勾选不重复发送）；`JpVocabPage.tsx` → `syncTeacherQuizLiveWord`、`studentPeekedCurrentWord`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-db.ts` → `peekJpVocabTeacherQuizLiveWord`、`setJpVocabTeacherQuizLiveWord`；`jp-vocab-teacher-quiz-live.ts` |
@@ -47,11 +48,11 @@
 | 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
 | **手机端排序 / 操作栏折叠**（表头隐藏时提供「默认顺序 / 抽查优先级 / 当日序号」；操作按钮默认收起，点「展开操作」才显示导出等） | `JpVocabPage.tsx` → `toggleStatSort`、`restoreDailyRowOrder`、`mobileToolbarExpanded`；`mobile.css` |
 | **导出 Word**（全部数据 / 今日未掌握；导出序号 1. 2. 3.…、日语、读音、类型单词/语法；词条分块、备注图片三列；图片 ≥4 张独占一页；不含熟悉程度与巧记） | `JpVocabPage.tsx` → `runExport`；`JpVocabExportChoiceModal.tsx`；`jp-vocab-export.ts` → `exportJpVocabToWord` |
-| **导出到课堂带读**（今日「一般」「不熟悉」→ `/jp-vocab/coach` 合并队列；剔除已带读、与未带读去重；备注共用 `class_notes`） | `JpVocabPage.tsx` → `runCoachExport`、`goToCoachPage`；`JpVocabDailyQuizCompleteModal.tsx`；`POST /api/jp-vocab/coach` `merge_queue`；`jp-vocab-coach.ts` |
+| **导出到课堂带读**（今日「一般」「不熟悉」→ `/jp-vocab/coach` 合并队列；剔除已带读、与未带读去重；备注共用 `class_notes`；带读页可改熟悉程度） | `JpVocabPage.tsx` → `runCoachExport`、`goToCoachPage`；`JpVocabCoachPage.tsx` → `recordCoachLevel`；`POST /api/jp-vocab/coach` `merge_queue` / `update_level`；`jp-vocab-coach.ts` |
 | **抽问/带读卡片例句与备注**（网页端加宽加高、中间可滚；有例句时抽问卡也显示；**日语例句下中文译义不占序号**；**保存时检测完全相同的日语例句并提醒查证**；备注约 4000 字内直接展示） | `JpVocabTeacherQuizFlashcardModal.tsx`；`JpVocabTeacherQuizFlashcardStyles.tsx`；`JpVocabExampleSentencesCell.tsx`；`JpVocabEditModal.tsx` / `JpVocabManualAddModal.tsx`；`jp-vocab-example-sentences.ts` → `parseJpVocabExampleSentenceItems`、`findDuplicateJpVocabExamplePrimaries` |
 | 老师端列表、分页、表格样式 | `JpVocabPage.tsx`（编排）；`jp-vocab-page/JpVocabWordTable.tsx`、`JpVocabPagination.tsx`、`JpVocabPageStyles.tsx`；`lib/jp-vocab-page-*.ts`、`lib/vocab-page-shared.ts` |
 | **保存/同步橙色进度条**（D1 写入较慢；**改保存 UI 必引**） | `src/components/JpVocabSaveProgressBar.tsx`；`src/lib/jp-vocab-save-progress.ts` → `jpVocabSaveProgressLabel`；`.cursor/rules/save-progress-ui.mdc` |
-| 课堂备注、共享备注（支持粘贴/上传图片；**相同图片内容不可重复粘贴/加入**） | `JpClassNotesEditModal.tsx`；`JpVocabClassNoteContent.tsx`；`jp-vocab-class-notes.ts` → `collectJpVocabClassNoteImageRefKeys`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload`（内容哈希去重） |
+| **课堂备注、共享备注**（支持粘贴/上传图片；**相同图片内容不可重复粘贴/加入**；抽问/带读卡片内点「保存」询问是否共享给学生，进度条：正在保存→正在共享） | `JpClassNotesEditModal.tsx`（`sharePromptOnSave`）；`jp-vocab-class-notes.ts` → `collectJpVocabClassNoteImageRefKeys`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload`（内容哈希去重）；学生端 `JpVocabStudyPage.tsx` → `subscribeJpVocabSharedUpdated` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`（含**巧记**字段，仅管理员）；`/api/jp-vocab/add`、`/edit`；`jp_vocab_word.mnemonic` |
 | **日语复习**（选数量、按序号/抽查优先级排序、卡片上/下一个、清除已复习；**今日已在抽问页抽查的词条显示「已抽问」**） | `JpVocabReviewPage.tsx`；`JpVocabAdminReviewFlashcardModal.tsx`；`jp-vocab-review-plan.ts`、`jp-vocab-review-session.ts`、`jp-vocab-daily-check.ts` → `isJpVocabWordQuizzedToday`；`POST /api/jp-vocab/review`；`jp_vocab_review_done` |
 | 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach` |

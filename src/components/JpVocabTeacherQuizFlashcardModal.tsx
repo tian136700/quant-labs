@@ -205,9 +205,12 @@ export function JpVocabTeacherQuizFlashcardModal({
     };
   }, [open]);
 
+  const isCoachMode = mode === "coach";
   const selectedLevel =
     word && session
-      ? effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], { displayOrder })
+      ? isCoachMode
+        ? sessionLevel[word.id] ?? coachLevelByWordId?.get(word.id)
+        : effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], { displayOrder })
       : undefined;
 
   useEffect(() => {
@@ -216,7 +219,7 @@ export function JpVocabTeacherQuizFlashcardModal({
 
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
 
-  const isCoach = mode === "coach";
+  const isCoach = isCoachMode;
   const w = notesWord ?? word;
   const ref = w.ref_key ? refs[w.ref_key] : undefined;
   const readingTrim = (w.reading || "").trim();

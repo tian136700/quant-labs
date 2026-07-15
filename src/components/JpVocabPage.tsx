@@ -2783,10 +2783,14 @@ export function JpVocabPage() {
           editingRemarksWord != null &&
           sharedTodayWordIds.has(editingRemarksWord.id)
         }
+        sharePromptOnSave={showQuizFlashcard}
         onClose={() => setEditingRemarksWord(null)}
         onSaved={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
+        onSharedToStudy={(wordId) => {
+          setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
+        }}
       />
 
       <JpVocabEditModal

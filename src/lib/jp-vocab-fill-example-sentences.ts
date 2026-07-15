@@ -9,6 +9,8 @@ export type JpVocabMissingExampleSentenceRow = {
   id: number;
   word: string;
   kind: string;
+  reading: string | null;
+  meaning: string | null;
   suggested: string | null;
 };
 
@@ -51,16 +53,24 @@ export async function listJpVocabWordsMissingExampleSentences(
 ): Promise<JpVocabMissingExampleSentenceRow[]> {
   const result = await db
     .prepare(
-      `SELECT id, word, kind FROM jp_vocab_word
+      `SELECT id, word, kind, reading, meaning FROM jp_vocab_word
        WHERE example_sentences IS NULL OR TRIM(example_sentences) = ''
        ORDER BY id`
     )
-    .all<{ id: number; word: string; kind: string }>();
+    .all<{
+      id: number;
+      word: string;
+      kind: string;
+      reading: string | null;
+      meaning: string | null;
+    }>();
 
   return (result.results ?? []).map((row) => ({
     id: Number(row.id),
     word: String(row.word),
     kind: String(row.kind),
+    reading: row.reading != null ? String(row.reading).trim() || null : null,
+    meaning: row.meaning != null ? String(row.meaning).trim() || null : null,
     suggested: lookupJpVocabExampleSentences(String(row.word)),
   }));
 }

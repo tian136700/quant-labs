@@ -32,6 +32,14 @@ import {
 } from "@/lib/upload-form-progress";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import {
+  animateJpVocabSaveProgressTo100,
+  jpVocabSaveProgressDisplayPercent,
+  jpVocabSaveProgressLabel,
+  jpVocabSaveProgressPercent,
+  JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
+  type JpVocabSaveProgressKind,
+} from "@/lib/jp-vocab-save-progress";
 import type { JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -40,17 +48,25 @@ type Props = {
   locale: "en" | "zh";
   canEdit: boolean;
   sharedToday?: boolean;
+  /** 抽问 / 带读卡片内编辑备注：点保存后询问是否共享给学生 */
+  sharePromptOnSave?: boolean;
   onClose: () => void;
   onSaved: (word: JpVocabWord) => void;
   onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
   onNeedAuth: () => void;
+  /** 备注已共享到学生端（用于更新父页 sharedToday 状态） */
+  onSharedToStudy?: (wordId: number) => void;
 };
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
 const AUTO_SAVE_MS = 1_000;
 const POLL_MS = 2_000;
-const JP_NOTES_SHARE_DURATION_MS = 5_000;
+
+type ActionProgress = {
+  kind: JpVocabSaveProgressKind;
+  percent: number;
+};
 
 function pickClipboardImage(items: DataTransferItemList): File | null {
   for (const item of items) {
@@ -87,38 +103,6 @@ function noteImageUploadPercent(event: UploadProgressEvent): number {
   return Math.max(0, Math.min(92, event.percent));
 }
 
-function jpNotesShareProgressPercent(elapsedMs: number): number {
-  return Math.min(100, Math.round((elapsedMs / JP_NOTES_SHARE_DURATION_MS) * 100));
-}
-
-async function animateJpNotesShareProgressTo100(
-  wordId: number,
-  startedAtMs: number,
-  setShareProgress: (next: { wordId: number; percent: number } | null) => void
-): Promise<void> {
-  const elapsed = Date.now() - startedAtMs;
-  const current = jpNotesShareProgressPercent(elapsed);
-  if (current >= 100) {
-    setShareProgress({ wordId, percent: 100 });
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    return;
-  }
-  const steps = Math.max(4, Math.ceil((100 - current) / 5));
-  const stepMs = Math.min(80, Math.round(400 / steps));
-  for (let i = 1; i <= steps; i++) {
-    await new Promise((resolve) => setTimeout(resolve, stepMs));
-    const percent = current + Math.round(((100 - current) * i) / steps);
-    setShareProgress({ wordId, percent });
-  }
-  setShareProgress({ wordId, percent: 100 });
-  await new Promise((resolve) => setTimeout(resolve, 120));
-}
-
-function historyEntriesFromWord(word: JpVocabWord | null): JpVocabClassNoteEntry[] {
-  if (!word) return [];
-  return parseJpVocabClassNotes(word.class_notes);
-}
-
 function editTargetForEntry(
   entry: JpVocabClassNoteEntry,
   index: number
@@ -129,16 +113,23 @@ function editTargetForEntry(
   return { mode: "existing-index", originalIndex: index };
 }
 
+function historyEntriesFromWord(word: JpVocabWord | null): JpVocabClassNoteEntry[] {
+  if (!word) return [];
+  return parseJpVocabClassNotes(word.class_notes);
+}
+
 export function JpClassNotesEditModal({
   open,
   word,
   locale,
   canEdit,
   sharedToday = false,
+  sharePromptOnSave = false,
   onClose,
   onSaved,
   onSaveFailed,
   onNeedAuth,
+  onSharedToStudy,
 }: Props) {
   const { canAccessJpVocab } = useEtrAuth();
   const canShareToStudy = canAccessJpVocab;
@@ -147,11 +138,9 @@ export function JpClassNotesEditModal({
   const [historyEntries, setHistoryEntries] = useState<JpVocabClassNoteEntry[]>([]);
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [sharing, setSharing] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionProgress, setActionProgress] = useState<ActionProgress | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
-  const [shareProgress, setShareProgress] = useState<{ wordId: number; percent: number } | null>(
-    null
-  );
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState<UploadProgressEvent | null>(
     null
@@ -163,7 +152,7 @@ export function JpClassNotesEditModal({
   const editTargetRef = useRef<JpVocabClassNoteEditTarget>({ mode: "new" });
   const [sessionTs, setSessionTs] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const shareProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const actionProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const imageUploadingRef = useRef(false);
   const draftRef = useRef("");
@@ -196,7 +185,8 @@ export function JpClassNotesEditModal({
       dirtyRef.current = false;
       setError("");
       setSaveStatus("idle");
-      setShareProgress(null);
+      setActionProgress(null);
+      setActionBusy(false);
       imageUploadingRef.current = false;
       setImageUploading(false);
       setImageUploadProgress(null);
@@ -286,23 +276,43 @@ export function JpClassNotesEditModal({
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      if (shareProgressTimerRef.current) clearInterval(shareProgressTimerRef.current);
+      if (actionProgressTimerRef.current) clearInterval(actionProgressTimerRef.current);
     };
   }, []);
 
+  const clearActionProgressTimer = useCallback(() => {
+    if (actionProgressTimerRef.current) {
+      clearInterval(actionProgressTimerRef.current);
+      actionProgressTimerRef.current = null;
+    }
+  }, []);
+
+  const runActionProgress = useCallback(
+    (kind: JpVocabSaveProgressKind, startedAtMs: number) => {
+      clearActionProgressTimer();
+      actionProgressTimerRef.current = setInterval(() => {
+        setActionProgress({
+          kind,
+          percent: jpVocabSaveProgressPercent(Date.now() - startedAtMs),
+        });
+      }, 200);
+    },
+    [clearActionProgressTimer]
+  );
+
   const flushSave = useCallback(
-    async (draftRaw: string) => {
+    async (draftRaw: string): Promise<boolean> => {
       const current = wordRef.current;
-      if (!current || !canEdit) return;
+      if (!current || !canEdit) return true;
 
       const trimmed = draftRaw.trim();
       if (!trimmed) {
         setSaveStatus("saved");
-        return;
+        return true;
       }
       if (trimmed === lastSavedDraftRef.current.trim()) {
         setSaveStatus("saved");
-        return;
+        return true;
       }
 
       const saved = saveJpVocabClassNoteDraft(
@@ -354,12 +364,14 @@ export function JpClassNotesEditModal({
         });
         setSaveStatus("saved");
         setError("");
+        return true;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed";
         setSaveStatus("error");
         setError(message);
         onSaveFailed(snapshot.id, snapshot, message);
+        return false;
       }
     },
     [canEdit, locale, onNeedAuth, onSaveFailed, onSaved]
@@ -626,27 +638,14 @@ export function JpClassNotesEditModal({
     };
   }, [draft, open, canEdit, flushSave, imageUploading]);
 
-  const handleShare = async () => {
+  const shareToStudent = useCallback(async (): Promise<boolean> => {
     const current = wordRef.current;
-    if (!current || !canShareToStudy || sharing) return;
+    if (!current || !canShareToStudy) return false;
 
     const startedAt = Date.now();
-    setSharing(true);
-    setShareProgress({ wordId: current.id, percent: 0 });
     setError("");
-    shareProgressTimerRef.current = setInterval(() => {
-      setShareProgress({
-        wordId: current.id,
-        percent: jpNotesShareProgressPercent(Date.now() - startedAt),
-      });
-    }, 200);
-
-    const clearShareTimer = () => {
-      if (shareProgressTimerRef.current) {
-        clearInterval(shareProgressTimerRef.current);
-        shareProgressTimerRef.current = null;
-      }
-    };
+    setActionProgress({ kind: "share", percent: 0 });
+    runActionProgress("share", startedAt);
 
     try {
       const res = await fetch("/api/jp-vocab/share", {
@@ -660,29 +659,99 @@ export function JpClassNotesEditModal({
       });
       const data = (await res.json()) as { ok: boolean; error?: string };
       if (res.status === 401) {
-        clearShareTimer();
-        setShareProgress(null);
+        clearActionProgressTimer();
+        setActionProgress(null);
         onNeedAuth();
-        return;
+        return false;
       }
       if (!data.ok && res.status !== 409 && data.error !== "already_shared_today") {
         throw new Error(data.error || "共享失败");
       }
-      clearShareTimer();
-      await animateJpNotesShareProgressTo100(current.id, startedAt, setShareProgress);
+      clearActionProgressTimer();
+      await animateJpVocabSaveProgressTo100(startedAt, (percent) => {
+        setActionProgress({ kind: "share", percent });
+      });
       notifyJpVocabSharedUpdated({
         wordId: current.id,
         openRemarks: true,
       });
+      onSharedToStudy?.(current.id);
+      return true;
     } catch (err) {
-      clearShareTimer();
-      setShareProgress(null);
+      clearActionProgressTimer();
+      setActionProgress(null);
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setShareProgress(null);
-      setSharing(false);
+      return false;
     }
-  };
+  }, [
+    canShareToStudy,
+    clearActionProgressTimer,
+    locale,
+    onNeedAuth,
+    onSharedToStudy,
+    runActionProgress,
+  ]);
+
+  const handleSaveClick = useCallback(async () => {
+    if (actionBusy || imageUploading) return;
+
+    const shouldPromptShare = sharePromptOnSave && canShareToStudy;
+    let shouldShare = false;
+    if (shouldPromptShare) {
+      shouldShare = window.confirm(
+        locale === "zh"
+          ? `是否将「${wordRef.current?.word ?? "该词"}」的备注共享给学生？\n共享后学生会立刻在「今日日语单词」看到。`
+          : `Share remarks for "${wordRef.current?.word ?? "this word"}" with the student?`
+      );
+    }
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    setActionBusy(true);
+    try {
+      const trimmed = draftRef.current.trim();
+      const needsSave =
+        canEdit && trimmed.length > 0 && trimmed !== lastSavedDraftRef.current.trim();
+
+      if (needsSave) {
+        const saveStartedAt = Date.now();
+        setActionProgress({ kind: "save", percent: JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT });
+        runActionProgress("save", saveStartedAt);
+        const saved = await flushSave(trimmed);
+        if (!saved) return;
+        clearActionProgressTimer();
+        await animateJpVocabSaveProgressTo100(saveStartedAt, (percent) => {
+          setActionProgress({ kind: "save", percent });
+        });
+      }
+
+      if (shouldShare) {
+        const shared = await shareToStudent();
+        if (!shared) return;
+      }
+
+      onClose();
+    } finally {
+      clearActionProgressTimer();
+      setActionProgress(null);
+      setActionBusy(false);
+    }
+  }, [
+    actionBusy,
+    canEdit,
+    canShareToStudy,
+    clearActionProgressTimer,
+    flushSave,
+    imageUploading,
+    locale,
+    onClose,
+    runActionProgress,
+    sharePromptOnSave,
+    shareToStudent,
+  ]);
 
   const statusLabel =
     saveStatus === "pending"
@@ -930,47 +999,22 @@ export function JpClassNotesEditModal({
           </div>
 
           <div className="jp-notes-edit-footer">
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              onClick={onClose}
-            >
-              完成
-            </button>
-            {canShareToStudy ? (
-              sharing && shareProgress?.wordId === word.id ? (
-                <div className="jp-notes-share-progress" aria-live="polite">
-                  <span className="jp-notes-share-progress-label">正在发给学生，传输中…</span>
-                  <div
-                    className="jp-notes-share-progress-track"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={shareProgress.percent}
-                    aria-label="共享备注给学生进度"
-                  >
-                    <div
-                      className="jp-notes-share-progress-fill"
-                      style={{ width: `${shareProgress.percent}%` }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
-                  disabled={sharing}
-                  title={
-                    sharedToday
-                      ? "将该词备注共享到学生「今日日语单词」"
-                      : "共享到学生「今日日语单词」，并标记为不熟悉"
-                  }
-                  onClick={() => void handleShare()}
-                >
-                  共享备注给学生
-                </button>
-              )
-            ) : null}
+            {actionBusy && actionProgress ? (
+              <JpVocabSaveProgressBar
+                label={jpVocabSaveProgressLabel(actionProgress.kind)}
+                percent={jpVocabSaveProgressDisplayPercent(actionProgress.percent)}
+                fullWidth
+              />
+            ) : (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+                disabled={imageUploading || deletingIndex != null}
+                onClick={() => void handleSaveClick()}
+              >
+                保存
+              </button>
+            )}
           </div>
         </div>
       </div>

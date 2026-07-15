@@ -93,7 +93,7 @@ export function JpVocabExportChoiceModal({
           </p>
           <p>
             <strong>导出到课堂带读</strong>：将今日「一般」「不熟悉」词条（{todayWeakCount}{" "}
-            条）合并进课堂带读队列（自动剔除已带读、与未带读去重）；备注与抽问页同步，熟悉程度为导出时快照且不可在带读页修改。
+            条）合并进课堂带读队列（自动剔除已带读、与未带读去重）；备注与抽问页同步，带读页可修改熟悉程度与编辑词条。
           </p>
         </div>
         <div className="jp-vocab-export-modal-footer">

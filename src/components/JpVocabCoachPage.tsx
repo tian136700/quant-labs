@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
+import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpVocabExampleSentencesCell } from "@/components/JpVocabExampleSentencesCell";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
@@ -16,7 +17,9 @@ import {
   jpVocabCoachLevelLabel,
   jpVocabCoachStatusLabel,
   markJpVocabCoachCoachedClient,
+  updateJpVocabCoachLevelClient,
 } from "@/lib/jp-vocab-coach";
+import { bumpJpVocabWordReview } from "@/lib/jp-vocab-page-helpers";
 import type { JpVocabCoachItem, JpVocabCoachQueueSummary } from "@/lib/jp-vocab-coach-db";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
@@ -27,13 +30,16 @@ import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 export function JpVocabCoachPage() {
   const { locale } = useI18n();
-  const { user, checking, openAuthPanel } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
+  const canOperate = canAccessJpVocab;
 
   const [items, setItems] = useState<JpVocabCoachItem[]>([]);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>({});
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
   const [session, setSession] = useState<JpVocabTeacherQuizSession | null>(null);
+  const [sessionLevel, setSessionLevel] = useState<Record<number, JpVocabLevel | undefined>>({});
+  const [savingWordId, setSavingWordId] = useState<number | null>(null);
   const [showFlashcard, setShowFlashcard] = useState(false);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
   const [previewRef, setPreviewRef] = useState<{
@@ -41,6 +47,7 @@ export function JpVocabCoachPage() {
     cacheVersion?: string | null;
   } | null>(null);
   const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
+  const [editingWord, setEditingWord] = useState<JpVocabWord | null>(null);
 
   const summary = useMemo<JpVocabCoachQueueSummary>(() => {
     const pending_count = items.filter((i) => !i.coached_at).length;
@@ -136,6 +143,95 @@ export function JpVocabCoachPage() {
     );
   }, []);
 
+  const recordCoachLevel = useCallback(
+    async (wordId: number, level: JpVocabLevel) => {
+      if (!canOperate) {
+        setStatus("请登录后再勾选熟悉程度。");
+        openAuthPanel({ mode: "login" });
+        return;
+      }
+      if (savingWordId === wordId) return;
+
+      const item = items.find((row) => row.word_id === wordId);
+      if (!item) return;
+      if (item.coached_at) {
+        setStatus("已带读的词条不能再修改熟悉程度。");
+        return;
+      }
+
+      const previousLevel = item.level;
+      const wordSnapshot = item.word;
+      setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
+      setItems((prev) =>
+        prev.map((row) =>
+          row.word_id === wordId
+            ? {
+                ...row,
+                level,
+                word: bumpJpVocabWordReview(row.word, level, previousLevel),
+              }
+            : row
+        )
+      );
+      setSavingWordId(wordId);
+      setStatus("");
+
+      try {
+        const [vocabRes] = await Promise.all([
+          fetch("/api/jp-vocab", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({ word_id: wordId, level }),
+          }),
+          updateJpVocabCoachLevelClient(locale, wordId, level),
+        ]);
+        const parsed = await readApiJson<{
+          ok: boolean;
+          word?: JpVocabWord;
+          error?: string;
+        }>(vocabRes);
+        if (!parsed.ok || !parsed.data.ok) {
+          throw new Error(
+            parsed.ok
+              ? parsed.data.error || "保存熟悉程度失败"
+              : parsed.error
+          );
+        }
+        if (parsed.data.word) {
+          setItems((prev) =>
+            prev.map((row) =>
+              row.word_id === wordId
+                ? { ...row, word: parsed.data.word!, level }
+                : row
+            )
+          );
+        }
+      } catch (err) {
+        setSessionLevel((prev) => {
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        });
+        setItems((prev) =>
+          prev.map((row) =>
+            row.word_id === wordId
+              ? { ...row, level: previousLevel, word: wordSnapshot }
+              : row
+          )
+        );
+        setStatus(err instanceof Error ? err.message : String(err));
+        await refresh().catch(() => {});
+      } finally {
+        setSavingWordId(null);
+      }
+    },
+    [canOperate, items, locale, openAuthPanel, refresh, savingWordId]
+  );
+
   const markCoachedLocal = useCallback((wordId: number) => {
     const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
     setItems((prev) => {
@@ -204,7 +300,7 @@ export function JpVocabCoachPage() {
         <div>
           <h1>课堂带读</h1>
           <p>
-            抽问完成或导出后，「一般」「不熟悉」会与未带读词条合并为一张表（去重；已带读不再拉回）。熟悉程度为导出时快照，此处不可修改；备注与抽问页共用。已带读超过{" "}
+            抽问完成或导出后，「一般」「不熟悉」会与未带读词条合并为一张表（去重；已带读不再拉回）。带读时可修改熟悉程度、编辑词条与备注（与日语抽问共用记录）。已带读超过{" "}
             {JP_VOCAB_COACH_RETENTION_DAYS} 天会自动清理，未带读会一直保留。
           </p>
         </div>
@@ -333,16 +429,16 @@ export function JpVocabCoachPage() {
         refs={refs}
         locale={locale}
         displayOrder={coachDisplayOrder}
-        sessionLevel={{}}
+        sessionLevel={sessionLevel}
         reviewLockedByWordId={{}}
-        savingWordId={null}
+        savingWordId={savingWordId}
         dailySeqByWordId={dailySeqByWordId}
         coachLevelByWordId={coachLevelByWordId}
-        canOperate
+        canOperate={canOperate}
         shareUiEnabled={false}
         onClose={() => setShowFlashcard(false)}
         onComplete={() => setShowFlashcard(false)}
-        onSelectLevel={() => {}}
+        onSelectLevel={(wordId, level) => void recordCoachLevel(wordId, level)}
         onMarkCoached={(wordId) => void handleMarkCoached(wordId)}
         onNavigate={(index) => {
           setSession((prev) => (prev ? { ...prev, currentIndex: index } : prev));
@@ -355,10 +451,29 @@ export function JpVocabCoachPage() {
         }}
         onViewRemarks={setViewingRemarksWord}
         onEditRemarks={setEditingRemarksWord}
+        onEditWord={canOperate ? setEditingWord : undefined}
         onWordUpdated={handleWordUpdated}
         nestedModalOpen={
-          previewRef != null || editingRemarksWord != null || viewingRemarksWord != null
+          previewRef != null ||
+          editingRemarksWord != null ||
+          viewingRemarksWord != null ||
+          editingWord != null
         }
+      />
+
+      <JpVocabEditModal
+        open={editingWord != null}
+        word={editingWord}
+        refs={refs}
+        locale={locale}
+        canEdit={canOperate}
+        onClose={() => setEditingWord(null)}
+        onSaved={handleWordUpdated}
+        onRefUpdated={(ref) => {
+          setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
+        }}
+        onSaveFailed={(_id, _snapshot, message) => setStatus(message)}
+        onNeedAuth={() => openAuthPanel({ mode: "login" })}
       />
 
       <JpVocabRemarksViewModal
@@ -376,6 +491,7 @@ export function JpVocabCoachPage() {
         word={editingRemarksWord}
         locale={locale}
         canEdit
+        sharePromptOnSave={showFlashcard}
         onClose={() => setEditingRemarksWord(null)}
         onSaved={handleWordUpdated}
         onSaveFailed={(_id, _snapshot, message) => setStatus(message)}

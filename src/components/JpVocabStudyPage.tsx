@@ -116,6 +116,14 @@ export function JpVocabStudyPage() {
   const knownSharedWordIdsRef = useRef<Set<number>>(
     new Set((readJpVocabStudyCache()?.items ?? []).map((item) => item.word_id))
   );
+  const sharedWordStampRef = useRef<Map<number, string>>(
+    new Map(
+      (readJpVocabStudyCache()?.items ?? []).map((item) => [
+        item.word_id,
+        item.word.updated_at ?? "",
+      ])
+    )
+  );
   const pendingRefreshAfterSaveRef = useRef(false);
   const saveQueuePendingRef = useRef(0);
   const hasLoadedOnceRef = useRef(readJpVocabStudyCache() != null);
@@ -189,8 +197,27 @@ export function JpVocabStudyPage() {
       if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
         pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
       }
+      if (pendingFlashcardWordIdRef.current == null) {
+        for (const item of payload.items) {
+          const prevStamp = sharedWordStampRef.current.get(item.word_id);
+          const nextStamp = item.word.updated_at ?? "";
+          if (
+            knownSharedWordIdsRef.current.has(item.word_id) &&
+            prevStamp &&
+            nextStamp &&
+            nextStamp !== prevStamp &&
+            hasJpVocabClassNotes(item.word.class_notes, item.word.class_notes_present)
+          ) {
+            pendingFlashcardWordIdRef.current = item.word_id;
+            break;
+          }
+        }
+      }
     }
     knownSharedWordIdsRef.current = new Set(newWordIds);
+    sharedWordStampRef.current = new Map(
+      payload.items.map((item) => [item.word_id, item.word.updated_at ?? ""])
+    );
     setItems(payload.items);
     setRefs(payload.refs ?? {});
     setShareDate(payload.share_date || beijingDateString());
