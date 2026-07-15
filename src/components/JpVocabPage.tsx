@@ -42,7 +42,6 @@ import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgre
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
-import { JpVocabTeacherQuizModeModal } from "@/components/JpVocabTeacherQuizModeModal";
 import {
   JpVocabTeacherQuizIntroModal,
   shouldShowJpVocabTeacherQuizIntro,
@@ -53,6 +52,7 @@ import {
   expandJpVocabTeacherQuizSessionForTarget,
   filterJpVocabTeacherQuizUncheckedWords,
   isJpVocabTeacherQuizSessionComplete,
+  pickRandomJpVocabTeacherQuizMode,
   reconcileJpVocabTeacherQuizSession,
   resolveJpVocabTeacherQuizRefreshResumeIndex,
   resolveJpVocabTeacherQuizResumeIndex,
@@ -297,8 +297,6 @@ export function JpVocabPage() {
   const [quizSession, setQuizSession] = useState<JpVocabTeacherQuizSession | null>(
     null
   );
-  const [showQuizModeModal, setShowQuizModeModal] = useState(false);
-  const [pendingQuizWordId, setPendingQuizWordId] = useState<number | null>(null);
   const [showQuizFlashcard, setShowQuizFlashcard] = useState(false);
   const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
@@ -1225,13 +1223,11 @@ export function JpVocabPage() {
     setShowTeacherQuizIntro(false);
   }, []);
 
-  const handleTeacherQuizModeSelected = useCallback(
-    (mode: JpVocabTeacherQuizMode) => {
-      setShowQuizModeModal(false);
-      requestTeacherQuizSession(mode, pendingQuizWordId ?? undefined);
-      setPendingQuizWordId(null);
+  const startTeacherQuizWithRandomMode = useCallback(
+    (startWordId?: number) => {
+      requestTeacherQuizSession(pickRandomJpVocabTeacherQuizMode(), startWordId);
     },
-    [pendingQuizWordId, requestTeacherQuizSession]
+    [requestTeacherQuizSession]
   );
 
   /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选（管理员可直接在列表改） */
@@ -1437,8 +1433,7 @@ export function JpVocabPage() {
       if (quizSession != null) {
         resumeTeacherQuizFlashcard(wordId);
       } else {
-        setPendingQuizWordId(wordId);
-        setShowQuizModeModal(true);
+        startTeacherQuizWithRandomMode(wordId);
       }
       setStatus("今日抽查范围内的熟悉程度请在单词卡片内勾选。");
       return;
@@ -2263,12 +2258,12 @@ export function JpVocabPage() {
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
         {JP_VOCAB_SHARE_UI_ENABLED ? (
           <>
-            按序号抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时
+            抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时
             <strong>系统自动标记为不熟悉</strong>），供学生复习。
           </>
         ) : (
           <>
-            按序号抽查 → 提问后勾选熟悉程度，自动同步到学生「今日日语单词」（学生端仅可查看，不可改选）。
+            抽查 → 提问后勾选熟悉程度，自动同步到学生「今日日语单词」（学生端仅可查看，不可改选）。
           </>
         )}
       </p>
@@ -2396,48 +2391,26 @@ export function JpVocabPage() {
               }`}
             >
             {canOperate && quizTarget > 0 && quizTargetWords.length > 0 ? (
-              <>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--primary"
-                  onClick={() => {
-                    if (teacherQuizInProgress) {
-                      resumeTeacherQuizFlashcard();
-                      setStatus("继续今日抽查…");
-                      return;
-                    }
-                    requestTeacherQuizSession("sequential");
-                  }}
-                  disabled={loading}
-                  title={
-                    teacherQuizInProgress
-                      ? "继续抽查卡片"
-                      : `按今日序号 1–${quizTarget} 逐词抽查`
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--primary"
+                onClick={() => {
+                  if (teacherQuizInProgress) {
+                    resumeTeacherQuizFlashcard();
+                    setStatus("继续今日抽查…");
+                    return;
                   }
-                >
-                  {teacherQuizInProgress ? "继续抽查" : "正序抽查"}
-                </button>
-                <button
-                  type="button"
-                  className="btn-rsi-filter"
-                  onClick={() => {
-                    if (teacherQuizInProgress) {
-                      resumeTeacherQuizFlashcard();
-                      setStatus("继续今日抽查…");
-                      return;
-                    }
-                    requestTeacherQuizSession("random");
-                  }}
-                  disabled={loading || teacherQuizInProgress}
-                  title={
-                    teacherQuizInProgress
-                      ? "抽查进行中，请点「继续抽查」"
-                      : "打乱今日可抽查词条顺序"
-                  }
-                >
-                  随机抽查
-                </button>
-              </>
+                  startTeacherQuizWithRandomMode();
+                }}
+                disabled={loading}
+                title={
+                  teacherQuizInProgress
+                    ? "继续抽查卡片"
+                    : "开始抽查（本轮自动随机选用正序或随机）"
+                }
+              >
+                {teacherQuizInProgress ? "继续抽查" : "抽查"}
+              </button>
             ) : null}
             {SHOW_RANDOM_HIGHLIGHT ? (
               <button
@@ -2740,8 +2713,7 @@ export function JpVocabPage() {
             onRecordLevel={(wordId, level) => void tryRecordLevel(wordId, level)}
             onResumeQuiz={(wordId) => resumeTeacherQuizFlashcard(wordId)}
             onRequestQuizMode={(wordId) => {
-              setPendingQuizWordId(wordId);
-              setShowQuizModeModal(true);
+              startTeacherQuizWithRandomMode(wordId);
             }}
             onStatus={setStatus}
           />
@@ -2890,15 +2862,6 @@ export function JpVocabPage() {
         }}
         onSaveFailed={handleWordSaveFailed}
         onNeedAuth={openJpAuth}
-      />
-
-      <JpVocabTeacherQuizModeModal
-        open={showQuizModeModal}
-        onClose={() => {
-          setShowQuizModeModal(false);
-          setPendingQuizWordId(null);
-        }}
-        onSelect={handleTeacherQuizModeSelected}
       />
 
       {user ? (

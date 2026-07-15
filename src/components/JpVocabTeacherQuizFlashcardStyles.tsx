@@ -138,6 +138,17 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
           color: var(--accent);
         }
+        .jp-vocab-teacher-quiz__mode {
+          display: inline-block;
+          font-size: 0.6875rem;
+          line-height: 1.2;
+          padding: 0.12rem 0.4rem;
+          border-radius: 4px;
+          border: 1px solid var(--border);
+          color: var(--muted);
+          font-weight: 500;
+          letter-spacing: 0.02em;
+        }
         .jp-vocab-teacher-quiz__coach-export-level {
           margin: 0 0.2rem;
           color: var(--text);

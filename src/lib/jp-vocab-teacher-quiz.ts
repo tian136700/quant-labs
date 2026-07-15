@@ -9,6 +9,21 @@ export type JpVocabTeacherQuizSession = {
   currentIndex: number;
 };
 
+/** 老师端开始抽查时自动二选一，免去每次手选正序/随机 */
+export function pickRandomJpVocabTeacherQuizMode(): JpVocabTeacherQuizMode {
+  return Math.random() < 0.5 ? "sequential" : "random";
+}
+
+export function jpVocabTeacherQuizModeLabel(
+  mode: JpVocabTeacherQuizMode,
+  locale: "zh" | "en" = "zh"
+): string {
+  if (locale === "en") {
+    return mode === "random" ? "Random" : "Sequential";
+  }
+  return mode === "random" ? "随机" : "正序";
+}
+
 /** 备注 ≤ 此字数时抽查弹窗内直接展示；网页端卡片可滚动后放宽阈值 */
 export const JP_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX = 4000;
 

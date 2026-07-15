@@ -15,6 +15,7 @@ import {
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
 import {
+  jpVocabTeacherQuizModeLabel,
   jpVocabTeacherQuizNotesInline,
   type JpVocabTeacherQuizSession,
 } from "@/lib/jp-vocab-teacher-quiz";
@@ -372,6 +373,21 @@ export function JpVocabTeacherQuizFlashcardModal({
               ) : isCoach ? (
                 <span className="jp-vocab-teacher-quiz__kind jp-vocab-teacher-quiz__kind--coach">
                   课堂带读
+                </span>
+              ) : session ? (
+                <span
+                  className="jp-vocab-teacher-quiz__mode"
+                  title={
+                    session.mode === "random"
+                      ? locale === "zh"
+                        ? "本轮为随机抽查"
+                        : "This round is random order"
+                      : locale === "zh"
+                        ? "本轮为正序抽查"
+                        : "This round is sequential order"
+                  }
+                >
+                  {jpVocabTeacherQuizModeLabel(session.mode, locale)}
                 </span>
               ) : null}
               {dailySeq != null ? (
