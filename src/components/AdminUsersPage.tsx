@@ -37,7 +37,7 @@ import {
   adminUserFieldErrors,
   hasAdminUserFieldErrors,
 } from "@/lib/admin-user-validation";
-import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENGTH } from "@/lib/etr-auth";
+import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENGTH, ETR_DEFAULT_JP_VOCAB_USERNAME, ETR_DEFAULT_JP_VOCAB_USER1_USERNAME, ETR_DEFAULT_ADMIN_USERNAME, isReservedUsername } from "@/lib/etr-auth";
 import { formatBeijingDateTime, parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
 import { formatIpForDisplay } from "@/lib/client-ip";
@@ -212,8 +212,8 @@ function AdminUserActions({
           onClick={() => void onCopyCredentials(row)}
           title={
             locale === "zh"
-              ? "复制用户名与密码（密码来自本机缓存；若无则重置后复制）"
-              : "Copy username and password (from local cache, or reset first)"
+              ? "复制用户名与密码（密码来自本机缓存；系统保留账号如李老师无缓存时不会重置）"
+              : "Copy username and password (from local cache; bootstrap accounts are never random-reset)"
           }
         >
           {copyingId === row.id
@@ -785,8 +785,24 @@ function AdminUsersPageContent() {
 
     let password = readAdminUserPassword(row.id);
     const username = row.username;
+    const isBootstrapAccount = isReservedUsername(
+      username,
+      ETR_DEFAULT_ADMIN_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
+    );
 
     if (!password) {
+      if (isBootstrapAccount) {
+        setStatus(
+          locale === "zh"
+            ? `「${username}」是系统保留账号，禁止一键随机重置密码。请点「编辑」填写已知密码（填完会缓存在本机，之后才能复制）。`
+            : `"${username}" is a system account and cannot be random-reset. Use Edit to enter the known password (then it can be copied from local cache).`
+        );
+        setStatusErr(true);
+        return;
+      }
+
       const ok = window.confirm(
         locale === "zh"
           ? `本地未保存用户「${username}」的密码。\n是否重置为新密码并复制？（旧密码将失效）`
@@ -1021,8 +1037,8 @@ function AdminUsersPageContent() {
         <h1>{locale === "zh" ? "用户管理" : "User management"}</h1>
         <p className="sub">
           {locale === "zh"
-            ? "打开本页时会自动把 Cloudflare Secret / 环境变量里的 Admin、李老师、user1 同步到数据库。也可手动添加用户名与密码；禁用账号后用户将看到维护提示。"
-            : "Opening this page syncs Admin / teacher bootstrap accounts from env secrets into D1. You can also add users manually."}
+            ? "打开本页时只会补建缺失的 Admin / 李老师 / user1，不会改已有密码。也可手动添加用户；禁用后用户将看到维护提示。系统保留账号禁止「复制账号密码」一键随机重置。"
+            : "Opening this page only creates missing Admin / teacher bootstrap accounts — it never overwrites existing passwords. System accounts cannot be random-reset via Copy credentials."}
         </p>
         <p className="hint">
           <a href={adminPath(locale)}>{locale === "zh" ? "← 返回后台管理" : "← Back to admin"}</a>

@@ -1111,11 +1111,24 @@ export async function updateUserByAdmin(
     resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
 
   if (!isValidUsername(name)) return { ok: false, error: "username_invalid" };
-  if (isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name)) {
+
+  const currentIsBootstrap = isReservedUsername(
+    user.username,
+    adminName,
+    jpVocabName,
+    jpVocabUser1Name
+  );
+  const nameLower = name.toLowerCase();
+  const currentLower = user.username.toLowerCase();
+  // 保留账号（Admin/LiLaoshi/user1）可改密码/角色，不可改用户名；也不可把别人改成保留名
+  if (currentIsBootstrap && nameLower !== currentLower) {
+    return { ok: false, error: "cannot_rename_bootstrap" };
+  }
+  if (!currentIsBootstrap && isReservedUsername(name, adminName, jpVocabName, jpVocabUser1Name)) {
     return { ok: false, error: "username_reserved" };
   }
 
-  if (name.toLowerCase() !== user.username.toLowerCase()) {
+  if (nameLower !== currentLower) {
     const existing = await findUserByUsername(env.DB, name);
     if (existing && existing.id !== userId) {
       return { ok: false, error: "username_taken" };
@@ -1273,6 +1286,16 @@ export async function resetUserPasswordByAdmin(
   if (!user) return { ok: false, error: "user_not_found" };
   if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
 
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+  // 李老师 / user1 等 bootstrap 账号禁止一键随机重置（否则别人一直用的密码会失效）
+  if (isReservedUsername(user.username, adminName, jpVocabName, jpVocabUser1Name)) {
+    return { ok: false, error: "cannot_reset_bootstrap" };
+  }
+
   const password = generateAdminResetPassword(6);
   const { salt, hash } = await hashPassword(password);
   const passwordHash = encodePasswordStorage(salt, hash);
@@ -1296,7 +1319,7 @@ export async function resetUserPasswordByAdmin(
   return { ok: true, user: updated, password };
 }
 
-/** 将环境变量 / Secret 中的 bootstrap 账号写入 D1（已存在则同步密码） */
+/** 将环境变量 / Secret 中的 bootstrap 账号写入 D1（仅补建缺失账号，绝不覆盖已有密码） */
 export async function syncBootstrapUsersFromEnv(env: CloudflareEnv): Promise<void> {
   await ensureBootstrapUsers(env);
 }

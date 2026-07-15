@@ -17,6 +17,10 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
     en: "Admin accounts cannot be reset here.",
     zh: "不能重置管理员账号。",
   },
+  cannot_reset_bootstrap: {
+    en: "System accounts (LiLaoshi / user1) cannot be random-reset. Edit and set the known password instead.",
+    zh: "系统保留账号（李老师 / user1）禁止一键随机重置。请到「编辑」里填写原密码或新密码。",
+  },
   payload_invalid: {
     en: "Invalid request payload.",
     zh: "请求数据无效。",

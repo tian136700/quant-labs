@@ -6,7 +6,13 @@ import { RBAC_ROLE_LABELS } from "@/lib/rbac";
 import {
   adminUserFieldErrors,
 } from "@/lib/admin-user-validation";
-import type { EtrUserRole } from "@/lib/etr-auth";
+import {
+  ETR_DEFAULT_ADMIN_USERNAME,
+  ETR_DEFAULT_JP_VOCAB_USER1_USERNAME,
+  ETR_DEFAULT_JP_VOCAB_USERNAME,
+  isReservedUsername,
+  type EtrUserRole,
+} from "@/lib/etr-auth";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 
 export type AdminUserEditRow = {
@@ -80,6 +86,13 @@ export function AdminUserEditModal({
   const displayedPasswordError = submitAttempted
     ? passwordSubmitErrors.password
     : passwordErrors.password;
+
+  const usernameLocked = isReservedUsername(
+    user?.username ?? "",
+    ETR_DEFAULT_ADMIN_USERNAME,
+    ETR_DEFAULT_JP_VOCAB_USERNAME,
+    ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -210,8 +223,12 @@ export function AdminUserEditModal({
             </h2>
             <p className="admin-user-edit-subtitle">
               {locale === "zh"
-                ? "修改用户名、角色或密码。留空密码表示不修改。"
-                : "Update username, role, or password. Leave password blank to keep current."}
+                ? usernameLocked
+                  ? "系统保留账号不可改用户名。可填写新密码恢复登录；留空表示不改密码。"
+                  : "修改用户名、角色或密码。留空密码表示不修改。"
+                : usernameLocked
+                  ? "System account username is locked. Set a password to restore login; leave blank to keep."
+                  : "Update username, role, or password. Leave password blank to keep current."}
             </p>
           </div>
           <button
@@ -240,12 +257,19 @@ export function AdminUserEditModal({
               type="text"
               name="admin-user-edit-username"
               value={username}
-              readOnly
+              readOnly={usernameLocked || undefined}
+              disabled={usernameLocked}
               autoComplete="off"
               data-1p-ignore
               data-lpignore="true"
-              onFocus={(e) => e.currentTarget.removeAttribute("readonly")}
-              onChange={(e) => setUsername(e.target.value)}
+              onFocus={(e) => {
+                if (usernameLocked) return;
+                e.currentTarget.removeAttribute("readonly");
+              }}
+              onChange={(e) => {
+                if (usernameLocked) return;
+                setUsername(e.target.value);
+              }}
             />
           </label>
           <label className="admin-user-edit-field">

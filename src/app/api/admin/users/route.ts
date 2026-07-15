@@ -57,6 +57,10 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
     en: "This username is reserved.",
     zh: "该用户名已被系统保留。",
   },
+  cannot_rename_bootstrap: {
+    en: "System account usernames (Admin / LiLaoshi / user1) cannot be renamed.",
+    zh: "系统保留账号（Admin / 李老师 / user1）不能改用户名。",
+  },
   username_taken: {
     en: "Username already exists.",
     zh: "用户名已存在。",
