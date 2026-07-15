@@ -24,6 +24,11 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
+if [[ "${SCHEDULE_CALDAV_DISABLED:-0}" == "1" ]]; then
+  echo "$(date '+%F %T') schedule-caldav: DISABLED (use iPhone/Mac ICS subscription instead), skip"
+  exit 0
+fi
+
 if [[ -n "${SCHEDULE_CALDAV_PYTHON:-}" ]]; then
   PYTHON_BIN="$SCHEDULE_CALDAV_PYTHON"
 elif [[ -x "$VENV_PY" ]]; then
