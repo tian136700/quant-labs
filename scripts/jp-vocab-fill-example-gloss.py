@@ -117,6 +117,57 @@ def translate_mymemory(text: str) -> str:
     return translated
 
 
+def translate_google(text: str) -> str:
+    q = FURIGANA_RE.sub("", text).strip()
+    url = "https://translate.googleapis.com/translate_a/single?" + urllib.parse.urlencode(
+        {
+            "client": "gtx",
+            "sl": "ja",
+            "tl": "zh-CN",
+            "dt": "t",
+            "q": q,
+        }
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "jp-vocab-fill-gloss/1.0"})
+    with urllib.request.urlopen(req, timeout=20, context=_SSL) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    parts = []
+    for chunk in payload[0] or []:
+        if chunk and chunk[0]:
+            parts.append(str(chunk[0]))
+    translated = "".join(parts).strip()
+    if not translated:
+        raise RuntimeError(f"empty google translation for {q!r}")
+    return translated
+
+
+def translate_with_fallback(text: str, *, engine: str, api_key: str, model: str) -> str:
+    errors: list[str] = []
+    order: list[str]
+    if engine == "openai":
+        order = ["openai", "google", "mymemory"]
+    elif engine == "mymemory":
+        order = ["mymemory", "google"]
+    elif engine == "google":
+        order = ["google", "mymemory"]
+    else:
+        order = ["google", "mymemory"]
+
+    for name in order:
+        try:
+            if name == "openai":
+                if not api_key:
+                    continue
+                return translate_openai(text, api_key=api_key, model=model)
+            if name == "google":
+                return translate_google(text)
+            if name == "mymemory":
+                return translate_mymemory(text)
+        except Exception as err:  # noqa: BLE001
+            errors.append(f"{name}:{err}")
+    raise RuntimeError("; ".join(errors) or "no engine")
+
+
 def translate_openai(text: str, *, api_key: str, model: str) -> str:
     body = json.dumps(
         {
@@ -157,11 +208,8 @@ def d1_query_all(remote: bool) -> list[dict]:
         "--json",
         "--command",
         "SELECT id, word, example_sentences FROM jp_vocab_word WHERE example_sentences IS NOT NULL AND TRIM(example_sentences) != '' ORDER BY id",
+        "--remote" if remote else "--local",
     ]
-    if remote:
-        cmd.insert(6, "--remote")
-    else:
-        cmd.insert(6, "--local")
     proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     if proc.returncode != 0:
         raise SystemExit(proc.stderr or proc.stdout or "wrangler failed")
@@ -178,8 +226,8 @@ def main() -> int:
     parser.add_argument("--local", action="store_true", help="写本地 D1，默认 remote")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=0, help="最多处理多少词条，0=全部")
-    parser.add_argument("--delay-ms", type=int, default=350)
-    parser.add_argument("--engine", choices=("auto", "mymemory", "openai"), default="auto")
+    parser.add_argument("--delay-ms", type=int, default=120)
+    parser.add_argument("--engine", choices=("auto", "google", "mymemory", "openai"), default="auto")
     parser.add_argument(
         "--model",
         default=os.environ.get("JP_VOCAB_FILL_EXAMPLE_AI_MODEL", "gpt-4o-mini"),
@@ -195,15 +243,19 @@ def main() -> int:
     openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
     engine = args.engine
     if engine == "auto":
-        engine = "openai" if openai_key else "mymemory"
+        engine = "openai" if openai_key else "google"
     if engine == "openai" and not openai_key:
         print("缺少 OPENAI_API_KEY", file=sys.stderr)
         return 1
 
+    print(f"[fill-gloss] fetching rows… engine={engine} remote={remote}", flush=True)
     rows = d1_query_all(remote=remote)
+    print(f"[fill-gloss] loaded={len(rows)}", flush=True)
     updates: list[tuple[int, str, str]] = []  # id, word, next
     skipped: list[str] = []
     translate_count = 0
+    delay_sec = max(0, args.delay_ms) / 1000.0
+    cache: dict[str, str] = {}
 
     for row in rows:
         word_id = int(row["id"])
@@ -225,21 +277,25 @@ def main() -> int:
             if args.only_normalize:
                 next_items.append((jp, glosses))
                 continue
-            # need translation
             try:
-                if engine == "openai":
-                    zh = translate_openai(jp, api_key=openai_key, model=args.model)
+                if jp in cache:
+                    zh = cache[jp]
                 else:
-                    zh = translate_mymemory(jp)
+                    zh = translate_with_fallback(
+                        jp, engine=engine, api_key=openai_key, model=args.model
+                    )
+                    cache[jp] = zh
+                    translate_count += 1
+                    if delay_sec:
+                        time.sleep(delay_sec)
                 zh = GLOSS_PREFIX_RE.sub("", zh).strip()
                 if not zh:
                     raise RuntimeError("blank zh")
                 next_items.append((jp, [format_gloss(zh)]))
                 changed = True
-                translate_count += 1
-                time.sleep(max(0, args.delay_ms) / 1000.0)
             except Exception as err:  # noqa: BLE001
                 skipped.append(f"{word_id}:{word}:{err}")
+                print(f"  skip {word_id} {word!r}: {err}", flush=True)
                 next_items.append((jp, glosses))
 
         if not changed:
@@ -248,6 +304,10 @@ def main() -> int:
         if serialized.strip() == raw.strip():
             continue
         updates.append((word_id, word, serialized))
+        print(
+            f"  [{len(updates)}] {word_id} {word}: {serialized.replace(chr(10), ' / ')}",
+            flush=True,
+        )
         if args.limit > 0 and len(updates) >= args.limit:
             break
 
@@ -256,11 +316,6 @@ def main() -> int:
         f"skipped={len(skipped)} engine={engine} remote={remote}",
         flush=True,
     )
-    for word_id, word, serialized in updates[:8]:
-        preview = serialized.replace("\n", " / ")
-        print(f"  {word_id} {word}: {preview}", flush=True)
-    if len(updates) > 8:
-        print(f"  … and {len(updates) - 8} more", flush=True)
     if skipped[:10]:
         print("[fill-gloss] skip samples:", flush=True)
         for s in skipped[:10]:
@@ -270,7 +325,7 @@ def main() -> int:
         return 0 if not skipped else 1
 
     sql_path = Path("/tmp/jp-vocab-fill-gloss.sql")
-    lines = ["BEGIN;"]
+    lines = []
     for word_id, _word, serialized in updates:
         lines.append(
             "UPDATE jp_vocab_word SET example_sentences = '"
@@ -279,28 +334,49 @@ def main() -> int:
             + str(word_id)
             + ";"
         )
-    lines.append("COMMIT;")
     sql_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[fill-gloss] wrote {sql_path} ({len(updates)} updates)", flush=True)
 
-    cmd = [
-        "npx",
-        "wrangler",
-        "d1",
-        "execute",
-        "strategy-compare-db",
-        "--file",
-        str(sql_path),
-        "-y",
-    ]
-    if remote:
-        cmd.insert(6, "--remote")
-    else:
-        cmd.insert(6, "--local")
-    proc = subprocess.run(cmd, cwd=ROOT)
-    if proc.returncode != 0:
-        return proc.returncode
-    print(f"[fill-gloss] done, updated={len(updates)} skipped={len(skipped)}", flush=True)
+    # D1 remote 不支持 BEGIN/COMMIT；按批提交
+    import re as _re
+
+    stmts = _re.findall(
+        r"UPDATE jp_vocab_word SET example_sentences = '.*?', updated_at = datetime\('now'\) WHERE id = \d+;",
+        sql_path.read_text(encoding="utf-8"),
+        flags=_re.S,
+    )
+    batch_size = 20
+    applied = 0
+    for i in range(0, len(stmts), batch_size):
+        batch = stmts[i : i + batch_size]
+        chunk_path = Path(f"/tmp/jp-gloss-apply-{i}.sql")
+        chunk_path.write_text("\n".join(batch) + "\n", encoding="utf-8")
+        cmd = [
+            "npx",
+            "wrangler",
+            "d1",
+            "execute",
+            "strategy-compare-db",
+            "--file",
+            str(chunk_path),
+            "-y",
+            "--remote" if remote else "--local",
+        ]
+        print(
+            f"[fill-gloss] apply batch {i // batch_size + 1}/{(len(stmts) + batch_size - 1) // batch_size} "
+            f"({len(batch)})",
+            flush=True,
+        )
+        proc = subprocess.run(cmd, cwd=ROOT)
+        if proc.returncode != 0:
+            return proc.returncode
+        applied += len(batch)
+        time.sleep(0.4)
+
+    print(
+        f"[fill-gloss] done, updated={applied} skipped={len(skipped)}",
+        flush=True,
+    )
     return 0
 
 
