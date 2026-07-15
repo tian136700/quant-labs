@@ -135,6 +135,8 @@ def build_vevent(event: dict[str, Any]) -> bytes:
     summary = str(event.get("summary") or "日程").strip() or "日程"
     description = str(event.get("description") or "").strip()
     stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # 网易 CalDAV 常忽略 TZID、把本地墙上时间当 UTC，导致 UTC+7 手机整体偏 7 小时。
+    # 网站日程是北京墙钟；这里写「浮动本地时间」（无 TZID / 无 Z），网易按原数字显示。
     start_s = start.strftime("%Y%m%dT%H%M%S")
     end_s = end.strftime("%Y%m%dT%H%M%S")
 
@@ -146,8 +148,8 @@ def build_vevent(event: dict[str, Any]) -> bytes:
         "BEGIN:VEVENT",
         f"UID:{uid}",
         f"DTSTAMP:{stamp}",
-        f"DTSTART;TZID=Asia/Shanghai:{start_s}",
-        f"DTEND;TZID=Asia/Shanghai:{end_s}",
+        f"DTSTART:{start_s}",
+        f"DTEND:{end_s}",
         fold_ical_line(f"SUMMARY:{ical_escape(summary)}"),
     ]
     if description:
@@ -337,7 +339,13 @@ def sync_to_caldav(
     deleted = 0
     for uid, event in desired.items():
         href = remote.pop(uid, None)
-        client.put_event(event, href)
+        # 网易对覆盖 PUT 常回 412：先删再写
+        if href is not None:
+            try:
+                client.delete_event(uid, href)
+            except SystemExit as err:
+                print(f"warning: {err}", file=sys.stderr)
+        client.put_event(event, None)
         upserted += 1
         if upserted % 10 == 0:
             print(f"  upserted {upserted}/{len(desired)} ...")
