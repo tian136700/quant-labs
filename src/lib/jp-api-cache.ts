@@ -131,6 +131,10 @@ export function parseJpLessonApi(json: unknown): JpLessonApiPayload {
           lesson.meanings != null && String(lesson.meanings).trim()
             ? String(lesson.meanings).trim()
             : null,
+        example_sentences:
+          lesson.example_sentences != null && String(lesson.example_sentences).trim()
+            ? String(lesson.example_sentences).trim()
+            : null,
         learning: Boolean(lesson.learning),
         teacher_ids: teacherIds,
         teacher_other:

@@ -1220,6 +1220,7 @@ export async function upsertJpVocabFromLesson(
     kind: JpVocabKind;
     ref_key: string | null;
     meaning?: string | null;
+    example_sentences?: string | null;
   }[],
   refs: JpVocabRefUploadInput[] = []
 ): Promise<void> {
@@ -1235,12 +1236,21 @@ export async function upsertJpVocabFromLesson(
       const kind = normalizeKind(item.kind);
       const refKey = item.ref_key;
       const meaning = (item.meaning || "").trim() || null;
+      const exampleSentences = (item.example_sentences || "").trim() || null;
       const idx = devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
-        if (meaning && !devWords[idx].meaning?.trim()) {
+        const cur = devWords[idx];
+        const nextMeaning =
+          meaning && !cur.meaning?.trim() ? meaning : cur.meaning;
+        const nextExamples =
+          exampleSentences && !cur.example_sentences?.trim()
+            ? exampleSentences
+            : cur.example_sentences ?? null;
+        if (nextMeaning !== cur.meaning || nextExamples !== (cur.example_sentences ?? null)) {
           devWords[idx] = {
-            ...devWords[idx],
-            meaning,
+            ...cur,
+            meaning: nextMeaning,
+            example_sentences: nextExamples,
             updated_at: ts,
           };
         }
@@ -1260,6 +1270,7 @@ export async function upsertJpVocabFromLesson(
           today_check_count: 0,
           today_check_date: null,
           class_notes: null,
+          example_sentences: exampleSentences,
           created_at: ts,
           updated_at: ts,
         });
@@ -1273,19 +1284,35 @@ export async function upsertJpVocabFromLesson(
     const kind = normalizeKind(item.kind);
     const refKey = item.ref_key;
     const meaning = (item.meaning || "").trim() || null;
+    const exampleSentences = (item.example_sentences || "").trim() || null;
 
     const existing = await db
-      .prepare("SELECT id, meaning FROM jp_vocab_word WHERE word = ?1 LIMIT 1")
+      .prepare(
+        `SELECT id, meaning, example_sentences FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
+      )
       .bind(word)
-      .first<{ id: number; meaning: string | null }>();
+      .first<{ id: number; meaning: string | null; example_sentences: string | null }>();
 
     if (existing) {
+      let nextMeaning = existing.meaning;
+      let nextExamples = existing.example_sentences;
+      let changed = false;
       if (meaning && !(existing.meaning || "").trim()) {
+        nextMeaning = meaning;
+        changed = true;
+      }
+      if (exampleSentences && !(existing.example_sentences || "").trim()) {
+        nextExamples = exampleSentences;
+        changed = true;
+      }
+      if (changed) {
         await db
           .prepare(
-            `UPDATE jp_vocab_word SET meaning = ?1, updated_at = ?2 WHERE id = ?3`
+            `UPDATE jp_vocab_word
+             SET meaning = ?1, example_sentences = ?2, updated_at = ?3
+             WHERE id = ?4`
           )
-          .bind(meaning, ts, existing.id)
+          .bind(nextMeaning, nextExamples, ts, existing.id)
           .run();
       }
       continue;
@@ -1293,10 +1320,10 @@ export async function upsertJpVocabFromLesson(
 
     await db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?5)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, created_at, updated_at)
+         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?6)`
       )
-      .bind(word, meaning, kind, refKey, ts)
+      .bind(word, meaning, kind, refKey, exampleSentences, ts)
       .run();
   }
 }

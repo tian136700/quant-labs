@@ -8,6 +8,11 @@ import type { JpLessonKind, JpVocabMediaType } from "@/lib/types";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
+function optionalFormText(form: FormData, key: string): string | null {
+  const raw = form.get(key);
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
 export async function POST(request: Request) {
   try {
     const env = await getCloudflareEnv();
@@ -20,6 +25,7 @@ export async function POST(request: Request) {
     let kind: JpLessonKind = "word";
     let content = "";
     let meanings: string | null = null;
+    let exampleSentences: string | null = null;
     let title: string | null = null;
     let refKey = "";
     let fileBytes: ArrayBuffer | null = null;
@@ -29,14 +35,9 @@ export async function POST(request: Request) {
       const form = await request.formData();
       kind = form.get("kind") === "grammar" ? "grammar" : "word";
       content = String(form.get("content") || "").trim();
-      const meaningsRaw = form.get("meanings");
-      meanings =
-        typeof meaningsRaw === "string" && meaningsRaw.trim()
-          ? meaningsRaw.trim()
-          : null;
-      const titleRaw = form.get("title");
-      title =
-        typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : null;
+      meanings = optionalFormText(form, "meanings");
+      exampleSentences = optionalFormText(form, "example_sentences");
+      title = optionalFormText(form, "title");
       refKey = normalizeJpVocabRefKey(String(form.get("ref_key") || ""));
 
       const file = form.get("file");
@@ -54,12 +55,14 @@ export async function POST(request: Request) {
         kind?: JpLessonKind;
         content?: string;
         meanings?: string | null;
+        example_sentences?: string | null;
         title?: string | null;
         ref_key?: string | null;
       };
       kind = body.kind === "grammar" ? "grammar" : "word";
       content = String(body.content || "").trim();
       meanings = (body.meanings || "").trim() || null;
+      exampleSentences = (body.example_sentences || "").trim() || null;
       title = (body.title || "").trim() || null;
       refKey = normalizeJpVocabRefKey(String(body.ref_key || ""));
     }
@@ -74,6 +77,7 @@ export async function POST(request: Request) {
       kind,
       content,
       meanings,
+      example_sentences: exampleSentences,
       title,
       ref_key: hasFile ? null : refKey || null,
     });

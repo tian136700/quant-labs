@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, alignLessonItemMeanings } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, alignLessonItemMeanings, normalizeLessonExampleSentencesForStorage, alignLessonItemExampleSentences } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -29,6 +29,7 @@ const devLessons: JpLessonRecord[] = [];
 let devNextId = 1;
 let devSeeded = false;
 let jpLessonMeaningsColumnReady = false;
+let jpLessonExampleSentencesColumnReady = false;
 let jpLessonLinkCopyCountColumnReady = false;
 
 async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
@@ -39,6 +40,16 @@ async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
     /* column may already exist */
   }
   jpLessonMeaningsColumnReady = true;
+}
+
+async function ensureJpLessonExampleSentencesColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || jpLessonExampleSentencesColumnReady) return;
+  try {
+    await db.prepare(`ALTER TABLE jp_lesson ADD COLUMN example_sentences TEXT`).run();
+  } catch {
+    /* column may already exist */
+  }
+  jpLessonExampleSentencesColumnReady = true;
 }
 
 async function ensureJpLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
@@ -55,6 +66,7 @@ async function ensureJpLessonLinkCopyCountColumn(db: D1Database): Promise<void> 
 
 async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
   await ensureJpLessonMeaningsColumn(db);
+  await ensureJpLessonExampleSentencesColumn(db);
   await ensureJpLessonLinkCopyCountColumn(db);
 }
 
@@ -88,6 +100,10 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
     meanings:
       row.meanings != null && String(row.meanings).trim()
         ? String(row.meanings).trim()
+        : null,
+    example_sentences:
+      row.example_sentences != null && String(row.example_sentences).trim()
+        ? String(row.example_sentences).trim()
         : null,
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
@@ -150,7 +166,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, meanings, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, meanings, example_sentences, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -165,6 +181,10 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       kind: normalizeKind(item.kind),
       content,
       meanings: normalizeLessonMeaningsForStorage(content, item.meanings),
+      example_sentences: normalizeLessonExampleSentencesForStorage(
+        content,
+        item.example_sentences
+      ),
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
       completed: false,
@@ -316,6 +336,10 @@ async function syncLessonToVocab(
   if (!items.length) return;
 
   const itemMeanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
+  const itemExamples = alignLessonItemExampleSentences(
+    lesson.content,
+    lesson.example_sentences
+  );
   const refKey = lesson.ref_key;
   const refs = refKey
     ? [
@@ -334,6 +358,7 @@ async function syncLessonToVocab(
       kind: lesson.kind,
       ref_key: refKey,
       meaning: itemMeanings[index] ?? null,
+      example_sentences: itemExamples[index] ?? null,
     })),
     refs
   );
@@ -366,6 +391,10 @@ export async function createJpLesson(
   const kind = normalizeKind(input.kind);
   const title = (input.title || "").trim() || null;
   const meanings = normalizeLessonMeaningsForStorage(content, input.meanings);
+  const exampleSentences = normalizeLessonExampleSentencesForStorage(
+    content,
+    input.example_sentences
+  );
   const refKey = input.ref_key
     ? normalizeJpVocabRefKey(input.ref_key) || null
     : null;
@@ -379,6 +408,7 @@ export async function createJpLesson(
       kind,
       content: storedContent,
       meanings,
+      example_sentences: exampleSentences,
       title,
       ref_key: refKey,
       completed: false,
@@ -407,10 +437,10 @@ export async function createJpLesson(
 
   const result = await db
     .prepare(
-      `INSERT INTO jp_lesson (kind, content, meanings, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6, ?6)`
+      `INSERT INTO jp_lesson (kind, content, meanings, example_sentences, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, ?7, ?7, ?7)`
     )
-    .bind(kind, storedContent, meanings, title, refKey, ts)
+    .bind(kind, storedContent, meanings, exampleSentences, title, refKey, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);

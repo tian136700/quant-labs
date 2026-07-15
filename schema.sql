@@ -315,6 +315,8 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   kind        TEXT    NOT NULL DEFAULT 'word',
   content     TEXT    NOT NULL,
   meanings    TEXT,
+  /** 与 content 各项一一对应的例句，多项用 ||| 分隔；单项内为「日语 + 译文：」多行 */
+  example_sentences TEXT,
   title       TEXT,
   ref_key     TEXT,
   completed           INTEGER NOT NULL DEFAULT 0,
@@ -571,6 +573,7 @@ CREATE INDEX IF NOT EXISTS idx_en_lesson_note_lesson ON en_lesson_note (lesson_i
 -- ALTER TABLE jp_vocab_word ADD COLUMN pos TEXT;
 -- CREATE TABLE IF NOT EXISTS jp_vocab_setting (...);  -- 同上
 -- ALTER TABLE jp_lesson ADD COLUMN meanings TEXT;
+-- ALTER TABLE jp_lesson ADD COLUMN example_sentences TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN teacher_other TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN next_class_at TEXT;
 -- ALTER TABLE jp_lesson ADD COLUMN class_duration_minutes INTEGER;

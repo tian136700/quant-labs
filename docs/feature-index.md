@@ -103,7 +103,7 @@
 
 | 功能描述 | 改哪里 |
 |----------|--------|
-| **API 上传新课**（`content` + 可选 `meanings`，`|` 分隔释义；已完成同步释义到 `/jp-vocab`） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings` |
+| **API 上传新课**（`content` + 可选 `meanings` / **`example_sentences`**；`|||` 分隔各词例句；单项「日语 + 译文：」，每词最多 10 条；已完成同步释义与例句到 `/jp-vocab`） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings`、`normalizeLessonExampleSentencesForStorage` |
 | **教案下载文件名**（原图 / 分页 PDF / Word：`{id}、单词学习|语法学习 (词1, 词2, …)`；新课列表下载与「查看」页一致） | `jp-vocab-ref-shared.ts` → `jpLessonRefDownloadFilename`；`JpLessonPage.tsx`；`JpVocabRefViewer` + `jp-vocab/ref/[refKey]/page.tsx`；`GET /api/jp-vocab/ref/[refKey]?download=1`；`getJpLessonByRefKey` |
 | 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
 | 统一日程（日语/英语/手动） | `JpLessonSchedulePage.tsx`；`jp-lesson-manual-schedule.ts` → `LessonScheduleSubject` |
