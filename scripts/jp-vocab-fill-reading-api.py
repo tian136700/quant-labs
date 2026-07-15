@@ -58,6 +58,8 @@ MANUAL_READINGS: dict[str, str] = {
     "生活": "せいかつ",
     "好き": "すき",
     "好きだ": "すきだ",
+    "最後に": "さいごに",
+    "少し/ちょっと": "すこし/ちょっと",
 }
 
 _KANA_OR_MARK = re.compile(r"^[\u3040-\u309F\u30A0-\u30FFー～〜/\s]+$")
@@ -66,6 +68,7 @@ _PARENS_NOTE = re.compile(r"^(.+?)[（(][^）)]+[）)]$")
 _DA_ADJ_SUFFIX = re.compile(r"^(.+)だ$")
 _SURU_VERB_SUFFIX = re.compile(r"^(.+)する$")
 _SKIP_PHRASE = re.compile(r"(します|ください|てください|お願い)")
+_TRAILING_PARTICLE = re.compile(r"(から|まで|より|など|だけ|[にとではをへがも])$")
 _MAX_AUTO_READING_CHARS = 9
 
 
@@ -179,6 +182,50 @@ def attach_reading_suffix(reading: str, suffix: str) -> str:
     return reading + suffix
 
 
+def strip_trailing_particle(word: str) -> tuple[str, str]:
+    match = _TRAILING_PARTICLE.search(word)
+    if not match:
+        return word, ""
+    stem = word[: match.start()].strip()
+    if not stem or not _HAS_KANJI.search(stem):
+        return word, ""
+    return stem, match.group(0)
+
+
+def infer_slash_alternative_reading(
+    word: str,
+    *,
+    use_jisho: bool,
+    jisho_cache: dict[str, str | None],
+    jisho_delay_sec: float,
+) -> tuple[str | None, bool]:
+    if word.count("/") != 1:
+        return None, False
+    left, right = (part.strip() for part in word.split("/", 1))
+    if not left or not right:
+        return None, False
+
+    left_reading: str | None = None
+    jisho_error = False
+    if _KANA_OR_MARK.fullmatch(left):
+        left_reading = left
+    elif _HAS_KANJI.search(left) and use_jisho:
+        left_reading, jisho_error = lookup_jisho(left, jisho_cache, jisho_delay_sec)
+
+    if not left_reading:
+        return None, jisho_error
+
+    if _KANA_OR_MARK.fullmatch(right):
+        return f"{left_reading}/{right}", jisho_error
+    if _HAS_KANJI.search(right) and use_jisho:
+        right_reading, right_err = lookup_jisho(right, jisho_cache, jisho_delay_sec)
+        if right_err:
+            jisho_error = True
+        if right_reading:
+            return f"{left_reading}/{right_reading}", jisho_error
+    return left_reading, jisho_error
+
+
 def lookup_jisho(
     word: str,
     cache: dict[str, str | None],
@@ -264,6 +311,26 @@ def infer_reading(
     if _HAS_KANJI.search(lookup):
         if use_jisho:
             reading, jisho_error = lookup_jisho(lookup, jisho_cache, jisho_delay_sec)
+            if not reading and "/" in lookup:
+                slash_reading, slash_err = infer_slash_alternative_reading(
+                    lookup,
+                    use_jisho=use_jisho,
+                    jisho_cache=jisho_cache,
+                    jisho_delay_sec=jisho_delay_sec,
+                )
+                reading = slash_reading
+                if slash_err:
+                    jisho_error = True
+            if not reading:
+                stem, particle = strip_trailing_particle(lookup)
+                if particle and stem != lookup:
+                    stem_reading, stem_err = lookup_jisho(
+                        stem, jisho_cache, jisho_delay_sec
+                    )
+                    if stem_err:
+                        jisho_error = True
+                    if stem_reading:
+                        reading = stem_reading + particle
         else:
             reading = None
     else:

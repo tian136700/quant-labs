@@ -38,6 +38,8 @@ export const JP_VOCAB_MANUAL_READINGS: Record<string, string> = {
   生活: "せいかつ",
   好き: "すき",
   好きだ: "すきだ",
+  最後に: "さいごに",
+  "少し/ちょっと": "すこし/ちょっと",
 };
 
 const KANA_OR_MARK = /^[\u3040-\u309F\u30A0-\u30FFー～〜/\s]+$/;
@@ -47,6 +49,8 @@ const DA_ADJ_SUFFIX = /^(.+)だ$/;
 const SURU_VERB_SUFFIX = /^(.+)する$/;
 const SKIP_PHRASE = /(します|ください|てください|お願い)/;
 const MAX_AUTO_READING_CHARS = 9;
+/** 词尾常见助词；Jisho 整词匹配失败时去掉再查词干（如「最後に」→「最後」） */
+const TRAILING_PARTICLE = /(から|まで|より|など|だけ|[にとではをへがも])$/;
 
 export type JpVocabMissingReadingRow = {
   id: number;
@@ -98,6 +102,54 @@ function attachReadingSuffix(reading: string, suffix: string): string {
   if (!suffix) return reading;
   if (reading.endsWith(suffix)) return reading;
   return reading + suffix;
+}
+
+function stripTrailingParticle(word: string): { stem: string; particle: string } {
+  const match = TRAILING_PARTICLE.exec(word);
+  if (!match) return { stem: word, particle: "" };
+  const stem = word.slice(0, -match[0].length).trim();
+  if (!stem || !HAS_KANJI.test(stem)) return { stem: word, particle: "" };
+  return { stem, particle: match[0] };
+}
+
+/** 「少し/ちょっと」这类：左边查读音，右边若已是假名则拼回 */
+async function inferSlashAlternativeReading(
+  word: string,
+  jishoCache: Map<string, string | null>,
+  jishoDelayMs: number,
+  useJisho: boolean
+): Promise<{ reading: string | null; jishoError: boolean }> {
+  const slash = word.indexOf("/");
+  if (slash <= 0 || slash !== word.lastIndexOf("/")) {
+    return { reading: null, jishoError: false };
+  }
+  const left = word.slice(0, slash).trim();
+  const right = word.slice(slash + 1).trim();
+  if (!left || !right) return { reading: null, jishoError: false };
+
+  let leftReading: string | null = null;
+  let jishoError = false;
+  if (KANA_OR_MARK.test(left)) {
+    leftReading = left;
+  } else if (HAS_KANJI.test(left) && useJisho) {
+    const result = await lookupJisho(left, jishoCache, jishoDelayMs);
+    leftReading = result.reading;
+    jishoError = result.hadError;
+  }
+
+  if (!leftReading) return { reading: null, jishoError };
+
+  if (KANA_OR_MARK.test(right)) {
+    return { reading: `${leftReading}/${right}`, jishoError };
+  }
+  if (HAS_KANJI.test(right) && useJisho) {
+    const result = await lookupJisho(right, jishoCache, jishoDelayMs);
+    if (result.hadError) jishoError = true;
+    if (result.reading) {
+      return { reading: `${leftReading}/${result.reading}`, jishoError };
+    }
+  }
+  return { reading: leftReading, jishoError };
 }
 
 async function lookupJisho(
@@ -236,9 +288,31 @@ export async function inferJpVocabReading(
       const result = await lookupJisho(lookupWord, jishoCache, jishoDelayMs);
       reading = result.reading;
       jishoError = result.hadError;
+
+      if (!reading && lookupWord.includes("/")) {
+        const slashResult = await inferSlashAlternativeReading(
+          lookupWord,
+          jishoCache,
+          jishoDelayMs,
+          useJisho
+        );
+        reading = slashResult.reading;
+        if (slashResult.jishoError) jishoError = true;
+      }
+
+      if (!reading) {
+        const { stem, particle } = stripTrailingParticle(lookupWord);
+        if (particle && stem !== lookupWord) {
+          const stemResult = await lookupJisho(stem, jishoCache, jishoDelayMs);
+          if (stemResult.hadError) jishoError = true;
+          if (stemResult.reading) {
+            reading = stemResult.reading + particle;
+          }
+        }
+      }
     }
   } else {
-    reading = lookup;
+    reading = lookupWord;
   }
 
   if (!reading) return { reading: null, skipReason: null, jishoError };
