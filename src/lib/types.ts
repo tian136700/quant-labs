@@ -290,6 +290,11 @@ export interface JpLessonRecord {
   content: string;
   /** 与 content 各项一一对应的释义，库内用 | 分隔 */
   meanings: string | null;
+  /**
+   * 与 content 各项一一对应的例句，库内用 ||| 分隔；
+   * 单项内为「日语 + 译文：」多行，最多 10 条例句
+   */
+  example_sentences: string | null;
   title: string | null;
   ref_key: string | null;
   completed: boolean;
@@ -321,6 +326,11 @@ export type JpLessonUploadInput = {
   content: string;
   /** 与 content 各项一一对应，多项用 | 分隔（释义内可含逗号） */
   meanings?: string | null;
+  /**
+   * 与 content 各项一一对应的例句，多项用 ||| 分隔；
+   * 单项内换行写「日语 / 译文：」，可选，每词最多 10 条
+   */
+  example_sentences?: string | null;
   title?: string | null;
   ref_key?: string | null;
 };

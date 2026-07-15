@@ -1,3 +1,9 @@
+import {
+  formatJpVocabExampleGlossLine,
+  parseJpVocabExampleSentenceItems,
+  serializeJpVocabExampleSentenceItems,
+} from "@/lib/jp-vocab-example-sentences";
+
 /** 将上传时的 content 拆成单个单词/语法项（与后端入库逻辑一致） */
 export function parseLessonContent(raw: string): string[] {
   return (raw || "")
@@ -11,6 +17,89 @@ export function parseLessonMeanings(raw: string | null | undefined): string[] {
   const text = (raw || "").trim();
   if (!text) return [];
   return text.split("|").map((s) => s.trim());
+}
+
+/**
+ * 新课例句字段：与 content 各项用 `|||` 分隔（例句正文可含换行与「译文：」）。
+ * 单项内部格式与日语抽问一致，例如：
+ * 日语句
+ * 译文：中文
+ * 日语句
+ * 译文：中文
+ */
+export const JP_LESSON_EXAMPLE_ITEM_SEP = "|||";
+
+/** 每个单词/语法最多保留的日语例句条数（用户自定，上限 10） */
+export const JP_LESSON_EXAMPLE_MAX_PER_ITEM = 10;
+
+/** 将上传时的 example_sentences 拆成与 content 一一对应的例句块 */
+export function parseLessonExampleSentenceBlocks(
+  raw: string | null | undefined
+): string[] {
+  const text = (raw || "").trim();
+  if (!text) return [];
+  return text.split(JP_LESSON_EXAMPLE_ITEM_SEP).map((s) => s.trim());
+}
+
+/** 按 content 项数对齐例句块；缺失项为 null */
+export function alignLessonItemExampleSentences(
+  content: string,
+  examplesRaw: string | null | undefined
+): (string | null)[] {
+  const items = parseLessonContent(content);
+  const blocks = parseLessonExampleSentenceBlocks(examplesRaw);
+  return items.map((_, index) => {
+    const block = blocks[index];
+    return block && block.trim() ? block.trim() : null;
+  });
+}
+
+function normalizeOneLessonExampleBlock(raw: string): string | null {
+  const items = parseJpVocabExampleSentenceItems(raw).slice(
+    0,
+    JP_LESSON_EXAMPLE_MAX_PER_ITEM
+  );
+  if (!items.length) return null;
+  return serializeJpVocabExampleSentenceItems(items) || null;
+}
+
+/** 入库前规范化例句字符串（与 content 项数对齐，用 ||| 连接，单项最多 10 条） */
+export function normalizeLessonExampleSentencesForStorage(
+  content: string,
+  examplesRaw: string | null | undefined
+): string | null {
+  const aligned = alignLessonItemExampleSentences(content, examplesRaw).map((block) =>
+    block ? normalizeOneLessonExampleBlock(block) : null
+  );
+  if (!aligned.some(Boolean)) return null;
+  return aligned.map((item) => item ?? "").join(JP_LESSON_EXAMPLE_ITEM_SEP);
+}
+
+/** 列表展示：把各词的例句压成可读摘要（多项用 · 分隔） */
+export function formatLessonExampleSentencesSummary(
+  content: string,
+  examplesRaw: string | null | undefined
+): string {
+  const aligned = alignLessonItemExampleSentences(content, examplesRaw);
+  if (!aligned.some(Boolean)) return "—";
+
+  return (
+    aligned
+      .map((block, index) => {
+        if (!block) return null;
+        const parts = parseJpVocabExampleSentenceItems(block).map((item, i) => {
+          const gloss = item.glossLines[0]
+            ? formatJpVocabExampleGlossLine(item.glossLines[0])
+            : "";
+          return gloss ? `${i + 1}. ${item.text} / ${gloss}` : `${i + 1}. ${item.text}`;
+        });
+        if (!parts.length) return null;
+        const label = parseLessonContent(content)[index] || `#${index + 1}`;
+        return `${label}：${parts.join("；")}`;
+      })
+      .filter(Boolean)
+      .join(" · ") || "—"
+  );
 }
 
 /** 按 content 项数对齐释义；缺失项为 null */
