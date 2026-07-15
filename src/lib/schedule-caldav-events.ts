@@ -267,14 +267,10 @@ export function buildScheduleIcs(
       `DTEND:${end}`,
       foldIcalLine(`SUMMARY:${icalEscape(summary)}`)
     );
-    const description = [
-      "时间：北京时间（与网站一致）",
-      event.description.trim(),
-    ]
-      .filter(Boolean)
-      .join("\n");
-    if (description) {
-      lines.push(foldIcalLine(`DESCRIPTION:${icalEscape(description)}`));
+    if (event.description.trim()) {
+      lines.push(
+        foldIcalLine(`DESCRIPTION:${icalEscape(event.description)}`)
+      );
     }
     lines.push(
       "CATEGORIES:info-quests-schedule",
