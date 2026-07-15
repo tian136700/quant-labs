@@ -246,7 +246,6 @@ export function JpVocabTeacherQuizFlashcardModal({
   const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
   const showExamples = isCoach || exampleSentences.length > 0;
   const dailySeq = dailySeqByWordId.get(w.id);
-  const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
   const coachExportLevel = isCoach ? coachLevelByWordId?.get(w.id) : undefined;
   const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
@@ -286,6 +285,13 @@ export function JpVocabTeacherQuizFlashcardModal({
     : useDailyProgress
       ? dailyQuizProgress.complete
       : session.wordIds.length > 0 && sessionUncheckedCount === 0;
+  const progressLabel = isCoach
+    ? `${session.currentIndex + 1} / ${session.wordIds.length}`
+    : sessionComplete
+      ? locale === "zh"
+        ? "已完成"
+        : "Done"
+      : `${sessionChecked} / ${sessionTotal}`;
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
