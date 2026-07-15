@@ -25,7 +25,12 @@ export function JpVocabSaveProgressBar({
       }`}
       aria-live="polite"
     >
-      <span className="jp-vocab-save-progress__label">{label}</span>
+      <div className="jp-vocab-save-progress__header">
+        <span className="jp-vocab-save-progress__label">{label}</span>
+        <span className="jp-vocab-save-progress__percent" aria-hidden="true">
+          {clamped}%
+        </span>
+      </div>
       <div
         className="jp-vocab-save-progress__track"
         role="progressbar"
@@ -56,12 +61,31 @@ export function JpVocabSaveProgressBar({
           width: 100%;
           max-width: none;
         }
+        .jp-vocab-save-progress__header {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.4rem;
+          min-width: 0;
+        }
         .jp-vocab-save-progress__label {
+          flex: 1 1 auto;
+          min-width: 0;
           font-size: 0.75rem;
           line-height: 1.3;
           color: #f0a840;
-          text-align: center;
+          text-align: left;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .jp-vocab-save-progress__percent {
+          flex: 0 0 auto;
+          font-size: 0.75rem;
+          font-variant-numeric: tabular-nums;
+          line-height: 1.3;
+          font-weight: 600;
+          color: #f0a840;
         }
         .jp-vocab-save-progress__track {
           height: 0.4rem;
