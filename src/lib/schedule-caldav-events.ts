@@ -211,12 +211,15 @@ function addMinutesToClassAt(classAt: string, minutes: number): string | null {
   return `${end.getUTCFullYear()}${pad(end.getUTCMonth() + 1)}${pad(end.getUTCDate())}T${pad(end.getUTCHours())}${pad(end.getUTCMinutes())}${pad(end.getUTCSeconds())}`;
 }
 
-/** Apple 日历订阅用 ICS（含 Asia/Shanghai VTIMEZONE，系统日历能正确显示北京时间） */
+/** Apple 日历订阅用 ICS。
+ * 使用「浮动北京墙钟」（无 TZID）：手机即使设泰国时区，格子上也显示与网站相同的 13:00/14:00，
+ * 不做当地换算（带 TZID=Asia/Shanghai 时，泰国手机会把 15:00 北京显示成 14:00）。
+ */
 export function buildScheduleIcs(
   events: ScheduleCalDavEvent[],
   options?: { calendarName?: string }
 ): string {
-  const calendarName = options?.calendarName ?? "Info Quests 日程";
+  const calendarName = options?.calendarName ?? "Info Quests 日程（北京时间）";
   const stamp = new Date()
     .toISOString()
     .replace(/[-:]/g, "")
@@ -229,44 +232,45 @@ export function buildScheduleIcs(
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     foldIcalLine(`X-WR-CALNAME:${icalEscape(calendarName)}`),
-    "X-WR-TIMEZONE:Asia/Shanghai",
-    "X-PUBLISHED-TTL:PT30M",
-    "REFRESH-INTERVAL;VALUE=DURATION:PT30M",
-    "BEGIN:VTIMEZONE",
-    "TZID:Asia/Shanghai",
-    "BEGIN:STANDARD",
-    "TZOFFSETFROM:+0800",
-    "TZOFFSETTO:+0800",
-    "TZNAME:CST",
-    "DTSTART:19700101T000000",
-    "END:STANDARD",
-    "END:VTIMEZONE",
+    "X-WR-CALDESC:时间均为北京时间（与网站日程一致，不按手机时区换算）",
+    "X-PUBLISHED-TTL:PT15M",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
   ];
 
   for (const event of events) {
     const start = classAtToIcalLocal(event.class_at);
     const end = addMinutesToClassAt(event.class_at, event.duration_minutes);
     if (!start || !end) continue;
+    // UID 加 .bj 后缀，迫使已订阅的日历把旧时区事件换成墙钟事件
+    const uid = event.uid.includes("@")
+      ? event.uid.replace(/@info-quests\.schedule$/, "@info-quests.schedule.bj")
+      : `${event.uid}@info-quests.schedule.bj`;
+    const summary = event.summary;
     lines.push(
       "BEGIN:VEVENT",
-      `UID:${event.uid}`,
+      `UID:${uid}`,
       `DTSTAMP:${stamp}`,
-      `DTSTART;TZID=Asia/Shanghai:${start}`,
-      `DTEND;TZID=Asia/Shanghai:${end}`,
-      foldIcalLine(`SUMMARY:${icalEscape(event.summary)}`)
+      "SEQUENCE:3",
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      foldIcalLine(`SUMMARY:${icalEscape(summary)}`)
     );
-    if (event.description.trim()) {
-      lines.push(
-        foldIcalLine(`DESCRIPTION:${icalEscape(event.description)}`)
-      );
+    const description = [
+      "时间：北京时间（与网站一致）",
+      event.description.trim(),
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (description) {
+      lines.push(foldIcalLine(`DESCRIPTION:${icalEscape(description)}`));
     }
     lines.push(
       "CATEGORIES:info-quests-schedule",
       "TRANSP:OPAQUE",
       "BEGIN:VALARM",
       "ACTION:DISPLAY",
-      "DESCRIPTION:上课提醒",
-      // 开课前 10 分钟（例如 14:00 开课 → 13:50 提醒）
+      "DESCRIPTION:上课提醒（北京时间）",
+      // 开课前 10 分钟（例如北京 14:00 开课 → 13:50 提醒）
       "TRIGGER:-PT10M",
       "END:VALARM",
       "END:VEVENT"
