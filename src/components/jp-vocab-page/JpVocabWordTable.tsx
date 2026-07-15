@@ -60,6 +60,8 @@ export type JpVocabWordTableProps = {
   onRefPreview: (refKey: string, ref?: JpVocabRef) => void;
   onEditWord: (word: JpVocabWord) => void;
   onDeleteWord: (word: JpVocabWord) => void;
+  /** 仅管理员：预览老师抽问卡片样式 */
+  onPreviewQuizCard?: (word: JpVocabWord) => void;
   onViewMnemonic: (word: JpVocabWord) => void;
   onRecordLevel: (wordId: number, level: JpVocabLevel) => void;
   onResumeQuiz: (wordId?: number) => void;
@@ -95,6 +97,7 @@ export function JpVocabWordTable({
   onRefPreview,
   onEditWord,
   onDeleteWord,
+  onPreviewQuizCard,
   onViewMnemonic,
   onRecordLevel,
   onResumeQuiz,
