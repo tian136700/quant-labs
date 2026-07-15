@@ -6,7 +6,6 @@ import { listEnLessonTeachers } from "@/lib/en-lesson-teacher-db";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import {
   flattenJpLessonScheduleEvents,
-  formatLessonContentLines,
   resolveClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
 import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
@@ -57,10 +56,16 @@ function formatLessonTeachers(
   return names.length ? names.join("、") : "未指定";
 }
 
-function contentPreview(content: string, maxLen = 40): string {
-  const first = formatLessonContentLines(content, 3)[0] ?? content.trim();
-  if (first.length <= maxLen) return first;
-  return `${first.slice(0, maxLen - 1)}…`;
+function kindLabel(kind: string | null | undefined): string {
+  return kind === "grammar" ? "语法" : "单词";
+}
+
+function lessonSummary(
+  subjectLabel: string,
+  teachers: string,
+  kind: string | null | undefined
+): string {
+  return `${subjectLabel} · ${teachers} · ${kindLabel(kind)}`;
 }
 
 function buildDescription(parts: Array<string | null | undefined>): string {
@@ -93,21 +98,22 @@ export async function listScheduleCalDavEvents(
     const lesson = jpLessonById.get(event.lessonId);
     if (!lesson) continue;
     const teachers = formatLessonTeachers(lesson, jpNameById);
-    const title = lesson.content.trim() || `日语课 #${lesson.id}`;
-    const preview = contentPreview(title);
+    const content = lesson.content.trim() || `日语课 #${lesson.id}`;
     events.push({
       uid: `jp-lesson-${event.lessonId}-${event.scheduleId}@${SCHEDULE_CALDAV_UID_DOMAIN}`,
       subject: "jp",
-      summary: `日语课 · ${preview}`,
+      summary: lessonSummary("日语课", teachers, lesson.kind),
       description: buildDescription([
+        "时间：北京时间（与网站一致）",
+        `类型：${kindLabel(lesson.kind)}`,
         `老师：${teachers}`,
-        title,
-        lesson.teacher_other ? `其他：${lesson.teacher_other}` : null,
+        `学习内容：${content}`,
+        lesson.title?.trim() ? `教案标题：${lesson.title.trim()}` : null,
       ]),
       class_at: event.classAt,
       duration_minutes: event.durationMinutes,
       teachers,
-      title,
+      title: content,
       lesson_id: event.lessonId,
       schedule_id: event.scheduleId,
     });
@@ -117,21 +123,22 @@ export async function listScheduleCalDavEvents(
     const lesson = enLessonById.get(event.lessonId);
     if (!lesson) continue;
     const teachers = formatLessonTeachers(lesson, enNameById);
-    const title = lesson.content.trim() || `英语课 #${lesson.id}`;
-    const preview = contentPreview(title);
+    const content = lesson.content.trim() || `英语课 #${lesson.id}`;
     events.push({
       uid: `en-lesson-${event.lessonId}-${event.scheduleId}@${SCHEDULE_CALDAV_UID_DOMAIN}`,
       subject: "en",
-      summary: `英语课 · ${preview}`,
+      summary: lessonSummary("英语课", teachers, lesson.kind),
       description: buildDescription([
+        "时间：北京时间（与网站一致）",
+        `类型：${kindLabel(lesson.kind)}`,
         `老师：${teachers}`,
-        title,
-        lesson.teacher_other ? `其他：${lesson.teacher_other}` : null,
+        `学习内容：${content}`,
+        lesson.title?.trim() ? `教案标题：${lesson.title.trim()}` : null,
       ]),
       class_at: event.classAt,
       duration_minutes: event.durationMinutes,
       teachers,
-      title,
+      title: content,
       lesson_id: event.lessonId,
       schedule_id: event.scheduleId,
     });
@@ -139,13 +146,15 @@ export async function listScheduleCalDavEvents(
 
   for (const manual of manuals) {
     const title = manual.title.trim() || `手动日程 #${manual.id}`;
-    const teachers = manual.teacher.trim() || "手动日程";
+    const teachers = manual.teacher.trim() || "未指定";
     events.push({
       uid: `manual-${manual.id}@${SCHEDULE_CALDAV_UID_DOMAIN}`,
       subject: "manual",
-      summary: title,
+      summary: `手动 · ${teachers} · ${title}`,
       description: buildDescription([
+        "时间：北京时间（与网站一致）",
         `老师/对象：${teachers}`,
+        `标题：${title}`,
         manual.note.trim() || null,
       ]),
       class_at: manual.class_at,
@@ -241,16 +250,19 @@ export function buildScheduleIcs(
     const start = classAtToIcalLocal(event.class_at);
     const end = addMinutesToClassAt(event.class_at, event.duration_minutes);
     if (!start || !end) continue;
-    // UID 加 .bj 后缀，迫使已订阅的日历把旧时区事件换成墙钟事件
+    // UID 加 .bj2 后缀，迫使已订阅日历刷新标题格式
     const uid = event.uid.includes("@")
-      ? event.uid.replace(/@info-quests\.schedule$/, "@info-quests.schedule.bj")
-      : `${event.uid}@info-quests.schedule.bj`;
+      ? event.uid.replace(
+          /@info-quests\.schedule(\.bj)?$/,
+          "@info-quests.schedule.bj2"
+        )
+      : `${event.uid}@info-quests.schedule.bj2`;
     const summary = event.summary;
     lines.push(
       "BEGIN:VEVENT",
       `UID:${uid}`,
       `DTSTAMP:${stamp}`,
-      "SEQUENCE:3",
+      "SEQUENCE:4",
       `DTSTART:${start}`,
       `DTEND:${end}`,
       foldIcalLine(`SUMMARY:${icalEscape(summary)}`)
