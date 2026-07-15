@@ -325,8 +325,27 @@ function JpLessonScheduleManualTeacherLinks({
   );
 }
 
+/**
+ * 课节身份键：只用稳定 ID，禁止用老师显示名。
+ * 老师名在 teachers 映射未加载时多为「未指定」，按时段+显示名去重会把并排课误合成一条。
+ */
 function buildLessonEventDedupKey(event: DayScheduleEvent): string {
-  return `${event.subject}|${event.teachers}|${event.start.getTime()}|${event.end.getTime()}`;
+  if (event.source === "manual" && event.manualId != null) {
+    return `manual|${event.manualId}`;
+  }
+  if (event.lessonId != null) {
+    return `${event.subject}|lesson|${event.lessonId}|${event.scheduleId ?? 0}|${event.classAt}`;
+  }
+  return event.key;
+}
+
+function lessonPayloadNeedsTeacherRefresh(
+  payload: { lessons: Array<{ teacher_ids?: number[] }>; teachers?: unknown[] } | null
+): boolean {
+  if (!payload) return true;
+  const hasTeacherIds = payload.lessons.some((lesson) => (lesson.teacher_ids?.length ?? 0) > 0);
+  if (!hasTeacherIds) return false;
+  return !Array.isArray(payload.teachers) || payload.teachers.length === 0;
 }
 
 function readEnLessonCache(): EnLessonApiPayload | null {
@@ -353,6 +372,8 @@ export function JpLessonSchedulePage() {
   );
   const [loading, setLoading] = useState(() => readLessonCache() == null);
   const [refreshing, setRefreshing] = useState(false);
+  const [enLoading, setEnLoading] = useState(() => readEnLessonCache() == null);
+  const [enRefreshing, setEnRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("week");
 
@@ -450,8 +471,9 @@ export function JpLessonSchedulePage() {
     const cached = readLessonCache();
     const hasCache = cached != null;
     const cacheAge = readClientCacheAge(JP_LESSON_CACHE_KEY);
+    const force = Boolean(opts?.force || lessonPayloadNeedsTeacherRefresh(cached));
     const cacheFresh =
-      !opts?.force &&
+      !force &&
       hasCache &&
       cacheAge != null &&
       cacheAge < JP_LESSON_REFRESH_TTL_MS;
@@ -472,7 +494,7 @@ export function JpLessonSchedulePage() {
         {
           onCached: applyLessonPayload,
           ttlMs: JP_LESSON_REFRESH_TTL_MS,
-          force: opts?.force,
+          force,
         }
       );
       applyLessonPayload(payload);
@@ -493,6 +515,21 @@ export function JpLessonSchedulePage() {
   const loadEnLessons = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readEnLessonCache();
     const hasCache = cached != null;
+    const cacheAge = readClientCacheAge(EN_LESSON_CACHE_KEY);
+    const force = Boolean(opts?.force || lessonPayloadNeedsTeacherRefresh(cached));
+    const cacheFresh =
+      !force &&
+      hasCache &&
+      cacheAge != null &&
+      cacheAge < JP_LESSON_REFRESH_TTL_MS;
+
+    if (hasCache) {
+      applyEnLessonPayload(cached);
+      setEnLoading(false);
+      if (!cacheFresh) setEnRefreshing(true);
+    } else {
+      setEnLoading(true);
+    }
     setError("");
     try {
       const payload = await fetchWithClientCache(
@@ -502,7 +539,7 @@ export function JpLessonSchedulePage() {
         {
           onCached: applyEnLessonPayload,
           ttlMs: JP_LESSON_REFRESH_TTL_MS,
-          force: opts?.force,
+          force,
         }
       );
       applyEnLessonPayload(payload);
@@ -510,6 +547,9 @@ export function JpLessonSchedulePage() {
       if (!hasCache) {
         setError(err instanceof Error ? err.message : String(err));
       }
+    } finally {
+      setEnLoading(false);
+      setEnRefreshing(false);
     }
   }, [applyEnLessonPayload]);
 
@@ -1326,10 +1366,13 @@ export function JpLessonSchedulePage() {
       ) : null}
 
       {loading && lessons.length === 0 ? <p className="jpls-muted">加载中…</p> : null}
+      {enLoading && enLessons.length === 0 && lessons.length > 0 ? (
+        <p className="jpls-muted">加载英语课程…</p>
+      ) : null}
       {manualSchedulesLoading && manualSchedules.length === 0 && lessons.length > 0 ? (
         <p className="jpls-muted">加载手动日程…</p>
       ) : null}
-      {refreshing || manualSchedulesRefreshing ? (
+      {refreshing || enRefreshing || manualSchedulesRefreshing ? (
         <p className="jpls-muted" role="status">
           同步中…
         </p>
