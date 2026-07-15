@@ -368,7 +368,7 @@ export async function exportEnVocabRefPaginatedPdf(
     });
   }
 
-  pdf.save(`${paginatedExportBasename(filenameBase)}-分页.pdf`);
+  pdf.save(`${paginatedExportBasename(filenameBase)}-paginated.pdf`);
   return sections.length;
 }
 
@@ -499,7 +499,7 @@ export async function exportEnVocabRefPaginatedDocx(
   const blob = await Packer.toBlob(doc);
   await downloadBlobAsFile(
     blob,
-    `${paginatedExportBasename(filenameBase)}-分页.docx`
+    `${paginatedExportBasename(filenameBase)}-paginated.docx`
   );
   return sectionPages.length;
 }

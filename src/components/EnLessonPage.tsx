@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnLessonAnnotateModal } from "@/components/EnLessonAnnotateModal";
+import { EnLessonCopyMenu } from "@/components/EnLessonCopyMenu";
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
 import {
   EnLessonTeacherEditModal,
@@ -140,6 +141,20 @@ function formatLessonTeacherNames(
     names.push(lesson.teacher_other.trim());
   }
   return names.length ? names.join("、") : "—";
+}
+
+/** 复制「仅文字」用：无上课老师时返回空串，由复制模板留两个空格 */
+function formatLessonTeacherNamesForCopy(
+  lesson: EnLessonRecord,
+  teacherNameById: Map<number, string>
+): string {
+  const names = (lesson.teacher_ids ?? [])
+    .map((id) => teacherNameById.get(id)?.trim() || "")
+    .filter(Boolean);
+  if (lesson.teacher_other?.trim()) {
+    names.push(lesson.teacher_other.trim());
+  }
+  return names.join("、");
 }
 
 function mergeEnLessonTeachers(
@@ -282,19 +297,14 @@ export function EnLessonPage() {
     return map;
   }, [teachers]);
 
-  const copyLessonViewLink = async (lessonId: number, viewUrl: string) => {
-    try {
-      const link = `${SITE_URL}${viewUrl}`;
-      const text = isAdmin
-        ? `老师，这是咱们需要上课内容，麻烦你有时间的时候抽空看一下：${link}`
-        : link;
-      await navigator.clipboard.writeText(text);
-      setCopiedId(lessonId);
-      window.setTimeout(() => setCopiedId(null), 1000);
-    } catch {
-      setStatus("复制失败，请手动选择复制");
-    }
-  };
+  const handleLessonCopied = useCallback((lessonId: number) => {
+    setCopiedId(lessonId);
+    window.setTimeout(() => setCopiedId(null), 1000);
+  }, []);
+
+  const handleLessonCopyError = useCallback(() => {
+    setStatus("复制失败，请手动选择复制");
+  }, []);
 
   const setLessonProgress = async (
     lessonId: number,
@@ -786,14 +796,18 @@ export function EnLessonPage() {
       />
     );
     actionItems.push(
-      <button
+      <EnLessonCopyMenu
         key="copy"
-        type="button"
-        className="jp-lesson-action-btn"
-        onClick={() => void copyLessonViewLink(lesson.id, viewUrl)}
-      >
-        {copiedId === lesson.id ? "已复制" : "复制"}
-      </button>
+        lessonId={lesson.id}
+        viewUrl={viewUrl}
+        siteUrl={SITE_URL}
+        teacherNames={formatLessonTeacherNamesForCopy(lesson, teacherNameById)}
+        primaryClassName="jp-lesson-action-btn"
+        fixedPanel
+        copiedId={copiedId}
+        onCopied={handleLessonCopied}
+        onCopyError={handleLessonCopyError}
+      />
     );
     if (canOperate) {
       actionItems.push(

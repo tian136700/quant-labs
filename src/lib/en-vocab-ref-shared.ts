@@ -8,15 +8,15 @@ import type {
 /** 教案文件 R2 前缀；与 review PDF 共用 JP_REVIEW 桶，上传 review 时不得删除此前缀下对象 */
 export const JP_VOCAB_REF_R2_PREFIX = "vocab-ref/";
 
-/** Windows / 跨平台文件名非法字符；顿号、括号、中文可保留 */
+/** Windows / 跨平台文件名非法字符；空格与括号可保留 */
 const UNSAFE_FILENAME_CHARS = /[\\/:*?"<>|\x00-\x1f]/g;
 
-/** 下载 basename 最长（留扩展名与「-分页」后缀；避免 Windows 路径过长） */
+/** 下载 basename 最长（留扩展名与「-paginated」后缀；避免 Windows 路径过长） */
 const MAX_DOWNLOAD_BASENAME_LEN = 140;
 
 /**
- * 清洗下载文件名：去掉 OS 非法字符，保留顿号、括号、中英文。
- * 现代 macOS / Windows 10+ / Linux 对 UTF-8 文件名均安全。
+ * 清洗下载文件名：去掉 OS 非法字符，保留空格、括号、英文。
+ * 现代 macOS / Windows 10+ / Linux 对空格与 UTF-8 文件名均安全。
  */
 export function sanitizeEnVocabRefDownloadBasename(raw: string): string {
   const cleaned = (raw || "")
@@ -24,9 +24,9 @@ export function sanitizeEnVocabRefDownloadBasename(raw: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/[. ]+$/g, "");
-  if (!cleaned) return "教案";
+  if (!cleaned) return "lesson";
   if (cleaned.length <= MAX_DOWNLOAD_BASENAME_LEN) return cleaned;
-  return `${cleaned.slice(0, MAX_DOWNLOAD_BASENAME_LEN - 1).trimEnd()}…`;
+  return `${cleaned.slice(0, MAX_DOWNLOAD_BASENAME_LEN - 3).trimEnd()}...`;
 }
 
 function joinDownloadItems(items: string[], maxItemsLen: number): string {
@@ -36,7 +36,7 @@ function joinDownloadItems(items: string[], maxItemsLen: number): string {
   for (const item of items) {
     const next = parts.length ? `, ${item}` : item;
     if (used + next.length > maxItemsLen && parts.length > 0) {
-      parts.push("…");
+      parts.push("...");
       break;
     }
     parts.push(item);
@@ -46,16 +46,17 @@ function joinDownloadItems(items: string[], maxItemsLen: number): string {
 }
 
 /**
- * 新课下载名（无扩展名）：`27、单词学习 (apple, book, snow)`
- * 分页导出会再加 `-分页` 与扩展名；整图 PDF 直接用 basename + `.pdf`。
+ * 新课下载名（无扩展名，英文，供菲律宾等英语老师查看）：
+ * `27. Word Learn (apple, book, snow)` / `27. Grammar Learn (in spite of, …)`
+ * 空格保留；分页导出会再加 `-paginated`；整图 PDF 直接用 basename + `.pdf`。
  */
 export function enLessonRefDownloadBasename(lesson: {
   id: number;
   kind: EnLessonKind;
   content: string;
 }): string {
-  const kindLabel = lesson.kind === "grammar" ? "语法学习" : "单词学习";
-  const prefix = `${lesson.id}、${kindLabel} (`;
+  const kindLabel = lesson.kind === "grammar" ? "Grammar Learn" : "Word Learn";
+  const prefix = `${lesson.id}. ${kindLabel} (`;
   const suffix = ")";
   const itemsBudget = Math.max(
     24,
@@ -64,7 +65,7 @@ export function enLessonRefDownloadBasename(lesson: {
   const items = parseLessonContent(lesson.content);
   const itemsText = items.length
     ? joinDownloadItems(items, itemsBudget)
-    : (lesson.content || "").trim() || "—";
+    : (lesson.content || "").trim() || "-";
   return sanitizeEnVocabRefDownloadBasename(`${prefix}${itemsText}${suffix}`);
 }
 
