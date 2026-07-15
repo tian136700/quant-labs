@@ -1339,9 +1339,6 @@ export function JpLessonSchedulePage() {
                 {formatLessonScheduleDurationLabel(historicalDurationTotals.totalMinutes)}
               </strong>
             </span>
-            <span className="jpls-legend" title="手动添加的日程">
-              <span className="jpls-legend-dot jpls-legend-dot--manual" /> 手动
-            </span>
           </div>
           <button
             type="button"
@@ -2010,9 +2007,7 @@ export function JpLessonSchedulePage() {
           .jpls-date-nav {
             display: grid;
             grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem;
-            grid-template-rows: auto auto;
             column-gap: 0.35rem;
-            row-gap: 0.25rem;
             align-items: center;
             width: 100%;
             max-width: 100%;
@@ -2021,39 +2016,40 @@ export function JpLessonSchedulePage() {
           .jpls-date-nav > .jpls-icon-btn:first-child {
             grid-column: 1;
             grid-row: 1;
+            align-self: center;
             position: relative;
             z-index: 1;
           }
           .jpls-date-nav > .jpls-icon-btn:last-child {
             grid-column: 3;
             grid-row: 1;
+            align-self: center;
             position: relative;
             z-index: 1;
           }
           .jpls-date-nav-center {
             grid-column: 2;
-            grid-row: 1 / 3;
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr);
-            grid-template-rows: auto auto;
-            gap: 0.2rem 0.5rem;
+            grid-row: 1;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
             align-items: center;
+            column-gap: 0.5rem;
+            row-gap: 0.2rem;
             min-width: 0;
             width: 100%;
+            text-align: center;
           }
           .jpls-date-relative {
-            grid-column: 1;
-            grid-row: 1;
+            flex: 0 0 auto;
           }
           .jpls-date-input {
-            grid-column: 2;
-            grid-row: 1;
-            width: 100%;
-            max-width: 100%;
+            flex: 0 1 auto;
+            width: auto;
+            max-width: 10.5rem;
           }
           .jpls-date-count {
-            grid-column: 1 / -1;
-            grid-row: 2;
+            flex: 1 0 100%;
             text-align: center;
             white-space: normal;
           }
@@ -2090,9 +2086,6 @@ export function JpLessonSchedulePage() {
         }
         .jpls-legend-dot--en {
           background: color-mix(in srgb, var(--accent) 70%, transparent);
-        }
-        .jpls-legend-dot--manual {
-          background: color-mix(in srgb, #f59e0b 70%, transparent);
         }
         .jpls-layout {
           display: grid;
@@ -2684,6 +2677,27 @@ export function JpLessonSchedulePage() {
           }
           .jpls-toolbar-right {
             justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.55rem;
+            width: 100%;
+          }
+          .jpls-duration-totals {
+            flex-wrap: nowrap;
+            justify-content: center;
+            gap: 0.4rem 0.55rem;
+            max-width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            font-size: 0.75rem;
+          }
+          .jpls-duration-totals .jpls-legend {
+            font-size: inherit;
+            white-space: nowrap;
+            flex-shrink: 0;
+          }
+          .jpls-duration-total--sum {
+            padding-left: 0.45rem;
           }
           .jpls-layout {
             grid-template-columns: minmax(0, 1fr);

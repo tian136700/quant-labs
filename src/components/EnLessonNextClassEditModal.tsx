@@ -109,6 +109,7 @@ export function EnLessonNextClassEditModal({
   };
 
   const removeRow = (key: string) => {
+    if (!window.confirm("确定删除这条预约吗？")) return;
     setRows((prev) => {
       const next = prev.filter((row) => row.key !== key);
       return next.length ? next : [emptyRow()];
