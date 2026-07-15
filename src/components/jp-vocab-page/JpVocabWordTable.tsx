@@ -743,6 +743,16 @@ export function JpVocabWordTable({
                                 </button>
                               ) : null}
                             </div>
+                            {isAdmin && onPreviewQuizCard ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-mobile-action-btn--full"
+                                title="以老师抽问卡片样式预览本词条（仅管理员，不保存勾选）"
+                                onClick={() => onPreviewQuizCard(w)}
+                              >
+                                查看抽问卡片
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </td>

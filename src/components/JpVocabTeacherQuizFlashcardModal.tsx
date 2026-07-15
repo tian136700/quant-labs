@@ -70,6 +70,8 @@ type Props = {
   sharedTodayWordIds?: ReadonlySet<number>;
   /** 学生已自行查看老师当前抽查词 */
   studentPeeked?: boolean;
+  /** 管理员预览抽问卡片样式（只读，不写熟悉程度/不同步给学生） */
+  previewMode?: boolean;
   /** 课堂带读：复用卡片 UI，隐藏勾选与发给学生 */
   mode?: "quiz" | "coach";
   /** 课堂带读：导出时熟悉程度快照 */
@@ -109,6 +111,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   shareProgressMap = {},
   sharedTodayWordIds,
   studentPeeked = false,
+  previewMode = false,
   mode = "quiz",
   coachLevelByWordId,
   onClose,
@@ -327,6 +330,10 @@ export function JpVocabTeacherQuizFlashcardModal({
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   const tryGoNext = () => {
+    if (previewMode) {
+      onComplete();
+      return;
+    }
     if (!isCoach && sessionComplete) {
       onComplete();
       return;
@@ -358,7 +365,11 @@ export function JpVocabTeacherQuizFlashcardModal({
         <header className="jp-vocab-teacher-quiz__header">
           <div className="jp-vocab-teacher-quiz__header-top">
             <div className="jp-vocab-teacher-quiz__header-left">
-              {isCoach ? (
+              {previewMode ? (
+                <span className="jp-vocab-teacher-quiz__kind jp-vocab-teacher-quiz__kind--coach">
+                  管理员预览
+                </span>
+              ) : isCoach ? (
                 <span className="jp-vocab-teacher-quiz__kind jp-vocab-teacher-quiz__kind--coach">
                   课堂带读
                 </span>
@@ -369,14 +380,14 @@ export function JpVocabTeacherQuizFlashcardModal({
                 </span>
               ) : null}
               <span className="jp-vocab-teacher-quiz__progress">{progressLabel}</span>
-              {!sessionComplete ? (
+              {!sessionComplete && !previewMode ? (
                 <span className="jp-vocab-teacher-quiz__remaining">{remainingLabel}</span>
               ) : null}
             </div>
             <button
               type="button"
               className="jp-vocab-teacher-quiz__close-x"
-              aria-label={isCoach ? "关闭带读" : "关闭抽查"}
+              aria-label={isCoach ? "关闭带读" : previewMode ? "关闭预览" : "关闭抽查"}
               onClick={onClose}
             >
               ×
@@ -389,7 +400,11 @@ export function JpVocabTeacherQuizFlashcardModal({
           >
             <div className="jp-vocab-teacher-quiz__header-progress-head">
               <span className="jp-vocab-teacher-quiz__header-progress-title">
-                {locale === "zh"
+                {previewMode
+                  ? locale === "zh"
+                    ? "抽问卡片预览"
+                    : "Quiz card preview"
+                  : locale === "zh"
                   ? isCoach
                     ? "本轮带读进度"
                     : "本轮抽查进度"
@@ -641,29 +656,33 @@ export function JpVocabTeacherQuizFlashcardModal({
           ) : (
             <>
               <p className="jp-vocab-teacher-quiz__level-label" role="note">
-                {isCoach
-                  ? "请根据学生熟悉程度，勾选以下选项"
-                  : "请根据学生熟悉程度，勾选以下选项"}
+                {previewMode
+                  ? "预览模式：熟悉程度勾选仅为展示，不会保存"
+                  : isCoach
+                    ? "请根据学生熟悉程度，勾选以下选项"
+                    : "请根据学生熟悉程度，勾选以下选项"}
               </p>
               <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
                 <div className="jp-vocab-teacher-quiz__level-main">
                   <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
                     {LEVELS.map((lv) => {
                       const checked = selected === lv.key;
-                      const levelDisabled = reviewLocked || isSaving;
+                      const levelDisabled = previewMode || reviewLocked || isSaving;
                       return (
                         <button
                           key={lv.key}
                           type="button"
                           className={`jp-vocab-level-opt${
                             checked ? " is-checked" : ""
-                          }${reviewLocked ? " jp-vocab-level-opt--locked" : ""}${
+                          }${reviewLocked || previewMode ? " jp-vocab-level-opt--locked" : ""}${
                             lv.key === "very" ? " jp-vocab-level-opt--very" : ""
                           }${lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""}`}
                           disabled={levelDisabled}
                           aria-pressed={checked}
                           title={
-                            reviewLocked
+                            previewMode
+                              ? "预览模式，勾选不会保存"
+                              : reviewLocked
                               ? "勾选已满 1 小时，无法再修改"
                               : checked
                                 ? "今日已选此项，可点其他选项改选"
@@ -783,13 +802,17 @@ export function JpVocabTeacherQuizFlashcardModal({
           <button
             type="button"
             className={`btn-rsi-filter btn-rfi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
-              !isCoach && !selected ? " jp-vocab-teacher-quiz__nav-btn--blocked" : ""
+              !previewMode && !isCoach && !selected
+                ? " jp-vocab-teacher-quiz__nav-btn--blocked"
+                : ""
             }`}
             disabled={isSaving}
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
-              {!isCoach && sessionComplete
+              {previewMode
+                ? "关闭预览"
+                : !isCoach && sessionComplete
                 ? "完成抽查"
                 : isLast
                   ? isCoach
@@ -799,14 +822,14 @@ export function JpVocabTeacherQuizFlashcardModal({
                     ? "已带读，下一个"
                     : "下一个"}
             </span>
-            {!isLast && !isCoach && !sessionComplete ? (
+            {!isLast && !isCoach && !sessionComplete && !previewMode ? (
               <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
             ) : null}
           </button>
         </div>
       </article>
 
-      {nextBlockedHint && !isCoach && !selected ? (
+      {nextBlockedHint && !previewMode && !isCoach && !selected ? (
         <div
           className="jp-vocab-teacher-quiz-alert-overlay"
           role="presentation"

@@ -303,6 +303,10 @@ export function JpVocabPage() {
   const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<JpVocabTeacherQuizSession | null>(null);
+  /** 管理员预览单条抽问卡片（与老师抽问卡片同 UI） */
+  const [quizCardPreviewWordId, setQuizCardPreviewWordId] = useState<number | null>(
+    null
+  );
   const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
   const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
   const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
@@ -1135,6 +1139,20 @@ export function JpVocabPage() {
     () => new Map(words.map((w) => [w.id, w])),
     [words]
   );
+
+  const quizCardPreviewSession = useMemo((): JpVocabTeacherQuizSession | null => {
+    if (quizCardPreviewWordId == null) return null;
+    if (!wordsById.has(quizCardPreviewWordId)) return null;
+    return {
+      mode: "sequential",
+      wordIds: [quizCardPreviewWordId],
+      currentIndex: 0,
+    };
+  }, [quizCardPreviewWordId, wordsById]);
+
+  const closeQuizCardPreview = useCallback(() => {
+    setQuizCardPreviewWordId(null);
+  }, []);
 
   const reviewLockedByWordId = useMemo(() => {
     const map: Record<number, boolean> = {};
@@ -2711,6 +2729,13 @@ export function JpVocabPage() {
             onRefPreview={openRefPreview}
             onEditWord={setEditingWord}
             onDeleteWord={(w) => void deleteWord(w)}
+            onPreviewQuizCard={
+              isAdmin
+                ? (w) => {
+                    setQuizCardPreviewWordId(w.id);
+                  }
+                : undefined
+            }
             onViewMnemonic={setViewingMnemonicWord}
             onRecordLevel={(wordId, level) => void tryRecordLevel(wordId, level)}
             onResumeQuiz={(wordId) => resumeTeacherQuizFlashcard(wordId)}
@@ -2923,6 +2948,44 @@ export function JpVocabPage() {
           editingWord != null
         }
       />
+
+      {isAdmin ? (
+        <JpVocabTeacherQuizFlashcardModal
+          open={quizCardPreviewSession != null}
+          session={quizCardPreviewSession}
+          wordsById={wordsById}
+          refs={refs}
+          locale={locale}
+          displayOrder={displayOrder}
+          sessionLevel={sessionLevel}
+          reviewLockedByWordId={reviewLockedByWordId}
+          savingWordId={null}
+          dailySeqByWordId={dailySeqByWordId}
+          dailyQuizProgress={null}
+          canOperate
+          shareUiEnabled={false}
+          previewMode
+          onClose={closeQuizCardPreview}
+          onComplete={closeQuizCardPreview}
+          onSelectLevel={() => {
+            /* 预览只读 */
+          }}
+          onNavigate={() => {
+            /* 单条预览 */
+          }}
+          onOpenRef={openRefPreview}
+          onViewRemarks={openRemarksWord}
+          onEditRemarks={setEditingRemarksWord}
+          onEditWord={setEditingWord}
+          onWordUpdated={handleWordSaved}
+          nestedModalOpen={
+            viewingRemarksWord != null ||
+            previewRef != null ||
+            editingRemarksWord != null ||
+            editingWord != null
+          }
+        />
+      ) : null}
 
       <JpVocabPageStyles />
 
