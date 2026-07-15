@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """把统一日程同步到网易邮箱 CalDAV（iPhone 已绑定该日历即可看到）。
 
-公开服务器：https://caldav.163.com/ （个人 163/126/yeah.net，端口 443）
-邮箱地址与客户端授权码从 ~/.config/info-quests/schedule-caldav.env 读取。
+个人邮箱公开路径（已验证）:
+  https://caldav.163.com/caldav/dav/{email}/calendar/CALENDAR-DEFAULT-TASKS/
+网易对库客户端常返回 Forbidden，本脚本用 urllib + Mac 日历 User-Agent 直接 REPORT/PUT/DELETE。
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
+import re
 import ssl
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -22,12 +27,14 @@ UID_DOMAIN = "info-quests.schedule"
 DEFAULT_API_URL = (
     "https://finance.info-quests.com/api/admin/schedule-events"
 )
-DEFAULT_CALDAV_URL = "https://caldav.163.com/"
+DEFAULT_CALDAV_HOST = "https://caldav.163.com"
+DEFAULT_CALENDAR_ID = "CALENDAR-DEFAULT-TASKS"
 BEIJING = timezone(timedelta(hours=8))
 HTTP_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+CALDAV_USER_AGENT = "Mac OS X/CalendarAgent"
 
 
 def load_env_file(name: str) -> dict[str, str]:
@@ -100,33 +107,61 @@ def parse_beijing(class_at: str) -> datetime:
     return dt.replace(tzinfo=BEIJING)
 
 
-def build_vevent(event: dict[str, Any]) -> str:
-    from icalendar import Calendar, Event, vText
+def ical_escape(text: str) -> str:
+    return (
+        text.replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
 
+
+def fold_ical_line(line: str) -> str:
+    if len(line) <= 75:
+        return line
+    chunks = [line[:75]]
+    rest = line[75:]
+    while rest:
+        chunks.append(" " + rest[:74])
+        rest = rest[74:]
+    return "\r\n".join(chunks)
+
+
+def build_vevent(event: dict[str, Any]) -> bytes:
     start = parse_beijing(str(event["class_at"]))
     duration = int(event.get("duration_minutes") or 60)
     end = start + timedelta(minutes=duration)
     uid = str(event["uid"]).strip()
     summary = str(event.get("summary") or "日程").strip() or "日程"
     description = str(event.get("description") or "").strip()
+    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    start_s = start.strftime("%Y%m%dT%H%M%S")
+    end_s = end.strftime("%Y%m%dT%H%M%S")
 
-    cal = Calendar()
-    cal.add("prodid", "-//info-quests//schedule-caldav//CN")
-    cal.add("version", "2.0")
-    cal.add("calscale", "GREGORIAN")
-
-    vevent = Event()
-    vevent.add("uid", uid)
-    vevent.add("summary", summary)
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//info-quests//schedule-caldav//CN",
+        "CALSCALE:GREGORIAN",
+        "BEGIN:VEVENT",
+        f"UID:{uid}",
+        f"DTSTAMP:{stamp}",
+        f"DTSTART;TZID=Asia/Shanghai:{start_s}",
+        f"DTEND;TZID=Asia/Shanghai:{end_s}",
+        fold_ical_line(f"SUMMARY:{ical_escape(summary)}"),
+    ]
     if description:
-        vevent.add("description", description)
-    vevent.add("dtstart", start)
-    vevent.add("dtend", end)
-    vevent.add("dtstamp", datetime.now(tz=timezone.utc))
-    vevent.add("categories", vText("info-quests-schedule"))
-    vevent.add("transp", "OPAQUE")
-    cal.add_component(vevent)
-    return cal.to_ical().decode("utf-8")
+        lines.append(fold_ical_line(f"DESCRIPTION:{ical_escape(description)}"))
+    lines.extend(
+        [
+            "CATEGORIES:info-quests-schedule",
+            "TRANSP:OPAQUE",
+            "END:VEVENT",
+            "END:VCALENDAR",
+            "",
+        ]
+    )
+    return "\r\n".join(lines).encode("utf-8")
 
 
 def is_ours(uid: str | None) -> bool:
@@ -135,100 +170,184 @@ def is_ours(uid: str | None) -> bool:
     return uid.strip().endswith(f"@{UID_DOMAIN}")
 
 
-def pick_calendar(calendars: list[Any], preferred_name: str) -> Any:
-    if not calendars:
-        raise SystemExit("CalDAV: 账号下没有可用日历")
-    name = preferred_name.strip()
-    if name:
-        for calendar in calendars:
-            display = str(getattr(calendar, "name", "") or "").strip()
-            if display == name:
-                return calendar
-        names = ", ".join(
-            str(getattr(c, "name", "") or "(unnamed)") for c in calendars
-        )
-        raise SystemExit(
-            f"CalDAV: 未找到名为「{name}」的日历。可用: {names}"
-        )
-    return calendars[0]
+def resolve_calendar_url(*, host: str, email: str, calendar_id: str) -> str:
+    host = host.rstrip("/")
+    if host.endswith("/calendar/") or "CALENDAR-" in host:
+        return host if host.endswith("/") else host + "/"
+    # 网易个人邮箱固定形态
+    return f"{host}/caldav/dav/{email}/calendar/{calendar_id}/"
 
 
-def existing_our_events(calendar: Any) -> dict[str, Any]:
-    found: dict[str, Any] = {}
-    try:
-        items = calendar.events()
-    except Exception:
-        items = []
-    for item in items:
+class NetEaseCalDav:
+    def __init__(self, *, calendar_url: str, email: str, password: str):
+        self.calendar_url = calendar_url if calendar_url.endswith("/") else calendar_url + "/"
+        self.auth = base64.b64encode(f"{email}:{password}".encode("utf-8")).decode("ascii")
+
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        body: bytes | None = None,
+        content_type: str | None = None,
+        depth: str | None = None,
+    ) -> tuple[int, bytes]:
+        headers = {
+            "Authorization": f"Basic {self.auth}",
+            "User-Agent": CALDAV_USER_AGENT,
+        }
+        if content_type:
+            headers["Content-Type"] = content_type
+        if depth is not None:
+            headers["Depth"] = depth
+        request = urllib.request.Request(url, data=body, method=method, headers=headers)
         try:
-            ical = item.icalendar_instance
-            for component in ical.walk():
-                if component.name != "VEVENT":
-                    continue
-                uid = str(component.get("uid") or "").strip()
-                if is_ours(uid):
-                    found[uid] = item
-        except Exception:
-            continue
-    return found
+            with urllib.request.urlopen(request, timeout=60, context=_SSL_CONTEXT) as response:
+                return response.status, response.read()
+        except urllib.error.HTTPError as err:
+            payload = err.read()
+            # DELETE 目标不存在时视为成功；其余 4xx/5xx 抛出
+            if err.code == 404 and method == "DELETE":
+                return err.code, payload
+            raise SystemExit(
+                f"CalDAV {method} {url} -> HTTP {err.code}: "
+                f"{payload[:300].decode('utf-8', errors='replace')}"
+            ) from err
+
+    def list_our_events(self) -> dict[str, str]:
+        """uid -> href (absolute or path)."""
+        report = """<?xml version="1.0" encoding="utf-8" ?>
+<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:getetag/>
+    <c:calendar-data/>
+  </d:prop>
+  <c:filter>
+    <c:comp-filter name="VCALENDAR">
+      <c:comp-filter name="VEVENT"/>
+    </c:comp-filter>
+  </c:filter>
+</c:calendar-query>
+""".encode("utf-8")
+        status, payload = self._request(
+            "REPORT",
+            self.calendar_url,
+            body=report,
+            content_type="application/xml; charset=utf-8",
+            depth="1",
+        )
+        if status not in (200, 207):
+            raise SystemExit(f"CalDAV REPORT unexpected status {status}")
+
+        text = payload.decode("utf-8", errors="replace")
+        # 网易混用命名空间前缀，用宽松正则即可
+        found: dict[str, str] = {}
+        for href, data in re.findall(
+            r"<A:href>(.*?)</A:href>.*?<c:calendar-data[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</c:calendar-data>",
+            text,
+            flags=re.S | re.I,
+        ):
+            uid_match = re.search(r"^UID:(.+)$", data, flags=re.M)
+            if not uid_match:
+                continue
+            uid = uid_match.group(1).strip()
+            if is_ours(uid):
+                found[uid] = href.strip()
+        # 兜底：ElementTree（若命名空间干净）
+        if not found:
+            try:
+                root = ET.fromstring(payload)
+                for response in root.iter():
+                    if not response.tag.endswith("response"):
+                        continue
+                    href_el = None
+                    data_el = None
+                    for child in response.iter():
+                        if child.tag.endswith("href") and href_el is None:
+                            href_el = child
+                        if child.tag.endswith("calendar-data"):
+                            data_el = child
+                    if href_el is None or data_el is None or not data_el.text:
+                        continue
+                    uid_match = re.search(r"^UID:(.+)$", data_el.text, flags=re.M)
+                    if not uid_match:
+                        continue
+                    uid = uid_match.group(1).strip()
+                    if is_ours(uid):
+                        found[uid] = (href_el.text or "").strip()
+            except ET.ParseError:
+                pass
+        return found
+
+    def event_url(self, uid: str, href: str | None = None) -> str:
+        if href:
+            if href.startswith("http"):
+                return href
+            return urllib.parse.urljoin(DEFAULT_CALDAV_HOST, href)
+        quoted = urllib.parse.quote(uid, safe="@")
+        return f"{self.calendar_url}{quoted}.ics"
+
+    def put_event(self, event: dict[str, Any], href: str | None = None) -> None:
+        uid = str(event["uid"]).strip()
+        url = self.event_url(uid, href)
+        body = build_vevent(event)
+        status, _ = self._request(
+            "PUT",
+            url,
+            body=body,
+            content_type="text/calendar; charset=utf-8",
+        )
+        if status not in (200, 201, 204):
+            raise SystemExit(f"CalDAV PUT unexpected status {status} for {uid}")
+
+    def delete_event(self, uid: str, href: str | None = None) -> None:
+        url = self.event_url(uid, href)
+        status, _ = self._request("DELETE", url)
+        if status not in (200, 204, 404):
+            raise SystemExit(f"CalDAV DELETE unexpected status {status} for {uid}")
 
 
 def sync_to_caldav(
     *,
-    url: str,
+    host: str,
     email: str,
     password: str,
-    calendar_name: str,
+    calendar_id: str,
     events: list[dict[str, Any]],
     dry_run: bool,
 ) -> dict[str, int]:
-    try:
-        import caldav
-    except ImportError as err:
-        raise SystemExit(
-            "缺少 caldav 依赖。请先运行: bash scripts/setup-schedule-caldav-mac.sh"
-        ) from err
-
     desired = {
         str(event["uid"]).strip(): event
         for event in events
         if str(event.get("uid") or "").strip()
     }
+    calendar_url = resolve_calendar_url(host=host, email=email, calendar_id=calendar_id)
 
     if dry_run:
-        print(f"dry-run: would sync {len(desired)} events to {url} as {email}")
+        print(f"dry-run: would sync {len(desired)} events to {calendar_url}")
         for uid, event in sorted(desired.items(), key=lambda x: x[1].get("class_at", "")):
-            print(
-                f"  {event.get('class_at')}  {event.get('summary')}  ({uid})"
-            )
+            print(f"  {event.get('class_at')}  {event.get('summary')}  ({uid})")
         return {"upserted": 0, "deleted": 0, "kept": len(desired)}
 
-    client = caldav.DAVClient(url=url, username=email, password=password)
-    principal = client.principal()
-    calendar = pick_calendar(principal.calendars(), calendar_name)
-    remote = existing_our_events(calendar)
+    client = NetEaseCalDav(calendar_url=calendar_url, email=email, password=password)
+    remote = client.list_our_events()
+    print(f"remote our events: {len(remote)}")
 
     upserted = 0
     deleted = 0
-
-    # 网易 CalDAV 对 PATCH 支持不稳定：有则先删再写，保证更新落地
     for uid, event in desired.items():
-        ical_text = build_vevent(event)
-        existing = remote.pop(uid, None)
-        if existing is not None:
-            try:
-                existing.delete()
-            except Exception as err:
-                print(f"warning: delete before upsert failed for {uid}: {err}", file=sys.stderr)
-        calendar.save_event(ical_text)
+        href = remote.pop(uid, None)
+        client.put_event(event, href)
         upserted += 1
+        if upserted % 10 == 0:
+            print(f"  upserted {upserted}/{len(desired)} ...")
 
-    for uid, existing in remote.items():
+    for uid, href in remote.items():
         try:
-            existing.delete()
+            client.delete_event(uid, href)
             deleted += 1
-        except Exception as err:
-            print(f"warning: delete orphan failed for {uid}: {err}", file=sys.stderr)
+        except SystemExit as err:
+            print(f"warning: {err}", file=sys.stderr)
 
     return {"upserted": upserted, "deleted": deleted, "kept": len(desired)}
 
@@ -258,11 +377,14 @@ def main() -> int:
         or cfg.get("SCHEDULE_EVENTS_API_URL")
         or DEFAULT_API_URL
     ).strip()
-    caldav_url = (
+    host = (
         os.environ.get("SCHEDULE_CALDAV_URL")
         or cfg.get("SCHEDULE_CALDAV_URL")
-        or DEFAULT_CALDAV_URL
+        or DEFAULT_CALDAV_HOST
     ).strip()
+    # 兼容旧配置写成 https://caldav.163.com/
+    if host.rstrip("/").endswith("caldav.163.com"):
+        host = DEFAULT_CALDAV_HOST
     email = (
         os.environ.get("SCHEDULE_CALDAV_EMAIL") or cfg.get("SCHEDULE_CALDAV_EMAIL") or ""
     ).strip()
@@ -271,11 +393,15 @@ def main() -> int:
         or cfg.get("SCHEDULE_CALDAV_PASSWORD")
         or ""
     ).strip()
-    calendar_name = (
-        os.environ.get("SCHEDULE_CALDAV_CALENDAR_NAME")
+    calendar_id = (
+        os.environ.get("SCHEDULE_CALDAV_CALENDAR_ID")
+        or cfg.get("SCHEDULE_CALDAV_CALENDAR_ID")
         or cfg.get("SCHEDULE_CALDAV_CALENDAR_NAME")
-        or ""
-    ).strip()
+        or DEFAULT_CALENDAR_ID
+    ).strip() or DEFAULT_CALENDAR_ID
+    # 显示名「默认」映射到网易默认日历 ID
+    if calendar_id in ("默认", "default", ""):
+        calendar_id = DEFAULT_CALENDAR_ID
 
     if not args.dry_run and (not email or not password):
         print(
@@ -290,10 +416,10 @@ def main() -> int:
     print(f"got {len(events)} events")
 
     stats = sync_to_caldav(
-        url=caldav_url,
+        host=host,
         email=email or "(dry-run)",
         password=password or "(dry-run)",
-        calendar_name=calendar_name,
+        calendar_id=calendar_id,
         events=events,
         dry_run=args.dry_run,
     )
