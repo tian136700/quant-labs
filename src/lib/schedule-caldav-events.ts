@@ -263,6 +263,12 @@ export function buildScheduleIcs(
     lines.push(
       "CATEGORIES:info-quests-schedule",
       "TRANSP:OPAQUE",
+      "BEGIN:VALARM",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:上课提醒",
+      // 开课前 10 分钟（例如 14:00 开课 → 13:50 提醒）
+      "TRIGGER:-PT10M",
+      "END:VALARM",
       "END:VEVENT"
     );
   }
