@@ -287,7 +287,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
   const saveBusy = isSharing || isQueued || isSyncing;
-  const saveProgressKind: JpVocabSaveProgressKind = isShared
+  const saveProgressKind: JpVocabSaveProgressKind = isCoach || isShared
     ? "save_level"
     : selected
       ? "sync_to_student"
@@ -298,12 +298,16 @@ export function JpVocabTeacherQuizFlashcardModal({
   const saveProgressPercent = isSharing
     ? sharingPercent
     : jpVocabSaveProgressDisplayPercent(null);
-  const levelSyncHintShort = isShared
-    ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
-    : JP_VOCAB_LEVEL_SYNC_HINT_SHORT;
-  const levelSyncHint = isShared
-    ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
-    : JP_VOCAB_LEVEL_SYNC_HINT;
+  const levelSyncHintShort = isCoach
+    ? "勾选后保存熟悉程度"
+    : isShared
+      ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
+      : JP_VOCAB_LEVEL_SYNC_HINT_SHORT;
+  const levelSyncHint = isCoach
+    ? "勾选后保存熟悉程度（与日语抽问共用记录）"
+    : isShared
+      ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
+      : JP_VOCAB_LEVEL_SYNC_HINT;
   const canGoPrev = session.currentIndex > 0;
   const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = session.currentIndex === session.wordIds.length - 1;
@@ -604,16 +608,13 @@ export function JpVocabTeacherQuizFlashcardModal({
         </div>
 
         <div className="jp-vocab-teacher-quiz__level">
-          {isCoach ? (
+          {isCoach && !canOperate ? (
             <>
               <p className="jp-vocab-teacher-quiz__level-label" role="note">
                 熟悉程度：
                 <strong className="jp-vocab-teacher-quiz__coach-export-level">
                   {coachExportLevel ? jpVocabCoachLevelLabel(coachExportLevel) : "—"}
                 </strong>
-                <span className="jp-vocab-teacher-quiz__coach-export-hint">
-                  （带读页不可修改）
-                </span>
               </p>
               <div
                 className="jp-vocab-teacher-quiz__stat-grid jp-vocab-teacher-quiz__stat-grid--coach"
@@ -627,7 +628,9 @@ export function JpVocabTeacherQuizFlashcardModal({
           ) : (
             <>
               <p className="jp-vocab-teacher-quiz__level-label" role="note">
-                请根据学生熟悉程度，勾选以下选项
+                {isCoach
+                  ? "请根据学生熟悉程度，勾选以下选项"
+                  : "请根据学生熟悉程度，勾选以下选项"}
               </p>
               <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
                 <div className="jp-vocab-teacher-quiz__level-main">
@@ -699,6 +702,16 @@ export function JpVocabTeacherQuizFlashcardModal({
                   fullWidth
                   className="jp-vocab-teacher-quiz__level-progress"
                 />
+              ) : null}
+              {isCoach ? (
+                <div
+                  className="jp-vocab-teacher-quiz__stat-grid jp-vocab-teacher-quiz__stat-grid--coach"
+                  aria-label="历史熟悉程度统计"
+                >
+                  <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
+                  <span>一般 {w.cnt_normal}</span>
+                  <span className="chg-up">不熟悉 {w.cnt_weak}</span>
+                </div>
               ) : null}
             </>
           )}

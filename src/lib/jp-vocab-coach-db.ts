@@ -40,7 +40,7 @@ function nowIso(): string {
 }
 
 function normalizeCoachLevel(raw: string | null | undefined): JpVocabLevel | null {
-  if (raw === "normal" || raw === "weak") return raw;
+  if (raw === "normal" || raw === "weak" || raw === "very") return raw;
   return null;
 }
 
@@ -355,6 +355,32 @@ export async function mergeJpVocabCoachQueue(
 
   const summary = await getJpVocabCoachQueueSummary(db);
   return { ...summary, added_count, merged_count };
+}
+
+/** 带读页修改熟悉程度（仅未带读条目） */
+export async function updateJpVocabCoachItemLevel(
+  db: D1Database,
+  wordId: number,
+  level: JpVocabLevel
+): Promise<{ updated: boolean }> {
+  await ensureJpVocabCoachSchema(db);
+  const normalized = normalizeCoachLevel(level);
+  if (!normalized) return { updated: false };
+
+  const id = Math.floor(Number(wordId));
+  if (!Number.isFinite(id) || id <= 0) return { updated: false };
+
+  const ts = nowIso();
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_coach_item
+       SET level = ?2, updated_at = ?3
+       WHERE word_id = ?1 AND coached_at IS NULL`
+    )
+    .bind(id, normalized, ts)
+    .run();
+
+  return { updated: (Number(result.meta?.changes) || 0) > 0 };
 }
 
 export async function markJpVocabCoachCoached(

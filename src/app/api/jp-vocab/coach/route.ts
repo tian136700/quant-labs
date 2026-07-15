@@ -6,6 +6,7 @@ import {
   markJpVocabCoachCoached,
   mergeJpVocabCoachQueue,
   pruneJpVocabCoachCoachedOlderThanRetention,
+  updateJpVocabCoachItemLevel,
 } from "@/lib/jp-vocab-coach-db";
 import {
   JP_VOCAB_COACH_RETENTION_DAYS,
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
       }>;
       word_ids?: number[];
       word_id?: number;
+      level?: JpVocabLevel;
       /** @deprecated */
       coach_date?: string;
     };
@@ -110,6 +112,19 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: "empty_word_ids" }, 400);
       }
       const result = await markJpVocabCoachCoached(env.DB, ids.map(Number));
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    if (body.action === "update_level") {
+      const wordId = Number(body.word_id);
+      const level = body.level;
+      if (!Number.isFinite(wordId) || wordId <= 0) {
+        return jsonResponse({ ok: false, error: "invalid_word_id" }, 400);
+      }
+      if (level !== "very" && level !== "normal" && level !== "weak") {
+        return jsonResponse({ ok: false, error: "invalid_level" }, 400);
+      }
+      const result = await updateJpVocabCoachItemLevel(env.DB, wordId, level);
       return jsonResponse({ ok: true, ...result });
     }
 

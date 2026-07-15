@@ -180,3 +180,32 @@ export async function markJpVocabCoachCoachedClient(
   }
   return { marked_count: data.marked_count ?? wordIds.length };
 }
+
+export async function updateJpVocabCoachLevelClient(
+  locale: "zh" | "en",
+  wordId: number,
+  level: JpVocabLevel
+): Promise<{ updated: boolean }> {
+  const res = await fetch("/api/jp-vocab/coach", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      [LOCALE_HEADER]: locale,
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      action: "update_level",
+      word_id: wordId,
+      level,
+    }),
+  });
+  const data = (await res.json()) as {
+    ok: boolean;
+    updated?: boolean;
+    error?: string;
+  };
+  if (!data.ok) {
+    throw new Error(data.error || "更新带读熟悉程度失败");
+  }
+  return { updated: Boolean(data.updated) };
+}
