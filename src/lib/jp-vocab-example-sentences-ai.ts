@@ -4,6 +4,7 @@ import {
   isJpVocabExampleGlossLine,
   isJpVocabExampleJapaneseLine,
   parseJpVocabExampleSentenceItems,
+  serializeJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
 
 /** AI 例句：汉字旁用半角括号标注读音，如 電車(でんしゃ) */
@@ -39,8 +40,8 @@ export function buildJpVocabExampleSentencesAiPrompt(
 1. JLPT N5～N4 难度，日常口语、常用说法，句子短（每句约 8～18 字）。
 2. 每条日语例句必须使用该词条（语法条则句型中要自然出现该语法点）。
 3. 日语句里的汉字必须在汉字后立刻用半角括号标注假名读音，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名。
-4. 每条日语例句的下一行写一行中文译义（纯中文，不要序号）。
-5. 只输出 4 行：日语、中文、日语、中文。不要编号、不要 markdown、不要解释。`;
+4. 每条日语例句的下一行写一行中文译义，必须以「译文：」开头（例如：译文：我赶上电车了。）。
+5. 只输出 4 行：日语、译文、日语、译文。不要编号、不要 markdown、不要解释。`;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -99,5 +100,8 @@ export function validateJpVocabExampleSentencesAiOutput(
     }
   }
 
-  return { ok: true, text: block };
+  return {
+    ok: true,
+    text: serializeJpVocabExampleSentenceItems(items.slice(0, 2)),
+  };
 }

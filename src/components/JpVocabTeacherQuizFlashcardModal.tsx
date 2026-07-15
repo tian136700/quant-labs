@@ -31,7 +31,10 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import { jpVocabCoachLevelLabel } from "@/lib/jp-vocab-coach";
-import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
+import {
+  formatJpVocabExampleGlossLine,
+  parseJpVocabExampleSentenceItems,
+} from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -558,7 +561,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                           key={`${index}-gloss-${glossIndex}`}
                           className="jp-vocab-teacher-quiz__examples-gloss"
                         >
-                          {gloss}
+                          {formatJpVocabExampleGlossLine(gloss)}
                         </span>
                       ))}
                     </span>

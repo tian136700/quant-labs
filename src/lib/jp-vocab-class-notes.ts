@@ -295,6 +295,140 @@ export function removeJpVocabClassNoteImageAt(content: string, index: number): s
   );
 }
 
+/**
+ * 词条编辑弹窗整段 `class_notes`（多条时间戳）用：
+ * 文本框只展示文字；图片按时间戳挂回，避免误改 API 路径。
+ */
+export type JpVocabClassNotesBlobEditImages = {
+  byTimestamp: Record<string, string[]>;
+  /** 无时间戳条目，按出现顺序 */
+  untimestamped: string[][];
+};
+
+function serializeJpVocabClassNotesKeepingEmpty(
+  entries: JpVocabClassNoteEntry[]
+): string {
+  return entries
+    .map((e) => (e.timestamp ? `${e.timestamp}\n${e.content}` : e.content))
+    .join("\n\n");
+}
+
+/** 按备注条目出现顺序展平图片 src（与缩略图顺序一致） */
+export function flattenJpVocabClassNotesBlobEditImages(
+  entryOrder: readonly JpVocabClassNoteEntry[],
+  images: JpVocabClassNotesBlobEditImages
+): string[] {
+  const out: string[] = [];
+  let untsIdx = 0;
+  for (const entry of entryOrder) {
+    if (entry.timestamp) {
+      out.push(...(images.byTimestamp[entry.timestamp] ?? []));
+    } else {
+      out.push(...(images.untimestamped[untsIdx] ?? []));
+      untsIdx += 1;
+    }
+  }
+  return out;
+}
+
+/** 编辑框：拆出图片 URL，只保留时间戳 + 文字 */
+export function splitJpVocabClassNotesBlobForEdit(raw: string): {
+  text: string;
+  images: JpVocabClassNotesBlobEditImages;
+  imageSrcs: string[];
+} {
+  const entries = parseJpVocabClassNotes(raw);
+  if (!entries.length) {
+    const stripped = (raw || "").trim()
+      ? stripJpVocabClassNoteImageMarkersFromText(raw)
+      : "";
+    return {
+      text: stripped,
+      images: { byTimestamp: {}, untimestamped: [] },
+      imageSrcs: [],
+    };
+  }
+
+  const byTimestamp: Record<string, string[]> = {};
+  const untimestamped: string[][] = [];
+  const textEntries: JpVocabClassNoteEntry[] = entries.map((entry) => {
+    const { text, imageSrcs } = splitJpVocabClassNoteDraftForEdit(entry.content);
+    if (entry.timestamp) {
+      if (imageSrcs.length) byTimestamp[entry.timestamp] = imageSrcs;
+    } else {
+      untimestamped.push(imageSrcs);
+    }
+    return { timestamp: entry.timestamp, content: text };
+  });
+
+  const images = { byTimestamp, untimestamped };
+  return {
+    text: serializeJpVocabClassNotesKeepingEmpty(textEntries),
+    images,
+    imageSrcs: flattenJpVocabClassNotesBlobEditImages(entries, images),
+  };
+}
+
+/** 把编辑框文字与隐藏的图片列表合并回可保存的 class_notes */
+export function mergeJpVocabClassNotesBlobFromEdit(
+  text: string,
+  images: JpVocabClassNotesBlobEditImages
+): string {
+  const textEntries = parseJpVocabClassNotes(text);
+  let untsIdx = 0;
+
+  const merged: JpVocabClassNoteEntry[] = textEntries.map((entry) => {
+    let imgs: string[] = [];
+    if (entry.timestamp) {
+      imgs = images.byTimestamp[entry.timestamp] ?? [];
+    } else {
+      imgs = images.untimestamped[untsIdx] ?? [];
+      untsIdx += 1;
+    }
+    return {
+      timestamp: entry.timestamp,
+      content: mergeJpVocabClassNoteDraftFromEdit(entry.content, imgs),
+    };
+  });
+
+  // 用户删掉了某条时间戳块：该条图片一并丢弃（不再挂到别的条目上）
+  if (!merged.length) {
+    const leftover = [
+      ...Object.values(images.byTimestamp).flat(),
+      ...images.untimestamped.flat(),
+    ];
+    if (leftover.length) {
+      return mergeJpVocabClassNoteDraftFromEdit("", leftover);
+    }
+    return "";
+  }
+
+  return serializeJpVocabClassNotes(merged);
+}
+
+/** 按正文出现顺序移除第 N 张备注图片（词条编辑弹窗缩略图「移除」） */
+export function removeJpVocabClassNotesBlobImageAt(
+  raw: string,
+  flatIndex: number
+): string {
+  if (flatIndex < 0) return raw;
+  const lines = (raw || "").split("\n");
+  let seen = 0;
+  const out: string[] = [];
+  for (const line of lines) {
+    if (parseJpVocabClassNoteImageSrc(line)) {
+      if (seen === flatIndex) {
+        seen += 1;
+        continue;
+      }
+      seen += 1;
+    }
+    out.push(line);
+  }
+  if (seen <= flatIndex) return raw;
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+\n/g, "\n").trimEnd();
+}
+
 /** 多条历史备注合并为展示用正文（不含时间戳行） */
 export function formatJpVocabClassNotesForDisplay(raw: string | null | undefined): string {
   return parseJpVocabClassNotes(raw)

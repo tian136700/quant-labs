@@ -370,7 +370,7 @@ export function JpVocabManualAddModal({
                 rows={3}
                 value={exampleSentences}
                 onChange={(e) => setExampleSentences(e.target.value)}
-                placeholder="日语例句与下一行汉语意思可成对写。例：&#10;日本語を習います。&#10;我学习日语。"
+                placeholder="例：&#10;日本語を習います。&#10;译文：我学习日语。"
                 disabled={submitting}
               />
             </div>

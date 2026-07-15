@@ -1,7 +1,11 @@
 /** 课堂带读例句列：每行最多字符数（含标点） */
 export const JP_VOCAB_EXAMPLE_SENTENCE_LINE_CHARS = 10;
 
+/** 译义行统一前缀（存库与展示） */
+export const JP_VOCAB_EXAMPLE_GLOSS_LABEL = "译文：";
+
 const LEADING_INDEX_RE = /^\s*\d+[.、．)\]]\s*/;
+const GLOSS_LABEL_RE = /^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/;
 const KANA_RE = /[\u3040-\u309F\u30A0-\u30FF]/g;
 const HAN_RE = /[\u4E00-\u9FFF]/g;
 const LATIN_RE = /[A-Za-z\u00C0-\u024F]/g;
@@ -22,11 +26,25 @@ function countMatches(text: string, re: RegExp): number {
   return (text.match(new RegExp(re.source, flags)) || []).length;
 }
 
+/** 去掉「译文：」等标签后看正文 */
+export function stripJpVocabExampleGlossLabel(text: string): string {
+  return text.replace(GLOSS_LABEL_RE, "").trim();
+}
+
+/** 统一成「译文：…」；空正文返回空串 */
+export function formatJpVocabExampleGlossLine(text: string): string {
+  const body = stripJpVocabExampleGlossLabel(text);
+  return body ? `${JP_VOCAB_EXAMPLE_GLOSS_LABEL}${body}` : "";
+}
+
 /** 含平假名/片假名，且假名足够多 → 视为日语例句行 */
 export function isJpVocabExampleJapaneseLine(text: string): boolean {
-  const kana = countMatches(text, KANA_RE);
+  const stripped = stripJpVocabExampleGlossLabel(text);
+  // 「译文：…」即使偶有假名也不当日语例句
+  if (GLOSS_LABEL_RE.test(text.trim())) return false;
+  const kana = countMatches(stripped, KANA_RE);
   if (kana === 0) return false;
-  const han = countMatches(text, HAN_RE);
+  const han = countMatches(stripped, HAN_RE);
   // 偶有假名夹在纯中文里：汉字远多于假名 → 不当日语例句
   if (han >= 2 && kana > 0 && han >= kana * 3) return false;
   return true;
@@ -34,15 +52,18 @@ export function isJpVocabExampleJapaneseLine(text: string): boolean {
 
 /**
  * 上一条例句的译义行（不占序号）：
+ * - 以「译文：」开头
  * - 无假名但有汉字/拉丁文
  * - 或汉字远多于假名（中文译义里偶尔夹了假名）
  */
 export function isJpVocabExampleGlossLine(text: string): boolean {
   if (!text.trim()) return false;
+  if (GLOSS_LABEL_RE.test(text.trim())) return true;
   if (isJpVocabExampleJapaneseLine(text)) return false;
-  const kana = countMatches(text, KANA_RE);
-  const han = countMatches(text, HAN_RE);
-  const latin = countMatches(text, LATIN_RE);
+  const body = stripJpVocabExampleGlossLabel(text);
+  const kana = countMatches(body, KANA_RE);
+  const han = countMatches(body, HAN_RE);
+  const latin = countMatches(body, LATIN_RE);
   if (han > 0 && kana === 0) return true;
   if (latin >= 2 && kana === 0) return true;
   if (han >= 2 && kana > 0 && han >= kana * 3) return true;
@@ -70,6 +91,46 @@ export function parseJpVocabExampleSentenceItems(
     items.push({ text: line, glossLines: [] });
   }
   return items;
+}
+
+/** 写回存库格式：日语一行，下一行「译文：…」（序号由展示层加） */
+export function serializeJpVocabExampleSentenceItems(
+  items: readonly JpVocabExampleSentenceItem[]
+): string {
+  return items
+    .map((item) => {
+      const primary = item.text.trim();
+      if (!primary) return "";
+      const glosses = item.glossLines
+        .map((g) => formatJpVocabExampleGlossLine(g))
+        .filter(Boolean);
+      return glosses.length ? `${primary}\n${glosses.join("\n")}` : primary;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
+ * 规范化已有例句块：译义行补上「译文：」前缀；不翻译、不改日语。
+ * 若无需改动则返回 null。
+ */
+export function normalizeJpVocabExampleSentencesFormat(
+  raw: string | null | undefined
+): string | null {
+  const items = parseJpVocabExampleSentenceItems(raw);
+  if (!items.length) return null;
+  const normalized = serializeJpVocabExampleSentenceItems(items);
+  const original = (raw || "").trim();
+  return normalized === original ? null : normalized;
+}
+
+/** 是否存在缺中文译义的日语例句 */
+export function jpVocabExampleSentencesNeedGlossFill(
+  raw: string | null | undefined
+): boolean {
+  return parseJpVocabExampleSentenceItems(raw).some(
+    (item) => item.glossLines.length === 0
+  );
 }
 
 /**
@@ -149,12 +210,15 @@ export function formatJpVocabExampleSentencesForDisplay(
   maxChars = JP_VOCAB_EXAMPLE_SENTENCE_LINE_CHARS
 ): JpVocabExampleSentenceDisplayBlock[] {
   return parseJpVocabExampleSentenceItems(raw).map((item, index) => {
+    const glossTexts = item.glossLines.length
+      ? item.glossLines.map((g) => formatJpVocabExampleGlossLine(g))
+      : [];
     const lines: JpVocabExampleSentenceDisplayLine[] = [
       ...wrapJpVocabExampleLine(item.text, maxChars).map((text) => ({
         text,
         kind: "primary" as const,
       })),
-      ...item.glossLines.flatMap((gloss) =>
+      ...glossTexts.flatMap((gloss) =>
         wrapJpVocabExampleLine(gloss, maxChars).map((text) => ({
           text,
           kind: "gloss" as const,

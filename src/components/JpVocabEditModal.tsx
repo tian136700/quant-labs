@@ -11,6 +11,11 @@ import {
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { findDuplicateJpVocabExamplePrimaries } from "@/lib/jp-vocab-example-sentences";
+import {
+  mergeJpVocabClassNotesBlobFromEdit,
+  removeJpVocabClassNotesBlobImageAt,
+  splitJpVocabClassNotesBlobForEdit,
+} from "@/lib/jp-vocab-class-notes";
 import { formatUploadBytes, uploadFormWithProgress, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -411,6 +416,12 @@ export function JpVocabEditModal({
 
   if (!open || !mounted || !word) return null;
 
+  const {
+    text: classNotesText,
+    images: classNotesImages,
+    imageSrcs: classNotesImageSrcs,
+  } = splitJpVocabClassNotesBlobForEdit(classNotes);
+
   return createPortal(
     <>
       <div
@@ -557,11 +568,11 @@ export function JpVocabEditModal({
                 rows={3}
                 value={exampleSentences}
                 disabled={!canEdit}
-                placeholder="日语例句与下一行汉语意思可成对写。例：&#10;日本語を習います。&#10;我学习日语。&#10;ピアノを習いたいです。&#10;我想学钢琴。"
+                placeholder="例：&#10;日本語を習います。&#10;译文：我学习日语。&#10;ピアノを習いたいです。&#10;译文：我想学钢琴。"
                 onChange={(e) => setExampleSentences(e.target.value)}
               />
               <p className="jp-vocab-edit-hint">
-                日语例句占 1、2、3…；下一行汉语/英文译义不占序号。两条例句完全相同会在保存前提醒查证。课堂带读列表会展示；日语抽问表格不显示此列。
+                格式：日语句下一行写「译文：…」。列表展示时日语自动带 1、2、3…，译义行不占序号。两条例句完全相同会在保存前提醒。课堂带读会展示；日语抽问表格不显示此列。
               </p>
             </div>
 
@@ -573,12 +584,39 @@ export function JpVocabEditModal({
                 id="jp-vocab-edit-notes"
                 className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
                 rows={4}
-                value={classNotes}
+                value={classNotesText}
                 disabled={!canEdit}
                 placeholder="记录例句、用法、易错点…"
-                onChange={(e) => setClassNotes(e.target.value)}
+                onChange={(e) =>
+                  setClassNotes(
+                    mergeJpVocabClassNotesBlobFromEdit(e.target.value, classNotesImages)
+                  )
+                }
               />
-              <p className="jp-vocab-edit-hint">备注保存后会同步到日语新课。</p>
+              {classNotesImageSrcs.length ? (
+                <div className="jp-vocab-edit-notes-images" aria-label="备注图片">
+                  {classNotesImageSrcs.map((src, index) => (
+                    <div key={`${src}-${index}`} className="jp-vocab-edit-notes-image-item">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={src} alt={`备注图片 ${index + 1}`} loading="lazy" />
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          className="jp-vocab-edit-notes-image-remove"
+                          onClick={() =>
+                            setClassNotes(removeJpVocabClassNotesBlobImageAt(classNotes, index))
+                          }
+                        >
+                          移除图片
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <p className="jp-vocab-edit-hint">
+                备注保存后会同步到日语新课。图片地址已隐藏，避免误改；可用「移除图片」删除。
+              </p>
             </div>
 
             <div className="field jp-vocab-edit-ref-field" onPaste={onRefPaste}>
@@ -923,6 +961,51 @@ export function JpVocabEditModal({
           margin: 0;
           font-size: 0.75rem;
           color: var(--muted);
+        }
+
+        .jp-vocab-edit-notes-field {
+          gap: 0.45rem;
+        }
+
+        .jp-vocab-edit-notes-images {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+
+        .jp-vocab-edit-notes-image-item {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
+          padding: 0.45rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+        }
+
+        .jp-vocab-edit-notes-image-item :global(img) {
+          display: block;
+          width: auto;
+          max-width: 100%;
+          max-height: 220px;
+          margin: 0 auto;
+          object-fit: contain;
+        }
+
+        .jp-vocab-edit-notes-image-remove {
+          align-self: flex-end;
+          border: none;
+          background: transparent;
+          color: var(--rise);
+          font: inherit;
+          font-size: 0.75rem;
+          cursor: pointer;
+          padding: 0.1rem 0.25rem;
+        }
+
+        .jp-vocab-edit-notes-image-remove:hover {
+          text-decoration: underline;
         }
 
         .jp-vocab-edit-ref-field {
