@@ -81,6 +81,13 @@ function uploadProgressLabel(event: UploadProgressEvent): string {
   return "准备上传…";
 }
 
+/** 例句/备注：按内容撑开高度，避免小框内再滚一层 */
+function autoGrowTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${Math.max(el.scrollHeight, 72)}px`;
+}
+
 export function JpVocabEditModal({
   open,
   word,
@@ -112,6 +119,10 @@ export function JpVocabEditModal({
   const [uploadingRef, setUploadingRef] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgressEvent | null>(null);
   const refFileInputRef = useRef<HTMLInputElement>(null);
+  const exampleSentencesRef = useRef<HTMLTextAreaElement>(null);
+  const classNotesRef = useRef<HTMLTextAreaElement>(null);
+  const editBodyRef = useRef<HTMLDivElement>(null);
+  const [bodyCanScroll, setBodyCanScroll] = useState(false);
   const initializedWordIdRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -179,6 +190,41 @@ export function JpVocabEditModal({
       if (newRefPreviewUrl) URL.revokeObjectURL(newRefPreviewUrl);
     };
   }, [newRefPreviewUrl]);
+
+  useEffect(() => {
+    if (!open) return;
+    autoGrowTextarea(exampleSentencesRef.current);
+    autoGrowTextarea(classNotesRef.current);
+    const body = editBodyRef.current;
+    const raf = requestAnimationFrame(() => {
+      if (!body) return;
+      setBodyCanScroll(body.scrollHeight > body.clientHeight + 2);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open, exampleSentences, classNotes, word?.id]);
+
+  useEffect(() => {
+    if (!open) {
+      setBodyCanScroll(false);
+      return;
+    }
+    const body = editBodyRef.current;
+    if (!body) return;
+
+    const update = () => {
+      setBodyCanScroll(body.scrollHeight > body.clientHeight + 2);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(body);
+    if (exampleSentencesRef.current) ro.observe(exampleSentencesRef.current);
+    if (classNotesRef.current) ro.observe(classNotesRef.current);
+    body.addEventListener("scroll", update, { passive: true });
+    return () => {
+      ro.disconnect();
+      body.removeEventListener("scroll", update);
+    };
+  }, [open, exampleSentences, classNotes, word?.id, kind, meaning, pos, mnemonic]);
 
   const applyRefFile = (file: File) => {
     setRefError("");
@@ -455,7 +501,15 @@ export function JpVocabEditModal({
             </button>
           </div>
 
-          <div className="jp-vocab-edit-body">
+          <div
+            ref={editBodyRef}
+            className={`jp-vocab-edit-body${bodyCanScroll ? " is-scrollable" : ""}`}
+          >
+            {bodyCanScroll ? (
+              <p className="jp-vocab-edit-scroll-hint" aria-live="polite">
+                内容较长，右侧可滚动 · 也可用鼠标滚轮上下浏览
+              </p>
+            ) : null}
             {showMnemonic ? (
               <div className="field">
                 <label htmlFor="jp-vocab-edit-mnemonic" className="jp-vocab-edit-label">
@@ -563,13 +617,17 @@ export function JpVocabEditModal({
                 例句
               </label>
               <textarea
+                ref={exampleSentencesRef}
                 id="jp-vocab-edit-example-sentences"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
-                rows={3}
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--expand"
+                rows={4}
                 value={exampleSentences}
                 disabled={!canEdit}
                 placeholder="例：&#10;日本語を習います。&#10;译文：我学习日语。&#10;ピアノを習いたいです。&#10;译文：我想学钢琴。"
-                onChange={(e) => setExampleSentences(e.target.value)}
+                onChange={(e) => {
+                  setExampleSentences(e.target.value);
+                  autoGrowTextarea(e.currentTarget);
+                }}
               />
               <p className="jp-vocab-edit-hint">
                 格式：日语句下一行写「译文：…」。列表展示时日语自动带 1、2、3…，译义行不占序号。两条例句完全相同会在保存前提醒。课堂带读会展示；日语抽问表格不显示此列。
@@ -581,17 +639,19 @@ export function JpVocabEditModal({
                 备注
               </label>
               <textarea
+                ref={classNotesRef}
                 id="jp-vocab-edit-notes"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
-                rows={4}
+                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--expand"
+                rows={5}
                 value={classNotesText}
                 disabled={!canEdit}
                 placeholder="记录例句、用法、易错点…"
-                onChange={(e) =>
+                onChange={(e) => {
                   setClassNotes(
                     mergeJpVocabClassNotesBlobFromEdit(e.target.value, classNotesImages)
-                  )
-                }
+                  );
+                  autoGrowTextarea(e.currentTarget);
+                }}
               />
               {classNotesImageSrcs.length ? (
                 <div className="jp-vocab-edit-notes-images" aria-label="备注图片">
@@ -858,12 +918,20 @@ export function JpVocabEditModal({
         .jp-vocab-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(520px, 100%);
-          max-height: min(92vh, 720px);
+          width: min(560px, 100%);
+          max-height: min(94vh, 860px);
+          min-height: 0;
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        @media (min-width: 768px) {
+          .jp-vocab-edit-modal {
+            width: min(780px, 94vw);
+            max-height: min(94vh, 960px);
+          }
         }
 
         .jp-vocab-edit-header {
@@ -907,7 +975,49 @@ export function JpVocabEditModal({
           display: flex;
           flex-direction: column;
           gap: 0.85rem;
+          flex: 1 1 auto;
+          min-height: 0;
           overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-gutter: stable;
+          scrollbar-width: auto;
+          scrollbar-color: color-mix(in srgb, var(--accent) 75%, #8899aa)
+            color-mix(in srgb, var(--bg) 70%, var(--panel));
+        }
+
+        .jp-vocab-edit-body::-webkit-scrollbar {
+          width: 11px;
+        }
+
+        .jp-vocab-edit-body::-webkit-scrollbar-track {
+          margin: 0.35rem 0;
+          background: color-mix(in srgb, var(--bg) 65%, var(--panel));
+          border-radius: 999px;
+        }
+
+        .jp-vocab-edit-body::-webkit-scrollbar-thumb {
+          background: color-mix(in srgb, var(--accent) 70%, #8a9bb0);
+          border-radius: 999px;
+          border: 2px solid color-mix(in srgb, var(--bg) 65%, var(--panel));
+        }
+
+        .jp-vocab-edit-body::-webkit-scrollbar-thumb:hover {
+          background: var(--accent);
+        }
+
+        .jp-vocab-edit-body.is-scrollable {
+          box-shadow: inset 0 -10px 12px -12px rgba(0, 0, 0, 0.35);
+        }
+
+        .jp-vocab-edit-scroll-hint {
+          margin: 0;
+          padding: 0.4rem 0.55rem;
+          border-radius: 6px;
+          border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: color-mix(in srgb, var(--accent) 55%, var(--text));
+          font-size: 0.75rem;
+          line-height: 1.4;
         }
 
         .field {
@@ -955,6 +1065,14 @@ export function JpVocabEditModal({
 
         .jp-vocab-edit-textarea--lg {
           min-height: 5.5rem;
+        }
+
+        /* 例句 / 备注：整段展开，不在小框里二次滚动 */
+        .jp-vocab-edit-textarea--expand {
+          min-height: 5rem;
+          overflow-y: hidden;
+          resize: none;
+          field-sizing: content;
         }
 
         .jp-vocab-edit-hint {
