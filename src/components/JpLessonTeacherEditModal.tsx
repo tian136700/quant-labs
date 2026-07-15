@@ -6,6 +6,7 @@ import type { JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 import { calcHourlyRate, formatHourlyRate, normalizeHourlyRate, normalizeTeacherLessonMinutes, resolveLessonTeacherRateFields, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
+import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
 
 export type JpLessonTeacherAddInput = {
   name: string;
@@ -206,13 +207,14 @@ export function JpLessonTeacherEditModal({
   };
 
   const filteredTeachers = useMemo(() => {
-    const needle = searchQuery.trim().toLowerCase();
-    if (!needle) return sortedTeachers;
-    return sortedTeachers.filter((teacher) => {
-      const label = `${teacher.name} ${teacher.lesson_count ?? ""} ${teacher.hourly_rate ?? ""} ${teacher.lesson_minutes ?? ""}`.toLowerCase();
-      return label.includes(needle);
-    });
-  }, [searchQuery, sortedTeachers]);
+    const draftsById = new Map(
+      sortedTeachers.map((teacher) => [
+        teacher.id,
+        { draftName: drafts[teacher.id]?.name ?? teacher.name },
+      ])
+    );
+    return filterLessonTeachersBySearch(sortedTeachers, searchQuery, draftsById);
+  }, [drafts, searchQuery, sortedTeachers]);
 
   const buildAddInput = (): JpLessonTeacherAddInput | null => {
     const trimmed = addName.trim();
@@ -481,7 +483,7 @@ export function JpLessonTeacherEditModal({
             type="text"
             className="jp-lesson-teacher-search"
             value={searchQuery}
-            placeholder="搜索老师、课时费或时长"
+            placeholder="模糊搜索老师、上课频次、课时费或时长"
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <div className="jp-lesson-teacher-options">

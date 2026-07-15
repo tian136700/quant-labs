@@ -3,7 +3,7 @@ import { jsonResponse } from "@/lib/cloudflare-env";
 import {
   createEnLessonTeacher,
   deleteEnLessonTeacher,
-  listEnLessonTeachers,
+  listEnLessonTeachersWithLessonCounts,
   updateEnLessonTeacher,
 } from "@/lib/en-lesson-teacher-db";
 import {
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
-    const teachers = await listEnLessonTeachers(env.DB);
+    const teachers = await listEnLessonTeachersWithLessonCounts(env.DB);
     return jsonResponse({ ok: true, teachers });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

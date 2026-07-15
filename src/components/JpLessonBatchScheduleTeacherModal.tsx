@@ -12,6 +12,7 @@ import {
 } from "@/lib/jp-lesson-shared";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { formatTeacherDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
+import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
 import type { JpLessonClassScheduleInput, JpLessonTeacher } from "@/lib/types";
 
 type Props = {
@@ -117,14 +118,10 @@ export function JpLessonBatchScheduleTeacherModal({
     );
   };
 
-  const filteredTeachers = useMemo(() => {
-    const needle = teacherQuery.trim().toLowerCase();
-    if (!needle) return sortedTeachers;
-    return sortedTeachers.filter((teacher) => {
-      const label = `${teacher.name} ${teacher.hourly_rate ?? ""} ${teacher.lesson_minutes ?? ""}`.toLowerCase();
-      return label.includes(needle);
-    });
-  }, [sortedTeachers, teacherQuery]);
+  const filteredTeachers = useMemo(
+    () => filterLessonTeachersBySearch(sortedTeachers, teacherQuery),
+    [sortedTeachers, teacherQuery]
+  );
 
   const handleSave = () => {
     const schedules: JpLessonClassScheduleInput[] = [];
@@ -170,7 +167,7 @@ export function JpLessonBatchScheduleTeacherModal({
             type="text"
             className="jp-batch-input"
             value={teacherQuery}
-            placeholder="搜索老师、课时费或时长"
+            placeholder="模糊搜索老师、上课频次、课时费或时长"
             onChange={(e) => setTeacherQuery(e.target.value)}
           />
           <div className="jp-batch-teachers">

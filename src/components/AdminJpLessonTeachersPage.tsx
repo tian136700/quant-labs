@@ -45,6 +45,7 @@ import {
   readJpLessonTeacherReviewCache,
   syncJpLessonTeacherReviewCache,
 } from "@/lib/jp-lesson-teacher-review-cache";
+import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
 
 function teachersApiBase(subject: LessonTeacherSubject): string {
@@ -67,6 +68,7 @@ type SortOrder = "asc" | "desc";
 type TeacherSortKey =
   | "id"
   | "name"
+  | "lessonCount"
   | "rate"
   | "minutes"
   | "hourlyEquiv"
@@ -185,7 +187,7 @@ export function AdminJpLessonTeachersPageContent() {
   >(() => readJpLessonTeacherReviewCache());
   const [reviewTeacher, setReviewTeacher] = useState<JpLessonTeacher | null>(null);
   const [creatingUserTeacherId, setCreatingUserTeacherId] = useState<number | null>(null);
-  const [sortKey, setSortKey] = useState<TeacherSortKey>("score");
+  const [sortKey, setSortKey] = useState<TeacherSortKey>("lessonCount");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
 
   const switchTeacherSubject = useCallback(
@@ -205,7 +207,7 @@ export function AdminJpLessonTeachersPageContent() {
   }, []);
 
   useEffect(() => {
-    document.title = locale === "zh" ? "上课老师管理" : "Lesson teachers";
+    document.title = locale === "zh" ? "人员管理" : "Personnel";
   }, [locale]);
 
   useEffect(() => {
@@ -373,6 +375,9 @@ export function AdminJpLessonTeachersPageContent() {
         case "name":
           result = compareString(resolvedA.name, resolvedB.name, sortOrder);
           break;
+        case "lessonCount":
+          result = compareNullableNumber(a.lesson_count ?? 0, b.lesson_count ?? 0, sortOrder);
+          break;
         case "rate":
           result = compareNullableNumber(resolvedA.hourly_rate, resolvedB.hourly_rate, sortOrder);
           break;
@@ -406,22 +411,14 @@ export function AdminJpLessonTeachersPageContent() {
   }, [reviewSummaries, sortKey, sortOrder, teachers]);
 
   const filteredTeachers = useMemo(() => {
-    const keyword = searchQuery.trim().toLowerCase();
-    if (!keyword) return sortedTeachers;
-    return sortedTeachers.filter((teacher) => {
-      const summary = reviewSummaries.get(teacher.id);
-      const resolved = resolveLessonTeacherRateFields(teacher);
-      const haystack = [
-        String(teacher.id),
-        teacher.name,
-        resolved.name,
-        summary?.latest_remark ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(keyword);
-    });
-  }, [reviewSummaries, searchQuery, sortedTeachers]);
+    const remarksById = new Map(
+      teachers.map((teacher) => [
+        teacher.id,
+        { remark: reviewSummaries.get(teacher.id)?.latest_remark ?? "" },
+      ])
+    );
+    return filterLessonTeachersBySearch(sortedTeachers, searchQuery, remarksById);
+  }, [reviewSummaries, searchQuery, sortedTeachers, teachers]);
 
   useEffect(() => {
     if (focusTeacherId == null || loading) return;
@@ -453,6 +450,7 @@ export function AdminJpLessonTeachersPageContent() {
       ? {
           id: "ID",
           name: "名称",
+          lessonCount: "上课频次",
           rate: "课时费",
           minutes: "课时时长",
           hourlyEquiv: "折合时薪",
@@ -464,6 +462,7 @@ export function AdminJpLessonTeachersPageContent() {
       : {
           id: "ID",
           name: "Name",
+          lessonCount: "Lessons",
           rate: "Rate (RMB)",
           minutes: "Duration",
           hourlyEquiv: "Hourly equiv.",
@@ -848,8 +847,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                 value={searchQuery}
                 placeholder={
                   locale === "zh"
-                    ? "按老师名称、ID、备注搜索"
-                    : "Search by name, ID, or note"
+                    ? "模糊搜索：名称、ID、上课频次、课时费、备注等（空格分隔多词）"
+                    : "Fuzzy search: name, ID, lesson count, rate, note…"
                 }
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -909,6 +908,18 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                       {locale === "zh" ? "名称" : "Name"}
                       <span className="admin-sort-indicator" aria-hidden="true">
                         {sortKey === "name" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
+                      </span>
+                    </button>
+                  </th>
+                  <th className="col-lesson-count col-score--sortable">
+                    <button
+                      type="button"
+                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "lessonCount" ? " is-active" : ""}`}
+                      onClick={() => toggleSort("lessonCount")}
+                    >
+                      {locale === "zh" ? "上课频次" : "Lessons"}
+                      <span className="admin-sort-indicator" aria-hidden="true">
+                        {sortKey === "lessonCount" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
                       </span>
                     </button>
                   </th>
@@ -1055,6 +1066,9 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                             <span className="admin-jpl-mobile-id">#{teacher.id}</span>
                           </>
                         )}
+                      </td>
+                      <td className="col-lesson-count" data-label={fieldLabels.lessonCount}>
+                        {teacher.lesson_count ?? 0}
                       </td>
                       <td className="col-rate" data-label={fieldLabels.rate}>
                         {isEditing ? (

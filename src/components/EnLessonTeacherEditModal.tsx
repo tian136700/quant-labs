@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { planLessonTeacherNameForUpdate } from "@/lib/lesson-teacher-name";
+import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
+import { sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import type { EnLessonRecord, EnLessonTeacher } from "@/lib/types";
 
@@ -63,7 +65,7 @@ export function EnLessonTeacherEditModal({
   const touchedFieldsRef = useRef<Record<number, TeacherDraftTouched>>({});
 
   const sortedTeachers = useMemo(
-    () => [...teachers].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+    () => sortJpLessonTeachersByLessonCount(teachers),
     [teachers]
   );
 
@@ -150,13 +152,13 @@ export function EnLessonTeacherEditModal({
   }, [open, pendingExistingTeacher?.id]);
 
   const filteredTeachers = useMemo(() => {
-    const needle = searchQuery.trim().toLowerCase();
-    if (!needle) return sortedTeachers;
-    return sortedTeachers.filter((teacher) => {
-      const draft = drafts[teacher.id];
-      const label = `${draft?.name ?? teacher.name} ${teacher.lesson_count ?? ""}`.toLowerCase();
-      return label.includes(needle);
-    });
+    const draftsById = new Map(
+      sortedTeachers.map((teacher) => [
+        teacher.id,
+        { draftName: drafts[teacher.id]?.name ?? teacher.name },
+      ])
+    );
+    return filterLessonTeachersBySearch(sortedTeachers, searchQuery, draftsById);
   }, [drafts, searchQuery, sortedTeachers]);
 
   const handleAddTeacher = async (options?: {
@@ -342,7 +344,7 @@ export function EnLessonTeacherEditModal({
             type="text"
             className="jp-lesson-teacher-search"
             value={searchQuery}
-            placeholder="搜索老师名称"
+            placeholder="模糊搜索老师名称、上课频次等"
             onChange={(e) => setSearchQuery(e.target.value)}
           />
           <div className="jp-lesson-teacher-options">

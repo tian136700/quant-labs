@@ -10,7 +10,7 @@ import {
 } from "@/lib/en-lesson-db";
 import type { EnLessonProgressStatus } from "@/lib/en-lesson-shared";
 import { listEnLessonNotes } from "@/lib/en-lesson-note-db";
-import { listEnLessonTeachers } from "@/lib/en-lesson-teacher-db";
+import { listEnLessonTeachersWithLessonCounts } from "@/lib/en-lesson-teacher-db";
 import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
 import { listEnVocabRefs } from "@/lib/en-vocab-db";
 import type { EnLessonRecord } from "@/lib/types";
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     const refsMap = Object.fromEntries(refs.map((r) => [r.ref_key, r]));
 
     if (isAdmin) {
-      const teachers = await listEnLessonTeachers(env.DB);
+      const teachers = await listEnLessonTeachersWithLessonCounts(env.DB);
       return jsonResponse({ ok: true, lessons, refs: refsMap, notes, teachers });
     }
 

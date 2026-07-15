@@ -7,6 +7,7 @@ import {
   resolveLessonTeacherRateFields,
   sortJpLessonTeachersByLessonCount,
 } from "@/lib/jp-lesson-teacher-rate";
+import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
 import type { JpLessonTeacher } from "@/lib/types";
 
 type Props = {
@@ -58,13 +59,10 @@ export function JpLessonTeacherSinglePicker({
   const teacherPickerName = (teacher: JpLessonTeacher) =>
     resolveLessonTeacherRateFields(teacher).name;
 
-  const filteredTeachers = useMemo(() => {
-    if (!trimmedQuery) return sortedTeachers;
-    const needle = trimmedQuery.toLowerCase();
-    return sortedTeachers.filter((teacher) =>
-      teacherPickerName(teacher).toLowerCase().includes(needle)
-    );
-  }, [sortedTeachers, trimmedQuery]);
+  const filteredTeachers = useMemo(
+    () => filterLessonTeachersBySearch(sortedTeachers, trimmedQuery),
+    [sortedTeachers, trimmedQuery]
+  );
 
   const exactMatch = useMemo(
     () =>

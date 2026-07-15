@@ -45,8 +45,8 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__scroll-body {
           display: contents;
         }
-        /* 网页端：加宽加高，中间区域滚动，尽量完整显示例句/备注 */
-        @media (min-width: 769px) {
+        /* 网页端（宽屏）：加宽加高，中间区域滚动，尽量完整显示例句/备注 */
+        @media (min-width: 1025px) {
           .jp-vocab-teacher-quiz-card {
             width: min(44rem, 92vw);
             max-height: min(90vh, 58rem);
@@ -773,10 +773,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__nav-btn--blocked:not(:disabled) {
           opacity: 0.85;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           .jp-vocab-teacher-quiz-overlay {
             align-items: flex-end;
             padding: 0;
+            min-height: 100dvh;
           }
           .jp-vocab-teacher-quiz-card {
             width: 100%;
@@ -888,6 +889,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             border-radius: 0;
             border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
             background: transparent;
+            touch-action: manipulation;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:last-child {
             border-right: none;
@@ -924,6 +926,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             min-height: 2.75rem;
             padding: 0.5rem 0.65rem;
             border-radius: 10px;
+            touch-action: manipulation;
           }
           .jp-vocab-teacher-quiz__nav-btn--prev {
             flex: 0 0 5rem;
