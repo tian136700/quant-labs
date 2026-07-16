@@ -45,8 +45,22 @@ import {
   readJpLessonTeacherReviewCache,
   syncJpLessonTeacherReviewCache,
 } from "@/lib/jp-lesson-teacher-review-cache";
-import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
+import {
+  filterLessonTeachersBySearch,
+  lessonTeacherSubjectSearchLabels,
+} from "@/lib/lesson-teacher-search";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
+
+type TeacherSearchHit = {
+  teacher: JpLessonTeacher;
+  subject: LessonTeacherSubject;
+};
+
+type PendingSearchFocus = {
+  draft: string;
+  applied: string;
+  teacherId: number | null;
+};
 
 function teachersApiBase(subject: LessonTeacherSubject): string {
   return subject === "en" ? "/api/admin/en-lesson-teachers" : "/api/admin/jp-lesson-teachers";
@@ -166,6 +180,8 @@ export function AdminJpLessonTeachersPageContent() {
   const addNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(() => readJpLessonTeachersCache());
+  /** 另一科目老师（仅供跨类型模糊搜索；列表仍按当前 subject 展示） */
+  const [otherSubjectTeachers, setOtherSubjectTeachers] = useState<JpLessonTeacher[]>([]);
   const [loading, setLoading] = useState(() => readJpLessonTeachersCache().length === 0);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -181,6 +197,8 @@ export function AdminJpLessonTeachersPageContent() {
   );
   const [searchSuggestOpen, setSearchSuggestOpen] = useState(false);
   const searchFieldRef = useRef<HTMLDivElement | null>(null);
+  /** 因搜索命中另一科目而切 subject 时，保留搜索态（避免 effect 清空） */
+  const pendingSearchFocusRef = useRef<PendingSearchFocus | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newHourlyRate, setNewHourlyRate] = useState("");
@@ -330,6 +348,28 @@ export function AdminJpLessonTeachersPageContent() {
     }
   }, [loadReviewSummaries, teacherSubject]);
 
+  const loadOtherSubjectTeachers = useCallback(async () => {
+    const otherSubject: LessonTeacherSubject = teacherSubject === "jp" ? "en" : "jp";
+    try {
+      const res = await fetch(teachersApiBase(otherSubject), {
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teachers?: JpLessonTeacher[];
+      };
+      if (!data.ok) {
+        setOtherSubjectTeachers([]);
+        return;
+      }
+      setOtherSubjectTeachers(
+        (data.teachers ?? []).map((teacher) => normalizeJpLessonTeacher(teacher))
+      );
+    } catch {
+      setOtherSubjectTeachers([]);
+    }
+  }, [teacherSubject]);
+
   useEffect(() => {
     setEditingId(null);
     setEditName("");
@@ -337,12 +377,24 @@ export function AdminJpLessonTeachersPageContent() {
     setEditLessonMinutes("");
     setEditSortOrder(0);
     setReviewTeacher(null);
-    setSearchDraft("");
-    setAppliedSearchQuery("");
-    setSelectedSearchTeacherId(null);
+    setOtherSubjectTeachers([]);
     setSearchSuggestOpen(false);
-    if (!checking && isAdmin) void loadTeachers({ force: true });
-  }, [checking, isAdmin, teacherSubject, loadTeachers]);
+    const pending = pendingSearchFocusRef.current;
+    if (pending) {
+      pendingSearchFocusRef.current = null;
+      setSearchDraft(pending.draft);
+      setAppliedSearchQuery(pending.applied);
+      setSelectedSearchTeacherId(pending.teacherId);
+    } else {
+      setSearchDraft("");
+      setAppliedSearchQuery("");
+      setSelectedSearchTeacherId(null);
+    }
+    if (!checking && isAdmin) {
+      void loadTeachers({ force: true });
+      void loadOtherSubjectTeachers();
+    }
+  }, [checking, isAdmin, teacherSubject, loadTeachers, loadOtherSubjectTeachers]);
 
   /** 与日语新课页共用 localStorage 老师缓存；切回此页时合并新课页刚保存的数据 */
   useEffect(() => {
@@ -427,20 +479,51 @@ export function AdminJpLessonTeachersPageContent() {
       new Map(
         teachers.map((teacher) => [
           teacher.id,
-          { remark: reviewSummaries.get(teacher.id)?.latest_remark ?? "" },
+          {
+            remark: reviewSummaries.get(teacher.id)?.latest_remark ?? "",
+            subjectLabels: lessonTeacherSubjectSearchLabels(teacherSubject),
+          },
         ])
       ),
-    [reviewSummaries, teachers]
+    [reviewSummaries, teacherSubject, teachers]
   );
 
-  const searchSuggestions = useMemo(() => {
+  const otherSubject: LessonTeacherSubject = teacherSubject === "jp" ? "en" : "jp";
+
+  const otherSearchFieldsById = useMemo(
+    () =>
+      new Map(
+        otherSubjectTeachers.map((teacher) => [
+          teacher.id,
+          { subjectLabels: lessonTeacherSubjectSearchLabels(otherSubject) },
+        ])
+      ),
+    [otherSubject, otherSubjectTeachers]
+  );
+
+  const searchSuggestions = useMemo((): TeacherSearchHit[] => {
     const q = searchDraft.trim();
     if (!q) return [];
-    return filterLessonTeachersBySearch(sortedTeachers, q, searchRemarksById).slice(
-      0,
-      12
-    );
-  }, [searchDraft, searchRemarksById, sortedTeachers]);
+    const currentHits = filterLessonTeachersBySearch(
+      sortedTeachers,
+      q,
+      searchRemarksById
+    ).map((teacher) => ({ teacher, subject: teacherSubject }));
+    const otherHits = filterLessonTeachersBySearch(
+      otherSubjectTeachers,
+      q,
+      otherSearchFieldsById
+    ).map((teacher) => ({ teacher, subject: otherSubject }));
+    return [...currentHits, ...otherHits].slice(0, 12);
+  }, [
+    otherSearchFieldsById,
+    otherSubject,
+    otherSubjectTeachers,
+    searchDraft,
+    searchRemarksById,
+    sortedTeachers,
+    teacherSubject,
+  ]);
 
   const filteredTeachers = useMemo(() => {
     if (selectedSearchTeacherId != null) {
@@ -458,20 +541,74 @@ export function AdminJpLessonTeachersPageContent() {
     sortedTeachers,
   ]);
 
-  const applySearch = useCallback((query: string) => {
-    setSearchDraft(query);
-    setAppliedSearchQuery(query.trim());
-    setSelectedSearchTeacherId(null);
-    setSearchSuggestOpen(false);
-  }, []);
+  const applySearch = useCallback(
+    (query: string) => {
+      const trimmed = query.trim();
+      setSearchDraft(query);
+      setSelectedSearchTeacherId(null);
+      setSearchSuggestOpen(false);
 
-  const selectSearchTeacher = useCallback((teacher: JpLessonTeacher) => {
-    const name = resolveLessonTeacherRateFields(teacher).name;
-    setSearchDraft(name);
-    setAppliedSearchQuery(name);
-    setSelectedSearchTeacherId(teacher.id);
-    setSearchSuggestOpen(false);
-  }, []);
+      if (!trimmed) {
+        setAppliedSearchQuery("");
+        return;
+      }
+
+      const currentHits = filterLessonTeachersBySearch(
+        teachers,
+        trimmed,
+        searchRemarksById
+      );
+      if (currentHits.length > 0) {
+        setAppliedSearchQuery(trimmed);
+        return;
+      }
+
+      const otherHits = filterLessonTeachersBySearch(
+        otherSubjectTeachers,
+        trimmed,
+        otherSearchFieldsById
+      );
+      if (otherHits.length > 0) {
+        pendingSearchFocusRef.current = {
+          draft: query,
+          applied: trimmed,
+          teacherId: null,
+        };
+        switchTeacherSubject(otherSubject);
+        return;
+      }
+
+      setAppliedSearchQuery(trimmed);
+    },
+    [
+      otherSearchFieldsById,
+      otherSubject,
+      otherSubjectTeachers,
+      searchRemarksById,
+      switchTeacherSubject,
+      teachers,
+    ]
+  );
+
+  const selectSearchTeacher = useCallback(
+    (hit: TeacherSearchHit) => {
+      const name = resolveLessonTeacherRateFields(hit.teacher).name;
+      if (hit.subject !== teacherSubject) {
+        pendingSearchFocusRef.current = {
+          draft: name,
+          applied: name,
+          teacherId: hit.teacher.id,
+        };
+        switchTeacherSubject(hit.subject);
+        return;
+      }
+      setSearchDraft(name);
+      setAppliedSearchQuery(name);
+      setSelectedSearchTeacherId(hit.teacher.id);
+      setSearchSuggestOpen(false);
+    },
+    [switchTeacherSubject, teacherSubject]
+  );
 
   useEffect(() => {
     if (!searchSuggestOpen) return;
@@ -914,8 +1051,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                   value={searchDraft}
                   placeholder={
                     locale === "zh"
-                      ? "输入老师名，如「周」；可从下方候选点选"
-                      : "Type a name, e.g. Zhou; pick from suggestions"
+                      ? "模糊搜索老师名（日语/英语都搜，如 m、周）"
+                      : "Fuzzy search JP/EN teachers, e.g. m or Zhou"
                   }
                   autoComplete="off"
                   role="combobox"
@@ -944,20 +1081,30 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                   className="admin-jpl-search-suggest"
                   role="listbox"
                 >
-                  {searchSuggestions.map((teacher) => {
-                    const name = resolveLessonTeacherRateFields(teacher).name;
+                  {searchSuggestions.map((hit) => {
+                    const name = resolveLessonTeacherRateFields(hit.teacher).name;
+                    const subjectLabel =
+                      hit.subject === "en"
+                        ? locale === "zh"
+                          ? "英语老师"
+                          : "English"
+                        : locale === "zh"
+                          ? "日语老师"
+                          : "Japanese";
                     return (
-                      <li key={teacher.id} role="option">
+                      <li key={`${hit.subject}-${hit.teacher.id}`} role="option">
                         <button
                           type="button"
                           className="admin-jpl-search-suggest-item"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => selectSearchTeacher(teacher)}
+                          onClick={() => selectSearchTeacher(hit)}
                         >
                           <span className="admin-jpl-search-suggest-name">{name}</span>
                           <span className="admin-jpl-search-suggest-meta">
+                            {subjectLabel}
+                            {" · "}
                             {locale === "zh" ? "频次" : "Lessons"}{" "}
-                            {teacher.lesson_count ?? 0}
+                            {hit.teacher.lesson_count ?? 0}
                           </span>
                         </button>
                       </li>

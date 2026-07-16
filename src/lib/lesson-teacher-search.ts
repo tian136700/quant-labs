@@ -13,9 +13,18 @@ export type LessonTeacherSearchFields = {
   remark?: string | null;
   /** 弹窗内未保存的名称草稿，优先于 teacher.name */
   draftName?: string;
+  /** 日语老师 / 英语老师 等，便于不切类型也能按科目搜 */
+  subjectLabels?: string | null;
 };
 
-/** 老师模糊搜索 haystack：名称、ID、上课频次、课时费、时长等 */
+/** 科目写入搜索 haystack 的关键词（中英均可命中） */
+export function lessonTeacherSubjectSearchLabels(subject: "jp" | "en"): string {
+  return subject === "en"
+    ? "英语老师 english en"
+    : "日语老师 japanese jp";
+}
+
+/** 老师模糊搜索 haystack：名称、ID、上课频次、课时费、时长、科目等 */
 export function lessonTeacherSearchHaystack(
   teacher: JpLessonTeacher,
   fields: LessonTeacherSearchFields = {}
@@ -31,6 +40,7 @@ export function lessonTeacherSearchHaystack(
     resolved.hourly_rate != null ? String(resolved.hourly_rate) : "",
     resolved.lesson_minutes != null ? String(resolved.lesson_minutes) : "",
     fields.remark ?? "",
+    fields.subjectLabels ?? "",
   ];
   return parts
     .filter((part) => Boolean(part && part.trim()))

@@ -96,7 +96,7 @@
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` |
 | `/jp-lesson/notes` | 课堂笔记 | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
 | `/jp-lesson/schedule` | **统一日程管理**（日语 + 英语新课 + 手动日程） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` |
-| `/admin/jp-lesson-teachers` | **上课老师管理**（默认日语；`?subject=en` 英语老师 + 评价） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx` |
+| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理**（默认日语；`?subject=en` 英语老师 + 评价；**搜索跨日语+英语模糊匹配**，不必先选类型） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
 
 日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}`（英语课加 `&subject=en`）并自动滚动定位。路径常量：`adminJpLessonTeachersPath()`、`jpLessonSchedulePath()` in `locale-path.ts`。
 
@@ -111,6 +111,7 @@
 | **日程同步到网易日历（CalDAV，已停用）** | 默认 `SCHEDULE_CALDAV_DISABLED=1`；Mac launchd 已卸；改用下方 ICS。脚本仍保留：`scripts/schedule-caldav-sync.py` |
 | **日程订阅到 iPhone / Mac 系统日历（ICS，推荐）** | `GET /api/admin/schedule.ics?token=`（同 `JP_REVIEW_UPLOAD_TOKEN`）；开课前 10 分钟 `VALARM`；`buildScheduleIcs()`；手机：日历 → 添加订阅日历；Mac：日历 → 文件 → 新建日历订阅 |
 | 英语老师管理 / 评价（合并）；**不建登录账号** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` **不再** `provisionEnLessonTeacherUser` |
+| **人员管理模糊搜索**（日语/英语一起搜；候选标科目；点选或仅另一科命中时自动切 `?subject=`） | `AdminJpLessonTeachersPage.tsx` → `loadOtherSubjectTeachers` / `searchSuggestions` / `applySearch`；`lesson-teacher-search.ts` → `lessonTeacherSubjectSearchLabels`；规则 `.cursor/rules/admin-teacher-cross-search.mdc` |
 
 ---
 
