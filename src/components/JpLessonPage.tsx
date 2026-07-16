@@ -5,6 +5,10 @@ import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
 import { JpLessonBatchCopyMenu } from "@/components/JpLessonBatchCopyMenu";
 import { JpLessonCopyMenu } from "@/components/JpLessonCopyMenu";
+import {
+  JpLessonExamplesViewModal,
+  type JpLessonExamplesViewTarget,
+} from "@/components/JpLessonExamplesViewModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
 import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput, type JpLessonTeacherUpdateInput } from "@/components/JpLessonTeacherEditModal";
@@ -161,11 +165,11 @@ function formatLessonMeaningsOneLine(
   return aligned.join(", ");
 }
 
-function formatLessonExamplesOneLine(
+function lessonHasExamples(
   content: string,
   examples: string | null | undefined
-): string {
-  return formatLessonExampleSentencesSummary(content, examples);
+): boolean {
+  return formatLessonExampleSentencesSummary(content, examples) !== "—";
 }
 
 function renderLessonDateTime(iso: string) {
@@ -371,6 +375,9 @@ export function JpLessonPage() {
     ref: JpVocabRef;
     viewUrl: string;
   } | null>(null);
+  const [viewingExamples, setViewingExamples] = useState<JpLessonExamplesViewTarget | null>(
+    null
+  );
   const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
 
   const toggleRecentOperationSort = useCallback((status: JpLessonProgressStatus) => {
@@ -1586,9 +1593,22 @@ export function JpLessonPage() {
                             </p>
                             <p className="jp-lesson-mobile-examples-inline">
                               <span className="jp-lesson-mobile-examples-label">例句</span>
-                              {formatLessonExamplesOneLine(
-                                lesson.content,
-                                lesson.example_sentences
+                              {lessonHasExamples(lesson.content, lesson.example_sentences) ? (
+                                <button
+                                  type="button"
+                                  className="jp-lesson-examples-view-btn"
+                                  onClick={() =>
+                                    setViewingExamples({
+                                      lessonId: lesson.id,
+                                      content: lesson.content,
+                                      exampleSentences: lesson.example_sentences,
+                                    })
+                                  }
+                                >
+                                  查看
+                                </button>
+                              ) : (
+                                "—"
                               )}
                             </p>
                             {canOperate ? (
@@ -1647,18 +1667,23 @@ export function JpLessonPage() {
                         key={lesson.id}
                         className={merged ? "jp-lesson-merged-stack-item" : undefined}
                       >
-                        <div className="jp-lesson-examples-desktop">
-                          {formatLessonExamplesOneLine(
-                            lesson.content,
-                            lesson.example_sentences
-                          )}
-                        </div>
-                        <p className="jp-lesson-mobile-examples-text">
-                          {formatLessonExamplesOneLine(
-                            lesson.content,
-                            lesson.example_sentences
-                          )}
-                        </p>
+                        {lessonHasExamples(lesson.content, lesson.example_sentences) ? (
+                          <button
+                            type="button"
+                            className="jp-lesson-examples-view-btn"
+                            onClick={() =>
+                              setViewingExamples({
+                                lessonId: lesson.id,
+                                content: lesson.content,
+                                exampleSentences: lesson.example_sentences,
+                              })
+                            }
+                          >
+                            查看
+                          </button>
+                        ) : (
+                          <span className="jp-lesson-examples-empty">—</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2015,6 +2040,12 @@ export function JpLessonPage() {
         onNeedAuth={openJpAuth}
       />
 
+      <JpLessonExamplesViewModal
+        open={viewingExamples != null}
+        target={viewingExamples}
+        onClose={() => setViewingExamples(null)}
+      />
+
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
         <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
         <p style={{ marginTop: "0.5rem" }}>
@@ -2070,10 +2101,16 @@ export function JpLessonPage() {
         :global(.page-wrap:has(.jp-lesson-page)) {
           max-width: min(1680px, 98vw);
         }
+        :global(.jp-lesson-page) {
+          min-width: 0;
+          max-width: 100%;
+        }
         .jp-lesson-cards {
           display: flex;
           flex-direction: column;
           gap: 1.25rem;
+          min-width: 0;
+          max-width: 100%;
         }
         .jp-lesson-admin-links {
           display: flex;
@@ -2084,6 +2121,8 @@ export function JpLessonPage() {
         }
         .jp-lesson-status-card {
           margin: 0;
+          min-width: 0;
+          max-width: 100%;
         }
         .jp-lesson-status-card-head {
           display: flex;
@@ -2135,6 +2174,8 @@ export function JpLessonPage() {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior-x: contain;
+          max-width: 100%;
+          min-width: 0;
         }
         :global(.jp-lesson-table) {
           width: 100%;
@@ -2197,13 +2238,34 @@ export function JpLessonPage() {
           color: var(--muted);
         }
         :global(.jp-lesson-examples-col) {
-          min-width: 10rem;
-          max-width: 22rem;
+          width: 4.75rem;
+          min-width: 4.75rem;
+          max-width: 5.5rem;
+          text-align: center;
+          white-space: nowrap;
           color: var(--muted);
           font-size: 0.8125rem;
-          line-height: 1.45;
-          white-space: pre-wrap;
-          word-break: break-word;
+        }
+        :global(.jp-lesson-examples-view-btn) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 2rem;
+          padding: 0.25rem 0.55rem;
+          font-size: 0.8125rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--accent);
+          cursor: pointer;
+          font: inherit;
+          line-height: 1.3;
+        }
+        :global(.jp-lesson-examples-view-btn:hover) {
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        :global(.jp-lesson-examples-empty) {
+          color: var(--muted);
         }
         :global(.jp-lesson-meanings-lines) {
           display: flex;

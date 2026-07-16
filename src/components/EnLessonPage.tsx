@@ -1324,10 +1324,16 @@ export function EnLessonPage() {
         :global(.page-wrap:has(.jp-lesson-page)) {
           max-width: min(1680px, 98vw);
         }
+        :global(.jp-lesson-page) {
+          min-width: 0;
+          max-width: 100%;
+        }
         .jp-lesson-cards {
           display: flex;
           flex-direction: column;
           gap: 1.25rem;
+          min-width: 0;
+          max-width: 100%;
         }
         .jp-lesson-admin-links {
           display: flex;
@@ -1338,6 +1344,8 @@ export function EnLessonPage() {
         }
         .jp-lesson-status-card {
           margin: 0;
+          min-width: 0;
+          max-width: 100%;
         }
         .jp-lesson-status-card-head {
           display: flex;
@@ -1381,6 +1389,8 @@ export function EnLessonPage() {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           overscroll-behavior-x: contain;
+          max-width: 100%;
+          min-width: 0;
         }
         :global(.jp-lesson-table) {
           width: 100%;
