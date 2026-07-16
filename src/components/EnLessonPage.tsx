@@ -1125,7 +1125,7 @@ export function EnLessonPage() {
   );
 
   return (
-    <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
+    <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1680px, 98vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
@@ -1322,7 +1322,7 @@ export function EnLessonPage() {
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
-          max-width: min(1480px, 96vw);
+          max-width: min(1680px, 98vw);
         }
         .jp-lesson-cards {
           display: flex;
@@ -1380,13 +1380,17 @@ export function EnLessonPage() {
         :global(.jp-lesson-table-wrap) {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
+          overscroll-behavior-x: contain;
         }
         :global(.jp-lesson-table) {
           width: 100%;
+          overflow: visible;
         }
         @media (min-width: 768px) {
           :global(.jp-lesson-table) {
-            min-width: 640px;
+            min-width: 72rem;
+            width: max-content;
+            max-width: none;
           }
           :global(.jp-lesson-mobile-status-filter) {
             display: none;
@@ -1599,6 +1603,42 @@ export function EnLessonPage() {
         :global(.jp-lesson-actions-col) {
           text-align: center;
         }
+        @media (min-width: 768px) {
+          :global(.jp-lesson-actions-col) {
+            position: sticky;
+            right: 0;
+            z-index: 3;
+            min-width: 12.5rem;
+            white-space: nowrap;
+            background: var(--panel);
+            box-shadow: -6px 0 10px -6px color-mix(in srgb, #000 55%, transparent);
+          }
+          :global(.jp-lesson-table thead .jp-lesson-actions-col) {
+            z-index: 4;
+            background: #243044;
+          }
+          :global(.jp-lesson-row--merged .jp-lesson-actions-col) {
+            background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+          }
+          :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-0 .jp-lesson-actions-col) {
+            background: color-mix(in srgb, #c9b86a 10%, var(--panel));
+          }
+          :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-1 .jp-lesson-actions-col) {
+            background: color-mix(in srgb, var(--fall) 9%, var(--panel));
+          }
+          :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-2 .jp-lesson-actions-col) {
+            background: color-mix(in srgb, #6ab8c8 9%, var(--panel));
+          }
+          :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-3 .jp-lesson-actions-col) {
+            background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+          }
+          :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-4 .jp-lesson-actions-col) {
+            background: color-mix(in srgb, #9a8fbf 9%, var(--panel));
+          }
+          :global(.jp-lesson-status-card--learning .jp-lesson-row--day-tone-5 .jp-lesson-actions-col) {
+            background: color-mix(in srgb, #c8a882 9%, var(--panel));
+          }
+        }
         :global(.jp-lesson-notes-col) {
           text-align: center;
         }
@@ -1737,8 +1777,8 @@ export function EnLessonPage() {
           cursor: not-allowed;
         }
         :global(.jp-lesson-actions) {
-          display: grid;
-          grid-template-columns: repeat(3, max-content);
+          display: inline-flex;
+          flex-wrap: nowrap;
           justify-content: center;
           align-items: center;
           gap: 0.35rem;
