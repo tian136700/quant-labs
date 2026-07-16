@@ -150,7 +150,6 @@ import {
   persistJpVocabPageCache,
 } from "@/lib/jp-vocab-page-cache";
 import {
-  JP_VOCAB_PAGE_SIZE,
   SHOW_RANDOM_HIGHLIGHT,
   SHOW_RISK_CHART,
 } from "@/lib/jp-vocab-page-constants";
@@ -162,7 +161,9 @@ import {
   JP_VOCAB_SAVE_ERR,
   pickRandomJpVocabWord,
   readStoredJpVocabPage,
+  readStoredJpVocabPageSize,
   writeStoredJpVocabPage,
+  writeStoredJpVocabPageSize,
 } from "@/lib/jp-vocab-page-helpers";
 import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
 
@@ -280,6 +281,7 @@ export function JpVocabPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
   const [page, setPage] = useState(() => readStoredJpVocabPage());
+  const [pageSize, setPageSize] = useState(() => readStoredJpVocabPageSize());
   const [exporting, setExporting] = useState(false);
   const [coachNavBusy, setCoachNavBusy] = useState(false);
   const [showExportChoice, setShowExportChoice] = useState(false);
@@ -1015,23 +1017,21 @@ export function JpVocabPage() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredDisplayedWords.length / JP_VOCAB_PAGE_SIZE)
+    Math.ceil(filteredDisplayedWords.length / pageSize)
   );
   const safePage = Math.min(page, totalPages);
   const pagedDisplayedWords = useMemo(() => {
-    const start = (safePage - 1) * JP_VOCAB_PAGE_SIZE;
-    return filteredDisplayedWords.slice(start, start + JP_VOCAB_PAGE_SIZE);
-  }, [filteredDisplayedWords, safePage]);
-  const showPagination = filteredDisplayedWords.length > JP_VOCAB_PAGE_SIZE;
+    const start = (safePage - 1) * pageSize;
+    return filteredDisplayedWords.slice(start, start + pageSize);
+  }, [filteredDisplayedWords, safePage, pageSize]);
   const pageRangeStart =
     filteredDisplayedWords.length === 0
       ? 0
-      : (safePage - 1) * JP_VOCAB_PAGE_SIZE + 1;
+      : (safePage - 1) * pageSize + 1;
   const pageRangeEnd = Math.min(
-    safePage * JP_VOCAB_PAGE_SIZE,
+    safePage * pageSize,
     filteredDisplayedWords.length
   );
-  const currentPageCount = pagedDisplayedWords.length;
 
   useEffect(() => {
     if (loading) return;
@@ -1041,6 +1041,17 @@ export function JpVocabPage() {
   useEffect(() => {
     writeStoredJpVocabPage(safePage);
   }, [safePage]);
+
+  useEffect(() => {
+    writeStoredJpVocabPageSize(pageSize);
+  }, [pageSize]);
+
+  const handlePageSizeChange = (nextSize: number) => {
+    if (nextSize === pageSize) return;
+    const firstIndex = (safePage - 1) * pageSize;
+    setPageSize(nextSize);
+    setPage(Math.floor(firstIndex / nextSize) + 1);
+  };
 
   useEffect(() => {
     if (!scrollToHighlightRef.current || highlightId == null) return;
@@ -2039,7 +2050,7 @@ export function JpVocabPage() {
     if (!next) return;
     const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
     if (idx >= 0) {
-      setPage(Math.floor(idx / JP_VOCAB_PAGE_SIZE) + 1);
+      setPage(Math.floor(idx / pageSize) + 1);
     }
     scrollToHighlightRef.current = true;
     setHighlightId(next.id);
@@ -2723,9 +2734,9 @@ export function JpVocabPage() {
               pageRangeStart={pageRangeStart}
               pageRangeEnd={pageRangeEnd}
               totalItems={filteredDisplayedWords.length}
-              currentPageCount={currentPageCount}
-              pageSize={JP_VOCAB_PAGE_SIZE}
+              pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           </>
             ) : null}

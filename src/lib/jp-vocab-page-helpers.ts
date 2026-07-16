@@ -11,11 +11,18 @@ import {
 import {
   pickRandomVocabWord,
   readStoredVocabPage,
+  readStoredVocabPageSize,
   vocabWordsInOrder,
   writeStoredVocabPage,
+  writeStoredVocabPageSize,
   VOCAB_SAVE_ERR,
 } from "@/lib/vocab-page-shared";
-import { JP_VOCAB_PAGE_STORAGE_KEY } from "@/lib/jp-vocab-page-constants";
+import {
+  JP_VOCAB_PAGE_SIZE,
+  JP_VOCAB_PAGE_SIZE_OPTIONS,
+  JP_VOCAB_PAGE_SIZE_STORAGE_KEY,
+  JP_VOCAB_PAGE_STORAGE_KEY,
+} from "@/lib/jp-vocab-page-constants";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
 export { VOCAB_SAVE_ERR as JP_VOCAB_SAVE_ERR };
@@ -26,6 +33,18 @@ export function readStoredJpVocabPage(): number {
 
 export function writeStoredJpVocabPage(page: number): void {
   writeStoredVocabPage(JP_VOCAB_PAGE_STORAGE_KEY, page);
+}
+
+export function readStoredJpVocabPageSize(): number {
+  return readStoredVocabPageSize(
+    JP_VOCAB_PAGE_SIZE_STORAGE_KEY,
+    JP_VOCAB_PAGE_SIZE_OPTIONS,
+    JP_VOCAB_PAGE_SIZE
+  );
+}
+
+export function writeStoredJpVocabPageSize(size: number): void {
+  writeStoredVocabPageSize(JP_VOCAB_PAGE_SIZE_STORAGE_KEY, size);
 }
 
 export function jpVocabShareProgressPercent(elapsedMs: number): number {

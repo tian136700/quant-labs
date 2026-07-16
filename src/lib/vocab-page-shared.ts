@@ -62,3 +62,30 @@ export function writeStoredVocabPage(storageKey: string, page: number): void {
     /* ignore storage errors */
   }
 }
+
+export function readStoredVocabPageSize(
+  storageKey: string,
+  options: readonly number[],
+  defaultSize: number
+): number {
+  if (typeof window === "undefined") return defaultSize;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    const size = Number(raw);
+    return Number.isInteger(size) && options.includes(size) ? size : defaultSize;
+  } catch {
+    return defaultSize;
+  }
+}
+
+export function writeStoredVocabPageSize(
+  storageKey: string,
+  size: number
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(storageKey, String(size));
+  } catch {
+    /* ignore storage errors */
+  }
+}

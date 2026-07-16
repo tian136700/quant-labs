@@ -2658,6 +2658,18 @@
     font-size: 0.875rem;
   }
 
+  .jp-vocab-pagination__size {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .jp-vocab-pagination__size-select {
+    min-height: 2.75rem;
+    min-width: 5.5rem;
+    font-size: 0.875rem;
+  }
+
   .jp-vocab-page .section.etr-panel h2 {
     font-size: 1.375rem;
   }

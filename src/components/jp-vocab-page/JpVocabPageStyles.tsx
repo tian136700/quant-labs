@@ -171,12 +171,31 @@ export function JpVocabPageStyles() {
           font-variant-numeric: tabular-nums;
           text-align: left;
         }
-        .jp-vocab-pagination__page-count {
-          margin: 0;
+        .jp-vocab-pagination__size {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          margin-left: auto;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-vocab-pagination__size-label {
+          white-space: nowrap;
+        }
+        .jp-vocab-pagination__size-select {
+          min-width: 4.5rem;
+          padding: 0.35rem 1.25rem 0.35rem 0.45rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background-color: var(--panel);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.8125rem;
           font-variant-numeric: tabular-nums;
-          text-align: left;
+        }
+        .jp-vocab-pagination__size-select:focus {
+          outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+          outline-offset: 1px;
         }
         .jp-vocab-level-wrap {
           display: inline-flex;

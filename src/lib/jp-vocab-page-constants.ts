@@ -25,8 +25,11 @@ export const SHOW_RANDOM_HIGHLIGHT = false;
 /** 暂时隐藏「抽查排行」图表 */
 export const SHOW_RISK_CHART = false;
 
-/** 单词表每页条数 */
+/** 单词表默认每页条数 */
 export const JP_VOCAB_PAGE_SIZE = 20;
+
+/** 单词表可选每页条数 */
+export const JP_VOCAB_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 /** 操作列「发给学生」说明（表头短版 / 按钮下完整版） */
 export const JP_VOCAB_SHARE_HINT_SHORT = "不熟悉时点「发给学生」";
@@ -34,3 +37,4 @@ export const JP_VOCAB_SHARE_HINT =
   "学生答不上来或不熟悉时，点此发送给他";
 
 export const JP_VOCAB_PAGE_STORAGE_KEY = "jp_vocab_current_page";
+export const JP_VOCAB_PAGE_SIZE_STORAGE_KEY = "jp_vocab_page_size";
