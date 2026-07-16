@@ -97,9 +97,16 @@ function refFilename(lesson: EnLessonRecord, ref?: EnVocabRef): string {
 }
 
 function renderLessonDateTime(iso: string) {
+  const full = formatBeijingDateTime(iso);
+  const spaceIdx = full.lastIndexOf(" ");
+  const datePart = spaceIdx > 0 ? full.slice(0, spaceIdx) : full;
+  const timePart = spaceIdx > 0 ? full.slice(spaceIdx + 1) : "";
   return (
     <span className="jp-lesson-dt">
-      <span className="jp-lesson-dt-full">{formatBeijingDateTime(iso)}</span>
+      <span className="jp-lesson-dt-full jp-lesson-dt-stacked">
+        <span className="jp-lesson-dt-date">{datePart}</span>
+        {timePart ? <span className="jp-lesson-dt-time">{timePart}</span> : null}
+      </span>
       <span className="jp-lesson-dt-compact">{formatBeijingDateTimeCompact(iso)}</span>
     </span>
   );
@@ -1386,22 +1393,16 @@ export function EnLessonPage() {
           color: var(--fall);
         }
         :global(.jp-lesson-table-wrap) {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-          overscroll-behavior-x: contain;
+          overflow-x: hidden;
           max-width: 100%;
           min-width: 0;
         }
         :global(.jp-lesson-table) {
           width: 100%;
+          table-layout: fixed;
           overflow: visible;
         }
         @media (min-width: 768px) {
-          :global(.jp-lesson-table) {
-            min-width: 68rem;
-            width: max-content;
-            max-width: none;
-          }
           :global(.jp-lesson-mobile-status-filter) {
             display: none;
           }
@@ -1409,7 +1410,7 @@ export function EnLessonPage() {
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
           vertical-align: middle;
-          padding: 0.6rem 0.75rem;
+          padding: 0.45rem 0.4rem;
           white-space: normal;
         }
         :global(.jp-lesson-id-col) {
@@ -1419,12 +1420,13 @@ export function EnLessonPage() {
           text-align: center;
         }
         :global(.jp-lesson-content-col) {
-          min-width: 9rem;
-          max-width: 14rem;
+          min-width: 0;
+          width: 14%;
+          word-break: break-word;
         }
         :global(.jp-lesson-content-count-col) {
-          width: 4.5rem;
-          min-width: 4.5rem;
+          width: 3.5rem;
+          min-width: 3.5rem;
           text-align: center;
           font-variant-numeric: tabular-nums;
           font-size: 0.8125rem;
@@ -1520,18 +1522,39 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-uploaded-col),
         :global(.jp-lesson-status-at-col) {
-          white-space: nowrap;
+          white-space: normal;
+          width: 5.5rem;
+          min-width: 5.5rem;
+          max-width: 6rem;
           font-variant-numeric: tabular-nums;
           font-size: 0.8125rem;
+        }
+        :global(.jp-lesson-dt-stacked) {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.1rem;
+          line-height: 1.25;
+        }
+        :global(.jp-lesson-dt-date) {
+          display: block;
+        }
+        :global(.jp-lesson-dt-time) {
+          display: block;
+          color: var(--muted);
+          font-size: 0.75rem;
         }
         :global(.jp-lesson-operator-col) {
           white-space: nowrap;
           font-size: 0.8125rem;
           color: var(--muted);
+          width: 3.5rem;
+          min-width: 3.25rem;
         }
         :global(.jp-lesson-teacher-col) {
           font-size: 0.8125rem;
-          min-width: 6.5rem;
+          min-width: 0;
+          width: 7%;
         }
         :global(.jp-lesson-teacher-cell) {
           display: inline-flex;
@@ -1540,7 +1563,8 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-next-class-col) {
           font-size: 0.8125rem;
-          min-width: 7.5rem;
+          min-width: 0;
+          width: 8%;
         }
         :global(.jp-lesson-next-class-col--sortable) {
           padding: 0;
@@ -1597,12 +1621,13 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-next-class-label) {
           color: var(--accent);
-          white-space: nowrap;
+          white-space: normal;
+          word-break: break-word;
         }
         :global(.jp-lesson-class-duration-label) {
           color: var(--muted);
           font-size: 0.75rem;
-          white-space: nowrap;
+          white-space: normal;
         }
         :global(.jp-lesson-next-class-label.is-undefined) {
           color: var(--muted);
@@ -1612,8 +1637,9 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-actions-col) {
           text-align: center;
-          min-width: 9.5rem;
-          width: 9.5rem;
+          width: 8.75rem;
+          min-width: 8.5rem;
+          max-width: 9.25rem;
           white-space: normal;
           vertical-align: middle;
         }
@@ -1755,12 +1781,11 @@ export function EnLessonPage() {
           cursor: not-allowed;
         }
         :global(.jp-lesson-actions) {
-          display: flex;
-          flex-wrap: wrap;
+          display: grid;
+          grid-template-columns: repeat(2, max-content);
           justify-content: center;
           align-items: center;
           gap: 0.3rem;
-          max-width: 9.25rem;
           margin-inline: auto;
         }
         :global(.jp-lesson-action-btn) {
