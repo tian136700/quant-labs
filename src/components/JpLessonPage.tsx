@@ -9,10 +9,6 @@ import {
   JpLessonExamplesViewModal,
   type JpLessonExamplesViewTarget,
 } from "@/components/JpLessonExamplesViewModal";
-import {
-  JpLessonMeaningsViewModal,
-  type JpLessonMeaningsViewTarget,
-} from "@/components/JpLessonMeaningsViewModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
 import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput, type JpLessonTeacherUpdateInput } from "@/components/JpLessonTeacherEditModal";
@@ -161,6 +157,8 @@ function formatLessonContentOneLine(raw: string): string {
 }
 
 const JP_LESSON_CONTENT_PREVIEW_LINES = 2;
+/** 折叠时最多展示的词/语法条数（约两行 × 每行 3 个） */
+const JP_LESSON_CONTENT_PREVIEW_ITEMS = 6;
 
 function JpLessonContentPreview({
   content,
@@ -171,18 +169,27 @@ function JpLessonContentPreview({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const items = parseLessonContent(content);
   const lines = formatLessonContentLines(content);
-  const needsMore = lines.length > JP_LESSON_CONTENT_PREVIEW_LINES;
+  const needsMore =
+    lines.length > JP_LESSON_CONTENT_PREVIEW_LINES ||
+    items.length > JP_LESSON_CONTENT_PREVIEW_ITEMS;
   const shown =
     !expanded && needsMore ? lines.slice(0, JP_LESSON_CONTENT_PREVIEW_LINES) : lines;
 
   return (
-    <div className="jp-lesson-content-lines jp-lesson-content-desktop">
-      {shown.map((line, lineIdx) => (
-        <span key={lineIdx} className="jp-lesson-content-line">
-          {line}
-        </span>
-      ))}
+    <div
+      className={`jp-lesson-content-preview${expanded ? " is-expanded" : ""}${
+        needsMore && !expanded ? " is-clamped" : ""
+      }`}
+    >
+      <div className="jp-lesson-content-lines jp-lesson-content-desktop">
+        {shown.map((line, lineIdx) => (
+          <span key={lineIdx} className="jp-lesson-content-line">
+            {line}
+          </span>
+        ))}
+      </div>
       {needsMore ? (
         <button
           type="button"
@@ -197,20 +204,52 @@ function JpLessonContentPreview({
   );
 }
 
-function formatLessonMeaningsOneLine(
-  content: string,
-  meanings: string | null | undefined
-): string {
-  const aligned = formatLessonMeaningsLines(content, meanings, 99);
-  if (!aligned.length || aligned.every((line) => line === "—")) return "—";
-  return aligned.join(", ");
-}
+function JpLessonMeaningsPreview({
+  content,
+  meanings,
+  expanded,
+  onToggle,
+}: {
+  content: string;
+  meanings: string | null | undefined;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const lines = formatLessonMeaningsLines(content, meanings);
+  const empty = !lines.length || lines.every((line) => line === "—");
+  if (empty) {
+    return <span className="jp-lesson-examples-empty">—</span>;
+  }
 
-function lessonHasMeanings(
-  content: string,
-  meanings: string | null | undefined
-): boolean {
-  return formatLessonMeaningsOneLine(content, meanings) !== "—";
+  const needsMore = lines.length > JP_LESSON_CONTENT_PREVIEW_LINES;
+  const shown =
+    !expanded && needsMore ? lines.slice(0, JP_LESSON_CONTENT_PREVIEW_LINES) : lines;
+
+  return (
+    <div
+      className={`jp-lesson-content-preview${expanded ? " is-expanded" : ""}${
+        needsMore && !expanded ? " is-clamped" : ""
+      }`}
+    >
+      <div className="jp-lesson-meanings-lines jp-lesson-meanings-desktop">
+        {shown.map((line, lineIdx) => (
+          <span key={lineIdx} className="jp-lesson-meanings-line">
+            {line}
+          </span>
+        ))}
+      </div>
+      {needsMore ? (
+        <button
+          type="button"
+          className="jp-lesson-content-more-btn"
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
+          {expanded ? "收起" : "更多"}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function lessonHasExamples(
@@ -433,14 +472,19 @@ export function JpLessonPage() {
   const [viewingExamples, setViewingExamples] = useState<JpLessonExamplesViewTarget | null>(
     null
   );
-  const [viewingMeanings, setViewingMeanings] = useState<JpLessonMeaningsViewTarget | null>(
-    null
-  );
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
+  const [expandedMeaningsIds, setExpandedMeaningsIds] = useState<Record<number, boolean>>({});
   const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
 
   const toggleContentExpanded = useCallback((lessonId: number) => {
     setExpandedContentIds((prev) => ({
+      ...prev,
+      [lessonId]: !prev[lessonId],
+    }));
+  }, []);
+
+  const toggleMeaningsExpanded = useCallback((lessonId: number) => {
+    setExpandedMeaningsIds((prev) => ({
       ...prev,
       [lessonId]: !prev[lessonId],
     }));
@@ -1666,23 +1710,12 @@ export function JpLessonPage() {
                             </p>
                             <p className="jp-lesson-mobile-meanings-inline">
                               <span className="jp-lesson-mobile-meanings-label">释义</span>
-                              {lessonHasMeanings(lesson.content, lesson.meanings) ? (
-                                <button
-                                  type="button"
-                                  className="jp-lesson-examples-view-btn"
-                                  onClick={() =>
-                                    setViewingMeanings({
-                                      lessonId: lesson.id,
-                                      content: lesson.content,
-                                      meanings: lesson.meanings,
-                                    })
-                                  }
-                                >
-                                  查看
-                                </button>
-                              ) : (
-                                "—"
-                              )}
+                              <JpLessonMeaningsPreview
+                                content={lesson.content}
+                                meanings={lesson.meanings}
+                                expanded={Boolean(expandedMeaningsIds[lesson.id])}
+                                onToggle={() => toggleMeaningsExpanded(lesson.id)}
+                              />
                             </p>
                             <p className="jp-lesson-mobile-examples-inline">
                               <span className="jp-lesson-mobile-examples-label">例句</span>
@@ -1737,23 +1770,12 @@ export function JpLessonPage() {
                         key={lesson.id}
                         className={merged ? "jp-lesson-merged-stack-item" : undefined}
                       >
-                        {lessonHasMeanings(lesson.content, lesson.meanings) ? (
-                          <button
-                            type="button"
-                            className="jp-lesson-examples-view-btn"
-                            onClick={() =>
-                              setViewingMeanings({
-                                lessonId: lesson.id,
-                                content: lesson.content,
-                                meanings: lesson.meanings,
-                              })
-                            }
-                          >
-                            查看
-                          </button>
-                        ) : (
-                          <span className="jp-lesson-examples-empty">—</span>
-                        )}
+                        <JpLessonMeaningsPreview
+                          content={lesson.content}
+                          meanings={lesson.meanings}
+                          expanded={Boolean(expandedMeaningsIds[lesson.id])}
+                          onToggle={() => toggleMeaningsExpanded(lesson.id)}
+                        />
                       </div>
                     ))}
                   </div>
@@ -2144,12 +2166,6 @@ export function JpLessonPage() {
         onClose={() => setViewingExamples(null)}
       />
 
-      <JpLessonMeaningsViewModal
-        open={viewingMeanings != null}
-        target={viewingMeanings}
-        onClose={() => setViewingMeanings(null)}
-      />
-
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
         <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
         <p style={{ marginTop: "0.5rem" }}>
@@ -2353,7 +2369,13 @@ export function JpLessonPage() {
           font-size: 0.8125rem;
           color: var(--muted);
         }
-        :global(.jp-lesson-meanings-col),
+        :global(.jp-lesson-meanings-col) {
+          min-width: 0;
+          width: 12%;
+          color: var(--muted);
+          font-size: 0.8125rem;
+          word-break: break-word;
+        }
         :global(.jp-lesson-examples-col) {
           width: 3.4rem;
           min-width: 3.4rem;
@@ -2384,15 +2406,6 @@ export function JpLessonPage() {
         :global(.jp-lesson-examples-empty) {
           color: var(--muted);
         }
-        :global(.jp-lesson-meanings-lines) {
-          display: flex;
-          flex-direction: column;
-          gap: 0.2rem;
-          line-height: 1.45;
-        }
-        :global(.jp-lesson-meanings-line) {
-          display: block;
-        }
         :global(.jp-lesson-mobile-meanings-text),
         :global(.jp-lesson-mobile-examples-text) {
           display: none;
@@ -2401,21 +2414,54 @@ export function JpLessonPage() {
         :global(.jp-lesson-mobile-examples-inline) {
           display: none;
         }
+        :global(.jp-lesson-content-preview) {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.25rem;
+          min-width: 0;
+          max-width: 100%;
+        }
         :global(.jp-lesson-content-lines) {
           display: flex;
           flex-direction: column;
           gap: 0.2rem;
           line-height: 1.45;
+          min-width: 0;
+          max-width: 100%;
+        }
+        :global(.jp-lesson-content-preview.is-clamped .jp-lesson-content-lines),
+        :global(.jp-lesson-content-preview.is-clamped .jp-lesson-meanings-lines) {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          overflow: hidden;
         }
         :global(.jp-lesson-content-line) {
           display: block;
+          word-break: break-word;
+        }
+        :global(.jp-lesson-meanings-lines) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          line-height: 1.45;
+          min-width: 0;
+          max-width: 100%;
+        }
+        :global(.jp-lesson-meanings-line) {
+          display: block;
+          word-break: break-word;
         }
         :global(.jp-lesson-content-more-btn) {
-          align-self: flex-start;
-          margin-top: 0.15rem;
-          padding: 0;
-          border: none;
-          background: transparent;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 1.5rem;
+          padding: 0.1rem 0.45rem;
+          border: 1px solid var(--border);
+          border-radius: 5px;
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
           color: var(--accent);
           font: inherit;
           font-size: 0.75rem;
@@ -2423,7 +2469,7 @@ export function JpLessonPage() {
           cursor: pointer;
         }
         :global(.jp-lesson-content-more-btn:hover) {
-          text-decoration: underline;
+          background: color-mix(in srgb, var(--accent) 14%, var(--panel));
         }
         :global(.jp-lesson-merged-stack) {
           display: flex;
