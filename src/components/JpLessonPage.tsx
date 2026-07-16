@@ -704,8 +704,9 @@ export function JpLessonPage() {
     const snapshot = lessons.find((l) => l.id === lessonId);
     const optimistic = jpLessonProgressToFields(progressStatus);
     setSavingId(lessonId);
-    setLessons((prev) =>
-      prev.map((l) =>
+    // 立刻写共享缓存：日程页只认「学习中」，点选后打开日程必须马上生效
+    setLessons((prev) => {
+      const next = prev.map((l) =>
         l.id === lessonId
           ? {
               ...l,
@@ -713,8 +714,10 @@ export function JpLessonPage() {
               learning: optimistic.learning,
             }
           : l
-      )
-    );
+      );
+      persistLessonCache(next, refs, notes, teachers);
+      return next;
+    });
 
     try {
       const res = await fetch("/api/jp-lesson", {
@@ -757,9 +760,11 @@ export function JpLessonPage() {
       });
     } catch (err) {
       if (snapshot) {
-        setLessons((prev) =>
-          prev.map((l) => (l.id === lessonId ? snapshot : l))
-        );
+        setLessons((prev) => {
+          const next = prev.map((l) => (l.id === lessonId ? snapshot : l));
+          persistLessonCache(next, refs, notes, teachers);
+          return next;
+        });
       }
       setStatus(err instanceof Error ? err.message : "保存失败");
     } finally {

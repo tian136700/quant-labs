@@ -509,7 +509,8 @@ export function JpLessonSchedulePage() {
   }, [applyLessonPayload]);
 
   useEffect(() => {
-    if (!checking && isAdmin) void loadLessons();
+    // 打开日程立刻拉最新：只展示「学习中」，避免 TTL 内仍用旧状态
+    if (!checking && isAdmin) void loadLessons({ force: true });
   }, [checking, isAdmin, loadLessons]);
 
   const loadEnLessons = useCallback(async (opts?: { force?: boolean }) => {
@@ -554,7 +555,7 @@ export function JpLessonSchedulePage() {
   }, [applyEnLessonPayload]);
 
   useEffect(() => {
-    if (!checking && isAdmin) void loadEnLessons();
+    if (!checking && isAdmin) void loadEnLessons({ force: true });
   }, [checking, isAdmin, loadEnLessons]);
 
   const enTeacherNameById = useMemo(() => {
