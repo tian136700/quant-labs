@@ -3,6 +3,7 @@
 /** 远端 D1 写入时的标准橙色进度条（发给学生 / 勾选熟悉程度等共用） */
 type Props = {
   label: string;
+  /** 驱动橙色条宽度；界面不展示数字，避免假进度加重等待焦虑 */
   percent: number;
   /** 额外 class，如卡片内 `jp-vocab-teacher-quiz__level-progress` */
   className?: string;
@@ -25,12 +26,7 @@ export function JpVocabSaveProgressBar({
       }`}
       aria-live="polite"
     >
-      <div className="jp-vocab-save-progress__header">
-        <span className="jp-vocab-save-progress__label">{label}</span>
-        <span className="jp-vocab-save-progress__percent" aria-hidden="true">
-          {clamped}%
-        </span>
-      </div>
+      <span className="jp-vocab-save-progress__label">{label}</span>
       <div
         className="jp-vocab-save-progress__track"
         role="progressbar"
@@ -61,16 +57,7 @@ export function JpVocabSaveProgressBar({
           width: 100%;
           max-width: none;
         }
-        .jp-vocab-save-progress__header {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: 0.4rem;
-          min-width: 0;
-        }
         .jp-vocab-save-progress__label {
-          flex: 1 1 auto;
-          min-width: 0;
           font-size: 0.75rem;
           line-height: 1.3;
           color: #f0a840;
@@ -78,14 +65,6 @@ export function JpVocabSaveProgressBar({
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-        }
-        .jp-vocab-save-progress__percent {
-          flex: 0 0 auto;
-          font-size: 0.75rem;
-          font-variant-numeric: tabular-nums;
-          line-height: 1.3;
-          font-weight: 600;
-          color: #f0a840;
         }
         .jp-vocab-save-progress__track {
           height: 0.4rem;
