@@ -780,15 +780,16 @@ export function JpVocabPageStyles() {
           width: 13%;
           min-width: 0;
           white-space: normal;
-          background: color-mix(in srgb, var(--panel) 94%, var(--bg));
+          /* sticky 需不透明底，与其它列同色，勿混 accent */
+          background: var(--panel);
           box-shadow: -6px 0 10px color-mix(in srgb, var(--bg) 55%, transparent);
         }
         :global(.jp-vocab-table thead .jp-vocab-action-col) {
           z-index: 3;
-          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+          background: var(--panel);
         }
         :global(.jp-vocab-table tbody tr:hover .jp-vocab-action-col) {
-          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+          background: var(--panel);
         }
         .jp-vocab-share-stack {
           display: inline-flex;
