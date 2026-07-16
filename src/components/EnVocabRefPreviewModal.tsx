@@ -167,9 +167,16 @@ export function EnVocabRefPreviewModal({
 
   const onStageWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (isPdf) return;
+    // Mac 双指滑动 = 普通 wheel → 原生滚动；捏合 / Ctrl·⌘+滚轮才缩放
+    if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
-    const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-    zoomAtPointer(e.clientX, e.clientY, factor);
+    const factor =
+      e.deltaMode === 0
+        ? Math.exp(-e.deltaY * 0.01)
+        : e.deltaY < 0
+          ? ZOOM_STEP
+          : 1 / ZOOM_STEP;
+    applyZoomAtPointer(e.clientX, e.clientY, zoomRef.current * factor);
   };
 
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -261,7 +268,7 @@ export function EnVocabRefPreviewModal({
     ? "滚动查看 · Esc 关闭"
     : coarsePointer
       ? "单指拖动 · 双指缩放 · ± 按钮 · Esc 关闭"
-      : "拖动平移 · 滚轮缩放 · Esc 关闭";
+      : "拖动/双指滚动 · Ctrl+滚轮缩放 · Esc 关闭";
 
   return createPortal(
     <div

@@ -147,9 +147,18 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
   }, [computeFitScale]);
 
   const onStageWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    // Mac 触控板双指滑动是普通 wheel（无 ctrl）→ 交给 overflow 原生滚动平移。
+    // 触控板捏合 / Ctrl·⌘+滚轮带 ctrlKey/metaKey → 缩放（勿把双指滑动绑成缩放）。
+    if (!e.ctrlKey && !e.metaKey) return;
+
     e.preventDefault();
-    const factor = e.deltaY < 0 ? VOCAB_REF_ZOOM_STEP : 1 / VOCAB_REF_ZOOM_STEP;
-    zoomAtPointer(e.clientX, e.clientY, factor);
+    const factor =
+      e.deltaMode === 0
+        ? Math.exp(-e.deltaY * 0.01)
+        : e.deltaY < 0
+          ? VOCAB_REF_ZOOM_STEP
+          : 1 / VOCAB_REF_ZOOM_STEP;
+    applyZoomAtPointer(e.clientX, e.clientY, zoomRef.current * factor);
   };
 
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

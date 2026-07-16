@@ -48,7 +48,7 @@ export function JpVocabRefViewer({
 
   const zoomHint = coarsePointer
     ? "单指拖动 · 双指缩放 · ± 按钮"
-    : "拖动平移 · 滚轮缩放 · ± 按钮";
+    : "拖动/双指滚动 · Ctrl+滚轮缩放 · ± 按钮";
 
   return (
     <div className="jp-ref-viewer">
