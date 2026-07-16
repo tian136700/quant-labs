@@ -96,6 +96,43 @@ function refFilename(lesson: EnLessonRecord, ref?: EnVocabRef): string {
   return enLessonRefDownloadFilename(lesson, mediaType);
 }
 
+const EN_LESSON_CONTENT_PREVIEW_LINES = 2;
+
+function EnLessonContentPreview({
+  content,
+  expanded,
+  onToggle,
+}: {
+  content: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const lines = formatLessonContentLines(content);
+  const needsMore = lines.length > EN_LESSON_CONTENT_PREVIEW_LINES;
+  const shown =
+    !expanded && needsMore ? lines.slice(0, EN_LESSON_CONTENT_PREVIEW_LINES) : lines;
+
+  return (
+    <div className="jp-lesson-content-lines">
+      {shown.map((line, lineIdx) => (
+        <span key={lineIdx} className="jp-lesson-content-line">
+          {line}
+        </span>
+      ))}
+      {needsMore ? (
+        <button
+          type="button"
+          className="jp-lesson-content-more-btn"
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
+          {expanded ? "收起" : "更多"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function renderLessonDateTime(iso: string) {
   const full = formatBeijingDateTime(iso);
   const spaceIdx = full.lastIndexOf(" ");
@@ -215,8 +252,16 @@ export function EnLessonPage() {
     ref: EnVocabRef;
     viewUrl: string;
   } | null>(null);
+  const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [classTimeSortOrder, setClassTimeSortOrder] =
     useState<EnLessonClassTimeSortOrder>("asc");
+
+  const toggleContentExpanded = useCallback((lessonId: number) => {
+    setExpandedContentIds((prev) => ({
+      ...prev,
+      [lessonId]: !prev[lessonId],
+    }));
+  }, []);
 
   const toggleClassTimeSortOrder = useCallback(() => {
     setClassTimeSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -906,11 +951,13 @@ export function EnLessonPage() {
       <table className="compare-table etr-table jp-lesson-table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>学习类型</th>
-            <th>学习内容</th>
-            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计">
-              词/短语数
+            <th className="jp-lesson-id-col">ID</th>
+            <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
+              类
+            </th>
+            <th className="jp-lesson-content-col">学习内容</th>
+            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计的词/短语数">
+              数
             </th>
             <th className="jp-lesson-uploaded-col">上传日期</th>
             <th className="jp-lesson-status-at-col">最近操作</th>
@@ -985,8 +1032,9 @@ export function EnLessonPage() {
                           className={`jp-lesson-kind${
                             lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
                           }`}
+                          title={lesson.kind === "grammar" ? "语法" : "单词"}
                         >
-                          {lesson.kind === "grammar" ? "语法" : "单词"}
+                          {lesson.kind === "grammar" ? "法" : "词"}
                         </span>
                       </div>
                     ))}
@@ -996,13 +1044,11 @@ export function EnLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        <div className="jp-lesson-content-lines">
-                          {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
-                            <span key={lineIdx} className="jp-lesson-content-line">
-                              {line}
-                            </span>
-                          ))}
-                        </div>
+                        <EnLessonContentPreview
+                          content={lesson.content}
+                          expanded={Boolean(expandedContentIds[lesson.id])}
+                          onToggle={() => toggleContentExpanded(lesson.id)}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1132,7 +1178,7 @@ export function EnLessonPage() {
   );
 
   return (
-    <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1680px, 98vw)", paddingTop: "1.5rem" }}>
+    <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1320px, 92vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
@@ -1329,7 +1375,7 @@ export function EnLessonPage() {
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
-          max-width: min(1680px, 98vw);
+          max-width: min(1320px, 92vw);
         }
         :global(.jp-lesson-page) {
           min-width: 0;
@@ -1414,19 +1460,35 @@ export function EnLessonPage() {
           white-space: normal;
         }
         :global(.jp-lesson-id-col) {
-          width: 3.25rem;
+          width: 2.5rem;
+          min-width: 2.5rem;
+          max-width: 2.75rem;
+          padding-left: 0.2rem !important;
+          padding-right: 0.2rem !important;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
+          font-size: 0.75rem;
+          text-align: center;
+        }
+        :global(.jp-lesson-kind-col) {
+          width: 1.55rem;
+          min-width: 1.55rem;
+          max-width: 1.7rem;
+          padding-left: 0.05rem !important;
+          padding-right: 0.05rem !important;
           text-align: center;
         }
         :global(.jp-lesson-content-col) {
           min-width: 0;
-          width: 14%;
+          width: 16%;
           word-break: break-word;
         }
         :global(.jp-lesson-content-count-col) {
-          width: 3.5rem;
-          min-width: 3.5rem;
+          width: 2rem;
+          min-width: 2rem;
+          max-width: 2.25rem;
+          padding-left: 0.15rem !important;
+          padding-right: 0.15rem !important;
           text-align: center;
           font-variant-numeric: tabular-nums;
           font-size: 0.8125rem;
@@ -1440,6 +1502,21 @@ export function EnLessonPage() {
         }
         :global(.jp-lesson-content-line) {
           display: block;
+        }
+        :global(.jp-lesson-content-more-btn) {
+          align-self: flex-start;
+          margin-top: 0.15rem;
+          padding: 0;
+          border: none;
+          background: transparent;
+          color: var(--accent);
+          font: inherit;
+          font-size: 0.75rem;
+          line-height: 1.3;
+          cursor: pointer;
+        }
+        :global(.jp-lesson-content-more-btn:hover) {
+          text-decoration: underline;
         }
         :global(.jp-lesson-merged-stack) {
           display: flex;
@@ -1681,12 +1758,17 @@ export function EnLessonPage() {
           font-variant-numeric: tabular-nums;
         }
         :global(.jp-lesson-kind) {
-          display: inline-block;
-          font-size: 0.75rem;
-          padding: 0.15rem 0.45rem;
-          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 0;
+          width: 1.2rem;
+          font-size: 0.6875rem;
+          padding: 0.08rem 0;
+          border-radius: 3px;
           border: 1px solid var(--border);
           color: var(--muted);
+          line-height: 1.15;
         }
         :global(.jp-lesson-kind--grammar) {
           color: var(--accent);

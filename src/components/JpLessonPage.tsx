@@ -9,6 +9,10 @@ import {
   JpLessonExamplesViewModal,
   type JpLessonExamplesViewTarget,
 } from "@/components/JpLessonExamplesViewModal";
+import {
+  JpLessonMeaningsViewModal,
+  type JpLessonMeaningsViewTarget,
+} from "@/components/JpLessonMeaningsViewModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
 import { JpLessonTeacherEditModal, type JpLessonTeacherAddInput, type JpLessonTeacherUpdateInput } from "@/components/JpLessonTeacherEditModal";
@@ -156,6 +160,43 @@ function formatLessonContentOneLine(raw: string): string {
   return items.join("、");
 }
 
+const JP_LESSON_CONTENT_PREVIEW_LINES = 2;
+
+function JpLessonContentPreview({
+  content,
+  expanded,
+  onToggle,
+}: {
+  content: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const lines = formatLessonContentLines(content);
+  const needsMore = lines.length > JP_LESSON_CONTENT_PREVIEW_LINES;
+  const shown =
+    !expanded && needsMore ? lines.slice(0, JP_LESSON_CONTENT_PREVIEW_LINES) : lines;
+
+  return (
+    <div className="jp-lesson-content-lines jp-lesson-content-desktop">
+      {shown.map((line, lineIdx) => (
+        <span key={lineIdx} className="jp-lesson-content-line">
+          {line}
+        </span>
+      ))}
+      {needsMore ? (
+        <button
+          type="button"
+          className="jp-lesson-content-more-btn"
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
+          {expanded ? "收起" : "更多"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function formatLessonMeaningsOneLine(
   content: string,
   meanings: string | null | undefined
@@ -163,6 +204,13 @@ function formatLessonMeaningsOneLine(
   const aligned = formatLessonMeaningsLines(content, meanings, 99);
   if (!aligned.length || aligned.every((line) => line === "—")) return "—";
   return aligned.join(", ");
+}
+
+function lessonHasMeanings(
+  content: string,
+  meanings: string | null | undefined
+): boolean {
+  return formatLessonMeaningsOneLine(content, meanings) !== "—";
 }
 
 function lessonHasExamples(
@@ -385,7 +433,18 @@ export function JpLessonPage() {
   const [viewingExamples, setViewingExamples] = useState<JpLessonExamplesViewTarget | null>(
     null
   );
+  const [viewingMeanings, setViewingMeanings] = useState<JpLessonMeaningsViewTarget | null>(
+    null
+  );
+  const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
+
+  const toggleContentExpanded = useCallback((lessonId: number) => {
+    setExpandedContentIds((prev) => ({
+      ...prev,
+      [lessonId]: !prev[lessonId],
+    }));
+  }, []);
 
   const toggleRecentOperationSort = useCallback((status: JpLessonProgressStatus) => {
     setSectionSort((prev) => {
@@ -1415,15 +1474,17 @@ export function JpLessonPage() {
       <table className="compare-table etr-table jp-lesson-table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>学习类型</th>
-            <th>学习内容</th>
-            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计">
-              词/语法数
+            <th className="jp-lesson-id-col">ID</th>
+            <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
+              类
             </th>
-            <th>释义</th>
+            <th className="jp-lesson-content-col">学习内容</th>
+            <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计的词/语法数">
+              数
+            </th>
+            <th className="jp-lesson-meanings-col">释义</th>
             <th className="jp-lesson-examples-col">例句</th>
-            <th className="jp-lesson-uploaded-col">上传日期</th>
+            <th className="jp-lesson-uploaded-col" title="上传日期">上传</th>
             <th
               className={`jp-lesson-status-at-col jp-lesson-status-at-col--sortable${
                 recentOperationSorted
@@ -1452,7 +1513,7 @@ export function JpLessonPage() {
                 }
                 onClick={() => toggleRecentOperationSort(status)}
               >
-                最近操作
+                最近
                 {recentOperationSorted ? (
                   <span className="jp-lesson-sort-indicator" aria-hidden="true">
                     {sort.order === "asc" ? "↑" : "↓"}
@@ -1460,8 +1521,12 @@ export function JpLessonPage() {
                 ) : null}
               </button>
             </th>
-            <th className="jp-lesson-operator-col">操作人</th>
-            {isAdmin ? <th className="jp-lesson-teacher-col">上课老师</th> : null}
+            <th className="jp-lesson-operator-col" title="操作人">操作人</th>
+            {isAdmin ? (
+              <th className="jp-lesson-teacher-col" title="上课老师">
+                老师
+              </th>
+            ) : null}
             {isAdmin ? (
               <th
                 className={`jp-lesson-next-class-col jp-lesson-next-class-col--sortable${
@@ -1491,7 +1556,7 @@ export function JpLessonPage() {
                   }
                   onClick={() => toggleClassTimeSort(status)}
                 >
-                  上课时间
+                  时间
                   {classTimeSorted ? (
                     <span className="jp-lesson-sort-indicator" aria-hidden="true">
                       {sort.order === "asc" ? "↑" : "↓"}
@@ -1500,9 +1565,15 @@ export function JpLessonPage() {
                 </button>
               </th>
             ) : null}
-            <th className="jp-lesson-complete-col">学习状态</th>
-            <th className="jp-lesson-notes-col">课堂笔记</th>
-            <th className="jp-lesson-actions-col">教案操作</th>
+            <th className="jp-lesson-complete-col" title="学习状态">
+              状态
+            </th>
+            <th className="jp-lesson-notes-col" title="课堂笔记">
+              笔记
+            </th>
+            <th className="jp-lesson-actions-col" title="教案操作">
+              操作
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -1551,8 +1622,9 @@ export function JpLessonPage() {
                           className={`jp-lesson-kind${
                             lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
                           }`}
+                          title={lesson.kind === "grammar" ? "语法" : "单词"}
                         >
-                          {lesson.kind === "grammar" ? "语法" : "单词"}
+                          {lesson.kind === "grammar" ? "法" : "词"}
                         </span>
                       </div>
                     ))}
@@ -1565,13 +1637,11 @@ export function JpLessonPage() {
                         key={lesson.id}
                         className={merged ? "jp-lesson-merged-stack-item" : undefined}
                       >
-                        <div className="jp-lesson-content-lines jp-lesson-content-desktop">
-                          {formatLessonContentLines(lesson.content).map((line, lineIdx) => (
-                            <span key={lineIdx} className="jp-lesson-content-line">
-                              {line}
-                            </span>
-                          ))}
-                        </div>
+                        <JpLessonContentPreview
+                          content={lesson.content}
+                          expanded={Boolean(expandedContentIds[lesson.id])}
+                          onToggle={() => toggleContentExpanded(lesson.id)}
+                        />
                         <div
                           className={`jp-lesson-mobile-content-item${
                             merged ? " jp-lesson-merged-stack-item" : ""
@@ -1596,7 +1666,23 @@ export function JpLessonPage() {
                             </p>
                             <p className="jp-lesson-mobile-meanings-inline">
                               <span className="jp-lesson-mobile-meanings-label">释义</span>
-                              {formatLessonMeaningsOneLine(lesson.content, lesson.meanings)}
+                              {lessonHasMeanings(lesson.content, lesson.meanings) ? (
+                                <button
+                                  type="button"
+                                  className="jp-lesson-examples-view-btn"
+                                  onClick={() =>
+                                    setViewingMeanings({
+                                      lessonId: lesson.id,
+                                      content: lesson.content,
+                                      meanings: lesson.meanings,
+                                    })
+                                  }
+                                >
+                                  查看
+                                </button>
+                              ) : (
+                                "—"
+                              )}
                             </p>
                             <p className="jp-lesson-mobile-examples-inline">
                               <span className="jp-lesson-mobile-examples-label">例句</span>
@@ -1651,18 +1737,23 @@ export function JpLessonPage() {
                         key={lesson.id}
                         className={merged ? "jp-lesson-merged-stack-item" : undefined}
                       >
-                        <div className="jp-lesson-meanings-lines jp-lesson-meanings-desktop">
-                          {formatLessonMeaningsLines(lesson.content, lesson.meanings).map(
-                            (line, lineIdx) => (
-                              <span key={lineIdx} className="jp-lesson-meanings-line">
-                                {line}
-                              </span>
-                            )
-                          )}
-                        </div>
-                        <p className="jp-lesson-mobile-meanings-text">
-                          {formatLessonMeaningsOneLine(lesson.content, lesson.meanings)}
-                        </p>
+                        {lessonHasMeanings(lesson.content, lesson.meanings) ? (
+                          <button
+                            type="button"
+                            className="jp-lesson-examples-view-btn"
+                            onClick={() =>
+                              setViewingMeanings({
+                                lessonId: lesson.id,
+                                content: lesson.content,
+                                meanings: lesson.meanings,
+                              })
+                            }
+                          >
+                            查看
+                          </button>
+                        ) : (
+                          <span className="jp-lesson-examples-empty">—</span>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1824,7 +1915,7 @@ export function JpLessonPage() {
   return (
     <main
       className="page-wrap jp-lesson-page jp-lesson-page--ja"
-      style={{ maxWidth: "min(1680px, 98vw)", paddingTop: "1.5rem" }}
+      style={{ maxWidth: "min(1320px, 92vw)", paddingTop: "1.5rem" }}
     >
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语新课</h1>
 
@@ -2053,6 +2144,12 @@ export function JpLessonPage() {
         onClose={() => setViewingExamples(null)}
       />
 
+      <JpLessonMeaningsViewModal
+        open={viewingMeanings != null}
+        target={viewingMeanings}
+        onClose={() => setViewingMeanings(null)}
+      />
+
       <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
         <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
         <p style={{ marginTop: "0.5rem" }}>
@@ -2106,7 +2203,7 @@ export function JpLessonPage() {
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
-          max-width: min(1680px, 98vw);
+          max-width: min(1320px, 92vw);
         }
         :global(.jp-lesson-page) {
           min-width: 0;
@@ -2178,7 +2275,7 @@ export function JpLessonPage() {
           color: var(--fall);
         }
         :global(.jp-lesson-table-wrap) {
-          /* 禁止横向滚动条：靠折行/压缩列塞进视口 */
+          /* 禁止横向滚动与 sticky 遮挡：列宽压缩 + 折行塞进视口 */
           overflow-x: hidden;
           max-width: 100%;
           min-width: 0;
@@ -2187,6 +2284,7 @@ export function JpLessonPage() {
           width: 100%;
           table-layout: fixed;
           overflow: visible;
+          border-collapse: collapse;
         }
         @media (min-width: 768px) {
           :global(.jp-lesson-mobile-status-filter) {
@@ -2211,38 +2309,55 @@ export function JpLessonPage() {
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
           vertical-align: middle;
-          padding: 0.45rem 0.4rem;
+          padding: 0.4rem 0.35rem;
           white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        :global(.jp-lesson-table thead th) {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
         }
         :global(.jp-lesson-id-col) {
-          width: 3.25rem;
+          width: 2.35rem;
+          min-width: 2.35rem;
+          max-width: 2.5rem;
+          padding-left: 0.15rem !important;
+          padding-right: 0.15rem !important;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
+          font-size: 0.75rem;
+          text-align: center;
+        }
+        :global(.jp-lesson-kind-col) {
+          width: 1.55rem;
+          min-width: 1.55rem;
+          max-width: 1.7rem;
+          padding-left: 0.05rem !important;
+          padding-right: 0.05rem !important;
           text-align: center;
         }
         :global(.jp-lesson-content-col) {
           min-width: 0;
-          width: 12%;
+          width: 18%;
           word-break: break-word;
         }
         :global(.jp-lesson-content-count-col) {
-          width: 3.5rem;
-          min-width: 3.5rem;
+          width: 1.85rem;
+          min-width: 1.85rem;
+          max-width: 2.1rem;
+          padding-left: 0.1rem !important;
+          padding-right: 0.1rem !important;
           text-align: center;
           font-variant-numeric: tabular-nums;
           font-size: 0.8125rem;
           color: var(--muted);
         }
-        :global(.jp-lesson-meanings-col) {
-          min-width: 0;
-          width: 12%;
-          color: var(--muted);
-          word-break: break-word;
-        }
+        :global(.jp-lesson-meanings-col),
         :global(.jp-lesson-examples-col) {
-          width: 3.75rem;
-          min-width: 3.75rem;
-          max-width: 4.25rem;
+          width: 3.4rem;
+          min-width: 3.4rem;
+          max-width: 3.6rem;
           text-align: center;
           white-space: nowrap;
           color: var(--muted);
@@ -2252,10 +2367,10 @@ export function JpLessonPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 2rem;
-          padding: 0.25rem 0.55rem;
-          font-size: 0.8125rem;
-          border-radius: 6px;
+          min-height: 1.75rem;
+          padding: 0.15rem 0.4rem;
+          font-size: 0.75rem;
+          border-radius: 5px;
           border: 1px solid var(--border);
           background: var(--panel);
           color: var(--accent);
@@ -2294,6 +2409,21 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-content-line) {
           display: block;
+        }
+        :global(.jp-lesson-content-more-btn) {
+          align-self: flex-start;
+          margin-top: 0.15rem;
+          padding: 0;
+          border: none;
+          background: transparent;
+          color: var(--accent);
+          font: inherit;
+          font-size: 0.75rem;
+          line-height: 1.3;
+          cursor: pointer;
+        }
+        :global(.jp-lesson-content-more-btn:hover) {
+          text-decoration: underline;
         }
         :global(.jp-lesson-merged-stack) {
           display: flex;
@@ -2407,18 +2537,18 @@ export function JpLessonPage() {
         :global(.jp-lesson-uploaded-col),
         :global(.jp-lesson-status-at-col) {
           white-space: normal;
-          width: 5.5rem;
-          min-width: 5.5rem;
-          max-width: 6rem;
+          width: 5rem;
+          min-width: 4.75rem;
+          max-width: 5.25rem;
           font-variant-numeric: tabular-nums;
-          font-size: 0.8125rem;
+          font-size: 0.75rem;
         }
         :global(.jp-lesson-dt-stacked) {
           display: inline-flex;
           flex-direction: column;
           align-items: flex-start;
-          gap: 0.1rem;
-          line-height: 1.25;
+          gap: 0.08rem;
+          line-height: 1.2;
         }
         :global(.jp-lesson-dt-date) {
           display: block;
@@ -2426,32 +2556,34 @@ export function JpLessonPage() {
         :global(.jp-lesson-dt-time) {
           display: block;
           color: var(--muted);
-          font-size: 0.75rem;
+          font-size: 0.6875rem;
         }
         :global(.jp-lesson-status-at-col--sortable) {
           padding: 0;
         }
         :global(.jp-lesson-operator-col) {
           white-space: nowrap;
-          font-size: 0.8125rem;
+          font-size: 0.75rem;
           color: var(--muted);
-          width: 3.5rem;
-          min-width: 3.25rem;
+          width: 3rem;
+          min-width: 2.75rem;
+          max-width: 3.25rem;
         }
         :global(.jp-lesson-teacher-col) {
           font-size: 0.8125rem;
           min-width: 0;
-          width: 6%;
+          width: 8%;
         }
         :global(.jp-lesson-teacher-cell) {
           display: inline-flex;
           align-items: flex-start;
-          gap: 0.35rem;
+          gap: 0.25rem;
+          max-width: 100%;
         }
         :global(.jp-lesson-next-class-col) {
           font-size: 0.8125rem;
           min-width: 0;
-          width: 7%;
+          width: 9%;
         }
         :global(.jp-lesson-next-class-col--sortable) {
           padding: 0;
@@ -2460,17 +2592,19 @@ export function JpLessonPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.25rem;
+          gap: 0.2rem;
           width: 100%;
-          min-height: 2.5rem;
-          padding: 0.6rem 0.75rem;
+          min-height: 2.25rem;
+          padding: 0.4rem 0.3rem;
           border: none;
           background: transparent;
           color: inherit;
           font: inherit;
-          font-weight: 500;
+          font-size: 0.75rem;
+          font-weight: 600;
           cursor: pointer;
-          white-space: nowrap;
+          white-space: normal;
+          line-height: 1.2;
           transition: color 0.15s ease, background 0.15s ease;
         }
         :global(.jp-lesson-sort-btn:hover) {
@@ -2526,24 +2660,33 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-actions-col) {
           text-align: center;
-          width: 8.75rem;
-          min-width: 8.5rem;
-          max-width: 9.25rem;
+          width: 8.25rem;
+          min-width: 8rem;
+          max-width: 8.75rem;
           white-space: normal;
           vertical-align: middle;
         }
         :global(.jp-lesson-notes-col) {
           text-align: center;
+          width: 3.5rem;
+          min-width: 3.25rem;
+          max-width: 3.75rem;
+        }
+        :global(.jp-lesson-complete-col) {
+          text-align: center;
+          width: 5.25rem;
+          min-width: 5rem;
+          max-width: 5.5rem;
         }
         :global(.jp-lesson-notes-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.35rem;
-          min-height: 2rem;
-          padding: 0.25rem 0.55rem;
-          font-size: 0.8125rem;
-          border-radius: 6px;
+          gap: 0.25rem;
+          min-height: 1.75rem;
+          padding: 0.15rem 0.4rem;
+          font-size: 0.75rem;
+          border-radius: 5px;
           border: 1px solid var(--border);
           background: var(--panel);
           color: var(--accent);
@@ -2570,20 +2713,22 @@ export function JpLessonPage() {
           font-variant-numeric: tabular-nums;
         }
         :global(.jp-lesson-kind) {
-          display: inline-block;
-          font-size: 0.75rem;
-          padding: 0.15rem 0.45rem;
-          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 0;
+          width: 1.2rem;
+          font-size: 0.6875rem;
+          padding: 0.08rem 0;
+          border-radius: 3px;
           border: 1px solid var(--border);
           color: var(--muted);
+          line-height: 1.15;
         }
         :global(.jp-lesson-kind--grammar) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, transparent);
-        }
-        :global(.jp-lesson-complete-col) {
-          text-align: center;
         }
         :global(.jp-lesson-complete-wrap) {
           position: relative;
@@ -2640,12 +2785,12 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-complete-select) {
           display: block;
-          min-height: 2rem;
-          width: 6.5rem;
-          min-width: 6.5rem;
+          min-height: 1.75rem;
+          width: 4.75rem;
+          min-width: 4.5rem;
           max-width: 100%;
-          padding: 0.25rem 1.35rem 0.25rem 0.45rem;
-          font-size: 0.8125rem;
+          padding: 0.2rem 1.1rem 0.2rem 0.3rem;
+          font-size: 0.75rem;
           border: none;
           border-radius: 6px;
           background: transparent;
@@ -2674,17 +2819,17 @@ export function JpLessonPage() {
           grid-template-columns: repeat(2, max-content);
           justify-content: center;
           align-items: center;
-          gap: 0.3rem;
+          gap: 0.25rem;
           margin-inline: auto;
         }
         :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 2rem;
-          padding: 0.25rem 0.55rem;
-          font-size: 0.8125rem;
-          border-radius: 6px;
+          min-height: 1.75rem;
+          padding: 0.15rem 0.4rem;
+          font-size: 0.75rem;
+          border-radius: 5px;
           border: 1px solid var(--border);
           background: var(--panel);
           color: var(--accent);
@@ -2698,13 +2843,18 @@ export function JpLessonPage() {
         }
         :global(.jp-lesson-batch-id-row) {
           display: inline-flex;
+          flex-direction: column;
           align-items: center;
-          gap: 0.35rem;
+          gap: 0.15rem;
+          line-height: 1.2;
+        }
+        :global(.jp-lesson-batch-id-row input[type="checkbox"]) {
+          width: 0.85rem;
+          height: 0.85rem;
+          margin: 0;
         }
         :global(.jp-lesson-batch-id-placeholder) {
-          display: inline-block;
-          width: 14px;
-          height: 14px;
+          display: none;
         }
       `}</style>
     </main>
