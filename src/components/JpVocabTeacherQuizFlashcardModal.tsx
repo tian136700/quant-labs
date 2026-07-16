@@ -10,7 +10,6 @@ import { hasJpVocabClassNotes, formatJpVocabClassNotesForDisplay } from "@/lib/j
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
-  jpVocabPriorityLabel,
   jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
@@ -774,9 +773,24 @@ export function JpVocabTeacherQuizFlashcardModal({
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">
-          <div className="jp-vocab-teacher-quiz__stat">
+          <div className="jp-vocab-teacher-quiz__stat jp-vocab-teacher-quiz__stat--weight">
             <span className="jp-vocab-teacher-quiz__stat-label">
-              {jpVocabPriorityLabel(locale)}
+              {locale === "zh" ? (
+                <>
+                  抽查权重
+                  <span className="jp-vocab-teacher-quiz__stat-hint">
+                    （数值越大，越应该被抽查）
+                  </span>
+                </>
+              ) : (
+                <>
+                  Quiz weight
+                  <span className="jp-vocab-teacher-quiz__stat-hint">
+                    {" "}
+                    (higher = more likely to quiz)
+                  </span>
+                </>
+              )}
             </span>
             <span
               className={`jp-vocab-teacher-quiz__risk jp-vocab-teacher-quiz__risk--${riskBadgeTier}`}

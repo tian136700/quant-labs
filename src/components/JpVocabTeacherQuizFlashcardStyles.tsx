@@ -620,8 +620,16 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           align-items: center;
           gap: 0.35rem;
         }
+        .jp-vocab-teacher-quiz__stat--weight {
+          flex-wrap: wrap;
+          max-width: 100%;
+        }
         .jp-vocab-teacher-quiz__stat-label {
           color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__stat-hint {
+          color: color-mix(in srgb, var(--muted) 82%, transparent);
+          font-weight: 400;
         }
         .jp-vocab-teacher-quiz__risk {
           font-weight: 700;
