@@ -776,8 +776,9 @@ export function formatLessonScheduleDaySummary(
 
 export function buildJpLessonScheduleEvents(lesson: {
   id: number;
-  /** 已完成教案不进入日程 / ICS（与列表「已完成」一致） */
+  /** 仅「学习中」进入日程 / ICS；未上课、已完成均不同步 */
   completed?: boolean;
+  learning?: boolean;
   class_schedules?: Array<{
     id: number;
     class_at: string;
@@ -786,7 +787,14 @@ export function buildJpLessonScheduleEvents(lesson: {
   next_class_at?: string | null;
   class_duration_minutes?: number | null;
 }): JpLessonScheduleEvent[] {
-  if (lesson.completed) return [];
+  if (
+    getJpLessonProgressStatus({
+      completed: Boolean(lesson.completed),
+      learning: Boolean(lesson.learning),
+    }) !== "learning"
+  ) {
+    return [];
+  }
   const events: JpLessonScheduleEvent[] = [];
   for (const schedule of getLessonClassSchedules(lesson)) {
     const start = parseBeijingDateTime(schedule.class_at);
