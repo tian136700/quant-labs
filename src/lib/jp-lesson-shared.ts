@@ -776,6 +776,8 @@ export function formatLessonScheduleDaySummary(
 
 export function buildJpLessonScheduleEvents(lesson: {
   id: number;
+  /** 已完成教案不进入日程 / ICS（与列表「已完成」一致） */
+  completed?: boolean;
   class_schedules?: Array<{
     id: number;
     class_at: string;
@@ -784,6 +786,7 @@ export function buildJpLessonScheduleEvents(lesson: {
   next_class_at?: string | null;
   class_duration_minutes?: number | null;
 }): JpLessonScheduleEvent[] {
+  if (lesson.completed) return [];
   const events: JpLessonScheduleEvent[] = [];
   for (const schedule of getLessonClassSchedules(lesson)) {
     const start = parseBeijingDateTime(schedule.class_at);
