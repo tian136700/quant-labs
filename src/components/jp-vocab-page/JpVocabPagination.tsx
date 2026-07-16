@@ -1,5 +1,31 @@
 import { JP_VOCAB_PAGE_SIZE_OPTIONS } from "@/lib/jp-vocab-page-constants";
 
+function PageSizeSelect({
+  pageSize,
+  onPageSizeChange,
+}: {
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+}) {
+  return (
+    <label className="jp-vocab-pagination__size">
+      <span className="jp-vocab-pagination__size-label">每页</span>
+      <select
+        className="jp-vocab-pagination__size-select"
+        value={pageSize}
+        onChange={(e) => onPageSizeChange(Number(e.target.value))}
+        aria-label="每页显示条数"
+      >
+        {JP_VOCAB_PAGE_SIZE_OPTIONS.map((size) => (
+          <option key={size} value={size}>
+            {size} 条
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function JpVocabPagination({
   safePage,
   totalPages,
@@ -36,6 +62,10 @@ export function JpVocabPagination({
             >
               上一页
             </button>
+            <PageSizeSelect
+              pageSize={pageSize}
+              onPageSizeChange={onPageSizeChange}
+            />
             <span className="jp-vocab-pagination__info">
               第 {safePage} / {totalPages} 页 · 显示 {pageRangeStart}–{pageRangeEnd} /{" "}
               {totalItems} 条
@@ -50,25 +80,16 @@ export function JpVocabPagination({
             </button>
           </>
         ) : (
-          <span className="jp-vocab-pagination__info">
-            显示 {pageRangeStart}–{pageRangeEnd} / {totalItems} 条
-          </span>
+          <>
+            <PageSizeSelect
+              pageSize={pageSize}
+              onPageSizeChange={onPageSizeChange}
+            />
+            <span className="jp-vocab-pagination__info">
+              显示 {pageRangeStart}–{pageRangeEnd} / {totalItems} 条
+            </span>
+          </>
         )}
-        <label className="jp-vocab-pagination__size">
-          <span className="jp-vocab-pagination__size-label">每页</span>
-          <select
-            className="jp-vocab-pagination__size-select"
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            aria-label="每页显示条数"
-          >
-            {JP_VOCAB_PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} 条
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
     </nav>
   );

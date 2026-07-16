@@ -175,7 +175,6 @@ export function JpVocabPageStyles() {
           display: inline-flex;
           align-items: center;
           gap: 0.35rem;
-          margin-left: auto;
           font-size: 0.8125rem;
           color: var(--muted);
         }

@@ -2659,9 +2659,8 @@
   }
 
   .jp-vocab-pagination__size {
-    margin-left: 0;
-    width: 100%;
-    justify-content: center;
+    width: auto;
+    justify-content: flex-start;
   }
 
   .jp-vocab-pagination__size-select {
