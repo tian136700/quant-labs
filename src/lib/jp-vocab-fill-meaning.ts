@@ -27,8 +27,7 @@ export async function listJpVocabWordsMissingMeaning(
   const result = await db
     .prepare(
       `SELECT id, word, reading, kind FROM jp_vocab_word
-       WHERE kind != 'grammar'
-         AND (meaning IS NULL OR TRIM(meaning) = '')
+       WHERE meaning IS NULL OR TRIM(meaning) = ''
        ORDER BY id`
     )
     .all<{
@@ -58,7 +57,6 @@ async function updateMeaningIfEmpty(
       `UPDATE jp_vocab_word
        SET meaning = ?1, updated_at = datetime('now')
        WHERE id = ?2
-         AND kind != 'grammar'
          AND (meaning IS NULL OR TRIM(meaning) = '')`
     )
     .bind(meaning.trim(), wordId)
@@ -98,8 +96,8 @@ export async function applyJpVocabMeaningUpdates(
       .prepare(`SELECT id, word, kind FROM jp_vocab_word WHERE id = ?1`)
       .bind(wordId)
       .first<{ id: number; word: string; kind: string }>();
-    if (!row || row.kind === "grammar") {
-      skipped.push({ id: wordId, word: String(row?.word ?? wordId) });
+    if (!row) {
+      skipped.push({ id: wordId, word: String(wordId) });
       continue;
     }
 
