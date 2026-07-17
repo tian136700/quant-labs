@@ -68,24 +68,30 @@ export function JpVocabAdminReviewFlashcardModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
-  const [contentExpanded, setContentExpanded] = useState(false);
+  /** 本会话内用户点过「展开」的词条；切词时保留，返回上一个可恢复展开态 */
+  const [expandedWordIds, setExpandedWordIds] = useState<ReadonlySet<number>>(
+    () => new Set()
+  );
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
+  const sessionWordIdsKey = session?.wordIds.join(",") ?? "";
+  const contentExpanded =
+    currentWordId != null && expandedWordIds.has(currentWordId);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const sessionWordIdsKey = session?.wordIds.join(",") ?? "";
-
   useEffect(() => {
-    if (open) {
-      setContentExpanded(false);
+    if (!open) {
+      setExpandedWordIds(new Set());
+      return;
     }
+    setExpandedWordIds(new Set());
   }, [open, sessionWordIdsKey]);
 
   useEffect(() => {
@@ -189,6 +195,16 @@ export function JpVocabAdminReviewFlashcardModal({
   const quizzedToday = !reviewedToday && isJpVocabWordQuizzedToday(w);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  const expandContent = () => {
+    if (currentWordId == null) return;
+    setExpandedWordIds((prev) => {
+      if (prev.has(currentWordId)) return prev;
+      const next = new Set(prev);
+      next.add(currentWordId);
+      return next;
+    });
+  };
 
   const handleNext = () => {
     if (recordingNext) return;
@@ -294,7 +310,7 @@ export function JpVocabAdminReviewFlashcardModal({
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-admin-review__reveal-btn"
-              onClick={() => setContentExpanded(true)}
+              onClick={expandContent}
             >
               展开所有内容
             </button>
