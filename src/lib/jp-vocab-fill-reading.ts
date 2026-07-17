@@ -71,7 +71,13 @@ export type JpVocabFillReadingResult = {
   skipped_long: Array<{ id: number; word: string }>;
   jisho_errors: number;
   dry_run: boolean;
+  /** auto 模式本批处理上限；超出时 Mac 脚本应再次请求 */
+  auto_limit?: number;
+  auto_truncated?: boolean;
 };
+
+/** Worker 单次 autoFill 上限，避免与用户请求争用 CPU 触发 1102 */
+export const JP_VOCAB_FILL_READING_AUTO_MAX = 25;
 
 function analyzeWord(word: string): {
   lookup: string;
@@ -368,10 +374,22 @@ export async function autoFillJpVocabReadings(
     useJisho?: boolean;
     jishoDelayMs?: number;
     dryRun?: boolean;
+    /** 单次最多处理条数；默认 JP_VOCAB_FILL_READING_AUTO_MAX */
+    limit?: number;
   } = {}
 ): Promise<JpVocabFillReadingResult> {
   const dryRun = Boolean(options.dryRun);
-  const rows = await listJpVocabWordsMissingReading(db);
+  // Worker 内默认禁止 Jisho：外网往返 + JSON 解析易拖垮同 isolate 的页面请求（1102）
+  const useJisho = options.useJisho === true;
+  const limit = Math.max(
+    1,
+    Math.min(
+      JP_VOCAB_FILL_READING_AUTO_MAX,
+      Math.floor(options.limit ?? JP_VOCAB_FILL_READING_AUTO_MAX)
+    )
+  );
+  const allRows = await listJpVocabWordsMissingReading(db);
+  const rows = allRows.slice(0, limit);
   const jishoCache = new Map<string, string | null>();
 
   const applied: JpVocabFillReadingApplied[] = [];
@@ -382,7 +400,7 @@ export async function autoFillJpVocabReadings(
 
   for (const row of rows) {
     const { reading, skipReason, jishoError } = await inferJpVocabReading(row.word, {
-      useJisho: options.useJisho,
+      useJisho,
       jishoCache,
       jishoDelayMs: options.jishoDelayMs,
     });
@@ -410,6 +428,8 @@ export async function autoFillJpVocabReadings(
     skipped_long,
     jisho_errors,
     dry_run: dryRun,
+    auto_limit: limit,
+    auto_truncated: allRows.length > limit,
   };
 }
 

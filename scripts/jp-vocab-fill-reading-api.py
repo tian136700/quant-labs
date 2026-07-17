@@ -123,6 +123,7 @@ def call_api(
     use_jisho: bool,
     jisho_delay_ms: int,
     updates: list[dict] | None,
+    mode: str | None = None,
 ) -> dict:
     payload: dict = {
         "dry_run": dry_run,
@@ -131,6 +132,9 @@ def call_api(
     }
     if updates:
         payload["updates"] = updates
+        payload["mode"] = "apply"
+    elif mode:
+        payload["mode"] = mode
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
@@ -377,22 +381,6 @@ def print_result(payload: dict) -> None:
     )
 
 
-def _merge_fill_results(rule_pass: dict, jisho_pass: dict | None) -> dict:
-    if not jisho_pass:
-        return rule_pass
-    return {
-        **jisho_pass,
-        "mode": "local-jisho",
-        "updated": int(rule_pass.get("updated") or 0) + int(jisho_pass.get("updated") or 0),
-        "applied": (rule_pass.get("applied") or []) + (jisho_pass.get("applied") or []),
-        "skipped_long": jisho_pass.get("skipped_long")
-        or rule_pass.get("skipped_long")
-        or [],
-        "jisho_errors": int(rule_pass.get("jisho_errors") or 0)
-        + int(jisho_pass.get("jisho_errors") or 0),
-    }
-
-
 def run_local_jisho_fill(
     *,
     api_url: str,
@@ -414,31 +402,7 @@ def run_local_jisho_fill(
 
     print("[jp-vocab-fill-reading-api] mode=local-jisho", flush=True)
 
-    # Phase 1: rule-based readings (pure kana copies surface form, manual table, etc.)
-    rule_pass: dict = {
-        "ok": True,
-        "updated": 0,
-        "applied": [],
-        "skipped_long": [],
-        "jisho_errors": 0,
-    }
-    if not dry_run:
-        rule_pass = call_api(
-            api_url=api_url,
-            token=token,
-            dry_run=False,
-            use_jisho=False,
-            jisho_delay_ms=0,
-            updates=None,
-        )
-        if not rule_pass.get("ok"):
-            raise SystemExit(f"API error: {rule_pass.get('error', rule_pass)}")
-        for item in rule_pass.get("applied") or []:
-            print(
-                f"  {item.get('id')} {item.get('word')!r} -> {item.get('reading')!r}",
-                flush=True,
-            )
-
+    # 仅 SQL 列举缺失读音；禁止对 Worker 发 updates=None 触发全量 autoFill（会 1102）
     scan = call_api(
         api_url=api_url,
         token=token,
@@ -446,15 +410,34 @@ def run_local_jisho_fill(
         use_jisho=False,
         jisho_delay_ms=0,
         updates=None,
+        mode="list_missing",
     )
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
 
-    skipped_long = scan.get("skipped_long") or []
-    rule_from_scan = scan.get("applied") or []
-    pending = scan.get("skipped") or []
+    # 新 API 返回 missing；旧 API 忽略 mode 仍跑 dry_run autoFill
+    missing = scan.get("missing")
+    legacy_rule_updates: list[dict] = []
+    if missing is None:
+        print(
+            "  [warn] Worker 尚无 list_missing，回退旧 dry_run 结果（请尽快部署）",
+            flush=True,
+        )
+        for item in scan.get("applied") or []:
+            wid = int(item.get("id") or 0)
+            reading = str(item.get("reading") or "").strip()
+            word = str(item.get("word") or "")
+            if wid > 0 and reading:
+                legacy_rule_updates.append({"word_id": wid, "reading": reading})
+                print(f"  {wid} {word!r} -> {reading!r}", flush=True)
+        missing = list(scan.get("skipped") or [])
+        for item in scan.get("skipped_long") or []:
+            print(
+                f"  长句/短语跳过: {int(item.get('id') or 0)}:{str(item.get('word') or '')!r}",
+                flush=True,
+            )
 
-    if not rule_from_scan and not pending and not skipped_long:
+    if not missing and not legacy_rule_updates:
         print("  无缺失读音的词条", flush=True)
         return {
             "ok": True,
@@ -462,21 +445,22 @@ def run_local_jisho_fill(
             "updated": 0,
             "applied": [],
             "skipped": [],
-            "skipped_long": skipped_long,
+            "skipped_long": [],
             "jisho_errors": 0,
             "dry_run": dry_run,
         }
 
     jisho_cache: dict[str, str | None] = {}
     jisho_delay_sec = max(0, jisho_delay_ms) / 1000.0
-    jisho_updates: list[dict] = []
+    jisho_updates: list[dict] = list(legacy_rule_updates)
     still_skipped: list[dict] = []
+    skipped_long: list[dict] = []
     jisho_errors = 0
 
-    for item in pending:
+    for item in missing:
         word_id = int(item["id"])
         word = str(item["word"])
-        reading, _skip_reason, jisho_error = infer_reading(
+        reading, skip_reason, jisho_error = infer_reading(
             word,
             use_jisho=use_jisho,
             jisho_cache=jisho_cache,
@@ -484,6 +468,10 @@ def run_local_jisho_fill(
         )
         if jisho_error:
             jisho_errors += 1
+        if skip_reason == "long_phrase":
+            skipped_long.append({"id": word_id, "word": word})
+            print(f"  长句/短语跳过: {word_id}:{word!r}", flush=True)
+            continue
         if not reading:
             still_skipped.append({"id": word_id, "word": word})
             continue
@@ -491,56 +479,61 @@ def run_local_jisho_fill(
         jisho_updates.append({"word_id": word_id, "reading": reading})
 
     if dry_run:
-        preview_applied = [
-            {
-                "id": int(item["id"]),
-                "word": str(item["word"]),
-                "reading": str(item["reading"]),
-            }
-            for item in rule_from_scan
-        ] + [
-            {
-                "id": u["word_id"],
-                "word": next(
-                    (str(x["word"]) for x in pending if int(x["id"]) == u["word_id"]),
-                    "",
-                ),
-                "reading": u["reading"],
-            }
-            for u in jisho_updates
-        ]
         return {
             "ok": True,
             "mode": "local-jisho",
-            "updated": len(preview_applied),
-            "applied": preview_applied,
+            "updated": len(jisho_updates),
+            "applied": [
+                {
+                    "id": u["word_id"],
+                    "word": next(
+                        (
+                            str(x["word"])
+                            for x in missing
+                            if int(x["id"]) == u["word_id"]
+                        ),
+                        "",
+                    ),
+                    "reading": u["reading"],
+                }
+                for u in jisho_updates
+            ],
             "skipped": still_skipped,
             "skipped_long": skipped_long,
             "jisho_errors": jisho_errors,
             "dry_run": True,
         }
 
-    if jisho_updates:
-        jisho_pass = call_api(
-            api_url=api_url,
-            token=token,
-            dry_run=False,
-            use_jisho=False,
-            jisho_delay_ms=0,
-            updates=jisho_updates,
-        )
-        if not jisho_pass.get("ok"):
-            raise SystemExit(f"API error: {jisho_pass.get('error', jisho_pass)}")
-        return _merge_fill_results(rule_pass, jisho_pass)
+    if not jisho_updates:
+        return {
+            "ok": True,
+            "mode": "local-jisho",
+            "updated": 0,
+            "applied": [],
+            "skipped": still_skipped,
+            "skipped_long": skipped_long,
+            "jisho_errors": jisho_errors,
+            "dry_run": False,
+        }
 
+    apply_pass = call_api(
+        api_url=api_url,
+        token=token,
+        dry_run=False,
+        use_jisho=False,
+        jisho_delay_ms=0,
+        updates=jisho_updates,
+    )
+    if not apply_pass.get("ok"):
+        raise SystemExit(f"API error: {apply_pass.get('error', apply_pass)}")
     return {
-        **rule_pass,
+        **apply_pass,
         "mode": "local-jisho",
-        "skipped": still_skipped,
+        "skipped": still_skipped + list(apply_pass.get("skipped") or []),
         "skipped_long": skipped_long,
-        "jisho_errors": jisho_errors,
-        "dry_run": False,
+        "jisho_errors": jisho_errors + int(apply_pass.get("jisho_errors") or 0),
     }
+
 
 
 def main() -> int:
@@ -619,6 +612,7 @@ def main() -> int:
             use_jisho=not args.no_jisho,
             jisho_delay_ms=max(0, args.jisho_delay_ms),
             updates=None,
+            mode="auto",
         )
     else:
         payload = run_local_jisho_fill(

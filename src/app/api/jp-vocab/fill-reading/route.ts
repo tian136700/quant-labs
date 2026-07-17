@@ -2,13 +2,17 @@ import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyJpVocabReadingUpdates,
   autoFillJpVocabReadings,
+  listJpVocabWordsMissingReading,
 } from "@/lib/jp-vocab-fill-reading";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillReadingBody = {
+  /** list_missing=仅 SQL 列举；auto=Worker 内规则补全（有上限）；apply=提交 updates */
+  mode?: "list_missing" | "auto" | "apply";
   dry_run?: boolean;
   use_jisho?: boolean;
   jisho_delay_ms?: number;
+  limit?: number;
   updates?: Array<{ word_id?: number; reading?: string }>;
 };
 
@@ -24,7 +28,7 @@ export async function POST(request: Request) {
     try {
       body = (await request.json()) as FillReadingBody;
     } catch {
-      /* empty body = auto mode with defaults */
+      /* empty body → list_missing（禁止默认跑全量 autoFill，以免 1102） */
     }
 
     const dryRun = Boolean(body.dry_run);
@@ -38,21 +42,51 @@ export async function POST(request: Request) {
           Number.isInteger(item.word_id) && item.word_id > 0 && item.reading.length > 0
       );
 
-    const result =
+    const mode =
       updates.length > 0
-        ? await applyJpVocabReadingUpdates(env.DB, updates, { dryRun })
-        : await autoFillJpVocabReadings(env.DB, {
-            dryRun,
-            useJisho: body.use_jisho !== false,
-            jishoDelayMs:
-              typeof body.jisho_delay_ms === "number" && body.jisho_delay_ms >= 0
-                ? body.jisho_delay_ms
-                : 350,
-          });
+        ? "apply"
+        : body.mode === "auto"
+          ? "auto"
+          : "list_missing";
+
+    if (mode === "list_missing") {
+      const missing = await listJpVocabWordsMissingReading(env.DB);
+      return jsonResponse({
+        ok: true,
+        mode: "list_missing",
+        missing,
+        updated: 0,
+        applied: [],
+        skipped: [],
+        skipped_long: [],
+        jisho_errors: 0,
+        dry_run: true,
+      });
+    }
+
+    if (mode === "apply") {
+      const result = await applyJpVocabReadingUpdates(env.DB, updates, { dryRun });
+      return jsonResponse({
+        ok: true,
+        mode: "apply",
+        ...result,
+      });
+    }
+
+    const result = await autoFillJpVocabReadings(env.DB, {
+      dryRun,
+      // 须显式 true 才开；默认关，避免 Worker 内打 Jisho
+      useJisho: body.use_jisho === true,
+      jishoDelayMs:
+        typeof body.jisho_delay_ms === "number" && body.jisho_delay_ms >= 0
+          ? body.jisho_delay_ms
+          : 350,
+      limit: typeof body.limit === "number" ? body.limit : undefined,
+    });
 
     return jsonResponse({
       ok: true,
-      mode: updates.length > 0 ? "apply" : "auto",
+      mode: "auto",
       ...result,
     });
   } catch (err) {
