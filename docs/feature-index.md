@@ -9,7 +9,7 @@
 ## 怎么用
 
 1. 从 URL 取 **path**（去掉域名），如 `/jp-vocab/study`
-2. 在下方表格搜 path，或搜中文关键词（如「请老师发送」「发给学生」「今日日语单词」）
+2. 在下方表格搜 path，或搜中文关键词（如「日语抽问-老师端」「日语抽问-管理员端」「发给学生」「查看老师正在抽查的单词」「今日日语单词」）
 3. 按列打开：**页面 → 组件 → API → 数据库/权限**
 
 日语/英语学习模块 URL **不带** `/zh` 前缀（见 `src/lib/locale-path.ts` `isLocaleNeutralPath`）。
@@ -22,8 +22,9 @@
 
 | 线上 path | 中文名 | 页面入口 | 主组件 | 关键 API | 数据 / 逻辑 | 权限 |
 |-----------|--------|----------|--------|----------|-------------|------|
-| `/jp-vocab` | 日语抽问、单词表、老师抽查 | `src/app/jp-vocab/page.tsx` | `src/components/JpVocabPage.tsx`（未登录 → 全页登录，不可浏览） | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share`（GET 需 `requireJpVocabRead`） | `src/lib/jp-vocab-db.ts`、`schema.sql` → `jp_vocab_word`、`jp_vocab_shared` | 须登录；`jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生 |
-| `/jp-vocab/study` | 今日日语单词、学生复习、请老师发送 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/share-request` | 同上 + `jp_vocab_share_request` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
+| `/jp-vocab` | **日语抽问-老师端**（抽查卡片、勾选熟悉程度、发给学生） | `src/app/jp-vocab/page.tsx` | `JpVocabPage variant="teacher"`（未登录 → 全页登录） | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share`（GET 需 `requireJpVocabRead`） | 共用 `jp_vocab_*`；`src/lib/jp-vocab-share-ui.ts` → `JP_VOCAB_TEACHER_SHARE_ENABLED` | 须登录；`jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生；管理员进此 URL 会 redirect 到 `/jp-vocab/admin` |
+| `/jp-vocab/admin` | **日语抽问-管理员端**（全库、设今日抽查数量、导出、预览卡片） | `src/app/jp-vocab/admin/page.tsx` | `JpVocabPage variant="admin"` | 同上（设目标等管理操作用 admin API） | 与老师端**共用同一张表 / 同一套 API**；UX 由 `variant` 区分 | `admin`；非管理员进此 URL 会 redirect 到 `/jp-vocab` |
+| `/jp-vocab/study` | 今日日语单词、学生复习；**主路径=peek**；「请老师发送」默认关 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/teacher-quiz-live`（peek）；`share-request` 仅当开关开 | 同上 + `jp_vocab_share_request`；开关 `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED=false` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
 | `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
 | `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；**今日抽查完成弹窗出现时批量写入**；已带读不拉回；**带读页可改熟悉程度/编辑词条**；备注与抽问同步；**带读卡片显示例句**；列表有例句列与带读状态；**已带读北京时间次日凌晨清空**，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach`（`merge_queue` / `update_level` / `mark_coached`） | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`）；跨日清理见 `daily-rollover` | `jp_vocab:read` 浏览；`jp_vocab:operate` 编辑/带读 |
 | `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页；下载名见「日语新课 → 教案下载文件名」 |
@@ -32,18 +33,19 @@
 
 | 功能描述 | 改哪里 |
 |----------|--------|
-| 老师点「发给学生」、共享进度条 | `JpVocabPage.tsx` → `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()` |
-| 管理员设今日抽查数量（进度条内输入框 + 确认设置；生成老师可见池 `visible_ids`，优先从未抽查） | `JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**finance / japanese 共用 D1**，但 **localStorage 按域名隔离**，老师端靠 `/api/jp-vocab/sync` 轮询拉 `teacher_visible_limit`（非 BroadcastChannel） |
+| **老师/管理员入口拆分**（导航名「日语抽问-老师端 / 管理员端」；表共用、组件 `variant` 区分） | `/jp-vocab` vs `/jp-vocab/admin`；`locale-path.ts` → `jpVocabPath()` / `jpVocabAdminPath()`；`messages.ts` → `nav.jpVocab` / `nav.jpVocabAdmin`；规则 `.cursor/rules/jp-vocab-admin-teacher-split.mdc` |
+| 老师点「发给学生」、共享进度条（**仅老师端**；开关默认开） | `jp-vocab-share-ui.ts` → `JP_VOCAB_TEACHER_SHARE_ENABLED`；`JpVocabPage.tsx` → `teacherShareUiEnabled` / `shareWord`；`POST /api/jp-vocab/share`；`shareJpVocabWord()`；卡片 `JpVocabTeacherQuizFlashcardModal` |
+| 管理员设今日抽查数量（进度条内输入框 + 确认设置；生成老师可见池 `visible_ids`，优先从未抽查） | **仅管理员端** `/jp-vocab/admin`；`JpVocabDailyQuizProgressBar.tsx`；`JpVocabPage.tsx` → `setDailyQuizTarget`；`POST /api/jp-vocab` `set_daily_quiz_target`；`jp-vocab-db.ts` → `setJpVocabDailyQuizTarget()`；**finance / japanese 共用 D1**，但 **localStorage 按域名隔离**，老师端靠 `/api/jp-vocab/sync` 轮询拉 `teacher_visible_limit`（非 BroadcastChannel） |
 | **老师端抽查卡片**（点「抽查」或点词条即开卡片；**模式自动随机选正序或随机**，卡片左上角小字标注「正序/随机」；开始前可弹操作说明；今日可见池内熟悉程度**仅能在卡片内勾选**；卡片内可**发给学生**；已发送后勾选仅更新熟悉程度、不重复同步；**抽查队列 = visible_ids 中未勾选词**（勿用序号 1–N 代替；调高目标后从剩余未抽查起）；刷新/掉线后自动回到**第一个未勾选**词卡片，进行中不展示列表；**进度已完成后关卡片并展示今日已抽列表**；卡片标题旁显示「单词：/语法：」；统计区为**抽查权重**（括号说明：数值越大越应该被抽查）；预览同款 UI） | `JpVocabPage.tsx` → `startTeacherQuizWithRandomMode`、`requestTeacherQuizSession`、`recordLevel(..., "flashcard")`、`shareWord`、`hideTeacherQuizList`、`teacherQuizLocksTable`；**管理员**在列表内直接改熟悉程度，不进抽查流程；操作列「查看抽问卡片」预览同款 UI（`previewMode`）；`JpVocabTeacherQuizIntroModal.tsx`；`JpVocabTeacherQuizFlashcardModal.tsx`；`JpVocabFlashcardWordHero.tsx`；`jp-vocab-teacher-quiz.ts`；`jp-vocab-teacher-visible.ts` → `listJpVocabTeacherQuizPoolWords`、`isJpVocabWordInTeacherVisiblePool`；`jp-vocab-teacher-quiz-storage.ts`；规则 `.cursor/rules/jp-vocab-teacher-quiz-pool.mdc` |
 | **老师端列表隐藏不可操作行**（进行中：非管理员老师仅见今日可见池内**尚未勾选**的词条，本会话刚勾选仍可见；**已完成**：展示今日已抽查列表） | `JpVocabPage.tsx` → `hideInoperableRows`、`teacherPendingWords`、`filteredDisplayedWords` |
 | **老师端可见池可操作**（仅 `visible_ids` / 今日抽查池内可勾选、发给学生；池按从未抽查优先，不等于序号 1–N；管理员仍见全库） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInTeacherVisiblePool`、`listJpVocabTeacherQuizPoolWords`；`JpVocabDailyQuizProgressBar.tsx` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20/课堂带读已带读） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；`pruneJpVocabCoachCoachedOlderThanRetention()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | **读音「待补全」**（Mac 每分钟补 `reading`；助词尾/斜杠异写有 fallback；长句跳过） | `scripts/jp-vocab-fill-reading-nightly.sh` → `jp-vocab-fill-reading-api.py`；`POST /api/jp-vocab/fill-reading`；`jp-vocab-fill-reading.ts`；规则 `.cursor/rules/jp-vocab-fill-reading.mdc` |
 | **例句 AI 补全**（缺例句先内置 N5 词表，再 OpenAI；已有日语缺中文用 gloss 脚本补「译文：」） | `scripts/jp-vocab-fill-example-sentences-ai.py`；`scripts/jp-vocab-fill-example-gloss.py`；`POST /api/jp-vocab/fill-example-sentences`；`jp-vocab-example-sentences-ai.ts`；规则 `.cursor/rules/jp-vocab-fill-example-sentences.mdc` |
-| 学生点「请老师发送」按钮 | `JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
+| 学生点「请老师发送」按钮（**默认关闭**；peek 不依赖此开关） | `jp-vocab-share-ui.ts` → `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED`；`JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | **今日共享列表本地缓存**（打开立刻显示；后台刷新；跨日自动失效） | `jp-vocab-study-cache.ts`；`JpVocabStudyPage.tsx` → `loadShared`；Worker 内短缓存 `listJpVocabSharedToday`（`jp-vocab-db.ts`） |
 | 学生点「查看老师正在抽查的单词」、老师卡片提示已自行查看 | `JpVocabStudyPage.tsx` → `peekTeacherQuizWord`；`POST /api/jp-vocab/teacher-quiz-live`（学生自行查看时写入 `jp_vocab_shared`，老师后续勾选不重复发送）；`JpVocabPage.tsx` → `syncTeacherQuizLiveWord`、`studentPeekedCurrentWord`；`JpVocabTeacherQuizFlashcardModal.tsx`；`jp-vocab-db.ts` → `peekJpVocabTeacherQuizLiveWord`、`setJpVocabTeacherQuizLiveWord`；`jp-vocab-teacher-quiz-live.ts` |
-| 老师右下角 toast（学生协助请求；淡入 → 停留 5 秒 → 淡出） | `JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
+| 老师右下角 toast（学生协助请求；**默认关**，随 `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED`） | `JpVocabShareRequestModal.tsx`；`JpVocabPage.tsx` 轮询 `GET /api/jp-vocab/share-request` |
 | 今日抽查进度条（老师=待抽查数，不按 1 小时锁定；管理员=全天目标；完成后只显示「已完成」） / 抽完弹窗 | `JpVocabDailyQuizProgressBar.tsx`、`JpVocabDailyQuizCompleteModal.tsx`、`JpVocabDailyQuizIntroModal.tsx`；`jp-vocab-daily-quiz-progress.ts` → `computeJpVocabDailyQuizProgress()`、`computeJpVocabTeacherPageQuizProgress()`；`JpVocabPage.tsx` → `displayQuizProgress`、`teacherPendingWords`；弹窗仅在本会话「未完成→已完成」时显示一次（`jp-vocab-daily-complete-dismiss.ts` 按日期+目标数记录） |
 | 熟悉程度勾选、今日序号 | `JpVocabPage.tsx` → `recordLevel`；`jp-vocab-review.ts`、`jp-vocab-daily-order.ts` |
 | **手机端排序 / 操作栏折叠**（表头隐藏时提供「默认顺序 / 抽查优先级 / 当日序号」；操作按钮默认收起，点「展开操作」才显示导出等） | `JpVocabPage.tsx` → `toggleStatSort`、`restoreDailyRowOrder`、`mobileToolbarExpanded`；`mobile.css` |
@@ -56,8 +58,8 @@
 | **课堂备注、共享备注**（支持粘贴/上传图片；**相同图片内容不可重复粘贴/加入**；抽问/带读卡片内点「保存」询问是否共享给学生，进度条：正在保存→正在共享） | `JpClassNotesEditModal.tsx`（`sharePromptOnSave`）；`jp-vocab-class-notes.ts` → `collectJpVocabClassNoteImageRefKeys`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload`（内容哈希去重）；学生端 `JpVocabStudyPage.tsx` → `subscribeJpVocabSharedUpdated` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`、`JpVocabEditModal.tsx`（含**巧记**字段，仅管理员）；`/api/jp-vocab/add`、`/edit`；`jp_vocab_word.mnemonic` |
 | **日语复习**（选数量、按序号/抽查优先级排序、卡片上/下一个、清除已复习；**今日已在抽问页抽查的词条显示「已抽问」**） | `JpVocabReviewPage.tsx`；`JpVocabAdminReviewFlashcardModal.tsx`；`jp-vocab-review-plan.ts`、`jp-vocab-review-session.ts`、`jp-vocab-daily-check.ts` → `isJpVocabWordQuizzedToday`；`POST /api/jp-vocab/review`；`jp_vocab_review_done` |
-| 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach` |
-| 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabStudyPath()`、`jpVocabReviewPath()`、`jpVocabCoachPath()` |
+| 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`（老师端）、`nav.jpVocabAdmin`（管理员端）、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach` |
+| 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabAdminPath()`、`jpVocabStudyPath()`、`jpVocabReviewPath()`、`jpVocabCoachPath()` |
 | 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
 | 未登录访问 `/jp-vocab` | `JpVocabPage.tsx` → `TeacherReviewAuth` 全页登录；`GET /api/jp-vocab`、`/api/jp-vocab/sync` → `requireJpVocabRead` |
 | 共享后刷新复习页 | `src/lib/jp-vocab-shared-notify.ts`（同浏览器多标签） |

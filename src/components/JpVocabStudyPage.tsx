@@ -139,7 +139,7 @@ export function JpVocabStudyPage() {
       title: "登录 · 今日日语单词",
       subtitle: JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED
         ? "登录后可查看老师共享的单词，或请求老师发送。"
-        : "登录后可查看老师共享的单词。",
+        : "登录后可查看老师正在抽查的单词，以及老师发给你的词条。",
     });
   }, [openAuthPanel]);
 
@@ -625,7 +625,7 @@ export function JpVocabStudyPage() {
     >
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>今日日语单词</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
+        没听清时可点「查看老师正在抽查的单词」立刻查看；老师也可主动「发给学生」。列表供课后复习，每日北京时间 0 点自动清空。
       </p>
 
       {showPeekTeacherQuiz ? (
