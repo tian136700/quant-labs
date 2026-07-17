@@ -45,6 +45,7 @@ export default async function EnVocabRefViewerPage({
       refMeta={ref}
       cacheVersion={v ?? null}
       downloadFilename={downloadFilename}
+      cropKind={lesson?.kind ?? null}
     />
   );
 }

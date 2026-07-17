@@ -23,6 +23,8 @@ type Props = {
   fixedPanel?: boolean;
   /** 管理员可下载原图；非管理员仅提供分页 PDF / Word */
   allowOriginalDownload?: boolean;
+  /** 语法/单词分路径切段；不传则从下载名推断 */
+  cropKind?: "word" | "grammar" | null;
 };
 
 type BusyKind = "image" | "pdf" | "word";
@@ -146,6 +148,7 @@ export function JpVocabRefDownloadMenu({
   primaryClassName = "btn-rsi-filter btn-rsi-filter--primary",
   fixedPanel = false,
   allowOriginalDownload = false,
+  cropKind = null,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<BusyKind | null>(null);
@@ -206,7 +209,7 @@ export function JpVocabRefDownloadMenu({
     setOpen(false);
     try {
       const { exportJpVocabRefPaginatedPdf } = await import("@/lib/jp-vocab-ref-pdf-export");
-      await exportJpVocabRefPaginatedPdf(mediaUrl, filename);
+      await exportJpVocabRefPaginatedPdf(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "分页 PDF 生成失败，请稍后重试"
@@ -214,7 +217,7 @@ export function JpVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename]);
+  }, [busy, mediaUrl, filename, cropKind]);
 
   const downloadPaginatedWord = useCallback(async () => {
     if (busy) return;
@@ -222,7 +225,7 @@ export function JpVocabRefDownloadMenu({
     setOpen(false);
     try {
       const { exportJpVocabRefPaginatedDocx } = await import("@/lib/jp-vocab-ref-pdf-export");
-      await exportJpVocabRefPaginatedDocx(mediaUrl, filename);
+      await exportJpVocabRefPaginatedDocx(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "分页 Word 生成失败，请稍后重试"
@@ -230,7 +233,7 @@ export function JpVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename]);
+  }, [busy, mediaUrl, filename, cropKind]);
 
   const isImage = mediaType === "image";
   const label =

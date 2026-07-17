@@ -107,6 +107,134 @@ function rowWhiteFraction(
   return total ? white / total : 0;
 }
 
+export type EnVocabRefCropKind = "word" | "grammar";
+
+/** 从下载名推断：`12. Grammar Learn (…)` / `3. Word Learn (…)` */
+export function inferEnVocabRefCropKind(
+  filenameBase: string
+): EnVocabRefCropKind | null {
+  const name = filenameBase || "";
+  if (/Grammar\s+Learn/i.test(name) || name.includes("语法学习")) return "grammar";
+  if (/Word\s+Learn/i.test(name) || name.includes("单词学习")) return "word";
+  return null;
+}
+
+/**
+ * 语法教案：按左侧蓝色/紫色序号方块竖条定位「部分」起点。
+ * 比颜色分数峰更稳——漫画衣服/气泡不会被当成下一节标题。
+ */
+function detectGrammarSectionPeaks(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): number[] {
+  const bandW = Math.min(40, width);
+  const minRun = 20;
+  const minGap = 150;
+  const minY = Math.min(80, Math.floor(height * 0.07));
+
+  const rowBadgeFrac = (y: number): number => {
+    let match = 0;
+    let total = 0;
+    for (let x = 0; x < bandW; x++) {
+      const i = (y * width + x) * 4;
+      total++;
+      if (isSectionBadgeColor(data[i], data[i + 1], data[i + 2])) match++;
+    }
+    return total ? match / total : 0;
+  };
+
+  const peaks: number[] = [];
+  let runStart: number | null = null;
+  for (let y = 0; y < height; y++) {
+    const on = rowBadgeFrac(y) > 0.15;
+    if (on) {
+      if (runStart === null) runStart = y;
+    } else if (runStart !== null) {
+      const len = y - runStart;
+      if (len >= minRun && runStart >= minY) {
+        if (!peaks.length || runStart - peaks[peaks.length - 1] >= minGap) {
+          peaks.push(runStart);
+        }
+      }
+      runStart = null;
+    }
+  }
+  if (runStart !== null) {
+    const len = height - runStart;
+    if (len >= minRun && runStart >= minY) {
+      if (!peaks.length || runStart - peaks[peaks.length - 1] >= minGap) {
+        peaks.push(runStart);
+      }
+    }
+  }
+  return peaks;
+}
+
+/**
+ * 单词教案：按「1 / 2 / 3…」标题栏颜色分数找峰。
+ * 单词图无大面积漫画，色分峰足够稳；勿套用语法的切段逻辑。
+ */
+function detectWordSectionPeaks(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): number[] {
+  const minSectionY = Math.min(80, Math.floor(height * 0.07));
+  const scores: { y: number; score: number }[] = [];
+  for (let y = minSectionY; y < height - 35; y++) {
+    scores.push({ y, score: sectionHeaderScore(data, width, y) });
+  }
+
+  const peaks: number[] = [];
+  for (let i = 1; i < scores.length - 1; i++) {
+    const { y, score } = scores[i];
+    if (score <= 0.15) continue;
+    if (score < scores[i - 1].score || score < scores[i + 1].score) continue;
+    if (peaks.length && y - peaks[peaks.length - 1] <= 150) continue;
+    peaks.push(y);
+  }
+  return peaks;
+}
+
+function peaksToSectionBounds(
+  peaks: number[],
+  height: number
+): LessonSectionBounds[] {
+  if (peaks.length < 2) {
+    return [{ y0: 0, y1: height }];
+  }
+  return peaks.map((peakY, i) => ({
+    y0: i === 0 ? 0 : peakY,
+    y1: i + 1 < peaks.length ? peaks[i + 1] : height,
+  }));
+}
+
+/** 检测教案各「部分」的纵向边界；语法 / 单词分路径，互不干扰 */
+export function detectLessonSectionBounds(
+  img: HTMLImageElement,
+  cropKind: EnVocabRefCropKind = "word"
+): LessonSectionBounds[] {
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (!w || !h) return [{ y0: 0, y1: h }];
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return [{ y0: 0, y1: h }];
+  ctx.drawImage(img, 0, 0);
+  const { data } = ctx.getImageData(0, 0, w, h);
+
+  const peaks =
+    cropKind === "grammar"
+      ? detectGrammarSectionPeaks(data, w, h)
+      : detectWordSectionPeaks(data, w, h);
+
+  return peaksToSectionBounds(peaks, h);
+}
+
 /** 第一部分单词区若有两行卡片，按行间空白切成上下两块（5+5） */
 function detectVocabRowSplitY(
   data: Uint8ClampedArray,
@@ -180,47 +308,6 @@ function splitFirstSectionIfTwoRows(
     ],
     firstSectionSplit: true,
   };
-}
-
-/** 检测教案各「部分」的纵向边界（基于左侧序号标题栏；兼容蓝/紫两种主题） */
-export function detectLessonSectionBounds(
-  img: HTMLImageElement
-): LessonSectionBounds[] {
-  const w = img.naturalWidth;
-  const h = img.naturalHeight;
-  if (!w || !h) return [{ y0: 0, y1: h }];
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return [{ y0: 0, y1: h }];
-  ctx.drawImage(img, 0, 0);
-  const { data } = ctx.getImageData(0, 0, w, h);
-
-  const minSectionY = Math.min(80, Math.floor(h * 0.07));
-  const scores: { y: number; score: number }[] = [];
-  for (let y = minSectionY; y < h - 35; y++) {
-    scores.push({ y, score: sectionHeaderScore(data, w, y) });
-  }
-
-  const peaks: number[] = [];
-  for (let i = 1; i < scores.length - 1; i++) {
-    const { y, score } = scores[i];
-    if (score <= 0.15) continue;
-    if (score < scores[i - 1].score || score < scores[i + 1].score) continue;
-    if (peaks.length && y - peaks[peaks.length - 1] <= 150) continue;
-    peaks.push(y);
-  }
-
-  if (peaks.length < 2) {
-    return [{ y0: 0, y1: h }];
-  }
-
-  return peaks.map((y0, i) => ({
-    y0,
-    y1: i + 1 < peaks.length ? peaks[i + 1] : h,
-  }));
 }
 
 function readImagePixelData(
@@ -328,17 +415,28 @@ export async function exportEnVocabRefFullImagePdf(
   pdf.save(`${paginatedExportBasename(filenameBase)}.pdf`);
 }
 
+function resolveEnVocabRefCropKind(
+  filenameBase: string,
+  cropKind?: EnVocabRefCropKind | null
+): EnVocabRefCropKind {
+  return cropKind ?? inferEnVocabRefCropKind(filenameBase) ?? "word";
+}
+
 /** 导出分页 PDF；返回页数 */
 export async function exportEnVocabRefPaginatedPdf(
   imageUrl: string,
-  filenameBase: string
+  filenameBase: string,
+  cropKind?: EnVocabRefCropKind | null
 ): Promise<number> {
   const [{ jsPDF }, img] = await Promise.all([
     import("jspdf"),
     loadImage(imageUrl),
   ]);
 
-  const sections = detectLessonSectionBounds(img);
+  const sections = detectLessonSectionBounds(
+    img,
+    resolveEnVocabRefCropKind(filenameBase, cropKind)
+  );
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
@@ -375,7 +473,8 @@ export async function exportEnVocabRefPaginatedPdf(
 /** 导出分页 Word；10 词时第一页上下两块，其余各一页；中间留白供板书 */
 export async function exportEnVocabRefPaginatedDocx(
   imageUrl: string,
-  filenameBase: string
+  filenameBase: string,
+  cropKind?: EnVocabRefCropKind | null
 ): Promise<number> {
   const [
     {
@@ -393,13 +492,13 @@ export async function exportEnVocabRefPaginatedDocx(
     img,
   ] = await Promise.all([import("docx"), loadImage(imageUrl)]);
 
-  const sections = detectLessonSectionBounds(img);
+  const kind = resolveEnVocabRefCropKind(filenameBase, cropKind);
+  const sections = detectLessonSectionBounds(img, kind);
   const { data, width } = readImagePixelData(img);
-  const { sections: wordSections, firstSectionSplit } = splitFirstSectionIfTwoRows(
-    data,
-    width,
-    sections
-  );
+  const { sections: wordSections, firstSectionSplit } =
+    kind === "word"
+      ? splitFirstSectionIfTwoRows(data, width, sections)
+      : { sections, firstSectionSplit: false };
   const sectionPages = groupLessonSectionsIntoWordPages(
     wordSections,
     firstSectionSplit

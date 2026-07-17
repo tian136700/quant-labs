@@ -13,12 +13,15 @@ type Props = {
   cacheVersion?: string | null;
   /** 新课下载名（有关联 lesson 时由服务端传入） */
   downloadFilename?: string;
+  /** 关联新课类型：语法/单词分页切段分路径 */
+  cropKind?: "word" | "grammar" | null;
 };
 
 export function EnVocabRefViewer({
   refMeta,
   cacheVersion,
   downloadFilename,
+  cropKind = null,
 }: Props) {
   const { isAdmin } = useEtrAuth();
   const v = cacheVersion ?? refMeta.updated_at;
@@ -43,6 +46,7 @@ export function EnVocabRefViewer({
           mediaType={refMeta.media_type}
           className="jp-ref-viewer-download"
           allowOriginalDownload={isAdmin}
+          cropKind={cropKind}
         />
       </header>
       <div className="jp-ref-viewer-content">

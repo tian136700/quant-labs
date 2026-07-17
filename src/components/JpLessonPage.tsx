@@ -1315,6 +1315,7 @@ export function JpLessonPage() {
         primaryClassName="jp-lesson-action-btn jp-lesson-action-btn--download"
         fixedPanel
         allowOriginalDownload={isAdmin}
+        cropKind={lesson.kind}
       />
     );
     actionItems.push(

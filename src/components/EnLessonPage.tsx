@@ -850,6 +850,7 @@ export function EnLessonPage() {
         primaryClassName="jp-lesson-action-btn"
         fixedPanel
         allowOriginalDownload={isAdmin}
+        cropKind={lesson.kind}
       />
     );
     actionItems.push(

@@ -20,6 +20,8 @@ type Props = {
   fixedPanel?: boolean;
   /** 管理员可下载原图；非管理员仅提供整图 PDF / 分页 PDF / Word */
   allowOriginalDownload?: boolean;
+  /** 语法/单词分路径切段；不传则从下载名推断 */
+  cropKind?: "word" | "grammar" | null;
 };
 
 type BusyKind = "image" | "fullPdf" | "pdf" | "word";
@@ -177,6 +179,7 @@ export function EnVocabRefDownloadMenu({
   primaryClassName = "btn-rsi-filter btn-rsi-filter--primary",
   fixedPanel = false,
   allowOriginalDownload = false,
+  cropKind = null,
 }: Props) {
   const [busy, setBusy] = useState<BusyKind | null>(null);
 
@@ -213,7 +216,7 @@ export function EnVocabRefDownloadMenu({
     if (busy) return;
     setBusy("pdf");
     try {
-      await exportEnVocabRefPaginatedPdf(mediaUrl, filename);
+      await exportEnVocabRefPaginatedPdf(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "分页 PDF 生成失败，请稍后重试"
@@ -221,13 +224,13 @@ export function EnVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename]);
+  }, [busy, mediaUrl, filename, cropKind]);
 
   const downloadPaginatedWord = useCallback(async () => {
     if (busy) return;
     setBusy("word");
     try {
-      await exportEnVocabRefPaginatedDocx(mediaUrl, filename);
+      await exportEnVocabRefPaginatedDocx(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
         err instanceof Error ? err.message : "分页 Word 生成失败，请稍后重试"
@@ -235,7 +238,7 @@ export function EnVocabRefDownloadMenu({
     } finally {
       setBusy(null);
     }
-  }, [busy, mediaUrl, filename]);
+  }, [busy, mediaUrl, filename, cropKind]);
 
   const isImage = mediaType === "image";
   const label =
