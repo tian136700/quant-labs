@@ -2824,7 +2824,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           <>
           <JpVocabWordTable
             locale={locale}
-            isAdminMode={isAdminMode}
+            isAdmin={isAdminMode}
             canOperate={canOperate}
             statSort={statSort}
             onStatSort={toggleStatSort}
