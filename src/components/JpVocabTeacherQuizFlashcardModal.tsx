@@ -14,6 +14,7 @@ import {
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
 import {
+  findFirstUncheckedJpVocabTeacherQuizIndex,
   jpVocabTeacherQuizModeLabel,
   jpVocabTeacherQuizNotesInline,
   type JpVocabTeacherQuizSession,
@@ -130,7 +131,10 @@ export function JpVocabTeacherQuizFlashcardModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
+  /** 未勾选熟悉程度就点「下一个」 */
   const [nextBlockedHint, setNextBlockedHint] = useState(false);
+  /** 点「完成抽查」时会话内仍有未勾选词 */
+  const [remainingUncheckedHint, setRemainingUncheckedHint] = useState(false);
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
@@ -149,6 +153,7 @@ export function JpVocabTeacherQuizFlashcardModal({
     }
     setNotesWord(word);
     setNextBlockedHint(false);
+    setRemainingUncheckedHint(false);
   }, [open, word?.id, word?.updated_at, word]);
 
   useEffect(() => {
@@ -196,11 +201,15 @@ export function JpVocabTeacherQuizFlashcardModal({
         setNextBlockedHint(false);
         return;
       }
+      if (remainingUncheckedHint) {
+        setRemainingUncheckedHint(false);
+        return;
+      }
       onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, nestedModalOpen, onClose, nextBlockedHint]);
+  }, [open, nestedModalOpen, onClose, nextBlockedHint, remainingUncheckedHint]);
 
   useEffect(() => {
     if (!open) return;
@@ -222,6 +231,15 @@ export function JpVocabTeacherQuizFlashcardModal({
   useEffect(() => {
     if (selectedLevel) setNextBlockedHint(false);
   }, [selectedLevel]);
+
+  const wordHasLevel = (wordId: number) => {
+    const item = wordsById.get(wordId);
+    if (!item) return false;
+    return (
+      effectiveJpVocabDisplayLevel(item, sessionLevel[wordId], { displayOrder }) !=
+      null
+    );
+  };
 
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
 
@@ -345,6 +363,38 @@ export function JpVocabTeacherQuizFlashcardModal({
     if (isSaving) return;
     if (isCoach) {
       onMarkCoached?.(w.id);
+    }
+    if (!isCoach) {
+      // 「下一个」跳过已勾选词，避免漏掉中间未勾选却卡在最后一词点「完成」无反应
+      const nextUnchecked = findFirstUncheckedJpVocabTeacherQuizIndex(
+        session,
+        wordHasLevel,
+        session.currentIndex + 1
+      );
+      if (nextUnchecked >= 0) {
+        onNavigate(nextUnchecked);
+        return;
+      }
+      const remainingUnchecked = findFirstUncheckedJpVocabTeacherQuizIndex(
+        session,
+        wordHasLevel,
+        0
+      );
+      if (remainingUnchecked >= 0) {
+        if (remainingUnchecked !== session.currentIndex) {
+          onNavigate(remainingUnchecked);
+        }
+        setRemainingUncheckedHint(true);
+        return;
+      }
+      // 进度条仍显示剩余，但会话词都已勾选：交给 onComplete 补全队列或收尾
+      if (uncheckedCount > 0) {
+        setRemainingUncheckedHint(true);
+        onComplete();
+        return;
+      }
+      onComplete();
+      return;
     }
     if (canGoNext) {
       onNavigate(session.currentIndex + 1);

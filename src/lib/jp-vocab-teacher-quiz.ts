@@ -138,6 +138,21 @@ export function isJpVocabTeacherQuizSessionComplete(
   return session.wordIds.every((id) => hasLevel(id));
 }
 
+/**
+ * 会话内从 fromIndex 起第一个尚未勾选熟悉程度的下标；没有则返回 -1。
+ * 点「完成抽查」时尚有剩余时，应跳到此处并给出弹窗内提示，禁止只 setStatus 在遮罩后。
+ */
+export function findFirstUncheckedJpVocabTeacherQuizIndex(
+  session: JpVocabTeacherQuizSession,
+  hasLevel: (wordId: number) => boolean,
+  fromIndex = 0
+): number {
+  for (let i = Math.max(0, fromIndex); i < session.wordIds.length; i++) {
+    if (!hasLevel(session.wordIds[i]!)) return i;
+  }
+  return -1;
+}
+
 /** 恢复持久化会话时，剔除已不在今日抽查范围内的词并保持索引有效 */
 export function reconcileJpVocabTeacherQuizSession(
   session: JpVocabTeacherQuizSession,
