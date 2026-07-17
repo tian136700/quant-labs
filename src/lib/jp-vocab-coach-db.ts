@@ -1,8 +1,10 @@
 import {
   JP_VOCAB_COACH_RETENTION_DAYS,
+  buildJpVocabCoachExportItems,
   jpVocabCoachRetentionCutoffDate,
   weakerJpVocabCoachLevel,
 } from "@/lib/jp-vocab-coach";
+import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
 export type JpVocabCoachQueueSummary = {
@@ -207,7 +209,25 @@ export async function ensureJpVocabCoachSchema(db: D1Database): Promise<void> {
   coachSchemaReady = true;
 }
 
-/** 删除已带读超过保留期的条目；未带读不过期 */
+/** 统计应被跨日清理的已带读条数（未带读不过期） */
+export async function countJpVocabCoachCoachedOlderThanRetention(
+  db: D1Database,
+  now = new Date()
+): Promise<number> {
+  await ensureJpVocabCoachSchema(db);
+  const cutoff = jpVocabCoachRetentionCutoffDate(now);
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS c FROM jp_vocab_coach_item
+       WHERE coached_at IS NOT NULL
+         AND substr(coached_at, 1, 10) < ?1`
+    )
+    .bind(cutoff)
+    .first<{ c: number }>();
+  return Number(row?.c) || 0;
+}
+
+/** 删除早于保留截止日的已带读；未带读不过期。默认保留当日已带读。 */
 export async function pruneJpVocabCoachCoachedOlderThanRetention(
   db: D1Database,
   now = new Date()
@@ -221,6 +241,17 @@ export async function pruneJpVocabCoachCoachedOlderThanRetention(
          AND substr(coached_at, 1, 10) < ?1`
     )
     .bind(cutoff)
+    .run();
+  return Number(result.meta?.changes) || 0;
+}
+
+/** 立即清空全部已带读（未带读保留）；用于一次性清理或运维 */
+export async function clearAllJpVocabCoachCoached(
+  db: D1Database
+): Promise<number> {
+  await ensureJpVocabCoachSchema(db);
+  const result = await db
+    .prepare(`DELETE FROM jp_vocab_coach_item WHERE coached_at IS NOT NULL`)
     .run();
   return Number(result.meta?.changes) || 0;
 }
@@ -355,6 +386,24 @@ export async function mergeJpVocabCoachQueue(
 
   const summary = await getJpVocabCoachQueueSummary(db);
   return { ...summary, added_count, merged_count };
+}
+
+/**
+ * 打开带读页时：把今日抽问勾选为「一般 / 不熟悉」的词自动并入队列。
+ * 已带读不拉回；未带读去重合并。
+ */
+export async function syncJpVocabCoachQueueFromTodayWeak(
+  db: D1Database,
+  words: JpVocabWord[],
+  displayOrder: JpVocabDailyDisplayOrder
+): Promise<JpVocabCoachQueueSummary & { added_count: number; merged_count: number }> {
+  const items = buildJpVocabCoachExportItems(words, {}, displayOrder);
+  if (!items.length) {
+    await pruneJpVocabCoachCoachedOlderThanRetention(db);
+    const summary = await getJpVocabCoachQueueSummary(db);
+    return { ...summary, added_count: 0, merged_count: 0 };
+  }
+  return mergeJpVocabCoachQueue(db, items);
 }
 
 /** 带读页修改熟悉程度（仅未带读条目） */

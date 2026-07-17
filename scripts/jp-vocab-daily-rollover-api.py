@@ -105,6 +105,10 @@ def print_result(payload: dict) -> None:
         flush=True,
     )
     print(
+        f"  cleared_coach_coached={payload.get('cleared_coach_coached')}",
+        flush=True,
+    )
+    print(
         f"[jp-vocab-daily-rollover-api] done, "
         f"{'would apply' if dry_run else 'applied'}",
         flush=True,

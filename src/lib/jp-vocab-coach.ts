@@ -5,8 +5,11 @@ import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
-/** 已带读条目超过此天数后清理；未带读不过期 */
-export const JP_VOCAB_COACH_RETENTION_DAYS = 5;
+/**
+ * 已带读保留天数（含当日）。
+ * 1 = 北京时间跨日清空前一日及更早的已带读；当日已带读仍保留；未带读不过期。
+ */
+export const JP_VOCAB_COACH_RETENTION_DAYS = 1;
 
 function addBeijingCalendarDays(dateStr: string, deltaDays: number): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -69,6 +72,10 @@ export function countJpVocabCoachLevelCounts(
   return counts;
 }
 
+/**
+ * 从今日抽问勾选结果生成待合并带读项（一般 / 不熟悉）。
+ * sessionLevel 可为空对象（服务端无会话时仅看库内今日勾选）。
+ */
 export function buildJpVocabCoachExportItems(
   words: JpVocabWord[],
   sessionLevel: Record<number, JpVocabLevel | undefined>,

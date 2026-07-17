@@ -13,7 +13,6 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { readApiJson } from "@/lib/api-json";
 import {
-  JP_VOCAB_COACH_RETENTION_DAYS,
   jpVocabCoachLevelLabel,
   jpVocabCoachStatusLabel,
   markJpVocabCoachCoachedClient,
@@ -300,8 +299,7 @@ export function JpVocabCoachPage() {
         <div>
           <h1>课堂带读</h1>
           <p>
-            抽问完成或导出后，「一般」「不熟悉」会与未带读词条合并为一张表（去重；已带读不再拉回）。带读时可修改熟悉程度、编辑词条与备注（与日语抽问共用记录）。已带读超过{" "}
-            {JP_VOCAB_COACH_RETENTION_DAYS} 天会自动清理，未带读会一直保留。
+            抽问完成或导出后，「一般」「不熟悉」会与未带读词条合并为一张表（去重；已带读不再拉回）。打开本页也会自动同步今日抽问勾选为「一般」「不熟悉」的词条。带读时可修改熟悉程度、编辑词条与备注（与日语抽问共用记录）。已带读会在北京时间次日凌晨自动清空，未带读会一直保留。
           </p>
         </div>
         <Link href="/jp-vocab" className="btn-rsi-filter">
