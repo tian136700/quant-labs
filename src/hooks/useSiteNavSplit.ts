@@ -8,6 +8,7 @@ import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
 /**
  * Sort items by visit frequency (descending).
  * Items with the same count preserve the default PRIMARY_NAV_ORDER hint.
+ * Current page always comes first so the top bar shows where you are.
  */
 function sortByFrequency(
   items: SiteNavItem[],
@@ -17,6 +18,7 @@ function sortByFrequency(
     PRIMARY_NAV_ORDER.map((id, i) => [id, i])
   );
   return [...items].sort((a, b) => {
+    if (a.active !== b.active) return a.active ? -1 : 1;
     const countDiff = (counts[b.id] ?? 0) - (counts[a.id] ?? 0);
     if (countDiff !== 0) return countDiff;
     const aOrder = orderMap.get(a.id) ?? 999;
