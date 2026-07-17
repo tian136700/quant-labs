@@ -16,6 +16,8 @@ import {
   isJpLessonPath,
   isJpLessonSchedulePath,
   isJpVocabPath,
+  isJpVocabTeacherHomePath,
+  isJpVocabAdminPath,
   isJpVocabStudyPath,
   isJpVocabReviewPath,
   isJpVocabCoachPath,
@@ -53,6 +55,8 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onJpLessonSchedule = isJpLessonSchedulePath(pathname);
   const onJpLessonMain = onJpLesson && !onJpLessonSchedule;
   const onJpVocab = isJpVocabPath(pathname);
+  const onJpVocabTeacherHome = isJpVocabTeacherHomePath(pathname);
+  const onJpVocabAdmin = isJpVocabAdminPath(pathname);
   const onJpVocabStudy = isJpVocabStudyPath(pathname);
   const onJpVocabReview = isJpVocabReviewPath(pathname);
   const onJpVocabCoach = isJpVocabCoachPath(pathname);
@@ -113,7 +117,7 @@ export function useSiteNavItems(): SiteNavItem[] {
         id: "jpVocab",
         href: navHref("jpVocab", locale, navOpts),
         label: nav.jpVocab,
-        active: onJpVocab && !onJpVocabStudy && !onJpVocabReview && !onJpVocabCoach,
+        active: onJpVocabTeacherHome,
       },
       {
         id: "jpVocabCoach",
@@ -195,13 +199,23 @@ export function useSiteNavItems(): SiteNavItem[] {
     const showJpVocabCoach =
       hasPermission("jp_vocab:read") || hasPermission("jp_vocab:operate");
     return [
-      ...(onJpVocab
+      ...(onJpVocabTeacherHome
         ? [
             {
               id: "jpVocab",
               href: navHref("jpVocab", locale, navOpts),
               label: nav.jpVocab,
-              active: !onJpVocabStudy && !onJpVocabReview && !onJpVocabCoach,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onJpVocabAdmin && isAdmin
+        ? [
+            {
+              id: "jpVocabAdmin",
+              href: navHref("jpVocabAdmin", locale, navOpts),
+              label: nav.jpVocabAdmin,
+              active: true,
             },
           ]
         : []),
@@ -351,12 +365,23 @@ export function useSiteNavItems(): SiteNavItem[] {
             ...(hasPermission("jp_vocab:read") ||
             hasPermission("jp_vocab:operate")
               ? [
-                  {
-                    id: "jpVocab",
-                    href: navHref("jpVocab", locale, navOpts),
-                    label: nav.jpVocab,
-                    active: onJpVocab && !onJpVocabStudy && !onJpVocabReview && !onJpVocabCoach,
-                  },
+                  ...(isAdmin
+                    ? [
+                        {
+                          id: "jpVocabAdmin",
+                          href: navHref("jpVocabAdmin", locale, navOpts),
+                          label: nav.jpVocabAdmin,
+                          active: onJpVocabAdmin,
+                        },
+                      ]
+                    : [
+                        {
+                          id: "jpVocab",
+                          href: navHref("jpVocab", locale, navOpts),
+                          label: nav.jpVocab,
+                          active: onJpVocabTeacherHome,
+                        },
+                      ]),
                   {
                     id: "jpVocabCoach",
                     href: navHref("jpVocabCoach", locale, navOpts),

@@ -39,7 +39,7 @@ import {
   type JpVocabStudyApiPayload,
 } from "@/lib/jp-vocab-study-cache";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
-import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
+import { JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
   JP_VOCAB_STUDY_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_POLL_MS,
@@ -72,7 +72,7 @@ export function JpVocabStudyPage() {
   const canViewStudy = canAccessJpVocabStudy;
   /** 学生与管理员可见；日语老师不可进复习页 */
   const showRequestTeacherShare =
-    JP_VOCAB_SHARE_UI_ENABLED &&
+    JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED &&
     Boolean(user) &&
     canViewStudy &&
     (!canOperate || isAdmin);
@@ -137,7 +137,7 @@ export function JpVocabStudyPage() {
       mode: "login",
       loginOnly: true,
       title: "登录 · 今日日语单词",
-      subtitle: JP_VOCAB_SHARE_UI_ENABLED
+      subtitle: JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED
         ? "登录后可查看老师共享的单词，或请求老师发送。"
         : "登录后可查看老师共享的单词。",
     });

@@ -1,2 +1,5 @@
-/** 「发给学生」「请老师发送」及老师端协助请求 toast */
-export const JP_VOCAB_SHARE_UI_ENABLED = false;
+/** 老师端抽问卡片「发给学生」 */
+export const JP_VOCAB_TEACHER_SHARE_ENABLED = true;
+
+/** 学生端「请老师发送」+ 老师协助 toast；peek 不依赖此开关 */
+export const JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED = false;

@@ -247,6 +247,11 @@ export function jpVocabPath(): string {
   return "/jp-vocab";
 }
 
+/** 日语抽问-管理员端（全库 / 设目标 / 导出） */
+export function jpVocabAdminPath(): string {
+  return "/jp-vocab/admin";
+}
+
 export function jpVocabStudyPath(): string {
   return "/jp-vocab/study";
 }
@@ -257,6 +262,17 @@ export function jpVocabReviewPath(): string {
 
 export function jpVocabCoachPath(_date?: string | null): string {
   return "/jp-vocab/coach";
+}
+
+/** 老师端首页：精确 /jp-vocab（不含 admin / study / coach / review） */
+export function isJpVocabTeacherHomePath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/jp-vocab";
+}
+
+export function isJpVocabAdminPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/jp-vocab/admin";
 }
 
 export function isJpVocabStudyPath(pathname: string): boolean {
@@ -350,11 +366,13 @@ export function isToolDotPath(pathname: string): boolean {
   );
 }
 
-/** 日语模块老师可访问的页面（不含 API / 静态资源） */
+/** 日语模块老师可访问的页面（不含 API / 静态资源；不含管理员端 / 日语复习） */
 export function isJpVocabTeacherAllowedPath(pathname: string): boolean {
+  if (isJpVocabAdminPath(pathname) || isJpVocabReviewPath(pathname)) {
+    return false;
+  }
   return (
     isJpVocabPath(pathname) ||
-    isJpVocabStudyPath(pathname) ||
     isJpLessonPath(pathname) ||
     isAboutPath(pathname)
   );

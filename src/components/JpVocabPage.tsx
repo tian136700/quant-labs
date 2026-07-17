@@ -102,7 +102,7 @@ import {
   countJpVocabCoachLevelCounts,
   postJpVocabCoachMerge,
 } from "@/lib/jp-vocab-coach";
-import { jpVocabCoachPath } from "@/lib/locale-path";
+import { jpVocabAdminPath, jpVocabCoachPath, jpVocabPath } from "@/lib/locale-path";
 import {
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
@@ -138,7 +138,10 @@ import {
   notifyJpVocabQuizTargetUpdated,
   subscribeJpVocabQuizTargetUpdated,
 } from "@/lib/jp-vocab-quiz-target-notify";
-import { JP_VOCAB_SHARE_UI_ENABLED } from "@/lib/jp-vocab-share-ui";
+import {
+  JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED,
+  JP_VOCAB_TEACHER_SHARE_ENABLED,
+} from "@/lib/jp-vocab-share-ui";
 import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
@@ -178,7 +181,13 @@ const JpVocabExportChoiceModal = dynamic(
   { ssr: false }
 );
 
-export function JpVocabPage() {
+type JpVocabPageVariant = "teacher" | "admin";
+
+type JpVocabPageProps = {
+  variant: JpVocabPageVariant;
+};
+
+export function JpVocabPage({ variant }: JpVocabPageProps) {
   const { locale } = useI18n();
   const router = useRouter();
   const {
@@ -191,9 +200,14 @@ export function JpVocabPage() {
     isAdmin,
     hasPermission,
   } = useEtrAuth();
+  /** 产品模式：由路由 variant 驱动，不再用 isAdmin 兼做老师/管理员 UX */
+  const isAdminMode = variant === "admin";
+  const isTeacherMode = variant === "teacher";
   const canOperate = canAccessJpVocab;
   const canManualAdd = hasPermission("jp_vocab:manual_add");
   const canShareToStudy = canAccessJpVocab;
+  const teacherShareUiEnabled =
+    JP_VOCAB_TEACHER_SHARE_ENABLED && isTeacherMode && canShareToStudy;
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -203,6 +217,17 @@ export function JpVocabPage() {
       subtitle: "登录用户方可修改数据。",
     });
   }, [openAuthPanel]);
+
+  useEffect(() => {
+    if (checking || !user) return;
+    if (variant === "teacher" && isAdmin) {
+      router.replace(jpVocabAdminPath());
+      return;
+    }
+    if (variant === "admin" && !isAdmin) {
+      router.replace(jpVocabPath());
+    }
+  }, [checking, user, variant, isAdmin, router]);
   const [words, setWords] = useState<JpVocabWord[]>(() => readJpVocabPageCache()?.words ?? []);
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>(
     () => readJpVocabPageCache()?.refs ?? {}
@@ -685,7 +710,7 @@ export function JpVocabPage() {
   }, [syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
-    if (!canOperate || !JP_VOCAB_SHARE_UI_ENABLED) return;
+    if (!canOperate || !JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -873,7 +898,7 @@ export function JpVocabPage() {
       return;
     }
 
-    if (canOperate && !isAdmin) {
+    if (canOperate && !isAdminMode) {
       const resumeIndex = resolveJpVocabTeacherQuizRefreshResumeIndex(
         expanded,
         new Map(words.map((w) => [w.id, w])),
@@ -895,7 +920,7 @@ export function JpVocabPage() {
     quizTargetWords.length,
     quizTargetWordIds,
     canOperate,
-    isAdmin,
+    isAdminMode,
     words,
     sessionReviewAt,
     quizWordHasLevel,
@@ -982,7 +1007,7 @@ export function JpVocabPage() {
 
   /** 老师看待抽查进度（分母=待抽查数）；管理员仍看全天目标进度 */
   const displayQuizProgress = useMemo(() => {
-    if (isAdmin) return dailyQuizProgress;
+    if (isAdminMode) return dailyQuizProgress;
     return computeJpVocabTeacherPageQuizProgress(
       teacherPendingWords,
       quizWordHasLevel,
@@ -995,7 +1020,7 @@ export function JpVocabPage() {
       }
     );
   }, [
-    isAdmin,
+    isAdminMode,
     dailyQuizProgress,
     teacherPendingWords,
     quizWordHasLevel,
@@ -1004,7 +1029,7 @@ export function JpVocabPage() {
 
   const searchActive = searchQuery.trim().length > 0;
   /** 老师端隐藏不可操作行（进行中：仅见待抽查；已完成：展示今日已抽查列表） */
-  const hideInoperableRows = canOperate && !isAdmin;
+  const hideInoperableRows = canOperate && !isAdminMode;
 
   const searchMatchedWords = useMemo(
     () => filterJpVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
@@ -1086,8 +1111,8 @@ export function JpVocabPage() {
 
   useEffect(() => {
     teacherIdleCompleteRef.current =
-      canOperate && !isAdmin && dailyQuizProgress.complete;
-  }, [canOperate, isAdmin, dailyQuizProgress.complete]);
+      canOperate && !isAdminMode && dailyQuizProgress.complete;
+  }, [canOperate, isAdminMode, dailyQuizProgress.complete]);
 
   const dailyCheckedCount = dailyQuizProgress.checked;
 
@@ -1303,7 +1328,7 @@ export function JpVocabPage() {
   );
 
   /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选（管理员可直接在列表改） */
-  const teacherQuizLocksTable = canOperate && !isAdmin;
+  const teacherQuizLocksTable = canOperate && !isAdminMode;
 
   /** 已有活跃抽查会话（用于「继续抽查」按钮） */
   const teacherQuizInProgress = quizSession != null;
@@ -1314,7 +1339,7 @@ export function JpVocabPage() {
    */
   const hideTeacherQuizList =
     canOperate &&
-    !isAdmin &&
+    !isAdminMode &&
     teacherQuizInProgress &&
     !dailyQuizProgress.complete &&
     !displayQuizProgress.complete;
@@ -1325,7 +1350,7 @@ export function JpVocabPage() {
    * 交给 expand effect / finishTeacherQuiz 补进队列。
    */
   useEffect(() => {
-    if (!canOperate || isAdmin || !quizSession) return;
+    if (!canOperate || isAdminMode || !quizSession) return;
     if (!dailyQuizProgress.complete && !displayQuizProgress.complete) {
       return;
     }
@@ -1333,7 +1358,7 @@ export function JpVocabPage() {
     setQuizSession(null);
   }, [
     canOperate,
-    isAdmin,
+    isAdminMode,
     quizSession,
     dailyQuizProgress.complete,
     displayQuizProgress.complete,
@@ -1505,11 +1530,11 @@ export function JpVocabPage() {
       openJpAuth();
       return;
     }
-    if (!isWordInQuizTarget(wordId) && !isAdmin) {
+    if (!isWordInQuizTarget(wordId) && !isAdminMode) {
       setStatus(`仅今日抽查池内的词条可勾选熟悉程度（共 ${quizTarget} 个）。`);
       return;
     }
-    if (source !== "flashcard" && !isAdmin) {
+    if (source !== "flashcard" && !isAdminMode) {
       if (quizSession != null) {
         resumeTeacherQuizFlashcard(wordId);
       } else {
@@ -2246,7 +2271,7 @@ export function JpVocabPage() {
   };
 
   const setDailyQuizTarget = async () => {
-    if (!isAdmin || settingQuizTarget) return;
+    if (!isAdminMode || settingQuizTarget) return;
     const trimmed = quizTargetInput.trim();
     const parsed = Number(trimmed);
     if (!trimmed || !Number.isFinite(parsed)) {
@@ -2323,7 +2348,7 @@ export function JpVocabPage() {
         variant="page"
         loginOnly
         title="登录 · 日语单词"
-        subtitle="请登录后继续访问日语单词 / 语法抽问。"
+        subtitle="请登录后继续访问日语抽问。"
         onAuthenticated={(next) => setUser(next)}
       />
     );
@@ -2331,16 +2356,22 @@ export function JpVocabPage() {
 
   return (
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
-      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语单词 / 语法抽问</h1>
+      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>
+        {isAdminMode ? "日语抽问-管理员端" : "日语抽问-老师端"}
+      </h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        {JP_VOCAB_SHARE_UI_ENABLED ? (
+        {teacherShareUiEnabled ? (
           <>
             抽查 → 提问后勾选熟悉程度 → 答不出或不熟悉时点「发给学生」（同时
             <strong>系统自动标记为不熟悉</strong>），供学生复习。
           </>
+        ) : isAdminMode ? (
+          <>
+            管理全库词条、设置今日抽查数量与导出。老师端按可见池抽查；学生端可通过「查看老师正在抽查的单词」获取当前词。
+          </>
         ) : (
           <>
-            抽查 → 提问后勾选熟悉程度，自动同步到学生「今日日语单词」（学生端仅可查看，不可改选）。
+            抽查 → 提问后勾选熟悉程度。学生可通过「查看老师正在抽查的单词」获取当前词。
           </>
         )}
       </p>
@@ -2370,12 +2401,12 @@ export function JpVocabPage() {
         </p>
       ) : null}
 
-      {canOperate && (displayQuizProgress.total > 0 || displayQuizProgress.complete || isAdmin) ? (
+      {canOperate && (displayQuizProgress.total > 0 || displayQuizProgress.complete || isAdminMode) ? (
         <JpVocabDailyQuizProgressBar
           progress={displayQuizProgress}
           variant="teacher"
           adminQuizTarget={
-            isAdmin
+            isAdminMode
               ? {
                   value: quizTargetInput,
                   savedValue: teacherVisibleLimit.quiz_target,
@@ -2499,7 +2530,7 @@ export function JpVocabPage() {
                 随机高亮
               </button>
             ) : null}
-            {isAdmin ? (
+            {isAdminMode ? (
               <button
                 type="button"
                 className="btn-rsi-filter"
@@ -2539,7 +2570,7 @@ export function JpVocabPage() {
               手动添加
             </button>
             ) : null}
-            {isAdmin ? (
+            {isAdminMode ? (
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--danger"
@@ -2753,7 +2784,7 @@ export function JpVocabPage() {
           <>
           <JpVocabWordTable
             locale={locale}
-            isAdmin={isAdmin}
+            isAdminMode={isAdminMode}
             canOperate={canOperate}
             statSort={statSort}
             onStatSort={toggleStatSort}
@@ -2780,7 +2811,7 @@ export function JpVocabPage() {
             onEditWord={setEditingWord}
             onDeleteWord={(w) => void deleteWord(w)}
             onPreviewQuizCard={
-              isAdmin
+              isAdminMode
                 ? (w) => {
                     setQuizCardPreviewWordId(w.id);
                   }
@@ -2873,7 +2904,7 @@ export function JpVocabPage() {
         />
       ) : null}
 
-      {JP_VOCAB_SHARE_UI_ENABLED ? (
+      {JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED ? (
         <JpVocabShareRequestModal
           open={showShareRequestModal}
           requests={shareRequests}
@@ -2964,7 +2995,7 @@ export function JpVocabPage() {
         dailySeqByWordId={dailySeqByWordId}
         dailyQuizProgress={displayQuizProgress}
         canOperate={canOperate}
-        shareUiEnabled={JP_VOCAB_SHARE_UI_ENABLED && canShareToStudy}
+        shareUiEnabled={teacherShareUiEnabled}
         shareProgressMap={shareProgressMap}
         sharedTodayWordIds={sharedTodayWordIds}
         studentPeeked={studentPeekedCurrentWord}
@@ -2989,7 +3020,7 @@ export function JpVocabPage() {
         }
       />
 
-      {isAdmin ? (
+      {isAdminMode ? (
         <JpVocabTeacherQuizFlashcardModal
           open={quizCardPreviewSession != null}
           session={quizCardPreviewSession}
