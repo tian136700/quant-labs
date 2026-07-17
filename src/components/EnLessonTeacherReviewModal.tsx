@@ -173,11 +173,8 @@ export function EnLessonTeacherReviewModal({
         setStatusErr(true);
         return;
       }
-      setStatus(zh ? "保存成功。" : "Saved.");
-      setStatusErr(false);
-      resetForm();
-      void loadHistory();
       onChanged?.();
+      onClose();
     } catch {
       setStatus(zh ? "保存失败" : "Save failed");
       setStatusErr(true);
