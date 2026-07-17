@@ -59,6 +59,15 @@ async function ensureRbacSchema(db: D1Database): Promise<void> {
     .run();
 }
 
+/**
+ * 表已有数据时只补「新增默认键」（禁止全量 INSERT OR IGNORE → 冷 isolate 1102）。
+ * 增权限时往这里追加一行即可。
+ */
+const RBAC_INCREMENTAL_DEFAULTS: Array<{
+  role: EtrUserRole;
+  permission: string;
+}> = [{ role: "jp_vocab", permission: "jp_vocab:teacher" }];
+
 export async function ensureRbacSeeded(db: D1Database): Promise<void> {
   if (devRbacEnabled) {
     if (devRolePermissions.size === 0) seedDevRolePermissions();
@@ -73,6 +82,7 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
     .prepare(`SELECT COUNT(*) AS c FROM etr_role_permissions`)
     .first<{ c: number }>();
   if ((row?.c ?? 0) === 0) {
+    // 空表：一次性写入默认矩阵
     const ts = nowIso();
     const inserts: D1PreparedStatement[] = [];
     for (const role of Object.keys(RBAC_DEFAULT_ROLE_PERMISSIONS) as EtrUserRole[]) {
@@ -88,29 +98,40 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
       }
     }
     if (inserts.length) await db.batch(inserts);
+  } else {
+    // 已有数据：只补缺新增键（1 次 SELECT + 至多几条 INSERT）
+    await backfillIncrementalDefaultPermissions(db);
   }
 
-  await backfillDefaultRolePermissions(db);
   rbacSeededDone = true;
 }
 
-async function backfillDefaultRolePermissions(db: D1Database): Promise<void> {
-  if (devRbacEnabled) return;
+async function backfillIncrementalDefaultPermissions(
+  db: D1Database
+): Promise<void> {
+  if (devRbacEnabled || RBAC_INCREMENTAL_DEFAULTS.length === 0) return;
+
+  const sentinel = RBAC_INCREMENTAL_DEFAULTS[0];
+  const exists = await db
+    .prepare(
+      `SELECT 1 AS ok FROM etr_role_permissions
+       WHERE role = ?1 AND permission_key = ?2 LIMIT 1`
+    )
+    .bind(sentinel.role, sentinel.permission)
+    .first<{ ok: number }>();
+  if (exists) return;
+
   const ts = nowIso();
-  const inserts: D1PreparedStatement[] = [];
-  for (const role of Object.keys(RBAC_DEFAULT_ROLE_PERMISSIONS) as EtrUserRole[]) {
-    for (const permission of RBAC_DEFAULT_ROLE_PERMISSIONS[role]) {
-      inserts.push(
-        db
-          .prepare(
-            `INSERT OR IGNORE INTO etr_role_permissions (role, permission_key, created_at)
-             VALUES (?1, ?2, ?3)`
-          )
-          .bind(role, permission, ts)
-      );
-    }
-  }
+  const inserts = RBAC_INCREMENTAL_DEFAULTS.map(({ role, permission }) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO etr_role_permissions (role, permission_key, created_at)
+         VALUES (?1, ?2, ?3)`
+      )
+      .bind(role, permission, ts)
+  );
   if (inserts.length) await db.batch(inserts);
+  rolePermissionsCache.clear();
 }
 
 export async function getPermissionsForRole(
