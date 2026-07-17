@@ -51,6 +51,7 @@ import {
   createJpVocabTeacherQuizSession,
   expandJpVocabTeacherQuizSessionForTarget,
   filterJpVocabTeacherQuizUncheckedWords,
+  findFirstUncheckedJpVocabTeacherQuizIndex,
   isJpVocabTeacherQuizSessionComplete,
   pickRandomJpVocabTeacherQuizMode,
   reconcileJpVocabTeacherQuizSession,
@@ -113,8 +114,9 @@ import {
   resolveJpVocabPreviousLevel,
 } from "@/lib/jp-vocab-review";
 import {
-  isJpVocabWordInDailyQuizTarget,
+  isJpVocabWordInTeacherVisiblePool,
   isJpVocabWordQuizCheckedToday,
+  listJpVocabTeacherQuizPoolWords,
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
@@ -778,12 +780,16 @@ export function JpVocabPage() {
 
   const quizTarget = teacherVisibleLimit.quiz_target;
 
+  /** 老师抽查池 = 服务端 visible_ids（从未抽查优先），勿再用「序号 1–N」代替 */
   const quizTargetWords = useMemo(
     () =>
-      displayedWords.filter((w) =>
-        isJpVocabWordInDailyQuizTarget(w.id, quizTarget, dailySeqByWordId)
+      listJpVocabTeacherQuizPoolWords(
+        displayedWords,
+        displayOrder,
+        teacherVisibleLimit,
+        dailySeqByWordId
       ),
-    [displayedWords, quizTarget, dailySeqByWordId]
+    [displayedWords, displayOrder, teacherVisibleLimit, dailySeqByWordId]
   );
 
   const quizTargetWordIds = useMemo(
@@ -931,8 +937,12 @@ export function JpVocabPage() {
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) =>
-      isJpVocabWordInDailyQuizTarget(wordId, quizTarget, dailySeqByWordId),
-    [quizTarget, dailySeqByWordId]
+      isJpVocabWordInTeacherVisiblePool(
+        wordId,
+        teacherVisibleLimit,
+        dailySeqByWordId
+      ),
+    [teacherVisibleLimit, dailySeqByWordId]
   );
 
   const isWordReviewLocked = useCallback(
@@ -945,7 +955,7 @@ export function JpVocabPage() {
   );
 
   /**
-   * 老师「待抽查」词池：今日序号 1–N 内尚未勾选熟悉程度的词；
+   * 老师「待抽查」词池：今日可见抽查池内尚未勾选熟悉程度的词；
    * 本会话刚勾选的仍保留（可改选、进度分子可涨）。
    * 不按 1 小时锁定统计——已勾过的（别人的或更早的）一律不进列表、不进总分。
    */
@@ -1197,7 +1207,7 @@ export function JpVocabPage() {
       if (!next) {
         setStatus(
           quizTarget > 0
-            ? `今日序号 1–${quizTarget} 内暂无未抽查词条（已抽过的不会再进入抽查卡片）。`
+            ? "今日抽查池内暂无未抽查词条（已抽过的不会再进入抽查卡片）。"
             : "请管理员先设置今日抽查数量。"
         );
         return;
@@ -1259,20 +1269,13 @@ export function JpVocabPage() {
     !displayQuizProgress.complete;
 
   /**
-   * 本轮/今日抽完后立即关卡片、清会话，回到已抽完列表；
-   * 避免进度条已「已完成」仍停在单词弹窗。
+   * 今日/本轮进度已完成后立即关卡片、清会话，回到已抽完列表。
+   * 禁止仅因「会话内词都勾了」就关卡：进度仍有剩余时说明可见池里还有未进会话的词，
+   * 交给 expand effect / finishTeacherQuiz 补进队列。
    */
   useEffect(() => {
     if (!canOperate || isAdmin || !quizSession) return;
-    const sessionDone = isJpVocabTeacherQuizSessionComplete(
-      quizSession,
-      quizWordHasLevel
-    );
-    if (
-      !dailyQuizProgress.complete &&
-      !displayQuizProgress.complete &&
-      !sessionDone
-    ) {
+    if (!dailyQuizProgress.complete && !displayQuizProgress.complete) {
       return;
     }
     setShowQuizFlashcard(false);
@@ -1281,7 +1284,6 @@ export function JpVocabPage() {
     canOperate,
     isAdmin,
     quizSession,
-    quizWordHasLevel,
     dailyQuizProgress.complete,
     displayQuizProgress.complete,
   ]);
@@ -1318,11 +1320,24 @@ export function JpVocabPage() {
       setShowQuizFlashcard(false);
       return;
     }
-    if (
-      !isJpVocabTeacherQuizSessionComplete(quizSession, quizWordHasLevel)
-    ) {
-      setStatus("尚有词条未勾选熟悉程度，请继续在卡片内完成抽查。");
-      return;
+    // 进度/可见池仍有未勾选时，先补进会话并跳到该词，禁止只 setStatus 在遮罩后或直接收尾
+    const expanded = expandJpVocabTeacherQuizSessionForTarget(
+      quizSession,
+      quizTargetWords,
+      dailySeqByWordId,
+      quizWordHasLevel
+    );
+    if (expanded) {
+      const firstUnchecked = findFirstUncheckedJpVocabTeacherQuizIndex(
+        expanded,
+        quizWordHasLevel,
+        0
+      );
+      if (firstUnchecked >= 0) {
+        setQuizSession({ ...expanded, currentIndex: firstUnchecked });
+        setShowQuizFlashcard(true);
+        return;
+      }
     }
     setShowQuizFlashcard(false);
     setQuizSession(null);
@@ -1336,8 +1351,11 @@ export function JpVocabPage() {
     }
   }, [
     quizSession,
+    quizTargetWords,
+    dailySeqByWordId,
     quizWordHasLevel,
     user,
+    dailyQuizProgress.complete,
     dailyQuizProgress.total,
   ]);
 
@@ -1437,7 +1455,7 @@ export function JpVocabPage() {
       return;
     }
     if (!isWordInQuizTarget(wordId) && !isAdmin) {
-      setStatus(`仅今日序号 1–${quizTarget} 可勾选熟悉程度。`);
+      setStatus(`仅今日抽查池内的词条可勾选熟悉程度（共 ${quizTarget} 个）。`);
       return;
     }
     if (source !== "flashcard" && !isAdmin) {
@@ -1646,7 +1664,7 @@ export function JpVocabPage() {
       return;
     }
     if (!isWordInQuizTarget(wordId)) {
-      setStatus(`仅今日序号 1–${quizTarget} 可发给学生。`);
+      setStatus(`仅今日抽查池内的词条可发给学生（共 ${quizTarget} 个）。`);
       return;
     }
     const snapshot = words.find((w) => w.id === wordId);
@@ -2225,7 +2243,7 @@ export function JpVocabPage() {
         quiz_target_adjusted_at: data.teacher_visible_limit.quiz_target_adjusted_at,
       });
       setStatus(
-        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端序号 1–${data.teacher_visible_limit.quiz_target} 可勾选、可发给学生）。` +
+        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端按可见池抽查，优先从未抽查过的词条）。` +
           ` japanese 域名下已打开的老师页约 3 秒内自动同步；若未打开请刷新 japanese.info-quests.com/jp-vocab。`
       );
     } catch (err) {

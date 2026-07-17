@@ -73,6 +73,54 @@ export function isJpVocabWordInDailyQuizTarget(
   return target > 0 && seq <= target;
 }
 
+/**
+ * 老师今日可抽查/可勾选池：优先 `visible_ids`（服务端按「从未抽查优先」生成，
+ * 不一定等于当日序号 1…N）。无 visible_ids 时回退序号 1…quiz_target。
+ */
+export function isJpVocabWordInTeacherVisiblePool(
+  wordId: number,
+  visible: Pick<JpVocabTeacherVisibleLimit, "quiz_target" | "visible_ids">,
+  dailySeqByWordId: ReadonlyMap<number, number>
+): boolean {
+  if (visible.visible_ids?.length) {
+    return visible.visible_ids.includes(wordId);
+  }
+  return isJpVocabWordInDailyQuizTarget(
+    wordId,
+    visible.quiz_target,
+    dailySeqByWordId
+  );
+}
+
+/**
+ * 老师抽查队列词表：与 `isJpVocabWordInTeacherVisiblePool` 同一池。
+ * 有 visible_ids 时按当日 display_order 排序；不要再按「序号 1–N」过滤，
+ * 否则从未抽查但序号靠后的词会进进度条却进不了卡片。
+ */
+export function listJpVocabTeacherQuizPoolWords(
+  words: JpVocabWord[],
+  displayOrder: JpVocabDailyDisplayOrder,
+  visible: Pick<JpVocabTeacherVisibleLimit, "quiz_target" | "visible_ids">,
+  dailySeqByWordId: ReadonlyMap<number, number>
+): JpVocabWord[] {
+  if (visible.visible_ids?.length) {
+    const idSet = new Set(visible.visible_ids);
+    const orderIndex = new Map(
+      displayOrder.ids.map((id, index) => [id, index])
+    );
+    return words
+      .filter((word) => idSet.has(word.id))
+      .sort(
+        (a, b) =>
+          (orderIndex.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+          (orderIndex.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+      );
+  }
+  return words.filter((w) =>
+    isJpVocabWordInDailyQuizTarget(w.id, visible.quiz_target, dailySeqByWordId)
+  );
+}
+
 /** 隐藏模式：今日最后一次勾选早于「调整抽查目标时间」则隐藏；今日未勾选则显示 */
 export function isJpVocabWordHiddenBeforeTargetAdjustment(
   word: JpVocabWord,

@@ -483,7 +483,7 @@ export function JpVocabWordTable({
                         ) : !inQuizTarget && !isAdmin ? (
                           <span
                             className="jp-vocab-level-unavailable"
-                            title={`仅今日序号 1–${quizTarget} 可勾选熟悉程度`}
+                            title={`仅今日抽查池内的词条可勾选熟悉程度（共 ${quizTarget} 个）`}
                           >
                             不可勾选
                           </span>

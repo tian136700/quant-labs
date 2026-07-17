@@ -149,11 +149,12 @@ export function JpVocabTeacherQuizFlashcardModal({
   useEffect(() => {
     if (!open || !word) {
       setNotesWord(null);
+      setRemainingUncheckedHint(false);
       return;
     }
     setNotesWord(word);
     setNextBlockedHint(false);
-    setRemainingUncheckedHint(false);
+    // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
   }, [open, word?.id, word?.updated_at, word]);
 
   useEffect(() => {
@@ -387,7 +388,7 @@ export function JpVocabTeacherQuizFlashcardModal({
         setRemainingUncheckedHint(true);
         return;
       }
-      // 进度条仍显示剩余，但会话词都已勾选：交给 onComplete 补全队列或收尾
+      // 进度条仍显示剩余，但会话词都已勾选：交给 onComplete 补全队列（visible_ids 池）
       if (uncheckedCount > 0) {
         setRemainingUncheckedHint(true);
         onComplete();
@@ -943,6 +944,43 @@ export function JpVocabTeacherQuizFlashcardModal({
               onClick={() => setNextBlockedHint(false)}
             >
               关闭
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {remainingUncheckedHint && !previewMode && !isCoach ? (
+        <div
+          className="jp-vocab-teacher-quiz-alert-overlay"
+          role="presentation"
+          onClick={() => setRemainingUncheckedHint(false)}
+        >
+          <div
+            className="jp-vocab-teacher-quiz-alert"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="jp-vocab-teacher-quiz-remain-title"
+            aria-describedby="jp-vocab-teacher-quiz-remain-desc"
+            onClick={stop}
+          >
+            <h3
+              id="jp-vocab-teacher-quiz-remain-title"
+              className="jp-vocab-teacher-quiz-alert__title"
+            >
+              还有未抽查词条
+            </h3>
+            <p
+              id="jp-vocab-teacher-quiz-remain-desc"
+              className="jp-vocab-teacher-quiz-alert__desc"
+            >
+              本轮仍有词条未勾选熟悉程度，已为你跳到下一词。请继续勾选后完成抽查。
+            </p>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
+              onClick={() => setRemainingUncheckedHint(false)}
+            >
+              继续抽查
             </button>
           </div>
         </div>
