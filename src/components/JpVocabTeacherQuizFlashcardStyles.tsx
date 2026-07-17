@@ -986,12 +986,16 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             border-right: none;
           }
           .jp-vocab-teacher-quiz__stats {
-            gap: 0.45rem 0.55rem;
+            gap: 0.45rem 0.65rem;
           }
           .jp-vocab-teacher-quiz__stat {
-            flex: 1 1 calc(50% - 0.3rem);
+            flex: 0 1 auto;
             min-width: 0;
-            justify-content: space-between;
+            justify-content: flex-start;
+            gap: 0.3rem;
+          }
+          .jp-vocab-teacher-quiz__stat--weight {
+            flex: 1 1 100%;
           }
         }
     `}</style>
