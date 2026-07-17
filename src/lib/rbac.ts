@@ -125,20 +125,36 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "About page and feedback form",
   },
   {
-    key: "jp_vocab:read",
-    labelZh: "浏览单词/语法",
-    labelEn: "Browse vocab & grammar",
+    key: "jp_vocab:teacher",
+    labelZh: "日语抽问-老师端",
+    labelEn: "JP quiz — teacher",
     category: "jp_vocab",
-    descriptionZh: "可查看单词/语法抽问列表",
-    descriptionEn: "View vocabulary and grammar spot-check lists",
+    descriptionZh: "进入 /jp-vocab：抽查卡片、勾选熟悉程度、发给学生",
+    descriptionEn: "Access /jp-vocab: flashcard quiz, levels, share to students",
+  },
+  {
+    key: "jp_vocab:admin",
+    labelZh: "日语抽问-管理员端",
+    labelEn: "JP quiz — admin",
+    category: "jp_vocab",
+    descriptionZh: "进入 /jp-vocab/admin：全库、设今日抽查数量、导出",
+    descriptionEn: "Access /jp-vocab/admin: full library, daily target, export",
+  },
+  {
+    key: "jp_vocab:read",
+    labelZh: "浏览单词/语法（API）",
+    labelEn: "Browse vocab & grammar (API)",
+    category: "jp_vocab",
+    descriptionZh: "拉取单词/语法列表（老师端/管理端底层能力）",
+    descriptionEn: "Fetch vocab lists (underlying API for teacher/admin pages)",
   },
   {
     key: "jp_vocab:operate",
-    labelZh: "操作单词/语法",
-    labelEn: "Edit vocab & grammar",
+    labelZh: "操作单词/语法（API）",
+    labelEn: "Edit vocab & grammar (API)",
     category: "jp_vocab",
-    descriptionZh: "勾选熟悉度、编辑备注等日常抽查操作",
-    descriptionEn: "Review levels, edit notes, and daily spot-check actions",
+    descriptionZh: "勾选熟悉度、发给学生、编辑备注等写入操作",
+    descriptionEn: "Review levels, share, edit notes, and other writes",
   },
   {
     key: "jp_vocab:manual_add",
@@ -150,11 +166,11 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
   },
   {
     key: "jp_vocab:study",
-    labelZh: "日语今日单词（学生复习）",
-    labelEn: "JP today's vocab (student review)",
+    labelZh: "今日日语单词（学生端）",
+    labelEn: "JP today's vocab (student)",
     category: "jp_vocab",
-    descriptionZh: "查看老师共享的单词并可请求老师发送",
-    descriptionEn: "View shared words and request teacher to send",
+    descriptionZh: "进入 /jp-vocab/study；可 peek 当前抽查词（不需「请老师发送」）",
+    descriptionEn: "Access /jp-vocab/study; peek live quiz word (no share-request UI)",
   },
   {
     key: "jp_lesson:read",
@@ -245,8 +261,8 @@ export const RBAC_ROLE_LABELS: Record<
   jp_vocab: {
     zh: "日语教师",
     en: "JP teacher",
-    descriptionZh: "日语抽查（单词/语法抽问）",
-    descriptionEn: "JP vocab spot-check operations",
+    descriptionZh: "日语抽问-老师端（抽查 / 发给学生）",
+    descriptionEn: "JP quiz teacher page (spot-check / share)",
   },
   en_vocab: {
     zh: "英语教师",
@@ -266,6 +282,7 @@ export const RBAC_ROLE_LABELS: Record<
 export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
   admin: [...RBAC_ALL_PERMISSION_KEYS],
   jp_vocab: [
+    "jp_vocab:teacher",
     "jp_vocab:read",
     "jp_vocab:operate",
     "about:view",
@@ -282,7 +299,6 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "etr:use",
     "store_review:use",
     "store_review:plaza",
-    "jp_vocab:read",
     "jp_vocab:study",
     "jp_lesson:read",
     "about:view",
@@ -336,6 +352,17 @@ export function rbacModuleLabel(
 export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "jp_lesson:read",
   "jp_lesson:operate",
+  "jp_vocab:manual_add",
+  "jp_vocab:admin",
+  "jp_vocab:study",
+] as const;
+
+/** 网上注册用户（学生）不应持有的日语抽问权限 */
+export const RBAC_USER_EXCLUDED_PERMISSIONS = [
+  "jp_vocab:teacher",
+  "jp_vocab:admin",
+  "jp_vocab:read",
+  "jp_vocab:operate",
   "jp_vocab:manual_add",
 ] as const;
 

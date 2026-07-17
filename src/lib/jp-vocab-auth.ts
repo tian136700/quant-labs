@@ -12,6 +12,8 @@ export async function requireJpVocabAccess(request: Request) {
   if (user) {
     if (await userHasPermission(env.DB, user, "jp_vocab:operate")) {
       allowed = true;
+    } else if (await userHasPermission(env.DB, user, "jp_vocab:teacher")) {
+      allowed = true;
     } else {
       allowed = canUserOperateJpVocab(user);
     }
@@ -29,6 +31,10 @@ export async function requireJpVocabRead(request: Request) {
     if (await userHasPermission(env.DB, user, "jp_vocab:read")) {
       allowed = true;
     } else if (await userHasPermission(env.DB, user, "jp_vocab:operate")) {
+      allowed = true;
+    } else if (await userHasPermission(env.DB, user, "jp_vocab:teacher")) {
+      allowed = true;
+    } else if (await userHasPermission(env.DB, user, "jp_vocab:admin")) {
       allowed = true;
     } else {
       allowed = canUserOperateJpVocab(user);

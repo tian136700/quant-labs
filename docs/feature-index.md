@@ -60,7 +60,7 @@
 | **日语复习**（选数量、按序号/抽查优先级排序、卡片上/下一个、清除已复习；**今日已在抽问页抽查的词条显示「已抽问」**） | `JpVocabReviewPage.tsx`；`JpVocabAdminReviewFlashcardModal.tsx`；`jp-vocab-review-plan.ts`、`jp-vocab-review-session.ts`、`jp-vocab-daily-check.ts` → `isJpVocabWordQuizzedToday`；`POST /api/jp-vocab/review`；`jp_vocab_review_done` |
 | 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`（老师端）、`nav.jpVocabAdmin`（管理员端）、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach` |
 | 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabAdminPath()`、`jpVocabStudyPath()`、`jpVocabReviewPath()`、`jpVocabCoachPath()` |
-| 权限定义 | `src/lib/rbac.ts`；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
+| 权限定义 | `src/lib/rbac.ts` → `jp_vocab:teacher`（老师端）、`jp_vocab:admin`（管理员端）、`jp_vocab:study`（学生端）；默认：`jp_vocab` 角色含 teacher；`user` 角色仅 study；`admin` 全部；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
 | 未登录访问 `/jp-vocab` | `JpVocabPage.tsx` → `TeacherReviewAuth` 全页登录；`GET /api/jp-vocab`、`/api/jp-vocab/sync` → `requireJpVocabRead` |
 | 共享后刷新复习页 | `src/lib/jp-vocab-shared-notify.ts`（同浏览器多标签） |
 | **微信小程序 · 日语复习** | `wechat-jp-vocab-review/`（独立目录；对接同上 API；见该目录 `README.md`） |

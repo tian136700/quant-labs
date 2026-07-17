@@ -4,6 +4,7 @@ import {
   RBAC_ALL_PERMISSION_KEYS,
   RBAC_DEFAULT_ROLE_PERMISSIONS,
   RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS,
+  RBAC_USER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_PERMISSION_CATALOG,
   isAdminSuperuser,
@@ -71,29 +72,26 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
   const row = await db
     .prepare(`SELECT COUNT(*) AS c FROM etr_role_permissions`)
     .first<{ c: number }>();
-  if ((row?.c ?? 0) > 0) {
-    // 表已有数据：勿在每次冷 isolate 上跑全量 INSERT OR IGNORE backfill（1102）
-    rbacSeededDone = true;
-    return;
+  if ((row?.c ?? 0) === 0) {
+    const ts = nowIso();
+    const inserts: D1PreparedStatement[] = [];
+    for (const role of Object.keys(RBAC_DEFAULT_ROLE_PERMISSIONS) as EtrUserRole[]) {
+      for (const permission of RBAC_DEFAULT_ROLE_PERMISSIONS[role]) {
+        inserts.push(
+          db
+            .prepare(
+              `INSERT OR IGNORE INTO etr_role_permissions (role, permission_key, created_at)
+               VALUES (?1, ?2, ?3)`
+            )
+            .bind(role, permission, ts)
+        );
+      }
+    }
+    if (inserts.length) await db.batch(inserts);
   }
 
-  const ts = nowIso();
-  const inserts: D1PreparedStatement[] = [];
-  for (const role of Object.keys(RBAC_DEFAULT_ROLE_PERMISSIONS) as EtrUserRole[]) {
-    for (const permission of RBAC_DEFAULT_ROLE_PERMISSIONS[role]) {
-      inserts.push(
-        db
-          .prepare(
-            `INSERT OR IGNORE INTO etr_role_permissions (role, permission_key, created_at)
-             VALUES (?1, ?2, ?3)`
-          )
-          .bind(role, permission, ts)
-      );
-    }
-  }
-  if (inserts.length) await db.batch(inserts);
-  rbacSeededDone = true;
   await backfillDefaultRolePermissions(db);
+  rbacSeededDone = true;
 }
 
 async function backfillDefaultRolePermissions(db: D1Database): Promise<void> {
@@ -232,6 +230,10 @@ export async function updateRolePermissions(
     const excluded = new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
     cleaned = cleaned.filter((k) => !excluded.has(k));
   }
+  if (role === "user") {
+    const excluded = new Set<string>(RBAC_USER_EXCLUDED_PERMISSIONS);
+    cleaned = cleaned.filter((k) => !excluded.has(k));
+  }
   cleaned.sort();
 
   if (devRbacEnabled) {
@@ -279,7 +281,9 @@ export async function enrichSessionUser(
 ): Promise<SessionUserWithPermissions> {
   const permissions = await getUserPermissions(db, user);
   const can_operate_jp_vocab =
-    isAdminSuperuser(user.role) || permissions.includes("jp_vocab:operate");
+    isAdminSuperuser(user.role) ||
+    permissions.includes("jp_vocab:operate") ||
+    permissions.includes("jp_vocab:teacher");
   const can_operate_en_vocab =
     isAdminSuperuser(user.role) ||
     permissions.includes("en_vocab:operate") ||

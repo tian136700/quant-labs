@@ -40,7 +40,7 @@ export type SiteNavItem = {
 
 export function useSiteNavItems(): SiteNavItem[] {
   const { locale, t } = useI18n();
-  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessEnVocabStudy } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessEnVocabStudy } = useEtrAuth();
   const loggedIn = Boolean(user);
   const jpTeacherNav =
     loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
@@ -113,12 +113,16 @@ export function useSiteNavItems(): SiteNavItem[] {
 
   if (jpTeacherNav) {
     return [
-      {
-        id: "jpVocab",
-        href: navHref("jpVocab", locale, navOpts),
-        label: nav.jpVocab,
-        active: onJpVocabTeacherHome,
-      },
+      ...(canAccessJpVocabTeacherPage
+        ? [
+            {
+              id: "jpVocab",
+              href: navHref("jpVocab", locale, navOpts),
+              label: nav.jpVocab,
+              active: onJpVocabTeacherHome,
+            },
+          ]
+        : []),
       {
         id: "jpVocabCoach",
         href: navHref("jpVocabCoach", locale, navOpts),
@@ -197,9 +201,11 @@ export function useSiteNavItems(): SiteNavItem[] {
 
   if (onHiddenJp && loggedIn && !hasPermission("nav:full")) {
     const showJpVocabCoach =
-      hasPermission("jp_vocab:read") || hasPermission("jp_vocab:operate");
+      hasPermission("jp_vocab:teacher") ||
+      hasPermission("jp_vocab:read") ||
+      hasPermission("jp_vocab:operate");
     return [
-      ...(onJpVocabTeacherHome
+      ...(onJpVocabTeacherHome && canAccessJpVocabTeacherPage
         ? [
             {
               id: "jpVocab",
@@ -209,7 +215,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      ...(onJpVocabAdmin && isAdmin
+      ...(onJpVocabAdmin && canAccessJpVocabAdminPage
         ? [
             {
               id: "jpVocabAdmin",
@@ -362,10 +368,12 @@ export function useSiteNavItems(): SiteNavItem[] {
                   },
                 ]
               : []),
-            ...(hasPermission("jp_vocab:read") ||
+            ...(hasPermission("jp_vocab:teacher") ||
+            hasPermission("jp_vocab:admin") ||
+            hasPermission("jp_vocab:read") ||
             hasPermission("jp_vocab:operate")
               ? [
-                  ...(isAdmin
+                  ...(canAccessJpVocabAdminPage
                     ? [
                         {
                           id: "jpVocabAdmin",
@@ -374,14 +382,17 @@ export function useSiteNavItems(): SiteNavItem[] {
                           active: onJpVocabAdmin,
                         },
                       ]
-                    : [
+                    : []),
+                  ...(canAccessJpVocabTeacherPage
+                    ? [
                         {
                           id: "jpVocab",
                           href: navHref("jpVocab", locale, navOpts),
                           label: nav.jpVocab,
                           active: onJpVocabTeacherHome,
                         },
-                      ]),
+                      ]
+                    : []),
                   {
                     id: "jpVocabCoach",
                     href: navHref("jpVocabCoach", locale, navOpts),

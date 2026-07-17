@@ -123,6 +123,28 @@ export function canUserOperateJpVocab(
   return name === ETR_DEFAULT_JP_VOCAB_USERNAME.toLowerCase();
 }
 
+export function canAccessJpVocabTeacherPage(
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  const perms = user.permissions ?? [];
+  if (perms.includes("jp_vocab:teacher")) return true;
+  if (perms.includes("jp_vocab:operate")) return true;
+  return canUserOperateJpVocab(user);
+}
+
+/** 日语抽问-管理员端：管理员或持有 jp_vocab:admin */
+export function canAccessJpVocabAdminPage(
+  user: { role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  return user.permissions?.includes("jp_vocab:admin") ?? false;
+}
+
 /** 今日日语单词：管理员，或持有 jp_vocab:study 的学生（日语老师不可访问） */
 export function canAccessJpVocabStudy(
   user: { username?: string; role?: string; permissions?: string[] } | null | undefined
