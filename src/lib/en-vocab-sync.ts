@@ -1,10 +1,16 @@
 import type { EnVocabWord } from "@/lib/types";
 
+/** 学生复习页：共享列表轮询（对齐 jp-vocab study，禁止 <5s） */
+export const EN_VOCAB_STUDY_POLL_MS = 15_000;
+
+/** 学生复习页：后台轮询 */
+export const EN_VOCAB_STUDY_POLL_HIDDEN_MS = 45_000;
+
 /** 页面可见时增量拉取间隔（备注等多端实时同步） */
-export const JP_VOCAB_POLL_MS = 3_000;
+export const JP_VOCAB_POLL_MS = 5_000;
 
 /** 标签页在后台时降频，避免浪费 Worker 配额 */
-export const JP_VOCAB_POLL_HIDDEN_MS = 10_000;
+export const JP_VOCAB_POLL_HIDDEN_MS = 20_000;
 
 export function maxEnVocabUpdatedAt(words: EnVocabWord[]): string {
   let max = "";

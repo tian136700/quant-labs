@@ -84,6 +84,11 @@ export function upsertEnVocabClassNoteSession(
   ]);
 }
 
-export function hasEnVocabClassNotes(raw: string | null | undefined): boolean {
+export function hasEnVocabClassNotes(
+  raw: string | null | undefined,
+  presentHint?: boolean
+): boolean {
+  if (presentHint === true) return true;
+  if (presentHint === false) return false;
   return parseEnVocabClassNotes(raw).some((e) => e.content.trim());
 }

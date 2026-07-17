@@ -72,8 +72,8 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
     .prepare(`SELECT COUNT(*) AS c FROM etr_role_permissions`)
     .first<{ c: number }>();
   if ((row?.c ?? 0) > 0) {
+    // 表已有数据：勿在每次冷 isolate 上跑全量 INSERT OR IGNORE backfill（1102）
     rbacSeededDone = true;
-    await backfillDefaultRolePermissions(db);
     return;
   }
 

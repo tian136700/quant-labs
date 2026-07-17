@@ -97,6 +97,24 @@ const devShared: Array<{
 let devSharedNextId = 1;
 let enVocabSharedSchemaReady = false;
 
+/** 学生「今日共享」列表短缓存：合并多端轮询，降低 D1 / CPU（对齐 jp-vocab） */
+const EN_VOCAB_SHARED_LIST_CACHE_MS = 5_000;
+let sharedTodayListCache: {
+  at: number;
+  date: string;
+  value: { items: EnVocabSharedItem[]; refs: Record<string, EnVocabRef> };
+} | null = null;
+let sharedTodayListCacheGen = 0;
+let sharedTodayListInflight: Promise<{
+  items: EnVocabSharedItem[];
+  refs: Record<string, EnVocabRef>;
+}> | null = null;
+
+function invalidateEnVocabSharedTodayCache() {
+  sharedTodayListCache = null;
+  sharedTodayListCacheGen += 1;
+}
+
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 
@@ -198,6 +216,39 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
     await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN last_review_at TEXT`).run();
   }
   vocabWordSchemaReady = true;
+}
+
+function mapSharedListWordRow(row: Record<string, unknown>): EnVocabWord {
+  const word = mapRow({ ...row, class_notes: null });
+  return {
+    ...word,
+    class_notes: null,
+    class_notes_present: Boolean(Number(row.has_class_notes)),
+  };
+}
+
+async function listEnVocabRefsByKeys(
+  db: D1Database,
+  keys: string[]
+): Promise<EnVocabRef[]> {
+  const unique = [...new Set(keys.map((k) => k.trim()).filter(Boolean))];
+  if (!unique.length) return [];
+  if (devStoreEnabled) {
+    return unique
+      .map((k) => devRefs.get(k))
+      .filter((r): r is EnVocabRef => r != null);
+  }
+  const placeholders = unique.map((_, i) => `?${i + 1}`).join(", ");
+  const result = await db
+    .prepare(
+      `SELECT ref_key, title, media_type, r2_key, created_at, updated_at
+       FROM en_vocab_ref
+       WHERE ref_key IN (${placeholders})
+       ORDER BY ref_key ASC`
+    )
+    .bind(...unique)
+    .all<Record<string, unknown>>();
+  return (result.results || []).map(mapRefRow);
 }
 
 const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
@@ -1115,6 +1166,7 @@ export async function deleteEnVocabWordsByIds(
     if (deleted === 0) {
       return { ok: false, error: "not_found" };
     }
+    invalidateEnVocabSharedTodayCache();
     const words = [...devWords];
     let display_order = await ensureEnVocabDailyDisplayOrder(db, words);
     const validIds = new Set(words.map((w) => w.id));
@@ -1139,6 +1191,7 @@ export async function deleteEnVocabWordsByIds(
     return { ok: false, error: "not_found" };
   }
 
+  invalidateEnVocabSharedTodayCache();
   const words = await listEnVocabWords(db);
   let display_order = await ensureEnVocabDailyDisplayOrder(db, words);
   const validIds = new Set(words.map((w) => w.id));
@@ -1173,7 +1226,7 @@ export async function getEnVocabClassNotes(
     return { ok: false, error: "word_id_invalid" };
   }
 
-  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
 
   if (devStoreEnabled) {
     const word = devWords.find((w) => w.id === wordId);
@@ -1182,7 +1235,12 @@ export async function getEnVocabClassNotes(
   }
 
   const row = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(
+      `SELECT id, word, reading, meaning, pos, kind, ref_key,
+              cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
+              class_notes, last_review_level, last_review_at, created_at, updated_at
+       FROM en_vocab_word WHERE id = ?1`
+    )
     .bind(wordId)
     .first<Record<string, unknown>>();
 
@@ -1250,6 +1308,7 @@ export async function updateEnVocabClassNotes(
     if (!sync.ok) return sync;
   }
 
+  invalidateEnVocabSharedTodayCache();
   return { ok: true, word };
 }
 
@@ -1854,6 +1913,7 @@ export async function shareEnVocabWord(
       share_date: today,
     };
     devShared.push(sharedRow);
+    invalidateEnVocabSharedTodayCache();
     return {
       ok: true,
       item: mapSharedRow(sharedRow, updatedWord),
@@ -1904,6 +1964,7 @@ export async function shareEnVocabWord(
     share_date: today,
   };
 
+  invalidateEnVocabSharedTodayCache();
   return {
     ok: true,
     item: mapSharedRow(sharedRow, updatedWord),
@@ -1915,7 +1976,43 @@ export async function listEnVocabSharedToday(
   db: D1Database,
   now = new Date()
 ): Promise<{ items: EnVocabSharedItem[]; refs: Record<string, EnVocabRef> }> {
-  await seedIfEmpty(db);
+  const today = beijingDateString(now);
+  const nowMs = Date.now();
+  if (
+    sharedTodayListCache &&
+    sharedTodayListCache.date === today &&
+    nowMs - sharedTodayListCache.at < EN_VOCAB_SHARED_LIST_CACHE_MS
+  ) {
+    return sharedTodayListCache.value;
+  }
+  if (sharedTodayListInflight) {
+    return sharedTodayListInflight;
+  }
+
+  const gen = sharedTodayListCacheGen;
+  sharedTodayListInflight = (async () => {
+    try {
+      const value = await queryEnVocabSharedToday(db, now);
+      if (gen === sharedTodayListCacheGen) {
+        sharedTodayListCache = {
+          at: Date.now(),
+          date: beijingDateString(now),
+          value,
+        };
+      }
+      return value;
+    } finally {
+      sharedTodayListInflight = null;
+    }
+  })();
+
+  return sharedTodayListInflight;
+}
+
+async function queryEnVocabSharedToday(
+  db: D1Database,
+  now = new Date()
+): Promise<{ items: EnVocabSharedItem[]; refs: Record<string, EnVocabRef> }> {
   await ensureVocabWordSchema(db);
   await ensureEnVocabSharedSchema(db);
 
@@ -1927,7 +2024,13 @@ export async function listEnVocabSharedToday(
       .map((s) => {
         const word = devWords.find((w) => w.id === s.word_id);
         if (!word) return null;
-        return mapSharedRow(s, word);
+        const hasNotes = Boolean((word.class_notes || "").trim());
+        const liteWord: EnVocabWord = {
+          ...word,
+          class_notes: null,
+          class_notes_present: hasNotes,
+        };
+        return mapSharedRow(s, liteWord);
       })
       .filter((item): item is EnVocabSharedItem => item != null)
       .sort((a, b) => a.shared_at.localeCompare(b.shared_at));
@@ -1940,7 +2043,8 @@ export async function listEnVocabSharedToday(
       `SELECT s.id, s.word_id, s.shared_by, s.shared_at, s.share_date,
               w.id AS w_id, w.word, w.reading, w.meaning, w.pos, w.kind, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
-              w.class_notes, w.last_review_level, w.last_review_at, w.created_at, w.updated_at
+              w.last_review_level, w.last_review_at, w.created_at, w.updated_at,
+              (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM en_vocab_shared s
        INNER JOIN en_vocab_word w ON w.id = s.word_id
        WHERE s.share_date = ?1
@@ -1950,7 +2054,7 @@ export async function listEnVocabSharedToday(
     .all<Record<string, unknown>>();
 
   const items = (result.results ?? []).map((row) => {
-    const word = mapRow({
+    const word = mapSharedListWordRow({
       id: row.w_id,
       word: row.word,
       reading: row.reading,
@@ -1963,11 +2067,11 @@ export async function listEnVocabSharedToday(
       cnt_weak: row.cnt_weak,
       today_check_count: row.today_check_count,
       today_check_date: row.today_check_date,
-      class_notes: row.class_notes,
       last_review_level: row.last_review_level,
       last_review_at: row.last_review_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      has_class_notes: row.has_class_notes,
     });
     return mapSharedRow(row, word);
   });
@@ -1977,11 +2081,9 @@ export async function listEnVocabSharedToday(
   ] as string[];
   const refs: Record<string, EnVocabRef> = {};
   if (refKeys.length) {
-    const refList = await listEnVocabRefs(db);
+    const refList = await listEnVocabRefsByKeys(db, refKeys);
     for (const ref of refList) {
-      if (refKeys.includes(ref.ref_key)) {
-        refs[ref.ref_key] = ref;
-      }
+      refs[ref.ref_key] = ref;
     }
   }
 

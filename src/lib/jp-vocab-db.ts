@@ -1490,7 +1490,8 @@ export async function getJpVocabClassNotes(
     return { ok: false, error: "word_id_invalid" };
   }
 
-  await seedIfEmpty(db);
+  // 按需读备注：勿 seedIfEmpty；WORD_SELECT 含备注正文即可（列表接口禁止拉 blob）
+  await ensureVocabWordSchema(db);
 
   if (devStoreEnabled) {
     const word = devWords.find((w) => w.id === wordId);
@@ -1499,7 +1500,12 @@ export async function getJpVocabClassNotes(
   }
 
   const row = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(
+      `SELECT id, word, reading, meaning, pos, kind, ref_key,
+              cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
+              class_notes, last_review_level, last_review_at, created_at, updated_at
+       FROM jp_vocab_word WHERE id = ?1`
+    )
     .bind(wordId)
     .first<Record<string, unknown>>();
 
@@ -1567,6 +1573,7 @@ export async function updateJpVocabClassNotes(
     if (!sync.ok) return sync;
   }
 
+  invalidateJpVocabSharedTodayCache();
   return { ok: true, word };
 }
 
@@ -2717,7 +2724,7 @@ async function queryJpVocabSharedToday(
               w.id AS w_id, w.word, w.reading, w.meaning, w.pos, w.kind, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
               w.last_review_level, w.last_review_at, w.created_at, w.updated_at,
-              (CASE WHEN COALESCE(TRIM(w.class_notes), '') != '' THEN 1 ELSE 0 END) AS has_class_notes
+              (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
        WHERE s.share_date = ?1
@@ -3301,7 +3308,7 @@ async function getJpVocabWordByIdLite(
       `SELECT id, word, reading, meaning, pos, kind, ref_key,
               cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
               last_review_level, last_review_at, created_at, updated_at,
-              (CASE WHEN COALESCE(TRIM(class_notes), '') != '' THEN 1 ELSE 0 END) AS has_class_notes
+              (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word
        WHERE id = ?1`
     )

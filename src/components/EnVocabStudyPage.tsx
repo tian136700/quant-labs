@@ -18,6 +18,10 @@ import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
+import {
+  EN_VOCAB_STUDY_POLL_HIDDEN_MS,
+  EN_VOCAB_STUDY_POLL_MS,
+} from "@/lib/en-vocab-sync";
 import type { EnVocabLevel, EnVocabRef, EnVocabSharedItem, EnVocabWord } from "@/lib/types";
 
 const LEVELS: { key: EnVocabLevel; label: string }[] = [
@@ -34,9 +38,6 @@ const STAT_COLUMNS = [
 ] as const;
 
 const SHOW_REMARKS_COLUMN = true;
-
-const POLL_MS = 2000;
-const POLL_HIDDEN_MS = 8000;
 
 export function EnVocabStudyPage() {
   const { locale } = useI18n();
@@ -160,7 +161,7 @@ export function EnVocabStudyPage() {
       const hidden = typeof document !== "undefined" && document.hidden;
       timer = setTimeout(() => {
         void loadShared().finally(schedule);
-      }, hidden ? POLL_HIDDEN_MS : POLL_MS);
+      }, hidden ? EN_VOCAB_STUDY_POLL_HIDDEN_MS : EN_VOCAB_STUDY_POLL_MS);
     };
 
     schedule();
@@ -524,14 +525,14 @@ export function EnVocabStudyPage() {
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
-                            !hasEnVocabClassNotes(w.class_notes) && !canOperate
+                            !hasEnVocabClassNotes(w.class_notes, w.class_notes_present) && !canOperate
                               ? " jp-vocab-field-empty"
                               : ""
                           }`}
                           data-label="备注"
                         >
                           <div className="jp-vocab-notes-actions">
-                            {hasEnVocabClassNotes(w.class_notes) ? (
+                            {hasEnVocabClassNotes(w.class_notes, w.class_notes_present) ? (
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact"
