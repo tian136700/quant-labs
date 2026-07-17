@@ -29,6 +29,8 @@ import {
   type JpVocabReviewSortMode,
 } from "@/lib/jp-vocab-review-plan";
 import {
+  computeJpVocabReviewRoundProgress,
+  countJpVocabReviewQuizzedInPlan,
   createJpVocabReviewSession,
   normalizeJpVocabReviewProgress,
   resolveJpVocabReviewFreshStartIndex,
@@ -230,6 +232,38 @@ export function JpVocabReviewPage() {
 
   const wordsById = useMemo(() => new Map(words.map((w) => [w.id, w])), [words]);
 
+  const isWordQuizzedToday = useCallback(
+    (id: number) => {
+      const w = wordsById.get(id);
+      return w ? isJpVocabWordQuizzedToday(w) : false;
+    },
+    [wordsById]
+  );
+
+  const reviewRoundProgress = useMemo(
+    () =>
+      computeJpVocabReviewRoundProgress({
+        planWordIds: reviewWordIds,
+        currentWordId: reviewWordIds[0] ?? 0,
+        reviewedWordIds,
+        isQuizzedToday: isWordQuizzedToday,
+      }),
+    [reviewWordIds, reviewedWordIds, isWordQuizzedToday]
+  );
+
+  const reviewQuizzedInPlan = useMemo(
+    () => countJpVocabReviewQuizzedInPlan(reviewWordIds, isWordQuizzedToday),
+    [reviewWordIds, isWordQuizzedToday]
+  );
+
+  const reviewPendingInPlan = useMemo(
+    () =>
+      reviewWords.filter(
+        (w) => !reviewedWordIds.has(w.id) && !isJpVocabWordQuizzedToday(w)
+      ).length,
+    [reviewWords, reviewedWordIds]
+  );
+
   const dailySeqByWordId = useMemo(
     () => buildJpVocabReviewDailySeqMap(reviewWords, displayOrder, prefs.sortMode),
     [reviewWords, displayOrder, prefs.sortMode]
@@ -273,10 +307,7 @@ export function JpVocabReviewPage() {
           : resolveJpVocabReviewFreshStartIndex(
               reviewWordIds,
               reviewedWordIds,
-              (id) => {
-                const w = wordsById.get(id);
-                return w ? isJpVocabWordQuizzedToday(w) : false;
-              }
+              isWordQuizzedToday
             ).index;
       const targetId = startWordId ?? reviewWordIds[defaultIndex] ?? reviewWordIds[0];
       const nextSession = createJpVocabReviewSession(reviewWordIds, targetId);
@@ -288,7 +319,7 @@ export function JpVocabReviewPage() {
       setShowFlashcard(true);
       setStatus("");
     },
-    [reviewWordIds, reviewedWordIds, wordsById]
+    [reviewWordIds, reviewedWordIds, isWordQuizzedToday]
   );
 
   const recordReviewNext = useCallback(
@@ -486,8 +517,17 @@ export function JpVocabReviewPage() {
 
         <div className="jp-vocab-review-toolbar">
           <span className="jp-vocab-review-summary">
-            本轮计划 <strong>{reviewWords.length}</strong> 个 · 已复习{" "}
-            <strong>{sessionReviewedInPlan}</strong> 个
+            本轮待复习 <strong>{reviewPendingInPlan}</strong> 个
+            {reviewQuizzedInPlan > 0 ? (
+              <>
+                {" "}
+                · 已抽问跳过 <strong>{reviewQuizzedInPlan}</strong> 个
+              </>
+            ) : null}
+            {" "}
+            · 卡片已复习{" "}
+            <strong>{reviewRoundProgress.roundReviewed}</strong> /{" "}
+            <strong>{reviewRoundProgress.roundTotal}</strong> 个
             {reviewProgress.count > sessionReviewedInPlan
               ? ` · 累计已复习 ${reviewProgress.count} 个`
               : null}

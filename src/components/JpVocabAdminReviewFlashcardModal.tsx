@@ -22,6 +22,7 @@ import {
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
 import { jpVocabTeacherQuizNotesInline } from "@/lib/jp-vocab-teacher-quiz";
+import { computeJpVocabReviewRoundProgress } from "@/lib/jp-vocab-review-session";
 import type { JpVocabReviewSession } from "@/lib/jp-vocab-review-session";
 import type { JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -178,16 +179,26 @@ export function JpVocabAdminReviewFlashcardModal({
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const dailySeq = dailySeqByWordId.get(w.id);
-  const progressLabel = `${session.currentIndex + 1} / ${session.wordIds.length}`;
-  const sessionTotal = session.wordIds.length;
-  const sessionReviewed = session.wordIds.reduce((count, id) => {
-    return reviewedWordIds.has(id) ? count + 1 : count;
-  }, 0);
-  const sessionPct =
-    sessionTotal > 0
-      ? Math.min(100, Math.round((sessionReviewed / sessionTotal) * 100))
-      : 0;
-  const sessionComplete = sessionTotal > 0 && sessionReviewed >= sessionTotal;
+  const roundProgress = computeJpVocabReviewRoundProgress({
+    planWordIds: session.wordIds,
+    currentWordId: w.id,
+    reviewedWordIds,
+    isQuizzedToday: (id) => {
+      const item = wordsById.get(id);
+      return item ? isJpVocabWordQuizzedToday(item) : false;
+    },
+  });
+  const progressLabel =
+    roundProgress.roundTotal > 0
+      ? roundProgress.roundPosition != null
+        ? `${roundProgress.roundPosition} / ${roundProgress.roundTotal}`
+        : `— / ${roundProgress.roundTotal}`
+      : "已完成";
+  const sessionTotal = roundProgress.roundTotal;
+  const sessionReviewed = roundProgress.roundReviewed;
+  const sessionPct = roundProgress.percent;
+  const sessionComplete = roundProgress.complete;
+  const roundRemaining = roundProgress.roundRemaining;
   const canGoPrev = session.currentIndex > 0;
   const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = !canGoNext;
@@ -272,9 +283,20 @@ export function JpVocabAdminReviewFlashcardModal({
                 本轮复习进度
               </span>
               <span className="jp-vocab-teacher-quiz__header-progress-stats">
-                <strong>{sessionReviewed}</strong>
-                <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
-                {sessionTotal}
+                {sessionComplete ? (
+                  <span className="jp-vocab-teacher-quiz__header-progress-done">
+                    已完成
+                  </span>
+                ) : (
+                  <>
+                    <strong>{sessionReviewed}</strong>
+                    <span className="jp-vocab-teacher-quiz__header-progress-sep">/</span>
+                    {sessionTotal}
+                    <span className="jp-vocab-teacher-quiz__header-progress-remaining">
+                      （剩余 {roundRemaining}）
+                    </span>
+                  </>
+                )}
               </span>
             </div>
             <div
@@ -283,7 +305,7 @@ export function JpVocabAdminReviewFlashcardModal({
               aria-valuenow={sessionPct}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`本轮已复习 ${sessionReviewed} / ${sessionTotal}`}
+              aria-label={`本轮已复习 ${sessionReviewed} / ${sessionTotal}，剩余 ${roundRemaining}`}
             >
               <div
                 className="jp-vocab-teacher-quiz__progress-fill"
