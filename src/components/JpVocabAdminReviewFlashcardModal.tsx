@@ -277,6 +277,7 @@ export function JpVocabAdminReviewFlashcardModal({
           </div>
         </header>
 
+        <div className="jp-vocab-teacher-quiz__scroll-body">
         <JpVocabFlashcardWordHero
           readingTrim={readingTrim}
           wordTrim={wordTrim}
@@ -437,6 +438,7 @@ export function JpVocabAdminReviewFlashcardModal({
             )}
           </section>
         ) : null}
+        </div>
 
         <div className="jp-vocab-teacher-quiz__nav">
           <button
@@ -467,6 +469,7 @@ export function JpVocabAdminReviewFlashcardModal({
       <style jsx global>{`
         .jp-vocab-admin-review__today-banner {
           margin: 0;
+          flex-shrink: 0;
           padding: 0.45rem 0.65rem;
           border-radius: 10px;
           text-align: center;

@@ -55,6 +55,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             padding: 1.05rem 1.25rem 1.05rem;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__header,
+          .jp-vocab-teacher-quiz-card .jp-vocab-admin-review__today-banner,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__stats,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav {
@@ -796,6 +797,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             overflow: hidden;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__header,
+          .jp-vocab-teacher-quiz-card .jp-vocab-admin-review__today-banner,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__stats,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav {

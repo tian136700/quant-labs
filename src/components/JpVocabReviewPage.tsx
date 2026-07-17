@@ -31,6 +31,7 @@ import {
 import {
   createJpVocabReviewSession,
   normalizeJpVocabReviewProgress,
+  resolveJpVocabReviewFreshStartIndex,
   resolveJpVocabReviewResumeIndex,
   type JpVocabReviewProgress,
   type JpVocabReviewSession,
@@ -261,17 +262,23 @@ export function JpVocabReviewPage() {
   }, [applyPrefs, countInput, prefs, words.length]);
 
   const startReview = useCallback(
-    (startWordId?: number) => {
+    (startWordId?: number, mode: "fresh" | "resume" = "fresh") => {
       if (!reviewWordIds.length) {
         setStatus("当前计划没有可复习的词条。");
         return;
       }
-      const targetId =
-        startWordId ??
-        reviewWordIds[
-          resolveJpVocabReviewResumeIndex(reviewWordIds, reviewedWordIds).index
-        ] ??
-        reviewWordIds[0];
+      const defaultIndex =
+        mode === "resume"
+          ? resolveJpVocabReviewResumeIndex(reviewWordIds, reviewedWordIds).index
+          : resolveJpVocabReviewFreshStartIndex(
+              reviewWordIds,
+              reviewedWordIds,
+              (id) => {
+                const w = wordsById.get(id);
+                return w ? isJpVocabWordQuizzedToday(w) : false;
+              }
+            ).index;
+      const targetId = startWordId ?? reviewWordIds[defaultIndex] ?? reviewWordIds[0];
       const nextSession = createJpVocabReviewSession(reviewWordIds, targetId);
       if (!nextSession) {
         setStatus("当前计划没有可复习的词条。");
@@ -281,7 +288,7 @@ export function JpVocabReviewPage() {
       setShowFlashcard(true);
       setStatus("");
     },
-    [reviewWordIds, reviewedWordIds]
+    [reviewWordIds, reviewedWordIds, wordsById]
   );
 
   const recordReviewNext = useCallback(
@@ -490,7 +497,8 @@ export function JpVocabReviewPage() {
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
               disabled={!reviewWords.length}
-              onClick={() => startReview()}
+              onClick={() => startReview(undefined, "fresh")}
+              title="跳过今日已在抽问页抽查过的词条，从待复习词开始"
             >
               开始复习
             </button>
@@ -498,7 +506,7 @@ export function JpVocabReviewPage() {
               type="button"
               className="btn-rsi-filter"
               disabled={!reviewWords.length}
-              onClick={() => startReview()}
+              onClick={() => startReview(undefined, "resume")}
               title="从第一个尚未复习的词继续"
             >
               继续复习

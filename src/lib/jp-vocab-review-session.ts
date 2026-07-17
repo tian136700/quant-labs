@@ -70,3 +70,25 @@ export function resolveJpVocabReviewResumeIndex(
   }
   return { index: 0, allReviewed: true };
 }
+
+/** 「开始复习」：优先从未抽问且未卡片复习的词起；均已抽问则退到第一个未抽问 */
+export function resolveJpVocabReviewFreshStartIndex(
+  orderedWordIds: number[],
+  reviewedWordIds: ReadonlySet<number>,
+  isQuizzedToday: (wordId: number) => boolean
+): JpVocabReviewResume {
+  if (!orderedWordIds.length) {
+    return { index: 0, allReviewed: false };
+  }
+  const firstPending = orderedWordIds.findIndex(
+    (id) => !reviewedWordIds.has(id) && !isQuizzedToday(id)
+  );
+  if (firstPending >= 0) {
+    return { index: firstPending, allReviewed: false };
+  }
+  const firstUnquizzed = orderedWordIds.findIndex((id) => !isQuizzedToday(id));
+  if (firstUnquizzed >= 0) {
+    return { index: firstUnquizzed, allReviewed: false };
+  }
+  return resolveJpVocabReviewResumeIndex(orderedWordIds, reviewedWordIds);
+}
