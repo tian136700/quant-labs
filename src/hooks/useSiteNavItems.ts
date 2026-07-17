@@ -373,26 +373,26 @@ export function useSiteNavItems(): SiteNavItem[] {
             hasPermission("jp_vocab:read") ||
             hasPermission("jp_vocab:operate")
               ? [
+                  // 管理员顶栏只进「管理员端」；老师只进「老师端」，避免两个入口抢位
                   ...(canAccessJpVocabAdminPage
                     ? [
                         {
                           id: "jpVocabAdmin",
                           href: navHref("jpVocabAdmin", locale, navOpts),
                           label: nav.jpVocabAdmin,
-                          active: onJpVocabAdmin,
+                          active: onJpVocabAdmin || (isAdmin && onJpVocabTeacherHome),
                         },
                       ]
-                    : []),
-                  ...(canAccessJpVocabTeacherPage
-                    ? [
-                        {
-                          id: "jpVocab",
-                          href: navHref("jpVocab", locale, navOpts),
-                          label: nav.jpVocab,
-                          active: onJpVocabTeacherHome,
-                        },
-                      ]
-                    : []),
+                    : canAccessJpVocabTeacherPage
+                      ? [
+                          {
+                            id: "jpVocab",
+                            href: navHref("jpVocab", locale, navOpts),
+                            label: nav.jpVocab,
+                            active: onJpVocabTeacherHome,
+                          },
+                        ]
+                      : []),
                   {
                     id: "jpVocabCoach",
                     href: navHref("jpVocabCoach", locale, navOpts),

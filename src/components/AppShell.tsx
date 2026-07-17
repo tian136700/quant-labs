@@ -15,6 +15,7 @@ import {
   isJpModulePath,
   isJpReviewPath,
   isJpVocabPath,
+  isJpVocabAdminPath,
   isJpVocabRefPath,
   isMaintenancePath,
   isComparePath,
@@ -24,6 +25,7 @@ import {
   isAdminJpLessonTeachersPath,
   jpLessonPath,
   jpVocabPath,
+  jpVocabAdminPath,
 } from "@/lib/locale-path";
 import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -71,6 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const nav = t("nav");
     if (isAdminJpLessonTeachersPath(pathname)) return nav.adminJpLessonTeachers;
     if (isJpLessonPath(pathname)) return nav.jpLesson;
+    if (isJpVocabAdminPath(pathname)) return nav.jpVocabAdmin;
     if (isJpVocabPath(pathname)) return nav.jpVocab;
     if (isEnLessonPath(pathname)) return nav.enLesson;
     if (isEnVocabPath(pathname)) return nav.enVocab;
@@ -82,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const active = items.find((item) => item.active);
     if (active) return active.href;
     if (isJpLessonPath(pathname)) return jpLessonPath();
+    if (isJpVocabAdminPath(pathname)) return jpVocabAdminPath();
     if (isJpVocabPath(pathname)) return jpVocabPath();
     if (isEnLessonPath(pathname)) return enLessonPath();
     if (isEnVocabPath(pathname)) return enVocabPath();
@@ -107,7 +111,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <EnVocabTeacherRouteGuard />
       <header className="page-header">
         <div className="mobile-header-bar">
-          <Link href={headerHref} className="mobile-header-title">
+          <Link
+            href={headerHref}
+            className="mobile-header-title"
+            aria-current="page"
+            title={headerTitle}
+          >
             {headerTitle}
           </Link>
           <button

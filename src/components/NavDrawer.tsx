@@ -32,6 +32,14 @@ const CATEGORY_ICONS: Record<NavCategory, string> = {
   system: "📅",
 };
 
+function pinActiveFirst(items: SiteNavItem[]): SiteNavItem[] {
+  if (items.length <= 1) return items;
+  return [...items].sort((a, b) => {
+    if (a.active === b.active) return 0;
+    return a.active ? -1 : 1;
+  });
+}
+
 function NavDrawerLink({
   item,
   isFavorite,
@@ -168,21 +176,31 @@ export function NavDrawer({
 
   const favoriteItems = useMemo(
     () =>
-      favorites
-        .map((id) => items.find((item) => item.id === id))
-        .filter((item): item is SiteNavItem => Boolean(item))
-        .filter((item) => matchesNavSearch(item.label, query)),
+      pinActiveFirst(
+        favorites
+          .map((id) => items.find((item) => item.id === id))
+          .filter((item): item is SiteNavItem => Boolean(item))
+          .filter((item) => matchesNavSearch(item.label, query))
+      ),
     [favorites, items, query]
   );
 
-  const recentItems = useMemo(
-    () =>
-      recent
-        .map((id) => items.find((item) => item.id === id))
-        .filter((item): item is SiteNavItem => Boolean(item))
-        .filter((item) => matchesNavSearch(item.label, query)),
-    [recent, items, query]
-  );
+  const recentItems = useMemo(() => {
+    const mapped = recent
+      .map((id) => items.find((item) => item.id === id))
+      .filter((item): item is SiteNavItem => Boolean(item))
+      .filter((item) => matchesNavSearch(item.label, query));
+    // 手机端无顶栏：打开抽屉时当前页必须立刻出现在「最近使用」最上方
+    const active = items.find((item) => item.active);
+    if (
+      active &&
+      !mapped.some((item) => item.id === active.id) &&
+      matchesNavSearch(active.label, query)
+    ) {
+      return [active, ...mapped];
+    }
+    return pinActiveFirst(mapped);
+  }, [recent, items, query]);
 
   const searching = query.trim().length > 0;
   const showRecents = !searching && recentItems.length > 0;
@@ -206,9 +224,10 @@ export function NavDrawer({
       const cat = navItemCategory(item.id);
       groups.get(cat)?.push(item);
     }
-    // Sort each category by frequency descending (least used last)
-    for (const [, items] of groups) {
-      items.sort((a, b) => {
+    // Sort each category: current page first, then frequency descending
+    for (const [, catItems] of groups) {
+      catItems.sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
         const countDiff = (visitCounts[b.id] ?? 0) - (visitCounts[a.id] ?? 0);
         if (countDiff !== 0) return countDiff;
         const aOrder = orderMap.get(a.id) ?? 999;

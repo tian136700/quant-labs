@@ -2,8 +2,10 @@ export type NavCategory = "teaching" | "admin" | "ai" | "data" | "system";
 
 /** Top bar: most-used items only; everything else lives in the drawer. */
 export const PRIMARY_NAV_ORDER = [
+  "jpVocabAdmin",
   "jpVocab",
   "jpVocabCoach",
+  "jpVocabReview",
   "enVocab",
   "jpVocabStudy",
   "admin",
@@ -23,6 +25,8 @@ export const NAV_CATEGORY_ORDER: NavCategory[] = [
 
 export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
   jpVocab: "teaching",
+  jpVocabAdmin: "teaching",
+  jpVocabReview: "teaching",
   enVocab: "teaching",
   jpVocabStudy: "teaching",
   jpVocabCoach: "teaching",
