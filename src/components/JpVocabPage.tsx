@@ -295,6 +295,8 @@ export function JpVocabPage() {
   const shareRequestPollInFlightRef = useRef(false);
   const dismissingShareRequestsRef = useRef(false);
   const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
+  /** 抽查完成弹窗弹出时已批量写入带读的 key，避免重复打 D1 */
+  const coachMergedOnCompleteKeyRef = useRef<string | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   /** 手机端默认收起操作按钮，避免误触导出等 */
   const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
@@ -327,6 +329,7 @@ export function JpVocabPage() {
   const [reviewLockNow, setReviewLockNow] = useState(() => Date.now());
   const displayOrderRef = useRef(displayOrder);
   const wordsRef = useRef(words);
+  const sessionLevelRef = useRef(sessionLevel);
   const refsRef = useRef(refs);
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
@@ -384,6 +387,9 @@ export function JpVocabPage() {
   useEffect(() => {
     wordsRef.current = words;
   }, [words]);
+  useEffect(() => {
+    sessionLevelRef.current = sessionLevel;
+  }, [sessionLevel]);
   useEffect(() => {
     refsRef.current = refs;
   }, [refs]);
@@ -1117,6 +1123,51 @@ export function JpVocabPage() {
     words.length,
     dailyQuizProgress.complete,
     dailyQuizProgress.total,
+  ]);
+
+  /**
+   * 今日抽查完成弹窗出现时：一次性批量写入「一般 / 不熟悉」到课堂带读。
+   * 不在勾选时单条写（免费 Worker/D1 易炸）；也不等点「进入课堂带读」。
+   */
+  useEffect(() => {
+    if (!showDailyComplete || !canOperate || !user) return;
+
+    const items = buildJpVocabCoachExportItems(
+      wordsRef.current,
+      sessionLevelRef.current,
+      displayOrderRef.current
+    );
+    const key = `${beijingDateString()}:${user.id}:${dailyQuizProgress.total}:${items
+      .map((item) => `${item.word_id}:${item.level}`)
+      .join(",")}`;
+    if (coachMergedOnCompleteKeyRef.current === key) return;
+    coachMergedOnCompleteKeyRef.current = key;
+    if (!items.length) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await postJpVocabCoachMerge(locale, items);
+        if (cancelled) return;
+        setStatus(
+          `今日未掌握已写入课堂带读：未带读 ${result.pending_count} 条（新增 ${result.added_count}）。`
+        );
+      } catch (err) {
+        if (cancelled) return;
+        coachMergedOnCompleteKeyRef.current = null;
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showDailyComplete,
+    canOperate,
+    user?.id,
+    dailyQuizProgress.total,
+    locale,
   ]);
 
   const unmarkedCount = useMemo(
@@ -2178,13 +2229,10 @@ export function JpVocabPage() {
 
   const goToCoachPage = async () => {
     if (coachNavBusy) return;
-    const items = buildJpVocabCoachExportItems(words, sessionLevel, displayOrder);
     setCoachNavBusy(true);
     setError("");
     try {
-      if (items.length) {
-        await postJpVocabCoachMerge(locale, items);
-      }
+      // 完成弹窗弹出时已批量写入；这里只跳转，避免再打一轮 D1
       if (user) {
         markJpVocabTeacherDailyCompleteDismissed(user.id, dailyQuizProgress.total);
       }

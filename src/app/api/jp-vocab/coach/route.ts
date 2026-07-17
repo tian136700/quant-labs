@@ -1,20 +1,18 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import {
+  getJpVocabCoachQueueSummary,
   listJpVocabCoachQueue,
   markJpVocabCoachCoached,
   mergeJpVocabCoachQueue,
-  syncJpVocabCoachQueueFromTodayWeak,
+  pruneJpVocabCoachCoachedOlderThanRetention,
   updateJpVocabCoachItemLevel,
 } from "@/lib/jp-vocab-coach-db";
 import {
   JP_VOCAB_COACH_RETENTION_DAYS,
   jpVocabCoachRetentionCutoffDate,
 } from "@/lib/jp-vocab-coach";
-import {
-  ensureJpVocabDailyDisplayOrder,
-  listJpVocabWordsWithRefs,
-} from "@/lib/jp-vocab-db";
+import { listJpVocabWordsWithRefs } from "@/lib/jp-vocab-db";
 import type { JpVocabLevel } from "@/lib/types";
 
 const READ_MSG = {
@@ -35,11 +33,9 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: READ_MSG[locale] }, 401);
     }
 
-    const { words, refs } = await listJpVocabWordsWithRefs(env.DB);
-    const displayOrder = await ensureJpVocabDailyDisplayOrder(env.DB, words);
-    // 打开带读页即同步今日「一般 / 不熟悉」，避免必须先点「进入课堂带读」或导出
-    await syncJpVocabCoachQueueFromTodayWeak(env.DB, words, displayOrder);
+    await pruneJpVocabCoachCoachedOlderThanRetention(env.DB);
 
+    const { words, refs } = await listJpVocabWordsWithRefs(env.DB);
     const wordsById = new Map(words.map((word) => [word.id, word]));
     const { items, summary } = await listJpVocabCoachQueue(env.DB, wordsById);
 
@@ -82,17 +78,13 @@ export async function POST(request: Request) {
     if (body.action === "merge_queue" || body.action === "export_batch") {
       const items = Array.isArray(body.items) ? body.items : [];
       if (!items.length) {
-        // 空合并：仍同步今日一般/不熟悉，再返回队列摘要
-        const { words } = await listJpVocabWordsWithRefs(env.DB);
-        const displayOrder = await ensureJpVocabDailyDisplayOrder(env.DB, words);
-        const synced = await syncJpVocabCoachQueueFromTodayWeak(
-          env.DB,
-          words,
-          displayOrder
-        );
+        await pruneJpVocabCoachCoachedOlderThanRetention(env.DB);
+        const summary = await getJpVocabCoachQueueSummary(env.DB);
         return jsonResponse({
           ok: true,
-          ...synced,
+          added_count: 0,
+          merged_count: 0,
+          ...summary,
         });
       }
 
