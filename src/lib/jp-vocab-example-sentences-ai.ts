@@ -10,6 +10,31 @@ import {
 /** AI 例句：汉字旁用半角括号标注读音，如 電車(でんしゃ) */
 const KANJI_FURIGANA_RE = /[\u4E00-\u9FFF]\([ぁ-んァ-ンー]+\)/;
 
+/** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
+export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
+  version: 1,
+  count_rule: "条数 = max(2, 用法数)；仅 1 种用法时造 2 句（同用法换场景）",
+  format_example:
+    "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。",
+  rules: [
+    "存库不要写行首序号（展示层会加 1、2、3…）",
+    "每条：日语一行，下一行必须以「译文：」开头的中文",
+    "汉字后立刻半角括号假名：漢字(かな)；不要整句只写假名",
+    "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
+    "多用法时一句对应一种用法，不要两句挤同一义项",
+  ],
+  reject_reasons: [
+    "empty",
+    "need_four_lines",
+    "need_two_japanese_lines",
+    "invalid_japanese_line",
+    "missing_kanji_furigana",
+    "missing_chinese_gloss",
+    "grammar_not_used",
+    "word_not_used",
+  ],
+} as const;
+
 export type JpVocabExampleSentencesAiInput = {
   word: string;
   kind: string;

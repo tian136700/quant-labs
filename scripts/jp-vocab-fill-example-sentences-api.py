@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""通过线上 API 用内置 N5 例句词表补全 jp_vocab_word.example_sentences。"""
+"""例句补全：拉取缺例句 → 本地模型生成 → 按格式写回（可复制到其它项目定时跑）。
+
+线上接口：POST /api/jp-vocab/fill-example-sentences
+鉴权：Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN
+（与 jp-review-sync 共用 ~/.config/info-quests/jp-review-sync.env）
+
+示例：
+  # 1) 拉缺例句（含 prompt / upload_spec）
+  python3 scripts/jp-vocab-fill-example-sentences-api.py --list-missing --limit 15
+
+  # 2) 按 upload_spec 生成后写回
+  python3 scripts/jp-vocab-fill-example-sentences-api.py --apply updates.json
+"""
 
 from __future__ import annotations
 
@@ -25,7 +37,7 @@ def load_env_file(name: str) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        data[key.strip()] = value.strip()
+        data[key.strip()] = value.strip().strip('"').strip("'")
     return data
 
 
@@ -43,20 +55,20 @@ def load_api_url() -> str:
     )
 
 
-def call_api(*, api_url: str, token: str, dry_run: bool, from_catalog: bool) -> dict:
-    payload = {"dry_run": dry_run, "from_catalog": from_catalog}
+def call_api(*, api_url: str, token: str, payload: dict, timeout: int = 180) -> dict:
     req = urllib.request.Request(
         api_url,
-        data=json.dumps(payload).encode("utf-8"),
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
+            "User-Agent": "jp-vocab-fill-example-sentences-api/2.0",
         },
         method="POST",
     )
     ctx = ssl.create_default_context()
     try:
-        with urllib.request.urlopen(req, context=ctx, timeout=120) as resp:
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         body = err.read().decode("utf-8", errors="replace")
@@ -64,9 +76,27 @@ def call_api(*, api_url: str, token: str, dry_run: bool, from_catalog: bool) -> 
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="补全日语单词例句（内置 N5 词表）")
-    parser.add_argument("--dry-run", action="store_true", help="只预览，不写库")
-    parser.add_argument("--scan", action="store_true", help="仅扫描缺失例句")
+    parser = argparse.ArgumentParser(
+        description="例句 list_missing / apply（格式由线上 upload_spec 强制校验）"
+    )
+    parser.add_argument("--list-missing", action="store_true", help="拉取缺例句词条")
+    parser.add_argument("--limit", type=int, default=15, help="list_missing 条数上限")
+    parser.add_argument(
+        "--kind",
+        choices=["word", "grammar"],
+        help="只拉单词或语法",
+    )
+    parser.add_argument(
+        "--apply",
+        metavar="JSON",
+        help='写回文件，形如 [{"word_id":1,"example_sentences":"..."}] 或 {"updates":[...]}',
+    )
+    parser.add_argument("--dry-run", action="store_true", help="apply 时只校验不写库")
+    parser.add_argument(
+        "--catalog",
+        action="store_true",
+        help="用内置 N5 词表填空（不经本地模型）",
+    )
     parser.add_argument("--api-url", default=load_api_url())
     args = parser.parse_args()
 
@@ -75,12 +105,29 @@ def main() -> int:
         print("缺少 JP_REVIEW_UPLOAD_TOKEN", file=sys.stderr)
         return 1
 
-    result = call_api(
-        api_url=args.api_url,
-        token=token,
-        dry_run=args.dry_run,
-        from_catalog=not args.scan,
-    )
+    if args.apply:
+        raw = json.loads(Path(args.apply).read_text(encoding="utf-8"))
+        updates = raw.get("updates") if isinstance(raw, dict) else raw
+        if not isinstance(updates, list):
+            print("apply JSON 须为 list 或 {updates:[...]}", file=sys.stderr)
+            return 1
+        payload = {
+            "mode": "apply",
+            "updates": updates,
+            "dry_run": args.dry_run,
+        }
+    elif args.catalog:
+        payload = {"mode": "catalog", "dry_run": args.dry_run}
+    else:
+        # 默认 list_missing
+        payload = {
+            "mode": "list_missing",
+            "limit": max(1, args.limit),
+        }
+        if args.kind:
+            payload["kind"] = args.kind
+
+    result = call_api(api_url=args.api_url, token=token, payload=payload)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("ok") else 1
 

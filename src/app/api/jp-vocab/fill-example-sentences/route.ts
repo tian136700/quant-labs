@@ -9,7 +9,22 @@ import {
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillExampleSentencesBody = {
+  /**
+   * list_missing=拉取缺例句（默认，空 body 亦同）
+   * apply=提交 updates 写库（有 updates 时自动）
+   * catalog / scan_incomplete_gloss / normalize_gloss_label=其它运维模式
+   */
+  mode?:
+    | "list_missing"
+    | "apply"
+    | "catalog"
+    | "scan_incomplete_gloss"
+    | "normalize_gloss_label";
   dry_run?: boolean;
+  /** list_missing：最多返回几条（定时任务建议 10～30） */
+  limit?: number;
+  /** list_missing：只拉 word 或 grammar */
+  kind?: "word" | "grammar";
   /** 默认 catalog：按内置 N5 例句词表补全 */
   from_catalog?: boolean;
   /** 扫描已有例句但缺中文译义 */
@@ -33,7 +48,7 @@ export async function POST(request: Request) {
     try {
       body = (await request.json()) as FillExampleSentencesBody;
     } catch {
-      /* empty body = scan mode */
+      /* empty body = list_missing */
     }
 
     const dryRun = Boolean(body.dry_run);
@@ -49,31 +64,46 @@ export async function POST(request: Request) {
           item.example_sentences.length > 0
       );
 
+    const kind =
+      body.kind === "word" || body.kind === "grammar" ? body.kind : undefined;
+    const limit =
+      typeof body.limit === "number" && Number.isFinite(body.limit) && body.limit > 0
+        ? Math.floor(body.limit)
+        : undefined;
+
     let result;
     let mode: string;
-    if (updates.length > 0) {
+
+    if (updates.length > 0 || body.mode === "apply") {
       mode = "apply";
+      // 本地模型 / 外部脚本上传：强制校验造句格式（不合规进 skipped，不写库）
       result = await applyJpVocabExampleSentenceUpdates(env.DB, updates, {
         dryRun,
         allowOverwrite: Boolean(body.allow_overwrite),
+        validateFormat: true,
       });
-    } else if (body.normalize_gloss_label) {
+    } else if (body.mode === "normalize_gloss_label" || body.normalize_gloss_label) {
       mode = "normalize_gloss_label";
       result = await normalizeJpVocabExampleSentencesFormatInDb(env.DB, { dryRun });
-    } else if (body.scan_incomplete_gloss) {
+    } else if (body.mode === "scan_incomplete_gloss" || body.scan_incomplete_gloss) {
       mode = "scan_incomplete_gloss";
       result = await scanJpVocabWordsIncompleteExampleGloss(env.DB);
-    } else if (body.from_catalog) {
+    } else if (body.mode === "catalog" || body.from_catalog) {
       mode = "catalog";
       result = await fillJpVocabExampleSentencesFromCatalog(env.DB, { dryRun });
     } else {
-      mode = "scan";
-      result = await scanJpVocabWordsMissingExampleSentences(env.DB);
+      mode = "list_missing";
+      result = await scanJpVocabWordsMissingExampleSentences(env.DB, {
+        limit,
+        kind,
+      });
     }
 
     return jsonResponse({
       ok: true,
       mode,
+      ...(limit != null ? { limit } : {}),
+      ...(kind ? { kind } : {}),
       ...result,
     });
   } catch (err) {
