@@ -384,10 +384,18 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-style: italic;
         }
         .jp-vocab-teacher-quiz__meaning-source {
-          font-size: 0.85em;
+          display: block;
+          margin-top: 0.15rem;
+          font-size: 0.75rem;
           font-weight: 500;
           font-style: normal;
           color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__meaning-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.1rem;
         }
         .jp-vocab-teacher-quiz__pos {
           display: inline-block;

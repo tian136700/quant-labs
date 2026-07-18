@@ -29,6 +29,7 @@ import {
   type JpVocabSaveProgressKind,
 } from "@/lib/jp-vocab-save-progress";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import {
@@ -560,18 +561,14 @@ export function JpVocabTeacherQuizFlashcardModal({
             <dt>释义：</dt>
             <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
               {meaningTrim ? (
-                <>
+                <span className="jp-vocab-teacher-quiz__meaning-wrap">
                   <span>{meaningTrim}</span>
-                  {w.meaning_source?.trim() ? (
-                    <span
-                      className="jp-vocab-teacher-quiz__meaning-source"
-                      title="释义来源"
-                    >
-                      {" "}
-                      （释义来源：{w.meaning_source.trim()}）
-                    </span>
-                  ) : null}
-                </>
+                  <JpVocabSourceLabel
+                    source={w.meaning_source}
+                    label="释义来源"
+                    className="jp-vocab-teacher-quiz__meaning-source"
+                  />
+                </span>
               ) : null}
             </dd>
             <dt>词性：</dt>
@@ -666,12 +663,11 @@ export function JpVocabTeacherQuizFlashcardModal({
             <div className="jp-vocab-teacher-quiz__examples-head">
               <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
               {w.example_sentences_source?.trim() ? (
-                <span
+                <JpVocabSourceLabel
+                  source={w.example_sentences_source}
+                  label="例句来源"
                   className="jp-vocab-teacher-quiz__examples-source"
-                  title="例句来源"
-                >
-                  例句来源：{w.example_sentences_source.trim()}
-                </span>
+                />
               ) : null}
             </div>
             {exampleSentences.length > 0 ? (

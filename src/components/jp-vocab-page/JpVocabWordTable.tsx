@@ -3,6 +3,7 @@
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabMobileNotesCell } from "@/components/JpVocabMobileNotesCell";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabStatSortButton } from "@/components/jp-vocab-page/JpVocabStatSortButton";
 import { MobileLevelHistorySummary } from "@/components/jp-vocab-page/MobileLevelHistorySummary";
 import {
@@ -411,7 +412,7 @@ export function JpVocabWordTable({
                         style={{ color: "var(--muted)" }}
                       >
                         {meaningTrim ? (
-                          <>
+                          <div className="jp-vocab-meaning-cell">
                             <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
                             <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
                               <summary className="jp-vocab-meaning-fold__summary">
@@ -420,7 +421,11 @@ export function JpVocabWordTable({
                               </summary>
                               <p className="jp-vocab-meaning-full">{meaningTrim}</p>
                             </details>
-                          </>
+                            <JpVocabSourceLabel
+                              source={w.meaning_source}
+                              label="释义来源"
+                            />
+                          </div>
                         ) : null}
                       </td>
                       <td

@@ -10,6 +10,7 @@ import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import {
   JP_VOCAB_CACHE_KEY,
@@ -617,7 +618,15 @@ export function JpVocabReviewPage() {
                         <span className="jp-vocab-review-reading">{w.reading}</span>
                       ) : null}
                     </td>
-                    <td data-label="释义">{w.meaning || "—"}</td>
+                    <td data-label="释义">
+                      <div className="jp-vocab-review-meaning">
+                        <span>{w.meaning || "—"}</span>
+                        <JpVocabSourceLabel
+                          source={w.meaning_source}
+                          label="释义来源"
+                        />
+                      </div>
+                    </td>
                     <td data-label={jpVocabPriorityLabel(locale)}>
                       {jpVocabRiskIndex(w).toFixed(1)}
                     </td>
@@ -843,6 +852,16 @@ export function JpVocabReviewPage() {
         .jp-vocab-review-word {
           display: block;
           font-weight: 600;
+        }
+        .jp-vocab-review-meaning {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.15rem;
+        }
+        .jp-vocab-review-meaning :global(.jp-vocab-source-label) {
+          font-size: 0.72rem;
+          color: var(--muted);
         }
         .jp-vocab-review-reading {
           display: block;

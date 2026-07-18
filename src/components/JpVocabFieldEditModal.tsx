@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import type { JpVocabWord } from "@/lib/types";
 
 type Field = "word" | "meaning" | "pos";
@@ -195,6 +196,19 @@ export function JpVocabFieldEditModal({
               placeholder={meta.placeholder}
               onChange={(e) => setBody(e.target.value)}
             />
+            {field === "meaning" && word.meaning_source?.trim() ? (
+              <p className="jp-field-edit-source-hint">
+                <JpVocabSourceLabel
+                  source={word.meaning_source}
+                  label="当前释义来源"
+                />
+                <span>；保存修改后记为「手动」</span>
+              </p>
+            ) : field === "meaning" ? (
+              <p className="jp-field-edit-source-hint">
+                人手填写并保存后，释义来源记为「手动」。
+              </p>
+            ) : null}
             {error ? <p className="jp-field-edit-error">{error}</p> : null}
           </div>
 
@@ -308,6 +322,13 @@ export function JpVocabFieldEditModal({
           background: color-mix(in srgb, var(--rise) 10%, var(--panel));
           color: var(--rise);
           font-size: 0.8125rem;
+        }
+
+        .jp-field-edit-source-hint {
+          margin: 0.45rem 0 0;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          line-height: 1.4;
         }
 
         .jp-field-edit-footer {

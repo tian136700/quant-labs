@@ -1,6 +1,7 @@
 "use client";
 
 import { formatJpVocabExampleSentencesForDisplay } from "@/lib/jp-vocab-example-sentences";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 
 type Props = {
   text: string | null | undefined;
@@ -15,18 +16,13 @@ export function JpVocabExampleSentencesCell({
   emptyPlaceholder = "—",
 }: Props) {
   const blocks = formatJpVocabExampleSentencesForDisplay(text);
-  const sourceLabel = (source || "").trim();
   if (!blocks.length) {
     return <span className="jp-vocab-example-sentences-empty">{emptyPlaceholder}</span>;
   }
 
   return (
     <div className="jp-vocab-example-sentences">
-      {sourceLabel ? (
-        <div className="jp-vocab-example-sentences-source" title="例句来源">
-          例句来源：{sourceLabel}
-        </div>
-      ) : null}
+      <JpVocabSourceLabel source={source} label="例句来源" />
       {blocks.map((block) => (
         <div key={block.index} className="jp-vocab-example-sentences-block">
           {block.lines.map((line, lineIndex) => {

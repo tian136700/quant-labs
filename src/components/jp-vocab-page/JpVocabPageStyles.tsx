@@ -397,6 +397,22 @@ export function JpVocabPageStyles() {
         .jp-vocab-meaning-desktop {
           display: inline;
         }
+        .jp-vocab-meaning-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.15rem;
+          min-width: 0;
+        }
+        .jp-vocab-source-label {
+          display: inline-block;
+          max-width: 100%;
+          font-size: 0.72rem;
+          font-weight: 500;
+          line-height: 1.3;
+          color: color-mix(in srgb, var(--muted) 88%, var(--accent) 12%);
+          word-break: break-all;
+        }
         .jp-vocab-meaning-fold {
           display: none;
         }

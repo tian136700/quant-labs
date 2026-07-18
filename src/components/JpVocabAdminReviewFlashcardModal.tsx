@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import {
@@ -350,7 +351,16 @@ export function JpVocabAdminReviewFlashcardModal({
               <dl className="jp-vocab-teacher-quiz__meta">
                 <dt>释义：</dt>
                 <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-                  {meaningTrim}
+                  {meaningTrim ? (
+                    <span className="jp-vocab-teacher-quiz__meaning-wrap">
+                      <span>{meaningTrim}</span>
+                      <JpVocabSourceLabel
+                        source={w.meaning_source}
+                        label="释义来源"
+                        className="jp-vocab-teacher-quiz__meaning-source"
+                      />
+                    </span>
+                  ) : null}
                 </dd>
                 <dt>词性：</dt>
                 <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>

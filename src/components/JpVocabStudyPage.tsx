@@ -31,6 +31,7 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import {
   clearJpVocabStudyCache,
@@ -1000,7 +1001,7 @@ export function JpVocabStudyPage() {
                         style={{ color: "var(--muted)" }}
                       >
                         {meaningTrim ? (
-                          <>
+                          <div className="jp-vocab-meaning-cell">
                             <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
                             <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
                               <summary className="jp-vocab-meaning-fold__summary">
@@ -1009,7 +1010,11 @@ export function JpVocabStudyPage() {
                               </summary>
                               <p className="jp-vocab-meaning-full">{meaningTrim}</p>
                             </details>
-                          </>
+                            <JpVocabSourceLabel
+                              source={w.meaning_source}
+                              label="释义来源"
+                            />
+                          </div>
                         ) : null}
                       </td>
                       <td

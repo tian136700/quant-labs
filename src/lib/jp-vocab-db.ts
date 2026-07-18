@@ -1680,6 +1680,15 @@ export async function updateJpVocabWordFields(
     fields.meaning !== undefined
       ? (fields.meaning || "").trim() || null
       : current.meaning;
+  let nextMeaningSource = current.meaning_source ?? null;
+  if (fields.meaning !== undefined) {
+    const prevMeaning = current.meaning ?? null;
+    if (nextMeaning !== prevMeaning) {
+      nextMeaningSource = nextMeaning
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
   const nextPos =
     fields.pos !== undefined
       ? (fields.pos || "").trim() || null
@@ -1710,6 +1719,7 @@ export async function updateJpVocabWordFields(
       ...devWords[idx],
       word: nextWord,
       meaning: nextMeaning,
+      meaning_source: nextMeaningSource,
       pos: nextPos,
       updated_at: ts,
     };
@@ -1718,9 +1728,9 @@ export async function updateJpVocabWordFields(
 
   const result = await db
     .prepare(
-      `UPDATE jp_vocab_word SET word = ?1, meaning = ?2, pos = ?3, updated_at = ?4 WHERE id = ?5`
+      `UPDATE jp_vocab_word SET word = ?1, meaning = ?2, meaning_source = ?3, pos = ?4, updated_at = ?5 WHERE id = ?6`
     )
-    .bind(nextWord, nextMeaning, nextPos, ts, wordId)
+    .bind(nextWord, nextMeaning, nextMeaningSource, nextPos, ts, wordId)
     .run();
 
   if (!result.meta?.changes) {

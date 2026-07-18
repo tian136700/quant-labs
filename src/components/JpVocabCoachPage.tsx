@@ -583,7 +583,7 @@ export function JpVocabCoachPage() {
           font-size: 0.9rem;
           line-height: 1.45;
         }
-        .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-source) {
+        .jp-vocab-coach-example-col :global(.jp-vocab-source-label) {
           margin-bottom: 0.3rem;
           font-size: 0.78rem;
           color: var(--muted);
