@@ -116,6 +116,7 @@
 | 统一日程（日语/英语/手动；**「学习中」+「已完成」进日程**，未上课不同步；上完不消失） | `JpLessonSchedulePage.tsx`；`jp-lesson-shared.ts` / `en-lesson-shared.ts` → `build*LessonScheduleEvents` / `*LessonProgressAppearsOnSchedule`；`jp-lesson-manual-schedule.ts` → `LessonScheduleSubject` |
 | **日程同步到网易日历（CalDAV，已停用）** | 默认 `SCHEDULE_CALDAV_DISABLED=1`；Mac launchd 已卸；改用下方 ICS。脚本仍保留：`scripts/schedule-caldav-sync.py` |
 | **日程订阅到 iPhone / Mac 系统日历（ICS，推荐）** | `GET /api/admin/schedule.ics?token=`（同 `JP_REVIEW_UPLOAD_TOKEN`）；开课前 10 分钟 `VALARM`；`buildScheduleIcs()`；手机：日历 → 添加订阅日历；Mac：日历 → 文件 → 新建日历订阅 |
+| **开课前 10 分钟 Bark 推送**（Mac launchd 每分钟拉 `schedule-events`；与网站日程同源；每节课只推一次） | `scripts/schedule-class-bark-remind.py`；安装 `bash scripts/setup-schedule-class-bark-remind-mac.sh`；配置 `~/.config/info-quests/schedule-class-bark-remind.env`；Bark key 复用 `.env.deploy.local`；规则 `.cursor/rules/bark-deploy-failure-notify.mdc` |
 | 英语老师管理 / 评价（合并）；**不建登录账号** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` **不再** `provisionEnLessonTeacherUser` |
 | **人员管理模糊搜索**（日语/英语一起搜；候选标科目；点选或仅另一科命中时自动切 `?subject=`） | `AdminJpLessonTeachersPage.tsx` → `loadOtherSubjectTeachers` / `searchSuggestions` / `applySearch`；`lesson-teacher-search.ts` → `lessonTeacherSubjectSearchLabels`；规则 `.cursor/rules/admin-teacher-cross-search.mdc` |
 
