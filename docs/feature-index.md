@@ -76,6 +76,7 @@
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`；`JpVocabPage.tsx` → `quizTarget` |
 | 调高目标后老师勾选词条消失 | 老师列表只显示未勾选，管理员仍见全库 |
 | 调高抽查数量后开始抽查仍从序号 1 起、已抽过的还出现在卡片 | `jp-vocab-teacher-quiz.ts` → `filterJpVocabTeacherQuizUncheckedWords`；`JpVocabPage.tsx` → `requestTeacherQuizSession`（队列仅未勾选） |
+| 抽了 N 个但序号勾选只连到中间某号（如 62）、后面没勾 | **不是勾选丢了**：`visible_ids` 从未抽查优先，可含靠后序号；查 `daily_display_order` + `teacher_visible_limit.visible_ids`；新词须插序号前段见 `jp-vocab-daily-order.ts` / 规则 `jp-vocab-teacher-quiz-pool.mdc` |
 | 下午老师看到 3/13（其实只剩 10 没抽） | `teacherPendingWords`：只计未勾选，不按 1 小时锁定 |
 | 老师搜索 | `JpVocabPage.tsx` → `searchMatchedWords` 扫全库，`filteredDisplayedWords` 老师端再滤掉不可操作行 |
 | 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |

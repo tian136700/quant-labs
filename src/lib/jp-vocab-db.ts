@@ -1132,10 +1132,18 @@ export async function addJpVocabWord(
       updated_at: ts,
     };
     devWords.push(created);
-    devDailyDisplayOrder = appendJpVocabDailyDisplayOrderId(
-      devDailyDisplayOrder,
-      created.id
-    );
+    const today = beijingDateString();
+    if (
+      !devDailyDisplayOrder.ids.length ||
+      devDailyDisplayOrder.date !== today
+    ) {
+      devDailyDisplayOrder = await ensureJpVocabDailyDisplayOrder(db, devWords);
+    } else {
+      devDailyDisplayOrder = appendJpVocabDailyDisplayOrderId(
+        devDailyDisplayOrder,
+        created.id
+      );
+    }
     return { ok: true, word: created };
   }
 
@@ -1988,12 +1996,15 @@ export async function appendJpVocabWordToDailyDisplayOrder(
 ): Promise<void> {
   const stored = await readJpVocabDailyDisplayOrderRaw(db);
   const today = beijingDateString();
-  const base =
-    stored?.date === today
-      ? stored
-      : { date: today, ids: [] as number[] };
-  const next = appendJpVocabDailyDisplayOrderId(base, wordId);
-  if (next.ids.length !== base.ids.length) {
+  // 跨日或空顺序：必须全量 ensure（从未抽查优先重排）。禁止写成 {date:today, ids:[新词]}，
+  // 否则同日 merge 会把其余词条按任意顺序堆在后面，序号与今日池严重错位。
+  if (!stored?.ids.length || stored.date !== today) {
+    const words = await listJpVocabWords(db);
+    await ensureJpVocabDailyDisplayOrder(db, words);
+    return;
+  }
+  const next = appendJpVocabDailyDisplayOrderId(stored, wordId);
+  if (next.ids.length !== stored.ids.length) {
     await saveJpVocabDailyDisplayOrder(db, next);
   }
 }
