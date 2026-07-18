@@ -13,7 +13,23 @@ import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
 import { listJpLessonTeachersWithLessonCounts } from "@/lib/jp-lesson-teacher-db";
 import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
+import {
+  maybeEnableTeacherUsersForLearningLesson,
+  type TeacherUserLearningLessonEnableResult,
+} from "@/lib/teacher-user-schedule-enable";
 import type { JpLessonRecord } from "@/lib/types";
+
+/** 学习中 + 开课 18h 内 → 尝试启用关联老师账号；失败不影响主保存。 */
+async function tryEnableTeacherForLearningLesson(
+  db: D1Database,
+  lesson: JpLessonRecord
+): Promise<TeacherUserLearningLessonEnableResult | null> {
+  try {
+    return await maybeEnableTeacherUsersForLearningLesson(db, lesson);
+  } catch {
+    return null;
+  }
+}
 
 const AUTH_MSG = {
   en: "Please log in to save changes.",
@@ -175,7 +191,11 @@ export async function POST(request: Request) {
           return jsonResponse({ ok: false, error: result.error }, status);
         }
 
-        return jsonResponse({ ok: true, lesson: result.lesson });
+        const teacher_auto_enable = await tryEnableTeacherForLearningLesson(
+          env.DB,
+          result.lesson
+        );
+        return jsonResponse({ ok: true, lesson: result.lesson, teacher_auto_enable });
       }
 
       const nextClassAt =
@@ -211,7 +231,11 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: result.error }, status);
       }
 
-      return jsonResponse({ ok: true, lesson: result.lesson });
+      const teacher_auto_enable = await tryEnableTeacherForLearningLesson(
+        env.DB,
+        result.lesson
+      );
+      return jsonResponse({ ok: true, lesson: result.lesson, teacher_auto_enable });
     }
 
     if (body.action === "set_teacher") {
@@ -256,7 +280,11 @@ export async function POST(request: Request) {
         return jsonResponse({ ok: false, error: result.error }, status);
       }
 
-      return jsonResponse({ ok: true, lesson: result.lesson });
+      const teacher_auto_enable = await tryEnableTeacherForLearningLesson(
+        env.DB,
+        result.lesson
+      );
+      return jsonResponse({ ok: true, lesson: result.lesson, teacher_auto_enable });
     }
 
     const lessonId = Number(body.lesson_id);
@@ -281,7 +309,11 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    return jsonResponse({ ok: true, lesson: result.lesson });
+    const teacher_auto_enable = await tryEnableTeacherForLearningLesson(
+      env.DB,
+      result.lesson
+    );
+    return jsonResponse({ ok: true, lesson: result.lesson, teacher_auto_enable });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
