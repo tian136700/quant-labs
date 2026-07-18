@@ -34,14 +34,20 @@ export function buildJpVocabExampleSentencesAiPrompt(
 
   return `${meta}
 
-请为上述日语${kindLabel}写 2 条例句，供 N5/N4 初学者复习朗读。
+请为上述日语${kindLabel}写例句，供 N5/N4 初学者复习朗读。
 
-要求：
-1. JLPT N5～N4 难度，日常口语、常用说法，句子短（每句约 8～18 字）。
-2. 每条日语例句必须使用该词条（语法条则句型中要自然出现该语法点）。
-3. 日语句里的汉字必须在汉字后立刻用半角括号标注假名读音，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名。
-4. 每条日语例句的下一行写一行中文译义，必须以「译文：」开头（例如：译文：我赶上电车了。）。
-5. 只输出 4 行：日语、译文、日语、译文。不要编号、不要 markdown、不要解释。`;
+条数规则（必须遵守）：
+- 先判断该词条有几种常用用法（义项）。
+- 每种用法造 1 句；若只有 1 种用法，则造 2 句（同用法换场景）。
+- 两种用法 → 2 句；三种 → 3 句；以此类推（条数 = max(2, 用法数)）。
+- 多用法时一句对应一种用法，不要两句都挤同一义项。
+
+格式要求：
+1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）。
+2. 每条必须使用该词条（语法条须自然出现该语法点）。
+3. 汉字后立刻半角括号假名，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名。
+4. 每条日语下一行写中文译义，必须以「译文：」开头。
+5. 只输出「日语 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。`;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -60,13 +66,12 @@ export function validateJpVocabExampleSentencesAiOutput(
     return { ok: false, reason: "need_four_lines" };
   }
 
-  const block = lines.slice(0, 4).join("\n");
-  const items = parseJpVocabExampleSentenceItems(block);
+  const items = parseJpVocabExampleSentenceItems(lines.join("\n"));
   if (items.length < 2) {
     return { ok: false, reason: "need_two_japanese_lines" };
   }
 
-  for (const item of items.slice(0, 2)) {
+  for (const item of items) {
     if (!isJpVocabExampleJapaneseLine(item.text)) {
       return { ok: false, reason: "invalid_japanese_line" };
     }
@@ -79,10 +84,7 @@ export function validateJpVocabExampleSentencesAiOutput(
   }
 
   const target = input.word.trim();
-  const combined = items
-    .slice(0, 2)
-    .map((item) => item.text)
-    .join("");
+  const combined = items.map((item) => item.text).join("");
   const combinedPlain = combined.replace(/\([ぁ-んァ-ンー]+\)/g, "");
   if (input.kind === "grammar") {
     const core = target.replace(/^[～~〜]+/, "").replace(/[～~〜]+$/, "");
@@ -90,18 +92,20 @@ export function validateJpVocabExampleSentencesAiOutput(
       return { ok: false, reason: "grammar_not_used" };
     }
   } else {
-    const plain = target.split("/")[0]?.trim() || target;
-    if (
-      !combinedPlain.includes(plain) &&
-      !combinedPlain.includes(target) &&
-      !combined.includes(plain)
-    ) {
+    const alts = target.split("/").map((s) => s.trim()).filter(Boolean);
+    const plain = alts[0] || target;
+    const hit =
+      combinedPlain.includes(plain) ||
+      combinedPlain.includes(target) ||
+      combined.includes(plain) ||
+      alts.some((alt) => combinedPlain.includes(alt) || combined.includes(alt));
+    if (!hit) {
       return { ok: false, reason: "word_not_used" };
     }
   }
 
   return {
     ok: true,
-    text: serializeJpVocabExampleSentenceItems(items.slice(0, 2)),
+    text: serializeJpVocabExampleSentenceItems(items),
   };
 }

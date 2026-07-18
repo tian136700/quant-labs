@@ -155,14 +155,20 @@ def build_prompt(row: dict) -> str:
         "\n".join(meta)
         + f"""
 
-请为上述日语{kind_label}写 2 条例句，供 N5/N4 初学者复习朗读。
+请为上述日语{kind_label}写例句，供 N5/N4 初学者复习朗读。
 
-要求：
-1. JLPT N5～N4 难度，日常口语、常用说法，句子短（每句约 8～18 字）。
-2. 每条日语例句必须使用该词条（语法条则句型中要自然出现该语法点）。
-3. 日语句里的汉字必须在汉字后立刻用半角括号标注假名读音，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名。
-4. 每条日语例句的下一行写一行中文译义，必须以「译文：」开头（例如：译文：我赶上电车了。）。
-5. 只输出 4 行：日语、译文、日语、译文。不要编号、不要 markdown、不要解释。"""
+条数规则（必须遵守）：
+- 先判断该词条有几种常用用法（义项）。
+- 每种用法造 1 句；若只有 1 种用法，则造 2 句（同用法换场景）。
+- 两种用法 → 2 句；三种 → 3 句；以此类推（条数 = max(2, 用法数)）。
+- 多用法时一句对应一种用法，不要两句都挤同一义项。
+
+格式要求：
+1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）。
+2. 每条必须使用该词条（语法条须自然出现该语法点）。
+3. 汉字后立刻半角括号假名，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名。
+4. 每条日语下一行写中文译义，必须以「译文：」开头。
+5. 只输出「日语 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。"""
     )
 
 
@@ -179,21 +185,24 @@ def validate_ai_output(text: str, row: dict) -> tuple[str | None, str | None]:
     if len(lines) < 4:
         return None, "need_four_lines"
 
-    block_lines = lines[:4]
-    pairs = parse_example_pairs(block_lines)
+    pairs = parse_example_pairs(lines)
     if len(pairs) < 2:
         return None, "need_two_japanese_lines"
 
-    for jp, gloss in pairs[:2]:
+    normalized: list[str] = []
+    for jp, gloss in pairs:
         if not is_japanese_line(jp):
             return None, "invalid_japanese_line"
         if HAN_RE.search(jp) and not KANJI_FURIGANA_RE.search(jp):
             return None, "missing_kanji_furigana"
         if not gloss or not is_gloss_line(gloss):
             return None, "missing_chinese_gloss"
+        gloss_body = re.sub(r"^(译文|翻譯|翻译|译|譯)\s*[:：]\s*", "", gloss).strip()
+        normalized.append(jp)
+        normalized.append(f"译文：{gloss_body}" if gloss_body else gloss)
 
     target = str(row.get("word") or "").strip()
-    combined = "".join(jp for jp, _ in pairs[:2])
+    combined = "".join(jp for jp, _ in pairs)
     combined_plain = re.sub(r"\([ぁ-んァ-ンー]+\)", "", combined)
     kind = str(row.get("kind") or "word")
     if kind == "grammar":
@@ -201,16 +210,18 @@ def validate_ai_output(text: str, row: dict) -> tuple[str | None, str | None]:
         if core and core not in combined_plain and target not in combined_plain:
             return None, "grammar_not_used"
     else:
-        plain = target.split("/")[0].strip() if "/" in target else target
-        if (
-            plain not in combined_plain
-            and target not in combined_plain
-            and plain not in combined
-        ):
+        alts = [s.strip() for s in target.split("/") if s.strip()]
+        plain = alts[0] if alts else target
+        hit = (
+            plain in combined_plain
+            or target in combined_plain
+            or plain in combined
+            or any(alt in combined_plain or alt in combined for alt in alts)
+        )
+        if not hit:
             return None, "word_not_used"
 
-    block = "\n".join(block_lines)
-    return block, None
+    return "\n".join(normalized), None
 
 
 def call_openai(*, api_key: str, model: str, prompt: str) -> str:
@@ -263,7 +274,7 @@ def generate_for_row(
                 prompt
                 + "\n\n上次输出不合格（"
                 + last_reason
-                + "）。请严格输出 4 行，汉字旁必须有(假名)，并确保用到该词条。"
+                + "）。请按条数规则输出「日语/译文」交替行，汉字旁必须有(假名)，并确保用到该词条。"
             )
         except (urllib.error.URLError, TimeoutError, KeyError, json.JSONDecodeError) as err:
             last_reason = str(err)
