@@ -238,6 +238,39 @@ export function JpVocabStudyFlashcardModal({
           ) : null}
         </dl>
 
+        {exampleSentences.length > 0 ? (
+          <section
+            className="jp-vocab-flashcard__examples"
+            aria-label="例句"
+            onClick={stop}
+          >
+            <h3 className="jp-vocab-flashcard__examples-title">例句</h3>
+            <ol className="jp-vocab-flashcard__examples-list">
+              {exampleSentences.map((ex, index) => (
+                <li
+                  key={`${index}-${ex.text}`}
+                  className="jp-vocab-flashcard__examples-item"
+                >
+                  <span className="jp-vocab-flashcard__examples-index" aria-hidden="true">
+                    {index + 1}.
+                  </span>
+                  <span className="jp-vocab-flashcard__examples-text">
+                    <span className="jp-vocab-flashcard__examples-primary">{ex.text}</span>
+                    {ex.glossLines.map((gloss, glossIndex) => (
+                      <span
+                        key={`${index}-gloss-${glossIndex}`}
+                        className="jp-vocab-flashcard__examples-gloss"
+                      >
+                        {formatJpVocabExampleGlossLine(gloss)}
+                      </span>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+
         <div className="jp-vocab-flashcard__level" onClick={stop}>
           <span className="jp-vocab-flashcard__level-label">老师勾选</span>
           <div className="jp-vocab-flashcard__levels" role="group" aria-label="熟悉程度">
@@ -503,6 +536,55 @@ export function JpVocabStudyFlashcardModal({
         .jp-vocab-flashcard__meta dd {
           margin: 0;
           color: var(--text);
+        }
+        .jp-vocab-flashcard__examples {
+          padding: 0.55rem 0.7rem;
+          border-radius: 10px;
+          border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+          cursor: default;
+        }
+        .jp-vocab-flashcard__examples-title {
+          margin: 0 0 0.4rem;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          color: var(--accent);
+        }
+        .jp-vocab-flashcard__examples-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+        .jp-vocab-flashcard__examples-item {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 0.35rem 0.45rem;
+          align-items: baseline;
+        }
+        .jp-vocab-flashcard__examples-index {
+          font-size: 0.95rem;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: var(--accent);
+        }
+        .jp-vocab-flashcard__examples-text {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+          font-size: clamp(1.05rem, 3.8vw, 1.25rem);
+          font-weight: 600;
+          line-height: 1.55;
+          letter-spacing: 0.02em;
+          color: var(--text);
+          word-break: break-word;
+        }
+        .jp-vocab-flashcard__examples-gloss {
+          font-size: 0.9em;
+          font-weight: 500;
+          color: var(--muted);
         }
         .jp-vocab-flashcard__level {
           padding: 0.65rem 0.7rem;
