@@ -774,9 +774,21 @@ export function formatLessonScheduleDaySummary(
   return `${events.length}${classUnit}（${formatLessonScheduleDurationLabel(totalMinutes)}）`;
 }
 
+/** 日程 / ICS：学习中 + 已完成进日程；未上课不同步（上完课仍应留在当天列） */
+export function jpLessonProgressAppearsOnSchedule(lesson: {
+  completed?: boolean;
+  learning?: boolean;
+}): boolean {
+  const status = getJpLessonProgressStatus({
+    completed: Boolean(lesson.completed),
+    learning: Boolean(lesson.learning),
+  });
+  return status === "learning" || status === "completed";
+}
+
 export function buildJpLessonScheduleEvents(lesson: {
   id: number;
-  /** 仅「学习中」进入日程 / ICS；未上课、已完成均不同步 */
+  /** 学习中 + 已完成进入日程 / ICS；未上课不同步 */
   completed?: boolean;
   learning?: boolean;
   class_schedules?: Array<{
@@ -787,12 +799,7 @@ export function buildJpLessonScheduleEvents(lesson: {
   next_class_at?: string | null;
   class_duration_minutes?: number | null;
 }): JpLessonScheduleEvent[] {
-  if (
-    getJpLessonProgressStatus({
-      completed: Boolean(lesson.completed),
-      learning: Boolean(lesson.learning),
-    }) !== "learning"
-  ) {
+  if (!jpLessonProgressAppearsOnSchedule(lesson)) {
     return [];
   }
   const events: JpLessonScheduleEvent[] = [];

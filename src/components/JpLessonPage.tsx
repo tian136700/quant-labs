@@ -704,7 +704,7 @@ export function JpLessonPage() {
     const snapshot = lessons.find((l) => l.id === lessonId);
     const optimistic = jpLessonProgressToFields(progressStatus);
     setSavingId(lessonId);
-    // 立刻写共享缓存：日程页只认「学习中」，点选后打开日程必须马上生效
+    // 立刻写共享缓存：日程认「学习中/已完成」，点选后打开日程必须马上生效
     setLessons((prev) => {
       const next = prev.map((l) =>
         l.id === lessonId
