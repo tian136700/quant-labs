@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -16,10 +16,24 @@ import {
   patchClientCache,
   readClientCache,
 } from "@/lib/client-swr-cache";
+import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import {
+  appendJpVocabClassNoteImageLine,
+  collectJpVocabClassNoteImageRefKeysFromContent,
+  jpVocabClassNoteImageRefKeyFromSrc,
+  mergeJpVocabClassNoteDraftFromEdit,
+  removeJpVocabClassNoteImageAt,
+  splitJpVocabClassNoteDraftForEdit,
+} from "@/lib/jp-vocab-class-notes";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
+import {
+  formatUploadBytes,
+  uploadFormWithProgress,
+  type UploadProgressEvent,
+} from "@/lib/upload-form-progress";
 import type { JpLessonKind, JpLessonNote, JpLessonRecord } from "@/lib/types";
 
 type SavingTarget = string | "__all__" | null;
@@ -99,6 +113,51 @@ function saveStatusLabel(status: SaveStatus): string {
     default:
       return "";
   }
+}
+
+function pickClipboardImage(items: DataTransferItemList): File | null {
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      const blob = item.getAsFile();
+      if (blob) {
+        const ext = item.type.split("/")[1] || "png";
+        return new File([blob], `pasted.${ext}`, { type: item.type });
+      }
+    }
+  }
+  return null;
+}
+
+function noteImageUploadLabel(event: UploadProgressEvent): string {
+  if (event.phase === "processing") {
+    return "图片已传完，服务器保存中…";
+  }
+  if (event.phase === "done") {
+    return "图片上传完成";
+  }
+  if (event.total > 0) {
+    return `正在上传图片 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
+  }
+  if (event.loaded > 0) {
+    return `正在上传图片 ${formatUploadBytes(event.loaded)}…`;
+  }
+  return "正在上传图片…";
+}
+
+function noteImageUploadPercent(event: UploadProgressEvent): number {
+  if (event.phase === "processing") return 95;
+  if (event.phase === "done") return 100;
+  return Math.max(0, Math.min(92, event.percent));
+}
+
+function collectItemNoteImageRefKeys(fields: NoteField[]): Set<string> {
+  const keys = new Set<string>();
+  for (const field of fields) {
+    for (const key of collectJpVocabClassNoteImageRefKeysFromContent(field.body)) {
+      keys.add(key);
+    }
+  }
+  return keys;
 }
 
 function ItemSectionSaveFooter({
@@ -195,10 +254,21 @@ export function JpLessonNotesPage() {
   const [dirtyItems, setDirtyItems] = useState<Set<string>>(() => new Set());
   const [savingTarget, setSavingTarget] = useState<SavingTarget>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] =
+    useState<UploadProgressEvent | null>(null);
+  const [imageUploadFieldKey, setImageUploadFieldKey] = useState<string | null>(
+    null
+  );
   const initialFieldsRef = useRef<ItemFields>({});
   const savingRef = useRef(false);
   const pendingAfterSaveRef = useRef(false);
+  const imageUploadingRef = useRef(false);
+  const imageInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const itemFieldsRef = useRef<ItemFields>({});
   const saveNotesRef = useRef<() => Promise<void>>(async () => {});
+
+  itemFieldsRef.current = itemFields;
 
   const items = useMemo(
     () => (lesson ? parseLessonContent(lesson.content) : []),
@@ -524,6 +594,117 @@ export function JpLessonNotesPage() {
     markItemDirty(item);
   };
 
+  const uploadNoteImage = useCallback(
+    async (item: string, fieldKey: string, file: File) => {
+      if (!canEdit) {
+        if (!user) openJpAuth();
+        return;
+      }
+      if (imageUploadingRef.current) {
+        setError("请等待当前图片上传完成后再传下一张");
+        return;
+      }
+      imageUploadingRef.current = true;
+      setImageUploading(true);
+      setImageUploadFieldKey(fieldKey);
+      setImageUploadProgress({
+        phase: "uploading",
+        percent: 0,
+        loaded: 0,
+        total: file.size,
+      });
+      setError("");
+      try {
+        const form = new FormData();
+        form.set("file", file);
+        const result = await uploadFormWithProgress({
+          url: "/api/jp-vocab/class-notes/upload",
+          form,
+          headers: { [LOCALE_HEADER]: locale },
+          onProgress: setImageUploadProgress,
+        });
+        const data = (result.data ?? {}) as {
+          ok?: boolean;
+          view_path?: string;
+          ref_key?: string;
+          error?: string;
+        };
+        if (result.status === 401) {
+          openJpAuth();
+          return;
+        }
+        if (!result.ok || !data.ok || !data.view_path) {
+          throw new Error(data.error || "图片上传失败");
+        }
+        const viewPath = data.view_path;
+        const refKey =
+          (typeof data.ref_key === "string" && data.ref_key.trim()) ||
+          jpVocabClassNoteImageRefKeyFromSrc(viewPath);
+        const itemFieldsNow = itemFieldsRef.current[item] ?? [];
+        const existingKeys = collectItemNoteImageRefKeys(itemFieldsNow);
+        if (refKey && existingKeys.has(refKey)) {
+          setError("请审核你的图片：该知识点备注里已经有一张相同的了，请勿重复粘贴。");
+          setImageUploadProgress(null);
+          return;
+        }
+        const field = itemFieldsNow.find((f) => f.key === fieldKey);
+        if (!field) return;
+        const nextBody = appendJpVocabClassNoteImageLine(field.body, viewPath);
+        setItemFields((prev) => ({
+          ...prev,
+          [item]: (prev[item] ?? []).map((f) =>
+            f.key === fieldKey ? { ...f, body: nextBody } : f
+          ),
+        }));
+        setDirtyItems((prev) => new Set(prev).add(item));
+        setItemSaveStatus((prev) => ({ ...prev, [item]: "pending" }));
+        setSaveStatus("pending");
+        setImageUploadProgress({
+          phase: "done",
+          percent: 100,
+          loaded: file.size,
+          total: file.size,
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setImageUploadProgress(null);
+      } finally {
+        imageUploadingRef.current = false;
+        setImageUploading(false);
+        setImageUploadFieldKey(null);
+        setImageUploadProgress(null);
+      }
+    },
+    [canEdit, locale, openJpAuth, user]
+  );
+
+  const handleImageFile = useCallback(
+    (item: string, fieldKey: string, file: File | null | undefined) => {
+      if (!file || !file.type.startsWith("image/")) {
+        setError("仅支持图片文件。");
+        return;
+      }
+      void uploadNoteImage(item, fieldKey, file);
+    },
+    [uploadNoteImage]
+  );
+
+  const onFieldPaste = (
+    item: string,
+    fieldKey: string,
+    e: ClipboardEvent<HTMLTextAreaElement>
+  ) => {
+    if (!canEdit) return;
+    const file = pickClipboardImage(e.clipboardData.items);
+    if (!file) return;
+    e.preventDefault();
+    if (imageUploadingRef.current) {
+      setError("请等待当前图片上传完成后再传下一张");
+      return;
+    }
+    void uploadNoteImage(item, fieldKey, file);
+  };
+
   const addField = (item: string) => {
     if (!canEdit) {
       openJpAuth();
@@ -594,7 +775,7 @@ export function JpLessonNotesPage() {
         </p>
       ) : (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-          每条知识点下方可单独保存；教案标记为「已完成」后，保存的笔记会同步到日语抽问卡片的备注。
+          每条知识点下方可单独保存；支持粘贴或上传图片（与日语抽问备注相同）。教案标记为「已完成」后，文字与图片会一并同步到抽问卡片备注。
         </p>
       )}
 
@@ -625,7 +806,7 @@ export function JpLessonNotesPage() {
                       <button
                         type="button"
                         className="jp-lesson-notes-section-add"
-                        disabled={submitting}
+                        disabled={submitting || imageUploading}
                         onClick={() => addField(item)}
                       >
                         + 添加
@@ -634,35 +815,131 @@ export function JpLessonNotesPage() {
                   </div>
 
                   <div className="jp-lesson-notes-fields">
-                    {fields.map((field, index) => (
-                      <div key={field.key} className="jp-lesson-notes-field">
-                        <textarea
-                          className="jp-lesson-notes-textarea"
-                          rows={3}
-                          value={field.body}
-                          disabled={!canEdit}
-                          placeholder={
-                            index === 0
-                              ? "记录例句、用法、易错点…"
-                              : "继续补充笔记…"
-                          }
-                          onChange={(e) =>
-                            updateFieldBody(item, field.key, e.target.value)
-                          }
-                        />
-                        {canEdit && canRemoveField(item, field) ? (
-                          <button
-                            type="button"
-                            className="jp-lesson-notes-field-remove"
-                            disabled={submitting}
-                            onClick={() => removeField(item, field.key)}
-                            aria-label="删除本条笔记"
-                          >
-                            删除
-                          </button>
-                        ) : null}
-                      </div>
-                    ))}
+                    {fields.map((field, index) => {
+                      const { text: fieldText, imageSrcs } =
+                        splitJpVocabClassNoteDraftForEdit(field.body);
+                      const fieldUploading =
+                        imageUploading && imageUploadFieldKey === field.key;
+                      return (
+                        <div key={field.key} className="jp-lesson-notes-field">
+                          {canEdit ? (
+                            <>
+                              <div className="jp-lesson-notes-field-toolbar">
+                                <button
+                                  type="button"
+                                  className="btn-rsi-filter btn-rsi-filter--compact"
+                                  disabled={submitting || imageUploading}
+                                  onClick={() =>
+                                    imageInputRefs.current[field.key]?.click()
+                                  }
+                                >
+                                  {fieldUploading ? "上传中…" : "上传图片"}
+                                </button>
+                                <span className="jp-lesson-notes-field-hint">
+                                  {imageUploading
+                                    ? "上传完成前不可再贴图或选图"
+                                    : "支持 Ctrl+V / ⌘V 粘贴截图；相同图片不会重复加入"}
+                                </span>
+                                <input
+                                  ref={(el) => {
+                                    imageInputRefs.current[field.key] = el;
+                                  }}
+                                  type="file"
+                                  accept="image/*"
+                                  className="jp-lesson-notes-image-input"
+                                  disabled={submitting || imageUploading}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    e.target.value = "";
+                                    handleImageFile(item, field.key, file);
+                                  }}
+                                />
+                              </div>
+                              {fieldUploading && imageUploadProgress ? (
+                                <JpVocabSaveProgressBar
+                                  label={noteImageUploadLabel(imageUploadProgress)}
+                                  percent={noteImageUploadPercent(imageUploadProgress)}
+                                  fullWidth
+                                />
+                              ) : null}
+                              <textarea
+                                className="jp-lesson-notes-textarea"
+                                rows={3}
+                                value={fieldText}
+                                disabled={submitting || imageUploading}
+                                placeholder={
+                                  index === 0
+                                    ? "记录例句、用法、易错点；可粘贴或上传图片…"
+                                    : "继续补充笔记；可粘贴或上传图片…"
+                                }
+                                onPaste={(e) => onFieldPaste(item, field.key, e)}
+                                onChange={(e) =>
+                                  updateFieldBody(
+                                    item,
+                                    field.key,
+                                    mergeJpVocabClassNoteDraftFromEdit(
+                                      e.target.value,
+                                      imageSrcs
+                                    )
+                                  )
+                                }
+                              />
+                              {imageSrcs.length > 0 ? (
+                                <div className="jp-lesson-notes-draft-images">
+                                  {imageSrcs.map((src, imgIndex) => (
+                                    <div
+                                      key={`${src}-${imgIndex}`}
+                                      className="jp-lesson-notes-draft-image-item"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={src}
+                                        alt={`笔记图片 ${imgIndex + 1}`}
+                                        loading="lazy"
+                                      />
+                                      <button
+                                        type="button"
+                                        className="jp-lesson-notes-draft-image-remove"
+                                        disabled={submitting || imageUploading}
+                                        onClick={() =>
+                                          updateFieldBody(
+                                            item,
+                                            field.key,
+                                            removeJpVocabClassNoteImageAt(
+                                              field.body,
+                                              imgIndex
+                                            )
+                                          )
+                                        }
+                                      >
+                                        移除图片
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </>
+                          ) : field.body.trim() ? (
+                            <div className="jp-lesson-notes-readonly">
+                              <JpVocabClassNoteContent content={field.body} />
+                            </div>
+                          ) : (
+                            <p className="jp-lesson-notes-empty">暂无笔记</p>
+                          )}
+                          {canEdit && canRemoveField(item, field) ? (
+                            <button
+                              type="button"
+                              className="jp-lesson-notes-field-remove"
+                              disabled={submitting || imageUploading}
+                              onClick={() => removeField(item, field.key)}
+                              aria-label="删除本条笔记"
+                            >
+                              删除
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <ItemSectionSaveFooter
@@ -670,7 +947,7 @@ export function JpLessonNotesPage() {
                     saving={savingTarget === item}
                     status={itemSaveStatus[item] ?? "idle"}
                     showSyncHint={Boolean(lesson.completed)}
-                    disabled={submitting}
+                    disabled={submitting || imageUploading}
                     onSave={() => void saveNotes(item)}
                   />
                 </section>
@@ -718,7 +995,7 @@ export function JpLessonNotesPage() {
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact"
-                  disabled={submitting || dirtyItems.size === 0}
+                  disabled={submitting || imageUploading || dirtyItems.size === 0}
                   onClick={() => void saveNotes()}
                 >
                   保存全部
@@ -830,7 +1107,82 @@ export function JpLessonNotesPage() {
         .jp-lesson-notes-field {
           display: flex;
           flex-direction: column;
-          gap: 0.25rem;
+          gap: 0.45rem;
+        }
+
+        .jp-lesson-notes-field-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.45rem 0.65rem;
+        }
+
+        .jp-lesson-notes-field-hint {
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
+
+        .jp-lesson-notes-image-input {
+          display: none;
+        }
+
+        .jp-lesson-notes-draft-images {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+
+        .jp-lesson-notes-draft-image-item {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
+          padding: 0.45rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+        }
+
+        .jp-lesson-notes-draft-image-item :global(img) {
+          display: block;
+          width: auto;
+          max-width: 100%;
+          max-height: 240px;
+          margin: 0 auto;
+          object-fit: contain;
+        }
+
+        .jp-lesson-notes-draft-image-remove {
+          align-self: flex-end;
+          border: none;
+          background: transparent;
+          color: var(--rise);
+          font: inherit;
+          font-size: 0.75rem;
+          cursor: pointer;
+          padding: 0.1rem 0.25rem;
+        }
+
+        .jp-lesson-notes-draft-image-remove:hover:not(:disabled) {
+          text-decoration: underline;
+        }
+
+        .jp-lesson-notes-draft-image-remove:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .jp-lesson-notes-readonly {
+          padding: 0.55rem 0.65rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 50%, var(--panel));
+        }
+
+        .jp-lesson-notes-empty {
+          margin: 0;
+          font-size: 0.875rem;
+          color: var(--muted);
         }
 
         .jp-lesson-notes-textarea {

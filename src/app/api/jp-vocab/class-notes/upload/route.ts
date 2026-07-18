@@ -1,4 +1,5 @@
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { requireJpLessonOperate } from "@/lib/jp-lesson-auth";
 import { getOrUploadJpVocabRefByContent } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
 import { jpVocabRefApiPath } from "@/lib/jp-vocab-ref-shared";
@@ -40,10 +41,13 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, allowed } = await requireJpVocabAccess(request);
-    if (!allowed) {
+    // 抽问备注编辑、或新课课堂笔记编辑（jp_lesson:operate）均可上传；图存同一 jp_vocab_ref
+    const vocabAccess = await requireJpVocabAccess(request);
+    const lessonAccess = await requireJpLessonOperate(request);
+    if (!vocabAccess.allowed && !lessonAccess.allowed) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
+    const { env } = vocabAccess;
 
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {

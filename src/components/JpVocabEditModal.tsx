@@ -12,6 +12,7 @@ import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { findDuplicateJpVocabExamplePrimaries } from "@/lib/jp-vocab-example-sentences";
 import {
+  hasJpVocabClassNotes,
   mergeJpVocabClassNotesBlobFromEdit,
   removeJpVocabClassNotesBlobImageAt,
   splitJpVocabClassNotesBlobForEdit,
@@ -124,6 +125,9 @@ export function JpVocabEditModal({
   const editBodyRef = useRef<HTMLDivElement>(null);
   const [bodyCanScroll, setBodyCanScroll] = useState(false);
   const initializedWordIdRef = useRef<number | null>(null);
+  /** lite 列表常省略 class_notes 正文；未拉齐前禁止把 null 写回，避免误清空 */
+  const classNotesReadyRef = useRef(true);
+  const [classNotesLoading, setClassNotesLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -132,6 +136,8 @@ export function JpVocabEditModal({
   useEffect(() => {
     if (!open) {
       initializedWordIdRef.current = null;
+      classNotesReadyRef.current = true;
+      setClassNotesLoading(false);
       return;
     }
     if (!word || initializedWordIdRef.current === word.id) return;
@@ -142,7 +148,11 @@ export function JpVocabEditModal({
     setReading(word.reading || "");
     setMeaning(word.meaning || "");
     setPos(word.pos || "");
-    setClassNotes(word.class_notes || "");
+    const notesPresent = hasJpVocabClassNotes(word.class_notes, word.class_notes_present);
+    const notesBody = word.class_notes || "";
+    setClassNotes(notesBody);
+    classNotesReadyRef.current = !notesPresent || Boolean(notesBody.trim());
+    setClassNotesLoading(notesPresent && !notesBody.trim());
     setExampleSentences(word.example_sentences || "");
     setMnemonic(word.mnemonic || "");
     setError("");
@@ -156,6 +166,53 @@ export function JpVocabEditModal({
     setZoomTarget(null);
     setUploadProgress(null);
   }, [open, word, refs]);
+
+  useEffect(() => {
+    if (!open || !word) return;
+    if (classNotesReadyRef.current) return;
+    if ((word.class_notes || "").trim()) {
+      setClassNotes(word.class_notes || "");
+      classNotesReadyRef.current = true;
+      setClassNotesLoading(false);
+      return;
+    }
+    if (!hasJpVocabClassNotes(word.class_notes, word.class_notes_present)) {
+      classNotesReadyRef.current = true;
+      setClassNotesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setClassNotesLoading(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
+          {
+            headers: { [LOCALE_HEADER]: locale },
+            credentials: "include",
+            cache: "no-store",
+          }
+        );
+        const data = (await res.json()) as { ok: boolean; word?: JpVocabWord };
+        if (cancelled || !data.ok || !data.word) return;
+        if (initializedWordIdRef.current !== word.id) return;
+        setClassNotes(data.word.class_notes || "");
+        classNotesReadyRef.current = true;
+        onSaved(data.word);
+      } catch {
+        /* keep empty; save will omit class_notes */
+      } finally {
+        if (!cancelled && initializedWordIdRef.current === word.id) {
+          setClassNotesLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, word, locale, onSaved]);
 
   useEffect(() => {
     if (!open || !word?.ref_key) return;
@@ -397,6 +454,15 @@ export function JpVocabEditModal({
     setError("");
     setRefError("");
 
+    if (!classNotesReadyRef.current || classNotesLoading) {
+      setError(
+        locale === "zh"
+          ? "备注仍在加载，请稍后再保存，以免清空已有备注。"
+          : "Remarks are still loading. Please wait before saving."
+      );
+      return;
+    }
+
     if (newRefFile) {
       const savedRef = await saveRef();
       if (!savedRef) {
@@ -405,13 +471,14 @@ export function JpVocabEditModal({
     }
 
     const snapshot = word;
+    const nextClassNotes = classNotes.trim() || null;
     const optimistic = buildOptimisticJpVocabWord(snapshot, {
       kind,
       word: trimmedWord,
       reading: kind === "word" ? reading.trim() || null : null,
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
-      class_notes: classNotes.trim() || null,
+      class_notes: nextClassNotes,
       example_sentences: exampleSentences.trim() || null,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
@@ -435,7 +502,7 @@ export function JpVocabEditModal({
             reading: kind === "word" ? reading.trim() || null : null,
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
-            class_notes: classNotes.trim() || null,
+            class_notes: nextClassNotes,
             example_sentences: exampleSentences.trim() || null,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
@@ -643,9 +710,13 @@ export function JpVocabEditModal({
                 id="jp-vocab-edit-notes"
                 className="jp-vocab-edit-textarea jp-vocab-edit-textarea--expand"
                 rows={5}
-                value={classNotesText}
-                disabled={!canEdit}
-                placeholder="记录例句、用法、易错点…"
+                value={classNotesLoading ? "" : classNotesText}
+                disabled={!canEdit || classNotesLoading}
+                placeholder={
+                  classNotesLoading
+                    ? "正在加载备注…"
+                    : "点击此处修改备注文字（时间戳行可保留；图片见下方缩略图）"
+                }
                 onChange={(e) => {
                   setClassNotes(
                     mergeJpVocabClassNotesBlobFromEdit(e.target.value, classNotesImages)
@@ -675,7 +746,9 @@ export function JpVocabEditModal({
                 </div>
               ) : null}
               <p className="jp-vocab-edit-hint">
-                备注保存后会同步到日语新课。图片地址已隐藏，避免误改；可用「移除图片」删除。
+                {canEdit
+                  ? "上方文本框可直接改字。备注保存后会同步到日语新课。图片地址已隐藏，避免误改；可用「移除图片」删除。"
+                  : "备注保存后会同步到日语新课。图片地址已隐藏，避免误改；可用「移除图片」删除。"}
               </p>
             </div>
 
@@ -891,10 +964,10 @@ export function JpVocabEditModal({
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                disabled={uploadingRef}
+                disabled={uploadingRef || classNotesLoading}
                 onClick={() => void save()}
               >
-                {uploadingRef ? "上传中…" : "保存"}
+                {uploadingRef ? "上传中…" : classNotesLoading ? "备注加载中…" : "保存"}
               </button>
             ) : null}
           </div>
@@ -1053,6 +1126,24 @@ export function JpVocabEditModal({
         .jp-vocab-edit-select:disabled {
           opacity: 0.55;
           cursor: not-allowed;
+        }
+
+        .jp-vocab-edit-input:disabled,
+        .jp-vocab-edit-textarea:disabled {
+          opacity: 0.72;
+          cursor: not-allowed;
+          color: color-mix(in srgb, var(--text) 75%, var(--muted));
+        }
+
+        .jp-vocab-edit-textarea:not(:disabled) {
+          cursor: text;
+          caret-color: var(--accent);
+        }
+
+        .jp-vocab-edit-textarea:not(:disabled):focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
         }
 
         .jp-vocab-edit-textarea {

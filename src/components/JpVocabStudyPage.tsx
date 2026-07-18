@@ -103,6 +103,17 @@ export function JpVocabStudyPage() {
     cacheVersion?: string | null;
   } | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<JpVocabWord | null>(null);
+  /** 有操作权限时「查看」也进可编辑备注（对齐老师端）；学生仍只读 */
+  const openRemarksWord = useCallback(
+    (word: JpVocabWord) => {
+      if (canOperate) {
+        setEditingRemarksWord(word);
+      } else {
+        setViewingRemarksWord(word);
+      }
+    },
+    [canOperate]
+  );
   const [flashcardItem, setFlashcardItem] = useState<JpVocabSharedItem | null>(null);
   const [saveQueuePending, setSaveQueuePending] = useState(0);
   const [requestingShare, setRequestingShare] = useState(false);
@@ -823,7 +834,8 @@ export function JpVocabStudyPage() {
                         <button
                           type="button"
                           className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
-                          onClick={() => setViewingRemarksWord(w)}
+                          title={canOperate ? "查看并编辑备注" : "查看备注"}
+                          onClick={() => openRemarksWord(w)}
                         >
                           查看
                         </button>
@@ -1122,7 +1134,7 @@ export function JpVocabStudyPage() {
         }
         onClose={() => setFlashcardItem(null)}
         onOpenRef={openRefPreview}
-        onViewRemarks={setViewingRemarksWord}
+        onViewRemarks={openRemarksWord}
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
         onWordUpdated={handleWordSaved}
