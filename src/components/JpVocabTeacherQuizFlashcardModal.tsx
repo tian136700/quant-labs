@@ -824,16 +824,6 @@ export function JpVocabTeacherQuizFlashcardModal({
               className="jp-vocab-teacher-quiz__level-progress"
             />
           ) : null}
-          {isCoach ? (
-            <div
-              className="jp-vocab-teacher-quiz__stat-grid jp-vocab-teacher-quiz__stat-grid--coach"
-              aria-label="历史熟悉程度统计"
-            >
-              <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
-              <span>一般 {w.cnt_normal}</span>
-              <span className="chg-up">不熟悉 {w.cnt_weak}</span>
-            </div>
-          ) : null}
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">
@@ -883,13 +873,12 @@ export function JpVocabTeacherQuizFlashcardModal({
               {totalDisplay.label}
             </span>
           </div>
-          {!isCoach ? (
-            <div className="jp-vocab-teacher-quiz__stat-grid">
-              <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
-              <span>一般 {w.cnt_normal}</span>
-              <span className="chg-up">不熟悉 {w.cnt_weak}</span>
-            </div>
-          ) : null}
+          {/* 带读与抽问同布局：历史熟悉次数放在统计区，勿挪到熟悉程度区或隐藏 */}
+          <div className="jp-vocab-teacher-quiz__stat-grid">
+            <span className="chg-dn">非常熟悉 {w.cnt_very}</span>
+            <span>一般 {w.cnt_normal}</span>
+            <span className="chg-up">不熟悉 {w.cnt_weak}</span>
+          </div>
         </div>
 
         <div className="jp-vocab-teacher-quiz__nav">

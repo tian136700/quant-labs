@@ -150,18 +150,6 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 500;
           letter-spacing: 0.02em;
         }
-        .jp-vocab-teacher-quiz__coach-export-level {
-          margin: 0 0.2rem;
-          color: var(--text);
-        }
-        .jp-vocab-teacher-quiz__coach-export-hint {
-          color: var(--muted);
-          font-size: 0.85em;
-        }
-        .jp-vocab-teacher-quiz__stat-grid--coach {
-          border-top: none;
-          padding-top: 0.05rem;
-        }
         .jp-vocab-teacher-quiz__seq,
         .jp-vocab-teacher-quiz__progress,
         .jp-vocab-teacher-quiz__remaining {
@@ -538,9 +526,15 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:hover:not(:disabled) {
           background: rgba(255, 255, 255, 0.04);
         }
+        /* 带读/预览/学生：熟悉程度只读但仍完整展示，勿用过低透明度造成「像被隐藏」 */
         .jp-vocab-teacher-quiz-card .jp-vocab-level-opt:disabled {
-          opacity: 0.55;
           cursor: not-allowed;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--locked:disabled:not(.is-checked) {
+          opacity: 0.78;
+        }
+        .jp-vocab-teacher-quiz-card .jp-vocab-level-opt--locked.is-checked:disabled {
+          opacity: 1;
         }
         .jp-vocab-teacher-quiz__level-sync-hint {
           max-width: 100%;
@@ -960,30 +954,6 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz__level-label {
             font-size: clamp(0.75rem, 3vw, 0.8125rem);
             line-height: 1.45;
-          }
-          .jp-vocab-teacher-quiz__stat-grid--coach {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0;
-            width: 100%;
-            border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-            border-radius: 10px;
-            overflow: hidden;
-            background: color-mix(in srgb, var(--bg) 60%, var(--panel));
-            padding: 0;
-          }
-          .jp-vocab-teacher-quiz__stat-grid--coach > span {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 2.65rem;
-            padding: 0.375rem 0.2rem;
-            font-size: clamp(0.6875rem, 2.8vw, 0.8125rem);
-            text-align: center;
-            border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
-          }
-          .jp-vocab-teacher-quiz__stat-grid--coach > span:last-child {
-            border-right: none;
           }
           .jp-vocab-teacher-quiz__stats {
             gap: 0.45rem 0.65rem;

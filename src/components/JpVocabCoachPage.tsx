@@ -23,7 +23,7 @@ import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
-import type { JpVocabRef, JpVocabWord } from "@/lib/types";
+import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 export function JpVocabCoachPage() {
   const { locale } = useI18n();
