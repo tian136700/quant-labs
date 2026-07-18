@@ -41,7 +41,7 @@ export function JpVocabExampleSentencesCell({
           })}
         </div>
       ))}
-      <JpVocabSourceLabel source={source} label="例句来源" />
+      <JpVocabSourceLabel source={source} />
     </div>
   );
 }

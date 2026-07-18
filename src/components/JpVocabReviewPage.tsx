@@ -623,7 +623,6 @@ export function JpVocabReviewPage() {
                         <span>{w.meaning || "—"}</span>
                         <JpVocabSourceLabel
                           source={w.meaning_source}
-                          label="释义来源"
                         />
                       </div>
                     </td>

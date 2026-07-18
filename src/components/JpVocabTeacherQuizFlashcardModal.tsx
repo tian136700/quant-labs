@@ -565,8 +565,6 @@ export function JpVocabTeacherQuizFlashcardModal({
                   <span>{meaningTrim}</span>
                   <JpVocabSourceLabel
                     source={w.meaning_source}
-                    label="释义来源"
-                    className="jp-vocab-teacher-quiz__meaning-source"
                   />
                 </span>
               ) : null}
@@ -692,7 +690,6 @@ export function JpVocabTeacherQuizFlashcardModal({
                 </ol>
                 <JpVocabSourceLabel
                   source={w.example_sentences_source}
-                  label="例句来源"
                 />
               </div>
             ) : (

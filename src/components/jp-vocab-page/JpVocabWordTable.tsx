@@ -423,7 +423,6 @@ export function JpVocabWordTable({
                             </details>
                             <JpVocabSourceLabel
                               source={w.meaning_source}
-                              label="释义来源"
                             />
                           </div>
                         ) : null}

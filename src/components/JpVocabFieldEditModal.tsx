@@ -201,7 +201,6 @@ export function JpVocabFieldEditModal({
                 当前：
                 <JpVocabSourceLabel
                   source={word.meaning_source}
-                  label="释义来源"
                   placement="inline"
                 />
                 <span>；保存修改后记为「手动」</span>

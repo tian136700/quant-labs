@@ -356,8 +356,6 @@ export function JpVocabAdminReviewFlashcardModal({
                       <span>{meaningTrim}</span>
                       <JpVocabSourceLabel
                         source={w.meaning_source}
-                        label="释义来源"
-                        className="jp-vocab-teacher-quiz__meaning-source"
                       />
                     </span>
                   ) : null}
