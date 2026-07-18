@@ -1,0 +1,50 @@
+================================================================================
+本机 Bark 推送 — 跨项目复制说明（整段可复制给别的项目 Agent）
+================================================================================
+打开本文件：docs/bark-cross-project-howto.txt
+密钥本机路径：~/.config/bark/env（勿进 Git）
+本仓库实现参考：scripts/maintenance_center/bark_notify.py
+--------------------------------------------------------------------------------
+
+## 本机 Bark 推送（跨项目共用，勿进 Git）
+
+**密钥位置（本机已配好，直接读，不要往仓库里写 key）：**
+- 配置文件：~/.config/bark/env
+- 空模板：~/.config/bark/env.example
+- 里面通常有：BARK_DEVICE_KEY=...（或 BARK_PUSH_URL=https://api.day.app/<key>）
+- 权限应为：chmod 600 ~/.config/bark/env
+- 禁止把 BARK_DEVICE_KEY 提交到 Git / 写进规则正文 / 打进日志
+
+**读取优先级：** 进程环境变量 > 项目本地 env（可选覆盖）> ~/.config/bark/env
+
+**别的项目怎么用：**
+1. 读 Path.home() / ".config" / "bark" / "env"（或 shell：source ~/.config/bark/env）
+2. 解析出 BARK_DEVICE_KEY（或从 BARK_PUSH_URL 里取出 key）
+3. 发送：POST https://api.day.app/<BARK_DEVICE_KEY> ，JSON 例如：
+   {
+     "title": "<项目名> · 自动部署成功",
+     "body": "项目：<仓库目录名>\n文件：a.ts、b.py\n改动：……",
+     "group": "<项目名>",
+     "level": "active",
+     "sound": "bell"
+   }
+4. 若 BARK_ENABLED=0/false/off 则跳过推送
+5. 文件不存在或没有 key → 当作未配置，安静 skip，不要报错中断主流程
+
+**通知内容约定（多项目共用同一 Bark 时必须遵守）：**
+- 标题必须带「项目名」（仓库目录名，如 strategy-compare-cloud · 自动部署成功）
+- 正文必须有「项目：…」和「文件：…」（本次改动的相对路径，最多列约 8 个）
+- Bark 的 group 用项目名，方便在 App 里按项目分组
+- 部署失败用 level=passive（静音）；成功用 level=active + sound（如 bell）
+- 不要用 critical/call（那是上课持续铃响专用）
+
+**新机器首次配置（仅一次）：**
+  mkdir -p ~/.config/bark
+  cp ~/.config/bark/env.example ~/.config/bark/env
+  # 用 Bark App 复制的 key 填入 BARK_DEVICE_KEY=
+  chmod 600 ~/.config/bark/env
+
+**注意：** 这只是本机 Mac 推送。Cloudflare Worker / 线上跑的代码读不到 ~/.config，
+线上要用平台 Secret（如 wrangler secret put BARK_DEVICE_KEY），与本机文件分开。
+
+================================================================================
