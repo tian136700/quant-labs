@@ -340,7 +340,8 @@ export function JpVocabStudyFlashcardModal({
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => onViewRemarks(w)}
+                  title={canOperate ? "查看并编辑备注" : "查看备注"}
+                  onClick={() => (canOperate ? onEditRemarks(w) : onViewRemarks(w))}
                 >
                   查看
                 </button>

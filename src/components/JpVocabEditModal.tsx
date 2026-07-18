@@ -199,9 +199,14 @@ export function JpVocabEditModal({
         if (initializedWordIdRef.current !== word.id) return;
         setClassNotes(data.word.class_notes || "");
         classNotesReadyRef.current = true;
-        onSaved(data.word);
       } catch {
-        /* keep empty; save will omit class_notes */
+        if (!cancelled && initializedWordIdRef.current === word.id) {
+          setError(
+            locale === "zh"
+              ? "备注加载失败。请关闭后重试；此时保存不会改动备注。"
+              : "Failed to load remarks. Close and retry; saving now will not change remarks."
+          );
+        }
       } finally {
         if (!cancelled && initializedWordIdRef.current === word.id) {
           setClassNotesLoading(false);
@@ -212,7 +217,7 @@ export function JpVocabEditModal({
     return () => {
       cancelled = true;
     };
-  }, [open, word, locale, onSaved]);
+  }, [open, word, locale]);
 
   useEffect(() => {
     if (!open || !word?.ref_key) return;
@@ -454,7 +459,7 @@ export function JpVocabEditModal({
     setError("");
     setRefError("");
 
-    if (!classNotesReadyRef.current || classNotesLoading) {
+    if (classNotesLoading) {
       setError(
         locale === "zh"
           ? "备注仍在加载，请稍后再保存，以免清空已有备注。"
@@ -471,6 +476,7 @@ export function JpVocabEditModal({
     }
 
     const snapshot = word;
+    const notesReady = classNotesReadyRef.current;
     const nextClassNotes = classNotes.trim() || null;
     const optimistic = buildOptimisticJpVocabWord(snapshot, {
       kind,
@@ -478,7 +484,7 @@ export function JpVocabEditModal({
       reading: kind === "word" ? reading.trim() || null : null,
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
-      class_notes: nextClassNotes,
+      ...(notesReady ? { class_notes: nextClassNotes } : {}),
       example_sentences: exampleSentences.trim() || null,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
@@ -502,7 +508,7 @@ export function JpVocabEditModal({
             reading: kind === "word" ? reading.trim() || null : null,
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
-            class_notes: nextClassNotes,
+            ...(notesReady ? { class_notes: nextClassNotes } : {}),
             example_sentences: exampleSentences.trim() || null,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
