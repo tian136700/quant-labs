@@ -117,7 +117,8 @@
 | 统一日程（日语/英语/手动；**「学习中」+「已完成」进日程**，未上课不同步；上完不消失） | `JpLessonSchedulePage.tsx`；`jp-lesson-shared.ts` / `en-lesson-shared.ts` → `build*LessonScheduleEvents` / `*LessonProgressAppearsOnSchedule`；`jp-lesson-manual-schedule.ts` → `LessonScheduleSubject` |
 | **日程同步到网易日历（CalDAV，已停用）** | 默认 `SCHEDULE_CALDAV_DISABLED=1`；Mac launchd 已卸；改用下方 ICS。脚本仍保留：`scripts/schedule-caldav-sync.py` |
 | **日程订阅到 iPhone / Mac 系统日历（ICS，推荐）** | `GET /api/admin/schedule.ics?token=`（同 `JP_REVIEW_UPLOAD_TOKEN`）；开课前 10 分钟 `VALARM`；`buildScheduleIcs()`；手机：日历 → 添加订阅日历；Mac：日历 → 文件 → 新建日历订阅 |
-| **开课前 Bark 推送（线上 Cron）**（Worker 每分钟；Mac 关机也能推；北京时间触发；10/5/1 持续铃响；通知泰国时间；本机 launchd 默认关；部署失败仍本机静音） | `cloudflare-worker.ts` + `POST /api/admin/schedule-class-bark-remind`；`src/lib/schedule-class-bark-remind.ts`；Secret `BARK_DEVICE_KEY`；规则 `.cursor/rules/bark-deploy-failure-notify.mdc` |
+| **开课前 Bark 推送（线上 Cron）**（Worker 每分钟；Mac 关机也能推；北京时间触发；10/5/1 持续铃响；通知泰国时间；本机 launchd 默认关） | `cloudflare-worker.ts` + `POST /api/admin/schedule-class-bark-remind`；`src/lib/schedule-class-bark-remind.ts`；Secret `BARK_DEVICE_KEY`；规则 `.cursor/rules/bark-deploy-failure-notify.mdc` |
+| **部署成功/失败通知**（本机维护中心：Bark → iPhone + Mac 通知中心并行；成功有提示音） | `scripts/maintenance_center/bark_notify.py`、`mac_notify.py`；`hub._finish`；开关见 `.env.deploy.local.example`；规则同上 |
 | 英语老师管理 / 评价（合并）；**不建登录账号** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` **不再** `provisionEnLessonTeacherUser` |
 | **人员管理模糊搜索**（日语/英语一起搜；候选标科目；点选或仅另一科命中时自动切 `?subject=`） | `AdminJpLessonTeachersPage.tsx` → `loadOtherSubjectTeachers` / `searchSuggestions` / `applySearch`；`lesson-teacher-search.ts` → `lessonTeacherSubjectSearchLabels`；规则 `.cursor/rules/admin-teacher-cross-search.mdc` |
 
@@ -178,7 +179,7 @@
 | 站点导航（顶栏：管理员端固定最左；其余按使用频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`、`src/lib/site-nav-config.ts`（`PINNED_PRIMARY_NAV_ID`）、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc` |
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
-| **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
+| **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；完成后 Bark + Mac 桌面通知） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
 
 ---
 
