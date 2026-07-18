@@ -112,17 +112,10 @@ export function JpVocabStudyPage() {
   const pollInFlightRef = useRef(false);
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
+  /** 仅同浏览器「打开备注」通知用；轮询到老师新发词不得自动弹卡/滚动 */
   const pendingFlashcardWordIdRef = useRef<number | null>(null);
   const knownSharedWordIdsRef = useRef<Set<number>>(
     new Set((readJpVocabStudyCache()?.items ?? []).map((item) => item.word_id))
-  );
-  const sharedWordStampRef = useRef<Map<number, string>>(
-    new Map(
-      (readJpVocabStudyCache()?.items ?? []).map((item) => [
-        item.word_id,
-        item.word.updated_at ?? "",
-      ])
-    )
   );
   const pendingRefreshAfterSaveRef = useRef(false);
   const saveQueuePendingRef = useRef(0);
@@ -190,34 +183,8 @@ export function JpVocabStudyPage() {
   );
 
   const applyStudyPayload = useCallback((payload: JpVocabStudyApiPayload) => {
-    const wasLoadedBefore = hasLoadedOnceRef.current;
-    const newWordIds = payload.items.map((item) => item.word_id);
-    if (wasLoadedBefore) {
-      const brandNew = newWordIds.filter((id) => !knownSharedWordIdsRef.current.has(id));
-      if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
-        pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
-      }
-      if (pendingFlashcardWordIdRef.current == null) {
-        for (const item of payload.items) {
-          const prevStamp = sharedWordStampRef.current.get(item.word_id);
-          const nextStamp = item.word.updated_at ?? "";
-          if (
-            knownSharedWordIdsRef.current.has(item.word_id) &&
-            prevStamp &&
-            nextStamp &&
-            nextStamp !== prevStamp &&
-            hasJpVocabClassNotes(item.word.class_notes, item.word.class_notes_present)
-          ) {
-            pendingFlashcardWordIdRef.current = item.word_id;
-            break;
-          }
-        }
-      }
-    }
-    knownSharedWordIdsRef.current = new Set(newWordIds);
-    sharedWordStampRef.current = new Map(
-      payload.items.map((item) => [item.word_id, item.word.updated_at ?? ""])
-    );
+    // 老师发给学生 / 勾选熟悉程度后：只刷新列表，不改滚动、不自动弹卡片
+    knownSharedWordIdsRef.current = new Set(payload.items.map((item) => item.word_id));
     setItems(payload.items);
     setRefs(payload.refs ?? {});
     setShareDate(payload.share_date || beijingDateString());
@@ -400,12 +367,8 @@ export function JpVocabStudyPage() {
     if (!entry) return;
 
     pendingFlashcardWordIdRef.current = null;
+    // 同标签「打开备注」可弹卡；禁止 scrollIntoView，否则列表刷新会把页面拽到底部
     setFlashcardItem(entry);
-    requestAnimationFrame(() => {
-      document
-        .getElementById(`jp-vocab-study-row-${wordId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
   }, [items]);
 
   useEffect(() => {

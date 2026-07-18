@@ -187,11 +187,7 @@ export function EnVocabStudyPage() {
     if (!item) return;
 
     pendingOpenRemarksWordIdRef.current = null;
-    requestAnimationFrame(() => {
-      document
-        .getElementById(`jp-vocab-study-row-${wordId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
+    // 打开备注弹窗即可；禁止 scrollIntoView，避免列表刷新拖走滚动位置
     if (canOperate) {
       setEditingRemarksWord(item.word);
     } else {
