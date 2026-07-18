@@ -115,6 +115,7 @@ wechat-jp-vocab-review/
 # auto-ignore-local begin
 .cursor/hooks/.state/last_fingerprint.txt
 .cursor/hooks/auto-publish-mode1.sh
+.env.deploy.local.example
 .next/cache/.tsbuildinfo
 .next/cache/webpack/client-production/0.pack
 .next/cache/webpack/client-production/10.pack
