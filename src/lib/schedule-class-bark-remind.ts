@@ -166,6 +166,12 @@ export async function runScheduleClassBarkRemind(
       : parseLeadMinutes(env.SCHEDULE_CLASS_BARK_LEAD_MINUTES);
   const maxLeadSec = Math.max(...leads) * 60;
 
+  const forceUid = (options?.forceUid || "").trim() || null;
+  const forceLead =
+    options?.forceLead != null && options.forceLead > 0
+      ? options.forceLead
+      : null;
+
   const events = await listScheduleCalDavEvents(env.DB);
   type Candidate = {
     uid: string;
@@ -184,8 +190,11 @@ export async function runScheduleClassBarkRemind(
     const start = parseBeijingDateTime(classAt);
     if (!start) continue;
     const secondsUntil = (start.getTime() - now.getTime()) / 1000;
-    // 只关心最大档位内的课（+1 分钟余量）
-    if (secondsUntil <= 0 || secondsUntil > maxLeadSec + 60) continue;
+    const isForced = forceUid != null && uid === forceUid;
+    // 常规只关心最大档位内的课；force_uid 试推可绕过时间窗
+    if (!isForced && (secondsUntil <= 0 || secondsUntil > maxLeadSec + 60)) {
+      continue;
+    }
     candidates.push({
       uid,
       summary: String(event.summary || "上课").trim() || "上课",
@@ -197,12 +206,6 @@ export async function runScheduleClassBarkRemind(
     });
   }
   candidates.sort((a, b) => a.secondsUntil - b.secondsUntil);
-
-  const forceUid = (options?.forceUid || "").trim() || null;
-  const forceLead =
-    options?.forceLead != null && options.forceLead > 0
-      ? options.forceLead
-      : null;
 
   const pendingKeys: string[] = [];
   for (const c of candidates) {
