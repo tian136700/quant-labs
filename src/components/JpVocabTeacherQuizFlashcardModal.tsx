@@ -559,7 +559,20 @@ export function JpVocabTeacherQuizFlashcardModal({
           <dl className="jp-vocab-teacher-quiz__meta">
             <dt>释义：</dt>
             <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-              {meaningTrim}
+              {meaningTrim ? (
+                <>
+                  <span>{meaningTrim}</span>
+                  {w.meaning_source?.trim() ? (
+                    <span
+                      className="jp-vocab-teacher-quiz__meaning-source"
+                      title="释义来源"
+                    >
+                      {" "}
+                      （释义来源：{w.meaning_source.trim()}）
+                    </span>
+                  ) : null}
+                </>
+              ) : null}
             </dd>
             <dt>词性：</dt>
             <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>

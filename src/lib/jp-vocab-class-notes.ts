@@ -157,6 +157,7 @@ export function mergeJpVocabWordAfterClassNotesFetch(
       fetched.example_sentences_source ??
       base.example_sentences_source ??
       null,
+    meaning_source: fetched.meaning_source ?? base.meaning_source ?? null,
     class_notes_present: hasJpVocabClassNotes(fetched.class_notes, true),
   };
 }

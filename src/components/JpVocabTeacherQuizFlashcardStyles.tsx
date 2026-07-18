@@ -383,6 +383,12 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: var(--muted);
           font-style: italic;
         }
+        .jp-vocab-teacher-quiz__meaning-source {
+          font-size: 0.85em;
+          font-weight: 500;
+          font-style: normal;
+          color: var(--muted);
+        }
         .jp-vocab-teacher-quiz__pos {
           display: inline-block;
           padding: 0.1rem 0.45rem;

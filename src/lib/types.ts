@@ -181,6 +181,8 @@ export interface JpVocabWord {
   example_sentences?: string | null;
   /** 例句来源（如：手动、DeepSeek、本地模型名；老师可见，便于纠错与质量对比） */
   example_sentences_source?: string | null;
+  /** 释义来源（如：手动、DeepSeek、Qwen本地） */
+  meaning_source?: string | null;
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;

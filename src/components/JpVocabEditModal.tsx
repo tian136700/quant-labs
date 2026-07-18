@@ -486,11 +486,20 @@ export function JpVocabEditModal({
           ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
           : null
         : snapshot.example_sentences_source ?? null;
+    const nextMeaning = meaning.trim() || null;
+    const prevMeaning = (snapshot.meaning || "").trim() || null;
+    const nextMeaningSource =
+      nextMeaning !== prevMeaning
+        ? nextMeaning
+          ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+          : null
+        : snapshot.meaning_source ?? null;
     const optimistic = buildOptimisticJpVocabWord(snapshot, {
       kind,
       word: trimmedWord,
       reading: kind === "word" ? reading.trim() || null : null,
-      meaning: meaning.trim() || null,
+      meaning: nextMeaning,
+      meaning_source: nextMeaningSource,
       pos: pos.trim() || null,
       ...(notesReady ? { class_notes: nextClassNotes } : {}),
       example_sentences: nextExamples,
@@ -515,7 +524,7 @@ export function JpVocabEditModal({
             kind,
             word: trimmedWord,
             reading: kind === "word" ? reading.trim() || null : null,
-            meaning: meaning.trim() || null,
+            meaning: nextMeaning,
             pos: pos.trim() || null,
             ...(notesReady ? { class_notes: nextClassNotes } : {}),
             example_sentences: nextExamples,
@@ -674,9 +683,14 @@ export function JpVocabEditModal({
                 rows={2}
                 value={meaning}
                 disabled={!canEdit}
-                placeholder="例如：学习"
+                placeholder="例如：休息；假期（多义用中文分号；分隔，最多 3 个）"
                 onChange={(e) => setMeaning(e.target.value)}
               />
+              <p className="jp-vocab-edit-hint">
+                {word?.meaning_source?.trim()
+                  ? `当前释义来源：${word.meaning_source.trim()}（在此修改并保存后记为「手动」）。`
+                  : "人手填写并保存后，释义来源记为「手动」。多义用「；」分隔，最多 3 个常用义。"}
+              </p>
             </div>
 
             <div className="field">

@@ -6,8 +6,19 @@ import {
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillMeaningBody = {
+  /** list_missing=拉取缺释义（默认）；apply=提交 updates */
+  mode?: "list_missing" | "apply";
   dry_run?: boolean;
-  updates?: Array<{ word_id?: number; meaning?: string }>;
+  /** list_missing：最多返回几条（定时建议 10～30） */
+  limit?: number;
+  /** apply：整批默认来源（单条 updates[].source 优先） */
+  source?: string;
+  updates?: Array<{
+    word_id?: number;
+    meaning?: string;
+    source?: string;
+    meaning_source?: string;
+  }>;
 };
 
 export async function POST(request: Request) {
@@ -22,28 +33,54 @@ export async function POST(request: Request) {
     try {
       body = (await request.json()) as FillMeaningBody;
     } catch {
-      /* empty body = scan mode */
+      /* empty body = list_missing */
     }
 
     const dryRun = Boolean(body.dry_run);
+    const batchSource =
+      typeof body.source === "string" ? body.source.trim() : "";
     const updates = (Array.isArray(body.updates) ? body.updates : [])
-      .map((item) => ({
-        word_id: Number(item.word_id),
-        meaning: String(item.meaning ?? "").trim(),
-      }))
+      .map((item) => {
+        const per =
+          (typeof item.source === "string" && item.source.trim()) ||
+          (typeof item.meaning_source === "string" && item.meaning_source.trim()) ||
+          "";
+        return {
+          word_id: Number(item.word_id),
+          meaning: String(item.meaning ?? "").trim(),
+          source: per || null,
+        };
+      })
       .filter(
         (item) =>
-          Number.isInteger(item.word_id) && item.word_id > 0 && item.meaning.length > 0
+          Number.isInteger(item.word_id) &&
+          item.word_id > 0 &&
+          item.meaning.length > 0
       );
 
-    const result =
-      updates.length > 0
-        ? await applyJpVocabMeaningUpdates(env.DB, updates, { dryRun })
-        : await scanJpVocabWordsMissingMeaning(env.DB);
+    const limit =
+      typeof body.limit === "number" && Number.isFinite(body.limit) && body.limit > 0
+        ? Math.floor(body.limit)
+        : undefined;
 
+    if (updates.length > 0 || body.mode === "apply") {
+      const result = await applyJpVocabMeaningUpdates(env.DB, updates, {
+        dryRun,
+        validateFormat: true,
+        defaultSource: batchSource || null,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "apply",
+        ...result,
+      });
+    }
+
+    const result = await scanJpVocabWordsMissingMeaning(env.DB, { limit });
     return jsonResponse({
       ok: true,
-      mode: updates.length > 0 ? "apply" : "scan",
+      mode: "list_missing",
+      ...(limit != null ? { limit } : {}),
       ...result,
     });
   } catch (err) {
