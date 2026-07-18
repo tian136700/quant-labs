@@ -136,10 +136,10 @@ export function JpVocabDailyQuizCompleteModal({
               onClick={() => onGoToCoach?.()}
             >
               {coachBusy
-                ? "正在准备课堂带读…"
+                ? "正在进入今日带读…"
                 : coachCount > 0
-                  ? `进入课堂带读（本次 ${coachCount} 条）`
-                  : "进入课堂带读"}
+                  ? `进入今日带读（本次 ${coachCount} 条）`
+                  : "进入今日带读"}
             </button>
           ) : null}
           <button

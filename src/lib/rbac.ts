@@ -363,6 +363,8 @@ export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "jp_vocab:manual_add",
   "jp_vocab:admin",
   "jp_vocab:study",
+  /** 带读按账号白名单开放（欣欣等），禁止给全体 jp_vocab 老师开 */
+  "jp_vocab:coach",
 ] as const;
 
 /** 网上注册用户（学生）不应持有的日语抽问权限 */

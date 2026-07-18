@@ -102,7 +102,7 @@ import {
   countJpVocabCoachLevelCounts,
   postJpVocabCoachMerge,
 } from "@/lib/jp-vocab-coach";
-import { jpVocabAdminPath, jpVocabPath, jpVocabStudyPath } from "@/lib/locale-path";
+import { jpVocabAdminPath, jpVocabCoachPath, jpVocabPath, jpVocabStudyPath } from "@/lib/locale-path";
 import {
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
@@ -197,6 +197,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     canAccessJpVocabTeacherPage,
     canAccessJpVocabAdminPage,
     canAccessJpVocabStudy,
+    canAccessJpVocabCoach,
     refresh,
     openAuthPanel,
     setUser,
@@ -211,6 +212,8 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const canShareToStudy = canAccessJpVocab;
   const teacherShareUiEnabled =
     JP_VOCAB_TEACHER_SHARE_ENABLED && isTeacherMode && canShareToStudy;
+  /** 有带读权限才在抽完后显示「进入今日带读」；无权限不露按钮、导航也不露课堂带读 */
+  const showTeacherCoachEntry = isTeacherMode && canAccessJpVocabCoach;
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -2437,7 +2440,18 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                 }
               : undefined
           }
-          coachAction={undefined}
+          coachAction={
+            showTeacherCoachEntry
+              ? {
+                  busy: exporting,
+                  coachCount:
+                    dailyCoachLevelCounts.normal + dailyCoachLevelCounts.weak,
+                  onClick: () => {
+                    window.location.assign(jpVocabCoachPath());
+                  },
+                }
+              : undefined
+          }
         />
       ) : null}
 
@@ -2904,6 +2918,13 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           total={dailyQuizProgress.total}
           variant="teacher"
           levelCounts={dailyCoachLevelCounts}
+          onGoToCoach={
+            showTeacherCoachEntry
+              ? () => {
+                  window.location.assign(jpVocabCoachPath());
+                }
+              : undefined
+          }
           onClose={() => {
             markJpVocabTeacherDailyCompleteDismissed(
               user.id,

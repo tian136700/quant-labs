@@ -145,10 +145,10 @@ export function JpVocabDailyQuizProgressBar({
           onClick={coachAction.onClick}
         >
           {coachAction.busy
-            ? "正在准备课堂带读…"
+            ? "正在进入今日带读…"
             : coachAction.coachCount > 0
-              ? `课堂带读（${coachAction.coachCount} 条）`
-              : "课堂带读"}
+              ? `进入今日带读（${coachAction.coachCount} 条）`
+              : "进入今日带读"}
         </button>
       ) : null}
 

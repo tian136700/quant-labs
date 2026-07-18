@@ -159,7 +159,7 @@ export function canAccessJpVocabStudy(
 
 /**
  * 课堂带读账号白名单（角色权限默认不含 coach；按人临时开放）。
- * 当前：欣欣；李老师 / 玉老师等不在名单内。
+ * 当前：欣欣 XinXin；李老师 LiLaoshi / 玉老师 YuLaoshi 等不在名单内。
  */
 export const JP_VOCAB_COACH_ALLOWED_USERNAMES = ["XinXin"] as const;
 
