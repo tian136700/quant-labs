@@ -3,6 +3,7 @@ import {
   beijingDateString,
   effectiveTodayCheckCount,
   nextTodayCheckCount,
+  beijingDateTimeString,
 } from "@/lib/jp-vocab-daily-check";
 import {
   isJpVocabRoundChecked,
@@ -91,19 +92,7 @@ export function isJpVocabReviewCorrection(
 }
 
 export function formatReviewIso(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(now);
-  const get = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((p) => p.type === type)?.value ?? "00";
-  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
+  return beijingDateTimeString(now);
 }
 
 /** 勾选熟悉程度后满 1 小时不可再改、不可发给学生 */

@@ -28,6 +28,7 @@ import {
 } from "@/lib/jp-vocab-review-session";
 import {
   beijingDateString,
+  beijingDateTimeString,
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
 } from "@/lib/jp-vocab-daily-check";
@@ -1107,7 +1108,8 @@ export async function addJpVocabWord(
   };
 
   await seedIfEmpty(db);
-  const ts = nowIso();
+  // 入库标记用北京时间，供「今日新词次日置顶」判断（created_at 前 10 位）
+  const ts = beijingDateTimeString();
 
   if (devStoreEnabled) {
     if (devWords.some((w) => w.word === item.word)) {
@@ -1235,7 +1237,9 @@ export async function upsertJpVocabFromLesson(
   if (!items.length) return;
   if (refs.length) await upsertJpVocabRefMetadata(db, refs);
 
-  const ts = nowIso();
+  // 新课「已完成」同步：created_at 记北京时间，今天不进抽查池，次日凌晨置顶
+  const ts = beijingDateTimeString();
+  let addedNew = false;
 
   if (devStoreEnabled) {
     for (const item of items) {
@@ -1264,8 +1268,10 @@ export async function upsertJpVocabFromLesson(
         }
         continue;
       }
+      addedNew = true;
+      const createdId = devNextId++;
       devWords.push({
-          id: devNextId++,
+          id: createdId,
           word,
           reading: null,
           meaning,
@@ -1282,6 +1288,19 @@ export async function upsertJpVocabFromLesson(
           created_at: ts,
           updated_at: ts,
         });
+      const today = beijingDateString();
+      if (
+        devDailyDisplayOrder.date === today &&
+        devDailyDisplayOrder.ids.length > 0
+      ) {
+        devDailyDisplayOrder = appendJpVocabDailyDisplayOrderId(
+          devDailyDisplayOrder,
+          createdId
+        );
+      }
+    }
+    if (addedNew) {
+      await ensureJpVocabDailyDisplayOrder(db, devWords);
     }
     return;
   }
@@ -1326,6 +1345,7 @@ export async function upsertJpVocabFromLesson(
       continue;
     }
 
+    addedNew = true;
     await db
       .prepare(
         `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, created_at, updated_at)
@@ -1333,6 +1353,11 @@ export async function upsertJpVocabFromLesson(
       )
       .bind(word, meaning, kind, refKey, exampleSentences, ts)
       .run();
+  }
+
+  if (addedNew) {
+    const words = await listJpVocabWords(db);
+    await ensureJpVocabDailyDisplayOrder(db, words);
   }
 }
 

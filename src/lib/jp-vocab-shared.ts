@@ -1,3 +1,7 @@
+import {
+  isJpVocabWordEligibleNeverQuizzedForFront,
+  isJpVocabWordSameDayNewNeverQuizzed,
+} from "@/lib/jp-vocab-daily-check";
 import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk" | "seq";
@@ -67,13 +71,6 @@ export function sortJpVocabWords(words: JpVocabWord[]): JpVocabWord[] {
   });
 }
 
-function compareZeroTotalFirst(a: JpVocabWord, b: JpVocabWord): number {
-  const aZero = jpVocabTotalReviews(a) === 0;
-  const bZero = jpVocabTotalReviews(b) === 0;
-  if (aZero === bZero) return 0;
-  return aZero ? -1 : 1;
-}
-
 /** 按复习次数单列排序（同值按单词名） */
 export function sortJpVocabWordsByStat(
   words: JpVocabWord[],
@@ -88,11 +85,25 @@ export function sortJpVocabWordsByStat(
   });
 }
 
-/** 每日固定序号用：从未抽查置顶，其余按抽查优先级降序 */
-export function sortJpVocabWordsForDailyOrder(words: JpVocabWord[]): JpVocabWord[] {
+/**
+ * 每日固定序号（凌晨重排）：
+ * 1. 可置顶的从未抽查（入库日早于今日）在前
+ * 2. 其余按抽查优先级降序
+ * 3. 今日刚入库且从未抽查的沉底（今天不抽，明天再置顶）
+ */
+export function sortJpVocabWordsForDailyOrder(
+  words: JpVocabWord[],
+  now = new Date()
+): JpVocabWord[] {
   return [...words].sort((a, b) => {
-    const zeroCmp = compareZeroTotalFirst(a, b);
-    if (zeroCmp !== 0) return zeroCmp;
+    const aDefer = isJpVocabWordSameDayNewNeverQuizzed(a, now);
+    const bDefer = isJpVocabWordSameDayNewNeverQuizzed(b, now);
+    if (aDefer !== bDefer) return aDefer ? 1 : -1;
+
+    const aFront = isJpVocabWordEligibleNeverQuizzedForFront(a, now);
+    const bFront = isJpVocabWordEligibleNeverQuizzedForFront(b, now);
+    if (aFront !== bFront) return aFront ? -1 : 1;
+
     const diff = jpVocabRiskIndex(b) - jpVocabRiskIndex(a);
     if (diff !== 0) return diff;
     return a.word.localeCompare(b.word, "ja");

@@ -1,4 +1,4 @@
-import { beijingDateString, effectiveTodayCheckCount, jpVocabTodayCheckStats } from "@/lib/jp-vocab-daily-check";
+import { beijingDateString, effectiveTodayCheckCount, isJpVocabWordSameDayNewNeverQuizzed, jpVocabTodayCheckStats } from "@/lib/jp-vocab-daily-check";
 import {
   buildJpVocabDailySeqMap,
   isJpVocabRoundChecked,
@@ -74,8 +74,9 @@ export function isJpVocabWordInDailyQuizTarget(
 }
 
 /**
- * 老师今日可抽查/可勾选池：优先 `visible_ids`（服务端按「从未抽查优先」生成，
- * 不一定等于当日序号 1…N）。无 visible_ids 时回退序号 1…quiz_target。
+ * 老师今日可抽查/可勾选池：优先 `visible_ids`（按当日序号正序 1…N 生成；
+ * 今日新入库从未抽查词不进池，次日凌晨置顶后再抽）。
+ * 无 visible_ids 时回退序号 1…quiz_target。
  */
 export function isJpVocabWordInTeacherVisiblePool(
   wordId: number,
@@ -94,8 +95,7 @@ export function isJpVocabWordInTeacherVisiblePool(
 
 /**
  * 老师抽查队列词表：与 `isJpVocabWordInTeacherVisiblePool` 同一池。
- * 有 visible_ids 时按当日 display_order 排序；不要再按「序号 1–N」过滤，
- * 否则从未抽查但序号靠后的词会进进度条却进不了卡片。
+ * 有 visible_ids 时按当日 display_order 排序。
  */
 export function listJpVocabTeacherQuizPoolWords(
   words: JpVocabWord[],
@@ -332,7 +332,6 @@ export function isJpVocabWordQuizCheckedToday(
 type ReleaseCandidate = {
   id: number;
   seq: number;
-  neverQuizzed: boolean;
 };
 
 function buildJpVocabTeacherVisibleReleaseCandidates(
@@ -350,17 +349,16 @@ function buildJpVocabTeacherVisibleReleaseCandidates(
     const word = wordById.get(wordId);
     if (!word) continue;
     if (isJpVocabWordTodayCheckedInDb(word, now)) continue;
+    // 今日新入库从未抽查：今天不抽，次日凌晨置顶后再进池
+    if (isJpVocabWordSameDayNewNeverQuizzed(word, now)) continue;
     candidates.push({
       id: wordId,
       seq,
-      neverQuizzed: isJpVocabWordNeverQuizzed(word),
     });
   }
 
-  candidates.sort((a, b) => {
-    if (a.neverQuizzed !== b.neverQuizzed) return a.neverQuizzed ? -1 : 1;
-    return a.seq - b.seq;
-  });
+  // 正序：严格按当日序号升序（= 序号 1…N），禁止再按「从未抽查」插队捞末尾新词
+  candidates.sort((a, b) => a.seq - b.seq);
 
   return candidates;
 }
@@ -368,7 +366,8 @@ function buildJpVocabTeacherVisibleReleaseCandidates(
 /**
  * 选取老师可见批次：
  * 1. 排除今日已抽查（DB today_check_count > 0）
- * 2. 优先从未抽查过的词条，再按当日序号升序补足以往抽查过、今日未抽查的词条
+ * 2. 排除今日新入库且从未抽查的词
+ * 3. 按当日序号升序取满 releaseCount（正序 1…N）
  */
 export function pickJpVocabTeacherVisibleReleaseIds(
   displayOrder: JpVocabDailyDisplayOrder,
@@ -541,8 +540,8 @@ function buildJpVocabQuizTargetVisibleIds(
 /**
  * 根据「今日抽查数量」生成老师可见词条池：
  * 1. 保留当前池中今日已抽查的词条
- * 2. 保留当前池中今日未抽查的词条
- * 3. 不足目标数时，优先从未抽查过的词条补足，再按当日序号升序补足（跳过今日已抽查）
+ * 2. 保留当前池中今日未抽查的词条（跳过今日新入库从未抽查）
+ * 3. 不足目标数时按当日序号正序补足（勿按从未抽查插队）
  * 4. 若池中缺少今日已抽查词条（与进度条不一致），整池重算为「已抽查 + 待抽查」
  */
 export function applyJpVocabQuizTargetVisiblePlan(
@@ -581,6 +580,12 @@ export function applyJpVocabQuizTargetVisiblePlan(
     for (const id of previousVisible) {
       const word = wordById.get(id);
       if (!word) continue;
+      if (
+        isJpVocabWordSameDayNewNeverQuizzed(word, now) &&
+        !isJpVocabWordTodayCheckedInDb(word, now)
+      ) {
+        continue;
+      }
       visible_ids.push(id);
       inPool.add(id);
     }

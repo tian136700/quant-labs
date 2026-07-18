@@ -81,28 +81,23 @@ export function clearJpVocabRoundChecked(
   return { ...order, round_checked_ids: [] };
 }
 
-export function computeJpVocabDailyDisplayOrder(words: JpVocabWord[]): number[] {
-  return sortJpVocabWordsForDailyOrder(words).map((w) => w.id);
-}
-
-/** 与 teacher-visible 一致：历史熟悉程度次数合计为 0 即从未抽查 */
-function isJpVocabWordNeverQuizzedForOrder(word: JpVocabWord): boolean {
-  return (
-    (word.cnt_very ?? 0) + (word.cnt_normal ?? 0) + (word.cnt_weak ?? 0) === 0
-  );
+export function computeJpVocabDailyDisplayOrder(
+  words: JpVocabWord[],
+  now = new Date()
+): number[] {
+  return sortJpVocabWordsForDailyOrder(words, now).map((w) => w.id);
 }
 
 /**
- * 保留当日已有顺序，已删词条去掉。
- * 新词：从未抽查的插到最前（与凌晨重排「从未抽查置顶」一致），其余仍追加末尾。
- * 禁止把从未抽查新词只 append 到末尾——否则今日池按「从未抽查优先」会抽到序号 200+，
- * 管理员端看起来像「设了 75 却只勾到 62」。
+ * 保留当日已有顺序，新词条追加到末尾，已删词条去掉。
+ * 今日新入库的从未抽查词必须沉在末尾：今天按序号 1–N 正序抽，不插队；
+ * 次日凌晨 `computeJpVocabDailyDisplayOrder` 再把它们置顶。
  */
 export function mergeJpVocabDailyDisplayOrder(
   storedIds: number[],
   words: JpVocabWord[]
 ): number[] {
-  const byId = new Map(words.map((w) => [w.id, w]));
+  const byId = new Set(words.map((w) => w.id));
   const merged: number[] = [];
   const seen = new Set<number>();
   for (const id of storedIds) {
@@ -111,18 +106,14 @@ export function mergeJpVocabDailyDisplayOrder(
       seen.add(id);
     }
   }
-  const newNever: number[] = [];
-  const newOther: number[] = [];
   for (const w of words) {
-    if (seen.has(w.id)) continue;
-    if (isJpVocabWordNeverQuizzedForOrder(w)) newNever.push(w.id);
-    else newOther.push(w.id);
+    if (!seen.has(w.id)) merged.push(w.id);
   }
-  return [...newNever, ...merged, ...newOther];
+  return merged;
 }
 
 /**
- * 当日顺序追加新词 id。新词首次入库必为从未抽查 → 插到最前，勿 append 末尾。
+ * 当日顺序追加新词 id（追加末尾）。
  * date 非今日时原样返回（跨日应由 ensure/refresh 全量重排，勿写成只含新词的残缺顺序）。
  */
 export function appendJpVocabDailyDisplayOrderId(
@@ -134,7 +125,7 @@ export function appendJpVocabDailyDisplayOrderId(
   if (order.date !== today || order.ids.includes(wordId)) return order;
   return {
     date: today,
-    ids: [wordId, ...order.ids],
+    ids: [...order.ids, wordId],
     round_checked_ids: order.round_checked_ids,
   };
 }
