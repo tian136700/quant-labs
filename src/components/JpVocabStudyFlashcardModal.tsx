@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * @deprecated 学生端请用 JpVocabTeacherQuizFlashcardModal mode="study"
+ *（与老师抽问卡同 UI）。本文件仅保留兼容，勿再接入新页面。
+ */
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";

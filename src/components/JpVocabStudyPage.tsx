@@ -390,7 +390,7 @@ export function JpVocabStudyPage() {
     if (!entry) return;
 
     pendingFlashcardWordIdRef.current = null;
-    // 同标签「打开备注」可弹卡；禁止 scrollIntoView，否则列表刷新会把页面拽到底部
+    // 弹卡即可；禁止 scrollIntoView（会把用户拽到列表底部）
     setFlashcardItem(entry);
   }, [items]);
 
@@ -442,7 +442,8 @@ export function JpVocabStudyPage() {
     items.some((item) => item.word_id === teacherLiveWordId);
 
   useEffect(() => {
-    if (!showRequestTeacherShare) {
+    // peek /「请老师发送」都要知道当前 live 词：已在共享列表则按钮变灰，避免再弹一次
+    if (!showPeekTeacherQuiz && !showRequestTeacherShare) {
       setTeacherLiveWordId(null);
       return;
     }
@@ -487,7 +488,7 @@ export function JpVocabStudyPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [showRequestTeacherShare]);
+  }, [showPeekTeacherQuiz, showRequestTeacherShare]);
 
   const requestTeacherShare = useCallback(async () => {
     if (!user || !showRequestTeacherShare || requestingShare) return;
@@ -526,6 +527,10 @@ export function JpVocabStudyPage() {
 
   const peekTeacherQuizWord = useCallback(async () => {
     if (!user || !showPeekTeacherQuiz || peekingTeacherQuiz) return;
+    if (teacherLiveWordShared) {
+      setStatus("老师已发送正在抽查的单词，请看弹出的卡片或下方列表。");
+      return;
+    }
     setPeekingTeacherQuiz(true);
     try {
       const res = await fetch("/api/jp-vocab/teacher-quiz-live", {
@@ -590,6 +595,7 @@ export function JpVocabStudyPage() {
     user,
     showPeekTeacherQuiz,
     peekingTeacherQuiz,
+    teacherLiveWordShared,
     locale,
     openJpAuth,
     refs,
@@ -598,6 +604,55 @@ export function JpVocabStudyPage() {
 
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
+
+  const studyFlashcardSession = useMemo<JpVocabTeacherQuizSession | null>(() => {
+    if (!flashcardItem) return null;
+    return {
+      mode: "sequential",
+      wordIds: [flashcardItem.word_id],
+      currentIndex: 0,
+    };
+  }, [flashcardItem]);
+
+  const studyWordsById = useMemo(() => {
+    const map = new Map<number, JpVocabWord>();
+    for (const item of items) {
+      map.set(item.word_id, item.word);
+    }
+    if (flashcardItem) {
+      map.set(flashcardItem.word_id, flashcardItem.word);
+    }
+    return map;
+  }, [items, flashcardItem]);
+
+  const studyDisplayOrder = useMemo<JpVocabDailyDisplayOrder>(
+    () => ({
+      date: shareDate || beijingDateString(),
+      ids: items.map((item) => item.word_id),
+    }),
+    [shareDate, items]
+  );
+
+  const studySessionLevel = useMemo(() => {
+    const out: Record<number, JpVocabLevel | undefined> = {};
+    for (const item of items) {
+      const level = resolveJpVocabSharedTeacherLevel(item.word);
+      if (level) out[item.word_id] = level;
+    }
+    if (flashcardItem) {
+      const level = resolveJpVocabSharedTeacherLevel(flashcardItem.word);
+      if (level) out[flashcardItem.word_id] = level;
+    }
+    return out;
+  }, [items, flashcardItem]);
+
+  const studyDailySeqByWordId = useMemo(() => {
+    const map = new Map<number, number>();
+    items.forEach((item, index) => {
+      map.set(item.word_id, index + 1);
+    });
+    return map;
+  }, [items]);
 
   const openRefPreview = (refKey: string, ref?: JpVocabRef) => {
     const meta = resolveJpVocabRefForPreview(refKey, refs, ref);
@@ -627,13 +682,24 @@ export function JpVocabStudyPage() {
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--primary"
-            disabled={peekingTeacherQuiz}
+            disabled={peekingTeacherQuiz || teacherLiveWordShared}
+            title={
+              teacherLiveWordShared
+                ? "老师已发送正在抽查的单词，请看下方弹出的卡片或列表"
+                : undefined
+            }
             onClick={() => void peekTeacherQuizWord()}
           >
-            {peekingTeacherQuiz ? "加载中…" : "查看老师正在抽查的单词"}
+            {peekingTeacherQuiz
+              ? "加载中…"
+              : teacherLiveWordShared
+                ? "老师已发送"
+                : "查看老师正在抽查的单词"}
           </button>
           <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-            没听清时，可立即查看老师当前正在抽问的单词。
+            {teacherLiveWordShared
+              ? "老师已勾选并发送，无需再点查看。"
+              : "没听清时，可立即查看老师当前正在抽问的单词。"}
           </span>
         </div>
       ) : null}
@@ -1132,24 +1198,35 @@ export function JpVocabStudyPage() {
         />
       ) : null}
 
-      <JpVocabStudyFlashcardModal
+      <JpVocabTeacherQuizFlashcardModal
         open={flashcardItem != null}
-        item={flashcardItem}
+        mode="study"
+        session={studyFlashcardSession}
+        wordsById={studyWordsById}
         refs={refs}
         locale={locale}
+        displayOrder={studyDisplayOrder}
+        sessionLevel={studySessionLevel}
+        reviewLockedByWordId={{}}
+        savingWordId={null}
+        dailySeqByWordId={studyDailySeqByWordId}
         canOperate={canOperate}
+        shareUiEnabled={false}
+        onClose={() => setFlashcardItem(null)}
+        onComplete={() => setFlashcardItem(null)}
+        onSelectLevel={() => {}}
+        onNavigate={() => {}}
+        onOpenRef={openRefPreview}
+        onViewRemarks={openRemarksWord}
+        onEditRemarks={setEditingRemarksWord}
+        onEditWord={canOperate ? setEditingWord : undefined}
+        onWordUpdated={handleWordSaved}
         nestedModalOpen={
           editingWord != null ||
           editingRemarksWord != null ||
           viewingRemarksWord != null ||
           previewRef != null
         }
-        onClose={() => setFlashcardItem(null)}
-        onOpenRef={openRefPreview}
-        onViewRemarks={openRemarksWord}
-        onEditRemarks={setEditingRemarksWord}
-        onEditWord={setEditingWord}
-        onWordUpdated={handleWordSaved}
       />
 
       <JpVocabRefPreviewModal
