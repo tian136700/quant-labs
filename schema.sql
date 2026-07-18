@@ -289,6 +289,21 @@ CREATE TABLE IF NOT EXISTS jp_vocab_coach_item (
   FOREIGN KEY (word_id) REFERENCES jp_vocab_word (id) ON DELETE CASCADE
 );
 
+-- 日语抽问老师端：今日谁抽问、何时抽完（供抽完后延时自动禁用账号；不写在词条表上）
+CREATE TABLE IF NOT EXISTS jp_vocab_teacher_quiz_day (
+  user_id          INTEGER NOT NULL,
+  quiz_date        TEXT    NOT NULL,
+  username         TEXT    NOT NULL,
+  last_action_at   TEXT    NOT NULL,
+  completed_at     TEXT,
+  disable_after_at TEXT,
+  disabled_at      TEXT,
+  PRIMARY KEY (user_id, quiz_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_jp_vocab_teacher_quiz_day_disable
+  ON jp_vocab_teacher_quiz_day (quiz_date, disabled_at, disable_after_at);
+
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_coach_item_order
   ON jp_vocab_coach_item (display_order, word_id);
 

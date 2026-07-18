@@ -40,6 +40,7 @@
 | **老师端列表隐藏不可操作行**（进行中：非管理员老师仅见今日可见池内**尚未勾选**的词条，本会话刚勾选仍可见；**已完成**：展示今日已抽查列表） | `JpVocabPage.tsx` → `hideInoperableRows`、`teacherPendingWords`、`filteredDisplayedWords` |
 | **老师端可见池可操作**（仅 `visible_ids` / 今日抽查池内可勾选、发给学生；池按从未抽查优先，不等于序号 1–N；管理员仍见全库） | `JpVocabPage.tsx` → `isWordInQuizTarget`、`quizTargetWords`；`jp-vocab-teacher-visible.ts` → `isJpVocabWordInTeacherVisiblePool`、`listJpVocabTeacherQuizPoolWords`；`JpVocabDailyQuizProgressBar.tsx` |
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20/课堂带读已带读） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；`pruneJpVocabCoachCoachedOlderThanRetention()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
+| **抽完后自动禁用老师账号**（记操作人；普通 +1h / 带读欣欣 +2h） | `jp-vocab-teacher-quiz-day.ts`；`teacher-user-quiz-complete-disable.ts`；见 admin/users 子功能「今日抽查完成后自动禁用」 |
 | **读音「待补全」**（Mac 每分钟补 `reading`；助词尾/斜杠异写有 fallback；长句跳过） | `scripts/jp-vocab-fill-reading-nightly.sh` → `jp-vocab-fill-reading-api.py`；`POST /api/jp-vocab/fill-reading`；`jp-vocab-fill-reading.ts`；规则 `.cursor/rules/jp-vocab-fill-reading.mdc` |
 | **例句 AI 补全**（缺例句先内置 N5 词表，再 OpenAI；已有日语缺中文用 gloss 脚本补「译文：」） | `scripts/jp-vocab-fill-example-sentences-ai.py`；`scripts/jp-vocab-fill-example-gloss.py`；`POST /api/jp-vocab/fill-example-sentences`；`jp-vocab-example-sentences-ai.ts`；规则 `.cursor/rules/jp-vocab-fill-example-sentences.mdc` |
 | 学生点「请老师发送」按钮（**默认关闭**；peek 不依赖此开关） | `jp-vocab-share-ui.ts` → `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED`；`JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
@@ -160,6 +161,7 @@
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
 | **最后登录 IP 折叠**（长 IPv6 默认收起 +「展开/收起」；IPv4 一行展示；禁止每行 N 字符强折） | `AdminUsersPage.tsx` → `AdminUserIpDisplay`；规则 `.cursor/rules/admin-users-ip-collapse.mdc` |
 | **今日有课老师账号自动启用**（北京时间 05:00；仅日语新课排课 + 手动日程；**不含英语课/英语老师**——英语老师不建登录账号；`admin` / `user1` / `test` 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |
+| **今日抽查完成后自动禁用**（记操作人到 `jp_vocab_teacher_quiz_day`，**不写词条表**；普通老师抽完 +1h，带读账号如欣欣 +2h；`admin` / `user1` / `test` 不受控） | `src/lib/jp-vocab-teacher-quiz-day.ts`（勾选时写入）；`src/lib/teacher-user-quiz-complete-disable.ts`；`POST /api/admin/teacher-user-quiz-complete-disable`；Mac 定时 `scripts/teacher-user-quiz-complete-disable.sh` + `setup-teacher-user-quiz-complete-disable-mac.sh`（每 15 分钟）；规则 `.cursor/rules/teacher-quiz-complete-auto-disable.mdc` |
 
 ---
 

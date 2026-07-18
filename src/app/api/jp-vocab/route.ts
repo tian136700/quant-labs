@@ -19,6 +19,7 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
+import { trackJpVocabTeacherQuizDayAfterReview } from "@/lib/jp-vocab-teacher-quiz-day";
 import type { JpVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -159,6 +160,18 @@ export async function POST(request: Request) {
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400;
       return jsonResponse({ ok: false, error: result.error }, status);
+    }
+
+    // 记录今日抽问操作人；抽完后定时任务按 1h/带读 2h 自动禁用（失败不影响勾选结果）
+    if (user && !isAdminForReview) {
+      try {
+        await trackJpVocabTeacherQuizDayAfterReview(env.DB, user);
+      } catch (trackErr) {
+        console.error(
+          "[jp-vocab] trackJpVocabTeacherQuizDayAfterReview failed",
+          trackErr
+        );
+      }
     }
 
     return jsonResponse({
