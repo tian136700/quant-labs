@@ -60,6 +60,21 @@ def load_env_file(name: str) -> dict[str, str]:
     return data
 
 
+def load_system_bark_env() -> dict[str, str]:
+    """本机共享：~/.config/bark/env（跨项目，勿进 Git）。"""
+    path = Path.home() / ".config" / "bark" / "env"
+    data: dict[str, str] = {}
+    if not path.is_file():
+        return data
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        data[key.strip()] = value.strip().strip('"').strip("'")
+    return data
+
+
 def load_repo_deploy_env() -> dict[str, str]:
     path = ROOT / ".env.deploy.local"
     data: dict[str, str] = {}
@@ -82,11 +97,20 @@ def resolve_token(review_cfg: dict[str, str]) -> str:
 
 
 def ensure_bark_env(remind_cfg: dict[str, str], deploy_cfg: dict[str, str]) -> None:
-    """把 Bark key 注入进程环境，供 bark_notify 读取。"""
+    """把 Bark key 注入进程环境，供 bark_notify 读取。
+
+    优先级：已有进程环境 > 本脚本专属 env > 项目 .env.deploy.local > ~/.config/bark/env
+    """
+    system_cfg = load_system_bark_env()
     for key in ("BARK_DEVICE_KEY", "BARK_PUSH_URL", "BARK_SERVER", "BARK_ENABLED"):
         if os.environ.get(key):
             continue
-        value = (remind_cfg.get(key) or deploy_cfg.get(key) or "").strip()
+        value = (
+            remind_cfg.get(key)
+            or deploy_cfg.get(key)
+            or system_cfg.get(key)
+            or ""
+        ).strip()
         if value:
             os.environ[key] = value
 

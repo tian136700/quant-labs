@@ -22,7 +22,16 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-# 未单独配置时，复用维护中心部署失败用的 Bark key
+# 未单独配置时：先读本机共享 Bark，再回退项目 .env.deploy.local
+if [[ -z "${BARK_DEVICE_KEY:-}" && -z "${BARK_PUSH_URL:-}" ]]; then
+  SYSTEM_BARK_ENV="${HOME}/.config/bark/env"
+  if [[ -f "$SYSTEM_BARK_ENV" ]]; then
+    # shellcheck disable=SC1090
+    set -a
+    source "$SYSTEM_BARK_ENV"
+    set +a
+  fi
+fi
 if [[ -z "${BARK_DEVICE_KEY:-}" && -z "${BARK_PUSH_URL:-}" ]]; then
   DEPLOY_ENV="${ROOT}/.env.deploy.local"
   if [[ -f "$DEPLOY_ENV" ]]; then
