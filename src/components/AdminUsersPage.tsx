@@ -40,7 +40,7 @@ import {
 import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENGTH, ETR_DEFAULT_JP_VOCAB_USERNAME, ETR_DEFAULT_JP_VOCAB_USER1_USERNAME, ETR_DEFAULT_ADMIN_USERNAME, isReservedUsername } from "@/lib/etr-auth";
 import { formatBeijingDateTime, parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
-import { foldIpDisplayChunks, formatIpForDisplay } from "@/lib/client-ip";
+import { formatIpForDisplay } from "@/lib/client-ip";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { LoginLinkTemplate } from "@/lib/types";
 
@@ -151,18 +151,55 @@ function AdminUserCardField({
   );
 }
 
-/** 最后登录 IP：单元格内每行最多 8 字符；悬停看全文 */
-function AdminUserIpDisplay({ ip }: { ip: string | null | undefined }) {
+/** 长于该长度则默认收起，点「展开」看全文（IPv4 通常不触发） */
+const ADMIN_USER_IP_COLLAPSE_AT = 18;
+
+/** 最后登录 IP：短地址一行展示；长 IPv6 默认折叠，可展开 */
+function AdminUserIpDisplay({
+  ip,
+  locale,
+}: {
+  ip: string | null | undefined;
+  locale: "zh" | "en";
+}) {
   const full = formatIpForDisplay(ip);
-  const chunks = foldIpDisplayChunks(ip, 8);
+  const [expanded, setExpanded] = useState(false);
+  const needsCollapse = full !== "—" && full.length > ADMIN_USER_IP_COLLAPSE_AT;
+
+  if (full === "—") {
+    return <span className="admin-user-ip">—</span>;
+  }
+
+  if (!needsCollapse) {
+    return (
+      <span className="admin-user-ip" title={full}>
+        {full}
+      </span>
+    );
+  }
+
+  const preview = `${full.slice(0, ADMIN_USER_IP_COLLAPSE_AT)}…`;
   return (
-    <span className="admin-user-ip" title={full === "—" ? undefined : full}>
-      {chunks.map((part, i) => (
-        <span key={`${i}-${part}`}>
-          {i > 0 ? <br /> : null}
-          {part}
-        </span>
-      ))}
+    <span
+      className={`admin-user-ip${expanded ? " admin-user-ip--expanded" : " admin-user-ip--collapsed"}`}
+    >
+      <span className="admin-user-ip-text" title={full}>
+        {expanded ? full : preview}
+      </span>
+      <button
+        type="button"
+        className="admin-user-ip-toggle"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {expanded
+          ? locale === "zh"
+            ? "收起"
+            : "Collapse"
+          : locale === "zh"
+            ? "展开"
+            : "Expand"}
+      </button>
     </span>
   );
 }
@@ -1206,7 +1243,7 @@ function AdminUsersPageContent() {
                     />
                     <AdminUserCardField
                       label={locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
-                      value={<AdminUserIpDisplay ip={row.last_login_ip} />}
+                      value={<AdminUserIpDisplay ip={row.last_login_ip} locale={locale} />}
                       wide
                     />
                   </dl>
@@ -1289,7 +1326,7 @@ function AdminUsersPageContent() {
                       <td>{formatAdminDateTime(row.created_at)}</td>
                       <td>{formatAdminDateTime(row.last_login_at)}</td>
                       <td className="admin-user-ip-col">
-                        <AdminUserIpDisplay ip={row.last_login_ip} />
+                        <AdminUserIpDisplay ip={row.last_login_ip} locale={locale} />
                       </td>
                       <td>
                         {row.disabled
@@ -1300,7 +1337,7 @@ function AdminUsersPageContent() {
                             ? "正常"
                             : "Active"}
                       </td>
-                      <td>
+                      <td className="admin-user-actions-col">
                         <AdminUserActions
                           row={row}
                           locale={locale}
@@ -1899,19 +1936,51 @@ function AdminUsersPageContent() {
           gap: 0.25rem;
         }
         :global(.admin-user-ip-col) {
-          width: 8.5ch;
-          max-width: 9ch;
+          width: 12rem;
+          max-width: 14rem;
           vertical-align: top;
           white-space: normal !important;
         }
         :global(.admin-user-ip) {
-          display: inline-block;
-          max-width: 8ch;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.2rem;
+          max-width: 100%;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
           font-size: 0.8125rem;
           letter-spacing: -0.01em;
           line-height: 1.35;
           word-break: break-all;
+        }
+        :global(.admin-user-ip-text) {
+          display: block;
+          max-width: 100%;
+        }
+        :global(.admin-user-ip--collapsed .admin-user-ip-text) {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          word-break: normal;
+        }
+        :global(.admin-user-ip-toggle) {
+          border: 0;
+          background: transparent;
+          color: #6eb5ff;
+          font: inherit;
+          font-size: 0.75rem;
+          line-height: 1.2;
+          padding: 0;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        :global(.admin-user-ip-toggle:hover) {
+          text-decoration: underline;
+        }
+        :global(.admin-user-actions-col) {
+          width: 1%;
+          vertical-align: top;
+          white-space: normal !important;
         }
         .admin-rbac-table tbody tr:nth-child(even) {
           background: rgba(255, 255, 255, 0.02);
@@ -1922,8 +1991,8 @@ function AdminUsersPageContent() {
         }
         .admin-user-actions {
           display: grid;
-          grid-template-columns: repeat(3, max-content);
-          gap: 0.45rem;
+          grid-template-columns: repeat(2, max-content);
+          gap: 0.4rem;
           align-items: center;
           justify-items: stretch;
           width: max-content;
