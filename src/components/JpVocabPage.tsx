@@ -1217,10 +1217,13 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     [quizTargetWords, sessionLevel, displayOrder]
   );
 
-  /** 复习合计为 0：历史上从未勾选过熟悉程度 */
+  /** 复习合计为 0：历史上从未勾选过熟悉程度（仅管理员端工具栏展示） */
   const neverQuizzedCount = useMemo(
-    () => words.filter((w) => jpVocabTotalReviews(w) === 0).length,
-    [words]
+    () =>
+      isAdminMode
+        ? words.filter((w) => jpVocabTotalReviews(w) === 0).length
+        : 0,
+    [isAdminMode, words]
   );
 
   const hasAnyQuizLevelToday = useMemo(
@@ -2470,23 +2473,31 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词表</h2>
           <div className="jp-vocab-toolbar">
             <span className="jp-vocab-toolbar-summary" style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              共 {words.length} 条
+              {isAdminMode ? (
+                <>
+                  共 {words.length} 条
+                  {words.length ? (
+                    <>
+                      {" "}
+                      · 从未抽查{" "}
+                      <span
+                        className={
+                          neverQuizzedCount > 0
+                            ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--never"
+                            : "jp-vocab-today-summary-value"
+                        }
+                        title="复习合计为 0：历史上从未勾选过熟悉程度的词条数"
+                      >
+                        {neverQuizzedCount}
+                      </span>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
               {words.length ? (
                 <>
-                  {" "}
-                  · 从未抽查{" "}
-                  <span
-                    className={
-                      neverQuizzedCount > 0
-                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--never"
-                        : "jp-vocab-today-summary-value"
-                    }
-                    title="复习合计为 0：历史上从未勾选过熟悉程度的词条数"
-                  >
-                    {neverQuizzedCount}
-                  </span>
-                  {" "}
-                  · 今日抽查{" "}
+                  {isAdminMode ? " · " : null}
+                  今日抽查{" "}
                   <span
                     className={
                       todayCheckStats.totalActions > 0
@@ -2506,8 +2517,18 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                   </span>
                 </>
               ) : null}
-              {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
-              {refreshing ? <> · 加载中…</> : null}
+              {canOperate ? (
+                <>
+                  {words.length || isAdminMode ? " · " : null}
+                  本轮未勾选 {unmarkedCount}
+                </>
+              ) : null}
+              {refreshing ? (
+                <>
+                  {words.length || isAdminMode || canOperate ? " · " : null}
+                  加载中…
+                </>
+              ) : null}
             </span>
             <button
               type="button"
