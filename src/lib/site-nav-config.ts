@@ -1,6 +1,12 @@
 export type NavCategory = "teaching" | "admin" | "ai" | "data" | "system";
 
-/** Top bar: most-used items only; everything else lives in the drawer. */
+/**
+ * Always leftmost in the top bar when present (admin「日语抽问-管理员端»).
+ * Remaining slots: usage frequency; overflow →「更多」.
+ */
+export const PINNED_PRIMARY_NAV_ID = "jpVocabAdmin" as const;
+
+/** Tie-breaker when visit counts are equal (not the primary sort). */
 export const PRIMARY_NAV_ORDER = [
   "jpVocabAdmin",
   "jpVocab",

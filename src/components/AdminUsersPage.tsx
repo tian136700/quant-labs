@@ -40,7 +40,7 @@ import {
 import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENGTH, ETR_DEFAULT_JP_VOCAB_USERNAME, ETR_DEFAULT_JP_VOCAB_USER1_USERNAME, ETR_DEFAULT_ADMIN_USERNAME, isReservedUsername } from "@/lib/etr-auth";
 import { formatBeijingDateTime, parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
-import { formatIpForDisplay } from "@/lib/client-ip";
+import { foldIpDisplayChunks, formatIpForDisplay } from "@/lib/client-ip";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { LoginLinkTemplate } from "@/lib/types";
 
@@ -148,6 +148,22 @@ function AdminUserCardField({
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>
+  );
+}
+
+/** 最后登录 IP：单元格内每行最多 8 字符；悬停看全文 */
+function AdminUserIpDisplay({ ip }: { ip: string | null | undefined }) {
+  const full = formatIpForDisplay(ip);
+  const chunks = foldIpDisplayChunks(ip, 8);
+  return (
+    <span className="admin-user-ip" title={full === "—" ? undefined : full}>
+      {chunks.map((part, i) => (
+        <span key={`${i}-${part}`}>
+          {i > 0 ? <br /> : null}
+          {part}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -1190,7 +1206,7 @@ function AdminUsersPageContent() {
                     />
                     <AdminUserCardField
                       label={locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
-                      value={formatIpForDisplay(row.last_login_ip)}
+                      value={<AdminUserIpDisplay ip={row.last_login_ip} />}
                       wide
                     />
                   </dl>
@@ -1272,8 +1288,8 @@ function AdminUsersPageContent() {
                       <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
                       <td>{formatAdminDateTime(row.created_at)}</td>
                       <td>{formatAdminDateTime(row.last_login_at)}</td>
-                      <td className="admin-user-ip-col admin-user-ip">
-                        {formatIpForDisplay(row.last_login_ip)}
+                      <td className="admin-user-ip-col">
+                        <AdminUserIpDisplay ip={row.last_login_ip} />
                       </td>
                       <td>
                         {row.disabled
@@ -1882,14 +1898,20 @@ function AdminUsersPageContent() {
           justify-content: center;
           gap: 0.25rem;
         }
-        .admin-user-ip-col {
-          min-width: 17.5rem;
+        :global(.admin-user-ip-col) {
+          width: 8.5ch;
+          max-width: 9ch;
+          vertical-align: top;
+          white-space: normal !important;
         }
-        .admin-user-ip {
-          white-space: nowrap;
+        :global(.admin-user-ip) {
+          display: inline-block;
+          max-width: 8ch;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
           font-size: 0.8125rem;
           letter-spacing: -0.01em;
+          line-height: 1.35;
+          word-break: break-all;
         }
         .admin-rbac-table tbody tr:nth-child(even) {
           background: rgba(255, 255, 255, 0.02);

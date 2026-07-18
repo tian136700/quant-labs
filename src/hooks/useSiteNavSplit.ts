@@ -1,42 +1,72 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PRIMARY_NAV_ORDER } from "@/lib/site-nav-config";
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  PINNED_PRIMARY_NAV_ID,
+  PRIMARY_NAV_ORDER,
+} from "@/lib/site-nav-config";
 import { useSiteNavItems, type SiteNavItem } from "@/hooks/useSiteNavItems";
 import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
 
 /**
- * Sort items by visit frequency (descending).
- * Items with the same count preserve the default PRIMARY_NAV_ORDER hint.
- * Current page always comes first so the top bar shows where you are.
+ * Leftmost: pinned「日语抽问-管理员端」when present.
+ * Then: visit frequency (desc). Equal counts → PRIMARY_NAV_ORDER.
+ * Do NOT put the current page first — that would steal the pinned slot.
  */
-function sortByFrequency(
+function sortNavItems(
   items: SiteNavItem[],
   counts: Record<string, number>
 ): SiteNavItem[] {
   const orderMap = new Map<string, number>(
     PRIMARY_NAV_ORDER.map((id, i) => [id, i])
   );
-  return [...items].sort((a, b) => {
-    if (a.active !== b.active) return a.active ? -1 : 1;
+  const pinned = items.filter((item) => item.id === PINNED_PRIMARY_NAV_ID);
+  const rest = items.filter((item) => item.id !== PINNED_PRIMARY_NAV_ID);
+  rest.sort((a, b) => {
     const countDiff = (counts[b.id] ?? 0) - (counts[a.id] ?? 0);
     if (countDiff !== 0) return countDiff;
     const aOrder = orderMap.get(a.id) ?? 999;
     const bOrder = orderMap.get(b.id) ?? 999;
     return aOrder - bOrder;
   });
+  return [...pinned, ...rest];
 }
 
-/** Ensure active page is always among the visible top-bar slots (leftmost). */
-function pinActiveIntoPrimary(
+/**
+ * Split into top-bar vs「更多」.
+ * Keep pinned item at index 0; ensure active page stays in the visible strip
+ * (may expand beyond maxVisible if needed), without moving it ahead of pinned.
+ */
+function splitPrimaryAndDrawer(
   sortedItems: SiteNavItem[],
   maxVisible: number
 ): { primaryItems: SiteNavItem[]; drawerOnlyItems: SiteNavItem[] } {
   const capped = Math.max(1, Math.min(maxVisible, sortedItems.length));
+  const pinned = sortedItems.find((item) => item.id === PINNED_PRIMARY_NAV_ID);
+  const rest = sortedItems.filter((item) => item.id !== PINNED_PRIMARY_NAV_ID);
+
+  if (pinned) {
+    const slotsForRest = Math.max(0, capped - 1);
+    const activeRest = rest.filter((item) => item.active);
+    const inactiveRest = rest.filter((item) => !item.active);
+    // Active first among non-pinned so current page stays on the bar
+    const orderedRest = [...activeRest, ...inactiveRest];
+    const visibleRestCount = Math.max(slotsForRest, activeRest.length);
+    const visibleRest = orderedRest.slice(
+      0,
+      Math.min(visibleRestCount, orderedRest.length)
+    );
+    const primaryItems = [pinned, ...visibleRest];
+    const primaryIds = new Set(primaryItems.map((item) => item.id));
+    const drawerOnlyItems = sortedItems.filter(
+      (item) => !primaryIds.has(item.id)
+    );
+    return { primaryItems, drawerOnlyItems };
+  }
+
   const active = sortedItems.filter((item) => item.active);
-  const rest = sortedItems.filter((item) => !item.active);
-  const ordered = [...active, ...rest];
-  // Keep at least every active item visible even if that shrinks other slots
+  const inactive = sortedItems.filter((item) => !item.active);
+  const ordered = [...active, ...inactive];
   const visibleCount = Math.max(capped, active.length);
   const primaryItems = ordered.slice(0, Math.min(visibleCount, ordered.length));
   const primaryIds = new Set(primaryItems.map((item) => item.id));
@@ -61,7 +91,7 @@ export function useSiteNavSplit(): {
   const [maxVisible, setMaxVisible] = useState<number>(allItems.length);
 
   const sortedItems = useMemo(
-    () => sortByFrequency(allItems, visitCounts),
+    () => sortNavItems(allItems, visitCounts),
     [allItems, visitCounts]
   );
 
@@ -70,7 +100,7 @@ export function useSiteNavSplit(): {
   }, []);
 
   const result = useMemo(() => {
-    const { primaryItems, drawerOnlyItems } = pinActiveIntoPrimary(
+    const { primaryItems, drawerOnlyItems } = splitPrimaryAndDrawer(
       sortedItems,
       maxVisible
     );

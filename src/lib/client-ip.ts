@@ -110,6 +110,29 @@ export function formatIpForDisplay(raw: string | null | undefined): string {
   return normalizeClientIp(raw) ?? raw.trim();
 }
 
+/** 表格/卡片单元格：长 IP 按固定宽度折行（默认每行 8 字符） */
+export function foldIpDisplayChunks(
+  raw: string | null | undefined,
+  maxCharsPerLine = 8,
+): string[] {
+  const display = formatIpForDisplay(raw);
+  if (display === "—" || maxCharsPerLine < 1) return [display];
+  if (display.length <= maxCharsPerLine) return [display];
+  const parts: string[] = [];
+  for (let i = 0; i < display.length; i += maxCharsPerLine) {
+    parts.push(display.slice(i, i + maxCharsPerLine));
+  }
+  return parts;
+}
+
+/** 与 foldIpDisplayChunks 相同，用换行符拼接（纯文本场景） */
+export function foldIpForDisplay(
+  raw: string | null | undefined,
+  maxCharsPerLine = 8,
+): string {
+  return foldIpDisplayChunks(raw, maxCharsPerLine).join("\n");
+}
+
 export function ipKey(raw: string | null | undefined): string {
   return normalizeClientIp(raw) ?? raw?.trim() ?? "";
 }

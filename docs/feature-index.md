@@ -158,6 +158,7 @@
 | **手机端用户卡片**（&lt; lg 显示卡片 + 排序；桌面端表格） | `AdminUsersPage.tsx` → `admin-cards` / `admin-table-wrap`；`mobile.css` |
 | **复制账号密码**（含日语子域名 `/jp-vocab` 入口；密码来自本机缓存；**李老师 / user1 等保留账号无缓存时禁止一键随机重置**，须「编辑」填写） | `AdminUsersPage.tsx` → `copyUserCredentials`；`resetUserPasswordByAdmin`（`cannot_reset_bootstrap`）；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` + `jpVocabPath()`）；规则 `.cursor/rules/bootstrap-account-password.mdc` |
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
+| **最后登录 IP 折叠**（单元格内每行最多 8 字符；`<br />` 强制折行；悬停看全文） | `AdminUsersPage.tsx` → `AdminUserIpDisplay`；`client-ip.ts` → `foldIpDisplayChunks` |
 | **今日有课老师账号自动启用**（北京时间 05:00；仅日语新课排课 + 手动日程；**不含英语课/英语老师**——英语老师不建登录账号；`admin` / `user1` / `test` 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |
 
 ---
@@ -168,7 +169,7 @@
 |------|------|
 | 登录 / 会话 / 前端权限 | `src/contexts/EtrAuthProvider.tsx`、`src/lib/etr-auth.ts`、`src/app/api/english-teacher-review/auth/route.ts` |
 | RBAC 权限表 | `src/lib/rbac.ts`、`src/lib/rbac-db.ts`、`schema.sql` → `etr_role_permissions` |
-| 站点导航 | `src/hooks/useSiteNavItems.ts`、`src/components/AppShell.tsx` |
+| 站点导航（顶栏：管理员端固定最左；其余按使用频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`、`src/lib/site-nav-config.ts`（`PINNED_PRIMARY_NAV_ID`）、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc` |
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
 
