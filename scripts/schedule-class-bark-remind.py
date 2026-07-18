@@ -27,6 +27,7 @@ if str(SCRIPTS) not in sys.path:
 
 from maintenance_center.bark_notify import (  # noqa: E402
     format_class_remind_push,
+    resolve_icon_url,
     send_bark_push,
 )
 
@@ -235,7 +236,12 @@ def maybe_remind(
             notified += 1
             continue
 
-        result = send_bark_push(title=bark_title, body=body, group="上课提醒")
+        result = send_bark_push(
+            title=bark_title,
+            body=body,
+            group="上课提醒",
+            icon=resolve_icon_url("class_remind"),
+        )
         if result.get("skipped"):
             print("  bark skipped: not configured (BARK_DEVICE_KEY)")
             return notified
