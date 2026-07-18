@@ -44,6 +44,13 @@ function withLocalAuthEnv(cfEnv: CloudflareEnv): CloudflareEnv {
       cfEnv.JP_REVIEW_UPLOAD_TOKEN ?? process.env.JP_REVIEW_UPLOAD_TOKEN,
     JP_REVIEW_DOWNLOAD_KEY:
       cfEnv.JP_REVIEW_DOWNLOAD_KEY ?? process.env.JP_REVIEW_DOWNLOAD_KEY,
+    BARK_DEVICE_KEY: cfEnv.BARK_DEVICE_KEY ?? process.env.BARK_DEVICE_KEY,
+    BARK_SERVER: cfEnv.BARK_SERVER ?? process.env.BARK_SERVER,
+    BARK_ICON_CLASS_REMIND:
+      cfEnv.BARK_ICON_CLASS_REMIND ?? process.env.BARK_ICON_CLASS_REMIND,
+    SCHEDULE_CLASS_BARK_LEAD_MINUTES:
+      cfEnv.SCHEDULE_CLASS_BARK_LEAD_MINUTES ??
+      process.env.SCHEDULE_CLASS_BARK_LEAD_MINUTES,
   };
 }
 

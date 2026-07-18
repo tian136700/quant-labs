@@ -2,10 +2,15 @@
 # database_id 请替换为你在 Dashboard 创建的 D1 真实 ID
 # 与 Cloudflare 上已有 Worker / 域名绑定一致，避免每次 deploy 询问是否改绑 finance.info-quests.com
 name = "quant-labs"
-main = ".open-next/worker.js"
+# Custom Worker：OpenNext fetch + Cron scheduled（上课 Bark 提醒）
+main = "cloudflare-worker.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+
+# 每分钟：开课前 10/5/1 分钟 Bark（Mac 关机也能推）
+[triggers]
+crons = ["* * * * *"]
 
 # 自动将 Worker 部署在离 D1/R2 等后端更近的节点，降低数据库往返延迟
 [placement]

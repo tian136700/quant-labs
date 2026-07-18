@@ -80,6 +80,14 @@ export interface CloudflareEnv {
   JP_REVIEW_UPLOAD_TOKEN?: string;
   /** 日语复习 PDF：下载可选 query key（留空则公开下载） */
   JP_REVIEW_DOWNLOAD_KEY?: string;
+  /** Bark：上课提醒推送到 iPhone（wrangler secret，勿提交） */
+  BARK_DEVICE_KEY?: string;
+  /** Bark 服务端（可选，默认 https://api.day.app） */
+  BARK_SERVER?: string;
+  /** 上课提醒自定义图标 URL（可选） */
+  BARK_ICON_CLASS_REMIND?: string;
+  /** 开课前提醒档位，默认 10,5,1 */
+  SCHEDULE_CLASS_BARK_LEAD_MINUTES?: string;
   /** 英语单词模块：老师用户名 */
   ETR_EN_VOCAB_USERNAME?: string;
   /** 英语单词模块：老师密码（仅环境变量/Secret，勿提交 Git） */
