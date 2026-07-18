@@ -1,4 +1,6 @@
 /** 课堂备注条目（存储于 jp_vocab_word.class_notes，北京时间时间戳 + 正文） */
+import type { JpVocabWord } from "@/lib/types";
+
 export type JpVocabClassNoteEntry = {
   timestamp: string | null;
   content: string;
@@ -136,6 +138,23 @@ export function hasJpVocabClassNotes(
   if (presentHint === true) return true;
   if (presentHint === false) return false;
   return parseJpVocabClassNotes(raw).some((e) => e.content.trim());
+}
+
+/**
+ * 学生/老师卡按需拉备注后合并词条。
+ * lite 列表已有 example_sentences；备注 GET 若漏字段，禁止整词覆盖冲掉例句。
+ */
+export function mergeJpVocabWordAfterClassNotesFetch(
+  base: JpVocabWord,
+  fetched: JpVocabWord
+): JpVocabWord {
+  return {
+    ...base,
+    ...fetched,
+    example_sentences:
+      fetched.example_sentences ?? base.example_sentences ?? null,
+    class_notes_present: hasJpVocabClassNotes(fetched.class_notes, true),
+  };
 }
 
 /** 按索引删除一条备注（用于历史记录删除） */

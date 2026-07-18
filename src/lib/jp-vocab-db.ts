@@ -1490,7 +1490,8 @@ export async function getJpVocabClassNotes(
     return { ok: false, error: "word_id_invalid" };
   }
 
-  // 按需读备注：勿 seedIfEmpty；WORD_SELECT 含备注正文即可（列表接口禁止拉 blob）
+  // 按需读备注：勿 seedIfEmpty。须用 WORD_SELECT（含 example_sentences / mnemonic）：
+  // 学生端 flashcard 会用本接口整词覆盖 lite 列表项；漏字段会冲掉老师卡已有的例句。
   await ensureVocabWordSchema(db);
 
   if (devStoreEnabled) {
@@ -1500,12 +1501,7 @@ export async function getJpVocabClassNotes(
   }
 
   const row = await db
-    .prepare(
-      `SELECT id, word, reading, meaning, pos, kind, ref_key,
-              cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
-              class_notes, last_review_level, last_review_at, created_at, updated_at
-       FROM jp_vocab_word WHERE id = ?1`
-    )
+    .prepare(`${WORD_SELECT} WHERE id = ?1`)
     .bind(wordId)
     .first<Record<string, unknown>>();
 

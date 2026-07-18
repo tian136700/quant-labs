@@ -6,7 +6,7 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
-import { hasJpVocabClassNotes, formatJpVocabClassNotesForDisplay } from "@/lib/jp-vocab-class-notes";
+import { hasJpVocabClassNotes, formatJpVocabClassNotesForDisplay, mergeJpVocabWordAfterClassNotesFetch } from "@/lib/jp-vocab-class-notes";
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -174,8 +174,9 @@ export function JpVocabTeacherQuizFlashcardModal({
         );
         const parsed = await readApiJson<{ ok: boolean; word?: JpVocabWord }>(res);
         if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
-        setNotesWord(parsed.data.word);
-        onWordUpdated?.(parsed.data.word);
+        const merged = mergeJpVocabWordAfterClassNotesFetch(word, parsed.data.word);
+        setNotesWord(merged);
+        onWordUpdated?.(merged);
       } catch {
         /* ignore */
       }

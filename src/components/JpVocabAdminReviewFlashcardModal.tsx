@@ -14,6 +14,7 @@ import {
 import {
   formatJpVocabClassNotesForDisplay,
   hasJpVocabClassNotes,
+  mergeJpVocabWordAfterClassNotesFetch,
 } from "@/lib/jp-vocab-class-notes";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -120,8 +121,9 @@ export function JpVocabAdminReviewFlashcardModal({
         );
         const parsed = await readApiJson<{ ok: boolean; word?: JpVocabWord }>(res);
         if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
-        setNotesWord(parsed.data.word);
-        onWordUpdated?.(parsed.data.word);
+        const merged = mergeJpVocabWordAfterClassNotesFetch(word, parsed.data.word);
+        setNotesWord(merged);
+        onWordUpdated?.(merged);
       } catch {
         /* ignore */
       }

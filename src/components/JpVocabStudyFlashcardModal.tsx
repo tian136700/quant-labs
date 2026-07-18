@@ -12,6 +12,7 @@ import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import {
   formatJpVocabClassNotesForDisplay,
   hasJpVocabClassNotes,
+  mergeJpVocabWordAfterClassNotesFetch,
 } from "@/lib/jp-vocab-class-notes";
 import {
   formatJpVocabExampleGlossLine,
@@ -97,8 +98,10 @@ export function JpVocabStudyFlashcardModal({
         );
         const parsed = await readApiJson<{ ok: boolean; word?: JpVocabWord }>(res);
         if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
-        setNotesWord(parsed.data.word);
-        onWordUpdated?.(parsed.data.word);
+        // 备注接口若漏字段，禁止整词覆盖冲掉列表里已有的例句等
+        const merged = mergeJpVocabWordAfterClassNotesFetch(word, parsed.data.word);
+        setNotesWord(merged);
+        onWordUpdated?.(merged);
       } catch {
         /* ignore */
       }
