@@ -1227,7 +1227,7 @@ function AdminUsersPageContent() {
                       }
                     />
                     <AdminUserCardField
-                      label={locale === "zh" ? "对应日语老师" : "JP teacher"}
+                      label={locale === "zh" ? "对应老师" : "Teacher"}
                       value={row.jp_lesson_teacher_name?.trim() || "—"}
                       wide
                     />
@@ -1267,10 +1267,10 @@ function AdminUsersPageContent() {
             </div>
 
             <div className="admin-table-wrap">
-              <table className="admin-rbac-table">
+              <table className="admin-rbac-table admin-users-table">
                 <thead>
                   <tr>
-                    <th>
+                    <th className="admin-user-col-id">
                       <button
                         type="button"
                         className="admin-user-sort-btn"
@@ -1280,24 +1280,36 @@ function AdminUsersPageContent() {
                         {sortLabel("id")}
                       </button>
                     </th>
-                    <th>{locale === "zh" ? "用户名" : "Username"}</th>
-                    <th>{locale === "zh" ? "角色" : "Role"}</th>
-                    <th>{locale === "zh" ? "对应日语老师" : "JP teacher"}</th>
-                    <th>{locale === "zh" ? "创建时间（北京时间）" : "Created (Beijing)"}</th>
-                    <th>
+                    <th className="admin-user-col-username">
+                      {locale === "zh" ? "用户名" : "Username"}
+                    </th>
+                    <th className="admin-user-col-role">{locale === "zh" ? "角色" : "Role"}</th>
+                    <th className="admin-user-col-teacher">
+                      {locale === "zh" ? "对应老师" : "Teacher"}
+                    </th>
+                    <th
+                      className="admin-user-col-created"
+                      title={locale === "zh" ? "创建时间（北京时间）" : "Created (Beijing)"}
+                    >
+                      {locale === "zh" ? "创建时间" : "Created"}
+                    </th>
+                    <th
+                      className="admin-user-col-login"
+                      title={locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
+                    >
                       <button
                         type="button"
                         className="admin-user-sort-btn"
                         onClick={() => toggleSort("last_login_at")}
                       >
-                        {locale === "zh" ? "最后一次登录（北京时间）" : "Last login (Beijing)"}
+                        {locale === "zh" ? "最后登录" : "Last login"}
                         {sortLabel("last_login_at")}
                       </button>
                     </th>
                     <th className="admin-user-ip-col">
-                      {locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
+                      {locale === "zh" ? "登录 IP" : "Login IP"}
                     </th>
-                    <th>
+                    <th className="admin-user-col-status">
                       <button
                         type="button"
                         className="admin-user-sort-btn"
@@ -1307,7 +1319,7 @@ function AdminUsersPageContent() {
                         {sortLabel("disabled")}
                       </button>
                     </th>
-                    <th>{locale === "zh" ? "操作" : "Actions"}</th>
+                    <th className="admin-user-actions-col">{locale === "zh" ? "操作" : "Actions"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1319,16 +1331,18 @@ function AdminUsersPageContent() {
                         highlightUserId === row.id ? "admin-user-row--highlight" : undefined
                       }
                     >
-                      <td>{row.id}</td>
-                      <td className="admin-rbac-username">{row.username}</td>
-                      <td>{row.role_label}</td>
-                      <td>{row.jp_lesson_teacher_name?.trim() || "—"}</td>
-                      <td>{formatAdminDateTime(row.created_at)}</td>
-                      <td>{formatAdminDateTime(row.last_login_at)}</td>
+                      <td className="admin-user-col-id">{row.id}</td>
+                      <td className="admin-user-col-username admin-rbac-username">{row.username}</td>
+                      <td className="admin-user-col-role">{row.role_label}</td>
+                      <td className="admin-user-col-teacher">
+                        {row.jp_lesson_teacher_name?.trim() || "—"}
+                      </td>
+                      <td className="admin-user-col-created">{formatAdminDateTime(row.created_at)}</td>
+                      <td className="admin-user-col-login">{formatAdminDateTime(row.last_login_at)}</td>
                       <td className="admin-user-ip-col">
                         <AdminUserIpDisplay ip={row.last_login_ip} locale={locale} />
                       </td>
-                      <td>
+                      <td className="admin-user-col-status">
                         {row.disabled
                           ? locale === "zh"
                             ? "已禁用"
@@ -1905,10 +1919,14 @@ function AdminUsersPageContent() {
           border-collapse: collapse;
           font-size: 0.875rem;
         }
+        .admin-users-table {
+          table-layout: fixed;
+          min-width: 58rem;
+        }
         .admin-rbac-table th,
         .admin-rbac-table td {
           border: 1px solid var(--border);
-          padding: 0.55rem 0.65rem;
+          padding: 0.55rem 0.5rem;
           vertical-align: middle;
         }
         .admin-rbac-table td {
@@ -1935,9 +1953,34 @@ function AdminUsersPageContent() {
           justify-content: center;
           gap: 0.25rem;
         }
+        :global(.admin-users-table .admin-user-col-id) {
+          width: 3.25rem;
+          text-align: center;
+        }
+        :global(.admin-users-table .admin-user-col-username) {
+          width: 6.5rem;
+        }
+        :global(.admin-users-table .admin-user-col-role) {
+          width: 5rem;
+        }
+        :global(.admin-users-table .admin-user-col-teacher) {
+          width: 5rem;
+        }
+        :global(.admin-users-table .admin-user-col-created),
+        :global(.admin-users-table .admin-user-col-login) {
+          width: 8.75rem;
+          font-size: 0.8125rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        :global(.admin-users-table .admin-user-col-status) {
+          width: 3.5rem;
+          text-align: center;
+        }
         :global(.admin-user-ip-col) {
-          width: 12rem;
-          max-width: 14rem;
+          width: 9.5rem;
+          max-width: 9.5rem;
           vertical-align: top;
           white-space: normal !important;
         }
@@ -1978,7 +2021,8 @@ function AdminUsersPageContent() {
           text-decoration: underline;
         }
         :global(.admin-user-actions-col) {
-          width: 1%;
+          width: 15rem;
+          min-width: 15rem;
           vertical-align: top;
           white-space: normal !important;
         }
@@ -1988,6 +2032,8 @@ function AdminUsersPageContent() {
         .admin-rbac-username {
           font-weight: 600;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .admin-user-actions {
           display: grid;
@@ -1996,7 +2042,6 @@ function AdminUsersPageContent() {
           align-items: center;
           justify-items: stretch;
           width: max-content;
-          max-width: 100%;
         }
         .admin-user-btn {
           white-space: nowrap;
