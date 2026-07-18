@@ -328,7 +328,10 @@ export function JpVocabCoachPage() {
                       ) : null}
                     </td>
                     <td data-label="例句" className="jp-vocab-coach-example-col">
-                      <JpVocabExampleSentencesCell text={w.example_sentences} />
+                      <JpVocabExampleSentencesCell
+                        text={w.example_sentences}
+                        source={w.example_sentences_source}
+                      />
                     </td>
                     <td data-label="熟悉程度" className="jp-vocab-coach-level-col">
                       <span className="jp-vocab-coach-level">
@@ -579,6 +582,11 @@ export function JpVocabCoachPage() {
           max-width: 14rem;
           font-size: 0.9rem;
           line-height: 1.45;
+        }
+        .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-source) {
+          margin-bottom: 0.3rem;
+          font-size: 0.78rem;
+          color: var(--muted);
         }
         .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-block + .jp-vocab-example-sentences-block) {
           margin-top: 0.35rem;

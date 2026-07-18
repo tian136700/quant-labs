@@ -10,10 +10,13 @@ import {
   validateJpVocabExampleSentencesAiOutput,
 } from "@/lib/jp-vocab-example-sentences-ai";
 import {
+  JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_CATALOG,
   jpVocabExampleSentencesNeedGlossFill,
   normalizeJpVocabExampleSentencesFormat,
+  normalizeJpVocabExampleSentencesSource,
   parseJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
+import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 
 export type JpVocabMissingExampleSentenceRow = {
   id: number;
@@ -41,6 +44,7 @@ export type JpVocabFillExampleSentenceApplied = {
   id: number;
   word: string;
   example_sentences: string;
+  example_sentences_source: string | null;
 };
 
 export type JpVocabFillExampleSentencesResult = {
@@ -61,17 +65,20 @@ async function updateExampleSentencesIfEmpty(
   db: D1Database,
   wordId: number,
   exampleSentences: string,
+  source: string | null,
   dryRun: boolean
 ): Promise<boolean> {
   if (dryRun) return true;
   const result = await db
     .prepare(
       `UPDATE jp_vocab_word
-       SET example_sentences = ?1, updated_at = datetime('now')
-       WHERE id = ?2
+       SET example_sentences = ?1,
+           example_sentences_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3
          AND (example_sentences IS NULL OR TRIM(example_sentences) = '')`
     )
-    .bind(exampleSentences.trim(), wordId)
+    .bind(exampleSentences.trim(), source, wordId)
     .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
@@ -80,16 +87,19 @@ async function updateExampleSentencesOverwrite(
   db: D1Database,
   wordId: number,
   exampleSentences: string,
+  source: string | null,
   dryRun: boolean
 ): Promise<boolean> {
   if (dryRun) return true;
   const result = await db
     .prepare(
       `UPDATE jp_vocab_word
-       SET example_sentences = ?1, updated_at = datetime('now')
-       WHERE id = ?2`
+       SET example_sentences = ?1,
+           example_sentences_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3`
     )
-    .bind(exampleSentences.trim(), wordId)
+    .bind(exampleSentences.trim(), source, wordId)
     .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
@@ -129,6 +139,7 @@ export async function listJpVocabWordsMissingExampleSentences(
   db: D1Database,
   options: ListJpVocabMissingExampleSentencesOptions = {}
 ): Promise<JpVocabMissingExampleSentenceRow[]> {
+  await ensureJpVocabWordSchema(db);
   const kind = options.kind;
   const limit =
     typeof options.limit === "number" &&
@@ -260,20 +271,33 @@ export async function normalizeJpVocabExampleSentencesFormatInDb(
   db: D1Database,
   options: { dryRun?: boolean } = {}
 ): Promise<JpVocabFillExampleSentencesResult> {
+  await ensureJpVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const result = await db
     .prepare(
-      `SELECT id, word, example_sentences FROM jp_vocab_word
+      `SELECT id, word, example_sentences, example_sentences_source FROM jp_vocab_word
        WHERE example_sentences IS NOT NULL AND TRIM(example_sentences) != ''
        ORDER BY id`
     )
-    .all<{ id: number; word: string; example_sentences: string }>();
+    .all<{
+      id: number;
+      word: string;
+      example_sentences: string;
+      example_sentences_source: string | null;
+    }>();
 
-  const updates: Array<{ word_id: number; example_sentences: string }> = [];
+  const updates: JpVocabExampleSentenceUpdateItem[] = [];
   for (const row of result.results ?? []) {
     const next = normalizeJpVocabExampleSentencesFormat(row.example_sentences);
     if (!next) continue;
-    updates.push({ word_id: Number(row.id), example_sentences: next });
+    updates.push({
+      word_id: Number(row.id),
+      example_sentences: next,
+      source:
+        row.example_sentences_source != null
+          ? String(row.example_sentences_source).trim() || null
+          : null,
+    });
   }
   return applyJpVocabExampleSentenceUpdates(db, updates, {
     dryRun,
@@ -281,19 +305,32 @@ export async function normalizeJpVocabExampleSentencesFormatInDb(
   });
 }
 
+export type JpVocabExampleSentenceUpdateItem = {
+  word_id: number;
+  example_sentences: string;
+  /** 例句来源，如「DeepSeek」「Qwen本地」「手动」 */
+  source?: string | null;
+};
+
 export async function applyJpVocabExampleSentenceUpdates(
   db: D1Database,
-  updates: Array<{ word_id: number; example_sentences: string }>,
+  updates: JpVocabExampleSentenceUpdateItem[],
   options: {
     dryRun?: boolean;
     allowOverwrite?: boolean;
     /** 本地模型/Agent 上传时须 true；内置词表补全传 false */
     validateFormat?: boolean;
+    /** 单条未带 source 时的默认来源 */
+    defaultSource?: string | null;
   } = {}
 ): Promise<JpVocabFillExampleSentencesResult> {
+  await ensureJpVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const allowOverwrite = Boolean(options.allowOverwrite);
   const validateFormat = Boolean(options.validateFormat);
+  const defaultSource = normalizeJpVocabExampleSentencesSource(
+    options.defaultSource
+  );
   const applied: JpVocabFillExampleSentenceApplied[] = [];
   const skipped: Array<{ id: number; word: string; reason: string }> = [];
   let updated = 0;
@@ -302,6 +339,9 @@ export async function applyJpVocabExampleSentenceUpdates(
     const wordId = Number(item.word_id);
     let exampleSentences = String(item.example_sentences ?? "").trim();
     if (!Number.isInteger(wordId) || wordId <= 0 || !exampleSentences) continue;
+
+    const source =
+      normalizeJpVocabExampleSentencesSource(item.source) ?? defaultSource;
 
     const row = await db
       .prepare(
@@ -339,14 +379,27 @@ export async function applyJpVocabExampleSentenceUpdates(
     }
 
     const changed = allowOverwrite
-      ? await updateExampleSentencesOverwrite(db, wordId, exampleSentences, dryRun)
-      : await updateExampleSentencesIfEmpty(db, wordId, exampleSentences, dryRun);
+      ? await updateExampleSentencesOverwrite(
+          db,
+          wordId,
+          exampleSentences,
+          source,
+          dryRun
+        )
+      : await updateExampleSentencesIfEmpty(
+          db,
+          wordId,
+          exampleSentences,
+          source,
+          dryRun
+        );
     if (changed) {
       updated += 1;
       applied.push({
         id: wordId,
         word: String(row.word),
         example_sentences: exampleSentences,
+        example_sentences_source: source,
       });
     } else {
       skipped.push({
@@ -378,6 +431,7 @@ export async function fillJpVocabExampleSentencesFromCatalog(
     .map((row) => ({
       word_id: row.id,
       example_sentences: row.suggested as string,
+      source: JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_CATALOG,
     }));
   return applyJpVocabExampleSentenceUpdates(db, updates, options);
 }

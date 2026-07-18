@@ -650,7 +650,17 @@ export function JpVocabTeacherQuizFlashcardModal({
 
         {showExamples ? (
           <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
-            <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
+            <div className="jp-vocab-teacher-quiz__examples-head">
+              <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
+              {w.example_sentences_source?.trim() ? (
+                <span
+                  className="jp-vocab-teacher-quiz__examples-source"
+                  title="例句来源"
+                >
+                  例句来源：{w.example_sentences_source.trim()}
+                </span>
+              ) : null}
+            </div>
             {exampleSentences.length > 0 ? (
               <ol className="jp-vocab-teacher-quiz__examples-list">
                 {exampleSentences.map((item, index) => (

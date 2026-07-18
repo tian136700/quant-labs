@@ -110,6 +110,25 @@ export function serializeJpVocabExampleSentenceItems(
     .join("\n");
 }
 
+/** 人手填写 / 老师在编辑弹窗改正例句时的来源标记 */
+export const JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL = "手动";
+
+/** 内置 N5 词表补全 */
+export const JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_CATALOG = "内置词表";
+
+const EXAMPLE_SOURCE_MAX_LEN = 64;
+
+/** 规范化例句来源；空 → null；过长截断 */
+export function normalizeJpVocabExampleSentencesSource(
+  raw: string | null | undefined
+): string | null {
+  const text = String(raw ?? "").trim().replace(/\s+/g, " ");
+  if (!text) return null;
+  return text.length > EXAMPLE_SOURCE_MAX_LEN
+    ? text.slice(0, EXAMPLE_SOURCE_MAX_LEN)
+    : text;
+}
+
 /**
  * 规范化已有例句块：译义行补上「译文：」前缀；不翻译、不改日语。
  * 若无需改动则返回 null。

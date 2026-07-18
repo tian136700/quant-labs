@@ -74,6 +74,10 @@ import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
 import type { JpLessonRecord } from "@/lib/types";
+import {
+  JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
+  normalizeJpVocabExampleSentencesSource,
+} from "@/lib/jp-vocab-example-sentences";
 
 const SEED_WORDS: JpVocabUploadInput[] = [
   {
@@ -252,6 +256,11 @@ function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences)
         : null,
+    example_sentences_source:
+      row.example_sentences_source != null &&
+      String(row.example_sentences_source).trim()
+        ? String(row.example_sentences_source).trim()
+        : null,
     last_review_level:
       row.last_review_level === "very" ||
       row.last_review_level === "normal" ||
@@ -298,11 +307,22 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("example_sentences")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN example_sentences TEXT`).run();
   }
+  if (!cols.has("example_sentences_source")) {
+    await db
+      .prepare(`ALTER TABLE jp_vocab_word ADD COLUMN example_sentences_source TEXT`)
+      .run();
+  }
   vocabWordSchemaReady = true;
+}
+
+/** 供 fill-example 等轻量入口在写库前确保列存在 */
+export async function ensureJpVocabWordSchema(db: D1Database): Promise<void> {
+  await ensureVocabWordSchema(db);
 }
 
 const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, example_sentences,
+  example_sentences_source,
   last_review_level, last_review_at, created_at, updated_at FROM jp_vocab_word`;
 
 function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
@@ -1091,6 +1111,7 @@ export async function addJpVocabWord(
   if (!word) return { ok: false, error: "word_required" };
 
   const kind = normalizeKind(input.kind);
+  const exampleSentences = (input.example_sentences || "").trim() || null;
   const item = {
     word,
     reading: await resolveJpVocabReadingIfMissing(
@@ -1104,7 +1125,10 @@ export async function addJpVocabWord(
       ? normalizeJpVocabRefKey(input.ref_key) || null
       : null,
     class_notes: (input.class_notes || "").trim() || null,
-    example_sentences: (input.example_sentences || "").trim() || null,
+    example_sentences: exampleSentences,
+    example_sentences_source: exampleSentences
+      ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+      : null,
   };
 
   await seedIfEmpty(db);
@@ -1130,6 +1154,7 @@ export async function addJpVocabWord(
       today_check_date: null,
       class_notes: item.class_notes,
       example_sentences: item.example_sentences,
+      example_sentences_source: item.example_sentences_source,
       created_at: ts,
       updated_at: ts,
     };
@@ -1158,8 +1183,8 @@ export async function addJpVocabWord(
 
   const insertResult = await db
     .prepare(
-      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, ?6, ?7, ?8, ?8)`
+      `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, example_sentences_source, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, ?6, ?7, ?8, ?9, ?9)`
     )
     .bind(
       item.word,
@@ -1169,6 +1194,7 @@ export async function addJpVocabWord(
       item.ref_key,
       item.class_notes,
       item.example_sentences,
+      item.example_sentences_source,
       ts
     )
     .run();
@@ -1708,6 +1734,7 @@ export type JpVocabWordEntryInput = {
   class_notes?: string | null;
   mnemonic?: string | null;
   example_sentences?: string | null;
+  example_sentences_source?: string | null;
 };
 
 /** 一次性更新词条可编辑字段，并同步备注到关联新课 */
@@ -1768,6 +1795,19 @@ export async function updateJpVocabWordEntry(
     input.example_sentences !== undefined
       ? (input.example_sentences || "").trim() || null
       : current.example_sentences ?? null;
+  let nextExampleSource = current.example_sentences_source ?? null;
+  if (input.example_sentences_source !== undefined) {
+    nextExampleSource = normalizeJpVocabExampleSentencesSource(
+      input.example_sentences_source
+    );
+  } else if (input.example_sentences !== undefined) {
+    const prevExamples = current.example_sentences ?? null;
+    if (nextExampleSentences !== prevExamples) {
+      nextExampleSource = nextExampleSentences
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
 
   if (!nextWord) return { ok: false, error: "word_required" };
 
@@ -1798,6 +1838,7 @@ export async function updateJpVocabWordEntry(
       class_notes: nextNotes,
       mnemonic: nextMnemonic,
       example_sentences: nextExampleSentences,
+      example_sentences_source: nextExampleSource,
       updated_at: ts,
     };
     current = devWords[idx];
@@ -1805,8 +1846,8 @@ export async function updateJpVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE jp_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, pos = ?5, class_notes = ?6, mnemonic = ?7, example_sentences = ?8, updated_at = ?9
-         WHERE id = ?10`
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, pos = ?5, class_notes = ?6, mnemonic = ?7, example_sentences = ?8, example_sentences_source = ?9, updated_at = ?10
+         WHERE id = ?11`
       )
       .bind(
         nextKind,
@@ -1817,6 +1858,7 @@ export async function updateJpVocabWordEntry(
         nextNotes,
         nextMnemonic,
         nextExampleSentences,
+        nextExampleSource,
         ts,
         wordId
       )
@@ -2756,7 +2798,7 @@ async function queryJpVocabSharedToday(
               w.id AS w_id, w.word, w.reading, w.meaning, w.pos, w.kind, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
               w.last_review_level, w.last_review_at, w.created_at, w.updated_at,
-              w.example_sentences,
+              w.example_sentences, w.example_sentences_source,
               (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
@@ -2785,6 +2827,7 @@ async function queryJpVocabSharedToday(
       created_at: row.created_at,
       updated_at: row.updated_at,
       example_sentences: row.example_sentences,
+      example_sentences_source: row.example_sentences_source,
       has_class_notes: row.has_class_notes,
     });
     return mapSharedRow(row, word);
@@ -3342,7 +3385,7 @@ async function getJpVocabWordByIdLite(
       `SELECT id, word, reading, meaning, pos, kind, ref_key,
               cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
               last_review_level, last_review_at, created_at, updated_at,
-              example_sentences,
+              example_sentences, example_sentences_source,
               (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word
        WHERE id = ?1`

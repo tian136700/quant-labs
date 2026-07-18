@@ -251,7 +251,14 @@ export function JpVocabStudyFlashcardModal({
             aria-label="例句"
             onClick={stop}
           >
-            <h3 className="jp-vocab-flashcard__examples-title">例句</h3>
+            <div className="jp-vocab-flashcard__examples-head">
+              <h3 className="jp-vocab-flashcard__examples-title">例句</h3>
+              {w.example_sentences_source?.trim() ? (
+                <span className="jp-vocab-flashcard__examples-source">
+                  例句来源：{w.example_sentences_source.trim()}
+                </span>
+              ) : null}
+            </div>
             <ol className="jp-vocab-flashcard__examples-list">
               {exampleSentences.map((ex, index) => (
                 <li
@@ -552,11 +559,23 @@ export function JpVocabStudyFlashcardModal({
           background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
           cursor: default;
         }
+        .jp-vocab-flashcard__examples-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.25rem 0.75rem;
+          margin-bottom: 0.4rem;
+        }
         .jp-vocab-flashcard__examples-title {
-          margin: 0 0 0.4rem;
+          margin: 0;
           font-size: 0.8125rem;
           font-weight: 600;
           color: var(--accent);
+        }
+        .jp-vocab-flashcard__examples-source {
+          font-size: 0.75rem;
+          color: var(--muted);
         }
         .jp-vocab-flashcard__examples-list {
           margin: 0;

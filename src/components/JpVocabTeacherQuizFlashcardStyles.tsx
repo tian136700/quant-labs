@@ -662,11 +662,24 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
           background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
         }
+        .jp-vocab-teacher-quiz__examples-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.25rem 0.75rem;
+          margin-bottom: 0.4rem;
+        }
         .jp-vocab-teacher-quiz__examples-title {
-          margin: 0 0 0.4rem;
+          margin: 0;
           font-size: 0.8125rem;
           font-weight: 600;
           color: var(--accent);
+        }
+        .jp-vocab-teacher-quiz__examples-source {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: var(--muted);
         }
         .jp-vocab-teacher-quiz__examples-list {
           margin: 0;

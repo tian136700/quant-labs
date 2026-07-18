@@ -25,6 +25,8 @@ type FillExampleSentencesBody = {
   limit?: number;
   /** list_missing：只拉 word 或 grammar */
   kind?: "word" | "grammar";
+  /** apply：整批默认来源（单条 updates[].source 优先） */
+  source?: string;
   /** 默认 catalog：按内置 N5 例句词表补全 */
   from_catalog?: boolean;
   /** 扫描已有例句但缺中文译义 */
@@ -33,7 +35,13 @@ type FillExampleSentencesBody = {
   normalize_gloss_label?: boolean;
   /** 允许覆盖已有 example_sentences（补译义时必开） */
   allow_overwrite?: boolean;
-  updates?: Array<{ word_id?: number; example_sentences?: string }>;
+  updates?: Array<{
+    word_id?: number;
+    example_sentences?: string;
+    /** 例句来源，如 DeepSeek / Qwen本地 / 手动 */
+    source?: string;
+    example_sentences_source?: string;
+  }>;
 };
 
 export async function POST(request: Request) {
@@ -52,11 +60,21 @@ export async function POST(request: Request) {
     }
 
     const dryRun = Boolean(body.dry_run);
+    const batchSource =
+      typeof body.source === "string" ? body.source.trim() : "";
     const updates = (Array.isArray(body.updates) ? body.updates : [])
-      .map((item) => ({
-        word_id: Number(item.word_id),
-        example_sentences: String(item.example_sentences ?? "").trim(),
-      }))
+      .map((item) => {
+        const per =
+          (typeof item.source === "string" && item.source.trim()) ||
+          (typeof item.example_sentences_source === "string" &&
+            item.example_sentences_source.trim()) ||
+          "";
+        return {
+          word_id: Number(item.word_id),
+          example_sentences: String(item.example_sentences ?? "").trim(),
+          source: per || null,
+        };
+      })
       .filter(
         (item) =>
           Number.isInteger(item.word_id) &&
@@ -76,11 +94,11 @@ export async function POST(request: Request) {
 
     if (updates.length > 0 || body.mode === "apply") {
       mode = "apply";
-      // 本地模型 / 外部脚本上传：强制校验造句格式（不合规进 skipped，不写库）
       result = await applyJpVocabExampleSentenceUpdates(env.DB, updates, {
         dryRun,
         allowOverwrite: Boolean(body.allow_overwrite),
         validateFormat: true,
+        defaultSource: batchSource || null,
       });
     } else if (body.mode === "normalize_gloss_label" || body.normalize_gloss_label) {
       mode = "normalize_gloss_label";

@@ -10,7 +10,7 @@ import {
 } from "@/lib/jp-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
-import { findDuplicateJpVocabExamplePrimaries } from "@/lib/jp-vocab-example-sentences";
+import { findDuplicateJpVocabExamplePrimaries, JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL } from "@/lib/jp-vocab-example-sentences";
 import {
   hasJpVocabClassNotes,
   mergeJpVocabClassNotesBlobFromEdit,
@@ -478,6 +478,14 @@ export function JpVocabEditModal({
     const snapshot = word;
     const notesReady = classNotesReadyRef.current;
     const nextClassNotes = classNotes.trim() || null;
+    const nextExamples = exampleSentences.trim() || null;
+    const prevExamples = (snapshot.example_sentences || "").trim() || null;
+    const nextExampleSource =
+      nextExamples !== prevExamples
+        ? nextExamples
+          ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+          : null
+        : snapshot.example_sentences_source ?? null;
     const optimistic = buildOptimisticJpVocabWord(snapshot, {
       kind,
       word: trimmedWord,
@@ -485,7 +493,8 @@ export function JpVocabEditModal({
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
       ...(notesReady ? { class_notes: nextClassNotes } : {}),
-      example_sentences: exampleSentences.trim() || null,
+      example_sentences: nextExamples,
+      example_sentences_source: nextExampleSource,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
@@ -509,7 +518,7 @@ export function JpVocabEditModal({
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
             ...(notesReady ? { class_notes: nextClassNotes } : {}),
-            example_sentences: exampleSentences.trim() || null,
+            example_sentences: nextExamples,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
@@ -704,6 +713,9 @@ export function JpVocabEditModal({
               />
               <p className="jp-vocab-edit-hint">
                 格式：日语句下一行写「译文：…」。列表展示时日语自动带 1、2、3…，译义行不占序号。两条例句完全相同会在保存前提醒。课堂带读会展示；日语抽问表格不显示此列。
+                {word?.example_sentences_source?.trim()
+                  ? ` 当前例句来源：${word.example_sentences_source.trim()}（你在此修改并保存后会记为「手动」）。`
+                  : " 人手填写并保存后，例句来源记为「手动」。"}
               </p>
             </div>
 
