@@ -29,7 +29,7 @@ import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 export function JpVocabCoachPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessJpVocab, openAuthPanel } = useEtrAuth();
+  const { user, checking, canAccessJpVocab, canAccessJpVocabCoach, openAuthPanel } = useEtrAuth();
   const canOperate = canAccessJpVocab;
 
   const [items, setItems] = useState<JpVocabCoachItem[]>([]);
@@ -79,7 +79,7 @@ export function JpVocabCoachPage() {
 
   useEffect(() => {
     if (checking) return;
-    if (!user) {
+    if (!user || !canAccessJpVocabCoach) {
       setLoading(false);
       return;
     }
@@ -100,7 +100,7 @@ export function JpVocabCoachPage() {
     return () => {
       cancelled = true;
     };
-  }, [checking, user, refresh]);
+  }, [checking, user, canAccessJpVocabCoach, refresh]);
 
   const wordsById = useMemo(
     () => new Map(items.map((item) => [item.word_id, item.word])),
@@ -289,6 +289,18 @@ export function JpVocabCoachPage() {
         <button type="button" className="btn-rsi-filter btn-rsi-filter--primary" onClick={() => openAuthPanel({ mode: "login" })}>
           登录
         </button>
+      </div>
+    );
+  }
+
+  if (!canAccessJpVocabCoach) {
+    return (
+      <div className="jp-vocab-coach-gate">
+        <h1>课堂带读</h1>
+        <p>当前账号暂无课堂带读权限。需要带读时请使用已授权账号（如欣欣）登录。</p>
+        <Link href="/jp-vocab" className="btn-rsi-filter">
+          返回日语抽问
+        </Link>
       </div>
     );
   }

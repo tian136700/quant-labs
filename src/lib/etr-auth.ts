@@ -157,6 +157,27 @@ export function canAccessJpVocabStudy(
   return user.permissions?.includes("jp_vocab:study") ?? false;
 }
 
+/**
+ * 课堂带读账号白名单（角色权限默认不含 coach；按人临时开放）。
+ * 当前：欣欣；李老师 / 玉老师等不在名单内。
+ */
+export const JP_VOCAB_COACH_ALLOWED_USERNAMES = ["XinXin"] as const;
+
+/** 课堂带读：管理员、持有 jp_vocab:coach，或白名单账号 */
+export function canAccessJpVocabCoach(
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  if (user.permissions?.includes("jp_vocab:coach")) return true;
+  const name = user.username?.trim().toLowerCase();
+  if (!name) return false;
+  return JP_VOCAB_COACH_ALLOWED_USERNAMES.some(
+    (allowed) => allowed.toLowerCase() === name
+  );
+}
+
 export function canAccessEnVocab(role: EtrUserRole | string | undefined): boolean {
   const r = typeof role === "string" ? role.trim() : "";
   return r === "admin" || r === "en_vocab";

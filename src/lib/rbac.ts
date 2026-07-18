@@ -173,6 +173,14 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "Access /jp-vocab/study; peek live quiz word (no share-request UI)",
   },
   {
+    key: "jp_vocab:coach",
+    labelZh: "课堂带读",
+    labelEn: "Classroom read-along",
+    category: "jp_vocab",
+    descriptionZh: "进入 /jp-vocab/coach：带读未掌握词（默认关；可按账号白名单临时开放）",
+    descriptionEn: "Access /jp-vocab/coach (off by default; optional per-user allowlist)",
+  },
+  {
     key: "jp_lesson:read",
     labelZh: "浏览新课",
     labelEn: "Browse lessons",

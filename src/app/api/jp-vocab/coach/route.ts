@@ -1,5 +1,8 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
+import {
+  requireJpVocabAccess,
+  requireJpVocabCoachAccess,
+} from "@/lib/jp-vocab-auth";
 import {
   getJpVocabCoachQueueSummary,
   listJpVocabCoachQueue,
@@ -16,11 +19,16 @@ import { listJpVocabWordsWithRefs } from "@/lib/jp-vocab-db";
 import type { JpVocabLevel } from "@/lib/types";
 
 const READ_MSG = {
-  en: "Please log in to view classroom read-along lists.",
-  zh: "请登录后查看课堂带读列表。",
+  en: "Please log in with classroom read-along access to view this list.",
+  zh: "请使用有课堂带读权限的账号登录后查看。",
 };
 
 const WRITE_MSG = {
+  en: "Please log in with classroom read-along access to update.",
+  zh: "请使用有课堂带读权限的账号登录后再更新。",
+};
+
+const MERGE_MSG = {
   en: "Please log in to update classroom read-along.",
   zh: "请登录后再更新课堂带读。",
 };
@@ -28,7 +36,7 @@ const WRITE_MSG = {
 export async function GET(request: Request) {
   const locale = localeFromRequest(request);
   try {
-    const { env, allowed } = await requireJpVocabRead(request);
+    const { env, allowed } = await requireJpVocabCoachAccess(request);
     if (!allowed) {
       return jsonResponse({ ok: false, error: READ_MSG[locale] }, 401);
     }
@@ -56,11 +64,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);
   try {
-    const { env, user, allowed } = await requireJpVocabAccess(request);
-    if (!allowed || !user) {
-      return jsonResponse({ ok: false, error: WRITE_MSG[locale] }, 401);
-    }
-
     const body = (await request.json()) as {
       action?: string;
       items?: Array<{
@@ -75,7 +78,13 @@ export async function POST(request: Request) {
       coach_date?: string;
     };
 
+    // 抽查完成时批量入队：任意可操作老师即可写；带读页操作需 coach 权限
     if (body.action === "merge_queue" || body.action === "export_batch") {
+      const { env, user, allowed } = await requireJpVocabAccess(request);
+      if (!allowed || !user) {
+        return jsonResponse({ ok: false, error: MERGE_MSG[locale] }, 401);
+      }
+
       const items = Array.isArray(body.items) ? body.items : [];
       if (!items.length) {
         await pruneJpVocabCoachCoachedOlderThanRetention(env.DB);
@@ -99,6 +108,11 @@ export async function POST(request: Request) {
       );
 
       return jsonResponse({ ok: true, ...result });
+    }
+
+    const { env, user, allowed } = await requireJpVocabCoachAccess(request);
+    if (!allowed || !user) {
+      return jsonResponse({ ok: false, error: WRITE_MSG[locale] }, 401);
     }
 
     if (body.action === "mark_coached") {

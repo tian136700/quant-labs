@@ -1,5 +1,5 @@
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
-import { canUserOperateJpVocab } from "@/lib/etr-auth";
+import { canAccessJpVocabCoach, canUserOperateJpVocab } from "@/lib/etr-auth";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { getUserPermissions, userHasPermission } from "@/lib/rbac-db";
@@ -102,6 +102,28 @@ export async function requireJpVocabManualAddAccess(request: Request) {
       allowed = true;
     } else {
       allowed = await userHasPermission(env.DB, user, "jp_vocab:manual_add");
+    }
+  }
+
+  return { env, user, allowed };
+}
+
+/** 课堂带读页 / 带读写操作：管理员、jp_vocab:coach，或白名单账号 */
+export async function requireJpVocabCoachAccess(request: Request) {
+  const env = await getCloudflareEnv();
+  const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
+
+  let allowed = false;
+  if (user) {
+    if (isAdminSuperuser(user.role)) {
+      allowed = true;
+    } else {
+      const perms = await getUserPermissions(env.DB, user);
+      allowed = canAccessJpVocabCoach({
+        username: user.username,
+        role: user.role,
+        permissions: perms,
+      });
     }
   }
 

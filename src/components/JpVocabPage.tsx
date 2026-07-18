@@ -102,7 +102,7 @@ import {
   countJpVocabCoachLevelCounts,
   postJpVocabCoachMerge,
 } from "@/lib/jp-vocab-coach";
-import { jpVocabAdminPath, jpVocabCoachPath, jpVocabPath, jpVocabStudyPath } from "@/lib/locale-path";
+import { jpVocabAdminPath, jpVocabPath, jpVocabStudyPath } from "@/lib/locale-path";
 import {
   effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
@@ -321,7 +321,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [pageSize, setPageSize] = useState(() => readStoredJpVocabPageSize());
   const [exporting, setExporting] = useState(false);
-  const [coachNavBusy, setCoachNavBusy] = useState(false);
   const [showExportChoice, setShowExportChoice] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -2263,24 +2262,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     }
   };
 
-  const goToCoachPage = async () => {
-    if (coachNavBusy) return;
-    setCoachNavBusy(true);
-    setError("");
-    try {
-      // 完成弹窗弹出时已批量写入；这里只跳转，避免再打一轮 D1
-      if (user) {
-        markJpVocabTeacherDailyCompleteDismissed(user.id, dailyQuizProgress.total);
-      }
-      setShowDailyComplete(false);
-      router.push(jpVocabCoachPath());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCoachNavBusy(false);
-    }
-  };
-
   const setDailyQuizTarget = async () => {
     if (!isAdminMode || settingQuizTarget) return;
     const trimmed = quizTargetInput.trim();
@@ -2456,16 +2437,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                 }
               : undefined
           }
-          coachAction={
-            dailyQuizProgress.complete
-              ? {
-                  busy: coachNavBusy,
-                  coachCount:
-                    dailyCoachLevelCounts.normal + dailyCoachLevelCounts.weak,
-                  onClick: () => void goToCoachPage(),
-                }
-              : undefined
-          }
+          coachAction={undefined}
         />
       ) : null}
 
@@ -2932,8 +2904,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           total={dailyQuizProgress.total}
           variant="teacher"
           levelCounts={dailyCoachLevelCounts}
-          coachBusy={coachNavBusy}
-          onGoToCoach={() => void goToCoachPage()}
           onClose={() => {
             markJpVocabTeacherDailyCompleteDismissed(
               user.id,

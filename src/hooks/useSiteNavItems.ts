@@ -40,7 +40,7 @@ export type SiteNavItem = {
 
 export function useSiteNavItems(): SiteNavItem[] {
   const { locale, t } = useI18n();
-  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessEnVocabStudy } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessJpVocabCoach, canAccessEnVocabStudy } = useEtrAuth();
   const loggedIn = Boolean(user);
   const jpTeacherNav =
     loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
@@ -123,12 +123,16 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "jpVocabCoach",
-        href: navHref("jpVocabCoach", locale, navOpts),
-        label: nav.jpVocabCoach,
-        active: onJpVocabCoach,
-      },
+      ...(canAccessJpVocabCoach
+        ? [
+            {
+              id: "jpVocabCoach",
+              href: navHref("jpVocabCoach", locale, navOpts),
+              label: nav.jpVocabCoach,
+              active: onJpVocabCoach,
+            },
+          ]
+        : []),
       ...(canAccessJpVocabStudy
         ? [
             {
@@ -200,10 +204,7 @@ export function useSiteNavItems(): SiteNavItem[] {
   }
 
   if (onHiddenJp && loggedIn && !hasPermission("nav:full")) {
-    const showJpVocabCoach =
-      hasPermission("jp_vocab:teacher") ||
-      hasPermission("jp_vocab:read") ||
-      hasPermission("jp_vocab:operate");
+    const showJpVocabCoach = canAccessJpVocabCoach;
     return [
       ...(onJpVocabTeacherHome && canAccessJpVocabTeacherPage
         ? [
@@ -393,12 +394,16 @@ export function useSiteNavItems(): SiteNavItem[] {
                           },
                         ]
                       : []),
-                  {
-                    id: "jpVocabCoach",
-                    href: navHref("jpVocabCoach", locale, navOpts),
-                    label: nav.jpVocabCoach,
-                    active: onJpVocabCoach,
-                  },
+                  ...(canAccessJpVocabCoach
+                    ? [
+                        {
+                          id: "jpVocabCoach",
+                          href: navHref("jpVocabCoach", locale, navOpts),
+                          label: nav.jpVocabCoach,
+                          active: onJpVocabCoach,
+                        },
+                      ]
+                    : []),
                   ...(canAccessJpVocabStudy
                     ? [
                         {

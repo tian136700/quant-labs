@@ -16,6 +16,7 @@ import {
   canAccessJpVocabTeacherPage,
   canAccessJpVocabAdminPage,
   canAccessJpVocabStudy,
+  canAccessJpVocabCoach,
   isJpVocabTeacherRole,
   canUserOperateEnVocab,
   canAccessEnVocabStudy,
@@ -65,6 +66,7 @@ type EtrAuthContextValue = {
   canAccessJpVocabTeacherPage: boolean;
   canAccessJpVocabAdminPage: boolean;
   canAccessJpVocabStudy: boolean;
+  canAccessJpVocabCoach: boolean;
   canAccessEnVocab: boolean;
   canAccessEnVocabStudy: boolean;
   permissions: string[];
@@ -212,6 +214,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       canAccessJpVocabTeacherPage: canAccessJpVocabTeacherPage(user),
       canAccessJpVocabAdminPage: canAccessJpVocabAdminPage(user),
       canAccessJpVocabStudy: canAccessJpVocabStudy(user),
+      canAccessJpVocabCoach: canAccessJpVocabCoach(user),
       canAccessEnVocab:
         user?.can_operate_en_vocab === true ||
         (user?.can_operate_en_vocab === undefined &&
