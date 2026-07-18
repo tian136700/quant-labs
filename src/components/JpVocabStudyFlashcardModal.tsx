@@ -13,6 +13,10 @@ import {
   formatJpVocabClassNotesForDisplay,
   hasJpVocabClassNotes,
 } from "@/lib/jp-vocab-class-notes";
+import {
+  formatJpVocabExampleGlossLine,
+  parseJpVocabExampleSentenceItems,
+} from "@/lib/jp-vocab-example-sentences";
 import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -151,6 +155,7 @@ export function JpVocabStudyFlashcardModal({
   const showKanjiAside =
     showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
+  const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 

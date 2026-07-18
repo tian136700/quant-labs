@@ -2724,6 +2724,7 @@ async function queryJpVocabSharedToday(
               w.id AS w_id, w.word, w.reading, w.meaning, w.pos, w.kind, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
               w.last_review_level, w.last_review_at, w.created_at, w.updated_at,
+              w.example_sentences,
               (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
@@ -2751,6 +2752,7 @@ async function queryJpVocabSharedToday(
       last_review_at: row.last_review_at,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      example_sentences: row.example_sentences,
       has_class_notes: row.has_class_notes,
     });
     return mapSharedRow(row, word);
@@ -3308,6 +3310,7 @@ async function getJpVocabWordByIdLite(
       `SELECT id, word, reading, meaning, pos, kind, ref_key,
               cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
               last_review_level, last_review_at, created_at, updated_at,
+              example_sentences,
               (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word
        WHERE id = ?1`
