@@ -63,9 +63,11 @@ export async function sendBarkPush(options: {
   const icon = (options.icon || "").trim();
   if (icon) payload.icon = icon;
   if (options.call) {
-    payload.call = "1";
-    if (options.volume == null && options.level === "critical") {
-      payload.volume = 8;
+    // Bark 文档：call=1 持续铃响约 30 秒；须配合 level=critical 才可在静音下持续响
+    // JSON 里用数字 1（字符串 "1" 在部分客户端上只会响一声）
+    payload.call = 1;
+    if (options.volume == null) {
+      payload.volume = options.level === "critical" ? 10 : 5;
     }
   }
   if (options.volume != null) {
