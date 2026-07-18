@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readApiJson, sanitizeApiClientError } from "@/lib/api-json";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -12,6 +12,7 @@ import {
   shouldShowJpVocabStudyDailyComplete,
   type JpVocabDailyCompleteSnapshot,
 } from "@/lib/jp-vocab-daily-complete-dismiss";
+import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
 import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
@@ -20,6 +21,7 @@ import {
   jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
+import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import { JpClassNotesEditModal } from "@/components/JpClassNotesEditModal";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
@@ -28,7 +30,7 @@ import { JpVocabEditModal } from "@/components/JpVocabEditModal";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
-import { JpVocabStudyFlashcardModal } from "@/components/JpVocabStudyFlashcardModal";
+import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import {
   clearJpVocabStudyCache,
@@ -123,7 +125,7 @@ export function JpVocabStudyPage() {
   const pollInFlightRef = useRef(false);
   const requestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRefreshRef = useRef(false);
-  /** 仅同浏览器「打开备注」通知用；轮询到老师新发词不得自动弹卡/滚动 */
+  /** 老师新发词 / 同浏览器备注通知：弹卡；禁止 scrollIntoView */
   const pendingFlashcardWordIdRef = useRef<number | null>(null);
   const knownSharedWordIdsRef = useRef<Set<number>>(
     new Set((readJpVocabStudyCache()?.items ?? []).map((item) => item.word_id))
@@ -194,8 +196,18 @@ export function JpVocabStudyPage() {
   );
 
   const applyStudyPayload = useCallback((payload: JpVocabStudyApiPayload) => {
-    // 老师发给学生 / 勾选熟悉程度后：只刷新列表，不改滚动、不自动弹卡片
-    knownSharedWordIdsRef.current = new Set(payload.items.map((item) => item.word_id));
+    const wasLoadedBefore = hasLoadedOnceRef.current;
+    const newWordIds = payload.items.map((item) => item.word_id);
+    // 老师勾选熟悉程度 / 发给学生 → 新词自动弹卡；首屏历史列表不弹
+    if (wasLoadedBefore) {
+      const brandNew = newWordIds.filter(
+        (id) => !knownSharedWordIdsRef.current.has(id)
+      );
+      if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
+        pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
+      }
+    }
+    knownSharedWordIdsRef.current = new Set(newWordIds);
     setItems(payload.items);
     setRefs(payload.refs ?? {});
     setShareDate(payload.share_date || beijingDateString());

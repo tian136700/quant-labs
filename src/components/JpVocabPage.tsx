@@ -1135,14 +1135,24 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   );
 
   useEffect(() => {
-    if (loading || checking || !canOperate || !words.length || !user) return;
+    // 引导 / 抽完祝贺仅老师端；管理员端是全库与设目标，勿弹出
+    if (loading || checking || !canOperate || isAdminMode || !words.length || !user)
+      return;
     if (anyCheckedInRound) return;
     if (!shouldShowJpVocabDailyIntro(user.id)) return;
     setShowDailyIntro(true);
-  }, [loading, checking, canOperate, words.length, anyCheckedInRound, user?.id]);
+  }, [
+    loading,
+    checking,
+    canOperate,
+    isAdminMode,
+    words.length,
+    anyCheckedInRound,
+    user?.id,
+  ]);
 
   useEffect(() => {
-    if (!canOperate || !user || dailyQuizProgress.total <= 0) return;
+    if (isAdminMode || !canOperate || !user || dailyQuizProgress.total <= 0) return;
 
     const { nextSnapshot, open } = evaluateJpVocabDailyCompleteModal({
       ready: !loading && !checking && words.length > 0,
@@ -1157,6 +1167,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     loading,
     checking,
     canOperate,
+    isAdminMode,
     user?.id,
     words.length,
     dailyQuizProgress.complete,
@@ -1168,7 +1179,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
    * 不在勾选时单条写（免费 Worker/D1 易炸）；也不等点「进入课堂带读」。
    */
   useEffect(() => {
-    if (!showDailyComplete || !canOperate || !user) return;
+    if (!showDailyComplete || isAdminMode || !canOperate || !user) return;
 
     const items = buildJpVocabCoachExportItems(
       wordsRef.current,
@@ -1202,6 +1213,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     };
   }, [
     showDailyComplete,
+    isAdminMode,
     canOperate,
     user?.id,
     dailyQuizProgress.total,
@@ -1433,7 +1445,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     }
     setShowQuizFlashcard(false);
     setQuizSession(null);
-    if (!user) return;
+    if (!user || isAdminMode) return;
     dailyCompleteSnapshotRef.current = {
       complete: dailyQuizProgress.complete,
       total: dailyQuizProgress.total,
@@ -1447,6 +1459,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     dailySeqByWordId,
     quizWordHasLevel,
     user,
+    isAdminMode,
     dailyQuizProgress.complete,
     dailyQuizProgress.total,
   ]);
@@ -2925,7 +2938,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       />
       ) : null}
 
-      {user ? (
+      {user && !isAdminMode ? (
         <JpVocabDailyQuizIntroModal
           userId={user.id}
           open={showDailyIntro}
@@ -2933,7 +2946,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         />
       ) : null}
 
-      {user ? (
+      {user && !isAdminMode ? (
         <JpVocabDailyQuizCompleteModal
           open={showDailyComplete}
           total={dailyQuizProgress.total}
