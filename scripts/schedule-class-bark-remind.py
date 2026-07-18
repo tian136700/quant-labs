@@ -240,6 +240,9 @@ def maybe_remind(
             title=bark_title,
             body=body,
             group="上课提醒",
+            # critical：静音模式也响；call：铃声重复，直到你看手机
+            level="critical",
+            call=True,
             icon=resolve_icon_url("class_remind"),
         )
         if result.get("skipped"):
