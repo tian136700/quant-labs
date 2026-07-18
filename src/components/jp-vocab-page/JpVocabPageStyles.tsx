@@ -398,20 +398,38 @@ export function JpVocabPageStyles() {
           display: inline;
         }
         .jp-vocab-meaning-cell {
+          position: relative;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
-          gap: 0.15rem;
+          align-items: stretch;
+          gap: 0.2rem;
           min-width: 0;
+          min-height: 2.75rem;
+          padding-bottom: 1.05rem;
+          box-sizing: border-box;
         }
-        .jp-vocab-source-label {
-          display: inline-block;
-          max-width: 100%;
-          font-size: 0.72rem;
+        :global(.jp-vocab-source-label) {
+          font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          font-size: 0.625rem;
           font-weight: 500;
-          line-height: 1.3;
-          color: color-mix(in srgb, var(--muted) 88%, var(--accent) 12%);
-          word-break: break-all;
+          line-height: 1.25;
+          letter-spacing: 0.01em;
+          color: color-mix(in srgb, var(--muted) 78%, transparent);
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        :global(.jp-vocab-source-label--corner) {
+          position: absolute;
+          right: 0;
+          bottom: 0;
+          text-align: right;
+        }
+        :global(.jp-vocab-source-label--inline) {
+          display: inline-block;
+          margin-top: 0.15rem;
         }
         .jp-vocab-meaning-fold {
           display: none;

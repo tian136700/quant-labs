@@ -854,14 +854,21 @@ export function JpVocabReviewPage() {
           font-weight: 600;
         }
         .jp-vocab-review-meaning {
+          position: relative;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
-          gap: 0.15rem;
+          align-items: stretch;
+          gap: 0.2rem;
+          min-height: 2.6rem;
+          padding-bottom: 1rem;
+          box-sizing: border-box;
         }
         .jp-vocab-review-meaning :global(.jp-vocab-source-label) {
-          font-size: 0.72rem;
-          color: var(--muted);
+          font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          font-size: 0.625rem;
+          font-weight: 500;
+          color: color-mix(in srgb, var(--muted) 78%, transparent);
         }
         .jp-vocab-review-reading {
           display: block;

@@ -5,7 +5,7 @@ import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 
 type Props = {
   text: string | null | undefined;
-  /** 例句来源，显示在例句旁 */
+  /** 例句来源，显示在右下角 */
   source?: string | null;
   emptyPlaceholder?: string;
 };
@@ -21,8 +21,7 @@ export function JpVocabExampleSentencesCell({
   }
 
   return (
-    <div className="jp-vocab-example-sentences">
-      <JpVocabSourceLabel source={source} label="例句来源" />
+    <div className="jp-vocab-example-sentences jp-vocab-example-sentences--with-source">
       {blocks.map((block) => (
         <div key={block.index} className="jp-vocab-example-sentences-block">
           {block.lines.map((line, lineIndex) => {
@@ -42,6 +41,7 @@ export function JpVocabExampleSentencesCell({
           })}
         </div>
       ))}
+      <JpVocabSourceLabel source={source} label="例句来源" />
     </div>
   );
 }

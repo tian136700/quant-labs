@@ -22,7 +22,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "汉字后立刻半角括号假名：漢字(かな)；不要整句只写假名",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
     "多用法时一句对应一种用法，不要两句挤同一义项",
-    "写回时请传 source（例句来源），如「DeepSeek」「Qwen本地」；人手填写为「手动」",
+    "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」；人手填写为「手动」",
   ],
   reject_reasons: [
     "empty",

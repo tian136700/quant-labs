@@ -583,10 +583,17 @@ export function JpVocabCoachPage() {
           font-size: 0.9rem;
           line-height: 1.45;
         }
+        .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences--with-source) {
+          position: relative;
+          padding-bottom: 1rem;
+          min-height: 2.5rem;
+        }
         .jp-vocab-coach-example-col :global(.jp-vocab-source-label) {
-          margin-bottom: 0.3rem;
-          font-size: 0.78rem;
-          color: var(--muted);
+          font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          font-size: 0.625rem;
+          font-weight: 500;
+          color: color-mix(in srgb, var(--muted) 78%, transparent);
         }
         .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences-block + .jp-vocab-example-sentences-block) {
           margin-top: 0.35rem;

@@ -11,9 +11,9 @@ export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
     "中文释义；一词多义时只写最常用的 1～3 个义项",
     "义项之间用中文分号「；」分隔，不要用英文分号或顿号",
     "不要编号、不要 markdown、不要整句解释、不要日语假名",
-    "写回时请传 source（释义来源），建议写清模型与部署：如「Qwen本地」「DeepSeek线上」「手动」",
+    "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」「Qwen3 线上」；人手为「手动」",
   ],
-  source_examples: ["Qwen本地", "DeepSeek线上", "手动"],
+  source_examples: ["gemma4:26b 本地", "Qwen3 线上", "手动"],
   reject_reasons: [
     "empty",
     "too_long",

@@ -198,15 +198,17 @@ export function JpVocabFieldEditModal({
             />
             {field === "meaning" && word.meaning_source?.trim() ? (
               <p className="jp-field-edit-source-hint">
+                当前：
                 <JpVocabSourceLabel
                   source={word.meaning_source}
-                  label="当前释义来源"
+                  label="释义来源"
+                  placement="inline"
                 />
                 <span>；保存修改后记为「手动」</span>
               </p>
             ) : field === "meaning" ? (
               <p className="jp-field-edit-source-hint">
-                人手填写并保存后，释义来源记为「手动」。
+                人手填写并保存后记为「手动」。
               </p>
             ) : null}
             {error ? <p className="jp-field-edit-error">{error}</p> : null}

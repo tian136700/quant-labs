@@ -662,40 +662,39 @@ export function JpVocabTeacherQuizFlashcardModal({
           <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
             <div className="jp-vocab-teacher-quiz__examples-head">
               <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
-              {w.example_sentences_source?.trim() ? (
+            </div>
+            {exampleSentences.length > 0 ? (
+              <div className="jp-vocab-teacher-quiz__examples-body">
+                <ol className="jp-vocab-teacher-quiz__examples-list">
+                  {exampleSentences.map((item, index) => (
+                    <li
+                      key={`${index}-${item.text}`}
+                      className="jp-vocab-teacher-quiz__examples-item"
+                    >
+                      <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
+                        {index + 1}.
+                      </span>
+                      <span className="jp-vocab-teacher-quiz__examples-text">
+                        <span className="jp-vocab-teacher-quiz__examples-primary">
+                          {item.text}
+                        </span>
+                        {item.glossLines.map((gloss, glossIndex) => (
+                          <span
+                            key={`${index}-gloss-${glossIndex}`}
+                            className="jp-vocab-teacher-quiz__examples-gloss"
+                          >
+                            {formatJpVocabExampleGlossLine(gloss)}
+                          </span>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
                 <JpVocabSourceLabel
                   source={w.example_sentences_source}
                   label="例句来源"
-                  className="jp-vocab-teacher-quiz__examples-source"
                 />
-              ) : null}
-            </div>
-            {exampleSentences.length > 0 ? (
-              <ol className="jp-vocab-teacher-quiz__examples-list">
-                {exampleSentences.map((item, index) => (
-                  <li
-                    key={`${index}-${item.text}`}
-                    className="jp-vocab-teacher-quiz__examples-item"
-                  >
-                    <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
-                      {index + 1}.
-                    </span>
-                    <span className="jp-vocab-teacher-quiz__examples-text">
-                      <span className="jp-vocab-teacher-quiz__examples-primary">
-                        {item.text}
-                      </span>
-                      {item.glossLines.map((gloss, glossIndex) => (
-                        <span
-                          key={`${index}-gloss-${glossIndex}`}
-                          className="jp-vocab-teacher-quiz__examples-gloss"
-                        >
-                          {formatJpVocabExampleGlossLine(gloss)}
-                        </span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ol>
+              </div>
             ) : (
               <p className="jp-vocab-teacher-quiz__examples-empty">暂无例句</p>
             )}

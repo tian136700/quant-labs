@@ -38,6 +38,23 @@ fi
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
+# 与例句/释义补全一致：北京时间 08:00–24:00 静默，00:00–08:00 才跑
+# FORCE=1 可强制（手动调试）
+QUIET_START_HOUR="${JP_VOCAB_FILL_QUIET_START_HOUR:-8}"
+QUIET_END_HOUR="${JP_VOCAB_FILL_QUIET_END_HOUR:-24}"
+FORCE_RUN="${JP_VOCAB_FILL_FORCE:-${FORCE:-0}}"
+# 强制用北京时间（不受本机时区影响）
+HOUR_NOW="$(TZ=Asia/Shanghai date +%H)"
+HOUR_NOW=$((10#$HOUR_NOW))
+BEIJING_STAMP="$(TZ=Asia/Shanghai date '+%F %T')"
+if [[ "$FORCE_RUN" != "1" && "$FORCE_RUN" != "true" ]]; then
+  if (( HOUR_NOW >= QUIET_START_HOUR && HOUR_NOW < QUIET_END_HOUR )); then
+    echo "$(date '+%F %T') fill-reading: Beijing ${BEIJING_STAMP} quiet hours ${QUIET_START_HOUR}:00–${QUIET_END_HOUR}:00, skip"
+    exit 0
+  fi
+fi
+echo "$(date '+%F %T') fill-reading: Beijing ${BEIJING_STAMP} outside quiet hours, continue"
+
 # shellcheck source=scripts/lib/dirlock.sh
 source "$ROOT/scripts/lib/dirlock.sh"
 

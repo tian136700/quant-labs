@@ -384,18 +384,26 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-style: italic;
         }
         .jp-vocab-teacher-quiz__meaning-source {
-          display: block;
-          margin-top: 0.15rem;
-          font-size: 0.75rem;
-          font-weight: 500;
-          font-style: normal;
-          color: var(--muted);
+          /* 角标样式由 .jp-vocab-source-label 统一 */
         }
         .jp-vocab-teacher-quiz__meaning-wrap {
+          position: relative;
           display: flex;
           flex-direction: column;
-          align-items: flex-start;
-          gap: 0.1rem;
+          align-items: stretch;
+          gap: 0.15rem;
+          min-height: 2.4rem;
+          padding-bottom: 1rem;
+          box-sizing: border-box;
+        }
+        .jp-vocab-teacher-quiz__meaning-wrap :global(.jp-vocab-source-label) {
+          font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          font-size: 0.625rem;
+          font-weight: 500;
+          line-height: 1.25;
+          letter-spacing: 0.01em;
+          color: color-mix(in srgb, var(--muted) 78%, transparent);
         }
         .jp-vocab-teacher-quiz__pos {
           display: inline-block;
@@ -690,10 +698,19 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 600;
           color: var(--accent);
         }
-        .jp-vocab-teacher-quiz__examples-source {
-          font-size: 0.75rem;
+        .jp-vocab-teacher-quiz__examples-body {
+          position: relative;
+          padding-bottom: 1rem;
+          min-height: 2.5rem;
+        }
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-vocab-source-label) {
+          font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          font-size: 0.625rem;
           font-weight: 500;
-          color: var(--muted);
+          line-height: 1.25;
+          letter-spacing: 0.01em;
+          color: color-mix(in srgb, var(--muted) 78%, transparent);
         }
         .jp-vocab-teacher-quiz__examples-list {
           margin: 0;
