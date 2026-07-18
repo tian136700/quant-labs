@@ -26,7 +26,7 @@
 | `/jp-vocab/admin` | **日语抽问-管理员端**（全库、设今日抽查数量、导出、预览卡片） | `src/app/jp-vocab/admin/page.tsx` | `JpVocabPage variant="admin"` | 同上（设目标等管理操作用 admin API） | 与老师端**共用同一张表 / 同一套 API**；UX 由 `variant` 区分 | `admin`；非管理员进此 URL 会 redirect 到 `/jp-vocab` |
 | `/jp-vocab/study` | 今日日语单词、学生复习；**主路径=peek**；「请老师发送」默认关 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/teacher-quiz-live`（peek）；`share-request` 仅当开关开 | 同上 + `jp_vocab_share_request`；开关 `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED=false` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
 | `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
-| `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；**今日抽查完成弹窗出现时批量写入**；已带读不拉回；**带读页可改熟悉程度/编辑词条**；备注与抽问同步；**带读卡片显示例句**；列表有例句列与带读状态；**已带读北京时间次日凌晨清空**，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach`（`merge_queue` / `update_level` / `mark_coached`） | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`）；跨日清理见 `daily-rollover` | **`jp_vocab:coach` 或白名单**（当前 `XinXin`=欣欣；李老师/玉老师默认无）；`admin` 全部；抽查完成入队仍用 `jp_vocab:operate` |
+| `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；**今日抽查完成弹窗出现时批量写入**；已带读不拉回；**带读卡片与抽问卡同 UI，熟悉程度只展示不可勾选**；备注与抽问同步；**带读卡片显示例句**；列表有例句列、带读状态与操作列「查看该带读卡片」；**已带读北京时间次日凌晨清空**，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach`（`merge_queue` / `mark_coached`） | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`）；跨日清理见 `daily-rollover` | **`jp_vocab:coach` 或白名单**（当前 `XinXin`=欣欣；李老师/玉老师默认无）；`admin` 全部；抽查完成入队仍用 `jp_vocab:operate` |
 | `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页；下载名见「日语新课 → 教案下载文件名」 |
 
 ### jp-vocab 子功能 → 文件速查
@@ -172,6 +172,7 @@
 | 站点导航（顶栏：管理员端固定最左；其余按使用频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`、`src/lib/site-nav-config.ts`（`PINNED_PRIMARY_NAV_ID`）、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc` |
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
+| **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
 
 ---
 
