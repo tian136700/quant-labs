@@ -113,6 +113,7 @@
 | **API 上传新课**（`content` + 可选 `meanings` / **`example_sentences`**；`|||` 分隔各词例句；单项「日语 + 译文：」，每词最多 10 条；已完成同步释义与例句到 `/jp-vocab`） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings`、`normalizeLessonExampleSentencesForStorage` |
 | **教案下载文件名**（原图 / 分页 PDF / Word：`{id}、单词学习|语法学习 (词1, 词2, …)`；新课列表下载与「查看」页一致） | `jp-vocab-ref-shared.ts` → `jpLessonRefDownloadFilename`；`JpLessonPage.tsx`；`JpVocabRefViewer` + `jp-vocab/ref/[refKey]/page.tsx`；`GET /api/jp-vocab/ref/[refKey]?download=1`；`getJpLessonByRefKey` |
 | 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
+| **学习中 + 开课 18h 内 → 立即启用老师账号**（设老师 / 上课时间 / 状态为「学习中」后；与每日 05:00 互补；`admin` / `user1` / `test` 不自动启） | `teacher-user-schedule-enable.ts` → `maybeEnableTeacherUsersForLearningLesson`；`POST /api/jp-lesson`（`set_teacher` / `set_class_schedules` / `set_next_class_at` / `progress_status`）；规则 `.cursor/rules/teacher-lesson-learning-auto-enable.mdc` |
 | **课堂笔记图片**（粘贴/上传；格式与抽问备注相同；已完成新课保存后同步到词条 `class_notes`） | `JpLessonNotesPage.tsx`；`POST /api/jp-vocab/class-notes/upload`（`jp_vocab` 或 `jp_lesson:operate`）；`jp-vocab-class-notes.ts`；规则 `.cursor/rules/jp-vocab-notes-hide-image-url.mdc` |
 | 统一日程（日语/英语/手动；**「学习中」+「已完成」进日程**，未上课不同步；上完不消失） | `JpLessonSchedulePage.tsx`；`jp-lesson-shared.ts` / `en-lesson-shared.ts` → `build*LessonScheduleEvents` / `*LessonProgressAppearsOnSchedule`；`jp-lesson-manual-schedule.ts` → `LessonScheduleSubject` |
 | **日程同步到网易日历（CalDAV，已停用）** | 默认 `SCHEDULE_CALDAV_DISABLED=1`；Mac launchd 已卸；改用下方 ICS。脚本仍保留：`scripts/schedule-caldav-sync.py` |
@@ -166,6 +167,7 @@
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
 | **最后登录 IP 折叠**（长 IPv6 默认收起 +「展开/收起」；IPv4 一行展示；禁止每行 N 字符强折） | `AdminUsersPage.tsx` → `AdminUserIpDisplay`；规则 `.cursor/rules/admin-users-ip-collapse.mdc` |
 | **今日有课老师账号自动启用**（北京时间 05:00；仅日语新课排课 + 手动日程；**不含英语课/英语老师**——英语老师不建登录账号；`admin` / `user1` / `test` 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |
+| **学习中 + 开课 18h 内立即启用**（管理员在 `/jp-lesson` 设好老师+时间并标「学习中」时，不必等 05:00） | 同上 `maybeEnableTeacherUsersForLearningLesson`；挂钩 `POST /api/jp-lesson`；规则 `teacher-lesson-learning-auto-enable.mdc` |
 | **今日抽查完成后自动禁用**（记操作人到 `jp_vocab_teacher_quiz_day`，**不写词条表**；普通老师抽完 +1h，带读账号如欣欣 +2h；`admin` / `user1` / `test` 不受控） | `src/lib/jp-vocab-teacher-quiz-day.ts`（勾选时写入）；`src/lib/teacher-user-quiz-complete-disable.ts`；`POST /api/admin/teacher-user-quiz-complete-disable`；Mac 定时 `scripts/teacher-user-quiz-complete-disable.sh` + `setup-teacher-user-quiz-complete-disable-mac.sh`（每 15 分钟）；规则 `.cursor/rules/teacher-quiz-complete-auto-disable.mdc` |
 
 ---

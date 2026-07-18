@@ -119,6 +119,22 @@ const LESSON_STATUS_SECTIONS: {
   { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
 ];
 
+/** API：学习中 + 开课 18h 内自动启用老师账号的回包摘要 */
+type TeacherAutoEnableInfo = {
+  triggered?: boolean;
+  enabled?: Array<{ username: string }>;
+};
+
+function teacherAutoEnableStatusSuffix(
+  info?: TeacherAutoEnableInfo | null
+): string {
+  const names = (info?.enabled ?? [])
+    .map((row) => String(row.username ?? "").trim())
+    .filter(Boolean);
+  if (!names.length) return "";
+  return `；已自动开启账号：${[...new Set(names)].join("、")}`;
+}
+
 type JpLessonSortField = "classTime" | "recentOperation";
 
 type JpLessonSectionSort = {
@@ -733,6 +749,7 @@ export function JpLessonPage() {
         ok: boolean;
         lesson?: JpLessonRecord;
         error?: string;
+        teacher_auto_enable?: TeacherAutoEnableInfo | null;
       };
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
@@ -758,6 +775,13 @@ export function JpLessonPage() {
         persistLessonCache(next, refs, notes, teachers);
         return next;
       });
+      const autoEnableSuffix = teacherAutoEnableStatusSuffix(
+        data.teacher_auto_enable
+      );
+      if (autoEnableSuffix) {
+        setStatus(`学习状态已更新${autoEnableSuffix}`);
+        window.setTimeout(() => setStatus(""), 4000);
+      }
     } catch (err) {
       if (snapshot) {
         setLessons((prev) => {
@@ -837,6 +861,7 @@ export function JpLessonPage() {
         ok: boolean;
         lesson?: JpLessonRecord;
         error?: string;
+        teacher_auto_enable?: TeacherAutoEnableInfo | null;
       };
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
@@ -871,8 +896,10 @@ export function JpLessonPage() {
       if (!options?.keepOpen) {
         setEditingTeacherLesson(null);
       }
-      setStatus("上课老师已更新");
-      window.setTimeout(() => setStatus(""), 2500);
+      setStatus(
+        `上课老师已更新${teacherAutoEnableStatusSuffix(data.teacher_auto_enable)}`
+      );
+      window.setTimeout(() => setStatus(""), 4000);
     } catch (err) {
       const message = err instanceof Error ? err.message : "保存失败";
       setStatus(message);
@@ -1076,6 +1103,7 @@ export function JpLessonPage() {
         ok: boolean;
         lesson?: JpLessonRecord;
         error?: string;
+        teacher_auto_enable?: TeacherAutoEnableInfo | null;
       };
       if (!data.ok || !data.lesson) {
         throw new Error(data.error || "保存失败");
@@ -1102,8 +1130,10 @@ export function JpLessonPage() {
         return next;
       });
       setEditingNextClassLesson(null);
-      setStatus("上课时间已更新");
-      window.setTimeout(() => setStatus(""), 2500);
+      setStatus(
+        `上课时间已更新${teacherAutoEnableStatusSuffix(data.teacher_auto_enable)}`
+      );
+      window.setTimeout(() => setStatus(""), 4000);
     } catch (err) {
       if (snapshot) {
         setLessons((prev) =>
@@ -1134,6 +1164,7 @@ export function JpLessonPage() {
     );
     setBatchSaving(true);
     try {
+      const autoEnabledUsernames: string[] = [];
       for (const lessonId of batchLessonIds) {
         const timeRes = await fetch("/api/jp-lesson", {
           method: "POST",
@@ -1148,8 +1179,16 @@ export function JpLessonPage() {
             class_schedules: normalized,
           }),
         });
-        const timeData = (await timeRes.json()) as { ok: boolean; error?: string };
+        const timeData = (await timeRes.json()) as {
+          ok: boolean;
+          error?: string;
+          teacher_auto_enable?: TeacherAutoEnableInfo | null;
+        };
         if (!timeData.ok) throw new Error(timeData.error || `课程 #${lessonId} 时间保存失败`);
+        for (const row of timeData.teacher_auto_enable?.enabled ?? []) {
+          const name = String(row.username ?? "").trim();
+          if (name) autoEnabledUsernames.push(name);
+        }
 
         const teacherRes = await fetch("/api/jp-lesson", {
           method: "POST",
@@ -1165,8 +1204,16 @@ export function JpLessonPage() {
             teacher_other: teacherOther,
           }),
         });
-        const teacherData = (await teacherRes.json()) as { ok: boolean; error?: string };
+        const teacherData = (await teacherRes.json()) as {
+          ok: boolean;
+          error?: string;
+          teacher_auto_enable?: TeacherAutoEnableInfo | null;
+        };
         if (!teacherData.ok) throw new Error(teacherData.error || `课程 #${lessonId} 老师保存失败`);
+        for (const row of teacherData.teacher_auto_enable?.enabled ?? []) {
+          const name = String(row.username ?? "").trim();
+          if (name) autoEnabledUsernames.push(name);
+        }
 
         if (progressStatus) {
           const progressRes = await fetch("/api/jp-lesson", {
@@ -1181,9 +1228,17 @@ export function JpLessonPage() {
               progress_status: progressStatus,
             }),
           });
-          const progressData = (await progressRes.json()) as { ok: boolean; error?: string };
+          const progressData = (await progressRes.json()) as {
+            ok: boolean;
+            error?: string;
+            teacher_auto_enable?: TeacherAutoEnableInfo | null;
+          };
           if (!progressData.ok) {
             throw new Error(progressData.error || `课程 #${lessonId} 状态保存失败`);
+          }
+          for (const row of progressData.teacher_auto_enable?.enabled ?? []) {
+            const name = String(row.username ?? "").trim();
+            if (name) autoEnabledUsernames.push(name);
           }
         }
       }
@@ -1213,10 +1268,15 @@ export function JpLessonPage() {
         persistLessonCache(next, refs, notes, teachers);
         return next;
       });
-      setStatus(`已批量更新 ${batchLessonIds.length} 条未上课教案`);
+      const autoEnableSuffix = teacherAutoEnableStatusSuffix({
+        enabled: autoEnabledUsernames.map((username) => ({ username })),
+      });
+      setStatus(
+        `已批量更新 ${batchLessonIds.length} 条未上课教案${autoEnableSuffix}`
+      );
       setBatchLessonIds([]);
       setBatchModalOpen(false);
-      window.setTimeout(() => setStatus(""), 2500);
+      window.setTimeout(() => setStatus(""), 4000);
     } catch (err) {
       if (snapshotById.size) {
         setLessons((prev) =>
