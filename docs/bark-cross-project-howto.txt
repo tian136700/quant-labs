@@ -26,7 +26,7 @@
      "body": "项目：<仓库目录名>\n文件：a.ts、b.py\n改动：……",
      "group": "<项目名>",
      "level": "active",
-     "sound": "bell"
+     "sound": "paymentsuccess"
    }
 4. 若 BARK_ENABLED=0/false/off 则跳过推送
 5. 文件不存在或没有 key → 当作未配置，安静 skip，不要报错中断主流程
@@ -35,7 +35,7 @@
 - 标题必须带「项目名」（仓库目录名，如 strategy-compare-cloud · 自动部署成功）
 - 正文必须有「项目：…」和「文件：…」（本次改动的相对路径，最多列约 8 个）
 - Bark 的 group 用项目名，方便在 App 里按项目分组
-- 部署失败用 level=passive（静音）；成功用 level=active + sound（如 bell）
+- 部署失败用 level=passive（静音）；成功用 level=active + sound（默认 paymentsuccess，勿用 bell，易和短信撞音）
 - 不要用 critical/call（那是上课持续铃响专用）
 
 **新机器首次配置（仅一次）：**
