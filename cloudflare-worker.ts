@@ -5,6 +5,8 @@
  * 本地测 Cron：
  *   npx wrangler dev --test-scheduled
  *   curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
+ *
+ * 注意：本文件已从 tsconfig exclude，避免 next build 做类型检查。
  */
 
 // @ts-expect-error `.open-next/worker.js` is generated at build time
@@ -60,10 +62,10 @@ export default {
   fetch: handler.fetch,
 
   async scheduled(
-    _controller: ScheduledController,
+    _controller: { cron?: string },
     env: CronEnv,
-    ctx: ExecutionContext
+    ctx: { waitUntil: (promise: Promise<unknown>) => void }
   ): Promise<void> {
     ctx.waitUntil(runClassBarkRemind(env));
   },
-} satisfies ExportedHandler<CronEnv>;
+};
