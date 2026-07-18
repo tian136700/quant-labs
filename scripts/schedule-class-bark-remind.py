@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""统一日程：开课前 N 分钟 Bark 推送到 iPhone。
+"""统一日程：开课前 10/5/1 分钟 Bark 推送到 iPhone（各持续铃响一次）。
 
 数据源与 ICS / 日程页相同：GET /api/admin/schedule-events
 （Bearer = JP_REVIEW_UPLOAD_TOKEN）。
 
+触发按北京时间课表；通知正文展示泰国时间（北京 − 1 小时）。
 由 schedule-class-bark-remind.sh / launchd 每分钟调度。
 """
 
@@ -35,6 +36,8 @@ DEFAULT_API_URL = "https://finance.info-quests.com/api/admin/schedule-events"
 CONFIG_DIR = Path.home() / ".config" / "info-quests"
 SENT_FILE = CONFIG_DIR / "schedule-class-bark-remind.sent.json"
 BEIJING = timezone(timedelta(hours=8))
+THAILAND = timezone(timedelta(hours=7))  # 通知展示用：北京墙钟 − 1 小时
+DEFAULT_LEAD_MINUTES = (10, 5, 1)
 HTTP_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -176,15 +179,43 @@ def format_class_time(start: datetime) -> str:
     return start.strftime("%m-%d %H:%M")
 
 
+def beijing_to_thailand_display(beijing_start: datetime) -> datetime:
+    """日程存北京墙钟；通知按泰国时间展示（同墙钟时刻 − 1 小时）。"""
+    naive = beijing_start.replace(tzinfo=None) - timedelta(hours=1)
+    return naive.replace(tzinfo=THAILAND)
+
+
+def parse_lead_minutes(raw: str) -> list[int]:
+    """支持 `10` 或 `10,5,1`；降序去重，至少保留一个。"""
+    parts = [p.strip() for p in (raw or "").replace("，", ",").split(",") if p.strip()]
+    leads: list[int] = []
+    for part in parts:
+        try:
+            n = int(part)
+        except ValueError:
+            continue
+        if n >= 1 and n not in leads:
+            leads.append(n)
+    if not leads:
+        leads = list(DEFAULT_LEAD_MINUTES)
+    return sorted(leads, reverse=True)
+
+
+def sent_key(uid: str, lead: int) -> str:
+    return f"{uid}#{lead}"
+
+
 def maybe_remind(
     events: list[dict[str, Any]],
     *,
-    lead_minutes: int,
+    lead_minutes: list[int],
     dry_run: bool,
     force_uid: str | None,
+    force_lead: int | None,
 ) -> int:
+    """按北京时间触发；每节课在 10/5/1 分钟窗口各持续铃响一次。"""
     now = datetime.now(tz=BEIJING)
-    lead_seconds = max(1, lead_minutes) * 60
+    leads = sorted({max(1, int(x)) for x in lead_minutes}, reverse=True)
     sent = prune_sent(load_sent(), now=now)
     changed = False
     notified = 0
@@ -209,54 +240,65 @@ def maybe_remind(
         summary = str(event.get("summary") or "上课").strip() or "上课"
         teachers = str(event.get("teachers") or "").strip()
         title_line = str(event.get("title") or "").strip()
+        thai_start = beijing_to_thailand_display(start)
+        bj_label = format_class_time(start)
+        th_label = format_class_time(thai_start)
 
-        in_window = 0 < seconds_until <= lead_seconds
-        forced = force_uid is not None and uid == force_uid
-        if not in_window and not forced:
-            continue
-        if uid in sent and not forced:
-            continue
+        for index, lead in enumerate(leads):
+            next_lead = leads[index + 1] if index + 1 < len(leads) else 0
+            lower = next_lead * 60
+            upper = lead * 60
+            # 例：lead=10 → (5min, 10min]；lead=5 → (1min, 5min]；lead=1 → (0, 1min]
+            in_window = lower < seconds_until <= upper
+            forced = (
+                force_uid is not None
+                and uid == force_uid
+                and (force_lead is None or force_lead == lead)
+            )
+            if not in_window and not forced:
+                continue
+            key = sent_key(uid, lead)
+            if key in sent and not forced:
+                continue
 
-        minutes_left = max(1, int(round(seconds_until / 60))) if seconds_until > 0 else 0
-        bark_title, body = format_class_remind_push(
-            minutes_left=minutes_left,
-            summary=summary,
-            class_at_label=format_class_time(start),
-            teachers=teachers,
-            lesson_title=title_line,
-        )
+            bark_title, body = format_class_remind_push(
+                minutes_left=lead,
+                summary=summary,
+                thailand_class_at_label=th_label,
+                beijing_class_at_label=bj_label,
+                teachers=teachers,
+                lesson_title=title_line,
+            )
 
-        print(
-            f"{now.strftime('%F %T')} remind: {uid} in {seconds_until/60:.1f}m "
-            f"→ {summary}"
-        )
-        if dry_run:
-            print(f"  dry-run bark title={bark_title!r}")
-            print(f"  dry-run bark body={body!r}")
+            print(
+                f"{now.strftime('%F %T')} remind@{lead}m: {uid} "
+                f"in {seconds_until/60:.1f}m → {summary}"
+            )
+            if dry_run:
+                print(f"  dry-run bark title={bark_title!r}")
+                print(f"  dry-run bark body={body!r}")
+                notified += 1
+                continue
+
+            result = send_bark_push(
+                title=bark_title,
+                body=body,
+                group="上课提醒",
+                level="critical",
+                call=True,
+                icon=resolve_icon_url("class_remind"),
+            )
+            if result.get("skipped"):
+                print("  bark skipped: not configured (BARK_DEVICE_KEY)")
+                return notified
+            if not result.get("ok"):
+                print(f"  bark failed: {result.get('error')}", file=sys.stderr)
+                raise SystemExit(1)
+            print("  bark ok (critical+call)")
+            if in_window:
+                sent[key] = now.isoformat(timespec="seconds")
+                changed = True
             notified += 1
-            continue
-
-        result = send_bark_push(
-            title=bark_title,
-            body=body,
-            group="上课提醒",
-            # critical：静音模式也响；call：铃声重复，直到你看手机
-            level="critical",
-            call=True,
-            icon=resolve_icon_url("class_remind"),
-        )
-        if result.get("skipped"):
-            print("  bark skipped: not configured (BARK_DEVICE_KEY)")
-            return notified
-        if not result.get("ok"):
-            print(f"  bark failed: {result.get('error')}", file=sys.stderr)
-            raise SystemExit(1)
-        print("  bark ok")
-        # 仅「真实时间窗内」写入已发记录；--force-uid 在窗外测试不占用正式提醒额度
-        if in_window:
-            sent[uid] = now.isoformat(timespec="seconds")
-            changed = True
-        notified += 1
 
     if changed and not dry_run:
         save_sent(sent)
@@ -264,12 +306,18 @@ def maybe_remind(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="开课前 Bark 提醒")
+    parser = argparse.ArgumentParser(description="开课前 Bark 提醒（10/5/1 分钟 × 持续铃响）")
     parser.add_argument("--dry-run", action="store_true", help="只打印，不推送、不写已发记录")
     parser.add_argument(
         "--force-uid",
         default="",
-        help="强制对指定 uid 推一次（忽略时间窗与已发记录，仍受 --dry-run 约束）",
+        help="强制对指定 uid 推送（忽略时间窗与已发记录，仍受 --dry-run 约束）",
+    )
+    parser.add_argument(
+        "--force-lead",
+        type=int,
+        default=0,
+        help="配合 --force-uid：只推某一档（10/5/1）；0 表示该 uid 的每一档都推",
     )
     parser.add_argument(
         "--list-upcoming",
@@ -295,11 +343,12 @@ def main() -> int:
         or remind_cfg.get("SCHEDULE_CLASS_BARK_REMIND_URL")
         or DEFAULT_API_URL
     ).strip()
-    lead_minutes = int(
+    lead_raw = (
         os.environ.get("SCHEDULE_CLASS_BARK_LEAD_MINUTES")
         or remind_cfg.get("SCHEDULE_CLASS_BARK_LEAD_MINUTES")
-        or "10"
+        or "10,5,1"
     )
+    lead_minutes = parse_lead_minutes(lead_raw)
 
     events = fetch_schedule_events(api_url=api_url, token=token)
     print(f"fetched {len(events)} schedule events from {api_url}")
@@ -318,8 +367,10 @@ def main() -> int:
                 rows.append((sec, event, start))
         rows.sort(key=lambda x: x[0])
         for sec, event, start in rows:
+            thai = beijing_to_thailand_display(start)
             print(
-                f"  +{sec/60:6.1f}m  {start.strftime('%F %H:%M')}  "
+                f"  +{sec/60:6.1f}m  北京 {start.strftime('%F %H:%M')} / "
+                f"泰国 {thai.strftime('%H:%M')}  "
                 f"{event.get('summary')}  ({event.get('uid')})"
             )
         if not rows:
@@ -330,8 +381,9 @@ def main() -> int:
         lead_minutes=lead_minutes,
         dry_run=args.dry_run,
         force_uid=args.force_uid.strip() or None,
+        force_lead=args.force_lead if args.force_lead > 0 else None,
     )
-    print(f"notified={count} lead_minutes={lead_minutes} dry_run={args.dry_run}")
+    print(f"notified={count} leads={lead_minutes} dry_run={args.dry_run}")
     return 0
 
 
