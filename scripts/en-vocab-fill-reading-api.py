@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""补全 en_vocab_word 缺失 IPA：list_missing → dictionaryapi.dev → apply。
+"""补全 en_vocab_word 缺失 IPA：list_missing → 本机 Ollama（默认 gemma4:26b）→ apply。
 
-音标优先用免费词典 API（比大模型稳）；查不到可用 --llm-fallback 走本机 Ollama。
+不再调用线上词典（本机 SSL 易失败）；一律本机大模型。
 """
 
 from __future__ import annotations
@@ -11,9 +11,6 @@ import json
 import re
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,23 +27,13 @@ from en_vocab_fill_common import (  # noqa: E402
 )
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/en-vocab/fill-reading"
-DICT_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/"
-HTTP_USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-)
-READING_SOURCE_DICT = "dictionaryapi.dev"
 
 _IPA_WRAPPED = re.compile(r"^([\[\/])(.+)([\]\/])$")
 _SKIP_PHRASE = re.compile(r"^\s*$|[?!;]|\.{2,}")
 _MAX_AUTO_READING_CHARS = 48
+# 一行里抽 /…/ 或 […]
+_IPA_FIND = re.compile(r"[/\[\]]([^/\\[\]]{1,60})[/\[\]]")
 MANUAL_READINGS: dict[str, str] = {}
-
-
-def env_truthy(raw: str | None, *, default: bool = False) -> bool:
-    if raw is None or raw == "":
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def normalize_ipa(text: str) -> str | None:
@@ -59,9 +46,16 @@ def normalize_ipa(text: str) -> str | None:
         if (open_b, close_b) not in {("/", "/"), ("[", "]")} or not body:
             return None
         return f"/{body}/"
+    found = _IPA_FIND.search(text)
+    if found:
+        body = found.group(1).strip()
+        if body:
+            return f"/{body}/"
     body = text.strip("/[] ")
-    if body and re.search(r"[ˈˌːɑæɒɔəɛɪʊʌθðŋʃʒ]", body):
-        return f"/{body}/"
+    if body and re.search(r"[a-zɑæɒɔəɛɪʊʌθðŋʃʒˈˌː]", body, re.I):
+        # 模型偶发无斜杠，但仍像 IPA
+        if " " not in body or re.search(r"[ˈˌːəɪʊʌʃʒθðŋ]", body):
+            return f"/{body}/"
     return None
 
 
@@ -74,71 +68,39 @@ def analyze_word(word: str) -> tuple[str, str | None]:
     return w, None
 
 
-def pick_ipa_from_entry(entry: dict) -> str | None:
-    phonetic = normalize_ipa(str(entry.get("phonetic") or ""))
-    if phonetic:
-        return phonetic
-    for item in entry.get("phonetics") or []:
-        ipa = normalize_ipa(str(item.get("text") or ""))
-        if ipa:
-            return ipa
-    return None
-
-
-def lookup_dictionary(
-    word: str,
-    cache: dict[str, str | None],
-    delay_sec: float,
-) -> str | None:
-    key = word.strip().lower()
-    if not key:
-        return None
-    if key in cache:
-        return cache[key]
-
-    query = urllib.parse.quote(word.strip())
-    req = urllib.request.Request(
-        DICT_URL + query,
-        headers={"User-Agent": HTTP_USER_AGENT},
-    )
-    ipa: str | None = None
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-        if isinstance(payload, list) and payload:
-            ipa = pick_ipa_from_entry(payload[0])
-    except urllib.error.HTTPError as err:
-        if err.code != 404:
-            print(f"  dictionary lookup failed for {word!r}: HTTP {err.code}", flush=True)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as err:
-        print(f"  dictionary lookup failed for {word!r}: {err}", flush=True)
-
-    cache[key] = ipa
-    if delay_sec > 0:
-        time.sleep(delay_sec)
-    return ipa
-
-
-def llm_ipa(word: str, *, model: str) -> str | None:
+def llm_ipa(word: str, *, model: str, retries: int) -> tuple[str | None, str | None]:
     prompt = (
-        f"Give the American English IPA pronunciation for the word/phrase:\n"
-        f"{word}\n\n"
-        "Reply with ONLY one IPA wrapped in slashes, e.g. /həˈloʊ/. "
-        "No explanation."
+        f"American English IPA for: {word}\n"
+        "Reply with ONLY one transcription in slashes, e.g. /həˈloʊ/\n"
+        "No explanation, no quotes."
     )
-    try:
-        raw = call_ollama(prompt, model=model, timeout=90)
-    except Exception as err:
-        print(f"  ollama IPA failed for {word!r}: {err}", flush=True)
-        return None
-    first = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
-    return normalize_ipa(first or raw)
+    last_err = "unknown"
+    for attempt in range(max(1, retries)):
+        try:
+            raw = call_ollama(prompt, model=model)
+            first = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
+            ipa = normalize_ipa(first or raw)
+            if ipa:
+                return ipa, None
+            last_err = "invalid_ipa"
+            prompt = (
+                f"Previous output invalid. For the English word/phrase «{word}», "
+                "output ONLY IPA like /ˈwɝːd/. Nothing else."
+            )
+        except Exception as err:
+            last_err = str(err)
+            if attempt + 1 >= retries:
+                return None, last_err
+            time.sleep(1.0)
+    return None, last_err
 
 
 def main() -> int:
     cfg = load_env_file("en-vocab-fill.env")
     cfg_legacy = load_env_file("en-vocab-fill-reading.env")
-    parser = argparse.ArgumentParser(description="Fill en_vocab IPA via API + dictionary")
+    parser = argparse.ArgumentParser(
+        description="Fill en_vocab IPA via local Ollama (gemma4:26b)"
+    )
     parser.add_argument(
         "--api-url",
         default=(
@@ -151,24 +113,11 @@ def main() -> int:
     parser.add_argument(
         "--limit",
         type=int,
-        default=int(cfg.get("EN_VOCAB_FILL_READING_LIMIT") or 40),
+        default=int(cfg.get("EN_VOCAB_FILL_READING_LIMIT") or 15),
     )
-    parser.add_argument(
-        "--dict-delay",
-        type=float,
-        default=float(
-            cfg.get("EN_VOCAB_FILL_READING_DICT_DELAY")
-            or cfg_legacy.get("EN_VOCAB_FILL_READING_DICT_DELAY")
-            or "0.25"
-        ),
-    )
+    parser.add_argument("--retries", type=int, default=2)
+    parser.add_argument("--delay-ms", type=int, default=100)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument(
-        "--llm-fallback",
-        action=argparse.BooleanOptionalAction,
-        default=env_truthy(cfg.get("EN_VOCAB_FILL_READING_LLM_FALLBACK"), default=False),
-        help="词典查不到时用本机 Ollama 兜底（默认关）",
-    )
     parser.add_argument("--allow-skipped", action="store_true")
     args = parser.parse_args()
 
@@ -177,11 +126,17 @@ def main() -> int:
             "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
         )
 
+    if not probe_ollama():
+        raise SystemExit("本地 Ollama 不可用（brew services start ollama）")
+
+    model = resolve_ollama_model()
+    source = build_source_label(model)
+
     scan = call_api(
         args.api_url,
         args.token,
         {"mode": "list_missing", "limit": max(1, args.limit)},
-        user_agent="en-vocab-fill-reading/1.0",
+        user_agent="en-vocab-fill-reading/2.0",
     )
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
@@ -189,25 +144,18 @@ def main() -> int:
     missing = list(scan.get("missing") or [])
     total = int(scan.get("total_missing") or len(missing))
     print(
-        f"[en-vocab-fill-reading] list_missing={len(missing)} total_missing={total}",
+        f"[en-vocab-fill-reading] model={model} list_missing={len(missing)} "
+        f"total_missing={total}",
         flush=True,
     )
     if not missing:
         print("  无缺失音标", flush=True)
         return 0
 
-    model = resolve_ollama_model()
-    llm_source = build_source_label(model)
-    llm_fallback = bool(args.llm_fallback)
-    if llm_fallback and not probe_ollama():
-        print("  [warn] Ollama 不可用，关闭 LLM 兜底", flush=True)
-        llm_fallback = False
-
-    cache: dict[str, str | None] = {}
     updates: list[dict] = []
     skipped: list[dict] = []
 
-    for item in missing:
+    for index, item in enumerate(missing):
         word_id = int(item.get("id") or 0)
         word = str(item.get("word") or "").strip()
         if word_id <= 0 or not word:
@@ -218,33 +166,38 @@ def main() -> int:
             print(f"  skip {word_id} {word!r} ({skip_reason})", flush=True)
             continue
 
-        source = READING_SOURCE_DICT
-        ipa = None
-        if word in MANUAL_READINGS:
-            ipa = MANUAL_READINGS[word]
-            source = "手动"
-        elif lookup in MANUAL_READINGS:
-            ipa = MANUAL_READINGS[lookup]
-            source = "手动"
+        if word in MANUAL_READINGS or lookup in MANUAL_READINGS:
+            ipa = MANUAL_READINGS.get(word) or MANUAL_READINGS[lookup]
+            src = "手动"
         else:
-            ipa = lookup_dictionary(lookup, cache, args.dict_delay)
-            if not ipa and llm_fallback:
-                ipa = llm_ipa(lookup, model=model)
-                if ipa:
-                    source = llm_source
+            print(
+                f"  [{index + 1}/{len(missing)}] id={word_id} word={word!r} …",
+                flush=True,
+            )
+            ipa, err = llm_ipa(
+                lookup, model=model, retries=max(1, args.retries)
+            )
+            src = source
+            if not ipa:
+                skipped.append({"id": word_id, "word": word, "reason": err or "not_found"})
+                print(f"    miss reason={err}", flush=True)
+                continue
 
-        if not ipa:
-            skipped.append({"id": word_id, "word": word, "reason": "not_found"})
-            print(f"  miss {word_id} {word!r}", flush=True)
-            continue
-
-        print(f"  {word_id} {word!r} -> {ipa} ({source})", flush=True)
-        updates.append({"word_id": word_id, "reading": ipa, "source": source})
+        print(f"    -> {ipa} ({src})", flush=True)
+        updates.append({"word_id": word_id, "reading": ipa, "source": src})
+        if args.delay_ms > 0 and index + 1 < len(missing):
+            time.sleep(args.delay_ms / 1000.0)
 
     if args.dry_run:
         print(
             json.dumps(
-                {"ok": True, "dry_run": True, "updates": updates, "skipped": skipped},
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "source": source,
+                    "updates": updates,
+                    "skipped": skipped,
+                },
                 ensure_ascii=False,
                 indent=2,
             )
@@ -258,12 +211,12 @@ def main() -> int:
     apply = call_api(
         args.api_url,
         args.token,
-        {"mode": "apply", "updates": updates},
-        user_agent="en-vocab-fill-reading/1.0",
+        {"mode": "apply", "source": source, "updates": updates},
+        user_agent="en-vocab-fill-reading/2.0",
     )
     print(
         f"[en-vocab-fill-reading] apply updated={apply.get('updated')} "
-        f"skipped={len(apply.get('skipped') or [])}",
+        f"skipped={len(apply.get('skipped') or [])} source={source}",
         flush=True,
     )
     if not apply.get("ok"):

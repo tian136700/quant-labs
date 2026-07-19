@@ -108,7 +108,7 @@
 
 | 功能描述 | 改哪里 |
 |----------|--------|
-| **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；音标用 dictionaryapi.dev，释义/例句用本机 Ollama `gemma4:26b`；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
+| **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；**一律本机 Ollama `gemma4:26b`**，不调线上词典；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
 
 ---
 
