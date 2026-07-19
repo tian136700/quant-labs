@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Regression: example furigana parser must not leave 漢字かな(かな) as raw parens on screen.
+"""Regression: example furigana parser / sanitize must not leave raw parens on screen.
 
-Fails if JP_VOCAB_PAREN_FURIGANA_RE regresses to pure-kanji-only bases
-(e.g. 静か(しずか) would leak parentheses into JpVocabFuriganaText).
+Fails if:
+- JP_VOCAB_PAREN_FURIGANA_RE regresses to pure-kanji-only bases
+  (e.g. 静か(しずか) would leak parentheses into JpVocabFuriganaText)
+- sanitizeJpVocabExampleJapaneseLine fails to strip nested teaching-note parens
+  (e.g. 。(必要なは必要だ(ひつようだ)の形容動詞形です))
 """
 from __future__ import annotations
 
@@ -13,9 +16,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "lib" / "jp-vocab-example-sentences.ts"
 
-# Mirror of JP_VOCAB_PAREN_FURIGANA_RE (keep in sync with TS)
+# Mirror of JP_VOCAB_PAREN_FURIGANA_RE / VALID_KANJI_FURIGANA_CHUNK (keep in sync with TS)
 PAREN_FURIGANA_RE = re.compile(
     r"([\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]"
+)
+VALID_KANJI_FURIGANA_CHUNK = re.compile(
+    r"[\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*[（(][ぁ-んァ-ンヴヵヶー]+[）)]"
 )
 
 CASES = [
@@ -26,11 +32,58 @@ CASES = [
     "友達（ゆうだつ）より静か（しずか）です。",
 ]
 
+# (raw, expected_after_sanitize) — nested teaching notes must vanish
+SANITIZE_CASES = [
+    (
+        "必要な物(もの)をリストアップする。(必要なは必要だ(ひつようだ)の形容動詞形です)",
+        "必要な物(もの)をリストアップする。",
+    ),
+    (
+        "いい方法があります。",
+        "いい方法があります。",
+    ),
+    (
+        "（いい ほうほう が あります。）",
+        "",
+    ),
+    (
+        "授業(じゅぎょう)に必要(ひつよう)な本(ほん)を買(か)いました。",
+        "授業(じゅぎょう)に必要(ひつよう)な本(ほん)を買(か)いました。",
+    ),
+]
+
 
 def leftover_paren_kana(text: str) -> str | None:
     leftover = PAREN_FURIGANA_RE.sub(r"\1", text)
     m = re.search(r"[（(][ぁ-んァ-ン]", leftover)
     return leftover if m else None
+
+
+def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
+    """Mirror of sanitizeJpVocabExampleJapaneseLine in jp-vocab-example-sentences.ts"""
+    s = (text or "").strip()
+    if not s:
+        return s
+    protected: list[str] = []
+
+    def _protect(m: re.Match[str]) -> str:
+        idx = len(protected)
+        protected.append(m.group(0))
+        return f"\x00F{idx}\x00"
+
+    s = VALID_KANJI_FURIGANA_CHUNK.sub(_protect, s)
+    prev = None
+    while prev != s:
+        prev = s
+        s = re.sub(r"（[^（）]*）", "", s)
+        s = re.sub(r"\([^()]*\)", "", s)
+
+    def _restore(m: re.Match[str]) -> str:
+        i = int(m.group(1))
+        return protected[i] if 0 <= i < len(protected) else ""
+
+    s = re.sub(r"\x00F(\d+)\x00", _restore, s)
+    return re.sub(r"\s{2,}", " ", s).strip()
 
 
 def main() -> int:
@@ -46,6 +99,15 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+    if "protectedChunks" not in src and "\\u0000F" not in src and "\u0000F" not in src:
+        # TS source uses `\u0000F${idx}\u0000` — check for protect-strip-restore pattern
+        if "protectedChunks" not in src:
+            print(
+                "[check_jp_vocab_furigana_parse] FAIL: sanitize must protect valid "
+                "furigana then strip remaining paren blocks (nested teaching notes)",
+                file=sys.stderr,
+            )
+            return 1
 
     for case in CASES:
         leaked = leftover_paren_kana(case)
@@ -57,7 +119,31 @@ def main() -> int:
             )
             return 1
 
-    print(f"[check_jp_vocab_furigana_parse] OK ({len(CASES)} cases)")
+    for raw, expected in SANITIZE_CASES:
+        got = sanitize_jp_vocab_example_japanese_line(raw)
+        if got != expected:
+            print(
+                "[check_jp_vocab_furigana_parse] FAIL: sanitize mismatch\n"
+                f"  raw:      {raw!r}\n"
+                f"  got:      {got!r}\n"
+                f"  expected: {expected!r}",
+                file=sys.stderr,
+            )
+            return 1
+        # After sanitize + furigana strip, no paren chars may remain
+        plain = PAREN_FURIGANA_RE.sub(r"\1", got)
+        if re.search(r"[（(]", plain):
+            print(
+                "[check_jp_vocab_furigana_parse] FAIL: paren still visible after sanitize:\n"
+                f"  {raw!r} -> {got!r}",
+                file=sys.stderr,
+            )
+            return 1
+
+    print(
+        f"[check_jp_vocab_furigana_parse] OK "
+        f"({len(CASES)} parse + {len(SANITIZE_CASES)} sanitize cases)"
+    )
     return 0
 
 

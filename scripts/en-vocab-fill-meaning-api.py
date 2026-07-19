@@ -149,12 +149,23 @@ def generate_for_row(
     *,
     model: str,
     retries: int,
+    field: str = "both",
 ) -> tuple[str | None, str | None, str | None, str]:
-    """返回 (meaning, pos, error, model_used)。"""
-    need_meaning = bool(row.get("need_meaning", True))
-    need_pos = bool(row.get("need_pos", True))
+    """返回 (meaning, pos, error, model_used)。
+
+    field: both | meaning | pos —— 只向模型要对应字段，缩短单次任务。
+    """
+    if field == "meaning":
+        need_meaning, need_pos = True, False
+    elif field == "pos":
+        need_meaning, need_pos = False, True
+    else:
+        need_meaning = bool(row.get("need_meaning", True))
+        need_pos = bool(row.get("need_pos", True))
+
     prompt = str(row.get("prompt") or "").strip()
-    if not prompt:
+    # 单字段时重写 prompt，避免模型仍被要求写另一字段
+    if field in ("meaning", "pos") or not prompt:
         word = str(row.get("word") or "")
         reading = str(row.get("reading") or "").strip()
         jobs = []
@@ -197,8 +208,14 @@ def generate_for_row(
                     return meaning, pos, None, use_model
                 work_prompt = (
                     base_prompt
-                    + f"\n\n上次不合格（{last_err}）。请严格按行输出：先中文释义（；分隔），"
-                    "再单独一行词性（如 adj/n）。"
+                    + f"\n\n上次不合格（{last_err}）。请严格按行输出："
+                    + (
+                        "只输出中文释义（；分隔）。"
+                        if field == "meaning"
+                        else "只输出词性（如 adj/n）。"
+                        if field == "pos"
+                        else "先中文释义（；分隔），再单独一行词性（如 adj/n）。"
+                    )
                 )
             except Exception as err:
                 last_err = str(err)
@@ -218,7 +235,9 @@ def generate_for_row(
 
 def main() -> int:
     cfg = load_env_file("en-vocab-fill.env")
-    parser = argparse.ArgumentParser(description="Fill en_vocab meaning+pos via Ollama")
+    parser = argparse.ArgumentParser(
+        description="Fill en_vocab meaning and/or pos via Ollama (可 --field 拆开跑)"
+    )
     parser.add_argument(
         "--api-url",
         default=cfg.get("EN_VOCAB_FILL_MEANING_URL") or DEFAULT_API_URL,
@@ -228,6 +247,12 @@ def main() -> int:
         "--limit",
         type=int,
         default=int(cfg.get("EN_VOCAB_FILL_MEANING_LIMIT") or 15),
+    )
+    parser.add_argument(
+        "--field",
+        choices=["both", "meaning", "pos"],
+        default="both",
+        help="both=释义+词性；meaning/pos=只补该字段（独立定时任务用）",
     )
     parser.add_argument("--retries", type=int, default=2)
     parser.add_argument("--delay-ms", type=int, default=200)
@@ -240,26 +265,38 @@ def main() -> int:
             "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
         )
 
+    # 单字段时多拉一些，过滤后仍够一批
+    list_limit = max(1, args.limit)
+    if args.field in ("meaning", "pos"):
+        list_limit = max(list_limit, min(40, args.limit * 2))
+
     scan = call_api(
         args.api_url,
         args.token,
-        {"mode": "list_missing", "limit": max(1, args.limit)},
+        {"mode": "list_missing", "limit": list_limit},
         user_agent="en-vocab-fill-meaning/1.0",
     )
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
 
     missing = list(scan.get("missing") or [])
+    if args.field == "meaning":
+        missing = [r for r in missing if r.get("need_meaning")]
+    elif args.field == "pos":
+        missing = [r for r in missing if r.get("need_pos")]
+    missing = missing[: max(1, args.limit)] if missing else []
+
     total = int(scan.get("total_missing") or len(missing))
     print(
-        f"[en-vocab-fill-meaning] list_missing={len(missing)} total_missing={total}",
+        f"[en-vocab-fill-meaning] field={args.field} "
+        f"batch={len(missing)} total_missing={total}",
         flush=True,
     )
     if args.scan:
         print(json.dumps(scan, ensure_ascii=False, indent=2))
         return 0
     if not missing:
-        print("  无缺失释义/词性", flush=True)
+        print(f"  无缺失（field={args.field}）", flush=True)
         return 0
 
     if not probe_ollama():
@@ -278,22 +315,31 @@ def main() -> int:
             flush=True,
         )
         meaning, pos, err, used_model = generate_for_row(
-            row, model=model, retries=max(1, args.retries)
+            row,
+            model=model,
+            retries=max(1, args.retries),
+            field=args.field,
         )
-        if err or (not meaning and not pos):
+        if err or (args.field == "meaning" and not meaning) or (
+            args.field == "pos" and not pos
+        ) or (args.field == "both" and not meaning and not pos):
             skipped.append({"id": word_id, "word": word, "reason": err or "empty"})
             print(f"    skip reason={err}", flush=True)
         else:
             item: dict = {"word_id": word_id, "source": build_source_label(used_model)}
-            if meaning:
+            if args.field in ("both", "meaning") and meaning:
                 item["meaning"] = meaning
-            if pos:
+            if args.field in ("both", "pos") and pos:
                 item["pos"] = pos
-            updates.append(item)
-            print(
-                f"    meaning={meaning!r} pos={pos!r} model={used_model}",
-                flush=True,
-            )
+            if "meaning" not in item and "pos" not in item:
+                skipped.append({"id": word_id, "word": word, "reason": "empty"})
+                print("    skip reason=empty", flush=True)
+            else:
+                updates.append(item)
+                print(
+                    f"    meaning={meaning!r} pos={pos!r} model={used_model}",
+                    flush=True,
+                )
         if args.delay_ms > 0 and index + 1 < len(missing):
             time.sleep(args.delay_ms / 1000.0)
 

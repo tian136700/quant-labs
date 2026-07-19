@@ -64,18 +64,46 @@ export function stripJpVocabParenFurigana(text: string): string {
 /**
  * 合法假名括注：紧贴汉字，括号内仅假名（无空格/汉字/句号）。
  * 非法：整句尾注 `です。(たなかさん げんき です。)` —— 展示难看，校验应拒。
+ * 非法：句末语法说明 `(必要なは必要だ(ひつようだ)の形容動詞形です)` —— 嵌套括号会让旧版 sanitize 漏剥，页面残留 `(` `)`。
  */
 const VALID_KANJI_FURIGANA_CHUNK =
   /[\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*[（(][ぁ-んァ-ンヴヵヶー]+[）)]/g;
 
-/** 去掉非法整句尾注括号；保留合法 漢字(かな) */
+/**
+ * 展示 / 写回前清洗日语行：
+ * 1) 先保护合法「漢字(かな)」；
+ * 2) 剥掉其余所有括号块（教学说明、整句读音尾注、嵌套 junk）；
+ * 3) 还原合法假名括注（存库仍用括号；页面再转下方小字）。
+ *
+ * 目标：页面上永远不该再看到「裸括号」；假名只以 ruby 小字出现。
+ */
 export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
   let s = String(text || "").trim();
   if (!s) return s;
-  s = s.replace(/([。．.!！?？])\s*[（(][^）)]*[ぁ-んァ-ン][^）)]*[）)]\s*$/u, "$1");
-  s = s.replace(/[（(][^）)]*\s[^）)]*[）)]/g, "");
-  s = s.replace(/[（(][^）)]*[。．][^）)]*[）)]/g, "");
-  return s.trim();
+
+  const protectedChunks: string[] = [];
+  s = s.replace(VALID_KANJI_FURIGANA_CHUNK, (chunk) => {
+    const idx = protectedChunks.length;
+    protectedChunks.push(chunk);
+    return `\u0000F${idx}\u0000`;
+  });
+
+  // 由内向外剥：嵌套时先去掉最内层无括号内容的块
+  let prev = "";
+  while (prev !== s) {
+    prev = s;
+    s = s.replace(/（[^（）]*）/g, "");
+    s = s.replace(/\([^()]*\)/g, "");
+  }
+
+  s = s.replace(/\u0000F(\d+)\u0000/g, (_m, idx: string) => {
+    const i = Number(idx);
+    return Number.isFinite(i) && protectedChunks[i] != null
+      ? protectedChunks[i]!
+      : "";
+  });
+
+  return s.replace(/\s{2,}/g, " ").trim();
 }
 
 /** 去掉所有半角/全角括号块（语法点是否出现：勿把括注里的「が」算进去） */
@@ -234,13 +262,18 @@ export function normalizeJpVocabExampleSentencesSource(
 }
 
 /**
- * 规范化已有例句块：译义行补上「译文：」前缀；不翻译、不改日语。
+ * 规范化已有例句块：译义行补上「译文：」前缀；日语行剥非法括号（保留合法漢字(かな)）。
  * 若无需改动则返回 null。
  */
 export function normalizeJpVocabExampleSentencesFormat(
   raw: string | null | undefined
 ): string | null {
-  const items = parseJpVocabExampleSentenceItems(raw);
+  const items = parseJpVocabExampleSentenceItems(raw)
+    .map((item) => ({
+      ...item,
+      text: sanitizeJpVocabExampleJapaneseLine(item.text),
+    }))
+    .filter((item) => item.text.trim().length > 0);
   if (!items.length) return null;
   const normalized = serializeJpVocabExampleSentenceItems(items);
   const original = (raw || "").trim();
