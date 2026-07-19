@@ -78,6 +78,7 @@ import {
   JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
+import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
 
 const SEED_WORDS: JpVocabUploadInput[] = [
   {
@@ -201,8 +202,9 @@ function nowIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+/** trim + な形容词尾「だ」剥成词干（重要だ→重要）；读音请配 normalizeJpVocabNaAdjStoredEntry */
 function normalizeWord(raw: string): string {
-  return (raw || "").trim();
+  return normalizeJpVocabNaAdjStoredEntry(raw || "", null).word;
 }
 
 function normalizeKind(raw?: JpVocabKind | null): JpVocabKind {
@@ -1114,7 +1116,11 @@ export async function addJpVocabWord(
   db: D1Database,
   input: JpVocabUploadInput
 ): Promise<AddJpVocabWordResult> {
-  const word = normalizeWord(input.word);
+  const lemma = normalizeJpVocabNaAdjStoredEntry(
+    input.word,
+    (input.reading || "").trim() || null
+  );
+  const word = lemma.word;
   if (!word) return { ok: false, error: "word_required" };
 
   const kind = normalizeKind(input.kind);
@@ -1125,7 +1131,7 @@ export async function addJpVocabWord(
     reading: await resolveJpVocabReadingIfMissing(
       word,
       kind,
-      (input.reading || "").trim() || null
+      lemma.reading
     ),
     meaning,
     meaning_source: meaning ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL : null,
@@ -1674,8 +1680,12 @@ export async function updateJpVocabWordFields(
 
   if (!current) return { ok: false, error: "not_found" };
 
-  const nextWord =
-    fields.word !== undefined ? normalizeWord(fields.word) : current.word;
+  const lemma =
+    fields.word !== undefined
+      ? normalizeJpVocabNaAdjStoredEntry(fields.word, current.reading)
+      : { word: current.word, reading: current.reading };
+  const nextWord = lemma.word;
+  const nextReading = lemma.reading;
   const nextMeaning =
     fields.meaning !== undefined
       ? (fields.meaning || "").trim() || null
@@ -1718,6 +1728,7 @@ export async function updateJpVocabWordFields(
     devWords[idx] = {
       ...devWords[idx],
       word: nextWord,
+      reading: nextReading,
       meaning: nextMeaning,
       meaning_source: nextMeaningSource,
       pos: nextPos,
@@ -1728,9 +1739,17 @@ export async function updateJpVocabWordFields(
 
   const result = await db
     .prepare(
-      `UPDATE jp_vocab_word SET word = ?1, meaning = ?2, meaning_source = ?3, pos = ?4, updated_at = ?5 WHERE id = ?6`
+      `UPDATE jp_vocab_word SET word = ?1, reading = ?2, meaning = ?3, meaning_source = ?4, pos = ?5, updated_at = ?6 WHERE id = ?7`
     )
-    .bind(nextWord, nextMeaning, nextMeaningSource, nextPos, ts, wordId)
+    .bind(
+      nextWord,
+      nextReading,
+      nextMeaning,
+      nextMeaningSource,
+      nextPos,
+      ts,
+      wordId
+    )
     .run();
 
   if (!result.meta?.changes) {
@@ -1789,14 +1808,21 @@ export async function updateJpVocabWordEntry(
 
   const nextKind =
     input.kind !== undefined ? normalizeKind(input.kind) : current.kind;
-  const nextWord =
-    input.word !== undefined ? normalizeWord(input.word) : current.word;
-  const nextReading =
+  const wordRaw =
+    input.word !== undefined ? input.word : current.word;
+  const readingRaw =
     nextKind === "grammar"
       ? null
       : input.reading !== undefined
         ? (input.reading || "").trim() || null
         : current.reading;
+  // 词条变更或读音变更时都走な形容词剥「だ」；仅改其它字段时保持现值
+  const lemma =
+    input.word !== undefined || input.reading !== undefined
+      ? normalizeJpVocabNaAdjStoredEntry(wordRaw, readingRaw)
+      : { word: current.word, reading: current.reading };
+  const nextWord = lemma.word;
+  const nextReading = nextKind === "grammar" ? null : lemma.reading;
   const nextMeaning =
     input.meaning !== undefined
       ? (input.meaning || "").trim() || null
