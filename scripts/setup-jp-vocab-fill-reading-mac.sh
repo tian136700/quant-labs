@@ -23,7 +23,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-RUN_INTERVAL="${JP_VOCAB_FILL_READING_INTERVAL_SECONDS:-1800}"
+RUN_INTERVAL="${JP_VOCAB_FILL_READING_INTERVAL_SECONDS:-600}"
 
 chmod +x "$ROOT/scripts/jp-vocab-nightly.sh"
 chmod +x "$ROOT/scripts/jp-vocab-fill-reading-nightly.sh"
