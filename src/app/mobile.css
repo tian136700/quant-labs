@@ -1814,7 +1814,7 @@
   .jp-lesson-page--ja .jp-lesson-content-col {
     grid-column: 1 / -1;
     grid-row: 1;
-    align-items: center !important;
+    align-items: stretch !important;
     padding-top: 0.625rem !important;
     padding-bottom: 0.5rem !important;
     border-left: 3px solid var(--accent);
@@ -1832,25 +1832,26 @@
 
   .jp-lesson-page--ja .jp-lesson-mobile-content-main {
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: stretch;
     gap: 0.5rem;
     width: 100%;
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-id-block {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.5rem;
     flex-shrink: 0;
-    min-width: 2.75rem;
+    min-width: 0;
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-id-line {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.05rem;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.25rem;
     line-height: 1.1;
   }
 
@@ -1875,17 +1876,51 @@
     border-radius: 999px;
   }
 
-  .jp-lesson-page--ja .jp-lesson-mobile-content-text {
-    flex: 1 1 auto;
-    min-width: 0;
+  /* 学习内容整块展示：每行 5 个，排不下换行，禁止单行省略 */
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chips {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.3rem 0.35rem;
+    list-style: none;
     margin: 0;
-    font-size: 1rem;
+    padding: 0;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chip {
+    margin: 0;
+    padding: 0.28rem 0.2rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+    font-size: 0.8125rem;
     font-weight: 600;
-    line-height: 1.4;
+    line-height: 1.3;
+    text-align: center;
     color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-text {
+    display: none;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.5rem;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar .jp-lesson-mobile-examples-label {
+    margin-right: 0.1rem;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.8125rem;
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-content-edit {
@@ -1893,13 +1928,15 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
+    min-height: 2rem;
+    padding: 0.25rem 0.65rem;
     border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
     border-radius: 8px;
     background: color-mix(in srgb, var(--accent) 10%, var(--panel));
     color: var(--accent);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
     cursor: pointer;
   }
 

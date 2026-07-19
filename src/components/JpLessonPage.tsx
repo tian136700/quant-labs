@@ -1802,7 +1802,12 @@ export function JpLessonPage() {
                 </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
-                    {group.lessons.map((lesson) => (
+                    {group.lessons.map((lesson) => {
+                      const mobileContentItems = parseLessonContent(lesson.content);
+                      const chipItems = mobileContentItems.length
+                        ? mobileContentItems
+                        : [lesson.content.trim() || "—"];
+                      return (
                       <div
                         key={lesson.id}
                         className={merged ? "jp-lesson-merged-stack-item" : undefined}
@@ -1832,9 +1837,19 @@ export function JpLessonPage() {
                                 {lesson.kind === "grammar" ? "语法" : "单词"}
                               </span>
                             </div>
-                            <p className="jp-lesson-mobile-content-text">
-                              {formatLessonContentOneLine(lesson.content)}
-                            </p>
+                            <ul
+                              className="jp-lesson-mobile-content-chips"
+                              aria-label={`课程 #${lesson.id} 学习内容`}
+                            >
+                              {chipItems.map((item, itemIdx) => (
+                                <li
+                                  key={`${lesson.id}-c-${itemIdx}`}
+                                  className="jp-lesson-mobile-content-chip"
+                                >
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
                             <p className="jp-lesson-mobile-meanings-inline">
                               <span className="jp-lesson-mobile-meanings-label">释义</span>
                               <JpLessonMeaningsPreview
@@ -1844,7 +1859,7 @@ export function JpLessonPage() {
                                 onToggle={() => toggleMeaningsExpanded(lesson.id)}
                               />
                             </p>
-                            <p className="jp-lesson-mobile-examples-inline">
+                            <div className="jp-lesson-mobile-examples-toolbar">
                               <span className="jp-lesson-mobile-examples-label">例句</span>
                               {lessonHasExamples(lesson.content, lesson.example_sentences) ? (
                                 <button
@@ -1861,24 +1876,25 @@ export function JpLessonPage() {
                                   查看
                                 </button>
                               ) : (
-                                "—"
+                                <span className="jp-lesson-examples-empty">—</span>
                               )}
-                            </p>
-                            {canOperate ? (
-                              <button
-                                type="button"
-                                className="jp-lesson-mobile-content-edit"
-                                title={`编辑 #${lesson.id} 教案`}
-                                aria-label={`编辑 #${lesson.id} 教案`}
-                                onClick={() => setEditingLesson(lesson)}
-                              >
-                                <JpLessonMobileIcon name="edit" />
-                              </button>
-                            ) : null}
+                              {canOperate ? (
+                                <button
+                                  type="button"
+                                  className="jp-lesson-mobile-content-edit"
+                                  title={`修改 #${lesson.id} 教案`}
+                                  aria-label={`修改 #${lesson.id} 教案`}
+                                  onClick={() => setEditingLesson(lesson)}
+                                >
+                                  修改
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </td>
                 <td data-label="词/语法数" className="jp-lesson-content-count-col">
@@ -2693,12 +2709,16 @@ export function JpLessonPage() {
             display: none !important;
           }
           :global(.jp-lesson-page--ja .jp-lesson-mobile-meanings-inline),
-          :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-inline) {
+          :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-inline),
+          :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar) {
             display: block;
             margin: 0.35rem 0 0;
             font-size: 0.8125rem;
             line-height: 1.45;
             color: var(--muted);
+          }
+          :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar) {
+            display: flex;
           }
           :global(.jp-lesson-page--ja .jp-lesson-mobile-meanings-label),
           :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-label) {

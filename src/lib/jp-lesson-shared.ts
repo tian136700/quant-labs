@@ -456,14 +456,19 @@ export function compareJpLessonsByIdAsc(
 
 /**
  * 按 ID 升序分组展示。同老师同档期仍合并为一行；
- * 组与组之间、组内课次均按最小 / 各自 ID 从小到大。
+ * 组与组之间、组内课次均按最小 / 各自 ID 从小到大（未完成区专用）。
  */
 export function buildJpLessonDisplayGroupsById<T extends JpLessonDisplayGroupLesson>(
   lessons: T[]
 ): JpLessonDisplayGroup<T>[] {
   const sorted = [...lessons].sort(compareJpLessonsByIdAsc);
-  // 按 ID 扫描时，每个 mergeKey 首次出现即该组最小 ID，组序自然正确
-  return groupSortedJpLessonsIntoDisplayGroups(sorted);
+  const groups = groupSortedJpLessonsIntoDisplayGroups(sorted);
+  for (const group of groups) {
+    group.lessons.sort(compareJpLessonsByIdAsc);
+  }
+  // 再按组内最小 ID 排一次，避免合并后组序被打乱
+  groups.sort((a, b) => a.lessons[0].id - b.lessons[0].id);
+  return groups;
 }
 
 /** 「学习中」列表按上课日区分背景色时的色阶数量 */
