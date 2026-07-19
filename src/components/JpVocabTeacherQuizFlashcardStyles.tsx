@@ -29,7 +29,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           flex-direction: column;
           gap: 0.5rem;
           padding: 0.85rem 1rem 0.9rem;
-          margin: auto;
+          margin: 0;
           background: linear-gradient(
             165deg,
             color-mix(in srgb, var(--panel) 92%, #fff 8%) 0%,
@@ -41,6 +41,17 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           box-shadow:
             0 20px 50px rgba(0, 0, 0, 0.38),
             0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent) inset;
+        }
+        .jp-vocab-teacher-quiz-stage {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          margin: auto;
+          max-width: 100%;
+        }
+        .jp-vocab-teacher-quiz-stage--with-timer {
+          align-items: stretch;
         }
         .jp-vocab-teacher-quiz__scroll-body {
           display: contents;
@@ -245,39 +256,42 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .jp-vocab-teacher-quiz__answer-timer {
           display: flex;
-          flex-wrap: wrap;
-          align-items: baseline;
-          gap: 0.35rem 0.55rem;
-          margin: 0 0 0.55rem;
-          padding: 0.45rem 0.65rem;
-          border-radius: 8px;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          align-self: center;
+          flex-shrink: 0;
+          gap: 0.25rem;
+          min-width: 4.25rem;
+          padding: 0.65rem 0.55rem;
+          border-radius: 12px;
           border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
           background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
         }
         .jp-vocab-teacher-quiz__answer-timer--frozen {
           border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
           background: color-mix(in srgb, var(--panel) 90%, var(--fall) 10%);
         }
         .jp-vocab-teacher-quiz__answer-timer-label {
-          font-size: 0.75rem;
+          font-size: 0.6875rem;
           font-weight: 600;
           color: var(--muted);
+          letter-spacing: 0.04em;
+          writing-mode: horizontal-tb;
         }
         .jp-vocab-teacher-quiz__answer-timer-value {
-          font-size: clamp(1.15rem, 2.8vw, 1.45rem);
+          font-size: clamp(1.05rem, 2.2vw, 1.35rem);
           font-weight: 700;
           font-variant-numeric: tabular-nums;
           letter-spacing: 0.02em;
           color: var(--accent);
-          line-height: 1.2;
+          line-height: 1.15;
+          text-align: center;
         }
         .jp-vocab-teacher-quiz__answer-timer--frozen
           .jp-vocab-teacher-quiz__answer-timer-value {
           color: var(--fall);
-        }
-        .jp-vocab-teacher-quiz__answer-timer-state {
-          font-size: 0.6875rem;
-          color: var(--muted);
         }
         .jp-vocab-teacher-quiz__close-x {
           flex-shrink: 0;
@@ -857,6 +871,26 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             align-items: flex-end;
             padding: 0;
             min-height: 100dvh;
+          }
+          .jp-vocab-teacher-quiz-stage {
+            width: 100%;
+            align-items: flex-end;
+            gap: 0.35rem;
+            padding: 0 0.3rem 0 0.35rem;
+          }
+          .jp-vocab-teacher-quiz-stage--with-timer {
+            align-items: flex-end;
+          }
+          .jp-vocab-teacher-quiz__answer-timer {
+            align-self: center;
+            min-width: 3.5rem;
+            padding: 0.5rem 0.4rem;
+            margin-bottom: min(28vh, 12rem);
+          }
+          .jp-vocab-teacher-quiz-stage--with-timer .jp-vocab-teacher-quiz-card {
+            width: auto;
+            flex: 1 1 auto;
+            min-width: 0;
           }
           .jp-vocab-teacher-quiz-card {
             width: 100%;
