@@ -20,16 +20,26 @@ export type AdminUserEditRow = {
   username: string;
   role: string;
   role_label: string;
+  jp_lesson_teacher_id?: number | null;
+  jp_lesson_teacher_name?: string | null;
   disabled?: boolean;
   created_at?: string;
   last_login_at?: string | null;
   last_login_ip?: string | null;
 };
 
+export type AdminJpLessonTeacherOption = {
+  id: number;
+  name: string;
+  linked_user?: { id: number; username: string } | null;
+};
+
 type Props = {
   open: boolean;
   user: AdminUserEditRow | null;
   locale: "en" | "zh";
+  teachers: AdminJpLessonTeacherOption[];
+  teachersLoading?: boolean;
   onClose: () => void;
   onSaved: (user: AdminUserEditRow) => void;
   onSaveFailed: (userId: number, snapshot: AdminUserEditRow, message: string) => void;
@@ -47,13 +57,23 @@ function buildOptimisticAdminUser(
   base: AdminUserEditRow,
   username: string,
   role: AdminUserRole,
+  teacherId: number | null,
+  teachers: AdminJpLessonTeacherOption[],
   locale: "en" | "zh"
 ): AdminUserEditRow {
+  const teacherName =
+    teacherId == null
+      ? null
+      : teachers.find((t) => t.id === teacherId)?.name?.trim() ||
+        base.jp_lesson_teacher_name ||
+        null;
   return {
     ...base,
     username,
     role,
     role_label: adminUserRoleLabel(role, locale),
+    jp_lesson_teacher_id: teacherId,
+    jp_lesson_teacher_name: teacherName,
   };
 }
 
@@ -61,6 +81,8 @@ export function AdminUserEditModal({
   open,
   user,
   locale,
+  teachers,
+  teachersLoading = false,
   onClose,
   onSaved,
   onSaveFailed,
@@ -70,6 +92,7 @@ export function AdminUserEditModal({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<AdminUserRole>("user");
+  const [teacherId, setTeacherId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const wasOpenRef = useRef(false);
@@ -108,6 +131,11 @@ export function AdminUserEditModal({
           : user.role === "en_vocab"
             ? "en_vocab"
             : "user"
+      );
+      setTeacherId(
+        typeof user.jp_lesson_teacher_id === "number" && user.jp_lesson_teacher_id > 0
+          ? user.jp_lesson_teacher_id
+          : null
       );
       setError("");
       setSubmitAttempted(false);
@@ -155,6 +183,8 @@ export function AdminUserEditModal({
       snapshot,
       trimmedUsername,
       role,
+      teacherId,
+      teachers,
       locale
     );
 
@@ -174,6 +204,7 @@ export function AdminUserEditModal({
             user_id: snapshot.id,
             username: trimmedUsername,
             role,
+            jp_lesson_teacher_id: teacherId,
             ...(password ? { password } : {}),
           }),
         });
@@ -224,11 +255,11 @@ export function AdminUserEditModal({
             <p className="admin-user-edit-subtitle">
               {locale === "zh"
                 ? usernameLocked
-                  ? "系统保留账号不可改用户名。可填写新密码恢复登录；留空表示不改密码。"
-                  : "修改用户名、角色或密码。留空密码表示不修改。"
+                  ? "系统保留账号不可改用户名。可填写新密码恢复登录；留空表示不改密码。可选择关联日语上课老师。"
+                  : "修改用户名、角色、关联老师或密码。留空密码表示不修改。"
                 : usernameLocked
-                  ? "System account username is locked. Set a password to restore login; leave blank to keep."
-                  : "Update username, role, or password. Leave password blank to keep current."}
+                  ? "System account username is locked. Set a password to restore login; leave blank to keep. You can link a JP lesson teacher."
+                  : "Update username, role, linked teacher, or password. Leave password blank to keep current."}
             </p>
           </div>
           <button
@@ -308,6 +339,42 @@ export function AdminUserEditModal({
                 {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
               </option>
             </select>
+          </label>
+          <label className="admin-user-edit-field">
+            <span>{locale === "zh" ? "关联老师" : "Linked teacher"}</span>
+            <select
+              value={teacherId ?? ""}
+              disabled={teachersLoading}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setTeacherId(raw ? Number(raw) : null);
+              }}
+            >
+              <option value="">
+                {locale === "zh" ? "— 不关联 —" : "— None —"}
+              </option>
+              {teachers.map((teacher) => {
+                const linkedOther =
+                  teacher.linked_user &&
+                  teacher.linked_user.id !== user.id
+                    ? teacher.linked_user.username
+                    : null;
+                return (
+                  <option key={teacher.id} value={teacher.id}>
+                    {linkedOther
+                      ? locale === "zh"
+                        ? `${teacher.name}（当前关联 ${linkedOther}，保存后改绑到本账号）`
+                        : `${teacher.name} (now ${linkedOther}; will rebind)`
+                      : teacher.name}
+                  </option>
+                );
+              })}
+            </select>
+            <span className="admin-user-edit-field-hint">
+              {locale === "zh"
+                ? "对应日语新课「上课老师」。用于有课时自动启用账号等。"
+                : "Maps to JP lesson teachers. Used for auto-enable on class days."}
+            </span>
           </label>
 
           {error ? <p className="admin-user-edit-error">{error}</p> : null}
@@ -413,6 +480,11 @@ export function AdminUserEditModal({
           font-size: 0.75rem;
           line-height: 1.4;
           color: var(--rise);
+        }
+        .admin-user-edit-field-hint {
+          font-size: 0.7rem;
+          line-height: 1.4;
+          color: var(--muted);
         }
         .admin-user-edit-error {
           margin: 0;

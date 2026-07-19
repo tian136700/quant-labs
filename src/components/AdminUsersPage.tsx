@@ -21,7 +21,11 @@ import {
   adminToolCodesPath,
   adminTrendsPath,
 } from "@/lib/locale-path";
-import { AdminUserEditModal, type AdminUserEditRow } from "@/components/AdminUserEditModal";
+import {
+  AdminUserEditModal,
+  type AdminJpLessonTeacherOption,
+  type AdminUserEditRow,
+} from "@/components/AdminUserEditModal";
 import {
   formatAdminUserCredentials,
   readAdminUserPassword,
@@ -76,6 +80,7 @@ type UserRow = {
   username: string;
   role: string;
   role_label: string;
+  jp_lesson_teacher_id?: number | null;
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
   created_at: string;
@@ -394,6 +399,9 @@ function AdminUsersPageContent() {
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab">("user");
+  const [newTeacherId, setNewTeacherId] = useState<number | null>(null);
+  const [teachers, setTeachers] = useState<AdminJpLessonTeacherOption[]>([]);
+  const [teachersLoading, setTeachersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addUserModalError, setAddUserModalError] = useState("");
@@ -521,16 +529,57 @@ function AdminUsersPageContent() {
     [locale, newPassword, newUsername]
   );
 
+  const loadTeachers = useCallback(async () => {
+    setTeachersLoading(true);
+    try {
+      const res = await fetch("/api/admin/jp-lesson-teachers", {
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teachers?: AdminJpLessonTeacherOption[];
+        error?: string;
+      };
+      if (!data.ok || !Array.isArray(data.teachers)) {
+        throw new Error(data.error || "load teachers failed");
+      }
+      setTeachers(
+        data.teachers.map((t) => ({
+          id: Number(t.id),
+          name: String(t.name ?? "").trim(),
+          linked_user: t.linked_user
+            ? {
+                id: Number(t.linked_user.id),
+                username: String(t.linked_user.username ?? "").trim(),
+              }
+            : null,
+        }))
+      );
+    } catch {
+      setTeachers([]);
+    } finally {
+      setTeachersLoading(false);
+    }
+  }, []);
+
   const openAddUserModal = () => {
     setAddUserModalError("");
     setAddUserSubmitAttempted(false);
+    setNewTeacherId(null);
     setAddUserOpen(true);
+    void loadTeachers();
   };
 
   const closeAddUserModal = () => {
     setAddUserOpen(false);
     setAddUserModalError("");
     setAddUserSubmitAttempted(false);
+    setNewTeacherId(null);
+  };
+
+  const openEditUser = (row: UserRow) => {
+    setEditingUser(row);
+    void loadTeachers();
   };
 
   const createTemplate = async () => {
@@ -742,6 +791,7 @@ function AdminUsersPageContent() {
           username: newUsername.trim(),
           password: newPassword,
           role: newRole,
+          jp_lesson_teacher_id: newTeacherId,
         }),
       });
       const data = await res.json();
@@ -758,7 +808,9 @@ function AdminUsersPageContent() {
       setNewUsername("");
       setNewPassword("");
       setNewRole("user");
+      setNewTeacherId(null);
       closeAddUserModal();
+      void loadTeachers();
       setStatus(
         locale === "zh"
           ? `已创建用户：${data.user.username}`
@@ -1010,6 +1062,14 @@ function AdminUsersPageContent() {
             created_at: snapshot.created_at ?? item.created_at,
             last_login_at: snapshot.last_login_at ?? item.last_login_at,
             last_login_ip: snapshot.last_login_ip ?? item.last_login_ip,
+            jp_lesson_teacher_id:
+              snapshot.jp_lesson_teacher_id !== undefined
+                ? snapshot.jp_lesson_teacher_id
+                : item.jp_lesson_teacher_id,
+            jp_lesson_teacher_name:
+              snapshot.jp_lesson_teacher_name !== undefined
+                ? snapshot.jp_lesson_teacher_name
+                : item.jp_lesson_teacher_name,
           };
         });
         persistUsers(next);
@@ -1256,7 +1316,7 @@ function AdminUsersPageContent() {
                     linkGeneratingId={linkGeneratingId}
                     linkGeneratingWithTemplate={linkGeneratingWithTemplate}
                     copyingId={copyingId}
-                    onEdit={setEditingUser}
+                    onEdit={openEditUser}
                     onCopyCredentials={copyUserCredentials}
                     onGenerateLoginLink={generateLoginLink}
                     onToggleDisabled={toggleDisabled}
@@ -1361,7 +1421,7 @@ function AdminUsersPageContent() {
                           linkGeneratingId={linkGeneratingId}
                           linkGeneratingWithTemplate={linkGeneratingWithTemplate}
                           copyingId={copyingId}
-                          onEdit={setEditingUser}
+                          onEdit={openEditUser}
                           onCopyCredentials={copyUserCredentials}
                           onGenerateLoginLink={generateLoginLink}
                           onToggleDisabled={toggleDisabled}
@@ -1381,10 +1441,13 @@ function AdminUsersPageContent() {
         open={editingUser != null}
         user={editingUser}
         locale={locale}
+        teachers={teachers}
+        teachersLoading={teachersLoading}
         onClose={() => setEditingUser(null)}
         onSaved={(updated) => {
           setEditingUser(null);
           applyUserUpdate(updated);
+          void loadTeachers();
         }}
         onSaveFailed={handleUserSaveFailed}
         onCredentialsStored={rememberAdminUserPassword}
@@ -1503,6 +1566,33 @@ function AdminUsersPageContent() {
                       <option value="en_vocab">
                         {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
                       </option>
+                    </select>
+                  </label>
+                  <label className="admin-user-add-field">
+                    <span>{locale === "zh" ? "关联老师" : "Linked teacher"}</span>
+                    <select
+                      value={newTeacherId ?? ""}
+                      disabled={creating || teachersLoading}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setNewTeacherId(raw ? Number(raw) : null);
+                      }}
+                    >
+                      <option value="">
+                        {locale === "zh" ? "— 不关联 —" : "— None —"}
+                      </option>
+                      {teachers.map((teacher) => {
+                        const linked = teacher.linked_user?.username;
+                        return (
+                          <option key={teacher.id} value={teacher.id}>
+                            {linked
+                              ? locale === "zh"
+                                ? `${teacher.name}（当前关联 ${linked}，保存后改绑）`
+                                : `${teacher.name} (now ${linked}; will rebind)`
+                              : teacher.name}
+                          </option>
+                        );
+                      })}
                     </select>
                   </label>
                   {addUserModalError ? (

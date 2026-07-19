@@ -7,6 +7,7 @@ export type AdminUserListRow = {
   username: string;
   role: string;
   role_label: string;
+  jp_lesson_teacher_id?: number | null;
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
   created_at: string;

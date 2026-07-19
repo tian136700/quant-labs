@@ -870,6 +870,14 @@ async function linkUserToJpLessonTeacher(
   if (devAuthEnabled) return;
   await ensureUserTeacherLinkSchema(db);
   const ts = nowIso();
+  // 一位老师只对应一个登录账号：先清掉该老师的其它关联
+  await db
+    .prepare(
+      `DELETE FROM etr_user_jp_lesson_teacher_link
+       WHERE teacher_id = ?1 AND user_id != ?2`
+    )
+    .bind(teacherId, userId)
+    .run();
   await db
     .prepare(
       `INSERT INTO etr_user_jp_lesson_teacher_link (user_id, teacher_id, created_at, updated_at)
@@ -880,25 +888,94 @@ async function linkUserToJpLessonTeacher(
     .run();
 }
 
-export async function listJpLessonTeacherNameMapByUserId(
+export type JpLessonTeacherLinkByUser = {
+  teacher_id: number;
+  teacher_name: string;
+};
+
+export async function listJpLessonTeacherLinkMapByUserId(
   db: D1Database
-): Promise<Map<number, string>> {
+): Promise<Map<number, JpLessonTeacherLinkByUser>> {
   if (devAuthEnabled) return new Map();
   await ensureUserTeacherLinkSchema(db);
   const result = await db
     .prepare(
-      `SELECT link.user_id AS user_id, teacher.name AS teacher_name
+      `SELECT link.user_id AS user_id, link.teacher_id AS teacher_id, teacher.name AS teacher_name
        FROM etr_user_jp_lesson_teacher_link link
        JOIN jp_lesson_teacher teacher ON teacher.id = link.teacher_id`
     )
-    .all<{ user_id: number; teacher_name: string }>();
-  const map = new Map<number, string>();
+    .all<{ user_id: number; teacher_id: number; teacher_name: string }>();
+  const map = new Map<number, JpLessonTeacherLinkByUser>();
   for (const row of result.results ?? []) {
     const userId = Number(row.user_id);
+    const teacherId = Number(row.teacher_id);
     if (!Number.isInteger(userId) || userId <= 0) continue;
-    map.set(userId, String(row.teacher_name ?? "").trim());
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    map.set(userId, {
+      teacher_id: teacherId,
+      teacher_name: String(row.teacher_name ?? "").trim(),
+    });
   }
   return map;
+}
+
+export async function listJpLessonTeacherNameMapByUserId(
+  db: D1Database
+): Promise<Map<number, string>> {
+  const linkMap = await listJpLessonTeacherLinkMapByUserId(db);
+  const map = new Map<number, string>();
+  for (const [userId, link] of linkMap) {
+    map.set(userId, link.teacher_name);
+  }
+  return map;
+}
+
+export type SetUserJpLessonTeacherLinkResult =
+  | { ok: true; teacher_id: number | null; teacher_name: string | null }
+  | { ok: false; error: "user_not_found" | "teacher_not_found" };
+
+/** 设置/清除用户与日语上课老师的关联（一位老师最多对应一个账号）。 */
+export async function setUserJpLessonTeacherLink(
+  db: D1Database,
+  userId: number,
+  teacherId: number | null
+): Promise<SetUserJpLessonTeacherLinkResult> {
+  if (!Number.isInteger(userId) || userId <= 0) {
+    return { ok: false, error: "user_not_found" };
+  }
+  if (devAuthEnabled) {
+    return { ok: true, teacher_id: teacherId, teacher_name: null };
+  }
+
+  const user = await findUserById(db, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+
+  await ensureUserTeacherLinkSchema(db);
+
+  if (teacherId == null) {
+    await db
+      .prepare(`DELETE FROM etr_user_jp_lesson_teacher_link WHERE user_id = ?1`)
+      .bind(userId)
+      .run();
+    return { ok: true, teacher_id: null, teacher_name: null };
+  }
+
+  if (!Number.isInteger(teacherId) || teacherId <= 0) {
+    return { ok: false, error: "teacher_not_found" };
+  }
+
+  const teacher = await db
+    .prepare(`SELECT id, name FROM jp_lesson_teacher WHERE id = ?1 LIMIT 1`)
+    .bind(teacherId)
+    .first<{ id: number; name: string }>();
+  if (!teacher) return { ok: false, error: "teacher_not_found" };
+
+  await linkUserToJpLessonTeacher(db, userId, teacherId);
+  return {
+    ok: true,
+    teacher_id: Number(teacher.id),
+    teacher_name: String(teacher.name ?? "").trim() || null,
+  };
 }
 
 export type JpLessonTeacherUserLink = {
