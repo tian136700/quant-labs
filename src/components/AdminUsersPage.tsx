@@ -26,6 +26,7 @@ import {
   type AdminJpLessonTeacherOption,
   type AdminUserEditRow,
 } from "@/components/AdminUserEditModal";
+import { AdminUserBindTeacherModal } from "@/components/AdminUserBindTeacherModal";
 import {
   formatAdminUserCredentials,
   readAdminUserPassword,
@@ -403,6 +404,7 @@ function AdminUsersPageContent() {
   const [teachers, setTeachers] = useState<AdminJpLessonTeacherOption[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [bindingUser, setBindingUser] = useState<UserRow | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addUserModalError, setAddUserModalError] = useState("");
   const [addUserSubmitAttempted, setAddUserSubmitAttempted] = useState(false);
@@ -447,9 +449,9 @@ function AdminUsersPageContent() {
   }, [locale, persistUsers]);
 
   useEffect(() => {
-    if (checking || !isAdmin || editingUser != null) return;
+    if (checking || !isAdmin || editingUser != null || bindingUser != null) return;
     void load();
-  }, [checking, isAdmin, load, editingUser]);
+  }, [checking, isAdmin, load, editingUser, bindingUser]);
 
   useEffect(() => {
     if (focusUserId == null || loading || users.length === 0) return;
@@ -579,6 +581,11 @@ function AdminUsersPageContent() {
 
   const openEditUser = (row: UserRow) => {
     setEditingUser(row);
+    void loadTeachers();
+  };
+
+  const openBindTeacher = (row: UserRow) => {
+    setBindingUser(row);
     void loadTeachers();
   };
 
@@ -1081,7 +1088,8 @@ function AdminUsersPageContent() {
     [persistUsers]
   );
 
-  const anyModalOpen = addUserOpen || templatesOpen || editingUser != null;
+  const anyModalOpen =
+    addUserOpen || templatesOpen || editingUser != null || bindingUser != null;
   const addUserDisplayedErrors = addUserSubmitAttempted ? addUserSubmitErrors : addUserLiveErrors;
 
   // Hooks must stay above the auth early-return: logout / stale cache flip
@@ -1091,6 +1099,10 @@ function AdminUsersPageContent() {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing) return;
+      if (bindingUser != null) {
+        setBindingUser(null);
+        return;
+      }
       if (editingUser != null) {
         setEditingUser(null);
         return;
@@ -1106,7 +1118,7 @@ function AdminUsersPageContent() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addUserOpen, templatesOpen, editingUser, anyModalOpen]);
+  }, [addUserOpen, templatesOpen, editingUser, bindingUser, anyModalOpen]);
 
   useEffect(() => {
     if (!anyModalOpen) return;
@@ -1288,7 +1300,19 @@ function AdminUsersPageContent() {
                     />
                     <AdminUserCardField
                       label={locale === "zh" ? "对应老师" : "Teacher"}
-                      value={row.jp_lesson_teacher_name?.trim() || "—"}
+                      value={
+                        row.jp_lesson_teacher_name?.trim() ? (
+                          row.jp_lesson_teacher_name.trim()
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-bind-teacher-btn"
+                            onClick={() => openBindTeacher(row)}
+                          >
+                            {locale === "zh" ? "绑定老师" : "Bind teacher"}
+                          </button>
+                        )
+                      }
                       wide
                     />
                     <AdminUserCardField
@@ -1395,7 +1419,17 @@ function AdminUsersPageContent() {
                       <td className="admin-user-col-username admin-rbac-username">{row.username}</td>
                       <td className="admin-user-col-role">{row.role_label}</td>
                       <td className="admin-user-col-teacher">
-                        {row.jp_lesson_teacher_name?.trim() || "—"}
+                        {row.jp_lesson_teacher_name?.trim() ? (
+                          row.jp_lesson_teacher_name.trim()
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-bind-teacher-btn"
+                            onClick={() => openBindTeacher(row)}
+                          >
+                            {locale === "zh" ? "绑定老师" : "Bind"}
+                          </button>
+                        )}
                       </td>
                       <td className="admin-user-col-created">{formatAdminDateTime(row.created_at)}</td>
                       <td className="admin-user-col-login">{formatAdminDateTime(row.last_login_at)}</td>
@@ -1451,6 +1485,46 @@ function AdminUsersPageContent() {
         }}
         onSaveFailed={handleUserSaveFailed}
         onCredentialsStored={rememberAdminUserPassword}
+      />
+
+      <AdminUserBindTeacherModal
+        open={bindingUser != null}
+        user={bindingUser}
+        locale={locale}
+        teachers={teachers}
+        teachersLoading={teachersLoading}
+        onClose={() => setBindingUser(null)}
+        onBound={(bound) => {
+          setUsers((prev) => {
+            const next = prev.map((item) =>
+              item.id === bound.id
+                ? {
+                    ...item,
+                    jp_lesson_teacher_id: bound.jp_lesson_teacher_id,
+                    jp_lesson_teacher_name: bound.jp_lesson_teacher_name,
+                  }
+                : item.jp_lesson_teacher_id != null &&
+                    bound.jp_lesson_teacher_id != null &&
+                    item.jp_lesson_teacher_id === bound.jp_lesson_teacher_id &&
+                    item.id !== bound.id
+                  ? {
+                      ...item,
+                      jp_lesson_teacher_id: null,
+                      jp_lesson_teacher_name: null,
+                    }
+                  : item
+            );
+            persistUsers(next);
+            return next;
+          });
+          setStatus(
+            locale === "zh"
+              ? `已绑定老师：${bound.jp_lesson_teacher_name || "—"}`
+              : `Bound teacher: ${bound.jp_lesson_teacher_name || "—"}`
+          );
+          setStatusErr(false);
+          void loadTeachers();
+        }}
       />
 
       {mounted && addUserOpen
@@ -2054,7 +2128,13 @@ function AdminUsersPageContent() {
           width: 5rem;
         }
         :global(.admin-users-table .admin-user-col-teacher) {
-          width: 5rem;
+          width: 6.25rem;
+        }
+        :global(.admin-user-bind-teacher-btn) {
+          white-space: nowrap;
+          padding: 0.2rem 0.45rem;
+          font-size: 0.75rem;
+          line-height: 1.2;
         }
         :global(.admin-users-table .admin-user-col-created),
         :global(.admin-users-table .admin-user-col-login) {
