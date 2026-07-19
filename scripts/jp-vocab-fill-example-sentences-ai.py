@@ -387,14 +387,33 @@ def main() -> int:
         print(f"[fill-example-ai] done, updated=0 skipped={len(skipped)}", flush=True)
         return 0 if not skipped else 1
 
+    # 老师卡片「来源」：模型名 + 线上；勿用「手动」（那是编辑弹窗专用）
+    batch_source = f"{args.model} 线上"[:64]
+
     if args.dry_run:
-        print(json.dumps({"ok": True, "dry_run": True, "updates": updates}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "dry_run": True,
+                    "source": batch_source,
+                    "updates": updates,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
 
     apply_result = call_api(
         api_url=api_url,
         token=token,
-        payload={"updates": updates, "dry_run": False},
+        payload={
+            "mode": "apply",
+            "source": batch_source,
+            "updates": updates,
+            "dry_run": False,
+        },
     )
     if not apply_result.get("ok"):
         print(apply_result, file=sys.stderr)
