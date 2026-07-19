@@ -1013,7 +1013,12 @@ function AdminUsersPageContent() {
       }
     }
 
-    const text = formatAdminUserCredentials(username, password!, locale);
+    const text = formatAdminUserCredentials(
+      username,
+      password!,
+      locale,
+      row.role
+    );
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);

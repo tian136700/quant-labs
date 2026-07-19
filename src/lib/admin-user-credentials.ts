@@ -1,12 +1,28 @@
 import { readClientCache, writeClientCache } from "@/lib/client-swr-cache";
+import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
-import { jpVocabPath } from "@/lib/locale-path";
+import { enVocabPath, jpVocabPath } from "@/lib/locale-path";
 
 export const ADMIN_USER_CREDENTIALS_CACHE_KEY = "admin-user-credentials:v1";
 
-/** 复制账号密码时附带的日语抽问入口（日语子域名） */
-function jpVocabShareUrl(): string {
-  return `${JP_SITE_URL}${jpVocabPath()}`;
+/** 复制账号密码时附带的抽问入口（按角色选日语/英语子域名） */
+function vocabShareUrl(role?: string | null): {
+  url: string;
+  labelZh: string;
+  labelEn: string;
+} {
+  if (role === "en_vocab") {
+    return {
+      url: `${EN_SITE_URL}${enVocabPath()}`,
+      labelZh: "英语抽背",
+      labelEn: "EN vocab",
+    };
+  }
+  return {
+    url: `${JP_SITE_URL}${jpVocabPath()}`,
+    labelZh: "日语抽问",
+    labelEn: "JP vocab",
+  };
 }
 
 export function readAdminUserPassword(userId: number): string | null {
@@ -44,11 +60,12 @@ export function forgetAdminUserPassword(userId: number): void {
 export function formatAdminUserCredentials(
   username: string,
   password: string,
-  locale: "en" | "zh"
+  locale: "en" | "zh",
+  role?: string | null
 ): string {
-  const url = jpVocabShareUrl();
+  const { url, labelZh, labelEn } = vocabShareUrl(role);
   if (locale === "zh") {
-    return `用户名：${username}\n密码：${password}\n日语抽问：${url}`;
+    return `用户名：${username}\n密码：${password}\n${labelZh}：${url}`;
   }
-  return `Username: ${username}\nPassword: ${password}\nJP vocab: ${url}`;
+  return `Username: ${username}\nPassword: ${password}\n${labelEn}: ${url}`;
 }

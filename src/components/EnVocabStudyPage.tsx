@@ -14,6 +14,7 @@ import {
 import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnVocabEditModal } from "@/components/EnVocabEditModal";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
@@ -419,6 +420,9 @@ export function EnVocabStudyPage() {
                         style={{ color: "var(--muted)" }}
                       >
                         {readingTrim}
+                        {w.reading_source?.trim() ? (
+                          <JpVocabSourceLabel source={w.reading_source} />
+                        ) : null}
                       </td>
                       <td
                         className={`jp-vocab-meaning-col${
@@ -428,6 +432,9 @@ export function EnVocabStudyPage() {
                         style={{ color: "var(--muted)" }}
                       >
                         {meaningTrim}
+                        {w.meaning_source?.trim() ? (
+                          <JpVocabSourceLabel source={w.meaning_source} />
+                        ) : null}
                       </td>
                       <td
                         className={`jp-vocab-pos-col${

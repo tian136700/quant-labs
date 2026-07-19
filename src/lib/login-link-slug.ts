@@ -1,10 +1,18 @@
 /** 登录链接 slug：日语罗马音 / 英文单词交替，形如 sakura-harbor-kyoto-garden-nara-breeze */
 
+import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
 
 export const LOGIN_LINK_SLUG_WORD_COUNT = 6;
 
 export const LOGIN_LINK_SLUG_PATTERN = /^[a-z]+(?:-[a-z]+){5}$/;
+
+export type LoginLinkSite = "jp" | "en";
+
+/** 按账号角色选对外子域名：英文老师用 english，其余默认 japanese（勿用 finance） */
+export function loginLinkSiteForRole(role: string | null | undefined): LoginLinkSite {
+  return role === "en_vocab" ? "en" : "jp";
+}
 
 const JP_ROMAJI_WORDS = [
   "aomori",
@@ -125,7 +133,11 @@ export function loginLinkPath(slug: string): string {
   return `/sign-in/${normalizeLoginLinkToken(slug)}`;
 }
 
-/** 对外分享的登录链接使用日语子域名，避免 finance 金融域名引起误解 */
-export function buildLoginLinkUrl(token: string): string {
-  return `${JP_SITE_URL}${loginLinkPath(token)}`;
+/** 对外分享的登录链接用日语/英语子域名，避免 finance 金融域名引起误解 */
+export function buildLoginLinkUrl(
+  token: string,
+  site: LoginLinkSite = "jp"
+): string {
+  const base = site === "en" ? EN_SITE_URL : JP_SITE_URL;
+  return `${base}${loginLinkPath(token)}`;
 }

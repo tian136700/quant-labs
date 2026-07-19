@@ -62,6 +62,7 @@ export type CreateLoginLinkResult =
   | {
       ok: true;
       token: string;
+      role: string;
       link_expires_at: string;
       session_days: number;
     }
@@ -131,6 +132,7 @@ export async function createLoginLink(
   return {
     ok: true,
     token,
+    role: user.role,
     link_expires_at: linkExpiresAt,
     session_days: Math.round(ETR_LOGIN_LINK_SESSION_MS / (24 * 60 * 60 * 1000)),
   };

@@ -4,6 +4,15 @@
 
 线上根域名示例：`https://finance.info-quests.com`（路径与下表一致）。
 
+| 子域名 | 用途 |
+|--------|------|
+| `finance.info-quests.com` | 主站（金融等） |
+| `japanese.info-quests.com` | 日语模块对外（老师登录链接、`/jp-vocab` 等；与 finance **同一 Worker / 同一 D1**） |
+| `english.info-quests.com` | 英语模块对外（英文老师登录链接、`/en-vocab` 等；与 finance / japanese **同一 Worker / 同一 D1**） |
+| `blog.info-quests.com` / `food.info-quests.com` | 博客 / 外卖（见 wrangler.toml） |
+
+配置入口：`wrangler.toml` → `[[routes]]` + `NEXT_PUBLIC_JP_SITE_*` / `NEXT_PUBLIC_EN_SITE_*`；代码：`src/lib/jp-site-host.ts`、`src/lib/en-site-host.ts`。
+
 ---
 
 ## 怎么用
@@ -87,11 +96,19 @@
 
 ## 英语单词 / 语法抽问（en-vocab）
 
+对外入口优先用 **`https://english.info-quests.com/en-vocab`**（勿发 japanese / finance 给英文老师）。路径与下表一致；finance / japanese / english 共用同一 Worker 与 D1。
+
 | 线上 path | 中文名 | 页面 | 主组件 | 说明 |
 |-----------|--------|------|--------|------|
 | `/en-vocab` | 英语抽背 | `src/app/en-vocab/page.tsx` | `EnVocabPage.tsx` | 与 jp-vocab 结构对称，改日语时可对照 |
 | `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | |
 | `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
+
+### en-vocab 子功能 → 文件速查
+
+| 功能描述 | 改哪里 |
+|----------|--------|
+| **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；音标用 dictionaryapi.dev，释义/例句用本机 Ollama `gemma4:26b`；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
 
 ---
 
@@ -168,7 +185,7 @@
 | 用户列表、**无对应老师时「绑定老师」/ 已绑定时「更改」**（点开下拉选择并绑定或改绑；一位老师最多绑一个账号）、添加/编辑亦可改关联、创建/禁用/登录链接 | `AdminUsersPage.tsx`、`AdminUserBindTeacherModal.tsx`、`AdminUserEditModal.tsx`；`GET/POST/PATCH /api/admin/users`（`jp_lesson_teacher_id`）；`setUserJpLessonTeacherLink` |
 | **列表排序**（ID / 最近登录 / **状态**正常↔已禁用；手机端排序按钮同字段） | `AdminUsersPage.tsx` → `sortUsers`、`toggleSort`、`UserSortField` |
 | **手机端用户卡片**（&lt; lg 显示卡片 + 排序；桌面端表格） | `AdminUsersPage.tsx` → `admin-cards` / `admin-table-wrap`；`mobile.css` |
-| **复制账号密码**（含日语子域名 `/jp-vocab` 入口；密码来自本机缓存；**李老师 / user1 等保留账号无缓存时禁止一键随机重置**，须「编辑」填写） | `AdminUsersPage.tsx` → `copyUserCredentials`；`resetUserPasswordByAdmin`（`cannot_reset_bootstrap`）；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` + `jpVocabPath()`）；规则 `.cursor/rules/bootstrap-account-password.mdc` |
+| **复制账号密码**（日语角色 → `japanese…/jp-vocab`；英语角色 `en_vocab` → `english…/en-vocab`；密码来自本机缓存；**李老师 / user1 等保留账号无缓存时禁止一键随机重置**，须「编辑」填写） | `AdminUsersPage.tsx` → `copyUserCredentials`；`resetUserPasswordByAdmin`（`cannot_reset_bootstrap`）；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` / `EN_SITE_URL`）；规则 `.cursor/rules/bootstrap-account-password.mdc` |
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
 | **最后登录 IP 折叠**（长 IPv6 默认收起 +「展开/收起」；IPv4 一行展示；禁止每行 N 字符强折） | `AdminUsersPage.tsx` → `AdminUserIpDisplay`；规则 `.cursor/rules/admin-users-ip-collapse.mdc` |
 | **今日有课老师账号自动启用**（北京时间 05:00；仅日语新课排课 + 手动日程；**不含英语课/英语老师**——英语老师不建登录账号；`admin` / `user1` / `test` 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |

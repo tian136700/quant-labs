@@ -1,7 +1,10 @@
 import { requireAdmin } from "@/lib/admin-auth";
 import { createLoginLink } from "@/lib/etr-login-link-db";
-import { buildLoginLinkUrl } from "@/lib/login-link-slug";
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import {
+  buildLoginLinkUrl,
+  loginLinkSiteForRole,
+} from "@/lib/login-link-slug";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 
 const ERR: Record<string, Record<"en" | "zh", string>> = {
   forbidden: {
@@ -54,7 +57,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const loginUrl = buildLoginLinkUrl(result.token);
+    const loginUrl = buildLoginLinkUrl(
+      result.token,
+      loginLinkSiteForRole(result.role)
+    );
 
     return jsonResponse({
       ok: true,

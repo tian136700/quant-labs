@@ -30,6 +30,11 @@ custom_domain = true
 pattern = "japanese.info-quests.com"
 custom_domain = true
 
+# 英语模块对外分享（与 finance / japanese 同一 Worker；路径仍为 /en-lesson、/en-vocab）
+[[routes]]
+pattern = "english.info-quests.com"
+custom_domain = true
+
 # 在线工具：暂用 finance 路径 /tool-dot，子域名以后再说
 # [[routes]]
 # pattern = "tool.info-quests.com"
@@ -62,6 +67,9 @@ NEXT_PUBLIC_TREND_BLOG_SITE_URL = "https://blog.info-quests.com"
 # 日语模块对外分享与登录链接（勿用 finance 域名发给老师）
 NEXT_PUBLIC_JP_SITE_HOST = "japanese.info-quests.com"
 NEXT_PUBLIC_JP_SITE_URL = "https://japanese.info-quests.com"
+# 英语模块对外分享与登录链接（英文老师用 english，勿用 japanese / finance）
+NEXT_PUBLIC_EN_SITE_HOST = "english.info-quests.com"
+NEXT_PUBLIC_EN_SITE_URL = "https://english.info-quests.com"
 # 登录 Cookie 共享到所有 *.info-quests.com 子域名
 ETR_COOKIE_DOMAIN = ".info-quests.com"
 # 全站维护模式：MAINTENANCE_MODE="1" 正常；"0" 进入维护

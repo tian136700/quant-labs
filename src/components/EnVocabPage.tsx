@@ -24,6 +24,8 @@ import {
   type EnVocabKindFilter,
 } from "@/lib/en-vocab-search";
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
+import { EnVocabExampleSentencesCell } from "@/components/EnVocabExampleSentencesCell";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { EnVocabEditModal } from "@/components/EnVocabEditModal";
 import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
@@ -1281,6 +1283,9 @@ export function EnVocabPage() {
                   <th rowSpan={2} className="jp-vocab-pos-col">
                     词性
                   </th>
+                  <th rowSpan={2} className="jp-vocab-example-col">
+                    例句
+                  </th>
                   <th rowSpan={2} className="jp-vocab-risk-col">
                     <button
                       type="button"
@@ -1477,6 +1482,9 @@ export function EnVocabPage() {
                               待补全
                             </span>
                           ) : null}
+                          {w.reading_source?.trim() ? (
+                            <JpVocabSourceLabel source={w.reading_source} />
+                          ) : null}
                         </div>
                       </td>
                       <td
@@ -1487,6 +1495,9 @@ export function EnVocabPage() {
                         style={{ color: "var(--muted)" }}
                       >
                         {meaningTrim}
+                        {w.meaning_source?.trim() ? (
+                          <JpVocabSourceLabel source={w.meaning_source} />
+                        ) : null}
                       </td>
                       <td
                         className={`jp-vocab-pos-col${!posTrim ? " jp-vocab-field-empty" : ""}`}
@@ -1494,6 +1505,16 @@ export function EnVocabPage() {
                         style={{ color: "var(--muted)" }}
                       >
                         {posTrim}
+                      </td>
+                      <td
+                        className="jp-vocab-example-col"
+                        data-label="例句"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <EnVocabExampleSentencesCell
+                          text={w.example_sentences}
+                          source={w.example_sentences_source}
+                        />
                       </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
