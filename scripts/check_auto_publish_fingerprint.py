@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Regression guard: auto-publish stop hook must not write fingerprint before publish succeeds.
+"""Regression guard: auto-publish stop hook fingerprint must be content-aware and post-success.
 
-Fails if the hook reintroduces busy-skip-after-writing-fingerprint (deploy never retries).
+Fails if the hook:
+1) writes fingerprint before publish succeeds / busy-skips after writing
+2) fingerprints only file names (name-only) so same-file edits skip publish
 """
 from __future__ import annotations
 
@@ -64,6 +66,28 @@ def main() -> int:
     if anti:
         print(
             "[check_auto_publish_fingerprint] FAIL: fingerprint written before busy check (anti-pattern)",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Fingerprint must hash diff CONTENTS, not only names — otherwise same-file edits skip deploy
+    if "git diff --name-only" in code or "git diff --cached --name-only" in code:
+        print(
+            "[check_auto_publish_fingerprint] FAIL: fingerprint uses name-only diffs; "
+            "same files edited again will not re-trigger publish",
+            file=sys.stderr,
+        )
+        return 1
+    if not re.search(r"git\s+diff\b", code) or not re.search(r"git\s+diff\s+--cached\b", code):
+        print(
+            "[check_auto_publish_fingerprint] FAIL: fingerprint must include "
+            "`git diff` and `git diff --cached` (content)",
+            file=sys.stderr,
+        )
+        return 1
+    if "diff 正文" not in text and "name-only" not in text and "内容" not in text:
+        print(
+            "[check_auto_publish_fingerprint] FAIL: missing in-file note that fingerprint must include diff content",
             file=sys.stderr,
         )
         return 1
