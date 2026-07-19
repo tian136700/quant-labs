@@ -2206,25 +2206,40 @@ export function EnVocabPage() {
           padding-right: 0.65rem;
         }
         :global(.jp-vocab-table .jp-vocab-reading-col) {
-          min-width: 6.5rem;
+          min-width: 7.5rem;
+          max-width: 11rem;
           padding-left: 0.65rem;
           padding-right: 0.65rem;
-          word-break: break-word;
           line-height: 1.45;
         }
+        /* 竖排：喇叭+音标一行，来源角标在下一行；禁止与来源横挤导致 IPA 被拆断 */
         .en-vocab-reading-cell {
-          display: inline-flex;
-          align-items: flex-start;
-          gap: 0.4rem;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.15rem;
+          width: 100%;
+          max-width: 100%;
           color: var(--muted);
         }
+        .en-vocab-reading-main {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem;
+          max-width: 100%;
+        }
         .en-vocab-reading-text {
-          flex: 1 1 auto;
+          flex: 0 1 auto;
           min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .en-vocab-reading-text--pending {
           font-size: 0.8125rem;
           opacity: 0.72;
+          white-space: nowrap;
         }
         :global(.en-vocab-speak-btn) {
           flex: 0 0 auto;
