@@ -205,6 +205,7 @@
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
 | **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；完成后 Bark + Mac 桌面通知） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
+| **定时任务管理**（维护中心页签：精选任务列表 / 运行中定位 / 实时日志与时长；只读） | `scripts/maintenance_center/cron_tasks/registry.py`（登记表）、`status.py`、`logs.py`；API `GET /api/cron-tasks`、`GET /api/cron-tasks/<id>`；UI `static/index.html` → `view-cron`；规则 `.cursor/rules/cron-tasks-registry.mdc` |
 
 ---
 
