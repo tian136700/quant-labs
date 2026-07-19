@@ -1,5 +1,6 @@
 #!/bin/bash
 # launchd 入口：英语音标 → 释义/词性 → 例句（依次；dirlock 防叠跑）
+# 另：全机 Ollama 互斥槽（~/.config/local-llm/ollama_slot.py）——与日语补全串行，有人占着就等。
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -64,30 +65,67 @@ DO_EXAMPLES="${EN_VOCAB_FILL_DO_EXAMPLES:-1}"
 
 cd "$ROOT"
 echo "$(date '+%F %T') en-vocab-fill: start Beijing=${BEIJING_STAMP}"
+
+OLLAMA_SLOT_PY="${HOME}/.config/local-llm/ollama_slot.py"
+OLLAMA_SLOT_WAIT="${LOCAL_LLM_OLLAMA_SLOT_WAIT_SEC:-3600}"
+SLOT_DISABLE="${LOCAL_LLM_OLLAMA_SLOT_DISABLE:-0}"
+
+_run_en_fill_body() {
+  local status=0
+  if [[ "$DO_READING" == "1" || "$DO_READING" == "true" ]]; then
+    echo "$(date '+%F %T') en-vocab-fill: reading…"
+    if ! "$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-reading-api.py" --allow-skipped; then
+      echo "$(date '+%F %T') en-vocab-fill: reading FAILED" >&2
+      status=1
+    fi
+  fi
+
+  if [[ "$DO_MEANING" == "1" || "$DO_MEANING" == "true" ]]; then
+    echo "$(date '+%F %T') en-vocab-fill: meaning+pos…"
+    if ! "$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-meaning-api.py"; then
+      echo "$(date '+%F %T') en-vocab-fill: meaning FAILED" >&2
+      status=1
+    fi
+  fi
+
+  if [[ "$DO_EXAMPLES" == "1" || "$DO_EXAMPLES" == "true" ]]; then
+    echo "$(date '+%F %T') en-vocab-fill: examples…"
+    if ! "$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-example-sentences-api.py"; then
+      echo "$(date '+%F %T') en-vocab-fill: examples FAILED" >&2
+      status=1
+    fi
+  fi
+  return "$status"
+}
+
 status=0
-
-if [[ "$DO_READING" == "1" || "$DO_READING" == "true" ]]; then
-  echo "$(date '+%F %T') en-vocab-fill: reading…"
-  if ! "$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-reading-api.py" --allow-skipped; then
-    echo "$(date '+%F %T') en-vocab-fill: reading FAILED" >&2
-    status=1
-  fi
-fi
-
-if [[ "$DO_MEANING" == "1" || "$DO_MEANING" == "true" ]]; then
-  echo "$(date '+%F %T') en-vocab-fill: meaning+pos…"
-  if ! "$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-meaning-api.py"; then
-    echo "$(date '+%F %T') en-vocab-fill: meaning FAILED" >&2
-    status=1
-  fi
-fi
-
-if [[ "$DO_EXAMPLES" == "1" || "$DO_EXAMPLES" == "true" ]]; then
-  echo "$(date '+%F %T') en-vocab-fill: examples…"
-  if ! "$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-example-sentences-api.py"; then
-    echo "$(date '+%F %T') en-vocab-fill: examples FAILED" >&2
-    status=1
-  fi
+if [[ -f "$OLLAMA_SLOT_PY" && "$SLOT_DISABLE" != "1" && "$SLOT_DISABLE" != "true" ]]; then
+  echo "$(date '+%F %T') en-vocab-fill: acquire ollama slot (wait up to ${OLLAMA_SLOT_WAIT}s)…"
+  set +e
+  # 用 exported 函数：把 body 写进临时脚本，避免 bash -c 丢函数
+  BODY_SH="$(mktemp "${TMPDIR:-/tmp}/en-vocab-fill-body.XXXXXX")"
+  {
+    echo '#!/bin/bash'
+    echo 'set -euo pipefail'
+    declare -f _run_en_fill_body
+    echo '_run_en_fill_body'
+  } > "$BODY_SH"
+  chmod +x "$BODY_SH"
+  # 子进程需要这些变量
+  export DO_READING DO_MEANING DO_EXAMPLES PYTHON_BIN ROOT
+  python3 "$OLLAMA_SLOT_PY" wrap \
+    --owner en-vocab-fill \
+    --wait-sec "$OLLAMA_SLOT_WAIT" \
+    -- \
+    /bin/bash "$BODY_SH"
+  status=$?
+  rm -f "$BODY_SH"
+  set -e
+else
+  set +e
+  _run_en_fill_body
+  status=$?
+  set -e
 fi
 
 if [[ "$status" -eq 0 ]]; then
