@@ -3,8 +3,11 @@ import "server-only";
 import {
   isJpVocabExampleGlossLine,
   isJpVocabExampleJapaneseLine,
+  jpVocabExampleHasInvalidFuriganaParen,
   parseJpVocabExampleSentenceItems,
+  sanitizeJpVocabExampleJapaneseLine,
   serializeJpVocabExampleSentenceItems,
+  stripAllJpVocabParenBlocks,
 } from "@/lib/jp-vocab-example-sentences";
 import {
   jpVocabExampleLemmaSurfaces,
@@ -24,8 +27,9 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   rules: [
     "存库不要写行首序号（展示层会加 1、2、3…）",
     "每条：日语一行，下一行必须以「译文：」开头的中文",
-    "汉字后立刻半角括号假名：漢字(かな)；页面展示会转成汉字正下方小字，不要改存库形态",
+    "汉字后立刻半角括号假名：漢字(かな)；括号内只能是假名、不要空格、不要整句读音尾注如 です。(たなかさん…)",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
+    "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
     "な形容词辞书形以「だ」结尾时（重要だ/得意だ/下手だ）：造句用词干（重要/得意/下手），例句里不必出现「だ」；假名标在词干汉字上",
     "多用法时一句对应一种用法，不要两句挤同一义项",
     "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」；人手填写为「手动」",
@@ -36,6 +40,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "need_two_japanese_lines",
     "invalid_japanese_line",
     "missing_kanji_furigana",
+    "bad_furigana_paren",
     "missing_chinese_gloss",
     "grammar_not_used",
     "word_not_used",
@@ -57,8 +62,15 @@ export function buildJpVocabExampleSentencesAiPrompt(
   const meaning = input.meaning?.trim();
   const { stem, hasDa } = jpVocabNaAdjParts(input.word);
   const stemReading = jpVocabNaAdjReadingForStem(reading || "", hasDa);
+  const grammarCore = input.word
+    .trim()
+    .replace(/^[～~〜]+/, "")
+    .replace(/[～~〜]+$/, "");
   const meta = [
     `词条：${input.word.trim()}`,
+    input.kind === "grammar" && grammarCore
+      ? `语法点：句中必须出现「${grammarCore}」（教助词时不要换成别的助词；例如「～が」不要写成只有「は」的句子）`
+      : null,
     hasDa
       ? `造句用词干：${stem}（「だ」是な形容词辞书形词尾，例句里用「${stem}」即可，不必带「だ」）`
       : null,
@@ -85,7 +97,7 @@ export function buildJpVocabExampleSentencesAiPrompt(
 格式要求：
 1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）。
 2. 每条必须使用该词条（语法条须自然出现该语法点）。な形容词「〜だ」用词干，不要硬塞「だ」。
-3. 汉字后立刻半角括号假名，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名。
+3. 汉字后立刻半角括号假名，例如：電車(でんしゃ)。禁止整句尾注如「です。(たなかさん げんき です。)」。
 4. 每条日语下一行写中文译义，必须以「译文：」开头。
 5. 只输出「日语 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。`;
 }
@@ -111,9 +123,17 @@ export function validateJpVocabExampleSentencesAiOutput(
     return { ok: false, reason: "need_two_japanese_lines" };
   }
 
-  for (const item of items) {
-    if (!isJpVocabExampleJapaneseLine(item.text)) {
+  const cleanedItems = items.map((item) => ({
+    ...item,
+    text: sanitizeJpVocabExampleJapaneseLine(item.text),
+  }));
+
+  for (const item of cleanedItems) {
+    if (!item.text || !isJpVocabExampleJapaneseLine(item.text)) {
       return { ok: false, reason: "invalid_japanese_line" };
+    }
+    if (jpVocabExampleHasInvalidFuriganaParen(item.text)) {
+      return { ok: false, reason: "bad_furigana_paren" };
     }
     if (/[\u4E00-\u9FFF]/.test(item.text) && !KANJI_FURIGANA_RE.test(item.text)) {
       return { ok: false, reason: "missing_kanji_furigana" };
@@ -124,8 +144,9 @@ export function validateJpVocabExampleSentencesAiOutput(
   }
 
   const target = input.word.trim();
-  const combined = items.map((item) => item.text).join("");
-  const combinedPlain = combined.replace(/\([ぁ-んァ-ンー]+\)/g, "");
+  const combined = cleanedItems.map((item) => item.text).join("");
+  // 语法点检测：去掉全部括号，避免尾注里的「が」误判
+  const combinedPlain = stripAllJpVocabParenBlocks(combined);
   if (input.kind === "grammar") {
     const core = target.replace(/^[～~〜]+/, "").replace(/[～~〜]+$/, "");
     if (core && !combinedPlain.includes(core) && !combinedPlain.includes(target)) {
@@ -147,6 +168,6 @@ export function validateJpVocabExampleSentencesAiOutput(
 
   return {
     ok: true,
-    text: serializeJpVocabExampleSentenceItems(items),
+    text: serializeJpVocabExampleSentenceItems(cleanedItems),
   };
 }

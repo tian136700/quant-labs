@@ -58,6 +58,36 @@ export function stripJpVocabParenFurigana(text: string): string {
   );
 }
 
+/**
+ * 合法假名括注：紧贴汉字，括号内仅假名（无空格/汉字/句号）。
+ * 非法：整句尾注 `です。(たなかさん げんき です。)` —— 展示难看，校验应拒。
+ */
+const VALID_KANJI_FURIGANA_CHUNK =
+  /[\u4E00-\u9FFF々]+\([ぁ-んァ-ンヴヵヶー]+\)/g;
+
+/** 去掉非法整句尾注括号；保留合法 漢字(かな) */
+export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
+  let s = String(text || "").trim();
+  if (!s) return s;
+  s = s.replace(/([。．.!！?？])\s*[（(][^）)]*[ぁ-んァ-ン][^）)]*[）)]\s*$/u, "$1");
+  s = s.replace(/[（(][^）)]*\s[^）)]*[）)]/g, "");
+  s = s.replace(/[（(][^）)]*[。．][^）)]*[）)]/g, "");
+  return s.trim();
+}
+
+/** 去掉所有半角/全角括号块（语法点是否出现：勿把括注里的「が」算进去） */
+export function stripAllJpVocabParenBlocks(text: string): string {
+  return String(text || "")
+    .replace(/（[^）]*）/g, "")
+    .replace(/\([^)]*\)/g, "");
+}
+
+/** 是否仍有非法括注（非整贴汉字假名） */
+export function jpVocabExampleHasInvalidFuriganaParen(text: string): boolean {
+  const withoutValid = String(text || "").replace(VALID_KANJI_FURIGANA_CHUNK, "");
+  return /[（(][^）)]*[ぁ-んァ-ン][^）)]*[）)]/.test(withoutValid);
+}
+
 /** 拆行并去掉行首已有序号 */
 export function splitJpVocabExampleSentenceLines(
   raw: string | null | undefined

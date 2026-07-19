@@ -2,6 +2,7 @@
 
 import {
   parseJpVocabParenFurigana,
+  sanitizeJpVocabExampleJapaneseLine,
   stripJpVocabParenFurigana,
 } from "@/lib/jp-vocab-example-sentences";
 
@@ -17,7 +18,7 @@ type Props = {
  * 用 flex 列而不是依赖 `ruby-position: under`（各浏览器默认常在上方）。
  */
 export function JpVocabFuriganaText({ text, className }: Props) {
-  const raw = text ?? "";
+  const raw = sanitizeJpVocabExampleJapaneseLine(text ?? "");
   if (!raw) return null;
 
   const segments = parseJpVocabParenFurigana(raw);
