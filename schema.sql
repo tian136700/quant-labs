@@ -438,7 +438,11 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   word       TEXT    NOT NULL,
   reading    TEXT,
+  /** 音标来源（如 dictionaryapi.dev、本地 gemma4:26b、手动） */
+  reading_source TEXT,
   meaning    TEXT,
+  /** 释义来源 */
+  meaning_source TEXT,
   pos        TEXT,
   kind       TEXT    NOT NULL DEFAULT 'word',
   ref_key    TEXT,
@@ -448,6 +452,9 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   today_check_count INTEGER NOT NULL DEFAULT 0,
   today_check_date  TEXT,
   class_notes TEXT,
+  /** 例句（英文行 + 译文：中文；与日语格式对称） */
+  example_sentences TEXT,
+  example_sentences_source TEXT,
   last_review_level TEXT,
   last_review_at TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),

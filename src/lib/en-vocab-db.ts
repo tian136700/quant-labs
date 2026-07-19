@@ -158,7 +158,15 @@ function mapRow(row: Record<string, unknown>): EnVocabWord {
     id: Number(row.id),
     word: String(row.word),
     reading: row.reading != null ? String(row.reading) : null,
+    reading_source:
+      row.reading_source != null && String(row.reading_source).trim()
+        ? String(row.reading_source).trim()
+        : null,
     meaning: row.meaning != null ? String(row.meaning) : null,
+    meaning_source:
+      row.meaning_source != null && String(row.meaning_source).trim()
+        ? String(row.meaning_source).trim()
+        : null,
     pos:
       row.pos != null && String(row.pos).trim() ? String(row.pos) : null,
     kind: row.kind === "grammar" ? "grammar" : "word",
@@ -174,6 +182,15 @@ function mapRow(row: Record<string, unknown>): EnVocabWord {
     class_notes:
       row.class_notes != null && String(row.class_notes).trim()
         ? String(row.class_notes)
+        : null,
+    example_sentences:
+      row.example_sentences != null && String(row.example_sentences).trim()
+        ? String(row.example_sentences)
+        : null,
+    example_sentences_source:
+      row.example_sentences_source != null &&
+      String(row.example_sentences_source).trim()
+        ? String(row.example_sentences_source).trim()
         : null,
     last_review_level:
       row.last_review_level === "very" ||
@@ -215,7 +232,26 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("last_review_at")) {
     await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN last_review_at TEXT`).run();
   }
+  if (!cols.has("reading_source")) {
+    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN reading_source TEXT`).run();
+  }
+  if (!cols.has("meaning_source")) {
+    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN meaning_source TEXT`).run();
+  }
+  if (!cols.has("example_sentences")) {
+    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN example_sentences TEXT`).run();
+  }
+  if (!cols.has("example_sentences_source")) {
+    await db
+      .prepare(`ALTER TABLE en_vocab_word ADD COLUMN example_sentences_source TEXT`)
+      .run();
+  }
   vocabWordSchemaReady = true;
+}
+
+/** 供 fill-* 等轻量入口在写库前确保列存在 */
+export async function ensureEnVocabWordSchema(db: D1Database): Promise<void> {
+  await ensureVocabWordSchema(db);
 }
 
 function mapSharedListWordRow(row: Record<string, unknown>): EnVocabWord {
@@ -251,8 +287,9 @@ async function listEnVocabRefsByKeys(
   return (result.results || []).map(mapRefRow);
 }
 
-const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
+const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes,
+  example_sentences, example_sentences_source,
   last_review_level, last_review_at, created_at, updated_at FROM en_vocab_word`;
 
 function refsRecord(refs: EnVocabRef[]): Record<string, EnVocabRef> {
@@ -1412,6 +1449,7 @@ export type EnVocabWordEntryInput = {
   meaning?: string | null;
   pos?: string | null;
   class_notes?: string | null;
+  example_sentences?: string | null;
 };
 
 /** 一次性更新词条可编辑字段，并同步备注到关联新课 */
@@ -1464,6 +1502,36 @@ export async function updateEnVocabWordEntry(
     input.class_notes !== undefined
       ? (input.class_notes || "").trim() || null
       : current.class_notes;
+  const nextExamples =
+    input.example_sentences !== undefined
+      ? (input.example_sentences || "").trim() || null
+      : current.example_sentences ?? null;
+
+  const readingChanged =
+    input.reading !== undefined &&
+    (nextReading || null) !== (current.reading || null);
+  const meaningChanged =
+    input.meaning !== undefined &&
+    (nextMeaning || null) !== (current.meaning || null);
+  const examplesChanged =
+    input.example_sentences !== undefined &&
+    (nextExamples || null) !== (current.example_sentences || null);
+
+  const nextReadingSource = readingChanged
+    ? nextReading
+      ? "手动"
+      : null
+    : current.reading_source ?? null;
+  const nextMeaningSource = meaningChanged
+    ? nextMeaning
+      ? "手动"
+      : null
+    : current.meaning_source ?? null;
+  const nextExampleSource = examplesChanged
+    ? nextExamples
+      ? "手动"
+      : null
+    : current.example_sentences_source ?? null;
 
   if (!nextWord) return { ok: false, error: "word_required" };
 
@@ -1489,9 +1557,13 @@ export async function updateEnVocabWordEntry(
       kind: nextKind,
       word: nextWord,
       reading: nextReading,
+      reading_source: nextReadingSource,
       meaning: nextMeaning,
+      meaning_source: nextMeaningSource,
       pos: nextPos,
       class_notes: nextNotes,
+      example_sentences: nextExamples,
+      example_sentences_source: nextExampleSource,
       updated_at: ts,
     };
     current = devWords[idx];
@@ -1499,16 +1571,23 @@ export async function updateEnVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE en_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, pos = ?5, class_notes = ?6, updated_at = ?7
-         WHERE id = ?8`
+         SET kind = ?1, word = ?2, reading = ?3, reading_source = ?4,
+             meaning = ?5, meaning_source = ?6, pos = ?7, class_notes = ?8,
+             example_sentences = ?9, example_sentences_source = ?10,
+             updated_at = ?11
+         WHERE id = ?12`
       )
       .bind(
         nextKind,
         nextWord,
         nextReading,
+        nextReadingSource,
         nextMeaning,
+        nextMeaningSource,
         nextPos,
         nextNotes,
+        nextExamples,
+        nextExampleSource,
         ts,
         wordId
       )
