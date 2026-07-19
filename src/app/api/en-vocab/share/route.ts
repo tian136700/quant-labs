@@ -1,16 +1,15 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { shareEnVocabWord } from "@/lib/en-vocab-db";
 import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
-import { isAdminSuperuser } from "@/lib/rbac";
 
 const AUTH_MSG = {
   en: "Please log in to share words.",
   zh: "请登录后再共享。",
 };
 
-const ADMIN_MSG = {
-  en: "Only the Admin account can share words.",
-  zh: "仅 Admin 账户可共享单词。",
+const PERM_MSG = {
+  en: "Only admin or English teachers can share words.",
+  zh: "仅管理员或英语老师可共享单词。",
 };
 
 export async function POST(request: Request) {
@@ -19,10 +18,10 @@ export async function POST(request: Request) {
   try {
     const { env, user, allowed } = await requireEnVocabAccess(request);
     if (!allowed || !user) {
-      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
-    }
-    if (!isAdminSuperuser(user.role)) {
-      return jsonResponse({ ok: false, error: ADMIN_MSG[locale] }, 403);
+      return jsonResponse(
+        { ok: false, error: user ? PERM_MSG[locale] : AUTH_MSG[locale] },
+        user ? 403 : 401
+      );
     }
 
     const body = (await request.json()) as { word_id?: number };

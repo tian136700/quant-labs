@@ -96,18 +96,22 @@
 
 ## 英语单词 / 语法抽问（en-vocab）
 
-对外入口优先用 **`https://english.info-quests.com/en-vocab`**（勿发 japanese / finance 给英文老师）。路径与下表一致；finance / japanese / english 共用同一 Worker 与 D1。
+对外入口优先用 **`https://english.info-quests.com/en-vocab`**（勿发 japanese / finance 给英文老师）。路径与下表一致；finance / japanese / english 共用同一 Worker 与 D1。表与 API **共用**；产品入口与 UX 用 `variant` 分开（与 jp-vocab 管理员/老师拆分对称）。
 
 | 线上 path | 中文名 | 页面 | 主组件 | 说明 |
 |-----------|--------|------|--------|------|
-| `/en-vocab` | 英语抽背 | `src/app/en-vocab/page.tsx` | `EnVocabPage.tsx` | 与 jp-vocab 结构对称，改日语时可对照 |
+| `/en-vocab` | 英语抽背-老师端 | `src/app/en-vocab/page.tsx` | `EnVocabPage variant="teacher"` | 勾选熟悉程度、共享到今日单词 |
+| `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、导出 Excel、批量删除、重置 |
 | `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | |
 | `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
+
+RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
 
 ### en-vocab 子功能 → 文件速查
 
 | 功能描述 | 改哪里 |
 |----------|--------|
+| **管理员端 / 老师端拆分**（双入口 + `variant`；共享在老师端；导出/删除/重置在管理员端） | `EnVocabPage.tsx`；路由 `en-vocab/page.tsx` + `en-vocab/admin/page.tsx`；`enVocabAdminPath`；`en_vocab:teacher` / `en_vocab:admin` |
 | **词表例句默认收起**（点「展开 (N)」再显示全文；「收起」还原；对齐日语管理员端不整列堆例句） | `EnVocabExampleSentencesCell.tsx`；列宽样式 `EnVocabPage.tsx` → `.jp-vocab-example-col` |
 | **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；**一律本机 Ollama `gemma4:26b`**，不调线上词典；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
 

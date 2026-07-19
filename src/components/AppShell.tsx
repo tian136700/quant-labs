@@ -10,6 +10,7 @@ import {
   isEnLessonPath,
   isEnModulePath,
   isEnVocabPath,
+  isEnVocabAdminPath,
   isEnVocabRefPath,
   isJpLessonPath,
   isJpModulePath,
@@ -22,6 +23,7 @@ import {
   adminJpLessonTeachersPath,
   enLessonPath,
   enVocabPath,
+  enVocabAdminPath,
   isAdminJpLessonTeachersPath,
   jpLessonPath,
   jpVocabPath,
@@ -76,6 +78,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isJpVocabAdminPath(pathname)) return nav.jpVocabAdmin;
     if (isJpVocabPath(pathname)) return nav.jpVocab;
     if (isEnLessonPath(pathname)) return nav.enLesson;
+    if (isEnVocabAdminPath(pathname)) return nav.enVocabAdmin;
     if (isEnVocabPath(pathname)) return nav.enVocab;
     if (isJpReviewPath(pathname)) return nav.jpReview;
     return t("meta").title;
@@ -88,6 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isJpVocabAdminPath(pathname)) return jpVocabAdminPath();
     if (isJpVocabPath(pathname)) return jpVocabPath();
     if (isEnLessonPath(pathname)) return enLessonPath();
+    if (isEnVocabAdminPath(pathname)) return enVocabAdminPath();
     if (isEnVocabPath(pathname)) return enVocabPath();
     if (isAdminJpLessonTeachersPath(pathname)) return adminJpLessonTeachersPath(locale);
     return items[0]?.href ?? "/";

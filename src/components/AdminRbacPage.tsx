@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import type { EtrUserRole } from "@/lib/etr-auth";
 import {
   RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS,
+  RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_ROLE_LABELS,
   RBAC_UI_LAYOUT,
@@ -200,6 +201,9 @@ export function AdminRbacPage() {
     if (selectedRole === "jp_vocab") {
       return new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
     }
+    if (selectedRole === "en_vocab") {
+      return new Set<string>(RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS);
+    }
     return new Set<string>();
   }, [selectedRole]);
 
@@ -246,6 +250,10 @@ export function AdminRbacPage() {
           let perms = row.permissions ?? [];
           if (row.role === "jp_vocab") {
             const excluded = new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
+            perms = perms.filter((key: string) => !excluded.has(key));
+          }
+          if (row.role === "en_vocab") {
+            const excluded = new Set<string>(RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS);
             perms = perms.filter((key: string) => !excluded.has(key));
           }
           nextDraft[row.role] = new Set(perms);

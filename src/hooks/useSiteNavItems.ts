@@ -23,6 +23,8 @@ import {
   isJpVocabCoachPath,
   isEnLessonPath,
   isEnVocabPath,
+  isEnVocabTeacherHomePath,
+  isEnVocabAdminPath,
   isEnVocabStudyPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
@@ -40,7 +42,7 @@ export type SiteNavItem = {
 
 export function useSiteNavItems(): SiteNavItem[] {
   const { locale, t } = useI18n();
-  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessJpVocabCoach, canAccessEnVocabStudy } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessJpVocabCoach, canAccessEnVocabStudy, canAccessEnVocabTeacherPage, canAccessEnVocabAdminPage } = useEtrAuth();
   const loggedIn = Boolean(user);
   const jpTeacherNav =
     loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
@@ -62,6 +64,8 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onJpVocabCoach = isJpVocabCoachPath(pathname);
   const onEnLesson = isEnLessonPath(pathname);
   const onEnVocab = isEnVocabPath(pathname);
+  const onEnVocabTeacherHome = isEnVocabTeacherHomePath(pathname);
+  const onEnVocabAdmin = isEnVocabAdminPath(pathname);
   const onEnVocabStudy = isEnVocabStudyPath(pathname);
   const onHiddenJp =
     onJpLesson || onJpVocab || onJpVocabStudy || onJpVocabReview || onJpVocabCoach;
@@ -80,12 +84,16 @@ export function useSiteNavItems(): SiteNavItem[] {
 
   if (enTeacherNav) {
     return [
-      {
-        id: "enVocab",
-        href: navHref("enVocab", locale, navOpts),
-        label: nav.enVocab,
-        active: onEnVocab && !onEnVocabStudy,
-      },
+      ...(canAccessEnVocabTeacherPage
+        ? [
+            {
+              id: "enVocab",
+              href: navHref("enVocab", locale, navOpts),
+              label: nav.enVocab,
+              active: onEnVocabTeacherHome,
+            },
+          ]
+        : []),
       ...(canAccessEnVocabStudy
         ? [
             {
@@ -164,13 +172,23 @@ export function useSiteNavItems(): SiteNavItem[] {
 
   if (onHiddenEn && loggedIn && !hasPermission("nav:full")) {
     return [
-      ...(onEnVocab
+      ...(onEnVocabTeacherHome && canAccessEnVocabTeacherPage
         ? [
             {
               id: "enVocab",
               href: navHref("enVocab", locale, navOpts),
               label: nav.enVocab,
-              active: !onEnVocabStudy,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onEnVocabAdmin && canAccessEnVocabAdminPage
+        ? [
+            {
+              id: "enVocabAdmin",
+              href: navHref("enVocabAdmin", locale, navOpts),
+              label: nav.enVocabAdmin,
+              active: true,
             },
           ]
         : []),
@@ -437,15 +455,31 @@ export function useSiteNavItems(): SiteNavItem[] {
                   },
                 ]
               : []),
-            ...(hasPermission("en_vocab:read") ||
+            ...(hasPermission("en_vocab:teacher") ||
+            hasPermission("en_vocab:admin") ||
+            hasPermission("en_vocab:read") ||
             hasPermission("en_vocab:operate")
               ? [
-                  {
-                    id: "enVocab",
-                    href: navHref("enVocab", locale, navOpts),
-                    label: nav.enVocab,
-                    active: onEnVocab && !onEnVocabStudy,
-                  },
+                  // 管理员顶栏只进「管理员端」；老师只进「老师端」，避免两个入口抢位
+                  ...(canAccessEnVocabAdminPage
+                    ? [
+                        {
+                          id: "enVocabAdmin",
+                          href: navHref("enVocabAdmin", locale, navOpts),
+                          label: nav.enVocabAdmin,
+                          active: onEnVocabAdmin || (isAdmin && onEnVocabTeacherHome),
+                        },
+                      ]
+                    : canAccessEnVocabTeacherPage
+                      ? [
+                          {
+                            id: "enVocab",
+                            href: navHref("enVocab", locale, navOpts),
+                            label: nav.enVocab,
+                            active: onEnVocabTeacherHome,
+                          },
+                        ]
+                      : []),
                   ...(canAccessEnVocabStudy
                     ? [
                         {

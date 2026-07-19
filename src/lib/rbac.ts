@@ -197,6 +197,22 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "Progress, lesson plans, class notes",
   },
   {
+    key: "en_vocab:teacher",
+    labelZh: "英语抽背-老师端",
+    labelEn: "EN vocab — teacher",
+    category: "en_vocab",
+    descriptionZh: "进入 /en-vocab：勾选熟悉程度、共享到今日单词",
+    descriptionEn: "Access /en-vocab: levels, share to today's words",
+  },
+  {
+    key: "en_vocab:admin",
+    labelZh: "英语抽背-管理员端",
+    labelEn: "EN vocab — admin",
+    category: "en_vocab",
+    descriptionZh: "进入 /en-vocab/admin：全库、导出、删除、重置",
+    descriptionEn: "Access /en-vocab/admin: full library, export, delete, reset",
+  },
+  {
     key: "en_vocab:read",
     labelZh: "浏览英语单词/语法",
     labelEn: "Browse EN vocab & grammar",
@@ -275,8 +291,8 @@ export const RBAC_ROLE_LABELS: Record<
   en_vocab: {
     zh: "英语教师",
     en: "EN teacher",
-    descriptionZh: "英语抽背与今日英语单词",
-    descriptionEn: "EN vocab spot-check and today's words",
+    descriptionZh: "英语抽背-老师端（抽查 / 共享）",
+    descriptionEn: "EN vocab teacher page (spot-check / share)",
   },
   user: {
     zh: "网上的注册用户",
@@ -297,6 +313,7 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "nav:jp_teacher",
   ],
   en_vocab: [
+    "en_vocab:teacher",
     "en_vocab:read",
     "en_vocab:operate",
     "about:view",
@@ -376,10 +393,11 @@ export const RBAC_USER_EXCLUDED_PERMISSIONS = [
   "jp_vocab:manual_add",
 ] as const;
 
-/** 英语教师角色不应持有的新课权限（默认关闭，可由管理员手动开启） */
+/** 英语教师角色不应持有的权限（默认关闭，可由管理员手动开启） */
 export const RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS = [
   "en_lesson:read",
   "en_lesson:operate",
+  "en_vocab:admin",
 ] as const;
 
 export function isAdminSuperuser(role: string | undefined): boolean {

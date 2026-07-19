@@ -1,9 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
+import {
+  enVocabPath,
+  enVocabAdminPath,
+  enVocabStudyPath,
+} from "@/lib/locale-path";
+import { EN_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/en-vocab-share-ui";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   enVocabPriorityLabel,
@@ -170,11 +177,32 @@ const SAVE_ERR = {
   zh: "请登录后再操作。",
 };
 
-export function EnVocabPage() {
+type EnVocabPageVariant = "teacher" | "admin";
+
+type EnVocabPageProps = {
+  variant: EnVocabPageVariant;
+};
+
+export function EnVocabPage({ variant }: EnVocabPageProps) {
   const { locale } = useI18n();
-  const { user, checking, canAccessEnVocab, refresh, openAuthPanel, isAdmin } =
-    useEtrAuth();
+  const router = useRouter();
+  const {
+    user,
+    checking,
+    canAccessEnVocab,
+    canAccessEnVocabTeacherPage,
+    canAccessEnVocabAdminPage,
+    canAccessEnVocabStudy,
+    refresh,
+    openAuthPanel,
+    isAdmin,
+  } = useEtrAuth();
+  /** 产品模式：由路由 variant 驱动，不再用 isAdmin 兼做老师/管理员 UX */
+  const isAdminMode = variant === "admin";
+  const isTeacherMode = variant === "teacher";
   const canOperate = canAccessEnVocab;
+  const teacherShareUiEnabled =
+    EN_VOCAB_TEACHER_SHARE_ENABLED && isTeacherMode && canOperate;
 
   const openEnAuth = useCallback(() => {
     openAuthPanel({
@@ -184,6 +212,27 @@ export function EnVocabPage() {
       subtitle: "登录用户方可修改数据。",
     });
   }, [openAuthPanel]);
+
+  useEffect(() => {
+    if (checking || !user) return;
+    if (variant === "teacher" && isAdmin) {
+      router.replace(enVocabAdminPath());
+      return;
+    }
+    if (variant === "admin" && !canAccessEnVocabAdminPage) {
+      router.replace(
+        canAccessEnVocabTeacherPage ? enVocabPath() : enVocabStudyPath()
+      );
+    }
+  }, [
+    checking,
+    user,
+    variant,
+    isAdmin,
+    canAccessEnVocabAdminPage,
+    canAccessEnVocabTeacherPage,
+    router,
+  ]);
   const [words, setWords] = useState<EnVocabWord[]>([]);
   const [refs, setRefs] = useState<Record<string, EnVocabRef>>({});
   const [loading, setLoading] = useState(true);
@@ -494,11 +543,11 @@ export function EnVocabPage() {
   );
 
   useEffect(() => {
-    if (loading || checking || !canOperate || !words.length) return;
+    if (loading || checking || !canOperate || isAdminMode || !words.length) return;
     if (anyCheckedInRound) return;
     if (!shouldShowEnVocabDailyIntro()) return;
     setShowDailyIntro(true);
-  }, [loading, checking, canOperate, words.length, anyCheckedInRound]);
+  }, [loading, checking, canOperate, isAdminMode, words.length, anyCheckedInRound]);
 
   const unmarkedCount = useMemo(
     () => words.filter((w) => !sessionLevel[w.id]).length,
@@ -600,8 +649,8 @@ export function EnVocabPage() {
   };
 
   const shareWord = async (wordId: number) => {
-    if (!isAdmin) {
-      setStatus("仅 Admin 账户可共享。");
+    if (!teacherShareUiEnabled) {
+      setStatus("当前页面不可共享单词。");
       return;
     }
     if (!canOperate) {
@@ -880,8 +929,8 @@ export function EnVocabPage() {
   };
 
   const batchDeleteSelected = async () => {
-    if (!isAdmin) {
-      setStatus("仅 Admin 账户可删除词条。");
+    if (!isAdminMode) {
+      setStatus("仅管理员端可删除词条。");
       return;
     }
     if (!canOperate) {
@@ -981,11 +1030,52 @@ export function EnVocabPage() {
       </nav>
     ) : null;
 
+  if (
+    user &&
+    ((isAdminMode && !canAccessEnVocabAdminPage) ||
+      (isTeacherMode && !canAccessEnVocabTeacherPage))
+  ) {
+    return (
+      <main
+        className="page-wrap jp-vocab-page"
+        style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}
+      >
+        <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>
+          {isAdminMode ? "英语抽背-管理员端" : "英语抽背-老师端"}
+        </h1>
+        <p role="alert" style={{ color: "var(--rise)", marginBottom: "0.75rem" }}>
+          当前账号无权访问此页面，请联系管理员在「角色权限管理」中开通对应权限。
+        </p>
+        {canAccessEnVocabStudy ? (
+          <p style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+            你可前往{" "}
+            <a href={enVocabStudyPath()} style={{ color: "var(--accent)" }}>
+              今日英语单词
+            </a>
+            。
+          </p>
+        ) : null}
+      </main>
+    );
+  }
+
   return (
     <main className="page-wrap jp-vocab-page" style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}>
-      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语单词 / 语法抽问</h1>
+      <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>
+        {isAdminMode ? "英语抽背-管理员端" : "英语抽背-老师端"}
+      </h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        扫一眼单词或语法表，学生回答后勾选熟悉程度。
+        {teacherShareUiEnabled ? (
+          <>
+            扫一眼单词或语法表，学生回答后勾选熟悉程度；答不出或不熟悉时可「共享」到今日英语单词。
+          </>
+        ) : isAdminMode ? (
+          <>
+            管理全库词条、导出与删除。老师端负责抽查勾选与共享到学生端。
+          </>
+        ) : (
+          <>扫一眼单词或语法表，学生回答后勾选熟悉程度。</>
+        )}
       </p>
 
       {!canOperate && !checking ? (
@@ -1034,31 +1124,37 @@ export function EnVocabPage() {
             }}
           >
             <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              共 {words.length} 条
-              {words.length ? (
+              {isAdminMode ? (
                 <>
-                  {" "}
-                  · 今日抽查{" "}
-                  <span
-                    className={
-                      todayCheckStats.totalActions > 0
-                        ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
-                        : "jp-vocab-today-summary-value"
-                    }
-                    title={
-                      todayCheckStats.totalActions > 0
-                        ? `今日已抽查 ${todayCheckStats.wordCount} 个词条，共 ${todayCheckStats.totalActions} 次（北京时间 0 点归零）`
-                        : "今日尚未抽查（北京时间 0 点归零）"
-                    }
-                  >
-                    {todayCheckStats.wordCount} 个
-                    {todayCheckStats.totalActions > todayCheckStats.wordCount
-                      ? ` · ${todayCheckStats.totalActions} 次`
-                      : null}
-                  </span>
+                  共 {words.length} 条
+                  {words.length ? (
+                    <>
+                      {" "}
+                      · 今日抽查{" "}
+                      <span
+                        className={
+                          todayCheckStats.totalActions > 0
+                            ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
+                            : "jp-vocab-today-summary-value"
+                        }
+                        title={
+                          todayCheckStats.totalActions > 0
+                            ? `今日已抽查 ${todayCheckStats.wordCount} 个词条，共 ${todayCheckStats.totalActions} 次（北京时间 0 点归零）`
+                            : "今日尚未抽查（北京时间 0 点归零）"
+                        }
+                      >
+                        {todayCheckStats.wordCount} 个
+                        {todayCheckStats.totalActions > todayCheckStats.wordCount
+                          ? ` · ${todayCheckStats.totalActions} 次`
+                          : null}
+                      </span>
+                    </>
+                  ) : null}
+                  {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
                 </>
+              ) : canOperate ? (
+                <>本轮未勾选 {unmarkedCount}</>
               ) : null}
-              {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
               {refreshing ? <> · 加载中…</> : null}
             </span>
             {SHOW_RANDOM_HIGHLIGHT ? (
@@ -1071,7 +1167,7 @@ export function EnVocabPage() {
                 随机高亮
               </button>
             ) : null}
-            {isAdmin ? (
+            {isAdminMode ? (
               <button
                 type="button"
                 className="btn-rsi-filter"
@@ -1107,7 +1203,7 @@ export function EnVocabPage() {
             >
               手动添加
             </button>
-            {isAdmin ? (
+            {isAdminMode ? (
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--danger"
@@ -1128,7 +1224,7 @@ export function EnVocabPage() {
                     : "批量删除"}
               </button>
             ) : null}
-            {isAdmin ? (
+            {isAdminMode ? (
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--danger"
@@ -1250,7 +1346,7 @@ export function EnVocabPage() {
             <table className="compare-table etr-table jp-vocab-table">
               <thead>
                 <tr>
-                  {isAdmin ? (
+                  {isAdminMode ? (
                     <th rowSpan={2} className="jp-vocab-select-col" title="勾选后可批量删除">
                       <input
                         type="checkbox"
@@ -1402,7 +1498,7 @@ export function EnVocabPage() {
                           : undefined,
                       }}
                     >
-                      {isAdmin ? (
+                      {isAdminMode ? (
                         <td className="jp-vocab-select-col" data-label="选择">
                           <input
                             type="checkbox"
@@ -1660,7 +1756,7 @@ export function EnVocabPage() {
                             >
                               编辑
                             </button>
-                            {isAdmin ? (
+                            {teacherShareUiEnabled ? (
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-share-btn"

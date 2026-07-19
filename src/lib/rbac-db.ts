@@ -4,6 +4,7 @@ import {
   RBAC_ALL_PERMISSION_KEYS,
   RBAC_DEFAULT_ROLE_PERMISSIONS,
   RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS,
+  RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS,
   RBAC_USER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_PERMISSION_CATALOG,
@@ -66,7 +67,11 @@ async function ensureRbacSchema(db: D1Database): Promise<void> {
 const RBAC_INCREMENTAL_DEFAULTS: Array<{
   role: EtrUserRole;
   permission: string;
-}> = [{ role: "jp_vocab", permission: "jp_vocab:teacher" }];
+}> = [
+  /** newest sentinel first — 表已有数据时用首项探测是否还需补缺 */
+  { role: "en_vocab", permission: "en_vocab:teacher" },
+  { role: "jp_vocab", permission: "jp_vocab:teacher" },
+];
 
 export async function ensureRbacSeeded(db: D1Database): Promise<void> {
   if (devRbacEnabled) {
@@ -251,6 +256,10 @@ export async function updateRolePermissions(
     const excluded = new Set<string>(RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS);
     cleaned = cleaned.filter((k) => !excluded.has(k));
   }
+  if (role === "en_vocab") {
+    const excluded = new Set<string>(RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS);
+    cleaned = cleaned.filter((k) => !excluded.has(k));
+  }
   if (role === "user") {
     const excluded = new Set<string>(RBAC_USER_EXCLUDED_PERMISSIONS);
     cleaned = cleaned.filter((k) => !excluded.has(k));
@@ -308,6 +317,7 @@ export async function enrichSessionUser(
   const can_operate_en_vocab =
     isAdminSuperuser(user.role) ||
     permissions.includes("en_vocab:operate") ||
+    permissions.includes("en_vocab:teacher") ||
     permissions.includes("en_lesson:operate");
   return { ...user, permissions, can_operate_jp_vocab, can_operate_en_vocab };
 }

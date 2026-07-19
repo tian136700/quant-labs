@@ -203,6 +203,28 @@ export function canAccessEnVocabStudy(
   return canUserOperateEnVocab(user);
 }
 
+export function canAccessEnVocabTeacherPage(
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  const perms = user.permissions ?? [];
+  if (perms.includes("en_vocab:teacher")) return true;
+  if (perms.includes("en_vocab:operate")) return true;
+  return canUserOperateEnVocab(user);
+}
+
+/** 英语抽背-管理员端：管理员或持有 en_vocab:admin */
+export function canAccessEnVocabAdminPage(
+  user: { role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  return user.permissions?.includes("en_vocab:admin") ?? false;
+}
+
 export function newSessionToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
