@@ -39,19 +39,12 @@ import {
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
-/** 老师抽查卡片左侧：正计时展示（不落库） */
-function formatJpVocabQuizElapsedLabel(totalSeconds: number, locale: "zh" | "en"): string {
+/** 老师抽查卡片右上角计时器：MM:SS（从 00:00 起计，不落库） */
+function formatJpVocabQuizElapsedLabel(totalSeconds: number): string {
   const sec = Math.max(0, Math.floor(totalSeconds));
-  if (locale === "en") {
-    if (sec < 60) return `${sec}s`;
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${String(s).padStart(2, "0")}`;
-  }
-  if (sec < 60) return `${sec}秒`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
-  return `${m}分${String(s).padStart(2, "0")}秒`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
@@ -467,41 +460,12 @@ export function JpVocabTeacherQuizFlashcardModal({
 
   return createPortal(
     <div className="jp-vocab-teacher-quiz-overlay" role="presentation">
-      <div
-        className={`jp-vocab-teacher-quiz-stage${
+      <article
+        className={`jp-vocab-teacher-quiz-card${isCoach ? " jp-vocab-teacher-quiz-card--coach" : ""}${
           showAnswerTimer && answerTimerArmed
-            ? " jp-vocab-teacher-quiz-stage--with-timer"
+            ? " jp-vocab-teacher-quiz-card--with-timer"
             : ""
         }`}
-      >
-        {showAnswerTimer && answerTimerArmed ? (
-          <aside
-            className={`jp-vocab-teacher-quiz__answer-timer${
-              selected ? " jp-vocab-teacher-quiz__answer-timer--frozen" : ""
-            }`}
-            role="timer"
-            aria-live="off"
-            aria-atomic="true"
-            title={
-              locale === "zh"
-                ? selected
-                  ? "正计时（勾选后已停住）"
-                  : "正计时（从打开卡片起）"
-                : selected
-                  ? "Stopwatch (paused)"
-                  : "Stopwatch"
-            }
-          >
-            <span className="jp-vocab-teacher-quiz__answer-timer-label">
-              {locale === "zh" ? "正计时" : "Stopwatch"}
-            </span>
-            <span className="jp-vocab-teacher-quiz__answer-timer-value">
-              {formatJpVocabQuizElapsedLabel(answerElapsedSec, locale)}
-            </span>
-          </aside>
-        ) : null}
-      <article
-        className={`jp-vocab-teacher-quiz-card${isCoach ? " jp-vocab-teacher-quiz-card--coach" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="jp-vocab-teacher-quiz-title"
@@ -550,22 +514,50 @@ export function JpVocabTeacherQuizFlashcardModal({
                 <span className="jp-vocab-teacher-quiz__remaining">{remainingLabel}</span>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="jp-vocab-teacher-quiz__close-x"
-              aria-label={
-                isStudy
-                  ? "关闭"
-                  : previewMode
-                    ? "关闭预览"
-                    : isCoach
-                      ? "关闭带读"
-                      : "关闭抽查"
-              }
-              onClick={onClose}
-            >
-              ×
-            </button>
+            <div className="jp-vocab-teacher-quiz__header-right">
+              {showAnswerTimer && answerTimerArmed ? (
+                <div
+                  className={`jp-vocab-teacher-quiz__answer-timer${
+                    selected ? " jp-vocab-teacher-quiz__answer-timer--frozen" : ""
+                  }`}
+                  role="timer"
+                  aria-live="off"
+                  aria-atomic="true"
+                  title={
+                    locale === "zh"
+                      ? selected
+                        ? "计时器（勾选后已停住）"
+                        : "计时器（从打开卡片起）"
+                      : selected
+                        ? "Timer (paused)"
+                        : "Timer"
+                  }
+                >
+                  <span className="jp-vocab-teacher-quiz__answer-timer-label">
+                    {locale === "zh" ? "计时器" : "Timer"}
+                  </span>
+                  <span className="jp-vocab-teacher-quiz__answer-timer-value">
+                    {formatJpVocabQuizElapsedLabel(answerElapsedSec)}
+                  </span>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                className="jp-vocab-teacher-quiz__close-x"
+                aria-label={
+                  isStudy
+                    ? "关闭"
+                    : previewMode
+                      ? "关闭预览"
+                      : isCoach
+                        ? "关闭带读"
+                        : "关闭抽查"
+                }
+                onClick={onClose}
+              >
+                ×
+              </button>
+            </div>
           </div>
           {!isStudy ? (
           <div
@@ -1032,7 +1024,6 @@ export function JpVocabTeacherQuizFlashcardModal({
           </button>
         </div>
       </article>
-      </div>
 
       {nextBlockedHint && !previewMode && !isCoach && !isStudy && !selected ? (
         <div
