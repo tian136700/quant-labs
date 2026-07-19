@@ -98,7 +98,12 @@ def build_source_label(model: str | None = None) -> str:
 
 def is_ollama_timeout_error(exc: BaseException) -> bool:
     text = str(exc).lower()
-    return "timeout" in text or "timed out" in text
+    return (
+        "timeout" in text
+        or "timed out" in text
+        or "wall-clock" in text
+        or isinstance(exc, TimeoutError)
+    )
 
 
 def build_ssl_context() -> ssl.SSLContext | None:
@@ -161,28 +166,58 @@ def call_ollama(
     model: str | None = None,
     timeout: int | None = None,
 ) -> str:
+    """调本机 Ollama。
+
+    注意：urllib/socket 的 timeout 只看「多久没收到字节」。模型慢慢吐字时
+    可能拖十几分钟还不触发。这里再用线程做 **墙钟硬超时**，到点就抛错切兜底。
+    """
+    import threading
+
     model = (model or resolve_ollama_model()).strip()
     timeout = int(
         timeout if timeout is not None else resolve_ollama_timeout_sec()
     )
-    body = json.dumps(
-        {
-            "model": model,
-            "stream": False,
-            "messages": [{"role": "user", "content": prompt}],
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
-    req = urllib.request.Request(
-        OLLAMA_CHAT_URL,
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
-    msg = payload.get("message") or {}
-    content = str(msg.get("content") or payload.get("response") or "").strip()
-    if not content:
-        raise RuntimeError(f"Ollama 空响应 model={model}")
-    return content
+
+    def _once() -> str:
+        body = json.dumps(
+            {
+                "model": model,
+                "stream": False,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            OLLAMA_CHAT_URL,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        # socket 超时略大于墙钟，真正截止靠下面的 join
+        with urllib.request.urlopen(req, timeout=max(30, timeout + 30)) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        msg = payload.get("message") or {}
+        content = str(msg.get("content") or payload.get("response") or "").strip()
+        if not content:
+            raise RuntimeError(f"Ollama 空响应 model={model}")
+        return content
+
+    box: dict[str, object] = {}
+
+    def worker() -> None:
+        try:
+            box["value"] = _once()
+        except Exception as exc:  # noqa: BLE001 — 回传给主线程
+            box["error"] = exc
+
+    thread = threading.Thread(target=worker, name=f"ollama-{model}", daemon=True)
+    thread.start()
+    thread.join(timeout=float(timeout))
+    if thread.is_alive():
+        raise TimeoutError(
+            f"Ollama wall-clock timeout {timeout}s model={model} "
+            f"(卡住超过时限，应切下一兜底模型)"
+        )
+    if "error" in box:
+        raise box["error"]  # type: ignore[misc]
+    return str(box.get("value") or "")
