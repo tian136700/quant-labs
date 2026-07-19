@@ -74,7 +74,8 @@ cd "$ROOT"
 echo "$(date '+%F %T') ${OWNER}: start Beijing=${BEIJING_STAMP}"
 
 OLLAMA_SLOT_PY="${HOME}/.config/local-llm/ollama_slot.py"
-OLLAMA_SLOT_WAIT="${LOCAL_LLM_OLLAMA_SLOT_WAIT_SEC:-3600}"
+# 每分钟检测：槽被占则立刻 skip（exit 0），下一分钟再试；勿干等 3600s 占着 dirlock
+OLLAMA_SLOT_WAIT="${EN_VOCAB_FILL_OLLAMA_SLOT_WAIT_SEC:-0}"
 SLOT_DISABLE="${LOCAL_LLM_OLLAMA_SLOT_DISABLE:-0}"
 
 run_cmd=()
@@ -87,13 +88,17 @@ esac
 
 set +e
 if [[ -f "$OLLAMA_SLOT_PY" && "$SLOT_DISABLE" != "1" && "$SLOT_DISABLE" != "true" ]]; then
-  echo "$(date '+%F %T') ${OWNER}: acquire ollama slot (wait up to ${OLLAMA_SLOT_WAIT}s)…"
+  echo "$(date '+%F %T') ${OWNER}: try ollama slot (wait ${OLLAMA_SLOT_WAIT}s)…"
   python3 "$OLLAMA_SLOT_PY" wrap \
     --owner "$OWNER" \
     --wait-sec "$OLLAMA_SLOT_WAIT" \
     -- \
     "${run_cmd[@]}"
   status=$?
+  if [[ "$status" -eq 75 ]]; then
+    echo "$(date '+%F %T') ${OWNER}: ollama slot busy, skip (next minute)"
+    status=0
+  fi
 else
   "${run_cmd[@]}"
   status=$?

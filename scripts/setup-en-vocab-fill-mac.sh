@@ -29,7 +29,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-RUN_INTERVAL="${EN_VOCAB_FILL_INTERVAL_SECONDS:-600}"
+RUN_INTERVAL="${EN_VOCAB_FILL_INTERVAL_SECONDS:-60}"
 
 chmod +x "$ROOT/scripts/en-vocab-fill-stage.sh"
 chmod +x "$ROOT/scripts/en-vocab-fill-nightly.sh"
@@ -60,7 +60,7 @@ done
 
 echo ""
 echo "OK: 英语补全已拆成 4 个独立任务（各占 ollama_slot，跑完即放）"
-echo "  间隔: 每 ${RUN_INTERVAL}s"
+echo "  间隔: 每 ${RUN_INTERVAL}s 检测一次；槽忙则 skip，下一分钟再试"
 echo "  日志: ${LOG_DIR}/com.infoquests.en-vocab-fill-<stage>.log"
 echo "  模型链: gemma4:26b → qwen2.5:14b → qwen2.5:7b（墙钟 600s）"
 echo ""
