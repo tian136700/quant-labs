@@ -1324,6 +1324,11 @@ export function JpVocabStudyPage() {
             align-items: center;
             text-align: center;
           }
+          /* 桌面端隐藏操作图标，避免「编辑」竖排折字 */
+          .jp-vocab-study-page .jp-vocab-action-buttons .jp-vocab-mobile-action-btn svg,
+          .jp-vocab-study-page .jp-vocab-notes-actions .jp-vocab-mobile-action-btn svg {
+            display: none;
+          }
         }
         .jp-vocab-study-page .jp-vocab-level-opt--readonly {
           cursor: default;
@@ -1416,6 +1421,23 @@ export function JpVocabStudyPage() {
         .jp-vocab-study-page .jp-vocab-table {
           width: 100%;
         }
+        .jp-vocab-study-page .jp-vocab-meaning-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.2rem;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .jp-vocab-study-page .jp-vocab-meaning-cell :global(.jp-vocab-source-label) {
+          font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
+            "Liberation Mono", "Courier New", monospace;
+          font-size: 0.625rem;
+          font-weight: 500;
+          line-height: 1.25;
+          letter-spacing: 0.01em;
+          color: color-mix(in srgb, var(--muted) 78%, transparent);
+        }
         .jp-vocab-study-page .jp-vocab-notes-actions,
         .jp-vocab-study-page .jp-vocab-action-buttons {
           display: inline-flex;
@@ -1430,6 +1452,13 @@ export function JpVocabStudyPage() {
           vertical-align: middle;
           padding: 0.5rem 0.55rem;
           text-align: center;
+        }
+        .jp-vocab-study-page .jp-vocab-table .jp-vocab-action-col {
+          min-width: 4.5rem;
+          white-space: nowrap;
+        }
+        .jp-vocab-study-page .jp-vocab-action-buttons .jp-vocab-mobile-action-btn {
+          white-space: nowrap;
         }
         .jp-vocab-study-page .jp-vocab-th-multiline {
           display: inline-flex;

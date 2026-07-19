@@ -398,14 +398,11 @@ export function JpVocabPageStyles() {
           display: inline;
         }
         .jp-vocab-meaning-cell {
-          position: relative;
           display: flex;
           flex-direction: column;
           align-items: stretch;
           gap: 0.2rem;
           min-width: 0;
-          min-height: 2.75rem;
-          padding-bottom: 1.05rem;
           box-sizing: border-box;
         }
         :global(.jp-vocab-source-label) {
@@ -420,12 +417,6 @@ export function JpVocabPageStyles() {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-        }
-        :global(.jp-vocab-source-label--corner) {
-          position: absolute;
-          right: 0;
-          bottom: 0;
-          text-align: right;
         }
         :global(.jp-vocab-source-label--inline) {
           display: inline-block;

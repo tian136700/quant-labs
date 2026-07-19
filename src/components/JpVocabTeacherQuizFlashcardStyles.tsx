@@ -387,13 +387,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           /* 角标样式由 .jp-vocab-source-label 统一 */
         }
         .jp-vocab-teacher-quiz__meaning-wrap {
-          position: relative;
           display: flex;
           flex-direction: column;
           align-items: stretch;
           gap: 0.15rem;
-          min-height: 2.4rem;
-          padding-bottom: 1rem;
+          min-width: 0;
           box-sizing: border-box;
         }
         .jp-vocab-teacher-quiz__meaning-wrap :global(.jp-vocab-source-label) {
@@ -699,9 +697,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: var(--accent);
         }
         .jp-vocab-teacher-quiz__examples-body {
-          position: relative;
-          padding-bottom: 1rem;
-          min-height: 2.5rem;
+          min-width: 0;
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-vocab-source-label) {
           font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,

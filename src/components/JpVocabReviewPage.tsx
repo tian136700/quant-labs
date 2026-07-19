@@ -853,13 +853,11 @@ export function JpVocabReviewPage() {
           font-weight: 600;
         }
         .jp-vocab-review-meaning {
-          position: relative;
           display: flex;
           flex-direction: column;
           align-items: stretch;
           gap: 0.2rem;
-          min-height: 2.6rem;
-          padding-bottom: 1rem;
+          min-width: 0;
           box-sizing: border-box;
         }
         .jp-vocab-review-meaning :global(.jp-vocab-source-label) {

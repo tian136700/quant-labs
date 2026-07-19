@@ -584,9 +584,7 @@ export function JpVocabCoachPage() {
           line-height: 1.45;
         }
         .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences--with-source) {
-          position: relative;
-          padding-bottom: 1rem;
-          min-height: 2.5rem;
+          min-width: 0;
         }
         .jp-vocab-coach-example-col :global(.jp-vocab-source-label) {
           font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
