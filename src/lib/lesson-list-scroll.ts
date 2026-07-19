@@ -8,11 +8,15 @@ export function scrollLessonListItemIntoView(lessonId: number): void {
   const run = () => {
     const nodes = document.querySelectorAll(`[data-lesson-anchor="${lessonId}"]`);
     let target: HTMLElement | null = null;
-    nodes.forEach((node) => {
-      if (target || !(node instanceof HTMLElement)) return;
+    // 用 for…of：forEach 回调里给外层 let 赋值时，TS 会把 target 收窄成 never
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement)) continue;
       // 手机端桌面 ID 列 display:none，必须挑可见节点
-      if (node.getClientRects().length > 0) target = node;
-    });
+      if (node.getClientRects().length > 0) {
+        target = node;
+        break;
+      }
+    }
     target?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" });
   };
 

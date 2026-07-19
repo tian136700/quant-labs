@@ -123,7 +123,7 @@
 | **日程同步到网易日历（CalDAV，已停用）** | 默认 `SCHEDULE_CALDAV_DISABLED=1`；Mac launchd 已卸；改用下方 ICS。脚本仍保留：`scripts/schedule-caldav-sync.py` |
 | **日程订阅到 iPhone / Mac 系统日历（ICS，推荐）** | `GET /api/admin/schedule.ics?token=`（同 `JP_REVIEW_UPLOAD_TOKEN`）；开课前 10 分钟 `VALARM`；`buildScheduleIcs()`；手机：日历 → 添加订阅日历；Mac：日历 → 文件 → 新建日历订阅 |
 | **开课前 Bark 推送（线上 Cron）**（Worker 每分钟；Mac 关机也能推；北京时间触发；10/5/1 持续铃响；通知泰国时间；本机 launchd 默认关） | `cloudflare-worker.ts` + `POST /api/admin/schedule-class-bark-remind`；`src/lib/schedule-class-bark-remind.ts`；Secret `BARK_DEVICE_KEY`；规则 `.cursor/rules/bark-deploy-failure-notify.mdc` |
-| **部署成功/失败通知**（本机维护中心：Bark → iPhone + Mac 通知中心并行；成功有提示音；标题带项目名+改动文件） | `scripts/maintenance_center/bark_notify.py`、`mac_notify.py`；`hub._finish`；密钥 `~/.config/bark/env`；跨项目说明 `docs/bark-cross-project-howto.txt`；开关见 `.env.deploy.local.example`；规则同上 |
+| **部署成功/失败通知**（本机维护中心：Bark → iPhone + Mac 通知中心并行；成功有提示音；**标题=成功/失败**；正文：项目 → 状态 → 改动 → 文件） | `scripts/maintenance_center/bark_notify.py`、`mac_notify.py`；`hub._finish`；密钥 `~/.config/bark/env`；跨项目说明 `docs/bark-cross-project-howto.txt`；开关见 `.env.deploy.local.example`；规则同上 |
 | 英语老师管理 / 评价（合并）；**不建登录账号** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` **不再** `provisionEnLessonTeacherUser` |
 | **人员管理模糊搜索**（日语/英语一起搜；候选标科目；点选或仅另一科命中时自动切 `?subject=`） | `AdminJpLessonTeachersPage.tsx` → `loadOtherSubjectTeachers` / `searchSuggestions` / `applySearch`；`lesson-teacher-search.ts` → `lessonTeacherSubjectSearchLabels`；规则 `.cursor/rules/admin-teacher-cross-search.mdc` |
 
