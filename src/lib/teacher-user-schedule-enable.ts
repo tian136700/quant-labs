@@ -22,6 +22,19 @@ export const TEACHER_SCHEDULE_AUTO_ENABLE_EXCLUDED_USERNAMES = [
 export const TEACHER_LESSON_LEARNING_AUTO_ENABLE_WITHIN_MS =
   18 * 60 * 60 * 1000;
 
+/**
+ * 开课前此时长内：定时任务必须把已禁用的关联登录账号改为启用
+ * （补上抽完延时禁用后、下午还有课等场景；与 05:00 / 学习中 18h 互补）。
+ */
+export const TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * 抽完延时禁用时：开课前后此时长内跳过禁用，避免刚解禁又被禁、或课中被踢。
+ * 与 `TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS` 同窗口。
+ */
+export const TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
+  TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
+
 export function isExcludedFromTeacherScheduleAutoEnable(
   user: Pick<EtrUser, "role" | "username">
 ): boolean {
@@ -62,6 +75,14 @@ export type TeacherUserLearningLessonEnableResult = {
   skipped: TeacherUserEnableSkip[];
 };
 
+export type TeacherUserPreClassEnableResult = {
+  dry_run: boolean;
+  within_ms: number;
+  teachers_with_upcoming_class: number[];
+  enabled: TeacherUserEnableHit[];
+  skipped: TeacherUserEnableSkip[];
+};
+
 async function listTeacherIdsWithClassOnDate(
   db: D1Database,
   dateStr: string
@@ -92,6 +113,105 @@ async function listTeacherIdsWithClassOnDate(
     if (Number.isInteger(teacherId) && teacherId > 0) ids.add(teacherId);
   }
   return [...ids].sort((a, b) => a - b);
+}
+
+type TeacherClassAtRow = {
+  teacher_id: number;
+  class_at: string;
+};
+
+/** 北京日 today / tomorrow 的日语排课 + 手动日程（含 teacher_id + class_at） */
+async function listTeacherClassAtsNearBeijingDates(
+  db: D1Database,
+  dateStrs: string[]
+): Promise<TeacherClassAtRow[]> {
+  const prefixes = [...new Set(dateStrs.map((d) => d.trim()).filter(Boolean))];
+  if (!prefixes.length) return [];
+
+  const likeClauses = prefixes.map((_, i) => `cs.class_at LIKE ?${i + 1}`).join(" OR ");
+  const likeClausesMs = prefixes
+    .map((_, i) => `ms.class_at LIKE ?${i + 1}`)
+    .join(" OR ");
+  const binds = prefixes.map((d) => `${d}%`);
+
+  const result = await db
+    .prepare(
+      `SELECT teacher_id, class_at FROM (
+         SELECT tl.teacher_id AS teacher_id, cs.class_at AS class_at
+         FROM jp_lesson_teacher_link tl
+         INNER JOIN jp_lesson_class_schedule cs ON cs.lesson_id = tl.lesson_id
+         WHERE ${likeClauses}
+         UNION ALL
+         SELECT jt.id AS teacher_id, ms.class_at AS class_at
+         FROM jp_lesson_teacher jt
+         INNER JOIN jp_lesson_manual_schedule ms
+           ON lower(trim(ms.teacher)) = lower(trim(jt.name))
+         WHERE ${likeClausesMs}
+       )`
+    )
+    .bind(...binds)
+    .all<TeacherClassAtRow>();
+
+  return result.results ?? [];
+}
+
+function beijingDatePlusDays(now: Date, days: number): string {
+  return beijingDateString(new Date(now.getTime() + days * 86_400_000));
+}
+
+/**
+ * 老师在 [now - afterMs, now + beforeMs] 内有课（北京墙钟 class_at）。
+ * beforeMs：开课前；afterMs：开课后（课中/刚下课时仍算「临近」）。
+ */
+export async function listTeacherIdsWithClassNearNow(
+  db: D1Database,
+  options: { beforeMs: number; afterMs?: number; now?: Date } = {
+    beforeMs: TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  }
+): Promise<number[]> {
+  const now = options.now ?? new Date();
+  const beforeMs = Math.max(0, options.beforeMs);
+  const afterMs = Math.max(0, options.afterMs ?? 0);
+  const nowMs = now.getTime();
+  const fromMs = nowMs - afterMs;
+  const toMs = nowMs + beforeMs;
+
+  // 窗口最多跨昨天→明天，按三日前缀扫再在 JS 里精确过滤（class_at 格式偶有无秒）
+  const dateStrs = [
+    beijingDatePlusDays(now, -1),
+    beijingDateString(now),
+    beijingDatePlusDays(now, 1),
+  ];
+  const rows = await listTeacherClassAtsNearBeijingDates(db, dateStrs);
+  const ids = new Set<number>();
+  for (const row of rows) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
+    if (!start) continue;
+    const startMs = start.getTime();
+    if (startMs >= fromMs && startMs <= toMs) ids.add(teacherId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+/** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过） */
+export async function listLinkedUserIdsWithClassNearNow(
+  db: D1Database,
+  options: { beforeMs: number; afterMs?: number; now?: Date } = {
+    beforeMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    afterMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  }
+): Promise<Set<number>> {
+  const teacherIds = await listTeacherIdsWithClassNearNow(db, options);
+  if (!teacherIds.length) return new Set();
+  const linked = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
+  const userIds = new Set<number>();
+  for (const row of linked) {
+    const userId = Number(row.user_id);
+    if (Number.isInteger(userId) && userId > 0) userIds.add(userId);
+  }
+  return userIds;
 }
 
 type LinkedTeacherUser = {
@@ -290,6 +410,36 @@ export async function runTeacherUserScheduleEnable(
     date,
     dry_run: dryRun,
     teachers_with_class: teacherIds,
+    enabled,
+    skipped,
+  };
+}
+
+/**
+ * 开课前 2 小时内定时：关联账号若仍禁用则启用。
+ * Mac launchd 每 10 分钟跑一次；与 05:00 / 学习中 18h 互补。
+ */
+export async function runTeacherUserPreClassEnable(
+  db: D1Database,
+  options: { dryRun?: boolean; now?: Date; withinMs?: number } = {}
+): Promise<TeacherUserPreClassEnableResult> {
+  const dryRun = Boolean(options.dryRun);
+  const withinMs =
+    options.withinMs ?? TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
+  const now = options.now ?? new Date();
+  const teacherIds = await listTeacherIdsWithClassNearNow(db, {
+    beforeMs: withinMs,
+    afterMs: 0,
+    now,
+  });
+  const { enabled, skipped } = await enableLinkedTeacherUsers(db, teacherIds, {
+    dryRun,
+  });
+
+  return {
+    dry_run: dryRun,
+    within_ms: withinMs,
+    teachers_with_upcoming_class: teacherIds,
     enabled,
     skipped,
   };

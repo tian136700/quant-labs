@@ -7,7 +7,11 @@ import {
   shouldTrackJpVocabTeacherQuizDay,
 } from "@/lib/jp-vocab-teacher-quiz-day";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { isExcludedFromTeacherScheduleAutoEnable } from "@/lib/teacher-user-schedule-enable";
+import {
+  isExcludedFromTeacherScheduleAutoEnable,
+  listLinkedUserIdsWithClassNearNow,
+  TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+} from "@/lib/teacher-user-schedule-enable";
 
 export type TeacherUserQuizCompleteDisableResult = {
   date: string;
@@ -42,6 +46,11 @@ export async function runTeacherUserQuizCompleteDisable(
   const now = options.now ?? new Date();
   const date = beijingDateString(now);
   const dueRows = await listJpVocabTeacherQuizDaysDueForDisable(db, now);
+  const nearClassUserIds = await listLinkedUserIdsWithClassNearNow(db, {
+    beforeMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    afterMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    now,
+  });
 
   const disabled: TeacherUserQuizCompleteDisableResult["disabled"] = [];
   const skipped: TeacherUserQuizCompleteDisableResult["skipped"] = [];
@@ -102,6 +111,17 @@ export async function runTeacherUserQuizCompleteDisable(
       if (!dryRun) {
         await markJpVocabTeacherQuizDayDisabled(db, userId, quizDate, now.toISOString());
       }
+      continue;
+    }
+
+    // 开课前/课中临近窗口：不禁，留给下次再判（勿 mark disabled，否则再也进不了 due）
+    if (nearClassUserIds.has(userId)) {
+      skipped.push({
+        user_id: userId,
+        username: user.username,
+        quiz_date: quizDate,
+        reason: "near_upcoming_or_ongoing_class",
+      });
       continue;
     }
 
