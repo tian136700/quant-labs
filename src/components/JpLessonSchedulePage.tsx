@@ -57,7 +57,9 @@ import {
   formatLessonScheduleDaySummary,
   formatLessonScheduleDurationLabel,
   getJpLessonScheduleEventStatus,
+  normalizeClassAtForCompare,
   normalizeClassDurationMinutes,
+  parseLessonContent,
   type JpLessonScheduleEventStatus,
 } from "@/lib/jp-lesson-shared";
 import {
@@ -326,17 +328,34 @@ function JpLessonScheduleManualTeacherLinks({
 }
 
 /**
- * 课节身份键：只用稳定 ID，禁止用老师显示名。
- * 老师名在 teachers 映射未加载时多为「未指定」，按时段+显示名去重会把并排课误合成一条。
+ * 日程去重键：同科目、同老师、同一开始时间 → 合并为一条（多教案同堂）。
+ * 用 teacher_ids / teacher_other，禁止用老师显示名（未加载时多为「未指定」会误合并）。
  */
-function buildLessonEventDedupKey(event: DayScheduleEvent): string {
+function buildLessonEventDedupKey(
+  event: DayScheduleEvent,
+  lesson: { teacher_ids?: number[]; teacher_other?: string | null } | null
+): string {
   if (event.source === "manual" && event.manualId != null) {
     return `manual|${event.manualId}`;
   }
   if (event.lessonId != null) {
-    return `${event.subject}|lesson|${event.lessonId}|${event.scheduleId ?? 0}|${event.classAt}`;
+    const teacherIds = [...(lesson?.teacher_ids ?? [])].sort((a, b) => a - b).join(",");
+    const teacherOther = (lesson?.teacher_other ?? "").trim();
+    return `${event.subject}|slot|${teacherIds}|${teacherOther}|${normalizeClassAtForCompare(event.classAt)}`;
   }
   return event.key;
+}
+
+/** 合并同堂多教案的词条展示（去重保序） */
+function mergeLessonDisplayContents(a: string, b: string): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of [...parseLessonContent(a), ...parseLessonContent(b)]) {
+    if (seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out.length ? out.join(", ") : a.trim() || b.trim();
 }
 
 function lessonPayloadNeedsTeacherRefresh(
@@ -664,11 +683,24 @@ export function JpLessonSchedulePage() {
     );
     const lessonEvents = [...jpLessonEvents, ...enLessonEvents];
     const dedupedLessonEvents: DayScheduleEvent[] = [];
-    const lessonEventKeys = new Set<string>();
+    const lessonEventByKey = new Map<string, DayScheduleEvent>();
     for (const event of lessonEvents) {
-      const dedupKey = buildLessonEventDedupKey(event);
-      if (lessonEventKeys.has(dedupKey)) continue;
-      lessonEventKeys.add(dedupKey);
+      const lesson =
+        event.subject === "jp" && event.lessonId != null
+          ? (lessonById.get(event.lessonId) ?? null)
+          : event.subject === "en" && event.lessonId != null
+            ? (enLessonById.get(event.lessonId) ?? null)
+            : null;
+      const dedupKey = buildLessonEventDedupKey(event, lesson);
+      const existing = lessonEventByKey.get(dedupKey);
+      if (existing) {
+        existing.displayContent = mergeLessonDisplayContents(
+          existing.displayContent,
+          event.displayContent
+        );
+        continue;
+      }
+      lessonEventByKey.set(dedupKey, event);
       dedupedLessonEvents.push(event);
     }
     const manualEvents = flattenManualSchedulePageEvents(manualSchedules);
