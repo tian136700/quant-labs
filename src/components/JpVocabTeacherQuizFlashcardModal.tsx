@@ -748,6 +748,9 @@ export function JpVocabTeacherQuizFlashcardModal({
           <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
             <div className="jp-vocab-teacher-quiz__examples-head">
               <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
+              {exampleSentences.length > 0 ? (
+                <JpVocabExampleSentenceCopyButton items={exampleSentences} />
+              ) : null}
             </div>
             {exampleSentences.length > 0 ? (
               <div className="jp-vocab-teacher-quiz__examples-body">
@@ -773,10 +776,6 @@ export function JpVocabTeacherQuizFlashcardModal({
                           </span>
                         ))}
                       </span>
-                      <JpVocabExampleSentenceCopyButton
-                        item={item}
-                        index={index + 1}
-                      />
                     </li>
                   ))}
                 </ol>

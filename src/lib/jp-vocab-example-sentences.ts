@@ -195,6 +195,22 @@ export function jpVocabExampleSentenceItemCopyText(
   return serializeJpVocabExampleSentenceItems([item]).trim();
 }
 
+/** 全部例句一键复制：带序号，每条含日语（括号假名）+ 译文 */
+export function jpVocabExampleSentencesCopyText(
+  items: readonly JpVocabExampleSentenceItem[]
+): string {
+  return items
+    .map((item, index) => {
+      const body = jpVocabExampleSentenceItemCopyText(item);
+      if (!body) return "";
+      const [primary, ...rest] = body.split("\n");
+      const head = `${index + 1}. ${primary}`;
+      return rest.length ? `${head}\n${rest.join("\n")}` : head;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 /** 人手填写 / 老师在编辑弹窗改正例句时的来源标记 */
 export const JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL = "手动";
 

@@ -779,7 +779,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .jp-vocab-teacher-quiz__examples-item {
           display: grid;
-          grid-template-columns: auto 1fr auto;
+          grid-template-columns: auto 1fr;
           gap: 0.35rem 0.45rem;
           align-items: baseline;
         }

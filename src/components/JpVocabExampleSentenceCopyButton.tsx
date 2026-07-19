@@ -4,39 +4,33 @@ import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
-  jpVocabExampleSentenceItemCopyText,
+  jpVocabExampleSentencesCopyText,
   type JpVocabExampleSentenceItem,
 } from "@/lib/jp-vocab-example-sentences";
 
 type Props = {
-  item: JpVocabExampleSentenceItem;
-  /** 无障碍：第几条例句（1-based） */
-  index?: number;
+  items: readonly JpVocabExampleSentenceItem[];
 };
 
-export function JpVocabExampleSentenceCopyButton({ item, index }: Props) {
+/** 例句区标题旁：一键复制全部例句（含译文） */
+export function JpVocabExampleSentenceCopyButton({ items }: Props) {
   const [copyToast, setCopyToast] = useState<string | null>(null);
-  const text = jpVocabExampleSentenceItemCopyText(item);
+  const text = jpVocabExampleSentencesCopyText(items);
   const onCopied = useCallback((message: string) => setCopyToast(message), []);
 
   if (!text) return null;
-
-  const label =
-    typeof index === "number" && index > 0
-      ? `复制第 ${index} 条例句（含译文）`
-      : "复制本条例句（含译文）";
 
   return (
     <>
       <button
         type="button"
-        className="jp-vocab-flashcard-copy-btn jp-vocab-example-sentence-copy-btn"
-        title={label}
-        aria-label={label}
+        className="jp-vocab-flashcard-copy-btn jp-vocab-example-sentences-copy-all-btn"
+        title="复制全部例句（含译文）"
+        aria-label="复制全部例句（含译文）"
         onClick={(e) => {
           e.stopPropagation();
           void copyTextToClipboard(text).then((ok) =>
-            onCopied(ok ? "已复制例句" : "复制失败")
+            onCopied(ok ? "已复制全部例句" : "复制失败")
           );
         }}
       >
@@ -58,7 +52,7 @@ export function JpVocabExampleSentenceCopyButton({ item, index }: Props) {
             strokeWidth="1.5"
           />
         </svg>
-        <span>复制</span>
+        <span>复制全部</span>
       </button>
 
       <CopyToast
@@ -86,10 +80,6 @@ export function JpVocabExampleSentenceCopyButton({ item, index }: Props) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
-        }
-        .jp-vocab-example-sentence-copy-btn {
-          align-self: start;
-          margin-top: 0.15rem;
         }
         @media (max-width: 768px) {
           .jp-vocab-flashcard-copy-btn {
