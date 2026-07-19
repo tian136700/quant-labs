@@ -14,6 +14,7 @@ import {
   type EtrUserRole,
 } from "@/lib/etr-auth";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 
 export type AdminUserEditRow = {
   id: number;
@@ -31,6 +32,8 @@ export type AdminUserEditRow = {
 export type AdminJpLessonTeacherOption = {
   id: number;
   name: string;
+  hourly_rate?: number | null;
+  lesson_minutes?: number | null;
   linked_user?: { id: number; username: string } | null;
 };
 
@@ -354,6 +357,7 @@ export function AdminUserEditModal({
                 {locale === "zh" ? "— 不关联 —" : "— None —"}
               </option>
               {teachers.map((teacher) => {
+                const baseLabel = formatTeacherLessonDisplayLabel(teacher, locale);
                 const linkedOther =
                   teacher.linked_user &&
                   teacher.linked_user.id !== user.id
@@ -363,9 +367,9 @@ export function AdminUserEditModal({
                   <option key={teacher.id} value={teacher.id}>
                     {linkedOther
                       ? locale === "zh"
-                        ? `${teacher.name}（当前关联 ${linkedOther}，保存后改绑到本账号）`
-                        : `${teacher.name} (now ${linkedOther}; will rebind)`
-                      : teacher.name}
+                        ? `${baseLabel}（当前关联 ${linkedOther}，保存后改绑到本账号）`
+                        : `${baseLabel} (now ${linkedOther}; will rebind)`
+                      : baseLabel}
                   </option>
                 );
               })}

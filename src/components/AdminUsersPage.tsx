@@ -27,6 +27,7 @@ import {
   type AdminUserEditRow,
 } from "@/components/AdminUserEditModal";
 import { AdminUserBindTeacherModal } from "@/components/AdminUserBindTeacherModal";
+import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 import {
   formatAdminUserCredentials,
   readAdminUserPassword,
@@ -539,23 +540,43 @@ function AdminUsersPageContent() {
       });
       const data = (await res.json()) as {
         ok?: boolean;
-        teachers?: AdminJpLessonTeacherOption[];
+        teachers?: Array<{
+          id: number;
+          name?: string;
+          hourly_rate?: number | null;
+          lesson_minutes?: number | null;
+          linked_user?: { id: number; username: string } | null;
+        }>;
         error?: string;
       };
       if (!data.ok || !Array.isArray(data.teachers)) {
         throw new Error(data.error || "load teachers failed");
       }
       setTeachers(
-        data.teachers.map((t) => ({
-          id: Number(t.id),
-          name: String(t.name ?? "").trim(),
-          linked_user: t.linked_user
-            ? {
-                id: Number(t.linked_user.id),
-                username: String(t.linked_user.username ?? "").trim(),
-              }
-            : null,
-        }))
+        data.teachers.map((t) => {
+          const hourlyRaw = t.hourly_rate;
+          const minutesRaw = t.lesson_minutes;
+          const hourly_rate =
+            hourlyRaw == null || !Number.isFinite(Number(hourlyRaw))
+              ? null
+              : Number(hourlyRaw);
+          const lesson_minutes =
+            minutesRaw == null || !Number.isFinite(Number(minutesRaw))
+              ? null
+              : Number(minutesRaw);
+          return {
+            id: Number(t.id),
+            name: String(t.name ?? "").trim(),
+            hourly_rate,
+            lesson_minutes,
+            linked_user: t.linked_user
+              ? {
+                  id: Number(t.linked_user.id),
+                  username: String(t.linked_user.username ?? "").trim(),
+                }
+              : null,
+          };
+        })
       );
     } catch {
       setTeachers([]);
@@ -1661,14 +1682,18 @@ function AdminUsersPageContent() {
                         {locale === "zh" ? "— 不关联 —" : "— None —"}
                       </option>
                       {teachers.map((teacher) => {
+                        const baseLabel = formatTeacherLessonDisplayLabel(
+                          teacher,
+                          locale
+                        );
                         const linked = teacher.linked_user?.username;
                         return (
                           <option key={teacher.id} value={teacher.id}>
                             {linked
                               ? locale === "zh"
-                                ? `${teacher.name}（当前关联 ${linked}，保存后改绑）`
-                                : `${teacher.name} (now ${linked}; will rebind)`
-                              : teacher.name}
+                                ? `${baseLabel}（当前关联 ${linked}，保存后改绑）`
+                                : `${baseLabel} (now ${linked}; will rebind)`
+                              : baseLabel}
                           </option>
                         );
                       })}

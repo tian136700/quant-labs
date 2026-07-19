@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { AdminJpLessonTeacherOption } from "@/components/AdminUserEditModal";
+import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 
 export type AdminUserBindTeacherTarget = {
   id: number;
@@ -218,21 +219,22 @@ export function AdminUserBindTeacherModal({
                     : "Select a teacher"}
               </option>
               {teachers.map((teacher) => {
+                const baseLabel = formatTeacherLessonDisplayLabel(teacher, locale);
                 const linked = teacher.linked_user?.username;
                 const linkedToSelf =
                   linked != null &&
                   linked.trim().toLowerCase() === user.username.trim().toLowerCase();
-                let label = teacher.name;
+                let label = baseLabel;
                 if (linkedToSelf) {
                   label =
                     locale === "zh"
-                      ? `${teacher.name}（当前）`
-                      : `${teacher.name} (current)`;
+                      ? `${baseLabel}（当前）`
+                      : `${baseLabel} (current)`;
                 } else if (linked) {
                   label =
                     locale === "zh"
-                      ? `${teacher.name}（当前关联 ${linked}，保存后改绑）`
-                      : `${teacher.name} (now ${linked}; will rebind)`;
+                      ? `${baseLabel}（当前关联 ${linked}，保存后改绑）`
+                      : `${baseLabel} (now ${linked}; will rebind)`;
                 }
                 return (
                   <option key={teacher.id} value={teacher.id}>
