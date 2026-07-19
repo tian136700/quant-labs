@@ -176,7 +176,7 @@ def main() -> int:
     parser.add_argument(
         "--limit",
         type=int,
-        default=int(cfg.get("EN_VOCAB_FILL_EXAMPLE_LIMIT") or 10),
+        default=int(cfg.get("EN_VOCAB_FILL_EXAMPLE_LIMIT") or 1),
     )
     parser.add_argument("--kind", choices=["word", "grammar"])
     parser.add_argument("--retries", type=int, default=2)
