@@ -1,6 +1,10 @@
 "use client";
 
-import { formatJpVocabExampleSentencesForDisplay } from "@/lib/jp-vocab-example-sentences";
+import {
+  formatJpVocabExampleGlossLine,
+  parseJpVocabExampleSentenceItems,
+} from "@/lib/jp-vocab-example-sentences";
+import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 
 type Props = {
@@ -15,30 +19,27 @@ export function JpVocabExampleSentencesCell({
   source,
   emptyPlaceholder = "—",
 }: Props) {
-  const blocks = formatJpVocabExampleSentencesForDisplay(text);
-  if (!blocks.length) {
+  const items = parseJpVocabExampleSentenceItems(text);
+  if (!items.length) {
     return <span className="jp-vocab-example-sentences-empty">{emptyPlaceholder}</span>;
   }
 
   return (
     <div className="jp-vocab-example-sentences jp-vocab-example-sentences--with-source">
-      {blocks.map((block) => (
-        <div key={block.index} className="jp-vocab-example-sentences-block">
-          {block.lines.map((line, lineIndex) => {
-            const showIndex = lineIndex === 0 && line.kind === "primary";
-            return (
-              <div
-                key={lineIndex}
-                className={
-                  line.kind === "gloss"
-                    ? "jp-vocab-example-sentences-line jp-vocab-example-sentences-line--gloss"
-                    : "jp-vocab-example-sentences-line"
-                }
-              >
-                {showIndex ? `${block.index}. ${line.text}` : line.text}
-              </div>
-            );
-          })}
+      {items.map((item, index) => (
+        <div key={index} className="jp-vocab-example-sentences-block">
+          <div className="jp-vocab-example-sentences-line">
+            <span className="jp-vocab-example-sentences-index">{index + 1}. </span>
+            <JpVocabFuriganaText text={item.text} />
+          </div>
+          {item.glossLines.map((gloss, glossIndex) => (
+            <div
+              key={`${index}-g-${glossIndex}`}
+              className="jp-vocab-example-sentences-line jp-vocab-example-sentences-line--gloss"
+            >
+              {formatJpVocabExampleGlossLine(gloss)}
+            </div>
+          ))}
         </div>
       ))}
       <JpVocabSourceLabel source={source} />

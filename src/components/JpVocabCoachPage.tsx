@@ -581,7 +581,7 @@ export function JpVocabCoachPage() {
         .jp-vocab-coach-example-col {
           max-width: 14rem;
           font-size: 0.9rem;
-          line-height: 1.45;
+          line-height: 1.85;
         }
         .jp-vocab-coach-example-col :global(.jp-vocab-example-sentences--with-source) {
           min-width: 0;

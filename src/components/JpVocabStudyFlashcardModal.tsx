@@ -22,6 +22,7 @@ import {
   formatJpVocabExampleGlossLine,
   parseJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
+import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -269,7 +270,9 @@ export function JpVocabStudyFlashcardModal({
                     {index + 1}.
                   </span>
                   <span className="jp-vocab-flashcard__examples-text">
-                    <span className="jp-vocab-flashcard__examples-primary">{ex.text}</span>
+                    <span className="jp-vocab-flashcard__examples-primary">
+                      <JpVocabFuriganaText text={ex.text} />
+                    </span>
                     {ex.glossLines.map((gloss, glossIndex) => (
                       <span
                         key={`${index}-gloss-${glossIndex}`}
@@ -603,7 +606,7 @@ export function JpVocabStudyFlashcardModal({
           gap: 0.2rem;
           font-size: clamp(1.05rem, 3.8vw, 1.25rem);
           font-weight: 600;
-          line-height: 1.55;
+          line-height: 1.95;
           letter-spacing: 0.02em;
           color: var(--text);
           word-break: break-word;

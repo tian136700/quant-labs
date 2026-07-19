@@ -36,6 +36,7 @@ import {
   formatJpVocabExampleGlossLine,
   parseJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
+import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -760,7 +761,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                       </span>
                       <span className="jp-vocab-teacher-quiz__examples-text">
                         <span className="jp-vocab-teacher-quiz__examples-primary">
-                          {item.text}
+                          <JpVocabFuriganaText text={item.text} />
                         </span>
                         {item.glossLines.map((gloss, glossIndex) => (
                           <span

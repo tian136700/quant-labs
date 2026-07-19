@@ -795,10 +795,13 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           gap: 0.2rem;
           font-size: clamp(1.05rem, 3.8vw, 1.25rem);
           font-weight: 600;
-          line-height: 1.55;
+          line-height: 1.95;
           letter-spacing: 0.02em;
           color: var(--text);
           word-break: break-word;
+        }
+        .jp-vocab-teacher-quiz__examples-primary {
+          line-height: 1.95;
         }
         .jp-vocab-teacher-quiz__examples-gloss {
           font-size: 0.9em;

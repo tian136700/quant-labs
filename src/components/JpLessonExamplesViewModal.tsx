@@ -10,6 +10,7 @@ import {
   formatJpVocabExampleGlossLine,
   parseJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
+import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 
 export type JpLessonExamplesViewTarget = {
@@ -112,7 +113,9 @@ export function JpLessonExamplesViewModal({ open, target, onClose }: Props) {
                           : "";
                         return (
                           <li key={`${section.label}-${idx}`} className="jp-lesson-examples-view-item">
-                            <p className="jp-lesson-examples-view-jp">{item.text}</p>
+                            <p className="jp-lesson-examples-view-jp">
+                              <JpVocabFuriganaText text={item.text} />
+                            </p>
                             {gloss ? (
                               <p className="jp-lesson-examples-view-gloss">{gloss}</p>
                             ) : null}
@@ -239,7 +242,7 @@ export function JpLessonExamplesViewModal({ open, target, onClose }: Props) {
         .jp-lesson-examples-view-jp {
           margin: 0;
           font-size: 0.9375rem;
-          line-height: 1.55;
+          line-height: 1.95;
           color: var(--text);
           word-break: break-word;
         }

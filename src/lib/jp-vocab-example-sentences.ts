@@ -10,6 +10,54 @@ const KANA_RE = /[\u3040-\u309F\u30A0-\u30FF]/g;
 const HAN_RE = /[\u4E00-\u9FFF]/g;
 const LATIN_RE = /[A-Za-z\u00C0-\u024F]/g;
 
+/**
+ * 存库假名标注：汉字后半角括号，如 電車(でんしゃ)。
+ * 展示层转成「汉字正下方小字」，勿把括号原文直接塞进 UI。
+ */
+export const JP_VOCAB_PAREN_FURIGANA_RE =
+  /([\u4E00-\u9FFF々]+)\(([ぁ-んァ-ンヴヵヶー]+)\)/g;
+
+export type JpVocabFuriganaSegment =
+  | { type: "text"; value: string }
+  | { type: "ruby"; base: string; reading: string };
+
+/** 把「漢字(かな)」拆成展示分段；无标注则整段纯文本 */
+export function parseJpVocabParenFurigana(
+  text: string | null | undefined
+): JpVocabFuriganaSegment[] {
+  const raw = text ?? "";
+  if (!raw) return [];
+  const re = new RegExp(
+    JP_VOCAB_PAREN_FURIGANA_RE.source,
+    JP_VOCAB_PAREN_FURIGANA_RE.flags
+  );
+  const out: JpVocabFuriganaSegment[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(raw)) !== null) {
+    if (match.index > last) {
+      out.push({ type: "text", value: raw.slice(last, match.index) });
+    }
+    out.push({ type: "ruby", base: match[1], reading: match[2] });
+    last = match.index + match[0].length;
+  }
+  if (last < raw.length) {
+    out.push({ type: "text", value: raw.slice(last) });
+  }
+  return out.length ? out : [{ type: "text", value: raw }];
+}
+
+/** 去掉括号假名，只留汉字/假名正文（比较、无障碍朗读用） */
+export function stripJpVocabParenFurigana(text: string): string {
+  return text.replace(
+    new RegExp(
+      JP_VOCAB_PAREN_FURIGANA_RE.source,
+      JP_VOCAB_PAREN_FURIGANA_RE.flags
+    ),
+    "$1"
+  );
+}
+
 /** 拆行并去掉行首已有序号 */
 export function splitJpVocabExampleSentenceLines(
   raw: string | null | undefined
