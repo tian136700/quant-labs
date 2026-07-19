@@ -27,6 +27,8 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   rules: [
     "存库不要写行首序号（展示层会加 1、2、3…）",
     "每条：日语一行，下一行必须以「译文：」开头的中文",
+    "中文译文必须自然通顺（口语）；禁止逐词硬译（如「について話す」→「关于…说话」；应作「谈谈/聊聊…」）",
+    "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "汉字后立刻半角括号假名：漢字(かな)；括号内只能是假名、不要空格、不要整句读音尾注如 です。(たなかさん…)",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
     "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
@@ -42,10 +44,14 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "missing_kanji_furigana",
     "bad_furigana_paren",
     "missing_chinese_gloss",
+    "literal_chinese_gloss",
     "grammar_not_used",
     "word_not_used",
   ],
 } as const;
+
+/** 已知死译壳：关于X说话（「について話す」应为谈谈/聊聊） */
+const LITERAL_NI_TSUITE_HANASU_GLOSS_RE = /关于.+说话/;
 
 export type JpVocabExampleSentencesAiInput = {
   word: string;
@@ -99,7 +105,11 @@ export function buildJpVocabExampleSentencesAiPrompt(
 2. 每条必须使用该词条（语法条须自然出现该语法点）。な形容词「〜だ」用词干，不要硬塞「だ」。
 3. 汉字后立刻半角括号假名，例如：電車(でんしゃ)。禁止整句尾注如「です。(たなかさん げんき です。)」。
 4. 每条日语下一行写中文译义，必须以「译文：」开头。
-5. 只输出「日语 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。`;
+5. 中文必须是自然通顺的口语，禁止逐词硬译。
+   - 「～について話す」→「我来谈谈学校 / 聊聊这个话题」，禁止「关于学校说话」。
+   - 「～について知りたい」→「想了解一下…」，不要「关于…想知道」。
+   - 释义里的「关于……」只是语法义项提示，不要每句都机械套「关于…」。
+6. 只输出「日语 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。`;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -140,6 +150,10 @@ export function validateJpVocabExampleSentencesAiOutput(
     }
     if (item.glossLines.length === 0 || !isJpVocabExampleGlossLine(item.glossLines[0])) {
       return { ok: false, reason: "missing_chinese_gloss" };
+    }
+    const glossBody = item.glossLines[0].replace(/^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/, "");
+    if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
+      return { ok: false, reason: "literal_chinese_gloss" };
     }
   }
 
