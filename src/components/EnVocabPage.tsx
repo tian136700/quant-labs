@@ -2278,6 +2278,21 @@ export function EnVocabPage() {
         :global(.jp-vocab-table .jp-vocab-pos-col) {
           min-width: 4rem;
         }
+        /* 例句默认收起为按钮，列尽量窄；展开后由单元格内容撑开 */
+        :global(.jp-vocab-table .jp-vocab-example-col) {
+          width: 4.75rem;
+          min-width: 4.5rem;
+          max-width: 22rem;
+          text-align: center;
+          vertical-align: middle;
+          white-space: nowrap;
+        }
+        :global(.jp-vocab-table tbody .jp-vocab-example-col:has([data-expanded="true"])) {
+          width: auto;
+          white-space: normal;
+          text-align: left;
+          vertical-align: top;
+        }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
           min-width: 6.5rem;
           white-space: nowrap;
@@ -2446,11 +2461,19 @@ export function EnVocabPage() {
           :global(.jp-vocab-table .jp-vocab-pos-col) {
             order: 5;
           }
-          :global(.jp-vocab-table .jp-vocab-risk-col) {
+          :global(.jp-vocab-table .jp-vocab-example-col) {
             order: 6;
+            width: auto;
+            min-width: 0;
+            max-width: none;
+            white-space: normal;
+            text-align: left;
+          }
+          :global(.jp-vocab-table .jp-vocab-risk-col) {
+            order: 7;
           }
           :global(.jp-vocab-table .jp-vocab-level-col) {
-            order: 7;
+            order: 8;
             flex-direction: column;
             align-items: stretch;
             gap: 6px;
@@ -2528,12 +2551,12 @@ export function EnVocabPage() {
           }
           :global(.jp-vocab-table .jp-vocab-notes-col),
           :global(.jp-vocab-table .jp-vocab-action-col) {
-            order: 8;
+            order: 9;
             padding-top: 4px;
             border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
           }
           :global(.jp-vocab-table .jp-vocab-action-col) {
-            order: 9;
+            order: 10;
             border-top: none;
             padding-top: 0;
           }

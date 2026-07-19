@@ -108,6 +108,7 @@
 
 | 功能描述 | 改哪里 |
 |----------|--------|
+| **词表例句默认收起**（点「展开 (N)」再显示全文；「收起」还原；对齐日语管理员端不整列堆例句） | `EnVocabExampleSentencesCell.tsx`；列宽样式 `EnVocabPage.tsx` → `.jp-vocab-example-col` |
 | **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；**一律本机 Ollama `gemma4:26b`**，不调线上词典；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
 
 ---
