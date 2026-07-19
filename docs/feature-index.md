@@ -72,7 +72,7 @@
 | 用户描述或页面文案 | 优先打开 |
 |--------------------|----------|
 | 今日抽查进度、30/40、剩余 10 | `jp-vocab-daily-quiz-progress.ts`、`JpVocabDailyQuizProgressBar.tsx`（**管理员**看全天目标；**老师**看待抽查数，剩 10 就显示总分 10，完成后只显示「已完成」） |
-| 共 X 条、从未抽查、本轮未勾选 | `JpVocabPage.tsx`：管理员端显示「共 X 条 / 从未抽查 / 今日抽查 / 本轮未勾选」；**老师端不显示**「共 X 条 / 从未抽查」（`neverQuizzedCount` 仅 admin）；`unmarkedCount` 统计可见池未勾选 |
+| 共 X 条、从未抽查、本轮未勾选、今日抽查个/次 | `JpVocabPage.tsx` 工具栏：管理员端「共 X 条 / 从未抽查 / 今日抽查 / 本轮未勾选」；**老师端只显示「本轮未勾选」**（不要「今日抽查 X 个」，避免老师误以为今日目标/已抽数）；`unmarkedCount` 统计可见池未勾选 |
 | 不在今日可见池不可勾选；还剩 N 个但点完成抽查无反应；从未抽查词抽不到 | `isJpVocabWordInTeacherVisiblePool` / `listJpVocabTeacherQuizPoolWords`；`finishTeacherQuiz`；规则 `jp-vocab-teacher-quiz-pool.mdc` |
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`；`JpVocabPage.tsx` → `quizTarget` |
 | 调高目标后老师勾选词条消失 | 老师列表只显示未勾选，管理员仍见全库 |

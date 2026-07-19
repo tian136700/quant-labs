@@ -2507,9 +2507,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                   ) : null}
                 </>
               ) : null}
-              {words.length ? (
+              {isAdminMode && words.length ? (
                 <>
-                  {isAdminMode ? " · " : null}
+                  {" · "}
                   今日抽查{" "}
                   <span
                     className={
@@ -2532,13 +2532,13 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
               ) : null}
               {canOperate ? (
                 <>
-                  {words.length || isAdminMode ? " · " : null}
+                  {isAdminMode ? " · " : null}
                   本轮未勾选 {unmarkedCount}
                 </>
               ) : null}
               {refreshing ? (
                 <>
-                  {words.length || isAdminMode || canOperate ? " · " : null}
+                  {isAdminMode || canOperate ? " · " : null}
                   加载中…
                 </>
               ) : null}
