@@ -19,7 +19,10 @@ OLLAMA_TAGS_URL = os.environ.get(
 ).strip()
 # 用户偏好谷歌模型；howto 里 quality_model = gemma4:26b
 DEFAULT_OLLAMA_MODEL = "gemma4:26b"
+DEFAULT_FALLBACK_MODELS = "qwen2.5:14b,qwen2.5:7b"
 DEFAULT_SOURCE = "本地 gemma4:26b"
+# 单模型读超时（秒）；超时立刻切下一档，不把 10 分钟再重试一遍
+DEFAULT_OLLAMA_TIMEOUT_SEC = 600
 
 
 def load_env_file(name: str) -> dict[str, str]:
@@ -51,9 +54,51 @@ def resolve_ollama_model() -> str:
     ).strip() or DEFAULT_OLLAMA_MODEL
 
 
+def resolve_ollama_timeout_sec() -> int:
+    raw = (
+        os.environ.get("EN_VOCAB_FILL_OLLAMA_TIMEOUT_SEC", "").strip()
+        or load_env_file("en-vocab-fill.env").get("EN_VOCAB_FILL_OLLAMA_TIMEOUT_SEC", "")
+        or str(DEFAULT_OLLAMA_TIMEOUT_SEC)
+    )
+    try:
+        return max(30, int(raw))
+    except ValueError:
+        return DEFAULT_OLLAMA_TIMEOUT_SEC
+
+
+def resolve_ollama_fallback_models(primary: str = "") -> list[str]:
+    """主模型之后的兜底链：阿里 14b → 7b（可被 env 覆盖）。"""
+    primary = (primary or resolve_ollama_model()).strip()
+    raw = (
+        os.environ.get("EN_VOCAB_FILL_OLLAMA_FALLBACK_MODEL", "").strip()
+        or os.environ.get("EN_VOCAB_FILL_OLLAMA_FALLBACK_MODELS", "").strip()
+        or load_env_file("en-vocab-fill.env").get("EN_VOCAB_FILL_OLLAMA_FALLBACK_MODEL", "")
+        or DEFAULT_FALLBACK_MODELS
+    )
+    out: list[str] = []
+    seen = {primary}
+    for part in raw.split(","):
+        m = part.strip()
+        if not m or m in seen:
+            continue
+        seen.add(m)
+        out.append(m)
+    return out
+
+
+def resolve_ollama_model_chain(primary: str | None = None) -> list[str]:
+    primary = (primary or resolve_ollama_model()).strip() or DEFAULT_OLLAMA_MODEL
+    return [primary] + resolve_ollama_fallback_models(primary)
+
+
 def build_source_label(model: str | None = None) -> str:
     m = (model or resolve_ollama_model()).strip() or DEFAULT_OLLAMA_MODEL
     return f"本地 {m}"
+
+
+def is_ollama_timeout_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return "timeout" in text or "timed out" in text
 
 
 def build_ssl_context() -> ssl.SSLContext | None:
@@ -118,9 +163,7 @@ def call_ollama(
 ) -> str:
     model = (model or resolve_ollama_model()).strip()
     timeout = int(
-        timeout
-        if timeout is not None
-        else os.environ.get("EN_VOCAB_FILL_OLLAMA_TIMEOUT_SEC", "360")
+        timeout if timeout is not None else resolve_ollama_timeout_sec()
     )
     body = json.dumps(
         {

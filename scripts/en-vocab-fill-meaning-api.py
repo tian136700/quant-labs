@@ -20,9 +20,11 @@ from en_vocab_fill_common import (  # noqa: E402
     build_source_label,
     call_api,
     call_ollama,
+    is_ollama_timeout_error,
     load_env_file,
     probe_ollama,
     resolve_ollama_model,
+    resolve_ollama_model_chain,
     resolve_token,
 )
 
@@ -147,7 +149,8 @@ def generate_for_row(
     *,
     model: str,
     retries: int,
-) -> tuple[str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str]:
+    """返回 (meaning, pos, error, model_used)。"""
     need_meaning = bool(row.get("need_meaning", True))
     need_pos = bool(row.get("need_pos", True))
     prompt = str(row.get("prompt") or "").strip()
@@ -168,30 +171,49 @@ def generate_for_row(
             + "\n只输出字段正文行；不要解释。"
         )
 
+    base_prompt = prompt
+    chain = resolve_ollama_model_chain(model)
     last_err = "unknown"
-    for attempt in range(max(1, retries)):
-        try:
-            content = call_ollama(prompt, model=model)
-            meaning, pos = parse_meaning_pos(
-                content, need_meaning=need_meaning, need_pos=need_pos
+    last_model = chain[0]
+    for mi, use_model in enumerate(chain):
+        last_model = use_model
+        work_prompt = base_prompt
+        if mi > 0:
+            print(
+                f"[en-vocab-fill-meaning] fallback → {use_model} (prev={last_err})",
+                flush=True,
             )
-            if need_meaning and not meaning:
-                last_err = "invalid_meaning"
-            elif need_pos and not pos:
-                last_err = "invalid_pos"
-            else:
-                return meaning, pos, None
-            prompt = (
-                prompt
-                + f"\n\n上次不合格（{last_err}）。请严格按行输出：先中文释义（；分隔），"
-                "再单独一行词性（如 adj/n）。"
-            )
-        except Exception as err:
-            last_err = str(err)
-            if attempt + 1 >= retries:
-                return None, None, last_err
-            time.sleep(1.2)
-    return None, None, last_err
+        for attempt in range(max(1, retries)):
+            try:
+                content = call_ollama(work_prompt, model=use_model)
+                meaning, pos = parse_meaning_pos(
+                    content, need_meaning=need_meaning, need_pos=need_pos
+                )
+                if need_meaning and not meaning:
+                    last_err = "invalid_meaning"
+                elif need_pos and not pos:
+                    last_err = "invalid_pos"
+                else:
+                    return meaning, pos, None, use_model
+                work_prompt = (
+                    base_prompt
+                    + f"\n\n上次不合格（{last_err}）。请严格按行输出：先中文释义（；分隔），"
+                    "再单独一行词性（如 adj/n）。"
+                )
+            except Exception as err:
+                last_err = str(err)
+                if is_ollama_timeout_error(err) and mi + 1 < len(chain):
+                    break
+                if attempt + 1 >= retries:
+                    if mi + 1 < len(chain):
+                        break
+                    return None, None, last_err, last_model
+                time.sleep(1.2)
+        else:
+            if mi + 1 < len(chain):
+                continue
+            return None, None, last_err, last_model
+    return None, None, last_err, last_model
 
 
 def main() -> int:
@@ -255,20 +277,23 @@ def main() -> int:
             f"  [{index + 1}/{len(missing)}] id={word_id} word={word!r}",
             flush=True,
         )
-        meaning, pos, err = generate_for_row(
+        meaning, pos, err, used_model = generate_for_row(
             row, model=model, retries=max(1, args.retries)
         )
         if err or (not meaning and not pos):
             skipped.append({"id": word_id, "word": word, "reason": err or "empty"})
             print(f"    skip reason={err}", flush=True)
         else:
-            item: dict = {"word_id": word_id, "source": source}
+            item: dict = {"word_id": word_id, "source": build_source_label(used_model)}
             if meaning:
                 item["meaning"] = meaning
             if pos:
                 item["pos"] = pos
             updates.append(item)
-            print(f"    meaning={meaning!r} pos={pos!r}", flush=True)
+            print(
+                f"    meaning={meaning!r} pos={pos!r} model={used_model}",
+                flush=True,
+            )
         if args.delay_ms > 0 and index + 1 < len(missing):
             time.sleep(args.delay_ms / 1000.0)
 

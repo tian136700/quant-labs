@@ -21,9 +21,11 @@ from en_vocab_fill_common import (  # noqa: E402
     build_source_label,
     call_api,
     call_ollama,
+    is_ollama_timeout_error,
     load_env_file,
     probe_ollama,
     resolve_ollama_model,
+    resolve_ollama_model_chain,
     resolve_token,
 )
 
@@ -110,7 +112,8 @@ def validate_examples(
 
 def generate_for_row(
     row: dict, *, model: str, retries: int
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str]:
+    """返回 (text, error, model_used)。"""
     prompt = str(row.get("prompt") or "").strip()
     word = str(row.get("word") or "")
     kind = str(row.get("kind") or "word")
@@ -120,25 +123,44 @@ def generate_for_row(
             "请写英语例句，每条英文下一行「译文：」中文；至少 2 条。"
         )
 
+    base_prompt = prompt
+    chain = resolve_ollama_model_chain(model)
     last_err = "unknown"
-    for attempt in range(max(1, retries)):
-        try:
-            content = call_ollama(prompt, model=model)
-            text, reason = validate_examples(content, word=word, kind=kind)
-            if text:
-                return text, None
-            last_err = reason or "invalid"
-            prompt = (
-                prompt
-                + f"\n\n上次不合格（{last_err}）。请只输出英文/译文交替行，至少两句，"
-                "不要编号。"
+    last_model = chain[0]
+    for mi, use_model in enumerate(chain):
+        last_model = use_model
+        work_prompt = base_prompt
+        if mi > 0:
+            print(
+                f"[en-vocab-fill-examples] fallback → {use_model} (prev={last_err})",
+                flush=True,
             )
-        except Exception as err:
-            last_err = str(err)
-            if attempt + 1 >= retries:
-                return None, last_err
-            time.sleep(1.2)
-    return None, last_err
+        for attempt in range(max(1, retries)):
+            try:
+                content = call_ollama(work_prompt, model=use_model)
+                text, reason = validate_examples(content, word=word, kind=kind)
+                if text:
+                    return text, None, use_model
+                last_err = reason or "invalid"
+                work_prompt = (
+                    base_prompt
+                    + f"\n\n上次不合格（{last_err}）。请只输出英文/译文交替行，至少两句，"
+                    "不要编号。"
+                )
+            except Exception as err:
+                last_err = str(err)
+                if is_ollama_timeout_error(err) and mi + 1 < len(chain):
+                    break
+                if attempt + 1 >= retries:
+                    if mi + 1 < len(chain):
+                        break
+                    return None, last_err, last_model
+                time.sleep(1.2)
+        else:
+            if mi + 1 < len(chain):
+                continue
+            return None, last_err, last_model
+    return None, last_err, last_model
 
 
 def main() -> int:
@@ -209,7 +231,7 @@ def main() -> int:
             f"  [{index + 1}/{len(missing)}] id={word_id} word={word!r}",
             flush=True,
         )
-        text, err = generate_for_row(
+        text, err, used_model = generate_for_row(
             row, model=model, retries=max(1, args.retries)
         )
         if not text:
@@ -220,11 +242,11 @@ def main() -> int:
                 {
                     "word_id": word_id,
                     "example_sentences": text,
-                    "source": source,
+                    "source": build_source_label(used_model),
                 }
             )
             preview = text.splitlines()[0] if text else ""
-            print(f"    ok preview={preview!r}", flush=True)
+            print(f"    ok model={used_model} preview={preview!r}", flush=True)
         if args.delay_ms > 0 and index + 1 < len(missing):
             time.sleep(args.delay_ms / 1000.0)
 

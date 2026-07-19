@@ -20,9 +20,11 @@ from en_vocab_fill_common import (  # noqa: E402
     build_source_label,
     call_api,
     call_ollama,
+    is_ollama_timeout_error,
     load_env_file,
     probe_ollama,
     resolve_ollama_model,
+    resolve_ollama_model_chain,
     resolve_token,
 )
 
@@ -68,31 +70,51 @@ def analyze_word(word: str) -> tuple[str, str | None]:
     return w, None
 
 
-def llm_ipa(word: str, *, model: str, retries: int) -> tuple[str | None, str | None]:
+def llm_ipa(word: str, *, model: str, retries: int) -> tuple[str | None, str | None, str]:
+    """返回 (ipa, error, model_used)。"""
     prompt = (
         f"American English IPA for: {word}\n"
         "Reply with ONLY one transcription in slashes, e.g. /həˈloʊ/\n"
         "No explanation, no quotes."
     )
+    base_prompt = prompt
+    chain = resolve_ollama_model_chain(model)
     last_err = "unknown"
-    for attempt in range(max(1, retries)):
-        try:
-            raw = call_ollama(prompt, model=model)
-            first = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
-            ipa = normalize_ipa(first or raw)
-            if ipa:
-                return ipa, None
-            last_err = "invalid_ipa"
-            prompt = (
-                f"Previous output invalid. For the English word/phrase «{word}», "
-                "output ONLY IPA like /ˈwɝːd/. Nothing else."
+    last_model = chain[0]
+    for mi, use_model in enumerate(chain):
+        last_model = use_model
+        work_prompt = base_prompt
+        if mi > 0:
+            print(
+                f"[en-vocab-fill-reading] fallback → {use_model} (prev={last_err})",
+                flush=True,
             )
-        except Exception as err:
-            last_err = str(err)
-            if attempt + 1 >= retries:
-                return None, last_err
-            time.sleep(1.0)
-    return None, last_err
+        for attempt in range(max(1, retries)):
+            try:
+                raw = call_ollama(work_prompt, model=use_model)
+                first = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
+                ipa = normalize_ipa(first or raw)
+                if ipa:
+                    return ipa, None, use_model
+                last_err = "invalid_ipa"
+                work_prompt = (
+                    f"Previous output invalid. For the English word/phrase «{word}», "
+                    "output ONLY IPA like /ˈwɝːd/. Nothing else."
+                )
+            except Exception as err:
+                last_err = str(err)
+                if is_ollama_timeout_error(err) and mi + 1 < len(chain):
+                    break
+                if attempt + 1 >= retries:
+                    if mi + 1 < len(chain):
+                        break
+                    return None, last_err, last_model
+                time.sleep(1.0)
+        else:
+            if mi + 1 < len(chain):
+                continue
+            return None, last_err, last_model
+    return None, last_err, last_model
 
 
 def main() -> int:
@@ -174,10 +196,10 @@ def main() -> int:
                 f"  [{index + 1}/{len(missing)}] id={word_id} word={word!r} …",
                 flush=True,
             )
-            ipa, err = llm_ipa(
+            ipa, err, used_model = llm_ipa(
                 lookup, model=model, retries=max(1, args.retries)
             )
-            src = source
+            src = build_source_label(used_model)
             if not ipa:
                 skipped.append({"id": word_id, "word": word, "reason": err or "not_found"})
                 print(f"    miss reason={err}", flush=True)
