@@ -1,5 +1,8 @@
 import "server-only";
 
+import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
+import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
+
 const JISHO_URL = "https://jisho.org/api/v1/search/words?keyword=";
 const HTTP_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -12,7 +15,8 @@ export const JP_VOCAB_MANUAL_READINGS: Record<string, string> = {
   怒る: "おこる",
   守る: "まもる",
   悪い: "わるい",
-  無理だ: "むりだ",
+  無理: "むり",
+  無理だ: "むり",
   座る: "すわる",
   薬局: "やっきょく",
   暑い: "あつい",
@@ -26,7 +30,8 @@ export const JP_VOCAB_MANUAL_READINGS: Record<string, string> = {
   昼ごはん: "ひるごはん",
   手: "て",
   鍵屋: "かぎや",
-  綺麗だ: "きれいだ",
+  綺麗: "きれい",
+  綺麗だ: "きれい",
   寝る: "ねる",
   水道: "すいどう",
   約束: "やくそく",
@@ -37,7 +42,7 @@ export const JP_VOCAB_MANUAL_READINGS: Record<string, string> = {
   見せる: "みせる",
   生活: "せいかつ",
   好き: "すき",
-  好きだ: "すきだ",
+  好きだ: "すき",
   最後に: "さいごに",
   "少し/ちょっと": "すこし/ちょっと",
 };
@@ -96,9 +101,10 @@ function analyzeWord(word: string): {
 
   let suffix = "";
   const daMatch = DA_ADJ_SUFFIX.exec(lookup);
-  if (daMatch) {
+  if (daMatch?.[1]?.trim() && HAS_KANJI.test(daMatch[1])) {
+    // な形容词：查词干；存库/读音都不带尾「だ」（见 jp-vocab-na-adj.ts）
     lookup = daMatch[1].trim();
-    suffix = "だ";
+    suffix = "";
   }
 
   return { lookup, suffix, skipReason: null };
@@ -332,6 +338,7 @@ export async function inferJpVocabReading(
 export async function listJpVocabWordsMissingReading(
   db: D1Database
 ): Promise<JpVocabMissingReadingRow[]> {
+  await normalizeJpVocabNaAdjRowsInDb(db);
   const result = await db
     .prepare(
       `SELECT id, word, kind FROM jp_vocab_word
@@ -457,10 +464,14 @@ export async function applyJpVocabReadingUpdates(
       continue;
     }
 
-    const changed = await updateReadingIfEmpty(db, wordId, reading, dryRun);
+    // な形容词词干：读音不要尾「だ」（じゅうようだ → じゅうよう）
+    const lemma = normalizeJpVocabNaAdjStoredEntry(String(row.word), reading);
+    const nextReading = lemma.reading || reading;
+
+    const changed = await updateReadingIfEmpty(db, wordId, nextReading, dryRun);
     if (changed) {
       updated += 1;
-      applied.push({ id: wordId, word: String(row.word), reading });
+      applied.push({ id: wordId, word: String(row.word), reading: nextReading });
     } else {
       skipped.push({ id: wordId, word: String(row.word) });
     }

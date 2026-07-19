@@ -6,6 +6,7 @@ import {
   scanJpVocabWordsIncompleteExampleGloss,
   scanJpVocabWordsMissingExampleSentences,
 } from "@/lib/jp-vocab-fill-example-sentences";
+import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillExampleSentencesBody = {
@@ -19,7 +20,8 @@ type FillExampleSentencesBody = {
     | "apply"
     | "catalog"
     | "scan_incomplete_gloss"
-    | "normalize_gloss_label";
+    | "normalize_gloss_label"
+    | "normalize_na_adj";
   dry_run?: boolean;
   /** list_missing：最多返回几条（定时任务建议 10～30） */
   limit?: number;
@@ -33,6 +35,8 @@ type FillExampleSentencesBody = {
   scan_incomplete_gloss?: boolean;
   /** 仅为已有译义补「译文：」前缀 */
   normalize_gloss_label?: boolean;
+  /** な形容词「〜だ」剥成词干（词+读音）；list_missing 也会自动跑 */
+  normalize_na_adj?: boolean;
   /** 允许覆盖已有 example_sentences（补译义时必开） */
   allow_overwrite?: boolean;
   updates?: Array<{
@@ -100,6 +104,9 @@ export async function POST(request: Request) {
         validateFormat: true,
         defaultSource: batchSource || null,
       });
+    } else if (body.mode === "normalize_na_adj" || body.normalize_na_adj) {
+      mode = "normalize_na_adj";
+      result = await normalizeJpVocabNaAdjRowsInDb(env.DB, { dryRun });
     } else if (body.mode === "normalize_gloss_label" || body.normalize_gloss_label) {
       mode = "normalize_gloss_label";
       result = await normalizeJpVocabExampleSentencesFormatInDb(env.DB, { dryRun });

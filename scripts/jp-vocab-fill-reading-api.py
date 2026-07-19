@@ -32,7 +32,8 @@ MANUAL_READINGS: dict[str, str] = {
     "怒る": "おこる",
     "守る": "まもる",
     "悪い": "わるい",
-    "無理だ": "むりだ",
+    "無理": "むり",
+    "無理だ": "むり",
     "座る": "すわる",
     "薬局": "やっきょく",
     "暑い": "あつい",
@@ -46,7 +47,8 @@ MANUAL_READINGS: dict[str, str] = {
     "昼ごはん": "ひるごはん",
     "手": "て",
     "鍵屋": "かぎや",
-    "綺麗だ": "きれいだ",
+    "綺麗": "きれい",
+    "綺麗だ": "きれい",
     "寝る": "ねる",
     "水道": "すいどう",
     "約束": "やくそく",
@@ -57,7 +59,7 @@ MANUAL_READINGS: dict[str, str] = {
     "見せる": "みせる",
     "生活": "せいかつ",
     "好き": "すき",
-    "好きだ": "すきだ",
+    "好きだ": "すき",
     "最後に": "さいごに",
     "少し/ちょっと": "すこし/ちょっと",
 }
@@ -171,9 +173,10 @@ def analyze_word(word: str) -> tuple[str, str, str | None]:
 
     suffix = ""
     da_match = _DA_ADJ_SUFFIX.match(lookup)
-    if da_match:
+    if da_match and da_match.group(1).strip() and _HAS_KANJI.search(da_match.group(1)):
+        # な形容词：查词干；存库/读音都不带尾「だ」
         lookup = da_match.group(1).strip()
-        suffix = "だ"
+        suffix = ""
 
     return lookup, suffix, None
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
+import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
 import {
   buildJpVocabMeaningAiPrompt,
   JP_VOCAB_MEANING_UPLOAD_SPEC,
@@ -57,6 +58,8 @@ export async function listJpVocabWordsMissingMeaning(
   options: ListJpVocabMissingMeaningOptions = {}
 ): Promise<JpVocabMissingMeaningRow[]> {
   await ensureJpVocabWordSchema(db);
+  // 补全前置：な形容词「〜だ」先剥成词干（与例句 list_missing 一致）
+  await normalizeJpVocabNaAdjRowsInDb(db);
   const limit =
     typeof options.limit === "number" &&
     Number.isFinite(options.limit) &&

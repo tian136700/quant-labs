@@ -17,6 +17,7 @@ import {
   parseJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
+import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
 
 export type JpVocabMissingExampleSentenceRow = {
   id: number;
@@ -140,6 +141,8 @@ export async function listJpVocabWordsMissingExampleSentences(
   options: ListJpVocabMissingExampleSentencesOptions = {}
 ): Promise<JpVocabMissingExampleSentenceRow[]> {
   await ensureJpVocabWordSchema(db);
+  // 补全前置：な形容词「〜だ」先剥成词干，避免模型按「へただ」造句再被校验打回
+  await normalizeJpVocabNaAdjRowsInDb(db);
   const kind = options.kind;
   const limit =
     typeof options.limit === "number" &&
