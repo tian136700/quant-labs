@@ -1472,16 +1472,23 @@ export function EnVocabPage() {
                         data-label="音标 / 读音"
                       >
                         <div className="en-vocab-reading-cell">
-                          {w.kind === "word" ? (
-                            <EnVocabSpeakButton text={w.word} />
-                          ) : null}
-                          {readingTrim ? (
-                            <span className="en-vocab-reading-text">{readingTrim}</span>
-                          ) : w.kind === "word" ? (
-                            <span className="en-vocab-reading-text en-vocab-reading-text--pending">
-                              待补全
-                            </span>
-                          ) : null}
+                          <div className="en-vocab-reading-main">
+                            {w.kind === "word" ? (
+                              <EnVocabSpeakButton text={w.word} />
+                            ) : null}
+                            {readingTrim ? (
+                              <span
+                                className="en-vocab-reading-text"
+                                title={readingTrim}
+                              >
+                                {readingTrim}
+                              </span>
+                            ) : w.kind === "word" ? (
+                              <span className="en-vocab-reading-text en-vocab-reading-text--pending">
+                                待补全
+                              </span>
+                            ) : null}
+                          </div>
                           {w.reading_source?.trim() ? (
                             <JpVocabSourceLabel source={w.reading_source} />
                           ) : null}
