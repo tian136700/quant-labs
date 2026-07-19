@@ -11,11 +11,14 @@ const HAN_RE = /[\u4E00-\u9FFF]/g;
 const LATIN_RE = /[A-Za-z\u00C0-\u024F]/g;
 
 /**
- * 存库假名标注：汉字后半角括号，如 電車(でんしゃ)。
+ * 存库假名标注：汉字（可带词尾假名）后半角/全角括号，如 電車(でんしゃ)、静か(しずか)。
  * 展示层转成「汉字正下方小字」，勿把括号原文直接塞进 UI。
+ *
+ * 词尾假名必须认：な/い 形容词常写成「静か(しずか)」「安(やす)い」——
+ * 若只匹配纯汉字+(かな)，「静か(しずか)」会原样带括号上屏。
  */
 export const JP_VOCAB_PAREN_FURIGANA_RE =
-  /([\u4E00-\u9FFF々]+)\(([ぁ-んァ-ンヴヵヶー]+)\)/g;
+  /([\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*)[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]/g;
 
 export type JpVocabFuriganaSegment =
   | { type: "text"; value: string }
@@ -63,7 +66,7 @@ export function stripJpVocabParenFurigana(text: string): string {
  * 非法：整句尾注 `です。(たなかさん げんき です。)` —— 展示难看，校验应拒。
  */
 const VALID_KANJI_FURIGANA_CHUNK =
-  /[\u4E00-\u9FFF々]+\([ぁ-んァ-ンヴヵヶー]+\)/g;
+  /[\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*[（(][ぁ-んァ-ンヴヵヶー]+[）)]/g;
 
 /** 去掉非法整句尾注括号；保留合法 漢字(かな) */
 export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
