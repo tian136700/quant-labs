@@ -14,6 +14,10 @@ import { EnVocabRefEditModal } from "@/components/EnVocabRefEditModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { formatBeijingDateTime, formatBeijingDateTimeCompact } from "@/lib/format-datetime";
+import {
+  blurActiveElementForLessonModalClose,
+  scrollLessonListItemIntoView,
+} from "@/lib/lesson-list-scroll";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
@@ -546,7 +550,9 @@ export function EnLessonPage() {
             : prev
         );
       } else {
+        blurActiveElementForLessonModalClose();
         setEditingTeacherLesson(null);
+        scrollLessonListItemIntoView(lessonId);
       }
       setStatus("上课老师已更新");
       window.setTimeout(() => setStatus(""), 2500);
@@ -696,7 +702,9 @@ export function EnLessonPage() {
         persistLessonCache(next, refs, notes, teachers);
         return next;
       });
+      blurActiveElementForLessonModalClose();
       setEditingNextClassLesson(null);
+      scrollLessonListItemIntoView(lessonId);
       setStatus("上课时间已更新");
       window.setTimeout(() => setStatus(""), 2500);
     } catch (err) {
@@ -1024,7 +1032,11 @@ export function EnLessonPage() {
                 <td data-label="ID" className="jp-lesson-id-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                        data-lesson-anchor={lesson.id}
+                      >
                         {lesson.id}
                       </div>
                     ))}

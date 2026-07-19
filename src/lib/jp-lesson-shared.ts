@@ -446,6 +446,26 @@ export function buildJpLessonDisplayGroupsByRecentOperation<T extends JpLessonDi
   return groupSortedJpLessonsIntoDisplayGroups(sorted);
 }
 
+/** 列表内排序：ID 升序（未完成区：先上传的基础课优先） */
+export function compareJpLessonsByIdAsc(
+  a: { id: number },
+  b: { id: number }
+): number {
+  return a.id - b.id;
+}
+
+/**
+ * 按 ID 升序分组展示。同老师同档期仍合并为一行；
+ * 组与组之间、组内课次均按最小 / 各自 ID 从小到大。
+ */
+export function buildJpLessonDisplayGroupsById<T extends JpLessonDisplayGroupLesson>(
+  lessons: T[]
+): JpLessonDisplayGroup<T>[] {
+  const sorted = [...lessons].sort(compareJpLessonsByIdAsc);
+  // 按 ID 扫描时，每个 mergeKey 首次出现即该组最小 ID，组序自然正确
+  return groupSortedJpLessonsIntoDisplayGroups(sorted);
+}
+
 /** 「学习中」列表按上课日区分背景色时的色阶数量 */
 export const JP_LESSON_LEARNING_DAY_TONE_COUNT = 6;
 

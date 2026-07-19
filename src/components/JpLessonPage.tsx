@@ -21,6 +21,10 @@ import {
   formatAdminUserCredentials,
   rememberAdminUserPassword,
 } from "@/lib/admin-user-credentials";
+import {
+  blurActiveElementForLessonModalClose,
+  scrollLessonListItemIntoView,
+} from "@/lib/lesson-list-scroll";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
@@ -30,6 +34,7 @@ import {
 } from "@/lib/jp-api-cache";
 import {
   buildJpLessonDisplayGroups,
+  buildJpLessonDisplayGroupsById,
   buildJpLessonDisplayGroupsByRecentOperation,
   buildLearningClassDayToneMap,
   formatClassDurationLabel,
@@ -144,6 +149,7 @@ type JpLessonSectionSort = {
 
 const DEFAULT_JP_LESSON_SECTION_SORT: Record<JpLessonProgressStatus, JpLessonSectionSort> = {
   learning: { field: "classTime", order: "asc" },
+  // 未完成固定按 ID 升序（见 displayGroupsByStatus）；此处仅占位，表头排序按钮对 pending 无效
   pending: { field: "classTime", order: "asc" },
   completed: { field: "recentOperation", order: "desc" },
 };
@@ -507,6 +513,7 @@ export function JpLessonPage() {
   }, []);
 
   const toggleRecentOperationSort = useCallback((status: JpLessonProgressStatus) => {
+    if (status === "pending") return; // 未完成固定按 ID 升序
     setSectionSort((prev) => {
       const current = prev[status];
       if (current.field === "recentOperation") {
@@ -526,6 +533,7 @@ export function JpLessonPage() {
   }, []);
 
   const toggleClassTimeSort = useCallback((status: JpLessonProgressStatus) => {
+    if (status === "pending") return; // 未完成固定按 ID 升序
     setSectionSort((prev) => {
       const current = prev[status];
       if (current.field === "classTime") {
@@ -613,7 +621,8 @@ export function JpLessonPage() {
   const displayGroupsByStatus = useMemo(() => {
     const groups: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]> = {
       learning: groupLessonsForDisplay(lessonsByStatus.learning, sectionSort.learning),
-      pending: groupLessonsForDisplay(lessonsByStatus.pending, sectionSort.pending),
+      // 未完成：ID 越小越靠前（先上传的基础课优先），手机 / PC 同一套
+      pending: buildJpLessonDisplayGroupsById(lessonsByStatus.pending),
       completed: groupLessonsForDisplay(lessonsByStatus.completed, sectionSort.completed),
     };
     return groups;
@@ -894,7 +903,9 @@ export function JpLessonPage() {
       });
 
       if (!options?.keepOpen) {
+        blurActiveElementForLessonModalClose();
         setEditingTeacherLesson(null);
+        scrollLessonListItemIntoView(lessonId);
       }
       setStatus(
         `上课老师已更新${teacherAutoEnableStatusSuffix(data.teacher_auto_enable)}`
@@ -932,8 +943,10 @@ export function JpLessonPage() {
     }
 
     if (!options?.keepOpen) {
+      blurActiveElementForLessonModalClose();
       setEditingTeacherLesson(null);
       setEditingTeacherLessonIds([]);
+      scrollLessonListItemIntoView(normalizedLessonIds[0]);
     }
     setStatus(`已更新 ${normalizedLessonIds.length} 条课程的上课老师`);
     window.setTimeout(() => setStatus(""), 2500);
@@ -1129,7 +1142,9 @@ export function JpLessonPage() {
         persistLessonCache(next, refs, notes, teachers);
         return next;
       });
+      blurActiveElementForLessonModalClose();
       setEditingNextClassLesson(null);
+      scrollLessonListItemIntoView(lessonId);
       setStatus(
         `上课时间已更新${teacherAutoEnableStatusSuffix(data.teacher_auto_enable)}`
       );
@@ -1274,8 +1289,11 @@ export function JpLessonPage() {
       setStatus(
         `已批量更新 ${batchLessonIds.length} 条未上课教案${autoEnableSuffix}`
       );
+      const firstBatchId = batchLessonIds[0];
+      blurActiveElementForLessonModalClose();
       setBatchLessonIds([]);
       setBatchModalOpen(false);
+      if (firstBatchId != null) scrollLessonListItemIntoView(firstBatchId);
       window.setTimeout(() => setStatus(""), 4000);
     } catch (err) {
       if (snapshotById.size) {
@@ -1576,15 +1594,32 @@ export function JpLessonPage() {
     dayToneByDate?: Map<string, number>
   ) => {
     const sort = sectionSort[status];
-    const recentOperationSorted = sort.field === "recentOperation";
-    const classTimeSorted = sort.field === "classTime";
+    const pendingIdSorted = status === "pending";
+    const recentOperationSorted = !pendingIdSorted && sort.field === "recentOperation";
+    const classTimeSorted = !pendingIdSorted && sort.field === "classTime";
 
     return (
     <div className="jp-lesson-table-wrap">
       <table className="compare-table etr-table jp-lesson-table">
         <thead>
           <tr>
-            <th className="jp-lesson-id-col">ID</th>
+            <th
+              className={`jp-lesson-id-col${
+                pendingIdSorted ? " jp-lesson-id-col--sorted-asc" : ""
+              }`}
+              title={
+                pendingIdSorted
+                  ? "未完成按 ID 从小到大排序：先上传的基础课优先"
+                  : undefined
+              }
+            >
+              ID
+              {pendingIdSorted ? (
+                <span className="jp-lesson-sort-indicator" aria-hidden="true">
+                  ↑
+                </span>
+              ) : null}
+            </th>
             <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
               类
             </th>
@@ -1607,19 +1642,24 @@ export function JpLessonPage() {
               <button
                 type="button"
                 className="jp-lesson-sort-btn"
+                disabled={pendingIdSorted}
                 title={
-                  recentOperationSorted
-                    ? sort.order === "desc"
-                      ? "按最近操作从新到旧排序；点击切换为从旧到新"
-                      : "按最近操作从旧到新排序；点击切换为从新到旧"
-                    : "按最近操作排序；点击后最近一次操作的排在前面"
+                  pendingIdSorted
+                    ? "未完成固定按 ID 从小到大排序，不可改按最近操作"
+                    : recentOperationSorted
+                      ? sort.order === "desc"
+                        ? "按最近操作从新到旧排序；点击切换为从旧到新"
+                        : "按最近操作从旧到新排序；点击切换为从新到旧"
+                      : "按最近操作排序；点击后最近一次操作的排在前面"
                 }
                 aria-label={
-                  recentOperationSorted
-                    ? sort.order === "desc"
-                      ? "最近操作降序，点击切换为升序"
-                      : "最近操作升序，点击切换为降序"
-                    : "按最近操作排序"
+                  pendingIdSorted
+                    ? "未完成固定按 ID 升序"
+                    : recentOperationSorted
+                      ? sort.order === "desc"
+                        ? "最近操作降序，点击切换为升序"
+                        : "最近操作升序，点击切换为降序"
+                      : "按最近操作排序"
                 }
                 onClick={() => toggleRecentOperationSort(status)}
               >
@@ -1650,19 +1690,24 @@ export function JpLessonPage() {
                 <button
                   type="button"
                   className="jp-lesson-sort-btn"
+                  disabled={pendingIdSorted}
                   title={
-                    classTimeSorted
-                      ? sort.order === "asc"
-                        ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
-                        : "按上课时间从晚到早排序；点击切换为从早到晚。同一老师同一时段的多条教材会合并为一行"
-                      : "按上课时间排序；点击后按上课时间从早到晚排列。同一老师同一时段的多条教材会合并为一行"
+                    pendingIdSorted
+                      ? "未完成固定按 ID 从小到大排序，不可改按上课时间"
+                      : classTimeSorted
+                        ? sort.order === "asc"
+                          ? "按上课时间从早到晚排序；点击切换为从晚到早。同一老师同一时段的多条教材会合并为一行"
+                          : "按上课时间从晚到早排序；点击切换为从早到晚。同一老师同一时段的多条教材会合并为一行"
+                        : "按上课时间排序；点击后按上课时间从早到晚排列。同一老师同一时段的多条教材会合并为一行"
                   }
                   aria-label={
-                    classTimeSorted
-                      ? sort.order === "asc"
-                        ? "上课时间升序，点击切换为降序"
-                        : "上课时间降序，点击切换为升序"
-                      : "按上课时间排序"
+                    pendingIdSorted
+                      ? "未完成固定按 ID 升序"
+                      : classTimeSorted
+                        ? sort.order === "asc"
+                          ? "上课时间升序，点击切换为降序"
+                          : "上课时间降序，点击切换为升序"
+                        : "按上课时间排序"
                   }
                   onClick={() => toggleClassTimeSort(status)}
                 >
@@ -1706,7 +1751,11 @@ export function JpLessonPage() {
                 <td data-label="ID" className="jp-lesson-id-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                        data-lesson-anchor={lesson.id}
+                      >
                         <label className="jp-lesson-batch-id-row">
                           {isAdmin && getJpLessonProgressStatus(lesson) === "pending" ? (
                             <input
@@ -1756,6 +1805,7 @@ export function JpLessonPage() {
                           className={`jp-lesson-mobile-content-item${
                             merged ? " jp-lesson-merged-stack-item" : ""
                           }`}
+                          data-lesson-anchor={lesson.id}
                         >
                           <div className="jp-lesson-mobile-content-main">
                             <div className="jp-lesson-mobile-id-block">
