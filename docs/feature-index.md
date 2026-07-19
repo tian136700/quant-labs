@@ -160,7 +160,7 @@
 
 | 功能描述 | 改哪里 |
 |----------|--------|
-| 用户列表、**无对应老师时「绑定老师」按钮**（点开下拉选择并绑定；一位老师最多绑一个账号）、添加/编辑亦可改关联、创建/禁用/登录链接 | `AdminUsersPage.tsx`、`AdminUserBindTeacherModal.tsx`、`AdminUserEditModal.tsx`；`GET/POST/PATCH /api/admin/users`（`jp_lesson_teacher_id`）；`setUserJpLessonTeacherLink` |
+| 用户列表、**无对应老师时「绑定老师」/ 已绑定时「更改」**（点开下拉选择并绑定或改绑；一位老师最多绑一个账号）、添加/编辑亦可改关联、创建/禁用/登录链接 | `AdminUsersPage.tsx`、`AdminUserBindTeacherModal.tsx`、`AdminUserEditModal.tsx`；`GET/POST/PATCH /api/admin/users`（`jp_lesson_teacher_id`）；`setUserJpLessonTeacherLink` |
 | **列表排序**（ID / 最近登录 / **状态**正常↔已禁用；手机端排序按钮同字段） | `AdminUsersPage.tsx` → `sortUsers`、`toggleSort`、`UserSortField` |
 | **手机端用户卡片**（&lt; lg 显示卡片 + 排序；桌面端表格） | `AdminUsersPage.tsx` → `admin-cards` / `admin-table-wrap`；`mobile.css` |
 | **复制账号密码**（含日语子域名 `/jp-vocab` 入口；密码来自本机缓存；**李老师 / user1 等保留账号无缓存时禁止一键随机重置**，须「编辑」填写） | `AdminUsersPage.tsx` → `copyUserCredentials`；`resetUserPasswordByAdmin`（`cannot_reset_bootstrap`）；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` + `jpVocabPath()`）；规则 `.cursor/rules/bootstrap-account-password.mdc` |

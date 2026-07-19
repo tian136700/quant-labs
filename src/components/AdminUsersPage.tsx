@@ -589,6 +589,33 @@ function AdminUsersPageContent() {
     void loadTeachers();
   };
 
+  const renderTeacherCell = (row: UserRow) => {
+    const teacherName = row.jp_lesson_teacher_name?.trim() || "";
+    if (!teacherName) {
+      return (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-bind-teacher-btn"
+          onClick={() => openBindTeacher(row)}
+        >
+          {locale === "zh" ? "绑定老师" : "Bind teacher"}
+        </button>
+      );
+    }
+    return (
+      <span className="admin-user-teacher-bound">
+        <span className="admin-user-teacher-name">{teacherName}</span>
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact admin-user-bind-teacher-btn admin-user-rebind-teacher-btn"
+          onClick={() => openBindTeacher(row)}
+        >
+          {locale === "zh" ? "更改" : "Change"}
+        </button>
+      </span>
+    );
+  };
+
   const createTemplate = async () => {
     setTemplateSaving(true);
     setStatus("");
@@ -1300,19 +1327,7 @@ function AdminUsersPageContent() {
                     />
                     <AdminUserCardField
                       label={locale === "zh" ? "对应老师" : "Teacher"}
-                      value={
-                        row.jp_lesson_teacher_name?.trim() ? (
-                          row.jp_lesson_teacher_name.trim()
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-bind-teacher-btn"
-                            onClick={() => openBindTeacher(row)}
-                          >
-                            {locale === "zh" ? "绑定老师" : "Bind teacher"}
-                          </button>
-                        )
-                      }
+                      value={renderTeacherCell(row)}
                       wide
                     />
                     <AdminUserCardField
@@ -1419,17 +1434,7 @@ function AdminUsersPageContent() {
                       <td className="admin-user-col-username admin-rbac-username">{row.username}</td>
                       <td className="admin-user-col-role">{row.role_label}</td>
                       <td className="admin-user-col-teacher">
-                        {row.jp_lesson_teacher_name?.trim() ? (
-                          row.jp_lesson_teacher_name.trim()
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-bind-teacher-btn"
-                            onClick={() => openBindTeacher(row)}
-                          >
-                            {locale === "zh" ? "绑定老师" : "Bind"}
-                          </button>
-                        )}
+                        {renderTeacherCell(row)}
                       </td>
                       <td className="admin-user-col-created">{formatAdminDateTime(row.created_at)}</td>
                       <td className="admin-user-col-login">{formatAdminDateTime(row.last_login_at)}</td>
@@ -1519,8 +1524,8 @@ function AdminUsersPageContent() {
           });
           setStatus(
             locale === "zh"
-              ? `已绑定老师：${bound.jp_lesson_teacher_name || "—"}`
-              : `Bound teacher: ${bound.jp_lesson_teacher_name || "—"}`
+              ? `已更新老师绑定：${bound.jp_lesson_teacher_name || "—"}`
+              : `Teacher binding updated: ${bound.jp_lesson_teacher_name || "—"}`
           );
           setStatusErr(false);
           void loadTeachers();
@@ -2128,13 +2133,30 @@ function AdminUsersPageContent() {
           width: 5rem;
         }
         :global(.admin-users-table .admin-user-col-teacher) {
-          width: 6.25rem;
+          width: 7.5rem;
+        }
+        :global(.admin-user-teacher-bound) {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35rem 0.45rem;
+          max-width: 100%;
+        }
+        :global(.admin-user-teacher-name) {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 100%;
         }
         :global(.admin-user-bind-teacher-btn) {
           white-space: nowrap;
           padding: 0.2rem 0.45rem;
           font-size: 0.75rem;
           line-height: 1.2;
+        }
+        :global(.admin-user-rebind-teacher-btn) {
+          flex-shrink: 0;
         }
         :global(.admin-users-table .admin-user-col-created),
         :global(.admin-users-table .admin-user-col-login) {

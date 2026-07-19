@@ -8,6 +8,8 @@ import type { AdminJpLessonTeacherOption } from "@/components/AdminUserEditModal
 export type AdminUserBindTeacherTarget = {
   id: number;
   username: string;
+  jp_lesson_teacher_id?: number | null;
+  jp_lesson_teacher_name?: string | null;
 };
 
 type Props = {
@@ -43,14 +45,21 @@ export function AdminUserBindTeacherModal({
     setMounted(true);
   }, []);
 
+  const isRebind = Boolean(user?.jp_lesson_teacher_id);
+
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      setTeacherId("");
+      const currentId = user?.jp_lesson_teacher_id;
+      setTeacherId(
+        currentId != null && Number.isInteger(currentId) && currentId > 0
+          ? currentId
+          : ""
+      );
       setError("");
       setSaving(false);
     }
     wasOpenRef.current = open;
-  }, [open]);
+  }, [open, user?.jp_lesson_teacher_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,10 +90,23 @@ export function AdminUserBindTeacherModal({
       return;
     }
 
+    const currentId = user.jp_lesson_teacher_id ?? null;
+    if (currentId != null && selected.id === currentId) {
+      onClose();
+      return;
+    }
+
     setError("");
     setSaving(true);
     const snapshotUserId = user.id;
     const optimisticName = selected.name.trim();
+    const failLabel = isRebind
+      ? locale === "zh"
+        ? "更改绑定失败"
+        : "Change binding failed"
+      : locale === "zh"
+        ? "绑定失败"
+        : "Bind failed";
 
     void (async () => {
       try {
@@ -107,9 +129,7 @@ export function AdminUserBindTeacherModal({
           error?: string;
         };
         if (!data.ok || !data.user) {
-          throw new Error(
-            String(data.error || (locale === "zh" ? "绑定失败" : "Bind failed"))
-          );
+          throw new Error(String(data.error || failLabel));
         }
         onBound({
           id: data.user.id,
@@ -119,13 +139,7 @@ export function AdminUserBindTeacherModal({
         });
         onClose();
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : locale === "zh"
-              ? "绑定失败"
-              : "Bind failed"
-        );
+        setError(err instanceof Error ? err.message : failLabel);
       } finally {
         setSaving(false);
       }
@@ -152,12 +166,22 @@ export function AdminUserBindTeacherModal({
         <div className="admin-user-bind-header">
           <div>
             <h2 id="admin-user-bind-title" className="admin-user-bind-title">
-              {locale === "zh" ? "绑定对应老师" : "Bind teacher"}
+              {isRebind
+                ? locale === "zh"
+                  ? "更改绑定老师"
+                  : "Change teacher binding"
+                : locale === "zh"
+                  ? "绑定对应老师"
+                  : "Bind teacher"}
             </h2>
             <p className="admin-user-bind-subtitle">
-              {locale === "zh"
-                ? `为账号「${user.username}」选择日语上课老师。一位老师只能绑一个账号。`
-                : `Link a JP lesson teacher to “${user.username}”. One teacher maps to one account.`}
+              {isRebind
+                ? locale === "zh"
+                  ? `为账号「${user.username}」更换日语上课老师（当前：${user.jp_lesson_teacher_name?.trim() || "—"}）。一位老师只能绑一个账号。`
+                  : `Change the JP lesson teacher for “${user.username}” (now: ${user.jp_lesson_teacher_name?.trim() || "—"}). One teacher maps to one account.`
+                : locale === "zh"
+                  ? `为账号「${user.username}」选择日语上课老师。一位老师只能绑一个账号。`
+                  : `Link a JP lesson teacher to “${user.username}”. One teacher maps to one account.`}
             </p>
           </div>
           <button
@@ -195,13 +219,24 @@ export function AdminUserBindTeacherModal({
               </option>
               {teachers.map((teacher) => {
                 const linked = teacher.linked_user?.username;
+                const linkedToSelf =
+                  linked != null &&
+                  linked.trim().toLowerCase() === user.username.trim().toLowerCase();
+                let label = teacher.name;
+                if (linkedToSelf) {
+                  label =
+                    locale === "zh"
+                      ? `${teacher.name}（当前）`
+                      : `${teacher.name} (current)`;
+                } else if (linked) {
+                  label =
+                    locale === "zh"
+                      ? `${teacher.name}（当前关联 ${linked}，保存后改绑）`
+                      : `${teacher.name} (now ${linked}; will rebind)`;
+                }
                 return (
                   <option key={teacher.id} value={teacher.id}>
-                    {linked
-                      ? locale === "zh"
-                        ? `${teacher.name}（当前关联 ${linked}，保存后改绑）`
-                        : `${teacher.name} (now ${linked}; will rebind)`
-                      : teacher.name}
+                    {label}
                   </option>
                 );
               })}
@@ -226,11 +261,19 @@ export function AdminUserBindTeacherModal({
             >
               {saving
                 ? locale === "zh"
-                  ? "绑定中…"
-                  : "Binding…"
-                : locale === "zh"
-                  ? "绑定"
-                  : "Bind"}
+                  ? isRebind
+                    ? "保存中…"
+                    : "绑定中…"
+                  : isRebind
+                    ? "Saving…"
+                    : "Binding…"
+                : isRebind
+                  ? locale === "zh"
+                    ? "保存更改"
+                    : "Save"
+                  : locale === "zh"
+                    ? "绑定"
+                    : "Bind"}
             </button>
           </div>
         </form>
