@@ -37,6 +37,7 @@ import {
   parseJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
 import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
+import { JpVocabExampleSentenceCopyButton } from "@/components/JpVocabExampleSentenceCopyButton";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
@@ -772,6 +773,10 @@ export function JpVocabTeacherQuizFlashcardModal({
                           </span>
                         ))}
                       </span>
+                      <JpVocabExampleSentenceCopyButton
+                        item={item}
+                        index={index + 1}
+                      />
                     </li>
                   ))}
                 </ol>

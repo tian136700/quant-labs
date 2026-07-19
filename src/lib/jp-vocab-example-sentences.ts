@@ -158,6 +158,13 @@ export function serializeJpVocabExampleSentenceItems(
     .join("\n");
 }
 
+/** 单条例句一键复制：日语（含括号假名）+ 全部译文行 */
+export function jpVocabExampleSentenceItemCopyText(
+  item: JpVocabExampleSentenceItem
+): string {
+  return serializeJpVocabExampleSentenceItems([item]).trim();
+}
+
 /** 人手填写 / 老师在编辑弹窗改正例句时的来源标记 */
 export const JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL = "手动";
 
