@@ -25,6 +25,11 @@ import {
   blurActiveElementForLessonModalClose,
   scrollLessonListItemIntoView,
 } from "@/lib/lesson-list-scroll";
+import {
+  JP_LESSON_MOBILE_STATUS_FILTER_KEY,
+  readStoredLessonMobileStatusFilter,
+  writeStoredLessonMobileStatusFilter,
+} from "@/lib/lesson-mobile-status-filter";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
@@ -477,8 +482,14 @@ export function JpLessonPage() {
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copiedBatchKey, setCopiedBatchKey] = useState<string | null>(null);
-  const [mobileStatusFilter, setMobileStatusFilter] =
-    useState<JpLessonProgressStatus>("learning");
+  const [mobileStatusFilter, setMobileStatusFilterState] =
+    useState<JpLessonProgressStatus>(() =>
+      readStoredLessonMobileStatusFilter(JP_LESSON_MOBILE_STATUS_FILTER_KEY)
+    );
+  const setMobileStatusFilter = useCallback((status: JpLessonProgressStatus) => {
+    setMobileStatusFilterState(status);
+    writeStoredLessonMobileStatusFilter(JP_LESSON_MOBILE_STATUS_FILTER_KEY, status);
+  }, []);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLessonIds, setEditingTeacherLessonIds] = useState<number[]>([]);
