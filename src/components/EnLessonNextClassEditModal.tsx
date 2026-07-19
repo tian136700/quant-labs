@@ -7,6 +7,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   beijingTodayDateString,
+  DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES,
   formatNextClassHalfHourLabel,
   getLessonClassSchedules,
   JP_LESSON_CLASS_DURATION_MINUTES,
@@ -48,7 +49,7 @@ function emptyRow(): ScheduleRow {
     key: createRowKey(),
     date: beijingTodayDateString(),
     time: "",
-    duration: "",
+    duration: String(DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES),
   };
 }
 
@@ -63,8 +64,9 @@ function rowsFromLesson(lesson: EnLessonRecord): ScheduleRow[] {
       key: createRowKey(),
       date: parts?.date ?? "",
       time: parts?.time ?? "",
-      duration:
-        schedule.duration_minutes != null ? String(schedule.duration_minutes) : "",
+      duration: String(
+        schedule.duration_minutes ?? DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES
+      ),
     };
   });
 }

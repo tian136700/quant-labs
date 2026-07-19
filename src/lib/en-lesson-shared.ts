@@ -534,22 +534,30 @@ export function nextClassAtFromDatetimeLocalValue(local: string): string | null 
 }
 
 import {
-  DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
   JP_LESSON_CLASS_DURATION_MINUTES,
   formatClassDurationLabel,
   formatClassDurationLabelCompact,
   normalizeClassDurationMinutes,
-  resolveClassDurationMinutes,
   type JpLessonClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
 
+/** 英语课默认课时长（一堂课约 25 分钟；勿复用日语默认 55） */
+export const DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES = 25;
+
+export function resolveEnClassDurationMinutes(
+  minutes: number | null | undefined
+): number {
+  return (
+    normalizeClassDurationMinutes(minutes) ??
+    DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES
+  );
+}
+
 export {
   JP_LESSON_CLASS_DURATION_MINUTES,
-  DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
   normalizeClassDurationMinutes,
   formatClassDurationLabel,
   formatClassDurationLabelCompact,
-  resolveClassDurationMinutes,
   type JpLessonClassDurationMinutes as EnLessonClassDurationMinutes,
 };
 
@@ -612,7 +620,7 @@ export function buildEnLessonScheduleEvents(lesson: {
   for (const schedule of getLessonClassSchedules(lesson)) {
     const start = parseBeijingDateTime(schedule.class_at);
     if (!start) continue;
-    const durationMinutes = resolveClassDurationMinutes(schedule.duration_minutes);
+    const durationMinutes = resolveEnClassDurationMinutes(schedule.duration_minutes);
     events.push({
       key: `${lesson.id}-${schedule.id}-${schedule.class_at}`,
       lessonId: lesson.id,
