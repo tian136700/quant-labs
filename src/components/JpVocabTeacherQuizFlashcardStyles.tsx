@@ -243,6 +243,42 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             var(--fall)
           );
         }
+        .jp-vocab-teacher-quiz__answer-timer {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 0.35rem 0.55rem;
+          margin: 0 0 0.55rem;
+          padding: 0.45rem 0.65rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+          background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+        }
+        .jp-vocab-teacher-quiz__answer-timer--frozen {
+          border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+          background: color-mix(in srgb, var(--panel) 90%, var(--fall) 10%);
+        }
+        .jp-vocab-teacher-quiz__answer-timer-label {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__answer-timer-value {
+          font-size: clamp(1.15rem, 2.8vw, 1.45rem);
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 0.02em;
+          color: var(--accent);
+          line-height: 1.2;
+        }
+        .jp-vocab-teacher-quiz__answer-timer--frozen
+          .jp-vocab-teacher-quiz__answer-timer-value {
+          color: var(--fall);
+        }
+        .jp-vocab-teacher-quiz__answer-timer-state {
+          font-size: 0.6875rem;
+          color: var(--muted);
+        }
         .jp-vocab-teacher-quiz__close-x {
           flex-shrink: 0;
           width: 2rem;

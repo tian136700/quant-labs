@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
@@ -38,6 +38,21 @@ import {
 } from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
+
+/** 老师抽查卡片：本词答题用时展示（正计时，不落库） */
+function formatJpVocabQuizElapsedLabel(totalSeconds: number, locale: "zh" | "en"): string {
+  const sec = Math.max(0, Math.floor(totalSeconds));
+  if (locale === "en") {
+    if (sec < 60) return `${sec}s`;
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+  if (sec < 60) return `${sec}秒`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}分${String(s).padStart(2, "0")}秒`;
+}
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
@@ -135,12 +150,22 @@ export function JpVocabTeacherQuizFlashcardModal({
   const [nextBlockedHint, setNextBlockedHint] = useState(false);
   /** 点「完成抽查」时会话内仍有未勾选词 */
   const [remainingUncheckedHint, setRemainingUncheckedHint] = useState(false);
+  /** 本词答题正计时（秒）；换词归零，勾选熟悉程度后停住 */
+  const [answerElapsedSec, setAnswerElapsedSec] = useState(0);
+  /** 本词从「未勾选」进入时武装计时（已勾选返回上一词则不显示） */
+  const [answerTimerArmed, setAnswerTimerArmed] = useState(false);
+  const answerTimerStartedAtRef = useRef<number | null>(null);
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
+
+  const isCoachMode = mode === "coach";
+  const isStudyMode = mode === "study";
+  const showAnswerTimer =
+    open && !previewMode && !isCoachMode && !isStudyMode && word != null;
 
   useEffect(() => {
     setMounted(true);
@@ -222,8 +247,6 @@ export function JpVocabTeacherQuizFlashcardModal({
     };
   }, [open]);
 
-  const isCoachMode = mode === "coach";
-  const isStudyMode = mode === "study";
   const selectedLevel =
     word && session
       ? isCoachMode
@@ -232,6 +255,44 @@ export function JpVocabTeacherQuizFlashcardModal({
             displayOrder,
           })
       : undefined;
+
+  useEffect(() => {
+    if (!showAnswerTimer || !word) {
+      setAnswerTimerArmed(false);
+      answerTimerStartedAtRef.current = null;
+      setAnswerElapsedSec(0);
+      return;
+    }
+    // 仅依赖 word.id：勾选熟悉程度时不重新武装，保留已走秒数
+    const alreadyChecked =
+      effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], { displayOrder }) !=
+      null;
+    if (alreadyChecked) {
+      setAnswerTimerArmed(false);
+      answerTimerStartedAtRef.current = null;
+      setAnswerElapsedSec(0);
+      return;
+    }
+    setAnswerTimerArmed(true);
+    answerTimerStartedAtRef.current = Date.now();
+    setAnswerElapsedSec(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 换词才重置；勾选不得清零
+  }, [showAnswerTimer, word?.id]);
+
+  useEffect(() => {
+    if (!answerTimerArmed || answerTimerStartedAtRef.current == null) return;
+    if (selectedLevel) {
+      const started = answerTimerStartedAtRef.current;
+      setAnswerElapsedSec(Math.floor((Date.now() - started) / 1000));
+      return;
+    }
+    const tick = window.setInterval(() => {
+      const started = answerTimerStartedAtRef.current;
+      if (started == null) return;
+      setAnswerElapsedSec(Math.floor((Date.now() - started) / 1000));
+    }, 250);
+    return () => window.clearInterval(tick);
+  }, [answerTimerArmed, selectedLevel, word?.id]);
 
   useEffect(() => {
     if (selectedLevel) setNextBlockedHint(false);
@@ -540,6 +601,37 @@ export function JpVocabTeacherQuizFlashcardModal({
         </header>
 
         <div className="jp-vocab-teacher-quiz__scroll-body">
+        {showAnswerTimer && answerTimerArmed ? (
+          <div
+            className={`jp-vocab-teacher-quiz__answer-timer${
+              selected ? " jp-vocab-teacher-quiz__answer-timer--frozen" : ""
+            }`}
+            role="timer"
+            aria-live="off"
+            aria-atomic="true"
+            title={
+              locale === "zh"
+                ? selected
+                  ? "本词答题用时（勾选后已停住）"
+                  : "本词答题用时（从打开卡片起计）"
+                : selected
+                  ? "Answer time (stopped after level selected)"
+                  : "Answer time (from card open)"
+            }
+          >
+            <span className="jp-vocab-teacher-quiz__answer-timer-label">
+              {locale === "zh" ? "答题用时" : "Time"}
+            </span>
+            <span className="jp-vocab-teacher-quiz__answer-timer-value">
+              {formatJpVocabQuizElapsedLabel(answerElapsedSec, locale)}
+            </span>
+            {selected ? (
+              <span className="jp-vocab-teacher-quiz__answer-timer-state">
+                {locale === "zh" ? "已停" : "paused"}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         {studentPeeked && !isCoach && !isStudy ? (
           <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
             该学生已查看该单词
