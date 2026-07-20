@@ -171,10 +171,10 @@ export function JpLessonManualScheduleModal({
 
   const teacherPlaceholder =
     teacherSubject === "en"
-      ? "选择英语老师，或输入后添加"
+      ? "选择英语老师"
       : teacherSubject === "jp"
-        ? "选择日语老师，或输入后添加"
-        : "选择系统老师，或输入后添加";
+        ? "选择日语老师"
+        : "选择老师";
 
   const resolveTeacherForSave = async (): Promise<string | null> => {
     if (!onAddTeacher) return teacher.trim();
