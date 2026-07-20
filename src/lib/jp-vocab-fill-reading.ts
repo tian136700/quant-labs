@@ -375,6 +375,24 @@ async function updateReadingIfEmpty(
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
+async function updateReadingOverwrite(
+  db: D1Database,
+  wordId: number,
+  reading: string,
+  dryRun: boolean
+): Promise<boolean> {
+  if (dryRun) return true;
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET reading = ?1, updated_at = datetime('now')
+       WHERE id = ?2 AND kind != 'grammar'`
+    )
+    .bind(reading.trim(), wordId)
+    .run();
+  return Number(result.meta?.changes ?? 0) > 0;
+}
+
 export async function autoFillJpVocabReadings(
   db: D1Database,
   options: {
@@ -443,9 +461,10 @@ export async function autoFillJpVocabReadings(
 export async function applyJpVocabReadingUpdates(
   db: D1Database,
   updates: Array<{ word_id: number; reading: string }>,
-  options: { dryRun?: boolean } = {}
+  options: { dryRun?: boolean; allowOverwrite?: boolean } = {}
 ): Promise<JpVocabFillReadingResult> {
   const dryRun = Boolean(options.dryRun);
+  const allowOverwrite = Boolean(options.allowOverwrite);
   const applied: JpVocabFillReadingApplied[] = [];
   const skipped: Array<{ id: number; word: string }> = [];
   let updated = 0;
@@ -468,7 +487,9 @@ export async function applyJpVocabReadingUpdates(
     const lemma = normalizeJpVocabNaAdjStoredEntry(String(row.word), reading);
     const nextReading = lemma.reading || reading;
 
-    const changed = await updateReadingIfEmpty(db, wordId, nextReading, dryRun);
+    const changed = allowOverwrite
+      ? await updateReadingOverwrite(db, wordId, nextReading, dryRun)
+      : await updateReadingIfEmpty(db, wordId, nextReading, dryRun);
     if (changed) {
       updated += 1;
       applied.push({ id: wordId, word: String(row.word), reading: nextReading });

@@ -13,6 +13,8 @@ type FillReadingBody = {
   use_jisho?: boolean;
   jisho_delay_ms?: number;
   limit?: number;
+  /** 允许覆盖已有 reading（多读音纠错） */
+  allow_overwrite?: boolean;
   updates?: Array<{ word_id?: number; reading?: string }>;
 };
 
@@ -65,7 +67,10 @@ export async function POST(request: Request) {
     }
 
     if (mode === "apply") {
-      const result = await applyJpVocabReadingUpdates(env.DB, updates, { dryRun });
+      const result = await applyJpVocabReadingUpdates(env.DB, updates, {
+        dryRun,
+        allowOverwrite: Boolean(body.allow_overwrite),
+      });
       return jsonResponse({
         ok: true,
         mode: "apply",

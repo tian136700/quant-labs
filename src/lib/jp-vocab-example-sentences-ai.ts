@@ -15,11 +15,16 @@ import {
   jpVocabNaAdjParts,
   jpVocabNaAdjReadingForStem,
 } from "@/lib/jp-vocab-na-adj";
+import {
+  countJpVocabExampleSentenceTargetFromMeaning,
+  splitJpVocabMeaningMajorSenses,
+} from "@/lib/jp-vocab-meaning-ai";
 
 /** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   version: 1,
-  count_rule: "条数 = max(2, 用法数)；仅 1 种用法时造 2 句（同用法换场景）",
+  count_rule:
+    "释义含 / 时：条数 = 斜杠段数（每段 1 句，须体现对应读音）；否则条数 = max(2, 段内 ； 近义数)",
   format_example:
     "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。",
   rules: [
@@ -34,12 +39,14 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
     "な形容词辞书形以「だ」结尾时（重要だ/得意だ/下手だ）：造句用词干（重要/得意/下手），例句里不必出现「だ」；假名标在词干汉字上",
     "多用法时一句对应一种用法，不要两句挤同一义项",
+    "释义已含 / 时：按斜杠分段，每段造 1 句，且须体现该段读音（如 前 的 まえ/ぜん）",
     "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」；人手填写为「手动」",
   ],
   reject_reasons: [
     "empty",
     "need_four_lines",
     "need_two_japanese_lines",
+    "need_more_japanese_lines",
     "invalid_japanese_line",
     "incomplete_kanji_furigana",
     "bad_furigana_paren",
@@ -101,15 +108,24 @@ export function buildJpVocabExampleSentencesAiPrompt(
     .filter(Boolean)
     .join("\n");
 
+  const targetCount = countJpVocabExampleSentenceTargetFromMeaning(meaning, input.kind);
+  const majorSenses = splitJpVocabMeaningMajorSenses(meaning || "");
+  const countRuleHint =
+    majorSenses.length >= 2
+      ? `释义含 ${majorSenses.length} 个斜杠段 → 须造 ${targetCount} 句（每段 1 句，例句须体现对应读音）`
+      : `须造 ${targetCount} 句（无斜杠时 max(2, 近义数)）`;
+
   return `${meta}
 
 请为上述日语${kindLabel}写例句，供 N5/N4 初学者复习朗读。
 
 条数规则（必须遵守）：
-- 先判断该词条有几种常用用法（义项）。
-- 每种用法造 1 句；若只有 1 种用法，则造 2 句（同用法换场景）。
-- 两种用法 → 2 句；三种 → 3 句；以此类推（条数 = max(2, 用法数)）。
+- ${countRuleHint}
+- 先读「释义」：含半角斜杠 / 时，斜杠分隔不同读音/大义项，每段造 1 句。
+- 无斜杠时：先判断有几种常用用法；每种用法 1 句；仅 1 种用法则造 2 句（换场景）。
 - 多用法时一句对应一种用法，不要两句都挤同一义项。
+- 例：词条 前，读音 まえ/ぜん，释义 前面；以前/前面的；预先的 → 2 句：第 1 句用 まえ（駅の前），第 2 句用 ぜん（前日）。
+- 例：词条 中，读音 なか/ちゅう，释义 中间；里面/正在进行 → 2 句：第 1 句 なか（箱の中），第 2 句 ちゅう（会議中）。
 
 格式要求：
 1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）；优先简单、顺口的句式，避免初学者看了会怀疑写错的结构。
@@ -144,11 +160,19 @@ export function validateJpVocabExampleSentencesAiOutput(
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  if (lines.length < 4) {
+  const targetCount = countJpVocabExampleSentenceTargetFromMeaning(
+    input.meaning,
+    input.kind
+  );
+  const minLines = Math.max(4, targetCount * 2);
+  if (lines.length < minLines) {
     return { ok: false, reason: "need_four_lines" };
   }
 
   const items = parseJpVocabExampleSentenceItems(lines.join("\n"));
+  if (items.length < targetCount) {
+    return { ok: false, reason: "need_more_japanese_lines" };
+  }
   if (items.length < 2) {
     return { ok: false, reason: "need_two_japanese_lines" };
   }

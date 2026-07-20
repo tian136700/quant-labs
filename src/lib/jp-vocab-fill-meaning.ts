@@ -129,6 +129,27 @@ async function updateMeaningIfEmpty(
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
+async function updateMeaningOverwrite(
+  db: D1Database,
+  wordId: number,
+  meaning: string,
+  source: string | null,
+  dryRun: boolean
+): Promise<boolean> {
+  if (dryRun) return true;
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET meaning = ?1,
+           meaning_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3 AND kind != 'grammar'`
+    )
+    .bind(meaning.trim(), source, wordId)
+    .run();
+  return Number(result.meta?.changes ?? 0) > 0;
+}
+
 export async function scanJpVocabWordsMissingMeaning(
   db: D1Database,
   options: ListJpVocabMissingMeaningOptions = {}
@@ -161,11 +182,13 @@ export async function applyJpVocabMeaningUpdates(
     dryRun?: boolean;
     validateFormat?: boolean;
     defaultSource?: string | null;
+    allowOverwrite?: boolean;
   } = {}
 ): Promise<JpVocabFillMeaningResult> {
   await ensureJpVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
+  const allowOverwrite = Boolean(options.allowOverwrite);
   const defaultSource = normalizeJpVocabExampleSentencesSource(
     options.defaultSource
   );
@@ -209,7 +232,9 @@ export async function applyJpVocabMeaningUpdates(
       meaning = normalizeJpVocabMeaningText(meaning) || meaning;
     }
 
-    const changed = await updateMeaningIfEmpty(db, wordId, meaning, source, dryRun);
+    const changed = allowOverwrite
+      ? await updateMeaningOverwrite(db, wordId, meaning, source, dryRun)
+      : await updateMeaningIfEmpty(db, wordId, meaning, source, dryRun);
     if (changed) {
       updated += 1;
       applied.push({
@@ -222,7 +247,7 @@ export async function applyJpVocabMeaningUpdates(
       skipped.push({
         id: wordId,
         word: String(row.word),
-        reason: "already_filled",
+        reason: allowOverwrite ? "unchanged" : "already_filled",
       });
     }
   }

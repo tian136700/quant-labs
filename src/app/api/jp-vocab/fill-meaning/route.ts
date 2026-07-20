@@ -13,6 +13,8 @@ type FillMeaningBody = {
   limit?: number;
   /** apply：整批默认来源（单条 updates[].source 优先） */
   source?: string;
+  /** 允许覆盖已有 meaning（纠错 / 多读音重跑） */
+  allow_overwrite?: boolean;
   updates?: Array<{
     word_id?: number;
     meaning?: string;
@@ -68,6 +70,7 @@ export async function POST(request: Request) {
         dryRun,
         validateFormat: true,
         defaultSource: batchSource || null,
+        allowOverwrite: Boolean(body.allow_overwrite),
       });
       return jsonResponse({
         ok: true,
