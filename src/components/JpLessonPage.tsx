@@ -2140,6 +2140,39 @@ export function JpLessonPage() {
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>{status}</p>
       ) : null}
 
+      <div className="jp-lesson-search" role="search">
+        <label htmlFor="jp-lesson-search" className="jp-lesson-search__label">
+          查单词 / 语法
+        </label>
+        <div className="jp-lesson-search__row">
+          <input
+            id="jp-lesson-search"
+            type="search"
+            className="jp-lesson-search__input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="学习内容、释义、例句…（模糊匹配，本地即时）"
+            disabled={loading}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        {searchActive ? (
+          <>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact jp-lesson-search__clear"
+              onClick={() => setSearchQuery("")}
+            >
+              清除
+            </button>
+            <span className="jp-lesson-search__meta">
+              匹配 {filteredLessons.length} / {lessons.length} 条
+            </span>
+          </>
+        ) : null}
+      </div>
+
       {loading ? (
         <p style={{ color: "var(--muted)" }}>加载中…</p>
       ) : !lessons.length ? (
@@ -2148,38 +2181,6 @@ export function JpLessonPage() {
         </section>
       ) : (
         <>
-        <div className="jp-lesson-search" role="search">
-          <label htmlFor="jp-lesson-search" className="jp-lesson-search__label">
-            查单词 / 语法
-          </label>
-          <div className="jp-lesson-search__row">
-            <input
-              id="jp-lesson-search"
-              type="search"
-              className="jp-lesson-search__input"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="学习内容、释义、例句…（模糊匹配，本地即时）"
-              disabled={loading}
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
-          {searchActive ? (
-            <>
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact jp-lesson-search__clear"
-                onClick={() => setSearchQuery("")}
-              >
-                清除
-              </button>
-              <span className="jp-lesson-search__meta">
-                匹配 {filteredLessons.length} / {lessons.length} 条
-              </span>
-            </>
-          ) : null}
-        </div>
         {searchActive && !filteredLessons.length ? (
           <p className="jp-lesson-search__empty">
             没有匹配「{searchQuery.trim()}」的新课，请换个关键词试试。
