@@ -140,6 +140,7 @@ export function parseEnLessonApi(json: unknown): EnLessonApiPayload {
             ? Number(lesson.class_duration_minutes)
             : null
         ),
+        link_copy_count: Number(lesson.link_copy_count) || 0,
       };
     }),
     refs: data.refs ?? {},

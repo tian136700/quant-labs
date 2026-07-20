@@ -27,6 +27,19 @@ let devStoreEnabled = false;
 const devLessons: EnLessonRecord[] = [];
 let devNextId = 1;
 let devSeeded = false;
+let enLessonLinkCopyCountColumnReady = false;
+
+async function ensureEnLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || enLessonLinkCopyCountColumnReady) return;
+  try {
+    await db
+      .prepare(`ALTER TABLE en_lesson ADD COLUMN link_copy_count INTEGER NOT NULL DEFAULT 0`)
+      .run();
+  } catch {
+    /* column may already exist */
+  }
+  enLessonLinkCopyCountColumnReady = true;
+}
 
 export function enableEnLessonDevStore() {
   devStoreEnabled = true;
@@ -73,7 +86,7 @@ function mapRow(row: Record<string, unknown>): EnLessonRecord {
     class_schedules: [],
     next_class_at: nextClassAt,
     class_duration_minutes: classDurationMinutes,
-    link_copy_count: 0,
+    link_copy_count: Number(row.link_copy_count) || 0,
     uploaded_at: String(row.uploaded_at),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -119,7 +132,7 @@ async function attachTeacherIds(
 }
 
 const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
-  status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, uploaded_at, created_at, updated_at FROM en_lesson`;
+  status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM en_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
   if (!devStoreEnabled) return;
@@ -199,6 +212,7 @@ async function enLessonContentExists(
 
 export async function listEnLessons(db: D1Database): Promise<EnLessonRecord[]> {
   await seedIfEmpty(db);
+  await ensureEnLessonLinkCopyCountColumn(db);
 
   if (devStoreEnabled) {
     return attachTeacherIds(db, [...devLessons].sort(compareEnLessonsByProgress));
@@ -228,6 +242,7 @@ export async function getEnLessonById(
   if (!Number.isInteger(lessonId) || lessonId <= 0) return null;
 
   await seedIfEmpty(db);
+  await ensureEnLessonLinkCopyCountColumn(db);
 
   if (devStoreEnabled) {
     const lesson = devLessons.find((l) => l.id === lessonId) ?? null;
@@ -254,6 +269,7 @@ export async function getEnLessonByRefKey(
   if (!key) return null;
 
   await seedIfEmpty(db);
+  await ensureEnLessonLinkCopyCountColumn(db);
 
   if (devStoreEnabled) {
     const lesson = devLessons.find((l) => l.ref_key === key) ?? null;
@@ -402,6 +418,8 @@ export async function createEnLesson(
     return { ok: false, error: "ref_key_not_found" };
   }
 
+  await ensureEnLessonLinkCopyCountColumn(db);
+
   const result = await db
     .prepare(
       `INSERT INTO en_lesson (kind, content, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
@@ -454,6 +472,7 @@ export async function updateEnLessonProgress(
   const { completed, learning } = enLessonProgressToFields(progressStatus);
 
   await seedIfEmpty(db);
+  await ensureEnLessonLinkCopyCountColumn(db);
 
   let before: EnLessonRecord | undefined;
   if (devStoreEnabled) {
@@ -731,4 +750,51 @@ export async function syncEnLessonTitleByRefKey(
     )
     .bind(trimmedTitle, ts, key)
     .run();
+}
+
+export type IncrementEnLessonLinkCopyCountResult =
+  | { ok: true; link_copy_count: number }
+  | { ok: false; error: string };
+
+/** 任意复制模式（带模板 / 仅链接 / 仅文字）成功后均 +1 */
+export async function incrementEnLessonLinkCopyCount(
+  db: D1Database,
+  lessonId: number
+): Promise<IncrementEnLessonLinkCopyCountResult> {
+  if (!Number.isInteger(lessonId) || lessonId <= 0) {
+    return { ok: false, error: "lesson_id_invalid" };
+  }
+
+  await seedIfEmpty(db);
+
+  if (devStoreEnabled) {
+    const idx = devLessons.findIndex((l) => l.id === lessonId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    const next = (devLessons[idx].link_copy_count ?? 0) + 1;
+    devLessons[idx] = { ...devLessons[idx], link_copy_count: next };
+    return { ok: true, link_copy_count: next };
+  }
+
+  await ensureEnLessonLinkCopyCountColumn(db);
+
+  const ts = nowIso();
+  const result = await db
+    .prepare(
+      `UPDATE en_lesson
+       SET link_copy_count = COALESCE(link_copy_count, 0) + 1, updated_at = ?2
+       WHERE id = ?1`
+    )
+    .bind(lessonId, ts)
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const row = await db
+    .prepare(`SELECT link_copy_count FROM en_lesson WHERE id = ?1`)
+    .bind(lessonId)
+    .first<{ link_copy_count: number | null }>();
+
+  return { ok: true, link_copy_count: Number(row?.link_copy_count) || 0 };
 }

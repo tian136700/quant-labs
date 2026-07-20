@@ -516,6 +516,8 @@ CREATE TABLE IF NOT EXISTS en_lesson (
   teacher_other       TEXT,
   next_class_at       TEXT,
   class_duration_minutes INTEGER,
+  /** 教案复制次数（带模板 / 仅链接 / 仅文字均计） */
+  link_copy_count     INTEGER NOT NULL DEFAULT 0,
   uploaded_at         TEXT    NOT NULL DEFAULT (datetime('now')),
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),

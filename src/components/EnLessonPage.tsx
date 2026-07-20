@@ -356,6 +356,32 @@ export function EnLessonPage() {
   const handleLessonCopied = useCallback((lessonId: number) => {
     setCopiedId(lessonId);
     window.setTimeout(() => setCopiedId(null), 1000);
+    setLessons((prev) =>
+      prev.map((lesson) =>
+        lesson.id === lessonId
+          ? { ...lesson, link_copy_count: (lesson.link_copy_count ?? 0) + 1 }
+          : lesson
+      )
+    );
+    void fetch("/api/en-lesson", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "record_link_copy", lesson_id: lessonId }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { ok?: boolean; link_copy_count?: number };
+        if (data.ok && typeof data.link_copy_count === "number") {
+          setLessons((prev) =>
+            prev.map((lesson) =>
+              lesson.id === lessonId
+                ? { ...lesson, link_copy_count: data.link_copy_count! }
+                : lesson
+            )
+          );
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleLessonCopyError = useCallback(() => {
@@ -868,6 +894,7 @@ export function EnLessonPage() {
         viewUrl={viewUrl}
         siteUrl={SITE_URL}
         teacherNames={formatLessonTeacherNamesForCopy(lesson, teacherNameById)}
+        copyCount={lesson.link_copy_count ?? 0}
         primaryClassName="jp-lesson-action-btn"
         fixedPanel
         copiedId={copiedId}

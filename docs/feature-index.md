@@ -166,7 +166,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **默认课时长 25 分钟**（设置上课时间时预选；日程未填时长也按 25；勿用日语默认 55） | `en-lesson-shared.ts` → `DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES` / `resolveEnClassDurationMinutes`；`EnLessonNextClassEditModal.tsx` |
 | **教案下载文件名**（英文：`{id}. Word Learn|Grammar Learn (word1, word2, …)`，空格保留；列表与「查看」页一致；供菲律宾等英语老师识别） | `en-vocab-ref-shared.ts` → `enLessonRefDownloadFilename`；`EnLessonPage.tsx`；`EnVocabRefViewer` + `en-vocab/ref/[refKey]/page.tsx`；`GET /api/en-vocab/ref/[refKey]?download=1`；`getEnLessonByRefKey` |
 | **教案下载格式**（整图 PDF：整张图嵌入一页、不拆分；另保留分页 PDF / Word；管理员可下原图） | `EnVocabRefDownloadMenu.tsx`；`en-vocab-ref-pdf-export.ts` → `exportEnVocabRefFullImagePdf` / `exportEnVocabRefPaginatedPdf` |
-| **复制菜单**（带模板 / 仅链接 / **仅文字**：助教话术，自动填入上课老师名，无链接；教材 PDF 另行下载发送） | `EnLessonCopyMenu.tsx` → `buildEnLessonTextOnlyCopy`；`EnLessonPage.tsx` |
+| **复制菜单**（带模板 / 仅链接 / **仅文字**：`发给{上课老师名}老师，谢谢～`；多名各加「老师」；无链接；教材 PDF 另行下载发送；**三种模式成功后复制次数均 +1**） | `EnLessonCopyMenu.tsx` → `buildEnLessonTextOnlyCopy`；`EnLessonPage.tsx` → `record_link_copy`；`incrementEnLessonLinkCopyCount`；规则 `.cursor/rules/en-lesson-copy-count.mdc` |
 
 ---
 

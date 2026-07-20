@@ -17,6 +17,8 @@ type Props = {
   siteUrl: string;
   /** 上课老师姓名（多个用顿号连接）；为空时仅文字模板里留两个空格便于手填 */
   teacherNames?: string;
+  /** 已复制次数（带模板 / 仅链接 / 仅文字均计入） */
+  copyCount?: number;
   primaryClassName?: string;
   fixedPanel?: boolean;
   copiedId: number | null;
@@ -27,10 +29,22 @@ type Props = {
 const COPY_WITH_TEXT =
   "老师，这是咱们需要上课内容，麻烦你有时间的时候抽空看一下：";
 
+/** 姓名后补「老师」（已带则不重复）；多名用顿号拆开分别加 */
+function formatTeacherNamesWithHonorific(teacherNames?: string): string {
+  const raw = (teacherNames || "").trim();
+  if (!raw) return "  老师";
+  return raw
+    .split("、")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => (part.endsWith("老师") ? part : `${part}老师`))
+    .join("、");
+}
+
 /** 仅文字：给助教说明，PDF 等教材另行单独发送 */
 export function buildEnLessonTextOnlyCopy(teacherNames?: string): string {
-  const name = (teacherNames || "").trim() || "  ";
-  return `助教老师你好，麻烦你有空的时候把这个教材发给${name}，谢谢`;
+  const name = formatTeacherNamesWithHonorific(teacherNames);
+  return `助教老师你好，麻烦你有空的时候把这个教材发给${name}，谢谢～`;
 }
 
 export function EnLessonCopyMenu({
@@ -38,6 +52,7 @@ export function EnLessonCopyMenu({
   viewUrl,
   siteUrl,
   teacherNames = "",
+  copyCount = 0,
   primaryClassName = "jp-lesson-action-btn",
   fixedPanel = false,
   copiedId,
@@ -151,6 +166,11 @@ export function EnLessonCopyMenu({
         <span className="jp-lesson-copy-caret" aria-hidden>
           ▾
         </span>
+        {copyCount > 0 ? (
+          <span className="jp-lesson-copy-count" aria-label={`已复制 ${copyCount} 次`}>
+            {copyCount}
+          </span>
+        ) : null}
       </button>
       {open ? (
         <div

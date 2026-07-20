@@ -2,6 +2,7 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import { requireAdmin } from "@/lib/admin-auth";
 import {
   deleteEnLesson,
+  incrementEnLessonLinkCopyCount,
   listEnLessons,
   updateEnLessonClassSchedules,
   updateEnLessonNextClassAt,
@@ -85,11 +86,6 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, user, allowed } = await requireEnVocabAccess(request);
-    if (!allowed || !user) {
-      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
-    }
-
     const body = (await request.json()) as {
       action?: string;
       lesson_id?: number;
@@ -105,6 +101,28 @@ export async function POST(request: Request) {
         duration_minutes: number | null;
       }>;
     };
+
+    // 复制次数：与列表浏览一致，访客也可记（含「仅文字」）
+    if (body.action === "record_link_copy") {
+      const env = await getCloudflareEnv();
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      const result = await incrementEnLessonLinkCopyCount(env.DB, lessonId);
+      if (!result.ok) {
+        const status = result.error === "not_found" ? 404 : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+
+      return jsonResponse({ ok: true, link_copy_count: result.link_copy_count });
+    }
+
+    const { env, user, allowed } = await requireEnVocabAccess(request);
+    if (!allowed || !user) {
+      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+    }
 
     if (body.action === "delete") {
       const lessonId = Number(body.lesson_id);
