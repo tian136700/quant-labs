@@ -6,6 +6,7 @@ import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTim
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
   JpLessonTeacherSinglePicker,
+  type JpLessonTeacherSinglePickerHandle,
 } from "@/components/JpLessonTeacherSinglePicker";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
@@ -15,7 +16,6 @@ import {
   detectScheduleTeacherSubjectFromTitle,
   scheduleTeacherPickerListForSubject,
 } from "@/lib/jp-lesson-teacher-rate";
-import { findLessonTeacherByPickerName, lessonTeacherPickerName } from "@/lib/lesson-teacher-search";
 import type { JpLessonTeacher } from "@/lib/types";
 import {
   beijingTodayDateString,
@@ -106,6 +106,7 @@ export function JpLessonManualScheduleModal({
   const [error, setError] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
   const saveInitiatedRef = useRef(false);
+  const teacherPickerRef = useRef<JpLessonTeacherSinglePickerHandle>(null);
   const saveProgress = useSaveProgressBar(saving);
 
   const timeOptions = useMemo(
@@ -176,23 +177,18 @@ export function JpLessonManualScheduleModal({
         : "选择系统老师，或输入后添加";
 
   const resolveTeacherForSave = async (): Promise<string | null> => {
-    const trimmedTeacher = teacher.trim();
-    if (!trimmedTeacher) return "";
-    if (!onAddTeacher) return trimmedTeacher;
-
-    const existing = findLessonTeacherByPickerName(pickerTeachers, trimmedTeacher);
-    if (existing) return lessonTeacherPickerName(existing);
+    if (!onAddTeacher) return teacher.trim();
 
     setAddingTeacher(true);
     try {
-      const created = await onAddTeacher({ name: trimmedTeacher });
-      if (!created) {
-        setError("添加老师失败，请重试或从列表选择已有老师");
+      const result = await teacherPickerRef.current?.resolveValueForSave();
+      if (!result) return teacher.trim();
+      if (!result.ok) {
+        setError(result.error);
         return null;
       }
-      const name = lessonTeacherPickerName(created);
-      setTeacher(name);
-      return name;
+      setTeacher(result.name);
+      return result.name;
     } finally {
       setAddingTeacher(false);
     }
@@ -333,11 +329,13 @@ export function JpLessonManualScheduleModal({
                       <span>{teacherFieldLabel}</span>
                       {onAddTeacher ? (
                         <JpLessonTeacherSinglePicker
+                          ref={teacherPickerRef}
                           value={teacher}
                           teachers={pickerTeachers}
                           placeholder={teacherPlaceholder}
                           onChange={setTeacher}
                           onAddTeacher={onAddTeacher}
+                          disabled={saving || addingTeacher}
                         />
                       ) : (
                         <input
