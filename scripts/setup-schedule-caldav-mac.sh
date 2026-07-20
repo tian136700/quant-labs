@@ -1,34 +1,52 @@
 #!/bin/bash
-# Mac：网易 CalDAV 同步（已弃用，默认禁用；请改用 ICS 订阅到系统日历）
+# Mac：统一日程 → 网易 CalDAV（iPhone 已绑定该邮箱日历即可看到）
+# 与 ICS 订阅可并存；iPhone 靠网易日历账号同步时以本任务为准。
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="com.infoquests.schedule-caldav"
 CONFIG_DIR="${HOME}/.config/info-quests"
 ENV_FILE="${CONFIG_DIR}/schedule-caldav.env"
-SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
 PLIST_DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
+LOG_DIR="${HOME}/Library/Logs"
 
-echo "注意：网易 CalDAV 已停用，推荐使用系统日历 ICS 订阅："
-echo "  见 ~/.config/info-quests/schedule-ics-subscribe-url.txt"
-echo ""
-
-mkdir -p "$CONFIG_DIR"
+mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  cp "$SCRIPTS/schedule-caldav.env.example" "$ENV_FILE"
+  cp "$ROOT/scripts/schedule-caldav.env.example" "$ENV_FILE"
   echo "已创建配置: $ENV_FILE"
+  echo "请填写 SCHEDULE_CALDAV_EMAIL / SCHEDULE_CALDAV_PASSWORD（授权码）后再跑同步。"
 else
   echo "保留已有配置: $ENV_FILE"
 fi
 
-if ! grep -q '^SCHEDULE_CALDAV_DISABLED=' "$ENV_FILE"; then
-  printf '\nSCHEDULE_CALDAV_DISABLED=1\n' >> "$ENV_FILE"
+# 恢复启用（勿再默认写成 DISABLED=1，否则 iPhone 网易日历会停更）
+if grep -q '^SCHEDULE_CALDAV_DISABLED=' "$ENV_FILE"; then
+  perl -i -pe 's/^SCHEDULE_CALDAV_DISABLED=.*/SCHEDULE_CALDAV_DISABLED=0/' "$ENV_FILE"
 else
-  # shellcheck disable=SC2016
-  perl -i -pe 's/^SCHEDULE_CALDAV_DISABLED=.*/SCHEDULE_CALDAV_DISABLED=1/' "$ENV_FILE"
+  printf '\nSCHEDULE_CALDAV_DISABLED=0\n' >> "$ENV_FILE"
 fi
 
-launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
-rm -f "$PLIST_DST"
+chmod +x "$ROOT/scripts/schedule-caldav-sync.sh"
+chmod +x "$ROOT/scripts/schedule-caldav-sync.py"
 
-echo "OK: 已停用网易 CalDAV（不安装 launchd）。请用 iPhone/Mac 订阅 ICS。"
+sed \
+  -e "s|__REPO_ROOT__|${ROOT}|g" \
+  -e "s|__LOG_DIR__|${LOG_DIR}|g" \
+  "$ROOT/scripts/com.infoquests.schedule-caldav.plist.example" > "$PLIST_DST"
+
+launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
+launchctl enable "gui/$(id -u)/${LABEL}"
+
+echo ""
+echo "OK: launchd 已安装（每 30 分钟同步一次到网易日历）"
+echo "  plist: $PLIST_DST"
+echo "  日志: ${LOG_DIR}/schedule-caldav.log"
+echo ""
+echo "试跑（不写网易）:"
+echo "  $ROOT/scripts/.venv-schedule-caldav/bin/python3 $ROOT/scripts/schedule-caldav-sync.py --dry-run"
+echo "立即同步:"
+echo "  bash $ROOT/scripts/schedule-caldav-sync.sh"
+echo ""
+echo "ICS 订阅（可选，系统日历直订）见: ${CONFIG_DIR}/schedule-ics-subscribe-url.txt"
