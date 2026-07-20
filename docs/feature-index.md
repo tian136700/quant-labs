@@ -138,6 +138,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
 | **未完成按 ID 升序**（小 ID=先上传的基础课优先；手机/PC；不可改按时间/最近） | `JpLessonPage.tsx` → `displayGroupsByStatus.pending`；`jp-lesson-shared.ts` → `buildJpLessonDisplayGroupsById`；规则 `.cursor/rules/jp-lesson-pending-id-sort.mdc` |
 | **手机端状态 Tab 记忆**（学习中/未完成/已完成；刷新后保持，勿回到学习中） | `lesson-mobile-status-filter.ts`；`JpLessonPage.tsx` / `EnLessonPage.tsx` → `mobileStatusFilter`；规则 `.cursor/rules/jp-lesson-mobile-status-tab.mdc` |
+| **查单词 / 语法**（学习内容、释义、例句模糊搜索；本地即时；搜索时手机端跨状态展示匹配） | `JpLessonPage.tsx` → `searchQuery`；`jp-lesson-search.ts` → `filterJpLessonsBySearch` |
 | **手机端学习内容完整展示**（每行 5 词换行；禁单行省略；页根须 `jp-lesson-page--ja` / `--en`） | `JpLessonPage.tsx` / `EnLessonPage.tsx` mobile chips；`mobile.css` → `jp-lesson-mobile-content-chips`；规则 `.cursor/rules/jp-lesson-mobile-content-layout.mdc` |
 | **手机端改老师/时间后滚动错位**（按上课时间重排后视口停在别的 ID） | 保存成功后 `scrollLessonListItemIntoView`；`lesson-list-scroll.ts`；规则 `.cursor/rules/lesson-edit-scroll-stable.mdc` |
 | **桌面端表头冻结**（Excel 式；区内下滑时「老师 / 时间」等列名固定） | `JpLessonPage.tsx` / `EnLessonPage.tsx` → `.jp-lesson-table-wrap` `max-height` + `thead th` sticky；规则 `.cursor/rules/lesson-table-actions-visible.mdc` |

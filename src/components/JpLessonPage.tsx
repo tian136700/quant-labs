@@ -71,6 +71,7 @@ import {
   adminJpLessonTeachersPath,
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
+import { filterJpLessonsBySearch } from "@/lib/jp-lesson-search";
 import {
   adjustJpLessonTeacherLessonCounts,
   normalizeJpLessonTeacher,
@@ -509,6 +510,7 @@ export function JpLessonPage() {
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [expandedMeaningsIds, setExpandedMeaningsIds] = useState<Record<number, boolean>>({});
   const [sectionSort, setSectionSort] = useState(DEFAULT_JP_LESSON_SECTION_SORT);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleContentExpanded = useCallback((lessonId: number) => {
     setExpandedContentIds((prev) => ({
@@ -618,17 +620,24 @@ export function JpLessonPage() {
     void loadLessons();
   }, [loadLessons, checking, user, canViewJpLesson]);
 
+  const searchActive = searchQuery.trim().length > 0;
+
+  const filteredLessons = useMemo(
+    () => filterJpLessonsBySearch(lessons, searchQuery),
+    [lessons, searchQuery]
+  );
+
   const lessonsByStatus = useMemo(() => {
     const buckets: Record<JpLessonProgressStatus, JpLessonRecord[]> = {
       learning: [],
       pending: [],
       completed: [],
     };
-    for (const lesson of lessons) {
+    for (const lesson of filteredLessons) {
       buckets[getJpLessonProgressStatus(lesson)].push(lesson);
     }
     return buckets;
-  }, [lessons]);
+  }, [filteredLessons]);
 
   const displayGroupsByStatus = useMemo(() => {
     const groups: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]> = {
@@ -2138,7 +2147,51 @@ export function JpLessonPage() {
           <p style={{ color: "var(--muted)", margin: 0 }}>暂无新课，请通过 API 上传。</p>
         </section>
       ) : (
-        <div className={`jp-lesson-cards jp-lesson-mobile-filter-${mobileStatusFilter}`}>
+        <>
+        <div className="jp-lesson-search" role="search">
+          <label htmlFor="jp-lesson-search" className="jp-lesson-search__label">
+            查单词 / 语法
+          </label>
+          <div className="jp-lesson-search__row">
+            <input
+              id="jp-lesson-search"
+              type="search"
+              className="jp-lesson-search__input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="学习内容、释义、例句…（模糊匹配，本地即时）"
+              disabled={loading}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          {searchActive ? (
+            <>
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact jp-lesson-search__clear"
+                onClick={() => setSearchQuery("")}
+              >
+                清除
+              </button>
+              <span className="jp-lesson-search__meta">
+                匹配 {filteredLessons.length} / {lessons.length} 条
+              </span>
+            </>
+          ) : null}
+        </div>
+        {searchActive && !filteredLessons.length ? (
+          <p className="jp-lesson-search__empty">
+            没有匹配「{searchQuery.trim()}」的新课，请换个关键词试试。
+          </p>
+        ) : null}
+        <div
+          className={`jp-lesson-cards ${
+            searchActive
+              ? "jp-lesson-mobile-filter-search"
+              : `jp-lesson-mobile-filter-${mobileStatusFilter}`
+          }`}
+        >
           {refreshing ? (
             <p
               style={{
@@ -2174,6 +2227,7 @@ export function JpLessonPage() {
           {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
             const sectionGroups = displayGroupsByStatus[status];
             const sectionCount = lessonsByStatus[status].length;
+            if (searchActive && !sectionCount) return null;
             return (
               <section
                 key={status}
@@ -2214,13 +2268,14 @@ export function JpLessonPage() {
                     status,
                     status === "learning" ? learningDayToneByDate : undefined
                   )
-                ) : (
+                ) : searchActive ? null : (
                   <p className="jp-lesson-status-card-empty">{emptyHint}</p>
                 )}
               </section>
             );
           })}
         </div>
+        </>
       )}
 
       <JpLessonTeacherEditModal
@@ -2375,6 +2430,55 @@ export function JpLessonPage() {
         :global(.jp-lesson-page) {
           min-width: 0;
           max-width: 100%;
+        }
+        .jp-lesson-search {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem 0.65rem;
+          margin: 0 0 0.75rem;
+        }
+        .jp-lesson-search__label {
+          font-size: 0.875rem;
+          color: var(--muted);
+          flex-shrink: 0;
+        }
+        .jp-lesson-search__row {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: 28rem;
+        }
+        .jp-lesson-search__input {
+          flex: 1 1 auto;
+          min-width: 0;
+          width: 100%;
+          padding: 0.45rem 0.65rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+        }
+        .jp-lesson-search__input:focus {
+          outline: none;
+          border-color: var(--accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+        }
+        .jp-lesson-search__input:disabled {
+          opacity: 0.6;
+        }
+        :global(.jp-lesson-search__meta) {
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        :global(.jp-lesson-search__empty) {
+          margin: 0 0 0.75rem;
+          font-size: 0.875rem;
+          color: var(--muted);
         }
         .jp-lesson-cards {
           display: flex;
