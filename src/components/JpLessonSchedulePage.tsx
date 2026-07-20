@@ -73,6 +73,7 @@ import {
   type LessonScheduleSubject,
 } from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath, enLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
+import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
 import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import {
   formatTeacherLessonDisplayLabel,
@@ -977,6 +978,13 @@ export function JpLessonSchedulePage() {
         };
       };
       if (!data.ok || !data.teacher) {
+        if (data.error === "name_duplicate") {
+          return (
+            findLessonTeacherByPickerName(teachers, input.name) ??
+            teachers.find((item) => item.name.trim() === input.name.trim()) ??
+            null
+          );
+        }
         return null;
       }
       if (data.user_account) {
@@ -1033,6 +1041,13 @@ export function JpLessonSchedulePage() {
         error?: string;
       };
       if (!data.ok || !data.teacher) {
+        if (data.error === "name_duplicate") {
+          return (
+            findLessonTeacherByPickerName(enTeachers, input.name) ??
+            enTeachers.find((item) => item.name.trim() === input.name.trim()) ??
+            null
+          );
+        }
         return null;
       }
       setEnTeachers((prev) => {

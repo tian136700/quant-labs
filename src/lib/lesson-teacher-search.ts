@@ -48,6 +48,21 @@ export function lessonTeacherSearchHaystack(
     .toLowerCase();
 }
 
+/** 老师选择器展示名（与 JpLessonTeacherSinglePicker 一致） */
+export function lessonTeacherPickerName(teacher: JpLessonTeacher): string {
+  return resolveLessonTeacherRateFields(teacher).name;
+}
+
+/** 按选择器展示名精确匹配已有老师 */
+export function findLessonTeacherByPickerName<T extends JpLessonTeacher>(
+  teachers: T[],
+  name: string
+): T | undefined {
+  const trimmed = name.trim();
+  if (!trimmed) return undefined;
+  return teachers.find((teacher) => lessonTeacherPickerName(teacher) === trimmed);
+}
+
 /** 本地模糊搜索：各关键词均需在 haystack 中出现（AND）；空查询返回原列表 */
 export function filterLessonTeachersBySearch<T extends JpLessonTeacher>(
   teachers: T[],

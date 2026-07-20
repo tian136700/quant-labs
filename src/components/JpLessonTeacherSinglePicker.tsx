@@ -4,10 +4,13 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import {
   formatTeacherDisplayLabel,
-  resolveLessonTeacherRateFields,
   sortJpLessonTeachersByLessonCount,
 } from "@/lib/jp-lesson-teacher-rate";
-import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
+import {
+  filterLessonTeachersBySearch,
+  findLessonTeacherByPickerName,
+  lessonTeacherPickerName,
+} from "@/lib/lesson-teacher-search";
 import type { JpLessonTeacher } from "@/lib/types";
 
 type Props = {
@@ -56,17 +59,13 @@ export function JpLessonTeacherSinglePicker({
 
   const trimmedQuery = query.trim();
 
-  const teacherPickerName = (teacher: JpLessonTeacher) =>
-    resolveLessonTeacherRateFields(teacher).name;
-
   const filteredTeachers = useMemo(
     () => filterLessonTeachersBySearch(sortedTeachers, trimmedQuery),
     [sortedTeachers, trimmedQuery]
   );
 
   const exactMatch = useMemo(
-    () =>
-      sortedTeachers.find((teacher) => teacherPickerName(teacher) === trimmedQuery),
+    () => findLessonTeacherByPickerName(sortedTeachers, trimmedQuery),
     [sortedTeachers, trimmedQuery]
   );
 
@@ -82,7 +81,7 @@ export function JpLessonTeacherSinglePicker({
   const handleAddTeacher = async () => {
     if (!trimmedQuery || adding || disabled) return;
     if (exactMatch) {
-      selectTeacher(teacherPickerName(exactMatch));
+      selectTeacher(lessonTeacherPickerName(exactMatch));
       return;
     }
 
@@ -94,7 +93,7 @@ export function JpLessonTeacherSinglePicker({
         setAddError("添加失败，请重试");
         return;
       }
-      selectTeacher(teacherPickerName(teacher));
+      selectTeacher(lessonTeacherPickerName(teacher));
     } finally {
       setAdding(false);
     }
@@ -105,7 +104,7 @@ export function JpLessonTeacherSinglePicker({
       if (!containerRef.current?.contains(document.activeElement)) {
         setOpen(false);
         if (exactMatch) {
-          const name = teacherPickerName(exactMatch);
+          const name = lessonTeacherPickerName(exactMatch);
           onChange(name);
           setQuery(name);
         } else {
@@ -162,9 +161,9 @@ export function JpLessonTeacherSinglePicker({
             </li>
           ) : null}
           {filteredTeachers.map((teacher) => {
-            const pickerName = teacherPickerName(teacher);
+            const pickerName = lessonTeacherPickerName(teacher);
             return (
-            <li key={pickerName} role="option" aria-selected={value === pickerName}>
+            <li key={teacher.id} role="option" aria-selected={value === pickerName}>
               <button
                 type="button"
                 className="jp-lesson-teacher-single-picker-option"
@@ -178,6 +177,12 @@ export function JpLessonTeacherSinglePicker({
             );
           })}
         </ul>
+      ) : null}
+
+      {showAddOption && !addError ? (
+        <p className="jp-lesson-teacher-single-picker-hint">
+          按 Enter 或点击「添加「{trimmedQuery}」」加入老师库
+        </p>
       ) : null}
 
       {addError ? (
@@ -239,6 +244,13 @@ export function JpLessonTeacherSinglePicker({
         .jp-lesson-teacher-single-picker-option--add {
           color: var(--accent);
           font-weight: 600;
+        }
+
+        .jp-lesson-teacher-single-picker-hint {
+          margin: 0.35rem 0 0;
+          font-size: 0.75rem;
+          color: var(--muted);
+          line-height: 1.4;
         }
 
         .jp-lesson-teacher-single-picker-error {

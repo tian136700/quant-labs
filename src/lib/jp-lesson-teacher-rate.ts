@@ -335,6 +335,47 @@ export function scheduleTeacherPickerListForSubject(
   return mergeScheduleTeacherPickerLists(jpTeachers, enTeachers);
 }
 
+export type LessonTeacherAddInput = {
+  name: string;
+  lesson_price?: number;
+  lesson_minutes?: number;
+};
+
+/** 添加老师：金额与时长须同时填写或都留空 */
+export function validateLessonTeacherAddRateFields(
+  price: string,
+  minutes: string
+): string | null {
+  const hasPrice = Boolean(price.trim());
+  const hasMinutes = Boolean(minutes.trim());
+  if (hasPrice !== hasMinutes) {
+    return "金额与时长需同时填写，或都留空";
+  }
+  if (hasPrice && hasMinutes) {
+    const normalizedPrice = normalizeHourlyRate(price);
+    const normalizedMinutes = normalizeTeacherLessonMinutes(minutes);
+    if (normalizedPrice == null || normalizedMinutes == null) {
+      return "请填写有效的金额与分钟数";
+    }
+  }
+  return null;
+}
+
+export function buildLessonTeacherAddInput(
+  name: string,
+  price: string,
+  minutes: string
+): LessonTeacherAddInput | null {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  const input: LessonTeacherAddInput = { name: trimmed };
+  if (price.trim() && minutes.trim()) {
+    input.lesson_price = Number(price);
+    input.lesson_minutes = Number(minutes);
+  }
+  return input;
+}
+
 /** 新课/课表等前台展示：名称 + 金额/时长，如「李老师 · 80 / 45 min」 */
 export function formatTeacherDisplayLabel(
   name: string,

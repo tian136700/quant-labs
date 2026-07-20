@@ -15,6 +15,7 @@ import {
   detectScheduleTeacherSubjectFromTitle,
   scheduleTeacherPickerListForSubject,
 } from "@/lib/jp-lesson-teacher-rate";
+import { findLessonTeacherByPickerName, lessonTeacherPickerName } from "@/lib/lesson-teacher-search";
 import type { JpLessonTeacher } from "@/lib/types";
 import {
   beijingTodayDateString,
@@ -103,6 +104,7 @@ export function JpLessonManualScheduleModal({
   const [teacher, setTeacher] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
+  const [addingTeacher, setAddingTeacher] = useState(false);
   const saveInitiatedRef = useRef(false);
   const saveProgress = useSaveProgressBar(saving);
 
@@ -132,6 +134,7 @@ export function JpLessonManualScheduleModal({
     setTeacher(next.teacher);
     setNote(next.note);
     setError("");
+    setAddingTeacher(false);
     saveInitiatedRef.current = false;
   }, [open, editing, initialDate]);
 
@@ -172,8 +175,31 @@ export function JpLessonManualScheduleModal({
         ? "选择日语老师，或输入后添加"
         : "选择系统老师，或输入后添加";
 
-  const handleSave = () => {
-    if (saving || saveInitiatedRef.current) {
+  const resolveTeacherForSave = async (): Promise<string | null> => {
+    const trimmedTeacher = teacher.trim();
+    if (!trimmedTeacher) return "";
+    if (!onAddTeacher) return trimmedTeacher;
+
+    const existing = findLessonTeacherByPickerName(pickerTeachers, trimmedTeacher);
+    if (existing) return lessonTeacherPickerName(existing);
+
+    setAddingTeacher(true);
+    try {
+      const created = await onAddTeacher({ name: trimmedTeacher });
+      if (!created) {
+        setError("添加老师失败，请重试或从列表选择已有老师");
+        return null;
+      }
+      const name = lessonTeacherPickerName(created);
+      setTeacher(name);
+      return name;
+    } finally {
+      setAddingTeacher(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (saving || addingTeacher || saveInitiatedRef.current) {
       setError("正在提交，请勿重复提交");
       return;
     }
@@ -194,13 +220,16 @@ export function JpLessonManualScheduleModal({
       return;
     }
 
+    const teacherName = await resolveTeacherForSave();
+    if (teacherName === null) return;
+
     saveInitiatedRef.current = true;
     setError("");
     onSave({
       title: trimmedTitle,
       class_at: classAt,
       duration_minutes: duration ? Number(duration) : null,
-      teacher: teacher.trim(),
+      teacher: teacherName,
       note: note.trim(),
     });
   };
@@ -247,7 +276,7 @@ export function JpLessonManualScheduleModal({
           </button>
         </div>
 
-        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
+        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving || addingTeacher}>
           <legend>
             {showFullFields ? "日程信息（北京时间，整点 / 半点）" : "上课时间（北京时间，整点 / 半点）"}
           </legend>
@@ -346,9 +375,13 @@ export function JpLessonManualScheduleModal({
           )}
         </fieldset>
 
-        {saveProgress.visible ? (
+        {saveProgress.visible || addingTeacher ? (
           <JpVocabSaveProgressBar
-            label={jpVocabSaveProgressLabel("save")}
+            label={
+              addingTeacher
+                ? "正在添加老师…"
+                : jpVocabSaveProgressLabel("save")
+            }
             percent={saveProgress.percent}
             fullWidth
           />
@@ -358,7 +391,7 @@ export function JpLessonManualScheduleModal({
           <button
             type="button"
             className="jp-lesson-action-btn"
-            disabled={saving}
+            disabled={saving || addingTeacher}
             onClick={onClose}
           >
             取消
@@ -366,8 +399,8 @@ export function JpLessonManualScheduleModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving}
-            onClick={handleSave}
+            disabled={saving || addingTeacher}
+            onClick={() => void handleSave()}
           >
             保存
           </button>
