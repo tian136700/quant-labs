@@ -137,8 +137,8 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **复制分页 PDF**（一步：剪贴板优先 → 系统分享 → 下载兜底；下载菜单 + 复制菜单） | `jp-vocab-ref-pdf-export.ts` → `buildJpVocabRefPaginatedPdf` / `copyJpVocabRefPaginatedPdf`；`JpVocabRefDownloadMenu`；`JpLessonCopyMenu` |
 | 设置上课老师弹窗、按上课频次排序 | `JpLessonTeacherEditModal.tsx`；`jp-lesson-teacher-db.ts` → `getJpLessonTeacherLessonCounts()`；`jp-lesson-teacher-rate.ts` → `sortJpLessonTeachersByLessonCount()` |
 | **未完成按 ID 升序**（小 ID=先上传的基础课优先；手机/PC；不可改按时间/最近） | `JpLessonPage.tsx` → `displayGroupsByStatus.pending`；`jp-lesson-shared.ts` → `buildJpLessonDisplayGroupsById`；规则 `.cursor/rules/jp-lesson-pending-id-sort.mdc` |
-| **手机端状态 Tab 记忆**（学习中/未完成/已完成；刷新后保持，勿回到学习中） | `lesson-mobile-status-filter.ts`；`JpLessonPage.tsx` → `mobileStatusFilter`；规则 `.cursor/rules/jp-lesson-mobile-status-tab.mdc` |
-| **手机端学习内容完整展示**（每行 5 词换行；例句+查看+修改；禁单行省略） | `JpLessonPage.tsx` mobile chips；`mobile.css` → `jp-lesson-mobile-content-chips`；规则 `.cursor/rules/jp-lesson-mobile-content-layout.mdc` |
+| **手机端状态 Tab 记忆**（学习中/未完成/已完成；刷新后保持，勿回到学习中） | `lesson-mobile-status-filter.ts`；`JpLessonPage.tsx` / `EnLessonPage.tsx` → `mobileStatusFilter`；规则 `.cursor/rules/jp-lesson-mobile-status-tab.mdc` |
+| **手机端学习内容完整展示**（每行 5 词换行；禁单行省略；页根须 `jp-lesson-page--ja` / `--en`） | `JpLessonPage.tsx` / `EnLessonPage.tsx` mobile chips；`mobile.css` → `jp-lesson-mobile-content-chips`；规则 `.cursor/rules/jp-lesson-mobile-content-layout.mdc` |
 | **手机端改老师/时间后滚动错位**（按上课时间重排后视口停在别的 ID） | 保存成功后 `scrollLessonListItemIntoView`；`lesson-list-scroll.ts`；规则 `.cursor/rules/lesson-edit-scroll-stable.mdc` |
 | **桌面端表头冻结**（Excel 式；区内下滑时「老师 / 时间」等列名固定） | `JpLessonPage.tsx` / `EnLessonPage.tsx` → `.jp-lesson-table-wrap` `max-height` + `thead th` sticky；规则 `.cursor/rules/lesson-table-actions-visible.mdc` |
 | **学习中 + 开课 18h 内 → 立即启用老师账号**（设老师 / 上课时间 / 状态为「学习中」后；与每日 05:00、开课前 2h 定时互补；`admin` / `user1` / `test` 不自动启） | `teacher-user-schedule-enable.ts` → `maybeEnableTeacherUsersForLearningLesson`；`POST /api/jp-lesson`（`set_teacher` / `set_class_schedules` / `set_next_class_at` / `progress_status`）；规则 `.cursor/rules/teacher-lesson-learning-auto-enable.mdc` |
@@ -166,6 +166,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 |----------|--------|
 | 设置上课老师弹窗（弹窗内新增老师并保存） | `EnLessonTeacherEditModal.tsx`（添加行右侧「保存」）；`EnLessonPage.tsx` → `addLessonTeacher` / `setLessonTeachers`（合并老师列表，勿用旧闭包覆盖刚添加的老师）；API：`/api/admin/en-lesson-teachers`、`POST /api/en-lesson` `set_teacher` |
 | **默认课时长 25 分钟**（设置上课时间时预选；日程未填时长也按 25；勿用日语默认 55） | `en-lesson-shared.ts` → `DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES` / `resolveEnClassDurationMinutes`；`EnLessonNextClassEditModal.tsx` |
+| **手机端卡片布局**（与日语新课同套：状态 Tab 记忆、内容 chips 每行 5、底部编辑/老师/时间；根节点 `jp-lesson-page--en`） | `EnLessonPage.tsx`；`mobile.css`（`--ja` / `--en`）；`EN_LESSON_MOBILE_STATUS_FILTER_KEY`；规则 `jp-lesson-mobile-content-layout.mdc`、`jp-lesson-mobile-status-tab.mdc` |
 | **教案下载文件名**（英文：`{id}. Word Learn|Grammar Learn (word1, word2, …)`，空格保留；列表与「查看」页一致；供菲律宾等英语老师识别） | `en-vocab-ref-shared.ts` → `enLessonRefDownloadFilename`；`EnLessonPage.tsx`；`EnVocabRefViewer` + `en-vocab/ref/[refKey]/page.tsx`；`GET /api/en-vocab/ref/[refKey]?download=1`；`getEnLessonByRefKey` |
 | **教案下载格式**（整图 PDF：整张图嵌入一页、不拆分；另保留分页 PDF / Word；管理员可下原图） | `EnVocabRefDownloadMenu.tsx`；`en-vocab-ref-pdf-export.ts` → `exportEnVocabRefFullImagePdf` / `exportEnVocabRefPaginatedPdf` |
 | **复制菜单**（带模板 / 仅链接 / **仅文字**：`发给{上课老师名}老师，谢谢～`；多名各加「老师」；无链接；教材 PDF 另行下载发送；**三种模式成功后复制次数均 +1**） | `EnLessonCopyMenu.tsx` → `buildEnLessonTextOnlyCopy`；`EnLessonPage.tsx` → `record_link_copy`；`incrementEnLessonLinkCopyCount`；规则 `.cursor/rules/en-lesson-copy-count.mdc` |

@@ -4,6 +4,8 @@ export type LessonMobileStatusFilter = "pending" | "learning" | "completed";
 
 export const JP_LESSON_MOBILE_STATUS_FILTER_KEY = "jp-lesson:mobile-status-filter";
 
+export const EN_LESSON_MOBILE_STATUS_FILTER_KEY = "en-lesson:mobile-status-filter";
+
 function isLessonMobileStatusFilter(value: string | null): value is LessonMobileStatusFilter {
   return value === "pending" || value === "learning" || value === "completed";
 }

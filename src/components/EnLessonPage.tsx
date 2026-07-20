@@ -18,6 +18,11 @@ import {
   blurActiveElementForLessonModalClose,
   scrollLessonListItemIntoView,
 } from "@/lib/lesson-list-scroll";
+import {
+  EN_LESSON_MOBILE_STATUS_FILTER_KEY,
+  readStoredLessonMobileStatusFilter,
+  writeStoredLessonMobileStatusFilter,
+} from "@/lib/lesson-mobile-status-filter";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_LESSON_CACHE_KEY,
@@ -101,6 +106,8 @@ function refFilename(lesson: EnLessonRecord, ref?: EnVocabRef): string {
 }
 
 const EN_LESSON_CONTENT_PREVIEW_LINES = 2;
+/** 折叠时最多展示的词/短语条数（约两行 × 每行 3 个） */
+const EN_LESSON_CONTENT_PREVIEW_ITEMS = 6;
 
 function EnLessonContentPreview({
   content,
@@ -111,18 +118,27 @@ function EnLessonContentPreview({
   expanded: boolean;
   onToggle: () => void;
 }) {
+  const items = parseLessonContent(content);
   const lines = formatLessonContentLines(content);
-  const needsMore = lines.length > EN_LESSON_CONTENT_PREVIEW_LINES;
+  const needsMore =
+    lines.length > EN_LESSON_CONTENT_PREVIEW_LINES ||
+    items.length > EN_LESSON_CONTENT_PREVIEW_ITEMS;
   const shown =
     !expanded && needsMore ? lines.slice(0, EN_LESSON_CONTENT_PREVIEW_LINES) : lines;
 
   return (
-    <div className="jp-lesson-content-lines">
-      {shown.map((line, lineIdx) => (
-        <span key={lineIdx} className="jp-lesson-content-line">
-          {line}
-        </span>
-      ))}
+    <div
+      className={`jp-lesson-content-preview${expanded ? " is-expanded" : ""}${
+        needsMore && !expanded ? " is-clamped" : ""
+      }`}
+    >
+      <div className="jp-lesson-content-lines jp-lesson-content-desktop">
+        {shown.map((line, lineIdx) => (
+          <span key={lineIdx} className="jp-lesson-content-line">
+            {line}
+          </span>
+        ))}
+      </div>
       {needsMore ? (
         <button
           type="button"
@@ -133,6 +149,120 @@ function EnLessonContentPreview({
           {expanded ? "收起" : "更多"}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+type EnLessonMobileIconName =
+  | "edit"
+  | "calendar"
+  | "user"
+  | "upload"
+  | "clock"
+  | "view"
+  | "pen"
+  | "download"
+  | "copy"
+  | "notes";
+
+function EnLessonMobileIcon({
+  name,
+  className = "",
+}: {
+  name: EnLessonMobileIconName;
+  className?: string;
+}) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.4,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+  const body = (() => {
+    switch (name) {
+      case "edit":
+      case "pen":
+        return <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" {...common} />;
+      case "calendar":
+        return (
+          <>
+            <rect x="2.5" y="3.5" width="11" height="10" rx="1.2" {...common} />
+            <path d="M2.5 6.5h11M5.5 2v2.5M10.5 2v2.5" {...common} />
+          </>
+        );
+      case "user":
+        return (
+          <>
+            <circle cx="8" cy="5.5" r="2.2" {...common} />
+            <path d="M3.5 13.5c.8-2.2 2.6-3.5 4.5-3.5s3.7 1.3 4.5 3.5" {...common} />
+          </>
+        );
+      case "upload":
+        return (
+          <>
+            <path d="M8 10V3.5M5.5 6 8 3.5 10.5 6" {...common} />
+            <path d="M3 12.5h10" {...common} />
+          </>
+        );
+      case "clock":
+        return (
+          <>
+            <circle cx="8" cy="8" r="5.5" {...common} />
+            <path d="M8 5v3.5l2.2 1.3" {...common} />
+          </>
+        );
+      case "view":
+        return (
+          <>
+            <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z" {...common} />
+            <circle cx="8" cy="8" r="2" {...common} />
+          </>
+        );
+      case "download":
+        return (
+          <>
+            <path d="M8 2.5v7M5.5 7 8 9.5 10.5 7" {...common} />
+            <path d="M3 12.5h10" {...common} />
+          </>
+        );
+      case "copy":
+        return (
+          <>
+            <rect x="5.5" y="5.5" width="7" height="7" rx="1" {...common} />
+            <path d="M3.5 10.5V4.5a1 1 0 011-1H10" {...common} />
+          </>
+        );
+      case "notes":
+        return <path d="M11.5 1.5l3 3L5 14H2v-3L11.5 1.5z" {...common} />;
+      default:
+        return null;
+    }
+  })();
+  return (
+    <svg
+      className={`jp-lesson-mobile-icon${className ? ` ${className}` : ""}`}
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      aria-hidden="true"
+    >
+      {body}
+    </svg>
+  );
+}
+
+function EnLessonMobileFieldValue({
+  icon,
+  children,
+}: {
+  icon: EnLessonMobileIconName;
+  children: ReactNode;
+}) {
+  return (
+    <div className="jp-lesson-mobile-field-value">
+      <EnLessonMobileIcon name={icon} />
+      <span className="jp-lesson-mobile-field-text">{children}</span>
     </div>
   );
 }
@@ -246,8 +376,14 @@ export function EnLessonPage() {
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [mobileStatusFilter, setMobileStatusFilter] =
-    useState<EnLessonProgressStatus>("learning");
+  const [mobileStatusFilter, setMobileStatusFilterState] =
+    useState<EnLessonProgressStatus>(() =>
+      readStoredLessonMobileStatusFilter(EN_LESSON_MOBILE_STATUS_FILTER_KEY)
+    );
+  const setMobileStatusFilter = useCallback((status: EnLessonProgressStatus) => {
+    setMobileStatusFilterState(status);
+    writeStoredLessonMobileStatusFilter(EN_LESSON_MOBILE_STATUS_FILTER_KEY, status);
+  }, []);
   const [editingLesson, setEditingLesson] = useState<EnLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<EnLessonRecord | null>(null);
   const [editingNextClassLesson, setEditingNextClassLesson] = useState<EnLessonRecord | null>(null);
@@ -842,6 +978,9 @@ export function EnLessonPage() {
             className="jp-lesson-action-btn"
             onClick={() => setEditingLesson(lesson)}
           >
+            <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+              <EnLessonMobileIcon name="upload" />
+            </span>
             上传教案
           </button>
           {renderLessonDeleteButton(lesson)}
@@ -859,6 +998,9 @@ export function EnLessonPage() {
         rel="noopener noreferrer"
         className="jp-lesson-action-btn"
       >
+        <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+          <EnLessonMobileIcon name="view" />
+        </span>
         查看
       </a>,
     ];
@@ -870,6 +1012,9 @@ export function EnLessonPage() {
           className="jp-lesson-action-btn"
           onClick={() => setAnnotatingLesson({ lesson, ref: ref!, viewUrl })}
         >
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <EnLessonMobileIcon name="pen" />
+          </span>
           随手画
         </button>
       );
@@ -881,7 +1026,7 @@ export function EnLessonPage() {
         mediaUrl={enVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })}
         filename={refFilename(lesson, ref)}
         mediaType={ref?.media_type ?? "image"}
-        primaryClassName="jp-lesson-action-btn"
+        primaryClassName="jp-lesson-action-btn jp-lesson-action-btn--download"
         fixedPanel
         allowOriginalDownload={isAdmin}
         cropKind={lesson.kind}
@@ -900,6 +1045,11 @@ export function EnLessonPage() {
         copiedId={copiedId}
         onCopied={handleLessonCopied}
         onCopyError={handleLessonCopyError}
+        icon={
+          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+            <EnLessonMobileIcon name="copy" />
+          </span>
+        }
       />
     );
     if (canOperate) {
@@ -914,6 +1064,70 @@ export function EnLessonPage() {
       if (deleteBtn) actionItems.push(deleteBtn);
     }
     return <div className="jp-lesson-actions">{actionItems}</div>;
+  };
+
+  const renderMobileCardFooter = (groupLessons: EnLessonRecord[]) => {
+    const rows = groupLessons.flatMap((lesson) => {
+      const buttons: ReactNode[] = [];
+      if (canOperate) {
+        buttons.push(
+          <button
+            key={`edit-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            onClick={() => setEditingLesson(lesson)}
+          >
+            <EnLessonMobileIcon name="edit" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}编辑课程</span>
+          </button>
+        );
+      }
+      if (isAdmin) {
+        buttons.push(
+          <button
+            key={`time-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            disabled={savingNextClassId === lesson.id}
+            onClick={() => setEditingNextClassLesson(lesson)}
+          >
+            <EnLessonMobileIcon name="clock" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改时间</span>
+          </button>
+        );
+        buttons.push(
+          <button
+            key={`teacher-${lesson.id}`}
+            type="button"
+            className="jp-lesson-mobile-footer-btn"
+            onClick={() => setEditingTeacherLesson(lesson)}
+          >
+            <EnLessonMobileIcon name="user" />
+            <span>{groupLessons.length > 1 ? `#${lesson.id} ` : ""}修改老师</span>
+          </button>
+        );
+      }
+      if (!buttons.length) return [];
+      return (
+        <div
+          key={lesson.id}
+          className="jp-lesson-mobile-footer-row"
+          style={{ gridTemplateColumns: `repeat(${buttons.length}, minmax(0, 1fr))` }}
+        >
+          {buttons}
+        </div>
+      );
+    });
+
+    if (!rows.length) {
+      return <td className="jp-lesson-mobile-card-footer" aria-hidden="true" />;
+    }
+
+    return (
+      <td className="jp-lesson-mobile-card-footer">
+        <div className="jp-lesson-mobile-footer-stack">{rows}</div>
+      </td>
+    );
   };
 
   const renderSharedTeacherCell = (groupLessons: EnLessonRecord[]) => {
@@ -1087,15 +1301,72 @@ export function EnLessonPage() {
                 </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
-                    {group.lessons.map((lesson) => (
-                      <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
+                    {group.lessons.map((lesson) => {
+                      const mobileContentItems = parseLessonContent(lesson.content);
+                      const chipItems = mobileContentItems.length
+                        ? mobileContentItems
+                        : [lesson.content.trim() || "—"];
+                      return (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
                         <EnLessonContentPreview
                           content={lesson.content}
                           expanded={Boolean(expandedContentIds[lesson.id])}
                           onToggle={() => toggleContentExpanded(lesson.id)}
                         />
+                        <div
+                          className={`jp-lesson-mobile-content-item${
+                            merged ? " jp-lesson-merged-stack-item" : ""
+                          }`}
+                          data-lesson-anchor={lesson.id}
+                        >
+                          <div className="jp-lesson-mobile-content-main">
+                            <div className="jp-lesson-mobile-id-block">
+                              <div className="jp-lesson-mobile-id-line">
+                                <span className="jp-lesson-mobile-id-label">ID</span>
+                                <span className="jp-lesson-mobile-id-value">{lesson.id}</span>
+                              </div>
+                              <span
+                                className={`jp-lesson-kind jp-lesson-mobile-kind-tag${
+                                  lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                                }`}
+                              >
+                                {lesson.kind === "grammar" ? "语法" : "单词"}
+                              </span>
+                            </div>
+                            <ul
+                              className="jp-lesson-mobile-content-chips"
+                              aria-label={`课程 #${lesson.id} 学习内容`}
+                            >
+                              {chipItems.map((item, itemIdx) => (
+                                <li
+                                  key={`${lesson.id}-c-${itemIdx}`}
+                                  className="jp-lesson-mobile-content-chip"
+                                >
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                            {canOperate ? (
+                              <div className="jp-lesson-mobile-examples-toolbar">
+                                <button
+                                  type="button"
+                                  className="jp-lesson-mobile-content-edit"
+                                  title={`修改 #${lesson.id} 教案`}
+                                  aria-label={`修改 #${lesson.id} 教案`}
+                                  onClick={() => setEditingLesson(lesson)}
+                                >
+                                  修改
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </td>
                 <td data-label="词/短语数" className="jp-lesson-content-count-col">
@@ -1111,7 +1382,9 @@ export function EnLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {renderLessonDateTime(lesson.uploaded_at)}
+                        <EnLessonMobileFieldValue icon="upload">
+                          {renderLessonDateTime(lesson.uploaded_at)}
+                        </EnLessonMobileFieldValue>
                       </div>
                     ))}
                   </div>
@@ -1120,9 +1393,11 @@ export function EnLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {lesson.status_updated_at
-                          ? renderLessonDateTime(lesson.status_updated_at)
-                          : "—"}
+                        <EnLessonMobileFieldValue icon="clock">
+                          {lesson.status_updated_at
+                            ? renderLessonDateTime(lesson.status_updated_at)
+                            : "—"}
+                        </EnLessonMobileFieldValue>
                       </div>
                     ))}
                   </div>
@@ -1131,14 +1406,16 @@ export function EnLessonPage() {
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
-                        {lesson.status_updated_by ?? "—"}
+                        <EnLessonMobileFieldValue icon="user">
+                          {lesson.status_updated_by ?? "—"}
+                        </EnLessonMobileFieldValue>
                       </div>
                     ))}
                   </div>
                 </td>
                 {isAdmin ? renderSharedTeacherCell(group.lessons) : null}
                 {isAdmin ? renderSharedClassTimeCell(group.lessons) : null}
-                <td data-label="学习状态" className="jp-lesson-complete-col">
+                <td data-label="学习状态" className="jp-lesson-complete-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const progressStatus = getEnLessonProgressStatus(lesson);
@@ -1176,7 +1453,7 @@ export function EnLessonPage() {
                     })}
                   </div>
                 </td>
-                <td data-label="课堂笔记" className="jp-lesson-notes-col">
+                <td data-label="课堂笔记" className="jp-lesson-notes-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
                       const noteCount = noteCountByLesson.get(lesson.id) ?? 0;
@@ -1192,6 +1469,9 @@ export function EnLessonPage() {
                             className="jp-lesson-notes-btn"
                             title="在新标签页打开课堂笔记"
                           >
+                            <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+                              <EnLessonMobileIcon name="notes" />
+                            </span>
                             笔记
                             {noteCount > 0 ? (
                               <span className="jp-lesson-notes-count">{noteCount}</span>
@@ -1202,7 +1482,7 @@ export function EnLessonPage() {
                     })}
                   </div>
                 </td>
-                <td data-label="教案操作" className="jp-lesson-actions-col">
+                <td data-label="教案操作" className="jp-lesson-actions-col jp-lesson-mobile-labeled-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => (
                       <div
@@ -1214,6 +1494,7 @@ export function EnLessonPage() {
                     ))}
                   </div>
                 </td>
+                {renderMobileCardFooter(group.lessons)}
               </tr>
             );
           })}
@@ -1223,7 +1504,7 @@ export function EnLessonPage() {
   );
 
   return (
-    <main className="page-wrap jp-lesson-page" style={{ maxWidth: "min(1320px, 92vw)", paddingTop: "1.5rem" }}>
+    <main className="page-wrap jp-lesson-page jp-lesson-page--en" style={{ maxWidth: "min(1320px, 92vw)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
@@ -1513,6 +1794,21 @@ export function EnLessonPage() {
             box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 80%, transparent);
           }
         }
+        :global(.jp-lesson-mobile-card-head),
+        :global(.jp-lesson-mobile-card-footer) {
+          display: none !important;
+        }
+        :global(.jp-lesson-mobile-field-value) {
+          display: contents;
+        }
+        :global(.jp-lesson-mobile-icon),
+        :global(.jp-lesson-mobile-btn-icon),
+        :global(.jp-lesson-mobile-content-item) {
+          display: none;
+        }
+        :global(.jp-lesson-content-desktop) {
+          display: flex;
+        }
         :global(.jp-lesson-table th),
         :global(.jp-lesson-table td) {
           vertical-align: middle;
@@ -1554,14 +1850,31 @@ export function EnLessonPage() {
           font-size: 0.8125rem;
           color: var(--muted);
         }
+        :global(.jp-lesson-content-preview) {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.25rem;
+          min-width: 0;
+          max-width: 100%;
+        }
         :global(.jp-lesson-content-lines) {
           display: flex;
           flex-direction: column;
           gap: 0.2rem;
           line-height: 1.45;
+          min-width: 0;
+          max-width: 100%;
+        }
+        :global(.jp-lesson-content-preview.is-clamped .jp-lesson-content-lines) {
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          overflow: hidden;
         }
         :global(.jp-lesson-content-line) {
           display: block;
+          word-break: break-word;
         }
         :global(.jp-lesson-content-more-btn) {
           align-self: flex-start;

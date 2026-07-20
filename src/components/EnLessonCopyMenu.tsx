@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 
 type CopyMode = "withText" | "linkOnly" | "textOnly";
@@ -24,6 +25,7 @@ type Props = {
   copiedId: number | null;
   onCopied: (lessonId: number) => void;
   onCopyError: () => void;
+  icon?: ReactNode;
 };
 
 const COPY_WITH_TEXT =
@@ -58,6 +60,7 @@ export function EnLessonCopyMenu({
   copiedId,
   onCopied,
   onCopyError,
+  icon,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
@@ -162,6 +165,7 @@ export function EnLessonCopyMenu({
         aria-haspopup="menu"
         aria-expanded={open}
       >
+        {icon}
         {label}
         <span className="jp-lesson-copy-caret" aria-hidden>
           ▾
