@@ -24,6 +24,13 @@ VALID_KANJI_FURIGANA_CHUNK = re.compile(
     r"[\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*[（(][ぁ-んァ-ンヴヵヶー]+[）)]"
 )
 
+INCOMPLETE_KANJI_CASES = [
+    ("今日は気分(きぶん)がいいです。", True),
+    ("今日(きょう)は気分(きぶん)がいいです。", False),
+    ("電車(でんしゃ)に間(ま)に合(あ)いました。", False),
+    ("いい方法があります。", True),
+]
+
 CASES = [
     "友達(ゆうだつ)より静か(しずか)な場所(ばしょ)が好(す)きです。",
     "彼(かれ)は私(わたし)より年上(としうえ)です。",
@@ -103,6 +110,12 @@ def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
     return re.sub(r"\s{2,}", " ", s).strip()
 
 
+def has_unannotated_kanji(text: str) -> bool:
+    """Mirror of jpVocabExampleHasUnannotatedKanji in jp-vocab-example-sentences.ts"""
+    without_valid = VALID_KANJI_FURIGANA_CHUNK.sub("", text or "")
+    return bool(re.search(r"[\u4E00-\u9FFF]", without_valid))
+
+
 def main() -> int:
     src = SRC.read_text(encoding="utf-8")
     if "JP_VOCAB_PAREN_FURIGANA_RE" not in src:
@@ -157,9 +170,20 @@ def main() -> int:
             )
             return 1
 
+    for raw, expect_incomplete in INCOMPLETE_KANJI_CASES:
+        got = has_unannotated_kanji(raw)
+        if got != expect_incomplete:
+            print(
+                "[check_jp_vocab_furigana_parse] FAIL: incomplete kanji detection:\n"
+                f"  {raw!r} expect={expect_incomplete} got={got}",
+                file=sys.stderr,
+            )
+            return 1
+
     print(
         f"[check_jp_vocab_furigana_parse] OK "
-        f"({len(CASES)} parse + {len(SANITIZE_CASES)} sanitize cases)"
+        f"({len(CASES)} parse + {len(SANITIZE_CASES)} sanitize + "
+        f"{len(INCOMPLETE_KANJI_CASES)} incomplete-kanji cases)"
     )
     return 0
 

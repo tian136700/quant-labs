@@ -138,6 +138,12 @@ export function jpVocabExampleHasInvalidFuriganaParen(text: string): boolean {
   return /[（(][^）)]*[ぁ-んァ-ン][^）)]*[）)]/.test(withoutValid);
 }
 
+/** 剥掉合法「漢字(かな)」后是否仍有未标注汉字（apply 须拒 incomplete_kanji_furigana） */
+export function jpVocabExampleHasUnannotatedKanji(text: string): boolean {
+  const withoutValid = String(text || "").replace(VALID_KANJI_FURIGANA_CHUNK, "");
+  return /[\u4E00-\u9FFF]/.test(withoutValid);
+}
+
 /** 拆行并去掉行首已有序号 */
 export function splitJpVocabExampleSentenceLines(
   raw: string | null | undefined
