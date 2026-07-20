@@ -121,16 +121,24 @@ export async function countJpVocabWordsMissingExampleSentences(
     kind === "word" || kind === "grammar"
       ? await db
           .prepare(
-            `SELECT COUNT(*) AS n FROM jp_vocab_word
+            kind === "word"
+              ? `SELECT COUNT(*) AS n FROM jp_vocab_word
              WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
-               AND kind = ?1`
+               AND kind = 'word'
+               AND meaning IS NOT NULL AND TRIM(meaning) != ''`
+              : `SELECT COUNT(*) AS n FROM jp_vocab_word
+             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
+               AND kind = 'grammar'`
           )
-          .bind(kind)
           .first<{ n: number }>()
       : await db
           .prepare(
             `SELECT COUNT(*) AS n FROM jp_vocab_word
-             WHERE example_sentences IS NULL OR TRIM(example_sentences) = ''`
+             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
+               AND (
+                 kind = 'grammar'
+                 OR (kind = 'word' AND meaning IS NOT NULL AND TRIM(meaning) != '')
+               )`
           )
           .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -152,11 +160,18 @@ export async function listJpVocabWordsMissingExampleSentences(
       : null;
 
   let sql = `SELECT id, word, kind, reading, meaning FROM jp_vocab_word
-       WHERE example_sentences IS NULL OR TRIM(example_sentences) = ''`;
+       WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
+         AND (
+           kind = 'grammar'
+           OR (kind = 'word' AND meaning IS NOT NULL AND TRIM(meaning) != '')
+         )`;
   const binds: Array<string | number> = [];
   if (kind === "word" || kind === "grammar") {
     sql += ` AND kind = ?${binds.length + 1}`;
     binds.push(kind);
+    if (kind === "word") {
+      sql += ` AND meaning IS NOT NULL AND TRIM(meaning) != ''`;
+    }
   }
   sql += ` ORDER BY id`;
   if (limit != null) {

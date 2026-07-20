@@ -620,11 +620,13 @@ export function JpLessonPage() {
     void loadLessons();
   }, [loadLessons, checking, user, canViewJpLesson]);
 
+  const teacherById = useMemo(() => buildTeacherById(teachers), [teachers]);
+
   const searchActive = searchQuery.trim().length > 0;
 
   const filteredLessons = useMemo(
-    () => filterJpLessonsBySearch(lessons, searchQuery),
-    [lessons, searchQuery]
+    () => filterJpLessonsBySearch(lessons, searchQuery, teacherById),
+    [lessons, searchQuery, teacherById]
   );
 
   const lessonsByStatus = useMemo(() => {
@@ -661,8 +663,6 @@ export function JpLessonPage() {
     }
     return map;
   }, [notes]);
-
-  const teacherById = useMemo(() => buildTeacherById(teachers), [teachers]);
 
   const openTeacherEditModal = useCallback((lesson: JpLessonRecord, lessonIds?: number[]) => {
     setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
@@ -2142,7 +2142,7 @@ export function JpLessonPage() {
 
       <div className="jp-lesson-search" role="search">
         <label htmlFor="jp-lesson-search" className="jp-lesson-search__label">
-          查单词 / 语法
+          查单词 / 语法 / 老师
         </label>
         <div className="jp-lesson-search__row">
           <input
@@ -2151,7 +2151,7 @@ export function JpLessonPage() {
             className="jp-lesson-search__input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="学习内容、释义、例句…（模糊匹配，本地即时）"
+            placeholder="学习内容、释义、例句、上课老师…（模糊匹配，本地即时）"
             disabled={loading}
             autoComplete="off"
             spellCheck={false}

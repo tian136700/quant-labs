@@ -28,13 +28,16 @@ export type JpVocabMeaningAiInput = {
   word: string;
   reading?: string | null;
   kind?: string;
+  pos?: string | null;
 };
 
 export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): string {
   const reading = input.reading?.trim();
+  const pos = input.pos?.trim();
   const meta = [
     `词条：${input.word.trim()}`,
     reading ? `读音：${reading}` : null,
+    pos ? `词性：${pos}` : null,
     "类型：单词",
   ]
     .filter(Boolean)

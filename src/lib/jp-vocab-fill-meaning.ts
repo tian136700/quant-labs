@@ -47,7 +47,8 @@ export async function countJpVocabWordsMissingMeaning(
     .prepare(
       `SELECT COUNT(*) AS n FROM jp_vocab_word
        WHERE kind != 'grammar'
-         AND (meaning IS NULL OR TRIM(meaning) = '')`
+         AND (meaning IS NULL OR TRIM(meaning) = '')
+         AND pos IS NOT NULL AND TRIM(pos) != ''`
     )
     .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -67,9 +68,10 @@ export async function listJpVocabWordsMissingMeaning(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, reading, kind FROM jp_vocab_word
+  let sql = `SELECT id, word, reading, kind, pos FROM jp_vocab_word
        WHERE kind != 'grammar'
          AND (meaning IS NULL OR TRIM(meaning) = '')
+         AND pos IS NOT NULL AND TRIM(pos) != ''
        ORDER BY id`;
   if (limit != null) {
     sql += ` LIMIT ?1`;
@@ -82,17 +84,24 @@ export async function listJpVocabWordsMissingMeaning(
     word: string;
     reading: string | null;
     kind: string;
+    pos: string | null;
   }>();
 
   return (result.results ?? []).map((row) => {
     const word = String(row.word);
     const reading = row.reading != null ? String(row.reading).trim() || null : null;
+    const pos = row.pos != null ? String(row.pos).trim() || null : null;
     return {
       id: Number(row.id),
       word,
       reading,
       kind: String(row.kind),
-      prompt: buildJpVocabMeaningAiPrompt({ word, reading, kind: String(row.kind) }),
+      prompt: buildJpVocabMeaningAiPrompt({
+        word,
+        reading,
+        kind: String(row.kind),
+        pos,
+      }),
     };
   });
 }
