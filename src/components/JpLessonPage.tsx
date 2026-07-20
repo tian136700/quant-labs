@@ -1419,6 +1419,13 @@ export function JpLessonPage() {
         copiedId={copiedId}
         onCopied={handleLessonLinkCopied}
         onCopyError={handleLessonLinkCopyError}
+        pdfMediaUrl={
+          ref?.media_type === "image"
+            ? jpVocabRefApiPath(lesson.ref_key!, { v: ref?.updated_at })
+            : null
+        }
+        pdfFilename={ref?.media_type === "image" ? refFilename(lesson, ref) : null}
+        pdfCropKind={ref?.media_type === "image" ? lesson.kind : null}
         icon={
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <JpLessonMobileIcon name="copy" />
@@ -2434,7 +2441,7 @@ export function JpLessonPage() {
           color: var(--fall);
         }
         :global(.jp-lesson-table-wrap) {
-          /* 禁止横向滚动与 sticky 遮挡：列宽压缩 + 折行塞进视口 */
+          /* 禁止横向滚动：列宽压缩 + 折行塞进视口（勿用操作列 sticky） */
           overflow-x: hidden;
           max-width: 100%;
           min-width: 0;
@@ -2448,6 +2455,19 @@ export function JpLessonPage() {
         @media (min-width: 768px) {
           :global(.jp-lesson-mobile-status-filter) {
             display: none;
+          }
+          /* Excel 式冻结表头：区内滚动时列名（老师/时间等）始终可见 */
+          :global(.jp-lesson-table-wrap) {
+            overflow-y: auto;
+            max-height: min(70vh, calc(100dvh - 10rem));
+            -webkit-overflow-scrolling: touch;
+          }
+          :global(.jp-lesson-table thead th) {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: #243044;
+            box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 80%, transparent);
           }
         }
         :global(.jp-lesson-mobile-card-head),

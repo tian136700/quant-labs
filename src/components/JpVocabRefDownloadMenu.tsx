@@ -27,10 +27,11 @@ type Props = {
   cropKind?: "word" | "grammar" | null;
 };
 
-type BusyKind = "image" | "pdf" | "word";
+type BusyKind = "image" | "pdf" | "word" | "copyPdf";
 
 function PaginatedFormatMenu({
   onPdf,
+  onCopyPdf,
   onWord,
   busy,
   className,
@@ -38,6 +39,7 @@ function PaginatedFormatMenu({
   fixedPanel,
 }: {
   onPdf: () => void;
+  onCopyPdf: () => void;
   onWord: () => void;
   busy: BusyKind | null;
   className?: string;
@@ -83,9 +85,11 @@ function PaginatedFormatMenu({
   const label =
     busy === "pdf"
       ? "生成 PDF…"
-      : busy === "word"
-        ? "生成 Word…"
-        : "下载";
+      : busy === "copyPdf"
+        ? "复制 PDF…"
+        : busy === "word"
+          ? "生成 Word…"
+          : "下载";
 
   return (
     <div className={`jp-ref-download-menu${open ? " is-open" : ""}`} ref={wrapRef}>
@@ -119,6 +123,20 @@ function PaginatedFormatMenu({
           >
             <span className="jp-ref-download-item-title">分页 PDF</span>
             <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => {
+              setOpen(false);
+              onCopyPdf();
+            }}
+          >
+            <span className="jp-ref-download-item-title">复制分页 PDF</span>
+            <span className="jp-ref-download-item-desc">
+              一步复制文件；不支持则分享或下载
+            </span>
           </button>
           <button
             type="button"
@@ -219,6 +237,31 @@ export function JpVocabRefDownloadMenu({
     }
   }, [busy, mediaUrl, filename, cropKind]);
 
+  const copyPaginatedPdf = useCallback(async () => {
+    if (busy) return;
+    setBusy("copyPdf");
+    setOpen(false);
+    try {
+      const { copyJpVocabRefPaginatedPdf } = await import("@/lib/jp-vocab-ref-pdf-export");
+      const result = await copyJpVocabRefPaginatedPdf(mediaUrl, filename, cropKind);
+      if (result === "copied") {
+        window.alert("分页 PDF 已复制，可直接粘贴发送");
+      } else if (result === "downloaded") {
+        window.alert(
+          "当前浏览器无法把 PDF 直接放进剪贴板，已改为下载。下载完成后可在「下载」文件夹里复制发送。"
+        );
+      }
+      // shared：系统分享面板已接管，无需再提示
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      window.alert(
+        err instanceof Error ? err.message : "复制分页 PDF 失败，请稍后重试"
+      );
+    } finally {
+      setBusy(null);
+    }
+  }, [busy, mediaUrl, filename, cropKind]);
+
   const downloadPaginatedWord = useCallback(async () => {
     if (busy) return;
     setBusy("word");
@@ -241,14 +284,17 @@ export function JpVocabRefDownloadMenu({
       ? "下载中…"
       : busy === "pdf"
         ? "生成 PDF…"
-        : busy === "word"
-          ? "生成 Word…"
-          : "下载";
+        : busy === "copyPdf"
+          ? "复制 PDF…"
+          : busy === "word"
+            ? "生成 Word…"
+            : "下载";
 
   if (isImage && !allowOriginalDownload) {
     return (
       <PaginatedFormatMenu
         onPdf={() => void downloadPaginatedPdf()}
+        onCopyPdf={() => void copyPaginatedPdf()}
         onWord={() => void downloadPaginatedWord()}
         busy={busy}
         className={className}
@@ -309,6 +355,17 @@ export function JpVocabRefDownloadMenu({
           >
             <span className="jp-ref-download-item-title">分页 PDF</span>
             <span className="jp-ref-download-item-desc">按部分分页，留白供备注</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => void copyPaginatedPdf()}
+          >
+            <span className="jp-ref-download-item-title">复制分页 PDF</span>
+            <span className="jp-ref-download-item-desc">
+              一步复制文件；不支持则分享或下载
+            </span>
           </button>
           <button
             type="button"

@@ -379,12 +379,18 @@ function resolveJpVocabRefCropKind(
   return cropKind ?? inferJpVocabRefCropKind(filenameBase) ?? "word";
 }
 
-/** 导出分页 PDF；返回页数 */
-export async function exportJpVocabRefPaginatedPdf(
+export type JpVocabRefPaginatedPdfBuild = {
+  blob: Blob;
+  filename: string;
+  pageCount: number;
+};
+
+/** 生成分页 PDF Blob（不触发下载）；供下载 / 复制共用 */
+export async function buildJpVocabRefPaginatedPdf(
   imageUrl: string,
   filenameBase: string,
   cropKind?: JpVocabRefCropKind | null
-): Promise<number> {
+): Promise<JpVocabRefPaginatedPdfBuild> {
   const [{ jsPDF }, img] = await Promise.all([
     import("jspdf"),
     loadImage(imageUrl),
@@ -423,8 +429,83 @@ export async function exportJpVocabRefPaginatedPdf(
     });
   }
 
-  pdf.save(`${paginatedExportBasename(filenameBase)}-分页.pdf`);
-  return sections.length;
+  const filename = `${paginatedExportBasename(filenameBase)}-分页.pdf`;
+  const arrayBuffer = pdf.output("arraybuffer");
+  const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+  return { blob, filename, pageCount: sections.length };
+}
+
+/** 导出分页 PDF（下载到本地）；返回页数 */
+export async function exportJpVocabRefPaginatedPdf(
+  imageUrl: string,
+  filenameBase: string,
+  cropKind?: JpVocabRefCropKind | null
+): Promise<number> {
+  const { blob, filename, pageCount } = await buildJpVocabRefPaginatedPdf(
+    imageUrl,
+    filenameBase,
+    cropKind
+  );
+  await downloadBlobAsFile(blob, filename);
+  return pageCount;
+}
+
+export type CopyPaginatedPdfResult = "copied" | "shared" | "downloaded";
+
+/**
+ * 一步复制分页 PDF：优先写入系统剪贴板；不支持则系统分享；再不行则下载。
+ * ClipboardItem 用 Promise 从点击当帧起算，尽量保住用户手势（Safari）。
+ */
+export async function copyJpVocabRefPaginatedPdf(
+  imageUrl: string,
+  filenameBase: string,
+  cropKind?: JpVocabRefCropKind | null
+): Promise<CopyPaginatedPdfResult> {
+  const buildPromise = buildJpVocabRefPaginatedPdf(
+    imageUrl,
+    filenameBase,
+    cropKind
+  );
+  const mime = "application/pdf";
+
+  // 尽量在同一用户手势链路里挂上 Promise（部分浏览器要求）
+  if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    try {
+      const pdfSupported =
+        typeof ClipboardItem.supports !== "function" ||
+        ClipboardItem.supports(mime);
+      if (pdfSupported) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            [mime]: buildPromise.then(
+              ({ blob, filename }) =>
+                new File([blob], filename, { type: mime })
+            ),
+          }),
+        ]);
+        return "copied";
+      }
+    } catch {
+      /* fall through — reuse same buildPromise */
+    }
+  }
+
+  const { blob, filename } = await buildPromise;
+  const file = new File([blob], filename, { type: mime });
+
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+      return "shared";
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw err;
+    }
+  }
+
+  await downloadBlobAsFile(blob, filename);
+  return "downloaded";
 }
 
 /** 导出分页 Word；10 词时第一页上下两块，其余各一页；中间留白供板书 */
