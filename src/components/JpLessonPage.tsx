@@ -25,6 +25,7 @@ import {
   blurActiveElementForLessonModalClose,
   scrollLessonListItemIntoView,
 } from "@/lib/lesson-list-scroll";
+import { lessonScheduleSaveErrorMessage } from "@/lib/lesson-class-schedule-form";
 import {
   JP_LESSON_MOBILE_STATUS_FILTER_KEY,
   readStoredLessonMobileStatusFilter,
@@ -1130,7 +1131,7 @@ export function JpLessonPage() {
         teacher_auto_enable?: TeacherAutoEnableInfo | null;
       };
       if (!data.ok || !data.lesson) {
-        throw new Error(data.error || "保存失败");
+        throw new Error(lessonScheduleSaveErrorMessage(data.error));
       }
       setLessons((prev) => {
         const next = prev.map((l) => {

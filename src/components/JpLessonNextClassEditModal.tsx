@@ -16,6 +16,11 @@ import {
   splitNextClassAtLocalValue,
 } from "@/lib/jp-lesson-shared";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
+import {
+  findDuplicateLessonScheduleRowKeys,
+  hasDuplicateLessonScheduleRows,
+  LESSON_SCHEDULE_DUPLICATE_MESSAGE,
+} from "@/lib/lesson-class-schedule-form";
 import type { JpLessonClassScheduleInput, JpLessonRecord } from "@/lib/types";
 
 type Props = {
@@ -91,6 +96,11 @@ export function JpLessonNextClassEditModal({
     []
   );
 
+  const duplicateRowKeys = useMemo(
+    () => findDuplicateLessonScheduleRowKeys(rows),
+    [rows]
+  );
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -119,6 +129,10 @@ export function JpLessonNextClassEditModal({
   };
 
   const handleSave = () => {
+    if (hasDuplicateLessonScheduleRows(rows)) {
+      return;
+    }
+
     const schedules: JpLessonClassScheduleInput[] = [];
 
     for (const row of rows) {
@@ -191,86 +205,98 @@ export function JpLessonNextClassEditModal({
           </div>
         ) : null}
 
-        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
-          <legend>上课时间（北京时间，整点 / 半点）</legend>
-          <div className="jp-lesson-next-class-rows">
-            {rows.map((row, index) => (
-              <div key={row.key} className="jp-lesson-next-class-row">
-                <div className="jp-lesson-next-class-row-head">
-                  <span className="jp-lesson-next-class-row-title">
-                    预约 {index + 1}
-                  </span>
-                  {rows.length > 1 ? (
-                    <button
-                      type="button"
-                      className="jp-lesson-next-class-row-remove"
-                      aria-label={`删除预约 ${index + 1}`}
-                      onClick={() => removeRow(row.key)}
-                    >
-                      删除
-                    </button>
+        <div className="jp-lesson-next-class-body">
+          <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
+            <legend>上课时间（北京时间，整点 / 半点）</legend>
+            <div className="jp-lesson-next-class-rows">
+              {rows.map((row, index) => (
+                <div
+                  key={row.key}
+                  className={`jp-lesson-next-class-row${
+                    duplicateRowKeys.has(row.key) ? " is-duplicate" : ""
+                  }`}
+                >
+                  <div className="jp-lesson-next-class-row-head">
+                    <span className="jp-lesson-next-class-row-title">
+                      预约 {index + 1}
+                    </span>
+                    {rows.length > 1 ? (
+                      <button
+                        type="button"
+                        className="jp-lesson-next-class-row-remove"
+                        aria-label={`删除预约 ${index + 1}`}
+                        onClick={() => removeRow(row.key)}
+                      >
+                        删除
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="jp-lesson-next-class-fields">
+                    <label className="jp-lesson-next-class-field">
+                      <span>日期</span>
+                      <input
+                        type="date"
+                        className="jp-lesson-next-class-input"
+                        value={row.date}
+                        onChange={(e) => updateRow(row.key, { date: e.target.value })}
+                      />
+                    </label>
+                    <div className="jp-lesson-next-class-field">
+                      <span>时间</span>
+                      <JpLessonHalfHourTimeGridPicker
+                        value={row.time}
+                        options={timeOptions}
+                        disabled={saving}
+                        onChange={(time) => updateRow(row.key, { time })}
+                      />
+                    </div>
+                    <label className="jp-lesson-next-class-field">
+                      <span>时长</span>
+                      <select
+                        className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
+                        value={row.duration}
+                        onChange={(e) =>
+                          updateRow(row.key, { duration: e.target.value })
+                        }
+                      >
+                        <option value="">请选择</option>
+                        {DURATION_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {duplicateRowKeys.has(row.key) ? (
+                    <p className="jp-lesson-next-class-row-dup" role="alert">
+                      {LESSON_SCHEDULE_DUPLICATE_MESSAGE}
+                    </p>
                   ) : null}
                 </div>
-                <div className="jp-lesson-next-class-fields">
-                  <label className="jp-lesson-next-class-field">
-                    <span>日期</span>
-                    <input
-                      type="date"
-                      className="jp-lesson-next-class-input"
-                      value={row.date}
-                      onChange={(e) => updateRow(row.key, { date: e.target.value })}
-                    />
-                  </label>
-                  <div className="jp-lesson-next-class-field">
-                    <span>时间</span>
-                    <JpLessonHalfHourTimeGridPicker
-                      value={row.time}
-                      options={timeOptions}
-                      disabled={saving}
-                      onChange={(time) => updateRow(row.key, { time })}
-                    />
-                  </div>
-                  <label className="jp-lesson-next-class-field">
-                    <span>时长</span>
-                    <select
-                      className="jp-lesson-next-class-input jp-lesson-next-class-time-select"
-                      value={row.duration}
-                      onChange={(e) =>
-                        updateRow(row.key, { duration: e.target.value })
-                      }
-                    >
-                      <option value="">请选择</option>
-                      {DURATION_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="jp-lesson-next-class-add"
-            disabled={saving}
-            onClick={addRow}
-          >
-            + 添加预约
-          </button>
-          <p className="jp-lesson-next-class-hint">
-            点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。
-          </p>
-        </fieldset>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="jp-lesson-next-class-add"
+              disabled={saving}
+              onClick={addRow}
+            >
+              + 添加预约
+            </button>
+            <p className="jp-lesson-next-class-hint">
+              点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。
+            </p>
+          </fieldset>
 
-        {saveProgress.visible ? (
-          <JpVocabSaveProgressBar
-            label={jpVocabSaveProgressLabel("save")}
-            percent={saveProgress.percent}
-            fullWidth
-          />
-        ) : null}
+          {saveProgress.visible ? (
+            <JpVocabSaveProgressBar
+              label={jpVocabSaveProgressLabel("save")}
+              percent={saveProgress.percent}
+              fullWidth
+            />
+          ) : null}
+        </div>
 
         <div className="jp-lesson-next-class-actions">
           <button
@@ -292,7 +318,7 @@ export function JpLessonNextClassEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving}
+            disabled={saving || duplicateRowKeys.size > 0}
             onClick={handleSave}
           >
             保存
@@ -315,14 +341,25 @@ export function JpLessonNextClassEditModal({
         }
 
         .jp-lesson-next-class-modal {
+          display: flex;
+          flex-direction: column;
           width: min(720px, 100%);
           max-height: min(94vh, 900px);
-          overflow: auto;
+          overflow: hidden;
           padding: 1.15rem 1.25rem;
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
           box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+        }
+
+        .jp-lesson-next-class-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+          padding-right: 0.1rem;
         }
 
         .jp-lesson-next-class-header {
@@ -401,6 +438,18 @@ export function JpLessonNextClassEditModal({
           border: 1px solid var(--border);
           border-radius: 10px;
           background: color-mix(in srgb, var(--bg) 28%, var(--panel));
+        }
+
+        .jp-lesson-next-class-row.is-duplicate {
+          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
+          background: color-mix(in srgb, var(--rise) 6%, var(--panel));
+        }
+
+        .jp-lesson-next-class-row-dup {
+          margin: 0.45rem 0 0;
+          font-size: 0.8125rem;
+          line-height: 1.4;
+          color: var(--rise);
         }
 
         .jp-lesson-next-class-row-head {
@@ -484,9 +533,14 @@ export function JpLessonNextClassEditModal({
         }
 
         .jp-lesson-next-class-actions {
+          flex-shrink: 0;
           display: flex;
           justify-content: flex-end;
           gap: 0.5rem;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+          background: var(--panel);
         }
 
         :global(.jp-lesson-action-btn--primary) {

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { hasDuplicateClassScheduleInputs } from "@/lib/lesson-class-schedule-form";
 import { normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 import type { EnLessonClassSchedule, EnLessonClassScheduleInput } from "@/lib/types";
 
@@ -52,6 +53,10 @@ export function normalizeClassScheduleInputs(
       return { ok: false, error: "class_duration_minutes_invalid" };
     }
     normalized.push({ class_at: classAt, duration_minutes: durationMinutes });
+  }
+
+  if (hasDuplicateClassScheduleInputs(normalized)) {
+    return { ok: false, error: "schedule_duplicate" };
   }
 
   normalized.sort((a, b) => a.class_at.localeCompare(b.class_at));

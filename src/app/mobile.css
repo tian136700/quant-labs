@@ -1213,12 +1213,25 @@
   .jp-vocab-reset-modal,
   .jp-vocab-intro-modal,
   .jp-vocab-risk-modal {
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: none;
     max-height: calc(100dvh - env(safe-area-inset-top, 0px));
     border-radius: 12px 12px 0 0;
+    overflow: hidden;
+  }
+
+  .jp-lesson-next-class-body {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .jp-lesson-next-class-actions {
+    flex-shrink: 0;
   }
 
   .jp-lesson-teacher-actions,
