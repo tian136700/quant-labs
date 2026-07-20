@@ -1,11 +1,12 @@
 import "server-only";
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { findUserById, listJpLessonTeacherNameMapByUserId } from "@/lib/etr-auth-db";
+import { findUserById, listJpLessonTeacherNameMapByUserId, revokeUserSessions } from "@/lib/etr-auth-db";
 import type { EtrUser } from "@/lib/etr-auth";
 import {
   getJpLessonProgressStatus,
   parseBeijingDateTime,
+  resolveClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
 import type { JpLessonRecord } from "@/lib/types";
 
@@ -29,11 +30,17 @@ export const TEACHER_LESSON_LEARNING_AUTO_ENABLE_WITHIN_MS =
 export const TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS = 2 * 60 * 60 * 1000;
 
 /**
- * 抽完延时禁用时：开课前后此时长内跳过禁用，避免刚解禁又被禁、或课中被踢。
- * 与 `TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS` 同窗口。
+ * 抽完延时禁用时：开课前 / 下课后再此时长内跳过禁用，避免刚解禁又被禁、或课中被踢。
+ * 与 `TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS` 同窗口（按 class_at→下课时刻计算）。
  */
 export const TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
   TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
+
+/**
+ * 下课（开课 + 课时）后，再过此时长 → 自动禁用关联登录账号。
+ * 北京墙钟；有后续未结束/未过宽限的课则不禁。
+ */
+export const TEACHER_POST_CLASS_DISABLE_AFTER_MS = 10 * 60 * 1000;
 
 export function isExcludedFromTeacherScheduleAutoEnable(
   user: Pick<EtrUser, "role" | "username">
@@ -83,6 +90,20 @@ export type TeacherUserPreClassEnableResult = {
   skipped: TeacherUserEnableSkip[];
 };
 
+export type TeacherUserPostClassDisableHit = {
+  user_id: number;
+  username: string;
+  teacher_id: number;
+};
+
+export type TeacherUserPostClassDisableResult = {
+  dry_run: boolean;
+  grace_ms: number;
+  teachers_due: number[];
+  disabled: TeacherUserPostClassDisableHit[];
+  skipped: TeacherUserEnableSkip[];
+};
+
 async function listTeacherIdsWithClassOnDate(
   db: D1Database,
   dateStr: string
@@ -118,9 +139,10 @@ async function listTeacherIdsWithClassOnDate(
 type TeacherClassAtRow = {
   teacher_id: number;
   class_at: string;
+  duration_minutes: number | null;
 };
 
-/** 北京日 today / tomorrow 的日语排课 + 手动日程（含 teacher_id + class_at） */
+/** 北京日 today / tomorrow 的日语排课 + 手动日程（含 teacher_id + class_at + 时长） */
 async function listTeacherClassAtsNearBeijingDates(
   db: D1Database,
   dateStrs: string[]
@@ -136,13 +158,15 @@ async function listTeacherClassAtsNearBeijingDates(
 
   const result = await db
     .prepare(
-      `SELECT teacher_id, class_at FROM (
-         SELECT tl.teacher_id AS teacher_id, cs.class_at AS class_at
+      `SELECT teacher_id, class_at, duration_minutes FROM (
+         SELECT tl.teacher_id AS teacher_id, cs.class_at AS class_at,
+                cs.duration_minutes AS duration_minutes
          FROM jp_lesson_teacher_link tl
          INNER JOIN jp_lesson_class_schedule cs ON cs.lesson_id = tl.lesson_id
          WHERE ${likeClauses}
          UNION ALL
-         SELECT jt.id AS teacher_id, ms.class_at AS class_at
+         SELECT jt.id AS teacher_id, ms.class_at AS class_at,
+                ms.duration_minutes AS duration_minutes
          FROM jp_lesson_teacher jt
          INNER JOIN jp_lesson_manual_schedule ms
            ON lower(trim(ms.teacher)) = lower(trim(jt.name))
@@ -159,9 +183,19 @@ function beijingDatePlusDays(now: Date, days: number): string {
   return beijingDateString(new Date(now.getTime() + days * 86_400_000));
 }
 
+function teacherClassEndMs(row: TeacherClassAtRow): number | null {
+  const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
+  if (!start) return null;
+  const durationMin = resolveClassDurationMinutes(
+    row.duration_minutes != null ? Number(row.duration_minutes) : null
+  );
+  return start.getTime() + durationMin * 60_000;
+}
+
 /**
- * 老师在 [now - afterMs, now + beforeMs] 内有课（北京墙钟 class_at）。
- * beforeMs：开课前；afterMs：开课后（课中/刚下课时仍算「临近」）。
+ * 老师在 [class_at - beforeMs, 下课 + afterMs] 内有课（北京墙钟）。
+ * beforeMs：开课前；afterMs：下课后再算「临近」（课中/刚下课仍算）。
+ * 课时缺省按 DEFAULT 55min。供抽完禁用跳过等。
  */
 export async function listTeacherIdsWithClassNearNow(
   db: D1Database,
@@ -173,10 +207,40 @@ export async function listTeacherIdsWithClassNearNow(
   const beforeMs = Math.max(0, options.beforeMs);
   const afterMs = Math.max(0, options.afterMs ?? 0);
   const nowMs = now.getTime();
-  const fromMs = nowMs - afterMs;
-  const toMs = nowMs + beforeMs;
 
-  // 窗口最多跨昨天→明天，按三日前缀扫再在 JS 里精确过滤（class_at 格式偶有无秒）
+  const dateStrs = [
+    beijingDatePlusDays(now, -1),
+    beijingDateString(now),
+    beijingDatePlusDays(now, 1),
+  ];
+  const rows = await listTeacherClassAtsNearBeijingDates(db, dateStrs);
+  const ids = new Set<number>();
+  for (const row of rows) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
+    if (!start) continue;
+    const endMs = teacherClassEndMs(row);
+    if (endMs == null) continue;
+    const windowStart = start.getTime() - beforeMs;
+    const windowEnd = endMs + afterMs;
+    if (nowMs >= windowStart && nowMs <= windowEnd) ids.add(teacherId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+/** 开课前启用专用：尚未开始、且 class_at ∈ [now, now+withinMs] */
+export async function listTeacherIdsWithUpcomingClassStart(
+  db: D1Database,
+  options: { withinMs?: number; now?: Date } = {}
+): Promise<number[]> {
+  const now = options.now ?? new Date();
+  const withinMs = Math.max(
+    0,
+    options.withinMs ?? TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS
+  );
+  const nowMs = now.getTime();
+  const toMs = nowMs + withinMs;
   const dateStrs = [
     beijingDatePlusDays(now, -1),
     beijingDateString(now),
@@ -190,9 +254,56 @@ export async function listTeacherIdsWithClassNearNow(
     const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
     if (!start) continue;
     const startMs = start.getTime();
-    if (startMs >= fromMs && startMs <= toMs) ids.add(teacherId);
+    if (startMs >= nowMs && startMs <= toMs) ids.add(teacherId);
   }
   return [...ids].sort((a, b) => a - b);
+}
+
+/**
+ * 下课 + grace 已过、且没有「尚未下课+grace」的后续课 → 应禁用。
+ * 例：12:30 开课、55min → 13:25 下课，13:35 起可禁；若下午还有课则等最后一节过宽限。
+ */
+export async function listTeacherIdsDueForPostClassDisable(
+  db: D1Database,
+  options: { graceMs?: number; now?: Date } = {}
+): Promise<number[]> {
+  const now = options.now ?? new Date();
+  const graceMs = Math.max(0, options.graceMs ?? TEACHER_POST_CLASS_DISABLE_AFTER_MS);
+  const nowMs = now.getTime();
+  const dateStrs = [
+    beijingDatePlusDays(now, -1),
+    beijingDateString(now),
+    beijingDatePlusDays(now, 1),
+  ];
+  const rows = await listTeacherClassAtsNearBeijingDates(db, dateStrs);
+  const byTeacher = new Map<number, TeacherClassAtRow[]>();
+  for (const row of rows) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    const list = byTeacher.get(teacherId) ?? [];
+    list.push(row);
+    byTeacher.set(teacherId, list);
+  }
+
+  const due: number[] = [];
+  for (const [teacherId, classRows] of byTeacher) {
+    let hasBlocking = false;
+    let hasFinishedPastGrace = false;
+    for (const row of classRows) {
+      const endMs = teacherClassEndMs(row);
+      if (endMs == null) continue;
+      const disableAt = endMs + graceMs;
+      if (nowMs < disableAt) {
+        hasBlocking = true;
+      } else {
+        hasFinishedPastGrace = true;
+      }
+    }
+    if (hasFinishedPastGrace && !hasBlocking) {
+      due.push(teacherId);
+    }
+  }
+  return due.sort((a, b) => a - b);
 }
 
 /** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过） */
@@ -427,9 +538,8 @@ export async function runTeacherUserPreClassEnable(
   const withinMs =
     options.withinMs ?? TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
   const now = options.now ?? new Date();
-  const teacherIds = await listTeacherIdsWithClassNearNow(db, {
-    beforeMs: withinMs,
-    afterMs: 0,
+  const teacherIds = await listTeacherIdsWithUpcomingClassStart(db, {
+    withinMs,
     now,
   });
   const { enabled, skipped } = await enableLinkedTeacherUsers(db, teacherIds, {
@@ -441,6 +551,89 @@ export async function runTeacherUserPreClassEnable(
     within_ms: withinMs,
     teachers_with_upcoming_class: teacherIds,
     enabled,
+    skipped,
+  };
+}
+
+/**
+ * 下课（开课+课时）后再过 grace（默认 10 分钟）→ 禁用关联登录账号。
+ * 若还有未下课 / 未过宽限的课（含下午下一节）则跳过。
+ * Mac launchd 每 10 分钟；与抽完延时禁用互补；排除 admin / user1 / test。
+ */
+export async function runTeacherUserPostClassDisable(
+  db: D1Database,
+  options: { dryRun?: boolean; now?: Date; graceMs?: number } = {}
+): Promise<TeacherUserPostClassDisableResult> {
+  const dryRun = Boolean(options.dryRun);
+  const now = options.now ?? new Date();
+  const graceMs =
+    options.graceMs ?? TEACHER_POST_CLASS_DISABLE_AFTER_MS;
+  const teacherIds = await listTeacherIdsDueForPostClassDisable(db, {
+    graceMs,
+    now,
+  });
+
+  const linkedUsers = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
+  const disabled: TeacherUserPostClassDisableHit[] = [];
+  const skipped: TeacherUserEnableSkip[] = [];
+
+  for (const row of linkedUsers) {
+    const userId = Number(row.user_id);
+    const teacherId = Number(row.teacher_id);
+    const username = String(row.username ?? "").trim();
+    if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
+
+    const user = await findUserById(db, userId);
+    if (!user) {
+      skipped.push({
+        user_id: userId,
+        username,
+        teacher_id: teacherId,
+        reason: "user_not_found",
+      });
+      continue;
+    }
+
+    if (isExcludedFromTeacherScheduleAutoEnable(user)) {
+      skipped.push({
+        user_id: userId,
+        username: user.username,
+        teacher_id: teacherId,
+        reason: "excluded_account",
+      });
+      continue;
+    }
+
+    if ((user.disabled ?? 0) !== 0) {
+      skipped.push({
+        user_id: userId,
+        username: user.username,
+        teacher_id: teacherId,
+        reason: "already_disabled",
+      });
+      continue;
+    }
+
+    if (!dryRun) {
+      await db
+        .prepare(`UPDATE etr_users SET disabled = 1 WHERE id = ?1`)
+        .bind(userId)
+        .run();
+      await revokeUserSessions(db, userId);
+    }
+
+    disabled.push({
+      user_id: userId,
+      username: user.username,
+      teacher_id: teacherId,
+    });
+  }
+
+  return {
+    dry_run: dryRun,
+    grace_ms: graceMs,
+    teachers_due: teacherIds,
+    disabled,
     skipped,
   };
 }

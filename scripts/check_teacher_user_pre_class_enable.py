@@ -18,6 +18,7 @@ WITHIN_RE = re.compile(
     r"TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS\s*=\s*2\s*\*\s*60\s*\*\s*60\s*\*\s*1000"
 )
 RUN_RE = re.compile(r"export async function runTeacherUserPreClassEnable")
+UPCOMING_RE = re.compile(r"export async function listTeacherIdsWithUpcomingClassStart")
 DIRLOCK_RE = re.compile(r"dirlock_acquire")
 INTERVAL_RE = re.compile(r"<integer>600</integer>")
 SKIP_RE = re.compile(r"near_upcoming_or_ongoing_class")
@@ -36,6 +37,8 @@ def main() -> int:
         errors.append("missing 2h TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS")
     if not RUN_RE.search(enable):
         errors.append("missing runTeacherUserPreClassEnable")
+    if not UPCOMING_RE.search(enable):
+        errors.append("missing listTeacherIdsWithUpcomingClassStart")
     if "runTeacherUserPreClassEnable" not in route:
         errors.append("API route does not call runTeacherUserPreClassEnable")
     if not DIRLOCK_RE.search(shell):
@@ -46,6 +49,8 @@ def main() -> int:
         errors.append("quiz-complete-disable must skip near class")
     if "listLinkedUserIdsWithClassNearNow" not in disable:
         errors.append("quiz-complete-disable must use listLinkedUserIdsWithClassNearNow")
+    if "teacherClassEndMs" not in enable and "resolveClassDurationMinutes" not in enable:
+        errors.append("near-class window should consider class duration/end")
 
     if errors:
         print("check_teacher_user_pre_class_enable: FAIL", file=sys.stderr)
