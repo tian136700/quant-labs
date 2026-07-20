@@ -79,6 +79,7 @@ import {
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
+import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
 const SEED_WORDS: JpVocabUploadInput[] = [
   {
@@ -815,6 +816,50 @@ export type DeleteJpVocabWordsResult =
   | { ok: false; error: string };
 
 /** 管理员删除词条（按 id） */
+/**
+ * 删词前清子表。D1 上仅靠 ON DELETE CASCADE 常会报
+ * FOREIGN KEY constraint failed（词条已共享/带读/复习时尤甚）。
+ */
+async function deleteJpVocabWordDependentRows(
+  db: D1Database,
+  ids: number[]
+): Promise<void> {
+  if (!ids.length) return;
+
+  await ensureJpVocabSharedSchema(db);
+  await ensureJpVocabReviewDoneSchema(db);
+  await ensureJpVocabCoachSchema(db);
+
+  const placeholders = ids.map((_, i) => `?${i + 1}`).join(", ");
+  await db.batch([
+    db
+      .prepare(`DELETE FROM jp_vocab_shared WHERE word_id IN (${placeholders})`)
+      .bind(...ids),
+    db
+      .prepare(
+        `DELETE FROM jp_vocab_review_done WHERE word_id IN (${placeholders})`
+      )
+      .bind(...ids),
+    db
+      .prepare(
+        `DELETE FROM jp_vocab_coach_item WHERE word_id IN (${placeholders})`
+      )
+      .bind(...ids),
+  ]);
+  invalidateJpVocabSharedTodayCache();
+}
+
+async function clearJpVocabTeacherQuizLiveIfDeleted(
+  db: D1Database,
+  deletedIds: Set<number>
+): Promise<void> {
+  if (!deletedIds.size) return;
+  const live = await getJpVocabTeacherQuizLive(db);
+  if (live.word_id != null && deletedIds.has(live.word_id)) {
+    await setJpVocabTeacherQuizLiveWord(db, null);
+  }
+}
+
 export async function deleteJpVocabWordsByIds(
   db: D1Database,
   wordIds: number[]
@@ -849,6 +894,8 @@ export async function deleteJpVocabWordsByIds(
     if (deleted === 0) {
       return { ok: false, error: "not_found" };
     }
+    invalidateJpVocabSharedTodayCache();
+    await clearJpVocabTeacherQuizLiveIfDeleted(db, idSet);
     const words = [...devWords];
     let display_order = await ensureJpVocabDailyDisplayOrder(db, words);
     const validIds = new Set(words.map((w) => w.id));
@@ -866,6 +913,8 @@ export async function deleteJpVocabWordsByIds(
     return { ok: true, deleted, words, display_order };
   }
 
+  await deleteJpVocabWordDependentRows(db, ids);
+
   const placeholders = ids.map((_, i) => `?${i + 1}`).join(", ");
   const result = await db
     .prepare(`DELETE FROM jp_vocab_word WHERE id IN (${placeholders})`)
@@ -876,6 +925,8 @@ export async function deleteJpVocabWordsByIds(
   if (deleted === 0) {
     return { ok: false, error: "not_found" };
   }
+
+  await clearJpVocabTeacherQuizLiveIfDeleted(db, idSet);
 
   const words = await listJpVocabWords(db);
   let display_order = await ensureJpVocabDailyDisplayOrder(db, words);
@@ -890,6 +941,17 @@ export async function deleteJpVocabWordsByIds(
   ) {
     display_order = { ...display_order, ids: nextIds, round_checked_ids };
     await saveJpVocabDailyDisplayOrder(db, display_order);
+  }
+
+  // 今日抽查池里若仍挂着已删 id，重算落库，避免老师端继续操作幽灵词条
+  const visible = await getJpVocabTeacherVisibleLimit(db);
+  const prunedVisible = materializeJpVocabTeacherVisibleLimit(
+    visible,
+    display_order,
+    words
+  );
+  if (teacherVisibleLimitNeedsPersist(visible, prunedVisible)) {
+    await saveJpVocabTeacherVisibleLimit(db, prunedVisible);
   }
 
   return { ok: true, deleted, words, display_order };
@@ -1052,7 +1114,17 @@ export async function uploadJpVocabWords(
   }
 
   if (replace) {
-    await db.prepare("DELETE FROM jp_vocab_word").run();
+    // 全量替换：先清子表，再删词（勿只 DELETE jp_vocab_word，D1 外键会炸）
+    await ensureJpVocabSharedSchema(db);
+    await ensureJpVocabReviewDoneSchema(db);
+    await ensureJpVocabCoachSchema(db);
+    await db.batch([
+      db.prepare("DELETE FROM jp_vocab_shared"),
+      db.prepare("DELETE FROM jp_vocab_review_done"),
+      db.prepare("DELETE FROM jp_vocab_coach_item"),
+      db.prepare("DELETE FROM jp_vocab_word"),
+    ]);
+    invalidateJpVocabSharedTodayCache();
   }
 
   let added = 0;
@@ -1517,32 +1589,45 @@ export async function removeJpVocabLessonWords(
   const normalizedKind = normalizeKind(kind);
 
   if (devStoreEnabled) {
+    const removeIds: number[] = [];
     for (let i = devWords.length - 1; i >= 0; i--) {
       const w = devWords[i];
       if (!cleaned.includes(w.word)) continue;
       if (refKey) {
-        if (w.ref_key === refKey) devWords.splice(i, 1);
+        if (w.ref_key === refKey) removeIds.push(w.id);
       } else if (w.ref_key == null && w.kind === normalizedKind) {
-        devWords.splice(i, 1);
+        removeIds.push(w.id);
       }
+    }
+    if (removeIds.length) {
+      await deleteJpVocabWordsByIds(db, removeIds);
     }
     return;
   }
 
+  const idSet = new Set<number>();
   for (const word of cleaned) {
-    if (refKey) {
-      await db
-        .prepare("DELETE FROM jp_vocab_word WHERE word = ?1 AND ref_key = ?2")
-        .bind(word, refKey)
-        .run();
-    } else {
-      await db
-        .prepare(
-          "DELETE FROM jp_vocab_word WHERE word = ?1 AND ref_key IS NULL AND kind = ?2"
-        )
-        .bind(word, normalizedKind)
-        .run();
+    const rows = refKey
+      ? await db
+          .prepare(
+            `SELECT id FROM jp_vocab_word WHERE word = ?1 AND ref_key = ?2`
+          )
+          .bind(word, refKey)
+          .all<{ id: number }>()
+      : await db
+          .prepare(
+            `SELECT id FROM jp_vocab_word WHERE word = ?1 AND ref_key IS NULL AND kind = ?2`
+          )
+          .bind(word, normalizedKind)
+          .all<{ id: number }>();
+    for (const row of rows.results ?? []) {
+      const id = Number(row.id);
+      if (Number.isInteger(id) && id > 0) idSet.add(id);
     }
+  }
+
+  if (idSet.size) {
+    await deleteJpVocabWordsByIds(db, [...idSet]);
   }
 }
 

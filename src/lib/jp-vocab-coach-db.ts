@@ -314,7 +314,30 @@ export async function mergeJpVocabCoachQueue(
   await ensureJpVocabCoachSchema(db);
   await pruneJpVocabCoachCoachedOlderThanRetention(db);
 
-  const incoming = normalizeIncomingItems(items);
+  const incomingRaw = normalizeIncomingItems(items);
+  if (!incomingRaw.length) {
+    const summary = await getJpVocabCoachQueueSummary(db);
+    return { ...summary, added_count: 0, merged_count: 0 };
+  }
+
+  // 老师端缓存可能仍挂着已删词 id；写入前过滤，避免 FOREIGN KEY constraint failed
+  const incomingIds = incomingRaw.map((item) => item.word_id);
+  const idPlaceholders = incomingIds.map((_, i) => `?${i + 1}`).join(", ");
+  const { results: existingWordRows } = await db
+    .prepare(
+      `SELECT id FROM jp_vocab_word WHERE id IN (${idPlaceholders})`
+    )
+    .bind(...incomingIds)
+    .all<{ id: number }>();
+  const existingWordIds = new Set(
+    (existingWordRows ?? []).map((row) => Number(row.id))
+  );
+  const incoming = incomingRaw.filter((item) => existingWordIds.has(item.word_id));
+  if (!incoming.length) {
+    const summary = await getJpVocabCoachQueueSummary(db);
+    return { ...summary, added_count: 0, merged_count: 0 };
+  }
+
   const { results: existingRows } = await db
     .prepare(
       `SELECT word_id, level, display_order, coached_at, added_at, updated_at

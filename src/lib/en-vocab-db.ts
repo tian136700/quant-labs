@@ -1218,6 +1218,12 @@ export async function deleteEnVocabWordsByIds(
   }
 
   const placeholders = ids.map((_, i) => `?${i + 1}`).join(", ");
+  // D1：先清 shared，再删词；勿只靠 ON DELETE CASCADE
+  await ensureEnVocabSharedSchema(db);
+  await db
+    .prepare(`DELETE FROM en_vocab_shared WHERE word_id IN (${placeholders})`)
+    .bind(...ids)
+    .run();
   const result = await db
     .prepare(`DELETE FROM en_vocab_word WHERE id IN (${placeholders})`)
     .bind(...ids)
