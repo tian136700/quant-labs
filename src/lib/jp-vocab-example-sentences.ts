@@ -81,6 +81,25 @@ export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
   let s = String(text || "").trim();
   if (!s) return s;
 
+  // Model sometimes appends extra segments like " / かな" or "／ かな".
+  // Keep only the part before the first slash outside furigana parentheses.
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (ch === "(" || ch === "（") {
+      depth++;
+      continue;
+    }
+    if (ch === ")" || ch === "）") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if ((ch === "/" || ch === "／") && depth === 0) {
+      s = s.slice(0, i).trim();
+      break;
+    }
+  }
+
   const protectedChunks: string[] = [];
   s = s.replace(VALID_KANJI_FURIGANA_CHUNK, (chunk) => {
     const idx = protectedChunks.length;

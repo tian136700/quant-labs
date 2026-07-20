@@ -50,6 +50,10 @@ SANITIZE_CASES = [
         "授業(じゅぎょう)に必要(ひつよう)な本(ほん)を買(か)いました。",
         "授業(じゅぎょう)に必要(ひつよう)な本(ほん)を買(か)いました。",
     ),
+    (
+        "朝(あさ)ごはんにスプーンが必要(ひつよう)です。 / あさごはん / ひつよう",
+        "朝(あさ)ごはんにスプーンが必要(ひつよう)です。",
+    ),
 ]
 
 
@@ -64,6 +68,19 @@ def sanitize_jp_vocab_example_japanese_line(text: str) -> str:
     s = (text or "").strip()
     if not s:
         return s
+
+    # Mirror TS: strip after the first slash outside furigana parentheses.
+    depth = 0
+    for i, ch in enumerate(s):
+        if ch in ("(", "（"):
+            depth += 1
+            continue
+        if ch in (")", "）"):
+            depth = max(0, depth - 1)
+            continue
+        if ch in ("/", "／") and depth == 0:
+            s = s[:i].strip()
+            break
     protected: list[str] = []
 
     def _protect(m: re.Match[str]) -> str:
