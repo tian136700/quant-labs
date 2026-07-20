@@ -1,11 +1,15 @@
 import "server-only";
 
 import { listEnLessons } from "@/lib/en-lesson-db";
-import { flattenEnLessonScheduleEvents } from "@/lib/en-lesson-shared";
+import {
+  flattenEnLessonScheduleEvents,
+  normalizeClassAtForCompare as normalizeEnClassAtForCompare,
+} from "@/lib/en-lesson-shared";
 import { listEnLessonTeachers } from "@/lib/en-lesson-teacher-db";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import {
   flattenJpLessonScheduleEvents,
+  normalizeClassAtForCompare,
   resolveClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
 import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
@@ -28,6 +32,22 @@ export type ScheduleCalDavEvent = {
   schedule_id?: number;
   manual_id?: number;
   note?: string;
+};
+
+type LessonKind = "word" | "grammar";
+
+type RawLessonSlotEvent = {
+  subject: "jp" | "en";
+  class_at: string;
+  duration_minutes: number;
+  teachers: string;
+  teacher_ids: number[];
+  teacher_other: string;
+  kind: LessonKind;
+  content: string;
+  title: string | null;
+  lesson_id: number;
+  schedule_id: number;
 };
 
 function teacherNameMap(
@@ -56,16 +76,31 @@ function formatLessonTeachers(
   return names.length ? names.join("、") : "未指定";
 }
 
-function kindLabel(kind: string | null | undefined): string {
-  return kind === "grammar" ? "语法" : "单词";
+function normalizeLessonKind(kind: string | null | undefined): LessonKind {
+  return kind === "grammar" ? "grammar" : "word";
+}
+
+/** 单词 / 语法 / 单词和语法（有两者时合并文案，与网站同堂展示一致） */
+export function formatScheduleKindLabel(
+  kinds: Iterable<LessonKind | string | null | undefined>
+): string {
+  let hasWord = false;
+  let hasGrammar = false;
+  for (const kind of kinds) {
+    if (kind === "grammar") hasGrammar = true;
+    else hasWord = true;
+  }
+  if (hasWord && hasGrammar) return "单词和语法";
+  if (hasGrammar) return "语法";
+  return "单词";
 }
 
 function lessonSummary(
   subjectLabel: string,
   teachers: string,
-  kind: string | null | undefined
+  kindLabel: string
 ): string {
-  return `${subjectLabel} · ${teachers} · ${kindLabel(kind)}`;
+  return `${subjectLabel} · ${teachers} · ${kindLabel}`;
 }
 
 function buildDescription(parts: Array<string | null | undefined>): string {
@@ -73,6 +108,127 @@ function buildDescription(parts: Array<string | null | undefined>): string {
     .map((part) => (part ?? "").trim())
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * 与网站统一日程同堂去重一致：同科目 + 同老师(ids/other) + 同一开始时间 → 一条。
+ * 禁止用老师显示名（未加载时全是「未指定」会误合并）。
+ */
+export function buildScheduleCalDavSlotMergeKey(event: {
+  subject: "jp" | "en";
+  teacher_ids?: number[];
+  teacher_other?: string | null;
+  class_at: string;
+}): string {
+  const teacherIds = [...(event.teacher_ids ?? [])]
+    .sort((a, b) => a - b)
+    .join(",");
+  const teacherOther = (event.teacher_other ?? "").trim();
+  const classAt =
+    event.subject === "en"
+      ? normalizeEnClassAtForCompare(event.class_at)
+      : normalizeClassAtForCompare(event.class_at);
+  return `${event.subject}|slot|${teacherIds}|${teacherOther}|${classAt}`;
+}
+
+/** 稳定 UID：同堂合并后旧的 jp-lesson-{id}-{sid} 会被 CalDAV 同步删掉 */
+export function buildScheduleCalDavSlotUid(mergeKey: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < mergeKey.length; i += 1) {
+    hash ^= mergeKey.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const hex = (hash >>> 0).toString(16).padStart(8, "0");
+  const at =
+    mergeKey.split("|").pop()?.replace(/[^0-9]/g, "").slice(0, 14) || "0";
+  const subject = mergeKey.startsWith("en|") ? "en" : "jp";
+  return `${subject}-slot-${hex}-${at}@${SCHEDULE_CALDAV_UID_DOMAIN}`;
+}
+
+function mergeContentLines(parts: string[]): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    const text = part.trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out.join("\n");
+}
+
+function mergeTitleLines(parts: Array<string | null | undefined>): string {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of parts) {
+    const text = (part ?? "").trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out.join("；");
+}
+
+/** 同堂多教案合并为单条日历事件（单词+语法 →「单词和语法」） */
+export function mergeRawLessonSlotEvents(
+  rawEvents: RawLessonSlotEvent[]
+): ScheduleCalDavEvent[] {
+  const groups = new Map<
+    string,
+    {
+      mergeKey: string;
+      events: RawLessonSlotEvent[];
+    }
+  >();
+
+  for (const event of rawEvents) {
+    const mergeKey = buildScheduleCalDavSlotMergeKey(event);
+    const existing = groups.get(mergeKey);
+    if (existing) {
+      existing.events.push(event);
+    } else {
+      groups.set(mergeKey, { mergeKey, events: [event] });
+    }
+  }
+
+  const merged: ScheduleCalDavEvent[] = [];
+  for (const group of groups.values()) {
+    const sorted = [...group.events].sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "word" ? -1 : 1;
+      return a.lesson_id - b.lesson_id;
+    });
+    const first = sorted[0];
+    const subjectLabel = first.subject === "en" ? "英语课" : "日语课";
+    const kindLabel = formatScheduleKindLabel(sorted.map((e) => e.kind));
+    const contentBlocks = sorted.map((event) => {
+      const tag = event.kind === "grammar" ? "语法" : "单词";
+      return `【${tag}】${event.content.trim() || `${subjectLabel} #${event.lesson_id}`}`;
+    });
+    const content = mergeContentLines(contentBlocks);
+    const titles = mergeTitleLines(sorted.map((e) => e.title));
+    const duration = Math.max(...sorted.map((e) => e.duration_minutes));
+
+    merged.push({
+      uid: buildScheduleCalDavSlotUid(group.mergeKey),
+      subject: first.subject,
+      summary: lessonSummary(subjectLabel, first.teachers, kindLabel),
+      description: buildDescription([
+        "时间：北京时间（与网站一致）",
+        `类型：${kindLabel}`,
+        `老师：${first.teachers}`,
+        `学习内容：\n${content}`,
+        titles ? `教案标题：${titles}` : null,
+      ]),
+      class_at: first.class_at,
+      duration_minutes: duration,
+      teachers: first.teachers,
+      title: content,
+      lesson_id: first.lesson_id,
+      schedule_id: first.schedule_id,
+    });
+  }
+
+  return merged;
 }
 
 export async function listScheduleCalDavEvents(
@@ -92,28 +248,23 @@ export async function listScheduleCalDavEvents(
   const jpLessonById = new Map(jpLessons.map((lesson) => [lesson.id, lesson]));
   const enLessonById = new Map(enLessons.map((lesson) => [lesson.id, lesson]));
 
-  const events: ScheduleCalDavEvent[] = [];
+  const rawLessonEvents: RawLessonSlotEvent[] = [];
 
   for (const event of flattenJpLessonScheduleEvents(jpLessons)) {
     const lesson = jpLessonById.get(event.lessonId);
     if (!lesson) continue;
     const teachers = formatLessonTeachers(lesson, jpNameById);
     const content = lesson.content.trim() || `日语课 #${lesson.id}`;
-    events.push({
-      uid: `jp-lesson-${event.lessonId}-${event.scheduleId}@${SCHEDULE_CALDAV_UID_DOMAIN}`,
+    rawLessonEvents.push({
       subject: "jp",
-      summary: lessonSummary("日语课", teachers, lesson.kind),
-      description: buildDescription([
-        "时间：北京时间（与网站一致）",
-        `类型：${kindLabel(lesson.kind)}`,
-        `老师：${teachers}`,
-        `学习内容：${content}`,
-        lesson.title?.trim() ? `教案标题：${lesson.title.trim()}` : null,
-      ]),
       class_at: event.classAt,
       duration_minutes: event.durationMinutes,
       teachers,
-      title: content,
+      teacher_ids: [...(lesson.teacher_ids ?? [])],
+      teacher_other: (lesson.teacher_other ?? "").trim(),
+      kind: normalizeLessonKind(lesson.kind),
+      content,
+      title: lesson.title?.trim() || null,
       lesson_id: event.lessonId,
       schedule_id: event.scheduleId,
     });
@@ -124,25 +275,22 @@ export async function listScheduleCalDavEvents(
     if (!lesson) continue;
     const teachers = formatLessonTeachers(lesson, enNameById);
     const content = lesson.content.trim() || `英语课 #${lesson.id}`;
-    events.push({
-      uid: `en-lesson-${event.lessonId}-${event.scheduleId}@${SCHEDULE_CALDAV_UID_DOMAIN}`,
+    rawLessonEvents.push({
       subject: "en",
-      summary: lessonSummary("英语课", teachers, lesson.kind),
-      description: buildDescription([
-        "时间：北京时间（与网站一致）",
-        `类型：${kindLabel(lesson.kind)}`,
-        `老师：${teachers}`,
-        `学习内容：${content}`,
-        lesson.title?.trim() ? `教案标题：${lesson.title.trim()}` : null,
-      ]),
       class_at: event.classAt,
       duration_minutes: event.durationMinutes,
       teachers,
-      title: content,
+      teacher_ids: [...(lesson.teacher_ids ?? [])],
+      teacher_other: (lesson.teacher_other ?? "").trim(),
+      kind: normalizeLessonKind(lesson.kind),
+      content,
+      title: lesson.title?.trim() || null,
       lesson_id: event.lessonId,
       schedule_id: event.scheduleId,
     });
   }
+
+  const events: ScheduleCalDavEvent[] = mergeRawLessonSlotEvents(rawLessonEvents);
 
   for (const manual of manuals) {
     const title = manual.title.trim() || `手动日程 #${manual.id}`;
@@ -250,19 +398,19 @@ export function buildScheduleIcs(
     const start = classAtToIcalLocal(event.class_at);
     const end = addMinutesToClassAt(event.class_at, event.duration_minutes);
     if (!start || !end) continue;
-    // UID 加 .bj2 后缀，迫使已订阅日历刷新标题格式
+    // UID 加 .bj3 后缀：同堂合并 + 标题「单词和语法」后迫使已订阅日历刷新
     const uid = event.uid.includes("@")
       ? event.uid.replace(
-          /@info-quests\.schedule(\.bj)?$/,
-          "@info-quests.schedule.bj2"
+          /@info-quests\.schedule(\.bj\d*)?$/,
+          "@info-quests.schedule.bj3"
         )
-      : `${event.uid}@info-quests.schedule.bj2`;
+      : `${event.uid}@info-quests.schedule.bj3`;
     const summary = event.summary;
     lines.push(
       "BEGIN:VEVENT",
       `UID:${uid}`,
       `DTSTAMP:${stamp}`,
-      "SEQUENCE:4",
+      "SEQUENCE:5",
       `DTSTART:${start}`,
       `DTEND:${end}`,
       foldIcalLine(`SUMMARY:${icalEscape(summary)}`)
