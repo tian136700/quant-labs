@@ -1814,6 +1814,7 @@ export function EnLessonPage() {
           vertical-align: middle;
           padding: 0.45rem 0.4rem;
           white-space: normal;
+          overflow-wrap: anywhere;
         }
         :global(.jp-lesson-id-col) {
           width: 2.5rem;
@@ -1877,11 +1878,14 @@ export function EnLessonPage() {
           word-break: break-word;
         }
         :global(.jp-lesson-content-more-btn) {
-          align-self: flex-start;
-          margin-top: 0.15rem;
-          padding: 0;
-          border: none;
-          background: transparent;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 1.5rem;
+          padding: 0.1rem 0.45rem;
+          border: 1px solid var(--border);
+          border-radius: 5px;
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
           color: var(--accent);
           font: inherit;
           font-size: 0.75rem;
@@ -1889,7 +1893,7 @@ export function EnLessonPage() {
           cursor: pointer;
         }
         :global(.jp-lesson-content-more-btn:hover) {
-          text-decoration: underline;
+          background: color-mix(in srgb, var(--accent) 14%, var(--panel));
         }
         :global(.jp-lesson-merged-stack) {
           display: flex;

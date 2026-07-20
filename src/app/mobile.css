@@ -1821,10 +1821,10 @@
     color: var(--accent);
   }
 
-  /* 头部隐藏，ID 并入学习内容区 */
+  /* 桌面预览（含孤立「更多」）整块隐藏；手机只用 chips */
+  .jp-lesson-page--ja .jp-lesson-content-preview ,
+  .jp-lesson-page--en .jp-lesson-content-preview,
   .jp-lesson-page--ja .jp-lesson-content-desktop ,
-
-  /* 头部隐藏，ID 并入学习内容区 */
   .jp-lesson-page--en .jp-lesson-content-desktop {
     display: none !important;
   }
@@ -1948,18 +1948,23 @@
     border-radius: 999px;
   }
 
-  /* 学习内容整块展示：每行 5 个，排不下换行，禁止单行省略 */
+  /* 学习内容整块展示：日语每行 5 个；英语词更长每行 3 个；禁止单行省略 */
   .jp-lesson-page--ja .jp-lesson-mobile-content-chips ,
-
-  /* 学习内容整块展示：每行 5 个，排不下换行，禁止单行省略 */
   .jp-lesson-page--en .jp-lesson-mobile-content-chips {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.3rem 0.35rem;
     list-style: none;
     margin: 0;
     padding: 0;
     width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chips {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-chips {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-content-chip ,
@@ -2149,6 +2154,11 @@
   .jp-lesson-page--ja .jp-lesson-actions .jp-edit-icon-btn ,
 
   .jp-lesson-page--en .jp-lesson-actions .jp-edit-icon-btn {
+    display: none !important;
+  }
+
+  /* 英语删除仅桌面操作区；手机对齐日语（操作区无删除，避免 2 列网格尾行孤钮） */
+  .jp-lesson-page--en .jp-lesson-actions .jp-lesson-action-btn--danger {
     display: none !important;
   }
 
