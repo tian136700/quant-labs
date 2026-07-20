@@ -1,3 +1,4 @@
+import { sanitizeJpVocabWordExampleSentences } from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabWord } from "@/lib/types";
 
 /** 页面可见时增量拉取间隔（备注等多端实时同步） */

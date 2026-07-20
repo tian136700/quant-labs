@@ -317,6 +317,20 @@ export function normalizeJpVocabExampleSentencesFormat(
   return normalized === original ? null : normalized;
 }
 
+/**
+ * 客户端词条：规范化 example_sentences（剥「译文：/ …」、叠标签等）。
+ * 无改动则原样返回同一引用。
+ */
+export function sanitizeJpVocabWordExampleSentences<
+  T extends { example_sentences?: string | null },
+>(word: T): T {
+  const raw = word.example_sentences;
+  if (raw == null || !String(raw).trim()) return word;
+  const next = normalizeJpVocabExampleSentencesFormat(raw);
+  if (!next) return word;
+  return { ...word, example_sentences: next };
+}
+
 /** 是否存在缺中文译义的日语例句 */
 export function jpVocabExampleSentencesNeedGlossFill(
   raw: string | null | undefined
