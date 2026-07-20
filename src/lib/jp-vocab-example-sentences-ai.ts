@@ -32,6 +32,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "汉字（可带词尾假名）后立刻半角括号假名：如 電車(でんしゃ)、静か(しずか)；括号内只能是假名、不要空格、不要整句读音尾注如 です。(たなかさん…)；禁止句末语法说明括号如 (必要なは必要だ…の形です)；页面展示会转成汉字下方小字",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
+    "初学者友好：一句尽量只用一个话题助词「は」；时间/场景已用「今は」等时，主语改用「が」或省略，不要叠「今は傘は…」这类双は（语法虽对但 N5 易误判）",
     "语法词条里的「～」「〜」是占位符，禁止原样写进例句；要用具体词：天气预报によると／彼によると…",
     "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
     "な形容词辞书形以「だ」结尾时（重要だ/得意だ/下手だ）：造句用词干（重要/得意/下手），例句里不必出现「だ」；假名标在词干汉字上",
@@ -50,6 +51,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "lemma_placeholder_in_sentence",
     "grammar_not_used",
     "word_not_used",
+    "double_wa_topic",
   ],
 } as const;
 
@@ -58,6 +60,12 @@ const LITERAL_NI_TSUITE_HANASU_GLOSS_RE = /关于.+说话/;
 
 /** 词典占位符波浪号，禁止出现在例句正文 */
 const LEMMA_PLACEHOLDER_WAVE_RE = /[～〜]/;
+
+/** 句中话题助词「は」个数（剥括号假名后；不含 早(はや) 等括号内は） */
+export function countJpVocabExampleWaTopicMarkers(line: string): number {
+  const plain = stripAllJpVocabParenBlocks(line);
+  return (plain.match(/[\u3040-\u9FFF\u4E00-\u9FFF]は/g) || []).length;
+}
 
 export type JpVocabExampleSentencesAiInput = {
   word: string;
@@ -107,16 +115,18 @@ export function buildJpVocabExampleSentencesAiPrompt(
 - 多用法时一句对应一种用法，不要两句都挤同一义项。
 
 格式要求：
-1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）。
+1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）；优先简单、顺口的句式，避免初学者看了会怀疑写错的结构。
 2. 每条必须使用该词条（语法条须自然出现该语法点）。な形容词「〜だ」用词干，不要硬塞「だ」。
-3. 语法词条的「～」「〜」禁止出现在例句里（那是词典占位符）。❌「～によると天気は晴れです」✅「天気予報によると、今日は晴れです」。
-4. 汉字后立刻半角括号假名，例如：電車(でんしゃ)。禁止整句尾注如「です。(たなかさん げんき です。)」；禁止句末再跟语法说明括号如「。(必要なは必要だ(ひつようだ)の形容動詞形です)」。
-5. 每条日语下一行写中文译义，必须以「译文：」开头。
-6. 中文必须是自然通顺的口语，禁止逐词硬译。
+3. 一句尽量只用一个话题助词「は」。时间/场景已用「今は」「今日は」等时，主语用「が」或省略，不要叠两个「は」。
+   - ❌「今(いま)は傘(かさ)は不要(ふよう)だ。」（语法虽对，N5 易误判）→ ✅「今(いま)は傘(かさ)が不要(ふよう)です。」或「傘(かさ)は要(い)りません。」
+4. 语法词条的「～」「〜」禁止出现在例句里（那是词典占位符）。❌「～によると天気は晴れです」✅「天気予報によると、今日は晴れです」。
+5. 汉字后立刻半角括号假名，例如：電車(でんしゃ)。禁止整句尾注如「です。(たなかさん げんき です。)」；禁止句末再跟语法说明括号如「。(必要なは必要だ(ひつようだ)の形容動詞形です)」。
+6. 每条日语下一行写中文译义，必须以「译文：」开头。
+7. 中文必须是自然通顺的口语，禁止逐词硬译。
    - 「～について話す」→「我来谈谈学校 / 聊聊这个话题」，禁止「关于学校说话」。
    - 「～について知りたい」→「想了解一下…」，不要「关于…想知道」。
    - 释义里的「关于……」只是语法义项提示，不要每句都机械套「关于…」。
-7. 只输出「日语」行与下一行以「译文：」开头的中文交替；不要行首编号、不要 markdown、不要解释、不要额外语法说明。`;
+8. 只输出「日语」行与下一行以「译文：」开头的中文交替；不要行首编号、不要 markdown、不要解释、不要额外语法说明。`;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -164,6 +174,12 @@ export function validateJpVocabExampleSentencesAiOutput(
     const glossBody = item.glossLines[0].replace(/^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/, "");
     if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
       return { ok: false, reason: "literal_chinese_gloss" };
+    }
+    if (
+      input.kind !== "grammar" &&
+      countJpVocabExampleWaTopicMarkers(item.text) >= 2
+    ) {
+      return { ok: false, reason: "double_wa_topic" };
     }
   }
 
