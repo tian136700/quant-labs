@@ -168,9 +168,9 @@ def build_prompt(row: dict) -> str:
 2. 每条必须使用该词条（语法条须自然出现该语法点）。
 3. 语法词条的「～」「〜」禁止写进例句（词典占位符）；要用具体词，如「天気予報によると…」。
 4. 汉字后立刻半角括号假名，例如：電車(でんしゃ)に間(ま)に合(あ)いました。不要整句只写假名，不要句末整段读音尾注。
-5. 每条日语下一行写中文译义，必须以「译文：」开头。
-6. 中文必须自然通顺，禁止逐词硬译（「について話す」→「谈谈/聊聊…」，禁止「关于…说话」）。
-7. 只输出「日语 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。"""
+5. 每条日语下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。
+6. 中文必须自然通顺，禁止逐词硬译（「について話す」→「谈谈…」或「聊聊…」，禁止「关于…说话」）。
+7. 只输出「日语」行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。"""
     )
 
 
@@ -199,7 +199,13 @@ def validate_ai_output(text: str, row: dict) -> tuple[str | None, str | None]:
             return None, "missing_kanji_furigana"
         if not gloss or not is_gloss_line(gloss):
             return None, "missing_chinese_gloss"
-        gloss_body = re.sub(r"^(译文|翻譯|翻译|译|譯)\s*[:：]\s*", "", gloss).strip()
+        gloss_body = gloss
+        for _ in range(8):
+            nxt = re.sub(r"^(译文|翻譯|翻译|译|譯)\s*[:：]\s*", "", gloss_body)
+            nxt = re.sub(r"^[\s／/]+", "", nxt).strip()
+            if nxt == gloss_body:
+                break
+            gloss_body = nxt
         normalized.append(jp)
         normalized.append(f"译文：{gloss_body}" if gloss_body else gloss)
 

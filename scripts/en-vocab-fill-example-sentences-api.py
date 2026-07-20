@@ -89,7 +89,13 @@ def validate_examples(
             continue
         gloss = ""
         if i + 1 < len(lines) and is_gloss_line(lines[i + 1]):
-            gloss_body = GLOSS_LABEL_RE.sub("", lines[i + 1]).strip()
+            gloss_body = lines[i + 1]
+            for _ in range(8):
+                nxt = GLOSS_LABEL_RE.sub("", gloss_body)
+                nxt = re.sub(r"^[\s／/]+", "", nxt).strip()
+                if nxt == gloss_body:
+                    break
+                gloss_body = nxt
             gloss = f"译文：{gloss_body}"
             i += 2
         else:

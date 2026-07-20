@@ -81,7 +81,13 @@ def parse_items(raw: str) -> list[tuple[str, list[str]]]:
 
 
 def format_gloss(text: str) -> str:
-    body = GLOSS_PREFIX_RE.sub("", text).strip()
+    body = (text or "").strip()
+    for _ in range(8):
+        nxt = GLOSS_PREFIX_RE.sub("", body)
+        nxt = re.sub(r"^[\s／/]+", "", nxt).strip()
+        if nxt == body:
+            break
+        body = nxt
     return f"{GLOSS_LABEL}{body}" if body else ""
 
 

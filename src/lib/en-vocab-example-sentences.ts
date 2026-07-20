@@ -22,8 +22,18 @@ export function splitEnVocabExampleSentenceLines(
     .filter(Boolean);
 }
 
+/** 去掉标签与行首 `/`／；叠「译文：」也一并剥掉 */
 export function stripEnVocabExampleGlossLabel(text: string): string {
-  return text.replace(GLOSS_LABEL_RE, "").trim();
+  let body = String(text ?? "").trim();
+  for (let i = 0; i < 8; i++) {
+    const next = body
+      .replace(GLOSS_LABEL_RE, "")
+      .replace(/^[\s／/]+/, "")
+      .trim();
+    if (next === body) break;
+    body = next;
+  }
+  return body;
 }
 
 export function formatEnVocabExampleGlossLine(text: string): string {

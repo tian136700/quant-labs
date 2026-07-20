@@ -160,12 +160,24 @@ function countMatches(text: string, re: RegExp): number {
   return (text.match(new RegExp(re.source, flags)) || []).length;
 }
 
-/** 去掉「译文：」等标签后看正文 */
+/**
+ * 去掉「译文：」等标签后看正文。
+ * 循环剥掉行首 `/`／与重复标签（线上曾出现「译文：/ 译文：…」）。
+ */
 export function stripJpVocabExampleGlossLabel(text: string): string {
-  return text.replace(GLOSS_LABEL_RE, "").trim();
+  let body = String(text ?? "").trim();
+  for (let i = 0; i < 8; i++) {
+    const next = body
+      .replace(GLOSS_LABEL_RE, "")
+      .replace(/^[\s／/]+/, "")
+      .trim();
+    if (next === body) break;
+    body = next;
+  }
+  return body;
 }
 
-/** 统一成「译文：…」；空正文返回空串 */
+/** 统一成「译文：…」；空正文返回空串；禁止「译文：/ …」或叠「译文：」 */
 export function formatJpVocabExampleGlossLine(text: string): string {
   const body = stripJpVocabExampleGlossLabel(text);
   return body ? `${JP_VOCAB_EXAMPLE_GLOSS_LABEL}${body}` : "";

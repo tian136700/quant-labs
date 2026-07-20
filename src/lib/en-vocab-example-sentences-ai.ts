@@ -14,7 +14,7 @@ export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "I look forward to the weekend.\n译文：我期待周末的到来。\nShe is looking forward to meeting you.\n译文：她期待见到你。",
   rules: [
     "存库不要写行首序号（展示层会加 1、2、3…）",
-    "每条：英文一行，下一行必须以「译文：」开头的中文",
+    "每条：英文一行，下一行必须以「译文：」开头的中文（禁止「译文：/ …」）",
     "初中/高中难度、口语、短句；必须自然用到该词条 / 语法点",
     "多用法时一句对应一种用法，不要两句挤同一义项",
     "写回时请传 source，建议「gemma4:26b 本地」；人手填写为「手动」",
@@ -67,8 +67,8 @@ export function buildEnVocabExampleSentencesAiPrompt(
 格式要求：
 1. 日常口语，句子短；例句中其他词尽量简单常见。
 2. 每条必须使用该词条（语法条须自然出现该语法点）。
-3. 每条英文下一行写中文译义，必须以「译文：」开头。
-4. 只输出「英文 / 译文：…」交替行；不要行首编号、不要 markdown、不要解释。`;
+3. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。
+4. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。`;
 }
 
 function wordUsedInEnglish(sentence: string, word: string, kind: string): boolean {

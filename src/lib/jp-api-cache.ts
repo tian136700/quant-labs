@@ -17,7 +17,7 @@ import { beijingDateString, effectiveTodayCheckCount } from "@/lib/jp-vocab-dail
 import { normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
 
-export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v5";
+export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v6";
 export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v10";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
