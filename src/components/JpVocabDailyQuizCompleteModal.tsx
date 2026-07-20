@@ -97,26 +97,7 @@ export function JpVocabDailyQuizCompleteModal({
         <h2 id="jp-vocab-complete-modal-title" className="jp-vocab-complete-modal-title">
           {copy.title}
         </h2>
-        <p className="jp-vocab-complete-modal-sub">
-          今日共 {total} 个单词/语法
-        </p>
-
-        {variant === "teacher" && levelCounts ? (
-          <div className="jp-vocab-complete-modal-stats" aria-label="今日熟悉程度统计">
-            <div className="jp-vocab-complete-modal-stat">
-              <span className="jp-vocab-complete-modal-stat-label">非常熟悉</span>
-              <strong>{levelCounts.very}</strong>
-            </div>
-            <div className="jp-vocab-complete-modal-stat">
-              <span className="jp-vocab-complete-modal-stat-label">一般</span>
-              <strong>{levelCounts.normal}</strong>
-            </div>
-            <div className="jp-vocab-complete-modal-stat">
-              <span className="jp-vocab-complete-modal-stat-label">不熟悉</span>
-              <strong>{levelCounts.weak}</strong>
-            </div>
-          </div>
-        ) : null}
+        {/* 统计数字暂不展示，只保留「今日已完成」 */}
 
         <div className="jp-vocab-complete-modal-body">
           {copy.lines.map((line) => (
@@ -195,34 +176,7 @@ export function JpVocabDailyQuizCompleteModal({
           font-weight: 600;
           color: var(--text);
         }
-        .jp-vocab-complete-modal-sub {
-          margin: 0 0 0.85rem;
-          font-size: 0.8125rem;
-          color: var(--muted);
-        }
-        .jp-vocab-complete-modal-stats {
-          width: 100%;
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 0.5rem;
-          margin-bottom: 0.85rem;
-        }
-        .jp-vocab-complete-modal-stat {
-          display: flex;
-          flex-direction: column;
-          gap: 0.2rem;
-          padding: 0.55rem 0.4rem;
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--border) 35%, var(--panel));
-        }
-        .jp-vocab-complete-modal-stat-label {
-          font-size: 0.78rem;
-          color: var(--muted);
-        }
-        .jp-vocab-complete-modal-stat strong {
-          font-size: 1.15rem;
-          color: var(--text);
-        }
+        
         .jp-vocab-complete-modal-body {
           width: 100%;
           margin-bottom: 1rem;
