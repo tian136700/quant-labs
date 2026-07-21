@@ -18,6 +18,10 @@ if "not hub_managed_log" not in text:
     errors.append("finally 须跳过 hub 托管的 finish_deploy_log")
 if "append_deploy_log_details" not in text:
     errors.append("缺少说明注释（append_deploy_log_details 被覆盖）")
+if "ensure_on_deploy_branch" not in text:
+    errors.append("缺少 detached HEAD 自动切回 main（ensure_on_deploy_branch）")
+if "is_detached_head" not in text:
+    errors.append("缺少 detached HEAD 检测（is_detached_head）")
 
 if errors:
     print("check_deploy_log_hub_guard FAILED:", file=sys.stderr)
