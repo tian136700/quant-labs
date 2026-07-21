@@ -95,8 +95,8 @@ export function JpVocabExportChoiceModal({
           </p>
           <p>
             <strong>导出 Excel（复习次数）</strong>：导出全部 {allCount}{" "}
-            条的单词 ID、名字、不熟悉/一般/非常熟悉次数、总共抽查次数与抽查优先级（.xlsx）；
-            文件最前面有一张「规则说明」表，写明现行算法，可直接丢给 AI 复盘。
+            条的单词 ID、名字、三项熟悉度次数、基础优先级、距上次抽问天数与最终抽问得分（.xlsx）；
+            文件最前面有一张「规则说明」表（含 final_score = priority + 天数 × 时间权重），可直接丢给 AI 复盘。
           </p>
           <p>
             <strong>导出到课堂带读</strong>：将今日「一般」「不熟悉」词条（{todayWeakCount}{" "}

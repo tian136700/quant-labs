@@ -76,6 +76,9 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     ...word,
     today_check_count: word.today_check_count ?? 0,
   }));
+  const quiz_time_weight = normalizeJpVocabQuizTimeWeight(
+    data.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+  );
   const display_order =
     data.display_order?.date && Array.isArray(data.display_order.ids)
       ? {
@@ -100,7 +103,12 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
         }
       : {
           date: beijingDateString(),
-          ids: computeJpVocabDailyDisplayOrder(words),
+          ids: computeJpVocabDailyDisplayOrder(
+            words,
+            new Date(),
+            undefined,
+            quiz_time_weight
+          ),
           round_checked_ids: [],
         };
   return {
@@ -109,9 +117,7 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     daily_quiz_style: normalizeJpVocabDailyQuizStyle(
       data.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT
     ),
-    quiz_time_weight: normalizeJpVocabQuizTimeWeight(
-      data.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
-    ),
+    quiz_time_weight,
     display_order,
     shared_today_word_ids: Array.isArray(data.shared_today_word_ids)
       ? data.shared_today_word_ids.map((id) => Number(id)).filter((id) => id > 0)

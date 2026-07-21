@@ -20,6 +20,8 @@ import {
 
 type Props = {
   words: JpVocabWord[];
+  /** 久未复习抬升权重；与日序 final_score 一致 */
+  timeWeight?: number;
 };
 
 /** Matplotlib 默认蓝（桌面端图表） */
@@ -436,11 +438,15 @@ function RiskMobileList({
   );
 }
 
-export function JpVocabRiskChart({ words }: Props) {
+export function JpVocabRiskChart({ words, timeWeight }: Props) {
   const isMobile = useMobileRiskView();
   const { tickFontSize, barSize } = useChartLayout();
-  const rows = useMemo(() => buildRiskChartData(words), [words]);
-  const excludedCount = useMemo(() => countExcludedRiskRows(words), [words]);
+  const riskOpts = useMemo(() => ({ timeWeight }), [timeWeight]);
+  const rows = useMemo(() => buildRiskChartData(words, riskOpts), [words, riskOpts]);
+  const excludedCount = useMemo(
+    () => countExcludedRiskRows(words, riskOpts),
+    [words, riskOpts]
+  );
   const xMax = useMemo(
     () => riskAxisMax(Math.max(...rows.map((r) => r.risk), 0)),
     [rows]
@@ -474,7 +480,9 @@ export function JpVocabRiskChart({ words }: Props) {
   return (
     <div className="jp-vocab-risk-chart">
       <div className="jp-vocab-risk-chart-frame" style={{ height: chartHeight }}>
-        <h3 className="jp-vocab-risk-chart-title">知识点抽查优先级（越高越建议先问）</h3>
+        <h3 className="jp-vocab-risk-chart-title">
+          知识点抽查优先级（含久未复习抬升；越高越建议先问）
+        </h3>
         <div className="jp-vocab-risk-chart-canvas" style={{ minWidth: chartMinWidth }}>
           <ResponsiveContainer width="100%" height="100%" minWidth={chartMinWidth}>
           <BarChart

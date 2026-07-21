@@ -25,6 +25,10 @@ import {
   type JpVocabQuizPriorityBoost,
 } from "@/lib/jp-vocab-quiz-priority-boost";
 import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  normalizeJpVocabQuizTimeWeight,
+} from "@/lib/jp-vocab-quiz-score";
+import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
 } from "@/lib/jp-vocab-search";
@@ -43,6 +47,7 @@ import {
   shouldShowJpVocabDailyIntro,
 } from "@/components/JpVocabDailyQuizIntroModal";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
+import { JpVocabQuizTimeWeightAdmin } from "@/components/JpVocabQuizTimeWeightAdmin";
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
@@ -373,6 +378,13 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       )
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
+  const [quizTimeWeight, setQuizTimeWeight] = useState(() =>
+    normalizeJpVocabQuizTimeWeight(
+      readJpVocabPageCache()?.quiz_time_weight ??
+        JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+    )
+  );
+  const [settingQuizTimeWeight, setSettingQuizTimeWeight] = useState(false);
   const [reviewLockNow, setReviewLockNow] = useState(() => Date.now());
   const displayOrderRef = useRef(displayOrder);
   const wordsRef = useRef(words);
@@ -490,6 +502,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
     setTeacherVisibleLimit(payload.teacher_visible_limit);
+    setQuizTimeWeight(
+      normalizeJpVocabQuizTimeWeight(
+        payload.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+      )
+    );
     if (payload.quiz_priority_boost !== undefined) {
       setQuizPriorityBoost(payload.quiz_priority_boost);
     }
@@ -825,8 +842,10 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     if (useDailyRowOrder && displayOrder.ids.length > 0) {
       return jpVocabWordsInOrder(words, displayOrder.ids);
     }
-    return sortJpVocabWordsForDisplay(words, statSort);
-  }, [words, statSort, displayOrder.ids, useDailyRowOrder]);
+    return sortJpVocabWordsForDisplay(words, statSort, {
+      timeWeight: quizTimeWeight,
+    });
+  }, [words, statSort, displayOrder.ids, useDailyRowOrder, quizTimeWeight]);
 
   /** 当日固定序号：来自服务端 display_order，不随列头排序变化 */
   const dailySeqByWordId = useMemo(
@@ -2324,7 +2343,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       const { exportJpVocabReviewStatsToExcel } = await import(
         "@/lib/jp-vocab-excel-export"
       );
-      await exportJpVocabReviewStatsToExcel(words, displayOrder);
+      await exportJpVocabReviewStatsToExcel(words, displayOrder, quizTimeWeight);
       setShowExportChoice(false);
       setStatus(`已导出 ${words.length} 条复习次数统计到 Excel。`);
     } catch (err) {
@@ -2355,6 +2374,53 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setExporting(false);
+    }
+  };
+
+  const setQuizTimeWeightConfig = async (weight: number): Promise<boolean> => {
+    if (!isAdminMode || settingQuizTimeWeight) return false;
+    const normalized = normalizeJpVocabQuizTimeWeight(weight);
+    setSettingQuizTimeWeight(true);
+    setStatus("");
+    try {
+      const res = await fetch("/api/jp-vocab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "set_quiz_time_weight",
+          quiz_time_weight: normalized,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        quiz_time_weight?: number;
+        error?: string;
+      };
+      if (!data.ok || data.quiz_time_weight == null) {
+        throw new Error(data.error || "操作失败");
+      }
+      const saved = normalizeJpVocabQuizTimeWeight(data.quiz_time_weight);
+      setQuizTimeWeight(saved);
+      const prev = readJpVocabPageCache();
+      if (prev) {
+        writeClientCache(JP_VOCAB_CACHE_KEY, {
+          ...prev,
+          quiz_time_weight: saved,
+        });
+      }
+      setStatus(
+        `久未复习抬升权重已设为 ${saved}（最终得分 = 抽查优先级 + 距上次抽问天数 × ${saved}）。次日凌晨或「今日重置」后重排生效。`
+      );
+      return true;
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      setSettingQuizTimeWeight(false);
     }
   };
 
@@ -2545,6 +2611,14 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                 }
               : undefined
           }
+        />
+      ) : null}
+
+      {isAdminMode ? (
+        <JpVocabQuizTimeWeightAdmin
+          value={quizTimeWeight}
+          saving={settingQuizTimeWeight}
+          onSave={setQuizTimeWeightConfig}
         />
       ) : null}
 
@@ -2754,12 +2828,14 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
             {showVocabHelp ? (
               <p className="jp-vocab-risk-hint" role="note">
                 <strong>{jpVocabPriorityLabel(locale)}</strong>
-                ：根据「复习次数统计」估算每个单词/语法下节课该先抽查谁，数值越高越建议优先提问。
-                计算公式：一般 × 1 + 不熟悉 × 2 − 非常熟悉 × 0.3（保留 1 位小数）。
+                ：列表与卡片展示的是「最终抽问得分」= 基础优先级 + 距上次抽问天数 × 时间权重（管理员可调，当前{" "}
+                {quizTimeWeight}）。
+                基础优先级：一般 × 1 + 不熟悉 × 2 − 非常熟悉 × 0.3（保留 1 位小数）。
+                久未复习会自动抬升得分，避免「非常熟悉」后几个月再也抽不到。
                 ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
-                为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
+                为 0 或更低表示尚未复习，或多次勾选「非常熟悉」且近期刚抽过。
                 「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；同一单词今日内改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次勾选更新统计。
-                单词表默认按抽查优先级排序，每天北京时间 0 点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员在「今日抽查数量」中设置目标后，系统会自动为老师生成可见词条池：优先从未抽查过的词条，不足时按当日序号升序补足（跳过今日已抽查）；可勾选「隐藏老师端已抽查单词」控制老师是否仍能看到今日已抽查词条。跨日自动回到默认设置。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
+                单词表默认按当日固定序号（凌晨按最终得分重排）；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员在「今日抽查数量」中设置目标后，系统为老师生成可见池（当日序号正序 1…N）；今日新入库从未抽查词不进池。跨日自动回到默认设置。管理员可使用「重置 → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
                 搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）；旁边可按「全部 / 单词 / 语法」筛选类型。
                 备注编辑后约 1 秒自动保存并写入数据库；其他端约 1 秒自动拉取变更（标签页在后台时会降频）。
               </p>
@@ -2814,7 +2890,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                     : ""
                 }`}
                 aria-pressed={!useDailyRowOrder && statSort.key === "risk"}
-                title={`按${jpVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）；再次点击切换升降序`}
+                title={`按${jpVocabPriorityLabel(locale)}（最终得分=基础优先级+天数×${quizTimeWeight}）排序；再次点击切换升降序`}
                 onClick={() => toggleStatSort("risk")}
               >
                 {jpVocabPriorityLabel(locale)}
@@ -2937,6 +3013,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
             refs={refs}
             dailySeqByWordId={dailySeqByWordId}
             quizTarget={quizTarget}
+            quizTimeWeight={quizTimeWeight}
             teacherQuizLocksTable={teacherQuizLocksTable}
             isWordInQuizTarget={isWordInQuizTarget}
             isWordReviewLocked={isWordReviewLocked}
@@ -3017,6 +3094,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       <JpVocabRiskChartModal
         open={showRiskChart}
         words={quizTargetWords}
+        timeWeight={quizTimeWeight}
         onClose={() => setShowRiskChart(false)}
       />
       ) : null}
@@ -3142,6 +3220,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         wordSyncState={wordSyncState}
         dailySeqByWordId={dailySeqByWordId}
         dailyQuizProgress={displayQuizProgress}
+        quizTimeWeight={quizTimeWeight}
         canOperate={canOperate}
         shareUiEnabled={teacherShareUiEnabled}
         shareProgressMap={shareProgressMap}
@@ -3181,6 +3260,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           savingWordId={null}
           dailySeqByWordId={dailySeqByWordId}
           dailyQuizProgress={null}
+          quizTimeWeight={quizTimeWeight}
           canOperate
           shareUiEnabled={false}
           previewMode

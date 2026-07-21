@@ -13,10 +13,11 @@ const JpVocabRiskChart = dynamic(
 type Props = {
   open: boolean;
   words: JpVocabWord[];
+  timeWeight?: number;
   onClose: () => void;
 };
 
-export function JpVocabRiskChartModal({ open, words, onClose }: Props) {
+export function JpVocabRiskChartModal({ open, words, timeWeight, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -70,7 +71,7 @@ export function JpVocabRiskChartModal({ open, words, onClose }: Props) {
           </button>
         </div>
         <div className="jp-vocab-risk-modal-body">
-          <JpVocabRiskChart words={words} />
+          <JpVocabRiskChart words={words} timeWeight={timeWeight} />
         </div>
       </div>
       <style jsx>{`
