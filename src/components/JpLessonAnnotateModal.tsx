@@ -1050,6 +1050,7 @@ export function JpLessonAnnotateModal({
             >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              key={imageUrl}
               ref={imgRef}
               src={imageUrl}
               alt="教案"
