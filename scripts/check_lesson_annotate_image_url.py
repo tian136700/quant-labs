@@ -43,10 +43,15 @@ CHECKS = [
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
-                r"SMEAR_COLOR",
+                r'SMEAR_COLOR\s*=\s*"#000000"',
+                r'type:\s*"rect"',
+                r"normalizeRect\(",
                 r"tool === \"smear\"",
             ],
-            "forbid": [],
+            "forbid": [
+                r'SMEAR_COLOR\s*=\s*"#ffffff"',
+                r"SMEAR_WIDTH",
+            ],
         },
     ),
     (
@@ -54,10 +59,15 @@ CHECKS = [
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
-                r"SMEAR_COLOR",
+                r'SMEAR_COLOR\s*=\s*"#000000"',
+                r'type:\s*"rect"',
+                r"normalizeRect\(",
                 r"tool === \"smear\"",
             ],
-            "forbid": [],
+            "forbid": [
+                r'SMEAR_COLOR\s*=\s*"#ffffff"',
+                r"SMEAR_WIDTH",
+            ],
         },
     ),
 ]

@@ -30,6 +30,15 @@ type LineStroke = {
   width: number;
 };
 
+type RectStroke = {
+  type: "rect";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+};
+
 type TextStroke = {
   type: "text";
   x: number;
@@ -39,7 +48,14 @@ type TextStroke = {
   fontSize: number;
 };
 
-type Stroke = BrushStroke | LineStroke | TextStroke;
+type Stroke = BrushStroke | LineStroke | RectStroke | TextStroke;
+
+type PreviewRect = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
 
 type Props = {
   open: boolean;
@@ -56,9 +72,9 @@ type Props = {
 
 const ANNOTATE_COLOR = "#e85d6f";
 const BRUSH_WIDTH = 4;
-/** 涂抹：粗白笔，盖住 AI 教材错字/错图 */
-const SMEAR_COLOR = "#ffffff";
-const SMEAR_WIDTH = 28;
+/** 涂抹：框选矩形后涂黑，一眼能看出是人工遮盖错误处（勿用白色） */
+const SMEAR_COLOR = "#000000";
+const SMEAR_MIN_SIZE = 4;
 const LINE_WIDTH = 3;
 const DEFAULT_TEXT_SIZE = 16;
 const TEXT_SIZE_MIN = 12;
@@ -67,6 +83,17 @@ const TEXT_SIZE_STEP = 4;
 
 function clampTextSize(size: number): number {
   return Math.min(TEXT_SIZE_MAX, Math.max(TEXT_SIZE_MIN, size));
+}
+
+function normalizeRect(x1: number, y1: number, x2: number, y2: number) {
+  const x = Math.min(x1, x2);
+  const y = Math.min(y1, y2);
+  return {
+    x,
+    y,
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1),
+  };
 }
 
 function pointerToCanvas(
@@ -151,16 +178,39 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
     return;
   }
 
+  if (stroke.type === "rect") {
+    ctx.fillRect(stroke.x, stroke.y, stroke.width, stroke.height);
+    return;
+  }
+
   ctx.font = `${stroke.fontSize}px sans-serif`;
   ctx.textBaseline = "top";
   ctx.fillText(stroke.text, stroke.x, stroke.y);
+}
+
+function drawPreviewSmearRect(ctx: CanvasRenderingContext2D, preview: PreviewRect) {
+  const { x, y, width, height } = normalizeRect(
+    preview.x1,
+    preview.y1,
+    preview.x2,
+    preview.y2
+  );
+  if (width < 1 && height < 1) return;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.strokeRect(x, y, width, height);
+  ctx.setLineDash([]);
 }
 
 function drawAllStrokes(
   ctx: CanvasRenderingContext2D,
   strokes: Stroke[],
   previewLine?: { x1: number; y1: number; x2: number; y2: number } | null,
-  activeTextIndex?: number | null
+  activeTextIndex?: number | null,
+  previewRect?: PreviewRect | null
 ) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   for (let i = 0; i < strokes.length; i++) {
@@ -192,6 +242,9 @@ function drawAllStrokes(
     ctx.moveTo(previewLine.x1, previewLine.y1);
     ctx.lineTo(previewLine.x2, previewLine.y2);
     ctx.stroke();
+  }
+  if (previewRect) {
+    drawPreviewSmearRect(ctx, previewRect);
   }
 }
 
@@ -247,6 +300,7 @@ export function EnLessonAnnotateModal({
     x2: number;
     y2: number;
   } | null>(null);
+  const [previewRect, setPreviewRect] = useState<PreviewRect | null>(null);
   const [textDraft, setTextDraft] = useState<{
     x: number;
     y: number;
@@ -267,6 +321,7 @@ export function EnLessonAnnotateModal({
   const wrapRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const lineStartRef = useRef<{ x: number; y: number } | null>(null);
+  const smearStartRef = useRef<{ x: number; y: number } | null>(null);
   const activeBrushRef = useRef<BrushStroke | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const panSessionRef = useRef<{
@@ -296,12 +351,14 @@ export function EnLessonAnnotateModal({
     setTool("brush");
     setStrokes([]);
     setPreviewLine(null);
+    setPreviewRect(null);
     setTextDraft(null);
     setFitScale(1);
     setZoom(1);
     setTextFontSize(DEFAULT_TEXT_SIZE);
     setSelectedTextIndex(null);
     lineStartRef.current = null;
+    smearStartRef.current = null;
     activeBrushRef.current = null;
     panSessionRef.current = null;
     dragTextRef.current = null;
@@ -458,20 +515,25 @@ export function EnLessonAnnotateModal({
   }, [open, imgReady, fitScale, computeFitScale]);
 
   const redraw = useCallback(
-    (nextStrokes: Stroke[], nextPreview = previewLine, activeTextIndex = selectedTextIndex) => {
+    (
+      nextStrokes: Stroke[],
+      nextPreview = previewLine,
+      activeTextIndex = selectedTextIndex,
+      nextPreviewRect = previewRect
+    ) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      drawAllStrokes(ctx, nextStrokes, nextPreview, activeTextIndex);
+      drawAllStrokes(ctx, nextStrokes, nextPreview, activeTextIndex, nextPreviewRect);
     },
-    [previewLine, selectedTextIndex]
+    [previewLine, previewRect, selectedTextIndex]
   );
 
   useEffect(() => {
     if (!imgReady) return;
-    redraw(strokes, previewLine, selectedTextIndex);
-  }, [imgReady, strokes, previewLine, selectedTextIndex, redraw]);
+    redraw(strokes, previewLine, selectedTextIndex, previewRect);
+  }, [imgReady, strokes, previewLine, previewRect, selectedTextIndex, redraw]);
 
   const applyTextFontSize = useCallback(
     (nextSize: number) => {
@@ -602,11 +664,22 @@ export function EnLessonAnnotateModal({
       return;
     }
 
+    if (tool === "smear") {
+      smearStartRef.current = point;
+      setPreviewRect({
+        x1: point.x,
+        y1: point.y,
+        x2: point.x,
+        y2: point.y,
+      });
+      return;
+    }
+
     activeBrushRef.current = {
       type: "brush",
       points: [point],
-      color: tool === "smear" ? SMEAR_COLOR : ANNOTATE_COLOR,
-      width: tool === "smear" ? SMEAR_WIDTH : BRUSH_WIDTH,
+      color: ANNOTATE_COLOR,
+      width: BRUSH_WIDTH,
     };
   };
 
@@ -649,8 +722,20 @@ export function EnLessonAnnotateModal({
       return;
     }
 
+    if (tool === "smear" && smearStartRef.current) {
+      const nextPreviewRect: PreviewRect = {
+        x1: smearStartRef.current.x,
+        y1: smearStartRef.current.y,
+        x2: point.x,
+        y2: point.y,
+      };
+      setPreviewRect(nextPreviewRect);
+      redraw(strokes, previewLine, selectedTextIndex, nextPreviewRect);
+      return;
+    }
+
     const brush = activeBrushRef.current;
-    if ((tool === "brush" || tool === "smear") && brush) {
+    if (tool === "brush" && brush) {
       brush.points.push(point);
       redraw([...strokes, brush], previewLine);
     }
@@ -703,7 +788,37 @@ export function EnLessonAnnotateModal({
       return;
     }
 
-    if (tool === "brush" || tool === "smear") {
+    if (tool === "smear" && smearStartRef.current) {
+      const end = canvas ? pointerToCanvas(e, canvas) : null;
+      const start = smearStartRef.current;
+      smearStartRef.current = null;
+      setPreviewRect(null);
+      if (end) {
+        const rect = normalizeRect(start.x, start.y, end.x, end.y);
+        if (rect.width >= SMEAR_MIN_SIZE && rect.height >= SMEAR_MIN_SIZE) {
+          setStrokes((prev) => {
+            const next: Stroke[] = [
+              ...prev,
+              {
+                type: "rect",
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                color: SMEAR_COLOR,
+              },
+            ];
+            redraw(next, null, selectedTextIndex, null);
+            return next;
+          });
+        } else {
+          redraw(strokes, null, selectedTextIndex, null);
+        }
+      }
+      return;
+    }
+
+    if (tool === "brush") {
       commitBrush();
     }
   };
@@ -792,7 +907,8 @@ export function EnLessonAnnotateModal({
     setSelectedTextIndex(null);
     setStrokes([]);
     setPreviewLine(null);
-    redraw([], null);
+    setPreviewRect(null);
+    redraw([], null, null, null);
   };
 
   const downloadAnnotated = async () => {
@@ -1019,7 +1135,7 @@ export function EnLessonAnnotateModal({
         </div>
 
         <p className="jp-annotate-hint">
-          「涂抹」用粗白笔盖住教材错误处；「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
+          「涂抹」：拖拽框选正方形或长方形，松手后整块涂黑（一眼能看出是人工遮盖错误处）。「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
         </p>
 
         <div className="jp-annotate-stage" ref={stageRef}>
@@ -1038,7 +1154,9 @@ export function EnLessonAnnotateModal({
                 tool === "zoom" ? " is-zoom-tool" : ""
               }${zoom > 1 ? " is-zoomed" : ""}${
                 tool === "text" ? " is-text-tool" : ""
-              }${selectedTextIndex != null ? " is-text-selected" : ""}`}
+              }${tool === "smear" ? " is-smear-tool" : ""}${
+                selectedTextIndex != null ? " is-text-selected" : ""
+              }`}
               style={
                 imgReady && imgRef.current
                   ? {
@@ -1074,13 +1192,18 @@ export function EnLessonAnnotateModal({
                 if (tool === "text" && dragTextRef.current) {
                   return;
                 }
-                if ((tool === "brush" || tool === "smear") && activeBrushRef.current) {
+                if (tool === "brush" && activeBrushRef.current) {
                   commitBrush();
                 }
                 if (tool === "line" && lineStartRef.current) {
                   lineStartRef.current = null;
                   setPreviewLine(null);
                   redraw(strokes, null);
+                }
+                if (tool === "smear" && smearStartRef.current) {
+                  smearStartRef.current = null;
+                  setPreviewRect(null);
+                  redraw(strokes, null, selectedTextIndex, null);
                 }
                 if (canvasRef.current?.hasPointerCapture(e.pointerId)) {
                   canvasRef.current.releasePointerCapture(e.pointerId);
@@ -1379,6 +1502,10 @@ export function EnLessonAnnotateModal({
 
         .jp-annotate-canvas-wrap.is-text-tool .jp-annotate-canvas {
           cursor: text;
+        }
+
+        .jp-annotate-canvas-wrap.is-smear-tool .jp-annotate-canvas {
+          cursor: crosshair;
         }
 
         .jp-annotate-canvas-wrap.is-text-selected .jp-annotate-canvas {
