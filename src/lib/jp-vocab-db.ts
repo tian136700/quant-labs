@@ -33,6 +33,14 @@ import {
   jpVocabTodayCheckStats,
 } from "@/lib/jp-vocab-daily-check";
 import {
+  appendJpVocabQuizPriorityBoostEntry,
+  buildJpVocabQuizPriorityBoostSeqMap,
+  clearJpVocabQuizPriorityBoostForDate,
+  normalizeJpVocabQuizPriorityBoost,
+  pruneJpVocabQuizPriorityBoostWordIds,
+  type JpVocabQuizPriorityBoost,
+} from "@/lib/jp-vocab-quiz-priority-boost";
+import {
   appendJpVocabDailyDisplayOrderId,
   computeJpVocabDailyDisplayOrder,
   markJpVocabRoundChecked,
@@ -136,6 +144,7 @@ let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   ids: [],
   round_checked_ids: [],
 };
+let devQuizPriorityBoost: JpVocabQuizPriorityBoost | null = null;
 let devTeacherQuizLive: JpVocabTeacherQuizLive = {
   ...JP_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
   date: beijingDateString(),
@@ -162,6 +171,7 @@ const JP_VOCAB_SHARE_REQUEST_COOLDOWN_MS = 10_000;
 
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
+const JP_VOCAB_QUIZ_PRIORITY_BOOST_KEY = "quiz_priority_boost";
 const JP_VOCAB_TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 const JP_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 
@@ -896,6 +906,7 @@ export async function deleteJpVocabWordsByIds(
     }
     invalidateJpVocabSharedTodayCache();
     await clearJpVocabTeacherQuizLiveIfDeleted(db, idSet);
+    await pruneJpVocabQuizPriorityBoostForDeletedWords(db, idSet);
     const words = [...devWords];
     let display_order = await ensureJpVocabDailyDisplayOrder(db, words);
     const validIds = new Set(words.map((w) => w.id));
@@ -927,6 +938,7 @@ export async function deleteJpVocabWordsByIds(
   }
 
   await clearJpVocabTeacherQuizLiveIfDeleted(db, idSet);
+  await pruneJpVocabQuizPriorityBoostForDeletedWords(db, idSet);
 
   const words = await listJpVocabWords(db);
   let display_order = await ensureJpVocabDailyDisplayOrder(db, words);
@@ -2041,6 +2053,119 @@ export async function updateJpVocabWordEntry(
   return { ok: true, word: current };
 }
 
+async function readJpVocabQuizPriorityBoostRaw(
+  db: D1Database
+): Promise<JpVocabQuizPriorityBoost | null> {
+  if (devStoreEnabled) {
+    return devQuizPriorityBoost;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_QUIZ_PRIORITY_BOOST_KEY)
+    .first<{ value: string }>();
+  if (!row?.value) return null;
+  try {
+    return normalizeJpVocabQuizPriorityBoost(JSON.parse(row.value));
+  } catch {
+    return null;
+  }
+}
+
+async function saveJpVocabQuizPriorityBoost(
+  db: D1Database,
+  boost: JpVocabQuizPriorityBoost | null
+): Promise<void> {
+  if (devStoreEnabled) {
+    devQuizPriorityBoost = boost;
+    return;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  if (!boost) {
+    await db
+      .prepare(`DELETE FROM jp_vocab_setting WHERE key = ?1`)
+      .bind(JP_VOCAB_QUIZ_PRIORITY_BOOST_KEY)
+      .run();
+    return;
+  }
+
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(JP_VOCAB_QUIZ_PRIORITY_BOOST_KEY, JSON.stringify(boost), nowIso())
+    .run();
+}
+
+export async function getJpVocabQuizPriorityBoost(
+  db: D1Database
+): Promise<JpVocabQuizPriorityBoost | null> {
+  return readJpVocabQuizPriorityBoostRaw(db);
+}
+
+export async function boostJpVocabQuizPriority(
+  db: D1Database,
+  wordId: number,
+  options: { now?: Date } = {}
+): Promise<
+  | { ok: true; quiz_priority_boost: JpVocabQuizPriorityBoost }
+  | { ok: false; error: string }
+> {
+  const now = options.now ?? new Date();
+  const words = await listJpVocabWords(db);
+  if (!words.some((word) => word.id === wordId)) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const current = await readJpVocabQuizPriorityBoostRaw(db);
+  const next = appendJpVocabQuizPriorityBoostEntry(current, wordId, now);
+  await saveJpVocabQuizPriorityBoost(db, next);
+  return { ok: true, quiz_priority_boost: next };
+}
+
+async function computeJpVocabDailyDisplayOrderFromDb(
+  db: D1Database,
+  words: JpVocabWord[],
+  now = new Date()
+): Promise<{ ids: number[]; consumedBoost: boolean }> {
+  const today = beijingDateString(now);
+  const boost = await readJpVocabQuizPriorityBoostRaw(db);
+  const boostMap = buildJpVocabQuizPriorityBoostSeqMap(boost, today);
+  const ids = computeJpVocabDailyDisplayOrder(words, now, boostMap);
+  return { ids, consumedBoost: boostMap.size > 0 };
+}
+
+async function maybeClearConsumedJpVocabQuizPriorityBoost(
+  db: D1Database,
+  effectiveDate: string,
+  consumed: boolean
+): Promise<void> {
+  if (!consumed) return;
+  const boost = await readJpVocabQuizPriorityBoostRaw(db);
+  const next = clearJpVocabQuizPriorityBoostForDate(boost, effectiveDate);
+  if (next !== boost) {
+    await saveJpVocabQuizPriorityBoost(db, next);
+  }
+}
+
+async function pruneJpVocabQuizPriorityBoostForDeletedWords(
+  db: D1Database,
+  removedWordIds: Set<number>
+): Promise<void> {
+  if (removedWordIds.size === 0) return;
+  const boost = await readJpVocabQuizPriorityBoostRaw(db);
+  const next = pruneJpVocabQuizPriorityBoostWordIds(boost, removedWordIds);
+  if (next !== boost) {
+    await saveJpVocabQuizPriorityBoost(db, next);
+  }
+}
+
 async function readJpVocabDailyDisplayOrderRaw(
   db: D1Database
 ): Promise<JpVocabDailyDisplayOrder | null> {
@@ -2129,26 +2254,39 @@ export async function ensureJpVocabDailyDisplayOrder(
     return order;
   }
 
+  const { ids, consumedBoost } = await computeJpVocabDailyDisplayOrderFromDb(
+    db,
+    words
+  );
   const order = {
     date: today,
-    ids: computeJpVocabDailyDisplayOrder(words),
+    ids,
     round_checked_ids: [] as number[],
   };
   await saveJpVocabDailyDisplayOrder(db, order);
+  await maybeClearConsumedJpVocabQuizPriorityBoost(db, today, consumedBoost);
   return order;
 }
 
 /** 强制按当前数据重算当日顺序（如今日重置 / 全部重置后） */
 export async function refreshJpVocabDailyDisplayOrder(
   db: D1Database,
-  words: JpVocabWord[]
+  words: JpVocabWord[],
+  now = new Date()
 ): Promise<JpVocabDailyDisplayOrder> {
+  const today = beijingDateString(now);
+  const { ids, consumedBoost } = await computeJpVocabDailyDisplayOrderFromDb(
+    db,
+    words,
+    now
+  );
   const order = {
-    date: beijingDateString(),
-    ids: computeJpVocabDailyDisplayOrder(words),
+    date: today,
+    ids,
     round_checked_ids: [] as number[],
   };
   await saveJpVocabDailyDisplayOrder(db, order);
+  await maybeClearConsumedJpVocabQuizPriorityBoost(db, today, consumedBoost);
   return order;
 }
 

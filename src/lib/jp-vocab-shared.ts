@@ -87,15 +87,26 @@ export function sortJpVocabWordsByStat(
 
 /**
  * 每日固定序号（凌晨重排）：
- * 1. 可置顶的从未抽查（入库日早于今日）在前
- * 2. 其余按抽查优先级降序
- * 3. 今日刚入库且从未抽查的沉底（今天不抽，明天再置顶）
+ * 1. 管理员标记的「明日优先」按点击顺序 1、2、3…（仅生效日当天）
+ * 2. 可置顶的从未抽查（入库日早于今日）在前
+ * 3. 其余按抽查优先级降序
+ * 4. 今日刚入库且从未抽查的沉底（今天不抽，明天再置顶）
  */
 export function sortJpVocabWordsForDailyOrder(
   words: JpVocabWord[],
-  now = new Date()
+  now = new Date(),
+  boostSeqByWordId?: Map<number, number>
 ): JpVocabWord[] {
   return [...words].sort((a, b) => {
+    const aBoost = boostSeqByWordId?.get(a.id);
+    const bBoost = boostSeqByWordId?.get(b.id);
+    const aHasBoost = aBoost != null;
+    const bHasBoost = bBoost != null;
+    if (aHasBoost !== bHasBoost) return aHasBoost ? -1 : 1;
+    if (aHasBoost && bHasBoost && aBoost !== bBoost) {
+      return aBoost - bBoost;
+    }
+
     const aDefer = isJpVocabWordSameDayNewNeverQuizzed(a, now);
     const bDefer = isJpVocabWordSameDayNewNeverQuizzed(b, now);
     if (aDefer !== bDefer) return aDefer ? 1 : -1;

@@ -21,6 +21,10 @@ import {
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
 import {
+  jpVocabTomorrowBoostSeq,
+  type JpVocabQuizPriorityBoost,
+} from "@/lib/jp-vocab-quiz-priority-boost";
+import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
 } from "@/lib/jp-vocab-search";
@@ -251,6 +255,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [boostingWordId, setBoostingWordId] = useState<number | null>(null);
+  const [quizPriorityBoost, setQuizPriorityBoost] =
+    useState<JpVocabQuizPriorityBoost | null>(
+      () => readJpVocabPageCache()?.quiz_priority_boost ?? null
+    );
   const [wordSyncState, setWordSyncState] = useState<
     Record<number, "queued" | "syncing">
   >({});
@@ -481,6 +490,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
     setTeacherVisibleLimit(payload.teacher_visible_limit);
+    if (payload.quiz_priority_boost !== undefined) {
+      setQuizPriorityBoost(payload.quiz_priority_boost);
+    }
   }, []);
 
   const applyTeacherVisibleSync = useCallback(
@@ -2006,6 +2018,52 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     }
   };
 
+  const boostQuizPriority = async (word: JpVocabWord) => {
+    if (!isAdminMode || !canOperate) {
+      setStatus("请登录后再操作。");
+      openJpAuth();
+      return;
+    }
+    if (boostingWordId != null) return;
+
+    setBoostingWordId(word.id);
+    setStatus("");
+    setError("");
+    try {
+      const res = await fetch("/api/jp-vocab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "boost_quiz_priority",
+          word_id: word.id,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        quiz_priority_boost?: JpVocabQuizPriorityBoost;
+        error?: string;
+      };
+      if (!data.ok || !data.quiz_priority_boost) {
+        throw new Error(data.error || "设置失败");
+      }
+      setQuizPriorityBoost(data.quiz_priority_boost);
+      const seq = jpVocabTomorrowBoostSeq(data.quiz_priority_boost, word.id);
+      setStatus(
+        seq != null
+          ? `「${word.word}」已加入明日优先抽查队列（第 ${seq} 位）。`
+          : `「${word.word}」已加入明日优先抽查队列。`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBoostingWordId(null);
+    }
+  };
+
   const deleteWord = async (word: JpVocabWord) => {
     if (!isAdmin) {
       setStatus("仅 Admin 账户可删除词条。");
@@ -2870,6 +2928,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
             onRefPreview={openRefPreview}
             onEditWord={setEditingWord}
             onDeleteWord={(w) => void deleteWord(w)}
+            onBoostQuizPriority={
+              isAdminMode ? (w) => void boostQuizPriority(w) : undefined
+            }
+            quizPriorityBoost={isAdminMode ? quizPriorityBoost : null}
+            boostingWordId={boostingWordId}
             onPreviewQuizCard={
               isAdminMode
                 ? (w) => {

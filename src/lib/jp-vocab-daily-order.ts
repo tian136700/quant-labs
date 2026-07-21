@@ -83,9 +83,12 @@ export function clearJpVocabRoundChecked(
 
 export function computeJpVocabDailyDisplayOrder(
   words: JpVocabWord[],
-  now = new Date()
+  now = new Date(),
+  boostSeqByWordId?: Map<number, number>
 ): number[] {
-  return sortJpVocabWordsForDailyOrder(words, now).map((w) => w.id);
+  return sortJpVocabWordsForDailyOrder(words, now, boostSeqByWordId).map(
+    (w) => w.id
+  );
 }
 
 /**

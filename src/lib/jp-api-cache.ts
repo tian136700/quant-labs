@@ -10,6 +10,10 @@ import {
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
 import {
+  normalizeJpVocabQuizPriorityBoost,
+  type JpVocabQuizPriorityBoost,
+} from "@/lib/jp-vocab-quiz-priority-boost";
+import {
   normalizeJpVocabTeacherVisibleLimit,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
@@ -35,6 +39,8 @@ export type JpVocabApiPayload = {
   shared_today_word_ids: number[];
   /** 非管理员老师可见的当日序号上限（默认 20，跨日重置） */
   teacher_visible_limit: JpVocabTeacherVisibleLimit;
+  /** 管理员：明日优先抽查队列（仅管理员端 GET 返回） */
+  quiz_priority_boost?: JpVocabQuizPriorityBoost | null;
 };
 
 export type JpLessonApiPayload = {
@@ -53,6 +59,7 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     display_order?: Partial<JpVocabDailyDisplayOrder>;
     shared_today_word_ids?: number[];
     teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
+    quiz_priority_boost?: unknown;
     error?: string;
   };
   if (!data.ok || !Array.isArray(data.words)) {
@@ -101,6 +108,9 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
       : [],
     teacher_visible_limit: normalizeJpVocabTeacherVisibleLimit(
       data.teacher_visible_limit
+    ),
+    quiz_priority_boost: normalizeJpVocabQuizPriorityBoost(
+      data.quiz_priority_boost
     ),
   };
 }

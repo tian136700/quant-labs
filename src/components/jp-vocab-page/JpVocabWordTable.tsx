@@ -29,6 +29,10 @@ import {
 } from "@/lib/jp-vocab-page-constants";
 import { jpVocabCheckedInRound } from "@/lib/jp-vocab-page-helpers";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
+import {
+  jpVocabTomorrowBoostSeq,
+  type JpVocabQuizPriorityBoost,
+} from "@/lib/jp-vocab-quiz-priority-boost";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import type { Locale } from "@/i18n/messages";
@@ -61,6 +65,10 @@ export type JpVocabWordTableProps = {
   onRefPreview: (refKey: string, ref?: JpVocabRef) => void;
   onEditWord: (word: JpVocabWord) => void;
   onDeleteWord: (word: JpVocabWord) => void;
+  /** 仅管理员：标记明日优先抽查 */
+  onBoostQuizPriority?: (word: JpVocabWord) => void;
+  quizPriorityBoost?: JpVocabQuizPriorityBoost | null;
+  boostingWordId?: number | null;
   /** 仅管理员：预览老师抽问卡片样式 */
   onPreviewQuizCard?: (word: JpVocabWord) => void;
   onViewMnemonic: (word: JpVocabWord) => void;
@@ -98,6 +106,9 @@ export function JpVocabWordTable({
   onRefPreview,
   onEditWord,
   onDeleteWord,
+  onBoostQuizPriority,
+  quizPriorityBoost = null,
+  boostingWordId = null,
   onPreviewQuizCard,
   onViewMnemonic,
   onRecordLevel,
@@ -755,6 +766,31 @@ export function JpVocabWordTable({
                                 onClick={() => onPreviewQuizCard(w)}
                               >
                                 查看抽问卡片
+                              </button>
+                            ) : null}
+                            {isAdmin && onBoostQuizPriority ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-mobile-action-btn--full"
+                                disabled={
+                                  boostingWordId != null ||
+                                  deletingId != null ||
+                                  Boolean(wordSyncState[w.id])
+                                }
+                                title="次日凌晨重排时按点击顺序置顶，便于重新抽到该词"
+                                onClick={() => onBoostQuizPriority(w)}
+                              >
+                                {boostingWordId === w.id
+                                  ? "设置中…"
+                                  : (() => {
+                                      const seq = jpVocabTomorrowBoostSeq(
+                                        quizPriorityBoost,
+                                        w.id
+                                      );
+                                      return seq != null
+                                        ? `明日第 ${seq} 位`
+                                        : "明日优先抽查";
+                                    })()}
                               </button>
                             ) : null}
                           </div>

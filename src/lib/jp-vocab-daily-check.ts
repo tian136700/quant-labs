@@ -10,6 +10,11 @@ export function beijingDateString(now = new Date()): string {
   }).format(now);
 }
 
+/** 北京时间次日 YYYY-MM-DD（管理员「明日优先抽查」生效日） */
+export function beijingTomorrowDateString(now = new Date()): string {
+  return beijingDateString(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+}
+
 /** 北京时间墙钟 YYYY-MM-DD HH:mm:ss（词条入库标记时间，供次日凌晨置顶判断） */
 export function beijingDateTimeString(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-GB", {

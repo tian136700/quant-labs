@@ -1,8 +1,10 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
+  boostJpVocabQuizPriority,
   ensureJpVocabDailyDisplayOrder,
   ensureJpVocabTeacherVisibleLimit,
   getJpVocabDailyQuizStyle,
+  getJpVocabQuizPriorityBoost,
   listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
@@ -53,6 +55,9 @@ export async function GET(request: Request) {
       displayOrder: display_order,
     });
     const { isAdmin } = await requireAdmin(request);
+    const quiz_priority_boost = isAdmin
+      ? await getJpVocabQuizPriorityBoost(env.DB)
+      : null;
     const clientWords = redactJpVocabWordsMnemonicForClient(words, isAdmin);
     return jsonResponse({
       ok: true,
@@ -62,6 +67,7 @@ export async function GET(request: Request) {
       display_order,
       shared_today_word_ids,
       teacher_visible_limit,
+      ...(quiz_priority_boost ? { quiz_priority_boost } : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -140,6 +146,26 @@ export async function POST(request: Request) {
         words: result.words,
         display_order: result.display_order,
         teacher_visible_limit: result.teacher_visible_limit,
+      });
+    }
+
+    if (body.action === "boost_quiz_priority") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+      const wordId = Number(body.word_id);
+      if (!Number.isInteger(wordId) || wordId <= 0) {
+        return jsonResponse({ ok: false, error: "invalid word_id" }, 400);
+      }
+      const result = await boostJpVocabQuizPriority(env.DB, wordId);
+      if (!result.ok) {
+        const status = result.error === "not_found" ? 404 : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({
+        ok: true,
+        quiz_priority_boost: result.quiz_priority_boost,
       });
     }
 
