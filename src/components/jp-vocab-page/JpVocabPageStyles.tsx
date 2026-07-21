@@ -1254,6 +1254,12 @@ export function JpVocabPageStyles() {
             border-color: color-mix(in srgb, var(--rise) 30%, var(--border));
             background: color-mix(in srgb, var(--rise) 12%, var(--panel));
           }
+          :global(.jp-vocab-table .jp-vocab-risk-badge--never) {
+            color: var(--muted);
+            border-color: var(--border);
+            background: color-mix(in srgb, var(--panel) 92%, var(--muted) 8%);
+            font-weight: 500;
+          }
           .jp-vocab-level-wrap {
             width: 100%;
             align-items: stretch;

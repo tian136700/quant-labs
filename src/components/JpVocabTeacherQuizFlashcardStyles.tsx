@@ -720,6 +720,10 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__risk--low {
           color: var(--fall);
         }
+        .jp-vocab-teacher-quiz__risk--never {
+          color: var(--muted);
+          font-weight: 500;
+        }
         .jp-vocab-teacher-quiz__stat-value {
           font-variant-numeric: tabular-nums;
           font-weight: 600;

@@ -1,5 +1,6 @@
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  jpVocabAppliesFinalQuizScore,
   jpVocabFinalQuizScore,
   normalizeJpVocabQuizTimeWeight,
 } from "@/lib/jp-vocab-quiz-score";
@@ -11,7 +12,7 @@ export type JpVocabRiskRow = {
   name: string;
   kind: JpVocabKind;
   kindLabel: string;
-  /** 与日序一致：final_score（含久未复习抬升） */
+  /** 与日序一致：final_score（含久未复习抬升）；从未抽查不进排行 */
   risk: number;
   /** 仅三项计数算出的基础 priority（不含时间抬升） */
   basePriority: number;
@@ -51,6 +52,7 @@ export function buildRiskData(
   );
   const now = opts?.now ?? new Date();
   return words
+    .filter((w) => jpVocabAppliesFinalQuizScore(w))
     .map((w) => {
       const familiar = w.cnt_very;
       const normal = w.cnt_normal;
@@ -71,7 +73,7 @@ export function buildRiskData(
     .sort((a, b) => b.risk - a.risk || a.name.localeCompare(b.name, "ja"));
 }
 
-/** 图表用：最终抽问得分降序；仅展示 score > 0 */
+/** 图表用：最终抽问得分降序；仅展示 score > 0（从未抽查已排除） */
 export function buildRiskChartData(
   words: JpVocabWord[],
   opts?: { timeWeight?: number; now?: Date }
@@ -79,10 +81,11 @@ export function buildRiskChartData(
   return buildRiskData(words, opts).filter((row) => row.risk > 0);
 }
 
-/** 未列入排行的条数（final_score ≤ 0） */
+/** 未列入排行：final_score ≤ 0，或从未抽查 */
 export function countExcludedRiskRows(
   words: JpVocabWord[],
   opts?: { timeWeight?: number; now?: Date }
 ): number {
-  return buildRiskData(words, opts).filter((row) => row.risk <= 0).length;
+  const scored = new Set(buildRiskChartData(words, opts).map((r) => r.id));
+  return words.filter((w) => !scored.has(w.id)).length;
 }

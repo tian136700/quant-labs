@@ -1,5 +1,6 @@
 import {
   beijingDateString,
+  isJpVocabWordHistNeverQuizzed,
   jpVocabWordEnteredBeijingDate,
 } from "@/lib/jp-vocab-daily-check";
 import type { JpVocabWord } from "@/lib/types";
@@ -48,9 +49,19 @@ export function jpVocabBeijingCalendarDaysBetween(
 }
 
 /**
+ * 是否参与 final_score 计算。
+ * 从未抽查（合计 0）不算优先级：日序靠「从未抽查置顶」桶，不走公式。
+ */
+export function jpVocabAppliesFinalQuizScore(
+  word: Pick<JpVocabWord, "cnt_very" | "cnt_normal" | "cnt_weak">
+): boolean {
+  return !isJpVocabWordHistNeverQuizzed(word);
+}
+
+/**
  * 距最后一次抽问的天数（北京日历）。
- * 优先 `last_review_at`（已有字段，语义即 last_review_date）；
- * 缺省回退 `created_at` 入库日；再缺则 0（兼容旧数据，不炸排序）。
+ * 仅应对「已抽查过」的词调用；从未抽查请用 jpVocabAppliesFinalQuizScore 先判断。
+ * 优先 `last_review_at`；缺省回退 `created_at`；再缺则 0。
  */
 export function jpVocabDaysSinceLastReview(
   word: Pick<JpVocabWord, "last_review_at" | "created_at">,
@@ -76,7 +87,8 @@ function jpVocabPriorityRaw(
 
 /**
  * 最终抽问得分 = 抽查优先级 + 距上次抽问天数 × 时间权重。
- * 保留 1 位小数（与 priority 展示一致）。
+ * 保留 1 位小数。
+ * **从未抽查请勿用此值排序/展示**——应先 jpVocabAppliesFinalQuizScore；或用 OrNull。
  */
 export function jpVocabFinalQuizScore(
   word: Pick<
@@ -91,4 +103,17 @@ export function jpVocabFinalQuizScore(
   const days = jpVocabDaysSinceLastReview(word, now);
   const raw = priority + days * weight;
   return Math.round(raw * 10) / 10;
+}
+
+/** 从未抽查 → null（不算分）；已抽查 → final_score */
+export function jpVocabFinalQuizScoreOrNull(
+  word: Pick<
+    JpVocabWord,
+    "cnt_very" | "cnt_normal" | "cnt_weak" | "last_review_at" | "created_at"
+  >,
+  timeWeight: number = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  now = new Date()
+): number | null {
+  if (!jpVocabAppliesFinalQuizScore(word)) return null;
+  return jpVocabFinalQuizScore(word, timeWeight, now);
 }

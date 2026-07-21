@@ -14,7 +14,7 @@ import {
 } from "@/lib/jp-vocab-shared";
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
-  jpVocabFinalQuizScore,
+  jpVocabFinalQuizScoreOrNull,
 } from "@/lib/jp-vocab-quiz-score";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { jpVocabFlashcardCopyText } from "@/lib/jp-vocab-flashcard-copy";
@@ -268,7 +268,7 @@ export function JpVocabWordTable({
                   const isSharing = w.id in shareProgressMap;
                   const isSaving = isQueued || isSyncing;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
-                  const risk = jpVocabFinalQuizScore(w, quizTimeWeight);
+                  const risk = jpVocabFinalQuizScoreOrNull(w, quizTimeWeight);
                   const todayChecks = effectiveTodayCheckCount(
                     w.today_check_count ?? 0,
                     w.today_check_date
@@ -283,7 +283,13 @@ export function JpVocabWordTable({
                   const posTrim = (w.pos || "").trim();
                   const mnemonicTrim = (w.mnemonic || "").trim();
                   const riskBadgeTier =
-                    risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+                    risk == null
+                      ? "never"
+                      : risk >= 2
+                        ? "high"
+                        : risk <= 0
+                          ? "low"
+                          : "mid";
                   const hasNotes = Boolean((w.class_notes || "").trim());
                   const readingCopyText = jpVocabFlashcardCopyText(readingTrim, wordTrim);
                   const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
@@ -480,11 +486,20 @@ export function JpVocabWordTable({
                         </td>
                       ) : null}
                       <td className="jp-vocab-risk-col" data-label="优先级">
-                        <span
-                          className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
-                        >
-                          {risk.toFixed(1)}
-                        </span>
+                        {risk == null ? (
+                          <span
+                            className="jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--never"
+                            title="从未抽查：不按优先级计分，日序默认置顶"
+                          >
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
+                          >
+                            {risk.toFixed(1)}
+                          </span>
+                        )}
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         {isSharing || isQueued || isSyncing ? (

@@ -18,6 +18,7 @@ ADMIN_UI = ROOT / "src/components/JpVocabQuizTimeWeightAdmin.tsx"
 EXCEL = ROOT / "src/lib/jp-vocab-excel-export.ts"
 RISK = ROOT / "src/lib/jp-vocab-risk.ts"
 CACHE = ROOT / "src/lib/jp-vocab-page-cache.ts"
+TABLE = ROOT / "src/components/jp-vocab-page/JpVocabWordTable.tsx"
 RULE = ROOT / ".cursor/rules/jp-vocab-quiz-time-weight.mdc"
 
 errors: list[str] = []
@@ -62,21 +63,34 @@ def main() -> int:
         "final_score 须为 priority + days × weight",
     )
 
-    must_contain(
-        SHARED,
-        "jpVocabFinalQuizScore",
-        "日序须用 final_score，禁止只按 raw risk",
-    )
-    must_contain(
-        SHARED,
-        "sortJpVocabWordsForDailyOrder",
-        "日序入口须存在",
-    )
+    must_contain(SCORE, "jpVocabAppliesFinalQuizScore", "须有从未抽查不算分判断")
+    must_contain(SCORE, "jpVocabFinalQuizScoreOrNull", "须有 OrNull（从未抽查→null）")
     must_match(
         SHARED,
-        r"jpVocabFinalQuizScore\(b,\s*weight",
-        "日序比较须调用 jpVocabFinalQuizScore",
+        r"从未抽查桶内|aFront \|\| bFront \|\| aDefer",
+        "日序从未抽查桶内禁止再用 final_score",
     )
+    # 日序函数体内：front 桶之后才 FinalQuizScore；且不得在 front 相等时直接 RiskIndex
+    m = re.search(
+        r"export function sortJpVocabWordsForDailyOrder\([\s\S]*?\n\}",
+        SHARED.read_text(encoding="utf-8"),
+    )
+    if not m:
+        errors.append("jp-vocab-shared.ts: 找不到 sortJpVocabWordsForDailyOrder")
+    else:
+        body = m.group(0)
+        if "jpVocabFinalQuizScore" not in body:
+            errors.append("日序须对已抽查词用 jpVocabFinalQuizScore")
+        if "EligibleNeverQuizzedForFront" not in body:
+            errors.append("日序须先从未抽查置顶")
+        # 桶内应有 localeCompare 早退，避免 front 词互相比分
+        if "localeCompare" not in body:
+            errors.append("从未抽查桶内须稳定排序（localeCompare）")
+
+    must_contain(TABLE, "jpVocabFinalQuizScoreOrNull", "表格须用 OrNull，从未抽查显示 —")
+    must_contain(RISK, "jpVocabAppliesFinalQuizScore", "排行须排除从未抽查")
+    must_contain(EXCEL, "从未抽查", "Excel 规则须写明从未抽查不算分")
+    must_contain(RULE, "不算 priority", "规则须禁止给从未抽查算分")
 
     must_contain(DB, "getJpVocabQuizTimeWeight", "DB 须可读时间权重")
     must_contain(DB, "setJpVocabQuizTimeWeight", "DB 须可写时间权重")

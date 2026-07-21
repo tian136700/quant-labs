@@ -14,7 +14,7 @@ import {
 } from "@/lib/jp-vocab-shared";
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
-  jpVocabFinalQuizScore,
+  jpVocabFinalQuizScoreOrNull,
 } from "@/lib/jp-vocab-quiz-score";
 import {
   findFirstUncheckedJpVocabTeacherQuizIndex,
@@ -324,8 +324,9 @@ export function JpVocabTeacherQuizFlashcardModal({
   const isQueued = syncPhase === "queued";
   const isSyncing = syncPhase === "syncing";
   const isSaving = savingWordId === w.id;
-  const risk = jpVocabFinalQuizScore(w, quizTimeWeight);
-  const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+  const risk = jpVocabFinalQuizScoreOrNull(w, quizTimeWeight);
+  const riskBadgeTier =
+    risk == null ? "never" : risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(
     w.today_check_count ?? 0,
     w.today_check_date
@@ -960,8 +961,15 @@ export function JpVocabTeacherQuizFlashcardModal({
             </span>
             <span
               className={`jp-vocab-teacher-quiz__risk jp-vocab-teacher-quiz__risk--${riskBadgeTier}`}
+              title={
+                risk == null
+                  ? locale === "zh"
+                    ? "从未抽查：不按优先级计分，日序默认置顶"
+                    : "Never quizzed: no priority score"
+                  : undefined
+              }
             >
-              {risk.toFixed(1)}
+              {risk == null ? "—" : risk.toFixed(1)}
             </span>
           </div>
           <div className="jp-vocab-teacher-quiz__stat">

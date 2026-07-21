@@ -25,9 +25,9 @@ import {
 } from "@/lib/jp-vocab-example-sentences";
 import {
   formatJpVocabTotalReviewsDisplay,
-  jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
+import { jpVocabFinalQuizScoreOrNull } from "@/lib/jp-vocab-quiz-score";
 import { jpVocabTeacherQuizNotesInline } from "@/lib/jp-vocab-teacher-quiz";
 import { computeJpVocabReviewRoundProgress } from "@/lib/jp-vocab-review-session";
 import type { JpVocabReviewSession } from "@/lib/jp-vocab-review-session";
@@ -174,8 +174,9 @@ export function JpVocabAdminReviewFlashcardModal({
   const wordTrim = w.word.trim();
   const meaningTrim = (w.meaning || "").trim();
   const posTrim = (w.pos || "").trim();
-  const risk = jpVocabRiskIndex(w);
-  const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+  const risk = jpVocabFinalQuizScoreOrNull(w);
+  const riskBadgeTier =
+    risk == null ? "never" : risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(
     w.today_check_count ?? 0,
     w.today_check_date
@@ -514,8 +515,13 @@ export function JpVocabAdminReviewFlashcardModal({
             </span>
             <span
               className={`jp-vocab-teacher-quiz__risk jp-vocab-teacher-quiz__risk--${riskBadgeTier}`}
+              title={
+                risk == null
+                  ? "从未抽查：不按优先级计分，日序默认置顶"
+                  : undefined
+              }
             >
-              {risk.toFixed(1)}
+              {risk == null ? "—" : risk.toFixed(1)}
             </span>
           </div>
           <div className="jp-vocab-teacher-quiz__stat">

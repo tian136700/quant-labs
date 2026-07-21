@@ -1,6 +1,7 @@
 import {
   isJpVocabWordEligibleNeverQuizzedForFront,
   isJpVocabWordSameDayNewNeverQuizzed,
+  isJpVocabWordHistNeverQuizzed,
 } from "@/lib/jp-vocab-daily-check";
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
@@ -66,7 +67,10 @@ function statSortValue(
     case "total":
       return jpVocabTotalReviews(word);
     case "risk":
-      // 列表「抽查优先级」列：用 final_score（含久未复习抬升），与凌晨日序一致
+      // 从未抽查：不算分；列头排序时仍置顶（与日序「从未抽查在前」一致）
+      if (isJpVocabWordHistNeverQuizzed(word)) {
+        return Number.POSITIVE_INFINITY;
+      }
       return jpVocabFinalQuizScore(word, timeWeight, now);
     case "seq":
       return 0;
@@ -106,9 +110,9 @@ export function sortJpVocabWordsByStat(
 /**
  * 每日固定序号（凌晨重排）：
  * 1. 管理员标记的「明日优先」按点击顺序 1、2、3…（仅生效日当天）
- * 2. 可置顶的从未抽查（入库日早于今日）在前
- * 3. 其余按最终抽问得分降序：priority + days_since_last_review × timeWeight
- * 4. 今日刚入库且从未抽查的沉底（今天不抽，明天再置顶）
+ * 2. 可置顶的从未抽查（入库日早于今日）在前 —— **不算 final_score**
+ * 3. 其余（已抽查过的）按最终抽问得分降序：priority + days × timeWeight
+ * 4. 今日刚入库且从未抽查的沉底（今天不抽，明天再置顶）—— **不算 final_score**
  *
  * `last_review_at` 即最后一次抽问时间（无需新建 last_review_date 列）。
  */
@@ -137,6 +141,12 @@ export function sortJpVocabWordsForDailyOrder(
     const bFront = isJpVocabWordEligibleNeverQuizzedForFront(b, now);
     if (aFront !== bFront) return aFront ? -1 : 1;
 
+    // 从未抽查桶内（置顶或沉底）：不算 final_score，只按词名稳定排序
+    if (aFront || bFront || aDefer || bDefer) {
+      return a.word.localeCompare(b.word, "ja");
+    }
+
+    // 仅已抽查过的词走公式
     const diff =
       jpVocabFinalQuizScore(b, weight, now) -
       jpVocabFinalQuizScore(a, weight, now);
