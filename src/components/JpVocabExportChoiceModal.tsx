@@ -11,6 +11,7 @@ type Props = {
   allCount: number;
   onClose: () => void;
   onExport: (scope: JpVocabExportScope) => void;
+  onExportExcel?: () => void;
   onExportToCoach?: () => void;
 };
 
@@ -21,6 +22,7 @@ export function JpVocabExportChoiceModal({
   allCount,
   onClose,
   onExport,
+  onExportExcel,
   onExportToCoach,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -85,11 +87,15 @@ export function JpVocabExportChoiceModal({
             <strong>导出 Word</strong>：生成 .docx 文档（序号、日语、读音、类型、备注图片等）。
           </p>
           <p>
-            <strong>导出全部数据</strong>：导出当前单词表全部 {allCount} 条。
+            <strong>导出全部数据</strong>：导出当前单词表全部 {allCount} 条到 Word。
           </p>
           <p>
             <strong>导出今日未掌握（Word）</strong>：仅导出今日勾选为「一般」或「不熟悉」的词条（当前{" "}
             {todayWeakCount} 条）。
+          </p>
+          <p>
+            <strong>导出 Excel（复习次数）</strong>：导出全部 {allCount}{" "}
+            条的单词 ID、名字、不熟悉/一般/非常熟悉次数与总共抽查次数（.xlsx，便于算法复盘）。
           </p>
           <p>
             <strong>导出到课堂带读</strong>：将今日「一般」「不熟悉」词条（{todayWeakCount}{" "}
@@ -132,6 +138,15 @@ export function JpVocabExportChoiceModal({
             }
           >
             导出今日未掌握
+          </button>
+          <button
+            type="button"
+            className="btn-rsi-filter"
+            onClick={() => onExportExcel?.()}
+            disabled={busy || allCount <= 0 || !onExportExcel}
+            title="导出复习次数统计为 Excel（.xlsx）"
+          >
+            导出 Excel（复习次数）
           </button>
           <button
             type="button"

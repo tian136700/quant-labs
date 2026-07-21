@@ -2315,6 +2315,25 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     }
   };
 
+  const runExportExcel = async () => {
+    if (exporting || !words.length) return;
+    setExporting(true);
+    setStatus("");
+    setError("");
+    try {
+      const { exportJpVocabReviewStatsToExcel } = await import(
+        "@/lib/jp-vocab-excel-export"
+      );
+      await exportJpVocabReviewStatsToExcel(words, displayOrder);
+      setShowExportChoice(false);
+      setStatus(`已导出 ${words.length} 条复习次数统计到 Excel。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const runCoachExport = async () => {
     if (exporting) return;
     const items = buildJpVocabCoachExportItems(words, sessionLevel, displayOrder);
@@ -2654,7 +2673,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
                 className="btn-rsi-filter"
                 onClick={() => setShowExportChoice(true)}
                 disabled={loading || exporting || !words.length}
-                title="导出单词表为 Word 文档"
+                title="导出 Word 或 Excel（复习次数统计）"
               >
                 {exporting ? "导出中…" : "导出"}
               </button>
@@ -2973,6 +2992,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           if (!exporting) setShowExportChoice(false);
         }}
         onExport={(scope) => void runExport(scope)}
+        onExportExcel={() => void runExportExcel()}
         onExportToCoach={() => void runCoachExport()}
       />
 
