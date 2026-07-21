@@ -37,6 +37,9 @@ type RectStroke = {
   width: number;
   height: number;
   color: string;
+  /** 涂抹块上说明文字（如 AI 不准确已涂抹） */
+  label: string;
+  labelColor: string;
 };
 
 type TextStroke = {
@@ -72,8 +75,14 @@ type Props = {
 
 const ANNOTATE_COLOR = "#e85d6f";
 const BRUSH_WIDTH = 4;
-/** 涂抹：框选矩形后涂黑，一眼能看出是人工遮盖错误处（勿用白色） */
-const SMEAR_COLOR = "#000000";
+/**
+ * 涂抹：框选矩形后用不透明深色盖住原文，并写上说明。
+ * 勿用白色（像 AI 缺图）；纯黑无字也怪——必须带 label。
+ */
+const SMEAR_COLOR = "#2a3140";
+const SMEAR_LABEL_COLOR = "#f4f6f9";
+const SMEAR_BORDER_COLOR = "#e85d6f";
+const SMEAR_LABEL = "此内容由AI生成，经核验不准确，已涂抹";
 const SMEAR_MIN_SIZE = 4;
 const LINE_WIDTH = 3;
 const DEFAULT_TEXT_SIZE = 16;
@@ -94,6 +103,109 @@ function normalizeRect(x1: number, y1: number, x2: number, y2: number) {
     width: Math.abs(x2 - x1),
     height: Math.abs(y2 - y1),
   };
+}
+
+function wrapTextLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  if (maxWidth <= 0) return [text];
+  const chars = Array.from(text);
+  const lines: string[] = [];
+  let current = "";
+  for (const ch of chars) {
+    const next = current + ch;
+    if (ctx.measureText(next).width <= maxWidth || current.length === 0) {
+      current = next;
+      continue;
+    }
+    lines.push(current);
+    current = ch;
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [text];
+}
+
+function pickSmearLabelFontSize(width: number, height: number): number {
+  const byBox = Math.floor(Math.min(width, height) / 5.5);
+  const byWidth = Math.floor(width / 14);
+  return Math.min(32, Math.max(11, Math.min(byBox, byWidth)));
+}
+
+function drawSmearLabel(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  labelColor: string
+) {
+  if (!label || width < 8 || height < 8) return;
+  const pad = Math.max(6, Math.min(14, Math.floor(Math.min(width, height) * 0.08)));
+  const maxWidth = Math.max(8, width - pad * 2);
+  let fontSize = pickSmearLabelFontSize(width, height);
+  let lines: string[] = [];
+  let lineHeight = fontSize * 1.35;
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    ctx.font = `600 ${fontSize}px "PingFang SC", "Noto Sans SC", "Hiragino Sans GB", sans-serif`;
+    lines = wrapTextLines(ctx, label, maxWidth);
+    lineHeight = fontSize * 1.35;
+    const blockHeight = lines.length * lineHeight;
+    if (blockHeight <= height - pad * 2 || fontSize <= 11) break;
+    fontSize -= 1;
+  }
+
+  const blockHeight = lines.length * lineHeight;
+  let startY = y + (height - blockHeight) / 2;
+  if (startY < y + pad) startY = y + pad;
+
+  ctx.fillStyle = labelColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const cx = x + width / 2;
+  for (let i = 0; i < lines.length; i++) {
+    const ly = startY + i * lineHeight;
+    if (ly + fontSize > y + height - pad / 2) break;
+    ctx.fillText(lines[i], cx, ly, maxWidth);
+  }
+  ctx.textAlign = "start";
+  ctx.textBaseline = "alphabetic";
+}
+
+function drawSmearRect(
+  ctx: CanvasRenderingContext2D,
+  stroke: Pick<
+    RectStroke,
+    "x" | "y" | "width" | "height" | "color" | "label" | "labelColor"
+  >,
+  opts?: { preview?: boolean }
+) {
+  const { x, y, width, height } = stroke;
+  if (opts?.preview) {
+    ctx.fillStyle = "rgba(42, 49, 64, 0.72)";
+  } else {
+    ctx.fillStyle = stroke.color;
+  }
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = SMEAR_BORDER_COLOR;
+  ctx.lineWidth = Math.max(2, Math.min(4, Math.floor(Math.min(width, height) / 40)));
+  if (opts?.preview) {
+    ctx.setLineDash([6, 4]);
+  }
+  ctx.strokeRect(x + 1, y + 1, Math.max(0, width - 2), Math.max(0, height - 2));
+  ctx.setLineDash([]);
+  drawSmearLabel(
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    stroke.label || SMEAR_LABEL,
+    stroke.labelColor || SMEAR_LABEL_COLOR
+  );
 }
 
 function pointerToCanvas(
@@ -179,7 +291,7 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   }
 
   if (stroke.type === "rect") {
-    ctx.fillRect(stroke.x, stroke.y, stroke.width, stroke.height);
+    drawSmearRect(ctx, stroke);
     return;
   }
 
@@ -196,13 +308,19 @@ function drawPreviewSmearRect(ctx: CanvasRenderingContext2D, preview: PreviewRec
     preview.y2
   );
   if (width < 1 && height < 1) return;
-  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
-  ctx.fillRect(x, y, width, height);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([6, 4]);
-  ctx.strokeRect(x, y, width, height);
-  ctx.setLineDash([]);
+  drawSmearRect(
+    ctx,
+    {
+      x,
+      y,
+      width,
+      height,
+      color: SMEAR_COLOR,
+      label: SMEAR_LABEL,
+      labelColor: SMEAR_LABEL_COLOR,
+    },
+    { preview: true }
+  );
 }
 
 function drawAllStrokes(
@@ -806,6 +924,8 @@ export function JpLessonAnnotateModal({
                 width: rect.width,
                 height: rect.height,
                 color: SMEAR_COLOR,
+                label: SMEAR_LABEL,
+                labelColor: SMEAR_LABEL_COLOR,
               },
             ];
             redraw(next, null, selectedTextIndex, null);
@@ -1135,7 +1255,7 @@ export function JpLessonAnnotateModal({
         </div>
 
         <p className="jp-annotate-hint">
-          「涂抹」：拖拽框选正方形或长方形，松手后整块涂黑（一眼能看出是人工遮盖错误处）。「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
+          「涂抹」：拖拽框选正方/长方形，松手后用不透明深色盖住原文，并自动写上「此内容由AI生成，经核验不准确，已涂抹」。「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
         </p>
 
         <div className="jp-annotate-stage" ref={stageRef}>

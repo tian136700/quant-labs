@@ -43,13 +43,16 @@ CHECKS = [
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
-                r'SMEAR_COLOR\s*=\s*"#000000"',
+                r'SMEAR_COLOR\s*=\s*"#2a3140"',
+                r'SMEAR_LABEL\s*=\s*"此内容由AI生成，经核验不准确，已涂抹"',
                 r'type:\s*"rect"',
                 r"normalizeRect\(",
+                r"drawSmearLabel\(",
                 r"tool === \"smear\"",
             ],
             "forbid": [
                 r'SMEAR_COLOR\s*=\s*"#ffffff"',
+                r'SMEAR_COLOR\s*=\s*"#000000"',
                 r"SMEAR_WIDTH",
             ],
         },
@@ -59,13 +62,16 @@ CHECKS = [
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
-                r'SMEAR_COLOR\s*=\s*"#000000"',
+                r'SMEAR_COLOR\s*=\s*"#2a3140"',
+                r'SMEAR_LABEL\s*=\s*"此内容由AI生成，经核验不准确，已涂抹"',
                 r'type:\s*"rect"',
                 r"normalizeRect\(",
+                r"drawSmearLabel\(",
                 r"tool === \"smear\"",
             ],
             "forbid": [
                 r'SMEAR_COLOR\s*=\s*"#ffffff"',
+                r'SMEAR_COLOR\s*=\s*"#000000"',
                 r"SMEAR_WIDTH",
             ],
         },
