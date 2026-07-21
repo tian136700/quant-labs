@@ -151,7 +151,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **日程同步到网易日历（CalDAV → iPhone）** | Mac launchd 每 30 分钟：`scripts/schedule-caldav-sync.sh` → `schedule-caldav-sync.py`；API `listScheduleCalDavEvents` → **同堂合并**（单词+语法 → 标题「单词和语法」）；配置 `~/.config/info-quests/schedule-caldav.env`；安装 `bash scripts/setup-schedule-caldav-mac.sh`；开关 `SCHEDULE_CALDAV_DISABLED=0`；规则 `schedule-caldav-iphone-sync.mdc` |
 | **日程订阅到 iPhone / Mac 系统日历（ICS，可选）** | `GET /api/admin/schedule.ics?token=`（同 `JP_REVIEW_UPLOAD_TOKEN`）；与 CalDAV 同一套合并事件；开课前 10 分钟 `VALARM`；`buildScheduleIcs()`；订阅 URL：`~/.config/info-quests/schedule-ics-subscribe-url.txt` |
 | **开课前 Bark 推送（线上 Cron）**（Worker 每分钟；Mac 关机也能推；北京时间触发；10/5/1 持续铃响；通知泰国时间；本机 launchd 默认关） | `cloudflare-worker.ts` + `POST /api/admin/schedule-class-bark-remind`；`src/lib/schedule-class-bark-remind.ts`；Secret `BARK_DEVICE_KEY`；规则 `.cursor/rules/bark-deploy-failure-notify.mdc` |
-| **部署成功/失败通知**（本机维护中心：Bark → iPhone + Mac 通知中心并行；成功有提示音；**标题=成功/失败**；正文：项目 → 状态 → 改动 → 文件） | `scripts/maintenance_center/bark_notify.py`、`mac_notify.py`；`hub._finish`；密钥 `~/.config/bark/env`；跨项目说明 `docs/bark-cross-project-howto.txt`；开关见 `.env.deploy.local.example`；规则同上 |
+| **部署成功/失败通知**（本机维护中心：成功 **Mac 优先**，已弹桌面则不推 Bark；失败 Bark + Mac 双推；成功有提示音；**标题=成功/失败**；正文：项目 → 状态 → 改动 → 文件） | `scripts/maintenance_center/bark_notify.py`、`mac_notify.py`；`hub._finish`；密钥 `~/.config/bark/env`；跨项目说明 `docs/bark-cross-project-howto.txt`；开关见 `.env.deploy.local.example`；规则同上 |
 | 英语老师管理 / 评价（合并）；**不建登录账号** | `AdminJpLessonTeachersPage.tsx`；`?subject=en`；`/admin/en-lesson-teachers` 重定向至此；`POST /api/admin/en-lesson-teachers` **不再** `provisionEnLessonTeacherUser` |
 | **人员管理模糊搜索**（日语/英语一起搜；候选标科目；点选或仅另一科命中时自动切 `?subject=`） | `AdminJpLessonTeachersPage.tsx` → `loadOtherSubjectTeachers` / `searchSuggestions` / `applySearch`；`lesson-teacher-search.ts` → `lessonTeacherSubjectSearchLabels`；规则 `.cursor/rules/admin-teacher-cross-search.mdc` |
 
@@ -218,7 +218,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 站点导航（顶栏：管理员端固定最左；其余按使用频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`、`src/lib/site-nav-config.ts`（`PINNED_PRIMARY_NAV_ID`）、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc` |
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
-| **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；完成后 Bark + Mac 桌面通知） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
+| **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；成功后 Mac 桌面通知优先、已弹则不推 Bark） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
 | **定时任务管理**（维护中心页签：精选任务列表 / 运行中定位 / 实时日志与时长；只读） | `scripts/maintenance_center/cron_tasks/registry.py`（登记表）、`status.py`、`logs.py`；API `GET /api/cron-tasks`、`GET /api/cron-tasks/<id>`；UI `static/index.html` → `view-cron`；规则 `.cursor/rules/cron-tasks-registry.mdc` |
 
 ---
