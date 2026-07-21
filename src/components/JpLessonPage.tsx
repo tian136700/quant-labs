@@ -502,7 +502,8 @@ export function JpLessonPage() {
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: JpLessonRecord;
     ref: JpVocabRef;
-    viewUrl: string;
+    /** 教案图片 API（随手画 canvas）；勿用查看页 HTML URL */
+    imageUrl: string;
   } | null>(null);
   const [viewingExamples, setViewingExamples] = useState<JpLessonExamplesViewTarget | null>(
     null
@@ -1346,8 +1347,8 @@ export function JpLessonPage() {
     persistLessonCache(nextLessons, nextRefs, notes, teachers);
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
-      const viewUrl = refViewUrl(ref.ref_key, ref.updated_at);
-      return { lesson, ref, viewUrl };
+      const imageUrl = jpVocabRefApiPath(ref.ref_key, { v: ref.updated_at });
+      return { lesson, ref, imageUrl };
     });
   };
 
@@ -1390,12 +1391,13 @@ export function JpLessonPage() {
       </a>,
     ];
     if (ref?.media_type === "image") {
+      const imageUrl = jpVocabRefApiPath(lesson.ref_key!, { v: ref.updated_at });
       actionItems.push(
         <button
           key="annotate"
           type="button"
           className="jp-lesson-action-btn"
-          onClick={() => setAnnotatingLesson({ lesson, ref: ref!, viewUrl })}
+          onClick={() => setAnnotatingLesson({ lesson, ref: ref!, imageUrl })}
         >
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <JpLessonMobileIcon name="pen" />
@@ -2356,7 +2358,7 @@ export function JpLessonPage() {
 
       <JpLessonAnnotateModal
         open={annotatingLesson != null}
-        imageUrl={annotatingLesson?.viewUrl ?? ""}
+        imageUrl={annotatingLesson?.imageUrl ?? ""}
         refKey={annotatingLesson?.lesson.ref_key ?? ""}
         lessonId={annotatingLesson?.lesson.id ?? 0}
         lessonContent={annotatingLesson?.lesson.content ?? ""}

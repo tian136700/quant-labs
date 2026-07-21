@@ -391,7 +391,8 @@ export function EnLessonPage() {
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: EnLessonRecord;
     ref: EnVocabRef;
-    viewUrl: string;
+    /** 教案图片 API（随手画 canvas）；勿用查看页 HTML URL */
+    imageUrl: string;
   } | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [classTimeSortOrder, setClassTimeSortOrder] =
@@ -900,8 +901,8 @@ export function EnLessonPage() {
     persistLessonCache(nextLessons, nextRefs, notes, teachers);
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
-      const viewUrl = refViewUrl(ref.ref_key, ref.updated_at);
-      return { lesson, ref, viewUrl };
+      const imageUrl = enVocabRefApiPath(ref.ref_key, { v: ref.updated_at });
+      return { lesson, ref, imageUrl };
     });
   };
 
@@ -1006,12 +1007,13 @@ export function EnLessonPage() {
       </a>,
     ];
     if (ref?.media_type === "image") {
+      const imageUrl = enVocabRefApiPath(lesson.ref_key!, { v: ref.updated_at });
       actionItems.push(
         <button
           key="annotate"
           type="button"
           className="jp-lesson-action-btn"
-          onClick={() => setAnnotatingLesson({ lesson, ref: ref!, viewUrl })}
+          onClick={() => setAnnotatingLesson({ lesson, ref: ref!, imageUrl })}
         >
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <EnLessonMobileIcon name="pen" />
@@ -1654,7 +1656,7 @@ export function EnLessonPage() {
 
       <EnLessonAnnotateModal
         open={annotatingLesson != null}
-        imageUrl={annotatingLesson?.viewUrl ?? ""}
+        imageUrl={annotatingLesson?.imageUrl ?? ""}
         refKey={annotatingLesson?.lesson.ref_key ?? ""}
         lessonId={annotatingLesson?.lesson.id ?? 0}
         lessonContent={annotatingLesson?.lesson.content ?? ""}

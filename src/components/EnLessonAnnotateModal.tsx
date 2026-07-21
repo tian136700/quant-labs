@@ -6,7 +6,7 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { uploadFormWithProgress } from "@/lib/upload-form-progress";
 import type { EnLessonRecord, EnVocabRef } from "@/lib/types";
 
-type Tool = "brush" | "line" | "text" | "zoom";
+type Tool = "brush" | "smear" | "line" | "text" | "zoom";
 
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 4;
@@ -56,6 +56,9 @@ type Props = {
 
 const ANNOTATE_COLOR = "#e85d6f";
 const BRUSH_WIDTH = 4;
+/** 涂抹：粗白笔，盖住 AI 教材错字/错图 */
+const SMEAR_COLOR = "#ffffff";
+const SMEAR_WIDTH = 28;
 const LINE_WIDTH = 3;
 const DEFAULT_TEXT_SIZE = 16;
 const TEXT_SIZE_MIN = 12;
@@ -235,6 +238,7 @@ export function EnLessonAnnotateModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [imgReady, setImgReady] = useState(false);
+  const [imgLoadError, setImgLoadError] = useState("");
   const [tool, setTool] = useState<Tool>("brush");
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [previewLine, setPreviewLine] = useState<{
@@ -288,6 +292,7 @@ export function EnLessonAnnotateModal({
 
   const resetSession = useCallback(() => {
     setImgReady(false);
+    setImgLoadError("");
     setTool("brush");
     setStrokes([]);
     setPreviewLine(null);
@@ -422,8 +427,22 @@ export function EnLessonAnnotateModal({
     canvas.height = img.naturalHeight;
     setFitScale(computeFitScale());
     setZoom(1);
+    setImgLoadError("");
     setImgReady(true);
   }, [computeFitScale]);
+
+  const handleImgError = useCallback(() => {
+    setImgReady(false);
+    setImgLoadError("教案图片加载失败。请关闭后重试；若仍失败请检查教案是否为图片。");
+  }, []);
+
+  useEffect(() => {
+    if (!open || !imageUrl) return;
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth > 0) {
+      syncCanvasSize();
+    }
+  }, [open, imageUrl, syncCanvasSize]);
 
   useEffect(() => {
     if (!open || !imgReady) return;
@@ -586,8 +605,8 @@ export function EnLessonAnnotateModal({
     activeBrushRef.current = {
       type: "brush",
       points: [point],
-      color: ANNOTATE_COLOR,
-      width: BRUSH_WIDTH,
+      color: tool === "smear" ? SMEAR_COLOR : ANNOTATE_COLOR,
+      width: tool === "smear" ? SMEAR_WIDTH : BRUSH_WIDTH,
     };
   };
 
@@ -631,7 +650,7 @@ export function EnLessonAnnotateModal({
     }
 
     const brush = activeBrushRef.current;
-    if (tool === "brush" && brush) {
+    if ((tool === "brush" || tool === "smear") && brush) {
       brush.points.push(point);
       redraw([...strokes, brush], previewLine);
     }
@@ -684,7 +703,7 @@ export function EnLessonAnnotateModal({
       return;
     }
 
-    if (tool === "brush") {
+    if (tool === "brush" || tool === "smear") {
       commitBrush();
     }
   };
@@ -871,6 +890,7 @@ export function EnLessonAnnotateModal({
             {(
               [
                 ["brush", "画笔"],
+                ["smear", "涂抹"],
                 ["line", "直线"],
                 ["text", "文字"],
                 ["zoom", "缩放"],
@@ -999,12 +1019,17 @@ export function EnLessonAnnotateModal({
         </div>
 
         <p className="jp-annotate-hint">
-          「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
+          「涂抹」用粗白笔盖住教材错误处；「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。
         </p>
 
         <div className="jp-annotate-stage" ref={stageRef}>
-          {!imgReady ? (
+          {!imgReady && !imgLoadError ? (
             <p className="jp-annotate-loading">教案加载中…</p>
+          ) : null}
+          {imgLoadError ? (
+            <p className="jp-annotate-loading" role="alert">
+              {imgLoadError}
+            </p>
           ) : null}
           <div className="jp-annotate-stage-inner">
             <div
@@ -1030,6 +1055,7 @@ export function EnLessonAnnotateModal({
               alt="教案"
               className="jp-annotate-img"
               onLoad={syncCanvasSize}
+              onError={handleImgError}
             />
             <canvas
               ref={canvasRef}
@@ -1047,7 +1073,7 @@ export function EnLessonAnnotateModal({
                 if (tool === "text" && dragTextRef.current) {
                   return;
                 }
-                if (tool === "brush" && activeBrushRef.current) {
+                if ((tool === "brush" || tool === "smear") && activeBrushRef.current) {
                   commitBrush();
                 }
                 if (tool === "line" && lineStartRef.current) {
