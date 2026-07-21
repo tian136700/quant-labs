@@ -34,6 +34,7 @@ export function JpVocabFlashcardWordHero({
   const showReadingPrimary = Boolean(readingTrim) && !hideReading;
   const showKanjiAside =
     showReadingPrimary && Boolean(wordTrim) && wordTrim !== readingTrim;
+  const copyReadingTrim = hideReading ? "" : readingTrim;
   const kindLabel =
     kind === "grammar" ? "语法：" : kind === "word" ? "单词：" : null;
 
@@ -98,7 +99,7 @@ export function JpVocabFlashcardWordHero({
             {renderReading()}
             {showKanjiAside ? renderKanji() : null}
             <JpVocabFlashcardCopyButton
-              readingTrim={readingTrim}
+              readingTrim={copyReadingTrim}
               wordTrim={wordTrim}
               onCopied={onCopied}
             />
@@ -118,7 +119,7 @@ export function JpVocabFlashcardWordHero({
             ) : null}
             {renderWordMain()}
             <JpVocabFlashcardCopyButton
-              readingTrim={readingTrim}
+              readingTrim={copyReadingTrim}
               wordTrim={wordTrim}
               onCopied={onCopied}
             />
