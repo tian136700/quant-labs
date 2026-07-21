@@ -56,6 +56,11 @@ import {
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
 import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  JP_VOCAB_QUIZ_TIME_WEIGHT_KEY,
+  normalizeJpVocabQuizTimeWeight,
+} from "@/lib/jp-vocab-quiz-score";
+import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,
   applyJpVocabQuizTargetVisiblePlan,
   materializeJpVocabTeacherVisibleLimit,
@@ -145,6 +150,7 @@ let devDailyDisplayOrder: JpVocabDailyDisplayOrder = {
   round_checked_ids: [],
 };
 let devQuizPriorityBoost: JpVocabQuizPriorityBoost | null = null;
+let devQuizTimeWeight = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT;
 let devTeacherQuizLive: JpVocabTeacherQuizLive = {
   ...JP_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
   date: beijingDateString(),
@@ -2135,9 +2141,17 @@ async function computeJpVocabDailyDisplayOrderFromDb(
   now = new Date()
 ): Promise<{ ids: number[]; consumedBoost: boolean }> {
   const today = beijingDateString(now);
-  const boost = await readJpVocabQuizPriorityBoostRaw(db);
+  const [boost, timeWeight] = await Promise.all([
+    readJpVocabQuizPriorityBoostRaw(db),
+    getJpVocabQuizTimeWeight(db),
+  ]);
   const boostMap = buildJpVocabQuizPriorityBoostSeqMap(boost, today);
-  const ids = computeJpVocabDailyDisplayOrder(words, now, boostMap);
+  const ids = computeJpVocabDailyDisplayOrder(
+    words,
+    now,
+    boostMap,
+    timeWeight
+  );
   return { ids, consumedBoost: boostMap.size > 0 };
 }
 
@@ -2425,6 +2439,52 @@ export async function setJpVocabDailyQuizStyle(
       JSON.stringify(normalized),
       nowIso()
     )
+    .run();
+
+  return normalized;
+}
+
+/** 久未复习抬升权重；存 jp_vocab_setting，默认 0.1 */
+export async function getJpVocabQuizTimeWeight(
+  db: D1Database
+): Promise<number> {
+  if (devStoreEnabled) {
+    return normalizeJpVocabQuizTimeWeight(devQuizTimeWeight);
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM jp_vocab_setting WHERE key = ?1`)
+    .bind(JP_VOCAB_QUIZ_TIME_WEIGHT_KEY)
+    .first<{ value: string }>();
+
+  if (!row?.value) {
+    return JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT;
+  }
+  return normalizeJpVocabQuizTimeWeight(row.value);
+}
+
+export async function setJpVocabQuizTimeWeight(
+  db: D1Database,
+  raw: unknown
+): Promise<number> {
+  const normalized = normalizeJpVocabQuizTimeWeight(raw);
+
+  if (devStoreEnabled) {
+    devQuizTimeWeight = normalized;
+    return normalized;
+  }
+
+  await ensureJpVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO jp_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(JP_VOCAB_QUIZ_TIME_WEIGHT_KEY, String(normalized), nowIso())
     .run();
 
   return normalized;

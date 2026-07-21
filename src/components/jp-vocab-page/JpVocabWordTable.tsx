@@ -9,10 +9,13 @@ import { MobileLevelHistorySummary } from "@/components/jp-vocab-page/MobileLeve
 import {
   formatJpVocabTotalReviewsDisplay,
   jpVocabPriorityLabel,
-  jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
   type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
+import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  jpVocabFinalQuizScore,
+} from "@/lib/jp-vocab-quiz-score";
 import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
 import { jpVocabFlashcardCopyText } from "@/lib/jp-vocab-flashcard-copy";
 import {
@@ -76,6 +79,8 @@ export type JpVocabWordTableProps = {
   onResumeQuiz: (wordId?: number) => void;
   onRequestQuizMode: (wordId: number) => void;
   onStatus: (message: string) => void;
+  /** 久未复习抬升权重（final_score = priority + days × weight） */
+  quizTimeWeight?: number;
 };
 
 export function JpVocabWordTable({
@@ -115,6 +120,7 @@ export function JpVocabWordTable({
   onResumeQuiz,
   onRequestQuizMode,
   onStatus,
+  quizTimeWeight = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
 }: JpVocabWordTableProps) {
   const toggleStatSort = onStatSort;
   const tryRecordLevel = onRecordLevel;
@@ -192,7 +198,7 @@ export function JpVocabWordTable({
                             : "descending"
                           : "none"
                       }
-                      title={`按${jpVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）`}
+                      title={`按${jpVocabPriorityLabel(locale)}排序（最终得分 = 优先级 + 久未复习天数×时间权重）`}
                       onClick={() => toggleStatSort("risk")}
                     >
                       <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
@@ -262,7 +268,7 @@ export function JpVocabWordTable({
                   const isSharing = w.id in shareProgressMap;
                   const isSaving = isQueued || isSyncing;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
-                  const risk = jpVocabRiskIndex(w);
+                  const risk = jpVocabFinalQuizScore(w, quizTimeWeight);
                   const todayChecks = effectiveTodayCheckCount(
                     w.today_check_count ?? 0,
                     w.today_check_date

@@ -14,6 +14,10 @@ import {
   type JpVocabQuizPriorityBoost,
 } from "@/lib/jp-vocab-quiz-priority-boost";
 import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  normalizeJpVocabQuizTimeWeight,
+} from "@/lib/jp-vocab-quiz-score";
+import {
   normalizeJpVocabTeacherVisibleLimit,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
@@ -34,6 +38,8 @@ export type JpVocabApiPayload = {
   words: JpVocabWord[];
   refs: Record<string, JpVocabRef>;
   daily_quiz_style: JpVocabDailyQuizStyle;
+  /** 久未复习抬升权重：final = priority + days × weight */
+  quiz_time_weight: number;
   display_order: JpVocabDailyDisplayOrder;
   /** 今日已共享到「今日背单词」的 word_id 列表（北京时间 0 点清空） */
   shared_today_word_ids: number[];
@@ -56,6 +62,7 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     words?: JpVocabWord[];
     refs?: Record<string, JpVocabRef>;
     daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
+    quiz_time_weight?: unknown;
     display_order?: Partial<JpVocabDailyDisplayOrder>;
     shared_today_word_ids?: number[];
     teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
@@ -101,6 +108,9 @@ export function parseJpVocabApi(json: unknown): JpVocabApiPayload {
     refs: data.refs ?? {},
     daily_quiz_style: normalizeJpVocabDailyQuizStyle(
       data.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT
+    ),
+    quiz_time_weight: normalizeJpVocabQuizTimeWeight(
+      data.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
     ),
     display_order,
     shared_today_word_ids: Array.isArray(data.shared_today_word_ids)

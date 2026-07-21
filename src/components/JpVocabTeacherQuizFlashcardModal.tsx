@@ -10,9 +10,12 @@ import { hasJpVocabClassNotes, formatJpVocabClassNotesForDisplay, mergeJpVocabWo
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
-  jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
+import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  jpVocabFinalQuizScore,
+} from "@/lib/jp-vocab-quiz-score";
 import {
   findFirstUncheckedJpVocabTeacherQuizIndex,
   jpVocabTeacherQuizModeLabel,
@@ -102,6 +105,8 @@ type Props = {
   onUnshare?: (wordId: number) => void;
   onWordUpdated?: (word: JpVocabWord) => void;
   nestedModalOpen?: boolean;
+  /** 久未复习抬升权重（final_score） */
+  quizTimeWeight?: number;
 };
 
 export function JpVocabTeacherQuizFlashcardModal({
@@ -138,6 +143,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   onWordUpdated,
   nestedModalOpen = false,
   onMarkCoached,
+  quizTimeWeight = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
@@ -318,7 +324,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   const isQueued = syncPhase === "queued";
   const isSyncing = syncPhase === "syncing";
   const isSaving = savingWordId === w.id;
-  const risk = jpVocabRiskIndex(w);
+  const risk = jpVocabFinalQuizScore(w, quizTimeWeight);
   const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(
     w.today_check_count ?? 0,

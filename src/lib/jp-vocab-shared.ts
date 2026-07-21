@@ -2,6 +2,11 @@ import {
   isJpVocabWordEligibleNeverQuizzedForFront,
   isJpVocabWordSameDayNewNeverQuizzed,
 } from "@/lib/jp-vocab-daily-check";
+import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  jpVocabFinalQuizScore,
+  normalizeJpVocabQuizTimeWeight,
+} from "@/lib/jp-vocab-quiz-score";
 import type { JpVocabWord } from "@/lib/types";
 
 export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk" | "seq";
@@ -45,7 +50,12 @@ export function jpVocabRiskIndex(word: JpVocabWord): number {
   return Math.round(raw * 10) / 10;
 }
 
-function statSortValue(word: JpVocabWord, key: JpVocabStatSortKey): number {
+function statSortValue(
+  word: JpVocabWord,
+  key: JpVocabStatSortKey,
+  timeWeight: number,
+  now: Date
+): number {
   switch (key) {
     case "very":
       return word.cnt_very;
@@ -56,7 +66,8 @@ function statSortValue(word: JpVocabWord, key: JpVocabStatSortKey): number {
     case "total":
       return jpVocabTotalReviews(word);
     case "risk":
-      return jpVocabRiskIndex(word);
+      // 列表「抽查优先级」列：用 final_score（含久未复习抬升），与凌晨日序一致
+      return jpVocabFinalQuizScore(word, timeWeight, now);
     case "seq":
       return 0;
   }
@@ -75,11 +86,18 @@ export function sortJpVocabWords(words: JpVocabWord[]): JpVocabWord[] {
 export function sortJpVocabWordsByStat(
   words: JpVocabWord[],
   key: JpVocabStatSortKey,
-  dir: "asc" | "desc"
+  dir: "asc" | "desc",
+  opts?: { now?: Date; timeWeight?: number }
 ): JpVocabWord[] {
   const mul = dir === "asc" ? 1 : -1;
+  const now = opts?.now ?? new Date();
+  const timeWeight = normalizeJpVocabQuizTimeWeight(
+    opts?.timeWeight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+  );
   return [...words].sort((a, b) => {
-    const diff = statSortValue(a, key) - statSortValue(b, key);
+    const diff =
+      statSortValue(a, key, timeWeight, now) -
+      statSortValue(b, key, timeWeight, now);
     if (diff !== 0) return diff * mul;
     return a.word.localeCompare(b.word, "ja");
   });
@@ -89,14 +107,18 @@ export function sortJpVocabWordsByStat(
  * 每日固定序号（凌晨重排）：
  * 1. 管理员标记的「明日优先」按点击顺序 1、2、3…（仅生效日当天）
  * 2. 可置顶的从未抽查（入库日早于今日）在前
- * 3. 其余按抽查优先级降序
+ * 3. 其余按最终抽问得分降序：priority + days_since_last_review × timeWeight
  * 4. 今日刚入库且从未抽查的沉底（今天不抽，明天再置顶）
+ *
+ * `last_review_at` 即最后一次抽问时间（无需新建 last_review_date 列）。
  */
 export function sortJpVocabWordsForDailyOrder(
   words: JpVocabWord[],
   now = new Date(),
-  boostSeqByWordId?: Map<number, number>
+  boostSeqByWordId?: Map<number, number>,
+  timeWeight: number = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
 ): JpVocabWord[] {
+  const weight = normalizeJpVocabQuizTimeWeight(timeWeight);
   return [...words].sort((a, b) => {
     const aBoost = boostSeqByWordId?.get(a.id);
     const bBoost = boostSeqByWordId?.get(b.id);
@@ -115,7 +137,9 @@ export function sortJpVocabWordsForDailyOrder(
     const bFront = isJpVocabWordEligibleNeverQuizzedForFront(b, now);
     if (aFront !== bFront) return aFront ? -1 : 1;
 
-    const diff = jpVocabRiskIndex(b) - jpVocabRiskIndex(a);
+    const diff =
+      jpVocabFinalQuizScore(b, weight, now) -
+      jpVocabFinalQuizScore(a, weight, now);
     if (diff !== 0) return diff;
     return a.word.localeCompare(b.word, "ja");
   });
@@ -124,8 +148,9 @@ export function sortJpVocabWordsForDailyOrder(
 /** 列头点击排序：纯数值升序/降序，不受「从未抽查置顶」影响 */
 export function sortJpVocabWordsForDisplay(
   words: JpVocabWord[],
-  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null
+  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null,
+  opts?: { now?: Date; timeWeight?: number }
 ): JpVocabWord[] {
   const effective = statSort ?? JP_VOCAB_DEFAULT_STAT_SORT;
-  return sortJpVocabWordsByStat(words, effective.key, effective.dir);
+  return sortJpVocabWordsByStat(words, effective.key, effective.dir, opts);
 }

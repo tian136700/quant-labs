@@ -5,6 +5,7 @@ import {
   ensureJpVocabTeacherVisibleLimit,
   getJpVocabDailyQuizStyle,
   getJpVocabQuizPriorityBoost,
+  getJpVocabQuizTimeWeight,
   listJpVocabSharedTodayWordIds,
   listJpVocabWordsWithRefs,
   recordJpVocabReview,
@@ -12,6 +13,7 @@ import {
   resetTodayJpVocabRound,
   setJpVocabDailyQuizStyle,
   setJpVocabDailyQuizTarget,
+  setJpVocabQuizTimeWeight,
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -21,6 +23,7 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
+import { normalizeJpVocabQuizTimeWeight } from "@/lib/jp-vocab-quiz-score";
 import { trackJpVocabTeacherQuizDayAfterReview } from "@/lib/jp-vocab-teacher-quiz-day";
 import type { JpVocabLevel } from "@/lib/types";
 
@@ -43,11 +46,12 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
     }
 
-    const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
+    const [{ words, refs }, daily_quiz_style, shared_today_word_ids, quiz_time_weight] =
       await Promise.all([
       listJpVocabWordsWithRefs(env.DB),
       getJpVocabDailyQuizStyle(env.DB),
       listJpVocabSharedTodayWordIds(env.DB),
+      getJpVocabQuizTimeWeight(env.DB),
     ]);
     const display_order = await ensureJpVocabDailyDisplayOrder(env.DB, words);
     const teacher_visible_limit = await ensureJpVocabTeacherVisibleLimit(env.DB, {
@@ -64,6 +68,7 @@ export async function GET(request: Request) {
       words: clientWords,
       refs,
       daily_quiz_style,
+      quiz_time_weight,
       display_order,
       shared_today_word_ids,
       teacher_visible_limit,
@@ -89,6 +94,7 @@ export async function POST(request: Request) {
       word_id?: number;
       level?: JpVocabLevel;
       daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
+      quiz_time_weight?: number | string;
       count?: number;
       hide_checked_today?: boolean;
     };
@@ -103,6 +109,18 @@ export async function POST(request: Request) {
         normalizeJpVocabDailyQuizStyle(body.daily_quiz_style)
       );
       return jsonResponse({ ok: true, daily_quiz_style });
+    }
+
+    if (body.action === "set_quiz_time_weight") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+      const quiz_time_weight = await setJpVocabQuizTimeWeight(
+        env.DB,
+        body.quiz_time_weight ?? normalizeJpVocabQuizTimeWeight(undefined)
+      );
+      return jsonResponse({ ok: true, quiz_time_weight });
     }
 
     if (body.action === "set_daily_quiz_target") {
