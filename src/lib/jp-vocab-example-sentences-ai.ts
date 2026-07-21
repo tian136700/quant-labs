@@ -40,6 +40,8 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "な形容词辞书形以「だ」结尾时（重要だ/得意だ/下手だ）：造句用词干（重要/得意/下手），例句里不必出现「だ」；假名标在词干汉字上",
     "多用法时一句对应一种用法，不要两句挤同一义项",
     "释义已含 / 时：按斜杠分段，每段造 1 句，且须体现该段读音（如 前 的 まえ/ぜん）",
+    "从句连接后要加顿号「、」：❌「食べながらテレビを見る」✅「食べながら、テレビを見る」；「によると」同理（❌「によると今日は…」✅「によると、今日は…」）",
+    "每条日语须以「。」「！」「？」或「…」结尾，禁止无句末标点或只写单词",
     "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」；人手填写为「手动」",
   ],
   reject_reasons: [
@@ -56,6 +58,8 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "grammar_not_used",
     "word_not_used",
     "double_wa_topic",
+    "missing_clause_touten",
+    "missing_sentence_final_punct",
   ],
 } as const;
 
@@ -65,10 +69,32 @@ const LITERAL_NI_TSUITE_HANASU_GLOSS_RE = /关于.+说话/;
 /** 词典占位符波浪号，禁止出现在例句正文 */
 const LEMMA_PLACEHOLDER_WAVE_RE = /[～〜]/;
 
+/**
+ * 「ながら／によると」后还有内容却未加読点「、」
+ * （初学者例句须断开从句，避免「食べながらテレビ」粘成一团）
+ */
+const CLAUSE_CONNECTOR_MISSING_TOUTEN_RE =
+  /(?:ながら|によると)(?=[^\s、。\n])/;
+
+/** 句末须为 。！？… */
+const SENTENCE_FINAL_PUNCT_RE = /[。！？…]$/;
+
 /** 句中话题助词「は」个数（剥括号假名后；不含 早(はや) 等括号内は） */
 export function countJpVocabExampleWaTopicMarkers(line: string): number {
   const plain = stripAllJpVocabParenBlocks(line);
   return (plain.match(/[\u3040-\u9FFF\u4E00-\u9FFF]は/g) || []).length;
+}
+
+/** 「ながら／によると」后接续内容时缺読点「、」 */
+export function jpVocabExampleMissingClauseTouten(line: string): boolean {
+  return CLAUSE_CONNECTOR_MISSING_TOUTEN_RE.test(line);
+}
+
+/** 日语例句缺句末标点（。！？…） */
+export function jpVocabExampleMissingSentenceFinalPunct(line: string): boolean {
+  const plain = stripAllJpVocabParenBlocks(line).trim();
+  if (!plain) return false;
+  return !SENTENCE_FINAL_PUNCT_RE.test(plain);
 }
 
 export type JpVocabExampleSentencesAiInput = {
@@ -140,12 +166,16 @@ export function buildJpVocabExampleSentencesAiPrompt(
    - ✅「友達(ともだち)と話(はな)すと、気分(きぶん)が良(よ)くなります。」
    - 词尾假名也算 base：静か(しずか)、落(お)ち着(つ)きます
    - 禁止整句尾注如「です。(たなかさん げんき です。)」；禁止句末语法说明括号
-6. 每条日语下一行写中文译义，必须以「译文：」开头。
-7. 中文必须是自然通顺的口语，禁止逐词硬译。
+6. 从句连接后必须加顿号「、」：
+   - ❌「食(た)べながらテレビを見(み)る。」→ ✅「食(た)べながら、テレビを見(み)る。」
+   - ❌「天気予報(てんきよほう)によると今日(きょう)は晴(は)れです。」→ ✅「…によると、今日(きょう)は…」
+7. 每条日语必须以「。」「！」「？」或「…」结尾；禁止无句末标点或只写单词。
+8. 每条日语下一行写中文译义，必须以「译文：」开头。
+9. 中文必须是自然通顺的口语，禁止逐词硬译。
    - 「～について話す」→「我来谈谈学校」或「聊聊这个话题」，禁止「关于学校说话」。
    - 「～について知りたい」→「想了解一下…」，不要「关于…想知道」。
    - 释义里的「关于……」只是语法义项提示，不要每句都机械套「关于…」。
-8. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。`;
+10. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。`;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -207,6 +237,12 @@ export function validateJpVocabExampleSentencesAiOutput(
       countJpVocabExampleWaTopicMarkers(item.text) >= 2
     ) {
       return { ok: false, reason: "double_wa_topic" };
+    }
+    if (jpVocabExampleMissingClauseTouten(item.text)) {
+      return { ok: false, reason: "missing_clause_touten" };
+    }
+    if (jpVocabExampleMissingSentenceFinalPunct(item.text)) {
+      return { ok: false, reason: "missing_sentence_final_punct" };
     }
   }
 
