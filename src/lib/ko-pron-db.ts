@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { KoPronLetter, KoPronLevel } from "@/lib/types";
+import type { KoPronCatalogLetter, KoPronLetter, KoPronLevel } from "@/lib/types";
 import {
   beijingDateString,
 } from "@/lib/jp-vocab-daily-check";
@@ -33,10 +33,13 @@ import {
 const TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 const TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 const DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
+/** 一次性：建 catalog、清空旧抽问全量种子、重置日序/可见池 */
+const QUIZ_POOL_SPLIT_MIGRATION_KEY = "quiz_pool_split_v1";
 
 let letterSchemaReady = false;
+let catalogSchemaReady = false;
 let settingSchemaReady = false;
-let seedDone = false;
+let catalogReady = false;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -58,6 +61,22 @@ function rowToLetter(row: Record<string, unknown>): KoPronLetter {
     last_review_level: (row.last_review_level as KoPronLevel | null) ?? null,
     last_review_at:
       row.last_review_at == null ? null : String(row.last_review_at),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
+function rowToCatalog(row: Record<string, unknown>): KoPronCatalogLetter {
+  return {
+    id: Number(row.id),
+    letter: String(row.letter ?? ""),
+    reading: row.reading == null ? null : String(row.reading),
+    meaning: row.meaning == null ? null : String(row.meaning),
+    category: row.category == null ? null : String(row.category),
+    selected_at:
+      row.selected_at == null || String(row.selected_at).trim() === ""
+        ? null
+        : String(row.selected_at),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };
@@ -94,6 +113,31 @@ async function ensureLetterSchema(db: D1Database): Promise<void> {
   letterSchemaReady = true;
 }
 
+async function ensureCatalogSchema(db: D1Database): Promise<void> {
+  if (catalogSchemaReady) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS ko_pron_catalog (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         letter TEXT NOT NULL,
+         reading TEXT,
+         meaning TEXT,
+         category TEXT,
+         selected_at TEXT,
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_ko_pron_catalog_glyph
+       ON ko_pron_catalog (letter)`
+    )
+    .run();
+  catalogSchemaReady = true;
+}
+
 async function ensureSettingSchema(db: D1Database): Promise<void> {
   if (settingSchemaReady) return;
   await db
@@ -106,68 +150,6 @@ async function ensureSettingSchema(db: D1Database): Promise<void> {
     )
     .run();
   settingSchemaReady = true;
-}
-
-async function seedIfEmpty(db: D1Database): Promise<void> {
-  if (seedDone) return;
-  await ensureLetterSchema(db);
-  const row = await db
-    .prepare(`SELECT COUNT(*) AS c FROM ko_pron_letter`)
-    .first<{ c: number }>();
-  if ((row?.c ?? 0) > 0) {
-    seedDone = true;
-    return;
-  }
-  const ts = nowIso();
-  const stmts = KO_PRON_SEED_LETTERS.map((item) =>
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO ko_pron_letter
-         (letter, reading, meaning, category, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
-      )
-      .bind(item.letter, item.reading, item.meaning, item.category, ts, ts)
-  );
-  if (stmts.length) await db.batch(stmts);
-  seedDone = true;
-}
-
-export async function listKoPronLetters(db: D1Database): Promise<KoPronLetter[]> {
-  await seedIfEmpty(db);
-  const result = await db
-    .prepare(
-      `SELECT id, letter, reading, meaning, category,
-              cnt_very, cnt_normal, cnt_weak,
-              today_check_count, today_check_date,
-              last_review_level, last_review_at,
-              created_at, updated_at
-       FROM ko_pron_letter
-       ORDER BY id ASC`
-    )
-    .all<Record<string, unknown>>();
-  return (result.results ?? []).map(rowToLetter);
-}
-
-export async function listKoPronLettersChangedSince(
-  db: D1Database,
-  since: string
-): Promise<KoPronLetter[]> {
-  await seedIfEmpty(db);
-  if (!since.trim()) return [];
-  const result = await db
-    .prepare(
-      `SELECT id, letter, reading, meaning, category,
-              cnt_very, cnt_normal, cnt_weak,
-              today_check_count, today_check_date,
-              last_review_level, last_review_at,
-              created_at, updated_at
-       FROM ko_pron_letter
-       WHERE updated_at > ?1
-       ORDER BY id ASC`
-    )
-    .bind(since)
-    .all<Record<string, unknown>>();
-  return (result.results ?? []).map(rowToLetter);
 }
 
 async function getSettingRaw(
@@ -197,6 +179,271 @@ async function setSettingRaw(
     )
     .bind(key, value, ts)
     .run();
+}
+
+/** 总库种子 40 字母；禁止往抽问表 seed 全量 */
+async function seedCatalogIfEmpty(db: D1Database): Promise<void> {
+  await ensureCatalogSchema(db);
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS c FROM ko_pron_catalog`)
+    .first<{ c: number }>();
+  if ((row?.c ?? 0) > 0) return;
+  const ts = nowIso();
+  const stmts = KO_PRON_SEED_LETTERS.map((item) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO ko_pron_catalog
+         (letter, reading, meaning, category, selected_at, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6)`
+      )
+      .bind(item.letter, item.reading, item.meaning, item.category, ts, ts)
+  );
+  if (stmts.length) await db.batch(stmts);
+}
+
+/**
+ * 一次性迁移：清空旧「全量种子进抽问」数据，重置日序/可见池/live。
+ * catalog 单独 seed，抽问池保持空直到管理员勾选。
+ */
+async function migrateQuizPoolSplitOnce(db: D1Database): Promise<void> {
+  await ensureSettingSchema(db);
+  await ensureLetterSchema(db);
+  const done = await getSettingRaw(db, QUIZ_POOL_SPLIT_MIGRATION_KEY);
+  if (done === "1") return;
+
+  await db.prepare(`DELETE FROM ko_pron_letter`).run();
+  const today = beijingDateString();
+  await setSettingRaw(
+    db,
+    DAILY_DISPLAY_ORDER_KEY,
+    JSON.stringify({ date: today, ids: [] })
+  );
+  await setSettingRaw(
+    db,
+    TEACHER_VISIBLE_LIMIT_KEY,
+    JSON.stringify({
+      ...defaultKoPronTeacherVisibleLimit(),
+      date: today,
+      released_today: false,
+      visible_ids: [],
+      release_count: 0,
+    })
+  );
+  await setSettingRaw(
+    db,
+    TEACHER_QUIZ_LIVE_KEY,
+    JSON.stringify({
+      ...KO_PRON_TEACHER_QUIZ_LIVE_EMPTY,
+      date: today,
+    })
+  );
+  await setSettingRaw(db, QUIZ_POOL_SPLIT_MIGRATION_KEY, "1");
+}
+
+/** 确保 catalog 可用 + 抽问池已按拆分迁移清空过 */
+async function ensureKoPronCatalogReady(db: D1Database): Promise<void> {
+  if (catalogReady) return;
+  await ensureCatalogSchema(db);
+  await ensureLetterSchema(db);
+  await seedCatalogIfEmpty(db);
+  await migrateQuizPoolSplitOnce(db);
+  catalogReady = true;
+}
+
+async function ensureQuizReady(db: D1Database): Promise<void> {
+  await ensureKoPronCatalogReady(db);
+}
+
+export async function listKoPronCatalog(
+  db: D1Database
+): Promise<KoPronCatalogLetter[]> {
+  await ensureKoPronCatalogReady(db);
+  const result = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category, selected_at,
+              created_at, updated_at
+       FROM ko_pron_catalog
+       ORDER BY id ASC`
+    )
+    .all<Record<string, unknown>>();
+  return (result.results ?? []).map(rowToCatalog);
+}
+
+export async function getKoPronCatalogById(
+  db: D1Database,
+  catalogId: number
+): Promise<KoPronCatalogLetter | null> {
+  await ensureKoPronCatalogReady(db);
+  const row = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category, selected_at,
+              created_at, updated_at
+       FROM ko_pron_catalog WHERE id = ?1`
+    )
+    .bind(catalogId)
+    .first<Record<string, unknown>>();
+  return row ? rowToCatalog(row) : null;
+}
+
+/**
+ * 管理员勾选：标记 catalog.selected_at，并 upsert 进抽问池。
+ * 同日创建的字母靠 created_at 走「次日才进老师可见池」。
+ */
+export async function selectKoPronCatalogIntoQuiz(
+  db: D1Database,
+  catalogId: number,
+  now = new Date()
+): Promise<{
+  catalog: KoPronCatalogLetter;
+  letter: KoPronLetter;
+  already_selected: boolean;
+}> {
+  await ensureKoPronCatalogReady(db);
+  const catalog = await getKoPronCatalogById(db, catalogId);
+  if (!catalog) {
+    throw new Error("catalog_not_found");
+  }
+
+  const ts = now.toISOString();
+
+  if (catalog.selected_at) {
+    const existing = await db
+      .prepare(
+        `SELECT id, letter, reading, meaning, category,
+                cnt_very, cnt_normal, cnt_weak,
+                today_check_count, today_check_date,
+                last_review_level, last_review_at,
+                created_at, updated_at
+         FROM ko_pron_letter WHERE letter = ?1`
+      )
+      .bind(catalog.letter)
+      .first<Record<string, unknown>>();
+    if (existing) {
+      return {
+        catalog,
+        letter: rowToLetter(existing),
+        already_selected: true,
+      };
+    }
+    await db
+      .prepare(
+        `INSERT INTO ko_pron_letter
+         (letter, reading, meaning, category, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      )
+      .bind(
+        catalog.letter,
+        catalog.reading,
+        catalog.meaning,
+        catalog.category,
+        catalog.selected_at,
+        ts
+      )
+      .run();
+    const letter = await db
+      .prepare(
+        `SELECT id, letter, reading, meaning, category,
+                cnt_very, cnt_normal, cnt_weak,
+                today_check_count, today_check_date,
+                last_review_level, last_review_at,
+                created_at, updated_at
+         FROM ko_pron_letter WHERE letter = ?1`
+      )
+      .bind(catalog.letter)
+      .first<Record<string, unknown>>();
+    if (!letter) throw new Error("quiz_insert_failed");
+    return {
+      catalog,
+      letter: rowToLetter(letter),
+      already_selected: true,
+    };
+  }
+
+  await db
+    .prepare(
+      `UPDATE ko_pron_catalog
+       SET selected_at = ?1, updated_at = ?2
+       WHERE id = ?3 AND selected_at IS NULL`
+    )
+    .bind(ts, ts, catalogId)
+    .run();
+
+  await db
+    .prepare(
+      `INSERT INTO ko_pron_letter
+       (letter, reading, meaning, category, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+       ON CONFLICT(letter) DO NOTHING`
+    )
+    .bind(
+      catalog.letter,
+      catalog.reading,
+      catalog.meaning,
+      catalog.category,
+      ts,
+      ts
+    )
+    .run();
+
+  const letterRow = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter WHERE letter = ?1`
+    )
+    .bind(catalog.letter)
+    .first<Record<string, unknown>>();
+  if (!letterRow) throw new Error("quiz_insert_failed");
+
+  const nextCatalog = await getKoPronCatalogById(db, catalogId);
+  if (!nextCatalog) throw new Error("catalog_not_found");
+
+  return {
+    catalog: nextCatalog,
+    letter: rowToLetter(letterRow),
+    already_selected: false,
+  };
+}
+
+export async function listKoPronLetters(db: D1Database): Promise<KoPronLetter[]> {
+  await ensureQuizReady(db);
+  const result = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter
+       ORDER BY id ASC`
+    )
+    .all<Record<string, unknown>>();
+  return (result.results ?? []).map(rowToLetter);
+}
+
+export async function listKoPronLettersChangedSince(
+  db: D1Database,
+  since: string
+): Promise<KoPronLetter[]> {
+  await ensureQuizReady(db);
+  if (!since.trim()) return [];
+  const result = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter
+       WHERE updated_at > ?1
+       ORDER BY id ASC`
+    )
+    .bind(since)
+    .all<Record<string, unknown>>();
+  return (result.results ?? []).map(rowToLetter);
 }
 
 export async function getKoPronTeacherVisibleLimit(
@@ -247,6 +494,11 @@ export async function ensureKoPronDailyDisplayOrder(
   now = new Date()
 ): Promise<KoPronDailyDisplayOrder> {
   const today = beijingDateString(now);
+  if (!letters.length) {
+    const empty = { date: today, ids: [] as number[] };
+    await saveKoPronDailyDisplayOrder(db, empty);
+    return empty;
+  }
   const stored = await readKoPronDailyDisplayOrderRaw(db);
   if (stored?.date === today && stored.ids.length > 0) {
     const merged = mergeKoPronDailyDisplayOrder(stored.ids, letters);
@@ -276,6 +528,18 @@ export async function ensureKoPronTeacherVisibleLimit(
     ctx?.display_order ?? (await ensureKoPronDailyDisplayOrder(db, letters));
   const current = await getKoPronTeacherVisibleLimit(db);
   const today = beijingDateString();
+  if (!letters.length) {
+    const empty: KoPronTeacherVisibleLimit = {
+      ...current,
+      date: today,
+      quiz_target: current.quiz_target || 10,
+      released_today: false,
+      visible_ids: [],
+      release_count: 0,
+      order_algo: KO_PRON_VISIBLE_ORDER_ALGO,
+    };
+    return saveKoPronTeacherVisibleLimit(db, empty);
+  }
   if (
     current.date === today &&
     current.visible_ids?.length &&
@@ -301,11 +565,14 @@ export async function setKoPronDailyQuizTarget(
   targetCount: number
 ): Promise<KoPronTeacherVisibleLimit> {
   const letters = await listKoPronLetters(db);
+  if (!letters.length) {
+    throw new Error("empty_quiz_pool");
+  }
   const display_order = await ensureKoPronDailyDisplayOrder(db, letters);
   const current = await getKoPronTeacherVisibleLimit(db);
   const quiz_target = Math.min(
     Math.max(1, Math.floor(targetCount)),
-    Math.max(1, letters.length || 40)
+    Math.max(1, letters.length)
   );
   const draft: KoPronTeacherVisibleLimit = {
     ...current,
@@ -325,7 +592,7 @@ export async function recordKoPronReview(
   letterId: number,
   level: KoPronLevel
 ): Promise<KoPronLetter | null> {
-  await seedIfEmpty(db);
+  await ensureQuizReady(db);
   const row = await db
     .prepare(
       `SELECT id, letter, reading, meaning, category,
@@ -402,7 +669,7 @@ export async function getKoPronLetterById(
   db: D1Database,
   letterId: number
 ): Promise<KoPronLetter | null> {
-  await seedIfEmpty(db);
+  await ensureQuizReady(db);
   const row = await db
     .prepare(
       `SELECT id, letter, reading, meaning, category,

@@ -27,6 +27,7 @@ import {
   enVocabStudyPath,
   koPronPath,
   koPronAdminPath,
+  koPronSelectPath,
   koPronStudyPath,
   storeReviewPath,
   storeReviewPlazaPath,
@@ -50,6 +51,7 @@ export type NavTarget =
   | "enVocabStudy"
   | "koPron"
   | "koPronAdmin"
+  | "koPronSelect"
   | "koPronStudy"
   | "admin"
   | "adminTrends"
@@ -107,6 +109,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return "/ko-pron";
     case "koPronAdmin":
       return "/ko-pron/admin";
+    case "koPronSelect":
+      return "/ko-pron/select";
     case "koPronStudy":
       return "/ko-pron/study";
     case "admin":
@@ -176,6 +180,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return koPronPath();
     case "koPronAdmin":
       return koPronAdminPath();
+    case "koPronSelect":
+      return koPronSelectPath();
     case "koPronStudy":
       return koPronStudyPath();
     case "admin":

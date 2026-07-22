@@ -459,7 +459,12 @@ export function koPronPath(): string {
   return "/ko-pron";
 }
 
-/** 韩语发音-管理员端（全库 / 设今日抽查数量） */
+/** 韩语发音勾选（总库；勾选后进入抽问池） */
+export function koPronSelectPath(): string {
+  return "/ko-pron/select";
+}
+
+/** 韩语发音抽问-管理员端（抽问池 / 设今日抽查数量） */
 export function koPronAdminPath(): string {
   return "/ko-pron/admin";
 }
@@ -468,10 +473,15 @@ export function koPronStudyPath(): string {
   return "/ko-pron/study";
 }
 
-/** 老师端首页：精确 /ko-pron（不含 admin / study） */
+/** 老师端首页：精确 /ko-pron（不含 admin / study / select） */
 export function isKoPronTeacherHomePath(pathname: string): boolean {
   const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
   return path === "/ko-pron";
+}
+
+export function isKoPronSelectPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/ko-pron/select";
 }
 
 export function isKoPronAdminPath(pathname: string): boolean {
@@ -494,8 +504,14 @@ export function isKoModulePath(pathname: string): boolean {
   return isKoPronPath(pathname);
 }
 
-/** 韩语老师可访问的页面（不含管理员端 / 学生端） */
+/** 韩语老师可访问的页面（不含管理员端 / 勾选 / 学生端） */
 export function isKoPronTeacherAllowedPath(pathname: string): boolean {
-  if (isKoPronAdminPath(pathname) || isKoPronStudyPath(pathname)) return false;
+  if (
+    isKoPronAdminPath(pathname) ||
+    isKoPronSelectPath(pathname) ||
+    isKoPronStudyPath(pathname)
+  ) {
+    return false;
+  }
   return isKoPronPath(pathname) || isAboutPath(pathname);
 }

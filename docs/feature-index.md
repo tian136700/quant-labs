@@ -120,14 +120,15 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 ---
 
-## 韩语发音抽问（ko-pron）
+## 韩语发音勾选 + 抽问（ko-pron）
 
-固定约 40 个韩语字母（자모）发音抽问；finance 同 Worker / 同 D1。第一期无独立子域。
+总库勾选与抽问池拆分；finance 同 Worker / 同 D1。第一期无独立子域。
 
-| 线上 path | 中文名 | 页面入口 | 主组件 | 关键 API | 数据 / 逻辑 | 权限 |
+| 线上 path | 中文名 | 页面入口 | 主组件 | 相关 API | 数据 / 逻辑 | 权限 |
 |-----------|--------|----------|--------|----------|-------------|------|
-| `/ko-pron` | **韩语发音-老师端**（抽查卡片、勾选熟悉程度） | `src/app/ko-pron/page.tsx` | `KoPronPage variant="teacher"` | `GET/POST /api/ko-pron`、`GET /api/ko-pron/sync`、`POST /api/ko-pron/live` | `ko_pron_letter`、`ko_pron_setting`；`src/lib/ko-pron-db.ts` | 须登录；`ko_pron:read` 浏览；`ko_pron:operate` / `ko_pron:teacher` 勾选；管理员进此 URL redirect 到 `/ko-pron/admin` |
-| `/ko-pron/admin` | **韩语发音-管理员端**（全库、设今日抽查数量、预览卡片） | `src/app/ko-pron/admin/page.tsx` | `KoPronPage variant="admin"` | 同上（设目标须 admin） | 与老师端共用表 | `admin` 或 `ko_pron:admin`；非管理员 redirect 到 `/ko-pron` |
+| `/ko-pron/select` | **韩语发音勾选**（全量约 40 字母；勾选=已背过） | `src/app/ko-pron/select/page.tsx` | `KoPronSelectPage` | `GET/POST /api/ko-pron/select` | `ko_pron_catalog`；勾选写入 `selected_at` 并 upsert `ko_pron_letter` | `admin` 或 `ko_pron:admin` |
+| `/ko-pron` | **韩语发音抽问-老师端**（抽查卡片、勾选熟悉程度） | `src/app/ko-pron/page.tsx` | `KoPronPage variant="teacher"` | `GET/POST /api/ko-pron`、`GET /api/ko-pron/sync`、`POST /api/ko-pron/live` | 抽问池 `ko_pron_letter`（仅已勾选）；`src/lib/ko-pron-db.ts` | 须登录；`ko_pron:read` 浏览；`ko_pron:operate` / `ko_pron:teacher` 勾选；管理员进此 URL redirect 到 `/ko-pron/admin` |
+| `/ko-pron/admin` | **韩语发音抽问-管理员端**（抽问池、设今日抽查数量、预览卡片） | `src/app/ko-pron/admin/page.tsx` | `KoPronPage variant="admin"` | 同上（设目标须 admin） | 与老师端共用抽问表；**空池时提示去勾选页** | `admin` 或 `ko_pron:admin`；非管理员 redirect 到 `/ko-pron` |
 | `/ko-pron/study` | **今日韩语发音（学生端）** | `src/app/ko-pron/study/page.tsx` | `KoPronStudyPage.tsx` | `GET /api/ko-pron/live` | live：`teacher_quiz_live`（`letter_id` + `reading_revealed`） | 须登录 + `ko_pron:study`（**默认不给**网上注册用户 / 日语·英语老师）；`admin` 可进；未登录 → 登录页 |
 
 ### ko-pron 子功能 → 文件速查
@@ -135,16 +136,17 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **谁能看见韩语模块**（日语老师导航不含韩语；普通网友默认无 `ko_pron:*`；未登录进 URL 只出登录页） | `nav:jp_teacher` 分支；`RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS` 含全部 `ko_pron:*`；`user` 默认权限**不含** `ko_pron:study`；`revokeDefaultKoPronStudyFromPublicRoles` |
-| **老师/管理员入口拆分**（导航「韩语发音-老师端 / 管理员端」；`variant` 区分） | `/ko-pron` vs `/ko-pron/admin`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()`；`messages.ts` → `nav.koPron` / `nav.koPronAdmin`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
+| **勾选总库 → 抽问池**（禁止再往 `ko_pron_letter` seed 全量 40；入库只走勾选 API；同日勾选次日进老师可见池） | `KoPronSelectPage`；`selectKoPronCatalogIntoQuiz`；`ko_pron_catalog`；规则 `.cursor/rules/ko-pron-select-quiz-split.mdc` |
+| **老师/管理员入口拆分**（导航「韩语发音抽问-老师端 / 管理员端」+「韩语发音勾选」；`variant` 区分抽问） | `/ko-pron` vs `/ko-pron/admin` vs `/ko-pron/select`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()` / `koPronSelectPath()`；`messages.ts` → `nav.koPron*`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
 | **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
 | **学生端 live 卡片**（老师开卡同步字母；罗马音/熟悉程度对学生隐藏；老师勾选熟悉程度后揭示罗马音） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
 | 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=**日序前 N**（与日语同一套熟悉程度加权优先级，非 id） |
 | **抽查优先级 / 日序**（`priority + days×0.1`；从未抽查置顶；今日新建沉底；直接复用 `jpVocabFinalQuizScore`） | `ko-pron-daily-order.ts` → `sortKoPronLettersForDailyOrder`；`ensureKoPronDailyDisplayOrder`；可见池 `order_algo=priority_v1`；规则 `.cursor/rules/ko-pron-quiz-priority.mdc` |
 | 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
-| **发音按钮**（本机 Web Speech `ko-KR`；读「기역」等韩文名，不读罗马音；列表 / 抽问卡 / 学生端） | `KoPronSpeakButton`；`ko-pron-speak.ts` → `speakKoPronLetter` / `koPronSpeakText` |
-| **分类筛选 + 搜索**（辅音 / 双辅音 / 元音 / 复合元音；字母/读音/说明本地即时） | `KoPronPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`） |
+| **发音按钮**（本机 Web Speech `ko-KR`；读「기역」等韩文名，不读罗马音；列表 / 抽问卡 / 学生端 / 勾选页） | `KoPronSpeakButton`；`ko-pron-speak.ts` → `speakKoPronLetter` / `koPronSpeakText` |
+| **分类筛选 + 搜索**（辅音 / 双辅音 / 元音 / 复合元音；字母/读音/说明本地即时） | `KoPronPage` / `KoPronSelectPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`） |
 | **列表显示抽查优先级数值 + 复习次数**（与日语同公式；从未抽查显示「—」；次数列 非常/一般/不熟悉） | `KoPronPage` 表列；`koPronFinalQuizScoreOrNull` |
-| 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；空表 `seedIfEmpty` |
+| 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；**只种进** `ko_pron_catalog`（`seedCatalogIfEmpty`）；抽问表禁止全量 seed |
 | **开课前 30 分钟启用韩语老师账号**（手动日程 `teacher` 姓名匹配 `ko_lesson_teacher`；与日语同一定时 `teacher-user-pre-class-enable`） | `KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS`；`listKoTeacherIdsWithUpcomingClassStart`；`etr_user_ko_lesson_teacher_link`；人员管理 `?subject=ko` →「创建用户」；规则 `.cursor/rules/ko-pron-teacher-account-lifecycle.mdc` |
 | **抽完最后一个字母后 20 分钟禁用**（记操作人到 `ko_pron_teacher_quiz_day`；与日语同一定时 `teacher-user-quiz-complete-disable`） | `ko-pron-teacher-quiz-day.ts`；`POST /api/ko-pron` 勾选后 `trackKoPronTeacherQuizDayAfterReview`；临近韩语课 30min 窗口跳过禁用 |
 

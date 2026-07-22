@@ -76,8 +76,29 @@ export async function POST(request: Request) {
           400
         );
       }
-      const teacher_visible_limit = await setKoPronDailyQuizTarget(env.DB, count);
-      return jsonResponse({ ok: true, teacher_visible_limit });
+      try {
+        const teacher_visible_limit = await setKoPronDailyQuizTarget(
+          env.DB,
+          count
+        );
+        return jsonResponse({ ok: true, teacher_visible_limit });
+      } catch (targetErr) {
+        const code =
+          targetErr instanceof Error ? targetErr.message : String(targetErr);
+        if (code === "empty_quiz_pool") {
+          return jsonResponse(
+            {
+              ok: false,
+              error:
+                locale === "zh"
+                  ? "抽问池为空。请先在「韩语发音勾选」勾选已背过的字母。"
+                  : "Quiz pool is empty. Select letters on Korean Pronunciation Select first.",
+            },
+            400
+          );
+        }
+        throw targetErr;
+      }
     }
 
     const letterId = Number(body.letter_id ?? body.word_id);

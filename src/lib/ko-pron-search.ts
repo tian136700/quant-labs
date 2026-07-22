@@ -2,11 +2,18 @@ import {
   KO_PRON_CATEGORIES,
   type KoPronCategory,
 } from "@/lib/ko-pron-seed";
-import type { KoPronLetter } from "@/lib/types";
 
 export type KoPronCategoryFilter = "all" | KoPronCategory;
 
 export { KO_PRON_CATEGORIES };
+
+/** 勾选总库 / 抽问池共用可搜索字段 */
+export type KoPronSearchable = {
+  letter: string;
+  reading?: string | null;
+  meaning?: string | null;
+  category?: string | null;
+};
 
 function normalizeSearchQuery(query: string): string[] {
   return query
@@ -17,7 +24,7 @@ function normalizeSearchQuery(query: string): string[] {
 }
 
 /** 可搜索字段拼成 haystack（小写） */
-export function koPronSearchHaystack(letter: KoPronLetter): string {
+export function koPronSearchHaystack(letter: KoPronSearchable): string {
   const parts = [
     letter.letter,
     letter.reading,
@@ -30,21 +37,21 @@ export function koPronSearchHaystack(letter: KoPronLetter): string {
     .toLowerCase();
 }
 
-function filterKoPronLettersByCategory(
-  letters: KoPronLetter[],
+function filterKoPronByCategory<T extends KoPronSearchable>(
+  letters: T[],
   categoryFilter: KoPronCategoryFilter
-): KoPronLetter[] {
+): T[] {
   if (categoryFilter === "all") return letters;
   return letters.filter((letter) => (letter.category || "") === categoryFilter);
 }
 
 /** 本地模糊搜索 + 分类筛选；空查询返回分类过滤后的列表 */
-export function filterKoPronLettersBySearch(
-  letters: KoPronLetter[],
+export function filterKoPronLettersBySearch<T extends KoPronSearchable>(
+  letters: T[],
   query: string,
   categoryFilter: KoPronCategoryFilter = "all"
-): KoPronLetter[] {
-  const byCategory = filterKoPronLettersByCategory(letters, categoryFilter);
+): T[] {
+  const byCategory = filterKoPronByCategory(letters, categoryFilter);
   const tokens = normalizeSearchQuery(query);
   if (!tokens.length) return byCategory;
 

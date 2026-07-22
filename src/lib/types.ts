@@ -384,9 +384,24 @@ export type EnLessonRecord = JpLessonRecord;
 export type EnLessonUploadInput = JpLessonUploadInput;
 export type EnLessonNote = JpLessonNote;
 
-/** 韩语发音：固定字母抽问 */
+/** 韩语发音：熟悉程度（抽问卡勾选） */
 export type KoPronLevel = "very" | "normal" | "weak";
 
+/** 韩语发音勾选总库（约 40 字母） */
+export interface KoPronCatalogLetter {
+  id: number;
+  letter: string;
+  reading: string | null;
+  meaning: string | null;
+  /** 辅音 / 双辅音 / 元音 / 复合元音 */
+  category: string | null;
+  /** 已勾选进抽问池的时间；NULL=未勾选 */
+  selected_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 韩语发音抽问池（仅已勾选字母） */
 export interface KoPronLetter {
   id: number;
   letter: string;

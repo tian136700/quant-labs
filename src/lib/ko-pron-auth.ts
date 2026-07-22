@@ -44,6 +44,23 @@ export async function requireKoPronRead(request: Request) {
   return { env, user, allowed };
 }
 
+/** 韩语发音勾选 / 抽问管理员端：admin 或 ko_pron:admin */
+export async function requireKoPronAdmin(request: Request) {
+  const env = await getCloudflareEnv();
+  const user = await getSessionUserFromRequest(env, request.headers.get("cookie"));
+
+  let allowed = false;
+  if (user) {
+    if (isAdminSuperuser(user.role)) {
+      allowed = true;
+    } else {
+      allowed = await userHasPermission(env.DB, user, "ko_pron:admin");
+    }
+  }
+
+  return { env, user, allowed };
+}
+
 /** 今日韩语发音学生端 */
 export async function requireKoPronStudyAccess(request: Request) {
   const env = await getCloudflareEnv();

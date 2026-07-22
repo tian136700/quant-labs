@@ -42,7 +42,7 @@ import {
   jpVocabSaveProgressPercent,
 } from "@/lib/jp-vocab-save-progress";
 import { JP_VOCAB_POLL_HIDDEN_MS, JP_VOCAB_POLL_MS } from "@/lib/jp-vocab-sync";
-import { koPronAdminPath, koPronPath } from "@/lib/locale-path";
+import { koPronAdminPath, koPronPath, koPronSelectPath } from "@/lib/locale-path";
 import type { KoPronLetter, KoPronLevel } from "@/lib/types";
 
 export type KoPronPageVariant = "teacher" | "admin";
@@ -517,7 +517,7 @@ export function KoPronPage({ variant }: Props) {
       <TeacherReviewAuth
         variant="page"
         loginOnly
-        title={isAdminMode ? "登录 · 韩语发音（管理员）" : "登录 · 韩语发音"}
+        title={isAdminMode ? "登录 · 韩语发音抽问（管理员）" : "登录 · 韩语发音抽问"}
         subtitle="请登录后继续访问韩语发音抽问。"
         onAuthenticated={(next) => setUser(next)}
       />
@@ -525,18 +525,18 @@ export function KoPronPage({ variant }: Props) {
   }
 
   if (isTeacherMode && !canAccessKoPronTeacherPage && !isAdmin) {
-    return <p className="ko-pron-status">无权限访问韩语发音老师端。</p>;
+    return <p className="ko-pron-status">无权限访问韩语发音抽问老师端。</p>;
   }
 
   if (isAdminMode && !canAccessKoPronAdminPage) {
-    return <p className="ko-pron-status">无权限访问韩语发音管理员端。</p>;
+    return <p className="ko-pron-status">无权限访问韩语发音抽问管理员端。</p>;
   }
 
   return (
     <div className="ko-pron-page">
       <div className="ko-pron-toolbar">
         <h1 className="ko-pron-title">
-          {isAdminMode ? "韩语发音-管理员端" : "韩语发音-老师端"}
+          {isAdminMode ? "韩语发音抽问-管理员端" : "韩语发音抽问-老师端"}
         </h1>
         <div className="ko-pron-toolbar-stats">
           {isAdminMode ? (
@@ -581,7 +581,20 @@ export function KoPronPage({ variant }: Props) {
       {error ? <p className="ko-pron-error">{error}</p> : null}
       {loading ? <p className="ko-pron-status">加载中…</p> : null}
 
-      {!loading && !hideQuizList ? (
+      {!loading && !letters.length ? (
+        <div className="ko-pron-empty-pool">
+          <p>
+            抽问池为空。请先在「韩语发音勾选」勾选已背过的字母；勾选后会进入本页，同日勾选次日才进老师今日抽查池。
+          </p>
+          {isAdminMode ? (
+            <a className="ko-pron-empty-pool__link" href={koPronSelectPath()}>
+              前往韩语发音勾选
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!loading && !hideQuizList && letters.length > 0 ? (
         <>
           <div className="ko-pron-search" role="search">
             <label htmlFor="ko-pron-search" className="ko-pron-search__label">
@@ -871,6 +884,26 @@ export function KoPronPage({ variant }: Props) {
         }
         .ko-pron-error {
           color: #b91c1c;
+        }
+        .ko-pron-empty-pool {
+          border: 1px dashed #cbd5e1;
+          border-radius: 0.85rem;
+          padding: 1.25rem 1rem;
+          background: #f8fafc;
+          color: #64748b;
+          line-height: 1.55;
+          margin: 0.75rem 0 1rem;
+        }
+        .ko-pron-empty-pool p {
+          margin: 0 0 0.75rem;
+        }
+        .ko-pron-empty-pool__link {
+          color: #c2410c;
+          font-weight: 600;
+          text-decoration: none;
+        }
+        .ko-pron-empty-pool__link:hover {
+          text-decoration: underline;
         }
         .ko-pron-status {
           color: #64748b;

@@ -726,7 +726,21 @@ CREATE TABLE IF NOT EXISTS tool_dot_codes (
 
 CREATE INDEX IF NOT EXISTS idx_tool_dot_codes_consumed ON tool_dot_codes (consumed_at);
 
--- 韩语发音抽问（40 字母）
+-- 韩语发音勾选总库（约 40 字母；selected_at 非空 = 已背过并进入抽问池）
+CREATE TABLE IF NOT EXISTS ko_pron_catalog (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  letter TEXT NOT NULL,
+  reading TEXT,
+  meaning TEXT,
+  category TEXT,
+  selected_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ko_pron_catalog_glyph ON ko_pron_catalog (letter);
+
+-- 韩语发音抽问池（仅收「勾选」入库的字母；不再全量 seed 40）
 CREATE TABLE IF NOT EXISTS ko_pron_letter (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   letter TEXT NOT NULL,
