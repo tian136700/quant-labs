@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import {
   jpVocabSaveProgressDisplayPercent,
@@ -103,6 +104,9 @@ export function KoPronReviewFlashcardModal({
         >
           {letter.letter}
         </h2>
+        <div className="ko-pron-review-hero-actions">
+          <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
+        </div>
 
         {!revealed ? (
           <button
@@ -202,12 +206,20 @@ export function KoPronReviewFlashcardModal({
           color: var(--muted);
         }
         .ko-pron-review-hero {
-          margin: 0.75rem 0 1rem;
+          margin: 0.75rem 0 0.35rem;
           text-align: center;
           font-weight: 700;
           font-size: 3.2rem;
           line-height: 1.1;
           color: var(--text);
+        }
+        .ko-pron-review-hero-actions {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+          margin: 0 0 0.85rem;
         }
         .ko-pron-review-speak {
           display: flex;

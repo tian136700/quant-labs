@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CopyToast } from "@/components/CopyToast";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
-import { copyTextToClipboard } from "@/lib/copy-text";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import {
   animateJpVocabSaveProgressTo100,
@@ -50,7 +49,6 @@ export function KoPronSelectPage() {
   const [saveKind, setSaveKind] = useState<BatchKind | null>(null);
   const [savePercent, setSavePercent] = useState<number | null>(null);
   const [saveQueued, setSaveQueued] = useState(false);
-  const [copyToast, setCopyToast] = useState<string | null>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearProgressTimer = () => {
@@ -221,12 +219,6 @@ export function KoPronSelectPage() {
       setSavePercent(null);
       setSaveQueued(false);
     }
-  };
-
-  const handleCopyLetter = (letter: string) => {
-    void copyTextToClipboard(letter).then((ok) =>
-      setCopyToast(ok ? "复制成功" : "复制失败")
-    );
   };
 
   if (checking) {
@@ -456,15 +448,7 @@ export function KoPronSelectPage() {
                           <span className="ko-pron-select-glyph">
                             {item.letter}
                           </span>
-                          <button
-                            type="button"
-                            className="ko-pron-select-copy-btn"
-                            title={`复制「${item.letter}」`}
-                            aria-label={`复制「${item.letter}」`}
-                            onClick={() => handleCopyLetter(item.letter)}
-                          >
-                            复制
-                          </button>
+                          <KoPronLetterCopyButton letter={item.letter} />
                           <KoPronSpeakButton
                             letter={item.letter}
                             reading={item.reading}
@@ -494,8 +478,6 @@ export function KoPronSelectPage() {
           )}
         </>
       ) : null}
-
-      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
         .ko-pron-select-page {
@@ -678,24 +660,6 @@ export function KoPronSelectPage() {
         .ko-pron-select-glyph {
           vertical-align: middle;
           margin-right: 0.35rem;
-        }
-        .ko-pron-select-copy-btn {
-          display: inline-flex;
-          align-items: center;
-          vertical-align: middle;
-          margin-right: 0.35rem;
-          border: 1px solid var(--border);
-          border-radius: 0.4rem;
-          padding: 0.15rem 0.45rem;
-          background: color-mix(in srgb, var(--bg) 40%, var(--panel));
-          color: var(--muted);
-          font-size: 0.72rem;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .ko-pron-select-copy-btn:hover {
-          color: var(--text);
-          border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
         }
         .ko-pron-select-btn {
           border: none;

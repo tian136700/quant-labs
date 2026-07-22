@@ -6,6 +6,7 @@ import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { KoPronDailyQuizCompleteModal } from "@/components/KoPronDailyQuizCompleteModal";
+import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { KoPronTeacherQuizFlashcardModal } from "@/components/KoPronTeacherQuizFlashcardModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -719,6 +720,7 @@ export function KoPronPage({ variant }: Props) {
                         <td>{seq}</td>
                         <td className="ko-pron-letter-cell">
                           <span className="ko-pron-letter-glyph">{letter.letter}</span>
+                          <KoPronLetterCopyButton letter={letter.letter} />
                           <KoPronSpeakButton
                             letter={letter.letter}
                             reading={letter.reading}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
+import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { JP_VOCAB_POLL_HIDDEN_MS, JP_VOCAB_POLL_MS } from "@/lib/jp-vocab-sync";
@@ -111,7 +112,8 @@ export function KoPronStudyPage() {
       {letter ? (
         <div className="ko-pron-study-card" aria-live="polite">
           <div className="ko-pron-study-letter">{letter.letter}</div>
-          <div className="ko-pron-study-speak">
+          <div className="ko-pron-study-hero-actions">
+            <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
             <KoPronSpeakButton
               letter={letter.letter}
               reading={letter.reading}
@@ -180,9 +182,12 @@ export function KoPronStudyPage() {
           line-height: 1.1;
           margin-bottom: 0.35rem;
         }
-        .ko-pron-study-speak {
+        .ko-pron-study-hero-actions {
           display: flex;
           justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 0.35rem;
           margin-bottom: 0.65rem;
         }
         .ko-pron-study-category {

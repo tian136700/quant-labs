@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronReviewFlashcardModal } from "@/components/KoPronReviewFlashcardModal";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
@@ -280,6 +281,7 @@ export function KoPronReviewPage() {
                       <td>{i + 1}</td>
                       <td className="ko-pron-review-letter-cell">
                         <span>{item.letter}</span>
+                        <KoPronLetterCopyButton letter={item.letter} />
                         {/* 复习进行中不渲染发音键，避免未揭示前听到答案 */}
                         {!session ? (
                           <KoPronSpeakButton
