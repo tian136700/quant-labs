@@ -15,9 +15,8 @@ import {
   jpVocabSaveProgressPercent,
 } from "@/lib/jp-vocab-save-progress";
 import {
-  createKoPronReviewSession,
-  resolveKoPronReviewFreshStartIndex,
-  resolveKoPronReviewResumeIndex,
+  buildKoPronReviewSession,
+  koPronReviewHasUnreviewed,
   type KoPronReviewSession,
 } from "@/lib/ko-pron-review-session";
 import { koPronSelectPath } from "@/lib/locale-path";
@@ -74,17 +73,13 @@ export function KoPronReviewPage() {
 
   const startReview = (mode: "fresh" | "resume") => {
     if (!orderedIds.length) return;
-    const resume =
-      mode === "resume"
-        ? resolveKoPronReviewResumeIndex(orderedIds, reviewedIds)
-        : resolveKoPronReviewFreshStartIndex(orderedIds, reviewedIds);
-    if (resume.allReviewed && mode === "resume") {
-      setError("本轮字母均已复习。可清除进度后重来，或关闭后重新开始。");
+    const next = buildKoPronReviewSession(orderedIds, reviewedIds, mode);
+    if (!next) {
+      if (mode === "resume") {
+        setError("本轮字母均已复习。可清除进度后重来，或关闭后重新开始。");
+      }
       return;
     }
-    const startId = orderedIds[resume.index] ?? orderedIds[0];
-    const next = createKoPronReviewSession(orderedIds, startId);
-    if (!next) return;
     setError("");
     setSession(next);
   };
@@ -181,7 +176,7 @@ export function KoPronReviewPage() {
   }
 
   const canResume =
-    orderedIds.some((id) => !reviewedIds.has(id)) && reviewedInPool > 0;
+    koPronReviewHasUnreviewed(orderedIds, reviewedIds) && reviewedInPool > 0;
 
   return (
     <div className="ko-pron-review-page">
@@ -196,7 +191,7 @@ export function KoPronReviewPage() {
       </div>
 
       <p className="ko-pron-review-hint">
-        先只看字母猜读音，点「显示读音」后听发音并看罗马音。字母来自「韩语发音勾选」的「批量加入复习」。
+        先只看字母猜读音，点「显示读音」后听发音并看罗马音。每次开始/继续均为乱序，避免按表序背位置。字母来自「韩语发音勾选」的「批量加入复习」。
       </p>
 
       {error ? <p className="ko-pron-review-error">{error}</p> : null}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: Korean pronunciation review must not spoil 罗马音 behind the card."""
+"""Regression: Korean pronunciation review must not spoil 罗马音; queue must shuffle."""
 from __future__ import annotations
 
 import re
@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODAL = ROOT / "src" / "components" / "KoPronReviewFlashcardModal.tsx"
 PAGE = ROOT / "src" / "components" / "KoPronReviewPage.tsx"
+SESSION = ROOT / "src" / "lib" / "ko-pron-review-session.ts"
 
 
 def fail(msg: str) -> int:
@@ -17,13 +18,13 @@ def fail(msg: str) -> int:
 
 
 def main() -> int:
-    if not MODAL.is_file():
-        return fail(f"missing {MODAL.relative_to(ROOT)}")
-    if not PAGE.is_file():
-        return fail(f"missing {PAGE.relative_to(ROOT)}")
+    for path in (MODAL, PAGE, SESSION):
+        if not path.is_file():
+            return fail(f"missing {path.relative_to(ROOT)}")
 
     modal = MODAL.read_text(encoding="utf-8")
     page = PAGE.read_text(encoding="utf-8")
+    session = SESSION.read_text(encoding="utf-8")
 
     overlay = re.search(
         r"\.ko-pron-review-overlay\s*\{([^}]+)\}",
@@ -46,12 +47,21 @@ def main() -> int:
             "KoPronReviewPage must hide list readings while session is active"
         )
 
-    if not re.search(r"\{!\s*session\s*\?\s*\(", page) and "!session ?" not in page:
-        # Prefer speak button gated by !session
-        if "KoPronSpeakButton" in page and "!session" not in page:
-            return fail(
-                "list KoPronSpeakButton must be gated off while review session runs"
-            )
+    if "KoPronSpeakButton" in page and "!session" not in page:
+        return fail(
+            "list KoPronSpeakButton must be gated off while review session runs"
+        )
+
+    if "buildKoPronReviewSession" not in session:
+        return fail("ko-pron-review-session must export buildKoPronReviewSession")
+    if "shuffleIds" not in session and "Math.random" not in session:
+        return fail("review session must shuffle catalog ids (Fisher–Yates)")
+    if "buildKoPronReviewSession" not in page:
+        return fail("KoPronReviewPage must start review via buildKoPronReviewSession")
+    if "createKoPronReviewSession" in page:
+        return fail(
+            "KoPronReviewPage must not use ordered createKoPronReviewSession"
+        )
 
     print("[check_ko_pron_review_no_spoiler] OK")
     return 0
