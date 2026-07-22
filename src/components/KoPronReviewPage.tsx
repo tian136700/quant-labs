@@ -3,26 +3,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
-import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronReviewFlashcardModal } from "@/components/KoPronReviewFlashcardModal";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import {
-  animateJpVocabSaveProgressTo100,
-  JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
-  jpVocabSaveProgressDisplayPercent,
-  jpVocabSaveProgressPercent,
-} from "@/lib/jp-vocab-save-progress";
-import {
   buildKoPronReviewSession,
   clearKoPronReviewInterruptedSession,
+  applyOptimisticKoPronReviewFamiliarity,
   koPronCatalogTodayReviewCount,
   persistKoPronReviewSessionBreakpoint,
   readKoPronReviewInterruptedSession,
   type KoPronReviewSession,
 } from "@/lib/ko-pron-review-session";
+import { koPronReviewSaveQueue } from "@/lib/request-queue";
 import { koPronSelectPath } from "@/lib/locale-path";
 import type { KoPronCatalogLetter } from "@/lib/types";
 
@@ -36,9 +31,8 @@ export function KoPronReviewPage() {
   const [interrupted, setInterrupted] = useState<KoPronReviewSession | null>(
     null
   );
-  const [saveBusy, setSaveBusy] = useState(false);
-  const [savePercent, setSavePercent] = useState<number | null>(null);
-  const [saveQueued, setSaveQueued] = useState(false);
+  const [syncPending, setSyncPending] = useState(0);
+  const [clearBusy, setClearBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -66,6 +60,8 @@ export function KoPronReviewPage() {
     if (checking || !user || !canAccessKoPronAdminPage) return;
     void load();
   }, [checking, user, canAccessKoPronAdminPage, load]);
+
+  useEffect(() => koPronReviewSaveQueue.subscribe(setSyncPending), []);
 
   const orderedIds = useMemo(() => catalog.map((c) => c.id), [catalog]);
   const reviewedInPool = useMemo(
@@ -122,110 +118,127 @@ export function KoPronReviewPage() {
     setSession(null);
   };
 
-  const goNext = async (familiarity: "familiar" | "unfamiliar") => {
-    if (!session || !currentLetter || saveBusy) return;
+  const goNext = (familiarity: "familiar" | "unfamiliar") => {
+    if (!session || !currentLetter) return;
     const catalogId = currentLetter.id;
-    const startedAt = Date.now();
-    setSaveBusy(true);
-    setSaveQueued(true);
-    setSavePercent(JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
-    const timer = setInterval(() => {
-      setSaveQueued(false);
-      setSavePercent(jpVocabSaveProgressPercent(Date.now() - startedAt));
-    }, 200);
+    const sessionSnap = session;
 
-    try {
-      const res = await fetch("/api/ko-pron/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "review_next",
-          catalog_id: catalogId,
-          familiarity,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        reviewed_catalog_ids?: number[];
-        catalog_id?: number;
-        review_cnt_familiar?: number;
-        review_cnt_unfamiliar?: number;
-        review_count?: number;
-        today_review_count?: number;
-        today_review_date?: string | null;
-      };
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "保存复习进度失败");
-      }
-      setReviewedIds(new Set(data.reviewed_catalog_ids ?? []));
-      if (data.catalog_id != null && data.catalog_id > 0) {
-        const updatedId = data.catalog_id;
-        setCatalog((prev) =>
-          prev.map((row) =>
-            row.id === updatedId
-              ? {
-                  ...row,
-                  review_cnt_familiar:
-                    data.review_cnt_familiar ?? row.review_cnt_familiar,
-                  review_cnt_unfamiliar:
-                    data.review_cnt_unfamiliar ?? row.review_cnt_unfamiliar,
-                  review_count: data.review_count ?? row.review_count,
-                  today_review_count:
-                    data.today_review_count ?? row.today_review_count,
-                  today_review_date:
-                    data.today_review_date ?? row.today_review_date,
-                }
-              : row
-          )
-        );
-      }
-      await animateJpVocabSaveProgressTo100(startedAt, setSavePercent);
+    // 乐观：立刻改计数 + 切下一张，不卡在 D1
+    setReviewedIds((prev) => {
+      const next = new Set(prev);
+      next.add(catalogId);
+      return next;
+    });
+    setCatalog((prev) =>
+      prev.map((row) =>
+        row.id === catalogId
+          ? applyOptimisticKoPronReviewFamiliarity(row, familiarity)
+          : row
+      )
+    );
 
-      const nextIndex = session.currentIndex + 1;
-      if (nextIndex >= session.catalogIds.length) {
-        clearKoPronReviewInterruptedSession();
-        setInterrupted(null);
-        setSession(null);
-      } else {
-        const nextSession = { ...session, currentIndex: nextIndex };
-        persistKoPronReviewSessionBreakpoint(nextSession);
-        setInterrupted(nextSession);
-        setSession(nextSession);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      clearInterval(timer);
-      setSaveBusy(false);
-      setSavePercent(null);
-      setSaveQueued(false);
-    }
-  };
-
-  const clearProgress = async () => {
-    if (!window.confirm("确定清除本轮复习进度吗？总复习次数会保留，字母仍留在复习池。")) return;
-    setError("");
-    try {
-      const res = await fetch("/api/ko-pron/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "clear" }),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        reviewed_catalog_ids?: number[];
-      };
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "清除失败");
-      }
-      setReviewedIds(new Set(data.reviewed_catalog_ids ?? []));
+    const nextIndex = sessionSnap.currentIndex + 1;
+    if (nextIndex >= sessionSnap.catalogIds.length) {
       clearKoPronReviewInterruptedSession();
       setInterrupted(null);
       setSession(null);
+    } else {
+      const nextSession = { ...sessionSnap, currentIndex: nextIndex };
+      persistKoPronReviewSessionBreakpoint(nextSession);
+      setInterrupted(nextSession);
+      setSession(nextSession);
+    }
+
+    void koPronReviewSaveQueue.enqueue(async () => {
+      try {
+        const res = await fetch("/api/ko-pron/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "review_next",
+            catalog_id: catalogId,
+            familiarity,
+          }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          reviewed_catalog_ids?: number[];
+          catalog_id?: number;
+          review_cnt_familiar?: number;
+          review_cnt_unfamiliar?: number;
+          review_count?: number;
+          today_review_count?: number;
+          today_review_date?: string | null;
+        };
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "保存复习进度失败");
+        }
+        if (Array.isArray(data.reviewed_catalog_ids)) {
+          setReviewedIds(new Set(data.reviewed_catalog_ids));
+        }
+        if (data.catalog_id != null && data.catalog_id > 0) {
+          const updatedId = data.catalog_id;
+          setCatalog((prev) =>
+            prev.map((row) =>
+              row.id === updatedId
+                ? {
+                    ...row,
+                    review_cnt_familiar:
+                      data.review_cnt_familiar ?? row.review_cnt_familiar,
+                    review_cnt_unfamiliar:
+                      data.review_cnt_unfamiliar ?? row.review_cnt_unfamiliar,
+                    review_count: data.review_count ?? row.review_count,
+                    today_review_count:
+                      data.today_review_count ?? row.today_review_count,
+                    today_review_date:
+                      data.today_review_date ?? row.today_review_date,
+                  }
+                : row
+            )
+          );
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    });
+  };
+
+  const clearProgress = async () => {
+    if (
+      !window.confirm(
+        "确定清除本轮复习进度吗？总复习次数会保留，字母仍留在复习池。"
+      )
+    ) {
+      return;
+    }
+    setError("");
+    setClearBusy(true);
+    try {
+      // 排在已有保存之后，避免清掉尚未写入的熟悉度
+      await koPronReviewSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/ko-pron/review", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "clear" }),
+        });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          reviewed_catalog_ids?: number[];
+        };
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "清除失败");
+        }
+        setReviewedIds(new Set(data.reviewed_catalog_ids ?? []));
+        clearKoPronReviewInterruptedSession();
+        setInterrupted(null);
+        setSession(null);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setClearBusy(false);
     }
   };
 
@@ -311,23 +324,17 @@ export function KoPronReviewPage() {
                 onClick={() => {
                   void clearProgress();
                 }}
-                disabled={Boolean(session) || saveBusy}
+                disabled={Boolean(session) || clearBusy || syncPending > 0}
               >
-                清除本轮进度
+                {clearBusy ? "清除中…" : "清除本轮进度"}
               </button>
             ) : null}
           </div>
 
-          {saveBusy && !session ? (
-            <JpVocabSaveProgressBar
-              label={saveQueued ? "排队同步中…" : "正在保存复习进度…"}
-              percent={
-                savePercent != null
-                  ? savePercent
-                  : jpVocabSaveProgressDisplayPercent(null)
-              }
-              fullWidth
-            />
+          {syncPending > 0 ? (
+            <p className="ko-pron-review-sync" aria-live="polite">
+              后台同步中…（队列 {syncPending}）
+            </p>
           ) : null}
 
           <div
@@ -395,12 +402,8 @@ export function KoPronReviewPage() {
         letter={currentLetter}
         index={session?.currentIndex ?? 0}
         total={session?.catalogIds.length ?? 0}
-        saveBusy={saveBusy}
-        savePercent={savePercent}
-        saveQueued={saveQueued}
-        onFamiliarity={(familiarity) => {
-          void goNext(familiarity);
-        }}
+        syncPending={syncPending}
+        onFamiliarity={goNext}
         onClose={closeSession}
       />
 

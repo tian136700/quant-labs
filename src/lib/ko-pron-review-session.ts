@@ -144,3 +144,39 @@ export function koPronCatalogTodayReviewCount(
   if ((item.today_review_date ?? "") !== day) return 0;
   return Math.max(0, Math.floor(Number(item.today_review_count ?? 0)) || 0);
 }
+
+/** 乐观：点熟悉/不熟悉后立刻改本地计数（后台队列再写 D1） */
+export function applyOptimisticKoPronReviewFamiliarity<
+  T extends {
+    id: number;
+    review_cnt_familiar: number;
+    review_cnt_unfamiliar: number;
+    review_count: number;
+    today_review_count: number;
+    today_review_date: string | null;
+  },
+>(
+  item: T,
+  familiarity: "familiar" | "unfamiliar",
+  now = new Date()
+): T {
+  const today = beijingDateString(now);
+  const todayBase =
+    (item.today_review_date ?? "") === today
+      ? Math.max(0, item.today_review_count || 0)
+      : 0;
+  return {
+    ...item,
+    review_cnt_familiar:
+      familiarity === "familiar"
+        ? Math.max(0, item.review_cnt_familiar || 0) + 1
+        : item.review_cnt_familiar,
+    review_cnt_unfamiliar:
+      familiarity === "unfamiliar"
+        ? Math.max(0, item.review_cnt_unfamiliar || 0) + 1
+        : item.review_cnt_unfamiliar,
+    review_count: Math.max(0, item.review_count || 0) + 1,
+    today_review_count: todayBase + 1,
+    today_review_date: today,
+  };
+}

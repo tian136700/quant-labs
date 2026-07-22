@@ -46,3 +46,7 @@ export const jpVocabSaveQueue = new RequestQueue();
 export const enVocabSaveQueue = new RequestQueue();
 /** 日语新课页上课老师/日程等写操作串行，便于乐观更新后后台同步 */
 export const jpLessonSaveQueue = new RequestQueue();
+/** 韩语发音复习：熟悉/不熟悉乐观更新后串行写库 */
+export const koPronReviewSaveQueue = new RequestQueue();
+/** 日语复习：点「下一个」乐观标记后串行写库 */
+export const jpVocabReviewSaveQueue = new RequestQueue();
