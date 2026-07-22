@@ -22,6 +22,7 @@ type Props = {
   open: boolean;
   teacher: EnLessonTeacher | null;
   locale: "zh" | "en";
+  reviewApiBase?: string;
   onClose: () => void;
   onChanged?: () => void;
 };
@@ -55,6 +56,7 @@ export function EnLessonTeacherReviewModal({
   open,
   teacher,
   locale,
+  reviewApiBase = "/api/admin/en-lesson-teacher-review",
   onClose,
   onChanged,
 }: Props) {
@@ -89,7 +91,7 @@ export function EnLessonTeacherReviewModal({
         order: sortOrder,
         _: String(Date.now()),
       });
-      const res = await fetch(`/api/admin/en-lesson-teacher-review?${params}`, {
+      const res = await fetch(`${reviewApiBase}?${params}`, {
         credentials: "include",
       });
       const data = (await res.json()) as {
@@ -111,7 +113,7 @@ export function EnLessonTeacherReviewModal({
     } finally {
       setLoading(false);
     }
-  }, [teacher, sortField, sortOrder, zh]);
+  }, [teacher, sortField, sortOrder, zh, reviewApiBase]);
 
   useEffect(() => {
     if (!open || !teacher) return;
@@ -155,7 +157,7 @@ export function EnLessonTeacherReviewModal({
     setStatus("");
     setStatusErr(false);
     try {
-      const res = await fetch("/api/admin/en-lesson-teacher-review", {
+      const res = await fetch(reviewApiBase, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -203,7 +205,7 @@ export function EnLessonTeacherReviewModal({
       return;
     }
     try {
-      const res = await fetch("/api/admin/en-lesson-teacher-review", {
+      const res = await fetch(reviewApiBase, {
         method: "DELETE",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

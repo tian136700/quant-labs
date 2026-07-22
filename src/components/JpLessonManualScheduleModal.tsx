@@ -26,6 +26,7 @@ import {
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
 } from "@/lib/jp-lesson-shared";
+import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 
 type ManualScheduleModalMode = "full" | "time";
 
@@ -106,6 +107,7 @@ export function JpLessonManualScheduleModal({
   const [error, setError] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
   const saveInitiatedRef = useRef(false);
+  const formInitKeyRef = useRef<string | null>(null);
   const teacherPickerRef = useRef<JpLessonTeacherSinglePickerHandle>(null);
   const saveProgress = useSaveProgressBar(saving);
 
@@ -124,9 +126,13 @@ export function JpLessonManualScheduleModal({
 
   useEffect(() => {
     if (!open) {
+      formInitKeyRef.current = null;
       saveInitiatedRef.current = false;
       return;
     }
+    const initKey = editing?.id != null ? `edit:${editing.id}` : "new";
+    if (formInitKeyRef.current === initKey) return;
+    formInitKeyRef.current = initKey;
     const next = draftFromSchedule(editing, initialDate);
     setTitle(next.title);
     setDate(next.date);
@@ -243,8 +249,10 @@ export function JpLessonManualScheduleModal({
     <div
       className="jp-lesson-next-class-overlay"
       role="presentation"
-      onClick={() => {
-        if (!saving) onClose();
+      onMouseDown={(event) => {
+        if (!saving && !addingTeacher) {
+          closeModalOnBackdropMouseDown(event, onClose);
+        }
       }}
     >
       <div

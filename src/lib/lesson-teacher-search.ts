@@ -18,10 +18,10 @@ export type LessonTeacherSearchFields = {
 };
 
 /** 科目写入搜索 haystack 的关键词（中英均可命中） */
-export function lessonTeacherSubjectSearchLabels(subject: "jp" | "en"): string {
-  return subject === "en"
-    ? "英语老师 english en"
-    : "日语老师 japanese jp";
+export function lessonTeacherSubjectSearchLabels(subject: "jp" | "en" | "ko"): string {
+  if (subject === "en") return "英语老师 english en";
+  if (subject === "ko") return "韩语老师 korean ko";
+  return "日语老师 japanese jp";
 }
 
 /** 老师模糊搜索 haystack：名称、ID、上课频次、课时费、时长、科目等 */

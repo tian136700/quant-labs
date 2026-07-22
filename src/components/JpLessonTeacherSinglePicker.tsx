@@ -218,15 +218,28 @@ export const JpLessonTeacherSinglePicker = forwardRef<
     [addFormOpen, exactMatch, trimmedQuery]
   );
 
+  const clearSelection = () => {
+    onChange("");
+    setQuery("");
+    setOpen(false);
+    closeAddForm();
+  };
+
   const handleBlur = () => {
     window.setTimeout(() => {
       if (!containerRef.current?.contains(document.activeElement)) {
         setOpen(false);
+        if (addFormOpen) return;
         if (exactMatch) {
           const name = lessonTeacherPickerName(exactMatch);
-          onChange(name);
-          setQuery(name);
-        } else if (!addFormOpen) {
+          // 仅当输入仍完整命中该老师时归一化；删改中则保留当前草稿
+          if (trimmedQuery === name) {
+            onChange(name);
+            setQuery(name);
+          } else {
+            onChange(trimmedQuery);
+          }
+        } else {
           onChange(trimmedQuery);
         }
       }
@@ -251,7 +264,9 @@ export const JpLessonTeacherSinglePicker = forwardRef<
           }}
           onBlur={handleBlur}
           onChange={(event) => {
-            setQuery(event.target.value);
+            const next = event.target.value;
+            setQuery(next);
+            onChange(next);
             setOpen(true);
           }}
           onKeyDown={(event) => {
@@ -260,6 +275,18 @@ export const JpLessonTeacherSinglePicker = forwardRef<
             }
           }}
         />
+        {trimmedQuery ? (
+          <button
+            type="button"
+            className="jp-lesson-teacher-single-picker-clear-btn"
+            aria-label="清除老师"
+            disabled={disabled || adding}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={clearSelection}
+          >
+            ×
+          </button>
+        ) : null}
         <button
           type="button"
           className="jp-lesson-teacher-single-picker-add-btn"
@@ -408,10 +435,31 @@ export const JpLessonTeacherSinglePicker = forwardRef<
         }
 
         .jp-lesson-teacher-single-picker-row {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          display: flex;
           gap: 0.45rem;
           align-items: stretch;
+        }
+
+        .jp-lesson-teacher-single-picker-input {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+
+        .jp-lesson-teacher-single-picker-clear-btn {
+          flex: 0 0 auto;
+          width: 2.25rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: var(--muted);
+          font-size: 1.1rem;
+          line-height: 1;
+          cursor: pointer;
+        }
+
+        .jp-lesson-teacher-single-picker-clear-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
 
         .jp-lesson-teacher-single-picker-input,

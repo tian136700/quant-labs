@@ -154,10 +154,12 @@ export function adminToolCodesPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/tool-codes" : "/admin/tool-codes";
 }
 
-export type LessonTeacherSubject = "jp" | "en";
+export type LessonTeacherSubject = "jp" | "en" | "ko";
 
 export function parseLessonTeacherSubject(raw: string | null | undefined): LessonTeacherSubject {
-  return raw === "en" ? "en" : "jp";
+  if (raw === "en") return "en";
+  if (raw === "ko") return "ko";
+  return "jp";
 }
 
 export function adminJpLessonTeachersPath(
@@ -167,7 +169,7 @@ export function adminJpLessonTeachersPath(
 ): string {
   const base = locale === "zh" ? "/zh/admin/jp-lesson-teachers" : "/admin/jp-lesson-teachers";
   const params = new URLSearchParams();
-  if (subject === "en") params.set("subject", "en");
+  if (subject === "en" || subject === "ko") params.set("subject", subject);
   if (teacherId != null && Number.isInteger(teacherId) && teacherId > 0) {
     params.set("teacher", String(teacherId));
   }
