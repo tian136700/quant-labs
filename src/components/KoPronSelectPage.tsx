@@ -304,6 +304,7 @@ export function KoPronSelectPage() {
           max-width: 72rem;
           margin: 0 auto;
           padding: 1.25rem 1rem 2.5rem;
+          color: var(--text);
         }
         .ko-pron-select-toolbar {
           display: flex;
@@ -316,25 +317,26 @@ export function KoPronSelectPage() {
         .ko-pron-select-title {
           margin: 0;
           font-size: 1.4rem;
+          color: var(--text);
         }
         .ko-pron-select-stats {
           display: flex;
           flex-wrap: wrap;
           gap: 0.75rem 1rem;
-          color: #64748b;
+          color: var(--muted);
           font-size: 0.9rem;
         }
         .ko-pron-select-hint {
-          color: #64748b;
+          color: var(--muted);
           font-size: 0.88rem;
           line-height: 1.5;
           margin: 0 0 1rem;
         }
         .ko-pron-select-error {
-          color: #b91c1c;
+          color: #f87171;
         }
         .ko-pron-select-status {
-          color: #64748b;
+          color: var(--muted);
         }
         .ko-pron-select-search {
           margin-bottom: 0.85rem;
@@ -342,7 +344,7 @@ export function KoPronSelectPage() {
         .ko-pron-select-search__label {
           display: block;
           font-size: 0.8rem;
-          color: #64748b;
+          color: var(--muted);
           margin-bottom: 0.35rem;
         }
         .ko-pron-select-search__row {
@@ -352,66 +354,81 @@ export function KoPronSelectPage() {
         }
         .ko-pron-select-search__category,
         .ko-pron-select-search__input {
-          border: 1px solid #cbd5e1;
+          border: 1px solid var(--border);
           border-radius: 0.5rem;
           padding: 0.45rem 0.65rem;
           font-size: 0.9rem;
-          background: #fff;
+          background: var(--panel);
+          color: var(--text);
+        }
+        .ko-pron-select-search__category option {
+          background: var(--panel);
+          color: var(--text);
         }
         .ko-pron-select-search__category:focus,
         .ko-pron-select-search__input:focus {
-          outline: 2px solid #fdba74;
-          border-color: #f97316;
+          outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+          border-color: var(--accent);
         }
         .ko-pron-select-search__input {
           flex: 1 1 12rem;
           min-width: 10rem;
+        }
+        .ko-pron-select-search__input::placeholder {
+          color: var(--muted);
         }
         .ko-pron-select-search__clear {
           margin-top: 0.45rem;
           margin-right: 0.75rem;
           border: none;
           background: transparent;
-          color: #c2410c;
+          color: color-mix(in srgb, var(--accent) 85%, #fdba74);
           cursor: pointer;
           font-size: 0.85rem;
           padding: 0;
         }
         .ko-pron-select-search__meta {
           font-size: 0.8rem;
-          color: #94a3b8;
+          color: var(--muted);
         }
         .ko-pron-select-empty {
-          color: #94a3b8;
+          color: var(--muted);
           padding: 1rem 0;
         }
         .ko-pron-select-table-wrap {
           overflow-x: auto;
-          border: 1px solid #e2e8f0;
+          overflow-y: clip;
+          border: 1px solid var(--border);
           border-radius: 0.75rem;
-          background: #fff;
+          background: var(--panel);
         }
         .ko-pron-select-table {
           width: 100%;
           border-collapse: collapse;
           font-size: 0.9rem;
+          color: var(--text);
         }
         .ko-pron-select-table th,
         .ko-pron-select-table td {
           padding: 0.55rem 0.65rem;
-          border-bottom: 1px solid #f1f5f9;
+          border-bottom: 1px solid var(--border);
           text-align: left;
           vertical-align: middle;
+          color: var(--text);
+          background: transparent;
         }
         .ko-pron-select-table th {
-          background: #f8fafc;
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
           font-weight: 600;
-          color: #334155;
+          color: var(--muted);
           white-space: nowrap;
         }
+        .ko-pron-select-table tbody tr:hover td {
+          background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        }
         .ko-pron-select-row--done td {
-          background: #f8fafc;
-          color: #64748b;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: var(--muted);
         }
         .ko-pron-select-letter-cell {
           white-space: nowrap;
@@ -436,7 +453,7 @@ export function KoPronSelectPage() {
           cursor: not-allowed;
         }
         .ko-pron-select-done-label {
-          color: #15803d;
+          color: var(--fall);
           font-weight: 600;
           font-size: 0.85rem;
         }

@@ -850,6 +850,7 @@ export function KoPronPage({ variant }: Props) {
           max-width: 1100px;
           margin: 0 auto;
           padding: 1rem 1rem 2.5rem;
+          color: var(--text);
         }
         .ko-pron-toolbar {
           display: flex;
@@ -861,11 +862,12 @@ export function KoPronPage({ variant }: Props) {
         .ko-pron-title {
           margin: 0;
           font-size: 1.35rem;
+          color: var(--text);
         }
         .ko-pron-toolbar-stats {
           display: flex;
           gap: 0.85rem;
-          color: #64748b;
+          color: var(--muted);
           font-size: 0.9rem;
         }
         .ko-pron-start-btn,
@@ -883,14 +885,14 @@ export function KoPronPage({ variant }: Props) {
           cursor: not-allowed;
         }
         .ko-pron-error {
-          color: #b91c1c;
+          color: #f87171;
         }
         .ko-pron-empty-pool {
-          border: 1px dashed #cbd5e1;
+          border: 1px dashed var(--border);
           border-radius: 0.85rem;
           padding: 1.25rem 1rem;
-          background: #f8fafc;
-          color: #64748b;
+          background: var(--panel);
+          color: var(--muted);
           line-height: 1.55;
           margin: 0.75rem 0 1rem;
         }
@@ -898,7 +900,7 @@ export function KoPronPage({ variant }: Props) {
           margin: 0 0 0.75rem;
         }
         .ko-pron-empty-pool__link {
-          color: #c2410c;
+          color: color-mix(in srgb, var(--accent) 70%, #fdba74);
           font-weight: 600;
           text-decoration: none;
         }
@@ -906,7 +908,7 @@ export function KoPronPage({ variant }: Props) {
           text-decoration: underline;
         }
         .ko-pron-status {
-          color: #64748b;
+          color: var(--muted);
         }
         .ko-pron-search {
           display: flex;
@@ -917,7 +919,7 @@ export function KoPronPage({ variant }: Props) {
         }
         .ko-pron-search__label {
           font-size: 0.875rem;
-          color: #64748b;
+          color: var(--muted);
           flex-shrink: 0;
         }
         .ko-pron-search__row {
@@ -933,70 +935,82 @@ export function KoPronPage({ variant }: Props) {
           min-width: 6.5rem;
           padding: 0.45rem 0.55rem;
           border-radius: 6px;
-          border: 1px solid #e2e8f0;
-          background: #fff;
-          color: #0f172a;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
           font: inherit;
           font-size: 0.8125rem;
           cursor: pointer;
         }
+        .ko-pron-search__category option {
+          background: var(--panel);
+          color: var(--text);
+        }
         .ko-pron-search__category:focus,
         .ko-pron-search__input:focus {
           outline: none;
-          border-color: #f97316;
-          box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.22);
+          border-color: var(--accent);
+          box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
         }
         .ko-pron-search__input {
           flex: 1 1 auto;
           min-width: 0;
           padding: 0.45rem 0.65rem;
           border-radius: 6px;
-          border: 1px solid #e2e8f0;
-          background: #fff;
-          color: #0f172a;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          color: var(--text);
           font: inherit;
           font-size: 0.875rem;
         }
+        .ko-pron-search__input::placeholder {
+          color: var(--muted);
+        }
         .ko-pron-search__clear {
-          border: 1px solid #e2e8f0;
+          border: 1px solid var(--border);
           border-radius: 6px;
-          background: #f8fafc;
-          color: #334155;
+          background: color-mix(in srgb, var(--bg) 45%, var(--panel));
+          color: var(--text);
           font-size: 0.8125rem;
           padding: 0.35rem 0.65rem;
           cursor: pointer;
         }
         .ko-pron-search__meta {
           font-size: 0.8125rem;
-          color: #64748b;
+          color: var(--muted);
         }
         .ko-pron-search__empty {
           margin: 0.5rem 0 0;
-          color: #64748b;
+          color: var(--muted);
           font-size: 0.9rem;
         }
         .ko-pron-table-wrap {
           overflow-x: auto;
+          overflow-y: clip;
           margin-top: 0.35rem;
-          border: 1px solid #e2e8f0;
+          border: 1px solid var(--border);
           border-radius: 0.75rem;
+          background: var(--panel);
         }
         .ko-pron-table {
           width: 100%;
           border-collapse: collapse;
           font-size: 0.92rem;
+          color: var(--text);
         }
         .ko-pron-table th,
         .ko-pron-table td {
           padding: 0.55rem 0.65rem;
-          border-bottom: 1px solid #e2e8f0;
+          border-bottom: 1px solid var(--border);
           text-align: left;
           vertical-align: middle;
+          color: var(--text);
+          background: transparent;
         }
         .ko-pron-table th {
-          background: #f8fafc;
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
           font-weight: 600;
-          color: #334155;
+          color: var(--muted);
         }
         .ko-pron-th-stack {
           display: inline-flex;
@@ -1007,7 +1021,7 @@ export function KoPronPage({ variant }: Props) {
         .ko-pron-th-sub {
           font-size: 0.7rem;
           font-weight: 500;
-          color: #94a3b8;
+          color: var(--muted);
         }
         .ko-pron-letter-cell {
           font-size: 1.35rem;
@@ -1019,12 +1033,12 @@ export function KoPronPage({ variant }: Props) {
         }
         .ko-pron-stats-cell {
           font-variant-numeric: tabular-nums;
-          color: #475569;
+          color: var(--muted);
           white-space: nowrap;
         }
         .ko-pron-stats-cell span[aria-hidden="true"] {
           margin: 0 0.15rem;
-          color: #cbd5e1;
+          color: var(--border);
         }
         .ko-pron-risk-badge {
           display: inline-flex;
@@ -1034,33 +1048,34 @@ export function KoPronPage({ variant }: Props) {
           font-size: 0.8125rem;
           font-weight: 600;
           font-variant-numeric: tabular-nums;
-          border: 1px solid #e2e8f0;
-          background: #f8fafc;
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+          color: var(--text);
         }
         .ko-pron-risk-badge--low {
-          color: #15803d;
-          border-color: #bbf7d0;
-          background: #f0fdf4;
+          color: var(--fall);
+          border-color: color-mix(in srgb, var(--fall) 40%, var(--border));
+          background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
         .ko-pron-risk-badge--mid {
-          color: #c2410c;
-          border-color: #fed7aa;
-          background: #fff7ed;
+          color: #fdba74;
+          border-color: color-mix(in srgb, #f97316 40%, var(--border));
+          background: color-mix(in srgb, #f97316 14%, var(--panel));
         }
         .ko-pron-risk-badge--high {
-          color: #b91c1c;
-          border-color: #fecaca;
-          background: #fef2f2;
+          color: var(--rise);
+          border-color: color-mix(in srgb, var(--rise) 40%, var(--border));
+          background: color-mix(in srgb, var(--rise) 12%, var(--panel));
         }
         .ko-pron-risk-badge--never {
-          color: #94a3b8;
+          color: var(--muted);
           font-weight: 500;
         }
         .ko-pron-row--clickable {
           cursor: pointer;
         }
         .ko-pron-row--clickable:hover {
-          background: #fff7ed;
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
       `}</style>
     </div>
