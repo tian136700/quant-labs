@@ -40,6 +40,9 @@ export type Messages = {
     adminUsers: string;
     adminToolCodes: string;
     adminJpLessonTeachers: string;
+    langJp: string;
+    langEn: string;
+    langKo: string;
     more: string;
     allFeatures: string;
     searchPlaceholder: string;
@@ -51,7 +54,9 @@ export type Messages = {
     favoriteAdd: string;
     favoriteRemove: string;
     categories: {
-      teaching: string;
+      jp: string;
+      en: string;
+      ko: string;
       admin: string;
       ai: string;
       data: string;
@@ -547,6 +552,9 @@ export const messages: Record<Locale, Messages> = {
       adminUsers: "Users",
       adminToolCodes: "Tool codes",
       adminJpLessonTeachers: "Personnel",
+      langJp: "Japanese",
+      langEn: "English",
+      langKo: "Korean",
       more: "More",
       allFeatures: "All features",
       searchPlaceholder: "🔍 Search menu…",
@@ -558,7 +566,9 @@ export const messages: Record<Locale, Messages> = {
       favoriteAdd: "Add to favorites",
       favoriteRemove: "Remove from favorites",
       categories: {
-        teaching: "Teaching",
+        jp: "Japanese",
+        en: "English",
+        ko: "Korean",
         admin: "Admin",
         ai: "AI tools",
         data: "Data",
@@ -1171,6 +1181,9 @@ export const messages: Record<Locale, Messages> = {
       adminUsers: "用户管理",
       adminToolCodes: "工具发码",
       adminJpLessonTeachers: "人员管理",
+      langJp: "日语",
+      langEn: "英语",
+      langKo: "韩语",
       more: "更多",
       allFeatures: "全部功能",
       searchPlaceholder: "🔍 搜索菜单…",
@@ -1182,7 +1195,9 @@ export const messages: Record<Locale, Messages> = {
       favoriteAdd: "收藏此菜单",
       favoriteRemove: "取消收藏",
       categories: {
-        teaching: "教学",
+        jp: "日语",
+        en: "英语",
+        ko: "韩语",
         admin: "后台",
         ai: "AI 工具",
         data: "数据",

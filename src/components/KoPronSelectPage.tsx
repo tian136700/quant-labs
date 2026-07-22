@@ -27,7 +27,10 @@ export function KoPronSelectPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] =
     useState<KoPronCategoryFilter>("all");
-  const [saveBusyId, setSaveBusyId] = useState<number | null>(null);
+  /** 待批量入库的未勾选 id（本地多选，提交前不算已入库） */
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(() => new Set());
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveBatchSize, setSaveBatchSize] = useState(0);
   const [savePercent, setSavePercent] = useState<number | null>(null);
   const [saveQueued, setSaveQueued] = useState(false);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,11 +77,51 @@ export function KoPronSelectPage() {
   );
 
   const selectedCount = catalog.filter((c) => c.selected_at).length;
+  const selectableVisible = useMemo(
+    () => displayLetters.filter((c) => !c.selected_at),
+    [displayLetters]
+  );
+  const checkedVisibleCount = useMemo(
+    () => selectableVisible.filter((c) => checkedIds.has(c.id)).length,
+    [selectableVisible, checkedIds]
+  );
+  const allVisibleChecked =
+    selectableVisible.length > 0 &&
+    checkedVisibleCount === selectableVisible.length;
+  const someVisibleChecked =
+    checkedVisibleCount > 0 && !allVisibleChecked;
+  const pendingCount = checkedIds.size;
 
-  const selectLetter = async (item: KoPronCatalogLetter) => {
-    if (item.selected_at || saveBusyId != null) return;
+  const toggleChecked = (id: number, next: boolean) => {
+    setCheckedIds((prev) => {
+      const copy = new Set(prev);
+      if (next) copy.add(id);
+      else copy.delete(id);
+      return copy;
+    });
+  };
+
+  const toggleAllVisible = (next: boolean) => {
+    setCheckedIds((prev) => {
+      const copy = new Set(prev);
+      for (const row of selectableVisible) {
+        if (next) copy.add(row.id);
+        else copy.delete(row.id);
+      }
+      return copy;
+    });
+  };
+
+  const selectCheckedBatch = async () => {
+    const ids = [...checkedIds].filter((id) => {
+      const row = catalog.find((c) => c.id === id);
+      return row && !row.selected_at;
+    });
+    if (!ids.length || saveBusy) return;
+
     setError("");
-    setSaveBusyId(item.id);
+    setSaveBusy(true);
+    setSaveBatchSize(ids.length);
     setSaveQueued(true);
     setSavePercent(JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
     const startedAt = Date.now();
@@ -92,25 +135,36 @@ export function KoPronSelectPage() {
       const res = await fetch("/api/ko-pron/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "select", catalog_id: item.id }),
+        body: JSON.stringify({ action: "select", catalog_ids: ids }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
-        catalog?: KoPronCatalogLetter;
+        catalog?: KoPronCatalogLetter[];
+        selected_count?: number;
       };
-      if (!res.ok || !data.ok || !data.catalog) {
-        throw new Error(data.error || "勾选失败");
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "批量勾选失败");
       }
-      setCatalog((prev) =>
-        prev.map((row) => (row.id === item.id ? data.catalog! : row))
-      );
+      const updated = data.catalog ?? [];
+      if (updated.length) {
+        const byId = new Map(updated.map((row) => [row.id, row]));
+        setCatalog((prev) =>
+          prev.map((row) => byId.get(row.id) ?? row)
+        );
+      }
+      setCheckedIds((prev) => {
+        const copy = new Set(prev);
+        for (const id of ids) copy.delete(id);
+        return copy;
+      });
       await animateJpVocabSaveProgressTo100(startedAt, setSavePercent);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       clearProgressTimer();
-      setSaveBusyId(null);
+      setSaveBusy(false);
+      setSaveBatchSize(0);
       setSavePercent(null);
       setSaveQueued(false);
     }
@@ -143,11 +197,12 @@ export function KoPronSelectPage() {
         <div className="ko-pron-select-stats">
           <span>共 {catalog.length} 条</span>
           <span>已勾选 {selectedCount} 条</span>
+          {pendingCount > 0 ? <span>已选待入库 {pendingCount} 条</span> : null}
         </div>
       </div>
 
       <p className="ko-pron-select-hint">
-        勾选表示学生已背过该字母，会立刻进入「韩语发音抽问」管理员端列表；同日勾选的字母次日才进入老师今日抽查池。勾选后不可取消。
+        先勾选多条（可全选当前筛选结果），再点「批量加入抽问」。表示学生已背过这些字母，会立刻进入「韩语发音抽问」管理员端列表；同日勾选的字母次日才进入老师今日抽查池。勾选后不可取消。
       </p>
 
       {error ? <p className="ko-pron-select-error">{error}</p> : null}
@@ -209,6 +264,47 @@ export function KoPronSelectPage() {
             ) : null}
           </div>
 
+          <div className="ko-pron-select-batch-bar">
+            <button
+              type="button"
+              className="ko-pron-select-btn"
+              disabled={pendingCount < 1 || saveBusy}
+              onClick={() => {
+                void selectCheckedBatch();
+              }}
+            >
+              {pendingCount > 0
+                ? `批量加入抽问（${pendingCount}）`
+                : "批量加入抽问"}
+            </button>
+            {pendingCount > 0 && !saveBusy ? (
+              <button
+                type="button"
+                className="ko-pron-select-batch-clear"
+                onClick={() => setCheckedIds(new Set())}
+              >
+                清空已选
+              </button>
+            ) : null}
+            {saveBusy ? (
+              <div className="ko-pron-select-batch-progress">
+                <JpVocabSaveProgressBar
+                  label={
+                    saveQueued
+                      ? "排队同步中…"
+                      : `正在批量勾选入库（${saveBatchSize}）…`
+                  }
+                  percent={
+                    savePercent != null
+                      ? savePercent
+                      : jpVocabSaveProgressDisplayPercent(null)
+                  }
+                  fullWidth
+                />
+              </div>
+            ) : null}
+          </div>
+
           {filterActive && !displayLetters.length ? (
             <p className="ko-pron-select-empty">
               {searchActive
@@ -220,26 +316,66 @@ export function KoPronSelectPage() {
               <table className="ko-pron-select-table">
                 <thead>
                   <tr>
+                    <th className="ko-pron-select-check-col">
+                      <input
+                        type="checkbox"
+                        className="ko-pron-select-check"
+                        checked={allVisibleChecked}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someVisibleChecked;
+                        }}
+                        disabled={
+                          selectableVisible.length < 1 || saveBusy
+                        }
+                        onChange={(e) => toggleAllVisible(e.target.checked)}
+                        aria-label="全选当前列表未勾选字母"
+                        title="全选当前列表未勾选字母"
+                      />
+                    </th>
                     <th>字母</th>
                     <th>读音</th>
                     <th>说明</th>
                     <th>分类</th>
                     <th>勾选状态</th>
                     <th>勾选时间</th>
-                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {displayLetters.map((item) => {
                     const selected = Boolean(item.selected_at);
-                    const busy = saveBusyId === item.id;
+                    const checked = checkedIds.has(item.id);
                     return (
                       <tr
                         key={item.id}
                         className={
-                          selected ? "ko-pron-select-row--done" : undefined
+                          selected
+                            ? "ko-pron-select-row--done"
+                            : checked
+                              ? "ko-pron-select-row--pending"
+                              : undefined
                         }
                       >
+                        <td className="ko-pron-select-check-col">
+                          {selected ? (
+                            <span
+                              className="ko-pron-select-check-done"
+                              aria-hidden
+                            >
+                              ✓
+                            </span>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              className="ko-pron-select-check"
+                              checked={checked}
+                              disabled={saveBusy}
+                              onChange={(e) =>
+                                toggleChecked(item.id, e.target.checked)
+                              }
+                              aria-label={`选择 ${item.letter}`}
+                            />
+                          )}
+                        </td>
                         <td className="ko-pron-select-letter-cell">
                           <span className="ko-pron-select-glyph">
                             {item.letter}
@@ -253,41 +389,17 @@ export function KoPronSelectPage() {
                         <td>{item.reading}</td>
                         <td>{item.meaning}</td>
                         <td>{item.category}</td>
-                        <td>{selected ? "已勾选" : "未勾选"}</td>
+                        <td>
+                          {selected
+                            ? "已勾选"
+                            : checked
+                              ? "已选·待入库"
+                              : "未勾选"}
+                        </td>
                         <td>
                           {item.selected_at
                             ? formatBeijingDateTime(item.selected_at)
                             : "—"}
-                        </td>
-                        <td>
-                          {selected ? (
-                            <span className="ko-pron-select-done-label">
-                              已勾选
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="ko-pron-select-btn"
-                              disabled={busy || saveBusyId != null}
-                              onClick={() => {
-                                void selectLetter(item);
-                              }}
-                            >
-                              勾选
-                            </button>
-                          )}
-                          {busy ? (
-                            <JpVocabSaveProgressBar
-                              label={
-                                saveQueued ? "排队同步中…" : "正在勾选入库…"
-                              }
-                              percent={
-                                savePercent != null
-                                  ? savePercent
-                                  : jpVocabSaveProgressDisplayPercent(null)
-                              }
-                            />
-                          ) : null}
                         </td>
                       </tr>
                     );
@@ -391,6 +503,27 @@ export function KoPronSelectPage() {
           font-size: 0.8rem;
           color: var(--muted);
         }
+        .ko-pron-select-batch-bar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.65rem 1rem;
+          margin-bottom: 0.85rem;
+        }
+        .ko-pron-select-batch-clear {
+          border: none;
+          background: transparent;
+          color: var(--muted);
+          cursor: pointer;
+          font-size: 0.85rem;
+          padding: 0;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .ko-pron-select-batch-progress {
+          flex: 1 1 12rem;
+          min-width: 10rem;
+        }
         .ko-pron-select-empty {
           color: var(--muted);
           padding: 1rem 0;
@@ -430,6 +563,27 @@ export function KoPronSelectPage() {
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
           color: var(--muted);
         }
+        .ko-pron-select-row--pending td {
+          background: color-mix(in srgb, #f97316 12%, var(--panel));
+        }
+        .ko-pron-select-check-col {
+          width: 2.25rem;
+          text-align: center;
+        }
+        .ko-pron-select-check {
+          width: 1.05rem;
+          height: 1.05rem;
+          accent-color: #f97316;
+          cursor: pointer;
+        }
+        .ko-pron-select-check:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+        .ko-pron-select-check-done {
+          color: var(--fall);
+          font-weight: 700;
+        }
         .ko-pron-select-letter-cell {
           white-space: nowrap;
           font-weight: 700;
@@ -441,21 +595,16 @@ export function KoPronSelectPage() {
         .ko-pron-select-btn {
           border: none;
           border-radius: 0.5rem;
-          padding: 0.4rem 0.75rem;
+          padding: 0.45rem 0.9rem;
           background: #f97316;
           color: #fff;
           font-weight: 600;
           cursor: pointer;
-          font-size: 0.85rem;
+          font-size: 0.9rem;
         }
         .ko-pron-select-btn:disabled {
           opacity: 0.55;
           cursor: not-allowed;
-        }
-        .ko-pron-select-done-label {
-          color: var(--fall);
-          font-weight: 600;
-          font-size: 0.85rem;
         }
       `}</style>
     </div>

@@ -487,6 +487,95 @@ export async function selectKoPronCatalogIntoQuiz(
   };
 }
 
+const KO_PRON_SELECT_BATCH_MAX = 40;
+
+/**
+ * 批量勾选入库抽问池（一次 D1 batch，禁止循环逐条 run）。
+ * 已勾选的 id 跳过；不存在的 id 忽略。
+ */
+export async function selectKoPronCatalogBatchIntoQuiz(
+  db: D1Database,
+  catalogIds: number[],
+  now = new Date()
+): Promise<{
+  catalog: KoPronCatalogLetter[];
+  selected_count: number;
+  skipped_already: number;
+}> {
+  await ensureKoPronCatalogReady(db);
+
+  const uniqueIds = [
+    ...new Set(
+      catalogIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id >= 1)
+    ),
+  ].slice(0, KO_PRON_SELECT_BATCH_MAX);
+
+  if (!uniqueIds.length) {
+    return { catalog: [], selected_count: 0, skipped_already: 0 };
+  }
+
+  const placeholders = uniqueIds.map((_, i) => `?${i + 1}`).join(", ");
+  const rows = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category, selected_at,
+              created_at, updated_at
+       FROM ko_pron_catalog
+       WHERE id IN (${placeholders})`
+    )
+    .bind(...uniqueIds)
+    .all<Record<string, unknown>>();
+
+  const found = (rows.results ?? []).map(rowToCatalog);
+  const needSelect = found.filter((c) => !c.selected_at);
+  const skippedAlready = found.length - needSelect.length;
+
+  if (!needSelect.length) {
+    return {
+      catalog: found,
+      selected_count: 0,
+      skipped_already: skippedAlready,
+    };
+  }
+
+  const ts = now.toISOString();
+  const stmts = needSelect.flatMap((c) => [
+    db
+      .prepare(
+        `UPDATE ko_pron_catalog
+         SET selected_at = ?1, updated_at = ?2
+         WHERE id = ?3 AND selected_at IS NULL`
+      )
+      .bind(ts, ts, c.id),
+    db
+      .prepare(
+        `INSERT INTO ko_pron_letter
+         (letter, reading, meaning, category, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(letter) DO NOTHING`
+      )
+      .bind(c.letter, c.reading, c.meaning, c.category, ts, ts),
+  ]);
+  await db.batch(stmts);
+
+  const refreshed = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category, selected_at,
+              created_at, updated_at
+       FROM ko_pron_catalog
+       WHERE id IN (${placeholders})`
+    )
+    .bind(...uniqueIds)
+    .all<Record<string, unknown>>();
+
+  return {
+    catalog: (refreshed.results ?? []).map(rowToCatalog),
+    selected_count: needSelect.length,
+    skipped_already: skippedAlready,
+  };
+}
+
 export async function listKoPronLetters(db: D1Database): Promise<KoPronLetter[]> {
   await ensureQuizReady(db);
   const result = await db

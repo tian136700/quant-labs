@@ -201,10 +201,11 @@ body {
 }
 
 /* ── Admin 导航（仅 Admin 登录后显示） ── */
+/* overflow:visible so language-group submenus are not clipped */
 .admin-nav {
   @apply min-w-0 flex-1;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .admin-nav-list {
@@ -212,7 +213,7 @@ body {
   flex-wrap: nowrap;
   gap: clamp(1.5rem, 2vw, 2rem);
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .admin-nav-list > li {
@@ -241,6 +242,7 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
+  gap: 0.25rem;
 }
 
 @screen md {
@@ -277,6 +279,60 @@ body {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   box-shadow: none;
   padding-inline: 0.875rem;
+}
+
+/* Language group: top-level trigger + secondary submenu */
+.admin-nav-group {
+  position: relative;
+  overflow: visible;
+}
+
+.admin-nav-group-trigger {
+  cursor: pointer;
+  background: transparent;
+}
+
+.admin-nav-group-caret {
+  font-size: 0.65em;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.admin-nav-submenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 0.5rem 0.35rem 0.35rem;
+  list-style: none;
+  min-width: max(10rem, 100%);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+.admin-nav-submenu[hidden] {
+  display: none;
+}
+
+.admin-nav-submenu-link {
+  @apply flex items-center text-xs text-muted no-underline rounded-md border border-transparent;
+  padding: 0.45rem 0.75rem;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.admin-nav-submenu-link:hover {
+  @apply text-text;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.admin-nav-submenu-link.is-active {
+  @apply text-accent font-medium;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 /* ── 导航 Drawer（桌面 + 移动） ── */

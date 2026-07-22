@@ -72,7 +72,7 @@
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`（备注可多图上传/粘贴，与修改备注同格式）、`JpVocabEditModal.tsx`（含**巧记**字段，仅管理员；**备注可多图上传/粘贴**，展示与 `JpClassNotesEditModal` 同：居中、去重）；`/api/jp-vocab/add`、`/edit`；`jp_vocab_word.mnemonic` |
 | **明日优先抽查**（管理员操作列；点击后**次日**按点击顺序 1、2、3… 置顶；不清历史抽查统计；其后才是从未抽查 + **final_score**） | `JpVocabWordTable.tsx` → `onBoostQuizPriority`；`JpVocabPage.tsx` → `boostQuizPriority`；`POST /api/jp-vocab` `boost_quiz_priority`；`jp-vocab-quiz-priority-boost.ts`；`sortJpVocabWordsForDailyOrder`；规则 `.cursor/rules/jp-vocab-quiz-priority-boost.mdc`、`jp-vocab-quiz-time-weight.mdc` |
 | **日语复习**（选数量、按序号/抽查优先级排序、卡片上/下一个、清除已复习；**今日已在抽问页抽查的词条显示「已抽问」**；**复习卡与老师抽问卡同 UI**（例句/释义/备注/统计），**无熟悉程度勾选**；未点「展开所有内容」前只露汉字，隐藏读音假名/释义/例句；**备注始终可见**） | `JpVocabReviewPage.tsx`；`JpVocabAdminReviewFlashcardModal.tsx`；`jp-vocab-review-plan.ts`、`jp-vocab-review-session.ts`、`jp-vocab-daily-check.ts` → `isJpVocabWordQuizzedToday`；`POST /api/jp-vocab/review`；`jp_vocab_review_done`；规则 `jp-vocab-flashcard-examples-parity.mdc` |
-| 导航菜单文案 | `src/i18n/messages.ts` → `nav.jpVocab`（老师端）、`nav.jpVocabAdmin`（管理员端）、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach` |
+| 导航菜单文案 | `src/i18n/messages.ts` → `nav.langJp` / `langEn` / `langKo`（顶栏一级）；`nav.jpVocab`（老师端）、`nav.jpVocabAdmin`（管理员端）、`nav.jpVocabStudy`、`nav.jpVocabReview`、`nav.jpVocabCoach`（二级） |
 | 路径常量 | `src/lib/locale-path.ts` → `jpVocabPath()`、`jpVocabAdminPath()`、`jpVocabStudyPath()`、`jpVocabReviewPath()`、`jpVocabCoachPath()` |
 | 权限定义 | `src/lib/rbac.ts` → `jp_vocab:teacher`（老师端）、`jp_vocab:admin`（管理员端）、`jp_vocab:study`（学生端）；默认：`jp_vocab` 角色含 teacher；`user` 角色仅 study；`admin` 全部；校验 `src/lib/jp-vocab-auth.ts`、`src/lib/etr-auth.ts` |
 | 未登录访问 `/jp-vocab` | `JpVocabPage.tsx` → `TeacherReviewAuth` 全页登录；`GET /api/jp-vocab`、`/api/jp-vocab/sync` → `requireJpVocabRead` |
@@ -126,7 +126,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 | 线上 path | 中文名 | 页面入口 | 主组件 | 相关 API | 数据 / 逻辑 | 权限 |
 |-----------|--------|----------|--------|----------|-------------|------|
-| `/ko-pron/select` | **韩语发音勾选**（全量约 40 字母；勾选=已背过） | `src/app/ko-pron/select/page.tsx` | `KoPronSelectPage` | `GET/POST /api/ko-pron/select` | `ko_pron_catalog`；勾选写入 `selected_at` 并 upsert `ko_pron_letter` | `admin` 或 `ko_pron:admin` |
+| `/ko-pron/select` | **韩语发音勾选**（全量约 40 字母；**批量勾选**→一次加入抽问池） | `src/app/ko-pron/select/page.tsx` | `KoPronSelectPage` | `GET/POST /api/ko-pron/select`（`catalog_ids`） | `ko_pron_catalog`；批量写入 `selected_at` 并 upsert `ko_pron_letter` | `admin` 或 `ko_pron:admin` |
 | `/ko-pron` | **韩语发音抽问-老师端**（抽查卡片、勾选熟悉程度） | `src/app/ko-pron/page.tsx` | `KoPronPage variant="teacher"` | `GET/POST /api/ko-pron`、`GET /api/ko-pron/sync`、`POST /api/ko-pron/live` | 抽问池 `ko_pron_letter`（仅已勾选）；`src/lib/ko-pron-db.ts` | 须登录；`ko_pron:read` 浏览；`ko_pron:operate` / `ko_pron:teacher` 勾选；管理员进此 URL redirect 到 `/ko-pron/admin` |
 | `/ko-pron/admin` | **韩语发音抽问-管理员端**（抽问池、设今日抽查数量、预览卡片） | `src/app/ko-pron/admin/page.tsx` | `KoPronPage variant="admin"` | 同上（设目标须 admin） | 与老师端共用抽问表；**空池时提示去勾选页** | `admin` 或 `ko_pron:admin`；非管理员 redirect 到 `/ko-pron` |
 | `/ko-pron/study` | **今日韩语发音（学生端）** | `src/app/ko-pron/study/page.tsx` | `KoPronStudyPage.tsx` | `GET /api/ko-pron/live` | live：`teacher_quiz_live`（`letter_id` + `reading_revealed`） | 须登录 + `ko_pron:study`（**默认不给**网上注册用户 / 日语·英语老师）；`admin` 可进；未登录 → 登录页 |
@@ -250,7 +250,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 |------|------|
 | 登录 / 会话 / 前端权限 | `src/contexts/EtrAuthProvider.tsx`、`src/lib/etr-auth.ts`、`src/app/api/english-teacher-review/auth/route.ts` |
 | RBAC 权限表 | `src/lib/rbac.ts`、`src/lib/rbac-db.ts`、`schema.sql` → `etr_role_permissions` |
-| 站点导航（顶栏：管理员端固定最左；其余按使用频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`、`src/lib/site-nav-config.ts`（`PINNED_PRIMARY_NAV_ID`）、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc` |
+| 站点导航（顶栏：按**日语 / 英语 / 韩语**二级菜单；「日语」组固定最左；其余按使用频次；溢出→「更多」抽屉同语言分组） | `src/hooks/useSiteNavSplit.ts`、`src/lib/site-nav-config.ts`（`NAV_LANG_GROUPS` / `PINNED_PRIMARY_NAV_ID=langJp`）、`src/lib/site-nav-groups.ts`、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/NavDrawer.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc`；回归 `scripts/check_site_nav_more_visible.py` |
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
 | **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；成功后 Mac 桌面通知优先、已弹则不推 Bark） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |

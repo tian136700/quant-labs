@@ -1,32 +1,89 @@
-export type NavCategory = "teaching" | "admin" | "ai" | "data" | "system";
+export type NavCategory = "jp" | "en" | "ko" | "admin" | "ai" | "data" | "system";
+
+export type NavLangGroupId = "langJp" | "langEn" | "langKo";
+
+export type NavLangGroupDef = {
+  id: NavLangGroupId;
+  /** Message key under nav.* for the top-level label */
+  labelKey: "langJp" | "langEn" | "langKo";
+  /** Drawer category for leaf items in this group */
+  category: "jp" | "en" | "ko";
+  /** Child leaf ids in display order within the submenu */
+  childIds: readonly string[];
+};
 
 /**
- * Always leftmost in the top bar when present (admin「日语抽问-管理员端»).
+ * Language groups for top-bar secondary menus.
+ * Leaf visibility still comes from useSiteNavItems (RBAC); grouping is display-only.
+ */
+export const NAV_LANG_GROUPS: readonly NavLangGroupDef[] = [
+  {
+    id: "langJp",
+    labelKey: "langJp",
+    category: "jp",
+    childIds: [
+      "jpVocabAdmin",
+      "jpVocab",
+      "jpVocabCoach",
+      "jpVocabReview",
+      "jpVocabStudy",
+      "jpLesson",
+      "jpLessonSchedule",
+      "adminJpLessonTeachers",
+    ],
+  },
+  {
+    id: "langEn",
+    labelKey: "langEn",
+    category: "en",
+    childIds: ["enVocabAdmin", "enVocab", "enVocabStudy", "enLesson"],
+  },
+  {
+    id: "langKo",
+    labelKey: "langKo",
+    category: "ko",
+    childIds: ["koPronSelect", "koPronAdmin", "koPron", "koPronStudy"],
+  },
+] as const;
+
+/** Leaf id → language group (for drawer / grouping). */
+export const NAV_LEAF_LANG_GROUP: Record<string, NavLangGroupId> = (() => {
+  const map: Record<string, NavLangGroupId> = {};
+  for (const g of NAV_LANG_GROUPS) {
+    for (const id of g.childIds) map[id] = g.id;
+  }
+  return map;
+})();
+
+/**
+ * Always leftmost in the top bar when present（「日语」语言组）.
  * Remaining slots: usage frequency; overflow →「更多」.
  */
-export const PINNED_PRIMARY_NAV_ID = "jpVocabAdmin" as const;
+export const PINNED_PRIMARY_NAV_ID = "langJp" as const;
 
-/** Tie-breaker when visit counts are equal (not the primary sort). */
+/** Tie-breaker when visit counts are equal (not the primary sort). Group + non-lang leaves. */
 export const PRIMARY_NAV_ORDER = [
-  "jpVocabAdmin",
-  "jpVocab",
-  "jpVocabCoach",
-  "jpVocabReview",
-  "enVocabAdmin",
-  "enVocab",
-  "koPronAdmin",
-  "koPronSelect",
-  "koPron",
-  "jpVocabStudy",
+  "langJp",
+  "langEn",
+  "langKo",
   "admin",
   "adminUsers",
   "adminTrends",
+  "adminRbac",
+  "adminToolCodes",
+  "compare",
+  "teacherReview",
+  "storeReview",
+  "storeReviewPlaza",
+  "about",
 ] as const;
 
 export const MAX_PRIMARY_NAV = 8;
 
 export const NAV_CATEGORY_ORDER: NavCategory[] = [
-  "teaching",
+  "jp",
+  "en",
+  "ko",
   "admin",
   "ai",
   "data",
@@ -34,21 +91,22 @@ export const NAV_CATEGORY_ORDER: NavCategory[] = [
 ];
 
 export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
-  jpVocab: "teaching",
-  jpVocabAdmin: "teaching",
-  jpVocabReview: "teaching",
-  enVocab: "teaching",
-  enVocabAdmin: "teaching",
-  koPron: "teaching",
-  koPronAdmin: "teaching",
-  koPronSelect: "teaching",
-  koPronStudy: "teaching",
-  jpVocabStudy: "teaching",
-  jpVocabCoach: "teaching",
-  enVocabStudy: "teaching",
-  jpLesson: "teaching",
-  adminJpLessonTeachers: "teaching",
-  enLesson: "teaching",
+  jpVocab: "jp",
+  jpVocabAdmin: "jp",
+  jpVocabReview: "jp",
+  jpVocabStudy: "jp",
+  jpVocabCoach: "jp",
+  jpLesson: "jp",
+  jpLessonSchedule: "jp",
+  adminJpLessonTeachers: "jp",
+  enVocab: "en",
+  enVocabAdmin: "en",
+  enVocabStudy: "en",
+  enLesson: "en",
+  koPron: "ko",
+  koPronAdmin: "ko",
+  koPronSelect: "ko",
+  koPronStudy: "ko",
   admin: "admin",
   adminUsers: "admin",
   adminRbac: "admin",
@@ -58,7 +116,6 @@ export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
   teacherReview: "data",
   storeReview: "data",
   storeReviewPlaza: "data",
-  jpLessonSchedule: "system",
   about: "system",
 };
 

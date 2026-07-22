@@ -25,7 +25,9 @@ type NavDrawerProps = {
 };
 
 const CATEGORY_ICONS: Record<NavCategory, string> = {
-  teaching: "📚",
+  jp: "日",
+  en: "EN",
+  ko: "한",
   admin: "⚙",
   ai: "🤖",
   data: "📊",
