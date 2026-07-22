@@ -393,7 +393,7 @@ export interface KoPronCatalogLetter {
   letter: string;
   reading: string | null;
   meaning: string | null;
-  /** 辅音 / 双辅音 / 元音 / 复合元音 */
+  /** 辅音 / 双辅音 / 基本元音 / 复合元音（教材用语） */
   category: string | null;
   /** 已勾选进抽问池的时间；NULL=未勾选 */
   selected_at: string | null;
@@ -407,7 +407,7 @@ export interface KoPronLetter {
   letter: string;
   reading: string | null;
   meaning: string | null;
-  /** 辅音 / 元音 / 复合元音 等分类提示 */
+  /** 辅音 / 双辅音 / 基本元音 / 复合元音（教材用语） */
   category: string | null;
   cnt_very: number;
   cnt_normal: number;

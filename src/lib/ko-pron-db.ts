@@ -35,8 +35,10 @@ const TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 const DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 /** 一次性：建 catalog、清空旧抽问全量种子、重置日序/可见池 */
 const QUIZ_POOL_SPLIT_MIGRATION_KEY = "quiz_pool_split_v1";
-/** 一次性：旧「元音/复合元音」→「单元音/双元音」 */
+/** 一次性：旧「元音/复合元音」→「单元音/双元音」（中间态；见 v2） */
 const VOWEL_CATEGORY_RENAME_MIGRATION_KEY = "vowel_category_rename_v1";
+/** 一次性：教材用语「单元音/双元音」→「基本元音/复合元音」 */
+const VOWEL_CATEGORY_TEXTBOOK_MIGRATION_KEY = "vowel_category_textbook_v2";
 
 let letterSchemaReady = false;
 let catalogSchemaReady = false;
@@ -278,6 +280,43 @@ async function migrateVowelCategoryRenameOnce(db: D1Database): Promise<void> {
   await setSettingRaw(db, VOWEL_CATEGORY_RENAME_MIGRATION_KEY, "1");
 }
 
+/**
+ * 一次性：对齐主流教材分类名「单元音→基本元音」「双元音→复合元音」
+ * （字母归属不变；亦兜底旧「元音」）。
+ */
+async function migrateVowelCategoryTextbookOnce(db: D1Database): Promise<void> {
+  await ensureSettingSchema(db);
+  await ensureCatalogSchema(db);
+  await ensureLetterSchema(db);
+  const done = await getSettingRaw(db, VOWEL_CATEGORY_TEXTBOOK_MIGRATION_KEY);
+  if (done === "1") return;
+
+  const ts = nowIso();
+  const renames: Array<{ from: string; to: string; meaning: string }> = [
+    { from: "单元音", to: "基本元音", meaning: "基本元音" },
+    { from: "双元音", to: "复合元音", meaning: "复合元音" },
+    { from: "元音", to: "基本元音", meaning: "基本元音" },
+  ];
+  const stmts = renames.flatMap(({ from, to, meaning }) => [
+    db
+      .prepare(
+        `UPDATE ko_pron_catalog
+         SET category = ?1, meaning = ?2, updated_at = ?3
+         WHERE category = ?4`
+      )
+      .bind(to, meaning, ts, from),
+    db
+      .prepare(
+        `UPDATE ko_pron_letter
+         SET category = ?1, meaning = ?2, updated_at = ?3
+         WHERE category = ?4`
+      )
+      .bind(to, meaning, ts, from),
+  ]);
+  if (stmts.length) await db.batch(stmts);
+  await setSettingRaw(db, VOWEL_CATEGORY_TEXTBOOK_MIGRATION_KEY, "1");
+}
+
 /** 确保 catalog 可用 + 抽问池已按拆分迁移清空过 */
 async function ensureKoPronCatalogReady(db: D1Database): Promise<void> {
   if (catalogReady) return;
@@ -286,6 +325,7 @@ async function ensureKoPronCatalogReady(db: D1Database): Promise<void> {
   await seedCatalogIfEmpty(db);
   await migrateQuizPoolSplitOnce(db);
   await migrateVowelCategoryRenameOnce(db);
+  await migrateVowelCategoryTextbookOnce(db);
   catalogReady = true;
 }
 
