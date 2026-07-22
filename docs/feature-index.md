@@ -128,12 +128,13 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 |-----------|--------|----------|--------|----------|-------------|------|
 | `/ko-pron` | **韩语发音-老师端**（抽查卡片、勾选熟悉程度） | `src/app/ko-pron/page.tsx` | `KoPronPage variant="teacher"` | `GET/POST /api/ko-pron`、`GET /api/ko-pron/sync`、`POST /api/ko-pron/live` | `ko_pron_letter`、`ko_pron_setting`；`src/lib/ko-pron-db.ts` | 须登录；`ko_pron:read` 浏览；`ko_pron:operate` / `ko_pron:teacher` 勾选；管理员进此 URL redirect 到 `/ko-pron/admin` |
 | `/ko-pron/admin` | **韩语发音-管理员端**（全库、设今日抽查数量、预览卡片） | `src/app/ko-pron/admin/page.tsx` | `KoPronPage variant="admin"` | 同上（设目标须 admin） | 与老师端共用表 | `admin` 或 `ko_pron:admin`；非管理员 redirect 到 `/ko-pron` |
-| `/ko-pron/study` | **今日韩语发音（学生端）** | `src/app/ko-pron/study/page.tsx` | `KoPronStudyPage.tsx` | `GET /api/ko-pron/live` | live：`teacher_quiz_live`（`letter_id` + `reading_revealed`） | `ko_pron:study` 学生；`admin`；韩语老师不可见 |
+| `/ko-pron/study` | **今日韩语发音（学生端）** | `src/app/ko-pron/study/page.tsx` | `KoPronStudyPage.tsx` | `GET /api/ko-pron/live` | live：`teacher_quiz_live`（`letter_id` + `reading_revealed`） | 须登录 + `ko_pron:study`（**默认不给**网上注册用户 / 日语·英语老师）；`admin` 可进；未登录 → 登录页 |
 
 ### ko-pron 子功能 → 文件速查
 
 | 功能描述 | 改哪里 |
 |----------|--------|
+| **谁能看见韩语模块**（日语老师导航不含韩语；普通网友默认无 `ko_pron:*`；未登录进 URL 只出登录页） | `nav:jp_teacher` 分支；`RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS` 含全部 `ko_pron:*`；`user` 默认权限**不含** `ko_pron:study`；`revokeDefaultKoPronStudyFromPublicRoles` |
 | **老师/管理员入口拆分**（导航「韩语发音-老师端 / 管理员端」；`variant` 区分） | `/ko-pron` vs `/ko-pron/admin`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()`；`messages.ts` → `nav.koPron` / `nav.koPronAdmin`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
 | **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
 | **学生端 live 卡片**（老师开卡同步字母；罗马音/熟悉程度对学生隐藏；老师勾选熟悉程度后揭示罗马音） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |

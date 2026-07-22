@@ -393,7 +393,6 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "store_review:use",
     "store_review:plaza",
     "jp_vocab:study",
-    "ko_pron:study",
     "jp_lesson:read",
     "about:view",
   ],
@@ -458,9 +457,15 @@ export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "jp_vocab:study",
   /** 带读按账号白名单开放（欣欣等），禁止给全体 jp_vocab 老师开 */
   "jp_vocab:coach",
+  "ko_pron:teacher",
+  "ko_pron:admin",
+  "ko_pron:read",
+  "ko_pron:operate",
+  "ko_pron:study",
+  "nav:ko_teacher",
 ] as const;
 
-/** 网上注册用户（学生）不应持有的日语/韩语老师权限 */
+/** 网上注册用户（学生）不应持有的日语/韩语老师权限；韩语学生端默认不开（见默认权限表） */
 export const RBAC_USER_EXCLUDED_PERMISSIONS = [
   "jp_vocab:teacher",
   "jp_vocab:admin",
@@ -478,6 +483,12 @@ export const RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS = [
   "en_lesson:read",
   "en_lesson:operate",
   "en_vocab:admin",
+  "ko_pron:teacher",
+  "ko_pron:admin",
+  "ko_pron:read",
+  "ko_pron:operate",
+  "ko_pron:study",
+  "nav:ko_teacher",
 ] as const;
 
 /** 韩语老师角色不应持有的权限（默认关闭） */

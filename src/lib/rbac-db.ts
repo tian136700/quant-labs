@@ -70,7 +70,6 @@ const RBAC_INCREMENTAL_DEFAULTS: Array<{
   permission: string;
 }> = [
   /** newest sentinel first — 表已有数据时用首项探测是否还需补缺 */
-  { role: "user", permission: "ko_pron:study" },
   { role: "ko_pron", permission: "ko_pron:teacher" },
   { role: "ko_pron", permission: "ko_pron:read" },
   { role: "ko_pron", permission: "ko_pron:operate" },
@@ -79,6 +78,22 @@ const RBAC_INCREMENTAL_DEFAULTS: Array<{
   { role: "en_vocab", permission: "en_vocab:teacher" },
   { role: "jp_vocab", permission: "jp_vocab:teacher" },
 ];
+
+/**
+ * 普通用户 / 日语老师默认不得持有韩语学生端（曾误写入需清掉）。
+ * 需要时由管理员在「角色权限」里单独勾选 ko_pron:study。
+ */
+async function revokeDefaultKoPronStudyFromPublicRoles(
+  db: D1Database
+): Promise<void> {
+  await db
+    .prepare(
+      `DELETE FROM etr_role_permissions
+       WHERE permission_key = 'ko_pron:study'
+         AND role IN ('user', 'jp_vocab', 'en_vocab')`
+    )
+    .run();
+}
 
 export async function ensureRbacSeeded(db: D1Database): Promise<void> {
   if (devRbacEnabled) {
@@ -114,6 +129,10 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
     // 已有数据：只补缺新增键（1 次 SELECT + 至多几条 INSERT）
     await backfillIncrementalDefaultPermissions(db);
   }
+
+  // 普通用户 / 日语·英语老师默认看不到韩语学生端
+  await revokeDefaultKoPronStudyFromPublicRoles(db);
+  rolePermissionsCache.clear();
 
   rbacSeededDone = true;
 }
