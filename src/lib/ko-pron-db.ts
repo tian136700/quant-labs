@@ -35,6 +35,8 @@ const TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
 const DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 /** 一次性：建 catalog、清空旧抽问全量种子、重置日序/可见池 */
 const QUIZ_POOL_SPLIT_MIGRATION_KEY = "quiz_pool_split_v1";
+/** 一次性：旧「元音/复合元音」→「单元音/双元音」 */
+const VOWEL_CATEGORY_RENAME_MIGRATION_KEY = "vowel_category_rename_v1";
 
 let letterSchemaReady = false;
 let catalogSchemaReady = false;
@@ -240,6 +242,42 @@ async function migrateQuizPoolSplitOnce(db: D1Database): Promise<void> {
   await setSettingRaw(db, QUIZ_POOL_SPLIT_MIGRATION_KEY, "1");
 }
 
+/**
+ * 一次性：分类文案「元音→单元音」「复合元音→双元音」，
+ * 同步 catalog + 已入库抽问池（含说明字段）。
+ */
+async function migrateVowelCategoryRenameOnce(db: D1Database): Promise<void> {
+  await ensureSettingSchema(db);
+  await ensureCatalogSchema(db);
+  await ensureLetterSchema(db);
+  const done = await getSettingRaw(db, VOWEL_CATEGORY_RENAME_MIGRATION_KEY);
+  if (done === "1") return;
+
+  const ts = nowIso();
+  const renames: Array<{ from: string; to: string; meaning: string }> = [
+    { from: "元音", to: "单元音", meaning: "单元音" },
+    { from: "复合元音", to: "双元音", meaning: "双元音" },
+  ];
+  const stmts = renames.flatMap(({ from, to, meaning }) => [
+    db
+      .prepare(
+        `UPDATE ko_pron_catalog
+         SET category = ?1, meaning = ?2, updated_at = ?3
+         WHERE category = ?4`
+      )
+      .bind(to, meaning, ts, from),
+    db
+      .prepare(
+        `UPDATE ko_pron_letter
+         SET category = ?1, meaning = ?2, updated_at = ?3
+         WHERE category = ?4`
+      )
+      .bind(to, meaning, ts, from),
+  ]);
+  if (stmts.length) await db.batch(stmts);
+  await setSettingRaw(db, VOWEL_CATEGORY_RENAME_MIGRATION_KEY, "1");
+}
+
 /** 确保 catalog 可用 + 抽问池已按拆分迁移清空过 */
 async function ensureKoPronCatalogReady(db: D1Database): Promise<void> {
   if (catalogReady) return;
@@ -247,6 +285,7 @@ async function ensureKoPronCatalogReady(db: D1Database): Promise<void> {
   await ensureLetterSchema(db);
   await seedCatalogIfEmpty(db);
   await migrateQuizPoolSplitOnce(db);
+  await migrateVowelCategoryRenameOnce(db);
   catalogReady = true;
 }
 

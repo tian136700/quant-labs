@@ -1,4 +1,4 @@
-/** 常见教学用 40 个韩语字母（자모）：基本辅音 + 双辅音 + 基本元音 + 复合元音
+/** 常见教学用 40 个韩语字母（자모）：基本辅音 + 双辅音 + 单元音 + 双元音
  *  只种进 `ko_pron_catalog`（韩语发音勾选）；禁止直接种进抽问表 `ko_pron_letter`。
  */
 
@@ -6,8 +6,8 @@
 export const KO_PRON_CATEGORIES = [
   "辅音",
   "双辅音",
-  "元音",
-  "复合元音",
+  "单元音",
+  "双元音",
 ] as const;
 
 export type KoPronCategory = (typeof KO_PRON_CATEGORIES)[number];
@@ -41,27 +41,27 @@ export const KO_PRON_SEED_LETTERS: KoPronSeedLetter[] = [
   { letter: "ㅃ", reading: "쌍비읍 / pp", meaning: "双辅音", category: "双辅音" },
   { letter: "ㅆ", reading: "쌍시옷 / ss", meaning: "双辅音", category: "双辅音" },
   { letter: "ㅉ", reading: "쌍지읒 / jj", meaning: "双辅音", category: "双辅音" },
-  // 基本元音 10
-  { letter: "ㅏ", reading: "아 / a", meaning: "基本元音", category: "元音" },
-  { letter: "ㅑ", reading: "야 / ya", meaning: "基本元音", category: "元音" },
-  { letter: "ㅓ", reading: "어 / eo", meaning: "基本元音", category: "元音" },
-  { letter: "ㅕ", reading: "여 / yeo", meaning: "基本元音", category: "元音" },
-  { letter: "ㅗ", reading: "오 / o", meaning: "基本元音", category: "元音" },
-  { letter: "ㅛ", reading: "요 / yo", meaning: "基本元音", category: "元音" },
-  { letter: "ㅜ", reading: "우 / u", meaning: "基本元音", category: "元音" },
-  { letter: "ㅠ", reading: "유 / yu", meaning: "基本元音", category: "元音" },
-  { letter: "ㅡ", reading: "으 / eu", meaning: "基本元音", category: "元音" },
-  { letter: "ㅣ", reading: "이 / i", meaning: "基本元音", category: "元音" },
-  // 复合元音 11
-  { letter: "ㅐ", reading: "애 / ae", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅒ", reading: "얘 / yae", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅔ", reading: "에 / e", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅖ", reading: "예 / ye", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅘ", reading: "와 / wa", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅙ", reading: "왜 / wae", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅚ", reading: "외 / oe", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅝ", reading: "워 / wo", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅞ", reading: "웨 / we", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅟ", reading: "위 / wi", meaning: "复合元音", category: "复合元音" },
-  { letter: "ㅢ", reading: "의 / ui", meaning: "复合元音", category: "复合元音" },
+  // 单元音 10（ㅏㅑㅓㅕㅗㅛㅜㅠㅡㅣ）
+  { letter: "ㅏ", reading: "아 / a", meaning: "单元音", category: "单元音" },
+  { letter: "ㅑ", reading: "야 / ya", meaning: "单元音", category: "单元音" },
+  { letter: "ㅓ", reading: "어 / eo", meaning: "单元音", category: "单元音" },
+  { letter: "ㅕ", reading: "여 / yeo", meaning: "单元音", category: "单元音" },
+  { letter: "ㅗ", reading: "오 / o", meaning: "单元音", category: "单元音" },
+  { letter: "ㅛ", reading: "요 / yo", meaning: "单元音", category: "单元音" },
+  { letter: "ㅜ", reading: "우 / u", meaning: "单元音", category: "单元音" },
+  { letter: "ㅠ", reading: "유 / yu", meaning: "单元音", category: "单元音" },
+  { letter: "ㅡ", reading: "으 / eu", meaning: "单元音", category: "单元音" },
+  { letter: "ㅣ", reading: "이 / i", meaning: "单元音", category: "单元音" },
+  // 双元音 11
+  { letter: "ㅐ", reading: "애 / ae", meaning: "双元音", category: "双元音" },
+  { letter: "ㅒ", reading: "얘 / yae", meaning: "双元音", category: "双元音" },
+  { letter: "ㅔ", reading: "에 / e", meaning: "双元音", category: "双元音" },
+  { letter: "ㅖ", reading: "예 / ye", meaning: "双元音", category: "双元音" },
+  { letter: "ㅘ", reading: "와 / wa", meaning: "双元音", category: "双元音" },
+  { letter: "ㅙ", reading: "왜 / wae", meaning: "双元音", category: "双元音" },
+  { letter: "ㅚ", reading: "외 / oe", meaning: "双元音", category: "双元音" },
+  { letter: "ㅝ", reading: "워 / wo", meaning: "双元音", category: "双元音" },
+  { letter: "ㅞ", reading: "웨 / we", meaning: "双元音", category: "双元音" },
+  { letter: "ㅟ", reading: "위 / wi", meaning: "双元音", category: "双元音" },
+  { letter: "ㅢ", reading: "의 / ui", meaning: "双元音", category: "双元音" },
 ];
