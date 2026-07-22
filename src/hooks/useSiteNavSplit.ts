@@ -13,6 +13,7 @@ import {
 } from "@/lib/site-nav-groups";
 import { useSiteNavItems, type SiteNavItem } from "@/hooks/useSiteNavItems";
 import { useNavPreferences } from "@/contexts/NavPreferencesProvider";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 
 /**
@@ -97,6 +98,7 @@ export function useSiteNavSplit(): {
   onMeasured: (count: number) => void;
 } {
   const allItems = useSiteNavItems();
+  const { isAdmin } = useEtrAuth();
   const { visitCounts } = useNavPreferences();
   const { t } = useI18n();
   const nav = t("nav");
@@ -105,14 +107,19 @@ export function useSiteNavSplit(): {
     Math.min(allItems.length, MAX_PRIMARY_NAV)
   );
 
+  // Admin: language secondary menus (many leaves). Others: flat primary links.
   const groupedEntries = useMemo(
     () =>
-      groupSiteNavItems(allItems, {
-        langJp: nav.langJp,
-        langEn: nav.langEn,
-        langKo: nav.langKo,
-      }),
-    [allItems, nav.langJp, nav.langEn, nav.langKo]
+      groupSiteNavItems(
+        allItems,
+        {
+          langJp: nav.langJp,
+          langEn: nav.langEn,
+          langKo: nav.langKo,
+        },
+        { useLangGroups: isAdmin }
+      ),
+    [allItems, isAdmin, nav.langJp, nav.langEn, nav.langKo]
   );
 
   const sortedEntries = useMemo(

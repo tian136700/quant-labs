@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-"""Regression: desktop「更多」must stay fully visible; language group nav present.
+"""Regression: desktop「更多」must stay fully visible; language group nav for admin.
 
 Fails if SiteNav goes back to wrap-top measurement, drops MAX_PRIMARY_NAV,
-drops language groups / langJp pin, or CSS lets the more button shrink /
-ruler lose measurable widths / clips submenus with overflow:hidden on nav.
+drops language groups / langJp pin for admin, forces groups onto non-admin,
+or CSS lets the more button shrink / ruler lose measurable widths / clips
+submenus with overflow:hidden on nav.
 """
 from __future__ import annotations
 
@@ -49,8 +49,20 @@ def main() -> int:
     if "groupSiteNavItems" not in groups:
         return fail("site-nav-groups.ts must export groupSiteNavItems")
 
+    if "useLangGroups" not in groups:
+        return fail(
+            "groupSiteNavItems must support useLangGroups "
+            "(admin secondary menus; others flat)"
+        )
+
     if "groupSiteNavItems" not in split:
         return fail("useSiteNavSplit must group via groupSiteNavItems")
+
+    if "useLangGroups: isAdmin" not in split and "useLangGroups:isAdmin" not in split:
+        return fail(
+            "useSiteNavSplit must pass useLangGroups: isAdmin "
+            "(teachers stay flat primary links)"
+        )
 
     if "MAX_PRIMARY_NAV" not in split:
         return fail("useSiteNavSplit must cap with MAX_PRIMARY_NAV")

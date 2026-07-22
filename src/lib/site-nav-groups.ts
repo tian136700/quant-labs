@@ -28,11 +28,25 @@ export type SiteNavGroupLabels = Record<NavLangGroupId, string>;
 /**
  * Collapse flat leaf nav items into language groups + remaining flat links.
  * Groups with zero visible children are omitted.
+ *
+ * Language secondary menus are **admin-only** (too many leaves). Teachers and
+ * other roles keep a flat primary list — they typically have only 1–2 items.
  */
 export function groupSiteNavItems(
   flatItems: SiteNavItem[],
-  labels: SiteNavGroupLabels
+  labels: SiteNavGroupLabels,
+  opts?: { useLangGroups?: boolean }
 ): SiteNavEntry[] {
+  if (opts?.useLangGroups === false) {
+    return flatItems.map((item) => ({
+      kind: "link" as const,
+      id: item.id,
+      label: item.label,
+      active: item.active,
+      item,
+    }));
+  }
+
   const byId = new Map(flatItems.map((item) => [item.id, item]));
   const consumed = new Set<string>();
   const entries: SiteNavEntry[] = [];

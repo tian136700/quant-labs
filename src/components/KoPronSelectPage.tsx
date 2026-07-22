@@ -17,6 +17,8 @@ import {
 import {
   filterKoPronLettersBySearch,
   KO_PRON_CATEGORIES,
+  readStoredKoPronSelectCategoryFilter,
+  writeStoredKoPronSelectCategoryFilter,
   type KoPronCategoryFilter,
 } from "@/lib/ko-pron-search";
 import type { KoPronCatalogLetter } from "@/lib/types";
@@ -38,8 +40,9 @@ export function KoPronSelectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] =
-    useState<KoPronCategoryFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<KoPronCategoryFilter>(
+    () => readStoredKoPronSelectCategoryFilter()
+  );
   /** 本地多选；提交时按按钮过滤对应池 */
   const [checkedIds, setCheckedIds] = useState<Set<number>>(() => new Set());
   const [saveBusy, setSaveBusy] = useState(false);
@@ -81,6 +84,10 @@ export function KoPronSelectPage() {
     if (checking || !user || !canAccessKoPronAdminPage) return;
     void loadCatalog();
   }, [checking, user, canAccessKoPronAdminPage, loadCatalog]);
+
+  useEffect(() => {
+    writeStoredKoPronSelectCategoryFilter(categoryFilter);
+  }, [categoryFilter]);
 
   useEffect(() => () => clearProgressTimer(), []);
 

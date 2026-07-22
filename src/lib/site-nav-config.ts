@@ -13,7 +13,8 @@ export type NavLangGroupDef = {
 };
 
 /**
- * Language groups for top-bar secondary menus.
+ * Language groups for top-bar secondary menus (**admin only**).
+ * Teachers / other roles stay flat primary links — few items, no submenu needed.
  * Leaf visibility still comes from useSiteNavItems (RBAC); grouping is display-only.
  */
 export const NAV_LANG_GROUPS: readonly NavLangGroupDef[] = [

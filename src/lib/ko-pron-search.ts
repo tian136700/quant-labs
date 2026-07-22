@@ -7,6 +7,41 @@ export type KoPronCategoryFilter = "all" | KoPronCategory;
 
 export { KO_PRON_CATEGORIES };
 
+/** 勾选页分类筛选记忆（本机 localStorage；下次进入默认上次所选） */
+export const KO_PRON_SELECT_CATEGORY_FILTER_STORAGE_KEY =
+  "ko-pron-select-category-filter";
+
+function isKoPronCategoryFilter(value: string): value is KoPronCategoryFilter {
+  return value === "all" || (KO_PRON_CATEGORIES as readonly string[]).includes(value);
+}
+
+export function readStoredKoPronSelectCategoryFilter(): KoPronCategoryFilter {
+  if (typeof window === "undefined") return "all";
+  try {
+    const raw = window.localStorage.getItem(
+      KO_PRON_SELECT_CATEGORY_FILTER_STORAGE_KEY
+    );
+    if (!raw) return "all";
+    return isKoPronCategoryFilter(raw) ? raw : "all";
+  } catch {
+    return "all";
+  }
+}
+
+export function writeStoredKoPronSelectCategoryFilter(
+  filter: KoPronCategoryFilter
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      KO_PRON_SELECT_CATEGORY_FILTER_STORAGE_KEY,
+      filter
+    );
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
 /** 勾选总库 / 抽问池共用可搜索字段 */
 export type KoPronSearchable = {
   letter: string;
