@@ -612,6 +612,15 @@ export function JpVocabEditModal({
       return;
     }
 
+    if (noteImageUploading || noteImageUploadingRef.current) {
+      setError(
+        locale === "zh"
+          ? "备注图片仍在上传，请稍后再保存。"
+          : "Remark images are still uploading. Please wait before saving."
+      );
+      return;
+    }
+
     if (newRefFile) {
       const savedRef = await saveRef();
       if (!savedRef) {
