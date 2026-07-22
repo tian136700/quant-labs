@@ -1,10 +1,20 @@
 /** 常见教学用 40 个韩语字母（자모）：基本辅音 + 双辅音 + 基本元音 + 复合元音 */
 
+/** 分类筛选项（与种子 category 字段一致） */
+export const KO_PRON_CATEGORIES = [
+  "辅音",
+  "双辅音",
+  "元音",
+  "复合元音",
+] as const;
+
+export type KoPronCategory = (typeof KO_PRON_CATEGORIES)[number];
+
 export type KoPronSeedLetter = {
   letter: string;
   reading: string;
   meaning: string;
-  category: string;
+  category: KoPronCategory;
 };
 
 export const KO_PRON_SEED_LETTERS: KoPronSeedLetter[] = [

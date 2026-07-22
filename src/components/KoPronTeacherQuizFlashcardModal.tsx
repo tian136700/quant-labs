@@ -7,6 +7,7 @@ import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
 } from "@/lib/jp-vocab-save-progress";
+import { koPronFinalQuizScoreOrNull } from "@/lib/ko-pron-daily-order";
 import { koPronTeacherQuizModeLabel } from "@/lib/ko-pron-teacher-quiz";
 import type { KoPronTeacherQuizMode } from "@/lib/ko-pron-teacher-quiz";
 import type { KoPronLetter, KoPronLevel } from "@/lib/types";
@@ -80,6 +81,9 @@ export function KoPronTeacherQuizFlashcardModal({
   if (!open || !mounted || !letter) return null;
 
   const levelDisabled = previewMode || saveBusy;
+  const risk = koPronFinalQuizScoreOrNull(letter);
+  const riskBadgeTier =
+    risk == null ? "never" : risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
 
   return createPortal(
     <div
@@ -167,6 +171,16 @@ export function KoPronTeacherQuizFlashcardModal({
         ) : null}
 
         <div className="jp-vocab-flashcard-stats">
+          <span
+            className={`ko-pron-flashcard-risk ko-pron-flashcard-risk--${riskBadgeTier}`}
+            title={
+              risk == null
+                ? "从未抽查：不按优先级计分，日序默认置顶"
+                : "数值越大越应该被抽查（与日语同一算法）"
+            }
+          >
+            抽查权重 {risk == null ? "—" : risk.toFixed(1)}
+          </span>
           <span>非常熟悉 {letter.cnt_very}</span>
           <span>一般 {letter.cnt_normal}</span>
           <span>不熟悉 {letter.cnt_weak}</span>
@@ -293,11 +307,29 @@ export function KoPronTeacherQuizFlashcardModal({
         }
         .jp-vocab-flashcard-stats {
           display: flex;
+          flex-wrap: wrap;
           justify-content: space-between;
-          gap: 0.5rem;
+          gap: 0.5rem 0.75rem;
           margin-top: 0.9rem;
           font-size: 0.78rem;
           color: #64748b;
+        }
+        .ko-pron-flashcard-risk {
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        .ko-pron-flashcard-risk--low {
+          color: #15803d;
+        }
+        .ko-pron-flashcard-risk--mid {
+          color: #c2410c;
+        }
+        .ko-pron-flashcard-risk--high {
+          color: #b91c1c;
+        }
+        .ko-pron-flashcard-risk--never {
+          color: #94a3b8;
+          font-weight: 500;
         }
         .jp-vocab-flashcard-actions {
           margin-top: 0.35rem;

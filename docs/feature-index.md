@@ -141,6 +141,8 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=**日序前 N**（与日语同一套熟悉程度加权优先级，非 id） |
 | **抽查优先级 / 日序**（`priority + days×0.1`；从未抽查置顶；今日新建沉底；直接复用 `jpVocabFinalQuizScore`） | `ko-pron-daily-order.ts` → `sortKoPronLettersForDailyOrder`；`ensureKoPronDailyDisplayOrder`；可见池 `order_algo=priority_v1`；规则 `.cursor/rules/ko-pron-quiz-priority.mdc` |
 | 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
+| **分类筛选 + 搜索**（辅音 / 双辅音 / 元音 / 复合元音；字母/读音/说明本地即时） | `KoPronPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`） |
+| **列表显示抽查优先级数值 + 复习次数**（与日语同公式；从未抽查显示「—」；次数列 非常/一般/不熟悉） | `KoPronPage` 表列；`koPronFinalQuizScoreOrNull` |
 | 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；空表 `seedIfEmpty` |
 | **开课前 30 分钟启用韩语老师账号**（手动日程 `teacher` 姓名匹配 `ko_lesson_teacher`；与日语同一定时 `teacher-user-pre-class-enable`） | `KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS`；`listKoTeacherIdsWithUpcomingClassStart`；`etr_user_ko_lesson_teacher_link`；人员管理 `?subject=ko` →「创建用户」；规则 `.cursor/rules/ko-pron-teacher-account-lifecycle.mdc` |
 | **抽完最后一个字母后 20 分钟禁用**（记操作人到 `ko_pron_teacher_quiz_day`；与日语同一定时 `teacher-user-quiz-complete-disable`） | `ko-pron-teacher-quiz-day.ts`；`POST /api/ko-pron` 勾选后 `trackKoPronTeacherQuizDayAfterReview`；临近韩语课 30min 窗口跳过禁用 |

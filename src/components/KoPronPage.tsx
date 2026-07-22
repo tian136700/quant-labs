@@ -27,6 +27,12 @@ import {
   type KoPronTeacherVisibleLimit,
 } from "@/lib/ko-pron-teacher-visible";
 import type { KoPronDailyDisplayOrder } from "@/lib/ko-pron-daily-order";
+import { koPronFinalQuizScoreOrNull } from "@/lib/ko-pron-daily-order";
+import {
+  filterKoPronLettersBySearch,
+  KO_PRON_CATEGORIES,
+  type KoPronCategoryFilter,
+} from "@/lib/ko-pron-search";
 import {
   animateJpVocabSaveProgressTo100,
   JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
@@ -82,6 +88,9 @@ export function KoPronPage({ variant }: Props) {
   const [saveBusyId, setSaveBusyId] = useState<number | null>(null);
   const [savePercent, setSavePercent] = useState<number | null>(null);
   const [saveQueued, setSaveQueued] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] =
+    useState<KoPronCategoryFilter>("all");
   const completeShownRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sinceRef = useRef("");
@@ -236,7 +245,7 @@ export function KoPronPage({ variant }: Props) {
     return quizPool.filter((l) => !hasLevel(l.id));
   }, [isTeacherMode, quizPool, hasLevel]);
 
-  const displayLetters = useMemo(() => {
+  const baseDisplayLetters = useMemo(() => {
     if (isAdminMode) {
       if (displayOrder?.ids?.length) {
         const byId = new Map(letters.map((l) => [l.id, l]));
@@ -264,6 +273,19 @@ export function KoPronPage({ variant }: Props) {
     visible.quiz_target,
     hasLevel,
   ]);
+
+  const searchActive = searchQuery.trim().length > 0;
+  const filterActive = searchActive || categoryFilter !== "all";
+
+  const displayLetters = useMemo(
+    () =>
+      filterKoPronLettersBySearch(
+        baseDisplayLetters,
+        searchQuery,
+        categoryFilter
+      ),
+    [baseDisplayLetters, searchQuery, categoryFilter]
+  );
 
   const adminProgress = useMemo(
     () => computeKoPronDailyQuizProgress(letters, visible),
@@ -559,85 +581,199 @@ export function KoPronPage({ variant }: Props) {
       {loading ? <p className="ko-pron-status">加载中…</p> : null}
 
       {!loading && !hideQuizList ? (
-        <div className="ko-pron-table-wrap">
-          <table className="ko-pron-table">
-            <thead>
-              <tr>
-                <th>序号</th>
-                <th>字母</th>
-                <th>读音</th>
-                <th>说明</th>
-                <th>分类</th>
-                <th>熟悉程度</th>
-                {isAdminMode ? <th>操作</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {displayLetters.map((letter) => {
-                const seq = dailySeqById.get(letter.id) ?? "—";
-                const level = effectiveKoPronDisplayLevel(
-                  letter,
-                  sessionLevels[letter.id]
-                );
-                return (
-                  <tr
-                    key={letter.id}
-                    className={
-                      isTeacherMode && canOperate
-                        ? "ko-pron-row--clickable"
-                        : undefined
-                    }
-                    onClick={() => {
-                      if (!isTeacherMode || !canOperate) return;
-                      if (!hasLevel(letter.id)) startQuiz(letter.id);
-                    }}
-                  >
-                    <td>{seq}</td>
-                    <td className="ko-pron-letter-cell">{letter.letter}</td>
-                    <td>{letter.reading}</td>
-                    <td>{letter.meaning}</td>
-                    <td>{letter.category}</td>
-                    <td>
-                      {level === "very"
-                        ? "非常熟悉"
-                        : level === "normal"
-                          ? "一般"
-                          : level === "weak"
-                            ? "不熟悉"
-                            : "—"}
-                      {saveBusyId === letter.id ? (
-                        <JpVocabSaveProgressBar
-                          label={jpVocabSaveProgressLabel("save_level", {
-                            queued: saveQueued,
-                          })}
-                          percent={
-                            savePercent != null
-                              ? savePercent
-                              : jpVocabSaveProgressDisplayPercent(null)
-                          }
-                        />
-                      ) : null}
-                    </td>
-                    {isAdminMode ? (
-                      <td>
-                        <button
-                          type="button"
-                          className="ko-pron-preview-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewLetter(letter);
-                          }}
-                        >
-                          查看抽问卡片
-                        </button>
-                      </td>
-                    ) : null}
+        <>
+          <div className="ko-pron-search" role="search">
+            <label htmlFor="ko-pron-search" className="ko-pron-search__label">
+              搜索
+            </label>
+            <div className="ko-pron-search__row">
+              <select
+                id="ko-pron-category-filter"
+                className="ko-pron-search__category"
+                value={categoryFilter}
+                onChange={(e) =>
+                  setCategoryFilter(e.target.value as KoPronCategoryFilter)
+                }
+                disabled={loading}
+                aria-label="分类筛选"
+              >
+                <option value="all">全部分类</option>
+                {KO_PRON_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+              <input
+                id="ko-pron-search"
+                type="search"
+                className="ko-pron-search__input"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="字母、读音、说明…（本地即时）"
+                disabled={loading}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+            {filterActive ? (
+              <>
+                <button
+                  type="button"
+                  className="ko-pron-search__clear"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCategoryFilter("all");
+                  }}
+                >
+                  清除
+                </button>
+                <span className="ko-pron-search__meta">
+                  匹配 {displayLetters.length} / {baseDisplayLetters.length} 条
+                </span>
+              </>
+            ) : null}
+          </div>
+          {filterActive && !displayLetters.length ? (
+            <p className="ko-pron-search__empty">
+              {searchActive
+                ? `没有匹配「${searchQuery.trim()}」的字母，请换个关键词试试。`
+                : `当前没有「${categoryFilter}」分类的字母。`}
+            </p>
+          ) : (
+            <div className="ko-pron-table-wrap">
+              <table className="ko-pron-table">
+                <thead>
+                  <tr>
+                    <th>序号</th>
+                    <th>字母</th>
+                    <th>读音</th>
+                    <th>说明</th>
+                    <th>分类</th>
+                    <th
+                      title="最终得分 = 抽查优先级 + 距上次抽问天数 × 0.1（与日语抽问同一算法）"
+                    >
+                      <span className="ko-pron-th-stack">
+                        <span>抽查</span>
+                        <span>优先级</span>
+                      </span>
+                    </th>
+                    <th>
+                      <span className="ko-pron-th-stack">
+                        <span>熟悉程度</span>
+                        <span className="ko-pron-th-sub">（今日勾选）</span>
+                      </span>
+                    </th>
+                    <th>
+                      <span className="ko-pron-th-stack">
+                        <span>复习次数</span>
+                        <span className="ko-pron-th-sub">非常/一般/不熟悉</span>
+                      </span>
+                    </th>
+                    {isAdminMode ? <th>操作</th> : null}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {displayLetters.map((letter) => {
+                    const seq = dailySeqById.get(letter.id) ?? "—";
+                    const level = effectiveKoPronDisplayLevel(
+                      letter,
+                      sessionLevels[letter.id]
+                    );
+                    const risk = koPronFinalQuizScoreOrNull(letter);
+                    const riskBadgeTier =
+                      risk == null
+                        ? "never"
+                        : risk >= 2
+                          ? "high"
+                          : risk <= 0
+                            ? "low"
+                            : "mid";
+                    return (
+                      <tr
+                        key={letter.id}
+                        className={
+                          isTeacherMode && canOperate
+                            ? "ko-pron-row--clickable"
+                            : undefined
+                        }
+                        onClick={() => {
+                          if (!isTeacherMode || !canOperate) return;
+                          if (!hasLevel(letter.id)) startQuiz(letter.id);
+                        }}
+                      >
+                        <td>{seq}</td>
+                        <td className="ko-pron-letter-cell">{letter.letter}</td>
+                        <td>{letter.reading}</td>
+                        <td>{letter.meaning}</td>
+                        <td>{letter.category}</td>
+                        <td data-label="抽查优先级">
+                          {risk == null ? (
+                            <span
+                              className="ko-pron-risk-badge ko-pron-risk-badge--never"
+                              title="从未抽查：不按优先级计分，日序默认置顶"
+                            >
+                              —
+                            </span>
+                          ) : (
+                            <span
+                              className={`ko-pron-risk-badge ko-pron-risk-badge--${riskBadgeTier}`}
+                              title="数值越大越应该被抽查"
+                            >
+                              {risk.toFixed(1)}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {level === "very"
+                            ? "非常熟悉"
+                            : level === "normal"
+                              ? "一般"
+                              : level === "weak"
+                                ? "不熟悉"
+                                : "—"}
+                          {saveBusyId === letter.id ? (
+                            <JpVocabSaveProgressBar
+                              label={jpVocabSaveProgressLabel("save_level", {
+                                queued: saveQueued,
+                              })}
+                              percent={
+                                savePercent != null
+                                  ? savePercent
+                                  : jpVocabSaveProgressDisplayPercent(null)
+                              }
+                            />
+                          ) : null}
+                        </td>
+                        <td className="ko-pron-stats-cell">
+                          <span title="非常熟悉">{letter.cnt_very}</span>
+                          <span aria-hidden="true">/</span>
+                          <span title="一般">{letter.cnt_normal}</span>
+                          <span aria-hidden="true">/</span>
+                          <span title="不熟悉">{letter.cnt_weak}</span>
+                        </td>
+                        {isAdminMode ? (
+                          <td>
+                            <button
+                              type="button"
+                              className="ko-pron-preview-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewLetter(letter);
+                              }}
+                            >
+                              查看抽问卡片
+                            </button>
+                          </td>
+                        ) : null}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       ) : null}
 
       <KoPronTeacherQuizFlashcardModal
@@ -731,9 +867,76 @@ export function KoPronPage({ variant }: Props) {
         .ko-pron-status {
           color: #64748b;
         }
+        .ko-pron-search {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem 0.65rem;
+          margin: 0.85rem 0 0.65rem;
+        }
+        .ko-pron-search__label {
+          font-size: 0.875rem;
+          color: #64748b;
+          flex-shrink: 0;
+        }
+        .ko-pron-search__row {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          flex: 1 1 auto;
+          min-width: 0;
+          max-width: 28rem;
+        }
+        .ko-pron-search__category {
+          flex: 0 0 auto;
+          min-width: 6.5rem;
+          padding: 0.45rem 0.55rem;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          background: #fff;
+          color: #0f172a;
+          font: inherit;
+          font-size: 0.8125rem;
+          cursor: pointer;
+        }
+        .ko-pron-search__category:focus,
+        .ko-pron-search__input:focus {
+          outline: none;
+          border-color: #f97316;
+          box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.22);
+        }
+        .ko-pron-search__input {
+          flex: 1 1 auto;
+          min-width: 0;
+          padding: 0.45rem 0.65rem;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          background: #fff;
+          color: #0f172a;
+          font: inherit;
+          font-size: 0.875rem;
+        }
+        .ko-pron-search__clear {
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          background: #f8fafc;
+          color: #334155;
+          font-size: 0.8125rem;
+          padding: 0.35rem 0.65rem;
+          cursor: pointer;
+        }
+        .ko-pron-search__meta {
+          font-size: 0.8125rem;
+          color: #64748b;
+        }
+        .ko-pron-search__empty {
+          margin: 0.5rem 0 0;
+          color: #64748b;
+          font-size: 0.9rem;
+        }
         .ko-pron-table-wrap {
           overflow-x: auto;
-          margin-top: 0.85rem;
+          margin-top: 0.35rem;
           border: 1px solid #e2e8f0;
           border-radius: 0.75rem;
         }
@@ -754,9 +957,59 @@ export function KoPronPage({ variant }: Props) {
           font-weight: 600;
           color: #334155;
         }
+        .ko-pron-th-stack {
+          display: inline-flex;
+          flex-direction: column;
+          line-height: 1.15;
+          gap: 0.1rem;
+        }
+        .ko-pron-th-sub {
+          font-size: 0.7rem;
+          font-weight: 500;
+          color: #94a3b8;
+        }
         .ko-pron-letter-cell {
           font-size: 1.35rem;
           font-weight: 700;
+        }
+        .ko-pron-stats-cell {
+          font-variant-numeric: tabular-nums;
+          color: #475569;
+          white-space: nowrap;
+        }
+        .ko-pron-stats-cell span[aria-hidden="true"] {
+          margin: 0 0.15rem;
+          color: #cbd5e1;
+        }
+        .ko-pron-risk-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 0.125rem 0.4375rem;
+          border-radius: 999px;
+          font-size: 0.8125rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+        }
+        .ko-pron-risk-badge--low {
+          color: #15803d;
+          border-color: #bbf7d0;
+          background: #f0fdf4;
+        }
+        .ko-pron-risk-badge--mid {
+          color: #c2410c;
+          border-color: #fed7aa;
+          background: #fff7ed;
+        }
+        .ko-pron-risk-badge--high {
+          color: #b91c1c;
+          border-color: #fecaca;
+          background: #fef2f2;
+        }
+        .ko-pron-risk-badge--never {
+          color: #94a3b8;
+          font-weight: 500;
         }
         .ko-pron-row--clickable {
           cursor: pointer;
