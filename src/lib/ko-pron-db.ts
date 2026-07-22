@@ -46,6 +46,36 @@ let settingSchemaReady = false;
 let reviewDoneSchemaReady = false;
 let catalogReady = false;
 
+function isSqliteDuplicateColumnError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /duplicate column name/i.test(msg);
+}
+
+/**
+ * D1 多 isolate 并发时，PRAGMA 之后两边都可能认为缺列并 ALTER；
+ * 后到的会 SQLITE duplicate column —— 必须吞掉，否则 schemaReady 永远起不来、接口全 500。
+ */
+async function addKoPronCatalogColumnIfMissing(
+  db: D1Database,
+  cols: Set<string>,
+  name: string,
+  sqlType: string
+): Promise<void> {
+  if (cols.has(name)) return;
+  try {
+    await db
+      .prepare(`ALTER TABLE ko_pron_catalog ADD COLUMN ${name} ${sqlType}`)
+      .run();
+    cols.add(name);
+  } catch (err) {
+    if (isSqliteDuplicateColumnError(err)) {
+      cols.add(name);
+      return;
+    }
+    throw err;
+  }
+}
+
 /** catalog 列表/单条查询共用列（含复习池字段 / 熟悉·不熟悉·总次数·今日次数） */
 const KO_PRON_CATALOG_SELECT_COLS = `id, letter, reading, meaning, category,
               selected_at, review_selected_at,
@@ -178,49 +208,37 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
   const info = await db
     .prepare(`PRAGMA table_info(ko_pron_catalog)`)
     .all<{ name: string }>();
-  const cols = new Set((info.results ?? []).map((row) => row.name));
-  if (!cols.has("review_selected_at")) {
-    await db
-      .prepare(
-        `ALTER TABLE ko_pron_catalog ADD COLUMN review_selected_at TEXT`
-      )
-      .run();
-  }
-  if (!cols.has("review_count")) {
-    await db
-      .prepare(
-        `ALTER TABLE ko_pron_catalog ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0`
-      )
-      .run();
-  }
-  if (!cols.has("review_cnt_familiar")) {
-    await db
-      .prepare(
-        `ALTER TABLE ko_pron_catalog ADD COLUMN review_cnt_familiar INTEGER NOT NULL DEFAULT 0`
-      )
-      .run();
-  }
-  if (!cols.has("review_cnt_unfamiliar")) {
-    await db
-      .prepare(
-        `ALTER TABLE ko_pron_catalog ADD COLUMN review_cnt_unfamiliar INTEGER NOT NULL DEFAULT 0`
-      )
-      .run();
-  }
-  if (!cols.has("today_review_count")) {
-    await db
-      .prepare(
-        `ALTER TABLE ko_pron_catalog ADD COLUMN today_review_count INTEGER NOT NULL DEFAULT 0`
-      )
-      .run();
-  }
-  if (!cols.has("today_review_date")) {
-    await db
-      .prepare(
-        `ALTER TABLE ko_pron_catalog ADD COLUMN today_review_date TEXT`
-      )
-      .run();
-  }
+  const cols = new Set(
+    (info.results ?? [])
+      .map((row) => (typeof row.name === "string" ? row.name : ""))
+      .filter(Boolean)
+  );
+  await addKoPronCatalogColumnIfMissing(db, cols, "review_selected_at", "TEXT");
+  await addKoPronCatalogColumnIfMissing(
+    db,
+    cols,
+    "review_count",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+  await addKoPronCatalogColumnIfMissing(
+    db,
+    cols,
+    "review_cnt_familiar",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+  await addKoPronCatalogColumnIfMissing(
+    db,
+    cols,
+    "review_cnt_unfamiliar",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+  await addKoPronCatalogColumnIfMissing(
+    db,
+    cols,
+    "today_review_count",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+  await addKoPronCatalogColumnIfMissing(db, cols, "today_review_date", "TEXT");
   catalogSchemaReady = true;
 }
 

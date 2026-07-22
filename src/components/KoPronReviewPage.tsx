@@ -383,7 +383,7 @@ export function KoPronReviewPage() {
       {error ? <p className="ko-pron-review-error">{error}</p> : null}
       {loading ? <p className="ko-pron-review-status">加载中…</p> : null}
 
-      {!loading && !catalog.length ? (
+      {!loading && !error && !catalog.length ? (
         <p className="ko-pron-review-empty">
           复习池为空。请到{" "}
           <Link href={koPronSelectPath()} className="ko-pron-review-link">
