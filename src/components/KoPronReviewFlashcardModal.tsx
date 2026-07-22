@@ -19,7 +19,7 @@ type Props = {
   saveBusy?: boolean;
   savePercent?: number | null;
   saveQueued?: boolean;
-  onNext: () => void;
+  onFamiliarity: (familiarity: "familiar" | "unfamiliar") => void;
   onClose: () => void;
 };
 
@@ -31,7 +31,7 @@ export function KoPronReviewFlashcardModal({
   saveBusy = false,
   savePercent = null,
   saveQueued = false,
-  onNext,
+  onFamiliarity,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -107,12 +107,17 @@ export function KoPronReviewFlashcardModal({
         <div className="ko-pron-review-hero-actions">
           <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
         </div>
+        <p className="ko-pron-review-count-hint">
+          熟悉 {letter.review_cnt_familiar ?? 0} · 不熟悉{" "}
+          {letter.review_cnt_unfamiliar ?? 0} · 总复习 {letter.review_count ?? 0}
+        </p>
 
         {!revealed ? (
           <button
             type="button"
             className="ko-pron-review-reveal"
             onClick={reveal}
+            disabled={saveBusy}
           >
             显示读音
           </button>
@@ -136,31 +141,41 @@ export function KoPronReviewFlashcardModal({
                 <p className="ko-pron-review-category">{letter.category}</p>
               ) : null}
             </div>
+
+            {saveBusy ? (
+              <JpVocabSaveProgressBar
+                label={saveQueued ? "排队同步中…" : "正在保存复习进度…"}
+                percent={
+                  savePercent != null
+                    ? savePercent
+                    : jpVocabSaveProgressDisplayPercent(null)
+                }
+                fullWidth
+              />
+            ) : null}
+
+            <div className="ko-pron-review-actions">
+              <button
+                type="button"
+                className="ko-pron-review-level ko-pron-review-level--familiar"
+                onClick={() => onFamiliarity("familiar")}
+                disabled={saveBusy}
+              >
+                熟悉
+                {index + 1 >= total ? " · 完成" : ""}
+              </button>
+              <button
+                type="button"
+                className="ko-pron-review-level ko-pron-review-level--unfamiliar"
+                onClick={() => onFamiliarity("unfamiliar")}
+                disabled={saveBusy}
+              >
+                不熟悉
+                {index + 1 >= total ? " · 完成" : ""}
+              </button>
+            </div>
           </>
         )}
-
-        {saveBusy ? (
-          <JpVocabSaveProgressBar
-            label={saveQueued ? "排队同步中…" : "正在保存复习进度…"}
-            percent={
-              savePercent != null
-                ? savePercent
-                : jpVocabSaveProgressDisplayPercent(null)
-            }
-            fullWidth
-          />
-        ) : null}
-
-        <div className="ko-pron-review-actions">
-          <button
-            type="button"
-            className="ko-pron-review-next"
-            onClick={onNext}
-            disabled={saveBusy}
-          >
-            {index + 1 >= total ? "完成" : "下一个"}
-          </button>
-        </div>
       </div>
 
       <style jsx global>{`
@@ -219,15 +234,20 @@ export function KoPronReviewFlashcardModal({
           align-items: center;
           flex-wrap: wrap;
           gap: 0.35rem;
+          margin: 0 0 0.35rem;
+        }
+        .ko-pron-review-count-hint {
           margin: 0 0 0.85rem;
+          text-align: center;
+          font-size: 0.8rem;
+          color: var(--muted);
         }
         .ko-pron-review-speak {
           display: flex;
           justify-content: center;
           margin: 0 0 0.85rem;
         }
-        .ko-pron-review-reveal,
-        .ko-pron-review-next {
+        .ko-pron-review-reveal {
           display: block;
           width: 100%;
           margin-top: 0.75rem;
@@ -240,7 +260,7 @@ export function KoPronReviewFlashcardModal({
           cursor: pointer;
         }
         .ko-pron-review-reveal:disabled,
-        .ko-pron-review-next:disabled {
+        .ko-pron-review-level:disabled {
           opacity: 0.6;
           cursor: not-allowed;
         }
@@ -259,7 +279,24 @@ export function KoPronReviewFlashcardModal({
           font-size: 0.95rem;
         }
         .ko-pron-review-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0.65rem;
           margin-top: 1rem;
+        }
+        .ko-pron-review-level {
+          border: none;
+          border-radius: 0.65rem;
+          padding: 0.7rem 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          color: #fff;
+        }
+        .ko-pron-review-level--familiar {
+          background: #16a34a;
+        }
+        .ko-pron-review-level--unfamiliar {
+          background: #ea580c;
         }
       `}</style>
     </div>,

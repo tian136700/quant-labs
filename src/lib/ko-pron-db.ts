@@ -46,9 +46,10 @@ let settingSchemaReady = false;
 let reviewDoneSchemaReady = false;
 let catalogReady = false;
 
-/** catalog 列表/单条查询共用列（含复习池字段） */
+/** catalog 列表/单条查询共用列（含复习池字段 / 熟悉·不熟悉·总次数） */
 const KO_PRON_CATALOG_SELECT_COLS = `id, letter, reading, meaning, category,
               selected_at, review_selected_at,
+              review_cnt_familiar, review_cnt_unfamiliar, review_count,
               created_at, updated_at`;
 
 function nowIso(): string {
@@ -92,6 +93,15 @@ function rowToCatalog(row: Record<string, unknown>): KoPronCatalogLetter {
       String(row.review_selected_at).trim() === ""
         ? null
         : String(row.review_selected_at),
+    review_cnt_familiar: Math.max(
+      0,
+      Math.floor(Number(row.review_cnt_familiar ?? 0)) || 0
+    ),
+    review_cnt_unfamiliar: Math.max(
+      0,
+      Math.floor(Number(row.review_cnt_unfamiliar ?? 0)) || 0
+    ),
+    review_count: Math.max(0, Math.floor(Number(row.review_count ?? 0)) || 0),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };
@@ -140,6 +150,9 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
          category TEXT,
          selected_at TEXT,
          review_selected_at TEXT,
+         review_cnt_familiar INTEGER NOT NULL DEFAULT 0,
+         review_cnt_unfamiliar INTEGER NOT NULL DEFAULT 0,
+         review_count INTEGER NOT NULL DEFAULT 0,
          created_at TEXT NOT NULL,
          updated_at TEXT NOT NULL
        )`
@@ -159,6 +172,27 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
     await db
       .prepare(
         `ALTER TABLE ko_pron_catalog ADD COLUMN review_selected_at TEXT`
+      )
+      .run();
+  }
+  if (!cols.has("review_count")) {
+    await db
+      .prepare(
+        `ALTER TABLE ko_pron_catalog ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+  if (!cols.has("review_cnt_familiar")) {
+    await db
+      .prepare(
+        `ALTER TABLE ko_pron_catalog ADD COLUMN review_cnt_familiar INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+  if (!cols.has("review_cnt_unfamiliar")) {
+    await db
+      .prepare(
+        `ALTER TABLE ko_pron_catalog ADD COLUMN review_cnt_unfamiliar INTEGER NOT NULL DEFAULT 0`
       )
       .run();
   }
@@ -740,29 +774,96 @@ export async function getKoPronReviewProgress(
   return normalizeKoPronReviewProgress({ reviewed_catalog_ids });
 }
 
-/** 复习卡片点「下一个」：记录当前字母已完成复习（去重；不按日清零） */
+export type KoPronReviewFamiliarity = "familiar" | "unfamiliar";
+
+export function isKoPronReviewFamiliarity(
+  value: unknown
+): value is KoPronReviewFamiliarity {
+  return value === "familiar" || value === "unfamiliar";
+}
+
+/** 复习卡点「熟悉/不熟悉」：本轮标记已复习 + 对应次数与总次数 +1（清除本轮不清总次数） */
 export async function recordKoPronReviewDone(
   db: D1Database,
-  catalogId: number
-): Promise<KoPronReviewProgress> {
+  catalogId: number,
+  familiarity: KoPronReviewFamiliarity
+): Promise<
+  KoPronReviewProgress & {
+    catalog_id: number;
+    review_cnt_familiar: number;
+    review_cnt_unfamiliar: number;
+    review_count: number;
+  }
+> {
+  const empty = async () => {
+    const progress = await getKoPronReviewProgress(db);
+    return {
+      ...progress,
+      catalog_id: 0,
+      review_cnt_familiar: 0,
+      review_cnt_unfamiliar: 0,
+      review_count: 0,
+    };
+  };
   const id = Math.floor(Number(catalogId));
   if (!Number.isFinite(id) || id <= 0) {
-    return getKoPronReviewProgress(db);
+    return empty();
   }
-  const current = await getKoPronReviewProgress(db);
-  if (current.reviewed_catalog_ids.includes(id)) {
-    return current;
-  }
+  await ensureKoPronCatalogReady(db);
   await ensureReviewDoneSchema(db);
-  await db
-    .prepare(
-      `INSERT INTO ko_pron_review_done (catalog_id, reviewed_at)
-       VALUES (?1, ?2)
-       ON CONFLICT(catalog_id) DO NOTHING`
-    )
-    .bind(id, nowIso())
-    .run();
-  return getKoPronReviewProgress(db);
+  const ts = nowIso();
+  const bumpFamiliar = familiarity === "familiar";
+  await db.batch([
+    db
+      .prepare(
+        bumpFamiliar
+          ? `UPDATE ko_pron_catalog
+             SET review_cnt_familiar = COALESCE(review_cnt_familiar, 0) + 1,
+                 review_count = COALESCE(review_count, 0) + 1,
+                 updated_at = ?1
+             WHERE id = ?2`
+          : `UPDATE ko_pron_catalog
+             SET review_cnt_unfamiliar = COALESCE(review_cnt_unfamiliar, 0) + 1,
+                 review_count = COALESCE(review_count, 0) + 1,
+                 updated_at = ?1
+             WHERE id = ?2`
+      )
+      .bind(ts, id),
+    db
+      .prepare(
+        `INSERT INTO ko_pron_review_done (catalog_id, reviewed_at)
+         VALUES (?1, ?2)
+         ON CONFLICT(catalog_id) DO NOTHING`
+      )
+      .bind(id, ts),
+  ]);
+  const [progress, row] = await Promise.all([
+    getKoPronReviewProgress(db),
+    db
+      .prepare(
+        `SELECT review_cnt_familiar, review_cnt_unfamiliar, review_count
+         FROM ko_pron_catalog WHERE id = ?1`
+      )
+      .bind(id)
+      .first<{
+        review_cnt_familiar: number;
+        review_cnt_unfamiliar: number;
+        review_count: number;
+      }>(),
+  ]);
+  return {
+    ...progress,
+    catalog_id: id,
+    review_cnt_familiar: Math.max(
+      0,
+      Math.floor(Number(row?.review_cnt_familiar ?? 0)) || 0
+    ),
+    review_cnt_unfamiliar: Math.max(
+      0,
+      Math.floor(Number(row?.review_cnt_unfamiliar ?? 0)) || 0
+    ),
+    review_count: Math.max(0, Math.floor(Number(row?.review_count ?? 0)) || 0),
+  };
 }
 
 /** 用户手动清除全部复习进度 */

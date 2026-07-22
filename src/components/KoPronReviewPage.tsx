@@ -17,7 +17,9 @@ import {
 } from "@/lib/jp-vocab-save-progress";
 import {
   buildKoPronReviewSession,
-  koPronReviewHasUnreviewed,
+  clearKoPronReviewInterruptedSession,
+  persistKoPronReviewSessionBreakpoint,
+  readKoPronReviewInterruptedSession,
   type KoPronReviewSession,
 } from "@/lib/ko-pron-review-session";
 import { koPronSelectPath } from "@/lib/locale-path";
@@ -30,6 +32,9 @@ export function KoPronReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [session, setSession] = useState<KoPronReviewSession | null>(null);
+  const [interrupted, setInterrupted] = useState<KoPronReviewSession | null>(
+    null
+  );
   const [saveBusy, setSaveBusy] = useState(false);
   const [savePercent, setSavePercent] = useState<number | null>(null);
   const [saveQueued, setSaveQueued] = useState(false);
@@ -72,22 +77,51 @@ export function KoPronReviewPage() {
     return catalog.find((c) => c.id === id) ?? null;
   }, [session, catalog]);
 
-  const startReview = (mode: "fresh" | "resume") => {
+  // 池加载后刷新「可继续」断点（误关在第 N 张）
+  useEffect(() => {
+    if (loading || !orderedIds.length) {
+      setInterrupted(null);
+      return;
+    }
+    setInterrupted(readKoPronReviewInterruptedSession(orderedIds));
+  }, [loading, orderedIds, reviewedIds]);
+
+  const restartReview = () => {
     if (!orderedIds.length) return;
-    const next = buildKoPronReviewSession(orderedIds, reviewedIds, mode);
+    clearKoPronReviewInterruptedSession();
+    setInterrupted(null);
+    const next = buildKoPronReviewSession(orderedIds, reviewedIds, "fresh");
     if (!next) {
-      if (mode === "resume") {
-        setError("本轮字母均已复习。可清除进度后重来，或关闭后重新开始。");
-      }
+      setError("复习池为空。");
       return;
     }
     setError("");
     setSession(next);
+    persistKoPronReviewSessionBreakpoint(next);
   };
 
-  const closeSession = () => setSession(null);
+  const continueReview = () => {
+    const saved =
+      interrupted ?? readKoPronReviewInterruptedSession(orderedIds);
+    if (!saved) {
+      setError("没有可继续的进度。可点「重新开始复习」。");
+      setInterrupted(null);
+      return;
+    }
+    setError("");
+    setSession(saved);
+    persistKoPronReviewSessionBreakpoint(saved);
+  };
 
-  const goNext = async () => {
+  const closeSession = () => {
+    if (session) {
+      persistKoPronReviewSessionBreakpoint(session);
+      setInterrupted(session);
+    }
+    setSession(null);
+  };
+
+  const goNext = async (familiarity: "familiar" | "unfamiliar") => {
     if (!session || !currentLetter || saveBusy) return;
     const catalogId = currentLetter.id;
     const startedAt = Date.now();
@@ -103,24 +137,54 @@ export function KoPronReviewPage() {
       const res = await fetch("/api/ko-pron/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "review_next", catalog_id: catalogId }),
+        body: JSON.stringify({
+          action: "review_next",
+          catalog_id: catalogId,
+          familiarity,
+        }),
       });
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
         reviewed_catalog_ids?: number[];
+        catalog_id?: number;
+        review_cnt_familiar?: number;
+        review_cnt_unfamiliar?: number;
+        review_count?: number;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "保存复习进度失败");
       }
       setReviewedIds(new Set(data.reviewed_catalog_ids ?? []));
+      if (data.catalog_id != null && data.catalog_id > 0) {
+        const updatedId = data.catalog_id;
+        setCatalog((prev) =>
+          prev.map((row) =>
+            row.id === updatedId
+              ? {
+                  ...row,
+                  review_cnt_familiar:
+                    data.review_cnt_familiar ?? row.review_cnt_familiar,
+                  review_cnt_unfamiliar:
+                    data.review_cnt_unfamiliar ?? row.review_cnt_unfamiliar,
+                  review_count: data.review_count ?? row.review_count,
+                }
+              : row
+          )
+        );
+      }
       await animateJpVocabSaveProgressTo100(startedAt, setSavePercent);
 
       const nextIndex = session.currentIndex + 1;
       if (nextIndex >= session.catalogIds.length) {
+        clearKoPronReviewInterruptedSession();
+        setInterrupted(null);
         setSession(null);
       } else {
-        setSession({ ...session, currentIndex: nextIndex });
+        const nextSession = { ...session, currentIndex: nextIndex };
+        persistKoPronReviewSessionBreakpoint(nextSession);
+        setInterrupted(nextSession);
+        setSession(nextSession);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -133,7 +197,7 @@ export function KoPronReviewPage() {
   };
 
   const clearProgress = async () => {
-    if (!window.confirm("确定清除全部复习进度吗？字母仍留在复习池。")) return;
+    if (!window.confirm("确定清除本轮复习进度吗？总复习次数会保留，字母仍留在复习池。")) return;
     setError("");
     try {
       const res = await fetch("/api/ko-pron/review", {
@@ -150,6 +214,8 @@ export function KoPronReviewPage() {
         throw new Error(data.error || "清除失败");
       }
       setReviewedIds(new Set(data.reviewed_catalog_ids ?? []));
+      clearKoPronReviewInterruptedSession();
+      setInterrupted(null);
       setSession(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -176,8 +242,7 @@ export function KoPronReviewPage() {
     return <p className="ko-pron-review-status">无权限访问韩语发音复习。</p>;
   }
 
-  const canResume =
-    koPronReviewHasUnreviewed(orderedIds, reviewedIds) && reviewedInPool > 0;
+  const canContinue = Boolean(interrupted && !session);
 
   return (
     <div className="ko-pron-review-page">
@@ -192,7 +257,7 @@ export function KoPronReviewPage() {
       </div>
 
       <p className="ko-pron-review-hint">
-        先只看字母猜读音，点「显示读音」后听发音并看罗马音。每次开始/继续均为乱序，避免按表序背位置。字母来自「韩语发音勾选」的「批量加入复习」。
+        先只看字母猜读音，点「显示读音」后再选「熟悉」或「不熟悉」。误关卡片后可用「继续复习」从断点接着（如第 4 张）；「重新开始复习」会重洗未完成队列。清除本轮进度不清总次数。
       </p>
 
       {error ? <p className="ko-pron-review-error">{error}</p> : null}
@@ -214,19 +279,22 @@ export function KoPronReviewPage() {
             <button
               type="button"
               className="ko-pron-review-start"
-              onClick={() => startReview("fresh")}
+              onClick={restartReview}
               disabled={Boolean(session)}
             >
-              开始复习
+              重新开始复习
             </button>
-            {canResume ? (
+            {canContinue ? (
               <button
                 type="button"
                 className="ko-pron-review-start ko-pron-review-start--secondary"
-                onClick={() => startReview("resume")}
+                onClick={continueReview}
                 disabled={Boolean(session)}
               >
                 继续复习
+                {interrupted
+                  ? `（第 ${interrupted.currentIndex + 1}/${interrupted.catalogIds.length} 张）`
+                  : ""}
               </button>
             ) : null}
             {reviewedInPool > 0 ? (
@@ -238,7 +306,7 @@ export function KoPronReviewPage() {
                 }}
                 disabled={Boolean(session) || saveBusy}
               >
-                清除进度
+                清除本轮进度
               </button>
             ) : null}
           </div>
@@ -266,7 +334,10 @@ export function KoPronReviewPage() {
                   <th>字母</th>
                   <th>读音</th>
                   <th>分类</th>
-                  <th>状态</th>
+                  <th>熟悉</th>
+                  <th>不熟悉</th>
+                  <th>总复习</th>
+                  <th>本轮</th>
                   <th>加入时间</th>
                 </tr>
               </thead>
@@ -294,6 +365,9 @@ export function KoPronReviewPage() {
                       {/* 复习进行中隐藏罗马音，防止半透明/漏层剧透 */}
                       <td>{session ? "···" : item.reading}</td>
                       <td>{item.category}</td>
+                      <td>{item.review_cnt_familiar ?? 0}</td>
+                      <td>{item.review_cnt_unfamiliar ?? 0}</td>
+                      <td>{item.review_count ?? 0}</td>
                       <td>{done ? "已复习" : "未复习"}</td>
                       <td>
                         {item.review_selected_at
@@ -317,8 +391,8 @@ export function KoPronReviewPage() {
         saveBusy={saveBusy}
         savePercent={savePercent}
         saveQueued={saveQueued}
-        onNext={() => {
-          void goNext();
+        onFamiliarity={(familiarity) => {
+          void goNext(familiarity);
         }}
         onClose={closeSession}
       />

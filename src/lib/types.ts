@@ -399,6 +399,12 @@ export interface KoPronCatalogLetter {
   selected_at: string | null;
   /** 已勾选进复习池的时间；NULL=未入复习；与抽问池独立 */
   review_selected_at: string | null;
+  /** 发音复习：熟悉次数（终身；清除本轮进度不清） */
+  review_cnt_familiar: number;
+  /** 发音复习：不熟悉次数（终身） */
+  review_cnt_unfamiliar: number;
+  /** 发音复习总次数 = 熟悉 + 不熟悉（点熟悉/不熟悉时 +1；清除本轮进度不清零） */
+  review_count: number;
   created_at: string;
   updated_at: string;
 }

@@ -735,6 +735,9 @@ CREATE TABLE IF NOT EXISTS ko_pron_catalog (
   category TEXT,
   selected_at TEXT,
   review_selected_at TEXT,
+  review_cnt_familiar INTEGER NOT NULL DEFAULT 0,
+  review_cnt_unfamiliar INTEGER NOT NULL DEFAULT 0,
+  review_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
