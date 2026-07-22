@@ -605,7 +605,7 @@ export function KoPronReviewPage() {
         .ko-pron-review-table td {
           padding: 0.55rem 0.65rem;
           border-bottom: 1px solid var(--border);
-          text-align: left;
+          text-align: center;
           vertical-align: middle;
         }
         .ko-pron-review-table th {
@@ -622,7 +622,8 @@ export function KoPronReviewPage() {
           font-weight: 600;
           padding: 0;
           cursor: pointer;
-          text-align: left;
+          text-align: center;
+          width: 100%;
         }
         .ko-pron-review-sort-th:hover {
           color: var(--accent);
@@ -635,6 +636,9 @@ export function KoPronReviewPage() {
           white-space: nowrap;
           font-weight: 700;
           font-size: 1.25rem;
+        }
+        .ko-pron-review-letter-cell :global(*) {
+          vertical-align: middle;
         }
       `}</style>
     </div>
