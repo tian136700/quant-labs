@@ -46,10 +46,11 @@ let settingSchemaReady = false;
 let reviewDoneSchemaReady = false;
 let catalogReady = false;
 
-/** catalog 列表/单条查询共用列（含复习池字段 / 熟悉·不熟悉·总次数） */
+/** catalog 列表/单条查询共用列（含复习池字段 / 熟悉·不熟悉·总次数·今日次数） */
 const KO_PRON_CATALOG_SELECT_COLS = `id, letter, reading, meaning, category,
               selected_at, review_selected_at,
               review_cnt_familiar, review_cnt_unfamiliar, review_count,
+              today_review_count, today_review_date,
               created_at, updated_at`;
 
 function nowIso(): string {
@@ -102,6 +103,14 @@ function rowToCatalog(row: Record<string, unknown>): KoPronCatalogLetter {
       Math.floor(Number(row.review_cnt_unfamiliar ?? 0)) || 0
     ),
     review_count: Math.max(0, Math.floor(Number(row.review_count ?? 0)) || 0),
+    today_review_count: Math.max(
+      0,
+      Math.floor(Number(row.today_review_count ?? 0)) || 0
+    ),
+    today_review_date:
+      row.today_review_date == null || String(row.today_review_date).trim() === ""
+        ? null
+        : String(row.today_review_date),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };
@@ -153,6 +162,8 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
          review_cnt_familiar INTEGER NOT NULL DEFAULT 0,
          review_cnt_unfamiliar INTEGER NOT NULL DEFAULT 0,
          review_count INTEGER NOT NULL DEFAULT 0,
+         today_review_count INTEGER NOT NULL DEFAULT 0,
+         today_review_date TEXT,
          created_at TEXT NOT NULL,
          updated_at TEXT NOT NULL
        )`
@@ -193,6 +204,20 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
     await db
       .prepare(
         `ALTER TABLE ko_pron_catalog ADD COLUMN review_cnt_unfamiliar INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+  if (!cols.has("today_review_count")) {
+    await db
+      .prepare(
+        `ALTER TABLE ko_pron_catalog ADD COLUMN today_review_count INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+  if (!cols.has("today_review_date")) {
+    await db
+      .prepare(
+        `ALTER TABLE ko_pron_catalog ADD COLUMN today_review_date TEXT`
       )
       .run();
   }
@@ -782,7 +807,7 @@ export function isKoPronReviewFamiliarity(
   return value === "familiar" || value === "unfamiliar";
 }
 
-/** 复习卡点「熟悉/不熟悉」：本轮标记已复习 + 对应次数与总次数 +1（清除本轮不清总次数） */
+/** 复习卡点「熟悉/不熟悉」：本轮标记已复习 + 对应次数与总次数 +1 + 今日次数（清除本轮不清总次数） */
 export async function recordKoPronReviewDone(
   db: D1Database,
   catalogId: number,
@@ -793,6 +818,8 @@ export async function recordKoPronReviewDone(
     review_cnt_familiar: number;
     review_cnt_unfamiliar: number;
     review_count: number;
+    today_review_count: number;
+    today_review_date: string | null;
   }
 > {
   const empty = async () => {
@@ -803,6 +830,8 @@ export async function recordKoPronReviewDone(
       review_cnt_familiar: 0,
       review_cnt_unfamiliar: 0,
       review_count: 0,
+      today_review_count: 0,
+      today_review_date: null as string | null,
     };
   };
   const id = Math.floor(Number(catalogId));
@@ -812,6 +841,22 @@ export async function recordKoPronReviewDone(
   await ensureKoPronCatalogReady(db);
   await ensureReviewDoneSchema(db);
   const ts = nowIso();
+  const today = beijingDateString();
+  const prev = await db
+    .prepare(
+      `SELECT today_review_count, today_review_date
+       FROM ko_pron_catalog WHERE id = ?1`
+    )
+    .bind(id)
+    .first<{ today_review_count: number; today_review_date: string | null }>();
+  const prevDate =
+    prev?.today_review_date == null || String(prev.today_review_date).trim() === ""
+      ? null
+      : String(prev.today_review_date);
+  const nextTodayCount =
+    prevDate === today
+      ? Math.max(0, Math.floor(Number(prev?.today_review_count ?? 0)) || 0) + 1
+      : 1;
   const bumpFamiliar = familiarity === "familiar";
   await db.batch([
     db
@@ -820,15 +865,19 @@ export async function recordKoPronReviewDone(
           ? `UPDATE ko_pron_catalog
              SET review_cnt_familiar = COALESCE(review_cnt_familiar, 0) + 1,
                  review_count = COALESCE(review_count, 0) + 1,
-                 updated_at = ?1
-             WHERE id = ?2`
+                 today_review_count = ?1,
+                 today_review_date = ?2,
+                 updated_at = ?3
+             WHERE id = ?4`
           : `UPDATE ko_pron_catalog
              SET review_cnt_unfamiliar = COALESCE(review_cnt_unfamiliar, 0) + 1,
                  review_count = COALESCE(review_count, 0) + 1,
-                 updated_at = ?1
-             WHERE id = ?2`
+                 today_review_count = ?1,
+                 today_review_date = ?2,
+                 updated_at = ?3
+             WHERE id = ?4`
       )
-      .bind(ts, id),
+      .bind(nextTodayCount, today, ts, id),
     db
       .prepare(
         `INSERT INTO ko_pron_review_done (catalog_id, reviewed_at)
@@ -841,7 +890,8 @@ export async function recordKoPronReviewDone(
     getKoPronReviewProgress(db),
     db
       .prepare(
-        `SELECT review_cnt_familiar, review_cnt_unfamiliar, review_count
+        `SELECT review_cnt_familiar, review_cnt_unfamiliar, review_count,
+                today_review_count, today_review_date
          FROM ko_pron_catalog WHERE id = ?1`
       )
       .bind(id)
@@ -849,6 +899,8 @@ export async function recordKoPronReviewDone(
         review_cnt_familiar: number;
         review_cnt_unfamiliar: number;
         review_count: number;
+        today_review_count: number;
+        today_review_date: string | null;
       }>(),
   ]);
   return {
@@ -863,6 +915,15 @@ export async function recordKoPronReviewDone(
       Math.floor(Number(row?.review_cnt_unfamiliar ?? 0)) || 0
     ),
     review_count: Math.max(0, Math.floor(Number(row?.review_count ?? 0)) || 0),
+    today_review_count: Math.max(
+      0,
+      Math.floor(Number(row?.today_review_count ?? 0)) || 0
+    ),
+    today_review_date:
+      row?.today_review_date == null ||
+      String(row.today_review_date).trim() === ""
+        ? null
+        : String(row.today_review_date),
   };
 }
 

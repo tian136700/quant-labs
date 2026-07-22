@@ -18,6 +18,7 @@ import {
 import {
   buildKoPronReviewSession,
   clearKoPronReviewInterruptedSession,
+  koPronCatalogTodayReviewCount,
   persistKoPronReviewSessionBreakpoint,
   readKoPronReviewInterruptedSession,
   type KoPronReviewSession,
@@ -151,6 +152,8 @@ export function KoPronReviewPage() {
         review_cnt_familiar?: number;
         review_cnt_unfamiliar?: number;
         review_count?: number;
+        today_review_count?: number;
+        today_review_date?: string | null;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "保存复习进度失败");
@@ -168,6 +171,10 @@ export function KoPronReviewPage() {
                   review_cnt_unfamiliar:
                     data.review_cnt_unfamiliar ?? row.review_cnt_unfamiliar,
                   review_count: data.review_count ?? row.review_count,
+                  today_review_count:
+                    data.today_review_count ?? row.today_review_count,
+                  today_review_date:
+                    data.today_review_date ?? row.today_review_date,
                 }
               : row
           )
@@ -251,7 +258,7 @@ export function KoPronReviewPage() {
         <div className="ko-pron-review-stats">
           <span>复习池 {catalog.length} 条</span>
           <span>
-            已复习 {reviewedInPool} / {catalog.length}
+            本轮已点 {reviewedInPool} / {catalog.length}
           </span>
         </div>
       </div>
@@ -337,7 +344,7 @@ export function KoPronReviewPage() {
                   <th>熟悉</th>
                   <th>不熟悉</th>
                   <th>总复习</th>
-                  <th>本轮</th>
+                  <th>今日复习次数</th>
                   <th>加入时间</th>
                 </tr>
               </thead>
@@ -368,7 +375,7 @@ export function KoPronReviewPage() {
                       <td>{item.review_cnt_familiar ?? 0}</td>
                       <td>{item.review_cnt_unfamiliar ?? 0}</td>
                       <td>{item.review_count ?? 0}</td>
-                      <td>{done ? "已复习" : "未复习"}</td>
+                      <td>{koPronCatalogTodayReviewCount(item)}</td>
                       <td>
                         {item.review_selected_at
                           ? formatBeijingDateTime(item.review_selected_at)

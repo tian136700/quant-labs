@@ -405,6 +405,10 @@ export interface KoPronCatalogLetter {
   review_cnt_unfamiliar: number;
   /** 发音复习总次数 = 熟悉 + 不熟悉（点熟悉/不熟悉时 +1；清除本轮进度不清零） */
   review_count: number;
+  /** 今日发音复习次数（北京日；跨日归零显示） */
+  today_review_count: number;
+  /** 今日复习次数对应的北京日期 YYYY-MM-DD */
+  today_review_date: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,5 +1,7 @@
 /** 韩语发音复习会话（进度持久至手动清除，不按日归零；出题乱序） */
 
+import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+
 export type KoPronReviewSession = {
   catalogIds: number[];
   currentIndex: number;
@@ -128,4 +130,17 @@ export function persistKoPronReviewSessionBreakpoint(
     return;
   }
   writeKoPronReviewInterruptedSession(session);
+}
+
+/** 列表展示：今日复习次数（非当日归零） */
+export function koPronCatalogTodayReviewCount(
+  item: {
+    today_review_count?: number | null;
+    today_review_date?: string | null;
+  },
+  now = new Date()
+): number {
+  const day = beijingDateString(now);
+  if ((item.today_review_date ?? "") !== day) return 0;
+  return Math.max(0, Math.floor(Number(item.today_review_count ?? 0)) || 0);
 }

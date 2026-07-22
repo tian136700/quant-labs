@@ -95,6 +95,8 @@ export async function POST(request: Request) {
         review_cnt_familiar: progress.review_cnt_familiar,
         review_cnt_unfamiliar: progress.review_cnt_unfamiliar,
         review_count: progress.review_count,
+        today_review_count: progress.today_review_count,
+        today_review_date: progress.today_review_date,
       });
     }
 
