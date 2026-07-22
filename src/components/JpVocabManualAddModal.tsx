@@ -9,6 +9,20 @@ import {
   sha256HexBytes,
 } from "@/lib/jp-vocab-ref-shared";
 import { findDuplicateJpVocabExamplePrimaries } from "@/lib/jp-vocab-example-sentences";
+import {
+  appendJpVocabClassNoteImageLine,
+  collectJpVocabClassNoteImageRefKeysFromContent,
+  jpVocabClassNoteImageRefKeyFromSrc,
+  mergeJpVocabClassNoteDraftFromEdit,
+  removeJpVocabClassNoteImageAt,
+  splitJpVocabClassNoteDraftForEdit,
+} from "@/lib/jp-vocab-class-notes";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import {
+  formatUploadBytes,
+  uploadFormWithProgress,
+  type UploadProgressEvent,
+} from "@/lib/upload-form-progress";
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 type Props = {
@@ -46,6 +60,22 @@ function pickClipboardImage(items: DataTransferItemList): File | null {
   return null;
 }
 
+function noteImageUploadLabel(event: UploadProgressEvent): string {
+  if (event.phase === "processing") return "图片已传完，服务器保存中…";
+  if (event.phase === "done") return "图片上传完成";
+  if (event.total > 0) {
+    return `正在上传图片 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
+  }
+  if (event.loaded > 0) return `正在上传图片 ${formatUploadBytes(event.loaded)}…`;
+  return "正在上传图片…";
+}
+
+function noteImageUploadPercent(event: UploadProgressEvent): number {
+  if (event.phase === "processing") return 95;
+  if (event.phase === "done") return 100;
+  return Math.max(0, Math.min(92, event.percent));
+}
+
 export function JpVocabManualAddModal({
   open,
   locale,
@@ -64,7 +94,14 @@ export function JpVocabManualAddModal({
   const [error, setError] = useState("");
   const [dedupeHint, setDedupeHint] = useState("");
   const [imageZoomOpen, setImageZoomOpen] = useState(false);
+  const [noteImageUploading, setNoteImageUploading] = useState(false);
+  const [noteImageUploadProgress, setNoteImageUploadProgress] =
+    useState<UploadProgressEvent | null>(null);
+  const [noteZoomSrc, setNoteZoomSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const noteImageInputRef = useRef<HTMLInputElement>(null);
+  const noteImageUploadingRef = useRef(false);
+  const classNotesValueRef = useRef("");
   const dropRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -72,12 +109,17 @@ export function JpVocabManualAddModal({
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    classNotesValueRef.current = classNotes;
+  }, [classNotes]);
+
   const resetForm = useCallback(() => {
     setKind("word");
     setWord("");
     setReading("");
     setMeaning("");
     setClassNotes("");
+    classNotesValueRef.current = "";
     setExampleSentences("");
     setRefTitle("");
     setImage((prev) => {
@@ -87,6 +129,10 @@ export function JpVocabManualAddModal({
     setError("");
     setDedupeHint("");
     setImageZoomOpen(false);
+    setNoteZoomSrc(null);
+    noteImageUploadingRef.current = false;
+    setNoteImageUploading(false);
+    setNoteImageUploadProgress(null);
   }, []);
 
   useEffect(() => {
@@ -97,6 +143,10 @@ export function JpVocabManualAddModal({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || submitting) return;
+      if (noteZoomSrc) {
+        setNoteZoomSrc(null);
+        return;
+      }
       if (imageZoomOpen) {
         setImageZoomOpen(false);
         return;
@@ -105,7 +155,7 @@ export function JpVocabManualAddModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, submitting, onClose, imageZoomOpen]);
+  }, [open, submitting, onClose, imageZoomOpen, noteZoomSrc]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,6 +191,9 @@ export function JpVocabManualAddModal({
   };
 
   const onPaste = (e: React.ClipboardEvent) => {
+    // 备注区自己处理贴图；避免冒泡到整窗后误当成教案图
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.(".jp-vocab-add-notes-field")) return;
     const file = pickClipboardImage(e.clipboardData.items);
     if (!file) return;
     e.preventDefault();
@@ -153,8 +206,110 @@ export function JpVocabManualAddModal({
     if (file) void applyImageFile(file);
   };
 
+  const uploadOneNoteImage = async (file: File): Promise<"ok" | "dup" | "fail"> => {
+    setNoteImageUploadProgress({
+      phase: "uploading",
+      percent: 0,
+      loaded: 0,
+      total: file.size,
+    });
+    try {
+      const form = new FormData();
+      form.set("file", file);
+      const result = await uploadFormWithProgress({
+        url: "/api/jp-vocab/class-notes/upload",
+        form,
+        headers: { [LOCALE_HEADER]: locale },
+        onProgress: setNoteImageUploadProgress,
+      });
+      const data = (result.data ?? {}) as {
+        ok?: boolean;
+        view_path?: string;
+        ref_key?: string;
+        error?: string;
+      };
+      if (!result.ok || !data.ok || !data.view_path) {
+        throw new Error(data.error || "图片上传失败");
+      }
+      const viewPath = data.view_path;
+      const refKey =
+        (typeof data.ref_key === "string" && data.ref_key.trim()) ||
+        jpVocabClassNoteImageRefKeyFromSrc(viewPath);
+      const existingKeys = collectJpVocabClassNoteImageRefKeysFromContent(
+        classNotesValueRef.current
+      );
+      if (refKey && existingKeys.has(refKey)) {
+        setError("请审核你的图片：备注里已经有一张相同的了，请勿重复粘贴。");
+        return "dup";
+      }
+      setNoteImageUploadProgress({
+        phase: "done",
+        percent: 100,
+        loaded: file.size,
+        total: file.size,
+      });
+      const next = appendJpVocabClassNoteImageLine(classNotesValueRef.current, viewPath);
+      classNotesValueRef.current = next;
+      setClassNotes(next);
+      setError("");
+      return "ok";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return "fail";
+    }
+  };
+
+  const uploadNoteImages = async (files: File[]) => {
+    if (submitting) return;
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (!images.length) {
+      setError("仅支持图片文件。");
+      return;
+    }
+    if (noteImageUploadingRef.current) {
+      setError("请等待当前图片上传完成后再传下一张");
+      return;
+    }
+    noteImageUploadingRef.current = true;
+    setNoteImageUploading(true);
+    setError("");
+    try {
+      for (const file of images) {
+        const outcome = await uploadOneNoteImage(file);
+        if (outcome === "fail") break;
+      }
+    } finally {
+      noteImageUploadingRef.current = false;
+      setNoteImageUploading(false);
+      setNoteImageUploadProgress(null);
+    }
+  };
+
+  const onNotesPaste = (e: React.ClipboardEvent) => {
+    if (submitting) return;
+    const file = pickClipboardImage(e.clipboardData.items);
+    if (!file) return;
+    e.preventDefault();
+    e.stopPropagation();
+    void uploadNoteImages([file]);
+  };
+
+  const onNotesDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove("is-dragover");
+    if (submitting || noteImageUploadingRef.current) return;
+    const files = Array.from(e.dataTransfer.files || []);
+    if (!files.length) return;
+    void uploadNoteImages(files);
+  };
+
   const submit = async () => {
     if (submitting) return;
+    if (noteImageUploading || noteImageUploadingRef.current) {
+      setError("备注图片仍在上传，请稍后再添加。");
+      return;
+    }
     const trimmedWord = word.trim();
     if (!trimmedWord) {
       setError("请填写单词或语法。");
@@ -262,6 +417,9 @@ export function JpVocabManualAddModal({
   };
 
   if (!open || !mounted) return null;
+
+  const { text: classNotesText, imageSrcs: classNotesImageSrcs } =
+    splitJpVocabClassNoteDraftForEdit(classNotes);
 
   return createPortal(
     <>
@@ -375,17 +533,108 @@ export function JpVocabManualAddModal({
               />
             </div>
 
-            <div className="field">
+            <div
+              className="field jp-vocab-add-notes-field"
+              onPaste={onNotesPaste}
+              onDragOver={(e) => {
+                if (submitting || noteImageUploading) return;
+                if (![...e.dataTransfer.types].includes("Files")) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.classList.add("is-dragover");
+              }}
+              onDragLeave={(e) => {
+                e.currentTarget.classList.remove("is-dragover");
+              }}
+              onDrop={onNotesDrop}
+            >
               <label htmlFor="jp-vocab-add-notes">备注（可选）</label>
+              <div className="jp-vocab-add-notes-toolbar">
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact"
+                  disabled={submitting || noteImageUploading}
+                  onClick={() => noteImageInputRef.current?.click()}
+                >
+                  {noteImageUploading ? "上传中…" : "上传图片"}
+                </button>
+                <span className="jp-vocab-add-notes-toolbar-hint">
+                  {noteImageUploading
+                    ? "上传完成前不可再贴图或选图"
+                    : "可多选；支持拖拽 / Ctrl+V / ⌘V 粘贴截图；相同图片不会重复加入"}
+                </span>
+                <input
+                  ref={noteImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  disabled={submitting || noteImageUploading}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    e.target.value = "";
+                    if (files.length) void uploadNoteImages(files);
+                  }}
+                />
+              </div>
+              {noteImageUploading && noteImageUploadProgress ? (
+                <JpVocabSaveProgressBar
+                  label={noteImageUploadLabel(noteImageUploadProgress)}
+                  percent={noteImageUploadPercent(noteImageUploadProgress)}
+                  fullWidth
+                />
+              ) : null}
               <textarea
                 id="jp-vocab-add-notes"
                 className="jp-vocab-add-textarea"
                 rows={6}
-                value={classNotes}
-                onChange={(e) => setClassNotes(e.target.value)}
-                placeholder="记录例句、用法、易错点…"
-                disabled={submitting}
+                value={classNotesText}
+                onPaste={onNotesPaste}
+                onChange={(e) => {
+                  const next = mergeJpVocabClassNoteDraftFromEdit(
+                    e.target.value,
+                    classNotesImageSrcs
+                  );
+                  classNotesValueRef.current = next;
+                  setClassNotes(next);
+                }}
+                placeholder="记录例句、用法、易错点…（可粘贴/上传多张图片）"
+                disabled={submitting || noteImageUploading}
               />
+              {classNotesImageSrcs.length ? (
+                <div className="jp-vocab-add-notes-images" aria-label="备注图片">
+                  {classNotesImageSrcs.map((src, index) => (
+                    <div key={`${src}-${index}`} className="jp-vocab-add-notes-image-item">
+                      <button
+                        type="button"
+                        className="jp-vocab-add-notes-image-preview"
+                        title="点击放大预览"
+                        onClick={() => setNoteZoomSrc(src)}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt={`备注图片 ${index + 1}`} loading="lazy" />
+                        <span className="jp-vocab-add-notes-image-hint">点击放大</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="jp-vocab-add-notes-image-remove"
+                        disabled={submitting || noteImageUploading}
+                        onClick={() => {
+                          if (!window.confirm(`确定移除第 ${index + 1} 张备注图片吗？`)) return;
+                          const next = removeJpVocabClassNoteImageAt(classNotes, index);
+                          classNotesValueRef.current = next;
+                          setClassNotes(next);
+                        }}
+                      >
+                        移除图片
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <p className="jp-vocab-add-hint">
+                图片与「修改备注」相同：居中展示、可点放大；地址已隐藏，避免误改。教案图请用下方「教案图片」。
+              </p>
             </div>
 
             <div className="field">
@@ -509,9 +758,13 @@ export function JpVocabManualAddModal({
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary"
               onClick={() => void submit()}
-              disabled={submitting}
+              disabled={submitting || noteImageUploading}
             >
-              {submitting ? "添加中…" : "添加"}
+              {submitting
+                ? "添加中…"
+                : noteImageUploading
+                  ? "备注图片上传中…"
+                  : "添加"}
             </button>
           </div>
         </div>
@@ -541,6 +794,36 @@ export function JpVocabManualAddModal({
             <img
               src={image.previewUrl}
               alt="教案大图预览"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {noteZoomSrc ? (
+        <div
+          className="jp-vocab-add-zoom"
+          role="dialog"
+          aria-modal="true"
+          aria-label="备注图片大图预览"
+          onClick={() => setNoteZoomSrc(null)}
+        >
+          <div className="jp-vocab-add-zoom-bar">
+            <span>备注图片 · 点击空白处或按 Esc 关闭</span>
+            <button
+              type="button"
+              className="jp-vocab-add-close"
+              onClick={() => setNoteZoomSrc(null)}
+              aria-label="关闭大图预览"
+            >
+              ×
+            </button>
+          </div>
+          <div className="jp-vocab-add-zoom-stage">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={noteZoomSrc}
+              alt="备注图片大图"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
@@ -751,6 +1034,98 @@ export function JpVocabManualAddModal({
 
         .jp-vocab-add-modal .field textarea.jp-vocab-add-textarea:disabled {
           opacity: 0.58;
+          cursor: not-allowed;
+        }
+
+        .jp-vocab-add-notes-field.is-dragover {
+          outline: 1.5px dashed color-mix(in srgb, var(--accent) 65%, var(--border));
+          outline-offset: 4px;
+          border-radius: 8px;
+        }
+
+        .jp-vocab-add-notes-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.45rem 0.65rem;
+          margin-bottom: 0.45rem;
+        }
+
+        .jp-vocab-add-notes-toolbar-hint {
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
+
+        .jp-vocab-add-notes-images {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+          margin-top: 0.55rem;
+        }
+
+        .jp-vocab-add-notes-image-item {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 0.35rem;
+          padding: 0.45rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+        }
+
+        .jp-vocab-add-notes-image-preview {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          padding: 0.35rem;
+          border: none;
+          border-radius: 6px;
+          background: transparent;
+          cursor: zoom-in;
+          overflow: hidden;
+        }
+
+        .jp-vocab-add-notes-image-preview img {
+          display: block;
+          width: auto;
+          max-width: 100%;
+          max-height: 240px;
+          margin: 0 auto;
+          object-fit: contain;
+        }
+
+        .jp-vocab-add-notes-image-hint {
+          position: absolute;
+          right: 0.45rem;
+          bottom: 0.4rem;
+          padding: 0.12rem 0.4rem;
+          border-radius: 4px;
+          font-size: 0.6875rem;
+          color: rgba(255, 255, 255, 0.92);
+          background: rgba(0, 0, 0, 0.52);
+          pointer-events: none;
+        }
+
+        .jp-vocab-add-notes-image-remove {
+          align-self: flex-end;
+          border: none;
+          background: transparent;
+          color: var(--rise);
+          font: inherit;
+          font-size: 0.75rem;
+          cursor: pointer;
+          padding: 0.1rem 0.25rem;
+        }
+
+        .jp-vocab-add-notes-image-remove:hover:not(:disabled) {
+          text-decoration: underline;
+        }
+
+        .jp-vocab-add-notes-image-remove:disabled {
+          opacity: 0.55;
           cursor: not-allowed;
         }
 
