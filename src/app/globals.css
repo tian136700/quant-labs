@@ -78,6 +78,7 @@ body {
   justify-content: flex-end;
   gap: 0.625rem;
   align-self: flex-end;
+  flex-shrink: 0;
 }
 
 .site-auth-bar {
@@ -214,13 +215,22 @@ body {
   overflow: hidden;
 }
 
+.admin-nav-list > li {
+  flex-shrink: 0;
+}
+
+/* Off-flow width ruler: nowrap + max-content so each label reports true width */
 .admin-nav-list--ruler {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   position: absolute;
+  left: 0;
+  top: 0;
+  width: max-content;
   visibility: hidden;
   pointer-events: none;
-  height: 0;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
+  z-index: -1;
 }
 
 .admin-nav-link {
@@ -229,6 +239,7 @@ body {
   min-height: var(--touch-min);
   padding: 0.375rem 0.75rem;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
 
@@ -246,6 +257,11 @@ body {
 .admin-nav-more {
   cursor: pointer;
   background: transparent;
+  flex-shrink: 0;
+}
+
+.admin-nav-more-slot {
+  flex-shrink: 0;
 }
 
 .admin-nav-link.is-active {

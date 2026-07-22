@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  MAX_PRIMARY_NAV,
   PINNED_PRIMARY_NAV_ID,
   PRIMARY_NAV_ORDER,
 } from "@/lib/site-nav-config";
@@ -88,7 +89,9 @@ export function useSiteNavSplit(): {
   const allItems = useSiteNavItems();
   const { visitCounts } = useNavPreferences();
   const navRef = useRef<HTMLElement | null>(null);
-  const [maxVisible, setMaxVisible] = useState<number>(allItems.length);
+  const [maxVisible, setMaxVisible] = useState<number>(() =>
+    Math.min(allItems.length, MAX_PRIMARY_NAV)
+  );
 
   const sortedItems = useMemo(
     () => sortNavItems(allItems, visitCounts),
@@ -96,13 +99,15 @@ export function useSiteNavSplit(): {
   );
 
   const onMeasured = useCallback((count: number) => {
-    setMaxVisible((prev) => (prev === count ? prev : count));
+    // Hard cap so ultra-wide screens still overflow into「更多」
+    const capped = Math.max(1, Math.min(count, MAX_PRIMARY_NAV));
+    setMaxVisible((prev) => (prev === capped ? prev : capped));
   }, []);
 
   const result = useMemo(() => {
     const { primaryItems, drawerOnlyItems } = splitPrimaryAndDrawer(
       sortedItems,
-      maxVisible
+      Math.min(maxVisible, MAX_PRIMARY_NAV)
     );
     const showMore = drawerOnlyItems.length > 0;
     const drawerOnlyActive = drawerOnlyItems.some((item) => item.active);
