@@ -138,9 +138,12 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **老师/管理员入口拆分**（导航「韩语发音-老师端 / 管理员端」；`variant` 区分） | `/ko-pron` vs `/ko-pron/admin`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()`；`messages.ts` → `nav.koPron` / `nav.koPronAdmin`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
 | **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
 | **学生端 live 卡片**（老师开卡同步字母；罗马音/熟悉程度对学生隐藏；老师勾选熟悉程度后揭示罗马音） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
-| 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=按 id 正序前 N |
+| 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=**日序前 N**（与日语同一套熟悉程度加权优先级，非 id） |
+| **抽查优先级 / 日序**（`priority + days×0.1`；从未抽查置顶；今日新建沉底；直接复用 `jpVocabFinalQuizScore`） | `ko-pron-daily-order.ts` → `sortKoPronLettersForDailyOrder`；`ensureKoPronDailyDisplayOrder`；可见池 `order_algo=priority_v1`；规则 `.cursor/rules/ko-pron-quiz-priority.mdc` |
 | 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
 | 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；空表 `seedIfEmpty` |
+| **开课前 30 分钟启用韩语老师账号**（手动日程 `teacher` 姓名匹配 `ko_lesson_teacher`；与日语同一定时 `teacher-user-pre-class-enable`） | `KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS`；`listKoTeacherIdsWithUpcomingClassStart`；`etr_user_ko_lesson_teacher_link`；人员管理 `?subject=ko` →「创建用户」；规则 `.cursor/rules/ko-pron-teacher-account-lifecycle.mdc` |
+| **抽完最后一个字母后 20 分钟禁用**（记操作人到 `ko_pron_teacher_quiz_day`；与日语同一定时 `teacher-user-quiz-complete-disable`） | `ko-pron-teacher-quiz-day.ts`；`POST /api/ko-pron` 勾选后 `trackKoPronTeacherQuizDayAfterReview`；临近韩语课 30min 窗口跳过禁用 |
 
 ---
 
@@ -151,7 +154,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` |
 | `/jp-lesson/notes` | 课堂笔记（按知识点；**支持粘贴/上传图片**；已完成新课保存后同步到日语抽问 `class_notes`，文字+图片） | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
 | `/jp-lesson/schedule` | **统一日程管理**（日语 + 英语新课 + 手动日程） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` |
-| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理**（默认日语；`?subject=en` 英语老师 + 评价；**搜索跨日语+英语模糊匹配**，不必先选类型） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
+| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理**（默认日语；`?subject=en` 英语；`?subject=ko` 韩语可建登录账号；**搜索跨日语+英语+韩语模糊匹配**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
 
 日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}`（英语课加 `&subject=en`）并自动滚动定位。路径常量：`adminJpLessonTeachersPath()`、`jpLessonSchedulePath()` in `locale-path.ts`。
 
@@ -227,10 +230,10 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
 | **最后登录 IP 折叠**（长 IPv6 默认收起 +「展开/收起」；IPv4 一行展示；禁止每行 N 字符强折） | `AdminUsersPage.tsx` → `AdminUserIpDisplay`；规则 `.cursor/rules/admin-users-ip-collapse.mdc` |
 | **今日有课老师账号自动启用**（北京时间 05:00；仅日语新课排课 + 手动日程；**不含英语课/英语老师**——英语老师不建登录账号；`admin` / `user1` / `test` 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |
-| **开课前 2 小时自动启用**（每 10 分钟；已禁用→可用；`dirlock` 防重叠；与 05:00 / 学习中 18h 互补；抽完禁用在临近课窗口跳过） | `runTeacherUserPreClassEnable`；`POST /api/admin/teacher-user-pre-class-enable`；Mac `scripts/setup-teacher-user-pre-class-enable-mac.sh`（`StartInterval=600`）；规则 `.cursor/rules/teacher-pre-class-auto-enable.mdc` |
+| **开课前 2 小时自动启用**（每 10 分钟；已禁用→可用；`dirlock` 防重叠；与 05:00 / 学习中 18h 互补；抽完禁用在临近课窗口跳过；**同任务另含韩语老师开课前 30 分钟启用**） | `runTeacherUserPreClassEnable`；`POST /api/admin/teacher-user-pre-class-enable`；Mac `scripts/setup-teacher-user-pre-class-enable-mac.sh`（`StartInterval=600`）；规则 `.cursor/rules/teacher-pre-class-auto-enable.mdc`、`ko-pron-teacher-account-lifecycle.mdc` |
 | **学习中 + 开课 18h 内立即启用**（管理员在 `/jp-lesson` 设好老师+时间并标「学习中」时，不必等 05:00） | 同上 `maybeEnableTeacherUsersForLearningLesson`；挂钩 `POST /api/jp-lesson`；规则 `teacher-lesson-learning-auto-enable.mdc` |
 | **下课 10 分钟后自动禁用**（北京时间：`下课=开课+课时` 缺省 55min，再 +10min；有后续未结束课则跳过；踢掉会话；`admin` / `user1` / `test` 不受控） | `runTeacherUserPostClassDisable`；`POST /api/admin/teacher-user-post-class-disable`；Mac `scripts/setup-teacher-user-post-class-disable-mac.sh`（`StartInterval=600`）；规则 `.cursor/rules/teacher-post-class-auto-disable.mdc` |
-| **今日抽查完成后自动禁用**（记操作人到 `jp_vocab_teacher_quiz_day`，**不写词条表**；普通老师抽完 +1h，带读账号如欣欣 +2h；临近开课前后 / 下课宽限内 **跳过禁用**；`admin` / `user1` / `test` 不受控） | `src/lib/jp-vocab-teacher-quiz-day.ts`（勾选时写入）；`src/lib/teacher-user-quiz-complete-disable.ts`；`POST /api/admin/teacher-user-quiz-complete-disable`；Mac 定时 `scripts/teacher-user-quiz-complete-disable.sh` + `setup-teacher-user-quiz-complete-disable-mac.sh`（每 15 分钟）；规则 `.cursor/rules/teacher-quiz-complete-auto-disable.mdc` |
+| **今日抽查完成后自动禁用**（日语：`jp_vocab_teacher_quiz_day`，普通 +1h / 带读 +2h；**韩语：`ko_pron_teacher_quiz_day`，抽完 +20min**；临近开课窗口跳过；`admin` / `user1` / `test` 不受控） | `jp-vocab-teacher-quiz-day.ts` / `ko-pron-teacher-quiz-day.ts`；`teacher-user-quiz-complete-disable.ts`；`POST /api/admin/teacher-user-quiz-complete-disable`；Mac 每 15 分钟；规则 `teacher-quiz-complete-auto-disable.mdc`、`ko-pron-teacher-account-lifecycle.mdc` |
 
 ---
 

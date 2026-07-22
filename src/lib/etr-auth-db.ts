@@ -1358,6 +1358,214 @@ export async function createJpLessonTeacherUserByReview(
   return { ok: true, created: true, user: enabled, password };
 }
 
+let userKoTeacherLinkSchemaEnsured = false;
+
+async function ensureUserKoTeacherLinkSchema(db: D1Database): Promise<void> {
+  if (devAuthEnabled || userKoTeacherLinkSchemaEnsured) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS etr_user_ko_lesson_teacher_link (
+         user_id INTEGER PRIMARY KEY,
+         teacher_id INTEGER NOT NULL,
+         created_at TEXT NOT NULL DEFAULT (datetime('now')),
+         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+         FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_etr_user_ko_lesson_teacher_link_teacher
+       ON etr_user_ko_lesson_teacher_link (teacher_id)`
+    )
+    .run();
+  userKoTeacherLinkSchemaEnsured = true;
+}
+
+async function linkUserToKoLessonTeacher(
+  db: D1Database,
+  userId: number,
+  teacherId: number
+): Promise<void> {
+  if (!Number.isInteger(userId) || userId <= 0) return;
+  if (!Number.isInteger(teacherId) || teacherId <= 0) return;
+  if (devAuthEnabled) return;
+  await ensureUserKoTeacherLinkSchema(db);
+  const ts = nowIso();
+  await db
+    .prepare(
+      `DELETE FROM etr_user_ko_lesson_teacher_link
+       WHERE teacher_id = ?1 AND user_id != ?2`
+    )
+    .bind(teacherId, userId)
+    .run();
+  await db
+    .prepare(
+      `INSERT INTO etr_user_ko_lesson_teacher_link (user_id, teacher_id, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?3)
+       ON CONFLICT(user_id) DO UPDATE SET teacher_id = excluded.teacher_id, updated_at = excluded.updated_at`
+    )
+    .bind(userId, teacherId, ts)
+    .run();
+}
+
+export type KoLessonTeacherUserLink = {
+  user_id: number;
+  username: string;
+  teacher_id: number;
+};
+
+export async function findKoLessonTeacherUserLink(
+  db: D1Database,
+  teacherId: number
+): Promise<KoLessonTeacherUserLink | null> {
+  if (devAuthEnabled) return null;
+  if (!Number.isInteger(teacherId) || teacherId <= 0) return null;
+  await ensureUserKoTeacherLinkSchema(db);
+  const row = await db
+    .prepare(
+      `SELECT link.user_id AS user_id, u.username AS username, link.teacher_id AS teacher_id
+       FROM etr_user_ko_lesson_teacher_link link
+       INNER JOIN etr_users u ON u.id = link.user_id
+       WHERE link.teacher_id = ?1`
+    )
+    .bind(teacherId)
+    .first<KoLessonTeacherUserLink>();
+  return row ?? null;
+}
+
+export async function listKoLessonTeacherUserLinkMapByTeacherId(
+  db: D1Database
+): Promise<Map<number, KoLessonTeacherUserLink>> {
+  if (devAuthEnabled) return new Map();
+  await ensureUserKoTeacherLinkSchema(db);
+  const result = await db
+    .prepare(
+      `SELECT link.user_id AS user_id, u.username AS username, link.teacher_id AS teacher_id
+       FROM etr_user_ko_lesson_teacher_link link
+       INNER JOIN etr_users u ON u.id = link.user_id`
+    )
+    .all<KoLessonTeacherUserLink>();
+  const map = new Map<number, KoLessonTeacherUserLink>();
+  for (const row of result.results ?? []) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    map.set(teacherId, row);
+  }
+  return map;
+}
+
+export type EnsureKoLessonTeacherUserAccountResult =
+  | { ok: true; created: boolean; user: EtrUser; password?: string }
+  | { ok: false; error: string };
+
+/** 一键为韩语上课老师创建/关联 ko_pron 账号 */
+export async function ensureKoLessonTeacherUserAccount(
+  env: CloudflareEnv,
+  teacherId: number,
+  teacherName: string
+): Promise<EnsureKoLessonTeacherUserAccountResult> {
+  const existingLink = await findKoLessonTeacherUserLink(env.DB, teacherId);
+  if (existingLink) {
+    const user = await ensureUserEnabledById(env.DB, existingLink.user_id);
+    if (user) return { ok: true, created: false, user };
+  }
+
+  const provision = await createKoLessonTeacherUserByReview(
+    env,
+    teacherId,
+    teacherName
+  );
+  if (provision.ok && provision.created) {
+    return {
+      ok: true,
+      created: true,
+      user: provision.user,
+      password: provision.password,
+    };
+  }
+  if (!provision.ok) {
+    return { ok: false, error: provision.error };
+  }
+
+  if (provision.reason === "user_exists") {
+    const baseUsername = normalizeUsername(teacherNameToUsername(teacherName));
+    if (!baseUsername) return { ok: false, error: "username_invalid" };
+    const existing = await findUserByUsername(env.DB, baseUsername);
+    if (!existing) return { ok: false, error: "user_exists" };
+    if (existing.role !== "ko_pron") {
+      return { ok: false, error: "username_taken" };
+    }
+    await linkUserToKoLessonTeacher(env.DB, existing.id, teacherId);
+    const enabled = await ensureUserEnabledById(env.DB, existing.id);
+    if (!enabled) return { ok: false, error: "user_not_found" };
+    return { ok: true, created: false, user: enabled };
+  }
+
+  return { ok: false, error: provision.reason ?? "username_unavailable" };
+}
+
+export type CreateKoLessonTeacherUserByReviewResult =
+  | { ok: true; created: true; user: EtrUser; password: string }
+  | { ok: true; created: false; reason: "user_exists" | "username_unavailable" }
+  | { ok: false; error: string };
+
+/** 为韩语老师创建 ko_pron 账号并写入老师-用户映射 */
+export async function createKoLessonTeacherUserByReview(
+  env: CloudflareEnv,
+  teacherId: number,
+  teacherName: string
+): Promise<CreateKoLessonTeacherUserByReviewResult> {
+  let baseUsername: string;
+  try {
+    baseUsername = teacherNameToUsername(teacherName);
+  } catch {
+    return { ok: false, error: "username_invalid" };
+  }
+  if (!baseUsername) return { ok: false, error: "username_invalid" };
+
+  await ensureBootstrapUsers(env);
+
+  const adminName = resolveAdminBootstrap(env)?.username ?? "Admin";
+  const jpVocabName =
+    resolveJpVocabBootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USERNAME;
+  const jpVocabUser1Name =
+    resolveJpVocabUser1Bootstrap(env)?.username ?? ETR_DEFAULT_JP_VOCAB_USER1_USERNAME;
+
+  const candidates = [baseUsername];
+  for (let i = 2; i <= 99; i += 1) candidates.push(`${baseUsername}${i}`);
+
+  let chosen: string | null = null;
+  for (const candidate of candidates) {
+    const username = normalizeUsername(candidate);
+    if (!isValidUsername(username)) continue;
+    if (isReservedUsername(username, adminName, jpVocabName, jpVocabUser1Name)) continue;
+    const existing = await findUserByUsername(env.DB, username);
+    if (existing) {
+      if (candidate === baseUsername) return { ok: true, created: false, reason: "user_exists" };
+      continue;
+    }
+    chosen = username;
+    break;
+  }
+
+  if (!chosen) return { ok: true, created: false, reason: "username_unavailable" };
+
+  const password = generateMemorableTeacherPassword(10);
+  const created = await createUserByAdmin(env, chosen, password, "ko_pron");
+  if (!created.ok) {
+    if (created.error === "username_taken") {
+      return { ok: true, created: false, reason: "user_exists" };
+    }
+    return { ok: false, error: created.error };
+  }
+
+  await linkUserToKoLessonTeacher(env.DB, created.user.id, teacherId);
+  const enabled = await ensureUserEnabledById(env.DB, created.user.id);
+  if (!enabled) return { ok: false, error: "user_not_found" };
+  return { ok: true, created: true, user: enabled, password };
+}
+
 export type ResetUserPasswordByAdminResult =
   | { ok: true; user: EtrUser; password: string }
   | { ok: false; error: string };

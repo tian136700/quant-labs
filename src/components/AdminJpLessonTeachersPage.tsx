@@ -915,11 +915,16 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
 }
 
   const createTeacherUser = async (teacher: JpLessonTeacher) => {
-    if (teacherSubject !== "jp") return;
+    if (teacherSubject === "en") return;
+    const isKo = teacherSubject === "ko";
     const ok = window.confirm(
       locale === "zh"
-        ? `为「${teacher.name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`
-        : `Create a Japanese-teacher account for "${teacher.name}"?\nUsername will be pinyin (e.g. LiLaoshi); password is a memorable word combo.`
+        ? isKo
+          ? `为「${teacher.name}」一键创建韩语教师账号？\n用户名将按老师名拼音生成，密码为易记的英文词组组合。\n开课前 30 分钟自动启用；抽完最后一个字母后 20 分钟自动禁用。`
+          : `为「${teacher.name}」一键创建日语教师账号？\n用户名将按老师名拼音生成（如李老师 → LiLaoshi），密码为易记的英文词组组合。`
+        : isKo
+          ? `Create a Korean-teacher account for "${teacher.name}"?\nUsername will be pinyin; password is a memorable word combo.\nAuto-enable 30min before class; disable 20min after last letter.`
+          : `Create a Japanese-teacher account for "${teacher.name}"?\nUsername will be pinyin (e.g. LiLaoshi); password is a memorable word combo.`
     );
     if (!ok) return;
 
@@ -927,7 +932,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
     setStatus("");
     setStatusErr(false);
     try {
-      const res = await fetch("/api/admin/jp-lesson-teachers", {
+      const apiBase = teachersApiBase(teacherSubject);
+      const res = await fetch(apiBase, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1011,8 +1017,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
               : "Manage English lesson teachers and reviews. No system login accounts; excluded from daily class-day auto-enable."
             : teacherSubject === "ko"
               ? locale === "zh"
-                ? "维护韩语课的上课老师列表与评价；韩语老师不创建系统登录账号，也不纳入「今日有课自动启用」。"
-                : "Manage Korean lesson teachers and reviews. No system login accounts; excluded from daily class-day auto-enable."
+                ? "维护韩语课的上课老师列表与评价；可创建登录账号。开课前 30 分钟自动启用（手动日程老师名须与此一致）；抽完最后一个字母后 20 分钟自动禁用。"
+                : "Manage Korean teachers and reviews. Create login accounts here. Auto-enable 30min before class (manual schedule name must match); disable 20min after last letter."
             : locale === "zh"
               ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"
               : "Manage lesson teachers for JP lessons. Only admins can assign them."}
@@ -1497,7 +1503,11 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
                                     ? locale === "zh"
                                       ? `已关联 ${linkedUser.username}；点击老师名称可跳转到用户管理`
                                       : `Linked as ${linkedUser.username}; click the teacher name to view in Users`
-                                    : locale === "zh"
+                                    : teacherSubject === "ko"
+                                      ? locale === "zh"
+                                        ? "创建韩语教师账号并关联（开课前 30 分钟启用）"
+                                        : "Create and link Korean-teacher account"
+                                      : locale === "zh"
                                       ? "创建日语教师账号并关联"
                                       : "Create and link Japanese-teacher account"
                                 }
@@ -1548,7 +1558,7 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
         )}
       </section>
 
-      {lessonTeacherSubjectSkipsUserAccount(teacherSubject) ? (
+      {teacherSubject !== "jp" ? (
         <EnLessonTeacherReviewModal
           open={reviewTeacher != null}
           teacher={reviewTeacher}

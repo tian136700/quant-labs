@@ -1,5 +1,12 @@
 import { beijingDateString, beijingDateTimeString } from "@/lib/jp-vocab-daily-check";
+import {
+  buildKoPronDailySeqMap,
+  computeKoPronDailyDisplayOrder,
+  type KoPronDailyDisplayOrder,
+} from "@/lib/ko-pron-daily-order";
 import type { KoPronLetter } from "@/lib/types";
+
+export { buildKoPronDailySeqMap };
 
 /** 每日建议优先抽查的前 N 个字母 */
 export const KO_PRON_DAILY_QUIZ_TOP = 10;
@@ -16,7 +23,12 @@ export type KoPronTeacherVisibleLimit = {
   release_count: number;
   visible_ids?: number[];
   quiz_target_adjusted_at?: string;
+  /** 可见池按熟悉程度加权日序生成；缺省/旧值会触发重算 */
+  order_algo?: string;
 };
+
+/** 与日语 final_score 日序对齐的可见池算法版本 */
+export const KO_PRON_VISIBLE_ORDER_ALGO = "priority_v1";
 
 export function defaultKoPronTeacherVisibleLimit(
   now = new Date()
@@ -61,60 +73,70 @@ export function normalizeKoPronTeacherVisibleLimit(
       typeof obj.quiz_target_adjusted_at === "string"
         ? obj.quiz_target_adjusted_at.trim() || undefined
         : undefined,
+    order_algo:
+      typeof obj.order_algo === "string" && obj.order_algo.trim()
+        ? obj.order_algo.trim()
+        : undefined,
   };
 }
 
-/** 按 id 升序取前 N 个作为今日可见池（固定 40 字母） */
+/**
+ * 按**日序**取前 N 个作为今日可见池（与日语一致：日序来自熟悉程度加权优先级，不是 id）。
+ * `dailyOrderIds` 缺省时现算 `computeKoPronDailyDisplayOrder`。
+ */
 export function pickKoPronVisibleIds(
   letters: KoPronLetter[],
-  quizTarget: number
+  quizTarget: number,
+  dailyOrderIds?: number[] | null,
+  now = new Date()
 ): number[] {
   const n = Math.min(Math.max(1, Math.floor(quizTarget)), letters.length || 40);
-  return [...letters]
-    .sort((a, b) => a.id - b.id)
-    .slice(0, n)
-    .map((l) => l.id);
+  if (!letters.length) return [];
+  const byId = new Map(letters.map((l) => [l.id, l]));
+  const orderedIds = (
+    dailyOrderIds?.length && dailyOrderIds.length > 0
+      ? dailyOrderIds.filter((id) => byId.has(id))
+      : computeKoPronDailyDisplayOrder(letters, now)
+  ).slice();
+  const seen = new Set(orderedIds);
+  for (const letter of letters) {
+    if (!seen.has(letter.id)) orderedIds.push(letter.id);
+  }
+  return orderedIds.slice(0, n);
 }
 
 export function isKoPronLetterInTeacherVisiblePool(
   letterId: number,
   visible: Pick<KoPronTeacherVisibleLimit, "quiz_target" | "visible_ids">,
-  lettersSortedById: KoPronLetter[]
+  letters: KoPronLetter[],
+  dailyOrderIds?: number[] | null
 ): boolean {
   if (visible.visible_ids?.length) {
     return visible.visible_ids.includes(letterId);
   }
-  const ids = pickKoPronVisibleIds(lettersSortedById, visible.quiz_target);
+  const ids = pickKoPronVisibleIds(
+    letters,
+    visible.quiz_target,
+    dailyOrderIds
+  );
   return ids.includes(letterId);
 }
 
 export function listKoPronTeacherQuizPoolLetters(
   letters: KoPronLetter[],
-  visible: Pick<KoPronTeacherVisibleLimit, "quiz_target" | "visible_ids">
+  visible: Pick<KoPronTeacherVisibleLimit, "quiz_target" | "visible_ids">,
+  dailyOrderIds?: number[] | null
 ): KoPronLetter[] {
-  const sorted = [...letters].sort((a, b) => a.id - b.id);
+  const byId = new Map(letters.map((l) => [l.id, l]));
   if (visible.visible_ids?.length) {
-    const idSet = new Set(visible.visible_ids);
-    const order = new Map(visible.visible_ids.map((id, i) => [id, i]));
-    return sorted
-      .filter((l) => idSet.has(l.id))
-      .sort(
-        (a, b) =>
-          (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
-          (order.get(b.id) ?? Number.MAX_SAFE_INTEGER)
-      );
+    return visible.visible_ids
+      .map((id) => byId.get(id))
+      .filter((l): l is KoPronLetter => l != null);
   }
-  const ids = new Set(pickKoPronVisibleIds(sorted, visible.quiz_target));
-  return sorted.filter((l) => ids.has(l.id));
-}
-
-export function buildKoPronDailySeqMap(
-  letters: KoPronLetter[]
-): Map<number, number> {
-  const sorted = [...letters].sort((a, b) => a.id - b.id);
-  const map = new Map<number, number>();
-  sorted.forEach((l, i) => map.set(l.id, i + 1));
-  return map;
+  const ids = pickKoPronVisibleIds(letters, visible.quiz_target, dailyOrderIds);
+  return ids
+    .map((id) => byId.get(id))
+    .filter((l): l is KoPronLetter => l != null);
 }
 
 export function withKoPronTargetAdjustmentMarker(
@@ -130,6 +152,7 @@ export function withKoPronTargetAdjustmentMarker(
 export function materializeKoPronTeacherVisible(
   draft: KoPronTeacherVisibleLimit,
   letters: KoPronLetter[],
+  dailyOrder?: Pick<KoPronDailyDisplayOrder, "ids"> | number[] | null,
   now = new Date()
 ): KoPronTeacherVisibleLimit {
   const today = beijingDateString(now);
@@ -137,7 +160,15 @@ export function materializeKoPronTeacherVisible(
     Math.max(1, Math.floor(draft.quiz_target)),
     Math.max(1, letters.length || 40)
   );
-  const visible_ids = pickKoPronVisibleIds(letters, quiz_target);
+  const orderIds = Array.isArray(dailyOrder)
+    ? dailyOrder
+    : dailyOrder?.ids ?? null;
+  const visible_ids = pickKoPronVisibleIds(
+    letters,
+    quiz_target,
+    orderIds,
+    now
+  );
   return {
     date: today,
     limit: quiz_target,
@@ -147,5 +178,6 @@ export function materializeKoPronTeacherVisible(
     release_count: visible_ids.length,
     visible_ids,
     quiz_target_adjusted_at: draft.quiz_target_adjusted_at,
+    order_algo: KO_PRON_VISIBLE_ORDER_ALGO,
   };
 }

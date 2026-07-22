@@ -1,8 +1,13 @@
 import { requireAdmin } from "@/lib/admin-auth";
 import { jsonResponse } from "@/lib/cloudflare-env";
 import {
+  ensureKoLessonTeacherUserAccount,
+  listKoLessonTeacherUserLinkMapByTeacherId,
+} from "@/lib/etr-auth-db";
+import {
   createKoLessonTeacher,
   deleteKoLessonTeacher,
+  getKoLessonTeacherById,
   listKoLessonTeachersWithLessonCounts,
   updateKoLessonTeacher,
 } from "@/lib/ko-lesson-teacher-db";
@@ -52,7 +57,19 @@ export async function GET(request: Request) {
     }
 
     const teachers = await listKoLessonTeachersWithLessonCounts(env.DB);
-    return jsonResponse({ ok: true, teachers });
+    const linkMap = await listKoLessonTeacherUserLinkMapByTeacherId(env.DB);
+    return jsonResponse({
+      ok: true,
+      teachers: teachers.map((teacher) => {
+        const link = linkMap.get(teacher.id);
+        return {
+          ...teacher,
+          linked_user: link
+            ? { id: link.user_id, username: link.username }
+            : null,
+        };
+      }),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
@@ -75,6 +92,43 @@ export async function POST(request: Request) {
       lesson_price?: number;
       lesson_minutes?: number;
     };
+
+    if (body.action === "create_user") {
+      const teacherId = Number(body.id);
+      if (!Number.isInteger(teacherId) || teacherId <= 0) {
+        return jsonResponse({ ok: false, error: "teacher_id_invalid" }, 400);
+      }
+      const teacher = await getKoLessonTeacherById(env.DB, teacherId);
+      if (!teacher) {
+        return jsonResponse({ ok: false, error: "not_found" }, 404);
+      }
+      const teacherName = (teacher.name ?? "").trim();
+      if (!teacherName) {
+        return jsonResponse({ ok: false, error: "teacher_name_empty" }, 400);
+      }
+      const result = await ensureKoLessonTeacherUserAccount(
+        env,
+        teacherId,
+        teacherName
+      );
+      if (!result.ok) {
+        const status =
+          result.error === "user_exists" || result.error === "username_taken"
+            ? 409
+            : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({
+        ok: true,
+        created: result.created,
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          disabled: (result.user.disabled ?? 0) !== 0,
+        },
+        password: result.password,
+      });
+    }
 
     if (body.action === "update") {
       const id = Number(body.id);
@@ -123,7 +177,6 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    // 韩语老师不提供系统登录账号，也不纳入「今日有课自动启用」定时任务
     return jsonResponse({
       ok: true,
       teacher: result.teacher,

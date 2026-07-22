@@ -1,7 +1,11 @@
 import "server-only";
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import { findUserById, listJpLessonTeacherNameMapByUserId, revokeUserSessions } from "@/lib/etr-auth-db";
+import {
+  findUserById,
+  listJpLessonTeacherNameMapByUserId,
+  revokeUserSessions,
+} from "@/lib/etr-auth-db";
 import type { EtrUser } from "@/lib/etr-auth";
 import {
   getJpLessonProgressStatus,
@@ -29,12 +33,19 @@ export const TEACHER_LESSON_LEARNING_AUTO_ENABLE_WITHIN_MS =
  */
 export const TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS = 2 * 60 * 60 * 1000;
 
+/** 韩语老师：开课前此时长内启用关联登录账号（手动日程按老师姓名匹配） */
+export const KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS = 30 * 60 * 1000;
+
 /**
  * 抽完延时禁用时：开课前 / 下课后再此时长内跳过禁用，避免刚解禁又被禁、或课中被踢。
  * 与 `TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS` 同窗口（按 class_at→下课时刻计算）。
  */
 export const TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
   TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
+
+/** 韩语抽完禁用：临近课窗口与开课前 30min 启用一致 */
+export const KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
+  KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
 
 /**
  * 下课（开课 + 课时）后，再过此时长 → 自动禁用关联登录账号。
@@ -88,6 +99,9 @@ export type TeacherUserPreClassEnableResult = {
   teachers_with_upcoming_class: number[];
   enabled: TeacherUserEnableHit[];
   skipped: TeacherUserEnableSkip[];
+  /** 韩语老师开课前启用窗口（默认 30min） */
+  ko_within_ms?: number;
+  ko_teachers_with_upcoming_class?: number[];
 };
 
 export type TeacherUserPostClassDisableHit = {
@@ -179,6 +193,38 @@ async function listTeacherClassAtsNearBeijingDates(
   return result.results ?? [];
 }
 
+/** 北京日 today / tomorrow 的韩语老师手动日程（姓名匹配 ko_lesson_teacher） */
+async function listKoTeacherClassAtsNearBeijingDates(
+  db: D1Database,
+  dateStrs: string[]
+): Promise<TeacherClassAtRow[]> {
+  const prefixes = [...new Set(dateStrs.map((d) => d.trim()).filter(Boolean))];
+  if (!prefixes.length) return [];
+
+  const likeClausesMs = prefixes
+    .map((_, i) => `ms.class_at LIKE ?${i + 1}`)
+    .join(" OR ");
+  const binds = prefixes.map((d) => `${d}%`);
+
+  try {
+    const result = await db
+      .prepare(
+        `SELECT kt.id AS teacher_id, ms.class_at AS class_at,
+                ms.duration_minutes AS duration_minutes
+         FROM ko_lesson_teacher kt
+         INNER JOIN jp_lesson_manual_schedule ms
+           ON lower(trim(ms.teacher)) = lower(trim(kt.name))
+         WHERE ${likeClausesMs}`
+      )
+      .bind(...binds)
+      .all<TeacherClassAtRow>();
+    return result.results ?? [];
+  } catch {
+    // 冷库尚未建 ko_lesson_teacher 时跳过，勿拖垮日语开课前启用
+    return [];
+  }
+}
+
 function beijingDatePlusDays(now: Date, days: number): string {
   return beijingDateString(new Date(now.getTime() + days * 86_400_000));
 }
@@ -259,6 +305,68 @@ export async function listTeacherIdsWithUpcomingClassStart(
   return [...ids].sort((a, b) => a - b);
 }
 
+/** 韩语老师：开课前 withinMs 内（默认 30min）有尚未开始的课 */
+export async function listKoTeacherIdsWithUpcomingClassStart(
+  db: D1Database,
+  options: { withinMs?: number; now?: Date } = {}
+): Promise<number[]> {
+  const now = options.now ?? new Date();
+  const withinMs = Math.max(
+    0,
+    options.withinMs ?? KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS
+  );
+  const nowMs = now.getTime();
+  const toMs = nowMs + withinMs;
+  const dateStrs = [
+    beijingDatePlusDays(now, -1),
+    beijingDateString(now),
+    beijingDatePlusDays(now, 1),
+  ];
+  const rows = await listKoTeacherClassAtsNearBeijingDates(db, dateStrs);
+  const ids = new Set<number>();
+  for (const row of rows) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
+    if (!start) continue;
+    const startMs = start.getTime();
+    if (startMs >= nowMs && startMs <= toMs) ids.add(teacherId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
+export async function listKoTeacherIdsWithClassNearNow(
+  db: D1Database,
+  options: { beforeMs: number; afterMs?: number; now?: Date } = {
+    beforeMs: KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  }
+): Promise<number[]> {
+  const now = options.now ?? new Date();
+  const beforeMs = Math.max(0, options.beforeMs);
+  const afterMs = Math.max(0, options.afterMs ?? 0);
+  const nowMs = now.getTime();
+
+  const dateStrs = [
+    beijingDatePlusDays(now, -1),
+    beijingDateString(now),
+    beijingDatePlusDays(now, 1),
+  ];
+  const rows = await listKoTeacherClassAtsNearBeijingDates(db, dateStrs);
+  const ids = new Set<number>();
+  for (const row of rows) {
+    const teacherId = Number(row.teacher_id);
+    if (!Number.isInteger(teacherId) || teacherId <= 0) continue;
+    const start = parseBeijingDateTime(String(row.class_at ?? "").trim());
+    if (!start) continue;
+    const endMs = teacherClassEndMs(row);
+    if (endMs == null) continue;
+    const windowStart = start.getTime() - beforeMs;
+    const windowEnd = endMs + afterMs;
+    if (nowMs >= windowStart && nowMs <= windowEnd) ids.add(teacherId);
+  }
+  return [...ids].sort((a, b) => a - b);
+}
+
 /**
  * 下课 + grace 已过、且没有「尚未下课+grace」的后续课 → 应禁用。
  * 例：12:30 开课、55min → 13:25 下课，13:35 起可禁；若下午还有课则等最后一节过宽限。
@@ -306,7 +414,7 @@ export async function listTeacherIdsDueForPostClassDisable(
   return due.sort((a, b) => a - b);
 }
 
-/** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过） */
+/** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过；含日语 + 韩语） */
 export async function listLinkedUserIdsWithClassNearNow(
   db: D1Database,
   options: { beforeMs: number; afterMs?: number; now?: Date } = {
@@ -314,13 +422,27 @@ export async function listLinkedUserIdsWithClassNearNow(
     afterMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
   }
 ): Promise<Set<number>> {
+  const now = options.now ?? new Date();
   const teacherIds = await listTeacherIdsWithClassNearNow(db, options);
-  if (!teacherIds.length) return new Set();
-  const linked = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
+  const koTeacherIds = await listKoTeacherIdsWithClassNearNow(db, {
+    beforeMs: KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    afterMs: KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    now,
+  });
   const userIds = new Set<number>();
-  for (const row of linked) {
-    const userId = Number(row.user_id);
-    if (Number.isInteger(userId) && userId > 0) userIds.add(userId);
+  if (teacherIds.length) {
+    const linked = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
+    for (const row of linked) {
+      const userId = Number(row.user_id);
+      if (Number.isInteger(userId) && userId > 0) userIds.add(userId);
+    }
+  }
+  if (koTeacherIds.length) {
+    const linked = await listLinkedKoTeacherUsersForTeacherIds(db, koTeacherIds);
+    for (const row of linked) {
+      const userId = Number(row.user_id);
+      if (Number.isInteger(userId) && userId > 0) userIds.add(userId);
+    }
   }
   return userIds;
 }
@@ -353,13 +475,47 @@ async function listLinkedTeacherUsersForTeacherIds(
   return result.results ?? [];
 }
 
+async function listLinkedKoTeacherUsersForTeacherIds(
+  db: D1Database,
+  teacherIds: number[]
+): Promise<LinkedTeacherUser[]> {
+  if (!teacherIds.length) return [];
+  // 确保关联表存在（与 ensureKoLessonTeacherUserAccount 同 DDL）
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS etr_user_ko_lesson_teacher_link (
+         user_id INTEGER PRIMARY KEY,
+         teacher_id INTEGER NOT NULL,
+         created_at TEXT NOT NULL DEFAULT (datetime('now')),
+         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+       )`
+    )
+    .run();
+  const placeholders = teacherIds.map((_, i) => `?${i + 1}`).join(", ");
+  const result = await db
+    .prepare(
+      `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
+              COALESCE(u.disabled, 0) AS disabled, link.teacher_id AS teacher_id
+       FROM etr_user_ko_lesson_teacher_link link
+       INNER JOIN etr_users u ON u.id = link.user_id
+       WHERE link.teacher_id IN (${placeholders})`
+    )
+    .bind(...teacherIds)
+    .all<LinkedTeacherUser>();
+  return result.results ?? [];
+}
+
 async function enableLinkedTeacherUsers(
   db: D1Database,
   teacherIds: number[],
-  options: { dryRun?: boolean } = {}
+  options: { dryRun?: boolean; subject?: "jp" | "ko" } = {}
 ): Promise<{ enabled: TeacherUserEnableHit[]; skipped: TeacherUserEnableSkip[] }> {
   const dryRun = Boolean(options.dryRun);
-  const linkedUsers = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
+  const subject = options.subject ?? "jp";
+  const linkedUsers =
+    subject === "ko"
+      ? await listLinkedKoTeacherUsersForTeacherIds(db, teacherIds)
+      : await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
   const enabled: TeacherUserEnableHit[] = [];
   const skipped: TeacherUserEnableSkip[] = [];
 
@@ -527,31 +683,50 @@ export async function runTeacherUserScheduleEnable(
 }
 
 /**
- * 开课前 2 小时内定时：关联账号若仍禁用则启用。
- * Mac launchd 每 10 分钟跑一次；与 05:00 / 学习中 18h 互补。
+ * 开课前定时：关联账号若仍禁用则启用。
+ * - 日语：开课前 2h（Mac launchd 每 10 分钟）
+ * - 韩语：开课前 30min（同一定时任务；手动日程姓名匹配 ko_lesson_teacher）
  */
 export async function runTeacherUserPreClassEnable(
   db: D1Database,
-  options: { dryRun?: boolean; now?: Date; withinMs?: number } = {}
+  options: {
+    dryRun?: boolean;
+    now?: Date;
+    withinMs?: number;
+    koWithinMs?: number;
+  } = {}
 ): Promise<TeacherUserPreClassEnableResult> {
   const dryRun = Boolean(options.dryRun);
   const withinMs =
     options.withinMs ?? TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
+  const koWithinMs =
+    options.koWithinMs ?? KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
   const now = options.now ?? new Date();
   const teacherIds = await listTeacherIdsWithUpcomingClassStart(db, {
     withinMs,
     now,
   });
-  const { enabled, skipped } = await enableLinkedTeacherUsers(db, teacherIds, {
+  const koTeacherIds = await listKoTeacherIdsWithUpcomingClassStart(db, {
+    withinMs: koWithinMs,
+    now,
+  });
+  const jpResult = await enableLinkedTeacherUsers(db, teacherIds, {
     dryRun,
+    subject: "jp",
+  });
+  const koResult = await enableLinkedTeacherUsers(db, koTeacherIds, {
+    dryRun,
+    subject: "ko",
   });
 
   return {
     dry_run: dryRun,
     within_ms: withinMs,
     teachers_with_upcoming_class: teacherIds,
-    enabled,
-    skipped,
+    enabled: [...jpResult.enabled, ...koResult.enabled],
+    skipped: [...jpResult.skipped, ...koResult.skipped],
+    ko_within_ms: koWithinMs,
+    ko_teachers_with_upcoming_class: koTeacherIds,
   };
 }
 

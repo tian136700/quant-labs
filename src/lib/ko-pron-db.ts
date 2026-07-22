@@ -8,19 +8,31 @@ import { applyKoPronReview } from "@/lib/ko-pron-review";
 import { KO_PRON_SEED_LETTERS } from "@/lib/ko-pron-seed";
 import {
   defaultKoPronTeacherVisibleLimit,
+  KO_PRON_VISIBLE_ORDER_ALGO,
   materializeKoPronTeacherVisible,
   normalizeKoPronTeacherVisibleLimit,
   withKoPronTargetAdjustmentMarker,
   type KoPronTeacherVisibleLimit,
 } from "@/lib/ko-pron-teacher-visible";
 import {
+  computeKoPronDailyDisplayOrder,
+  mergeKoPronDailyDisplayOrder,
+  normalizeKoPronDailyDisplayOrder,
+  type KoPronDailyDisplayOrder,
+} from "@/lib/ko-pron-daily-order";
+import {
   KO_PRON_TEACHER_QUIZ_LIVE_EMPTY,
   normalizeKoPronTeacherQuizLive,
   type KoPronTeacherQuizLive,
 } from "@/lib/ko-pron-teacher-quiz-live";
+import {
+  computeKoPronDailyQuizProgress,
+  type KoPronDailyQuizProgress,
+} from "@/lib/ko-pron-daily-quiz-progress";
 
 const TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 const TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
+const DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
 
 let letterSchemaReady = false;
 let settingSchemaReady = false;
@@ -207,17 +219,68 @@ export async function saveKoPronTeacherVisibleLimit(
   return visible;
 }
 
+async function readKoPronDailyDisplayOrderRaw(
+  db: D1Database
+): Promise<KoPronDailyDisplayOrder | null> {
+  const raw = await getSettingRaw(db, DAILY_DISPLAY_ORDER_KEY);
+  if (!raw) return null;
+  try {
+    return normalizeKoPronDailyDisplayOrder(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+export async function saveKoPronDailyDisplayOrder(
+  db: D1Database,
+  order: KoPronDailyDisplayOrder
+): Promise<void> {
+  await setSettingRaw(db, DAILY_DISPLAY_ORDER_KEY, JSON.stringify(order));
+}
+
+/**
+ * 当日已有日序则沿用（合并增删）；跨日按日语同一套熟悉程度加权优先级重排。
+ */
+export async function ensureKoPronDailyDisplayOrder(
+  db: D1Database,
+  letters: KoPronLetter[],
+  now = new Date()
+): Promise<KoPronDailyDisplayOrder> {
+  const today = beijingDateString(now);
+  const stored = await readKoPronDailyDisplayOrderRaw(db);
+  if (stored?.date === today && stored.ids.length > 0) {
+    const merged = mergeKoPronDailyDisplayOrder(stored.ids, letters);
+    const order = { date: today, ids: merged };
+    if (
+      merged.length !== stored.ids.length ||
+      merged.some((id, i) => id !== stored.ids[i])
+    ) {
+      await saveKoPronDailyDisplayOrder(db, order);
+    }
+    return order;
+  }
+  const order = {
+    date: today,
+    ids: computeKoPronDailyDisplayOrder(letters, now),
+  };
+  await saveKoPronDailyDisplayOrder(db, order);
+  return order;
+}
+
 export async function ensureKoPronTeacherVisibleLimit(
   db: D1Database,
-  ctx?: { letters?: KoPronLetter[] }
+  ctx?: { letters?: KoPronLetter[]; display_order?: KoPronDailyDisplayOrder }
 ): Promise<KoPronTeacherVisibleLimit> {
   const letters = ctx?.letters ?? (await listKoPronLetters(db));
+  const display_order =
+    ctx?.display_order ?? (await ensureKoPronDailyDisplayOrder(db, letters));
   const current = await getKoPronTeacherVisibleLimit(db);
   const today = beijingDateString();
   if (
     current.date === today &&
     current.visible_ids?.length &&
-    current.released_today
+    current.released_today &&
+    current.order_algo === KO_PRON_VISIBLE_ORDER_ALGO
   ) {
     return current;
   }
@@ -227,7 +290,8 @@ export async function ensureKoPronTeacherVisibleLimit(
       date: today,
       quiz_target: current.quiz_target || 10,
     },
-    letters
+    letters,
+    display_order
   );
   return saveKoPronTeacherVisibleLimit(db, materialized);
 }
@@ -237,6 +301,7 @@ export async function setKoPronDailyQuizTarget(
   targetCount: number
 ): Promise<KoPronTeacherVisibleLimit> {
   const letters = await listKoPronLetters(db);
+  const display_order = await ensureKoPronDailyDisplayOrder(db, letters);
   const current = await getKoPronTeacherVisibleLimit(db);
   const quiz_target = Math.min(
     Math.max(1, Math.floor(targetCount)),
@@ -247,7 +312,7 @@ export async function setKoPronDailyQuizTarget(
     quiz_target,
   };
   const materialized = withKoPronTargetAdjustmentMarker(
-    materializeKoPronTeacherVisible(draft, letters)
+    materializeKoPronTeacherVisible(draft, letters, display_order)
   );
   if (!materialized.visible_ids?.length) {
     throw new Error("no_release_candidates");
@@ -309,12 +374,28 @@ export async function recordKoPronReview(
 export async function listKoPronBundle(db: D1Database): Promise<{
   letters: KoPronLetter[];
   teacher_visible_limit: KoPronTeacherVisibleLimit;
+  display_order: KoPronDailyDisplayOrder;
 }> {
   const letters = await listKoPronLetters(db);
+  const display_order = await ensureKoPronDailyDisplayOrder(db, letters);
   const teacher_visible_limit = await ensureKoPronTeacherVisibleLimit(db, {
     letters,
+    display_order,
   });
-  return { letters, teacher_visible_limit };
+  return { letters, teacher_visible_limit, display_order };
+}
+
+/** 今日抽查是否已完成（供抽完后延时禁用账号） */
+export async function getKoPronDailyQuizProgress(
+  db: D1Database,
+  now = new Date()
+): Promise<KoPronDailyQuizProgress> {
+  const bundle = await listKoPronBundle(db);
+  return computeKoPronDailyQuizProgress(
+    bundle.letters,
+    bundle.teacher_visible_limit,
+    now
+  );
 }
 
 export async function getKoPronLetterById(

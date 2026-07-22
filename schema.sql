@@ -103,6 +103,19 @@ CREATE TABLE IF NOT EXISTS etr_user_jp_lesson_teacher_link (
 CREATE INDEX IF NOT EXISTS idx_etr_user_jp_lesson_teacher_link_teacher
   ON etr_user_jp_lesson_teacher_link (teacher_id);
 
+-- 韩语老师账号与韩语上课老师的对应关系（开课前 30min 启 / 抽完 +20min 禁）
+-- teacher_id 指向运行时建的 ko_lesson_teacher（见 ko-lesson-teacher-db）；此处不写 FK 以免 schema 顺序依赖
+CREATE TABLE IF NOT EXISTS etr_user_ko_lesson_teacher_link (
+  user_id    INTEGER PRIMARY KEY,
+  teacher_id INTEGER NOT NULL,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_user_ko_lesson_teacher_link_teacher
+  ON etr_user_ko_lesson_teacher_link (teacher_id);
+
 -- 管理员：复制登录链接时可选附带的文字模板（支持 {login_url} 占位符）
 CREATE TABLE IF NOT EXISTS etr_login_link_templates (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -303,6 +316,21 @@ CREATE TABLE IF NOT EXISTS jp_vocab_teacher_quiz_day (
 
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_teacher_quiz_day_disable
   ON jp_vocab_teacher_quiz_day (quiz_date, disabled_at, disable_after_at);
+
+-- 韩语发音抽问老师端：今日谁抽问、何时抽完（抽完后 +20min 自动禁用）
+CREATE TABLE IF NOT EXISTS ko_pron_teacher_quiz_day (
+  user_id          INTEGER NOT NULL,
+  quiz_date        TEXT    NOT NULL,
+  username         TEXT    NOT NULL,
+  last_action_at   TEXT    NOT NULL,
+  completed_at     TEXT,
+  disable_after_at TEXT,
+  disabled_at      TEXT,
+  PRIMARY KEY (user_id, quiz_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ko_pron_teacher_quiz_day_disable
+  ON ko_pron_teacher_quiz_day (quiz_date, disabled_at, disable_after_at);
 
 CREATE INDEX IF NOT EXISTS idx_jp_vocab_coach_item_order
   ON jp_vocab_coach_item (display_order, word_id);

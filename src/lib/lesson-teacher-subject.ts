@@ -36,9 +36,11 @@ export function lessonTeacherSubjectLabel(
   return locale === "zh" ? "日语老师" : "Japanese";
 }
 
-/** 非日语老师：不创建系统登录账号，也不纳入「今日有课自动启用」 */
+/** 非日语/韩语老师：不创建系统登录账号，也不纳入「今日有课自动启用」
+ * 英语老师仍跳过；韩语老师与日语一样建账号（开课前 30min 启 / 抽完 +20min 禁）。
+ */
 export function lessonTeacherSubjectSkipsUserAccount(
   subject: LessonTeacherSubject
 ): boolean {
-  return subject !== "jp";
+  return subject === "en";
 }

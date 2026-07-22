@@ -6,6 +6,11 @@ import {
   markJpVocabTeacherQuizDayDisabled,
   shouldTrackJpVocabTeacherQuizDay,
 } from "@/lib/jp-vocab-teacher-quiz-day";
+import {
+  listKoPronTeacherQuizDaysDueForDisable,
+  markKoPronTeacherQuizDayDisabled,
+  shouldTrackKoPronTeacherQuizDay,
+} from "@/lib/ko-pron-teacher-quiz-day";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import {
   isExcludedFromTeacherScheduleAutoEnable,
@@ -23,20 +28,31 @@ export type TeacherUserQuizCompleteDisableResult = {
     quiz_date: string;
     completed_at: string | null;
     disable_after_at: string | null;
+    subject?: "jp" | "ko";
   }>;
   skipped: Array<{
     user_id: number;
     username: string;
     quiz_date: string;
     reason: string;
+    subject?: "jp" | "ko";
   }>;
+};
+
+type DueRow = {
+  user_id: number;
+  username: string;
+  quiz_date: string;
+  completed_at: string | null;
+  disable_after_at: string | null;
+  subject: "jp" | "ko";
 };
 
 /**
  * 今日抽查完成后的延时自动禁用：
- * - 普通老师：completed_at + 1h
- * - 带读账号（欣欣等）：completed_at + 2h
- * 与「今日有课 05:00 自动启用」对称；排除 admin / user1 / test。
+ * - 日语普通老师：completed_at + 1h；带读账号 + 2h
+ * - 韩语老师：completed_at + 20min
+ * 与「开课前自动启用」对称；排除 admin / user1 / test。
  */
 export async function runTeacherUserQuizCompleteDisable(
   db: D1Database,
@@ -45,7 +61,12 @@ export async function runTeacherUserQuizCompleteDisable(
   const dryRun = Boolean(options.dryRun);
   const now = options.now ?? new Date();
   const date = beijingDateString(now);
-  const dueRows = await listJpVocabTeacherQuizDaysDueForDisable(db, now);
+  const jpDue = await listJpVocabTeacherQuizDaysDueForDisable(db, now);
+  const koDue = await listKoPronTeacherQuizDaysDueForDisable(db, now);
+  const dueRows: DueRow[] = [
+    ...jpDue.map((row) => ({ ...row, subject: "jp" as const })),
+    ...koDue.map((row) => ({ ...row, subject: "ko" as const })),
+  ];
   const nearClassUserIds = await listLinkedUserIdsWithClassNearNow(db, {
     beforeMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
     afterMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
@@ -59,6 +80,26 @@ export async function runTeacherUserQuizCompleteDisable(
     const userId = Number(row.user_id);
     const username = String(row.username ?? "").trim();
     const quizDate = String(row.quiz_date ?? "");
+    const subject = row.subject;
+
+    const markDisabled = async () => {
+      if (dryRun) return;
+      if (subject === "ko") {
+        await markKoPronTeacherQuizDayDisabled(
+          db,
+          userId,
+          quizDate,
+          now.toISOString()
+        );
+      } else {
+        await markJpVocabTeacherQuizDayDisabled(
+          db,
+          userId,
+          quizDate,
+          now.toISOString()
+        );
+      }
+    };
 
     if (!Number.isInteger(userId) || userId <= 0 || !quizDate) {
       skipped.push({
@@ -66,6 +107,7 @@ export async function runTeacherUserQuizCompleteDisable(
         username,
         quiz_date: quizDate,
         reason: "invalid_row",
+        subject,
       });
       continue;
     }
@@ -77,27 +119,26 @@ export async function runTeacherUserQuizCompleteDisable(
         username,
         quiz_date: quizDate,
         reason: "user_not_found",
+        subject,
       });
-      // 用户已删：仍标记，避免反复扫到
-      if (!dryRun) {
-        await markJpVocabTeacherQuizDayDisabled(db, userId, quizDate, now.toISOString());
-      }
+      await markDisabled();
       continue;
     }
 
-    if (
-      isExcludedFromTeacherScheduleAutoEnable(user) ||
-      !shouldTrackJpVocabTeacherQuizDay(user)
-    ) {
+    const shouldTrack =
+      subject === "ko"
+        ? shouldTrackKoPronTeacherQuizDay(user)
+        : shouldTrackJpVocabTeacherQuizDay(user);
+
+    if (isExcludedFromTeacherScheduleAutoEnable(user) || !shouldTrack) {
       skipped.push({
         user_id: userId,
         username: user.username,
         quiz_date: quizDate,
         reason: "excluded_account",
+        subject,
       });
-      if (!dryRun) {
-        await markJpVocabTeacherQuizDayDisabled(db, userId, quizDate, now.toISOString());
-      }
+      await markDisabled();
       continue;
     }
 
@@ -107,10 +148,9 @@ export async function runTeacherUserQuizCompleteDisable(
         username: user.username,
         quiz_date: quizDate,
         reason: "already_disabled",
+        subject,
       });
-      if (!dryRun) {
-        await markJpVocabTeacherQuizDayDisabled(db, userId, quizDate, now.toISOString());
-      }
+      await markDisabled();
       continue;
     }
 
@@ -121,6 +161,7 @@ export async function runTeacherUserQuizCompleteDisable(
         username: user.username,
         quiz_date: quizDate,
         reason: "near_upcoming_or_ongoing_class",
+        subject,
       });
       continue;
     }
@@ -131,7 +172,7 @@ export async function runTeacherUserQuizCompleteDisable(
         .bind(userId)
         .run();
       await revokeUserSessions(db, userId);
-      await markJpVocabTeacherQuizDayDisabled(db, userId, quizDate, now.toISOString());
+      await markDisabled();
     }
 
     disabled.push({
@@ -140,6 +181,7 @@ export async function runTeacherUserQuizCompleteDisable(
       quiz_date: quizDate,
       completed_at: row.completed_at,
       disable_after_at: row.disable_after_at,
+      subject,
     });
   }
 

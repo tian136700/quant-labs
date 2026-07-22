@@ -26,6 +26,7 @@ import {
   listKoPronTeacherQuizPoolLetters,
   type KoPronTeacherVisibleLimit,
 } from "@/lib/ko-pron-teacher-visible";
+import type { KoPronDailyDisplayOrder } from "@/lib/ko-pron-daily-order";
 import {
   animateJpVocabSaveProgressTo100,
   JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
@@ -65,6 +66,8 @@ export function KoPronPage({ variant }: Props) {
   const [letters, setLetters] = useState<KoPronLetter[]>([]);
   const [teacherVisible, setTeacherVisible] =
     useState<KoPronTeacherVisibleLimit | null>(null);
+  const [displayOrder, setDisplayOrder] =
+    useState<KoPronDailyDisplayOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sessionLevels, setSessionLevels] = useState<SessionLevels>({});
@@ -123,6 +126,7 @@ export function KoPronPage({ variant }: Props) {
         error?: string;
         letters?: KoPronLetter[];
         teacher_visible_limit?: KoPronTeacherVisibleLimit;
+        display_order?: KoPronDailyDisplayOrder;
       };
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "加载失败");
@@ -132,6 +136,9 @@ export function KoPronPage({ variant }: Props) {
       if (data.teacher_visible_limit) {
         setTeacherVisible(data.teacher_visible_limit);
         setTargetDraft(String(data.teacher_visible_limit.quiz_target));
+      }
+      if (data.display_order) {
+        setDisplayOrder(data.display_order);
       }
       sinceRef.current = next.reduce(
         (max, l) => (l.updated_at > max ? l.updated_at : max),
@@ -203,10 +210,14 @@ export function KoPronPage({ variant }: Props) {
     release_count: 10,
   };
 
-  const dailySeqById = useMemo(() => buildKoPronDailySeqMap(letters), [letters]);
+  const dailySeqById = useMemo(
+    () => buildKoPronDailySeqMap(letters, displayOrder?.ids),
+    [letters, displayOrder]
+  );
   const quizPool = useMemo(
-    () => listKoPronTeacherQuizPoolLetters(letters, visible),
-    [letters, visible]
+    () =>
+      listKoPronTeacherQuizPoolLetters(letters, visible, displayOrder?.ids),
+    [letters, visible, displayOrder]
   );
 
   const hasLevel = useCallback(
@@ -226,12 +237,33 @@ export function KoPronPage({ variant }: Props) {
   }, [isTeacherMode, quizPool, hasLevel]);
 
   const displayLetters = useMemo(() => {
-    if (isAdminMode) return letters;
+    if (isAdminMode) {
+      if (displayOrder?.ids?.length) {
+        const byId = new Map(letters.map((l) => [l.id, l]));
+        const ordered = displayOrder.ids
+          .map((id) => byId.get(id))
+          .filter((l): l is KoPronLetter => l != null);
+        const seen = new Set(ordered.map((l) => l.id));
+        for (const letter of letters) {
+          if (!seen.has(letter.id)) ordered.push(letter);
+        }
+        return ordered;
+      }
+      return letters;
+    }
     if (visible.quiz_target > 0 && quizPool.every((l) => hasLevel(l.id))) {
       return quizPool;
     }
     return teacherPending.length ? teacherPending : quizPool;
-  }, [isAdminMode, letters, quizPool, teacherPending, visible.quiz_target, hasLevel]);
+  }, [
+    isAdminMode,
+    letters,
+    displayOrder,
+    quizPool,
+    teacherPending,
+    visible.quiz_target,
+    hasLevel,
+  ]);
 
   const adminProgress = useMemo(
     () => computeKoPronDailyQuizProgress(letters, visible),

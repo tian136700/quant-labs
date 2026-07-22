@@ -6,6 +6,7 @@ import {
   recordKoPronReview,
   setKoPronDailyQuizTarget,
 } from "@/lib/ko-pron-db";
+import { trackKoPronTeacherQuizDayAfterReview } from "@/lib/ko-pron-teacher-quiz-day";
 import type { KoPronLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);
   try {
-    const { env, allowed } = await requireKoPronAccess(request);
+    const { env, user, allowed } = await requireKoPronAccess(request);
     if (!allowed) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
@@ -101,6 +102,20 @@ export async function POST(request: Request) {
         404
       );
     }
+
+    // 记录今日抽问操作人；抽完后定时任务按 +20min 自动禁用（失败不影响勾选结果）
+    const { isAdmin: isAdminForReview } = await requireAdmin(request);
+    if (user && !isAdminForReview) {
+      try {
+        await trackKoPronTeacherQuizDayAfterReview(env.DB, user);
+      } catch (trackErr) {
+        console.error(
+          "[ko-pron] trackKoPronTeacherQuizDayAfterReview failed",
+          trackErr
+        );
+      }
+    }
+
     return jsonResponse({ ok: true, letter, word: letter });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
