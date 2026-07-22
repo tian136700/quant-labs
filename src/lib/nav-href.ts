@@ -29,6 +29,7 @@ import {
   koPronAdminPath,
   koPronSelectPath,
   koPronStudyPath,
+  koPronReviewPath,
   storeReviewPath,
   storeReviewPlazaPath,
   teacherReviewNavPath,
@@ -53,6 +54,7 @@ export type NavTarget =
   | "koPronAdmin"
   | "koPronSelect"
   | "koPronStudy"
+  | "koPronReview"
   | "admin"
   | "adminTrends"
   | "adminRbac"
@@ -113,6 +115,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return "/ko-pron/select";
     case "koPronStudy":
       return "/ko-pron/study";
+    case "koPronReview":
+      return "/ko-pron/review";
     case "admin":
       return locale === "zh" ? "/zh/admin" : "/admin";
     case "adminTrends":

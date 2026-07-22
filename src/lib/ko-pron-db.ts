@@ -43,7 +43,13 @@ const VOWEL_CATEGORY_TEXTBOOK_MIGRATION_KEY = "vowel_category_textbook_v2";
 let letterSchemaReady = false;
 let catalogSchemaReady = false;
 let settingSchemaReady = false;
+let reviewDoneSchemaReady = false;
 let catalogReady = false;
+
+/** catalog 列表/单条查询共用列（含复习池字段） */
+const KO_PRON_CATALOG_SELECT_COLS = `id, letter, reading, meaning, category,
+              selected_at, review_selected_at,
+              created_at, updated_at`;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -81,6 +87,11 @@ function rowToCatalog(row: Record<string, unknown>): KoPronCatalogLetter {
       row.selected_at == null || String(row.selected_at).trim() === ""
         ? null
         : String(row.selected_at),
+    review_selected_at:
+      row.review_selected_at == null ||
+      String(row.review_selected_at).trim() === ""
+        ? null
+        : String(row.review_selected_at),
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
   };
@@ -128,6 +139,7 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
          meaning TEXT,
          category TEXT,
          selected_at TEXT,
+         review_selected_at TEXT,
          created_at TEXT NOT NULL,
          updated_at TEXT NOT NULL
        )`
@@ -139,7 +151,31 @@ async function ensureCatalogSchema(db: D1Database): Promise<void> {
        ON ko_pron_catalog (letter)`
     )
     .run();
+  const info = await db
+    .prepare(`PRAGMA table_info(ko_pron_catalog)`)
+    .all<{ name: string }>();
+  const cols = new Set((info.results ?? []).map((row) => row.name));
+  if (!cols.has("review_selected_at")) {
+    await db
+      .prepare(
+        `ALTER TABLE ko_pron_catalog ADD COLUMN review_selected_at TEXT`
+      )
+      .run();
+  }
   catalogSchemaReady = true;
+}
+
+async function ensureReviewDoneSchema(db: D1Database): Promise<void> {
+  if (reviewDoneSchemaReady) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS ko_pron_review_done (
+         catalog_id INTEGER PRIMARY KEY,
+         reviewed_at TEXT NOT NULL
+       )`
+    )
+    .run();
+  reviewDoneSchemaReady = true;
 }
 
 async function ensureSettingSchema(db: D1Database): Promise<void> {
@@ -322,6 +358,7 @@ async function ensureKoPronCatalogReady(db: D1Database): Promise<void> {
   if (catalogReady) return;
   await ensureCatalogSchema(db);
   await ensureLetterSchema(db);
+  await ensureReviewDoneSchema(db);
   await seedCatalogIfEmpty(db);
   await migrateQuizPoolSplitOnce(db);
   await migrateVowelCategoryRenameOnce(db);
@@ -339,8 +376,7 @@ export async function listKoPronCatalog(
   await ensureKoPronCatalogReady(db);
   const result = await db
     .prepare(
-      `SELECT id, letter, reading, meaning, category, selected_at,
-              created_at, updated_at
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
        FROM ko_pron_catalog
        ORDER BY id ASC`
     )
@@ -355,8 +391,7 @@ export async function getKoPronCatalogById(
   await ensureKoPronCatalogReady(db);
   const row = await db
     .prepare(
-      `SELECT id, letter, reading, meaning, category, selected_at,
-              created_at, updated_at
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
        FROM ko_pron_catalog WHERE id = ?1`
     )
     .bind(catalogId)
@@ -519,8 +554,7 @@ export async function selectKoPronCatalogBatchIntoQuiz(
   const placeholders = uniqueIds.map((_, i) => `?${i + 1}`).join(", ");
   const rows = await db
     .prepare(
-      `SELECT id, letter, reading, meaning, category, selected_at,
-              created_at, updated_at
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
        FROM ko_pron_catalog
        WHERE id IN (${placeholders})`
     )
@@ -561,8 +595,7 @@ export async function selectKoPronCatalogBatchIntoQuiz(
 
   const refreshed = await db
     .prepare(
-      `SELECT id, letter, reading, meaning, category, selected_at,
-              created_at, updated_at
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
        FROM ko_pron_catalog
        WHERE id IN (${placeholders})`
     )
@@ -574,6 +607,171 @@ export async function selectKoPronCatalogBatchIntoQuiz(
     selected_count: needSelect.length,
     skipped_already: skippedAlready,
   };
+}
+
+/**
+ * 批量勾选进入复习池（不写 ko_pron_letter；与抽问池独立）。
+ */
+export async function selectKoPronCatalogBatchIntoReview(
+  db: D1Database,
+  catalogIds: number[],
+  now = new Date()
+): Promise<{
+  catalog: KoPronCatalogLetter[];
+  selected_count: number;
+  skipped_already: number;
+}> {
+  await ensureKoPronCatalogReady(db);
+
+  const uniqueIds = [
+    ...new Set(
+      catalogIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id >= 1)
+    ),
+  ].slice(0, KO_PRON_SELECT_BATCH_MAX);
+
+  if (!uniqueIds.length) {
+    return { catalog: [], selected_count: 0, skipped_already: 0 };
+  }
+
+  const placeholders = uniqueIds.map((_, i) => `?${i + 1}`).join(", ");
+  const rows = await db
+    .prepare(
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
+       FROM ko_pron_catalog
+       WHERE id IN (${placeholders})`
+    )
+    .bind(...uniqueIds)
+    .all<Record<string, unknown>>();
+
+  const found = (rows.results ?? []).map(rowToCatalog);
+  const needSelect = found.filter((c) => !c.review_selected_at);
+  const skippedAlready = found.length - needSelect.length;
+
+  if (!needSelect.length) {
+    return {
+      catalog: found,
+      selected_count: 0,
+      skipped_already: skippedAlready,
+    };
+  }
+
+  const ts = now.toISOString();
+  const stmts = needSelect.map((c) =>
+    db
+      .prepare(
+        `UPDATE ko_pron_catalog
+         SET review_selected_at = ?1, updated_at = ?2
+         WHERE id = ?3 AND review_selected_at IS NULL`
+      )
+      .bind(ts, ts, c.id)
+  );
+  await db.batch(stmts);
+
+  const refreshed = await db
+    .prepare(
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
+       FROM ko_pron_catalog
+       WHERE id IN (${placeholders})`
+    )
+    .bind(...uniqueIds)
+    .all<Record<string, unknown>>();
+
+  return {
+    catalog: (refreshed.results ?? []).map(rowToCatalog),
+    selected_count: needSelect.length,
+    skipped_already: skippedAlready,
+  };
+}
+
+/** 复习池：已 review_selected_at 的字母 */
+export async function listKoPronReviewCatalog(
+  db: D1Database
+): Promise<KoPronCatalogLetter[]> {
+  await ensureKoPronCatalogReady(db);
+  const result = await db
+    .prepare(
+      `SELECT ${KO_PRON_CATALOG_SELECT_COLS}
+       FROM ko_pron_catalog
+       WHERE review_selected_at IS NOT NULL
+       ORDER BY review_selected_at ASC, id ASC`
+    )
+    .all<Record<string, unknown>>();
+  return (result.results ?? []).map(rowToCatalog);
+}
+
+export type KoPronReviewProgress = {
+  count: number;
+  reviewed_catalog_ids: number[];
+};
+
+export function normalizeKoPronReviewProgress(
+  raw: Partial<KoPronReviewProgress> | null | undefined
+): KoPronReviewProgress {
+  const reviewed_catalog_ids = Array.isArray(raw?.reviewed_catalog_ids)
+    ? [
+        ...new Set(
+          raw.reviewed_catalog_ids
+            .map((id) => Number(id))
+            .filter((id) => id > 0)
+        ),
+      ]
+    : [];
+  return {
+    count: reviewed_catalog_ids.length,
+    reviewed_catalog_ids,
+  };
+}
+
+export async function getKoPronReviewProgress(
+  db: D1Database
+): Promise<KoPronReviewProgress> {
+  await ensureKoPronCatalogReady(db);
+  await ensureReviewDoneSchema(db);
+  const rows = await db
+    .prepare(
+      `SELECT catalog_id FROM ko_pron_review_done ORDER BY reviewed_at ASC`
+    )
+    .all<{ catalog_id: number }>();
+  const reviewed_catalog_ids = (rows.results ?? [])
+    .map((row) => Number(row.catalog_id))
+    .filter((id) => id > 0);
+  return normalizeKoPronReviewProgress({ reviewed_catalog_ids });
+}
+
+/** 复习卡片点「下一个」：记录当前字母已完成复习（去重；不按日清零） */
+export async function recordKoPronReviewDone(
+  db: D1Database,
+  catalogId: number
+): Promise<KoPronReviewProgress> {
+  const id = Math.floor(Number(catalogId));
+  if (!Number.isFinite(id) || id <= 0) {
+    return getKoPronReviewProgress(db);
+  }
+  const current = await getKoPronReviewProgress(db);
+  if (current.reviewed_catalog_ids.includes(id)) {
+    return current;
+  }
+  await ensureReviewDoneSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO ko_pron_review_done (catalog_id, reviewed_at)
+       VALUES (?1, ?2)
+       ON CONFLICT(catalog_id) DO NOTHING`
+    )
+    .bind(id, nowIso())
+    .run();
+  return getKoPronReviewProgress(db);
+}
+
+/** 用户手动清除全部复习进度 */
+export async function clearKoPronReviewDone(
+  db: D1Database
+): Promise<KoPronReviewProgress> {
+  await ensureReviewDoneSchema(db);
+  await db.prepare(`DELETE FROM ko_pron_review_done`).run();
+  return normalizeKoPronReviewProgress(null);
 }
 
 export async function listKoPronLetters(db: D1Database): Promise<KoPronLetter[]> {

@@ -397,6 +397,8 @@ export interface KoPronCatalogLetter {
   category: string | null;
   /** 已勾选进抽问池的时间；NULL=未勾选 */
   selected_at: string | null;
+  /** 已勾选进复习池的时间；NULL=未入复习；与抽问池独立 */
+  review_selected_at: string | null;
   created_at: string;
   updated_at: string;
 }

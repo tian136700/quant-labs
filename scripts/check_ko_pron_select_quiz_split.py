@@ -38,13 +38,18 @@ seed_letter_inserts = re.findall(
 )
 assert not seed_letter_inserts, "must not seed quiz table from KO_PRON_SEED_LETTERS"
 
-# Select UI + API
+# Select UI + API（批量勾选入库）
 assert "韩语发音勾选" in select_page
 assert "已勾选" in select_page
 assert "勾选时间" in select_page
-assert 'action: "select"' in select_page or 'action: "select"' in select_api
+assert "批量加入抽问" in select_page
+assert 'type="checkbox"' in select_page or "checkbox" in select_page
+assert "catalog_ids" in select_page
+assert "selectKoPronCatalogBatchIntoQuiz" in db
+assert "selectKoPronCatalogBatchIntoQuiz" in select_api or "catalog_ids" in select_api
 assert "selectKoPronCatalogIntoQuiz" in select_api
 assert "requireKoPronAdmin" in select_api
+assert "db.batch" in db or "await db.batch" in db
 
 # Quiz empty pool points to select
 assert "koPronSelectPath" in quiz_page

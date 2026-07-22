@@ -473,7 +473,12 @@ export function koPronStudyPath(): string {
   return "/ko-pron/study";
 }
 
-/** 老师端首页：精确 /ko-pron（不含 admin / study / select） */
+/** 韩语发音复习（猜读 → 显示罗马音 + 听发音） */
+export function koPronReviewPath(): string {
+  return "/ko-pron/review";
+}
+
+/** 老师端首页：精确 /ko-pron（不含 admin / study / select / review） */
 export function isKoPronTeacherHomePath(pathname: string): boolean {
   const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
   return path === "/ko-pron";
@@ -492,6 +497,11 @@ export function isKoPronAdminPath(pathname: string): boolean {
 export function isKoPronStudyPath(pathname: string): boolean {
   const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
   return path === "/ko-pron/study";
+}
+
+export function isKoPronReviewPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/ko-pron/review";
 }
 
 export function isKoPronPath(pathname: string): boolean {

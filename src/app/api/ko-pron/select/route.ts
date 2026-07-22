@@ -3,6 +3,7 @@ import { requireKoPronAdmin } from "@/lib/ko-pron-auth";
 import {
   listKoPronCatalog,
   selectKoPronCatalogBatchIntoQuiz,
+  selectKoPronCatalogBatchIntoReview,
   selectKoPronCatalogIntoQuiz,
 } from "@/lib/ko-pron-db";
 
@@ -54,7 +55,8 @@ export async function POST(request: Request) {
       catalog_ids?: unknown;
     };
 
-    if (body.action !== "select") {
+    const action = body.action;
+    if (action !== "select" && action !== "select_review") {
       return jsonResponse(
         {
           ok: false,
@@ -75,7 +77,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // 单条仍走原路径（兼容）；多条用 batch，避免循环 D1
+    if (action === "select_review") {
+      const result = await selectKoPronCatalogBatchIntoReview(
+        env.DB,
+        catalogIds
+      );
+      return jsonResponse({ ok: true, ...result });
+    }
+
+    // 入抽问：单条仍走原路径（兼容）；多条用 batch
     if (catalogIds.length === 1) {
       try {
         const result = await selectKoPronCatalogIntoQuiz(env.DB, catalogIds[0]);

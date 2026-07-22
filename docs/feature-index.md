@@ -136,7 +136,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **谁能看见韩语模块**（日语老师导航不含韩语；普通网友默认无 `ko_pron:*`；未登录进 URL 只出登录页） | `nav:jp_teacher` 分支；`RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS` 含全部 `ko_pron:*`；`user` 默认权限**不含** `ko_pron:study`；`revokeDefaultKoPronStudyFromPublicRoles` |
-| **勾选总库 → 抽问池**（禁止再往 `ko_pron_letter` seed 全量 40；入库只走勾选 API；同日勾选次日进老师可见池） | `KoPronSelectPage`；`selectKoPronCatalogIntoQuiz`；`ko_pron_catalog`；规则 `.cursor/rules/ko-pron-select-quiz-split.mdc` |
+| **勾选总库 → 抽问池**（**批量**：多选 +「批量加入抽问」；禁止再往 `ko_pron_letter` seed 全量 40；入库只走勾选 API；同日勾选次日进老师可见池） | `KoPronSelectPage`（checkbox / 全选）；`selectKoPronCatalogBatchIntoQuiz`；`POST …/select` `catalog_ids`；`ko_pron_catalog`；规则 `.cursor/rules/ko-pron-select-quiz-split.mdc` |
 | **老师/管理员入口拆分**（导航「韩语发音抽问-老师端 / 管理员端」+「韩语发音勾选」；`variant` 区分抽问） | `/ko-pron` vs `/ko-pron/admin` vs `/ko-pron/select`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()` / `koPronSelectPath()`；`messages.ts` → `nav.koPron*`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
 | **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
 | **学生端 live 卡片**（老师开卡同步字母；罗马音/熟悉程度对学生隐藏；老师勾选熟悉程度后揭示罗马音） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
