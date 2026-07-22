@@ -37,8 +37,10 @@ type Props = {
   mode?: ManualScheduleModalMode;
   jpTeachers?: JpLessonTeacher[];
   enTeachers?: JpLessonTeacher[];
+  koTeachers?: JpLessonTeacher[];
   onAddJpTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onAddEnTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
+  onAddKoTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   saving?: boolean;
   onClose: () => void;
   onSave: (draft: JpLessonManualScheduleDraft) => void;
@@ -91,8 +93,10 @@ export function JpLessonManualScheduleModal({
   mode = "full",
   jpTeachers = [],
   enTeachers = [],
+  koTeachers = [],
   onAddJpTeacher,
   onAddEnTeacher,
+  onAddKoTeacher,
   saving = false,
   onClose,
   onSave,
@@ -157,30 +161,42 @@ export function JpLessonManualScheduleModal({
   );
 
   const pickerTeachers = useMemo(
-    () => scheduleTeacherPickerListForSubject(teacherSubject, jpTeachers, enTeachers),
-    [teacherSubject, jpTeachers, enTeachers]
+    () =>
+      scheduleTeacherPickerListForSubject(
+        teacherSubject,
+        jpTeachers,
+        enTeachers,
+        koTeachers
+      ),
+    [teacherSubject, jpTeachers, enTeachers, koTeachers]
   );
 
   const onAddTeacher =
     teacherSubject === "en"
       ? onAddEnTeacher
-      : teacherSubject === "jp"
-        ? onAddJpTeacher
-        : onAddJpTeacher ?? onAddEnTeacher;
+      : teacherSubject === "ko"
+        ? onAddKoTeacher
+        : teacherSubject === "jp"
+          ? onAddJpTeacher
+          : onAddJpTeacher ?? onAddEnTeacher ?? onAddKoTeacher;
 
   const teacherFieldLabel =
     teacherSubject === "en"
       ? "老师（可选 · 英语）"
-      : teacherSubject === "jp"
-        ? "老师（可选 · 日语）"
-        : "老师（可选）";
+      : teacherSubject === "ko"
+        ? "老师（可选 · 韩语）"
+        : teacherSubject === "jp"
+          ? "老师（可选 · 日语）"
+          : "老师（可选）";
 
   const teacherPlaceholder =
     teacherSubject === "en"
       ? "选择英语老师"
-      : teacherSubject === "jp"
-        ? "选择日语老师"
-        : "选择老师";
+      : teacherSubject === "ko"
+        ? "选择韩语老师"
+        : teacherSubject === "jp"
+          ? "选择日语老师"
+          : "选择老师";
 
   const resolveTeacherForSave = async (): Promise<string | null> => {
     if (!onAddTeacher) return teacher.trim();

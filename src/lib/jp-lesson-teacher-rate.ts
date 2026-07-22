@@ -297,10 +297,13 @@ export function sortJpLessonTeachersByLessonCount(
   });
 }
 
-/** 日程等老师选择器：合并日语/英语老师，按称呼去重后排序 */
+export type ScheduleTeacherSubjectFromTitle = "en" | "jp" | "ko" | null;
+
+/** 日程等老师选择器：合并日语/英语/韩语老师，按称呼去重后排序 */
 export function mergeScheduleTeacherPickerLists(
   jpTeachers: JpLessonTeacher[],
-  enTeachers: JpLessonTeacher[]
+  enTeachers: JpLessonTeacher[],
+  koTeachers: JpLessonTeacher[] = []
 ): JpLessonTeacher[] {
   const byName = new Map<string, JpLessonTeacher>();
   const add = (teacher: JpLessonTeacher) => {
@@ -311,28 +314,36 @@ export function mergeScheduleTeacherPickerLists(
   };
   for (const teacher of jpTeachers) add(teacher);
   for (const teacher of enTeachers) add(teacher);
+  for (const teacher of koTeachers) add(teacher);
   return sortJpLessonTeachersByLessonCount([...byName.values()]);
 }
 
-/** 手动日程标题推断老师科目：含「英语」→ 英语，含「日语」→ 日语，否则不限 */
+/**
+ * 手动日程标题推断老师科目（人员管理分类）：
+ * 含「韩语/韩国语」→ 韩语；「英语」→ 英语；「日语」→ 日语；否则不限。
+ * 优先级：韩语 > 英语 > 日语（避免「韩语/英语」误落到日语默认）。
+ */
 export function detectScheduleTeacherSubjectFromTitle(
   title: string
-): "en" | "jp" | null {
+): ScheduleTeacherSubjectFromTitle {
   const text = title.trim();
   if (!text) return null;
+  if (text.includes("韩语") || text.includes("韩国语")) return "ko";
   if (text.includes("英语")) return "en";
   if (text.includes("日语")) return "jp";
   return null;
 }
 
 export function scheduleTeacherPickerListForSubject(
-  subject: "en" | "jp" | null,
+  subject: ScheduleTeacherSubjectFromTitle,
   jpTeachers: JpLessonTeacher[],
-  enTeachers: JpLessonTeacher[]
+  enTeachers: JpLessonTeacher[],
+  koTeachers: JpLessonTeacher[] = []
 ): JpLessonTeacher[] {
   if (subject === "en") return sortJpLessonTeachersByLessonCount(enTeachers);
   if (subject === "jp") return sortJpLessonTeachersByLessonCount(jpTeachers);
-  return mergeScheduleTeacherPickerLists(jpTeachers, enTeachers);
+  if (subject === "ko") return sortJpLessonTeachersByLessonCount(koTeachers);
+  return mergeScheduleTeacherPickerLists(jpTeachers, enTeachers, koTeachers);
 }
 
 export type LessonTeacherAddInput = {

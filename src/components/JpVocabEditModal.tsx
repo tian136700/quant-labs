@@ -12,11 +12,15 @@ import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { findDuplicateJpVocabExamplePrimaries, JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL } from "@/lib/jp-vocab-example-sentences";
 import {
+  appendJpVocabClassNoteImageLine,
+  collectJpVocabClassNoteImageRefKeys,
   hasJpVocabClassNotes,
+  jpVocabClassNoteImageRefKeyFromSrc,
   mergeJpVocabClassNotesBlobFromEdit,
   removeJpVocabClassNotesBlobImageAt,
   splitJpVocabClassNotesBlobForEdit,
 } from "@/lib/jp-vocab-class-notes";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { formatUploadBytes, uploadFormWithProgress, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
 

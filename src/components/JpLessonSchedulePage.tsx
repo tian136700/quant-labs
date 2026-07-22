@@ -95,6 +95,7 @@ import type {
   JpLessonRecord,
   JpLessonTeacher,
   JpVocabRef,
+  KoLessonTeacher,
 } from "@/lib/types";
 
 type ViewMode = "day" | "week" | "month";
@@ -390,6 +391,7 @@ export function JpLessonSchedulePage() {
   const [enTeachers, setEnTeachers] = useState<EnLessonTeacher[]>(
     () => readEnLessonCache()?.teachers ?? []
   );
+  const [koTeachers, setKoTeachers] = useState<KoLessonTeacher[]>([]);
   const [loading, setLoading] = useState(() => readLessonCache() == null);
   const [refreshing, setRefreshing] = useState(false);
   const [enLoading, setEnLoading] = useState(() => readEnLessonCache() == null);
@@ -577,6 +579,28 @@ export function JpLessonSchedulePage() {
   useEffect(() => {
     if (!checking && isAdmin) void loadEnLessons({ force: true });
   }, [checking, isAdmin, loadEnLessons]);
+
+  const loadKoTeachers = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch("/api/admin/ko-lesson-teachers", {
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teachers?: KoLessonTeacher[];
+      };
+      if (data.ok && Array.isArray(data.teachers)) {
+        setKoTeachers(sortJpLessonTeachersByLessonCount(data.teachers));
+      }
+    } catch {
+      // 韩语老师列表仅用于手动日程选人；失败不挡日程主流程
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!checking && isAdmin) void loadKoTeachers();
+  }, [checking, isAdmin, loadKoTeachers]);
 
   const enTeacherNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -1067,6 +1091,50 @@ export function JpLessonSchedulePage() {
           teachers: next,
         });
         return next;
+      });
+      return data.teacher;
+    } catch {
+      return null;
+    }
+  };
+
+  const addKoLessonTeacher = async (
+    input: JpLessonTeacherAddInput
+  ): Promise<KoLessonTeacher | null> => {
+    if (!isAdmin) return null;
+
+    try {
+      const res = await fetch("/api/admin/ko-lesson-teachers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        teacher?: KoLessonTeacher;
+        renamed_teachers?: KoLessonTeacher[];
+        error?: string;
+      };
+      if (!data.ok || !data.teacher) {
+        if (data.error === "name_duplicate") {
+          return (
+            findLessonTeacherByPickerName(koTeachers, input.name) ??
+            koTeachers.find((item) => item.name.trim() === input.name.trim()) ??
+            null
+          );
+        }
+        return null;
+      }
+      setKoTeachers((prev) => {
+        const renamedMap = new Map(
+          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
+        );
+        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
+        return sortJpLessonTeachersByLessonCount([
+          ...merged.filter((teacher) => teacher.id !== data.teacher!.id),
+          data.teacher!,
+        ]);
       });
       return data.teacher;
     } catch {
@@ -1832,8 +1900,10 @@ export function JpLessonSchedulePage() {
         mode={manualModalMode}
         jpTeachers={teachers}
         enTeachers={enTeachers}
+        koTeachers={koTeachers}
         onAddJpTeacher={addLessonTeacher}
         onAddEnTeacher={addEnLessonTeacher}
+        onAddKoTeacher={addKoLessonTeacher}
         saving={savingManualSchedule}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
