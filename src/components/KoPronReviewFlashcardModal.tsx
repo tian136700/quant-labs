@@ -164,7 +164,8 @@ export function KoPronReviewFlashcardModal({
           position: fixed;
           inset: 0;
           z-index: 1200;
-          background: rgba(15, 23, 42, 0.72);
+          /* Must be opaque: list behind shows 罗马音; translucent = spoils the quiz */
+          background: var(--bg);
           display: flex;
           align-items: center;
           justify-content: center;

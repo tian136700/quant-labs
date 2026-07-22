@@ -259,7 +259,10 @@ export function KoPronReviewPage() {
             />
           ) : null}
 
-          <div className="ko-pron-review-table-wrap">
+          <div
+            className="ko-pron-review-table-wrap"
+            aria-hidden={session ? true : undefined}
+          >
             <table className="ko-pron-review-table">
               <thead>
                 <tr>
@@ -282,13 +285,17 @@ export function KoPronReviewPage() {
                       <td>{i + 1}</td>
                       <td className="ko-pron-review-letter-cell">
                         <span>{item.letter}</span>
-                        <KoPronSpeakButton
-                          letter={item.letter}
-                          reading={item.reading}
-                          variant="compact"
-                        />
+                        {/* 复习进行中不渲染发音键，避免未揭示前听到答案 */}
+                        {!session ? (
+                          <KoPronSpeakButton
+                            letter={item.letter}
+                            reading={item.reading}
+                            variant="compact"
+                          />
+                        ) : null}
                       </td>
-                      <td>{item.reading}</td>
+                      {/* 复习进行中隐藏罗马音，防止半透明/漏层剧透 */}
+                      <td>{session ? "···" : item.reading}</td>
                       <td>{item.category}</td>
                       <td>{done ? "已复习" : "未复习"}</td>
                       <td>
