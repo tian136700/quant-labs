@@ -6,6 +6,7 @@ import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { KoPronDailyQuizCompleteModal } from "@/components/KoPronDailyQuizCompleteModal";
+import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { KoPronTeacherQuizFlashcardModal } from "@/components/KoPronTeacherQuizFlashcardModal";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import {
@@ -703,7 +704,14 @@ export function KoPronPage({ variant }: Props) {
                         }}
                       >
                         <td>{seq}</td>
-                        <td className="ko-pron-letter-cell">{letter.letter}</td>
+                        <td className="ko-pron-letter-cell">
+                          <span className="ko-pron-letter-glyph">{letter.letter}</span>
+                          <KoPronSpeakButton
+                            letter={letter.letter}
+                            reading={letter.reading}
+                            variant="compact"
+                          />
+                        </td>
                         <td>{letter.reading}</td>
                         <td>{letter.meaning}</td>
                         <td>{letter.category}</td>
@@ -971,6 +979,10 @@ export function KoPronPage({ variant }: Props) {
         .ko-pron-letter-cell {
           font-size: 1.35rem;
           font-weight: 700;
+          white-space: nowrap;
+        }
+        .ko-pron-letter-glyph {
+          vertical-align: middle;
         }
         .ko-pron-stats-cell {
           font-variant-numeric: tabular-nums;

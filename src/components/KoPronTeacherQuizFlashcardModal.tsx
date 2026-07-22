@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
@@ -115,6 +116,13 @@ export function KoPronTeacherQuizFlashcardModal({
         <h2 id="ko-pron-flashcard-title" className="jp-vocab-flashcard-hero">
           <span style={{ fontSize: "3.2rem", lineHeight: 1.1 }}>{letter.letter}</span>
         </h2>
+        <div className="ko-pron-flashcard-speak">
+          <KoPronSpeakButton
+            letter={letter.letter}
+            reading={letter.reading}
+            variant="hero"
+          />
+        </div>
 
         {!revealed ? (
           <button
@@ -247,9 +255,14 @@ export function KoPronTeacherQuizFlashcardModal({
           color: #64748b;
         }
         .jp-vocab-flashcard-hero {
-          margin: 0.5rem 0 1rem;
+          margin: 0.5rem 0 0.35rem;
           text-align: center;
           font-weight: 700;
+        }
+        .ko-pron-flashcard-speak {
+          display: flex;
+          justify-content: center;
+          margin: 0 0 0.85rem;
         }
         .jp-vocab-flashcard-reveal,
         .jp-vocab-flashcard-next {

@@ -141,6 +141,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=**日序前 N**（与日语同一套熟悉程度加权优先级，非 id） |
 | **抽查优先级 / 日序**（`priority + days×0.1`；从未抽查置顶；今日新建沉底；直接复用 `jpVocabFinalQuizScore`） | `ko-pron-daily-order.ts` → `sortKoPronLettersForDailyOrder`；`ensureKoPronDailyDisplayOrder`；可见池 `order_algo=priority_v1`；规则 `.cursor/rules/ko-pron-quiz-priority.mdc` |
 | 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
+| **发音按钮**（本机 Web Speech `ko-KR`；读「기역」等韩文名，不读罗马音；列表 / 抽问卡 / 学生端） | `KoPronSpeakButton`；`ko-pron-speak.ts` → `speakKoPronLetter` / `koPronSpeakText` |
 | **分类筛选 + 搜索**（辅音 / 双辅音 / 元音 / 复合元音；字母/读音/说明本地即时） | `KoPronPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`） |
 | **列表显示抽查优先级数值 + 复习次数**（与日语同公式；从未抽查显示「—」；次数列 非常/一般/不熟悉） | `KoPronPage` 表列；`koPronFinalQuizScoreOrNull` |
 | 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；空表 `seedIfEmpty` |
