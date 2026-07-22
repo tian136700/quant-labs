@@ -135,6 +135,10 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return locale === "zh" ? "/zh/store-review/plaza" : "/store-review/plaza";
     case "about":
       return locale === "zh" ? "/zh/about" : "/about";
+    default: {
+      const _exhaustive: never = target;
+      return _exhaustive;
+    }
   }
 }
 
@@ -188,6 +192,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return koPronSelectPath();
     case "koPronStudy":
       return koPronStudyPath();
+    case "koPronReview":
+      return koPronReviewPath();
     case "admin":
       return adminPath(locale);
     case "adminTrends":
@@ -206,6 +212,10 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return storeReviewPlazaPath(locale);
     case "about":
       return aboutPath(locale);
+    default: {
+      const _exhaustive: never = target;
+      return _exhaustive;
+    }
   }
 }
 
