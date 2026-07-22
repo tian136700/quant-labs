@@ -30,6 +30,7 @@ import {
   type JpVocabReviewSortMode,
 } from "@/lib/jp-vocab-review-plan";
 import {
+  applyOptimisticJpVocabReviewNext,
   computeJpVocabReviewRoundProgress,
   countJpVocabReviewQuizzedInPlan,
   createJpVocabReviewSession,
@@ -39,6 +40,7 @@ import {
   type JpVocabReviewProgress,
   type JpVocabReviewSession,
 } from "@/lib/jp-vocab-review-session";
+import { jpVocabReviewSaveQueue } from "@/lib/request-queue";
 import {
   animateJpVocabSaveProgressTo100,
   jpVocabSaveProgressDisplayPercent,
@@ -127,7 +129,7 @@ export function JpVocabReviewPage() {
   const [status, setStatus] = useState("");
   const [session, setSession] = useState<JpVocabReviewSession | null>(null);
   const [showFlashcard, setShowFlashcard] = useState(false);
-  const [recordingNext, setRecordingNext] = useState(false);
+  const [syncPending, setSyncPending] = useState(0);
   const [clearBusy, setClearBusy] = useState(false);
   const [clearProgress, setClearProgress] = useState<number | null>(null);
   const clearProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -323,42 +325,42 @@ export function JpVocabReviewPage() {
     [reviewWordIds, reviewedWordIds, isWordQuizzedToday]
   );
 
+  useEffect(() => jpVocabReviewSaveQueue.subscribe(setSyncPending), []);
+
+  /** 乐观计入进度并立刻翻页；写库串行进队列 */
   const recordReviewNext = useCallback(
-    async (wordId: number) => {
-      if (recordingNext) return;
-      setRecordingNext(true);
-      const startedAt = Date.now();
-      try {
-        const res = await fetch("/api/jp-vocab/review", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ action: "review_next", word_id: wordId }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          review_progress?: Partial<JpVocabReviewProgress>;
-          error?: string;
-        };
-        if (!data.ok || !data.review_progress) {
-          throw new Error(data.error || "记录复习失败");
+    (wordId: number) => {
+      setReviewProgress((prev) => applyOptimisticJpVocabReviewNext(prev, wordId));
+      void jpVocabReviewSaveQueue.enqueue(async () => {
+        try {
+          const res = await fetch("/api/jp-vocab/review", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify({ action: "review_next", word_id: wordId }),
+          });
+          const data = (await res.json()) as {
+            ok: boolean;
+            review_progress?: Partial<JpVocabReviewProgress>;
+            error?: string;
+          };
+          if (!data.ok || !data.review_progress) {
+            throw new Error(data.error || "记录复习失败");
+          }
+          setReviewProgress(normalizeJpVocabReviewProgress(data.review_progress));
+        } catch (err) {
+          setStatus(err instanceof Error ? err.message : String(err));
         }
-        setReviewProgress(normalizeJpVocabReviewProgress(data.review_progress));
-      } catch (err) {
-        setStatus(err instanceof Error ? err.message : String(err));
-        throw err;
-      } finally {
-        setRecordingNext(false);
-      }
+      });
     },
-    [locale, recordingNext]
+    [locale]
   );
 
   const resetReviewStatus = useCallback(async () => {
-    if (clearBusy) return;
+    if (clearBusy || syncPending > 0) return;
     if (
       !window.confirm(
         "确定将全部词条的复习状态重置为「待复习」？进度不会每天自动清空，仅在此手动重置时归零。此操作不可撤销。"
@@ -376,25 +378,27 @@ export function JpVocabReviewPage() {
       setClearProgress(jpVocabSaveProgressPercent(Date.now() - clearStartedAtRef.current));
     }, 120);
     try {
-      const res = await fetch("/api/jp-vocab/review", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ action: "clear" }),
+      await jpVocabReviewSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/jp-vocab/review", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ action: "clear" }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          review_progress?: Partial<JpVocabReviewProgress>;
+          error?: string;
+        };
+        if (!data.ok || !data.review_progress) {
+          throw new Error(data.error || "清除失败");
+        }
+        setReviewProgress(normalizeJpVocabReviewProgress(data.review_progress));
       });
-      const data = (await res.json()) as {
-        ok: boolean;
-        review_progress?: Partial<JpVocabReviewProgress>;
-        error?: string;
-      };
-      if (!data.ok || !data.review_progress) {
-        throw new Error(data.error || "清除失败");
-      }
       await animateJpVocabSaveProgressTo100(clearStartedAtRef.current, setClearProgress);
-      setReviewProgress(normalizeJpVocabReviewProgress(data.review_progress));
       setStatus("已将全部词条重置为待复习。");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -406,7 +410,7 @@ export function JpVocabReviewPage() {
       setClearBusy(false);
       setClearProgress(null);
     }
-  }, [clearBusy, locale]);
+  }, [clearBusy, locale, syncPending]);
 
   useEffect(() => {
     return () => {
@@ -555,7 +559,7 @@ export function JpVocabReviewPage() {
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--danger"
-              disabled={clearBusy || reviewProgress.count === 0}
+              disabled={clearBusy || syncPending > 0 || reviewProgress.count === 0}
               title="将全部词条的复习状态重置为待复习（不会每天自动清空）"
               onClick={() => void resetReviewStatus()}
             >
@@ -563,6 +567,12 @@ export function JpVocabReviewPage() {
             </button>
           </div>
         </div>
+
+        {syncPending > 0 ? (
+          <p className="jp-vocab-review-sync" aria-live="polite">
+            后台同步中…（队列 {syncPending}）
+          </p>
+        ) : null}
 
         {clearBusy ? (
           <JpVocabSaveProgressBar
@@ -668,7 +678,7 @@ export function JpVocabReviewPage() {
         }
         todayReviewCount={reviewProgress.count}
         reviewedWordIds={reviewedWordIds}
-        recordingNext={recordingNext}
+        syncPending={syncPending}
         onClose={() => setShowFlashcard(false)}
         onNavigate={(index) =>
           setSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
@@ -786,6 +796,11 @@ export function JpVocabReviewPage() {
         .jp-vocab-review-hint {
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-vocab-review-sync {
+          color: var(--muted);
+          font-size: 0.85rem;
+          margin: 0.35rem 0 0.65rem;
         }
         .jp-vocab-review-sort-group {
           display: flex;

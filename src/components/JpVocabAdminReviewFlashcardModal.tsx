@@ -42,10 +42,11 @@ type Props = {
   dailySeqByWordId: ReadonlyMap<number, number>;
   todayReviewCount: number;
   reviewedWordIds: ReadonlySet<number>;
-  recordingNext: boolean;
+  /** 后台写库队列长度；仅提示，不挡翻页 */
+  syncPending?: number;
   onClose: () => void;
   onNavigate: (index: number) => void;
-  onReviewNext: (wordId: number) => Promise<void>;
+  onReviewNext: (wordId: number) => void;
   onOpenRef: (refKey: string, ref?: JpVocabRef) => void;
   onViewRemarks: (word: JpVocabWord) => void;
   onEditRemarks?: (word: JpVocabWord) => void;
@@ -63,7 +64,7 @@ export function JpVocabAdminReviewFlashcardModal({
   dailySeqByWordId,
   todayReviewCount,
   reviewedWordIds,
-  recordingNext,
+  syncPending = 0,
   onClose,
   onNavigate,
   onReviewNext,
@@ -228,15 +229,12 @@ export function JpVocabAdminReviewFlashcardModal({
   };
 
   const handleNext = () => {
-    if (recordingNext) return;
-    void (async () => {
-      await onReviewNext(w.id);
-      if (canGoNext) {
-        onNavigate(session.currentIndex + 1);
-      } else {
-        onClose();
-      }
-    })();
+    onReviewNext(w.id);
+    if (canGoNext) {
+      onNavigate(session.currentIndex + 1);
+    } else {
+      onClose();
+    }
   };
 
   return createPortal(
@@ -556,7 +554,7 @@ export function JpVocabAdminReviewFlashcardModal({
           <button
             type="button"
             className="btn-rsi-filter jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--prev"
-            disabled={!canGoPrev || recordingNext}
+            disabled={!canGoPrev}
             onClick={() => onNavigate(session.currentIndex - 1)}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">上一个</span>
@@ -564,14 +562,21 @@ export function JpVocabAdminReviewFlashcardModal({
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next"
-            disabled={recordingNext}
             onClick={handleNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
-              {recordingNext ? "记录中…" : isLast ? "完成复习" : "下一个"}
+              {isLast ? "完成复习" : "下一个"}
             </span>
             {!isLast ? (
-              <span className="jp-vocab-teacher-quiz__nav-btn-sub">点击后计入复习进度</span>
+              <span className="jp-vocab-teacher-quiz__nav-btn-sub">
+                {syncPending > 0
+                  ? `后台同步中…（队列 ${syncPending}）`
+                  : "点击后计入复习进度"}
+              </span>
+            ) : syncPending > 0 ? (
+              <span className="jp-vocab-teacher-quiz__nav-btn-sub">
+                后台同步中…（队列 {syncPending}）
+              </span>
             ) : null}
           </button>
         </div>

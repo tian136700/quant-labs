@@ -21,6 +21,67 @@ import { koPronReviewSaveQueue } from "@/lib/request-queue";
 import { koPronSelectPath } from "@/lib/locale-path";
 import type { KoPronCatalogLetter } from "@/lib/types";
 
+type ReviewSortField =
+  | "id"
+  | "letter"
+  | "reading"
+  | "category"
+  | "familiar"
+  | "unfamiliar"
+  | "total"
+  | "today"
+  | "joined";
+type ReviewSortDir = "asc" | "desc";
+
+function compareText(a: string | null | undefined, b: string | null | undefined): number {
+  return (a ?? "").localeCompare(b ?? "", "zh", { sensitivity: "base", numeric: true });
+}
+
+function sortKoPronReviewCatalog(
+  rows: KoPronCatalogLetter[],
+  field: ReviewSortField,
+  dir: ReviewSortDir
+): KoPronCatalogLetter[] {
+  const factor = dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    let diff = 0;
+    switch (field) {
+      case "id":
+        diff = a.id - b.id;
+        break;
+      case "letter":
+        diff = compareText(a.letter, b.letter);
+        break;
+      case "reading":
+        diff = compareText(a.reading, b.reading);
+        break;
+      case "category":
+        diff = compareText(a.category, b.category);
+        break;
+      case "familiar":
+        diff = (a.review_cnt_familiar ?? 0) - (b.review_cnt_familiar ?? 0);
+        break;
+      case "unfamiliar":
+        diff = (a.review_cnt_unfamiliar ?? 0) - (b.review_cnt_unfamiliar ?? 0);
+        break;
+      case "total":
+        diff = (a.review_count ?? 0) - (b.review_count ?? 0);
+        break;
+      case "today":
+        diff =
+          koPronCatalogTodayReviewCount(a) - koPronCatalogTodayReviewCount(b);
+        break;
+      case "joined":
+        diff = compareText(a.review_selected_at, b.review_selected_at);
+        break;
+      default:
+        diff = a.id - b.id;
+    }
+    if (diff !== 0) return diff * factor;
+    return (a.id - b.id) * factor;
+  });
+}
+
 export function KoPronReviewPage() {
   const { user, checking, canAccessKoPronAdminPage, setUser } = useEtrAuth();
   const [catalog, setCatalog] = useState<KoPronCatalogLetter[]>([]);
@@ -33,6 +94,8 @@ export function KoPronReviewPage() {
   );
   const [syncPending, setSyncPending] = useState(0);
   const [clearBusy, setClearBusy] = useState(false);
+  const [sortField, setSortField] = useState<ReviewSortField>("joined");
+  const [sortDir, setSortDir] = useState<ReviewSortDir>("asc");
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +127,10 @@ export function KoPronReviewPage() {
   useEffect(() => koPronReviewSaveQueue.subscribe(setSyncPending), []);
 
   const orderedIds = useMemo(() => catalog.map((c) => c.id), [catalog]);
+  const sortedCatalog = useMemo(
+    () => sortKoPronReviewCatalog(catalog, sortField, sortDir),
+    [catalog, sortField, sortDir]
+  );
   const reviewedInPool = useMemo(
     () => orderedIds.filter((id) => reviewedIds.has(id)).length,
     [orderedIds, reviewedIds]
@@ -264,6 +331,39 @@ export function KoPronReviewPage() {
 
   const canContinue = Boolean(interrupted && !session);
 
+  const toggleSort = (field: ReviewSortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortField(field);
+    setSortDir(
+      field === "familiar" ||
+        field === "unfamiliar" ||
+        field === "total" ||
+        field === "today"
+        ? "desc"
+        : "asc"
+    );
+  };
+
+  const sortMark = (field: ReviewSortField) =>
+    sortField === field ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
+  const renderSortTh = (field: ReviewSortField, label: string) => (
+    <th key={field}>
+      <button
+        type="button"
+        className="ko-pron-review-sort-th"
+        onClick={() => toggleSort(field)}
+        aria-label={`按${label}排序`}
+      >
+        {label}
+        {sortMark(field)}
+      </button>
+    </th>
+  );
+
   return (
     <div className="ko-pron-review-page">
       <div className="ko-pron-review-toolbar">
@@ -344,19 +444,19 @@ export function KoPronReviewPage() {
             <table className="ko-pron-review-table">
               <thead>
                 <tr>
-                  <th>#</th>
-                  <th>字母</th>
-                  <th>读音</th>
-                  <th>分类</th>
-                  <th>熟悉</th>
-                  <th>不熟悉</th>
-                  <th>总复习</th>
-                  <th>今日复习次数</th>
-                  <th>加入时间</th>
+                  {renderSortTh("id", "#")}
+                  {renderSortTh("letter", "字母")}
+                  {renderSortTh("reading", "读音")}
+                  {renderSortTh("category", "分类")}
+                  {renderSortTh("familiar", "熟悉")}
+                  {renderSortTh("unfamiliar", "不熟悉")}
+                  {renderSortTh("total", "总复习")}
+                  {renderSortTh("today", "今日复习次数")}
+                  {renderSortTh("joined", "加入时间")}
                 </tr>
               </thead>
               <tbody>
-                {catalog.map((item, i) => {
+                {sortedCatalog.map((item, i) => {
                   const done = reviewedIds.has(item.id);
                   return (
                     <tr
@@ -442,6 +542,11 @@ export function KoPronReviewPage() {
         .ko-pron-review-error {
           color: #f87171;
         }
+        .ko-pron-review-sync {
+          color: var(--muted);
+          font-size: 0.85rem;
+          margin: 0.35rem 0 0.65rem;
+        }
         .ko-pron-review-status,
         .ko-pron-review-empty {
           color: var(--muted);
@@ -508,6 +613,19 @@ export function KoPronReviewPage() {
           font-weight: 600;
           color: var(--muted);
           white-space: nowrap;
+        }
+        .ko-pron-review-sort-th {
+          border: none;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          font-weight: 600;
+          padding: 0;
+          cursor: pointer;
+          text-align: left;
+        }
+        .ko-pron-review-sort-th:hover {
+          color: var(--accent);
         }
         .ko-pron-review-row--done td {
           color: var(--muted);

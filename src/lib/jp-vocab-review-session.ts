@@ -31,6 +31,19 @@ export function isJpVocabWordReviewed(
   return progress.reviewed_word_ids.includes(id);
 }
 
+/** 乐观：点「下一个」立刻计入本地进度（后台队列再写 D1） */
+export function applyOptimisticJpVocabReviewNext(
+  progress: JpVocabReviewProgress,
+  wordId: number
+): JpVocabReviewProgress {
+  const id = Math.floor(Number(wordId));
+  if (!Number.isFinite(id) || id <= 0) return progress;
+  if (progress.reviewed_word_ids.includes(id)) return progress;
+  return normalizeJpVocabReviewProgress({
+    reviewed_word_ids: [...progress.reviewed_word_ids, id],
+  });
+}
+
 export type JpVocabReviewSession = {
   wordIds: number[];
   currentIndex: number;
