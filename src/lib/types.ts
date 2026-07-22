@@ -384,6 +384,27 @@ export type EnLessonRecord = JpLessonRecord;
 export type EnLessonUploadInput = JpLessonUploadInput;
 export type EnLessonNote = JpLessonNote;
 
+/** 韩语发音：固定字母抽问 */
+export type KoPronLevel = "very" | "normal" | "weak";
+
+export interface KoPronLetter {
+  id: number;
+  letter: string;
+  reading: string | null;
+  meaning: string | null;
+  /** 辅音 / 元音 / 复合元音 等分类提示 */
+  category: string | null;
+  cnt_very: number;
+  cnt_normal: number;
+  cnt_weak: number;
+  today_check_count: number;
+  today_check_date?: string | null;
+  last_review_level?: KoPronLevel | null;
+  last_review_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TrendFetchRunRecord {
   id: number;
   fetched_at: string;

@@ -20,7 +20,7 @@ export const ETR_LOGIN_LINK_PERMANENT_EXPIRES_AT = "2099-12-31T23:59:59.999Z";
 /** 普通用户登录有效期：7 天 */
 export const ETR_USER_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type EtrUserRole = "admin" | "user" | "jp_vocab" | "en_vocab";
+export type EtrUserRole = "admin" | "user" | "jp_vocab" | "en_vocab" | "ko_pron";
 
 export interface EtrUser {
   id: number;
@@ -99,7 +99,9 @@ export function encodePasswordStorage(salt: string, hash: string): string {
 
 export function sessionTtlMs(role: EtrUserRole): number {
   if (role === "admin") return ETR_ADMIN_SESSION_MS;
-  if (role === "jp_vocab" || role === "en_vocab") return ETR_JP_VOCAB_SESSION_MS;
+  if (role === "jp_vocab" || role === "en_vocab" || role === "ko_pron") {
+    return ETR_JP_VOCAB_SESSION_MS;
+  }
   return ETR_USER_SESSION_MS;
 }
 
@@ -223,6 +225,58 @@ export function canAccessEnVocabAdminPage(
   const role = typeof user.role === "string" ? user.role.trim() : "";
   if (role === "admin") return true;
   return user.permissions?.includes("en_vocab:admin") ?? false;
+}
+
+export function canAccessKoPron(role: EtrUserRole | string | undefined): boolean {
+  const r = typeof role === "string" ? role.trim() : "";
+  return r === "admin" || r === "ko_pron";
+}
+
+export function isKoPronTeacherRole(role: EtrUserRole | string | undefined): boolean {
+  const r = typeof role === "string" ? role.trim() : "";
+  return r === "ko_pron";
+}
+
+export function canUserOperateKoPron(
+  user: { username?: string; role?: string } | null | undefined
+): boolean {
+  if (!user) return false;
+  return canAccessKoPron(user.role as EtrUserRole);
+}
+
+export function canAccessKoPronTeacherPage(
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  const perms = user.permissions ?? [];
+  if (perms.includes("ko_pron:teacher")) return true;
+  if (perms.includes("ko_pron:operate")) return true;
+  return canUserOperateKoPron(user);
+}
+
+/** 韩语发音-管理员端：管理员或持有 ko_pron:admin */
+export function canAccessKoPronAdminPage(
+  user: { role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  return user.permissions?.includes("ko_pron:admin") ?? false;
+}
+
+/** 今日韩语发音：管理员，或持有 ko_pron:study 的学生（韩语老师不可访问） */
+export function canAccessKoPronStudy(
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  if (canUserOperateKoPron(user)) return false;
+  if (user.permissions?.includes("ko_pron:operate")) return false;
+  if (user.permissions?.includes("ko_pron:teacher")) return false;
+  return user.permissions?.includes("ko_pron:study") ?? false;
 }
 
 export function newSessionToken(): string {
@@ -498,7 +552,7 @@ export function formatExpiresHint(role: EtrUserRole, locale: "en" | "zh"): strin
   if (role === "admin") {
     return locale === "zh" ? "登录有效期：6 个月" : "Session valid for 6 months";
   }
-  if (role === "jp_vocab") {
+  if (role === "jp_vocab" || role === "en_vocab" || role === "ko_pron") {
     return locale === "zh" ? "登录有效期：30 天" : "Session valid for 30 days";
   }
   return locale === "zh" ? "登录有效期：7 天" : "Session valid for 7 days";

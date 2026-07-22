@@ -38,7 +38,9 @@ function isLocaleNeutralPath(pathname: string): boolean {
     path === "/en-lesson" ||
     path.startsWith("/en-lesson/") ||
     path === "/en-vocab" ||
-    path.startsWith("/en-vocab/")
+    path.startsWith("/en-vocab/") ||
+    path === "/ko-pron" ||
+    path.startsWith("/ko-pron/")
   );
 }
 
@@ -451,4 +453,49 @@ export function isEnVocabTeacherAllowedPath(pathname: string): boolean {
     isEnLessonPath(pathname) ||
     isAboutPath(pathname)
   );
+}
+
+export function koPronPath(): string {
+  return "/ko-pron";
+}
+
+/** 韩语发音-管理员端（全库 / 设今日抽查数量） */
+export function koPronAdminPath(): string {
+  return "/ko-pron/admin";
+}
+
+export function koPronStudyPath(): string {
+  return "/ko-pron/study";
+}
+
+/** 老师端首页：精确 /ko-pron（不含 admin / study） */
+export function isKoPronTeacherHomePath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/ko-pron";
+}
+
+export function isKoPronAdminPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/ko-pron/admin";
+}
+
+export function isKoPronStudyPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
+  return path === "/ko-pron/study";
+}
+
+export function isKoPronPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/ko-pron" || path.startsWith("/ko-pron/");
+}
+
+/** 韩语模块路径：界面固定显示中文 */
+export function isKoModulePath(pathname: string): boolean {
+  return isKoPronPath(pathname);
+}
+
+/** 韩语老师可访问的页面（不含管理员端 / 学生端） */
+export function isKoPronTeacherAllowedPath(pathname: string): boolean {
+  if (isKoPronAdminPath(pathname) || isKoPronStudyPath(pathname)) return false;
+  return isKoPronPath(pathname) || isAboutPath(pathname);
 }

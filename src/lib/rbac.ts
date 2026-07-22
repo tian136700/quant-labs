@@ -7,10 +7,11 @@ export type RbacPermissionCategory =
   | "jp_lesson"
   | "en_vocab"
   | "en_lesson"
+  | "ko_pron"
   | "nav";
 
 /** 权限页大模块（其下可含多个 category 子分组） */
-export type RbacPermissionModule = "jp_learning" | "en_learning";
+export type RbacPermissionModule = "jp_learning" | "en_learning" | "ko_learning";
 
 export const RBAC_CATEGORY_MODULE: Partial<
   Record<RbacPermissionCategory, RbacPermissionModule>
@@ -19,6 +20,7 @@ export const RBAC_CATEGORY_MODULE: Partial<
   jp_lesson: "jp_learning",
   en_vocab: "en_learning",
   en_lesson: "en_learning",
+  ko_pron: "ko_learning",
 };
 
 /** 权限页模块顺序及所含子分组 */
@@ -37,6 +39,11 @@ export const RBAC_UI_LAYOUT: Array<
     kind: "module",
     module: "en_learning",
     categories: ["en_vocab", "en_lesson"],
+  },
+  {
+    kind: "module",
+    module: "ko_learning",
+    categories: ["ko_pron"],
   },
   { kind: "category", category: "nav" },
 ];
@@ -245,6 +252,46 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "Progress, lesson plans, class notes",
   },
   {
+    key: "ko_pron:teacher",
+    labelZh: "韩语发音-老师端",
+    labelEn: "KO pronunciation — teacher",
+    category: "ko_pron",
+    descriptionZh: "进入 /ko-pron：字母抽查卡片、勾选熟悉程度",
+    descriptionEn: "Access /ko-pron: letter flashcard quiz, familiarity levels",
+  },
+  {
+    key: "ko_pron:admin",
+    labelZh: "韩语发音-管理员端",
+    labelEn: "KO pronunciation — admin",
+    category: "ko_pron",
+    descriptionZh: "进入 /ko-pron/admin：全库、设今日抽查数量",
+    descriptionEn: "Access /ko-pron/admin: full library, daily quiz target",
+  },
+  {
+    key: "ko_pron:read",
+    labelZh: "浏览韩语字母（API）",
+    labelEn: "Browse KO letters (API)",
+    category: "ko_pron",
+    descriptionZh: "拉取韩语字母列表（老师端/管理端底层能力）",
+    descriptionEn: "Fetch letter lists (underlying API for teacher/admin pages)",
+  },
+  {
+    key: "ko_pron:operate",
+    labelZh: "操作韩语字母（API）",
+    labelEn: "Edit KO letters (API)",
+    category: "ko_pron",
+    descriptionZh: "勾选熟悉度等写入操作",
+    descriptionEn: "Review levels and other writes",
+  },
+  {
+    key: "ko_pron:study",
+    labelZh: "今日韩语发音（学生端）",
+    labelEn: "Today's KO pronunciation (student)",
+    category: "ko_pron",
+    descriptionZh: "进入 /ko-pron/study：跟读老师当前抽查字母（罗马音仅老师勾选后显示）",
+    descriptionEn: "Access /ko-pron/study: follow teacher's live letter (romanization after teacher marks)",
+  },
+  {
     key: "nav:jp_teacher",
     labelZh: "日语教师导航",
     labelEn: "JP teacher navigation",
@@ -259,6 +306,14 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     category: "nav",
     descriptionZh: "仅显示英语相关导航项",
     descriptionEn: "EN-focused nav items only",
+  },
+  {
+    key: "nav:ko_teacher",
+    labelZh: "韩语教师导航",
+    labelEn: "KO teacher navigation",
+    category: "nav",
+    descriptionZh: "仅显示韩语相关导航项",
+    descriptionEn: "KO-focused nav items only",
   },
   {
     key: "nav:full",
@@ -294,6 +349,12 @@ export const RBAC_ROLE_LABELS: Record<
     descriptionZh: "英语抽背-老师端（抽查 / 共享）",
     descriptionEn: "EN vocab teacher page (spot-check / share)",
   },
+  ko_pron: {
+    zh: "韩语老师",
+    en: "KO teacher",
+    descriptionZh: "韩语发音-老师端（字母抽查）",
+    descriptionEn: "KO pronunciation teacher page (letter quiz)",
+  },
   user: {
     zh: "网上的注册用户",
     en: "Online registered user",
@@ -319,18 +380,31 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "about:view",
     "nav:en_teacher",
   ],
+  ko_pron: [
+    "ko_pron:teacher",
+    "ko_pron:read",
+    "ko_pron:operate",
+    "about:view",
+    "nav:ko_teacher",
+  ],
   user: [
     "compare:view",
     "etr:use",
     "store_review:use",
     "store_review:plaza",
     "jp_vocab:study",
+    "ko_pron:study",
     "jp_lesson:read",
     "about:view",
   ],
 };
 
-export const RBAC_MANAGEABLE_ROLES: EtrUserRole[] = ["jp_vocab", "en_vocab", "user"];
+export const RBAC_MANAGEABLE_ROLES: EtrUserRole[] = [
+  "jp_vocab",
+  "en_vocab",
+  "ko_pron",
+  "user",
+];
 
 export function rbacPermissionLabel(
   def: RbacPermissionDef,
@@ -357,6 +431,7 @@ export function rbacCategoryLabel(
     jp_lesson: { zh: "日语新课", en: "JP new lessons" },
     en_vocab: { zh: "英语抽查（单词/语法）", en: "EN spot-check (vocab & grammar)" },
     en_lesson: { zh: "英语新课", en: "EN new lessons" },
+    ko_pron: { zh: "韩语发音（字母）", en: "KO pronunciation (letters)" },
     nav: { zh: "导航显示", en: "Navigation" },
   };
   return locale === "zh" ? map[category].zh : map[category].en;
@@ -369,6 +444,7 @@ export function rbacModuleLabel(
   const map: Record<RbacPermissionModule, { zh: string; en: string }> = {
     jp_learning: { zh: "日语学习", en: "Japanese learning" },
     en_learning: { zh: "英语学习", en: "English learning" },
+    ko_learning: { zh: "韩语学习", en: "Korean learning" },
   };
   return locale === "zh" ? map[module].zh : map[module].en;
 }
@@ -384,13 +460,17 @@ export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "jp_vocab:coach",
 ] as const;
 
-/** 网上注册用户（学生）不应持有的日语抽问权限 */
+/** 网上注册用户（学生）不应持有的日语/韩语老师权限 */
 export const RBAC_USER_EXCLUDED_PERMISSIONS = [
   "jp_vocab:teacher",
   "jp_vocab:admin",
   "jp_vocab:read",
   "jp_vocab:operate",
   "jp_vocab:manual_add",
+  "ko_pron:teacher",
+  "ko_pron:admin",
+  "ko_pron:read",
+  "ko_pron:operate",
 ] as const;
 
 /** 英语教师角色不应持有的权限（默认关闭，可由管理员手动开启） */
@@ -398,6 +478,12 @@ export const RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS = [
   "en_lesson:read",
   "en_lesson:operate",
   "en_vocab:admin",
+] as const;
+
+/** 韩语老师角色不应持有的权限（默认关闭） */
+export const RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS = [
+  "ko_pron:admin",
+  "ko_pron:study",
 ] as const;
 
 export function isAdminSuperuser(role: string | undefined): boolean {

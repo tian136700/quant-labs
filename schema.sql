@@ -685,3 +685,29 @@ CREATE TABLE IF NOT EXISTS tool_dot_codes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tool_dot_codes_consumed ON tool_dot_codes (consumed_at);
+
+-- 韩语发音抽问（40 字母）
+CREATE TABLE IF NOT EXISTS ko_pron_letter (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  letter TEXT NOT NULL,
+  reading TEXT,
+  meaning TEXT,
+  category TEXT,
+  cnt_very INTEGER NOT NULL DEFAULT 0,
+  cnt_normal INTEGER NOT NULL DEFAULT 0,
+  cnt_weak INTEGER NOT NULL DEFAULT 0,
+  today_check_count INTEGER NOT NULL DEFAULT 0,
+  today_check_date TEXT,
+  last_review_level TEXT,
+  last_review_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ko_pron_letter_glyph ON ko_pron_letter (letter);
+
+CREATE TABLE IF NOT EXISTS ko_pron_setting (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

@@ -26,6 +26,9 @@ import {
   isEnVocabTeacherHomePath,
   isEnVocabAdminPath,
   isEnVocabStudyPath,
+  isKoPronTeacherHomePath,
+  isKoPronAdminPath,
+  isKoPronStudyPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
   isTeacherReviewPath,
@@ -42,12 +45,14 @@ export type SiteNavItem = {
 
 export function useSiteNavItems(): SiteNavItem[] {
   const { locale, t } = useI18n();
-  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessJpVocabCoach, canAccessEnVocabStudy, canAccessEnVocabTeacherPage, canAccessEnVocabAdminPage } = useEtrAuth();
+  const { user, isAdmin, hasPermission, checking, canAccessJpVocabStudy, canAccessJpVocabTeacherPage, canAccessJpVocabAdminPage, canAccessJpVocabCoach, canAccessEnVocabStudy, canAccessEnVocabTeacherPage, canAccessEnVocabAdminPage, canAccessKoPronTeacherPage, canAccessKoPronAdminPage, canAccessKoPronStudy } = useEtrAuth();
   const loggedIn = Boolean(user);
   const jpTeacherNav =
     loggedIn && hasPermission("nav:jp_teacher") && !hasPermission("nav:full");
   const enTeacherNav =
     loggedIn && hasPermission("nav:en_teacher") && !hasPermission("nav:full");
+  const koTeacherNav =
+    loggedIn && hasPermission("nav:ko_teacher") && !hasPermission("nav:full");
   const pathname = usePathname() ?? "/";
   const nav = t("nav");
   const onSubdomain = useStoreReviewSubdomain();
@@ -67,6 +72,9 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onEnVocabTeacherHome = isEnVocabTeacherHomePath(pathname);
   const onEnVocabAdmin = isEnVocabAdminPath(pathname);
   const onEnVocabStudy = isEnVocabStudyPath(pathname);
+  const onKoPronTeacherHome = isKoPronTeacherHomePath(pathname);
+  const onKoPronAdmin = isKoPronAdminPath(pathname);
+  const onKoPronStudy = isKoPronStudyPath(pathname);
   const onHiddenJp =
     onJpLesson || onJpVocab || onJpVocabStudy || onJpVocabReview || onJpVocabCoach;
   const onHiddenEn = onEnLesson || onEnVocab || onEnVocabStudy;
@@ -110,6 +118,27 @@ export function useSiteNavItems(): SiteNavItem[] {
         label: nav.enLesson,
         active: onEnLesson,
       },
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  }
+
+  if (koTeacherNav) {
+    return [
+      ...(canAccessKoPronTeacherPage
+        ? [
+            {
+              id: "koPron",
+              href: navHref("koPron", locale, navOpts),
+              label: nav.koPron,
+              active: onKoPronTeacherHome,
+            },
+          ]
+        : []),
       {
         id: "about",
         href: navHref("about", locale, navOpts),
@@ -492,6 +521,43 @@ export function useSiteNavItems(): SiteNavItem[] {
                     : []),
                 ]
               : []),
+            ...(hasPermission("ko_pron:teacher") ||
+            hasPermission("ko_pron:admin") ||
+            hasPermission("ko_pron:read") ||
+            hasPermission("ko_pron:operate") ||
+            hasPermission("ko_pron:study")
+              ? [
+                  ...(canAccessKoPronAdminPage
+                    ? [
+                        {
+                          id: "koPronAdmin",
+                          href: navHref("koPronAdmin", locale, navOpts),
+                          label: nav.koPronAdmin,
+                          active: onKoPronAdmin || (isAdmin && onKoPronTeacherHome),
+                        },
+                      ]
+                    : canAccessKoPronTeacherPage
+                      ? [
+                          {
+                            id: "koPron",
+                            href: navHref("koPron", locale, navOpts),
+                            label: nav.koPron,
+                            active: onKoPronTeacherHome,
+                          },
+                        ]
+                      : []),
+                  ...(canAccessKoPronStudy
+                    ? [
+                        {
+                          id: "koPronStudy",
+                          href: navHref("koPronStudy", locale, navOpts),
+                          label: nav.koPronStudy,
+                          active: onKoPronStudy,
+                        },
+                      ]
+                    : []),
+                ]
+              : []),
           ]),
       ...(hasPermission("store_review:use")
         ? [
@@ -512,8 +578,35 @@ export function useSiteNavItems(): SiteNavItem[] {
     ];
   }
 
+  if (onKoPronStudy && loggedIn && canAccessKoPronStudy && !hasPermission("nav:full")) {
+    return [
+      {
+        id: "koPronStudy",
+        href: navHref("koPronStudy", locale, navOpts),
+        label: nav.koPronStudy,
+        active: true,
+      },
+      {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      },
+    ];
+  }
+
   return loggedIn
     ? [
+        ...(canAccessKoPronStudy
+          ? [
+              {
+                id: "koPronStudy",
+                href: navHref("koPronStudy", locale, navOpts),
+                label: nav.koPronStudy,
+                active: onKoPronStudy,
+              },
+            ]
+          : []),
         {
           id: "storeReview",
           href: navHref("storeReview", locale, navOpts),

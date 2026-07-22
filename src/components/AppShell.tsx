@@ -12,6 +12,9 @@ import {
   isEnVocabPath,
   isEnVocabAdminPath,
   isEnVocabRefPath,
+  isKoPronPath,
+  isKoPronAdminPath,
+  isKoPronStudyPath,
   isJpLessonPath,
   isJpModulePath,
   isJpReviewPath,
@@ -24,6 +27,9 @@ import {
   enLessonPath,
   enVocabPath,
   enVocabAdminPath,
+  koPronPath,
+  koPronAdminPath,
+  koPronStudyPath,
   isAdminJpLessonTeachersPath,
   jpLessonPath,
   jpVocabPath,
@@ -33,6 +39,7 @@ import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { EnVocabTeacherRouteGuard } from "./EnVocabTeacherRouteGuard";
 import { JpVocabTeacherRouteGuard } from "./JpVocabTeacherRouteGuard";
+import { KoPronTeacherRouteGuard } from "./KoPronTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
 import { LangSwitch } from "./LangSwitch";
 import { NavDrawer } from "./NavDrawer";
@@ -67,7 +74,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const onEnVocabRef = isEnVocabRefPath(pathname);
   const onJpModule = isJpModulePath(pathname);
   const onEnModule = isEnModulePath(pathname);
-  const onLearningModule = onJpModule || onEnModule;
+  const onKoModule = isKoPronPath(pathname);
+  const onLearningModule = onJpModule || onEnModule || onKoModule;
 
   const headerTitle = useMemo(() => {
     const active = items.find((item) => item.active);
@@ -80,6 +88,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isEnLessonPath(pathname)) return nav.enLesson;
     if (isEnVocabAdminPath(pathname)) return nav.enVocabAdmin;
     if (isEnVocabPath(pathname)) return nav.enVocab;
+    if (isKoPronAdminPath(pathname)) return nav.koPronAdmin;
+    if (isKoPronStudyPath(pathname)) return nav.koPronStudy;
+    if (isKoPronPath(pathname)) return nav.koPron;
     if (isJpReviewPath(pathname)) return nav.jpReview;
     return t("meta").title;
   }, [items, locale, pathname, t]);
@@ -93,6 +104,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isEnLessonPath(pathname)) return enLessonPath();
     if (isEnVocabAdminPath(pathname)) return enVocabAdminPath();
     if (isEnVocabPath(pathname)) return enVocabPath();
+    if (isKoPronAdminPath(pathname)) return koPronAdminPath();
+    if (isKoPronStudyPath(pathname)) return koPronStudyPath();
+    if (isKoPronPath(pathname)) return koPronPath();
     if (isAdminJpLessonTeachersPath(pathname)) return adminJpLessonTeachersPath(locale);
     return items[0]?.href ?? "/";
   }, [items, locale, pathname]);
@@ -103,6 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <MaintenanceRouteGuard />
         <JpVocabTeacherRouteGuard />
         <EnVocabTeacherRouteGuard />
+        <KoPronTeacherRouteGuard />
         <main>{children}</main>
       </>
     );
@@ -113,6 +128,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <MaintenanceRouteGuard />
       <JpVocabTeacherRouteGuard />
       <EnVocabTeacherRouteGuard />
+      <KoPronTeacherRouteGuard />
       <header className="page-header">
         <div className="mobile-header-bar">
           <Link

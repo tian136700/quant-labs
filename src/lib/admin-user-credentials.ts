@@ -1,11 +1,12 @@
 import { readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
-import { enVocabPath, jpVocabPath } from "@/lib/locale-path";
+import { SITE_URL } from "@/lib/site";
+import { enVocabPath, jpVocabPath, koPronPath } from "@/lib/locale-path";
 
 export const ADMIN_USER_CREDENTIALS_CACHE_KEY = "admin-user-credentials:v1";
 
-/** 复制账号密码时附带的抽问入口（按角色选日语/英语子域名） */
+/** 复制账号密码时附带的抽问入口（按角色选日语/英语/韩语入口） */
 function vocabShareUrl(role?: string | null): {
   url: string;
   labelZh: string;
@@ -16,6 +17,13 @@ function vocabShareUrl(role?: string | null): {
       url: `${EN_SITE_URL}${enVocabPath()}`,
       labelZh: "英语抽背",
       labelEn: "EN vocab",
+    };
+  }
+  if (role === "ko_pron") {
+    return {
+      url: `${SITE_URL}${koPronPath()}`,
+      labelZh: "韩语发音",
+      labelEn: "KO pronunciation",
     };
   }
   return {

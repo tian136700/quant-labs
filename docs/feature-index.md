@@ -21,7 +21,7 @@
 2. 在下方表格搜 path，或搜中文关键词（如「日语抽问-老师端」「日语抽问-管理员端」「发给学生」「查看老师正在抽查的单词」「今日日语单词」）
 3. 按列打开：**页面 → 组件 → API → 数据库/权限**
 
-日语/英语学习模块 URL **不带** `/zh` 前缀（见 `src/lib/locale-path.ts` `isLocaleNeutralPath`）。
+日语/英语/韩语学习模块 URL **不带** `/zh` 前缀（见 `src/lib/locale-path.ts` `isLocaleNeutralPath`）。
 
 > 维护说明：本文档仅作开发索引，修改不影响线上功能。（自动部署钩子验证用）
 
@@ -117,6 +117,29 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **管理员端 / 老师端拆分**（双入口 + `variant`；共享在老师端；导出/删除/重置在管理员端） | `EnVocabPage.tsx`；路由 `en-vocab/page.tsx` + `en-vocab/admin/page.tsx`；`enVocabAdminPath`；`en_vocab:teacher` / `en_vocab:admin` |
 | **词表例句默认收起**（点「展开 (N)」再显示全文；「收起」还原；对齐日语管理员端不整列堆例句） | `EnVocabExampleSentencesCell.tsx`；列宽样式 `EnVocabPage.tsx` → `.jp-vocab-example-col` |
 | **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；**一律本机 Ollama `gemma4:26b`**，不调线上词典；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
+
+---
+
+## 韩语发音抽问（ko-pron）
+
+固定约 40 个韩语字母（자모）发音抽问；finance 同 Worker / 同 D1。第一期无独立子域。
+
+| 线上 path | 中文名 | 页面入口 | 主组件 | 关键 API | 数据 / 逻辑 | 权限 |
+|-----------|--------|----------|--------|----------|-------------|------|
+| `/ko-pron` | **韩语发音-老师端**（抽查卡片、勾选熟悉程度） | `src/app/ko-pron/page.tsx` | `KoPronPage variant="teacher"` | `GET/POST /api/ko-pron`、`GET /api/ko-pron/sync`、`POST /api/ko-pron/live` | `ko_pron_letter`、`ko_pron_setting`；`src/lib/ko-pron-db.ts` | 须登录；`ko_pron:read` 浏览；`ko_pron:operate` / `ko_pron:teacher` 勾选；管理员进此 URL redirect 到 `/ko-pron/admin` |
+| `/ko-pron/admin` | **韩语发音-管理员端**（全库、设今日抽查数量、预览卡片） | `src/app/ko-pron/admin/page.tsx` | `KoPronPage variant="admin"` | 同上（设目标须 admin） | 与老师端共用表 | `admin` 或 `ko_pron:admin`；非管理员 redirect 到 `/ko-pron` |
+| `/ko-pron/study` | **今日韩语发音（学生端）** | `src/app/ko-pron/study/page.tsx` | `KoPronStudyPage.tsx` | `GET /api/ko-pron/live` | live：`teacher_quiz_live`（`letter_id` + `reading_revealed`） | `ko_pron:study` 学生；`admin`；韩语老师不可见 |
+
+### ko-pron 子功能 → 文件速查
+
+| 功能描述 | 改哪里 |
+|----------|--------|
+| **老师/管理员入口拆分**（导航「韩语发音-老师端 / 管理员端」；`variant` 区分） | `/ko-pron` vs `/ko-pron/admin`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()`；`messages.ts` → `nav.koPron` / `nav.koPronAdmin`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
+| **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
+| **学生端 live 卡片**（老师开卡同步字母；罗马音/熟悉程度对学生隐藏；老师勾选熟悉程度后揭示罗马音） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
+| 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=按 id 正序前 N |
+| 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
+| 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；空表 `seedIfEmpty` |
 
 ---
 

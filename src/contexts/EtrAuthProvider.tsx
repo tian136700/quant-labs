@@ -23,6 +23,11 @@ import {
   canAccessEnVocabTeacherPage,
   canAccessEnVocabAdminPage,
   isEnVocabTeacherRole,
+  canUserOperateKoPron,
+  canAccessKoPronTeacherPage,
+  canAccessKoPronAdminPage,
+  canAccessKoPronStudy,
+  isKoPronTeacherRole,
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
@@ -47,6 +52,8 @@ export type EtrAuthUser = {
   can_operate_jp_vocab?: boolean;
   /** 服务端根据 RBAC 计算的英语单词操作权限 */
   can_operate_en_vocab?: boolean;
+  /** 服务端根据 RBAC 计算的韩语发音操作权限 */
+  can_operate_ko_pron?: boolean;
 };
 
 type AuthPanelState = {
@@ -64,6 +71,7 @@ type EtrAuthContextValue = {
   isAdmin: boolean;
   isJpVocabTeacher: boolean;
   isEnVocabTeacher: boolean;
+  isKoPronTeacher: boolean;
   canAccessJpVocab: boolean;
   canAccessJpVocabTeacherPage: boolean;
   canAccessJpVocabAdminPage: boolean;
@@ -73,6 +81,10 @@ type EtrAuthContextValue = {
   canAccessEnVocabTeacherPage: boolean;
   canAccessEnVocabAdminPage: boolean;
   canAccessEnVocabStudy: boolean;
+  canAccessKoPron: boolean;
+  canAccessKoPronTeacherPage: boolean;
+  canAccessKoPronAdminPage: boolean;
+  canAccessKoPronStudy: boolean;
   permissions: string[];
   hasPermission: (key: string) => boolean;
   refresh: () => Promise<void>;
@@ -211,6 +223,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       isAdmin,
       isJpVocabTeacher: isJpVocabTeacherRole(user?.role),
       isEnVocabTeacher: isEnVocabTeacherRole(user?.role),
+      isKoPronTeacher: isKoPronTeacherRole(user?.role),
       canAccessJpVocab:
         user?.can_operate_jp_vocab === true ||
         (user?.can_operate_jp_vocab === undefined &&
@@ -226,6 +239,13 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       canAccessEnVocabTeacherPage: canAccessEnVocabTeacherPage(user),
       canAccessEnVocabAdminPage: canAccessEnVocabAdminPage(user),
       canAccessEnVocabStudy: canAccessEnVocabStudy(user),
+      canAccessKoPron:
+        user?.can_operate_ko_pron === true ||
+        (user?.can_operate_ko_pron === undefined &&
+          canUserOperateKoPron(user)),
+      canAccessKoPronTeacherPage: canAccessKoPronTeacherPage(user),
+      canAccessKoPronAdminPage: canAccessKoPronAdminPage(user),
+      canAccessKoPronStudy: canAccessKoPronStudy(user),
       permissions,
       hasPermission,
       refresh,

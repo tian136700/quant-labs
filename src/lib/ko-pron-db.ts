@@ -1,0 +1,445 @@
+import "server-only";
+
+import type { KoPronLetter, KoPronLevel } from "@/lib/types";
+import {
+  beijingDateString,
+} from "@/lib/jp-vocab-daily-check";
+import { applyKoPronReview } from "@/lib/ko-pron-review";
+import { KO_PRON_SEED_LETTERS } from "@/lib/ko-pron-seed";
+import {
+  defaultKoPronTeacherVisibleLimit,
+  materializeKoPronTeacherVisible,
+  normalizeKoPronTeacherVisibleLimit,
+  withKoPronTargetAdjustmentMarker,
+  type KoPronTeacherVisibleLimit,
+} from "@/lib/ko-pron-teacher-visible";
+import {
+  KO_PRON_TEACHER_QUIZ_LIVE_EMPTY,
+  normalizeKoPronTeacherQuizLive,
+  type KoPronTeacherQuizLive,
+} from "@/lib/ko-pron-teacher-quiz-live";
+
+const TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
+const TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";
+
+let letterSchemaReady = false;
+let settingSchemaReady = false;
+let seedDone = false;
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function rowToLetter(row: Record<string, unknown>): KoPronLetter {
+  return {
+    id: Number(row.id),
+    letter: String(row.letter ?? ""),
+    reading: row.reading == null ? null : String(row.reading),
+    meaning: row.meaning == null ? null : String(row.meaning),
+    category: row.category == null ? null : String(row.category),
+    cnt_very: Number(row.cnt_very ?? 0),
+    cnt_normal: Number(row.cnt_normal ?? 0),
+    cnt_weak: Number(row.cnt_weak ?? 0),
+    today_check_count: Number(row.today_check_count ?? 0),
+    today_check_date:
+      row.today_check_date == null ? null : String(row.today_check_date),
+    last_review_level: (row.last_review_level as KoPronLevel | null) ?? null,
+    last_review_at:
+      row.last_review_at == null ? null : String(row.last_review_at),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
+async function ensureLetterSchema(db: D1Database): Promise<void> {
+  if (letterSchemaReady) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS ko_pron_letter (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         letter TEXT NOT NULL,
+         reading TEXT,
+         meaning TEXT,
+         category TEXT,
+         cnt_very INTEGER NOT NULL DEFAULT 0,
+         cnt_normal INTEGER NOT NULL DEFAULT 0,
+         cnt_weak INTEGER NOT NULL DEFAULT 0,
+         today_check_count INTEGER NOT NULL DEFAULT 0,
+         today_check_date TEXT,
+         last_review_level TEXT,
+         last_review_at TEXT,
+         created_at TEXT NOT NULL,
+         updated_at TEXT NOT NULL
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_ko_pron_letter_glyph
+       ON ko_pron_letter (letter)`
+    )
+    .run();
+  letterSchemaReady = true;
+}
+
+async function ensureSettingSchema(db: D1Database): Promise<void> {
+  if (settingSchemaReady) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS ko_pron_setting (
+         key TEXT PRIMARY KEY,
+         value TEXT NOT NULL,
+         updated_at TEXT NOT NULL
+       )`
+    )
+    .run();
+  settingSchemaReady = true;
+}
+
+async function seedIfEmpty(db: D1Database): Promise<void> {
+  if (seedDone) return;
+  await ensureLetterSchema(db);
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS c FROM ko_pron_letter`)
+    .first<{ c: number }>();
+  if ((row?.c ?? 0) > 0) {
+    seedDone = true;
+    return;
+  }
+  const ts = nowIso();
+  const stmts = KO_PRON_SEED_LETTERS.map((item) =>
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO ko_pron_letter
+         (letter, reading, meaning, category, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)`
+      )
+      .bind(item.letter, item.reading, item.meaning, item.category, ts, ts)
+  );
+  if (stmts.length) await db.batch(stmts);
+  seedDone = true;
+}
+
+export async function listKoPronLetters(db: D1Database): Promise<KoPronLetter[]> {
+  await seedIfEmpty(db);
+  const result = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter
+       ORDER BY id ASC`
+    )
+    .all<Record<string, unknown>>();
+  return (result.results ?? []).map(rowToLetter);
+}
+
+export async function listKoPronLettersChangedSince(
+  db: D1Database,
+  since: string
+): Promise<KoPronLetter[]> {
+  await seedIfEmpty(db);
+  if (!since.trim()) return [];
+  const result = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter
+       WHERE updated_at > ?1
+       ORDER BY id ASC`
+    )
+    .bind(since)
+    .all<Record<string, unknown>>();
+  return (result.results ?? []).map(rowToLetter);
+}
+
+async function getSettingRaw(
+  db: D1Database,
+  key: string
+): Promise<string | null> {
+  await ensureSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM ko_pron_setting WHERE key = ?1`)
+    .bind(key)
+    .first<{ value: string }>();
+  return row?.value ?? null;
+}
+
+async function setSettingRaw(
+  db: D1Database,
+  key: string,
+  value: string
+): Promise<void> {
+  await ensureSettingSchema(db);
+  const ts = nowIso();
+  await db
+    .prepare(
+      `INSERT INTO ko_pron_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    )
+    .bind(key, value, ts)
+    .run();
+}
+
+export async function getKoPronTeacherVisibleLimit(
+  db: D1Database
+): Promise<KoPronTeacherVisibleLimit> {
+  const raw = await getSettingRaw(db, TEACHER_VISIBLE_LIMIT_KEY);
+  if (!raw) return defaultKoPronTeacherVisibleLimit();
+  try {
+    return normalizeKoPronTeacherVisibleLimit(JSON.parse(raw));
+  } catch {
+    return defaultKoPronTeacherVisibleLimit();
+  }
+}
+
+export async function saveKoPronTeacherVisibleLimit(
+  db: D1Database,
+  visible: KoPronTeacherVisibleLimit
+): Promise<KoPronTeacherVisibleLimit> {
+  await setSettingRaw(db, TEACHER_VISIBLE_LIMIT_KEY, JSON.stringify(visible));
+  return visible;
+}
+
+export async function ensureKoPronTeacherVisibleLimit(
+  db: D1Database,
+  ctx?: { letters?: KoPronLetter[] }
+): Promise<KoPronTeacherVisibleLimit> {
+  const letters = ctx?.letters ?? (await listKoPronLetters(db));
+  const current = await getKoPronTeacherVisibleLimit(db);
+  const today = beijingDateString();
+  if (
+    current.date === today &&
+    current.visible_ids?.length &&
+    current.released_today
+  ) {
+    return current;
+  }
+  const materialized = materializeKoPronTeacherVisible(
+    {
+      ...current,
+      date: today,
+      quiz_target: current.quiz_target || 10,
+    },
+    letters
+  );
+  return saveKoPronTeacherVisibleLimit(db, materialized);
+}
+
+export async function setKoPronDailyQuizTarget(
+  db: D1Database,
+  targetCount: number
+): Promise<KoPronTeacherVisibleLimit> {
+  const letters = await listKoPronLetters(db);
+  const current = await getKoPronTeacherVisibleLimit(db);
+  const quiz_target = Math.min(
+    Math.max(1, Math.floor(targetCount)),
+    Math.max(1, letters.length || 40)
+  );
+  const draft: KoPronTeacherVisibleLimit = {
+    ...current,
+    quiz_target,
+  };
+  const materialized = withKoPronTargetAdjustmentMarker(
+    materializeKoPronTeacherVisible(draft, letters)
+  );
+  if (!materialized.visible_ids?.length) {
+    throw new Error("no_release_candidates");
+  }
+  return saveKoPronTeacherVisibleLimit(db, materialized);
+}
+
+export async function recordKoPronReview(
+  db: D1Database,
+  letterId: number,
+  level: KoPronLevel
+): Promise<KoPronLetter | null> {
+  await seedIfEmpty(db);
+  const row = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter WHERE id = ?1`
+    )
+    .bind(letterId)
+    .first<Record<string, unknown>>();
+  if (!row) return null;
+
+  const current = rowToLetter(row);
+  const { letter: updated } = applyKoPronReview(current, level);
+
+  await db
+    .prepare(
+      `UPDATE ko_pron_letter SET
+         cnt_very = ?1,
+         cnt_normal = ?2,
+         cnt_weak = ?3,
+         today_check_count = ?4,
+         today_check_date = ?5,
+         last_review_level = ?6,
+         last_review_at = ?7,
+         updated_at = ?8
+       WHERE id = ?9`
+    )
+    .bind(
+      updated.cnt_very,
+      updated.cnt_normal,
+      updated.cnt_weak,
+      updated.today_check_count,
+      updated.today_check_date,
+      updated.last_review_level,
+      updated.last_review_at,
+      updated.updated_at,
+      updated.id
+    )
+    .run();
+
+  return updated;
+}
+
+export async function listKoPronBundle(db: D1Database): Promise<{
+  letters: KoPronLetter[];
+  teacher_visible_limit: KoPronTeacherVisibleLimit;
+}> {
+  const letters = await listKoPronLetters(db);
+  const teacher_visible_limit = await ensureKoPronTeacherVisibleLimit(db, {
+    letters,
+  });
+  return { letters, teacher_visible_limit };
+}
+
+export async function getKoPronLetterById(
+  db: D1Database,
+  letterId: number
+): Promise<KoPronLetter | null> {
+  await seedIfEmpty(db);
+  const row = await db
+    .prepare(
+      `SELECT id, letter, reading, meaning, category,
+              cnt_very, cnt_normal, cnt_weak,
+              today_check_count, today_check_date,
+              last_review_level, last_review_at,
+              created_at, updated_at
+       FROM ko_pron_letter WHERE id = ?1`
+    )
+    .bind(letterId)
+    .first<Record<string, unknown>>();
+  return row ? rowToLetter(row) : null;
+}
+
+export async function getKoPronTeacherQuizLive(
+  db: D1Database,
+  now = new Date()
+): Promise<KoPronTeacherQuizLive> {
+  const raw = await getSettingRaw(db, TEACHER_QUIZ_LIVE_KEY);
+  if (!raw) return { ...KO_PRON_TEACHER_QUIZ_LIVE_EMPTY, date: beijingDateString(now) };
+  try {
+    return normalizeKoPronTeacherQuizLive(JSON.parse(raw), now);
+  } catch {
+    return { ...KO_PRON_TEACHER_QUIZ_LIVE_EMPTY, date: beijingDateString(now) };
+  }
+}
+
+async function saveKoPronTeacherQuizLive(
+  db: D1Database,
+  live: KoPronTeacherQuizLive
+): Promise<KoPronTeacherQuizLive> {
+  const next = normalizeKoPronTeacherQuizLive(live);
+  await setSettingRaw(db, TEACHER_QUIZ_LIVE_KEY, JSON.stringify(next));
+  return next;
+}
+
+/** 老师打开/切换抽查卡片：写入当前字母，罗马音对学生隐藏 */
+export async function setKoPronTeacherQuizLiveLetter(
+  db: D1Database,
+  letterId: number | null,
+  now = new Date()
+): Promise<KoPronTeacherQuizLive> {
+  const current = await getKoPronTeacherQuizLive(db, now);
+  const parsedId =
+    letterId != null && Number.isFinite(letterId) && letterId > 0
+      ? Math.floor(letterId)
+      : null;
+  const letterChanged = current.letter_id !== parsedId;
+  const next: KoPronTeacherQuizLive = {
+    date: beijingDateString(now),
+    letter_id: parsedId,
+    reading_revealed: letterChanged ? false : current.reading_revealed,
+    updated_at: parsedId != null ? now.toISOString() : null,
+  };
+  if (!letterChanged && parsedId != null) {
+    next.reading_revealed = current.reading_revealed;
+    next.updated_at = now.toISOString();
+  }
+  return saveKoPronTeacherQuizLive(db, next);
+}
+
+/** 老师勾选熟悉程度后：对学生端揭示罗马音 */
+export async function revealKoPronTeacherQuizLiveReading(
+  db: D1Database,
+  letterId: number,
+  now = new Date()
+): Promise<KoPronTeacherQuizLive> {
+  const current = await getKoPronTeacherQuizLive(db, now);
+  const id = Math.floor(letterId);
+  if (current.letter_id !== id) {
+    return saveKoPronTeacherQuizLive(db, {
+      date: beijingDateString(now),
+      letter_id: id,
+      reading_revealed: true,
+      updated_at: now.toISOString(),
+    });
+  }
+  return saveKoPronTeacherQuizLive(db, {
+    ...current,
+    reading_revealed: true,
+    updated_at: now.toISOString(),
+  });
+}
+
+export type KoPronStudyLivePayload = {
+  live: KoPronTeacherQuizLive;
+  letter: KoPronLetter | null;
+  /** 对学生端脱敏：未揭示时 reading 为 null */
+  student_letter: {
+    id: number;
+    letter: string;
+    reading: string | null;
+    meaning: string | null;
+    category: string | null;
+  } | null;
+};
+
+export async function getKoPronStudyLivePayload(
+  db: D1Database,
+  now = new Date()
+): Promise<KoPronStudyLivePayload> {
+  const live = await getKoPronTeacherQuizLive(db, now);
+  if (!live.letter_id) {
+    return { live, letter: null, student_letter: null };
+  }
+  const letter = await getKoPronLetterById(db, live.letter_id);
+  if (!letter) {
+    return { live, letter: null, student_letter: null };
+  }
+  return {
+    live,
+    letter,
+    student_letter: {
+      id: letter.id,
+      letter: letter.letter,
+      reading: live.reading_revealed ? letter.reading : null,
+      meaning: live.reading_revealed ? letter.meaning : null,
+      category: letter.category,
+    },
+  };
+}

@@ -9,7 +9,7 @@ import {
 import { getCloudflareEnv, localeFromRequest } from "@/lib/cloudflare-env";
 import { localeCookieHeader } from "@/lib/locale-detect";
 import { clientIp, setLocalePref } from "@/lib/locale-pref";
-import { enVocabPath, jpVocabPath } from "@/lib/locale-path";
+import { enVocabPath, jpVocabPath, koPronPath } from "@/lib/locale-path";
 import { getPermissionsForRole } from "@/lib/rbac-db";
 import { isAdminSuperuser } from "@/lib/rbac";
 
@@ -46,6 +46,12 @@ async function resolveLoginLinkLandingPath(
     permissions.includes("nav:en_teacher") && !permissions.includes("nav:full");
   if (enTeacherNav || role === "en_vocab") {
     return enVocabPath();
+  }
+
+  const koTeacherNav =
+    permissions.includes("nav:ko_teacher") && !permissions.includes("nav:full");
+  if (koTeacherNav || role === "ko_pron") {
+    return koPronPath();
   }
 
   return locale === "zh" ? "/zh" : "/";

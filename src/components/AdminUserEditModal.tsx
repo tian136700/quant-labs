@@ -49,7 +49,7 @@ type Props = {
   onCredentialsStored?: (userId: number, password: string) => void;
 };
 
-type AdminUserRole = "user" | "jp_vocab" | "en_vocab";
+type AdminUserRole = "user" | "jp_vocab" | "en_vocab" | "ko_pron";
 
 function adminUserRoleLabel(role: AdminUserRole, locale: "en" | "zh"): string {
   const item = RBAC_ROLE_LABELS[role as EtrUserRole];
@@ -133,7 +133,9 @@ export function AdminUserEditModal({
           ? "jp_vocab"
           : user.role === "en_vocab"
             ? "en_vocab"
-            : "user"
+            : user.role === "ko_pron"
+              ? "ko_pron"
+              : "user"
       );
       setTeacherId(
         typeof user.jp_lesson_teacher_id === "number" && user.jp_lesson_teacher_id > 0
@@ -340,6 +342,9 @@ export function AdminUserEditModal({
               </option>
               <option value="en_vocab">
                 {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
+              </option>
+              <option value="ko_pron">
+                {locale === "zh" ? "韩语老师（字母发音抽问）" : "Korean teacher"}
               </option>
             </select>
           </label>

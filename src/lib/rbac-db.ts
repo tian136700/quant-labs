@@ -5,6 +5,7 @@ import {
   RBAC_DEFAULT_ROLE_PERMISSIONS,
   RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS,
   RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS,
+  RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS,
   RBAC_USER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_PERMISSION_CATALOG,
@@ -69,6 +70,12 @@ const RBAC_INCREMENTAL_DEFAULTS: Array<{
   permission: string;
 }> = [
   /** newest sentinel first — 表已有数据时用首项探测是否还需补缺 */
+  { role: "user", permission: "ko_pron:study" },
+  { role: "ko_pron", permission: "ko_pron:teacher" },
+  { role: "ko_pron", permission: "ko_pron:read" },
+  { role: "ko_pron", permission: "ko_pron:operate" },
+  { role: "ko_pron", permission: "about:view" },
+  { role: "ko_pron", permission: "nav:ko_teacher" },
   { role: "en_vocab", permission: "en_vocab:teacher" },
   { role: "jp_vocab", permission: "jp_vocab:teacher" },
 ];
@@ -222,7 +229,7 @@ export type RbacRoleMatrix = {
 
 export async function listRbacMatrix(db: D1Database): Promise<RbacRoleMatrix[]> {
   await ensureRbacSeeded(db);
-  const roles: EtrUserRole[] = ["admin", "jp_vocab", "en_vocab", "user"];
+  const roles: EtrUserRole[] = ["admin", "jp_vocab", "en_vocab", "ko_pron", "user"];
   const matrix: RbacRoleMatrix[] = [];
   for (const role of roles) {
     matrix.push({
@@ -258,6 +265,10 @@ export async function updateRolePermissions(
   }
   if (role === "en_vocab") {
     const excluded = new Set<string>(RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS);
+    cleaned = cleaned.filter((k) => !excluded.has(k));
+  }
+  if (role === "ko_pron") {
+    const excluded = new Set<string>(RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS);
     cleaned = cleaned.filter((k) => !excluded.has(k));
   }
   if (role === "user") {
@@ -303,6 +314,7 @@ export type SessionUserWithPermissions = EtrSessionUser & {
   permissions: string[];
   can_operate_jp_vocab: boolean;
   can_operate_en_vocab: boolean;
+  can_operate_ko_pron: boolean;
 };
 
 export async function enrichSessionUser(
@@ -319,5 +331,15 @@ export async function enrichSessionUser(
     permissions.includes("en_vocab:operate") ||
     permissions.includes("en_vocab:teacher") ||
     permissions.includes("en_lesson:operate");
-  return { ...user, permissions, can_operate_jp_vocab, can_operate_en_vocab };
+  const can_operate_ko_pron =
+    isAdminSuperuser(user.role) ||
+    permissions.includes("ko_pron:operate") ||
+    permissions.includes("ko_pron:teacher");
+  return {
+    ...user,
+    permissions,
+    can_operate_jp_vocab,
+    can_operate_en_vocab,
+    can_operate_ko_pron,
+  };
 }

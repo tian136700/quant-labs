@@ -400,7 +400,7 @@ function AdminUsersPageContent() {
   const [editTemplateBody, setEditTemplateBody] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab">("user");
+  const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab" | "ko_pron">("user");
   const [newTeacherId, setNewTeacherId] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<AdminJpLessonTeacherOption[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);
@@ -1661,7 +1661,9 @@ function AdminUsersPageContent() {
                       value={newRole}
                       disabled={creating}
                       onChange={(e) =>
-                        setNewRole(e.target.value as "user" | "jp_vocab" | "en_vocab")
+                        setNewRole(
+                          e.target.value as "user" | "jp_vocab" | "en_vocab" | "ko_pron"
+                        )
                       }
                     >
                       <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
@@ -1670,6 +1672,9 @@ function AdminUsersPageContent() {
                       </option>
                       <option value="en_vocab">
                         {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
+                      </option>
+                      <option value="ko_pron">
+                        {locale === "zh" ? "韩语老师（字母发音抽问）" : "Korean teacher"}
                       </option>
                     </select>
                   </label>

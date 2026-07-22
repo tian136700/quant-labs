@@ -772,7 +772,12 @@ export async function createUserByAdmin(
   await ensureBootstrapUsers(env);
 
   if (role === "admin") return { ok: false, error: "cannot_create_admin" };
-  if (role !== "user" && role !== "jp_vocab" && role !== "en_vocab") {
+  if (
+    role !== "user" &&
+    role !== "jp_vocab" &&
+    role !== "en_vocab" &&
+    role !== "ko_pron"
+  ) {
     return { ok: false, error: "role_invalid" };
   }
 
@@ -1176,7 +1181,12 @@ export async function updateUserByAdmin(
 
   const nextRole = (hasRole ? input.role : user.role) as EtrUserRole;
   if (nextRole === "admin") return { ok: false, error: "cannot_create_admin" };
-  if (nextRole !== "user" && nextRole !== "jp_vocab" && nextRole !== "en_vocab") {
+  if (
+    nextRole !== "user" &&
+    nextRole !== "jp_vocab" &&
+    nextRole !== "en_vocab" &&
+    nextRole !== "ko_pron"
+  ) {
     return { ok: false, error: "role_invalid" };
   }
 

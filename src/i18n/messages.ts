@@ -28,6 +28,9 @@ export type Messages = {
     enVocab: string;
     enVocabAdmin: string;
     enVocabStudy: string;
+    koPron: string;
+    koPronAdmin: string;
+    koPronStudy: string;
     storeReview: string;
     about: string;
     adminDashboard: string;
@@ -531,6 +534,9 @@ export const messages: Record<Locale, Messages> = {
       enVocab: "English Vocab — Teacher",
       enVocabAdmin: "English Vocab — Admin",
       enVocabStudy: "Today's English Words",
+      koPron: "Korean Pronunciation — Teacher",
+      koPronAdmin: "Korean Pronunciation — Admin",
+      koPronStudy: "Today's Korean Pronunciation",
       storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
@@ -1151,6 +1157,9 @@ export const messages: Record<Locale, Messages> = {
       enVocab: "英语抽背-老师端",
       enVocabAdmin: "英语抽背-管理员端",
       enVocabStudy: "今日英语单词",
+      koPron: "韩语发音-老师端",
+      koPronAdmin: "韩语发音-管理员端",
+      koPronStudy: "今日韩语发音",
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",
