@@ -44,6 +44,19 @@ def main() -> int:
     if "koTeachers={koTeachers}" not in page:
         errors.append("schedule page must pass koTeachers to modal")
 
+    # 历史总计须含韩语（手动日程标题经 detectScheduleTeacherSubjectFromTitle）
+    if "koMinutes" not in page:
+        errors.append("schedule historicalDurationTotals must track koMinutes")
+    if "jpls-legend-dot--ko" not in page:
+        errors.append("schedule duration bar must show Korean legend dot")
+    if "韩语" not in page or "historicalDurationTotals.koMinutes" not in page:
+        errors.append("schedule duration bar must label 韩语 with koMinutes")
+    if "detectScheduleTeacherSubjectFromTitle" not in page:
+        errors.append(
+            "schedule duration totals must classify manual titles via "
+            "detectScheduleTeacherSubjectFromTitle (includes 韩语)"
+        )
+
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)

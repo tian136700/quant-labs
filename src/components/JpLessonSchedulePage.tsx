@@ -74,9 +74,10 @@ import {
 } from "@/lib/jp-lesson-manual-schedule";
 import { jpLessonPath, enLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
-import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
 import {
+  detectScheduleTeacherSubjectFromTitle,
   formatTeacherLessonDisplayLabel,
+  resolveLessonTeacherRateFields,
   sortJpLessonTeachersByLessonCount,
 } from "@/lib/jp-lesson-teacher-rate";
 import {
@@ -810,10 +811,11 @@ export function JpLessonSchedulePage() {
   const visibleEvents =
     viewMode === "day" ? dayEvents : viewMode === "week" ? weekEvents : monthEvents;
 
-  /** 历史总计：全部已排课（不限当前日/周/月视图） */
+  /** 历史总计：全部已排课（不限当前日/周/月视图）；手动日程按标题归入日语/英语/韩语 */
   const historicalDurationTotals = useMemo(() => {
     let jpMinutes = 0;
     let enMinutes = 0;
+    let koMinutes = 0;
     for (const event of allEvents) {
       if (event.subject === "jp") {
         jpMinutes += event.durationMinutes;
@@ -823,21 +825,19 @@ export function JpLessonSchedulePage() {
         enMinutes += event.durationMinutes;
         continue;
       }
-      // 手动日程：标题含「日语」→日语，含「英语」→英语；同时含则按先出现的归类
-      const title = event.displayContent ?? "";
-      const jpIdx = title.indexOf("日语");
-      const enIdx = title.indexOf("英语");
-      if (jpIdx < 0 && enIdx < 0) continue;
-      if (enIdx < 0 || (jpIdx >= 0 && jpIdx <= enIdx)) {
-        jpMinutes += event.durationMinutes;
-      } else {
-        enMinutes += event.durationMinutes;
-      }
+      // 手动日程：与选老师同一套标题推断（韩语 > 英语 > 日语）
+      const titleSubject = detectScheduleTeacherSubjectFromTitle(
+        event.displayContent ?? ""
+      );
+      if (titleSubject === "jp") jpMinutes += event.durationMinutes;
+      else if (titleSubject === "en") enMinutes += event.durationMinutes;
+      else if (titleSubject === "ko") koMinutes += event.durationMinutes;
     }
     return {
       jpMinutes,
       enMinutes,
-      totalMinutes: jpMinutes + enMinutes,
+      koMinutes,
+      totalMinutes: jpMinutes + enMinutes + koMinutes,
     };
   }, [allEvents]);
 
@@ -1437,7 +1437,7 @@ export function JpLessonSchedulePage() {
         <div className="jpls-toolbar-right">
           <div
             className="jpls-duration-totals"
-            aria-label={`历史总计上课时间：日语${formatLessonScheduleDurationLabel(historicalDurationTotals.jpMinutes)}，英语${formatLessonScheduleDurationLabel(historicalDurationTotals.enMinutes)}，总计${formatLessonScheduleDurationLabel(historicalDurationTotals.totalMinutes)}`}
+            aria-label={`历史总计上课时间：日语${formatLessonScheduleDurationLabel(historicalDurationTotals.jpMinutes)}，英语${formatLessonScheduleDurationLabel(historicalDurationTotals.enMinutes)}，韩语${formatLessonScheduleDurationLabel(historicalDurationTotals.koMinutes)}，总计${formatLessonScheduleDurationLabel(historicalDurationTotals.totalMinutes)}`}
           >
             <span className="jpls-legend jpls-duration-total">
               <span className="jpls-legend-dot jpls-legend-dot--jp" />
@@ -1448,6 +1448,11 @@ export function JpLessonSchedulePage() {
               <span className="jpls-legend-dot jpls-legend-dot--en" />
               英语{" "}
               <strong>{formatLessonScheduleDurationLabel(historicalDurationTotals.enMinutes)}</strong>
+            </span>
+            <span className="jpls-legend jpls-duration-total">
+              <span className="jpls-legend-dot jpls-legend-dot--ko" />
+              韩语{" "}
+              <strong>{formatLessonScheduleDurationLabel(historicalDurationTotals.koMinutes)}</strong>
             </span>
             <span className="jpls-legend jpls-duration-total jpls-duration-total--sum">
               总计{" "}
@@ -2204,6 +2209,9 @@ export function JpLessonSchedulePage() {
         }
         .jpls-legend-dot--en {
           background: color-mix(in srgb, var(--accent) 70%, transparent);
+        }
+        .jpls-legend-dot--ko {
+          background: color-mix(in srgb, var(--fall) 70%, transparent);
         }
         .jpls-layout {
           display: grid;
