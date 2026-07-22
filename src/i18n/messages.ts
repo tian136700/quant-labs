@@ -31,6 +31,7 @@ export type Messages = {
     koPron: string;
     koPronAdmin: string;
     koPronSelect: string;
+    koPronReview: string;
     koPronStudy: string;
     storeReview: string;
     about: string;
@@ -543,6 +544,7 @@ export const messages: Record<Locale, Messages> = {
       koPron: "Korean Pronunciation Quiz — Teacher",
       koPronAdmin: "Korean Pronunciation Quiz — Admin",
       koPronSelect: "Korean Pronunciation Select",
+      koPronReview: "Korean Pronunciation Review",
       koPronStudy: "Today's Korean Pronunciation",
       storeReview: "Store Review",
       about: "About",
@@ -1172,6 +1174,7 @@ export const messages: Record<Locale, Messages> = {
       koPron: "韩语发音抽问-老师端",
       koPronAdmin: "韩语发音抽问-管理员端",
       koPronSelect: "韩语发音勾选",
+      koPronReview: "韩语发音复习",
       koPronStudy: "今日韩语发音",
       storeReview: "商店评价",
       about: "关于",

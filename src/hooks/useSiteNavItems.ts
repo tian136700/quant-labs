@@ -29,6 +29,7 @@ import {
   isKoPronTeacherHomePath,
   isKoPronAdminPath,
   isKoPronSelectPath,
+  isKoPronReviewPath,
   isKoPronStudyPath,
   isStoreReviewHomePath,
   isStoreReviewPlazaPath,
@@ -76,6 +77,7 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onKoPronTeacherHome = isKoPronTeacherHomePath(pathname);
   const onKoPronAdmin = isKoPronAdminPath(pathname);
   const onKoPronSelect = isKoPronSelectPath(pathname);
+  const onKoPronReview = isKoPronReviewPath(pathname);
   const onKoPronStudy = isKoPronStudyPath(pathname);
   const onHiddenJp =
     onJpLesson || onJpVocab || onJpVocabStudy || onJpVocabReview || onJpVocabCoach;
@@ -536,6 +538,12 @@ export function useSiteNavItems(): SiteNavItem[] {
                           href: navHref("koPronSelect", locale, navOpts),
                           label: nav.koPronSelect,
                           active: onKoPronSelect,
+                        },
+                        {
+                          id: "koPronReview",
+                          href: navHref("koPronReview", locale, navOpts),
+                          label: nav.koPronReview,
+                          active: onKoPronReview,
                         },
                         {
                           id: "koPronAdmin",

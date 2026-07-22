@@ -42,7 +42,13 @@ export const NAV_LANG_GROUPS: readonly NavLangGroupDef[] = [
     id: "langKo",
     labelKey: "langKo",
     category: "ko",
-    childIds: ["koPronSelect", "koPronAdmin", "koPron", "koPronStudy"],
+    childIds: [
+      "koPronSelect",
+      "koPronReview",
+      "koPronAdmin",
+      "koPron",
+      "koPronStudy",
+    ],
   },
 ] as const;
 
@@ -106,6 +112,7 @@ export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
   koPron: "ko",
   koPronAdmin: "ko",
   koPronSelect: "ko",
+  koPronReview: "ko",
   koPronStudy: "ko",
   admin: "admin",
   adminUsers: "admin",
