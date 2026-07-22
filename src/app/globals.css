@@ -1787,7 +1787,11 @@ textarea:focus {
 }
 
 .admin-table-wrap {
-  @apply w-full overflow-x-auto;
+  @apply w-full;
+  /* Horizontal only: overflow-x:auto alone pairs to overflow-y:auto and can trap
+     Mac trackpad vertical gestures over wide admin tables (e.g. /admin/users). */
+  overflow-x: auto;
+  overflow-y: clip;
   -webkit-overflow-scrolling: touch;
   display: none;
 }

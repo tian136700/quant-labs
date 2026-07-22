@@ -72,14 +72,7 @@ export function AdminUserBindTeacherModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose, saving]);
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // Body scroll: AdminUsersPage anyModalOpen → lockBodyScroll (do not nest here).
 
   const save = (e: FormEvent) => {
     e.preventDefault();

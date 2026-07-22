@@ -52,6 +52,7 @@ import { ETR_PASSWORD_MIN_LENGTH, ETR_USERNAME_MAX_LENGTH, ETR_USERNAME_MIN_LENG
 import { formatBeijingDateTime, parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
 import { formatIpForDisplay } from "@/lib/client-ip";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { LoginLinkTemplate } from "@/lib/types";
 
@@ -1183,11 +1184,7 @@ function AdminUsersPageContent() {
 
   useEffect(() => {
     if (!anyModalOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [anyModalOpen]);
 
   if (checking || !isAdmin) {
@@ -2108,6 +2105,7 @@ function AdminUsersPageContent() {
         }
         .admin-rbac-table-wrap {
           overflow-x: auto;
+          overflow-y: clip;
         }
         .admin-rbac-table {
           width: 100%;
