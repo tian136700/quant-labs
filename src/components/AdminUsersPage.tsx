@@ -26,7 +26,12 @@ import {
   type AdminJpLessonTeacherOption,
   type AdminUserEditRow,
 } from "@/components/AdminUserEditModal";
+import { AdminUserTeacherModulesField } from "@/components/AdminUserTeacherModulesField";
 import { AdminUserBindTeacherModal } from "@/components/AdminUserBindTeacherModal";
+import {
+  emptyTeacherModules,
+  type RbacTeacherModules,
+} from "@/lib/rbac";
 import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
 import {
   formatAdminUserCredentials,
@@ -82,6 +87,7 @@ type UserRow = {
   username: string;
   role: string;
   role_label: string;
+  teacher_modules?: RbacTeacherModules | null;
   jp_lesson_teacher_id?: number | null;
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
@@ -400,7 +406,8 @@ function AdminUsersPageContent() {
   const [editTemplateBody, setEditTemplateBody] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"user" | "jp_vocab" | "en_vocab" | "ko_pron">("user");
+  const [newTeacherModules, setNewTeacherModules] =
+    useState<RbacTeacherModules>(emptyTeacherModules());
   const [newTeacherId, setNewTeacherId] = useState<number | null>(null);
   const [teachers, setTeachers] = useState<AdminJpLessonTeacherOption[]>([]);
   const [teachersLoading, setTeachersLoading] = useState(false);
@@ -598,6 +605,7 @@ function AdminUsersPageContent() {
     setAddUserModalError("");
     setAddUserSubmitAttempted(false);
     setNewTeacherId(null);
+    setNewTeacherModules(emptyTeacherModules());
   };
 
   const openEditUser = (row: UserRow) => {
@@ -845,7 +853,7 @@ function AdminUsersPageContent() {
         body: JSON.stringify({
           username: newUsername.trim(),
           password: newPassword,
-          role: newRole,
+          teacher_modules: newTeacherModules,
           jp_lesson_teacher_id: newTeacherId,
         }),
       });
@@ -862,7 +870,7 @@ function AdminUsersPageContent() {
       rememberAdminUserPassword(data.user.id, newPassword);
       setNewUsername("");
       setNewPassword("");
-      setNewRole("user");
+      setNewTeacherModules(emptyTeacherModules());
       setNewTeacherId(null);
       closeAddUserModal();
       void loadTeachers();
@@ -1655,29 +1663,13 @@ function AdminUsersPageContent() {
                       </span>
                     ) : null}
                   </label>
-                  <label className="admin-user-add-field">
-                    <span>{locale === "zh" ? "角色" : "Role"}</span>
-                    <select
-                      value={newRole}
-                      disabled={creating}
-                      onChange={(e) =>
-                        setNewRole(
-                          e.target.value as "user" | "jp_vocab" | "en_vocab" | "ko_pron"
-                        )
-                      }
-                    >
-                      <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
-                      <option value="jp_vocab">
-                        {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
-                      </option>
-                      <option value="en_vocab">
-                        {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
-                      </option>
-                      <option value="ko_pron">
-                        {locale === "zh" ? "韩语老师（字母发音抽问）" : "Korean teacher"}
-                      </option>
-                    </select>
-                  </label>
+                  <AdminUserTeacherModulesField
+                    value={newTeacherModules}
+                    onChange={setNewTeacherModules}
+                    locale={locale}
+                    disabled={creating}
+                    fieldClassPrefix="admin-user-add"
+                  />
                   <label className="admin-user-add-field">
                     <span>{locale === "zh" ? "关联老师" : "Linked teacher"}</span>
                     <select

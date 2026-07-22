@@ -138,6 +138,18 @@ CREATE TABLE IF NOT EXISTS etr_role_permissions (
 
 CREATE INDEX IF NOT EXISTS idx_etr_role_permissions_role ON etr_role_permissions (role);
 
+-- 用户额外权限（叠加角色默认；用于同一账号兼任日语+韩语老师等）
+CREATE TABLE IF NOT EXISTS etr_user_extra_permissions (
+  user_id        INTEGER NOT NULL,
+  permission_key TEXT    NOT NULL,
+  created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, permission_key),
+  FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_user_extra_permissions_user
+  ON etr_user_extra_permissions (user_id);
+
 -- 登录失败限速（按 IP 撞库防护）
 CREATE TABLE IF NOT EXISTS etr_login_guard (
   client_key   TEXT    NOT NULL PRIMARY KEY,

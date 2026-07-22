@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import { RBAC_ROLE_LABELS } from "@/lib/rbac";
+import { AdminUserTeacherModulesField } from "@/components/AdminUserTeacherModulesField";
+import {
+  detectTeacherModules,
+  emptyTeacherModules,
+  formatTeacherModulesLabel,
+  teacherModulesToRoleAndExtras,
+  type RbacTeacherModules,
+} from "@/lib/rbac";
 import {
   adminUserFieldErrors,
 } from "@/lib/admin-user-validation";
@@ -11,7 +18,6 @@ import {
   ETR_DEFAULT_JP_VOCAB_USER1_USERNAME,
   ETR_DEFAULT_JP_VOCAB_USERNAME,
   isReservedUsername,
-  type EtrUserRole,
 } from "@/lib/etr-auth";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { formatTeacherLessonDisplayLabel } from "@/lib/jp-lesson-teacher-rate";
@@ -21,6 +27,7 @@ export type AdminUserEditRow = {
   username: string;
   role: string;
   role_label: string;
+  teacher_modules?: RbacTeacherModules | null;
   jp_lesson_teacher_id?: number | null;
   jp_lesson_teacher_name?: string | null;
   disabled?: boolean;
@@ -49,21 +56,15 @@ type Props = {
   onCredentialsStored?: (userId: number, password: string) => void;
 };
 
-type AdminUserRole = "user" | "jp_vocab" | "en_vocab" | "ko_pron";
-
-function adminUserRoleLabel(role: AdminUserRole, locale: "en" | "zh"): string {
-  const item = RBAC_ROLE_LABELS[role as EtrUserRole];
-  return locale === "zh" ? item.zh : item.en;
-}
-
 function buildOptimisticAdminUser(
   base: AdminUserEditRow,
   username: string,
-  role: AdminUserRole,
+  modules: RbacTeacherModules,
   teacherId: number | null,
   teachers: AdminJpLessonTeacherOption[],
   locale: "en" | "zh"
 ): AdminUserEditRow {
+  const { role } = teacherModulesToRoleAndExtras(modules);
   const teacherName =
     teacherId == null
       ? null
@@ -74,7 +75,8 @@ function buildOptimisticAdminUser(
     ...base,
     username,
     role,
-    role_label: adminUserRoleLabel(role, locale),
+    role_label: formatTeacherModulesLabel(modules, locale),
+    teacher_modules: modules,
     jp_lesson_teacher_id: teacherId,
     jp_lesson_teacher_name: teacherName,
   };
@@ -94,7 +96,8 @@ export function AdminUserEditModal({
   const [mounted, setMounted] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<AdminUserRole>("user");
+  const [teacherModules, setTeacherModules] =
+    useState<RbacTeacherModules>(emptyTeacherModules());
   const [teacherId, setTeacherId] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -128,14 +131,8 @@ export function AdminUserEditModal({
     if (open && !wasOpenRef.current && user) {
       setUsername(user.username);
       setPassword("");
-      setRole(
-        user.role === "jp_vocab"
-          ? "jp_vocab"
-          : user.role === "en_vocab"
-            ? "en_vocab"
-            : user.role === "ko_pron"
-              ? "ko_pron"
-              : "user"
+      setTeacherModules(
+        user.teacher_modules ?? detectTeacherModules(user.role)
       );
       setTeacherId(
         typeof user.jp_lesson_teacher_id === "number" && user.jp_lesson_teacher_id > 0
@@ -187,7 +184,7 @@ export function AdminUserEditModal({
     const optimistic = buildOptimisticAdminUser(
       snapshot,
       trimmedUsername,
-      role,
+      teacherModules,
       teacherId,
       teachers,
       locale
@@ -208,7 +205,7 @@ export function AdminUserEditModal({
           body: JSON.stringify({
             user_id: snapshot.id,
             username: trimmedUsername,
-            role,
+            teacher_modules: teacherModules,
             jp_lesson_teacher_id: teacherId,
             ...(password ? { password } : {}),
           }),
@@ -260,11 +257,11 @@ export function AdminUserEditModal({
             <p className="admin-user-edit-subtitle">
               {locale === "zh"
                 ? usernameLocked
-                  ? "系统保留账号不可改用户名。可填写新密码恢复登录；留空表示不改密码。可选择关联日语上课老师。"
-                  : "修改用户名、角色、关联老师或密码。留空密码表示不修改。"
+                  ? "系统保留账号不可改用户名。可填写新密码恢复登录；留空表示不改密码。老师身份可多选（日语+韩语等）。"
+                  : "修改用户名、老师身份（可多选）、关联老师或密码。留空密码表示不修改。"
                 : usernameLocked
-                  ? "System account username is locked. Set a password to restore login; leave blank to keep. You can link a JP lesson teacher."
-                  : "Update username, role, linked teacher, or password. Leave password blank to keep current."}
+                  ? "System account username is locked. Teacher roles are multi-select (JP+KO etc)."
+                  : "Update username, multi-select teacher roles, linked teacher, or password."}
             </p>
           </div>
           <button
@@ -330,24 +327,12 @@ export function AdminUserEditModal({
               <span className="admin-user-edit-field-error">{displayedPasswordError}</span>
             ) : null}
           </label>
-          <label className="admin-user-edit-field">
-            <span>{locale === "zh" ? "角色" : "Role"}</span>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as AdminUserRole)}
-            >
-              <option value="user">{locale === "zh" ? "普通用户" : "Regular user"}</option>
-              <option value="jp_vocab">
-                {locale === "zh" ? "日语教师（可编辑单词等）" : "Japanese teacher"}
-              </option>
-              <option value="en_vocab">
-                {locale === "zh" ? "英语教师（抽背与今日单词）" : "English teacher"}
-              </option>
-              <option value="ko_pron">
-                {locale === "zh" ? "韩语老师（字母发音抽问）" : "Korean teacher"}
-              </option>
-            </select>
-          </label>
+          <AdminUserTeacherModulesField
+            value={teacherModules}
+            onChange={setTeacherModules}
+            locale={locale}
+            fieldClassPrefix="admin-user-edit"
+          />
           <label className="admin-user-edit-field">
             <span>{locale === "zh" ? "关联老师" : "Linked teacher"}</span>
             <select

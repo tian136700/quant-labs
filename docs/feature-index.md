@@ -224,6 +224,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 用户列表、**无对应老师时「绑定老师」/ 已绑定时「更改」**（点开下拉选择并绑定或改绑；一位老师最多绑一个账号）、添加/编辑亦可改关联、创建/禁用/登录链接 | `AdminUsersPage.tsx`、`AdminUserBindTeacherModal.tsx`、`AdminUserEditModal.tsx`；`GET/POST/PATCH /api/admin/users`（`jp_lesson_teacher_id`）；`setUserJpLessonTeacherLink` |
+| **老师身份可多选**（同一账号可同时是日语老师 + 韩语老师等；列表显示「日语教师 + 韩语老师」） | `AdminUserTeacherModulesField.tsx`；`teacher_modules` → 主 `role` + `etr_user_extra_permissions`；`getUserPermissions` 合并额外权限；规则 `.cursor/rules/admin-user-multi-teacher-roles.mdc` |
 | **列表排序**（ID / 最近登录 / **状态**正常↔已禁用；手机端排序按钮同字段） | `AdminUsersPage.tsx` → `sortUsers`、`toggleSort`、`UserSortField` |
 | **手机端用户卡片**（&lt; lg 显示卡片 + 排序；桌面端表格） | `AdminUsersPage.tsx` → `admin-cards` / `admin-table-wrap`；`mobile.css` |
 | **复制账号密码**（日语角色 → `japanese…/jp-vocab`；英语角色 `en_vocab` → `english…/en-vocab`；密码来自本机缓存；**李老师 / user1 等保留账号无缓存时禁止一键随机重置**，须「编辑」填写） | `AdminUsersPage.tsx` → `copyUserCredentials`；`resetUserPasswordByAdmin`（`cannot_reset_bootstrap`）；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` / `EN_SITE_URL`）；规则 `.cursor/rules/bootstrap-account-password.mdc` |

@@ -9,15 +9,20 @@ import {
   RBAC_USER_EXCLUDED_PERMISSIONS,
   RBAC_MANAGEABLE_ROLES,
   RBAC_PERMISSION_CATALOG,
+  detectTeacherModules,
   isAdminSuperuser,
   type RbacPermissionDef,
+  type RbacTeacherModules,
 } from "@/lib/rbac";
 
 let devRbacEnabled = false;
 const devRolePermissions = new Map<EtrUserRole, Set<string>>();
+/** user_id → extra permission keys */
+const devUserExtraPermissions = new Map<number, Set<string>>();
 let rbacSeededDone = false;
 /** 同一 Worker isolate 内缓存角色权限，避免高频 API 轮询重复查 D1 */
 const rolePermissionsCache = new Map<EtrUserRole, string[]>();
+let userExtraSchemaEnsured = false;
 
 export function enableRbacDevStore() {
   devRbacEnabled = true;
@@ -59,6 +64,126 @@ async function ensureRbacSchema(db: D1Database): Promise<void> {
        ON etr_role_permissions (role)`
     )
     .run();
+}
+
+async function ensureUserExtraPermissionsSchema(db: D1Database): Promise<void> {
+  if (devRbacEnabled || userExtraSchemaEnsured) return;
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS etr_user_extra_permissions (
+         user_id        INTEGER NOT NULL,
+         permission_key TEXT NOT NULL,
+         created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+         PRIMARY KEY (user_id, permission_key),
+         FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_etr_user_extra_permissions_user
+       ON etr_user_extra_permissions (user_id)`
+    )
+    .run();
+  userExtraSchemaEnsured = true;
+}
+
+/** 用户额外权限（叠加在角色默认之上；用于「日语老师 + 韩语老师」等） */
+export async function listUserExtraPermissions(
+  db: D1Database,
+  userId: number
+): Promise<string[]> {
+  if (!Number.isInteger(userId) || userId <= 0) return [];
+  if (devRbacEnabled) {
+    return [...(devUserExtraPermissions.get(userId) ?? [])].sort();
+  }
+  await ensureUserExtraPermissionsSchema(db);
+  const result = await db
+    .prepare(
+      `SELECT permission_key FROM etr_user_extra_permissions
+       WHERE user_id = ?1 ORDER BY permission_key ASC`
+    )
+    .bind(userId)
+    .all<{ permission_key: string }>();
+  return (result.results ?? []).map((r) => r.permission_key);
+}
+
+export async function setUserExtraPermissions(
+  db: D1Database,
+  userId: number,
+  permissions: readonly string[]
+): Promise<void> {
+  if (!Number.isInteger(userId) || userId <= 0) return;
+  const cleaned = [
+    ...new Set(
+      permissions
+        .map((p) => String(p ?? "").trim())
+        .filter((p) => p && RBAC_ALL_PERMISSION_KEYS.includes(p))
+    ),
+  ].sort();
+
+  if (devRbacEnabled) {
+    if (!cleaned.length) {
+      devUserExtraPermissions.delete(userId);
+    } else {
+      devUserExtraPermissions.set(userId, new Set(cleaned));
+    }
+    return;
+  }
+
+  await ensureUserExtraPermissionsSchema(db);
+  const ts = nowIso();
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(`DELETE FROM etr_user_extra_permissions WHERE user_id = ?1`)
+      .bind(userId),
+  ];
+  for (const permission of cleaned) {
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO etr_user_extra_permissions (user_id, permission_key, created_at)
+           VALUES (?1, ?2, ?3)`
+        )
+        .bind(userId, permission, ts)
+    );
+  }
+  await db.batch(statements);
+}
+
+export async function listUserExtraPermissionsMap(
+  db: D1Database
+): Promise<Map<number, string[]>> {
+  const map = new Map<number, string[]>();
+  if (devRbacEnabled) {
+    for (const [userId, set] of devUserExtraPermissions) {
+      map.set(userId, [...set].sort());
+    }
+    return map;
+  }
+  await ensureUserExtraPermissionsSchema(db);
+  const result = await db
+    .prepare(
+      `SELECT user_id, permission_key FROM etr_user_extra_permissions
+       ORDER BY user_id ASC, permission_key ASC`
+    )
+    .all<{ user_id: number; permission_key: string }>();
+  for (const row of result.results ?? []) {
+    const userId = Number(row.user_id);
+    if (!Number.isInteger(userId) || userId <= 0) continue;
+    const list = map.get(userId) ?? [];
+    list.push(String(row.permission_key));
+    map.set(userId, list);
+  }
+  return map;
+}
+
+export async function getTeacherModulesForUser(
+  db: D1Database,
+  user: Pick<EtrSessionUser, "id" | "role">
+): Promise<RbacTeacherModules> {
+  const extras = await listUserExtraPermissions(db, user.id);
+  return detectTeacherModules(user.role, extras);
 }
 
 /**
@@ -196,20 +321,28 @@ export async function getPermissionsForRole(
 
 export async function getUserPermissions(
   db: D1Database,
-  user: Pick<EtrSessionUser, "role"> | null | undefined
+  user: Pick<EtrSessionUser, "role" | "id"> | null | undefined
 ): Promise<string[]> {
   if (!user) return [];
-  return getPermissionsForRole(db, user.role as EtrUserRole);
+  if (isAdminSuperuser(user.role)) {
+    return getPermissionsForRole(db, user.role as EtrUserRole);
+  }
+  const rolePerms = await getPermissionsForRole(db, user.role as EtrUserRole);
+  const userId = Number(user.id);
+  if (!Number.isInteger(userId) || userId <= 0) return rolePerms;
+  const extras = await listUserExtraPermissions(db, userId);
+  if (!extras.length) return rolePerms;
+  return [...new Set([...rolePerms, ...extras])].sort();
 }
 
 export async function userHasPermission(
   db: D1Database,
-  user: Pick<{ role: EtrUserRole }, "role"> | null | undefined,
+  user: Pick<EtrSessionUser, "role" | "id"> | null | undefined,
   permissionKey: string
 ): Promise<boolean> {
   if (!user) return false;
   if (isAdminSuperuser(user.role)) return true;
-  const perms = await getPermissionsForRole(db, user.role as EtrUserRole);
+  const perms = await getUserPermissions(db, user);
   return perms.includes(permissionKey);
 }
 
@@ -228,7 +361,7 @@ export async function listUsersWithPermissions(
   const users = await listEtrUsers(db);
   const rows: RbacUserRow[] = [];
   for (const user of users) {
-    const permissions = await getPermissionsForRole(db, user.role as EtrUserRole);
+    const permissions = await getUserPermissions(db, user);
     rows.push({
       id: user.id,
       username: user.username,

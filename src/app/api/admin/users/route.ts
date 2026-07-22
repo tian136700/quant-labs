@@ -10,7 +10,18 @@ import {
   syncBootstrapUsersFromEnv,
   updateUserByAdmin,
 } from "@/lib/etr-auth-db";
-import { RBAC_ROLE_LABELS } from "@/lib/rbac";
+import {
+  detectTeacherModules,
+  formatTeacherModulesLabel,
+  parseTeacherModulesInput,
+  teacherModulesFromRole,
+  teacherModulesToRoleAndExtras,
+  type RbacTeacherModules,
+} from "@/lib/rbac";
+import {
+  listUserExtraPermissionsMap,
+  setUserExtraPermissions,
+} from "@/lib/rbac-db";
 import type { EtrUserRole } from "@/lib/etr-auth";
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 
@@ -93,11 +104,6 @@ function errMsg(key: string, locale: "en" | "zh"): string {
   return ERR[key]?.[locale] ?? ERR[key]?.en ?? key;
 }
 
-function roleLabel(role: EtrUserRole, locale: "en" | "zh"): string {
-  const item = RBAC_ROLE_LABELS[role];
-  return locale === "zh" ? item.zh : item.en;
-}
-
 function serializeUser(
   user: {
     id: number;
@@ -109,13 +115,17 @@ function serializeUser(
     last_login_ip?: string | null;
   },
   locale: "en" | "zh",
-  teacherLink?: { teacher_id: number; teacher_name: string } | null
+  teacherLink?: { teacher_id: number; teacher_name: string } | null,
+  teacherModules?: RbacTeacherModules | null
 ) {
+  const modules =
+    teacherModules ?? teacherModulesFromRole(user.role);
   return {
     id: user.id,
     username: user.username,
     role: user.role,
-    role_label: roleLabel(user.role as EtrUserRole, locale),
+    role_label: formatTeacherModulesLabel(modules, locale),
+    teacher_modules: modules,
     jp_lesson_teacher_id: teacherLink?.teacher_id ?? null,
     jp_lesson_teacher_name: teacherLink?.teacher_name ?? null,
     disabled: (user.disabled ?? 0) !== 0,
@@ -147,11 +157,18 @@ export async function GET(request: Request) {
     await syncBootstrapUsersFromEnv(env);
     const users = await listEtrUsers(env.DB);
     const teacherLinkMap = await listJpLessonTeacherLinkMapByUserId(env.DB);
+    const extraMap = await listUserExtraPermissionsMap(env.DB);
     return jsonResponse({
       ok: true,
-      users: users.map((user) =>
-        serializeUser(user, locale, teacherLinkMap.get(user.id) ?? null)
-      ),
+      users: users.map((user) => {
+        const extras = extraMap.get(user.id) ?? [];
+        return serializeUser(
+          user,
+          locale,
+          teacherLinkMap.get(user.id) ?? null,
+          detectTeacherModules(user.role, extras)
+        );
+      }),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -171,6 +188,7 @@ export async function POST(request: Request) {
       username?: unknown;
       password?: unknown;
       role?: unknown;
+      teacher_modules?: unknown;
       jp_lesson_teacher_id?: unknown;
     };
     try {
@@ -181,7 +199,14 @@ export async function POST(request: Request) {
 
     const username = String(body.username ?? "").trim();
     const password = String(body.password ?? "");
-    const role = String(body.role ?? "user").trim() as EtrUserRole;
+    const modulesInput = parseTeacherModulesInput(body.teacher_modules);
+    const resolved = modulesInput
+      ? teacherModulesToRoleAndExtras(modulesInput)
+      : {
+          role: String(body.role ?? "user").trim() as EtrUserRole,
+          extra_permissions: [] as string[],
+        };
+    const role = resolved.role;
     const teacherParsed = parseTeacherIdInput(body.jp_lesson_teacher_id);
     if (!teacherParsed.ok) {
       return jsonResponse({ ok: false, error: errMsg("payload_invalid", locale) }, 400);
@@ -199,6 +224,12 @@ export async function POST(request: Request) {
       );
     }
 
+    await setUserExtraPermissions(
+      env.DB,
+      result.user.id,
+      resolved.extra_permissions
+    );
+
     let teacherLink: { teacher_id: number; teacher_name: string } | null = null;
     if (teacherParsed.value != null) {
       const linkResult = await setUserJpLessonTeacherLink(
@@ -212,17 +243,20 @@ export async function POST(request: Request) {
           400
         );
       }
-      if (linkResult.teacher_id != null) {
-        teacherLink = {
-          teacher_id: linkResult.teacher_id,
-          teacher_name: linkResult.teacher_name ?? "",
-        };
-      }
+      teacherLink = {
+        teacher_id: linkResult.teacher_id!,
+        teacher_name: linkResult.teacher_name ?? "",
+      };
     }
 
     return jsonResponse({
       ok: true,
-      user: serializeUser(result.user, locale, teacherLink),
+      user: serializeUser(
+        result.user,
+        locale,
+        teacherLink,
+        modulesInput ?? teacherModulesFromRole(role)
+      ),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -244,6 +278,7 @@ export async function PATCH(request: Request) {
       username?: unknown;
       password?: unknown;
       role?: unknown;
+      teacher_modules?: unknown;
       jp_lesson_teacher_id?: unknown;
     };
     try {
@@ -262,17 +297,24 @@ export async function PATCH(request: Request) {
       return jsonResponse({ ok: false, error: errMsg("payload_invalid", locale) }, 400);
     }
 
+    const modulesInput = parseTeacherModulesInput(body.teacher_modules);
+    const modulesResolved = modulesInput
+      ? teacherModulesToRoleAndExtras(modulesInput)
+      : null;
+
     const hasEdit =
       body.username !== undefined ||
       body.password !== undefined ||
       body.role !== undefined ||
+      modulesResolved != null ||
       teacherParsed.value !== undefined;
 
     if (hasEdit) {
       const hasProfileEdit =
         body.username !== undefined ||
         body.password !== undefined ||
-        body.role !== undefined;
+        body.role !== undefined ||
+        modulesResolved != null;
 
       let baseUser = await findUserById(env.DB, userId);
       if (!baseUser) {
@@ -294,7 +336,9 @@ export async function PATCH(request: Request) {
         if (body.password !== undefined) {
           input.password = String(body.password);
         }
-        if (body.role !== undefined) {
+        if (modulesResolved) {
+          input.role = modulesResolved.role;
+        } else if (body.role !== undefined) {
           input.role = String(body.role).trim() as EtrUserRole;
         }
         const result = await updateUserByAdmin(env, userId, input);
@@ -305,6 +349,13 @@ export async function PATCH(request: Request) {
           );
         }
         baseUser = result.user;
+        if (modulesResolved) {
+          await setUserExtraPermissions(
+            env.DB,
+            userId,
+            modulesResolved.extra_permissions
+          );
+        }
       }
 
       let teacherLink: { teacher_id: number; teacher_name: string } | null = null;
@@ -331,9 +382,14 @@ export async function PATCH(request: Request) {
         teacherLink = linkMap.get(userId) ?? null;
       }
 
+      const extras = await listUserExtraPermissionsMap(env.DB);
+      const userExtras = extras.get(userId) ?? [];
+      const modules =
+        modulesInput ?? detectTeacherModules(baseUser.role, userExtras);
+
       return jsonResponse({
         ok: true,
-        user: serializeUser(baseUser, locale, teacherLink),
+        user: serializeUser(baseUser, locale, teacherLink, modules),
       });
     }
 
@@ -350,9 +406,16 @@ export async function PATCH(request: Request) {
     }
 
     const linkMap = await listJpLessonTeacherLinkMapByUserId(env.DB);
+    const extras = await listUserExtraPermissionsMap(env.DB);
+    const userExtras = extras.get(userId) ?? [];
     return jsonResponse({
       ok: true,
-      user: serializeUser(result.user, locale, linkMap.get(userId) ?? null),
+      user: serializeUser(
+        result.user,
+        locale,
+        linkMap.get(userId) ?? null,
+        detectTeacherModules(result.user.role, userExtras)
+      ),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

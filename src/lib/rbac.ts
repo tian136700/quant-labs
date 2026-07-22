@@ -497,6 +497,106 @@ export const RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS = [
   "ko_pron:study",
 ] as const;
 
+/** 用户管理：可多选的老师身份（主 role 仍只存一个，其余写入额外权限） */
+export type RbacTeacherModule = "jp" | "en" | "ko";
+
+export type RbacTeacherModules = Record<RbacTeacherModule, boolean>;
+
+/** 各老师身份默认权限包（与角色默认一致） */
+export const RBAC_TEACHER_MODULE_BUNDLES: Record<RbacTeacherModule, string[]> = {
+  jp: [...RBAC_DEFAULT_ROLE_PERMISSIONS.jp_vocab],
+  en: [...RBAC_DEFAULT_ROLE_PERMISSIONS.en_vocab],
+  ko: [...RBAC_DEFAULT_ROLE_PERMISSIONS.ko_pron],
+};
+
+export const RBAC_TEACHER_MODULE_ROLE: Record<RbacTeacherModule, EtrUserRole> = {
+  jp: "jp_vocab",
+  en: "en_vocab",
+  ko: "ko_pron",
+};
+
+export function emptyTeacherModules(): RbacTeacherModules {
+  return { jp: false, en: false, ko: false };
+}
+
+export function teacherModulesFromRole(role: string | undefined): RbacTeacherModules {
+  return {
+    jp: role === "jp_vocab",
+    en: role === "en_vocab",
+    ko: role === "ko_pron",
+  };
+}
+
+/** 根据主角色 + 额外权限还原勾选（有 *:teacher 即视为该身份） */
+export function detectTeacherModules(
+  role: string | undefined,
+  extraPermissions: readonly string[] = []
+): RbacTeacherModules {
+  const extras = new Set(extraPermissions);
+  return {
+    jp: role === "jp_vocab" || extras.has("jp_vocab:teacher"),
+    en: role === "en_vocab" || extras.has("en_vocab:teacher"),
+    ko: role === "ko_pron" || extras.has("ko_pron:teacher"),
+  };
+}
+
+/**
+ * 勾选 → 主 role + 额外权限。
+ * 主角色优先级：日语 > 英语 > 韩语（与常见「日语老师兼韩语」一致）；全不勾 → user。
+ */
+export function teacherModulesToRoleAndExtras(modules: RbacTeacherModules): {
+  role: EtrUserRole;
+  extra_permissions: string[];
+} {
+  const order: RbacTeacherModule[] = ["jp", "en", "ko"];
+  const selected = order.filter((key) => modules[key]);
+  if (!selected.length) {
+    return { role: "user", extra_permissions: [] };
+  }
+  const primary = selected[0];
+  const role = RBAC_TEACHER_MODULE_ROLE[primary];
+  const extras = new Set<string>();
+  for (const key of selected) {
+    if (key === primary) continue;
+    for (const perm of RBAC_TEACHER_MODULE_BUNDLES[key]) {
+      extras.add(perm);
+    }
+  }
+  return { role, extra_permissions: [...extras].sort() };
+}
+
+export function formatTeacherModulesLabel(
+  modules: RbacTeacherModules,
+  locale: "zh" | "en"
+): string {
+  const parts: string[] = [];
+  if (modules.jp) {
+    parts.push(locale === "zh" ? "日语教师" : "JP teacher");
+  }
+  if (modules.en) {
+    parts.push(locale === "zh" ? "英语教师" : "EN teacher");
+  }
+  if (modules.ko) {
+    parts.push(locale === "zh" ? "韩语老师" : "KO teacher");
+  }
+  if (!parts.length) {
+    return locale === "zh" ? "普通用户" : "Regular user";
+  }
+  return parts.join(locale === "zh" ? " + " : " + ");
+}
+
+export function parseTeacherModulesInput(
+  raw: unknown
+): RbacTeacherModules | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  return {
+    jp: Boolean(obj.jp),
+    en: Boolean(obj.en),
+    ko: Boolean(obj.ko),
+  };
+}
+
 export function isAdminSuperuser(role: string | undefined): boolean {
   return role === "admin";
 }
