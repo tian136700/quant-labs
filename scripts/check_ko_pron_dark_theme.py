@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Regression: ko-pron select/quiz pages must use dark theme surfaces, not #fff.
+"""Regression: ko-pron select/quiz/flashcard must use dark theme surfaces, not #fff.
 
-Fails if table wraps / search inputs go back to light-theme white backgrounds
-(too bright on the site dark theme; light text on white is unreadable).
+Fails if table wraps / search inputs / quiz cards go back to light-theme white
+backgrounds (too bright on the site dark theme; light text on white is unreadable).
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FILES = [
     ROOT / "src" / "components" / "KoPronSelectPage.tsx",
     ROOT / "src" / "components" / "KoPronPage.tsx",
+    ROOT / "src" / "components" / "KoPronTeacherQuizFlashcardModal.tsx",
 ]
 
 # Surfaces that must not be solid white / near-white again
@@ -46,7 +47,22 @@ def main() -> int:
         if "var(--panel)" not in text:
             return fail(f"{path.name} must use var(--panel) for surfaces")
         if "var(--text)" not in text:
-            return fail(f"{path.name} must set color: var(--text) on table/body")
+            return fail(f"{path.name} must set color: var(--text)")
+
+    flashcard = (
+        ROOT / "src" / "components" / "KoPronTeacherQuizFlashcardModal.tsx"
+    ).read_text(encoding="utf-8")
+    for needle in (
+        "ko-pron-flashcard-check-box",
+        "请先勾选熟悉程度",
+        "reviewLocked",
+        "!selectedLevel",
+    ):
+        if needle not in flashcard:
+            return fail(
+                f"KoPronTeacherQuizFlashcardModal missing {needle!r} "
+                "(checkbox UI + require level before next)"
+            )
 
     print("[check_ko_pron_dark_theme] OK")
     return 0

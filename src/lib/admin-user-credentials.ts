@@ -1,7 +1,7 @@
 import { readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
-import { SITE_URL } from "@/lib/site";
+import { KO_SITE_URL } from "@/lib/ko-site-host";
 import { enVocabPath, jpVocabPath, koPronPath } from "@/lib/locale-path";
 
 export const ADMIN_USER_CREDENTIALS_CACHE_KEY = "admin-user-credentials:v1";
@@ -21,7 +21,7 @@ function vocabShareUrl(role?: string | null): {
   }
   if (role === "ko_pron") {
     return {
-      url: `${SITE_URL}${koPronPath()}`,
+      url: `${KO_SITE_URL}${koPronPath()}`,
       labelZh: "韩语发音",
       labelEn: "KO pronunciation",
     };

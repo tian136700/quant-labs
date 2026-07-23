@@ -2,16 +2,19 @@
 
 import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
+import { KO_SITE_URL } from "@/lib/ko-site-host";
 
 export const LOGIN_LINK_SLUG_WORD_COUNT = 6;
 
 export const LOGIN_LINK_SLUG_PATTERN = /^[a-z]+(?:-[a-z]+){5}$/;
 
-export type LoginLinkSite = "jp" | "en";
+export type LoginLinkSite = "jp" | "en" | "ko";
 
-/** 按账号角色选对外子域名：英文老师用 english，其余默认 japanese（勿用 finance） */
+/** 按账号角色选对外子域名：英文老师用 english，韩语老师用 korean，其余默认 japanese（勿用 finance） */
 export function loginLinkSiteForRole(role: string | null | undefined): LoginLinkSite {
-  return role === "en_vocab" ? "en" : "jp";
+  if (role === "en_vocab") return "en";
+  if (role === "ko_pron") return "ko";
+  return "jp";
 }
 
 const JP_ROMAJI_WORDS = [
@@ -133,11 +136,12 @@ export function loginLinkPath(slug: string): string {
   return `/sign-in/${normalizeLoginLinkToken(slug)}`;
 }
 
-/** 对外分享的登录链接用日语/英语子域名，避免 finance 金融域名引起误解 */
+/** 对外分享的登录链接用日语/英语/韩语子域名，避免 finance 金融域名引起误解 */
 export function buildLoginLinkUrl(
   token: string,
   site: LoginLinkSite = "jp"
 ): string {
-  const base = site === "en" ? EN_SITE_URL : JP_SITE_URL;
+  const base =
+    site === "en" ? EN_SITE_URL : site === "ko" ? KO_SITE_URL : JP_SITE_URL;
   return `${base}${loginLinkPath(token)}`;
 }

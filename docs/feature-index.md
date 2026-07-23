@@ -9,9 +9,10 @@
 | `finance.info-quests.com` | 主站（金融等） |
 | `japanese.info-quests.com` | 日语模块对外（老师登录链接、`/jp-vocab` 等；与 finance **同一 Worker / 同一 D1**） |
 | `english.info-quests.com` | 英语模块对外（英文老师登录链接、`/en-vocab` 等；与 finance / japanese **同一 Worker / 同一 D1**） |
+| `korean.info-quests.com` | 韩语模块对外（韩语老师登录链接、`/ko-pron` 等；与 finance / japanese / english **同一 Worker / 同一 D1**） |
 | `blog.info-quests.com` / `food.info-quests.com` | 博客 / 外卖（见 wrangler.toml） |
 
-配置入口：`wrangler.toml` → `[[routes]]` + `NEXT_PUBLIC_JP_SITE_*` / `NEXT_PUBLIC_EN_SITE_*`；代码：`src/lib/jp-site-host.ts`、`src/lib/en-site-host.ts`。
+配置入口：`wrangler.toml` → `[[routes]]` + `NEXT_PUBLIC_JP_SITE_*` / `NEXT_PUBLIC_EN_SITE_*` / `NEXT_PUBLIC_KO_SITE_*`；代码：`src/lib/jp-site-host.ts`、`src/lib/en-site-host.ts`、`src/lib/ko-site-host.ts`。
 
 ---
 
@@ -122,7 +123,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 ## 韩语发音勾选 + 抽问（ko-pron）
 
-总库勾选与抽问池拆分；finance 同 Worker / 同 D1。第一期无独立子域。
+总库勾选与抽问池拆分；finance 同 Worker / 同 D1。对外入口优先用 **`https://korean.info-quests.com/ko-pron`**（勿发 japanese / english / finance 给韩语老师）。路径与下表一致。
 
 | 线上 path | 中文名 | 页面入口 | 主组件 | 相关 API | 数据 / 逻辑 | 权限 |
 |-----------|--------|----------|--------|----------|-------------|------|
@@ -144,7 +145,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **学生端 live 卡片**（老师开卡同步字母；罗马音/熟悉程度对学生隐藏；老师勾选熟悉程度后揭示罗马音） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
 | 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=**日序前 N**（与日语同一套熟悉程度加权优先级，非 id） |
 | **抽查优先级 / 日序**（`priority + days×0.1`；从未抽查置顶；今日新建沉底；直接复用 `jpVocabFinalQuizScore`） | `ko-pron-daily-order.ts` → `sortKoPronLettersForDailyOrder`；`ensureKoPronDailyDisplayOrder`；可见池 `order_algo=priority_v1`；规则 `.cursor/rules/ko-pron-quiz-priority.mdc` |
-| 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
+| 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`（**暗色** `var(--panel)`/`var(--text)`；熟悉程度**勾选框**；未勾选不能「下一个」；**1h 内可改选**，满 1h 锁定）；`ko-pron-teacher-quiz.ts`；`isKoPronLetterReviewLocked`；保存进度复用 `JpVocabSaveProgressBar` |
 | **发音按钮**（本机 Web Speech `ko-KR`；读「기역」等韩文名，不读罗马音；列表 / 抽问卡 / 学生端 / 勾选页） | `KoPronSpeakButton`；`ko-pron-speak.ts` → `speakKoPronLetter` / `koPronSpeakText` |
 | **字母旁复制**（勾选 / 抽问列表 / 复习列表 / 复习卡 / 抽问卡 / 学生端；复制韩文字母；自带 toast） | `KoPronLetterCopyButton`；`copyTextToClipboard` + `CopyToast` |
 | **分类筛选 + 搜索**（辅音 / 双辅音 / 基本元音 / 复合元音；对齐延世·首尔大·西江·TOPIK 教材用语，非严格语言学；字母归属不变：ㅑㅕㅛㅠ∈基本元音，ㅐㅔ∈复合元音；字母/读音/说明本地即时；**勾选页分类记住上次选择**） | `KoPronPage` / `KoPronSelectPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch` + `read/writeStoredKoPronSelectCategoryFilter`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`）；文案迁移 `vowel_category_textbook_v2`（单元音/双元音→基本元音/复合元音） |

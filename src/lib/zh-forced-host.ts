@@ -1,5 +1,6 @@
 import { EN_SITE_HOST } from "@/lib/en-site-host";
 import { JP_SITE_HOST } from "@/lib/jp-site-host";
+import { KO_SITE_HOST } from "@/lib/ko-site-host";
 import { SITE_URL } from "@/lib/site";
 
 function hostFromUrl(url: string): string {
@@ -17,13 +18,18 @@ export const FINANCE_SITE_HOST =
   "finance.info-quests.com";
 
 /**
- * finance / japanese / english 暂未对外开放：UI 固定中文，避免与 food/blog 共享语言 Cookie 来回切换。
+ * finance / japanese / english / korean 暂未对外开放：UI 固定中文，避免与 food/blog 共享语言 Cookie 来回切换。
  * food / blog 等子域名不受影响。
  */
 export function isZhForcedHost(host: string | null | undefined): boolean {
   if (!host) return false;
   const h = host.split(":")[0].toLowerCase();
-  return h === FINANCE_SITE_HOST || h === JP_SITE_HOST || h === EN_SITE_HOST;
+  return (
+    h === FINANCE_SITE_HOST ||
+    h === JP_SITE_HOST ||
+    h === EN_SITE_HOST ||
+    h === KO_SITE_HOST
+  );
 }
 
 export function clientZhForcedHost(): boolean {

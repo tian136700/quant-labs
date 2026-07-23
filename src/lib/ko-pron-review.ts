@@ -44,23 +44,23 @@ export function isKoPronLetterReviewLocked(
   opts?: { sessionReviewAtMs?: number; now?: Date }
 ): boolean {
   const now = opts?.now ?? new Date();
+  const today = beijingDateString(now);
+
+  let reviewMs: number | null = null;
   if (opts?.sessionReviewAtMs != null) {
     const sessionDay = beijingDateString(new Date(opts.sessionReviewAtMs));
-    if (sessionDay !== beijingDateString(now)) {
-      /* session stamp from another day does not count as today's review */
-    } else if (now.getTime() - opts.sessionReviewAtMs >= KO_PRON_REVIEW_LOCK_MS) {
-      return true;
+    if (sessionDay === today) {
+      reviewMs = opts.sessionReviewAtMs;
     }
   }
-  if (!isKoPronReviewToday(letter.last_review_at, now)) return false;
-  const reviewMs = reviewTimestampMs(letter.last_review_at);
+  if (isKoPronReviewToday(letter.last_review_at, now)) {
+    const storedMs = reviewTimestampMs(letter.last_review_at);
+    if (storedMs != null && storedMs > 0) {
+      reviewMs = reviewMs == null ? storedMs : Math.max(reviewMs, storedMs);
+    }
+  }
   if (reviewMs == null || reviewMs <= 0) return false;
-  const effectiveMs =
-    opts?.sessionReviewAtMs != null &&
-    beijingDateString(new Date(opts.sessionReviewAtMs)) === beijingDateString(now)
-      ? Math.max(reviewMs, opts.sessionReviewAtMs)
-      : reviewMs;
-  return now.getTime() - effectiveMs >= KO_PRON_REVIEW_LOCK_MS;
+  return now.getTime() - reviewMs >= KO_PRON_REVIEW_LOCK_MS;
 }
 
 function adjustLevelCount(

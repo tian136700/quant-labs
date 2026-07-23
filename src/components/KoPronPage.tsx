@@ -14,7 +14,10 @@ import {
   computeKoPronDailyQuizProgress,
   computeKoPronTeacherPageQuizProgress,
 } from "@/lib/ko-pron-daily-quiz-progress";
-import { effectiveKoPronDisplayLevel } from "@/lib/ko-pron-review";
+import {
+  effectiveKoPronDisplayLevel,
+  isKoPronLetterReviewLocked,
+} from "@/lib/ko-pron-review";
 import {
   advanceKoPronTeacherQuizSession,
   buildKoPronTeacherQuizLetterIds,
@@ -377,9 +380,13 @@ export function KoPronPage({ variant }: Props) {
         const data = (await res.json()) as {
           ok?: boolean;
           error?: string;
+          code?: string;
           letter?: KoPronLetter;
         };
         if (!res.ok || !data.ok || !data.letter) {
+          if (data.code === "review_locked" || data.error === "review_locked") {
+            throw new Error("勾选已满 1 小时，无法再修改。");
+          }
           throw new Error(data.error || "保存失败");
         }
         setLetters((prev) =>
@@ -812,6 +819,11 @@ export function KoPronPage({ variant }: Props) {
                 sessionLevels[currentQuizLetter.id]
               )
             : undefined
+        }
+        reviewLocked={
+          currentQuizLetter
+            ? isKoPronLetterReviewLocked(currentQuizLetter)
+            : false
         }
         saveBusy={
           currentQuizLetter != null && saveBusyId === currentQuizLetter.id
