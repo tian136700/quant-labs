@@ -6,6 +6,7 @@ import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { KoPronDailyQuizCompleteModal } from "@/components/KoPronDailyQuizCompleteModal";
+import { KoPronEditModal } from "@/components/KoPronEditModal";
 import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { KoPronTeacherQuizFlashcardModal } from "@/components/KoPronTeacherQuizFlashcardModal";
@@ -87,6 +88,7 @@ export function KoPronPage({ variant }: Props) {
   );
   const [showFlashcard, setShowFlashcard] = useState(false);
   const [previewLetter, setPreviewLetter] = useState<KoPronLetter | null>(null);
+  const [editingLetter, setEditingLetter] = useState<KoPronLetter | null>(null);
   const [showComplete, setShowComplete] = useState(false);
   const [targetDraft, setTargetDraft] = useState("10");
   const [targetSaving, setTargetSaving] = useState(false);
@@ -834,6 +836,7 @@ export function KoPronPage({ variant }: Props) {
           if (currentQuizLetter) void recordLevel(currentQuizLetter.id, level);
         }}
         onNext={goNextInQuiz}
+        onEdit={(letter) => setEditingLetter(letter)}
         onClose={() => {
           setShowFlashcard(false);
           setQuizSession(null);
@@ -850,7 +853,23 @@ export function KoPronPage({ variant }: Props) {
         previewMode
         onSelectLevel={() => {}}
         onNext={() => setPreviewLetter(null)}
+        onEdit={(letter) => setEditingLetter(letter)}
         onClose={() => setPreviewLetter(null)}
+      />
+
+      <KoPronEditModal
+        open={Boolean(editingLetter)}
+        letter={editingLetter}
+        onClose={() => setEditingLetter(null)}
+        onSaved={(updated) => {
+          setLetters((prev) =>
+            prev.map((l) => (l.id === updated.id ? updated : l))
+          );
+          setPreviewLetter((prev) =>
+            prev?.id === updated.id ? updated : prev
+          );
+          setEditingLetter(null);
+        }}
       />
 
       <KoPronDailyQuizCompleteModal

@@ -35,6 +35,7 @@ type Props = {
   onSelectLevel: (level: KoPronLevel) => void;
   onNext: () => void;
   onClose: () => void;
+  onEdit?: (letter: KoPronLetter) => void;
 };
 
 export function KoPronTeacherQuizFlashcardModal({
@@ -52,9 +53,9 @@ export function KoPronTeacherQuizFlashcardModal({
   onSelectLevel,
   onNext,
   onClose,
+  onEdit,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [revealed, setRevealed] = useState(false);
   const [nextBlockedHint, setNextBlockedHint] = useState(false);
 
   useEffect(() => {
@@ -62,7 +63,6 @@ export function KoPronTeacherQuizFlashcardModal({
   }, []);
 
   useEffect(() => {
-    setRevealed(false);
     setNextBlockedHint(false);
   }, [letter?.id]);
 
@@ -154,29 +154,30 @@ export function KoPronTeacherQuizFlashcardModal({
             reading={letter.reading}
             variant="hero"
           />
+          {onEdit ? (
+            <button
+              type="button"
+              className="ko-pron-flashcard-edit-btn"
+              onClick={() => onEdit(letter)}
+            >
+              编辑
+            </button>
+          ) : null}
         </div>
 
-        {!revealed ? (
-          <button
-            type="button"
-            className="ko-pron-flashcard-reveal"
-            onClick={() => setRevealed(true)}
-          >
-            显示读音
-          </button>
-        ) : (
-          <div className="ko-pron-flashcard-body">
-            <p className="ko-pron-flashcard-reading">
-              {letter.reading || "（无读音）"}
-            </p>
-            {letter.meaning ? (
-              <p className="ko-pron-flashcard-meaning">{letter.meaning}</p>
-            ) : null}
-            {letter.category ? (
-              <p className="ko-pron-flashcard-pos">{letter.category}</p>
-            ) : null}
-          </div>
-        )}
+        {/* 老师端始终显示罗马音辅助 */}
+        <div className="ko-pron-flashcard-body">
+          <p className="ko-pron-flashcard-reading-label">罗马音 / 读法</p>
+          <p className="ko-pron-flashcard-reading">
+            {letter.reading || "（无读音）"}
+          </p>
+          {letter.meaning ? (
+            <p className="ko-pron-flashcard-meaning">{letter.meaning}</p>
+          ) : null}
+          {letter.category ? (
+            <p className="ko-pron-flashcard-pos">{letter.category}</p>
+          ) : null}
+        </div>
 
         {!previewMode ? (
           <div className="ko-pron-flashcard-level">
@@ -401,7 +402,16 @@ export function KoPronTeacherQuizFlashcardModal({
           gap: 0.35rem;
           margin: 0 0 0.85rem;
         }
-        .ko-pron-flashcard-reveal,
+        .ko-pron-flashcard-edit-btn {
+          border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+          border-radius: 0.65rem;
+          padding: 0.45rem 0.9rem;
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: var(--text);
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
         .ko-pron-flashcard-next {
           display: flex;
           flex-direction: column;
@@ -429,16 +439,21 @@ export function KoPronTeacherQuizFlashcardModal({
           font-weight: 500;
           opacity: 0.92;
         }
-        .ko-pron-flashcard-reveal:disabled,
         .ko-pron-flashcard-next:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+        .ko-pron-flashcard-reading-label {
+          text-align: center;
+          font-size: 0.78rem;
+          color: var(--muted);
+          margin: 0.15rem 0 0.1rem;
         }
         .ko-pron-flashcard-reading {
           text-align: center;
           font-size: 1.25rem;
           font-weight: 600;
-          margin: 0.35rem 0;
+          margin: 0.15rem 0 0.35rem;
           color: var(--text);
         }
         .ko-pron-flashcard-meaning,

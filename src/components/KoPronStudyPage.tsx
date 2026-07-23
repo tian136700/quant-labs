@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
+import { KoPronEditModal } from "@/components/KoPronEditModal";
 import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
-import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { JP_VOCAB_POLL_HIDDEN_MS, JP_VOCAB_POLL_MS } from "@/lib/jp-vocab-sync";
+import type { KoPronLetter } from "@/lib/types";
 
 type StudyLetter = {
   id: number;
@@ -27,6 +28,7 @@ export function KoPronStudyPage() {
   const [error, setError] = useState("");
   const [live, setLive] = useState<LiveState | null>(null);
   const [letter, setLetter] = useState<StudyLetter | null>(null);
+  const [editingLetter, setEditingLetter] = useState<StudyLetter | null>(null);
 
   const loadLive = useCallback(async () => {
     try {
@@ -91,14 +93,13 @@ export function KoPronStudyPage() {
     );
   }
 
-  const revealed = Boolean(live?.reading_revealed && letter?.reading);
+  // live 仅用于是否有老师开卡；罗马音/发音/熟悉程度对学生一律隐藏
+  void live;
 
   return (
     <div className="ko-pron-study-page">
       <h1>今日韩语发音</h1>
-      <p className="ko-pron-study-hint">
-        请看着字母读给老师听。罗马音提示会在老师勾选熟悉程度后出现。
-      </p>
+      <p className="ko-pron-study-hint">请看着字母读给老师听。</p>
 
       {error ? <p className="ko-pron-study-error">{error}</p> : null}
       {loading ? <p className="ko-pron-study-status">加载中…</p> : null}
@@ -114,66 +115,71 @@ export function KoPronStudyPage() {
           <div className="ko-pron-study-letter">{letter.letter}</div>
           <div className="ko-pron-study-hero-actions">
             <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
-            <KoPronSpeakButton
-              letter={letter.letter}
-              reading={letter.reading}
-              variant="hero"
-            />
+            <button
+              type="button"
+              className="ko-pron-study-edit-btn"
+              onClick={() => setEditingLetter(letter)}
+            >
+              编辑
+            </button>
           </div>
-          {letter.category ? (
-            <p className="ko-pron-study-category">{letter.category}</p>
-          ) : null}
-          {revealed ? (
-            <div className="ko-pron-study-reading">
-              <p className="ko-pron-study-reading-label">罗马音 / 读法</p>
-              <p className="ko-pron-study-reading-value">{letter.reading}</p>
-              {letter.meaning ? (
-                <p className="ko-pron-study-meaning">{letter.meaning}</p>
-              ) : null}
-            </div>
-          ) : (
-            <p className="ko-pron-study-waiting">
-              请先读出来；老师确认后会显示读音提示。
-            </p>
-          )}
+          {/* 学生端：不显示分类（易剧透教材分类）、罗马音、发音、熟悉程度 */}
+          <p className="ko-pron-study-waiting">请先读出来，老师会听你的发音。</p>
         </div>
       ) : null}
+
+      <KoPronEditModal
+        open={Boolean(editingLetter)}
+        letter={editingLetter}
+        onClose={() => setEditingLetter(null)}
+        onSaved={(updated: KoPronLetter) => {
+          setLetter({
+            id: updated.id,
+            letter: updated.letter,
+            reading: updated.reading,
+            meaning: updated.meaning,
+            category: updated.category,
+          });
+          setEditingLetter(null);
+        }}
+      />
 
       <style jsx>{`
         .ko-pron-study-page {
           max-width: 36rem;
           margin: 0 auto;
           padding: 1.25rem 1rem 2.5rem;
+          color: var(--text);
         }
         h1 {
           margin: 0 0 0.5rem;
           font-size: 1.4rem;
         }
         .ko-pron-study-hint {
-          color: #64748b;
+          color: var(--muted);
           margin: 0 0 1.25rem;
           line-height: 1.5;
         }
         .ko-pron-study-error {
-          color: #b91c1c;
+          color: var(--rise);
         }
         .ko-pron-study-status {
-          color: #64748b;
+          color: var(--muted);
         }
         .ko-pron-study-empty {
-          border: 1px dashed #cbd5e1;
+          border: 1px dashed var(--border);
           border-radius: 0.85rem;
           padding: 1.5rem 1rem;
           text-align: center;
-          color: #64748b;
-          background: #f8fafc;
+          color: var(--muted);
+          background: var(--panel);
         }
         .ko-pron-study-card {
-          border: 1px solid #e2e8f0;
+          border: 1px solid var(--border);
           border-radius: 1rem;
           padding: 1.5rem 1.25rem;
-          background: #fff;
-          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+          background: var(--panel);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
           text-align: center;
         }
         .ko-pron-study-letter {
@@ -181,6 +187,7 @@ export function KoPronStudyPage() {
           font-weight: 700;
           line-height: 1.1;
           margin-bottom: 0.35rem;
+          color: var(--text);
         }
         .ko-pron-study-hero-actions {
           display: flex;
@@ -190,27 +197,19 @@ export function KoPronStudyPage() {
           gap: 0.35rem;
           margin-bottom: 0.65rem;
         }
-        .ko-pron-study-category {
-          color: #64748b;
-          margin: 0 0 1rem;
+        .ko-pron-study-edit-btn {
+          border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+          border-radius: 0.65rem;
+          padding: 0.45rem 0.9rem;
+          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          color: var(--text);
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
         }
         .ko-pron-study-waiting {
-          color: #94a3b8;
+          color: var(--muted);
           margin: 1rem 0 0;
-        }
-        .ko-pron-study-reading-label {
-          font-size: 0.8rem;
-          color: #64748b;
-          margin: 0.75rem 0 0.25rem;
-        }
-        .ko-pron-study-reading-value {
-          font-size: 1.35rem;
-          font-weight: 600;
-          margin: 0;
-        }
-        .ko-pron-study-meaning {
-          color: #475569;
-          margin: 0.4rem 0 0;
         }
       `}</style>
     </div>

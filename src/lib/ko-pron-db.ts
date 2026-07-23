@@ -3,6 +3,7 @@ import "server-only";
 import type { KoPronCatalogLetter, KoPronLetter, KoPronLevel } from "@/lib/types";
 import {
   beijingDateString,
+  beijingDateTimeString,
 } from "@/lib/jp-vocab-daily-check";
 import {
   applyKoPronReview,
@@ -1241,6 +1242,61 @@ export async function getKoPronLetterById(
     .bind(letterId)
     .first<Record<string, unknown>>();
   return row ? rowToLetter(row) : null;
+}
+
+export type UpdateKoPronLetterInput = {
+  letter: string;
+  reading: string | null;
+  meaning: string | null;
+  category: string | null;
+};
+
+/** 编辑抽问字母（字母 / 罗马音 / 说明 / 分类）；同步更新总库同名条目 */
+export async function updateKoPronLetter(
+  db: D1Database,
+  letterId: number,
+  input: UpdateKoPronLetterInput
+): Promise<KoPronLetter | null> {
+  await ensureQuizReady(db);
+  const current = await getKoPronLetterById(db, letterId);
+  if (!current) return null;
+
+  const letter = (input.letter || "").trim();
+  if (!letter) return null;
+  const reading = (input.reading || "").trim() || null;
+  const meaning = (input.meaning || "").trim() || null;
+  const category = (input.category || "").trim() || null;
+  const ts = beijingDateTimeString();
+
+  await db
+    .prepare(
+      `UPDATE ko_pron_letter SET
+         letter = ?1,
+         reading = ?2,
+         meaning = ?3,
+         category = ?4,
+         updated_at = ?5
+       WHERE id = ?6`
+    )
+    .bind(letter, reading, meaning, category, ts, letterId)
+    .run();
+
+  // 总库按「原字母」对齐更新，避免勾选页仍显示旧读音
+  await ensureKoPronCatalogReady(db);
+  await db
+    .prepare(
+      `UPDATE ko_pron_catalog SET
+         letter = ?1,
+         reading = ?2,
+         meaning = ?3,
+         category = ?4,
+         updated_at = ?5
+       WHERE letter = ?6`
+    )
+    .bind(letter, reading, meaning, category, ts, current.letter)
+    .run();
+
+  return getKoPronLetterById(db, letterId);
 }
 
 export async function getKoPronTeacherQuizLive(

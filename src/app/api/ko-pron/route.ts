@@ -1,10 +1,15 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireAdmin } from "@/lib/admin-auth";
-import { requireKoPronAccess, requireKoPronRead } from "@/lib/ko-pron-auth";
+import {
+  requireKoPronAccess,
+  requireKoPronRead,
+  requireKoPronStudyAccess,
+} from "@/lib/ko-pron-auth";
 import {
   listKoPronBundle,
   recordKoPronReview,
   setKoPronDailyQuizTarget,
+  updateKoPronLetter,
 } from "@/lib/ko-pron-db";
 import { trackKoPronTeacherQuizDayAfterReview } from "@/lib/ko-pron-teacher-quiz-day";
 import type { KoPronLevel } from "@/lib/types";
@@ -39,18 +44,61 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);
   try {
-    const { env, user, allowed } = await requireKoPronAccess(request);
-    if (!allowed) {
-      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
-    }
-
     const body = (await request.json()) as {
       action?: string;
       letter_id?: number;
       word_id?: number;
       level?: KoPronLevel;
       count?: number;
+      letter?: string;
+      reading?: string;
+      meaning?: string;
+      category?: string;
     };
+
+    // 编辑：老师或学生（看到错误可改）；其余写操作仍需 operate
+    if (body.action === "edit") {
+      const operate = await requireKoPronAccess(request);
+      const study = await requireKoPronStudyAccess(request);
+      if (!operate.allowed && !study.allowed) {
+        return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+      }
+      const env = operate.env;
+      const letterId = Number(body.letter_id ?? body.word_id);
+      if (!letterId) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: locale === "zh" ? "参数无效。" : "Invalid parameters.",
+          },
+          400
+        );
+      }
+      const letter = await updateKoPronLetter(env.DB, letterId, {
+        letter: String(body.letter ?? ""),
+        reading: body.reading != null ? String(body.reading) : null,
+        meaning: body.meaning != null ? String(body.meaning) : null,
+        category: body.category != null ? String(body.category) : null,
+      });
+      if (!letter) {
+        return jsonResponse(
+          {
+            ok: false,
+            error:
+              locale === "zh"
+                ? "字母不存在或字母为空。"
+                : "Letter not found or empty.",
+          },
+          404
+        );
+      }
+      return jsonResponse({ ok: true, letter, word: letter });
+    }
+
+    const { env, user, allowed } = await requireKoPronAccess(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+    }
 
     if (body.action === "set_daily_quiz_target") {
       const { isAdmin } = await requireAdmin(request);
