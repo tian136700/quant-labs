@@ -12,7 +12,7 @@ import {
 import type { EnLessonProgressStatus } from "@/lib/en-lesson-shared";
 import { listEnLessonNotes } from "@/lib/en-lesson-note-db";
 import { listEnLessonTeachersWithLessonCounts } from "@/lib/en-lesson-teacher-db";
-import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
+import { requireEnLessonOperate } from "@/lib/en-vocab-auth";
 import { listEnVocabRefs } from "@/lib/en-vocab-db";
 import type { EnLessonRecord } from "@/lib/types";
 
@@ -119,7 +119,7 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: true, link_copy_count: result.link_copy_count });
     }
 
-    const { env, user, allowed } = await requireEnVocabAccess(request);
+    const { env, user, allowed } = await requireEnLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }

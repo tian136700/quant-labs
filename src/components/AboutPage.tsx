@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { trackEvent } from "@/lib/analytics-client";
 import { isValidEmail } from "@/lib/email-validation";
@@ -8,6 +9,8 @@ import { isValidEmail } from "@/lib/email-validation";
 export function AboutPage() {
   const { locale, t } = useI18n();
   const about = t("about");
+  const { checking, hasPermission } = useEtrAuth();
+  const canView = hasPermission("about:view");
   const [email, setEmail] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState("");
@@ -72,6 +75,24 @@ export function AboutPage() {
       setSubmitting(false);
     }
   };
+
+  if (checking) {
+    return (
+      <div className="about-page">
+        <p className="sub">{locale === "zh" ? "加载中…" : "Loading…"}</p>
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div className="about-page">
+        <p className="sub">
+          {locale === "zh" ? "无权限访问关于与反馈。" : "No access to About & Feedback."}
+        </p>
+      </div>
+    );
+  }
 
   const statusClass =
     statusKind === "ok"

@@ -226,7 +226,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | `/`、`/zh` | 策略对比 | `src/app/page.tsx`、`zh/page.tsx` | `ComparePage.tsx` |
 | `/english-teacher-review` | 英语老师评价（**已重定向**至上课老师管理） | `english-teacher-review/page.tsx` | |
 | `/jp-review` | 日语口语复习 | `jp-review/page.tsx` | |
-| `/about` | 关于与反馈 | `about/page.tsx` | `AboutPage.tsx` |
+| `/about` | 关于与反馈（**仅管理员**；导航 / 页面 / `about:view`；非管理员不可见） | `about/page.tsx` | `AboutPage.tsx` |
 | `/admin` | 后台管理 | `admin/page.tsx` | `AdminDashboardPage.tsx` |
 | `/admin/rbac` | 角色权限 | `admin/rbac/page.tsx` | `AdminRbacPage.tsx` |
 | `/admin/users` | 用户管理 | `admin/users/page.tsx` | `AdminUsersPage.tsx` |

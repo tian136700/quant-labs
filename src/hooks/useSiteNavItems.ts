@@ -60,6 +60,15 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onSubdomain = useStoreReviewSubdomain();
   const navOpts = { onSubdomain, isAdmin };
   const showFullNav = !onSubdomain || isAdmin;
+  const canViewAbout = hasPermission("about:view");
+  const aboutNavItem: SiteNavItem | null = canViewAbout
+    ? {
+        id: "about",
+        href: navHref("about", locale, navOpts),
+        label: nav.about,
+        active: isAboutPath(pathname),
+      }
+    : null;
   const onJpLesson = isJpLessonPath(pathname);
   const onJpLessonSchedule = isJpLessonSchedulePath(pathname);
   const onJpLessonMain = onJpLesson && !onJpLessonSchedule;
@@ -84,16 +93,10 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onHiddenEn = onEnLesson || onEnVocab || onEnVocabStudy;
 
   if (!loggedIn && !checking) {
-    return [
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
-    ];
+    return aboutNavItem ? [aboutNavItem] : [];
   }
 
+  // 英语老师：只保留「英语抽背-老师端」，不挂今日单词 / 新课 / 关于（减负）
   if (enTeacherNav) {
     return [
       ...(canAccessEnVocabTeacherPage
@@ -106,28 +109,6 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      ...(canAccessEnVocabStudy
-        ? [
-            {
-              id: "enVocabStudy",
-              href: navHref("enVocabStudy", locale, navOpts),
-              label: nav.enVocabStudy,
-              active: onEnVocabStudy,
-            },
-          ]
-        : []),
-      {
-        id: "enLesson",
-        href: navHref("enLesson", locale, navOpts),
-        label: nav.enLesson,
-        active: onEnLesson,
-      },
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
     ];
   }
 
@@ -143,12 +124,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
+      ...(aboutNavItem ? [aboutNavItem] : []),
     ];
   }
 
@@ -194,12 +170,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
+      ...(aboutNavItem ? [aboutNavItem] : []),
     ];
   }
 
@@ -245,12 +216,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
+      ...(aboutNavItem ? [aboutNavItem] : []),
     ];
   }
 
@@ -317,12 +283,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
+      ...(aboutNavItem ? [aboutNavItem] : []),
     ];
   }
 
@@ -585,12 +546,7 @@ export function useSiteNavItems(): SiteNavItem[] {
             },
           ]
         : []),
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
+      ...(aboutNavItem ? [aboutNavItem] : []),
     ];
   }
 
@@ -602,12 +558,7 @@ export function useSiteNavItems(): SiteNavItem[] {
         label: nav.koPronStudy,
         active: true,
       },
-      {
-        id: "about",
-        href: navHref("about", locale, navOpts),
-        label: nav.about,
-        active: isAboutPath(pathname),
-      },
+      ...(aboutNavItem ? [aboutNavItem] : []),
     ];
   }
 
@@ -637,11 +588,6 @@ export function useSiteNavItems(): SiteNavItem[] {
         },
       ]
     : [
-        {
-          id: "about",
-          href: navHref("about", locale, navOpts),
-          label: nav.about,
-          active: isAboutPath(pathname),
-        },
+        ...(aboutNavItem ? [aboutNavItem] : []),
       ];
 }

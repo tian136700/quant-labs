@@ -1,7 +1,6 @@
 import { trackVisit } from "@/lib/analytics-db";
 import { requirePermission } from "@/lib/admin-auth";
 import {
-  getCloudflareEnv,
   jsonResponse,
   localeFromRequest,
 } from "@/lib/cloudflare-env";
@@ -76,6 +75,14 @@ export async function POST(request: Request) {
     return jsonResponse({ ok: false, error: errMsg("ip_unavailable", locale) }, 400);
   }
 
+  const { env, allowed } = await requirePermission(request, "about:view");
+  if (!allowed) {
+    return jsonResponse(
+      { ok: false, error: errMsg("auth_required", locale), auth_required: true },
+      401
+    );
+  }
+
   let body: { email?: string; content?: string; url_path?: string; locale?: string };
   try {
     body = (await request.json()) as typeof body;
@@ -100,7 +107,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const env = await getCloudflareEnv();
     const geo = await resolveClientGeo(request, ip, env.DB);
     const sessionUser = await getSessionUserFromRequest(
       env,

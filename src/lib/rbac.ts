@@ -128,8 +128,8 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     labelZh: "关于与反馈",
     labelEn: "About & feedback",
     category: "pages",
-    descriptionZh: "关于页与提交建议",
-    descriptionEn: "About page and feedback form",
+    descriptionZh: "关于页与提交建议（仅管理员）",
+    descriptionEn: "About page and feedback form (admin only)",
   },
   {
     key: "jp_vocab:teacher",
@@ -370,21 +370,18 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "jp_vocab:teacher",
     "jp_vocab:read",
     "jp_vocab:operate",
-    "about:view",
     "nav:jp_teacher",
   ],
   en_vocab: [
     "en_vocab:teacher",
     "en_vocab:read",
     "en_vocab:operate",
-    "about:view",
     "nav:en_teacher",
   ],
   ko_pron: [
     "ko_pron:teacher",
     "ko_pron:read",
     "ko_pron:operate",
-    "about:view",
     "nav:ko_teacher",
   ],
   user: [
@@ -394,7 +391,6 @@ export const RBAC_DEFAULT_ROLE_PERMISSIONS: Record<EtrUserRole, string[]> = {
     "store_review:plaza",
     "jp_vocab:study",
     "jp_lesson:read",
-    "about:view",
   ],
 };
 
@@ -463,6 +459,8 @@ export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "ko_pron:operate",
   "ko_pron:study",
   "nav:ko_teacher",
+  /** 关于页仅管理员 */
+  "about:view",
 ] as const;
 
 /** 网上注册用户（学生）不应持有的日语/韩语老师权限；韩语学生端默认不开（见默认权限表） */
@@ -476,6 +474,8 @@ export const RBAC_USER_EXCLUDED_PERMISSIONS = [
   "ko_pron:admin",
   "ko_pron:read",
   "ko_pron:operate",
+  /** 关于页仅管理员 */
+  "about:view",
 ] as const;
 
 /** 英语教师角色不应持有的权限（默认关闭，可由管理员手动开启） */
@@ -489,12 +489,16 @@ export const RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS = [
   "ko_pron:operate",
   "ko_pron:study",
   "nav:ko_teacher",
+  /** 关于页仅管理员 */
+  "about:view",
 ] as const;
 
 /** 韩语老师角色不应持有的权限（默认关闭） */
 export const RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS = [
   "ko_pron:admin",
   "ko_pron:study",
+  /** 关于页仅管理员 */
+  "about:view",
 ] as const;
 
 /** 用户管理：可多选的老师身份（主 role 仍只存一个，其余写入额外权限） */

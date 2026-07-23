@@ -68,7 +68,7 @@ export function EnVocabStudyPage() {
       mode: "login",
       loginOnly: true,
       title: "登录 · 今日背英语单词",
-      subtitle: "仅管理员或英语老师可访问。",
+      subtitle: "仅管理员可访问。",
     });
   }, [openAuthPanel]);
 
@@ -121,7 +121,7 @@ export function EnVocabStudyPage() {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
-        setError("仅管理员或英语老师可访问今日背英语单词。");
+        setError("仅管理员可访问今日英语单词。");
         return;
       }
       if (!data.ok || !data.items) {
@@ -245,7 +245,7 @@ export function EnVocabStudyPage() {
           >
             登录
           </button>
-          {" "}后查看今日共享单词（仅管理员或英语老师）。
+          {" "}后查看今日共享单词（仅管理员）。
         </p>
       ) : null}
 

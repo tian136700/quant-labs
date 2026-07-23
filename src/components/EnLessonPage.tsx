@@ -351,8 +351,13 @@ function mergeEnLessonTeachers(
 
 export function EnLessonPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessEnVocab, openAuthPanel, isAdmin } = useEtrAuth();
-  const canOperate = canAccessEnVocab;
+  const { user, checking, hasPermission, openAuthPanel, isAdmin } = useEtrAuth();
+  const canViewEnLesson =
+    !user ||
+    isAdmin ||
+    hasPermission("en_lesson:read") ||
+    hasPermission("en_lesson:operate");
+  const canOperate = isAdmin || hasPermission("en_lesson:operate");
 
   const openEnAuth = useCallback(() => {
     openAuthPanel({
@@ -446,8 +451,9 @@ export function EnLessonPage() {
   }, [applyLessonPayload]);
 
   useEffect(() => {
+    if (user && !checking && !canViewEnLesson) return;
     void loadLessons();
-  }, [loadLessons]);
+  }, [loadLessons, checking, user, canViewEnLesson]);
 
   const lessonsByStatus = useMemo(() => {
     const buckets: Record<EnLessonProgressStatus, EnLessonRecord[]> = {
@@ -1517,6 +1523,16 @@ export function EnLessonPage() {
         </a>
         并带上教案链接。
       </p>
+
+      {user && !checking && !canViewEnLesson ? (
+        <section className="section etr-panel">
+          <p style={{ color: "var(--muted)", margin: 0 }}>
+            您没有英语新课的查看权限。如需访问，请联系管理员在「角色权限管理」中为您的角色开启「英语新课 ·
+            查看/浏览」或「编辑/操作」权限。
+          </p>
+        </section>
+      ) : (
+        <>
 
       {isAdmin ? (
         <div className="jp-lesson-admin-links">

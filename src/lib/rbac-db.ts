@@ -198,7 +198,6 @@ const RBAC_INCREMENTAL_DEFAULTS: Array<{
   { role: "ko_pron", permission: "ko_pron:teacher" },
   { role: "ko_pron", permission: "ko_pron:read" },
   { role: "ko_pron", permission: "ko_pron:operate" },
-  { role: "ko_pron", permission: "about:view" },
   { role: "ko_pron", permission: "nav:ko_teacher" },
   { role: "en_vocab", permission: "en_vocab:teacher" },
   { role: "jp_vocab", permission: "jp_vocab:teacher" },
@@ -216,6 +215,27 @@ async function revokeDefaultKoPronStudyFromPublicRoles(
       `DELETE FROM etr_role_permissions
        WHERE permission_key = 'ko_pron:study'
          AND role IN ('user', 'jp_vocab', 'en_vocab')`
+    )
+    .run();
+}
+
+/**
+ * 「关于与反馈」仅管理员可见：清掉非 admin 角色默认与个人额外权限里的 about:view。
+ */
+async function revokeAboutViewFromNonAdminRoles(
+  db: D1Database
+): Promise<void> {
+  await db
+    .prepare(
+      `DELETE FROM etr_role_permissions
+       WHERE permission_key = 'about:view'
+         AND role IN ('user', 'jp_vocab', 'en_vocab', 'ko_pron')`
+    )
+    .run();
+  await db
+    .prepare(
+      `DELETE FROM etr_user_extra_permissions
+       WHERE permission_key = 'about:view'`
     )
     .run();
 }
@@ -257,6 +277,8 @@ export async function ensureRbacSeeded(db: D1Database): Promise<void> {
 
   // 普通用户 / 日语·英语老师默认看不到韩语学生端
   await revokeDefaultKoPronStudyFromPublicRoles(db);
+  // 关于页仅管理员
+  await revokeAboutViewFromNonAdminRoles(db);
   rolePermissionsCache.clear();
 
   rbacSeededDone = true;

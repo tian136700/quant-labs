@@ -203,11 +203,20 @@ export function canUserOperateEnVocab(
   return canAccessEnVocab(user.role as EtrUserRole);
 }
 
-/** 今日背英语单词：仅 Admin 与英语老师（en_vocab 角色）可访问 */
+/**
+ * 今日英语单词：仅管理员（或持有 en_vocab:study 的学生）。
+ * 英语老师不可访问——对齐日语 canAccessJpVocabStudy，避免老师导航/页面过杂。
+ */
 export function canAccessEnVocabStudy(
-  user: { username?: string; role?: string } | null | undefined
+  user: { username?: string; role?: string; permissions?: string[] } | null | undefined
 ): boolean {
-  return canUserOperateEnVocab(user);
+  if (!user) return false;
+  const role = typeof user.role === "string" ? user.role.trim() : "";
+  if (role === "admin") return true;
+  if (canUserOperateEnVocab(user)) return false;
+  if (user.permissions?.includes("en_vocab:operate")) return false;
+  if (user.permissions?.includes("en_vocab:teacher")) return false;
+  return user.permissions?.includes("en_vocab:study") ?? false;
 }
 
 export function canAccessEnVocabTeacherPage(

@@ -31,7 +31,7 @@ import {
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
-import { aboutPath, isMaintenancePath, maintenancePath } from "@/lib/locale-path";
+import { comparePath, isMaintenancePath, maintenancePath } from "@/lib/locale-path";
 import {
   clearClientCache,
   readClientCache,
@@ -193,7 +193,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     // (e.g. admin users) do not re-render as guest and trip Rules of Hooks.
     if (typeof window !== "undefined") {
       const locale = readStoredLocale() ?? "zh";
-      window.location.href = aboutPath(locale);
+      window.location.href = comparePath(locale);
       return;
     }
     setUser(null);
