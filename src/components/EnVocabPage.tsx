@@ -375,6 +375,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
   const pollInFlightRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
+  /** 按用法勾选写库中：用 ref 防连点并发，避免失败回滚把草稿打回未齐 */
+  const usageLevelSavingRef = useRef<number | null>(null);
 
   useEffect(() => {
     displayOrderRef.current = displayOrder;
@@ -1227,13 +1229,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
   ) => {
-    setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
-
-    if (!levels.length || levels.some((lv) => lv == null)) {
-      return;
-    }
-    const complete = levels as EnVocabLevel[];
-
     if (!canOperate) {
       setStatus("请登录后再勾选熟悉程度。");
       openEnAuth();
@@ -1243,28 +1238,41 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       setStatus("今日已共享，熟悉程度不可更改。");
       return;
     }
-    if (savingId === wordId) return;
+
+    // 草稿始终保留老师刚勾的选项（含未齐）；写库失败也不得清掉，否则第二条勾选会「闪一下消失」
+    setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
+
+    if (!levels.length || levels.some((lv) => lv == null)) {
+      return;
+    }
+    const complete = levels as EnVocabLevel[];
+
+    if (savingId === wordId || usageLevelSavingRef.current === wordId) return;
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
 
     const expected = listEnVocabUsagePointsForDisplay(snapshot.usage).points
       .length;
-    if (expected > 0 && complete.length !== expected) return;
+    if (expected > 0 && complete.length !== expected) {
+      setStatus("用法条数与勾选不一致，请刷新页面后重试。");
+      return;
+    }
 
     let overall: EnVocabLevel;
     try {
       overall = aggregateEnVocabUsageLevels(complete);
     } catch {
+      setStatus("用法熟悉程度无效，请重新勾选。");
       return;
     }
 
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
-    const prevUsage = sessionUsageLevels[wordId];
     const displayOrderSnapshot = displayOrderRef.current;
     const nowMs = Date.now();
 
+    usageLevelSavingRef.current = wordId;
     setSessionLevel((prev) => ({ ...prev, [wordId]: overall }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
     setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
@@ -1293,20 +1301,32 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           credentials: "include",
           body: JSON.stringify({ word_id: wordId, usage_levels: complete }),
         });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: EnVocabWord;
-          error?: string;
-        };
+        let data: { ok: boolean; word?: EnVocabWord; error?: string };
+        try {
+          data = (await res.json()) as {
+            ok: boolean;
+            word?: EnVocabWord;
+            error?: string;
+          };
+        } catch {
+          throw new Error(locale === "zh" ? "保存失败" : "Save failed");
+        }
         if (res.status === 401) {
           await refresh();
           throw new Error(SAVE_ERR[locale]);
         }
         if (!data.ok || !data.word) {
+          const errKey = data.error || "";
           const msg =
-            data.error === "shared_level_locked"
+            errKey === "shared_level_locked"
               ? "今日已共享，熟悉程度不可更改。"
-              : data.error || (locale === "zh" ? "保存失败" : "Save failed");
+              : errKey === "usage_levels_count_mismatch"
+                ? "用法条数与勾选不一致，请刷新页面后重试。"
+                : errKey === "usage_levels_invalid"
+                  ? "用法熟悉程度无效，请重新勾选。"
+                  : errKey === "not_found"
+                    ? "词条不存在或已删除。"
+                    : errKey || (locale === "zh" ? "保存失败" : "Save failed");
           throw new Error(msg);
         }
         setWords((prev) => {
@@ -1314,9 +1334,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           persistVocabCache(next, refs, displayOrderRef.current);
           return next;
         });
-        if (data.word.last_usage_levels) {
-          /* keep sessionUsageLevels as complete */
-        }
+        // 写库成功：草稿保持 complete，与 last_usage_levels 一致
+        setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
       });
     } catch (err) {
       if (snapshot) {
@@ -1337,14 +1356,13 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         else delete next[wordId];
         return next;
       });
-      setSessionUsageLevels((prev) => {
-        const next = { ...prev };
-        if (prevUsage) next[wordId] = prevUsage;
-        else delete next[wordId];
-        return next;
-      });
+      // 禁止回滚 sessionUsageLevels：否则第二条用法勾选会消失，老师以为没点上
+      setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
+      if (usageLevelSavingRef.current === wordId) {
+        usageLevelSavingRef.current = null;
+      }
       setSavingId(null);
     }
   };

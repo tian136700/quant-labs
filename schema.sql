@@ -504,6 +504,8 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   example_sentences_source TEXT,
   last_review_level TEXT,
   last_review_at TEXT,
+  /** 老师抽查卡按用法勾选的熟悉程度 JSON，如 ["very","normal"] */
+  last_usage_levels TEXT,
   created_at TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (ref_key) REFERENCES en_vocab_ref (ref_key) ON DELETE SET NULL

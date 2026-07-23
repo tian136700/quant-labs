@@ -440,15 +440,20 @@ export function EnVocabTeacherQuizFlashcardModal({
   const isSharing = w.id in shareProgressMap;
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
-  const saveBusy = isSharing || isQueued || isSyncing;
+  const saveBusy = isSharing || isQueued || isSyncing || isSaving;
   const saveProgressKind: JpVocabSaveProgressKind = isShared
     ? "save_level"
-    : selected
+    : selected || isSaving
       ? "sync_to_student"
       : "share";
-  const saveProgressLabel = jpVocabSaveProgressLabel(saveProgressKind, {
-    queued: isQueued && !isSyncing,
-  });
+  const saveProgressLabel = jpVocabSaveProgressLabel(
+    isSaving && !isSharing && !isQueued && !isSyncing
+      ? "save_level"
+      : saveProgressKind,
+    {
+      queued: isQueued && !isSyncing,
+    }
+  );
   const saveProgressPercent = isSharing
     ? sharingPercent
     : jpVocabSaveProgressDisplayPercent(null);
@@ -480,6 +485,14 @@ export function EnVocabTeacherQuizFlashcardModal({
     }
     if (!selected) {
       if (usePerUsageLevels) {
+        // 草稿已齐但写库失败时 selected 仍空：再提交一次，勿误报「未勾选」
+        if (
+          areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount) &&
+          onSelectUsageLevels
+        ) {
+          onSelectUsageLevels(w.id, usageDraftLevels);
+          return;
+        }
         showUncheckedUsagesBlocked(usageDraftLevels, "再点「下一个」");
         return;
       }

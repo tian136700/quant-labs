@@ -170,6 +170,40 @@ def main() -> int:
             "EnVocabPage.tsx: recordUsageLevels must return early when levels incomplete"
         )
 
+    # 写库失败不得把 sessionUsageLevels 打回未齐 / delete（第二条勾选会消失）
+    if "if (prevUsage) next[wordId] = prevUsage" in page_text:
+        errors.append(
+            "EnVocabPage.tsx: must not roll back sessionUsageLevels to prevUsage on save failure"
+        )
+    if "usageLevelSavingRef" not in page_text:
+        errors.append(
+            "EnVocabPage.tsx: missing usageLevelSavingRef concurrent-save guard"
+        )
+    if "setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }))" not in page_text:
+        errors.append(
+            "EnVocabPage.tsx: on usage-level save failure must keep complete draft"
+        )
+
+    # 草稿已齐但 selected 空时，「下一个」应重试写库而非误报未勾选
+    if "areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount)" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: tryGoNext must retry when draft complete"
+        )
+    if "onSelectUsageLevels(w.id, usageDraftLevels)" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: tryGoNext must call onSelectUsageLevels to retry"
+        )
+
+    db_text = db.read_text(encoding="utf-8") if db.is_file() else ""
+    if "EN_VOCAB_WORD_SCHEMA_VERSION" not in db_text:
+        errors.append(
+            "en-vocab-db.ts: missing EN_VOCAB_WORD_SCHEMA_VERSION (schema ready bump)"
+        )
+
+    schema = ROOT / "schema.sql"
+    if schema.is_file() and "last_usage_levels" not in schema.read_text(encoding="utf-8"):
+        errors.append("schema.sql: en_vocab_word must declare last_usage_levels")
+
     if errors:
         print("FAIL: en-vocab usage-level aggregate guards")
         for e in errors:

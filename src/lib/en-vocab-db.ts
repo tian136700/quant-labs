@@ -92,6 +92,9 @@ const devRefs = new Map<string, EnVocabRef>();
 let devNextId = 1;
 let devSeeded = false;
 let vocabWordSchemaReady = false;
+/** 加列时递增，避免 isolate 上旧 ready 跳过 ensure 导致缺列（如 last_usage_levels） */
+let vocabWordSchemaVersion = 0;
+const EN_VOCAB_WORD_SCHEMA_VERSION = 2;
 let devDailyQuizStyle: EnVocabDailyQuizStyle = {
   ...JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
 };
@@ -274,7 +277,13 @@ async function addEnVocabWordColumnIfMissing(
 }
 
 async function ensureVocabWordSchema(db: D1Database): Promise<void> {
-  if (devStoreEnabled || vocabWordSchemaReady) return;
+  if (devStoreEnabled) return;
+  if (
+    vocabWordSchemaReady &&
+    vocabWordSchemaVersion >= EN_VOCAB_WORD_SCHEMA_VERSION
+  ) {
+    return;
+  }
   const info = await db
     .prepare(`PRAGMA table_info(en_vocab_word)`)
     .all<{ name: string }>();
@@ -302,6 +311,7 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   await addEnVocabWordColumnIfMissing(db, cols, "usage", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "usage_source", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels", "TEXT");
+  vocabWordSchemaVersion = EN_VOCAB_WORD_SCHEMA_VERSION;
   vocabWordSchemaReady = true;
 }
 
