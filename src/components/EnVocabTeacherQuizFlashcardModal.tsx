@@ -434,7 +434,8 @@ export function EnVocabTeacherQuizFlashcardModal({
     : EN_VOCAB_LEVEL_SYNC_HINT;
   const canGoPrev = session.currentIndex > 0;
   const isLast = session.currentIndex === session.wordIds.length - 1;
-  const showSideCol = showUsageExamples || hasNotes || canOperate;
+  /* 备注在底栏熟悉程度/统计上方，不再占右侧栏 */
+  const showSideCol = showUsageExamples;
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -824,6 +825,7 @@ export function EnVocabTeacherQuizFlashcardModal({
               </section>
             </div>
 
+            {showSideCol ? (
             <div className="en-vocab-flashcard-page__col-side">
               {showUsageExamples ? (
                 <section
@@ -874,59 +876,59 @@ export function EnVocabTeacherQuizFlashcardModal({
                   </div>
                 </section>
               ) : null}
-
-              {hasNotes || canOperate ? (
-                <section className="jp-vocab-teacher-quiz__notes">
-                  <div className="jp-vocab-teacher-quiz__notes-head">
-                    <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
-                    <div className="jp-vocab-teacher-quiz__notes-actions">
-                      {hasNotes ? (
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
-                          onClick={() => onViewRemarks(w)}
-                        >
-                          查看
-                        </button>
-                      ) : null}
-                      {canOperate ? (
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
-                          title="编辑备注"
-                          onClick={() => onEditRemarks?.(w)}
-                        >
-                          编辑备注
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                  {hasNotes ? (
-                    notesInline ? (
-                      <div className="jp-vocab-teacher-quiz__notes-body">
-                        <EnVocabClassNoteContent
-                          content={formatEnVocabClassNotesForDisplay(
-                            w.class_notes
-                          )}
-                        />
-                      </div>
-                    ) : (
-                      <p className="jp-vocab-teacher-quiz__notes-preview">
-                        备注较长，请点「查看」
-                      </p>
-                    )
-                  ) : (
-                    <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
-                      暂无备注
-                    </p>
-                  )}
-                </section>
-              ) : null}
             </div>
+            ) : null}
           </div>
         </div>
 
         <div className="en-vocab-flashcard-page-footer">
+        {/* 备注贴在熟悉程度+统计上方（勿放到两框下面） */}
+        {hasNotes || canOperate ? (
+          <section className="jp-vocab-teacher-quiz__notes en-vocab-flashcard-page-footer__notes">
+            <div className="jp-vocab-teacher-quiz__notes-head">
+              <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
+              <div className="jp-vocab-teacher-quiz__notes-actions">
+                {hasNotes ? (
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                    onClick={() => onViewRemarks(w)}
+                  >
+                    查看
+                  </button>
+                ) : null}
+                {canOperate ? (
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
+                    title="编辑备注"
+                    onClick={() => onEditRemarks?.(w)}
+                  >
+                    编辑备注
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {hasNotes ? (
+              notesInline ? (
+                <div className="jp-vocab-teacher-quiz__notes-body">
+                  <EnVocabClassNoteContent
+                    content={formatEnVocabClassNotesForDisplay(w.class_notes)}
+                  />
+                </div>
+              ) : (
+                <p className="jp-vocab-teacher-quiz__notes-preview">
+                  备注较长，请点「查看」
+                </p>
+              )
+            ) : (
+              <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
+                暂无备注
+              </p>
+            )}
+          </section>
+        ) : null}
+        <div className="en-vocab-flashcard-page-footer__panels">
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">
             {isStudy
@@ -1106,6 +1108,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           </div>
         </div>
         </div>
+        </div>
 
         <div className="jp-vocab-teacher-quiz__nav">
           {!isStudy ? (
@@ -1170,7 +1173,7 @@ export function EnVocabTeacherQuizFlashcardModal({
               id="en-vocab-teacher-quiz-alert-desc"
               className="jp-vocab-teacher-quiz-alert__desc"
             >
-              请先在每条用法旁勾选学生的熟悉程度（无编号用法时勾选总体），再进入下一词。
+              请先在每条用法旁勾选学生的熟悉程度，再进入下一词。
             </p>
             <button
               type="button"

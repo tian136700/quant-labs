@@ -466,8 +466,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           gap: 0.55rem;
           min-width: 0;
         }
-        .en-vocab-flashcard-page__col-side .jp-vocab-teacher-quiz__examples,
-        .en-vocab-flashcard-page__col-side .jp-vocab-teacher-quiz__notes {
+        .en-vocab-flashcard-page__col-side .jp-vocab-teacher-quiz__examples {
           margin: 0;
         }
         .en-vocab-flashcard-page .en-vocab-flashcard-kind,
@@ -495,6 +494,15 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           flex-shrink: 0;
           min-width: 0;
         }
+        .en-vocab-flashcard-page-footer__notes {
+          margin: 0;
+        }
+        .en-vocab-flashcard-page-footer__panels {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          min-width: 0;
+        }
         @media (min-width: 1025px) {
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
             width: min(76rem, 96vw);
@@ -507,15 +515,15 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             align-items: center;
             padding: clamp(0.5rem, 1.5vw, 1rem);
           }
-          /* 宽屏：熟悉程度 + 统计并排，少占纵向高度 */
-          .en-vocab-flashcard-page-footer {
+          /* 宽屏：熟悉程度 + 统计并排；备注在两框上方（勿放到两框下面） */
+          .en-vocab-flashcard-page-footer__panels {
             display: grid;
             grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
             gap: 0.65rem 1rem;
             align-items: stretch;
           }
-          .en-vocab-flashcard-page-footer .jp-vocab-teacher-quiz__level,
-          .en-vocab-flashcard-page-footer .jp-vocab-teacher-quiz__stats {
+          .en-vocab-flashcard-page-footer__panels .jp-vocab-teacher-quiz__level,
+          .en-vocab-flashcard-page-footer__panels .jp-vocab-teacher-quiz__stats {
             height: 100%;
           }
         }
@@ -832,7 +840,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           margin: 0 0 0.85rem;
           font-size: 0.875rem;
           line-height: 1.5;
-          color: var(--text);
+          color: var(--rise);
           text-align: center;
         }
         .jp-vocab-teacher-quiz-alert__close {
