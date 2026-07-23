@@ -16,6 +16,7 @@ import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import type { JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -108,11 +109,7 @@ export function JpVocabRemarksViewModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const handleDeleteAtIndex = async (index: number) => {

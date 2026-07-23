@@ -43,6 +43,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 /** 老师抽查卡片右上角计时器：MM:SS（从 00:00 起计，不落库） */
 function formatEnVocabQuizElapsedLabel(totalSeconds: number): string {
@@ -239,11 +240,7 @@ export function EnVocabTeacherQuizFlashcardModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const selectedLevel =

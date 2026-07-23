@@ -8,6 +8,7 @@ import {
 } from "@/lib/en-vocab-example-sentences";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 export type EnVocabExamplesViewTarget = {
   wordLabel?: string | null;
@@ -39,11 +40,7 @@ export function EnVocabExamplesViewModal({ open, target, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !target) return null;

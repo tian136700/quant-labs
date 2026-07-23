@@ -476,6 +476,7 @@ export function JpVocabPageStyles() {
           display: block;
           width: 100%;
           overflow-x: auto;
+          overflow-y: clip;
           -webkit-overflow-scrolling: touch;
         }
         :global(.jp-vocab-table) {

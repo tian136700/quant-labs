@@ -254,6 +254,7 @@ export function EnVocabRiskChart({ words }: Props) {
           display: flex;
           flex-direction: column;
           overflow-x: auto;
+          overflow-y: clip;
         }
         .jp-vocab-risk-chart-title {
           margin: 0 0 0.5rem;

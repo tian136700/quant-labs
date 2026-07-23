@@ -43,6 +43,7 @@ import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabExampleSentenceCopyButton } from "@/components/JpVocabExampleSentenceCopyButton";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 /** 老师抽查卡片右上角计时器：MM:SS（从 00:00 起计，不落库） */
 function formatJpVocabQuizElapsedLabel(totalSeconds: number): string {
@@ -241,11 +242,7 @@ export function JpVocabTeacherQuizFlashcardModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const selectedLevel =

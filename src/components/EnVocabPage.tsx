@@ -2929,6 +2929,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           display: block;
           width: 100%;
           overflow-x: auto;
+          overflow-y: clip;
           -webkit-overflow-scrolling: touch;
         }
         /* 对齐日语：fixed + 操作列 sticky；桌面下限宽度避免列被压到叠字（可横滑） */

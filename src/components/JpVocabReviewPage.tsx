@@ -839,6 +839,7 @@ export function JpVocabReviewPage() {
         }
         .jp-vocab-review-table-wrap {
           overflow-x: auto;
+          overflow-y: clip;
         }
         .jp-vocab-review-table {
           width: 100%;

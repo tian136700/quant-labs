@@ -554,6 +554,7 @@ export function JpVocabCoachPage() {
         }
         .jp-vocab-coach-table-wrap {
           overflow-x: auto;
+          overflow-y: clip;
         }
         .jp-vocab-coach-table {
           width: 100%;

@@ -23,6 +23,7 @@ import {
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { formatUploadBytes, uploadFormWithProgress, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -284,11 +285,7 @@ export function JpVocabEditModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   useEffect(() => {

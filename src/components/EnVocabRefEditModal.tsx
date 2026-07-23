@@ -9,6 +9,7 @@ import {
 } from "@/lib/en-vocab-ref-shared";
 import { uploadFormWithProgress, formatUploadBytes, type UploadProgressEvent } from "@/lib/upload-form-progress";
 import type { EnLessonRecord, EnVocabRef } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -126,11 +127,7 @@ export function EnVocabRefEditModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const applyFile = (next: File) => {

@@ -6,6 +6,7 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { uploadFormWithProgress } from "@/lib/upload-form-progress";
 import { notifyVocabRefUpdated } from "@/lib/vocab-ref-live";
 import type { EnLessonRecord, EnVocabRef } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Tool = "brush" | "smear" | "line" | "text" | "zoom";
 
@@ -582,11 +583,7 @@ export function EnLessonAnnotateModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   useEffect(() => {

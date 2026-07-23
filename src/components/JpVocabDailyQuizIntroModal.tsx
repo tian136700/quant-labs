@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const STORAGE_KEY_PREFIX = "jp-vocab-daily-intro-v1";
 const FOREVER_VALUE = "forever";
@@ -78,11 +79,7 @@ export function JpVocabDailyQuizIntroModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted) return null;

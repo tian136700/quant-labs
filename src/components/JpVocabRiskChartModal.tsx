@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const JpVocabRiskChart = dynamic(
   () => import("@/components/JpVocabRiskChart").then((m) => m.JpVocabRiskChart),
@@ -35,11 +36,7 @@ export function JpVocabRiskChartModal({ open, words, timeWeight, onClose }: Prop
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted) return null;

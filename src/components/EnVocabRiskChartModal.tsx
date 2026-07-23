@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { EnVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const EnVocabRiskChart = dynamic(
   () => import("@/components/EnVocabRiskChart").then((m) => m.EnVocabRiskChart),
@@ -34,11 +35,7 @@ export function EnVocabRiskChartModal({ open, words, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted) return null;

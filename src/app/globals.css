@@ -963,7 +963,10 @@ textarea:focus {
 }
 
 .table-wrap {
-  @apply w-full overflow-x-auto;
+  @apply w-full;
+  /* overflow-x:auto alone → overflow-y becomes auto and traps Mac trackpad vertical pan */
+  overflow-x: auto;
+  overflow-y: clip;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1277,13 +1280,17 @@ textarea:focus {
 }
 
 .etr-table-wrap {
-  @apply w-full overflow-x-auto;
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
   -webkit-overflow-scrolling: touch;
   display: none;
 }
 
 .jp-vocab-table-wrap {
-  @apply w-full overflow-x-auto;
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
   -webkit-overflow-scrolling: touch;
   display: block;
 }
@@ -1360,7 +1367,9 @@ textarea:focus {
 }
 
 .admin-jpl-teachers-table-wrap {
-  @apply w-full overflow-x-auto;
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
   margin-top: 0.65rem;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2393,6 +2402,7 @@ textarea:focus {
 
 .tool-dot-table-wrap {
   overflow-x: auto;
+  overflow-y: clip;
 }
 
 .tool-dot-table {
@@ -2746,7 +2756,9 @@ textarea:focus {
 }
 
 .admin-rbac-users-wrap {
-  @apply w-full overflow-x-auto;
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: color-mix(in srgb, var(--panel) 96%, var(--bg) 4%);

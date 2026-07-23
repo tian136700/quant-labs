@@ -11,6 +11,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { matchesNavSearch } from "@/lib/nav-search";
 import { isJpModulePath } from "@/lib/locale-path";
 import {
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
   NAV_CATEGORY_ORDER,
   PRIMARY_NAV_ORDER,
   navItemCategory,
@@ -148,8 +149,7 @@ export function NavDrawer({
       setQuery("");
       return;
     }
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockBodyScroll();
     const canAutoFocus =
       typeof window !== "undefined" &&
       window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -157,7 +157,7 @@ export function NavDrawer({
       ? window.setTimeout(() => searchRef.current?.focus(), 120)
       : undefined;
     return () => {
-      document.body.style.overflow = prev;
+      unlock();
       if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [open]);

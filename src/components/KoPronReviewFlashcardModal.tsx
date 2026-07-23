@@ -6,6 +6,7 @@ import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { KoPronSpeakButton } from "@/components/KoPronSpeakButton";
 import { speakKoPronLetter } from "@/lib/ko-pron-speak";
 import type { KoPronCatalogLetter } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -49,11 +50,7 @@ export function KoPronReviewFlashcardModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const reveal = () => {

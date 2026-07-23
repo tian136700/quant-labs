@@ -9,6 +9,7 @@ import {
 } from "@/lib/en-vocab-ref-shared";
 import type { EnVocabKind, EnVocabRef, EnVocabWord } from "@/lib/types";
 import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -106,11 +107,7 @@ export function EnVocabManualAddModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const applyImageFile = async (file: File) => {

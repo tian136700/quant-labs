@@ -11,6 +11,7 @@ import {
 } from "@/lib/en-vocab-optimistic-save";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { enVocabSaveQueue } from "@/lib/request-queue";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -49,6 +50,7 @@ export function EnVocabEditModal({
   const [pos, setPos] = useState("");
   const [mnemonic, setMnemonic] = useState("");
   const [usage, setUsage] = useState("");
+  const [exampleSentences, setExampleSentences] = useState("");
   const [classNotes, setClassNotes] = useState("");
   const [error, setError] = useState("");
 
@@ -65,6 +67,7 @@ export function EnVocabEditModal({
       setPos(word.pos || "");
       setMnemonic(word.mnemonic || "");
       setUsage(word.usage || "");
+      setExampleSentences(word.example_sentences || "");
       setClassNotes(word.class_notes || "");
       setError("");
     }
@@ -82,11 +85,7 @@ export function EnVocabEditModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   const save = () => {
@@ -104,6 +103,14 @@ export function EnVocabEditModal({
 
     setError("");
     const snapshot = word;
+    const nextExamples = exampleSentences.trim() || null;
+    const prevExamples = (snapshot.example_sentences || "").trim() || null;
+    const nextExampleSource =
+      nextExamples !== prevExamples
+        ? nextExamples
+          ? "手动"
+          : null
+        : snapshot.example_sentences_source ?? null;
     const optimistic = buildOptimisticEnVocabWord(snapshot, {
       kind,
       word: trimmedWord,
@@ -112,6 +119,8 @@ export function EnVocabEditModal({
       pos: pos.trim() || null,
       class_notes: classNotes.trim() || null,
       usage: usage.trim() || null,
+      example_sentences: nextExamples,
+      example_sentences_source: nextExampleSource,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
@@ -136,6 +145,7 @@ export function EnVocabEditModal({
             pos: pos.trim() || null,
             class_notes: classNotes.trim() || null,
             usage: usage.trim() || null,
+            example_sentences: nextExamples,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
@@ -332,6 +342,32 @@ export function EnVocabEditModal({
               />
               <p className="jp-vocab-edit-hint">
                 写常用用法即可（勿写考试名称标签）；支持粘贴或上传图片（居中显示）。
+              </p>
+            </div>
+
+            <div className="field">
+              <label
+                htmlFor="en-vocab-edit-example-sentences"
+                className="jp-vocab-edit-label"
+              >
+                例句
+              </label>
+              <textarea
+                id="en-vocab-edit-example-sentences"
+                className="jp-vocab-edit-textarea"
+                rows={6}
+                value={exampleSentences}
+                disabled={!canEdit}
+                placeholder={
+                  "I put the book above the shelf.\n译文：我把书放在架子上面。\nSee the note above for details.\n译文：详情见上文注释。"
+                }
+                onChange={(e) => setExampleSentences(e.target.value)}
+              />
+              <p className="jp-vocab-edit-hint">
+                格式：英文句下一行写「译文：…」。列表展示时英文自动带 1、2、3…，译义行不占序号。宜与「用法」条数一一对应。
+                {word?.example_sentences_source?.trim()
+                  ? ` 当前例句来源：${word.example_sentences_source.trim()}（你在此修改并保存后会记为「手动」）。`
+                  : " 人手填写并保存后，例句来源记为「手动」。"}
               </p>
             </div>
 

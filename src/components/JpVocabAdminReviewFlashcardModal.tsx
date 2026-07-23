@@ -32,6 +32,7 @@ import { jpVocabTeacherQuizNotesInline } from "@/lib/jp-vocab-teacher-quiz";
 import { computeJpVocabReviewRoundProgress } from "@/lib/jp-vocab-review-session";
 import type { JpVocabReviewSession } from "@/lib/jp-vocab-review-session";
 import type { JpVocabRef, JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -160,11 +161,7 @@ export function JpVocabAdminReviewFlashcardModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !session || !word || currentWordId == null) return null;

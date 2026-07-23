@@ -7,6 +7,7 @@ import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { formatEnVocabUsageForDisplay } from "@/lib/en-vocab-usage-ai";
 import type { EnVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -32,11 +33,7 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !word) return null;

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { jpVocabRefApiPath } from "@/lib/jp-vocab-ref-shared";
 import type { JpVocabRef } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 6;
@@ -138,11 +139,7 @@ export function JpVocabRefPreviewModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   useEffect(() => {

@@ -12,6 +12,7 @@ import {
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { KO_PRON_CATEGORIES } from "@/lib/ko-pron-seed";
 import type { KoPronLetter } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type EditableLetter = Pick<
   KoPronLetter,
@@ -53,11 +54,7 @@ export function KoPronEditModal({ open, letter, onClose, onSaved }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !letter) return null;

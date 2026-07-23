@@ -592,6 +592,7 @@ export function KoPronReviewPage() {
         }
         .ko-pron-review-table-wrap {
           overflow-x: auto;
+          overflow-y: clip;
           border: 1px solid var(--border);
           border-radius: 0.75rem;
           background: var(--panel);

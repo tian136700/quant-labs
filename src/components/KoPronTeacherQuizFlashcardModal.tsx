@@ -13,6 +13,7 @@ import { koPronFinalQuizScoreOrNull } from "@/lib/ko-pron-daily-order";
 import { koPronTeacherQuizModeLabel } from "@/lib/ko-pron-teacher-quiz";
 import type { KoPronTeacherQuizMode } from "@/lib/ko-pron-teacher-quiz";
 import type { KoPronLetter, KoPronLevel } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const LEVELS: Array<{ key: KoPronLevel; label: string }> = [
   { key: "very", label: "非常熟悉" },
@@ -87,11 +88,7 @@ export function KoPronTeacherQuizFlashcardModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !letter) return null;

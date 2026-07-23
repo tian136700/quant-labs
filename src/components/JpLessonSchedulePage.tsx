@@ -2814,6 +2814,7 @@ export function JpLessonSchedulePage() {
             gap: 0.4rem 0.55rem;
             max-width: 100%;
             overflow-x: auto;
+            overflow-y: clip;
             -webkit-overflow-scrolling: touch;
             font-size: 0.75rem;
           }

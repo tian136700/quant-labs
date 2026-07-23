@@ -13,6 +13,8 @@ export function buildOptimisticEnVocabWord(
       | "class_notes"
       | "mnemonic"
       | "usage"
+      | "example_sentences"
+      | "example_sentences_source"
     >
   >
 ): EnVocabWord {

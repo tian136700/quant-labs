@@ -31,6 +31,7 @@ import {
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 const LEVELS: { key: JpVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
@@ -136,11 +137,7 @@ export function JpVocabStudyFlashcardModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !item) return null;

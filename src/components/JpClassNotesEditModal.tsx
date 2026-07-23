@@ -41,6 +41,7 @@ import {
   type JpVocabSaveProgressKind,
 } from "@/lib/jp-vocab-save-progress";
 import type { JpVocabWord } from "@/lib/types";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -266,11 +267,7 @@ export function JpClassNotesEditModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   useEffect(() => {

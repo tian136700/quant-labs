@@ -12,6 +12,7 @@ import {
 } from "@/lib/jp-vocab-example-sentences";
 import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 export type JpLessonExamplesViewTarget = {
   lessonId: number;
@@ -43,11 +44,7 @@ export function JpLessonExamplesViewModal({ open, target, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !target) return null;

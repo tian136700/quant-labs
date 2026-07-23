@@ -1423,6 +1423,7 @@ export function JpVocabStudyPage() {
           display: block;
           width: 100%;
           overflow-x: auto;
+          overflow-y: clip;
           -webkit-overflow-scrolling: touch;
         }
         .jp-vocab-study-page .jp-vocab-table {

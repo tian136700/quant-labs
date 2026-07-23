@@ -8,6 +8,7 @@ import { parseEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { EnVocabWord } from "@/lib/types";
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
+import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
   open: boolean;
@@ -81,11 +82,7 @@ export function EnVocabRemarksViewModal({
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
+    return lockBodyScroll();
   }, [open]);
 
   if (!open || !mounted || !displayWord) return null;
