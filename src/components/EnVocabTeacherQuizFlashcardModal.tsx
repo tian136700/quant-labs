@@ -610,14 +610,14 @@ export function EnVocabTeacherQuizFlashcardModal({
               {w.ref_key ? (
                 <button
                   type="button"
-                  className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main"
+                  className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma"
                   title={ref?.title ? `教案：${ref.title}` : "查看教案"}
                   onClick={() => onOpenRef(w.ref_key!, ref)}
                 >
                   {wordTrim || "—"}
                 </button>
               ) : (
-                <span className="jp-vocab-teacher-quiz__word-main">
+                <span className="jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma">
                   {wordTrim || "—"}
                 </span>
               )}

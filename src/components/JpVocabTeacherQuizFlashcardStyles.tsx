@@ -374,11 +374,15 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 700;
           line-height: 1.25;
         }
-        /* 英语卡：类型标签与拼写同为大字，音标小字同排居中 */
+        /* 英语卡：类型标签与拼写同为大字，音标小字同排居中；「单词：」紧挨拼写 */
         .en-vocab-flashcard-kind {
           font-size: clamp(1.85rem, 7vw, 2.35rem);
           font-weight: 700;
           line-height: 1.25;
+          margin-inline-end: 0;
+        }
+        .en-vocab-flashcard-lemma {
+          margin-inline-start: -0.2rem;
         }
         .en-vocab-flashcard-ipa {
           white-space: nowrap;
@@ -389,6 +393,10 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           margin-top: 0.2rem;
           display: flex;
           justify-content: center;
+        }
+        .jp-vocab-teacher-quiz__hero:has(.en-vocab-flashcard-kind)
+          .jp-vocab-teacher-quiz__reading-row {
+          column-gap: 0.35rem;
         }
         .jp-vocab-teacher-quiz__word-link {
           border: none;
@@ -969,10 +977,24 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             font-size: clamp(1.15rem, 4.5vw, 1.45rem);
           }
           .en-vocab-flashcard-kind {
-            font-size: clamp(1.15rem, 4.5vw, 1.45rem);
+            font-size: clamp(1.35rem, 5.5vw, 1.7rem);
+          }
+          /* 拉丁拼写视觉上偏小，手机端加大以贴近「单词：」 */
+          .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma {
+            font-size: clamp(1.7rem, 7.5vw, 2.2rem);
+            font-weight: 800;
+            letter-spacing: 0.01em;
+          }
+          .en-vocab-flashcard-lemma {
+            margin-inline-start: -0.28rem;
           }
           .en-vocab-flashcard-ipa {
             font-size: clamp(0.875rem, 3.2vw, 1.05rem);
+          }
+          .jp-vocab-teacher-quiz__hero:has(.en-vocab-flashcard-kind)
+            .jp-vocab-teacher-quiz__reading-row {
+            column-gap: 0.28rem;
+            row-gap: 0.25rem;
           }
           .jp-vocab-teacher-quiz__ref-hint {
             margin-top: 0.1rem;
