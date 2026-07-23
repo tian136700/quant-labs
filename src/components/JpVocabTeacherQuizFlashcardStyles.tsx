@@ -58,8 +58,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-card .jp-vocab-admin-review__today-banner,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__stats,
-          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav,
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__hero {
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav {
             flex-shrink: 0;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body {
@@ -90,25 +89,6 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             background: color-mix(in srgb, var(--accent) 50%, var(--muted));
             border-radius: 8px;
             border: 2px solid color-mix(in srgb, var(--panel) 80%, transparent);
-          }
-          /* 英语卡：中间滚动条更明显，方便发现可上下滚 */
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body {
-            padding-right: 0.55rem;
-            scrollbar-color: color-mix(in srgb, var(--accent) 78%, #fff 12%)
-              color-mix(in srgb, var(--border) 80%, var(--panel));
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar {
-            width: 14px;
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-track {
-            background: color-mix(in srgb, var(--border) 70%, var(--panel));
-            border-radius: 10px;
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-thumb {
-            background: color-mix(in srgb, var(--accent) 72%, var(--muted));
-            border-radius: 10px;
-            border: 2px solid color-mix(in srgb, var(--panel) 70%, transparent);
-            min-height: 2.5rem;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__examples,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__notes {
@@ -929,8 +909,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-card .jp-vocab-admin-review__today-banner,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level,
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__stats,
-          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav,
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__hero {
+          .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__nav {
             flex-shrink: 0;
           }
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body {
@@ -959,24 +938,6 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-thumb {
             background: color-mix(in srgb, var(--accent) 50%, var(--muted));
             border-radius: 8px;
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body {
-            padding-right: 0.4rem;
-            scrollbar-color: color-mix(in srgb, var(--accent) 78%, #fff 12%)
-              color-mix(in srgb, var(--border) 80%, var(--panel));
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar {
-            width: 12px;
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-track {
-            background: color-mix(in srgb, var(--border) 70%, var(--panel));
-            border-radius: 10px;
-          }
-          .en-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__scroll-body::-webkit-scrollbar-thumb {
-            background: color-mix(in srgb, var(--accent) 72%, var(--muted));
-            border-radius: 10px;
-            border: 2px solid color-mix(in srgb, var(--panel) 70%, transparent);
-            min-height: 2.25rem;
           }
           .jp-vocab-teacher-quiz__kind-prefix {
             font-size: clamp(1.05rem, 4vw, 1.25rem);
@@ -1120,73 +1081,6 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           }
           .jp-vocab-teacher-quiz__stat--weight {
             flex: 1 1 100%;
-          }
-        }
-
-        /* 英语抽查卡：词条更大、音标小字；朗读按钮样式随卡内置 */
-        .en-vocab-teacher-quiz-card .en-vocab-teacher-quiz__lemma {
-          font-size: clamp(2.05rem, 7.5vw, 2.65rem);
-          font-weight: 800;
-          letter-spacing: 0.01em;
-          line-height: 1.2;
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-teacher-quiz__ipa-row {
-          margin-top: 0.3rem;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.15rem;
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-teacher-quiz__ipa {
-          font-size: clamp(0.95rem, 3.2vw, 1.12rem);
-          font-weight: 500;
-          letter-spacing: 0.02em;
-          line-height: 1.3;
-          color: var(--muted);
-          white-space: nowrap;
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-teacher-quiz__ipa-empty {
-          margin: 0.3rem 0 0;
-          text-align: center;
-          font-size: 0.875rem;
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-speak-btn {
-          flex: 0 0 auto;
-          align-self: center;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 2.1rem;
-          height: 2.1rem;
-          margin: 0;
-          padding: 0;
-          border: 1px solid var(--border);
-          border-radius: 999px;
-          background: var(--panel);
-          color: var(--accent);
-          cursor: pointer;
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-speak-btn:hover:not(:disabled) {
-          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-speak-btn:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-        .en-vocab-teacher-quiz-card .en-vocab-speak-btn.is-playing {
-          color: var(--rise);
-          border-color: color-mix(in srgb, var(--rise) 45%, var(--border));
-          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
-        }
-        @media (max-width: 1024px) {
-          .en-vocab-teacher-quiz-card .en-vocab-teacher-quiz__lemma {
-            font-size: clamp(1.7rem, 7vw, 2.15rem);
-          }
-          .en-vocab-teacher-quiz-card .en-vocab-teacher-quiz__ipa {
-            font-size: clamp(0.875rem, 3vw, 1rem);
-          }
-          .en-vocab-teacher-quiz-card .en-vocab-speak-btn {
-            width: 1.9rem;
-            height: 1.9rem;
           }
         }
     `}</style>
