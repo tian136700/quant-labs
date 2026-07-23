@@ -46,6 +46,30 @@ def main() -> int:
     if 'PINNED_PRIMARY_NAV_ID = "langJp"' not in config:
         return fail('PINNED_PRIMARY_NAV_ID must be "langJp" (language group)')
 
+    # 日程管理 = 跨科目一级，禁止塞回「日语」二级
+    if "NAV_TOP_LEVEL_CROSS_SUBJECT_IDS" not in config:
+        return fail("NAV_TOP_LEVEL_CROSS_SUBJECT_IDS missing (schedule top-level)")
+    if '"jpLessonSchedule"' not in config.split("NAV_TOP_LEVEL_CROSS_SUBJECT_IDS", 1)[1].split(
+        "PINNED_PRIMARY_NAV_ID", 1
+    )[0]:
+        return fail("jpLessonSchedule must be listed in NAV_TOP_LEVEL_CROSS_SUBJECT_IDS")
+    lang_jp_block = re.search(
+        r'id:\s*"langJp"[\s\S]*?childIds:\s*\[([\s\S]*?)\]',
+        config,
+    )
+    if not lang_jp_block:
+        return fail("langJp childIds block not found")
+    if "jpLessonSchedule" in lang_jp_block.group(1):
+        return fail(
+            "jpLessonSchedule must NOT be under langJp secondary menu "
+            "(unified schedule is top-level)"
+        )
+    primary_order = re.search(r"PRIMARY_NAV_ORDER\s*=\s*\[([\s\S]*?)\]\s*as const", config)
+    if not primary_order or '"jpLessonSchedule"' not in primary_order.group(1):
+        return fail("PRIMARY_NAV_ORDER must include jpLessonSchedule as top-level")
+    if 'jpLessonSchedule: "system"' not in config and "jpLessonSchedule: 'system'" not in config:
+        return fail('NAV_ITEM_CATEGORY jpLessonSchedule must be "system" (not jp)')
+
     if "groupSiteNavItems" not in groups:
         return fail("site-nav-groups.ts must export groupSiteNavItems")
 
