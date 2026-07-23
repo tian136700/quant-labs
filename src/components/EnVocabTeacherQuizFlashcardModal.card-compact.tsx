@@ -1,3 +1,14 @@
+/**
+ * 英语抽问卡 · 窄卡片布局备份（回滚用）
+ *
+ * 当前线上主组件是同目录的 EnVocabTeacherQuizFlashcardModal.tsx（近全屏网页式弹层）。
+ * 若要回滚窄卡片：
+ *   1) 用本文件覆盖 EnVocabTeacherQuizFlashcardModal.tsx
+ *   2) 把下方导出名改回 EnVocabTeacherQuizFlashcardModal
+ *   3) 去掉主组件上的 en-vocab-flashcard-page 类即可（样式留着无害）
+ *
+ * 本文件故意改名导出，避免被误 import 打进 Worker 包。
+ */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -110,7 +121,7 @@ type Props = {
   nestedModalOpen?: boolean;
 };
 
-export function EnVocabTeacherQuizFlashcardModal({
+export function EnVocabTeacherQuizFlashcardModalCardCompact({
   open,
   session,
   wordsById,

@@ -31,7 +31,7 @@ import {
   type EnVocabKindFilter,
 } from "@/lib/en-vocab-search";
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
-import { EnVocabExampleSentencesCell } from "@/components/EnVocabExampleSentencesCell";
+import { EnVocabUsageExamplesCell } from "@/components/EnVocabUsageExamplesCell";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { EnVocabEditModal } from "@/components/EnVocabEditModal";
 import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
@@ -1921,8 +1921,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                   <th rowSpan={2} className="jp-vocab-pos-col">
                     词性
                   </th>
-                  <th rowSpan={2} className="jp-vocab-example-col">
-                    例句
+                  <th
+                    rowSpan={2}
+                    className="jp-vocab-usage-ex-col"
+                    title="用法与对应用例（第 N 条用法对应第 N 条例句）"
+                  >
+                    用法 / 例句
                   </th>
                   {isAdminMode ? (
                     <th
@@ -1933,9 +1937,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                       巧记
                     </th>
                   ) : null}
-                  <th rowSpan={2} className="jp-vocab-usage-col" title="常用用法">
-                    用法
-                  </th>
                   <th rowSpan={2} className="jp-vocab-risk-col">
                     <button
                       type="button"
@@ -2169,14 +2170,19 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                         {posTrim}
                       </td>
                       <td
-                        className="jp-vocab-example-col"
-                        data-label="例句"
+                        className={`jp-vocab-usage-ex-col${
+                          !(w.usage || "").trim() &&
+                          !(w.example_sentences || "").trim()
+                            ? " jp-vocab-field-empty"
+                            : ""
+                        }`}
+                        data-label="用法 / 例句"
                         style={{ color: "var(--muted)" }}
                       >
-                        <EnVocabExampleSentencesCell
-                          text={w.example_sentences}
-                          source={w.example_sentences_source}
-                          wordLabel={w.word}
+                        <EnVocabUsageExamplesCell
+                          usage={w.usage}
+                          exampleSentences={w.example_sentences}
+                          onOpen={() => setViewingUsageWord(w)}
                         />
                       </td>
                       {isAdminMode ? (
@@ -2205,27 +2211,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                           )}
                         </td>
                       ) : null}
-                      <td
-                        className={`jp-vocab-usage-col${
-                          !(w.usage || "").trim() ? " jp-vocab-field-empty" : ""
-                        }`}
-                        data-label="用法"
-                      >
-                        {(w.usage || "").trim() ? (
-                          <button
-                            type="button"
-                            className="btn-rsi-filter btn-rsi-filter--compact"
-                            title="查看用法"
-                            onClick={() => setViewingUsageWord(w)}
-                          >
-                            查看
-                          </button>
-                        ) : (
-                          <span className="jp-vocab-mnemonic-empty" title="可在「编辑」中填写用法">
-                            —
-                          </span>
-                        )}
-                      </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
                           className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
@@ -3243,9 +3228,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           width: 5%;
           min-width: 0;
         }
-        /* 例句列仅「查看」按钮，内容在弹窗；列保持窄；禁止溢出叠到优先级列 */
-        :global(.jp-vocab-table .jp-vocab-example-col) {
-          width: 5%;
+        /* 用法/例句合并列：仅「查看」按钮，内容在弹窗；列保持窄 */
+        :global(.jp-vocab-table .jp-vocab-usage-ex-col) {
+          width: 6%;
           min-width: 0;
           max-width: none;
           text-align: center;
@@ -3253,8 +3238,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           white-space: nowrap;
           overflow: hidden;
         }
-        :global(.jp-vocab-table .jp-vocab-mnemonic-col),
-        :global(.jp-vocab-table .jp-vocab-usage-col) {
+        :global(.jp-vocab-table .jp-vocab-mnemonic-col) {
           width: 4%;
           min-width: 0;
           text-align: center;
@@ -3459,7 +3443,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           :global(.jp-vocab-table .jp-vocab-pos-col) {
             order: 5;
           }
-          :global(.jp-vocab-table .jp-vocab-example-col) {
+          :global(.jp-vocab-table .jp-vocab-usage-ex-col) {
             order: 6;
             width: auto;
             min-width: 0;

@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
-import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
-import { formatEnVocabUsageForDisplay } from "@/lib/en-vocab-usage-ai";
+import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-display";
 import type { EnVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
@@ -38,7 +37,7 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
 
   if (!open || !mounted || !word) return null;
 
-  const usageTrim = formatEnVocabUsageForDisplay(word.usage || "");
+  const model = buildEnVocabUsageExamplePairs(word.usage, word.example_sentences);
 
   return createPortal(
     <>
@@ -57,10 +56,7 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
           <div className="en-usage-view-header">
             <div>
               <h2 id="en-usage-view-title" className="en-usage-view-title">
-                用法
-                {word.usage_source ? (
-                  <JpVocabSourceLabel source={word.usage_source} />
-                ) : null}
+                用法与例句
               </h2>
               <p className="en-usage-view-subtitle">{word.word}</p>
             </div>
@@ -75,16 +71,24 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
           </div>
 
           <div className="en-usage-view-body">
-            {usageTrim ? (
-              <EnVocabClassNoteContent
-                content={usageTrim}
-                imageLabel="用法图片"
-              />
-            ) : (
-              <p className="en-usage-view-empty">
-                暂未填写用法，可在「编辑」中补充，或等待定时补全。
-              </p>
-            )}
+            <EnVocabUsageExamplesPairedContent
+              usage={word.usage}
+              exampleSentences={word.example_sentences}
+              usageSource={word.usage_source}
+              exampleSource={word.example_sentences_source}
+              model={model}
+              emptyText="暂未填写用法与例句，可在「编辑」中补充，或等待定时补全。"
+            />
+          </div>
+
+          <div className="en-usage-view-footer">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--compact"
+              onClick={onClose}
+            >
+              关闭
+            </button>
           </div>
         </div>
       </div>
@@ -93,60 +97,71 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
         .en-usage-view-overlay {
           position: fixed;
           inset: 0;
-          z-index: 1000;
+          z-index: 1100;
           display: flex;
           align-items: center;
           justify-content: center;
           padding: 1rem;
           background: rgba(0, 0, 0, 0.55);
+          backdrop-filter: blur(3px);
+          -webkit-backdrop-filter: blur(3px);
         }
         .en-usage-view-modal {
-          width: min(560px, 100%);
-          max-height: min(85vh, 720px);
           display: flex;
           flex-direction: column;
+          width: min(640px, 100%);
+          max-height: min(80vh, 640px);
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
+          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
         }
         .en-usage-view-header {
           display: flex;
+          align-items: flex-start;
           justify-content: space-between;
           gap: 0.75rem;
-          padding: 1rem 1.1rem 0.85rem;
-          border-bottom: 1px solid
-            color-mix(in srgb, var(--border) 80%, transparent);
+          padding: 1rem 1rem 0.75rem;
+          border-bottom: 1px solid var(--border);
         }
         .en-usage-view-title {
           margin: 0;
-          font-size: 1.0625rem;
-          display: flex;
-          align-items: center;
-          gap: 0.45rem;
-          flex-wrap: wrap;
+          font-size: 1.1rem;
+          font-weight: 650;
         }
         .en-usage-view-subtitle {
           margin: 0.25rem 0 0;
           color: var(--muted);
-          font-size: 0.875rem;
+          font-size: 0.9rem;
+          word-break: break-word;
         }
         .en-usage-view-close {
+          flex-shrink: 0;
           width: 2rem;
           height: 2rem;
-          border: 1px solid var(--border);
+          border: none;
           border-radius: 8px;
           background: transparent;
-          color: var(--text);
-          font-size: 1.25rem;
+          color: var(--muted);
+          font-size: 1.35rem;
+          line-height: 1;
           cursor: pointer;
         }
-        .en-usage-view-body {
-          padding: 1rem 1.1rem 1.15rem;
-          overflow: auto;
+        .en-usage-view-close:hover {
+          background: color-mix(in srgb, var(--muted) 12%, transparent);
+          color: var(--text);
         }
-        .en-usage-view-empty {
-          margin: 0;
-          color: var(--muted);
+        .en-usage-view-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto;
+          padding: 1rem;
+        }
+        .en-usage-view-footer {
+          display: flex;
+          justify-content: flex-end;
+          padding: 0.75rem 1rem 1rem;
+          border-top: 1px solid var(--border);
         }
       `}</style>
     </>,
