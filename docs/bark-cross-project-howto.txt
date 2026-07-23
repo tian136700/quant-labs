@@ -23,7 +23,7 @@
 3. 发送：POST https://api.day.app/<BARK_DEVICE_KEY> ，JSON 例如：
    {
      "title": "成功",
-     "body": "项目：strategy-compare-cloud\n状态：成功（手动部署）\n改动：用户管理：无对应老师时显示绑定老师按钮\n文件：AdminUsersPage.tsx、bark_notify.py",
+     "body": "改动：用户管理：无对应老师时显示绑定老师按钮\n项目：strategy-compare-cloud\n状态：成功（手动部署）",
      "group": "strategy-compare-cloud",
      "level": "active",
      "sound": "paymentsuccess"
@@ -33,8 +33,9 @@
 
 **通知内容约定（多项目共用同一 Bark 时必须遵守）：**
 - **标题 = 成功 / 失败**（锁屏一眼看出结果；不要把改动说明塞进标题）
-- 正文依次：`项目：…` → `状态：成功|失败（自动/手动部署）` → `改动：…` → `文件：…`（文件最不重要，放最后；失败再加原因/退出码）
-- Bark 的 group 用项目名，方便在 App 里按项目分组（标题不再重复项目名，靠 group + 正文「项目：」区分）
+- 正文依次：`改动：…` → `项目：…` → `状态：成功|失败（自动/手动部署）`（失败再加原因/退出码）
+- **不要**写改动文件列表、`请到线上验证…`、`维护中心` 标签/链接
+- Bark 的 group 用项目名，方便在 App 里按项目分组（标题不再重复项目名，靠 group + 正文「项目：」区分）；**禁止**默认 group=维护中心
 - 部署失败用 level=passive（静音）；成功用 level=active + sound（默认 paymentsuccess，勿用 bell，易和短信撞音）
 - 不要用 critical/call（那是上课持续铃响专用）
 

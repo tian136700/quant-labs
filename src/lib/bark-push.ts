@@ -57,9 +57,11 @@ export async function sendBarkPush(options: {
   const payload: Record<string, unknown> = {
     title: options.title.slice(0, 80),
     body: options.body.slice(0, 500),
-    group: options.group || "维护中心",
     level: options.level || "timeSensitive",
   };
+  const group = (options.group || "").trim();
+  // 调用方显式传 group（如「上课提醒」）；不要默认塞「维护中心」标签
+  if (group) payload.group = group;
   const icon = (options.icon || "").trim();
   if (icon) payload.icon = icon;
   if (options.call) {
