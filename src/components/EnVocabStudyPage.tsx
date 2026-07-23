@@ -255,7 +255,7 @@ export function EnVocabStudyPage() {
           role="alert"
           style={{ color: "var(--rise)", marginBottom: "1rem" }}
         >
-          当前账号无权访问今日背英语单词，请使用管理员或英语老师账号登录。
+          当前账号无权访问今日背英语单词，请使用管理员账号登录。
         </p>
       ) : null}
 
