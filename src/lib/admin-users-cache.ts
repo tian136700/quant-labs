@@ -1,6 +1,6 @@
 import { readClientCache, writeClientCache } from "@/lib/client-swr-cache";
 
-export const ADMIN_USERS_CACHE_KEY = "admin-api:users:v1";
+export const ADMIN_USERS_CACHE_KEY = "admin-api:users:v2";
 
 export type AdminUserListRow = {
   id: number;
@@ -10,6 +10,7 @@ export type AdminUserListRow = {
   jp_lesson_teacher_id?: number | null;
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
+  never_disable?: boolean;
   created_at: string;
   last_login_at?: string | null;
   last_login_ip?: string | null;

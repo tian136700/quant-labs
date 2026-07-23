@@ -60,22 +60,25 @@ function isExpired(expiresAt: string): boolean {
 async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
   if (devAuthEnabled) return;
   const info = await db.prepare(`PRAGMA table_info(etr_users)`).all<{ name: string }>();
-  const hasDisabled = (info.results ?? []).some((row) => row.name === "disabled");
-  const hasLastLoginAt = (info.results ?? []).some((row) => row.name === "last_login_at");
-  const hasLastLoginIp = (info.results ?? []).some((row) => row.name === "last_login_ip");
-  if (!hasDisabled) {
-    await db
-      .prepare(
-        `ALTER TABLE etr_users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`
-      )
-      .run();
-  }
-  if (!hasLastLoginAt) {
-    await db.prepare(`ALTER TABLE etr_users ADD COLUMN last_login_at TEXT`).run();
-  }
-  if (!hasLastLoginIp) {
-    await db.prepare(`ALTER TABLE etr_users ADD COLUMN last_login_ip TEXT`).run();
-  }
+  const cols = new Set((info.results ?? []).map((row) => row.name));
+  const addColumnIfMissing = async (name: string, sqlType: string) => {
+    if (cols.has(name)) return;
+    try {
+      await db.prepare(`ALTER TABLE etr_users ADD COLUMN ${name} ${sqlType}`).run();
+      cols.add(name);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/duplicate column name/i.test(msg)) {
+        cols.add(name);
+        return;
+      }
+      throw err;
+    }
+  };
+  await addColumnIfMissing("disabled", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing("last_login_at", "TEXT");
+  await addColumnIfMissing("last_login_ip", "TEXT");
+  await addColumnIfMissing("never_disable", "INTEGER NOT NULL DEFAULT 0");
   await db
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_etr_users_last_login_at
@@ -228,7 +231,7 @@ async function findUserByUsername(
   return (
     (await db
       .prepare(
-        `SELECT id, username, password_hash, role, disabled, created_at
+        `SELECT id, username, password_hash, role, disabled, never_disable, created_at
          , last_login_at, last_login_ip
          FROM etr_users WHERE username = ?1 LIMIT 1`
       )
@@ -248,7 +251,7 @@ export async function findUserById(db: D1Database, userId: number): Promise<EtrU
   return (
     (await db
       .prepare(
-        `SELECT id, username, role, disabled, created_at, last_login_at, last_login_ip
+        `SELECT id, username, role, disabled, never_disable, created_at, last_login_at, last_login_ip
          FROM etr_users WHERE id = ?1 LIMIT 1`
       )
       .bind(userId)
@@ -632,7 +635,7 @@ export async function listEtrUsers(db: D1Database): Promise<EtrUser[]> {
 
   const result = await db
     .prepare(
-      `SELECT id, username, role, disabled, created_at
+      `SELECT id, username, role, disabled, never_disable, created_at
          , last_login_at, last_login_ip
        FROM etr_users
        ORDER BY role ASC, username COLLATE NOCASE ASC`
@@ -684,6 +687,44 @@ export async function setUserDisabled(
   await ensureEtrUsersSchema(db);
   await db
     .prepare(`UPDATE etr_users SET disabled = ?1 WHERE id = ?2`)
+    .bind(flag, userId)
+    .run();
+
+  const updated = await findUserById(db, userId);
+  if (!updated) return { ok: false, error: "user_not_found" };
+  return { ok: true, user: updated };
+}
+
+export type SetUserNeverDisableResult =
+  | { ok: true; user: EtrUser }
+  | { ok: false; error: string };
+
+/**
+ * 管理员开关「永不禁用」：课表/抽完等定时启禁跳过该账号。
+ * 管理员账号本身已硬排除，此处仍禁止改（避免误操作）。
+ */
+export async function setUserNeverDisable(
+  db: D1Database,
+  userId: number,
+  neverDisable: boolean
+): Promise<SetUserNeverDisableResult> {
+  const user = await findUserById(db, userId);
+  if (!user) return { ok: false, error: "user_not_found" };
+  if (user.role === "admin") return { ok: false, error: "cannot_edit_admin" };
+
+  const flag = neverDisable ? 1 : 0;
+
+  if (devAuthEnabled) {
+    const row = devUsers.find((u) => u.id === userId);
+    if (!row) return { ok: false, error: "user_not_found" };
+    row.never_disable = flag;
+    const { password_hash: _, ...publicUser } = row;
+    return { ok: true, user: publicUser };
+  }
+
+  await ensureEtrUsersSchema(db);
+  await db
+    .prepare(`UPDATE etr_users SET never_disable = ?1 WHERE id = ?2`)
     .bind(flag, userId)
     .run();
 

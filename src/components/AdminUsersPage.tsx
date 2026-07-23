@@ -92,6 +92,7 @@ type UserRow = {
   jp_lesson_teacher_id?: number | null;
   jp_lesson_teacher_name?: string | null;
   disabled: boolean;
+  never_disable?: boolean;
   created_at: string;
   last_login_at?: string | null;
   last_login_ip?: string | null;
@@ -162,6 +163,7 @@ function matchesAdminUserSearch(
     locale === "zh" ? statusZh : statusEn,
     statusZh,
     statusEn,
+    row.never_disable ? "永不禁用 never disable" : "",
   ]
     .join(" ")
     .toLowerCase();
@@ -255,6 +257,7 @@ type AdminUserActionsProps = {
   onEdit: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
   onGenerateLoginLink: (row: UserRow, withTemplate: boolean) => void;
+  onToggleNeverDisable: (row: UserRow) => void;
   onToggleDisabled: (row: UserRow) => void;
   onDelete: (row: UserRow) => void;
 };
@@ -271,6 +274,7 @@ function AdminUserActions({
   onEdit,
   onCopyCredentials,
   onGenerateLoginLink,
+  onToggleNeverDisable,
   onToggleDisabled,
   onDelete,
 }: AdminUserActionsProps) {
@@ -281,11 +285,40 @@ function AdminUserActions({
   const canDelete = !isSelf && !isAdminUser;
   const canGenerateLink = !row.disabled && !isAdminUser;
   const canCopyCredentials = !isAdminUser;
+  const canToggleNeverDisable = !isAdminUser;
   const busy =
     deletingId === row.id || linkGeneratingId === row.id || copyingId === row.id;
+  const neverDisable = Boolean(row.never_disable);
 
   return (
     <div className="admin-user-actions">
+      {canToggleNeverDisable ? (
+        <button
+          type="button"
+          className={`btn-rsi-filter btn-rsi-filter--compact admin-user-btn${
+            neverDisable ? " btn-rsi-filter--success" : ""
+          }`}
+          disabled={busy}
+          onClick={() => onToggleNeverDisable(row)}
+          title={
+            locale === "zh"
+              ? neverDisable
+                ? "取消后，课表/抽完等定时启禁会重新对该账号生效"
+                : "开启后，课表启用、下课禁用、抽完禁用等定时任务一律跳过；手动启用/禁用仍可用"
+              : neverDisable
+                ? "After cancel, schedule/quiz auto enable/disable applies again"
+                : "While on, schedule/quiz cron jobs skip this account; manual enable/disable still works"
+          }
+        >
+          {neverDisable
+            ? locale === "zh"
+              ? "取消永不禁用"
+              : "Allow auto-disable"
+            : locale === "zh"
+              ? "永不禁用"
+              : "Never disable"}
+        </button>
+      ) : null}
       {canEdit ? (
         <button
           type="button"
@@ -837,6 +870,68 @@ function AdminUsersPageContent() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: row.id, disabled: nextDisabled }),
+        });
+        const data = await res.json();
+        if (!data.ok || !data.user) {
+          throw new Error(String(data.error || "save failed"));
+        }
+        setUsers((prev) => {
+          const next = prev.map((item) =>
+            item.id === row.id ? { ...item, ...data.user } : item
+          );
+          persistUsers(next);
+          return next;
+        });
+      } catch (err) {
+        setUsers((prev) => {
+          const next = prev.map((item) => (item.id === row.id ? snapshot : item));
+          persistUsers(next);
+          return next;
+        });
+        setStatus(
+          err instanceof Error
+            ? err.message
+            : locale === "zh"
+              ? "操作失败"
+              : "Update failed"
+        );
+        setStatusErr(true);
+      }
+    })();
+  };
+
+  const toggleNeverDisable = (row: UserRow) => {
+    const snapshot = row;
+    const nextNeverDisable = !row.never_disable;
+    setStatus("");
+    setStatusErr(false);
+    setUsers((prev) => {
+      const next = prev.map((item) =>
+        item.id === row.id ? { ...item, never_disable: nextNeverDisable } : item
+      );
+      persistUsers(next);
+      return next;
+    });
+    setStatus(
+      locale === "zh"
+        ? nextNeverDisable
+          ? `已设为永不禁用：${row.username}`
+          : `已取消永不禁用：${row.username}`
+        : nextNeverDisable
+          ? `Never-disable on: ${row.username}`
+          : `Never-disable off: ${row.username}`
+    );
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/users", {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: row.id,
+            never_disable: nextNeverDisable,
+          }),
         });
         const data = await res.json();
         if (!data.ok || !data.user) {
@@ -1424,13 +1519,20 @@ function AdminUsersPageContent() {
                     <AdminUserCardField
                       label={locale === "zh" ? "状态" : "Status"}
                       value={
-                        row.disabled
-                          ? locale === "zh"
-                            ? "已禁用"
-                            : "Disabled"
-                          : locale === "zh"
-                            ? "正常"
-                            : "Active"
+                        <>
+                          {row.disabled
+                            ? locale === "zh"
+                              ? "已禁用"
+                              : "Disabled"
+                            : locale === "zh"
+                              ? "正常"
+                              : "Active"}
+                          {row.never_disable ? (
+                            <span className="admin-user-never-disable-badge">
+                              {locale === "zh" ? " · 永不禁用" : " · Never disable"}
+                            </span>
+                          ) : null}
+                        </>
                       }
                     />
                     <AdminUserCardField
@@ -1466,6 +1568,7 @@ function AdminUsersPageContent() {
                     onEdit={openEditUser}
                     onCopyCredentials={copyUserCredentials}
                     onGenerateLoginLink={generateLoginLink}
+                    onToggleNeverDisable={toggleNeverDisable}
                     onToggleDisabled={toggleDisabled}
                     onDelete={deleteUser}
                   />
@@ -1557,6 +1660,11 @@ function AdminUsersPageContent() {
                           : locale === "zh"
                             ? "正常"
                             : "Active"}
+                        {row.never_disable ? (
+                          <span className="admin-user-never-disable-badge">
+                            {locale === "zh" ? " · 永不禁用" : " · Never disable"}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="admin-user-actions-col">
                         <AdminUserActions
@@ -1571,6 +1679,7 @@ function AdminUsersPageContent() {
                           onEdit={openEditUser}
                           onCopyCredentials={copyUserCredentials}
                           onGenerateLoginLink={generateLoginLink}
+                          onToggleNeverDisable={toggleNeverDisable}
                           onToggleDisabled={toggleDisabled}
                           onDelete={deleteUser}
                         />
@@ -2326,8 +2435,8 @@ function AdminUsersPageContent() {
           text-decoration: underline;
         }
         :global(.admin-user-actions-col) {
-          width: 15rem;
-          min-width: 15rem;
+          width: 22rem;
+          min-width: 22rem;
           vertical-align: top;
           white-space: normal !important;
         }
@@ -2342,13 +2451,22 @@ function AdminUsersPageContent() {
         }
         .admin-user-actions {
           display: grid;
-          grid-template-columns: repeat(2, max-content);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 0.4rem;
-          align-items: center;
+          align-items: stretch;
           justify-items: stretch;
-          width: max-content;
+          width: 100%;
         }
         .admin-user-btn {
+          width: 100%;
+          white-space: normal;
+          text-align: center;
+          line-height: 1.25;
+          min-height: 2.1rem;
+        }
+        .admin-user-never-disable-badge {
+          color: var(--fall);
+          font-weight: 600;
           white-space: nowrap;
         }
         .admin-user-row--highlight {

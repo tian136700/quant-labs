@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS etr_users (
   password_hash TEXT    NOT NULL,
   role          TEXT    NOT NULL DEFAULT 'user',
   disabled      INTEGER NOT NULL DEFAULT 0,
+  -- 1 = 永不禁用：定时启禁跳过（测试账号等）；仅管理员手动取消
+  never_disable INTEGER NOT NULL DEFAULT 0,
   last_login_at TEXT,
   last_login_ip TEXT,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))

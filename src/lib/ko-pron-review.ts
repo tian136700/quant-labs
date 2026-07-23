@@ -2,9 +2,13 @@ import {
   beijingDateString,
   beijingDateTimeString,
 } from "@/lib/jp-vocab-daily-check";
+import { reviewTimestampMs } from "@/lib/jp-vocab-review";
 import type { KoPronLetter, KoPronLevel } from "@/lib/types";
 
 const KO_PRON_LEVELS: KoPronLevel[] = ["very", "normal", "weak"];
+
+/** 勾选熟悉程度后满 1 小时不可再改（与日语抽问一致） */
+export const KO_PRON_REVIEW_LOCK_MS = 60 * 60 * 1000;
 
 export function isKoPronReviewToday(
   lastAt: string | null | undefined,
@@ -29,6 +33,34 @@ export function effectiveKoPronDisplayLevel(
     return level;
   }
   return undefined;
+}
+
+/**
+ * 今日已勾选且距上次勾选已满 1 小时 → 锁定，不可再改选。
+ * 1 小时内改选视为修正原选项（见 applyKoPronReview）。
+ */
+export function isKoPronLetterReviewLocked(
+  letter: KoPronLetter,
+  opts?: { sessionReviewAtMs?: number; now?: Date }
+): boolean {
+  const now = opts?.now ?? new Date();
+  if (opts?.sessionReviewAtMs != null) {
+    const sessionDay = beijingDateString(new Date(opts.sessionReviewAtMs));
+    if (sessionDay !== beijingDateString(now)) {
+      /* session stamp from another day does not count as today's review */
+    } else if (now.getTime() - opts.sessionReviewAtMs >= KO_PRON_REVIEW_LOCK_MS) {
+      return true;
+    }
+  }
+  if (!isKoPronReviewToday(letter.last_review_at, now)) return false;
+  const reviewMs = reviewTimestampMs(letter.last_review_at);
+  if (reviewMs == null || reviewMs <= 0) return false;
+  const effectiveMs =
+    opts?.sessionReviewAtMs != null &&
+    beijingDateString(new Date(opts.sessionReviewAtMs)) === beijingDateString(now)
+      ? Math.max(reviewMs, opts.sessionReviewAtMs)
+      : reviewMs;
+  return now.getTime() - effectiveMs >= KO_PRON_REVIEW_LOCK_MS;
 }
 
 function adjustLevelCount(

@@ -113,16 +113,39 @@ export async function POST(request: Request) {
       );
     }
 
-    const letter = await recordKoPronReview(env.DB, letterId, level);
-    if (!letter) {
+    const result = await recordKoPronReview(env.DB, letterId, level);
+    if (!result.ok) {
+      if (result.error === "not_found") {
+        return jsonResponse(
+          {
+            ok: false,
+            error: locale === "zh" ? "字母不存在。" : "Letter not found.",
+          },
+          404
+        );
+      }
+      if (result.error === "review_locked") {
+        return jsonResponse(
+          {
+            ok: false,
+            error:
+              locale === "zh"
+                ? "勾选已满 1 小时，无法再修改。"
+                : "Review locked after 1 hour.",
+            code: "review_locked",
+          },
+          400
+        );
+      }
       return jsonResponse(
         {
           ok: false,
-          error: locale === "zh" ? "字母不存在。" : "Letter not found.",
+          error: locale === "zh" ? "参数无效。" : "Invalid parameters.",
         },
-        404
+        400
       );
     }
+    const letter = result.letter;
 
     // 记录今日抽问操作人；抽完后定时任务按 +20min 自动禁用（失败不影响勾选结果）
     const { isAdmin: isAdminForReview } = await requireAdmin(request);

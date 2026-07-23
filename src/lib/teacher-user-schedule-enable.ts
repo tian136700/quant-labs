@@ -54,8 +54,10 @@ export const KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS =
 export const TEACHER_POST_CLASS_DISABLE_AFTER_MS = 10 * 60 * 1000;
 
 export function isExcludedFromTeacherScheduleAutoEnable(
-  user: Pick<EtrUser, "role" | "username">
+  user: Pick<EtrUser, "role" | "username" | "never_disable">
 ): boolean {
+  /** 用户管理「永不禁用」：启禁定时任务均跳过（含课表启用 / 下课禁用 / 抽完禁用） */
+  if ((user.never_disable ?? 0) !== 0) return true;
   if (user.role === "admin") return true;
   const lower = user.username.trim().toLowerCase();
   return TEACHER_SCHEDULE_AUTO_ENABLE_EXCLUDED_USERNAMES.some(

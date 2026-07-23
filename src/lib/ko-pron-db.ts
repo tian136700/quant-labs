@@ -4,7 +4,10 @@ import type { KoPronCatalogLetter, KoPronLetter, KoPronLevel } from "@/lib/types
 import {
   beijingDateString,
 } from "@/lib/jp-vocab-daily-check";
-import { applyKoPronReview } from "@/lib/ko-pron-review";
+import {
+  applyKoPronReview,
+  isKoPronLetterReviewLocked,
+} from "@/lib/ko-pron-review";
 import { KO_PRON_SEED_LETTERS } from "@/lib/ko-pron-seed";
 import {
   defaultKoPronTeacherVisibleLimit,
@@ -1133,11 +1136,18 @@ export async function setKoPronDailyQuizTarget(
   return saveKoPronTeacherVisibleLimit(db, materialized);
 }
 
+export type RecordKoPronReviewResult =
+  | { ok: true; letter: KoPronLetter }
+  | { ok: false; error: "not_found" | "review_locked" | "level_invalid" };
+
 export async function recordKoPronReview(
   db: D1Database,
   letterId: number,
   level: KoPronLevel
-): Promise<KoPronLetter | null> {
+): Promise<RecordKoPronReviewResult> {
+  if (!["very", "normal", "weak"].includes(level)) {
+    return { ok: false, error: "level_invalid" };
+  }
   await ensureQuizReady(db);
   const row = await db
     .prepare(
@@ -1150,9 +1160,12 @@ export async function recordKoPronReview(
     )
     .bind(letterId)
     .first<Record<string, unknown>>();
-  if (!row) return null;
+  if (!row) return { ok: false, error: "not_found" };
 
   const current = rowToLetter(row);
+  if (isKoPronLetterReviewLocked(current)) {
+    return { ok: false, error: "review_locked" };
+  }
   const { letter: updated } = applyKoPronReview(current, level);
 
   await db
@@ -1181,7 +1194,7 @@ export async function recordKoPronReview(
     )
     .run();
 
-  return updated;
+  return { ok: true, letter: updated };
 }
 
 export async function listKoPronBundle(db: D1Database): Promise<{

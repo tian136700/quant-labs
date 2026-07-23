@@ -29,6 +29,11 @@ export interface EtrUser {
   created_at: string;
   /** 1 = 已禁用（登录与已登录会话均视为维护中） */
   disabled?: number;
+  /**
+   * 1 = 永不禁用：课表/抽完等定时启禁一律跳过；
+   * 仅管理员在用户管理里手动取消后才恢复自动启禁。
+   */
+  never_disable?: number;
   last_login_at?: string | null;
   last_login_ip?: string | null;
 }
