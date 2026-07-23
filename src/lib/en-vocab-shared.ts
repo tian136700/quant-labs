@@ -1,6 +1,13 @@
+import { parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import type { EnVocabWord } from "@/lib/types";
 
-export type EnVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk";
+export type EnVocabStatSortKey =
+  | "very"
+  | "normal"
+  | "weak"
+  | "total"
+  | "risk"
+  | "updated";
 
 /** 单词表默认排序：合计为 0 的置顶，其余按抽查优先级降序 */
 export const JP_VOCAB_DEFAULT_STAT_SORT: {
@@ -42,7 +49,10 @@ export function enVocabRiskIndex(word: EnVocabWord): number {
   return Math.round(raw * 10) / 10;
 }
 
-function statSortValue(word: EnVocabWord, key: EnVocabStatSortKey): number {
+function statSortValue(
+  word: EnVocabWord,
+  key: Exclude<EnVocabStatSortKey, "updated">
+): number {
   switch (key) {
     case "very":
       return word.cnt_very;
@@ -55,6 +65,11 @@ function statSortValue(word: EnVocabWord, key: EnVocabStatSortKey): number {
     case "risk":
       return enVocabRiskIndex(word);
   }
+}
+
+function updatedAtSortMs(word: EnVocabWord): number {
+  const ms = parseStoredUtcDateTimeMs(word.updated_at || "");
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 /** 复习优先级：不熟悉次数降序 → 一般次数降序 → 单词名 */
@@ -73,7 +88,7 @@ function compareZeroTotalFirst(a: EnVocabWord, b: EnVocabWord): number {
   return aZero ? -1 : 1;
 }
 
-/** 按复习次数单列排序（同值按单词名） */
+/** 按复习次数 / 抽查优先级 / 更新时间单列排序（同值按单词名） */
 export function sortEnVocabWordsByStat(
   words: EnVocabWord[],
   key: EnVocabStatSortKey,
@@ -81,7 +96,10 @@ export function sortEnVocabWordsByStat(
 ): EnVocabWord[] {
   const mul = dir === "asc" ? 1 : -1;
   return [...words].sort((a, b) => {
-    const diff = statSortValue(a, key) - statSortValue(b, key);
+    const diff =
+      key === "updated"
+        ? updatedAtSortMs(a) - updatedAtSortMs(b)
+        : statSortValue(a, key) - statSortValue(b, key);
     if (diff !== 0) return diff * mul;
     return a.word.localeCompare(b.word, "en");
   });

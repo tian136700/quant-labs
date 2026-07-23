@@ -21,6 +21,10 @@ import {
   type EnVocabStatSortKey,
 } from "@/lib/en-vocab-shared";
 import {
+  formatBeijingDateTime,
+  formatBeijingDateTimeCompact,
+} from "@/lib/format-datetime";
+import {
   buildEnVocabDailySeqMap,
   isEnVocabRoundChecked,
   markEnVocabRoundChecked,
@@ -2165,6 +2169,39 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                       <span>抽查次数</span>
                     </span>
                   </th>
+                  {isAdminMode ? (
+                    <th
+                      rowSpan={2}
+                      className="jp-vocab-updated-col"
+                      title="词条最近一次更新时间（编辑、补全、勾选熟悉程度等）"
+                    >
+                      <button
+                        type="button"
+                        className="jp-vocab-sort-btn"
+                        aria-sort={
+                          statSort?.key === "updated"
+                            ? statSort.dir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                        title="按最近更新时间排序"
+                        onClick={() => toggleStatSort("updated")}
+                      >
+                        <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+                          <span>更新</span>
+                          <span>时间</span>
+                        </span>
+                        <span className="jp-vocab-sort-indicator" aria-hidden="true">
+                          {statSort?.key === "updated"
+                            ? statSort.dir === "asc"
+                              ? "↑"
+                              : "↓"
+                            : "↕"}
+                        </span>
+                      </button>
+                    </th>
+                  ) : null}
                   {SHOW_REMARKS_COLUMN ? (
                     <th rowSpan={2} className="jp-vocab-notes-col">
                       备注
@@ -2538,6 +2575,24 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                           {todayChecks}
                         </span>
                       </td>
+                      {isAdminMode ? (
+                        <td
+                          className={`jp-vocab-updated-col${!w.updated_at ? " jp-vocab-field-empty" : ""}`}
+                          data-label="更新时间"
+                        >
+                          {w.updated_at ? (
+                            <time
+                              className="jp-vocab-updated-time"
+                              dateTime={w.updated_at}
+                              title={formatBeijingDateTime(w.updated_at)}
+                            >
+                              {formatBeijingDateTimeCompact(w.updated_at)}
+                            </time>
+                          ) : (
+                            <span className="jp-vocab-mnemonic-empty">—</span>
+                          )}
+                        </td>
+                      ) : null}
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
@@ -3185,6 +3240,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         :global(.jp-vocab-table .jp-vocab-risk-col),
         :global(.jp-vocab-table .jp-vocab-stats-col),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
+        :global(.jp-vocab-table .jp-vocab-updated-col),
         :global(.jp-vocab-table .jp-vocab-notes-col),
         :global(.jp-vocab-table .jp-vocab-action-col) {
           padding-left: 0.35rem;
@@ -3468,6 +3524,20 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           width: 4.5%;
           min-width: 0;
           text-align: center;
+        }
+        :global(.jp-vocab-table .jp-vocab-updated-col) {
+          white-space: nowrap;
+          width: 5.5%;
+          min-width: 0;
+          text-align: center;
+          vertical-align: middle;
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-updated-time {
+          display: inline-block;
+          font-size: 0.8125rem;
+          color: var(--muted);
+          letter-spacing: -0.01em;
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
           width: 5%;
