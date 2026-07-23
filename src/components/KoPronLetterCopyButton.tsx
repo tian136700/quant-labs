@@ -6,8 +6,8 @@ import { copyTextToClipboard } from "@/lib/copy-text";
 
 type Props = {
   letter: string;
-  /** compact = 列表旁；hero = 卡片大字母旁 */
-  variant?: "compact" | "hero";
+  /** compact = 列表旁；hero = 卡片字母下方居中；corner = 卡片右上角（与编辑并排，略小） */
+  variant?: "compact" | "hero" | "corner";
   className?: string;
 };
 
@@ -93,6 +93,17 @@ export function KoPronLetterCopyButton({
           padding: 0.4rem 0.75rem;
           font-size: 0.85rem;
           margin: 0.35rem 0.35rem 0 0;
+        }
+        .ko-pron-letter-copy-btn--corner {
+          border-radius: 0.45rem;
+          padding: 0.22rem 0.5rem;
+          font-size: 0.72rem;
+          margin: 0;
+          gap: 0.15rem;
+        }
+        .ko-pron-letter-copy-btn--corner svg {
+          width: 12px;
+          height: 12px;
         }
         .ko-pron-letter-copy-btn svg {
           display: block;

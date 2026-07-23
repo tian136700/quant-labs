@@ -112,9 +112,8 @@ export function KoPronStudyPage() {
 
       {letter ? (
         <div className="ko-pron-study-card" aria-live="polite">
-          <div className="ko-pron-study-letter">{letter.letter}</div>
-          <div className="ko-pron-study-hero-actions">
-            <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
+          <div className="ko-pron-study-card-actions">
+            <KoPronLetterCopyButton letter={letter.letter} variant="corner" />
             <button
               type="button"
               className="ko-pron-study-edit-btn"
@@ -123,6 +122,7 @@ export function KoPronStudyPage() {
               编辑
             </button>
           </div>
+          <div className="ko-pron-study-letter">{letter.letter}</div>
           {/* 学生端：不显示分类（易剧透教材分类）、罗马音、发音、熟悉程度 */}
           <p className="ko-pron-study-waiting">请先读出来，老师会听你的发音。</p>
         </div>

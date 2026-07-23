@@ -3131,32 +3131,36 @@ textarea:focus {
   border-radius: 0.85rem;
 }
 .ko-pron-study-card {
-  padding: 1.5rem 1.25rem;
+  position: relative;
+  padding: 1.75rem 1.25rem 1.5rem;
   text-align: center;
+}
+.ko-pron-study-card-actions {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  z-index: 1;
 }
 .ko-pron-study-letter {
   font-size: 4rem;
   font-weight: 700;
   line-height: 1.1;
-  margin-bottom: 0.35rem;
+  margin: 0.35rem 0 0.15rem;
   color: var(--text) !important;
-}
-.ko-pron-study-hero-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.65rem;
 }
 .ko-pron-study-edit-btn {
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  border-radius: 0.65rem;
-  padding: 0.45rem 0.9rem;
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  border-radius: 0.45rem;
+  padding: 0.22rem 0.55rem;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
 }
 .ko-pron-study-hint {

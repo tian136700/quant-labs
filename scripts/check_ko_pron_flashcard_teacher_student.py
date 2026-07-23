@@ -37,6 +37,20 @@ def main() -> int:
             return fail("student study must hide romanization UI")
     if "编辑" not in study or "KoPronEditModal" not in study:
         return fail("student study missing 编辑")
+    if "ko-pron-study-card-actions" not in study:
+        return fail("student study: copy/edit must be in card top-right (ko-pron-study-card-actions)")
+    if 'variant="corner"' not in study and "variant='corner'" not in study:
+        return fail("student study copy button must use variant=corner")
+
+    if "ko-pron-flashcard-top-actions" not in teacher:
+        return fail("teacher card: copy/edit must be in top-right (ko-pron-flashcard-top-actions)")
+    if 'variant="corner"' not in teacher and "variant='corner'" not in teacher:
+        return fail("teacher card copy button must use variant=corner")
+    # copy/edit no longer centered under letter
+    if "ko-pron-flashcard-hero-actions" in teacher:
+        hero = teacher.split("ko-pron-flashcard-hero-actions", 1)[1][:400]
+        if "KoPronLetterCopyButton" in hero or "编辑" in hero:
+            return fail("teacher card must not keep copy/edit under letter hero-actions")
 
     if "罗马音 / 读法" not in edit or "分类" not in edit:
         return fail("edit modal fields incomplete")

@@ -142,12 +142,12 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **韩语发音复习**（重新开始 / 继续断点；熟悉/不熟悉；**乐观更新 + `koPronReviewSaveQueue` 串行写库**；列表：熟悉/不熟悉/总复习/今日次数；**表头点击排序**（除操作外；本页无操作列则全列可排）；乱序；防剧透） | `KoPronReviewPage`；`koPronReviewSaveQueue`；`applyOptimisticKoPronReviewFamiliarity`；规则 `.cursor/rules/ko-pron-review-no-spoiler.mdc` |
 | **老师/管理员入口拆分**（导航「韩语发音抽问-老师端 / 管理员端」+「韩语发音勾选」+「韩语发音复习」；`variant` 区分抽问） | `/ko-pron` vs `/ko-pron/admin` vs `/ko-pron/select` vs `/ko-pron/review`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()` / `koPronSelectPath()` / `koPronReviewPath()`；`messages.ts` → `nav.koPron*`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
 | **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
-| **学生端 live 卡片**（老师开卡同步字母；**学生端隐藏**发音按钮、罗马音、熟悉程度；仅露字母+复制+编辑） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
+| **学生端 live 卡片**（老师开卡同步字母；**学生端隐藏**发音按钮、罗马音、熟悉程度；仅露字母；**复制+编辑在卡片右上角**） | `KoPronStudyPage`；`POST/GET /api/ko-pron/live`；`ko-pron-teacher-quiz-live.ts`；老师端仅 **随机** 模式 |
 | 老师抽查卡片、熟悉程度、进度条 | `KoPronTeacherQuizFlashcardModal`（**暗色**；老师端**始终显示罗马音**+发音；熟悉程度勾选框；未勾选不能「下一个」；**1h 内可改选**；**编辑**字母/罗马音/说明/分类）；`KoPronEditModal`；`ko-pron-teacher-quiz.ts`；保存进度复用 `JpVocabSaveProgressBar` |
 | 管理员设今日抽查数量 / 老师可见池 | `KoPronPage` + `JpVocabDailyQuizProgressBar`；`POST /api/ko-pron` `set_daily_quiz_target`；`setKoPronDailyQuizTarget`；池=**日序前 N**（与日语同一套熟悉程度加权优先级，非 id） |
 | **抽查优先级 / 日序**（`priority + days×0.1`；从未抽查置顶；今日新建沉底；直接复用 `jpVocabFinalQuizScore`） | `ko-pron-daily-order.ts` → `sortKoPronLettersForDailyOrder`；`ensureKoPronDailyDisplayOrder`；可见池 `order_algo=priority_v1`；规则 `.cursor/rules/ko-pron-quiz-priority.mdc` |
 | **发音按钮**（本机 Web Speech `ko-KR`；读「기역」等韩文名，不读罗马音；列表 / 老师抽问卡 / 勾选页；**学生端今日发音隐藏**） | `KoPronSpeakButton`；`ko-pron-speak.ts` → `speakKoPronLetter` / `koPronSpeakText` |
-| **字母旁复制**（勾选 / 抽问列表 / 复习列表 / 复习卡 / 抽问卡 / 学生端；复制韩文字母；自带 toast） | `KoPronLetterCopyButton`；`copyTextToClipboard` + `CopyToast` |
+| **字母复制**（勾选 / 抽问列表 / 复习列表旁 compact；**抽问卡 / 学生卡 / 复习卡右上角** `variant=corner`；自带 toast） | `KoPronLetterCopyButton`；`copyTextToClipboard` + `CopyToast` |
 | **分类筛选 + 搜索**（辅音 / 双辅音 / 基本元音 / 复合元音；对齐延世·首尔大·西江·TOPIK 教材用语，非严格语言学；字母归属不变：ㅑㅕㅛㅠ∈基本元音，ㅐㅔ∈复合元音；字母/读音/说明本地即时；**勾选页分类记住上次选择**） | `KoPronPage` / `KoPronSelectPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch` + `read/writeStoredKoPronSelectCategoryFilter`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`）；文案迁移 `vowel_category_textbook_v2`（单元音/双元音→基本元音/复合元音） |
 | **列表显示抽查优先级数值 + 复习次数**（与日语同公式；从未抽查显示「—」；次数列 非常/一般/不熟悉） | `KoPronPage` 表列；`koPronFinalQuizScoreOrNull` |
 | 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；**只种进** `ko_pron_catalog`（`seedCatalogIfEmpty`）；抽问表禁止全量 seed |

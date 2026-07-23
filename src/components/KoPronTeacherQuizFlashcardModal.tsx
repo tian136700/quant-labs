@@ -134,35 +134,37 @@ export function KoPronTeacherQuizFlashcardModal({
           <span className="ko-pron-flashcard-mode">
             {koPronTeacherQuizModeLabel(mode)} · {index + 1}/{total}
           </span>
-          <button
-            type="button"
-            className="ko-pron-flashcard-close"
-            onClick={onClose}
-            aria-label="关闭"
-          >
-            ×
-          </button>
+          <div className="ko-pron-flashcard-top-actions">
+            <KoPronLetterCopyButton letter={letter.letter} variant="corner" />
+            {onEdit ? (
+              <button
+                type="button"
+                className="ko-pron-flashcard-edit-btn"
+                onClick={() => onEdit(letter)}
+              >
+                编辑
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="ko-pron-flashcard-close"
+              onClick={onClose}
+              aria-label="关闭"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <h2 id="ko-pron-flashcard-title" className="ko-pron-flashcard-hero">
           {letter.letter}
         </h2>
         <div className="ko-pron-flashcard-hero-actions">
-          <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
           <KoPronSpeakButton
             letter={letter.letter}
             reading={letter.reading}
             variant="hero"
           />
-          {onEdit ? (
-            <button
-              type="button"
-              className="ko-pron-flashcard-edit-btn"
-              onClick={() => onEdit(letter)}
-            >
-              编辑
-            </button>
-          ) : null}
         </div>
 
         {/* 老师端始终显示罗马音辅助 */}
@@ -378,6 +380,13 @@ export function KoPronTeacherQuizFlashcardModal({
           font-size: 0.78rem;
           color: var(--muted);
         }
+        .ko-pron-flashcard-top-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.35rem;
+          flex-shrink: 0;
+        }
         .ko-pron-flashcard-close {
           border: none;
           background: transparent;
@@ -385,6 +394,7 @@ export function KoPronTeacherQuizFlashcardModal({
           line-height: 1;
           cursor: pointer;
           color: var(--muted);
+          padding: 0 0.1rem;
         }
         .ko-pron-flashcard-hero {
           margin: 0.5rem 0 0.35rem;
@@ -404,12 +414,13 @@ export function KoPronTeacherQuizFlashcardModal({
         }
         .ko-pron-flashcard-edit-btn {
           border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-          border-radius: 0.65rem;
-          padding: 0.45rem 0.9rem;
-          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+          border-radius: 0.45rem;
+          padding: 0.22rem 0.55rem;
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
           color: var(--text);
-          font-size: 0.9rem;
+          font-size: 0.72rem;
           font-weight: 600;
+          line-height: 1;
           cursor: pointer;
         }
         .ko-pron-flashcard-next {

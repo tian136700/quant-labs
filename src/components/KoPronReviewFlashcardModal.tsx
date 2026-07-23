@@ -81,14 +81,17 @@ export function KoPronReviewFlashcardModal({
           <span className="ko-pron-review-mode">
             复习 · {index + 1}/{total}
           </span>
-          <button
-            type="button"
-            className="ko-pron-review-close"
-            onClick={onClose}
-            aria-label="关闭"
-          >
-            ×
-          </button>
+          <div className="ko-pron-review-top-actions">
+            <KoPronLetterCopyButton letter={letter.letter} variant="corner" />
+            <button
+              type="button"
+              className="ko-pron-review-close"
+              onClick={onClose}
+              aria-label="关闭"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <h2
@@ -97,9 +100,6 @@ export function KoPronReviewFlashcardModal({
         >
           {letter.letter}
         </h2>
-        <div className="ko-pron-review-hero-actions">
-          <KoPronLetterCopyButton letter={letter.letter} variant="hero" />
-        </div>
         <p className="ko-pron-review-count-hint">
           熟悉 {letter.review_cnt_familiar ?? 0} · 不熟悉{" "}
           {letter.review_cnt_unfamiliar ?? 0} · 总复习 {letter.review_count ?? 0}
@@ -196,6 +196,13 @@ export function KoPronReviewFlashcardModal({
           font-size: 0.78rem;
           color: var(--muted);
         }
+        .ko-pron-review-top-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.35rem;
+          flex-shrink: 0;
+        }
         .ko-pron-review-close {
           border: none;
           background: transparent;
@@ -203,6 +210,7 @@ export function KoPronReviewFlashcardModal({
           line-height: 1;
           cursor: pointer;
           color: var(--muted);
+          padding: 0 0.1rem;
         }
         .ko-pron-review-hero {
           margin: 0.75rem 0 0.35rem;
@@ -211,14 +219,6 @@ export function KoPronReviewFlashcardModal({
           font-size: 3.2rem;
           line-height: 1.1;
           color: var(--text);
-        }
-        .ko-pron-review-hero-actions {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 0.35rem;
-          margin: 0 0 0.35rem;
         }
         .ko-pron-review-count-hint {
           margin: 0 0 0.85rem;
