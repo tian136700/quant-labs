@@ -756,18 +756,6 @@ export function EnVocabTeacherQuizFlashcardModal({
             ) : null}
           </section>
 
-          {usageTrim ? (
-            <section className="jp-vocab-teacher-quiz__examples" aria-label="用法">
-              <div className="jp-vocab-teacher-quiz__examples-head">
-                <h3 className="jp-vocab-teacher-quiz__examples-title">用法</h3>
-              </div>
-              <div className="jp-vocab-teacher-quiz__examples-body">
-                <EnVocabClassNoteContent content={usageTrim} imageLabel="用法图片" />
-                <JpVocabSourceLabel source={w.usage_source} />
-              </div>
-            </section>
-          ) : null}
-
           {showExamples ? (
             <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
               <div className="jp-vocab-teacher-quiz__examples-head">
@@ -810,6 +798,18 @@ export function EnVocabTeacherQuizFlashcardModal({
               ) : (
                 <p className="jp-vocab-teacher-quiz__examples-empty">暂无例句</p>
               )}
+            </section>
+          ) : null}
+
+          {usageTrim ? (
+            <section className="jp-vocab-teacher-quiz__examples" aria-label="用法">
+              <div className="jp-vocab-teacher-quiz__examples-head">
+                <h3 className="jp-vocab-teacher-quiz__examples-title">用法</h3>
+              </div>
+              <div className="jp-vocab-teacher-quiz__examples-body">
+                <EnVocabClassNoteContent content={usageTrim} imageLabel="用法图片" />
+                <JpVocabSourceLabel source={w.usage_source} />
+              </div>
             </section>
           ) : null}
 
