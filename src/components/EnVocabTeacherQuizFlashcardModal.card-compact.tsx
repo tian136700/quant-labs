@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * 英语抽问卡 · 窄卡片布局备份（回滚用）
  *
@@ -5,11 +7,10 @@
  * 若要回滚窄卡片：
  *   1) 用本文件覆盖 EnVocabTeacherQuizFlashcardModal.tsx
  *   2) 把下方导出名改回 EnVocabTeacherQuizFlashcardModal
- *   3) 去掉主组件上的 en-vocab-flashcard-page 类即可（样式留着无害）
+ *  3) 去掉主组件上的 en-vocab-flashcard-page 类即可（样式留着无害）
  *
  * 本文件故意改名导出，避免被误 import 打进 Worker 包。
  */
-"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";

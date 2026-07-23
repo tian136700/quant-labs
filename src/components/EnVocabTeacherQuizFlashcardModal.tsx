@@ -388,6 +388,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     : EN_VOCAB_LEVEL_SYNC_HINT;
   const canGoPrev = session.currentIndex > 0;
   const isLast = session.currentIndex === session.wordIds.length - 1;
+  const showSideCol = showUsageExamples || hasNotes || canOperate;
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
@@ -437,9 +438,12 @@ export function EnVocabTeacherQuizFlashcardModal({
   };
 
   return createPortal(
-    <div className="jp-vocab-teacher-quiz-overlay" role="presentation">
+    <div
+      className="jp-vocab-teacher-quiz-overlay en-vocab-flashcard-page-overlay"
+      role="presentation"
+    >
       <article
-        className={`jp-vocab-teacher-quiz-card${
+        className={`jp-vocab-teacher-quiz-card en-vocab-flashcard-page${
           showAnswerTimer && answerTimerArmed
             ? " jp-vocab-teacher-quiz-card--with-timer"
             : ""
@@ -585,246 +589,271 @@ export function EnVocabTeacherQuizFlashcardModal({
           ) : null}
         </header>
 
-        <div className="jp-vocab-teacher-quiz__scroll-body">
+        <div className="jp-vocab-teacher-quiz__scroll-body en-vocab-flashcard-page__body">
           {studentPeeked && !isStudy ? (
             <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
               该学生已查看该单词
             </p>
           ) : null}
 
-          <div className="jp-vocab-teacher-quiz__hero" id="en-vocab-teacher-quiz-title">
-            <div className="jp-vocab-teacher-quiz__reading-row en-vocab-flashcard-reading-row">
-              <div className="en-vocab-flashcard-lemma-group">
-                {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
-                <span
-                  className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
-                    w.kind === "grammar"
-                      ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
-                      : ""
-                  }`}
-                >
-                  {w.kind === "grammar" ? "语法：" : "单词："}
-                </span>
+          <div
+            className={`en-vocab-flashcard-page__grid${
+              showSideCol ? "" : " en-vocab-flashcard-page__grid--single"
+            }`}
+          >
+            <div className="en-vocab-flashcard-page__col-main">
+              <div
+                className="jp-vocab-teacher-quiz__hero"
+                id="en-vocab-teacher-quiz-title"
+              >
+                <div className="jp-vocab-teacher-quiz__reading-row en-vocab-flashcard-reading-row">
+                  <div className="en-vocab-flashcard-lemma-group">
+                    {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
+                    <span
+                      className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
+                        w.kind === "grammar"
+                          ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
+                          : ""
+                      }`}
+                    >
+                      {w.kind === "grammar" ? "语法：" : "单词："}
+                    </span>
+                    {w.ref_key ? (
+                      <button
+                        type="button"
+                        className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma"
+                        title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                        onClick={() => onOpenRef(w.ref_key!, ref)}
+                      >
+                        {wordTrim || "—"}
+                      </button>
+                    ) : (
+                      <span className="jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma">
+                        {wordTrim || "—"}
+                      </span>
+                    )}
+                  </div>
+                  {readingTrim ? (
+                    <span
+                      className="jp-vocab-teacher-quiz__kanji en-vocab-flashcard-ipa"
+                      title={readingTrim}
+                    >
+                      {readingTrim}
+                    </span>
+                  ) : null}
+                </div>
+                {readingTrim ? (
+                  <div className="en-vocab-flashcard-ipa-source">
+                    <JpVocabSourceLabel source={w.reading_source} />
+                  </div>
+                ) : w.kind === "word" ? (
+                  <p
+                    className="jp-vocab-teacher-quiz__meta-empty"
+                    style={{ margin: "0.35rem 0 0", textAlign: "center" }}
+                  >
+                    音标待补全
+                  </p>
+                ) : null}
                 {w.ref_key ? (
                   <button
                     type="button"
-                    className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma"
+                    className="jp-vocab-teacher-quiz__ref-hint"
                     title={ref?.title ? `教案：${ref.title}` : "查看教案"}
                     onClick={() => onOpenRef(w.ref_key!, ref)}
                   >
-                    {wordTrim || "—"}
+                    （点击查看教案）
                   </button>
-                ) : (
-                  <span className="jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma">
-                    {wordTrim || "—"}
-                  </span>
-                )}
+                ) : null}
               </div>
-              {readingTrim ? (
-                <span
-                  className="jp-vocab-teacher-quiz__kanji en-vocab-flashcard-ipa"
-                  title={readingTrim}
-                >
-                  {readingTrim}
-                </span>
-              ) : null}
-            </div>
-            {readingTrim ? (
-              <div className="en-vocab-flashcard-ipa-source">
-                <JpVocabSourceLabel source={w.reading_source} />
-              </div>
-            ) : w.kind === "word" ? (
-              <p
-                className="jp-vocab-teacher-quiz__meta-empty"
-                style={{ margin: "0.35rem 0 0", textAlign: "center" }}
-              >
-                音标待补全
-              </p>
-            ) : null}
-            {w.ref_key ? (
-              <button
-                type="button"
-                className="jp-vocab-teacher-quiz__ref-hint"
-                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                onClick={() => onOpenRef(w.ref_key!, ref)}
-              >
-                （点击查看教案）
-              </button>
-            ) : null}
-          </div>
 
-          <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
-            <dl className="jp-vocab-teacher-quiz__meta">
-              <dt>释义：</dt>
-              <dd className={meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-                {meaningTrim ? (
-                  <span className="jp-vocab-teacher-quiz__meaning-wrap">
-                    <span>{meaningTrim}</span>
-                    <JpVocabSourceLabel source={w.meaning_source} />
-                  </span>
-                ) : null}
-              </dd>
-              <dt>词性：</dt>
-              <dd className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}>
-                {posTrim ? (
-                  <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span>
-                ) : null}
-              </dd>
-            </dl>
-            {canOperate ? (
-              <div className="jp-vocab-teacher-quiz__actions-row">
-                <div className="jp-vocab-teacher-quiz__actions-left">
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn"
-                    onClick={() => onEditWord?.(w)}
+              <section
+                className="jp-vocab-teacher-quiz__info"
+                aria-label="词条信息"
+              >
+                <dl className="jp-vocab-teacher-quiz__meta">
+                  <dt>释义：</dt>
+                  <dd
+                    className={
+                      meaningTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"
+                    }
                   >
-                    编辑
-                  </button>
-                  {w.ref_key ? (
-                    <button
-                      type="button"
-                      className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
-                      title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                      onClick={() => onOpenRef(w.ref_key!, ref)}
-                    >
-                      查看教案
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
-                    title="编辑备注"
-                    onClick={() => onEditRemarks?.(w)}
+                    {meaningTrim ? (
+                      <span className="jp-vocab-teacher-quiz__meaning-wrap">
+                        <span>{meaningTrim}</span>
+                        <JpVocabSourceLabel source={w.meaning_source} />
+                      </span>
+                    ) : null}
+                  </dd>
+                  <dt>词性：</dt>
+                  <dd
+                    className={posTrim ? "" : "jp-vocab-teacher-quiz__meta-empty"}
                   >
-                    编辑备注
-                  </button>
-                </div>
-                {shareUiEnabled && !isStudy ? (
-                  <div
-                    className="jp-vocab-teacher-quiz__actions-right"
-                    aria-label="共享给学生"
-                  >
-                    {isShared ? (
-                      onUnshare ? (
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn jp-vocab-teacher-quiz__share-btn jp-vocab-teacher-quiz__share-btn--unshare"
-                          disabled={isSaving || isSharing || reviewLocked}
-                          title={
-                            reviewLocked
-                              ? "勾选已满 1 小时，无法再操作"
-                              : "从学生「今日英语单词」移除"
-                          }
-                          onClick={() => onUnshare(w.id)}
-                        >
-                          取消共享
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn jp-vocab-teacher-quiz__share-btn"
-                          disabled
-                          title="今日已共享到学生「今日英语单词」"
-                        >
-                          已共享
-                        </button>
-                      )
-                    ) : (
+                    {posTrim ? (
+                      <span className="jp-vocab-teacher-quiz__pos">{posTrim}</span>
+                    ) : null}
+                  </dd>
+                </dl>
+                {canOperate ? (
+                  <div className="jp-vocab-teacher-quiz__actions-row">
+                    <div className="jp-vocab-teacher-quiz__actions-left">
                       <button
                         type="button"
-                        className={`btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn jp-vocab-teacher-quiz__share-btn${
-                          reviewLocked
-                            ? " jp-vocab-teacher-quiz__share-btn--locked"
-                            : ""
-                        }`}
-                        disabled={isSaving || isSharing || reviewLocked}
-                        title={
-                          reviewLocked
-                            ? "勾选已满 1 小时，无法再共享"
-                            : "共享到学生「今日英语单词」，并标记为不熟悉"
-                        }
-                        onClick={() => onShare?.(w.id)}
+                        className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn"
+                        onClick={() => onEditWord?.(w)}
                       >
-                        共享
+                        编辑
                       </button>
-                    )}
+                      {w.ref_key ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                          title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                          onClick={() => onOpenRef(w.ref_key!, ref)}
+                        >
+                          查看教案
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
+                        title="编辑备注"
+                        onClick={() => onEditRemarks?.(w)}
+                      >
+                        编辑备注
+                      </button>
+                    </div>
+                    {shareUiEnabled && !isStudy ? (
+                      <div
+                        className="jp-vocab-teacher-quiz__actions-right"
+                        aria-label="共享给学生"
+                      >
+                        {isShared ? (
+                          onUnshare ? (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn jp-vocab-teacher-quiz__share-btn jp-vocab-teacher-quiz__share-btn--unshare"
+                              disabled={isSaving || isSharing || reviewLocked}
+                              title={
+                                reviewLocked
+                                  ? "勾选已满 1 小时，无法再操作"
+                                  : "从学生「今日英语单词」移除"
+                              }
+                              onClick={() => onUnshare(w.id)}
+                            >
+                              取消共享
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn jp-vocab-teacher-quiz__share-btn"
+                              disabled
+                              title="今日已共享到学生「今日英语单词」"
+                            >
+                              已共享
+                            </button>
+                          )
+                        ) : (
+                          <button
+                            type="button"
+                            className={`btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn jp-vocab-teacher-quiz__share-btn${
+                              reviewLocked
+                                ? " jp-vocab-teacher-quiz__share-btn--locked"
+                                : ""
+                            }`}
+                            disabled={isSaving || isSharing || reviewLocked}
+                            title={
+                              reviewLocked
+                                ? "勾选已满 1 小时，无法再共享"
+                                : "共享到学生「今日英语单词」，并标记为不熟悉"
+                            }
+                            onClick={() => onShare?.(w.id)}
+                          >
+                            共享
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
-              </div>
-            ) : null}
-          </section>
+              </section>
+            </div>
 
-          {showUsageExamples ? (
-            <section
-              className="jp-vocab-teacher-quiz__examples"
-              aria-label="用法与例句"
-            >
-              <div className="jp-vocab-teacher-quiz__examples-head">
-                <h3 className="jp-vocab-teacher-quiz__examples-title">
-                  用法与例句
-                </h3>
-              </div>
-              <div className="jp-vocab-teacher-quiz__examples-body">
-                <EnVocabUsageExamplesPairedContent
-                  usage={w.usage}
-                  exampleSentences={w.example_sentences}
-                  usageSource={w.usage_source}
-                  exampleSource={w.example_sentences_source}
-                  model={usageExampleModel}
-                  emptyText="暂无用法与例句"
-                />
-              </div>
-            </section>
-          ) : null}
-
-          {hasNotes || canOperate ? (
-            <section className="jp-vocab-teacher-quiz__notes">
-              <div className="jp-vocab-teacher-quiz__notes-head">
-                <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
-                <div className="jp-vocab-teacher-quiz__notes-actions">
-                  {hasNotes ? (
-                    <button
-                      type="button"
-                      className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
-                      onClick={() => onViewRemarks(w)}
-                    >
-                      查看
-                    </button>
-                  ) : null}
-                  {canOperate ? (
-                    <button
-                      type="button"
-                      className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
-                      title="编辑备注"
-                      onClick={() => onEditRemarks?.(w)}
-                    >
-                      编辑备注
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              {hasNotes ? (
-                notesInline ? (
-                  <div className="jp-vocab-teacher-quiz__notes-body">
-                    <EnVocabClassNoteContent
-                      content={formatEnVocabClassNotesForDisplay(w.class_notes)}
+            <div className="en-vocab-flashcard-page__col-side">
+              {showUsageExamples ? (
+                <section
+                  className="jp-vocab-teacher-quiz__examples"
+                  aria-label="用法与例句"
+                >
+                  <div className="jp-vocab-teacher-quiz__examples-head">
+                    <h3 className="jp-vocab-teacher-quiz__examples-title">
+                      用法与例句
+                    </h3>
+                  </div>
+                  <div className="jp-vocab-teacher-quiz__examples-body">
+                    <EnVocabUsageExamplesPairedContent
+                      usage={w.usage}
+                      exampleSentences={w.example_sentences}
+                      usageSource={w.usage_source}
+                      exampleSource={w.example_sentences_source}
+                      model={usageExampleModel}
+                      emptyText="暂无用法与例句"
                     />
                   </div>
-                ) : (
-                  <p className="jp-vocab-teacher-quiz__notes-preview">
-                    备注较长，请点「查看」
-                  </p>
-                )
-              ) : (
-                <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
-                  暂无备注
-                </p>
-              )}
-            </section>
-          ) : null}
+                </section>
+              ) : null}
+
+              {hasNotes || canOperate ? (
+                <section className="jp-vocab-teacher-quiz__notes">
+                  <div className="jp-vocab-teacher-quiz__notes-head">
+                    <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
+                    <div className="jp-vocab-teacher-quiz__notes-actions">
+                      {hasNotes ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                          onClick={() => onViewRemarks(w)}
+                        >
+                          查看
+                        </button>
+                      ) : null}
+                      {canOperate ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
+                          title="编辑备注"
+                          onClick={() => onEditRemarks?.(w)}
+                        >
+                          编辑备注
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {hasNotes ? (
+                    notesInline ? (
+                      <div className="jp-vocab-teacher-quiz__notes-body">
+                        <EnVocabClassNoteContent
+                          content={formatEnVocabClassNotesForDisplay(
+                            w.class_notes
+                          )}
+                        />
+                      </div>
+                    ) : (
+                      <p className="jp-vocab-teacher-quiz__notes-preview">
+                        备注较长，请点「查看」
+                      </p>
+                    )
+                  ) : (
+                    <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
+                      暂无备注
+                    </p>
+                  )}
+                </section>
+              ) : null}
+            </div>
+          </div>
         </div>
 
+        <div className="en-vocab-flashcard-page-footer">
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">
             {isStudy
@@ -980,6 +1009,7 @@ export function EnVocabTeacherQuizFlashcardModal({
             <span>一般 {w.cnt_normal}</span>
             <span className="chg-up">不熟悉 {w.cnt_weak}</span>
           </div>
+        </div>
         </div>
 
         <div className="jp-vocab-teacher-quiz__nav">

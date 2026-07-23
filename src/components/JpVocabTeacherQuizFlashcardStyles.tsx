@@ -418,6 +418,132 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           display: flex;
           justify-content: flex-end;
         }
+        /*
+         * 英语抽问：近全屏网页式弹层（仅 .en-vocab-flashcard-page*）
+         * 窄卡片备份：EnVocabTeacherQuizFlashcardModal.card-compact.tsx
+         */
+        .en-vocab-flashcard-page-overlay {
+          align-items: stretch;
+          justify-content: center;
+          padding: clamp(0.35rem, 1.2vw, 0.75rem);
+        }
+        .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
+          width: min(72rem, 98vw);
+          max-width: 98vw;
+          height: min(96vh, 100dvh);
+          max-height: min(96vh, 100dvh);
+          margin: 0 auto;
+          gap: 0.45rem;
+          padding: 0.85rem 1.1rem 0.9rem;
+          border-radius: 14px;
+        }
+        .en-vocab-flashcard-page .en-vocab-flashcard-page__body {
+          display: flex;
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-x: hidden;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+        .en-vocab-flashcard-page__grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+          gap: 0.75rem 1.35rem;
+          align-items: start;
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .en-vocab-flashcard-page__grid--single {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .en-vocab-flashcard-page__col-main,
+        .en-vocab-flashcard-page__col-side {
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+          min-width: 0;
+        }
+        .en-vocab-flashcard-page__col-side .jp-vocab-teacher-quiz__examples,
+        .en-vocab-flashcard-page__col-side .jp-vocab-teacher-quiz__notes {
+          margin: 0;
+        }
+        .en-vocab-flashcard-page .en-vocab-flashcard-kind,
+        .en-vocab-flashcard-page
+          .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma,
+        .en-vocab-flashcard-page
+          .jp-vocab-teacher-quiz__word-link.en-vocab-flashcard-lemma {
+          font-size: clamp(2rem, 3.2vw, 2.75rem);
+        }
+        .en-vocab-flashcard-page .en-vocab-flashcard-ipa {
+          font-size: clamp(0.85rem, 1.4vw, 1.05rem);
+        }
+        .en-vocab-flashcard-page .jp-vocab-teacher-quiz__meta {
+          font-size: 1.05rem;
+        }
+        .en-vocab-flashcard-page .jp-vocab-teacher-quiz__examples-text,
+        .en-vocab-flashcard-page .en-usage-ex-paired-usage,
+        .en-vocab-flashcard-page .en-usage-ex-paired-en {
+          font-size: 1.02rem;
+        }
+        .en-vocab-flashcard-page-footer {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+          flex-shrink: 0;
+          min-width: 0;
+        }
+        @media (min-width: 1025px) {
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
+            width: min(76rem, 96vw);
+            height: min(94vh, 100dvh);
+            max-height: min(94vh, 100dvh);
+            padding: 1rem 1.35rem 1.05rem;
+            gap: 0.5rem;
+          }
+          .en-vocab-flashcard-page-overlay {
+            align-items: center;
+            padding: clamp(0.5rem, 1.5vw, 1rem);
+          }
+          /* 宽屏：熟悉程度 + 统计并排，少占纵向高度 */
+          .en-vocab-flashcard-page-footer {
+            display: grid;
+            grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+            gap: 0.65rem 1rem;
+            align-items: stretch;
+          }
+          .en-vocab-flashcard-page-footer .jp-vocab-teacher-quiz__level,
+          .en-vocab-flashcard-page-footer .jp-vocab-teacher-quiz__stats {
+            height: 100%;
+          }
+        }
+        @media (max-width: 1024px) {
+          .en-vocab-flashcard-page-overlay {
+            align-items: stretch;
+            padding: 0;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
+            width: 100%;
+            max-width: 100%;
+            height: min(100dvh, 100vh);
+            max-height: min(100dvh, 100vh);
+            border-radius: 0;
+            padding: 0.65rem 0.8rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+          }
+          .en-vocab-flashcard-page__grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0.5rem;
+          }
+          .en-vocab-flashcard-page .en-vocab-flashcard-kind,
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma,
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__word-link.en-vocab-flashcard-lemma {
+            font-size: clamp(1.65rem, 7vw, 2.1rem);
+          }
+        }
         .jp-vocab-teacher-quiz__word-link {
           border: none;
           background: transparent;
