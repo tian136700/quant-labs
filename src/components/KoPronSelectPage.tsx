@@ -140,19 +140,12 @@ export function KoPronSelectPage() {
     [checkedIds, catalog]
   );
 
-  /** 导出优先用当前勾选；没有勾选则用已入抽问池（给不敢点链接的老师发图） */
-  const exportSourceLetters = useMemo(() => {
-    if (checkedIds.size > 0) {
-      return catalog.filter((c) => checkedIds.has(c.id));
-    }
-    return catalog.filter((c) => c.selected_at);
-  }, [catalog, checkedIds]);
-  const exportSourceLabel =
-    checkedIds.size > 0
-      ? `已选 ${exportSourceLetters.length}`
-      : exportSourceLetters.length > 0
-        ? `已入抽问 ${exportSourceLetters.length}`
-        : null;
+  /** 导出只取已入抽问池（selected_at）；不必再勾选一遍 */
+  const exportSourceLetters = useMemo(
+    () => catalog.filter((c) => c.selected_at),
+    [catalog]
+  );
+  const exportCount = exportSourceLetters.length;
 
   const toggleChecked = (id: number, next: boolean) => {
     setCheckedIds((prev) => {
@@ -241,7 +234,7 @@ export function KoPronSelectPage() {
   const exportRandomQuizCard = async () => {
     if (exportBusy || saveBusy) return;
     if (exportSourceLetters.length < 1) {
-      setCopyToast("请先勾选字母，或先将字母加入抽问");
+      setCopyToast("还没有已入抽问的字母，请先批量加入抽问");
       return;
     }
     setError("");
@@ -301,7 +294,7 @@ export function KoPronSelectPage() {
       </div>
 
       <p className="ko-pron-select-hint">
-        先勾选多条（可全选当前筛选结果），再选「批量加入抽问」或「批量加入复习」。两池独立，同一字母可两边都进。抽问：立刻进入「韩语发音抽问」管理员端，同日勾选次日才进老师今日抽查池。复习：进入「韩语发音复习」自测读音。入库后不可取消。「导出随机抽问卡片」把当前勾选（或已入抽问）的字母乱序画成图片，只含韩语字母、不含罗马音，方便发给不敢点链接的老师线下抽问。
+        先勾选多条（可全选当前筛选结果），再选「批量加入抽问」或「批量加入复习」。两池独立，同一字母可两边都进。抽问：立刻进入「韩语发音抽问」管理员端，同日勾选次日才进老师今日抽查池。复习：进入「韩语发音复习」自测读音。入库后不可取消。「导出随机抽问卡片」只导出已入抽问的字母（乱序、不含罗马音），无需再勾选一遍，方便发给不敢点链接的老师线下抽问。
       </p>
 
       {error ? <p className="ko-pron-select-error">{error}</p> : null}
@@ -391,22 +384,20 @@ export function KoPronSelectPage() {
             <button
               type="button"
               className="ko-pron-select-btn ko-pron-select-btn--export"
-              disabled={
-                exportSourceLetters.length < 1 || exportBusy || saveBusy
-              }
+              disabled={exportCount < 1 || exportBusy || saveBusy}
               onClick={() => {
                 void exportRandomQuizCard();
               }}
               title={
-                exportSourceLabel
-                  ? `从${exportSourceLabel}乱序导出（仅韩语字母）`
-                  : "请先勾选字母，或先将字母加入抽问"
+                exportCount > 0
+                  ? `导出已入抽问的 ${exportCount} 个字母（乱序，仅韩语字母）`
+                  : "还没有已入抽问的字母，请先批量加入抽问"
               }
             >
               {exportBusy
                 ? "正在导出…"
-                : exportSourceLabel
-                  ? `导出随机抽问卡片（${exportSourceLetters.length}）`
+                : exportCount > 0
+                  ? `导出随机抽问卡片（已入抽问 ${exportCount}）`
                   : "导出随机抽问卡片"}
             </button>
             {pendingCount > 0 && !saveBusy ? (
