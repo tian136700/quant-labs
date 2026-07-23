@@ -22,7 +22,7 @@ import {
 } from "@/lib/en-vocab-shared";
 import {
   formatBeijingDateTime,
-  formatBeijingDateTimeCompact,
+  formatBeijingDateTimeCompactParts,
 } from "@/lib/format-datetime";
 import {
   buildEnVocabDailySeqMap,
@@ -207,6 +207,21 @@ function bumpWordReview(
   previousLevel?: EnVocabLevel
 ): EnVocabWord {
   return applyEnVocabReview(word, level, new Date(), previousLevel).word;
+}
+
+/** 管理员表「更新时间」：日期一行、时间一行（对齐新课 dt-stacked） */
+function renderEnVocabUpdatedAt(iso: string) {
+  const { date, time } = formatBeijingDateTimeCompactParts(iso);
+  return (
+    <time
+      className="jp-vocab-updated-time jp-vocab-updated-time--stacked"
+      dateTime={iso}
+      title={formatBeijingDateTime(iso)}
+    >
+      <span className="jp-vocab-updated-date">{date}</span>
+      {time ? <span className="jp-vocab-updated-clock">{time}</span> : null}
+    </time>
+  );
 }
 
 const SAVE_ERR = {
@@ -2598,13 +2613,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                           data-label="更新时间"
                         >
                           {w.updated_at ? (
-                            <time
-                              className="jp-vocab-updated-time"
-                              dateTime={w.updated_at}
-                              title={formatBeijingDateTime(w.updated_at)}
-                            >
-                              {formatBeijingDateTimeCompact(w.updated_at)}
-                            </time>
+                            renderEnVocabUpdatedAt(w.updated_at)
                           ) : (
                             <span className="jp-vocab-mnemonic-empty">—</span>
                           )}
@@ -3548,19 +3557,37 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           min-width: 0;
           text-align: center;
         }
+        /* 更新时间：日期一行、时间一行（对齐新课 jp-lesson-dt-stacked），避免单行被裁切/盖住 */
         :global(.jp-vocab-table .jp-vocab-updated-col) {
-          white-space: nowrap;
-          width: 5.5%;
+          white-space: normal;
+          width: 4.75%;
           min-width: 0;
           text-align: center;
           vertical-align: middle;
           font-variant-numeric: tabular-nums;
+          overflow: hidden;
         }
         .jp-vocab-updated-time {
           display: inline-block;
+          max-width: 100%;
           font-size: 0.8125rem;
           color: var(--muted);
           letter-spacing: -0.01em;
+        }
+        .jp-vocab-updated-time--stacked {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.08rem;
+          line-height: 1.2;
+        }
+        .jp-vocab-updated-date {
+          display: block;
+        }
+        .jp-vocab-updated-clock {
+          display: block;
+          font-size: 0.75rem;
+          color: var(--muted);
         }
         :global(.jp-vocab-table .jp-vocab-notes-col) {
           width: 5%;

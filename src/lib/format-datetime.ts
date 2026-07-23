@@ -33,8 +33,17 @@ export function formatBeijingDateTime(iso: string): string {
 
 /** 移动端紧凑格式：MM-DD HH:mm（北京时间，无秒） */
 export function formatBeijingDateTimeCompact(iso: string): string {
+  const parts = formatBeijingDateTimeCompactParts(iso);
+  return parts.time ? `${parts.date} ${parts.time}` : parts.date;
+}
+
+/** 窄列两行用：日期 MM-DD、时间 HH:mm（北京时间，无秒） */
+export function formatBeijingDateTimeCompactParts(iso: string): {
+  date: string;
+  time: string;
+} {
   const ms = parseStoredUtcDateTimeMs(iso);
-  if (!Number.isFinite(ms)) return iso;
+  if (!Number.isFinite(ms)) return { date: iso, time: "" };
   const date = new Date(ms);
 
   const parts = new Intl.DateTimeFormat("zh-CN", {
@@ -49,5 +58,8 @@ export function formatBeijingDateTimeCompact(iso: string): string {
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((p) => p.type === type)?.value ?? "";
 
-  return `${get("month")}-${get("day")} ${get("hour")}:${get("minute")}`;
+  return {
+    date: `${get("month")}-${get("day")}`,
+    time: `${get("hour")}:${get("minute")}`,
+  };
 }
