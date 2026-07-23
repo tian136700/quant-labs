@@ -374,29 +374,49 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 700;
           line-height: 1.25;
         }
-        /* 英语卡：类型标签与拼写同为大字，音标小字同排居中；「单词：」紧挨拼写 */
-        .en-vocab-flashcard-kind {
+        /* 英语卡：「单词：」与拼写同字号；音标缩小贴本行右下角 */
+        .en-vocab-flashcard-reading-row {
+          width: 100%;
+          align-items: flex-end;
+          justify-content: flex-start;
+          column-gap: 0.45rem;
+          row-gap: 0.15rem;
+        }
+        .en-vocab-flashcard-lemma-group {
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: flex-start;
+          column-gap: 0.2rem;
+          row-gap: 0.15rem;
+          min-width: 0;
+        }
+        .en-vocab-flashcard-kind,
+        .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma,
+        .jp-vocab-teacher-quiz__word-link.en-vocab-flashcard-lemma {
           font-size: clamp(1.85rem, 7vw, 2.35rem);
           font-weight: 700;
           line-height: 1.25;
+        }
+        .en-vocab-flashcard-kind {
           margin-inline-end: 0;
         }
         .en-vocab-flashcard-lemma {
-          margin-inline-start: -0.2rem;
+          margin-inline-start: 0;
         }
         .en-vocab-flashcard-ipa {
+          margin-left: auto;
+          align-self: flex-end;
           white-space: nowrap;
-          font-size: clamp(1rem, 3.5vw, 1.2rem);
-          font-weight: 500;
+          font-size: clamp(0.72rem, 2.2vw, 0.85rem);
+          font-weight: 400;
+          line-height: 1.2;
+          color: var(--muted);
         }
         .en-vocab-flashcard-ipa-source {
-          margin-top: 0.2rem;
+          margin-top: 0.15rem;
           display: flex;
-          justify-content: center;
-        }
-        .jp-vocab-teacher-quiz__hero:has(.en-vocab-flashcard-kind)
-          .jp-vocab-teacher-quiz__reading-row {
-          column-gap: 0.35rem;
+          justify-content: flex-end;
         }
         .jp-vocab-teacher-quiz__word-link {
           border: none;
@@ -976,25 +996,18 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz__word-main {
             font-size: clamp(1.15rem, 4.5vw, 1.45rem);
           }
-          .en-vocab-flashcard-kind {
-            font-size: clamp(1.35rem, 5.5vw, 1.7rem);
-          }
-          /* 拉丁拼写视觉上偏小，手机端加大以贴近「单词：」 */
-          .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma {
-            font-size: clamp(1.7rem, 7.5vw, 2.2rem);
-            font-weight: 800;
-            letter-spacing: 0.01em;
-          }
-          .en-vocab-flashcard-lemma {
-            margin-inline-start: -0.28rem;
+          .en-vocab-flashcard-kind,
+          .jp-vocab-teacher-quiz__word-main.en-vocab-flashcard-lemma,
+          .jp-vocab-teacher-quiz__word-link.en-vocab-flashcard-lemma {
+            font-size: clamp(1.55rem, 6.5vw, 1.95rem);
+            font-weight: 700;
           }
           .en-vocab-flashcard-ipa {
-            font-size: clamp(0.875rem, 3.2vw, 1.05rem);
+            font-size: clamp(0.68rem, 2.4vw, 0.8rem);
           }
-          .jp-vocab-teacher-quiz__hero:has(.en-vocab-flashcard-kind)
-            .jp-vocab-teacher-quiz__reading-row {
-            column-gap: 0.28rem;
-            row-gap: 0.25rem;
+          .en-vocab-flashcard-reading-row {
+            column-gap: 0.35rem;
+            row-gap: 0.12rem;
           }
           .jp-vocab-teacher-quiz__ref-hint {
             margin-top: 0.1rem;

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -37,6 +38,11 @@ GLOSS_LABEL_RE = re.compile(r"^(译文|翻譯|翻译|译|譯)\s*[:：]\s*")
 HAN_RE = re.compile(r"[\u4E00-\u9FFF]")
 LATIN_RE = re.compile(r"[A-Za-z]")
 USAGE_POINT_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
+# 整链失败后冷却，避免队首毒丸词每分钟再烧 5～10 分钟占死 ollama_slot
+POISON_PATH = (
+    Path.home() / ".config" / "info-quests" / "en-vocab-fill-examples.poison.json"
+)
+DEFAULT_POISON_SEC = 6 * 3600
 
 
 def is_english_line(text: str) -> bool:
@@ -64,10 +70,73 @@ def word_used(sentence: str, word: str, kind: str) -> bool:
     target = word.strip()
     if not target:
         return False
-    if kind == "grammar":
+    # 语法 / 多词词条（Present Perfect）：须出现词条原文；用 includes，避免只示范时态
+    if kind == "grammar" or (" " in target or "-" in target):
         return target.lstrip("～~").lower() in sentence.lower()
     escaped = re.escape(target)
     return bool(re.search(rf"\b{escaped}\b", sentence, flags=re.I))
+
+
+def resolve_poison_sec() -> int:
+    raw = (
+        os.environ.get("EN_VOCAB_FILL_EXAMPLE_POISON_SEC", "").strip()
+        or load_env_file("en-vocab-fill.env").get(
+            "EN_VOCAB_FILL_EXAMPLE_POISON_SEC", ""
+        )
+        or str(DEFAULT_POISON_SEC)
+    )
+    try:
+        return max(300, int(raw))
+    except ValueError:
+        return DEFAULT_POISON_SEC
+
+
+def load_poison() -> dict[str, dict]:
+    if not POISON_PATH.is_file():
+        return {}
+    try:
+        raw = json.loads(POISON_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    now = time.time()
+    out: dict[str, dict] = {}
+    for key, val in raw.items():
+        if not isinstance(val, dict):
+            continue
+        until = val.get("until")
+        try:
+            until_f = float(until)
+        except (TypeError, ValueError):
+            continue
+        if until_f > now:
+            out[str(key)] = val
+    return out
+
+
+def save_poison(data: dict[str, dict]) -> None:
+    POISON_PATH.parent.mkdir(parents=True, exist_ok=True)
+    POISON_PATH.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def mark_poison(word_id: int, word: str, reason: str) -> None:
+    data = load_poison()
+    data[str(word_id)] = {
+        "word": word,
+        "reason": reason,
+        "until": time.time() + resolve_poison_sec(),
+        "marked_at": time.time(),
+    }
+    save_poison(data)
+    print(
+        f"    poison id={word_id} for {resolve_poison_sec()}s "
+        f"(reason={reason}) — 跳过队首毒丸，下轮跑其它词",
+        flush=True,
+    )
 
 
 def count_usage_points(usage: str) -> int | None:
@@ -198,11 +267,16 @@ def generate_for_row(
                 if text:
                     return text, None, use_model
                 last_err = reason or "invalid"
-                work_prompt = (
-                    base_prompt
-                    + f"\n\n上次不合格（{last_err}）。请只输出英文/译文交替行，"
+                extra = (
+                    f"\n\n上次不合格（{last_err}）。请只输出英文/译文交替行，"
                     f"恰好 {expected} 句，一一对应用法，不要编号，其它词尽量简单。"
                 )
+                if last_err == "word_not_used":
+                    extra += (
+                        f"\nCRITICAL: 每条英文必须原样出现词条文字「{word}」"
+                        f"（可改大小写）。禁止只示范含义/时态却不写词条原文。"
+                    )
+                work_prompt = base_prompt + extra
             except Exception as err:
                 last_err = str(err)
                 if is_ollama_timeout_error(err) and mi + 1 < len(chain):
@@ -246,7 +320,11 @@ def main() -> int:
             "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
         )
 
-    body: dict = {"mode": "list_missing", "limit": max(1, args.limit)}
+    body: dict = {
+        # 多拉候选，避开 poison 队首；真正处理条数仍受 --limit
+        "mode": "list_missing",
+        "limit": max(1, args.limit * 12, 12),
+    }
     if args.kind:
         body["kind"] = args.kind
 
@@ -259,18 +337,47 @@ def main() -> int:
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
 
-    missing = list(scan.get("missing") or [])
-    total = int(scan.get("total_missing") or len(missing))
+    missing_all = list(scan.get("missing") or [])
+    total = int(scan.get("total_missing") or len(missing_all))
+    poison = load_poison()
+    poisoned_ids = set(poison.keys())
+    skipped_poison = [
+        row
+        for row in missing_all
+        if str(int(row.get("id") or 0)) in poisoned_ids
+    ]
+    missing = [
+        row
+        for row in missing_all
+        if str(int(row.get("id") or 0)) not in poisoned_ids
+    ][: max(1, args.limit)]
+
     print(
-        f"[en-vocab-fill-examples] list_missing={len(missing)} total_missing={total} "
-        f"(requires usage)",
+        f"[en-vocab-fill-examples] list_missing={len(missing_all)} "
+        f"total_missing={total} process={len(missing)} "
+        f"poison_skipped={len(skipped_poison)} (requires usage)",
         flush=True,
     )
+    if skipped_poison:
+        for row in skipped_poison[:5]:
+            wid = int(row.get("id") or 0)
+            meta = poison.get(str(wid)) or {}
+            print(
+                f"  poison-skip id={wid} word={row.get('word')!r} "
+                f"reason={meta.get('reason')}",
+                flush=True,
+            )
     if args.scan:
         print(json.dumps(scan, ensure_ascii=False, indent=2))
         return 0
     if not missing:
-        print("  无缺失例句（或尚无用法可造句）", flush=True)
+        if skipped_poison:
+            print(
+                "  候选均在毒丸冷却中（或尚无其它可造句词），本轮不调模型",
+                flush=True,
+            )
+        else:
+            print("  无缺失例句（或尚无用法可造句）", flush=True)
         return 0
 
     if not probe_ollama():
@@ -296,6 +403,9 @@ def main() -> int:
         if not text:
             skipped.append({"id": word_id, "word": word, "reason": err or "empty"})
             print(f"    skip reason={err}", flush=True)
+            # 整链失败 → 毒丸冷却，避免下一分钟再烧满槽占死其它任务
+            if not args.dry_run:
+                mark_poison(word_id, word, err or "empty")
         else:
             updates.append(
                 {

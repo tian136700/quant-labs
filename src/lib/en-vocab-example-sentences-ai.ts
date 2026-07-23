@@ -95,15 +95,17 @@ ${usageBlock}
 - 不要生僻词、长难从句、学术套话；抽问时焦点应落在目标词上。
 
 格式要求：
-1. 每条必须自然用到该词条（语法条须自然出现该语法点）。
-2. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。
-3. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。`;
+1. 每条英文必须原样出现词条文字「${input.word.trim()}」（可改大小写）。多词词条如 Present Perfect 也须写出这几个词，禁止只示范时态/含义却不写词条原文。
+2. 语法条同样须在句中自然出现该语法点对应的词条文字。
+3. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。
+4. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。`;
 }
 
 function wordUsedInEnglish(sentence: string, word: string, kind: string): boolean {
   const target = word.trim();
   if (!target) return false;
-  if (kind === "grammar") {
+  // 语法 / 多词词条：须出现词条原文（模型常只示范时态导致 word_not_used）
+  if (kind === "grammar" || /[\s-]/.test(target)) {
     return sentence.toLowerCase().includes(target.toLowerCase().replace(/^～/, ""));
   }
   const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

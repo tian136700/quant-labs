@@ -593,31 +593,33 @@ export function EnVocabTeacherQuizFlashcardModal({
           ) : null}
 
           <div className="jp-vocab-teacher-quiz__hero" id="en-vocab-teacher-quiz-title">
-            <div className="jp-vocab-teacher-quiz__reading-row">
-              {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
-              <span
-                className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
-                  w.kind === "grammar"
-                    ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
-                    : ""
-                }`}
-              >
-                {w.kind === "grammar" ? "语法：" : "单词："}
-              </span>
-              {w.ref_key ? (
-                <button
-                  type="button"
-                  className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma"
-                  title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                  onClick={() => onOpenRef(w.ref_key!, ref)}
+            <div className="jp-vocab-teacher-quiz__reading-row en-vocab-flashcard-reading-row">
+              <div className="en-vocab-flashcard-lemma-group">
+                {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
+                <span
+                  className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
+                    w.kind === "grammar"
+                      ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
+                      : ""
+                  }`}
                 >
-                  {wordTrim || "—"}
-                </button>
-              ) : (
-                <span className="jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma">
-                  {wordTrim || "—"}
+                  {w.kind === "grammar" ? "语法：" : "单词："}
                 </span>
-              )}
+                {w.ref_key ? (
+                  <button
+                    type="button"
+                    className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma"
+                    title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                    onClick={() => onOpenRef(w.ref_key!, ref)}
+                  >
+                    {wordTrim || "—"}
+                  </button>
+                ) : (
+                  <span className="jp-vocab-teacher-quiz__word-main en-vocab-flashcard-lemma">
+                    {wordTrim || "—"}
+                  </span>
+                )}
+              </div>
               {readingTrim ? (
                 <span
                   className="jp-vocab-teacher-quiz__kanji en-vocab-flashcard-ipa"
