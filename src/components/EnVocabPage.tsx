@@ -72,6 +72,7 @@ import { enVocabSaveQueue } from "@/lib/request-queue";
 import {
   JP_VOCAB_POLL_MS,
   JP_VOCAB_POLL_HIDDEN_MS,
+  EN_VOCAB_QUIZ_LIVE_POLL_MS,
   maxEnVocabUpdatedAt,
   mergeEnVocabSyncPatches,
 } from "@/lib/en-vocab-sync";
@@ -354,6 +355,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     null
   );
   const [showQuizFlashcard, setShowQuizFlashcard] = useState(false);
+  const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
+  const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
   const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<EnVocabTeacherQuizSession | null>(null);
@@ -1023,6 +1026,93 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     dailySeqByWordId,
     quizWordHasLevel,
   ]);
+
+  const syncTeacherQuizLiveWord = useCallback(
+    async (wordId: number | null) => {
+      if (!canOperate) return;
+      if (teacherQuizLiveWordRef.current === wordId) return;
+      teacherQuizLiveWordRef.current = wordId;
+      try {
+        await fetch("/api/en-vocab/teacher-quiz-live", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId }),
+        });
+      } catch {
+        teacherQuizLiveWordRef.current = undefined;
+      }
+    },
+    [canOperate, locale]
+  );
+
+  const quizFlashcardWordId =
+    quizSession?.wordIds[quizSession.currentIndex] ?? null;
+
+  useEffect(() => {
+    if (!canOperate) return;
+    if (!quizSession) {
+      void syncTeacherQuizLiveWord(null);
+      return;
+    }
+    void syncTeacherQuizLiveWord(quizFlashcardWordId);
+  }, [canOperate, quizSession, quizFlashcardWordId, syncTeacherQuizLiveWord]);
+
+  useEffect(() => {
+    if (!canOperate || !showQuizFlashcard || !quizFlashcardWordId) {
+      setStudentPeekedCurrentWord(false);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () =>
+      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : EN_VOCAB_QUIZ_LIVE_POLL_MS;
+
+    const schedule = (delayMs: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => void poll(), delayMs);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(
+          `/api/en-vocab/teacher-quiz-live?word_id=${encodeURIComponent(
+            String(quizFlashcardWordId)
+          )}`,
+          { credentials: "include", cache: "no-store" }
+        );
+        const data = (await res.json()) as {
+          ok: boolean;
+          student_peeked?: boolean;
+        };
+        if (!cancelled && data.ok) {
+          const peeked = Boolean(data.student_peeked);
+          setStudentPeekedCurrentWord(peeked);
+          if (peeked) {
+            setSharedTodayWordIds((prev) => {
+              if (prev.has(quizFlashcardWordId)) return prev;
+              return new Set([...prev, quizFlashcardWordId]);
+            });
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) schedule(pollDelay());
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [canOperate, showQuizFlashcard, quizFlashcardWordId]);
 
   const openRemarksWord = useCallback(
     (word: EnVocabWord) => {
@@ -2805,6 +2895,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         canOperate={canOperate}
         shareUiEnabled={teacherShareUiEnabled}
         sharedTodayWordIds={sharedTodayWordIds}
+        studentPeeked={studentPeekedCurrentWord}
         onClose={() => setShowQuizFlashcard(false)}
         onComplete={finishTeacherQuiz}
         onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}

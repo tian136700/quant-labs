@@ -6,6 +6,15 @@ export const EN_VOCAB_STUDY_POLL_MS = 15_000;
 /** 学生复习页：后台轮询 */
 export const EN_VOCAB_STUDY_POLL_HIDDEN_MS = 45_000;
 
+/** 老师抽查卡：轮询学生是否已自行查看当前词 */
+export const EN_VOCAB_QUIZ_LIVE_POLL_MS = 8_000;
+
+/** 学生端：轮询老师当前 live 词（peek 按钮变灰） */
+export const EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS = 15_000;
+
+/** 学生端：后台 live 轮询 */
+export const EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS = 45_000;
+
 /** 页面可见时增量拉取间隔（备注等多端实时同步） */
 export const JP_VOCAB_POLL_MS = 5_000;
 
