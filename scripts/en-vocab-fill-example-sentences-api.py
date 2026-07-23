@@ -85,11 +85,7 @@ def assess_english_sentence(
     en = (english or "").strip()
     if not en:
         return "english_not_sentence"
-    if not EN_SENTENCE_FINAL_PUNCT_RE.search(en):
-        return "missing_sentence_final_punct"
     tokens = english_word_tokens(en)
-    if len(tokens) < 3:
-        return "english_not_sentence"
     lemma_tokens = english_word_tokens(word)
     if (
         lemma_tokens
@@ -97,6 +93,10 @@ def assess_english_sentence(
         and all(t.lower() == lemma_tokens[i].lower() for i, t in enumerate(tokens))
     ):
         return "lemma_only_example"
+    if len(tokens) < 3:
+        return "english_not_sentence"
+    if not EN_SENTENCE_FINAL_PUNCT_RE.search(en):
+        return "missing_sentence_final_punct"
     starts_with_lemma = (
         bool(lemma_tokens)
         and len(tokens) >= len(lemma_tokens)

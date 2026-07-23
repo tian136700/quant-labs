@@ -75,15 +75,7 @@ export function assessEnVocabExampleEnglishSentence(
   const en = String(english ?? "").trim();
   if (!en) return { ok: false, reason: "english_not_sentence" };
 
-  if (!EN_SENTENCE_FINAL_PUNCT_RE.test(en)) {
-    return { ok: false, reason: "missing_sentence_final_punct" };
-  }
-
   const tokens = enVocabEnglishWordTokens(en);
-  if (tokens.length < 3) {
-    return { ok: false, reason: "english_not_sentence" };
-  }
-
   const lemmaTokens = enVocabEnglishWordTokens(word);
   if (
     lemmaTokens.length > 0 &&
@@ -93,6 +85,14 @@ export function assessEnVocabExampleEnglishSentence(
     )
   ) {
     return { ok: false, reason: "lemma_only_example" };
+  }
+
+  if (tokens.length < 3) {
+    return { ok: false, reason: "english_not_sentence" };
+  }
+
+  if (!EN_SENTENCE_FINAL_PUNCT_RE.test(en)) {
+    return { ok: false, reason: "missing_sentence_final_punct" };
   }
 
   // 「Issue a statement.」：以词条开头的短搭配且无 be/助动词 → 不是完整例句

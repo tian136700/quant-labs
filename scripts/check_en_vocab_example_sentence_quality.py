@@ -35,11 +35,7 @@ def assess(english: str, word: str, gloss: str = "") -> str | None:
     en = (english or "").strip()
     if not en:
         return "english_not_sentence"
-    if not EN_SENTENCE_FINAL_PUNCT_RE.search(en):
-        return "missing_sentence_final_punct"
     tokens = english_word_tokens(en)
-    if len(tokens) < 3:
-        return "english_not_sentence"
     lemma_tokens = english_word_tokens(word)
     if (
         lemma_tokens
@@ -47,6 +43,10 @@ def assess(english: str, word: str, gloss: str = "") -> str | None:
         and all(t.lower() == lemma_tokens[i].lower() for i, t in enumerate(tokens))
     ):
         return "lemma_only_example"
+    if len(tokens) < 3:
+        return "english_not_sentence"
+    if not EN_SENTENCE_FINAL_PUNCT_RE.search(en):
+        return "missing_sentence_final_punct"
     starts_with_lemma = (
         bool(lemma_tokens)
         and len(tokens) >= len(lemma_tokens)
@@ -71,7 +71,7 @@ def assess(english: str, word: str, gloss: str = "") -> str | None:
 
 CASES: list[tuple[str, str, str, str | None]] = [
     # english, word, gloss, expected_reason (None = ok)
-    ("issue", "issue", "译文：问题是今天讨论的主要内容。", "english_not_sentence"),
+    ("issue", "issue", "译文：问题是今天讨论的主要内容。", "lemma_only_example"),
     (
         "issue a statement",
         "issue",
