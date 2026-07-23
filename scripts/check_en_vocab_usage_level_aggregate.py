@@ -67,6 +67,8 @@ def main() -> int:
             "export function aggregateEnVocabUsageLevels",
             "export function parseEnVocabLastUsageLevels",
             "export function findFirstIncompleteEnVocabUsageLevelIndex",
+            "export function listIncompleteEnVocabUsageLevelIndices",
+            "export function formatEnVocabUncheckedUsagesHint",
             "export function areEnVocabUsageLevelsComplete",
             'if (a === "normal" && b === "normal") return "weak"',
         ]:
@@ -93,13 +95,41 @@ def main() -> int:
         "onSelectUsageLevels",
         "usageLevelControls",
         "aggregateEnVocabUsageLevels",
-        "findFirstIncompleteEnVocabUsageLevelIndex",
-        "focusUsageLevelAt",
-        "data-en-usage-level-index",
+        "listIncompleteEnVocabUsageLevelIndices",
+        "formatEnVocabUncheckedUsagesHint",
+        "showUncheckedUsagesBlocked",
         "usagesCompleteForShare",
     ]:
         if n not in flash_text:
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
+
+    # 禁止再加「滚动定位未勾用法」（暗色主题提示条曾看不清）
+    for banned in [
+        "focusUsageLevelAt",
+        "scrollIntoView",
+        "focusUncheckedUsageIndex",
+        "en-vocab-flashcard-usage-focus-hint",
+        "focusIndex",
+    ]:
+        if banned in flash_text:
+            errors.append(
+                f"EnVocabTeacherQuizFlashcardModal.tsx: must not use locate/scroll {banned!r}"
+            )
+
+    review = ROOT / "src/lib/en-vocab-review.ts"
+    review_text = review.read_text(encoding="utf-8") if review.is_file() else ""
+    for n in [
+        "listIncompleteEnVocabUsageLevelIndices",
+        "formatEnVocabUncheckedUsagesHint",
+        "findFirstIncompleteEnVocabUsageLevelIndex",
+        "areEnVocabUsageLevelsComplete",
+    ]:
+        if f"export function {n}" not in review_text:
+            errors.append(f"en-vocab-review.ts: missing export {n!r}")
+    if "此单词的" not in review_text or "还未勾选" not in review_text:
+        errors.append(
+            "en-vocab-review.ts: formatEnVocabUncheckedUsagesHint must list unchecked usages"
+        )
 
     paired = ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
     paired_text = paired.read_text(encoding="utf-8") if paired.is_file() else ""
@@ -110,12 +140,15 @@ def main() -> int:
             "en-usage-ex-paired-levels",
             "border: 1.5px solid var(--rise)",
             "data-en-usage-level-index",
-            "focusIndex",
-            "en-usage-ex-paired-levels--focus",
         ]:
             if n not in paired_text:
                 errors.append(
                     f"EnVocabUsageExamplesPairedContent.tsx: missing {n!r}"
+                )
+        for banned in ["focusIndex", "en-usage-ex-paired-levels--focus"]:
+            if banned in paired_text:
+                errors.append(
+                    f"EnVocabUsageExamplesPairedContent.tsx: must not use locate {banned!r}"
                 )
 
     page = ROOT / "src/components/EnVocabPage.tsx"

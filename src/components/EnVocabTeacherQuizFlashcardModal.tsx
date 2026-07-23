@@ -21,7 +21,8 @@ import {
   aggregateEnVocabUsageLevels,
   areEnVocabUsageLevelsComplete,
   effectiveEnVocabDisplayLevel,
-  findFirstIncompleteEnVocabUsageLevelIndex,
+  formatEnVocabUncheckedUsagesHint,
+  listIncompleteEnVocabUsageLevelIndices,
   parseEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
 import {
@@ -169,20 +170,19 @@ export function EnVocabTeacherQuizFlashcardModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<EnVocabWord | null>(null);
-  /** 未勾选熟悉程度就点「下一个」 */
+  /** 未勾选熟悉程度就点「下一个」/共享 */
   const [nextBlockedHint, setNextBlockedHint] = useState(false);
+  /** 有编号用法未齐时的拦截文案（列出未勾的 N.用法；不滚动定位） */
+  const [nextBlockedUsageMessage, setNextBlockedUsageMessage] = useState<
+    string | null
+  >(null);
   /** 点「完成抽查」时会话内仍有未勾选词 */
   const [remainingUncheckedHint, setRemainingUncheckedHint] = useState(false);
-  /** 有编号用法时：点「下一个」定位到的未勾用法下标 */
-  const [focusUncheckedUsageIndex, setFocusUncheckedUsageIndex] = useState<
-    number | null
-  >(null);
   /** 本词答题正计时（秒）；换词归零，勾选熟悉程度后停住 */
   const [answerElapsedSec, setAnswerElapsedSec] = useState(0);
   /** 本词从「未勾选」进入时武装计时（已勾选返回上一词则不显示） */
   const [answerTimerArmed, setAnswerTimerArmed] = useState(false);
   const answerTimerStartedAtRef = useRef<number | null>(null);
-  const cardScrollRef = useRef<HTMLElement | null>(null);
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
@@ -206,7 +206,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     }
     setNotesWord(word);
     setNextBlockedHint(false);
-    setFocusUncheckedUsageIndex(null);
+    setNextBlockedUsageMessage(null);
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
   }, [open, word?.id, word?.updated_at, word]);
 
@@ -254,7 +254,7 @@ export function EnVocabTeacherQuizFlashcardModal({
       if (e.key !== "Escape") return;
       if (nextBlockedHint) {
         setNextBlockedHint(false);
-        setFocusUncheckedUsageIndex(null);
+        setNextBlockedUsageMessage(null);
         return;
       }
       if (remainingUncheckedHint) {
@@ -320,7 +320,7 @@ export function EnVocabTeacherQuizFlashcardModal({
   useEffect(() => {
     if (selectedLevel) {
       setNextBlockedHint(false);
-      setFocusUncheckedUsageIndex(null);
+      setNextBlockedUsageMessage(null);
     }
   }, [selectedLevel]);
 
@@ -333,20 +333,15 @@ export function EnVocabTeacherQuizFlashcardModal({
     );
   };
 
-  const focusUsageLevelAt = (usageIndex: number) => {
-    setFocusUncheckedUsageIndex(usageIndex);
+  const showUncheckedUsagesBlocked = (
+    levels: ReadonlyArray<EnVocabLevel | null | undefined>,
+    actionHint: string
+  ) => {
+    const incomplete = listIncompleteEnVocabUsageLevelIndices(levels);
+    setNextBlockedUsageMessage(
+      formatEnVocabUncheckedUsagesHint(incomplete, actionHint)
+    );
     setNextBlockedHint(true);
-    window.requestAnimationFrame(() => {
-      const root = cardScrollRef.current;
-      const el =
-        root?.querySelector<HTMLElement>(
-          `[data-en-usage-level-index="${usageIndex}"]`
-        ) ??
-        document.querySelector<HTMLElement>(
-          `[data-en-usage-level-index="${usageIndex}"]`
-        );
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
   };
 
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
@@ -406,9 +401,6 @@ export function EnVocabTeacherQuizFlashcardModal({
     !usePerUsageLevels ||
     areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount) ||
     selected != null;
-  const firstIncompleteUsageIndex = usePerUsageLevels
-    ? findFirstIncompleteEnVocabUsageLevelIndex(usageDraftLevels)
-    : -1;
   const showUsageExamples = isStudy || usageExampleModel.hasContent;
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = session.wordIds.reduce((count, id) => {
@@ -487,11 +479,11 @@ export function EnVocabTeacherQuizFlashcardModal({
       return;
     }
     if (!selected) {
-      if (usePerUsageLevels && firstIncompleteUsageIndex >= 0) {
-        focusUsageLevelAt(firstIncompleteUsageIndex);
+      if (usePerUsageLevels) {
+        showUncheckedUsagesBlocked(usageDraftLevels, "再点「下一个」");
         return;
       }
-      setFocusUncheckedUsageIndex(null);
+      setNextBlockedUsageMessage(null);
       setNextBlockedHint(true);
       return;
     }
@@ -533,7 +525,6 @@ export function EnVocabTeacherQuizFlashcardModal({
       role="presentation"
     >
       <article
-        ref={cardScrollRef}
         className={`jp-vocab-teacher-quiz-card en-vocab-flashcard-page${
           showAnswerTimer && answerTimerArmed
             ? " jp-vocab-teacher-quiz-card--with-timer"
@@ -866,9 +857,10 @@ export function EnVocabTeacherQuizFlashcardModal({
                             }
                             onClick={() => {
                               if (!usagesCompleteForShare) {
-                                if (firstIncompleteUsageIndex >= 0) {
-                                  focusUsageLevelAt(firstIncompleteUsageIndex);
-                                }
+                                showUncheckedUsagesBlocked(
+                                  usageDraftLevels,
+                                  "再共享给学生"
+                                );
                                 return;
                               }
                               onShare?.(w.id);
@@ -913,7 +905,6 @@ export function EnVocabTeacherQuizFlashcardModal({
                                 isStudy ||
                                 reviewLocked ||
                                 isSaving,
-                              focusIndex: focusUncheckedUsageIndex,
                               onSelect: (usageIndex, level) => {
                                 if (
                                   previewMode ||
@@ -924,7 +915,7 @@ export function EnVocabTeacherQuizFlashcardModal({
                                   return;
                                 }
                                 setNextBlockedHint(false);
-                                setFocusUncheckedUsageIndex(null);
+                                setNextBlockedUsageMessage(null);
                                 const next = usageDraftLevels.map((lv, i) =>
                                   i === usageIndex ? level : lv ?? null
                                 );
@@ -1210,15 +1201,14 @@ export function EnVocabTeacherQuizFlashcardModal({
         </div>
       </article>
 
-      {nextBlockedHint &&
-      !previewMode &&
-      !isStudy &&
-      !selected &&
-      focusUncheckedUsageIndex == null ? (
+      {nextBlockedHint && !previewMode && !isStudy && !selected ? (
         <div
           className="jp-vocab-teacher-quiz-alert-overlay"
           role="presentation"
-          onClick={() => setNextBlockedHint(false)}
+          onClick={() => {
+            setNextBlockedHint(false);
+            setNextBlockedUsageMessage(null);
+          }}
         >
           <div
             className="jp-vocab-teacher-quiz-alert"
@@ -1238,31 +1228,20 @@ export function EnVocabTeacherQuizFlashcardModal({
               id="en-vocab-teacher-quiz-alert-desc"
               className="jp-vocab-teacher-quiz-alert__desc"
             >
-              请先勾选学生的熟悉程度，再进入下一词。
+              {nextBlockedUsageMessage ??
+                "请先勾选学生的熟悉程度，再进入下一词。"}
             </p>
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
-              onClick={() => setNextBlockedHint(false)}
+              onClick={() => {
+                setNextBlockedHint(false);
+                setNextBlockedUsageMessage(null);
+              }}
             >
               关闭
             </button>
           </div>
-        </div>
-      ) : null}
-
-      {nextBlockedHint &&
-      !previewMode &&
-      !isStudy &&
-      !selected &&
-      focusUncheckedUsageIndex != null ? (
-        <div
-          className="en-vocab-flashcard-usage-focus-hint"
-          role="status"
-          aria-live="polite"
-        >
-          还有用法未勾选熟悉程度，已定位到第{" "}
-          {focusUncheckedUsageIndex + 1} 条，请勾完后再点「下一个」。
         </div>
       ) : null}
 
@@ -1309,24 +1288,6 @@ export function EnVocabTeacherQuizFlashcardModal({
           font-size: 0.95rem;
           font-weight: 600;
           color: var(--text);
-        }
-        .en-vocab-flashcard-usage-focus-hint {
-          position: fixed;
-          left: 50%;
-          bottom: max(1.25rem, env(safe-area-inset-bottom));
-          transform: translateX(-50%);
-          z-index: 1200;
-          max-width: min(28rem, calc(100vw - 2rem));
-          margin: 0;
-          padding: 0.65rem 0.9rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--rise);
-          background: color-mix(in srgb, var(--rise) 14%, #fff);
-          color: var(--text);
-          font-size: 0.9rem;
-          line-height: 1.4;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-          pointer-events: none;
         }
       `}</style>
       <JpVocabTeacherQuizFlashcardStyles />

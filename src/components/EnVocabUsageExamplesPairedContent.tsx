@@ -23,8 +23,6 @@ export type EnVocabUsageLevelControls = {
   levels: Array<EnVocabLevel | null | undefined>;
   disabled?: boolean;
   onSelect: (usageIndex: number, level: EnVocabLevel) => void;
-  /** 点「下一个」时定位到的未勾用法下标（0-based） */
-  focusIndex?: number | null;
 };
 
 type Props = {
@@ -85,16 +83,10 @@ export function EnVocabUsageExamplesPairedContent({
             const selectedLevel = showLevel
               ? usageLevelControls.levels[usageIndex] ?? null
               : null;
-            const focusThis =
-              showLevel &&
-              usageLevelControls.focusIndex != null &&
-              usageLevelControls.focusIndex === usageIndex;
             return (
               <li
                 key={pair.index}
-                className={`en-usage-ex-paired-item${
-                  focusThis ? " en-usage-ex-paired-item--focus" : ""
-                }`}
+                className="en-usage-ex-paired-item"
                 data-en-usage-level-index={showLevel ? usageIndex : undefined}
               >
                 {pair.usageText ? (
@@ -109,9 +101,7 @@ export function EnVocabUsageExamplesPairedContent({
                 ) : null}
                 {showLevel ? (
                   <div
-                    className={`jp-vocab-levels en-usage-ex-paired-levels${
-                      focusThis ? " en-usage-ex-paired-levels--focus" : ""
-                    }`}
+                    className="jp-vocab-levels en-usage-ex-paired-levels"
                     role="group"
                     aria-label={`${pair.usageLabel}熟悉程度`}
                   >
@@ -212,13 +202,6 @@ export function EnVocabUsageExamplesPairedContent({
           margin: 0;
           padding: 0;
           min-width: 0;
-          border-radius: 10px;
-          transition: box-shadow 0.2s ease, background 0.2s ease;
-        }
-        .en-usage-ex-paired-item--focus {
-          padding: 0.45rem 0.5rem;
-          background: color-mix(in srgb, var(--rise) 12%, transparent);
-          box-shadow: 0 0 0 2px var(--rise);
         }
         .en-usage-ex-paired-usage {
           margin: 0 0 0.35rem;
@@ -243,20 +226,6 @@ export function EnVocabUsageExamplesPairedContent({
           border-radius: 8px;
           background: color-mix(in srgb, var(--rise) 8%, transparent);
           box-sizing: border-box;
-        }
-        :global(.en-usage-ex-paired-levels--focus) {
-          border-width: 2px;
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--rise) 35%, transparent);
-          animation: en-usage-level-focus-pulse 1.1s ease-in-out 2;
-        }
-        @keyframes en-usage-level-focus-pulse {
-          0%,
-          100% {
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--rise) 35%, transparent);
-          }
-          50% {
-            box-shadow: 0 0 0 6px color-mix(in srgb, var(--rise) 18%, transparent);
-          }
         }
         :global(.en-usage-ex-paired-levels .jp-vocab-level-opt) {
           font-size: 0.78rem;

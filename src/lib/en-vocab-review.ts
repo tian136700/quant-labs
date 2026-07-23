@@ -75,14 +75,38 @@ export function serializeEnVocabLastUsageLevels(
   return JSON.stringify([...levels]);
 }
 
+/** 草稿里所有未勾用法下标（0-based）；全部已勾则 [] */
+export function listIncompleteEnVocabUsageLevelIndices(
+  levels: ReadonlyArray<EnVocabLevel | null | undefined>
+): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < levels.length; i++) {
+    if (levels[i] == null) out.push(i);
+  }
+  return out;
+}
+
 /** 草稿里第一个未勾用法下标；全部已勾则 -1 */
 export function findFirstIncompleteEnVocabUsageLevelIndex(
   levels: ReadonlyArray<EnVocabLevel | null | undefined>
 ): number {
-  for (let i = 0; i < levels.length; i++) {
-    if (levels[i] == null) return i;
+  const indices = listIncompleteEnVocabUsageLevelIndices(levels);
+  return indices.length > 0 ? indices[0]! : -1;
+}
+
+/**
+ * 点「下一个」/共享时用法未齐的提示文案（列出未勾的 N.用法；不滚动定位）。
+ * actionHint 例：「再点「下一个」」「再共享给学生」
+ */
+export function formatEnVocabUncheckedUsagesHint(
+  incompleteIndices: readonly number[],
+  actionHint = "再点「下一个」"
+): string {
+  if (incompleteIndices.length === 0) {
+    return `还有用法未勾选熟悉程度，请勾选后${actionHint}。`;
   }
-  return -1;
+  const labels = incompleteIndices.map((i) => `${i + 1}.用法`).join("、");
+  return `此单词的${labels}还未勾选，请勾选后${actionHint}。`;
 }
 
 /**
