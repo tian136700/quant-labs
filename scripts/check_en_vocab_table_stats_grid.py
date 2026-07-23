@@ -50,6 +50,14 @@ def main() -> None:
         fail("EnVocabPage must use renderEnVocabUpdatedAt (date/time stacked)")
     if "jp-vocab-updated-time--stacked" not in page:
         fail("EnVocabPage must render jp-vocab-updated-time--stacked")
+    # Helper is outside the component; scoped styled-jsx never applies → glued "07-2403:50"
+    if ":global(.jp-vocab-updated-time--stacked)" not in page:
+        fail(
+            "EnVocabPage must use :global(.jp-vocab-updated-time--stacked) "
+            "(renderEnVocabUpdatedAt is outside the component)"
+        )
+    if ":global(.jp-vocab-updated-date)" not in page:
+        fail("EnVocabPage must :global(.jp-vocab-updated-date) with nowrap")
     if "formatBeijingDateTimeCompact(" in page and "formatBeijingDateTimeCompactParts" not in page:
         fail("EnVocabPage must not render single-line formatBeijingDateTimeCompact in table")
     if (

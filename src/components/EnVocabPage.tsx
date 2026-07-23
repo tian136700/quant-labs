@@ -3676,35 +3676,38 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           min-width: 0;
           text-align: center;
         }
-        /* 更新时间：日期一行、时间一行（对齐新课 jp-lesson-dt-stacked），避免单行被裁切/盖住 */
+        /* 更新时间：日期一行、时间一行（对齐新课 jp-lesson-dt-stacked）
+           必须 :global —— renderEnVocabUpdatedAt 在组件外，scoped 样式挂不上会变成
+           行内「07-24」「03:50」贴成「07-2403:50」再被窄列折断 */
         :global(.jp-vocab-table .jp-vocab-updated-col) {
           white-space: normal;
-          width: 4.75%;
-          min-width: 0;
+          width: 5%;
+          min-width: 3.25rem;
           text-align: center;
           vertical-align: middle;
           font-variant-numeric: tabular-nums;
           overflow: hidden;
         }
-        .jp-vocab-updated-time {
+        :global(.jp-vocab-updated-time) {
           display: inline-block;
           max-width: 100%;
           font-size: 0.8125rem;
           color: var(--muted);
           letter-spacing: -0.01em;
         }
-        .jp-vocab-updated-time--stacked {
+        :global(.jp-vocab-updated-time--stacked) {
           display: inline-flex;
           flex-direction: column;
           align-items: center;
           gap: 0.08rem;
           line-height: 1.2;
         }
-        .jp-vocab-updated-date {
+        :global(.jp-vocab-updated-date),
+        :global(.jp-vocab-updated-clock) {
           display: block;
+          white-space: nowrap;
         }
-        .jp-vocab-updated-clock {
-          display: block;
+        :global(.jp-vocab-updated-clock) {
           font-size: 0.75rem;
           color: var(--muted);
         }
