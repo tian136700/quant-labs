@@ -66,6 +66,8 @@ def main() -> int:
             "export function combineEnVocabUsageLevels",
             "export function aggregateEnVocabUsageLevels",
             "export function parseEnVocabLastUsageLevels",
+            "export function findFirstIncompleteEnVocabUsageLevelIndex",
+            "export function areEnVocabUsageLevelsComplete",
             'if (a === "normal" && b === "normal") return "weak"',
         ]:
             if n not in review.read_text(encoding="utf-8"):
@@ -86,12 +88,17 @@ def main() -> int:
             errors.append(f"en-vocab/route.ts: missing {n!r}")
 
     flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+    flash_text = flash.read_text(encoding="utf-8") if flash.is_file() else ""
     for n in [
         "onSelectUsageLevels",
         "usageLevelControls",
         "aggregateEnVocabUsageLevels",
+        "findFirstIncompleteEnVocabUsageLevelIndex",
+        "focusUsageLevelAt",
+        "data-en-usage-level-index",
+        "usagesCompleteForShare",
     ]:
-        if n not in flash.read_text(encoding="utf-8"):
+        if n not in flash_text:
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
 
     paired = ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
@@ -102,21 +109,33 @@ def main() -> int:
         for n in [
             "en-usage-ex-paired-levels",
             "border: 1.5px solid var(--rise)",
+            "data-en-usage-level-index",
+            "focusIndex",
+            "en-usage-ex-paired-levels--focus",
         ]:
             if n not in paired_text:
                 errors.append(
-                    f"EnVocabUsageExamplesPairedContent.tsx: missing red level box {n!r}"
+                    f"EnVocabUsageExamplesPairedContent.tsx: missing {n!r}"
                 )
 
     page = ROOT / "src/components/EnVocabPage.tsx"
+    page_text = page.read_text(encoding="utf-8") if page.is_file() else ""
     for n in [
         "recordUsageLevels",
         "quizCardPreviewWordId",
         "查看抽问卡片",
         "previewMode",
+        "areEnVocabUsageLevelsComplete",
+        "请先在抽查卡为每条用法勾选熟悉程度",
     ]:
-        if n not in page.read_text(encoding="utf-8"):
+        if n not in page_text:
             errors.append(f"EnVocabPage.tsx: missing {n!r}")
+
+    # Incomplete draft must not POST
+    if "if (!levels.length || levels.some((lv) => lv == null))" not in page_text:
+        errors.append(
+            "EnVocabPage.tsx: recordUsageLevels must return early when levels incomplete"
+        )
 
     if errors:
         print("FAIL: en-vocab usage-level aggregate guards")

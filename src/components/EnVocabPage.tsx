@@ -84,7 +84,9 @@ import {
 import {
   aggregateEnVocabUsageLevels,
   applyEnVocabReview,
+  areEnVocabUsageLevelsComplete,
   effectiveEnVocabDisplayLevel,
+  parseEnVocabLastUsageLevels,
   serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
@@ -1268,6 +1270,32 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
+
+    const usageSlotCount = listEnVocabUsagePointsForDisplay(snapshot.usage)
+      .points.length;
+    if (usageSlotCount > 0) {
+      const draft = sessionUsageLevels[wordId];
+      const stored = parseEnVocabLastUsageLevels(snapshot.last_usage_levels);
+      const candidate =
+        draft && draft.length === usageSlotCount
+          ? draft
+          : stored && stored.length === usageSlotCount
+            ? stored
+            : null;
+      const complete =
+        candidate != null &&
+        areEnVocabUsageLevelsComplete(candidate, usageSlotCount);
+      const hasOverall =
+        sessionLevel[wordId] != null ||
+        effectiveEnVocabDisplayLevel(snapshot, sessionLevel[wordId], {
+          displayOrder,
+        }) != null;
+      if (!complete && !hasOverall) {
+        setStatus("请先在抽查卡为每条用法勾选熟悉程度，全部勾完后再共享给学生。");
+        return;
+      }
+    }
+
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
     const displayOrderSnapshot = displayOrderRef.current;

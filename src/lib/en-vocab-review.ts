@@ -75,6 +75,31 @@ export function serializeEnVocabLastUsageLevels(
   return JSON.stringify([...levels]);
 }
 
+/** 草稿里第一个未勾用法下标；全部已勾则 -1 */
+export function findFirstIncompleteEnVocabUsageLevelIndex(
+  levels: ReadonlyArray<EnVocabLevel | null | undefined>
+): number {
+  for (let i = 0; i < levels.length; i++) {
+    if (levels[i] == null) return i;
+  }
+  return -1;
+}
+
+/**
+ * 有编号用法时：条数对齐且每条都已勾才算齐。
+ * expectedCount≤0（无编号用法）视为不需要按用法齐（整词勾选兜底）。
+ */
+export function areEnVocabUsageLevelsComplete(
+  levels: ReadonlyArray<EnVocabLevel | null | undefined>,
+  expectedCount: number
+): boolean {
+  if (expectedCount <= 0) return true;
+  return (
+    levels.length === expectedCount &&
+    levels.every((lv): lv is EnVocabLevel => lv != null)
+  );
+}
+
 function isEnVocabReviewToday(
   lastAt: string | null | undefined,
   now = new Date()
