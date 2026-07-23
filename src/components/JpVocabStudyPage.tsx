@@ -1088,7 +1088,14 @@ export function JpVocabStudyPage() {
                                 className="jp-vocab-total-never"
                                 title={jpVocabTotalReviewsZeroHint(locale)}
                               >
-                                {totalDisplay.label}
+                                {totalDisplay.labelLines ? (
+                                  <>
+                                    <span>{totalDisplay.labelLines[0]}</span>
+                                    <span>{totalDisplay.labelLines[1]}</span>
+                                  </>
+                                ) : (
+                                  totalDisplay.label
+                                )}
                               </span>
                             );
                           }
@@ -1490,8 +1497,14 @@ export function JpVocabStudyPage() {
           font-variant-numeric: tabular-nums;
         }
         .jp-vocab-study-page .jp-vocab-total-never {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
           color: var(--muted);
           font-size: 0.8125rem;
+          line-height: 1.15;
+          white-space: normal;
         }
         .jp-vocab-study-page .jp-vocab-today-check-value {
           font-variant-numeric: tabular-nums;

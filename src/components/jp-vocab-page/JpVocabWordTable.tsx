@@ -298,7 +298,14 @@ export function JpVocabWordTable({
                       className="jp-vocab-total-never"
                       title={jpVocabTotalReviewsZeroHint(locale)}
                     >
-                      {totalDisplay.label}
+                      {totalDisplay.labelLines ? (
+                        <>
+                          <span>{totalDisplay.labelLines[0]}</span>
+                          <span>{totalDisplay.labelLines[1]}</span>
+                        </>
+                      ) : (
+                        totalDisplay.label
+                      )}
                     </span>
                   ) : (
                     totalDisplay.label

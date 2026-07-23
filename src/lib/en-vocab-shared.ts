@@ -16,15 +16,16 @@ export function enVocabTotalReviews(word: EnVocabWord): number {
   return word.cnt_very + word.cnt_normal + word.cnt_weak;
 }
 
-/** 合计列展示：0 次时显示「未抽查」等短文案，避免裸数字 0 */
+/** 合计列展示：0 次时显示「未抽查」等短文案，避免裸数字 0；窄列用 labelLines 两行 */
 export function formatEnVocabTotalReviewsDisplay(
   word: EnVocabWord,
   locale: "zh" | "en" = "zh"
-): { label: string; isZero: boolean } {
+): { label: string; labelLines?: [string, string]; isZero: boolean } {
   const total = enVocabTotalReviews(word);
   if (total === 0) {
     return {
       label: locale === "zh" ? "从未抽查" : "Never",
+      labelLines: locale === "zh" ? ["从未", "抽查"] : undefined,
       isZero: true,
     };
   }

@@ -658,9 +658,16 @@ export function JpVocabPageStyles() {
           text-align: center;
         }
         :global(.jp-vocab-table .jp-vocab-total-never) {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          max-width: 100%;
           color: var(--muted);
           font-size: 0.8125rem;
           letter-spacing: 0.02em;
+          line-height: 1.15;
+          white-space: normal;
         }
         :global(.jp-vocab-table .jp-vocab-today-check-value) {
           display: inline-flex;

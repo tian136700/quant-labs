@@ -3256,6 +3256,7 @@
 
   .jp-vocab-table .jp-vocab-stat-detail,
   .jp-vocab-table .jp-vocab-stat-total,
+  .jp-vocab-table .jp-vocab-stats-col,
   .jp-vocab-table .jp-vocab-today-check-col {
     display: none !important;
   }
