@@ -56,6 +56,24 @@ def main() -> int:
     if "summarize_feature_remark" not in text:
         return fail("hook must use summarize_feature_remark (≤20 字)")
 
+    remark_check = ROOT / "scripts" / "check_feature_remark_format.py"
+    if not remark_check.is_file():
+        return fail("missing scripts/check_feature_remark_format.py (功能：改了什么)")
+    # 内嵌跑一遍，避免只改 hook、备注格式又回退
+    import subprocess
+
+    proc = subprocess.run(
+        [sys.executable, str(remark_check)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return fail(
+            "check_feature_remark_format failed:\n"
+            + (proc.stderr or proc.stdout or "")
+        )
+
     if not HOOKS_JSON.is_file() or "feature-remark-stop.py" not in HOOKS_JSON.read_text(
         encoding="utf-8"
     ):
