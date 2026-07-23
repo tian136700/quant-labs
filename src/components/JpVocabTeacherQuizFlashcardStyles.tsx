@@ -374,6 +374,22 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-weight: 700;
           line-height: 1.25;
         }
+        /* 英语卡：类型标签与拼写同为大字，音标小字同排居中 */
+        .en-vocab-flashcard-kind {
+          font-size: clamp(1.85rem, 7vw, 2.35rem);
+          font-weight: 700;
+          line-height: 1.25;
+        }
+        .en-vocab-flashcard-ipa {
+          white-space: nowrap;
+          font-size: clamp(1rem, 3.5vw, 1.2rem);
+          font-weight: 500;
+        }
+        .en-vocab-flashcard-ipa-source {
+          margin-top: 0.2rem;
+          display: flex;
+          justify-content: center;
+        }
         .jp-vocab-teacher-quiz__word-link {
           border: none;
           background: transparent;
@@ -951,6 +967,12 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz__kanji,
           .jp-vocab-teacher-quiz__word-main {
             font-size: clamp(1.15rem, 4.5vw, 1.45rem);
+          }
+          .en-vocab-flashcard-kind {
+            font-size: clamp(1.15rem, 4.5vw, 1.45rem);
+          }
+          .en-vocab-flashcard-ipa {
+            font-size: clamp(0.875rem, 3.2vw, 1.05rem);
           }
           .jp-vocab-teacher-quiz__ref-hint {
             margin-top: 0.1rem;

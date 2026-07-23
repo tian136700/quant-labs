@@ -598,6 +598,15 @@ export function EnVocabTeacherQuizFlashcardModal({
           <div className="jp-vocab-teacher-quiz__hero" id="en-vocab-teacher-quiz-title">
             <div className="jp-vocab-teacher-quiz__reading-row">
               {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
+              <span
+                className={`jp-vocab-teacher-quiz__kind-prefix en-vocab-flashcard-kind${
+                  w.kind === "grammar"
+                    ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
+                    : ""
+                }`}
+              >
+                {w.kind === "grammar" ? "语法：" : "单词："}
+              </span>
               {w.ref_key ? (
                 <button
                   type="button"
@@ -612,19 +621,17 @@ export function EnVocabTeacherQuizFlashcardModal({
                   {wordTrim || "—"}
                 </span>
               )}
-            </div>
-            {readingTrim ? (
-              <div
-                className="jp-vocab-teacher-quiz__reading-row"
-                style={{ marginTop: "0.35rem", flexDirection: "column", gap: "0.2rem" }}
-              >
+              {readingTrim ? (
                 <span
-                  className="jp-vocab-teacher-quiz__reading"
-                  style={{ whiteSpace: "nowrap", fontSize: "clamp(1.15rem, 4vw, 1.45rem)" }}
+                  className="jp-vocab-teacher-quiz__kanji en-vocab-flashcard-ipa"
                   title={readingTrim}
                 >
                   {readingTrim}
                 </span>
+              ) : null}
+            </div>
+            {readingTrim ? (
+              <div className="en-vocab-flashcard-ipa-source">
                 <JpVocabSourceLabel source={w.reading_source} />
               </div>
             ) : w.kind === "word" ? (
