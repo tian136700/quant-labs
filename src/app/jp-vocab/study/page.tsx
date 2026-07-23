@@ -1,4 +1,4 @@
-import { JpVocabStudyPage } from "@/components/JpVocabStudyPage";
+import { JpVocabStudyPageClient } from "@/components/JpVocabStudyPageClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+export const dynamic = "force-dynamic";
+
 export default function Page() {
-  return <JpVocabStudyPage />;
+  return <JpVocabStudyPageClient />;
 }

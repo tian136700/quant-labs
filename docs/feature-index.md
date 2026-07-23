@@ -34,7 +34,7 @@
 |-----------|--------|----------|--------|----------|-------------|------|
 | `/jp-vocab` | **日语抽问-老师端**（抽查卡片、勾选熟悉程度、发给学生） | `src/app/jp-vocab/page.tsx` | `JpVocabPage variant="teacher"`（未登录 → 全页登录） | `GET/POST /api/jp-vocab`、`/api/jp-vocab/sync`、`/api/jp-vocab/share`（GET 需 `requireJpVocabRead`） | 共用 `jp_vocab_*`；`src/lib/jp-vocab-share-ui.ts` → `JP_VOCAB_TEACHER_SHARE_ENABLED` | 须登录；`jp_vocab:read` 浏览；`jp_vocab:operate` 勾选/发给学生；管理员进此 URL 会 redirect 到 `/jp-vocab/admin` |
 | `/jp-vocab/admin` | **日语抽问-管理员端**（全库、设今日抽查数量、久未复习抬升权重、导出、预览卡片） | `src/app/jp-vocab/admin/page.tsx` | `JpVocabPage variant="admin"` | 同上（设目标等管理操作用 admin API） | 与老师端**共用同一张表 / 同一套 API**；UX 由 `variant` 区分 | `admin`；非管理员进此 URL 会 redirect 到 `/jp-vocab` |
-| `/jp-vocab/study` | 今日日语单词、学生复习；**主路径=peek**；「请老师发送」默认关 | `src/app/jp-vocab/study/page.tsx` | `src/components/JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/teacher-quiz-live`（peek）；`share-request` 仅当开关开 | 同上 + `jp_vocab_share_request`；开关 `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED=false` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
+| `/jp-vocab/study` | 今日日语单词、学生复习；**主路径=peek**；「请老师发送」默认关 | `src/app/jp-vocab/study/page.tsx` | `JpVocabStudyPageClient.tsx`（`ssr:false` 壳）→ `JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/teacher-quiz-live`（peek）；`share-request` 仅当开关开 | 同上 + `jp_vocab_share_request`；开关 `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED=false` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
 | `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度；卡面同抽问、无熟悉程度；未展开只露汉字） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
 | `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；**今日抽查完成弹窗出现时批量写入**；已带读不拉回；**带读卡片与抽问卡同 UI，熟悉程度只展示不可勾选**；备注与抽问同步；**带读卡片显示例句**；列表有例句列、带读状态与操作列「查看该带读卡片」；**已带读北京时间次日凌晨清空**，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach`（`merge_queue` / `mark_coached`） | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`）；跨日清理见 `daily-rollover` | **`jp_vocab:coach` 或白名单**（当前 `XinXin`=欣欣；李老师/玉老师默认无）；`admin` 全部；抽查完成入队仍用 `jp_vocab:operate` |
 | `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页；下载名见「日语新课 → 教案下载文件名」 |
@@ -106,7 +106,7 @@
 |-----------|--------|------|--------|------|
 | `/en-vocab` | 英语抽背-老师端 | `src/app/en-vocab/page.tsx` | `EnVocabPage variant="teacher"` | **抽查卡片**（正序/随机自动选）、勾选熟悉程度、共享到今日单词；隐藏抽查排行/手动添加（老师无 `en_vocab:manual_add`） |
 | `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、导出 Excel、批量删除、重置；列表可直接改熟悉程度（不强制进抽查卡片） |
-| `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | **管理员 / `en_vocab:study` 学生**（英语老师不可见）；点单词开详情卡；peek「查看老师正在抽查的单词」；老师端提示「该学生已查看」 |
+| `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPageClient.tsx`（`ssr:false` 壳）→ `EnVocabStudyPage.tsx` | **管理员 / `en_vocab:study` 学生**（英语老师不可见）；点单词开详情卡；peek「查看老师正在抽查的单词」；老师端提示「该学生已查看」 |
 | `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
 
 RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`；`en_vocab:manual_add` 老师角色默认排除。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
