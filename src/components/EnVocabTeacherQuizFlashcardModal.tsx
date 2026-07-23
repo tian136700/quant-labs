@@ -52,8 +52,6 @@ function formatEnVocabQuizElapsedLabel(totalSeconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-const EN_VOCAB_LEVELS: EnVocabLevel[] = ["very", "normal", "weak"];
-
 const LEVELS: { key: EnVocabLevel; label: string }[] = [
   { key: "very", label: "非常熟悉" },
   { key: "normal", label: "一般" },
@@ -65,44 +63,6 @@ const EN_VOCAB_LEVEL_SYNC_HINT = "勾选后，该单词将同步给学生复习�
 const EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT = "已共享给学生，勾选仅更新熟悉程度";
 const EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED =
   "已共享给学生，勾选熟悉程度仅更新记录，不会重复发送";
-
-function isEnVocabReviewToday(
-  lastAt: string | null | undefined,
-  now = new Date()
-): boolean {
-  if (!lastAt) return false;
-  return lastAt.slice(0, 10) === beijingDateString(now);
-}
-
-/**
- * 表格 / 抽查卡回显：sessionLevel 优先；否则仅当本轮已勾选且今日有熟悉程度。
- * （镜像 effectiveJpVocabDisplayLevel；en-vocab-review 尚未导出时本地实现）
- */
-function effectiveEnVocabDisplayLevel(
-  word: EnVocabWord,
-  sessionLevel?: EnVocabLevel,
-  opts?: {
-    now?: Date;
-    displayOrder?: EnVocabDailyDisplayOrder;
-  }
-): EnVocabLevel | undefined {
-  if (sessionLevel) return sessionLevel;
-  const now = opts?.now ?? new Date();
-  const order = opts?.displayOrder;
-  if (order?.date) {
-    if (order.date !== beijingDateString(now)) return undefined;
-    if (!isEnVocabRoundChecked(order, word.id)) return undefined;
-  }
-  const level = word.last_review_level;
-  if (
-    level &&
-    EN_VOCAB_LEVELS.includes(level) &&
-    isEnVocabReviewToday(word.last_review_at, now)
-  ) {
-    return level;
-  }
-  return undefined;
-}
 
 /** 多条历史备注合并为展示用正文（不含时间戳行） */
 function formatEnVocabClassNotesForDisplay(raw: string | null | undefined): string {

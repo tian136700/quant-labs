@@ -104,18 +104,20 @@
 
 | 线上 path | 中文名 | 页面 | 主组件 | 说明 |
 |-----------|--------|------|--------|------|
-| `/en-vocab` | 英语抽背-老师端 | `src/app/en-vocab/page.tsx` | `EnVocabPage variant="teacher"` | 勾选熟悉程度、共享到今日单词 |
-| `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、导出 Excel、批量删除、重置 |
+| `/en-vocab` | 英语抽背-老师端 | `src/app/en-vocab/page.tsx` | `EnVocabPage variant="teacher"` | **抽查卡片**（正序/随机自动选）、勾选熟悉程度、共享到今日单词；隐藏抽查排行/手动添加（老师无 `en_vocab:manual_add`） |
+| `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、导出 Excel、批量删除、重置；列表可直接改熟悉程度（不强制进抽查卡片） |
 | `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | **仅管理员**（英语老师不可见；对齐日语 study） |
 | `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
 
-RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
+RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`；`en_vocab:manual_add` 老师角色默认排除。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
 
 ### en-vocab 子功能 → 文件速查
 
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **管理员端 / 老师端拆分**（双入口 + `variant`；共享在老师端；导出/删除/重置在管理员端） | `EnVocabPage.tsx`；路由 `en-vocab/page.tsx` + `en-vocab/admin/page.tsx`；`enVocabAdminPath`；`en_vocab:teacher` / `en_vocab:admin` |
+| **老师端抽查卡片**（点「抽查」/「继续抽查」或点池内词条；**模式自动随机选正序或随机**；开始前可弹操作说明；池内熟悉程度**仅能在卡片内勾选**；进行中隐藏列表；进度完成后关卡片并展示今日已抽列表；无服务端 `visible_ids` 时池=当日序号 1…`EN_VOCAB_DAILY_QUIZ_TOP`） | `EnVocabPage.tsx` → `startTeacherQuizWithRandomMode`、`hideTeacherQuizList`、`teacherQuizLocksTable`；`EnVocabTeacherQuizIntroModal.tsx`；`EnVocabTeacherQuizFlashcardModal.tsx`；`en-vocab-teacher-quiz.ts`；`en-vocab-teacher-quiz-storage.ts`；`en-vocab-daily-quiz-progress.ts`；常量 `en-vocab-page-constants.ts` |
+| **隐藏抽查排行 / 手动添加**（功能保留；老师无 `en_vocab:manual_add`；`SHOW_RISK_CHART=false`） | `EnVocabPage.tsx`；`en-vocab-page-constants.ts`；RBAC `RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS` |
 | **老师导航极简**（只「英语抽背-老师端」；不挂今日单词 / 新课 / 关于） | `useSiteNavItems.ts` → `enTeacherNav`；`canAccessEnVocabStudy` 拦老师；`requireEnLessonOperate` 须 `en_lesson:operate`；规则 `.cursor/rules/en-vocab-teacher-nav-minimal.mdc` |
 | **词表例句「查看」弹窗**（点「查看 (N)」弹出框；**禁止**行内展开堆列；对齐新课例句弹窗） | `EnVocabExampleSentencesCell.tsx` → `EnVocabExamplesViewModal.tsx`；列宽 `EnVocabPage.tsx` → `.jp-vocab-example-col`；规则 `.cursor/rules/en-vocab-examples-view-modal.mdc` |
 | **桌面操作列可见**（`table-layout:fixed` + 操作列 sticky；**复习次数**用单列 2×2 `stats-grid` 对齐日语；「从未抽查」两行；禁止四列窄合计叠字） | `EnVocabPage.tsx` 表样式；对齐 `JpVocabPageStyles`；规则 `.cursor/rules/en-vocab-table-actions-visible.mdc` |
