@@ -442,7 +442,7 @@ export function EnVocabTeacherQuizFlashcardModal({
   return createPortal(
     <div className="jp-vocab-teacher-quiz-overlay" role="presentation">
       <article
-        className={`jp-vocab-teacher-quiz-card${
+        className={`jp-vocab-teacher-quiz-card en-vocab-teacher-quiz-card${
           showAnswerTimer && answerTimerArmed
             ? " jp-vocab-teacher-quiz-card--with-timer"
             : ""
@@ -588,64 +588,163 @@ export function EnVocabTeacherQuizFlashcardModal({
           ) : null}
         </header>
 
+        {/* 固定：单词区（对齐日语「单词：」+ 词条；音标小字；朗读在左） */}
+        <div className="jp-vocab-teacher-quiz__hero" id="en-vocab-teacher-quiz-title">
+          <div className="jp-vocab-teacher-quiz__reading-row">
+            {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
+            <span
+              className={`jp-vocab-teacher-quiz__kind-prefix${
+                w.kind === "grammar"
+                  ? " jp-vocab-teacher-quiz__kind-prefix--grammar"
+                  : ""
+              }`}
+            >
+              {w.kind === "grammar" ? "语法：" : "单词："}
+            </span>
+            {w.ref_key ? (
+              <button
+                type="button"
+                className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main en-vocab-teacher-quiz__lemma"
+                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+                onClick={() => onOpenRef(w.ref_key!, ref)}
+              >
+                {wordTrim || "—"}
+              </button>
+            ) : (
+              <span className="jp-vocab-teacher-quiz__word-main en-vocab-teacher-quiz__lemma">
+                {wordTrim || "—"}
+              </span>
+            )}
+          </div>
+          {readingTrim ? (
+            <div className="jp-vocab-teacher-quiz__reading-row en-vocab-teacher-quiz__ipa-row">
+              <span
+                className="en-vocab-teacher-quiz__ipa"
+                title={readingTrim}
+              >
+                {readingTrim}
+              </span>
+              <JpVocabSourceLabel source={w.reading_source} />
+            </div>
+          ) : w.kind === "word" ? (
+            <p className="jp-vocab-teacher-quiz__meta-empty en-vocab-teacher-quiz__ipa-empty">
+              音标待补全
+            </p>
+          ) : null}
+          {w.ref_key ? (
+            <button
+              type="button"
+              className="jp-vocab-teacher-quiz__ref-hint"
+              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
+              onClick={() => onOpenRef(w.ref_key!, ref)}
+            >
+              （点击查看教案）
+            </button>
+          ) : null}
+        </div>
+
+        {/* 固定：熟悉程度（紧挨单词下方，不进滚动区） */}
+        <div className="jp-vocab-teacher-quiz__level">
+          <p className="jp-vocab-teacher-quiz__level-label" role="note">
+            {isStudy
+              ? "老师勾选"
+              : previewMode
+                ? "预览模式：熟悉程度勾选仅为展示，不会保存"
+                : "请根据学生熟悉程度，勾选以下选项"}
+          </p>
+          <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
+            <div className="jp-vocab-teacher-quiz__level-main">
+              <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
+                {LEVELS.map((lv) => {
+                  const checked = selected === lv.key;
+                  const levelDisabled =
+                    previewMode || isStudy || reviewLocked || isSaving;
+                  return (
+                    <button
+                      key={lv.key}
+                      type="button"
+                      className={`jp-vocab-level-opt${
+                        checked ? " is-checked" : ""
+                      }${
+                        reviewLocked || previewMode || isStudy
+                          ? " jp-vocab-level-opt--locked"
+                          : ""
+                      }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
+                        lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
+                      }`}
+                      disabled={levelDisabled}
+                      aria-pressed={checked}
+                      title={
+                        isStudy
+                          ? "老师已勾选的熟悉程度"
+                          : previewMode
+                            ? "预览模式，勾选不会保存"
+                            : reviewLocked
+                              ? "勾选已满 1 小时，无法再修改"
+                              : checked
+                                ? "今日已选此项，可点其他选项改选"
+                                : "勾选学生熟悉程度"
+                      }
+                      onClick={() => {
+                        if (levelDisabled) return;
+                        setNextBlockedHint(false);
+                        onSelectLevel(w.id, lv.key);
+                      }}
+                    >
+                      <span className="jp-vocab-check-box" aria-hidden="true">
+                        {checked ? (
+                          <svg viewBox="0 0 12 12" width="10" height="10">
+                            <path
+                              d="M2 6l3 3 5-5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        ) : null}
+                      </span>
+                      <span>{lv.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {!isStudy ? (
+              <>
+                <span
+                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
+                  role="note"
+                >
+                  {levelSyncHintShort}
+                </span>
+                <span
+                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--mobile"
+                  role="note"
+                >
+                  {levelSyncHint}
+                </span>
+              </>
+            ) : null}
+          </div>
+          {saveBusy ? (
+            <JpVocabSaveProgressBar
+              label={saveProgressLabel}
+              percent={saveProgressPercent}
+              fullWidth
+              className="jp-vocab-teacher-quiz__level-progress"
+            />
+          ) : null}
+        </div>
+
+        {/* 可滚动：释义 / 用法 / 例句 / 备注 */}
         <div className="jp-vocab-teacher-quiz__scroll-body">
           {studentPeeked && !isStudy ? (
             <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
               该学生已查看该单词
             </p>
           ) : null}
-
-          <div className="jp-vocab-teacher-quiz__hero" id="en-vocab-teacher-quiz-title">
-            <div className="jp-vocab-teacher-quiz__reading-row">
-              {wordTrim ? <EnVocabSpeakButton text={wordTrim} /> : null}
-              {w.ref_key ? (
-                <button
-                  type="button"
-                  className="jp-vocab-teacher-quiz__word-link jp-vocab-teacher-quiz__word-main"
-                  title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                  onClick={() => onOpenRef(w.ref_key!, ref)}
-                >
-                  {wordTrim || "—"}
-                </button>
-              ) : (
-                <span className="jp-vocab-teacher-quiz__word-main">
-                  {wordTrim || "—"}
-                </span>
-              )}
-            </div>
-            {readingTrim ? (
-              <div
-                className="jp-vocab-teacher-quiz__reading-row"
-                style={{ marginTop: "0.35rem", flexDirection: "column", gap: "0.2rem" }}
-              >
-                <span
-                  className="jp-vocab-teacher-quiz__reading"
-                  style={{ whiteSpace: "nowrap", fontSize: "clamp(1.15rem, 4vw, 1.45rem)" }}
-                  title={readingTrim}
-                >
-                  {readingTrim}
-                </span>
-                <JpVocabSourceLabel source={w.reading_source} />
-              </div>
-            ) : w.kind === "word" ? (
-              <p
-                className="jp-vocab-teacher-quiz__meta-empty"
-                style={{ margin: "0.35rem 0 0", textAlign: "center" }}
-              >
-                音标待补全
-              </p>
-            ) : null}
-            {w.ref_key ? (
-              <button
-                type="button"
-                className="jp-vocab-teacher-quiz__ref-hint"
-                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                onClick={() => onOpenRef(w.ref_key!, ref)}
-              >
-                （点击查看教案）
-              </button>
-            ) : null}
-          </div>
 
           <section className="jp-vocab-teacher-quiz__info" aria-label="词条信息">
             <dl className="jp-vocab-teacher-quiz__meta">
@@ -850,100 +949,6 @@ export function EnVocabTeacherQuizFlashcardModal({
                 </p>
               )}
             </section>
-          ) : null}
-        </div>
-
-        <div className="jp-vocab-teacher-quiz__level">
-          <p className="jp-vocab-teacher-quiz__level-label" role="note">
-            {isStudy
-              ? "老师勾选"
-              : previewMode
-                ? "预览模式：熟悉程度勾选仅为展示，不会保存"
-                : "请根据学生熟悉程度，勾选以下选项"}
-          </p>
-          <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
-            <div className="jp-vocab-teacher-quiz__level-main">
-              <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
-                {LEVELS.map((lv) => {
-                  const checked = selected === lv.key;
-                  const levelDisabled =
-                    previewMode || isStudy || reviewLocked || isSaving;
-                  return (
-                    <button
-                      key={lv.key}
-                      type="button"
-                      className={`jp-vocab-level-opt${
-                        checked ? " is-checked" : ""
-                      }${
-                        reviewLocked || previewMode || isStudy
-                          ? " jp-vocab-level-opt--locked"
-                          : ""
-                      }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
-                        lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
-                      }`}
-                      disabled={levelDisabled}
-                      aria-pressed={checked}
-                      title={
-                        isStudy
-                          ? "老师已勾选的熟悉程度"
-                          : previewMode
-                            ? "预览模式，勾选不会保存"
-                            : reviewLocked
-                              ? "勾选已满 1 小时，无法再修改"
-                              : checked
-                                ? "今日已选此项，可点其他选项改选"
-                                : "勾选学生熟悉程度"
-                      }
-                      onClick={() => {
-                        if (levelDisabled) return;
-                        setNextBlockedHint(false);
-                        onSelectLevel(w.id, lv.key);
-                      }}
-                    >
-                      <span className="jp-vocab-check-box" aria-hidden="true">
-                        {checked ? (
-                          <svg viewBox="0 0 12 12" width="10" height="10">
-                            <path
-                              d="M2 6l3 3 5-5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        ) : null}
-                      </span>
-                      <span>{lv.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {!isStudy ? (
-              <>
-                <span
-                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--desktop"
-                  role="note"
-                >
-                  {levelSyncHintShort}
-                </span>
-                <span
-                  className="jp-vocab-teacher-quiz__level-sync-hint jp-vocab-teacher-quiz__level-sync-hint--mobile"
-                  role="note"
-                >
-                  {levelSyncHint}
-                </span>
-              </>
-            ) : null}
-          </div>
-          {saveBusy ? (
-            <JpVocabSaveProgressBar
-              label={saveProgressLabel}
-              percent={saveProgressPercent}
-              fullWidth
-              className="jp-vocab-teacher-quiz__level-progress"
-            />
           ) : null}
         </div>
 
