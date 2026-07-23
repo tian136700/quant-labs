@@ -55,7 +55,30 @@ def main() -> None:
     if "en-vocab-flashcard-page-footer__notes" not in styles:
         fail("styles must define .en-vocab-flashcard-page-footer__notes")
 
-    print("OK: en-vocab flashcard notes sit above level/stats footer panels")
+    # Whole-card scroll: do not pin footer by only scrolling the middle body
+    card_block_start = styles.find(
+        ".jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {"
+    )
+    if card_block_start < 0:
+        fail("styles must define .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page")
+    card_block = styles[card_block_start : card_block_start + 700]
+    if "height: auto" not in card_block:
+        fail("en-vocab-flashcard-page card must use height: auto (whole-card scroll)")
+    if "overflow-y: auto" not in card_block:
+        fail("en-vocab-flashcard-page card must use overflow-y: auto")
+
+    body_block_start = styles.find(
+        ".en-vocab-flashcard-page .en-vocab-flashcard-page__body"
+    )
+    if body_block_start < 0:
+        fail("styles must define .en-vocab-flashcard-page__body")
+    body_block = styles[body_block_start : body_block_start + 500]
+    if "overflow: visible" not in body_block:
+        fail("en-vocab-flashcard-page__body must use overflow: visible (not nested scroll)")
+    if "flex: 1 1 auto" in body_block:
+        fail("en-vocab-flashcard-page__body must not flex-grow as sole scroller")
+
+    print("OK: en-vocab flashcard notes above panels; whole-card scroll (footer not pinned)")
 
 
 if __name__ == "__main__":
