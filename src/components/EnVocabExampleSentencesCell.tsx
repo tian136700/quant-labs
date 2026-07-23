@@ -1,24 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import { parseEnVocabExampleSentenceItems } from "@/lib/en-vocab-example-sentences";
 import {
-  formatEnVocabExampleGlossLine,
-  parseEnVocabExampleSentenceItems,
-} from "@/lib/en-vocab-example-sentences";
-import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+  EnVocabExamplesViewModal,
+  type EnVocabExamplesViewTarget,
+} from "@/components/EnVocabExamplesViewModal";
 
 type Props = {
   text: string | null | undefined;
   source?: string | null;
+  /** 弹窗副标题，一般为词条原文 */
+  wordLabel?: string | null;
   emptyPlaceholder?: string;
 };
 
 export function EnVocabExampleSentencesCell({
   text,
   source,
+  wordLabel,
   emptyPlaceholder = "—",
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
   const items = parseEnVocabExampleSentenceItems(text);
 
   if (!items.length) {
@@ -27,49 +30,35 @@ export function EnVocabExampleSentencesCell({
     );
   }
 
+  const target: EnVocabExamplesViewTarget = {
+    wordLabel,
+    text,
+    source,
+  };
+
   return (
-    <div
-      className="en-vocab-examples-cell"
-      data-expanded={expanded ? "true" : undefined}
-    >
+    <div className="en-vocab-examples-cell">
       <button
         type="button"
-        className="en-vocab-examples-toggle"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
+        className="en-vocab-examples-view-btn"
+        title="查看例句"
+        onClick={() => setOpen(true)}
       >
-        {expanded ? "收起" : `展开 (${items.length})`}
+        {`查看 (${items.length})`}
       </button>
-      {expanded ? (
-        <div className="jp-vocab-example-sentences jp-vocab-example-sentences--with-source">
-          {items.map((item, index) => (
-            <div key={index} className="jp-vocab-example-sentences-block">
-              <div className="jp-vocab-example-sentences-line">
-                <span className="jp-vocab-example-sentences-index">{index + 1}. </span>
-                <span>{item.text}</span>
-              </div>
-              {item.gloss ? (
-                <div className="jp-vocab-example-sentences-line jp-vocab-example-sentences-line--gloss">
-                  {formatEnVocabExampleGlossLine(item.gloss)}
-                </div>
-              ) : null}
-            </div>
-          ))}
-          <JpVocabSourceLabel source={source} />
-        </div>
-      ) : null}
+      <EnVocabExamplesViewModal
+        open={open}
+        target={open ? target : null}
+        onClose={() => setOpen(false)}
+      />
       <style jsx>{`
         .en-vocab-examples-cell {
           display: inline-flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.4rem;
+          align-items: center;
+          justify-content: center;
           min-width: 0;
         }
-        .en-vocab-examples-cell[data-expanded="true"] {
-          max-width: 22rem;
-        }
-        .en-vocab-examples-toggle {
+        .en-vocab-examples-view-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -85,7 +74,7 @@ export function EnVocabExampleSentencesCell({
           line-height: 1.3;
           white-space: nowrap;
         }
-        .en-vocab-examples-toggle:hover {
+        .en-vocab-examples-view-btn:hover {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
       `}</style>

@@ -116,7 +116,8 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **管理员端 / 老师端拆分**（双入口 + `variant`；共享在老师端；导出/删除/重置在管理员端） | `EnVocabPage.tsx`；路由 `en-vocab/page.tsx` + `en-vocab/admin/page.tsx`；`enVocabAdminPath`；`en_vocab:teacher` / `en_vocab:admin` |
-| **词表例句默认收起**（点「展开 (N)」再显示全文；「收起」还原；对齐日语管理员端不整列堆例句） | `EnVocabExampleSentencesCell.tsx`；列宽样式 `EnVocabPage.tsx` → `.jp-vocab-example-col` |
+| **词表例句「查看」弹窗**（点「查看 (N)」弹出框；**禁止**行内展开堆列；对齐新课例句弹窗） | `EnVocabExampleSentencesCell.tsx` → `EnVocabExamplesViewModal.tsx`；列宽 `EnVocabPage.tsx` → `.jp-vocab-example-col`；规则 `.cursor/rules/en-vocab-examples-view-modal.mdc` |
+| **桌面操作列可见**（`table-layout:fixed` + 操作列右侧 sticky；禁止 `min-width:900px` 把编辑挤出视口） | `EnVocabPage.tsx` 表样式；对齐 `JpVocabPageStyles`；规则 `.cursor/rules/en-vocab-table-actions-visible.mdc` |
 | **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；**一律本机 Ollama `gemma4:26b`**，不调线上词典；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |
 
 ---
