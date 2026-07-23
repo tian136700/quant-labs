@@ -1,4 +1,4 @@
-import { EnVocabStudyPage } from "@/components/EnVocabStudyPage";
+import { EnVocabStudyPageClient } from "@/components/EnVocabStudyPageClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default function Page() {
-  return <EnVocabStudyPage />;
+  return <EnVocabStudyPageClient />;
 }

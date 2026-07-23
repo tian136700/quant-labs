@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -44,7 +45,6 @@ import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
 import { EnVocabMnemonicViewModal } from "@/components/EnVocabMnemonicViewModal";
 import { EnVocabUsageViewModal } from "@/components/EnVocabUsageViewModal";
 import { EnVocabManualAddModal } from "@/components/EnVocabManualAddModal";
-import { EnVocabRiskChartModal } from "@/components/EnVocabRiskChartModal";
 import {
   EnVocabDailyQuizIntroModal,
   shouldShowEnVocabDailyIntro,
@@ -77,7 +77,6 @@ import {
   mergeEnVocabSyncPatches,
 } from "@/lib/en-vocab-sync";
 import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/en-vocab-daily-quiz-style";
-import { exportEnVocabToExcel } from "@/lib/en-vocab-export";
 import {
   effectiveTodayCheckCount,
   enVocabTodayCheckStats,
@@ -126,6 +125,14 @@ import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
+
+const EnVocabRiskChartModal = dynamic(
+  () =>
+    import("@/components/EnVocabRiskChartModal").then(
+      (m) => m.EnVocabRiskChartModal
+    ),
+  { ssr: false }
+);
 
 function readVocabCache(): EnVocabApiPayload | null {
   return readClientCache<EnVocabApiPayload>(JP_VOCAB_CACHE_KEY);
@@ -1614,6 +1621,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setExporting(true);
     setStatus("");
     try {
+      const { exportEnVocabToExcel } = await import("@/lib/en-vocab-export");
       await exportEnVocabToExcel(displayedWords, refs, sessionLevel);
       setStatus(`已导出 ${displayedWords.length} 条到 Excel。`);
     } catch (err) {

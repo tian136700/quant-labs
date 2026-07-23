@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import {
-  downloadBlobAsFile,
-  exportEnVocabRefFullImagePdf,
-  exportEnVocabRefPaginatedDocx,
-  exportEnVocabRefPaginatedPdf,
-} from "@/lib/en-vocab-ref-pdf-export";
 import type { EnVocabMediaType } from "@/lib/types";
+
+async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 type Props = {
   downloadUrl: string;
@@ -202,6 +205,9 @@ export function EnVocabRefDownloadMenu({
     if (busy) return;
     setBusy("fullPdf");
     try {
+      const { exportEnVocabRefFullImagePdf } = await import(
+        "@/lib/en-vocab-ref-pdf-export"
+      );
       await exportEnVocabRefFullImagePdf(mediaUrl, filename);
     } catch (err) {
       window.alert(
@@ -216,6 +222,9 @@ export function EnVocabRefDownloadMenu({
     if (busy) return;
     setBusy("pdf");
     try {
+      const { exportEnVocabRefPaginatedPdf } = await import(
+        "@/lib/en-vocab-ref-pdf-export"
+      );
       await exportEnVocabRefPaginatedPdf(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
@@ -230,6 +239,9 @@ export function EnVocabRefDownloadMenu({
     if (busy) return;
     setBusy("word");
     try {
+      const { exportEnVocabRefPaginatedDocx } = await import(
+        "@/lib/en-vocab-ref-pdf-export"
+      );
       await exportEnVocabRefPaginatedDocx(mediaUrl, filename, cropKind);
     } catch (err) {
       window.alert(
