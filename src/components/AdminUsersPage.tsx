@@ -143,6 +143,31 @@ function sortUsers(
   });
 }
 
+function matchesAdminUserSearch(
+  row: UserRow,
+  query: string,
+  locale: "zh" | "en"
+): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const statusZh = row.disabled ? "已禁用" : "正常";
+  const statusEn = row.disabled ? "disabled" : "active";
+  const haystack = [
+    String(row.id),
+    row.username,
+    row.role,
+    row.role_label,
+    row.jp_lesson_teacher_name ?? "",
+    row.last_login_ip ?? "",
+    locale === "zh" ? statusZh : statusEn,
+    statusZh,
+    statusEn,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(q);
+}
+
 function formatAdminDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   return formatBeijingDateTime(value);
@@ -424,6 +449,7 @@ function AdminUsersPageContent() {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [sortField, setSortField] = useState<UserSortField>("last_login_at");
   const [sortDirection, setSortDirection] = useState<UserSortDirection>("desc");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const persistUsers = useCallback((next: UserRow[]) => {
     writeAdminUsersCache(next);
@@ -528,6 +554,13 @@ function AdminUsersPageContent() {
     () => sortUsers(users, sortField, sortDirection),
     [users, sortDirection, sortField]
   );
+
+  const filteredUsers = useMemo(
+    () => sortedUsers.filter((row) => matchesAdminUserSearch(row, searchQuery, locale)),
+    [locale, searchQuery, sortedUsers]
+  );
+
+  const searchActive = searchQuery.trim().length > 0;
 
   const addUserLiveErrors = useMemo(
     () => adminUserFieldErrors(newUsername, newPassword, locale),
@@ -1290,6 +1323,50 @@ function AdminUsersPageContent() {
               </p>
             ) : null}
 
+            <div className="admin-rbac-toolbar admin-rbac-toolbar--inline admin-users-search-bar" role="search">
+              <label className="admin-rbac-search-field" htmlFor="admin-users-search">
+                <span className="admin-rbac-search-label">
+                  {locale === "zh" ? "搜索用户" : "Search users"}
+                </span>
+                <input
+                  id="admin-users-search"
+                  type="search"
+                  className="admin-rbac-search-input"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder={
+                    locale === "zh"
+                      ? "用户名、角色、对应老师、ID、状态、IP…"
+                      : "Username, role, teacher, ID, status, IP…"
+                  }
+                  autoComplete="off"
+                />
+              </label>
+              {searchActive ? (
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact admin-rbac-search-clear"
+                  onClick={() => setSearchQuery("")}
+                >
+                  {locale === "zh" ? "清除" : "Clear"}
+                </button>
+              ) : null}
+            </div>
+
+            {searchActive ? (
+              <p className="hint admin-users-search-meta">
+                {locale === "zh"
+                  ? `匹配 ${filteredUsers.length} / ${users.length} 人`
+                  : `Matched ${filteredUsers.length} / ${users.length}`}
+              </p>
+            ) : null}
+
+            {searchActive && filteredUsers.length === 0 ? (
+              <p className="hint admin-users-search-empty">
+                {locale === "zh" ? "没有匹配的用户。" : "No users match your search."}
+              </p>
+            ) : (
+              <>
             <div className="admin-users-mobile-sort">
               <span className="admin-users-mobile-sort-label">
                 {locale === "zh" ? "排序" : "Sort"}
@@ -1327,7 +1404,7 @@ function AdminUsersPageContent() {
             </div>
 
             <div className="admin-cards">
-              {sortedUsers.map((row) => (
+              {filteredUsers.map((row) => (
                 <article
                   key={row.id}
                   data-admin-user-id={row.id}
@@ -1453,7 +1530,7 @@ function AdminUsersPageContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedUsers.map((row) => (
+                  {filteredUsers.map((row) => (
                     <tr
                       key={row.id}
                       data-admin-user-id={row.id}
@@ -1503,6 +1580,8 @@ function AdminUsersPageContent() {
                 </tbody>
               </table>
             </div>
+              </>
+            )}
           </>
         )}
       </section>
@@ -1955,6 +2034,15 @@ function AdminUsersPageContent() {
         }
         .admin-users-toolbar-sub {
           margin: 0.25rem 0 0;
+        }
+        .admin-users-search-bar {
+          align-items: flex-end;
+        }
+        .admin-users-search-meta {
+          margin: -0.35rem 0 0.75rem;
+        }
+        .admin-users-search-empty {
+          margin: 0 0 0.5rem;
         }
         .admin-users-mobile-sort {
           display: flex;

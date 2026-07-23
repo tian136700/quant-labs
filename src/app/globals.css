@@ -665,6 +665,7 @@ input[type="email"],
 input[type="number"],
 input[type="date"],
 input[type="password"],
+input[type="search"],
 select,
 textarea {
   @apply bg-panel text-text border border-border rounded-input px-3 w-full;
@@ -693,9 +694,11 @@ select {
 
 @screen md {
   input[type="text"],
+  input[type="email"],
   input[type="number"],
   input[type="date"],
   input[type="password"],
+  input[type="search"],
   select,
   textarea {
     font-size: 0.875rem;

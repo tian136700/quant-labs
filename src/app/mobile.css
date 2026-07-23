@@ -2749,6 +2749,21 @@
     min-height: 2.75rem;
   }
 
+  .admin-users-search-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-users-search-bar .admin-rbac-search-input {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .admin-users-search-bar .admin-rbac-search-clear {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
   .admin-users-mobile-sort {
     flex-direction: column;
     align-items: stretch;
