@@ -10,6 +10,20 @@ import {
   buildEnVocabUsageExamplePairs,
   type EnVocabUsageExamplesPairedModel,
 } from "@/lib/en-vocab-usage-examples-display";
+import type { EnVocabLevel } from "@/lib/types";
+
+const LEVELS: { key: EnVocabLevel; label: string }[] = [
+  { key: "very", label: "非常熟悉" },
+  { key: "normal", label: "一般" },
+  { key: "weak", label: "不熟悉" },
+];
+
+export type EnVocabUsageLevelControls = {
+  /** 与编号用法条数对齐；未勾为 null/undefined */
+  levels: Array<EnVocabLevel | null | undefined>;
+  disabled?: boolean;
+  onSelect: (usageIndex: number, level: EnVocabLevel) => void;
+};
 
 type Props = {
   usage: string | null | undefined;
@@ -20,6 +34,8 @@ type Props = {
   model?: EnVocabUsageExamplesPairedModel;
   emptyText?: string;
   className?: string;
+  /** 抽查卡：每条用法旁熟悉程度（有编号用法时） */
+  usageLevelControls?: EnVocabUsageLevelControls | null;
 };
 
 export function EnVocabUsageExamplesPairedContent({
@@ -30,6 +46,7 @@ export function EnVocabUsageExamplesPairedContent({
   model: modelProp,
   emptyText = "暂无用法与例句",
   className,
+  usageLevelControls = null,
 }: Props) {
   const model = modelProp ?? buildEnVocabUsageExamplePairs(usage, exampleSentences);
 
@@ -60,6 +77,12 @@ export function EnVocabUsageExamplesPairedContent({
             const glossLine = glossRaw
               ? formatEnVocabExampleGlossLine(glossRaw)
               : "";
+            const usageIndex = pair.index - 1;
+            const showLevel =
+              usageLevelControls != null && Boolean(pair.usageText);
+            const selectedLevel = showLevel
+              ? usageLevelControls.levels[usageIndex] ?? null
+              : null;
             return (
               <li key={pair.index} className="en-usage-ex-paired-item">
                 {pair.usageText ? (
@@ -71,6 +94,54 @@ export function EnVocabUsageExamplesPairedContent({
                       {pair.usageText}
                     </span>
                   </p>
+                ) : null}
+                {showLevel ? (
+                  <div
+                    className="jp-vocab-levels en-usage-ex-paired-levels"
+                    role="group"
+                    aria-label={`${pair.usageLabel}熟悉程度`}
+                  >
+                    {LEVELS.map((lv) => {
+                      const checked = selectedLevel === lv.key;
+                      return (
+                        <button
+                          key={lv.key}
+                          type="button"
+                          className={`jp-vocab-level-opt${
+                            checked ? " is-checked" : ""
+                          }${
+                            usageLevelControls.disabled
+                              ? " jp-vocab-level-opt--locked"
+                              : ""
+                          }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
+                            lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
+                          }`}
+                          disabled={usageLevelControls.disabled}
+                          aria-pressed={checked}
+                          onClick={() => {
+                            if (usageLevelControls.disabled) return;
+                            usageLevelControls.onSelect(usageIndex, lv.key);
+                          }}
+                        >
+                          <span className="jp-vocab-check-box" aria-hidden="true">
+                            {checked ? (
+                              <svg viewBox="0 0 12 12" width="10" height="10">
+                                <path
+                                  d="M2 6l3 3 5-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="1.8"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            ) : null}
+                          </span>
+                          <span>{lv.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 ) : null}
                 {pair.example?.text ? (
                   <>
@@ -140,6 +211,16 @@ export function EnVocabUsageExamplesPairedContent({
         }
         .en-usage-ex-paired-usage-body {
           font-weight: 400;
+        }
+        :global(.en-usage-ex-paired-levels) {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem;
+          margin: 0 0 0.4rem;
+        }
+        :global(.en-usage-ex-paired-levels .jp-vocab-level-opt) {
+          font-size: 0.78rem;
+          padding: 0.2rem 0.45rem;
         }
         .en-usage-ex-paired-en {
           margin: 0;

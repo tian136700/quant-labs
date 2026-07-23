@@ -78,9 +78,12 @@ import {
   enVocabTodayCheckStats,
 } from "@/lib/en-vocab-daily-check";
 import {
+  aggregateEnVocabUsageLevels,
   applyEnVocabReview,
   effectiveEnVocabDisplayLevel,
+  serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
+import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import {
   EN_VOCAB_DAILY_QUIZ_TOP,
   EN_VOCAB_PAGE_SIZE,
@@ -283,6 +286,14 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [sessionLevel, setSessionLevel] = useState<
     Record<number, EnVocabLevel | undefined>
   >({});
+  /** 本轮按用法勾选草稿 / 已选 */
+  const [sessionUsageLevels, setSessionUsageLevels] = useState<
+    Record<number, Array<EnVocabLevel | null | undefined>>
+  >({});
+  /** 管理员：预览老师端抽问卡片 */
+  const [quizCardPreviewWordId, setQuizCardPreviewWordId] = useState<
+    number | null
+  >(null);
   /** 本轮每词最近一次勾选时间（毫秒，用于 15 秒内改选修正） */
   const [sessionReviewAt, setSessionReviewAt] = useState<Record<number, number>>({});
   const [showManualAdd, setShowManualAdd] = useState(false);
@@ -819,6 +830,20 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [words]
   );
 
+  const quizCardPreviewSession = useMemo((): EnVocabTeacherQuizSession | null => {
+    if (quizCardPreviewWordId == null) return null;
+    if (!wordsById.has(quizCardPreviewWordId)) return null;
+    return {
+      mode: "sequential",
+      wordIds: [quizCardPreviewWordId],
+      currentIndex: 0,
+    };
+  }, [quizCardPreviewWordId, wordsById]);
+
+  const closeQuizCardPreview = useCallback(() => {
+    setQuizCardPreviewWordId(null);
+  }, []);
+
   const reviewLockedByWordId = useMemo(() => {
     const map: Record<number, boolean> = {};
     for (const w of words) {
@@ -1080,6 +1105,132 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     }
   };
 
+  const recordUsageLevels = async (
+    wordId: number,
+    levels: Array<EnVocabLevel | null | undefined>
+  ) => {
+    setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
+
+    if (!levels.length || levels.some((lv) => lv == null)) {
+      return;
+    }
+    const complete = levels as EnVocabLevel[];
+
+    if (!canOperate) {
+      setStatus("请登录后再勾选熟悉程度。");
+      openEnAuth();
+      return;
+    }
+    if (sharedTodayWordIds.has(wordId)) {
+      setStatus("今日已共享，熟悉程度不可更改。");
+      return;
+    }
+    if (savingId === wordId) return;
+
+    const snapshot = words.find((w) => w.id === wordId);
+    if (!snapshot) return;
+
+    const expected = listEnVocabUsagePointsForDisplay(snapshot.usage).points
+      .length;
+    if (expected > 0 && complete.length !== expected) return;
+
+    let overall: EnVocabLevel;
+    try {
+      overall = aggregateEnVocabUsageLevels(complete);
+    } catch {
+      return;
+    }
+
+    const prevLevel = sessionLevel[wordId];
+    const prevReviewAt = sessionReviewAt[wordId];
+    const prevUsage = sessionUsageLevels[wordId];
+    const displayOrderSnapshot = displayOrderRef.current;
+    const nowMs = Date.now();
+
+    setSessionLevel((prev) => ({ ...prev, [wordId]: overall }));
+    setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
+    setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
+    setHighlightId(wordId);
+    setStatus("");
+    setWords((prev) =>
+      prev.map((w) => {
+        if (w.id !== wordId) return w;
+        const bumped = bumpWordReview(w, overall, prevLevel);
+        return {
+          ...bumped,
+          last_usage_levels: serializeEnVocabLastUsageLevels(complete),
+        };
+      })
+    );
+    setSavingId(wordId);
+
+    try {
+      await enVocabSaveQueue.enqueue(async () => {
+        const res = await fetch("/api/en-vocab", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [LOCALE_HEADER]: locale,
+          },
+          credentials: "include",
+          body: JSON.stringify({ word_id: wordId, usage_levels: complete }),
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          word?: EnVocabWord;
+          error?: string;
+        };
+        if (res.status === 401) {
+          await refresh();
+          throw new Error(SAVE_ERR[locale]);
+        }
+        if (!data.ok || !data.word) {
+          const msg =
+            data.error === "shared_level_locked"
+              ? "今日已共享，熟悉程度不可更改。"
+              : data.error || (locale === "zh" ? "保存失败" : "Save failed");
+          throw new Error(msg);
+        }
+        setWords((prev) => {
+          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+          persistVocabCache(next, refs, displayOrderRef.current);
+          return next;
+        });
+        if (data.word.last_usage_levels) {
+          /* keep sessionUsageLevels as complete */
+        }
+      });
+    } catch (err) {
+      if (snapshot) {
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? snapshot : w))
+        );
+      }
+      setDisplayOrder(displayOrderSnapshot);
+      setSessionLevel((prev) => {
+        const next = { ...prev };
+        if (prevLevel) next[wordId] = prevLevel;
+        else delete next[wordId];
+        return next;
+      });
+      setSessionReviewAt((prev) => {
+        const next = { ...prev };
+        if (prevReviewAt != null) next[wordId] = prevReviewAt;
+        else delete next[wordId];
+        return next;
+      });
+      setSessionUsageLevels((prev) => {
+        const next = { ...prev };
+        if (prevUsage) next[wordId] = prevUsage;
+        else delete next[wordId];
+        return next;
+      });
+      setStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   const shareWord = async (wordId: number) => {
     if (!teacherShareUiEnabled) {
       setStatus("当前页面不可共享单词。");
@@ -1221,6 +1372,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       setDisplayOrder(data.display_order);
       persistVocabCache(data.words, refs, data.display_order);
       setSessionLevel({});
+      setSessionUsageLevels({});
       setSessionReviewAt({});
       setUseDailyRowOrder(true);
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
@@ -2430,6 +2582,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                             {isAdminMode ? (
                               <button
                                 type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact"
+                                title="预览老师端抽问卡片显示"
+                                onClick={() => setQuizCardPreviewWordId(w.id)}
+                              >
+                                查看抽问卡片
+                              </button>
+                            ) : null}
+                            {isAdminMode ? (
+                              <button
+                                type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger"
                                 disabled={deletingBatch}
                                 title="删除此词条"
@@ -2526,6 +2688,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         locale={locale}
         displayOrder={displayOrder}
         sessionLevel={sessionLevel}
+        sessionUsageLevels={sessionUsageLevels}
         reviewLockedByWordId={reviewLockedByWordId}
         savingWordId={savingId}
         dailySeqByWordId={dailySeqByWordId}
@@ -2536,6 +2699,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onClose={() => setShowQuizFlashcard(false)}
         onComplete={finishTeacherQuiz}
         onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}
+        onSelectUsageLevels={(wordId, levels) =>
+          void recordUsageLevels(wordId, levels)
+        }
         onNavigate={(index) =>
           setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
         }
@@ -2554,6 +2720,50 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           viewingUsageWord != null
         }
       />
+
+      {isAdminMode ? (
+        <EnVocabTeacherQuizFlashcardModal
+          open={quizCardPreviewSession != null}
+          session={quizCardPreviewSession}
+          wordsById={wordsById}
+          refs={refs}
+          locale={locale}
+          displayOrder={displayOrder}
+          sessionLevel={sessionLevel}
+          sessionUsageLevels={sessionUsageLevels}
+          reviewLockedByWordId={reviewLockedByWordId}
+          savingWordId={null}
+          dailySeqByWordId={dailySeqByWordId}
+          dailyQuizProgress={null}
+          canOperate
+          shareUiEnabled={false}
+          previewMode
+          onClose={closeQuizCardPreview}
+          onComplete={closeQuizCardPreview}
+          onSelectLevel={() => {
+            /* 预览只读 */
+          }}
+          onSelectUsageLevels={() => {
+            /* 预览只读 */
+          }}
+          onNavigate={() => {
+            /* 单条预览 */
+          }}
+          onOpenRef={openRefPreview}
+          onViewRemarks={openRemarksWord}
+          onEditRemarks={setEditingRemarksWord}
+          onEditWord={setEditingWord}
+          onWordUpdated={handleWordSaved}
+          nestedModalOpen={
+            viewingRemarksWord != null ||
+            previewRef != null ||
+            editingRemarksWord != null ||
+            editingWord != null ||
+            viewingMnemonicWord != null ||
+            viewingUsageWord != null
+          }
+        />
+      ) : null}
 
       <EnVocabRemarksViewModal
         open={viewingRemarksWord != null}

@@ -195,6 +195,11 @@ export interface JpVocabWord {
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;
+  /**
+   * 英语抽查卡：最近一次按用法勾选的熟悉程度 JSON 数组（如 `["very","normal"]`）。
+   * 总体熟悉程度仍写在 last_review_level / cnt_*。
+   */
+  last_usage_levels?: string | null;
   created_at: string;
   updated_at: string;
 }

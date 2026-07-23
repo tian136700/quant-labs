@@ -5,6 +5,7 @@ import {
   listEnVocabSharedTodayWordIds,
   listEnVocabWordsWithRefs,
   recordEnVocabReview,
+  recordEnVocabReviewWithUsageLevels,
   resetAllEnVocabReviews,
   resetTodayEnVocabRound,
   setEnVocabDailyQuizStyle,
@@ -16,6 +17,7 @@ import {
   normalizeEnVocabDailyQuizStyle,
   type EnVocabDailyQuizStyle,
 } from "@/lib/en-vocab-daily-quiz-style";
+import { isEnVocabLevel } from "@/lib/en-vocab-review";
 import type { EnVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
       action?: string;
       word_id?: number;
       level?: EnVocabLevel;
+      usage_levels?: EnVocabLevel[];
       daily_quiz_style?: Partial<EnVocabDailyQuizStyle>;
     };
 
@@ -100,9 +103,29 @@ export async function POST(request: Request) {
     }
 
     const wordId = Number(body.word_id);
+    const usageLevels = Array.isArray(body.usage_levels)
+      ? body.usage_levels
+      : null;
+
+    if (usageLevels) {
+      if (!usageLevels.length || !usageLevels.every(isEnVocabLevel)) {
+        return jsonResponse({ ok: false, error: "usage_levels_invalid" }, 400);
+      }
+      const result = await recordEnVocabReviewWithUsageLevels(
+        env.DB,
+        wordId,
+        usageLevels
+      );
+      if (!result.ok) {
+        const status = result.error === "not_found" ? 404 : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({ ok: true, word: result.word });
+    }
+
     const level = body.level;
 
-    if (!level || !["very", "normal", "weak"].includes(level)) {
+    if (!level || !isEnVocabLevel(level)) {
       return jsonResponse({ ok: false, error: "level_invalid" }, 400);
     }
 

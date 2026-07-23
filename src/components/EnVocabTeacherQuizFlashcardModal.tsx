@@ -17,7 +17,11 @@ import {
   enVocabDailyQuizProgressDisplayChecked,
   type EnVocabDailyQuizProgress,
 } from "@/lib/en-vocab-daily-quiz-progress";
-import { effectiveEnVocabDisplayLevel } from "@/lib/en-vocab-review";
+import {
+  aggregateEnVocabUsageLevels,
+  effectiveEnVocabDisplayLevel,
+  parseEnVocabLastUsageLevels,
+} from "@/lib/en-vocab-review";
 import {
   enVocabPriorityLabel,
   enVocabRiskIndex,
@@ -31,7 +35,10 @@ import {
   mergeEnVocabWordAfterClassNotesFetch,
   type EnVocabTeacherQuizSession,
 } from "@/lib/en-vocab-teacher-quiz";
-import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-display";
+import {
+  buildEnVocabUsageExamplePairs,
+  listEnVocabUsagePointsForDisplay,
+} from "@/lib/en-vocab-usage-examples-display";
 import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
@@ -57,6 +64,11 @@ const LEVELS: { key: EnVocabLevel; label: string }[] = [
   { key: "weak", label: "不熟悉" },
 ];
 
+const LEVEL_LABEL: Record<EnVocabLevel, string> = {
+  very: "非常熟悉",
+  normal: "一般",
+  weak: "不熟悉",
+};
 const EN_VOCAB_LEVEL_SYNC_HINT_SHORT = "勾选后同步给学生复习查看";
 const EN_VOCAB_LEVEL_SYNC_HINT = "勾选后，该单词将同步给学生复习查看";
 const EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT = "已共享给学生，勾选仅更新熟悉程度";
@@ -79,6 +91,8 @@ type Props = {
   locale: "zh" | "en";
   displayOrder: EnVocabDailyDisplayOrder;
   sessionLevel: Record<number, EnVocabLevel | undefined>;
+  /** 按用法勾选草稿 / 已选（与编号用法条数对齐） */
+  sessionUsageLevels?: Record<number, Array<EnVocabLevel | null | undefined>>;
   reviewLockedByWordId: Record<number, boolean>;
   savingWordId: number | null;
   wordSyncState?: Record<number, "queued" | "syncing">;
@@ -98,7 +112,13 @@ type Props = {
   onClose: () => void;
   /** 最后一词勾选后点「完成」 */
   onComplete: () => void;
+  /** 无编号用法时的整词勾选兜底 */
   onSelectLevel: (wordId: number, level: EnVocabLevel) => void;
+  /** 有编号用法：每条用法旁勾选（可未齐）；齐了由父组件汇总写库 */
+  onSelectUsageLevels?: (
+    wordId: number,
+    levels: Array<EnVocabLevel | null | undefined>
+  ) => void;
   onNavigate: (index: number) => void;
   onOpenRef: (refKey: string, ref?: EnVocabRef) => void;
   onViewRemarks: (word: EnVocabWord) => void;
@@ -118,6 +138,7 @@ export function EnVocabTeacherQuizFlashcardModal({
   locale,
   displayOrder,
   sessionLevel,
+  sessionUsageLevels = {},
   reviewLockedByWordId,
   savingWordId,
   wordSyncState = {},
@@ -133,6 +154,7 @@ export function EnVocabTeacherQuizFlashcardModal({
   onClose,
   onComplete,
   onSelectLevel,
+  onSelectUsageLevels,
   onNavigate,
   onOpenRef,
   onViewRemarks,
@@ -329,6 +351,30 @@ export function EnVocabTeacherQuizFlashcardModal({
     w.usage,
     w.example_sentences
   );
+  const usageSlotCount = listEnVocabUsagePointsForDisplay(w.usage).points.length;
+  const usePerUsageLevels = usageSlotCount > 0;
+  const storedUsageLevels = parseEnVocabLastUsageLevels(w.last_usage_levels);
+  const sessionUsageDraft = sessionUsageLevels[w.id];
+  const usageDraftLevels: Array<EnVocabLevel | null | undefined> = (() => {
+    if (!usePerUsageLevels) return [];
+    if (sessionUsageDraft && sessionUsageDraft.length === usageSlotCount) {
+      return sessionUsageDraft;
+    }
+    if (
+      selected &&
+      storedUsageLevels &&
+      storedUsageLevels.length === usageSlotCount
+    ) {
+      return storedUsageLevels;
+    }
+    return Array.from({ length: usageSlotCount }, () => null);
+  })();
+  const overallFromUsages =
+    usePerUsageLevels &&
+    usageDraftLevels.length === usageSlotCount &&
+    usageDraftLevels.every((lv): lv is EnVocabLevel => lv != null)
+      ? aggregateEnVocabUsageLevels(usageDraftLevels)
+      : null;
   const showUsageExamples = isStudy || usageExampleModel.hasContent;
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = session.wordIds.reduce((count, id) => {
@@ -797,6 +843,33 @@ export function EnVocabTeacherQuizFlashcardModal({
                       exampleSource={w.example_sentences_source}
                       model={usageExampleModel}
                       emptyText="暂无用法与例句"
+                      usageLevelControls={
+                        usePerUsageLevels
+                          ? {
+                              levels: usageDraftLevels,
+                              disabled:
+                                previewMode ||
+                                isStudy ||
+                                reviewLocked ||
+                                isSaving,
+                              onSelect: (usageIndex, level) => {
+                                if (
+                                  previewMode ||
+                                  isStudy ||
+                                  reviewLocked ||
+                                  isSaving
+                                ) {
+                                  return;
+                                }
+                                setNextBlockedHint(false);
+                                const next = usageDraftLevels.map((lv, i) =>
+                                  i === usageIndex ? level : lv ?? null
+                                );
+                                onSelectUsageLevels?.(w.id, next);
+                              },
+                            }
+                          : null
+                      }
                     />
                   </div>
                 </section>
@@ -859,67 +932,89 @@ export function EnVocabTeacherQuizFlashcardModal({
             {isStudy
               ? "老师勾选"
               : previewMode
-                ? "预览模式：熟悉程度勾选仅为展示，不会保存"
-                : "请根据学生熟悉程度，勾选以下选项"}
+                ? usePerUsageLevels
+                  ? "预览模式：用法旁熟悉程度仅为展示，不会保存"
+                  : "预览模式：熟悉程度勾选仅为展示，不会保存"
+                : usePerUsageLevels
+                  ? "请在每条用法旁勾选熟悉程度（全部勾完自动汇总总体）"
+                  : "请根据学生熟悉程度，勾选以下选项"}
           </p>
           <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">
             <div className="jp-vocab-teacher-quiz__level-main">
-              <div className="jp-vocab-levels" role="group" aria-label="学生熟悉程度">
-                {LEVELS.map((lv) => {
-                  const checked = selected === lv.key;
-                  const levelDisabled =
-                    previewMode || isStudy || reviewLocked || isSaving;
-                  return (
-                    <button
-                      key={lv.key}
-                      type="button"
-                      className={`jp-vocab-level-opt${
-                        checked ? " is-checked" : ""
-                      }${
-                        reviewLocked || previewMode || isStudy
-                          ? " jp-vocab-level-opt--locked"
-                          : ""
-                      }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
-                        lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
-                      }`}
-                      disabled={levelDisabled}
-                      aria-pressed={checked}
-                      title={
-                        isStudy
-                          ? "老师已勾选的熟悉程度"
-                          : previewMode
-                            ? "预览模式，勾选不会保存"
-                            : reviewLocked
-                              ? "勾选已满 1 小时，无法再修改"
-                              : checked
-                                ? "今日已选此项，可点其他选项改选"
-                                : "勾选学生熟悉程度"
-                      }
-                      onClick={() => {
-                        if (levelDisabled) return;
-                        setNextBlockedHint(false);
-                        onSelectLevel(w.id, lv.key);
-                      }}
-                    >
-                      <span className="jp-vocab-check-box" aria-hidden="true">
-                        {checked ? (
-                          <svg viewBox="0 0 12 12" width="10" height="10">
-                            <path
-                              d="M2 6l3 3 5-5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        ) : null}
-                      </span>
-                      <span>{lv.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {usePerUsageLevels ? (
+                <p
+                  className="en-vocab-flashcard-overall-level"
+                  aria-live="polite"
+                >
+                  总体：
+                  {selected
+                    ? LEVEL_LABEL[selected]
+                    : overallFromUsages
+                      ? LEVEL_LABEL[overallFromUsages]
+                      : "（请勾完每条用法）"}
+                </p>
+              ) : (
+                <div
+                  className="jp-vocab-levels"
+                  role="group"
+                  aria-label="学生熟悉程度"
+                >
+                  {LEVELS.map((lv) => {
+                    const checked = selected === lv.key;
+                    const levelDisabled =
+                      previewMode || isStudy || reviewLocked || isSaving;
+                    return (
+                      <button
+                        key={lv.key}
+                        type="button"
+                        className={`jp-vocab-level-opt${
+                          checked ? " is-checked" : ""
+                        }${
+                          reviewLocked || previewMode || isStudy
+                            ? " jp-vocab-level-opt--locked"
+                            : ""
+                        }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
+                          lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
+                        }`}
+                        disabled={levelDisabled}
+                        aria-pressed={checked}
+                        title={
+                          isStudy
+                            ? "老师已勾选的熟悉程度"
+                            : previewMode
+                              ? "预览模式，勾选不会保存"
+                              : reviewLocked
+                                ? "勾选已满 1 小时，无法再修改"
+                                : checked
+                                  ? "今日已选此项，可点其他选项改选"
+                                  : "勾选学生熟悉程度"
+                        }
+                        onClick={() => {
+                          if (levelDisabled) return;
+                          setNextBlockedHint(false);
+                          onSelectLevel(w.id, lv.key);
+                        }}
+                      >
+                        <span className="jp-vocab-check-box" aria-hidden="true">
+                          {checked ? (
+                            <svg viewBox="0 0 12 12" width="10" height="10">
+                              <path
+                                d="M2 6l3 3 5-5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          ) : null}
+                        </span>
+                        <span>{lv.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             {!isStudy ? (
               <>
@@ -1075,7 +1170,7 @@ export function EnVocabTeacherQuizFlashcardModal({
               id="en-vocab-teacher-quiz-alert-desc"
               className="jp-vocab-teacher-quiz-alert__desc"
             >
-              请先勾选学生的熟悉程度，再进入下一词。
+              请先在每条用法旁勾选学生的熟悉程度（无编号用法时勾选总体），再进入下一词。
             </p>
             <button
               type="button"
@@ -1125,6 +1220,14 @@ export function EnVocabTeacherQuizFlashcardModal({
         </div>
       ) : null}
 
+      <style>{`
+        .en-vocab-flashcard-overall-level {
+          margin: 0;
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: var(--text);
+        }
+      `}</style>
       <JpVocabTeacherQuizFlashcardStyles />
     </div>,
     document.body

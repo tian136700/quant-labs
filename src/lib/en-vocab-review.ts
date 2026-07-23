@@ -13,6 +13,68 @@ export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
 
 const EN_VOCAB_LEVELS: EnVocabLevel[] = ["very", "normal", "weak"];
 
+const EN_VOCAB_LEVEL_RANK: Record<EnVocabLevel, number> = {
+  weak: 0,
+  normal: 1,
+  very: 2,
+};
+
+const EN_VOCAB_RANK_TO_LEVEL: EnVocabLevel[] = ["weak", "normal", "very"];
+
+export function isEnVocabLevel(value: unknown): value is EnVocabLevel {
+  return value === "very" || value === "normal" || value === "weak";
+}
+
+/** 两档用法熟悉程度 → 总体（老师卡按用法勾选后汇总） */
+export function combineEnVocabUsageLevels(
+  a: EnVocabLevel,
+  b: EnVocabLevel
+): EnVocabLevel {
+  if (a === "normal" && b === "normal") return "weak";
+  if (
+    (a === "very" && b === "weak") ||
+    (a === "weak" && b === "very")
+  ) {
+    return "normal";
+  }
+  const minRank = Math.min(EN_VOCAB_LEVEL_RANK[a], EN_VOCAB_LEVEL_RANK[b]);
+  return EN_VOCAB_RANK_TO_LEVEL[minRank]!;
+}
+
+/**
+ * N 条用法熟悉程度从左到右 fold 成总体。
+ * 空数组抛错；单条原样返回。
+ */
+export function aggregateEnVocabUsageLevels(
+  levels: readonly EnVocabLevel[]
+): EnVocabLevel {
+  if (!levels.length) {
+    throw new Error("usage_levels_empty");
+  }
+  return levels.reduce((acc, cur) => combineEnVocabUsageLevels(acc, cur));
+}
+
+/** 解析存库 JSON（`["very","normal"]`） */
+export function parseEnVocabLastUsageLevels(
+  raw: string | null | undefined
+): EnVocabLevel[] | null {
+  if (raw == null || !String(raw).trim()) return null;
+  try {
+    const parsed = JSON.parse(String(raw)) as unknown;
+    if (!Array.isArray(parsed) || !parsed.length) return null;
+    if (!parsed.every(isEnVocabLevel)) return null;
+    return parsed as EnVocabLevel[];
+  } catch {
+    return null;
+  }
+}
+
+export function serializeEnVocabLastUsageLevels(
+  levels: readonly EnVocabLevel[]
+): string {
+  return JSON.stringify([...levels]);
+}
+
 function isEnVocabReviewToday(
   lastAt: string | null | undefined,
   now = new Date()

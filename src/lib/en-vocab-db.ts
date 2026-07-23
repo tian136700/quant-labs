@@ -38,7 +38,13 @@ import {
   normalizeEnVocabDailyQuizStyle,
   type EnVocabDailyQuizStyle,
 } from "@/lib/en-vocab-daily-quiz-style";
-import { applyEnVocabReview } from "@/lib/en-vocab-review";
+import {
+  aggregateEnVocabUsageLevels,
+  applyEnVocabReview,
+  isEnVocabLevel,
+  serializeEnVocabLastUsageLevels,
+} from "@/lib/en-vocab-review";
+import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import { parseLessonContent } from "@/lib/en-lesson-shared";
 import { listEnLessons } from "@/lib/en-lesson-db";
 import { listEnLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/en-lesson-note-db";
@@ -213,6 +219,10 @@ function mapRow(row: Record<string, unknown>): EnVocabWord {
         : null,
     last_review_at:
       row.last_review_at != null ? String(row.last_review_at) : null,
+    last_usage_levels:
+      row.last_usage_levels != null && String(row.last_usage_levels).trim()
+        ? String(row.last_usage_levels)
+        : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -273,6 +283,7 @@ async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   await addEnVocabWordColumnIfMissing(db, cols, "mnemonic", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "usage", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "usage_source", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels", "TEXT");
   vocabWordSchemaReady = true;
 }
 
@@ -317,7 +328,7 @@ async function listEnVocabRefsByKeys(
 const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
   usage, usage_source, example_sentences, example_sentences_source,
-  last_review_level, last_review_at, created_at, updated_at FROM en_vocab_word`;
+  last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
 function refsRecord(refs: EnVocabRef[]): Record<string, EnVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));
@@ -604,6 +615,68 @@ export type RecordEnVocabReviewResult =
   | { ok: true; word: EnVocabWord }
   | { ok: false; error: string };
 
+async function persistEnVocabReviewUpdate(
+  db: D1Database,
+  wordId: number,
+  current: EnVocabWord,
+  level: EnVocabLevel,
+  usageLevels: EnVocabLevel[] | null
+): Promise<RecordEnVocabReviewResult> {
+  const { word: reviewed } = applyEnVocabReview(current, level);
+  const updated: EnVocabWord =
+    usageLevels != null
+      ? {
+          ...reviewed,
+          last_usage_levels: serializeEnVocabLastUsageLevels(usageLevels),
+        }
+      : reviewed;
+
+  if (devStoreEnabled) {
+    const idx = devWords.findIndex((w) => w.id === wordId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    devWords[idx] = updated;
+    devDailyDisplayOrder = markEnVocabRoundChecked(devDailyDisplayOrder, wordId);
+    return { ok: true, word: updated };
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE en_vocab_word
+       SET cnt_very = ?1,
+           cnt_normal = ?2,
+           cnt_weak = ?3,
+           today_check_count = ?4,
+           today_check_date = ?5,
+           last_review_level = ?6,
+           last_review_at = ?7,
+           last_usage_levels = COALESCE(?8, last_usage_levels),
+           updated_at = ?9
+       WHERE id = ?10`
+    )
+    .bind(
+      updated.cnt_very,
+      updated.cnt_normal,
+      updated.cnt_weak,
+      updated.today_check_count,
+      updated.today_check_date,
+      updated.last_review_level,
+      updated.last_review_at,
+      usageLevels != null
+        ? serializeEnVocabLastUsageLevels(usageLevels)
+        : null,
+      updated.updated_at,
+      wordId
+    )
+    .run();
+
+  if (!result.meta?.changes) {
+    return { ok: false, error: "not_found" };
+  }
+
+  await markEnVocabWordRoundChecked(db, wordId);
+  return { ok: true, word: updated };
+}
+
 export async function recordEnVocabReview(
   db: D1Database,
   wordId: number,
@@ -612,7 +685,7 @@ export async function recordEnVocabReview(
   if (!Number.isInteger(wordId) || wordId <= 0) {
     return { ok: false, error: "word_id_invalid" };
   }
-  if (!["very", "normal", "weak"].includes(level)) {
+  if (!isEnVocabLevel(level)) {
     return { ok: false, error: "level_invalid" };
   }
 
@@ -627,10 +700,7 @@ export async function recordEnVocabReview(
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
-    const { word: updated } = applyEnVocabReview(devWords[idx], level);
-    devWords[idx] = updated;
-    devDailyDisplayOrder = markEnVocabRoundChecked(devDailyDisplayOrder, wordId);
-    return { ok: true, word: updated };
+    return persistEnVocabReviewUpdate(db, wordId, devWords[idx], level, null);
   }
 
   const row = await db
@@ -640,42 +710,64 @@ export async function recordEnVocabReview(
 
   if (!row) return { ok: false, error: "not_found" };
 
-  const current = mapRow(row);
-  const { word: updated } = applyEnVocabReview(current, level);
+  return persistEnVocabReviewUpdate(db, wordId, mapRow(row), level, null);
+}
 
-  const result = await db
-    .prepare(
-      `UPDATE en_vocab_word
-       SET cnt_very = ?1,
-           cnt_normal = ?2,
-           cnt_weak = ?3,
-           today_check_count = ?4,
-           today_check_date = ?5,
-           last_review_level = ?6,
-           last_review_at = ?7,
-           updated_at = ?8
-       WHERE id = ?9`
-    )
-    .bind(
-      updated.cnt_very,
-      updated.cnt_normal,
-      updated.cnt_weak,
-      updated.today_check_count,
-      updated.today_check_date,
-      updated.last_review_level,
-      updated.last_review_at,
-      updated.updated_at,
-      wordId
-    )
-    .run();
-
-  if (!result.meta?.changes) {
-    return { ok: false, error: "not_found" };
+/** 老师抽查卡：按用法勾选 → 汇总总体后写入 cnt_* / last_review_* / last_usage_levels */
+export async function recordEnVocabReviewWithUsageLevels(
+  db: D1Database,
+  wordId: number,
+  usageLevels: EnVocabLevel[]
+): Promise<RecordEnVocabReviewResult> {
+  if (!Number.isInteger(wordId) || wordId <= 0) {
+    return { ok: false, error: "word_id_invalid" };
+  }
+  if (!Array.isArray(usageLevels) || !usageLevels.length) {
+    return { ok: false, error: "usage_levels_invalid" };
+  }
+  if (!usageLevels.every(isEnVocabLevel)) {
+    return { ok: false, error: "usage_levels_invalid" };
   }
 
-  await markEnVocabWordRoundChecked(db, wordId);
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+  await ensureEnVocabSharedSchema(db);
 
-  return { ok: true, word: updated };
+  if (await isEnVocabWordSharedToday(db, wordId)) {
+    return { ok: false, error: "shared_level_locked" };
+  }
+
+  let current: EnVocabWord;
+  if (devStoreEnabled) {
+    const idx = devWords.findIndex((w) => w.id === wordId);
+    if (idx < 0) return { ok: false, error: "not_found" };
+    current = devWords[idx];
+  } else {
+    const row = await db
+      .prepare(`${WORD_SELECT} WHERE id = ?1`)
+      .bind(wordId)
+      .first<Record<string, unknown>>();
+    if (!row) return { ok: false, error: "not_found" };
+    current = mapRow(row);
+  }
+
+  const expectedCount = listEnVocabUsagePointsForDisplay(current.usage).points
+    .length;
+  if (expectedCount > 0 && usageLevels.length !== expectedCount) {
+    return { ok: false, error: "usage_levels_count_mismatch" };
+  }
+  if (expectedCount === 0 && usageLevels.length !== 1) {
+    return { ok: false, error: "usage_levels_count_mismatch" };
+  }
+
+  let overall: EnVocabLevel;
+  try {
+    overall = aggregateEnVocabUsageLevels(usageLevels);
+  } catch {
+    return { ok: false, error: "usage_levels_invalid" };
+  }
+
+  return persistEnVocabReviewUpdate(db, wordId, current, overall, usageLevels);
 }
 
 export type ResetEnVocabReviewsResult =
@@ -699,6 +791,7 @@ export async function resetAllEnVocabReviews(
         today_check_date: null,
         last_review_level: null,
         last_review_at: null,
+        last_usage_levels: null,
         updated_at: ts,
       };
     }
@@ -713,6 +806,7 @@ export async function resetAllEnVocabReviews(
        SET cnt_very = 0, cnt_normal = 0, cnt_weak = 0,
            today_check_count = 0, today_check_date = NULL,
            last_review_level = NULL, last_review_at = NULL,
+           last_usage_levels = NULL,
            updated_at = ?1`
     )
     .bind(ts)
