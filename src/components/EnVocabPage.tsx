@@ -1229,18 +1229,19 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
   ) => {
-    if (!canOperate) {
-      setStatus("请登录后再勾选熟悉程度。");
-      openEnAuth();
-      return;
-    }
     if (sharedTodayWordIds.has(wordId)) {
       setStatus("今日已共享，熟悉程度不可更改。");
       return;
     }
 
-    // 草稿始终保留老师刚勾的选项（含未齐）；写库失败也不得清掉，否则第二条勾选会「闪一下消失」
+    // 草稿始终先落本地（含未齐），保证勾选立刻回显；写库失败也不得清掉
     setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
+
+    if (!canOperate) {
+      setStatus("请登录后再勾选熟悉程度。");
+      openEnAuth();
+      return;
+    }
 
     if (!levels.length || levels.some((lv) => lv == null)) {
       return;

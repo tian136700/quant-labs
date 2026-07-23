@@ -22,6 +22,8 @@ export type EnVocabUsageLevelControls = {
   /** 与编号用法条数对齐；未勾为 null/undefined */
   levels: Array<EnVocabLevel | null | undefined>;
   disabled?: boolean;
+  /** disabled 时按钮 title（如已共享不可改） */
+  disabledReason?: string;
   onSelect: (usageIndex: number, level: EnVocabLevel) => void;
 };
 
@@ -122,6 +124,12 @@ export function EnVocabUsageExamplesPairedContent({
                           }`}
                           disabled={usageLevelControls.disabled}
                           aria-pressed={checked}
+                          title={
+                            usageLevelControls.disabled
+                              ? usageLevelControls.disabledReason ||
+                                "当前不可修改熟悉程度"
+                              : undefined
+                          }
                           onClick={() => {
                             if (usageLevelControls.disabled) return;
                             usageLevelControls.onSelect(usageIndex, lv.key);

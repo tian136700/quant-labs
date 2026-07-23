@@ -124,6 +124,26 @@ export function areEnVocabUsageLevelsComplete(
   );
 }
 
+/**
+ * 抽查卡用法旁勾选回显：本会话草稿优先，其次库里 last_usage_levels（条数须对齐）。
+ * 不依赖整词 selected——点「上一个」回看已勾词时也要能回显每条档。
+ */
+export function resolveEnVocabUsageDraftLevels(
+  usageSlotCount: number,
+  sessionDraft: ReadonlyArray<EnVocabLevel | null | undefined> | undefined,
+  storedRaw: string | null | undefined
+): Array<EnVocabLevel | null | undefined> {
+  if (usageSlotCount <= 0) return [];
+  if (sessionDraft && sessionDraft.length === usageSlotCount) {
+    return [...sessionDraft];
+  }
+  const stored = parseEnVocabLastUsageLevels(storedRaw);
+  if (stored && stored.length === usageSlotCount) {
+    return [...stored];
+  }
+  return Array.from({ length: usageSlotCount }, () => null);
+}
+
 function isEnVocabReviewToday(
   lastAt: string | null | undefined,
   now = new Date()

@@ -70,11 +70,22 @@ def main() -> int:
             "export function listIncompleteEnVocabUsageLevelIndices",
             "export function formatEnVocabUncheckedUsagesHint",
             "export function areEnVocabUsageLevelsComplete",
+            "export function resolveEnVocabUsageDraftLevels",
             'if (a === "normal" && b === "normal") return "weak"',
         ]:
             if n not in review.read_text(encoding="utf-8"):
                 errors.append(f"en-vocab-review.ts: missing {n!r}")
 
+    # resolveEnVocabUsageDraftLevels：草稿优先，其次存库；不依赖 selected
+    review_src = review.read_text(encoding="utf-8")
+    if "sessionDraft && sessionDraft.length === usageSlotCount" not in review_src:
+        errors.append(
+            "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must prefer session draft"
+        )
+    if "parseEnVocabLastUsageLevels(storedRaw)" not in review_src:
+        errors.append(
+            "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must fall back to last_usage_levels"
+        )
     db = ROOT / "src/lib/en-vocab-db.ts"
     for n in [
         "last_usage_levels",
@@ -99,10 +110,16 @@ def main() -> int:
         "formatEnVocabUncheckedUsagesHint",
         "showUncheckedUsagesBlocked",
         "usagesCompleteForShare",
+        "resolveEnVocabUsageDraftLevels",
+        "今日已共享，熟悉程度不可更改",
     ]:
         if n not in flash_text:
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
 
+    if "勾选已满 1 小时" in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: shared lock must not say「勾选已满 1 小时」"
+        )
     # 禁止再加「滚动定位未勾用法」（暗色主题提示条曾看不清）
     for banned in [
         "focusUsageLevelAt",
@@ -140,6 +157,7 @@ def main() -> int:
             "en-usage-ex-paired-levels",
             "border: 1.5px solid var(--rise)",
             "data-en-usage-level-index",
+            "disabledReason",
         ]:
             if n not in paired_text:
                 errors.append(
@@ -170,6 +188,18 @@ def main() -> int:
             "EnVocabPage.tsx: recordUsageLevels must return early when levels incomplete"
         )
 
+    # 草稿须在 canOperate 校验之前写入，避免点了无勾选态
+    draft_idx = page_text.find(
+        "setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }))"
+    )
+    auth_idx = page_text.find(
+        'setStatus("请登录后再勾选熟悉程度。")',
+        page_text.find("const recordUsageLevels"),
+    )
+    if draft_idx < 0 or auth_idx < 0 or draft_idx > auth_idx:
+        errors.append(
+            "EnVocabPage.tsx: recordUsageLevels must setSessionUsageLevels before canOperate early-return"
+        )
     # 写库失败不得把 sessionUsageLevels 打回未齐 / delete（第二条勾选会消失）
     if "if (prevUsage) next[wordId] = prevUsage" in page_text:
         errors.append(
