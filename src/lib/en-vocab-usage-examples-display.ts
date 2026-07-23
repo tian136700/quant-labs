@@ -15,27 +15,9 @@ import {
 const NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;
 const IMAGE_LINE_RE = /^!\[[^\]]*\]\([^)]+\)\s*$/;
 
-const CN_ORDINALS = [
-  "一",
-  "二",
-  "三",
-  "四",
-  "五",
-  "六",
-  "七",
-  "八",
-  "九",
-  "十",
-] as const;
-
-export function enVocabUsageDisplayOrdinal(n: number): string {
-  if (n >= 1 && n <= CN_ORDINALS.length) return CN_ORDINALS[n - 1];
-  return String(n);
-}
-
-/** 「用法一」 */
+/** 「1.用法」——展示一律阿拉伯数字，不用中文序号 */
 export function enVocabUsagePairLabel(n: number): string {
-  return `用法${enVocabUsageDisplayOrdinal(n)}`;
+  return `${n}.用法`;
 }
 
 export type EnVocabUsagePointForDisplay = {

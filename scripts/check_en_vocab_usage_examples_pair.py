@@ -28,13 +28,16 @@ def main() -> int:
     if not display_lib.is_file():
         errors.append(f"missing {display_lib.relative_to(ROOT)}")
     else:
+        display_text = display_lib.read_text(encoding="utf-8")
         for n in [
             "buildEnVocabUsageExamplePairs",
             "enVocabUsagePairLabel",
-            "用法",
+            "${n}.用法",
         ]:
-            if n not in display_lib.read_text(encoding="utf-8"):
+            if n not in display_text:
                 errors.append(f"{display_lib.name}: missing {n!r}")
+        if "用法一" in display_text or "CN_ORDINALS" in display_text:
+            errors.append(f"{display_lib.name}: must not use 用法一 / CN_ORDINALS")
 
     page = ROOT / "src/components/EnVocabPage.tsx"
     missing = must_contain(

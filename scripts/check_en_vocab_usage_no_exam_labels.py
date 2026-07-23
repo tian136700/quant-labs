@@ -42,8 +42,8 @@ def main() -> None:
         fail("missing stripEnVocabUsageExamLabels")
     if "formatEnVocabUsageForDisplay" not in ai:
         fail("missing formatEnVocabUsageForDisplay")
-    if "用法${" not in ai:
-        fail("display format must use 用法一/二 style")
+    if "${pointIdx}.用法：" not in ai and "${pointIdx}.用法" not in ai:
+        fail("display format must use Arabic 1.用法 style")
     # 上传是屏蔽剥词，不是整段拒收
     if "exam_label_forbidden" in ai and "reject_reasons" in ai:
         # reject_reasons 数组里不应再列 exam_label_forbidden
@@ -98,8 +98,14 @@ def main() -> None:
         fail("edit save must shield usage via shieldEnVocabUsageUploadText")
 
     modal = read("src/components/EnVocabUsageViewModal.tsx")
-    if "formatEnVocabUsageForDisplay" not in modal:
-        fail("EnVocabUsageViewModal must format usage for display")
+    if "EnVocabUsageExamplesPairedContent" not in modal:
+        fail("EnVocabUsageViewModal must use paired usage+examples content")
+    if "buildEnVocabUsageExamplePairs" not in modal:
+        fail("EnVocabUsageViewModal must build usage/example pairs for display")
+    # 配对链路内会走 formatEnVocabUsageForDisplay（fallback）
+    display = read("src/lib/en-vocab-usage-examples-display.ts")
+    if "formatEnVocabUsageForDisplay" not in display:
+        fail("paired display must still format usage via formatEnVocabUsageForDisplay")
 
     strip_script = ROOT / "scripts" / "en-vocab-strip-usage-exam-labels.py"
     if not strip_script.is_file():

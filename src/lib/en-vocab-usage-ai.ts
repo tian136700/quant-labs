@@ -143,26 +143,6 @@ const EN_VOCAB_USAGE_EXAM_LABEL_COMPOUND_RE =
 
 const EN_VOCAB_USAGE_IMAGE_LINE_RE = /^!\[[^\]]*\]\([^)]+\)\s*$/;
 
-const EN_VOCAB_USAGE_CN_ORDINALS = [
-  "一",
-  "二",
-  "三",
-  "四",
-  "五",
-  "六",
-  "七",
-  "八",
-  "九",
-  "十",
-] as const;
-
-function enVocabUsageCnOrdinal(n: number): string {
-  if (n >= 1 && n <= EN_VOCAB_USAGE_CN_ORDINALS.length) {
-    return EN_VOCAB_USAGE_CN_ORDINALS[n - 1];
-  }
-  return String(n);
-}
-
 /** 剥标签后清多余标点/空格；空编号行返回 "" */
 function cleanEnVocabUsageLineDebris(line: string): string {
   let s = String(line || "")
@@ -223,8 +203,8 @@ export function stripEnVocabUsageExamLabels(raw: string): string {
 }
 
 /**
- * 展示用：先剥考试标签，编号行改成「用法一：… / 用法二：…」。
- * 仅一条时只显示「用法一：…」。图片行不动。
+ * 展示用：先剥考试标签，编号行改成「1.用法：… / 2.用法：…」。
+ * 仅一条时只显示「1.用法：…」。图片行不动。
  */
 export function formatEnVocabUsageForDisplay(raw: string): string {
   const stripped = stripEnVocabUsageExamLabels(String(raw ?? ""));
@@ -245,7 +225,7 @@ export function formatEnVocabUsageForDisplay(raw: string): string {
       const body = m[2].trim();
       if (!body) continue;
       pointIdx += 1;
-      out.push(`用法${enVocabUsageCnOrdinal(pointIdx)}：${body}`);
+      out.push(`${pointIdx}.用法：${body}`);
       continue;
     }
     out.push(trimmed);
