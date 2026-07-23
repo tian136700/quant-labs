@@ -50,7 +50,7 @@ assert "批量加入复习" in select_page
 assert "checkbox" in select_page
 assert "catalog_ids" in select_page
 assert "select_review" in select_page
-assert "handleCopyLetter" in select_page or "copyTextToClipboard" in select_page
+assert "handleCopyLetter" in select_page or "copyTextToClipboard" in select_page or "KoPronLetterCopyButton" in select_page
 assert "CopyToast" in select_page
 assert "selectKoPronCatalogBatchIntoReview" in select_api
 assert 'action !== "select"' in select_api or 'action === "select_review"' in select_api
@@ -80,6 +80,15 @@ assert (ROOT / "src/lib/ko-pron-review-session.ts").is_file()
 assert "koPronSelectPath" in quiz_page
 assert "抽问池为空" in quiz_page
 
+# 导出随机卡片：按本次乱序标序号（老师对照「第几个」）
+export_card = read("src/lib/ko-pron-quiz-card-export.ts")
+assert "exportKoPronRandomQuizCard" in export_card
+assert "const seq = i + 1" in export_card
+assert "乱序编号" in export_card or "本次导出序号" in export_card
+assert "import(" not in export_card and "from \"html2canvas\"" not in export_card
+assert "from \"jspdf\"" not in export_card and "from 'jspdf'" not in export_card
+assert "createElement(\"canvas\")" in export_card or 'createElement("canvas")' in export_card
+
 # Nav / docs
 assert "koPronSelect" in messages
 assert "koPronReview" in messages
@@ -89,6 +98,7 @@ assert 'id: "koPronReview"' in nav_items
 assert "koPronReview" in nav_config
 assert "韩语发音勾选" in feature
 assert "/ko-pron/review" in feature
+assert "左上角" in feature and "序号" in feature
 assert "review_selected_at" in rule or "加入复习" in rule
 assert "禁止" in rule and ("seed" in rule.lower() or "全量" in rule)
 

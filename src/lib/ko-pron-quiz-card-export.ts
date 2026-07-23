@@ -1,6 +1,7 @@
 /**
  * 韩语发音勾选页：导出「随机抽问卡片」PNG。
  * 仅含韩语字母（乱序），不含罗马音 / 读音——供老师线下指着卡片抽问。
+ * 每格左上角按本次乱序结果标序号 1、2、3…（与格子阅读顺序一致）。
  * 纯 Canvas，禁止引入 html2canvas / jspdf 等重依赖。
  */
 
@@ -96,17 +97,21 @@ export async function exportKoPronRandomQuizCard(
   ctx.fillStyle = "#64748b";
   ctx.font = "15px system-ui, -apple-system, sans-serif";
   ctx.fillText(
-    `共 ${shuffled.length} 个字母 · 乱序 · 请读出读音（不含罗马音）`,
+    `共 ${shuffled.length} 个字母 · 乱序编号 · 请读出读音（不含罗马音）`,
     width / 2,
     CARD_PAD + TITLE_H + HINT_H / 2 - 2
   );
 
-  const glyphFont = `bold ${Math.round(cell * 0.52)}px "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "AppleGothic", sans-serif`;
+  const glyphFont = `bold ${Math.round(cell * 0.48)}px "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", "AppleGothic", sans-serif`;
+  const indexFontSize = Math.max(12, Math.round(cell * 0.16));
+  const indexFont = `600 ${indexFontSize}px system-ui, -apple-system, sans-serif`;
+  const indexPad = Math.max(8, Math.round(cell * 0.1));
   for (let i = 0; i < shuffled.length; i += 1) {
     const col = i % cols;
     const row = Math.floor(i / cols);
     const x = gridLeft + col * (cell + gap);
     const y = gridTop + row * (cell + gap);
+    const seq = i + 1; // 按本次乱序结果编号：左上→右下 1、2、3…
 
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#cbd5e1";
@@ -116,18 +121,24 @@ export async function exportKoPronRandomQuizCard(
     ctx.fill();
     ctx.stroke();
 
+    ctx.fillStyle = "#64748b";
+    ctx.font = indexFont;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(String(seq), x + indexPad, y + indexPad - 1);
+
     ctx.fillStyle = "#0f172a";
     ctx.font = glyphFont;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(shuffled[i]!, x + cell / 2, y + cell / 2 + 2);
+    ctx.fillText(shuffled[i]!, x + cell / 2, y + cell / 2 + 4);
   }
 
   ctx.fillStyle = "#94a3b8";
   ctx.font = "12px system-ui, -apple-system, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(
-    "随机抽问卡片 · 每次导出顺序不同",
+    "随机抽问卡片 · 格子左上角为本次导出序号 · 每次顺序不同",
     width / 2,
     height - CARD_PAD / 2 - 4
   );
