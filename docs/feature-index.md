@@ -106,7 +106,7 @@
 |-----------|--------|------|--------|------|
 | `/en-vocab` | 英语抽背-老师端 | `src/app/en-vocab/page.tsx` | `EnVocabPage variant="teacher"` | 勾选熟悉程度、共享到今日单词 |
 | `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、导出 Excel、批量删除、重置 |
-| `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | |
+| `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPage.tsx` | **仅管理员**（英语老师不可见；对齐日语 study） |
 | `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
 
 RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
@@ -116,6 +116,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **管理员端 / 老师端拆分**（双入口 + `variant`；共享在老师端；导出/删除/重置在管理员端） | `EnVocabPage.tsx`；路由 `en-vocab/page.tsx` + `en-vocab/admin/page.tsx`；`enVocabAdminPath`；`en_vocab:teacher` / `en_vocab:admin` |
+| **老师导航极简**（只「英语抽背-老师端」；不挂今日单词 / 新课 / 关于） | `useSiteNavItems.ts` → `enTeacherNav`；`canAccessEnVocabStudy` 拦老师；`requireEnLessonOperate` 须 `en_lesson:operate`；规则 `.cursor/rules/en-vocab-teacher-nav-minimal.mdc` |
 | **词表例句「查看」弹窗**（点「查看 (N)」弹出框；**禁止**行内展开堆列；对齐新课例句弹窗） | `EnVocabExampleSentencesCell.tsx` → `EnVocabExamplesViewModal.tsx`；列宽 `EnVocabPage.tsx` → `.jp-vocab-example-col`；规则 `.cursor/rules/en-vocab-examples-view-modal.mdc` |
 | **桌面操作列可见**（`table-layout:fixed` + 操作列右侧 sticky；禁止 `min-width:900px` 把编辑挤出视口） | `EnVocabPage.tsx` 表样式；对齐 `JpVocabPageStyles`；规则 `.cursor/rules/en-vocab-table-actions-visible.mdc` |
 | **音标 / 释义+词性 / 例句补全**（Mac 每 10 分钟；dirlock 防重叠；**一律本机 Ollama `gemma4:26b`**，不调线上词典；右下角「来源」角标） | API：`POST /api/en-vocab/fill-reading`、`fill-meaning`、`fill-example-sentences`；`src/lib/en-vocab-fill-*.ts`、`en-vocab-meaning-ai.ts`、`en-vocab-example-sentences-ai.ts`；脚本：`scripts/en-vocab-fill-*-api.py`、`en-vocab-fill-nightly.sh`、`setup-en-vocab-fill-mac.sh`；规则 `.cursor/rules/en-vocab-fill.mdc`；UI：`EnVocabPage` + `EnVocabExampleSentencesCell` + `JpVocabSourceLabel` |

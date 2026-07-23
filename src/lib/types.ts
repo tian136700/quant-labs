@@ -177,6 +177,13 @@ export interface JpVocabWord {
   class_notes_present?: boolean;
   /** 巧记 / 联想记忆（仅管理员可见与编辑） */
   mnemonic?: string | null;
+  /**
+   * 常用用法（英语抽背；雅思/托福考点编号列表；可含备注同格式图片行）
+   * 日语侧一般不用此字段
+   */
+  usage?: string | null;
+  /** 用法来源（如：手动、本地 gemma4:26b） */
+  usage_source?: string | null;
   /** 例句（课堂带读展示；日语抽问列表不显示，编辑时可填） */
   example_sentences?: string | null;
   /** 例句来源（如：手动、DeepSeek、本地模型名；老师可见，便于纠错与质量对比） */

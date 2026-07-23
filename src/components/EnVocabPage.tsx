@@ -2144,11 +2144,11 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
         }
-        /* 对齐日语：fixed 压缩进视口；操作列 sticky，禁止被例句/统计挤出屏幕 */
+        /* 对齐日语：fixed + 操作列 sticky；桌面下限宽度避免列被压到叠字（可横滑） */
         :global(.jp-vocab-table) {
           width: 100%;
           table-layout: fixed;
-          min-width: 0;
+          min-width: 68rem;
         }
         :global(.jp-vocab-table th),
         :global(.jp-vocab-table td) {
@@ -2156,6 +2156,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           vertical-align: middle;
           padding: 0.4rem 0.35rem;
           text-align: center;
+          overflow: hidden;
         }
         :global(.jp-vocab-table thead th) {
           font-size: 0.8125rem;
@@ -2393,7 +2394,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           width: 5%;
           min-width: 0;
         }
-        /* 例句列仅「查看」按钮，内容在弹窗；列保持窄 */
+        /* 例句列仅「查看」按钮，内容在弹窗；列保持窄；禁止溢出叠到优先级列 */
         :global(.jp-vocab-table .jp-vocab-example-col) {
           width: 5%;
           min-width: 0;
@@ -2401,6 +2402,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           text-align: center;
           vertical-align: middle;
           white-space: nowrap;
+          overflow: hidden;
         }
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           white-space: nowrap;

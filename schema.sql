@@ -494,6 +494,11 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   today_check_count INTEGER NOT NULL DEFAULT 0,
   today_check_date  TEXT,
   class_notes TEXT,
+  /** 巧记 / 联想记忆（仅管理员可见与编辑） */
+  mnemonic TEXT,
+  /** 常用用法（雅思/托福考点编号列表；可含 ![](/api/en-vocab/ref/…) 图片行） */
+  usage TEXT,
+  usage_source TEXT,
   /** 例句（英文行 + 译文：中文；与日语格式对称） */
   example_sentences TEXT,
   example_sentences_source TEXT,

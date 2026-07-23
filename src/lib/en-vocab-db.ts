@@ -183,6 +183,18 @@ function mapRow(row: Record<string, unknown>): EnVocabWord {
       row.class_notes != null && String(row.class_notes).trim()
         ? String(row.class_notes)
         : null,
+    mnemonic:
+      row.mnemonic != null && String(row.mnemonic).trim()
+        ? String(row.mnemonic)
+        : null,
+    usage:
+      row.usage != null && String(row.usage).trim()
+        ? String(row.usage)
+        : null,
+    usage_source:
+      row.usage_source != null && String(row.usage_source).trim()
+        ? String(row.usage_source).trim()
+        : null,
     example_sentences:
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences)
@@ -205,47 +217,61 @@ function mapRow(row: Record<string, unknown>): EnVocabWord {
   };
 }
 
+function isSqliteDuplicateColumnError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /duplicate column name/i.test(msg);
+}
+
+/** D1 多 isolate 并发 ALTER 时吞掉 duplicate column，避免 schemaReady 永远起不来 */
+async function addEnVocabWordColumnIfMissing(
+  db: D1Database,
+  cols: Set<string>,
+  name: string,
+  sqlType: string
+): Promise<void> {
+  if (cols.has(name)) return;
+  try {
+    await db
+      .prepare(`ALTER TABLE en_vocab_word ADD COLUMN ${name} ${sqlType}`)
+      .run();
+    cols.add(name);
+  } catch (err) {
+    if (isSqliteDuplicateColumnError(err)) {
+      cols.add(name);
+      return;
+    }
+    throw err;
+  }
+}
+
 async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (devStoreEnabled || vocabWordSchemaReady) return;
   const info = await db
     .prepare(`PRAGMA table_info(en_vocab_word)`)
     .all<{ name: string }>();
   const cols = new Set((info.results ?? []).map((row) => row.name));
-  if (!cols.has("today_check_count")) {
-    await db
-      .prepare(
-        `ALTER TABLE en_vocab_word ADD COLUMN today_check_count INTEGER NOT NULL DEFAULT 0`
-      )
-      .run();
-  }
-  if (!cols.has("today_check_date")) {
-    await db
-      .prepare(`ALTER TABLE en_vocab_word ADD COLUMN today_check_date TEXT`)
-      .run();
-  }
-  if (!cols.has("pos")) {
-    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN pos TEXT`).run();
-  }
-  if (!cols.has("last_review_level")) {
-    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN last_review_level TEXT`).run();
-  }
-  if (!cols.has("last_review_at")) {
-    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN last_review_at TEXT`).run();
-  }
-  if (!cols.has("reading_source")) {
-    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN reading_source TEXT`).run();
-  }
-  if (!cols.has("meaning_source")) {
-    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN meaning_source TEXT`).run();
-  }
-  if (!cols.has("example_sentences")) {
-    await db.prepare(`ALTER TABLE en_vocab_word ADD COLUMN example_sentences TEXT`).run();
-  }
-  if (!cols.has("example_sentences_source")) {
-    await db
-      .prepare(`ALTER TABLE en_vocab_word ADD COLUMN example_sentences_source TEXT`)
-      .run();
-  }
+  await addEnVocabWordColumnIfMissing(
+    db,
+    cols,
+    "today_check_count",
+    "INTEGER NOT NULL DEFAULT 0"
+  );
+  await addEnVocabWordColumnIfMissing(db, cols, "today_check_date", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "pos", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "last_review_level", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "last_review_at", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "reading_source", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "meaning_source", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "example_sentences", "TEXT");
+  await addEnVocabWordColumnIfMissing(
+    db,
+    cols,
+    "example_sentences_source",
+    "TEXT"
+  );
+  await addEnVocabWordColumnIfMissing(db, cols, "mnemonic", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "usage", "TEXT");
+  await addEnVocabWordColumnIfMissing(db, cols, "usage_source", "TEXT");
   vocabWordSchemaReady = true;
 }
 
@@ -288,8 +314,8 @@ async function listEnVocabRefsByKeys(
 }
 
 const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes,
-  example_sentences, example_sentences_source,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
+  usage, usage_source, example_sentences, example_sentences_source,
   last_review_level, last_review_at, created_at, updated_at FROM en_vocab_word`;
 
 function refsRecord(refs: EnVocabRef[]): Record<string, EnVocabRef> {
@@ -1455,6 +1481,8 @@ export type EnVocabWordEntryInput = {
   meaning?: string | null;
   pos?: string | null;
   class_notes?: string | null;
+  mnemonic?: string | null;
+  usage?: string | null;
   example_sentences?: string | null;
 };
 
@@ -1508,6 +1536,14 @@ export async function updateEnVocabWordEntry(
     input.class_notes !== undefined
       ? (input.class_notes || "").trim() || null
       : current.class_notes;
+  const nextMnemonic =
+    input.mnemonic !== undefined
+      ? (input.mnemonic || "").trim() || null
+      : current.mnemonic ?? null;
+  const nextUsage =
+    input.usage !== undefined
+      ? (input.usage || "").trim() || null
+      : current.usage ?? null;
   const nextExamples =
     input.example_sentences !== undefined
       ? (input.example_sentences || "").trim() || null
@@ -1519,6 +1555,9 @@ export async function updateEnVocabWordEntry(
   const meaningChanged =
     input.meaning !== undefined &&
     (nextMeaning || null) !== (current.meaning || null);
+  const usageChanged =
+    input.usage !== undefined &&
+    (nextUsage || null) !== (current.usage || null);
   const examplesChanged =
     input.example_sentences !== undefined &&
     (nextExamples || null) !== (current.example_sentences || null);
@@ -1533,6 +1572,11 @@ export async function updateEnVocabWordEntry(
       ? "手动"
       : null
     : current.meaning_source ?? null;
+  const nextUsageSource = usageChanged
+    ? nextUsage
+      ? "手动"
+      : null
+    : current.usage_source ?? null;
   const nextExampleSource = examplesChanged
     ? nextExamples
       ? "手动"
@@ -1568,6 +1612,9 @@ export async function updateEnVocabWordEntry(
       meaning_source: nextMeaningSource,
       pos: nextPos,
       class_notes: nextNotes,
+      mnemonic: nextMnemonic,
+      usage: nextUsage,
+      usage_source: nextUsageSource,
       example_sentences: nextExamples,
       example_sentences_source: nextExampleSource,
       updated_at: ts,
@@ -1579,9 +1626,10 @@ export async function updateEnVocabWordEntry(
         `UPDATE en_vocab_word
          SET kind = ?1, word = ?2, reading = ?3, reading_source = ?4,
              meaning = ?5, meaning_source = ?6, pos = ?7, class_notes = ?8,
-             example_sentences = ?9, example_sentences_source = ?10,
-             updated_at = ?11
-         WHERE id = ?12`
+             mnemonic = ?9, usage = ?10, usage_source = ?11,
+             example_sentences = ?12, example_sentences_source = ?13,
+             updated_at = ?14
+         WHERE id = ?15`
       )
       .bind(
         nextKind,
@@ -1592,6 +1640,9 @@ export async function updateEnVocabWordEntry(
         nextMeaningSource,
         nextPos,
         nextNotes,
+        nextMnemonic,
+        nextUsage,
+        nextUsageSource,
         nextExamples,
         nextExampleSource,
         ts,

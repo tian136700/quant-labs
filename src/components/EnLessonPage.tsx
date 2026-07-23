@@ -1717,6 +1717,8 @@ export function EnLessonPage() {
           英语单词抽问并带上教案链接。
         </p>
       </details>
+        </>
+      )}
 
       <style jsx>{`
         :global(.page-wrap:has(.jp-lesson-page)) {

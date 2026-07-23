@@ -5,7 +5,14 @@ export function buildOptimisticEnVocabWord(
   patch: Partial<
     Pick<
       EnVocabWord,
-      "kind" | "word" | "reading" | "meaning" | "pos" | "class_notes"
+      | "kind"
+      | "word"
+      | "reading"
+      | "meaning"
+      | "pos"
+      | "class_notes"
+      | "mnemonic"
+      | "usage"
     >
   >
 ): EnVocabWord {
