@@ -1,16 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
+import { type EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
+import { parseEnVocabLastUsageLevels } from "@/lib/en-vocab-review";
 import {
   formatEnVocabTotalReviewsDisplay,
   enVocabRiskIndex,
   enVocabTotalReviewsZeroHint,
 } from "@/lib/en-vocab-shared";
+import type { EnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz";
 import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnVocabEditModal } from "@/components/EnVocabEditModal";
@@ -18,10 +22,13 @@ import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
+import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQuizFlashcardModal";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import {
   EN_VOCAB_STUDY_POLL_HIDDEN_MS,
   EN_VOCAB_STUDY_POLL_MS,
+  EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
+  EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
 } from "@/lib/en-vocab-sync";
 import type { EnVocabLevel, EnVocabRef, EnVocabSharedItem, EnVocabWord } from "@/lib/types";
 
@@ -42,10 +49,19 @@ const SHOW_REMARKS_COLUMN = true;
 
 export function EnVocabStudyPage() {
   const { locale } = useI18n();
-  const { user, checking, canAccessEnVocab, canAccessEnVocabStudy, openAuthPanel } =
-    useEtrAuth();
+  const {
+    user,
+    checking,
+    canAccessEnVocab,
+    canAccessEnVocabStudy,
+    isAdmin,
+    openAuthPanel,
+  } = useEtrAuth();
   const canOperate = canAccessEnVocab;
   const canViewStudy = canAccessEnVocabStudy;
+  /** 学生自行查看老师当前抽查词（对齐日语 study peek） */
+  const showPeekTeacherQuiz =
+    Boolean(user) && canViewStudy && (!canOperate || isAdmin);
   const [items, setItems] = useState<EnVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, EnVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
@@ -59,23 +75,54 @@ export function EnVocabStudyPage() {
     cacheVersion?: string | null;
   } | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<EnVocabWord | null>(null);
+  const [flashcardItem, setFlashcardItem] = useState<EnVocabSharedItem | null>(null);
+  const [teacherLiveWordId, setTeacherLiveWordId] = useState<number | null>(null);
+  const [peekingTeacherQuiz, setPeekingTeacherQuiz] = useState(false);
   const pollInFlightRef = useRef(false);
   const pendingRefreshRef = useRef(false);
-  const pendingOpenRemarksWordIdRef = useRef<number | null>(null);
+  /** 老师新发词 / 同浏览器共享通知：弹详情卡；禁止 scrollIntoView */
+  const pendingFlashcardWordIdRef = useRef<number | null>(null);
+  const knownSharedWordIdsRef = useRef<Set<number>>(new Set());
+  const hasLoadedOnceRef = useRef(false);
 
   const openEnAuth = useCallback(() => {
     openAuthPanel({
       mode: "login",
       loginOnly: true,
       title: "登录 · 今日背英语单词",
-      subtitle: "仅管理员可访问。",
+      subtitle: "登录后可查看老师正在抽查的单词，以及老师发给你的词条。",
     });
   }, [openAuthPanel]);
+
+  /** 有操作权限时「查看」也进可编辑备注（对齐老师端）；学生仍只读 */
+  const openRemarksWord = useCallback(
+    (word: EnVocabWord) => {
+      if (canOperate) {
+        setEditingRemarksWord(word);
+      } else {
+        setViewingRemarksWord(word);
+      }
+    },
+    [canOperate]
+  );
 
   const handleWordSaved = useCallback((word: EnVocabWord) => {
     setItems((prev) =>
       prev.map((item) => (item.word_id === word.id ? { ...item, word } : item))
     );
+    setFlashcardItem((prev) => {
+      if (prev?.word_id !== word.id) return prev;
+      return {
+        ...prev,
+        word,
+        level:
+          word.last_review_level === "very" ||
+          word.last_review_level === "normal" ||
+          word.last_review_level === "weak"
+            ? word.last_review_level
+            : prev.level,
+      };
+    });
     setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
     setEditingWord((prev) => (prev?.id === word.id ? word : prev));
     setViewingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
@@ -90,6 +137,32 @@ export function EnVocabStudyPage() {
         )
       );
       setStatus(message);
+    },
+    []
+  );
+
+  const applyStudyPayload = useCallback(
+    (payload: {
+      items: EnVocabSharedItem[];
+      refs?: Record<string, EnVocabRef>;
+      share_date?: string;
+    }) => {
+      const wasLoadedBefore = hasLoadedOnceRef.current;
+      const newWordIds = payload.items.map((item) => item.word_id);
+      // 老师勾选 / 发给学生 → 新词自动弹卡；首屏历史列表不弹
+      if (wasLoadedBefore) {
+        const brandNew = newWordIds.filter(
+          (id) => !knownSharedWordIdsRef.current.has(id)
+        );
+        if (brandNew.length > 0 && pendingFlashcardWordIdRef.current == null) {
+          pendingFlashcardWordIdRef.current = brandNew[brandNew.length - 1]!;
+        }
+      }
+      knownSharedWordIdsRef.current = new Set(newWordIds);
+      setItems(payload.items);
+      setRefs(payload.refs ?? {});
+      setShareDate(payload.share_date ?? beijingDateString());
+      hasLoadedOnceRef.current = true;
     },
     []
   );
@@ -110,26 +183,35 @@ export function EnVocabStudyPage() {
         credentials: "include",
         cache: "no-store",
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok: boolean;
         items?: EnVocabSharedItem[];
         refs?: Record<string, EnVocabRef>;
         share_date?: string;
         error?: string;
-      };
-      if (res.status === 401) {
+      }>(res);
+      if (!parsed.ok) {
+        if (!hasLoadedOnceRef.current) {
+          setError(parsed.error || "加载失败");
+        }
+        return;
+      }
+      const { data, status: httpStatus } = parsed;
+      if (httpStatus === 401) {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
-        setError("仅管理员可访问今日英语单词。");
+        setError("请登录后查看今日英语单词。");
         return;
       }
       if (!data.ok || !data.items) {
         throw new Error(data.error || "加载失败");
       }
-      setItems(data.items);
-      setRefs(data.refs ?? {});
-      setShareDate(data.share_date ?? beijingDateString());
+      applyStudyPayload({
+        items: data.items,
+        refs: data.refs,
+        share_date: data.share_date,
+      });
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -141,7 +223,7 @@ export function EnVocabStudyPage() {
         void loadShared({ force: true });
       }
     }
-  }, [locale, canViewStudy]);
+  }, [locale, canViewStudy, applyStudyPayload]);
 
   useEffect(() => {
     if (checking) return;
@@ -174,27 +256,24 @@ export function EnVocabStudyPage() {
   useEffect(() => {
     if (!canViewStudy) return;
     return subscribeEnVocabSharedUpdated((detail) => {
-      if (detail.openRemarks && detail.wordId && user) {
-        pendingOpenRemarksWordIdRef.current = detail.wordId;
+      // 与日语一致：openRemarks 表示打开详情卡（历史字段名）
+      if (detail.wordId && detail.openRemarks) {
+        pendingFlashcardWordIdRef.current = detail.wordId;
       }
       void loadShared({ force: true });
     });
-  }, [user, loadShared, canViewStudy]);
+  }, [loadShared, canViewStudy]);
 
   useEffect(() => {
-    const wordId = pendingOpenRemarksWordIdRef.current;
+    const wordId = pendingFlashcardWordIdRef.current;
     if (!wordId || items.length === 0) return;
-    const item = items.find((entry) => entry.word_id === wordId);
-    if (!item) return;
+    const entry = items.find((item) => item.word_id === wordId);
+    if (!entry) return;
 
-    pendingOpenRemarksWordIdRef.current = null;
-    // 打开备注弹窗即可；禁止 scrollIntoView，避免列表刷新拖走滚动位置
-    if (canOperate) {
-      setEditingRemarksWord(item.word);
-    } else {
-      setViewingRemarksWord(item.word);
-    }
-  }, [items, canOperate]);
+    pendingFlashcardWordIdRef.current = null;
+    // 弹卡即可；禁止 scrollIntoView（会把用户拽到列表底部）
+    setFlashcardItem(entry);
+  }, [items]);
 
   useEffect(() => {
     if (!canViewStudy) return;
@@ -205,13 +284,193 @@ export function EnVocabStudyPage() {
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadShared, canViewStudy]);
 
+  const teacherLiveWordShared =
+    teacherLiveWordId != null &&
+    items.some((item) => item.word_id === teacherLiveWordId);
+
+  useEffect(() => {
+    if (!showPeekTeacherQuiz) {
+      setTeacherLiveWordId(null);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () =>
+      typeof document !== "undefined" && document.hidden
+        ? EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS
+        : EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS;
+
+    const schedule = (delayMs: number) => {
+      if (cancelled) return;
+      timer = setTimeout(() => void poll(), delayMs);
+    };
+
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch("/api/en-vocab/teacher-quiz-live?scope=study", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const data = (await res.json()) as {
+          ok: boolean;
+          live?: { word_id?: number | null };
+        };
+        if (!cancelled && data.ok) {
+          const id = Number(data.live?.word_id);
+          setTeacherLiveWordId(Number.isFinite(id) && id > 0 ? Math.floor(id) : null);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) schedule(pollDelay());
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [showPeekTeacherQuiz]);
+
+  const peekTeacherQuizWord = useCallback(async () => {
+    if (!user || !showPeekTeacherQuiz || peekingTeacherQuiz) return;
+    if (teacherLiveWordShared) {
+      setStatus("老师已发送正在抽查的单词，请看弹出的卡片或下方列表。");
+      return;
+    }
+    setPeekingTeacherQuiz(true);
+    try {
+      const res = await fetch("/api/en-vocab/teacher-quiz-live", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+      });
+      const parsed = await readApiJson<{
+        ok: boolean;
+        error?: string;
+        item?: EnVocabSharedItem;
+        refs?: Record<string, EnVocabRef>;
+      }>(res);
+      if (!parsed.ok) {
+        setStatus(parsed.error || "暂时无法查看，请稍后再试。");
+        return;
+      }
+      const { data, status: httpStatus } = parsed;
+      if (httpStatus === 401) {
+        openEnAuth();
+        return;
+      }
+      if (!data.ok || !data.item) {
+        setStatus(data.error || "老师当前没有在抽查单词，请稍后再试。");
+        return;
+      }
+      if (data.refs) {
+        setRefs((prev) => ({ ...prev, ...data.refs }));
+      }
+      knownSharedWordIdsRef.current.add(data.item.word_id);
+      setItems((prev) => {
+        const next = data.item!;
+        const existingIndex = prev.findIndex((item) => item.word_id === next.word_id);
+        if (existingIndex >= 0) {
+          const nextItems = [...prev];
+          nextItems[existingIndex] = next;
+          return nextItems;
+        }
+        return [next, ...prev];
+      });
+      hasLoadedOnceRef.current = true;
+      setFlashcardItem(data.item);
+      setStatus("已打开老师正在抽查的单词，并加入今日列表。");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "暂时无法查看，请稍后再试。");
+    } finally {
+      setPeekingTeacherQuiz(false);
+    }
+  }, [
+    user,
+    showPeekTeacherQuiz,
+    peekingTeacherQuiz,
+    teacherLiveWordShared,
+    locale,
+    openEnAuth,
+  ]);
+
   const loggedIn = Boolean(user);
   const accessDenied = loggedIn && !checking && !canViewStudy;
+
+  const studyFlashcardSession = useMemo<EnVocabTeacherQuizSession | null>(() => {
+    if (!flashcardItem) return null;
+    return {
+      mode: "sequential",
+      wordIds: [flashcardItem.word_id],
+      currentIndex: 0,
+    };
+  }, [flashcardItem]);
+
+  const studyWordsById = useMemo(() => {
+    const map = new Map<number, EnVocabWord>();
+    for (const item of items) {
+      map.set(item.word_id, item.word);
+    }
+    if (flashcardItem) {
+      map.set(flashcardItem.word_id, flashcardItem.word);
+    }
+    return map;
+  }, [items, flashcardItem]);
+
+  const studyDisplayOrder = useMemo<EnVocabDailyDisplayOrder>(
+    () => ({
+      date: shareDate || beijingDateString(),
+      ids: items.map((item) => item.word_id),
+    }),
+    [shareDate, items]
+  );
+
+  const studySessionLevel = useMemo(() => {
+    const out: Record<number, EnVocabLevel | undefined> = {};
+    for (const item of items) {
+      if (item.level) out[item.word_id] = item.level;
+    }
+    if (flashcardItem?.level) {
+      out[flashcardItem.word_id] = flashcardItem.level;
+    }
+    return out;
+  }, [items, flashcardItem]);
+
+  const studySessionUsageLevels = useMemo(() => {
+    const out: Record<number, Array<EnVocabLevel | null | undefined>> = {};
+    const apply = (item: EnVocabSharedItem) => {
+      const levels = parseEnVocabLastUsageLevels(item.word.last_usage_levels);
+      if (levels) out[item.word_id] = levels;
+    };
+    for (const item of items) apply(item);
+    if (flashcardItem) apply(flashcardItem);
+    return out;
+  }, [items, flashcardItem]);
+
+  const studyDailySeqByWordId = useMemo(() => {
+    const map = new Map<number, number>();
+    items.forEach((item, index) => {
+      map.set(item.word_id, index + 1);
+    });
+    return map;
+  }, [items]);
 
   const openRefPreview = (refKey: string, ref?: EnVocabRef) => {
     const meta = resolveEnVocabRefForPreview(refKey, refs, ref);
     setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
   };
+
+  const openStudyFlashcard = useCallback((item: EnVocabSharedItem) => {
+    setFlashcardItem(item);
+  }, []);
 
   return (
     <main
@@ -220,8 +479,43 @@ export function EnVocabStudyPage() {
     >
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>今日背英语单词</h1>
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-        老师在抽问时共享的单词会出现在这里，方便课后复习。每日北京时间 0 点自动清空。
+        没听清时可点「查看老师正在抽查的单词」立刻查看；也可点列表中的单词打开详情卡片。列表供课后复习，每日北京时间 0 点自动清空。
       </p>
+
+      {showPeekTeacherQuiz ? (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginBottom: "1rem",
+          }}
+        >
+          <button
+            type="button"
+            className="btn-rsi-filter btn-rsi-filter--primary"
+            disabled={peekingTeacherQuiz || teacherLiveWordShared}
+            title={
+              teacherLiveWordShared
+                ? "老师已发送正在抽查的单词，请看下方弹出的卡片或列表"
+                : undefined
+            }
+            onClick={() => void peekTeacherQuizWord()}
+          >
+            {peekingTeacherQuiz
+              ? "加载中…"
+              : teacherLiveWordShared
+                ? "老师已发送"
+                : "查看老师正在抽查的单词"}
+          </button>
+          <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
+            {teacherLiveWordShared
+              ? "老师已勾选并发送，无需再点查看。"
+              : "没听清时，可立即查看老师当前正在抽问的单词。"}
+          </span>
+        </div>
+      ) : null}
 
       {!loggedIn && !checking ? (
         <p
@@ -245,7 +539,7 @@ export function EnVocabStudyPage() {
           >
             登录
           </button>
-          {" "}后查看今日共享单词（仅管理员）。
+          {" "}后查看今日共享单词。
         </p>
       ) : null}
 
@@ -255,7 +549,7 @@ export function EnVocabStudyPage() {
           role="alert"
           style={{ color: "var(--rise)", marginBottom: "1rem" }}
         >
-          当前账号无权访问今日背英语单词，请使用管理员账号登录。
+          当前账号无权访问今日背英语单词。
         </p>
       ) : null}
 
@@ -367,7 +661,6 @@ export function EnVocabStudyPage() {
               <tbody>
                 {items.map((item, index) => {
                   const w = item.word;
-                  const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
@@ -395,21 +688,15 @@ export function EnVocabStudyPage() {
                       </td>
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
                         <div className="jp-vocab-word-cell">
-                          {w.ref_key ? (
-                            <>
-                              <button
-                                type="button"
-                                className="jp-vocab-word-link"
-                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                                onClick={() => openRefPreview(w.ref_key!, ref)}
-                              >
-                                {w.word}
-                              </button>
-                              <span className="jp-vocab-ref-hint">（点击查看教案）</span>
-                            </>
-                          ) : (
-                            <span className="jp-vocab-word-text">{w.word}</span>
-                          )}
+                          <button
+                            type="button"
+                            className="jp-vocab-word-link"
+                            title="查看详情卡片"
+                            onClick={() => openStudyFlashcard(item)}
+                          >
+                            {w.word}
+                          </button>
+                          <span className="jp-vocab-ref-hint">（点击查看详情卡片）</span>
                         </div>
                       </td>
                       <td
@@ -546,7 +833,8 @@ export function EnVocabStudyPage() {
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact"
-                                onClick={() => setViewingRemarksWord(w)}
+                                title={canOperate ? "查看并编辑备注" : "查看备注"}
+                                onClick={() => openRemarksWord(w)}
                               >
                                 查看
                               </button>
@@ -584,6 +872,39 @@ export function EnVocabStudyPage() {
           </div>
         )}
       </section>
+
+      <EnVocabTeacherQuizFlashcardModal
+        open={flashcardItem != null}
+        mode="study"
+        session={studyFlashcardSession}
+        wordsById={studyWordsById}
+        refs={refs}
+        locale={locale}
+        displayOrder={studyDisplayOrder}
+        sessionLevel={studySessionLevel}
+        sessionUsageLevels={studySessionUsageLevels}
+        reviewLockedByWordId={{}}
+        savingWordId={null}
+        dailySeqByWordId={studyDailySeqByWordId}
+        canOperate={canOperate}
+        shareUiEnabled={false}
+        onClose={() => setFlashcardItem(null)}
+        onComplete={() => setFlashcardItem(null)}
+        onSelectLevel={() => {}}
+        onSelectUsageLevels={() => {}}
+        onNavigate={() => {}}
+        onOpenRef={openRefPreview}
+        onViewRemarks={openRemarksWord}
+        onEditRemarks={setEditingRemarksWord}
+        onEditWord={canOperate ? setEditingWord : undefined}
+        onWordUpdated={handleWordSaved}
+        nestedModalOpen={
+          editingWord != null ||
+          editingRemarksWord != null ||
+          viewingRemarksWord != null ||
+          previewRef != null
+        }
+      />
 
       <EnVocabRefPreviewModal
         open={previewRef != null}
