@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CopyToast } from "@/components/CopyToast";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
@@ -49,6 +50,8 @@ export function KoPronSelectPage() {
   const [saveKind, setSaveKind] = useState<BatchKind | null>(null);
   const [savePercent, setSavePercent] = useState<number | null>(null);
   const [saveQueued, setSaveQueued] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearProgressTimer = () => {
@@ -137,6 +140,20 @@ export function KoPronSelectPage() {
     [checkedIds, catalog]
   );
 
+  /** 导出优先用当前勾选；没有勾选则用已入抽问池（给不敢点链接的老师发图） */
+  const exportSourceLetters = useMemo(() => {
+    if (checkedIds.size > 0) {
+      return catalog.filter((c) => checkedIds.has(c.id));
+    }
+    return catalog.filter((c) => c.selected_at);
+  }, [catalog, checkedIds]);
+  const exportSourceLabel =
+    checkedIds.size > 0
+      ? `已选 ${exportSourceLetters.length}`
+      : exportSourceLetters.length > 0
+        ? `已入抽问 ${exportSourceLetters.length}`
+        : null;
+
   const toggleChecked = (id: number, next: boolean) => {
     setCheckedIds((prev) => {
       const copy = new Set(prev);
@@ -221,6 +238,31 @@ export function KoPronSelectPage() {
     }
   };
 
+  const exportRandomQuizCard = async () => {
+    if (exportBusy || saveBusy) return;
+    if (exportSourceLetters.length < 1) {
+      setCopyToast("请先勾选字母，或先将字母加入抽问");
+      return;
+    }
+    setError("");
+    setExportBusy(true);
+    try {
+      const { exportKoPronRandomQuizCard } = await import(
+        "@/lib/ko-pron-quiz-card-export"
+      );
+      const result = await exportKoPronRandomQuizCard(
+        exportSourceLetters.map((row) => ({ letter: row.letter }))
+      );
+      setCopyToast(`已导出 ${result.count} 个字母的抽问卡片`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      setCopyToast("导出失败");
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   if (checking) {
     return <p className="ko-pron-select-status">正在检查登录状态…</p>;
   }
@@ -259,7 +301,7 @@ export function KoPronSelectPage() {
       </div>
 
       <p className="ko-pron-select-hint">
-        先勾选多条（可全选当前筛选结果），再选「批量加入抽问」或「批量加入复习」。两池独立，同一字母可两边都进。抽问：立刻进入「韩语发音抽问」管理员端，同日勾选次日才进老师今日抽查池。复习：进入「韩语发音复习」自测读音。入库后不可取消。
+        先勾选多条（可全选当前筛选结果），再选「批量加入抽问」或「批量加入复习」。两池独立，同一字母可两边都进。抽问：立刻进入「韩语发音抽问」管理员端，同日勾选次日才进老师今日抽查池。复习：进入「韩语发音复习」自测读音。入库后不可取消。「导出随机抽问卡片」把当前勾选（或已入抽问）的字母乱序画成图片，只含韩语字母、不含罗马音，方便发给不敢点链接的老师线下抽问。
       </p>
 
       {error ? <p className="ko-pron-select-error">{error}</p> : null}
@@ -345,6 +387,27 @@ export function KoPronSelectPage() {
               {reviewPendingIds.length > 0
                 ? `批量加入复习（${reviewPendingIds.length}）`
                 : "批量加入复习"}
+            </button>
+            <button
+              type="button"
+              className="ko-pron-select-btn ko-pron-select-btn--export"
+              disabled={
+                exportSourceLetters.length < 1 || exportBusy || saveBusy
+              }
+              onClick={() => {
+                void exportRandomQuizCard();
+              }}
+              title={
+                exportSourceLabel
+                  ? `从${exportSourceLabel}乱序导出（仅韩语字母）`
+                  : "请先勾选字母，或先将字母加入抽问"
+              }
+            >
+              {exportBusy
+                ? "正在导出…"
+                : exportSourceLabel
+                  ? `导出随机抽问卡片（${exportSourceLetters.length}）`
+                  : "导出随机抽问卡片"}
             </button>
             {pendingCount > 0 && !saveBusy ? (
               <button
@@ -478,6 +541,8 @@ export function KoPronSelectPage() {
           )}
         </>
       ) : null}
+
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
         .ko-pron-select-page {
@@ -673,6 +738,9 @@ export function KoPronSelectPage() {
         }
         .ko-pron-select-btn--secondary {
           background: color-mix(in srgb, #f97316 55%, #0ea5e9);
+        }
+        .ko-pron-select-btn--export {
+          background: color-mix(in srgb, #0ea5e9 70%, #6366f1);
         }
         .ko-pron-select-btn:disabled {
           opacity: 0.55;

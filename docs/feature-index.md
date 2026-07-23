@@ -127,7 +127,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 | 线上 path | 中文名 | 页面入口 | 主组件 | 相关 API | 数据 / 逻辑 | 权限 |
 |-----------|--------|----------|--------|----------|-------------|------|
-| `/ko-pron/select` | **韩语发音勾选**（全量约 40 字母；**批量加入抽问 / 批量加入复习**；字母旁可复制） | `src/app/ko-pron/select/page.tsx` | `KoPronSelectPage` | `GET/POST /api/ko-pron/select`（`select` / `select_review` + `catalog_ids`） | `ko_pron_catalog`：`selected_at`→抽问；`review_selected_at`→复习（两池独立） | `admin` 或 `ko_pron:admin` |
+| `/ko-pron/select` | **韩语发音勾选**（全量约 40 字母；**批量加入抽问 / 批量加入复习**；**导出随机抽问卡片**；字母旁可复制） | `src/app/ko-pron/select/page.tsx` | `KoPronSelectPage` | `GET/POST /api/ko-pron/select`（`select` / `select_review` + `catalog_ids`） | `ko_pron_catalog`：`selected_at`→抽问；`review_selected_at`→复习（两池独立） | `admin` 或 `ko_pron:admin` |
 | `/ko-pron/review` | **韩语发音复习**（开始复习→**乱序**猜字母读音→显示读音听发音+看罗马音） | `src/app/ko-pron/review/page.tsx` | `KoPronReviewPage` + `KoPronReviewFlashcardModal` | `GET/POST /api/ko-pron/review`（`review_next` / `clear`） | 复习池=catalog.`review_selected_at`；进度 `ko_pron_review_done`（跨日，手动清） | `admin` 或 `ko_pron:admin` |
 | `/ko-pron` | **韩语发音抽问-老师端**（抽查卡片、勾选熟悉程度） | `src/app/ko-pron/page.tsx` | `KoPronPage variant="teacher"` | `GET/POST /api/ko-pron`、`GET /api/ko-pron/sync`、`POST /api/ko-pron/live` | 抽问池 `ko_pron_letter`（仅已勾选）；`src/lib/ko-pron-db.ts` | 须登录；`ko_pron:read` 浏览；`ko_pron:operate` / `ko_pron:teacher` 勾选；管理员进此 URL redirect 到 `/ko-pron/admin` |
 | `/ko-pron/admin` | **韩语发音抽问-管理员端**（抽问池、设今日抽查数量、预览卡片） | `src/app/ko-pron/admin/page.tsx` | `KoPronPage variant="admin"` | 同上（设目标须 admin） | 与老师端共用抽问表；**空池时提示去勾选页** | `admin` 或 `ko_pron:admin`；非管理员 redirect 到 `/ko-pron` |
@@ -139,6 +139,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 |----------|--------|
 | **谁能看见韩语模块**（日语老师导航不含韩语；普通网友默认无 `ko_pron:*`；未登录进 URL 只出登录页） | `nav:jp_teacher` 分支；`RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS` 含全部 `ko_pron:*`；`user` 默认权限**不含** `ko_pron:study`；`revokeDefaultKoPronStudyFromPublicRoles` |
 | **勾选总库 → 抽问池 / 复习池**（**批量**：多选 +「批量加入抽问」或「批量加入复习」；两池独立；禁止再往 `ko_pron_letter` seed 全量 40；抽问入库写 `selected_at`+letter；复习只写 `review_selected_at`；同日抽问勾选次日进老师可见池；字母旁「复制」+ toast） | `KoPronSelectPage`；`selectKoPronCatalogBatchIntoQuiz` / `selectKoPronCatalogBatchIntoReview`；`POST …/select`；规则 `.cursor/rules/ko-pron-select-quiz-split.mdc` |
+| **导出随机抽问卡片**（勾选页按钮；当前勾选优先，否则已入抽问；**乱序**仅韩语字母、**不含罗马音**；Canvas PNG 本机下载；给不敢点链接的老师线下抽问） | `KoPronSelectPage` → `exportRandomQuizCard`；`ko-pron-quiz-card-export.ts` → `exportKoPronRandomQuizCard` |
 | **韩语发音复习**（重新开始 / 继续断点；熟悉/不熟悉；**乐观更新 + `koPronReviewSaveQueue` 串行写库**；列表：熟悉/不熟悉/总复习/今日次数；**表头点击排序**（除操作外；本页无操作列则全列可排）；乱序；防剧透） | `KoPronReviewPage`；`koPronReviewSaveQueue`；`applyOptimisticKoPronReviewFamiliarity`；规则 `.cursor/rules/ko-pron-review-no-spoiler.mdc` |
 | **老师/管理员入口拆分**（导航「韩语发音抽问-老师端 / 管理员端」+「韩语发音勾选」+「韩语发音复习」；`variant` 区分抽问） | `/ko-pron` vs `/ko-pron/admin` vs `/ko-pron/select` vs `/ko-pron/review`；`locale-path.ts` → `koPronPath()` / `koPronAdminPath()` / `koPronSelectPath()` / `koPronReviewPath()`；`messages.ts` → `nav.koPron*`；规则 `.cursor/rules/ko-pron-admin-teacher-split.mdc` |
 | **RBAC 角色「韩语老师」**（管理员仍全能，不新建管理员角色） | `etr-auth.ts` → `EtrUserRole` 含 `ko_pron`；`rbac.ts` → `ko_pron:*`、`nav:ko_teacher`、`RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS`；用户管理可选「韩语老师」 |
