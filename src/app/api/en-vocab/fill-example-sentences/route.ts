@@ -1,12 +1,13 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyEnVocabExampleSentenceUpdates,
+  clearAllEnVocabExampleSentences,
   scanEnVocabWordsMissingExampleSentences,
 } from "@/lib/en-vocab-fill-example-sentences";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillExampleSentencesBody = {
-  mode?: "list_missing" | "apply";
+  mode?: "list_missing" | "apply" | "clear_all";
   dry_run?: boolean;
   limit?: number;
   kind?: "word" | "grammar";
@@ -65,6 +66,15 @@ export async function POST(request: Request) {
       body.limit > 0
         ? Math.floor(body.limit)
         : undefined;
+
+    if (body.mode === "clear_all") {
+      const result = await clearAllEnVocabExampleSentences(env.DB, { dryRun });
+      return jsonResponse({
+        ok: true,
+        mode: "clear_all",
+        ...result,
+      });
+    }
 
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyEnVocabExampleSentenceUpdates(env.DB, updates, {

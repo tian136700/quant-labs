@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """补全 en_vocab_word 缺失例句：list_missing → 本机 Ollama → apply。
 
-格式对齐日语：英文一行 +「译文：」中文；条数 = max(2, 用法数)。
-默认模型 gemma4:26b；source 标「本地 gemma4:26b」。
+须先有 usage；条数 = 用法编号条数；第 N 句对应第 N 条用法。
+其它词尽量简单。默认模型 gemma4:26b；source 标「本地 gemma4:26b」。
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ LEADING_INDEX_RE = re.compile(r"^\s*\d+[.、．)\]]\s*")
 GLOSS_LABEL_RE = re.compile(r"^(译文|翻譯|翻译|译|譯)\s*[:：]\s*")
 HAN_RE = re.compile(r"[\u4E00-\u9FFF]")
 LATIN_RE = re.compile(r"[A-Za-z]")
+USAGE_POINT_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
 
 
 def is_english_line(text: str) -> bool:
@@ -69,16 +70,43 @@ def word_used(sentence: str, word: str, kind: str) -> bool:
     return bool(re.search(rf"\b{escaped}\b", sentence, flags=re.I))
 
 
+def count_usage_points(usage: str) -> int | None:
+    lines = [ln.strip() for ln in usage.splitlines() if ln.strip()]
+    if not lines:
+        return None
+    points: list[tuple[int, str]] = []
+    for line in lines:
+        m = USAGE_POINT_RE.match(line)
+        if not m:
+            return None
+        n = int(m.group(1))
+        text = m.group(2).strip()
+        if n <= 0 or not text or not HAN_RE.search(text):
+            return None
+        points.append((n, text))
+    for i, (n, _) in enumerate(points):
+        if n != i + 1:
+            return None
+    return len(points) if points else None
+
+
 def validate_examples(
-    raw: str, *, word: str, kind: str
+    raw: str,
+    *,
+    word: str,
+    kind: str,
+    expected_count: int,
 ) -> tuple[str | None, str | None]:
+    if expected_count < 1:
+        return None, "usage_required"
+
     lines = [
         LEADING_INDEX_RE.sub("", ln).strip()
         for ln in raw.splitlines()
         if ln.strip()
     ]
-    if len(lines) < 4:
-        return None, "need_four_lines"
+    if len(lines) < expected_count * 2:
+        return None, "need_pair_lines"
 
     pairs: list[tuple[str, str]] = []
     i = 0
@@ -102,8 +130,8 @@ def validate_examples(
             i += 1
         pairs.append((line, gloss))
 
-    if len(pairs) < 2:
-        return None, "need_two_english_lines"
+    if len(pairs) != expected_count:
+        return None, "wrong_example_count"
 
     out_lines: list[str] = []
     for en, gloss in pairs:
@@ -116,6 +144,18 @@ def validate_examples(
     return "\n".join(out_lines), None
 
 
+def resolve_expected_count(row: dict) -> int | None:
+    raw = row.get("expected_count")
+    if isinstance(raw, int) and raw >= 1:
+        return raw
+    if isinstance(raw, str) and raw.strip().isdigit():
+        n = int(raw.strip())
+        if n >= 1:
+            return n
+    usage = str(row.get("usage") or "").strip()
+    return count_usage_points(usage)
+
+
 def generate_for_row(
     row: dict, *, model: str, retries: int
 ) -> tuple[str | None, str | None, str]:
@@ -123,10 +163,15 @@ def generate_for_row(
     prompt = str(row.get("prompt") or "").strip()
     word = str(row.get("word") or "")
     kind = str(row.get("kind") or "word")
+    expected = resolve_expected_count(row)
+    if expected is None:
+        return None, "usage_required", model
+
     if not prompt:
         prompt = (
-            f"词条：{word}\n类型：{'语法' if kind == 'grammar' else '单词'}\n\n"
-            "请写英语例句，每条英文下一行「译文：」中文；至少 2 条。"
+            f"词条：{word}\n类型：{'语法' if kind == 'grammar' else '单词'}\n"
+            f"应写例句条数：{expected}\n\n"
+            "请按已有用法编号一一对应写英语例句；每条英文下一行「译文：」中文。"
         )
 
     base_prompt = prompt
@@ -144,14 +189,19 @@ def generate_for_row(
         for attempt in range(max(1, retries)):
             try:
                 content = call_ollama(work_prompt, model=use_model)
-                text, reason = validate_examples(content, word=word, kind=kind)
+                text, reason = validate_examples(
+                    content,
+                    word=word,
+                    kind=kind,
+                    expected_count=expected,
+                )
                 if text:
                     return text, None, use_model
                 last_err = reason or "invalid"
                 work_prompt = (
                     base_prompt
-                    + f"\n\n上次不合格（{last_err}）。请只输出英文/译文交替行，至少两句，"
-                    "不要编号。"
+                    + f"\n\n上次不合格（{last_err}）。请只输出英文/译文交替行，"
+                    f"恰好 {expected} 句，一一对应用法，不要编号，其它词尽量简单。"
                 )
             except Exception as err:
                 last_err = str(err)
@@ -172,7 +222,7 @@ def generate_for_row(
 def main() -> int:
     cfg = load_env_file("en-vocab-fill.env")
     parser = argparse.ArgumentParser(
-        description="Fill en_vocab example sentences via Ollama"
+        description="Fill en_vocab example sentences via Ollama (requires usage)"
     )
     parser.add_argument(
         "--api-url",
@@ -212,14 +262,15 @@ def main() -> int:
     missing = list(scan.get("missing") or [])
     total = int(scan.get("total_missing") or len(missing))
     print(
-        f"[en-vocab-fill-examples] list_missing={len(missing)} total_missing={total}",
+        f"[en-vocab-fill-examples] list_missing={len(missing)} total_missing={total} "
+        f"(requires usage)",
         flush=True,
     )
     if args.scan:
         print(json.dumps(scan, ensure_ascii=False, indent=2))
         return 0
     if not missing:
-        print("  无缺失例句", flush=True)
+        print("  无缺失例句（或尚无用法可造句）", flush=True)
         return 0
 
     if not probe_ollama():
@@ -233,8 +284,10 @@ def main() -> int:
     for index, row in enumerate(missing):
         word_id = int(row.get("id") or 0)
         word = str(row.get("word") or "")
+        expected = resolve_expected_count(row)
         print(
-            f"  [{index + 1}/{len(missing)}] id={word_id} word={word!r}",
+            f"  [{index + 1}/{len(missing)}] id={word_id} word={word!r} "
+            f"expected={expected}",
             flush=True,
         )
         text, err, used_model = generate_for_row(

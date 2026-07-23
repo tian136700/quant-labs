@@ -1,18 +1,19 @@
 #!/bin/bash
-# 英语词条补全：单阶段入口（音标 / 释义 / 词性 / 例句 / 用法 各自独立）
+# 英语词条补全：单阶段入口（音标 / 释义 / 词性 / 用法 / 例句 各自独立）
 #
 # 每阶段自己的 dirlock + ollama_slot：跑完即放槽，不把多阶段绑成一大坨占死模型。
+# 推荐顺序：reading → meaning → pos → usage → examples（例句依赖 usage）。
 #
 # 用法：
-#   bash scripts/en-vocab-fill-stage.sh reading|meaning|pos|examples|usage
+#   bash scripts/en-vocab-fill-stage.sh reading|meaning|pos|usage|examples
 #   FORCE=1 bash scripts/en-vocab-fill-stage.sh meaning
 set -euo pipefail
 
 STAGE="${1:-}"
 case "$STAGE" in
-  reading|meaning|pos|examples|usage) ;;
+  reading|meaning|pos|usage|examples) ;;
   *)
-    echo "用法: $0 {reading|meaning|pos|examples|usage}" >&2
+    echo "用法: $0 {reading|meaning|pos|usage|examples}" >&2
     exit 2
     ;;
 esac

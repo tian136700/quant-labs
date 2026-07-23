@@ -13,7 +13,8 @@ UID_NUM="$(id -u)"
 OLD_COMBINED="com.infoquests.en-vocab-fill"
 OLD_READING_ONLY="com.infoquests.en-vocab-fill-reading"
 
-STAGES=(reading meaning pos examples usage)
+# 例句必须在用法之后（list_missing 要求 usage 已填）
+STAGES=(reading meaning pos usage examples)
 
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 
@@ -69,8 +70,8 @@ echo "手动单阶段:"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh reading"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh meaning"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh pos"
-echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh examples"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh usage"
+echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh examples"
 echo ""
 echo "兼容旧入口（仍可顺序跑五阶段，但每阶段单独占/放槽）:"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-nightly.sh"

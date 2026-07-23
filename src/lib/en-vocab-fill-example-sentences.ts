@@ -3,6 +3,7 @@ import "server-only";
 import {
   buildEnVocabExampleSentencesAiPrompt,
   EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
+  expectedEnVocabExampleCountFromUsage,
   validateEnVocabExampleSentencesAiOutput,
 } from "@/lib/en-vocab-example-sentences-ai";
 import {
@@ -11,6 +12,10 @@ import {
 } from "@/lib/en-vocab-example-sentences";
 import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
 
+/** 缺例句且已有用法（例句阶段门禁） */
+const MISSING_EXAMPLES_WITH_USAGE_SQL = `(example_sentences IS NULL OR TRIM(example_sentences) = '')
+  AND usage IS NOT NULL AND TRIM(usage) != ''`;
+
 export type EnVocabMissingExampleSentenceRow = {
   id: number;
   word: string;
@@ -18,6 +23,9 @@ export type EnVocabMissingExampleSentenceRow = {
   reading: string | null;
   meaning: string | null;
   pos: string | null;
+  usage: string | null;
+  /** 与 usage 编号条数一致，供客户端校验 */
+  expected_count: number;
   prompt: string;
 };
 
@@ -36,6 +44,7 @@ export type EnVocabFillExampleSentencesResult = {
   missing?: EnVocabMissingExampleSentenceRow[];
   total_missing?: number;
   upload_spec?: typeof EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC;
+  cleared?: number;
 };
 
 export type ListEnVocabMissingExampleSentencesOptions = {
@@ -53,7 +62,7 @@ export async function countEnVocabWordsMissingExampleSentences(
       ? await db
           .prepare(
             `SELECT COUNT(*) AS n FROM en_vocab_word
-             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
+             WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}
                AND kind = ?1`
           )
           .bind(kind)
@@ -61,7 +70,7 @@ export async function countEnVocabWordsMissingExampleSentences(
       : await db
           .prepare(
             `SELECT COUNT(*) AS n FROM en_vocab_word
-             WHERE example_sentences IS NULL OR TRIM(example_sentences) = ''`
+             WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}`
           )
           .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -80,17 +89,20 @@ export async function listEnVocabWordsMissingExampleSentences(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, kind, reading, meaning, pos FROM en_vocab_word
-       WHERE example_sentences IS NULL OR TRIM(example_sentences) = ''`;
+  // 多取一些再按 usage 可解析过滤，避免坏格式 usage 占满 LIMIT
+  const fetchLimit = limit != null ? Math.min(limit * 5, Math.max(limit, 50)) : null;
+
+  let sql = `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word
+       WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}`;
   const binds: Array<string | number> = [];
   if (kind === "word" || kind === "grammar") {
     sql += ` AND kind = ?${binds.length + 1}`;
     binds.push(kind);
   }
   sql += ` ORDER BY id`;
-  if (limit != null) {
+  if (fetchLimit != null) {
     sql += ` LIMIT ?${binds.length + 1}`;
-    binds.push(limit);
+    binds.push(fetchLimit);
   }
 
   const stmt = db.prepare(sql);
@@ -101,9 +113,16 @@ export async function listEnVocabWordsMissingExampleSentences(
     reading: string | null;
     meaning: string | null;
     pos: string | null;
+    usage: string | null;
   }>();
 
-  return (result.results ?? []).map((row) => {
+  const rows: EnVocabMissingExampleSentenceRow[] = [];
+  for (const row of result.results ?? []) {
+    const usage =
+      row.usage != null ? String(row.usage).trim() || null : null;
+    const expectedCount = expectedEnVocabExampleCountFromUsage(usage);
+    if (expectedCount == null || !usage) continue;
+
     const word = String(row.word);
     const rowKind = String(row.kind);
     const reading =
@@ -111,22 +130,27 @@ export async function listEnVocabWordsMissingExampleSentences(
     const meaning =
       row.meaning != null ? String(row.meaning).trim() || null : null;
     const pos = row.pos != null ? String(row.pos).trim() || null : null;
-    return {
+    rows.push({
       id: Number(row.id),
       word,
       kind: rowKind,
       reading,
       meaning,
       pos,
+      usage,
+      expected_count: expectedCount,
       prompt: buildEnVocabExampleSentencesAiPrompt({
         word,
         kind: rowKind,
         reading,
         meaning,
         pos,
+        usage,
       }),
-    };
-  });
+    });
+    if (limit != null && rows.length >= limit) break;
+  }
+  return rows;
 }
 
 export async function scanEnVocabWordsMissingExampleSentences(
@@ -205,7 +229,7 @@ export async function applyEnVocabExampleSentenceUpdates(
 
     const row = await db
       .prepare(
-        `SELECT id, word, kind, reading, meaning, pos FROM en_vocab_word WHERE id = ?1`
+        `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word WHERE id = ?1`
       )
       .bind(wordId)
       .first<{
@@ -215,9 +239,21 @@ export async function applyEnVocabExampleSentenceUpdates(
         reading: string | null;
         meaning: string | null;
         pos: string | null;
+        usage: string | null;
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
+      continue;
+    }
+
+    const usage =
+      row.usage != null ? String(row.usage).trim() || null : null;
+    if (!usage) {
+      skipped.push({
+        id: wordId,
+        word: String(row.word),
+        reason: "usage_required",
+      });
       continue;
     }
 
@@ -230,6 +266,7 @@ export async function applyEnVocabExampleSentenceUpdates(
           reading: row.reading,
           meaning: row.meaning,
           pos: row.pos,
+          usage,
         }
       );
       if (!validated.ok) {
@@ -276,6 +313,44 @@ export async function applyEnVocabExampleSentenceUpdates(
     applied,
     skipped,
     dry_run: dryRun,
+    upload_spec: EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
+  };
+}
+
+/** 清空全库例句（便于按 usage 重造）；保留 usage 不动 */
+export async function clearAllEnVocabExampleSentences(
+  db: D1Database,
+  options: { dryRun?: boolean } = {}
+): Promise<EnVocabFillExampleSentencesResult> {
+  await ensureEnVocabWordSchema(db);
+  const dryRun = Boolean(options.dryRun);
+
+  const countRow = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM en_vocab_word
+       WHERE example_sentences IS NOT NULL AND TRIM(example_sentences) != ''`
+    )
+    .first<{ n: number }>();
+  const cleared = Number(countRow?.n ?? 0);
+
+  if (!dryRun && cleared > 0) {
+    await db
+      .prepare(
+        `UPDATE en_vocab_word
+         SET example_sentences = NULL,
+             example_sentences_source = NULL,
+             updated_at = datetime('now')
+         WHERE example_sentences IS NOT NULL AND TRIM(example_sentences) != ''`
+      )
+      .run();
+  }
+
+  return {
+    updated: dryRun ? 0 : cleared,
+    applied: [],
+    skipped: [],
+    dry_run: dryRun,
+    cleared,
     upload_spec: EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
   };
 }
