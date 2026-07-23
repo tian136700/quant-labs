@@ -1676,7 +1676,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                     : "开始抽查（本轮自动随机选用正序或随机）"
                 }
               >
-                {teacherQuizInProgress ? "继续抽查" : "抽查"}
+                {teacherQuizInProgress ? "继续抽查" : "开始抽查"}
               </button>
             ) : null}
             {SHOW_RANDOM_HIGHLIGHT ? (
