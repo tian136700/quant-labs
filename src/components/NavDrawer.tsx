@@ -10,8 +10,8 @@ import { useSiteNavItems, type SiteNavItem } from "@/hooks/useSiteNavItems";
 import { useI18n } from "@/i18n/I18nProvider";
 import { matchesNavSearch } from "@/lib/nav-search";
 import { isJpModulePath } from "@/lib/locale-path";
-import {
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import {
   NAV_CATEGORY_ORDER,
   PRIMARY_NAV_ORDER,
   navItemCategory,
