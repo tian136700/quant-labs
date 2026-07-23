@@ -91,12 +91,17 @@ import {
 } from "@/lib/en-vocab-review";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import {
-  EN_VOCAB_DAILY_QUIZ_TOP,
   EN_VOCAB_PAGE_SIZE,
   SHOW_RANDOM_HIGHLIGHT,
   SHOW_REMARKS_COLUMN,
   SHOW_RISK_CHART,
 } from "@/lib/en-vocab-page-constants";
+import {
+  defaultEnVocabTeacherVisibleLimit,
+  isEnVocabWordInTeacherVisiblePool,
+  normalizeEnVocabTeacherVisibleLimit,
+  type EnVocabTeacherVisibleLimit,
+} from "@/lib/en-vocab-teacher-visible";
 import {
   computeEnVocabDailyQuizProgress,
   computeEnVocabTeacherPageQuizProgress,
@@ -142,7 +147,8 @@ function persistVocabCache(
   words: EnVocabWord[],
   refs: Record<string, EnVocabRef>,
   display_order: EnVocabDailyDisplayOrder,
-  shared_today_word_ids?: number[]
+  shared_today_word_ids?: number[],
+  teacher_visible_limit?: EnVocabTeacherVisibleLimit
 ) {
   const prev = readVocabCache();
   writeClientCache(JP_VOCAB_CACHE_KEY, {
@@ -154,6 +160,10 @@ function persistVocabCache(
       shared_today_word_ids ??
       prev?.shared_today_word_ids ??
       [],
+    teacher_visible_limit:
+      teacher_visible_limit ??
+      prev?.teacher_visible_limit ??
+      defaultEnVocabTeacherVisibleLimit(),
   });
 }
 
@@ -308,6 +318,20 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
     () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
   );
+  const [teacherVisibleLimit, setTeacherVisibleLimit] =
+    useState<EnVocabTeacherVisibleLimit>(
+      () =>
+        readVocabCache()?.teacher_visible_limit ??
+        defaultEnVocabTeacherVisibleLimit()
+    );
+  const [quizTargetInput, setQuizTargetInput] = useState(
+    () =>
+      String(
+        readVocabCache()?.teacher_visible_limit?.quiz_target ??
+          defaultEnVocabTeacherVisibleLimit().quiz_target
+      )
+  );
+  const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -397,6 +421,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     sharedTodayWordIdsRef.current = sharedTodayWordIds;
   }, [sharedTodayWordIds]);
 
+  useEffect(() => {
+    setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
+  }, [teacherVisibleLimit.quiz_target]);
+
   const toggleStatSort = (key: EnVocabStatSortKey) => {
     setUseDailyRowOrder(false);
     setPage(1);
@@ -413,6 +441,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setRefs(payload.refs);
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
+    setTeacherVisibleLimit(payload.teacher_visible_limit);
+    setQuizTargetInput(String(payload.teacher_visible_limit.quiz_target));
   }, []);
 
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
@@ -516,9 +546,34 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         const data = (await res.json()) as {
           ok: boolean;
           words?: EnVocabWord[];
+          teacher_visible_limit?: EnVocabTeacherVisibleLimit;
         };
         if (data.ok && Array.isArray(data.words) && data.words.length) {
           applySyncPatches(data.words);
+        }
+        if (data.ok && data.teacher_visible_limit) {
+          const next = normalizeEnVocabTeacherVisibleLimit(
+            data.teacher_visible_limit
+          );
+          setTeacherVisibleLimit((prev) => {
+            if (
+              prev.quiz_target === next.quiz_target &&
+              prev.date === next.date &&
+              (prev.visible_ids?.join(",") ?? "") ===
+                (next.visible_ids?.join(",") ?? "")
+            ) {
+              return prev;
+            }
+            return next;
+          });
+          setQuizTargetInput(String(next.quiz_target));
+          const cached = readVocabCache();
+          if (cached) {
+            writeClientCache(JP_VOCAB_CACHE_KEY, {
+              ...cached,
+              teacher_visible_limit: next,
+            });
+          }
         }
       } catch {
         /* 轮询失败静默，下轮再试 */
@@ -558,16 +613,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [displayOrder.ids]
   );
 
-  const quizTarget = Math.min(EN_VOCAB_DAILY_QUIZ_TOP, words.length);
+  const quizTarget = Math.min(
+    Math.max(0, teacherVisibleLimit.quiz_target),
+    Math.max(0, words.length)
+  );
 
-  /** 无服务端 visible_ids：抽查池 = 当日序号 1…quizTarget */
+  /** 抽查池：优先服务端 visible_ids，否则当日序号 1…quizTarget */
   const quizTargetWords = useMemo(() => {
-    const pool = displayedWords.filter((w) => {
-      const seq = dailySeqByWordId.get(w.id);
-      return seq != null && seq >= 1 && seq <= quizTarget;
-    });
+    const pool = displayedWords.filter((w) =>
+      isEnVocabWordInTeacherVisiblePool(w.id, teacherVisibleLimit, dailySeqByWordId)
+    );
     return sortEnVocabQuizTargetWordsByDailySeq(pool, dailySeqByWordId);
-  }, [displayedWords, dailySeqByWordId, quizTarget]);
+  }, [displayedWords, dailySeqByWordId, teacherVisibleLimit]);
 
   const quizTargetWordIds = useMemo(
     () => new Set(quizTargetWords.map((w) => w.id)),
@@ -1508,6 +1565,61 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     }
   };
 
+  const setDailyQuizTarget = async () => {
+    if (!isAdminMode || settingQuizTarget) return;
+    const trimmed = quizTargetInput.trim();
+    const parsed = Number(trimmed);
+    if (!trimmed || !Number.isFinite(parsed)) {
+      setStatus("请输入今日抽查数量。");
+      return;
+    }
+    const count = Math.min(999, Math.max(1, Math.floor(parsed)));
+    setSettingQuizTarget(true);
+    setStatus("");
+    try {
+      const res = await fetch("/api/en-vocab", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: "set_daily_quiz_target",
+          count,
+        }),
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        teacher_visible_limit?: EnVocabTeacherVisibleLimit;
+        error?: string;
+      };
+      if (!data.ok || !data.teacher_visible_limit) {
+        throw new Error(data.error || "操作失败");
+      }
+      const next = normalizeEnVocabTeacherVisibleLimit(
+        data.teacher_visible_limit
+      );
+      setTeacherVisibleLimit(next);
+      setQuizTargetInput(String(next.quiz_target));
+      const prev = readVocabCache();
+      if (prev) {
+        writeClientCache(JP_VOCAB_CACHE_KEY, {
+          ...prev,
+          teacher_visible_limit: next,
+        });
+      }
+      setStatus(
+        `今日抽查数量已设为 ${next.quiz_target} 个（老师端按当日序号 1…N 抽查）。` +
+          ` english 域名下已打开的老师页约数秒内自动同步；若未打开请刷新 english.info-quests.com/en-vocab。`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSettingQuizTarget(false);
+    }
+  };
+
   const runReset = async (action: "reset_today" | "reset") => {
     setResetting(true);
     setStatus("");
@@ -1882,7 +1994,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           </>
         ) : isAdminMode ? (
           <>
-            管理全库词条、导出与删除。老师端负责抽查勾选与共享到学生端。
+            管理全库词条、设置今日抽查数量与导出。老师端按可见池抽查；学生端可通过「查看老师正在抽查的单词」获取当前词。
           </>
         ) : (
           <>扫一眼单词或语法表，学生回答后勾选熟悉程度。</>
@@ -1915,10 +2027,23 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       ) : null}
 
       {canOperate &&
-      (displayQuizProgress.total > 0 || displayQuizProgress.complete) ? (
+      (displayQuizProgress.total > 0 ||
+        displayQuizProgress.complete ||
+        isAdminMode) ? (
         <JpVocabDailyQuizProgressBar
           progress={displayQuizProgress as JpVocabDailyQuizProgress}
           variant="teacher"
+          adminQuizTarget={
+            isAdminMode
+              ? {
+                  value: quizTargetInput,
+                  savedValue: teacherVisibleLimit.quiz_target,
+                  saving: settingQuizTarget,
+                  onChange: setQuizTargetInput,
+                  onSave: () => void setDailyQuizTarget(),
+                }
+              : undefined
+          }
         />
       ) : null}
 

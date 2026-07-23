@@ -2,12 +2,13 @@ import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyEnVocabExampleSentenceUpdates,
   clearAllEnVocabExampleSentences,
+  clearInvalidEnVocabExampleSentences,
   scanEnVocabWordsMissingExampleSentences,
 } from "@/lib/en-vocab-fill-example-sentences";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillExampleSentencesBody = {
-  mode?: "list_missing" | "apply" | "clear_all";
+  mode?: "list_missing" | "apply" | "clear_all" | "clear_invalid";
   dry_run?: boolean;
   limit?: number;
   kind?: "word" | "grammar";
@@ -72,6 +73,18 @@ export async function POST(request: Request) {
       return jsonResponse({
         ok: true,
         mode: "clear_all",
+        ...result,
+      });
+    }
+
+    if (body.mode === "clear_invalid") {
+      const result = await clearInvalidEnVocabExampleSentences(env.DB, {
+        dryRun,
+        limit,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "clear_invalid",
         ...result,
       });
     }

@@ -354,3 +354,100 @@ export async function clearAllEnVocabExampleSentences(
     upload_spec: EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
   };
 }
+
+/**
+ * 清空已存但不合格的例句（单词/短语冒充例句等），让定时任务重造。
+ * 限量扫描，避免 Worker 1102。
+ */
+export async function clearInvalidEnVocabExampleSentences(
+  db: D1Database,
+  options: { dryRun?: boolean; limit?: number } = {}
+): Promise<EnVocabFillExampleSentencesResult> {
+  await ensureEnVocabWordSchema(db);
+  const dryRun = Boolean(options.dryRun);
+  // limit = 本批最多清空条数；扫描窗口略放大以便找到脏数据
+  const clearCap =
+    typeof options.limit === "number" &&
+    Number.isFinite(options.limit) &&
+    options.limit > 0
+      ? Math.min(Math.floor(options.limit), 200)
+      : 50;
+  const scanCap = Math.min(Math.max(clearCap * 10, 200), 500);
+
+  const result = await db
+    .prepare(
+      `SELECT id, word, kind, reading, meaning, pos, usage, example_sentences
+       FROM en_vocab_word
+       WHERE example_sentences IS NOT NULL AND TRIM(example_sentences) != ''
+       ORDER BY id
+       LIMIT ?1`
+    )
+    .bind(scanCap)
+    .all<{
+      id: number;
+      word: string;
+      kind: string;
+      reading: string | null;
+      meaning: string | null;
+      pos: string | null;
+      usage: string | null;
+      example_sentences: string | null;
+    }>();
+
+  const skipped: Array<{ id: number; word: string; reason: string }> = [];
+  const applied: EnVocabFillExampleSentenceApplied[] = [];
+  let cleared = 0;
+
+  for (const row of result.results ?? []) {
+    if (cleared >= clearCap) break;
+
+    const usage =
+      row.usage != null ? String(row.usage).trim() || null : null;
+    const raw = String(row.example_sentences ?? "").trim();
+    const validated = validateEnVocabExampleSentencesAiOutput(raw, {
+      word: String(row.word),
+      kind: String(row.kind),
+      reading: row.reading,
+      meaning: row.meaning,
+      pos: row.pos,
+      usage,
+    });
+    if (validated.ok) continue;
+
+    if (!dryRun) {
+      await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET example_sentences = NULL,
+               example_sentences_source = NULL,
+               updated_at = datetime('now')
+           WHERE id = ?1
+             AND example_sentences IS NOT NULL
+             AND TRIM(example_sentences) != ''`
+        )
+        .bind(Number(row.id))
+        .run();
+    }
+    cleared += 1;
+    applied.push({
+      id: Number(row.id),
+      word: String(row.word),
+      example_sentences: "",
+      example_sentences_source: null,
+    });
+    skipped.push({
+      id: Number(row.id),
+      word: String(row.word),
+      reason: `cleared:${validated.reason}`,
+    });
+  }
+
+  return {
+    updated: dryRun ? 0 : cleared,
+    applied,
+    skipped,
+    dry_run: dryRun,
+    cleared,
+    upload_spec: EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
+  };
+}

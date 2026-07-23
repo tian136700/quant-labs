@@ -1,6 +1,7 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   ensureEnVocabDailyDisplayOrder,
+  ensureEnVocabTeacherVisibleLimit,
   getEnVocabDailyQuizStyle,
   listEnVocabSharedTodayWordIds,
   listEnVocabWordsWithRefs,
@@ -9,6 +10,7 @@ import {
   resetAllEnVocabReviews,
   resetTodayEnVocabRound,
   setEnVocabDailyQuizStyle,
+  setEnVocabDailyQuizTarget,
 } from "@/lib/en-vocab-db";
 import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -25,16 +27,29 @@ const AUTH_MSG = {
   zh: "请登录后再操作。",
 };
 
+function parseEnVocabDailyQuizTargetCount(raw: unknown): number | null {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const count = Math.floor(n);
+  if (count < 1 || count > 999) return null;
+  return count;
+}
+
 export async function GET(request: Request) {
   try {
     const env = await getCloudflareEnv();
     const { isAdmin } = await requireAdmin(request);
-    const [{ words, refs }, daily_quiz_style, shared_today_word_ids] = await Promise.all([
-      listEnVocabWordsWithRefs(env.DB),
-      getEnVocabDailyQuizStyle(env.DB),
-      listEnVocabSharedTodayWordIds(env.DB),
-    ]);
+    const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
+      await Promise.all([
+        listEnVocabWordsWithRefs(env.DB),
+        getEnVocabDailyQuizStyle(env.DB),
+        listEnVocabSharedTodayWordIds(env.DB),
+      ]);
     const display_order = await ensureEnVocabDailyDisplayOrder(env.DB, words);
+    const teacher_visible_limit = await ensureEnVocabTeacherVisibleLimit(
+      env.DB,
+      { words, display_order }
+    );
     return jsonResponse({
       ok: true,
       words: redactJpVocabWordsMnemonicForClient(words, isAdmin),
@@ -42,6 +57,7 @@ export async function GET(request: Request) {
       daily_quiz_style,
       display_order,
       shared_today_word_ids,
+      teacher_visible_limit,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -64,6 +80,7 @@ export async function POST(request: Request) {
       level?: EnVocabLevel;
       usage_levels?: EnVocabLevel[];
       daily_quiz_style?: Partial<EnVocabDailyQuizStyle>;
+      count?: number;
     };
 
     if (body.action === "daily_quiz_style") {
@@ -76,6 +93,31 @@ export async function POST(request: Request) {
         normalizeEnVocabDailyQuizStyle(body.daily_quiz_style)
       );
       return jsonResponse({ ok: true, daily_quiz_style });
+    }
+
+    if (body.action === "set_daily_quiz_target") {
+      const { isAdmin } = await requireAdmin(request);
+      if (!isAdmin) {
+        return jsonResponse({ ok: false, error: "forbidden" }, 403);
+      }
+      const targetCount = parseEnVocabDailyQuizTargetCount(body.count);
+      if (targetCount == null) {
+        return jsonResponse({ ok: false, error: "invalid count" }, 400);
+      }
+      try {
+        const teacher_visible_limit = await setEnVocabDailyQuizTarget(
+          env.DB,
+          targetCount
+        );
+        return jsonResponse({ ok: true, teacher_visible_limit });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const status =
+          message === "empty_quiz_pool" || message === "no_release_candidates"
+            ? 400
+            : 500;
+        return jsonResponse({ ok: false, error: message }, status);
+      }
     }
 
     if (body.action === "reset") {
@@ -111,7 +153,7 @@ export async function POST(request: Request) {
       : null;
 
     if (usageLevels) {
-      if (!usageLevels.length || !usageLevels.every(isEnVocabLevel)) {
+      if (!usageLevels.every(isEnVocabLevel) || !usageLevels.length) {
         return jsonResponse({ ok: false, error: "usage_levels_invalid" }, 400);
       }
       const result = await recordEnVocabReviewWithUsageLevels(

@@ -25,7 +25,7 @@ export const SHOW_RANDOM_HIGHLIGHT = false;
 /** 暂时隐藏「抽查排行」图表（功能保留，勿删组件） */
 export const SHOW_RISK_CHART = false;
 
-/** 按当日序号，每日建议优先抽查的前 N 条（无服务端 visible pool 时的老师抽查池） */
+/** 默认今日抽查数量（管理员可改；跨日回到此值；见 en-vocab-teacher-visible.ts） */
 export const EN_VOCAB_DAILY_QUIZ_TOP = 20;
 
 /** 单词表默认每页条数 */

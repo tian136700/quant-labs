@@ -1,4 +1,5 @@
 import {
+  assessEnVocabExampleEnglishSentence,
   isEnVocabExampleEnglishLine,
   isEnVocabExampleGlossLine,
   parseEnVocabExampleSentenceItems,
@@ -9,7 +10,7 @@ import { parseEnVocabUsagePoints } from "@/lib/en-vocab-usage-ai";
 
 /** 上传/本地模型须遵守的英语例句契约（须先有 usage；一句对应一条用法） */
 export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
-  version: 2,
+  version: 3,
   count_rule:
     "条数 = 用法编号条数；第 N 句必须对应第 N 条用法（须先有 usage）",
   format_example:
@@ -17,7 +18,8 @@ export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   rules: [
     "必须已有「用法」编号说明；按用法逐条造句，禁止脱离用法自由发挥",
     "存库不要写行首序号（展示层会加 1、2、3…）",
-    "每条：英文一行，下一行必须以「译文：」开头的中文（禁止「译文：/ …」）",
+    "每条：英文必须是完整句子（有主语谓语，句末 . ! ?），禁止只写单词或搭配短语",
+    "每条：英文一行，下一行必须以「译文：」开头的中文（禁止「译文：/ …」）；译文须对应英文整句",
     "初中口语、短句；例句里其它词尽量用最常见的基础词（avoid / however / furthermore 等偏难词）",
     "写回时请传 source，建议「本地 gemma4:26b」；人手填写为「手动」",
   ],
@@ -30,6 +32,11 @@ export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "invalid_english_line",
     "missing_chinese_gloss",
     "word_not_used",
+    "missing_sentence_final_punct",
+    "english_not_sentence",
+    "lemma_only_example",
+    "english_phrase_not_sentence",
+    "english_too_short_vs_gloss",
   ],
 } as const;
 
@@ -95,10 +102,15 @@ ${usageBlock}
 - 不要生僻词、长难从句、学术套话；抽问时焦点应落在目标词上。
 
 格式要求：
-1. 每条英文必须原样出现词条文字「${input.word.trim()}」（可改大小写）。多词词条如 Present Perfect 也须写出这几个词，禁止只示范时态/含义却不写词条原文。
-2. 语法条同样须在句中自然出现该语法点对应的词条文字。
-3. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。
-4. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。`;
+1. 每条英文必须是完整句子：有主语和谓语，句末必须有句号 . 或 ! 或 ?。禁止只写单词、词条本身或搭配短语。
+   错误示例（禁止）：issue
+   错误示例（禁止）：issue a statement
+   正确示例：The issue is hard to solve today.
+   正确示例：The government will issue a statement soon.
+2. 每条英文必须原样出现词条文字「${input.word.trim()}」（可改大小写）。多词词条如 Present Perfect 也须写出这几个词，禁止只示范时态/含义却不写词条原文。
+3. 语法条同样须在句中自然出现该语法点对应的词条文字。
+4. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。中文必须翻译上面那一整句英文，禁止英文短语配中文整句。
+5. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。`;
 }
 
 function wordUsedInEnglish(sentence: string, word: string, kind: string): boolean {
@@ -152,6 +164,14 @@ export function validateEnVocabExampleSentencesAiOutput(
     }
     if (!stripEnVocabExampleGlossLabel(item.gloss)) {
       return { ok: false, reason: "missing_chinese_gloss" };
+    }
+    const sentenceCheck = assessEnVocabExampleEnglishSentence(
+      item.text,
+      input.word,
+      item.gloss
+    );
+    if (!sentenceCheck.ok) {
+      return { ok: false, reason: sentenceCheck.reason };
     }
     if (!wordUsedInEnglish(item.text, input.word, input.kind)) {
       return { ok: false, reason: "word_not_used" };

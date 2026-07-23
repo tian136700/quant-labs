@@ -10,9 +10,13 @@ import {
   type EnVocabDailyDisplayOrder,
 } from "@/lib/en-vocab-daily-order";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
+import {
+  normalizeEnVocabTeacherVisibleLimit,
+  type EnVocabTeacherVisibleLimit,
+} from "@/lib/en-vocab-teacher-visible";
 import { normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 
-export const JP_VOCAB_CACHE_KEY = "en-api:vocab:v4";
+export const JP_VOCAB_CACHE_KEY = "en-api:vocab:v5";
 export const JP_LESSON_CACHE_KEY = "en-api:lesson:v6";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
@@ -25,6 +29,7 @@ export type EnVocabApiPayload = {
   display_order: EnVocabDailyDisplayOrder;
   /** 今日已共享到「今日背英语单词」的 word_id 列表（北京时间 0 点清空） */
   shared_today_word_ids: number[];
+  teacher_visible_limit: EnVocabTeacherVisibleLimit;
 };
 
 export type EnLessonApiPayload = {
@@ -42,6 +47,7 @@ export function parseEnVocabApi(json: unknown): EnVocabApiPayload {
     daily_quiz_style?: Partial<EnVocabDailyQuizStyle>;
     display_order?: Partial<EnVocabDailyDisplayOrder>;
     shared_today_word_ids?: number[];
+    teacher_visible_limit?: unknown;
     error?: string;
   };
   if (!data.ok || !Array.isArray(data.words)) {
@@ -88,6 +94,9 @@ export function parseEnVocabApi(json: unknown): EnVocabApiPayload {
     shared_today_word_ids: Array.isArray(data.shared_today_word_ids)
       ? data.shared_today_word_ids.map((id) => Number(id)).filter((id) => id > 0)
       : [],
+    teacher_visible_limit: normalizeEnVocabTeacherVisibleLimit(
+      data.teacher_visible_limit
+    ),
   };
 }
 

@@ -55,7 +55,17 @@ import {
   normalizeEnVocabTeacherQuizLive,
   type EnVocabTeacherQuizLive,
 } from "@/lib/en-vocab-teacher-quiz-live";
+import {
+  defaultEnVocabTeacherVisibleLimit,
+  EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
+  materializeEnVocabTeacherVisible,
+  normalizeEnVocabTeacherVisibleLimit,
+  withEnVocabTargetAdjustmentMarker,
+  type EnVocabTeacherVisibleLimit,
+} from "@/lib/en-vocab-teacher-visible";
 import type { EnLessonRecord } from "@/lib/types";
+
+export type { EnVocabTeacherVisibleLimit } from "@/lib/en-vocab-teacher-visible";
 
 const SEED_WORDS: EnVocabUploadInput[] = [
   {
@@ -116,6 +126,12 @@ let devTeacherQuizLive: EnVocabTeacherQuizLive = {
   ...EN_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
   date: beijingDateString(),
 };
+let devTeacherVisibleLimit: EnVocabTeacherVisibleLimit =
+  defaultEnVocabTeacherVisibleLimit();
+let teacherVisibleLimitReadCache: {
+  at: number;
+  value: EnVocabTeacherVisibleLimit;
+} | null = null;
 
 /** 学生「今日共享」列表短缓存：合并多端轮询，降低 D1 / CPU（对齐 jp-vocab） */
 const EN_VOCAB_SHARED_LIST_CACHE_MS = 5_000;
@@ -145,6 +161,7 @@ function invalidateEnVocabSharedTodayCache() {
 
 const JP_VOCAB_DAILY_QUIZ_STYLE_KEY = "daily_quiz_style";
 const JP_VOCAB_DAILY_DISPLAY_ORDER_KEY = "daily_display_order";
+const EN_VOCAB_TEACHER_VISIBLE_LIMIT_KEY = "teacher_visible_limit";
 
 export function enableEnVocabDevStore() {
   devStoreEnabled = true;
@@ -862,6 +879,11 @@ export async function resetAllEnVocabReviews(
     await clearEnVocabSharedOnReset(db, "all");
     const words = sortEnVocabWords(devWords);
     devDailyDisplayOrder = await refreshEnVocabDailyDisplayOrder(db, words);
+    const current = await getEnVocabTeacherVisibleLimit(db);
+    await saveEnVocabTeacherVisibleLimit(
+      db,
+      materializeEnVocabTeacherVisible(current, words, devDailyDisplayOrder)
+    );
     return { ok: true, words, display_order: devDailyDisplayOrder };
   }
 
@@ -881,6 +903,12 @@ export async function resetAllEnVocabReviews(
 
   const words = await listEnVocabWords(db);
   const display_order = await refreshEnVocabDailyDisplayOrder(db, words);
+  // 强制按新日序重算可见池（ensure 在已有 visible_ids 时会短路）
+  const current = await getEnVocabTeacherVisibleLimit(db);
+  await saveEnVocabTeacherVisibleLimit(
+    db,
+    materializeEnVocabTeacherVisible(current, words, display_order)
+  );
   return { ok: true, words, display_order };
 }
 
@@ -892,6 +920,11 @@ export async function resetTodayEnVocabRound(
   await clearEnVocabSharedOnReset(db, "today");
   const words = await listEnVocabWords(db);
   const display_order = await refreshEnVocabDailyDisplayOrder(db, words);
+  const current = await getEnVocabTeacherVisibleLimit(db);
+  await saveEnVocabTeacherVisibleLimit(
+    db,
+    materializeEnVocabTeacherVisible(current, words, display_order)
+  );
   return { ok: true, words, display_order };
 }
 
@@ -2065,6 +2098,154 @@ export async function setEnVocabDailyQuizStyle(
     .run();
 
   return normalized;
+}
+
+async function readEnVocabTeacherVisibleLimitRaw(
+  db: D1Database
+): Promise<unknown> {
+  await ensureEnVocabSettingSchema(db);
+  const row = await db
+    .prepare(`SELECT value FROM en_vocab_setting WHERE key = ?1`)
+    .bind(EN_VOCAB_TEACHER_VISIBLE_LIMIT_KEY)
+    .first<{ value: string }>();
+  if (!row?.value) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveEnVocabTeacherVisibleLimit(
+  db: D1Database,
+  visible: EnVocabTeacherVisibleLimit
+): Promise<EnVocabTeacherVisibleLimit> {
+  const next = normalizeEnVocabTeacherVisibleLimit(visible);
+  if (devStoreEnabled) {
+    devTeacherVisibleLimit = next;
+    teacherVisibleLimitReadCache = { at: Date.now(), value: next };
+    return next;
+  }
+  await ensureEnVocabSettingSchema(db);
+  await db
+    .prepare(
+      `INSERT INTO en_vocab_setting (key, value, updated_at)
+       VALUES (?1, ?2, ?3)
+       ON CONFLICT(key) DO UPDATE SET
+         value = excluded.value,
+         updated_at = excluded.updated_at`
+    )
+    .bind(EN_VOCAB_TEACHER_VISIBLE_LIMIT_KEY, JSON.stringify(next), nowIso())
+    .run();
+  teacherVisibleLimitReadCache = { at: Date.now(), value: next };
+  return next;
+}
+
+export async function getEnVocabTeacherVisibleLimit(
+  db: D1Database
+): Promise<EnVocabTeacherVisibleLimit> {
+  if (devStoreEnabled) {
+    return normalizeEnVocabTeacherVisibleLimit(devTeacherVisibleLimit);
+  }
+
+  const now = Date.now();
+  if (
+    teacherVisibleLimitReadCache &&
+    now - teacherVisibleLimitReadCache.at < EN_VOCAB_SETTING_READ_CACHE_MS
+  ) {
+    const cached = teacherVisibleLimitReadCache.value;
+    const today = beijingDateString();
+    if (!cached.date || cached.date === today) {
+      return cached;
+    }
+  }
+
+  const raw = await readEnVocabTeacherVisibleLimitRaw(db);
+  const normalized = normalizeEnVocabTeacherVisibleLimit(raw);
+  const today = beijingDateString();
+  const rawDate =
+    raw && typeof raw === "object" && typeof (raw as { date?: unknown }).date === "string"
+      ? String((raw as { date: string }).date)
+      : null;
+  if (rawDate && rawDate !== today) {
+    const rolled = await saveEnVocabTeacherVisibleLimit(db, {
+      ...normalized,
+      visible_ids: undefined,
+    });
+    return rolled;
+  }
+  teacherVisibleLimitReadCache = { at: now, value: normalized };
+  return normalized;
+}
+
+/** 读取老师可见池；跨日或未生成 visible_ids 时按日序前 N 物化并落库 */
+export async function ensureEnVocabTeacherVisibleLimit(
+  db: D1Database,
+  ctx?: { words?: EnVocabWord[]; display_order?: EnVocabDailyDisplayOrder }
+): Promise<EnVocabTeacherVisibleLimit> {
+  const words = ctx?.words ?? (await listEnVocabWords(db));
+  const display_order =
+    ctx?.display_order ?? (await ensureEnVocabDailyDisplayOrder(db, words));
+  const current = await getEnVocabTeacherVisibleLimit(db);
+  const today = beijingDateString();
+
+  if (!words.length) {
+    const empty: EnVocabTeacherVisibleLimit = {
+      ...current,
+      date: today,
+      quiz_target: current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
+      released_today: false,
+      visible_ids: [],
+      release_count: 0,
+    };
+    return saveEnVocabTeacherVisibleLimit(db, empty);
+  }
+
+  if (
+    current.date === today &&
+    current.visible_ids?.length &&
+    current.released_today
+  ) {
+    return current;
+  }
+
+  const materialized = materializeEnVocabTeacherVisible(
+    {
+      ...current,
+      date: today,
+      quiz_target: current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
+    },
+    words,
+    display_order
+  );
+  return saveEnVocabTeacherVisibleLimit(db, materialized);
+}
+
+export async function setEnVocabDailyQuizTarget(
+  db: D1Database,
+  targetCount: number
+): Promise<EnVocabTeacherVisibleLimit> {
+  const words = await listEnVocabWords(db);
+  if (!words.length) {
+    throw new Error("empty_quiz_pool");
+  }
+  const display_order = await ensureEnVocabDailyDisplayOrder(db, words);
+  const current = await getEnVocabTeacherVisibleLimit(db);
+  const quiz_target = Math.min(
+    Math.max(1, Math.floor(targetCount)),
+    Math.max(1, words.length)
+  );
+  const draft: EnVocabTeacherVisibleLimit = {
+    ...current,
+    quiz_target,
+  };
+  const materialized = withEnVocabTargetAdjustmentMarker(
+    materializeEnVocabTeacherVisible(draft, words, display_order)
+  );
+  if (!materialized.visible_ids?.length) {
+    throw new Error("no_release_candidates");
+  }
+  return saveEnVocabTeacherVisibleLimit(db, materialized);
 }
 
 async function ensureEnVocabSharedSchema(db: D1Database): Promise<void> {

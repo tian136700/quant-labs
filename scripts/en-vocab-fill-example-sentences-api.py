@@ -66,6 +66,60 @@ def is_gloss_line(text: str) -> bool:
     return bool(HAN_RE.search(body))
 
 
+def english_word_tokens(text: str) -> list[str]:
+    return re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", text or "")
+
+
+EN_SENTENCE_FINAL_PUNCT_RE = re.compile(r"""[.!?]"?'?\s*$""")
+EN_FINITE_HINT_RE = re.compile(
+    r"\b(?:am|is|are|was|were|be|been|being|do|does|did|have|has|had|"
+    r"will|would|can|could|may|might|must|should|shall|need|needs|ought)\b",
+    re.I,
+)
+
+
+def assess_english_sentence(
+    english: str, word: str, gloss: str = ""
+) -> str | None:
+    """返回不合格 reason；合格返回 None。与 TS assessEnVocabExampleEnglishSentence 对齐。"""
+    en = (english or "").strip()
+    if not en:
+        return "english_not_sentence"
+    if not EN_SENTENCE_FINAL_PUNCT_RE.search(en):
+        return "missing_sentence_final_punct"
+    tokens = english_word_tokens(en)
+    if len(tokens) < 3:
+        return "english_not_sentence"
+    lemma_tokens = english_word_tokens(word)
+    if (
+        lemma_tokens
+        and len(tokens) == len(lemma_tokens)
+        and all(t.lower() == lemma_tokens[i].lower() for i, t in enumerate(tokens))
+    ):
+        return "lemma_only_example"
+    starts_with_lemma = (
+        bool(lemma_tokens)
+        and len(tokens) >= len(lemma_tokens)
+        and all(
+            tokens[i].lower() == lemma_tokens[i].lower()
+            for i in range(len(lemma_tokens))
+        )
+    )
+    if starts_with_lemma and len(tokens) <= 5 and not EN_FINITE_HINT_RE.search(en):
+        return "english_phrase_not_sentence"
+    gloss_body = gloss or ""
+    for _ in range(8):
+        nxt = GLOSS_LABEL_RE.sub("", gloss_body)
+        nxt = re.sub(r"^[\s／/]+", "", nxt).strip()
+        if nxt == gloss_body:
+            break
+        gloss_body = nxt
+    han_count = len(HAN_RE.findall(gloss_body))
+    if han_count >= 8 and len(tokens) < 4:
+        return "english_too_short_vs_gloss"
+    return None
+
+
 def word_used(sentence: str, word: str, kind: str) -> bool:
     target = word.strip()
     if not target:
@@ -206,6 +260,9 @@ def validate_examples(
     for en, gloss in pairs:
         if not gloss:
             return None, "missing_chinese_gloss"
+        sentence_err = assess_english_sentence(en, word, gloss)
+        if sentence_err:
+            return None, sentence_err
         if not word_used(en, word, kind):
             return None, "word_not_used"
         out_lines.append(en)
@@ -275,6 +332,17 @@ def generate_for_row(
                     extra += (
                         f"\nCRITICAL: 每条英文必须原样出现词条文字「{word}」"
                         f"（可改大小写）。禁止只示范含义/时态却不写词条原文。"
+                    )
+                if last_err in {
+                    "missing_sentence_final_punct",
+                    "english_not_sentence",
+                    "lemma_only_example",
+                    "english_phrase_not_sentence",
+                    "english_too_short_vs_gloss",
+                }:
+                    extra += (
+                        "\nCRITICAL: 英文必须是完整句子（主语+谓语，句末 .!?）。"
+                        f"禁止只写「{word}」或搭配短语；中文须翻译整句英文。"
                     )
                 work_prompt = base_prompt + extra
             except Exception as err:
