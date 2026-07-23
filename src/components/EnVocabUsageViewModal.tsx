@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { CopyToast } from "@/components/CopyToast";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
-import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-display";
+import { copyTextToClipboard } from "@/lib/copy-text";
+import {
+  buildEnVocabUsageExamplePairs,
+  formatEnVocabUsageExamplesCopyText,
+} from "@/lib/en-vocab-usage-examples-display";
 import type { EnVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
@@ -16,6 +21,7 @@ type Props = {
 
 export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
   const [mounted, setMounted] = useState(false);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -35,9 +41,30 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
     return lockBodyScroll();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) setCopyToast(null);
+  }, [open]);
+
+  const handleCopyAll = useCallback(() => {
+    if (!word) return;
+    const model = buildEnVocabUsageExamplePairs(
+      word.usage,
+      word.example_sentences
+    );
+    const text = formatEnVocabUsageExamplesCopyText(model, word.word);
+    if (!text) {
+      setCopyToast("暂无可复制内容");
+      return;
+    }
+    void copyTextToClipboard(text).then((ok) =>
+      setCopyToast(ok ? "复制成功" : "复制失败")
+    );
+  }, [word]);
+
   if (!open || !mounted || !word) return null;
 
   const model = buildEnVocabUsageExamplePairs(word.usage, word.example_sentences);
+  const copyText = formatEnVocabUsageExamplesCopyText(model, word.word);
 
   return createPortal(
     <>
@@ -82,6 +109,17 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
           </div>
 
           <div className="en-usage-view-footer">
+            {copyText ? (
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact"
+                onClick={handleCopyAll}
+                title="复制全部用法与例句"
+                aria-label="复制全部用法与例句"
+              >
+                复制全部
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
@@ -92,6 +130,8 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
           </div>
         </div>
       </div>
+
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 
       <style jsx>{`
         .en-usage-view-overlay {
@@ -160,6 +200,8 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
         .en-usage-view-footer {
           display: flex;
           justify-content: flex-end;
+          align-items: center;
+          gap: 0.5rem;
           padding: 0.75rem 1rem 1rem;
           border-top: 1px solid var(--border);
         }

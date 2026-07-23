@@ -4,7 +4,9 @@
  */
 
 import {
+  formatEnVocabExampleGlossLine,
   parseEnVocabExampleSentenceItems,
+  stripEnVocabExampleGlossLabel,
   type EnVocabExampleSentenceItem,
 } from "@/lib/en-vocab-example-sentences";
 import {
@@ -132,4 +134,43 @@ export function buildEnVocabUsageExamplePairs(
     pairCount: pairs.length,
     hasContent: pairs.length > 0 || Boolean(fallbackExtra) || imageLines.length > 0,
   };
+}
+
+/**
+ * 一键复制「用法与例句」弹窗全文（与页面配对展示一致；不含图片 markdown）。
+ */
+export function formatEnVocabUsageExamplesCopyText(
+  model: EnVocabUsageExamplesPairedModel,
+  wordLabel?: string | null
+): string {
+  if (!model.hasContent) return "";
+
+  const blocks: string[] = [];
+  const word = String(wordLabel ?? "").trim();
+  if (word) blocks.push(word);
+
+  const fallback = String(model.fallbackUsage ?? "").trim();
+  if (fallback) blocks.push(fallback);
+
+  for (const pair of model.pairs) {
+    const lines: string[] = [];
+    if (pair.usageText) {
+      lines.push(`${pair.usageLabel}：${pair.usageText}`);
+    }
+    if (pair.example?.text) {
+      lines.push(pair.example.text);
+      const glossRaw = pair.example.gloss
+        ? stripEnVocabExampleGlossLabel(pair.example.gloss)
+        : "";
+      const glossLine = glossRaw
+        ? formatEnVocabExampleGlossLine(glossRaw)
+        : "";
+      if (glossLine) lines.push(glossLine);
+    } else if (pair.usageText) {
+      lines.push("（暂无对应用例）");
+    }
+    if (lines.length) blocks.push(lines.join("\n"));
+  }
+
+  return blocks.join("\n\n").trim();
 }

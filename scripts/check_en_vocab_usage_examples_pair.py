@@ -32,12 +32,26 @@ def main() -> int:
         for n in [
             "buildEnVocabUsageExamplePairs",
             "enVocabUsagePairLabel",
+            "formatEnVocabUsageExamplesCopyText",
             "${n}.用法",
         ]:
             if n not in display_text:
                 errors.append(f"{display_lib.name}: missing {n!r}")
         if "用法一" in display_text or "CN_ORDINALS" in display_text:
             errors.append(f"{display_lib.name}: must not use 用法一 / CN_ORDINALS")
+
+    modal = ROOT / "src/components/EnVocabUsageViewModal.tsx"
+    missing_modal = must_contain(
+        modal,
+        [
+            "formatEnVocabUsageExamplesCopyText",
+            "copyTextToClipboard",
+            "CopyToast",
+            "复制全部",
+        ],
+    )
+    for m in missing_modal:
+        errors.append(f"EnVocabUsageViewModal.tsx: missing {m!r}")
 
     page = ROOT / "src/components/EnVocabPage.tsx"
     missing = must_contain(
