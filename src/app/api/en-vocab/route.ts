@@ -87,6 +87,8 @@ export async function POST(request: Request) {
         ok: true,
         words: result.words,
         display_order: result.display_order,
+        // 重置已清共享；显式回空，避免客户端 localStorage 仍留「已共享」锁
+        shared_today_word_ids: [] as number[],
       });
     }
 
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
         ok: true,
         words: result.words,
         display_order: result.display_order,
+        shared_today_word_ids: [] as number[],
       });
     }
 

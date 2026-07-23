@@ -984,6 +984,42 @@ export type ResetJpVocabReviewsResult =
     }
   | { ok: false; error: string };
 
+/**
+ * 管理员重置时必须清共享：否则学生端仍见旧共享，且与「从未抽查」矛盾。
+ * （英语还会用今日共享锁死熟悉程度勾选。）
+ */
+async function clearJpVocabSharedOnReset(
+  db: D1Database,
+  scope: "today" | "all"
+): Promise<void> {
+  await ensureJpVocabSharedSchema(db);
+  const today = beijingDateString();
+  if (devStoreEnabled) {
+    if (scope === "all") {
+      devShared.length = 0;
+    } else {
+      for (let i = devShared.length - 1; i >= 0; i--) {
+        if (devShared[i].share_date === today) {
+          devShared.splice(i, 1);
+        }
+      }
+    }
+    invalidateJpVocabSharedTodayCache();
+    await setJpVocabTeacherQuizLiveWord(db, null);
+    return;
+  }
+  if (scope === "all") {
+    await db.prepare(`DELETE FROM jp_vocab_shared`).run();
+  } else {
+    await db
+      .prepare(`DELETE FROM jp_vocab_shared WHERE share_date = ?1`)
+      .bind(today)
+      .run();
+  }
+  invalidateJpVocabSharedTodayCache();
+  await setJpVocabTeacherQuizLiveWord(db, null);
+}
+
 export async function resetAllJpVocabReviews(
   db: D1Database
 ): Promise<ResetJpVocabReviewsResult> {
@@ -1004,6 +1040,7 @@ export async function resetAllJpVocabReviews(
         updated_at: ts,
       };
     }
+    await clearJpVocabSharedOnReset(db, "all");
     const words = sortJpVocabWords(devWords);
     devDailyDisplayOrder = await refreshJpVocabDailyDisplayOrder(db, words);
     const teacher_visible_limit = await getJpVocabTeacherVisibleLimit(db);
@@ -1021,6 +1058,8 @@ export async function resetAllJpVocabReviews(
     .bind(ts)
     .run();
 
+  await clearJpVocabSharedOnReset(db, "all");
+
   const words = await listJpVocabWords(db);
   const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
   const teacher_visible_limit = await getJpVocabTeacherVisibleLimit(db);
@@ -1031,6 +1070,7 @@ export async function resetTodayJpVocabRound(
   db: D1Database
 ): Promise<ResetJpVocabReviewsResult> {
   await seedIfEmpty(db);
+  await clearJpVocabSharedOnReset(db, "today");
   const words = await listJpVocabWords(db);
   const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
   const raw = await readJpVocabTeacherVisibleLimitRaw(db);

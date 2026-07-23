@@ -2184,24 +2184,32 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         words?: JpVocabWord[];
         display_order?: JpVocabDailyDisplayOrder;
         teacher_visible_limit?: JpVocabTeacherVisibleLimit;
+        shared_today_word_ids?: number[];
         error?: string;
       };
       if (!data.ok || !data.words || !data.display_order) {
         throw new Error(data.error || "重置失败");
       }
+      const nextSharedIds = data.shared_today_word_ids ?? [];
       setWords(data.words);
       setDisplayOrder(data.display_order);
+      setSharedTodayWordIds(new Set(nextSharedIds));
       if (data.teacher_visible_limit) {
         setTeacherVisibleLimit(data.teacher_visible_limit);
         persistJpVocabPageCache(
           data.words,
           refs,
           data.display_order,
-          undefined,
+          nextSharedIds,
           data.teacher_visible_limit
         );
       } else {
-        persistJpVocabPageCache(data.words, refs, data.display_order);
+        persistJpVocabPageCache(
+          data.words,
+          refs,
+          data.display_order,
+          nextSharedIds
+        );
       }
       setSessionLevel({});
       setSessionReviewAt({});
@@ -2212,8 +2220,8 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       setShowResetChoice(false);
       setStatus(
         action === "reset_today"
-          ? "已今日重置：单词顺序已更新，当前轮次勾选已清空；今日抽查数量与统计次数保持不变。"
-          : "已全部重置，可以开始新一轮复习。"
+          ? "已今日重置：单词顺序已更新，当前轮次勾选与今日共享已清空；今日抽查数量与统计次数保持不变。"
+          : "已全部重置（含今日共享记录），可以开始新一轮复习。"
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -2236,7 +2244,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
 
   const resetAll = () => {
     const ok = window.confirm(
-      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，开始新一轮复习。"
+      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，并清除今日共享记录，开始新一轮复习。"
     );
     if (!ok) return;
     void runReset("reset");

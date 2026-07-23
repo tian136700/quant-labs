@@ -74,10 +74,10 @@ export function JpVocabResetChoiceModal({
         </div>
         <div className="jp-vocab-reset-modal-body">
           <p>
-            <strong>今日重置</strong>：立即按抽查优先级重新排序，并清除当前轮次的序号勾与熟悉程度勾选；今日抽查数量、今日抽查次数、合计次数等统计不变。适合上午抽查后，下午换一位老师再抽一轮。
+            <strong>今日重置</strong>：立即按抽查优先级重新排序，并清除当前轮次的序号勾与熟悉程度勾选，同时清除今日发给学生的共享记录；今日抽查数量、今日抽查次数、合计次数等统计不变。适合上午抽查后，下午换一位老师再抽一轮。
           </p>
           <p>
-            <strong>全部重置</strong>：清空所有熟悉程度统计与今日抽查记录，并重排单词表，开始全新一轮复习；管理员设置的「今日抽查数量」不变。
+            <strong>全部重置</strong>：清空所有熟悉程度统计与今日抽查记录，并清除全部共享记录，重排单词表，开始全新一轮复习；管理员设置的「今日抽查数量」不变。
           </p>
         </div>
         <div className="jp-vocab-reset-modal-footer">

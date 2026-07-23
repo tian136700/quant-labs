@@ -151,6 +151,8 @@ export async function POST(request: Request) {
         words: result.words,
         display_order: result.display_order,
         teacher_visible_limit: result.teacher_visible_limit,
+        // 重置已清共享；显式回空，避免客户端缓存仍显示「已共享」
+        shared_today_word_ids: [] as number[],
       });
     }
 
@@ -164,6 +166,7 @@ export async function POST(request: Request) {
         words: result.words,
         display_order: result.display_order,
         teacher_visible_limit: result.teacher_visible_limit,
+        shared_today_word_ids: [] as number[],
       });
     }
 

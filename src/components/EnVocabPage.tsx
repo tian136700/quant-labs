@@ -1526,14 +1526,17 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         ok: boolean;
         words?: EnVocabWord[];
         display_order?: EnVocabDailyDisplayOrder;
+        shared_today_word_ids?: number[];
         error?: string;
       };
       if (!data.ok || !data.words || !data.display_order) {
         throw new Error(data.error || "重置失败");
       }
+      const nextSharedIds = data.shared_today_word_ids ?? [];
       setWords(data.words);
       setDisplayOrder(data.display_order);
-      persistVocabCache(data.words, refs, data.display_order);
+      setSharedTodayWordIds(new Set(nextSharedIds));
+      persistVocabCache(data.words, refs, data.display_order, nextSharedIds);
       setSessionLevel({});
       setSessionUsageLevels({});
       setSessionReviewAt({});
@@ -1544,8 +1547,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       setShowResetChoice(false);
       setStatus(
         action === "reset_today"
-          ? "已今日重置：单词顺序已更新，当前轮次勾选已清空，统计次数保持不变。"
-          : "已全部重置，可以开始新一轮复习。"
+          ? "已今日重置：单词顺序已更新，当前轮次勾选与今日共享已清空，统计次数保持不变。"
+          : "已全部重置（含今日共享记录），可以开始新一轮复习。"
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1568,7 +1571,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
 
   const resetAll = () => {
     const ok = window.confirm(
-      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，开始新一轮复习。"
+      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，并清除今日共享记录，开始新一轮复习。"
     );
     if (!ok) return;
     void runReset("reset");

@@ -802,6 +802,42 @@ export type ResetEnVocabReviewsResult =
   | { ok: true; words: EnVocabWord[]; display_order: EnVocabDailyDisplayOrder }
   | { ok: false; error: string };
 
+/**
+ * 管理员重置时必须清共享：英语「今日已共享」会锁死熟悉程度勾选；
+ * 只清 cnt_* / last_review_* 会留下「从未抽查 + 已共享」矛盾态。
+ */
+async function clearEnVocabSharedOnReset(
+  db: D1Database,
+  scope: "today" | "all"
+): Promise<void> {
+  await ensureEnVocabSharedSchema(db);
+  const today = beijingDateString();
+  if (devStoreEnabled) {
+    if (scope === "all") {
+      devShared.length = 0;
+    } else {
+      for (let i = devShared.length - 1; i >= 0; i--) {
+        if (devShared[i].share_date === today) {
+          devShared.splice(i, 1);
+        }
+      }
+    }
+    invalidateEnVocabSharedTodayCache();
+    await setEnVocabTeacherQuizLiveWord(db, null);
+    return;
+  }
+  if (scope === "all") {
+    await db.prepare(`DELETE FROM en_vocab_shared`).run();
+  } else {
+    await db
+      .prepare(`DELETE FROM en_vocab_shared WHERE share_date = ?1`)
+      .bind(today)
+      .run();
+  }
+  invalidateEnVocabSharedTodayCache();
+  await setEnVocabTeacherQuizLiveWord(db, null);
+}
+
 export async function resetAllEnVocabReviews(
   db: D1Database
 ): Promise<ResetEnVocabReviewsResult> {
@@ -823,6 +859,7 @@ export async function resetAllEnVocabReviews(
         updated_at: ts,
       };
     }
+    await clearEnVocabSharedOnReset(db, "all");
     const words = sortEnVocabWords(devWords);
     devDailyDisplayOrder = await refreshEnVocabDailyDisplayOrder(db, words);
     return { ok: true, words, display_order: devDailyDisplayOrder };
@@ -840,6 +877,8 @@ export async function resetAllEnVocabReviews(
     .bind(ts)
     .run();
 
+  await clearEnVocabSharedOnReset(db, "all");
+
   const words = await listEnVocabWords(db);
   const display_order = await refreshEnVocabDailyDisplayOrder(db, words);
   return { ok: true, words, display_order };
@@ -849,6 +888,8 @@ export async function resetTodayEnVocabRound(
   db: D1Database
 ): Promise<ResetEnVocabReviewsResult> {
   await seedIfEmpty(db);
+  // 今日重置也要清今日共享，否则「已共享」锁仍挡住下午再抽 / 再勾熟悉程度
+  await clearEnVocabSharedOnReset(db, "today");
   const words = await listEnVocabWords(db);
   const display_order = await refreshEnVocabDailyDisplayOrder(db, words);
   return { ok: true, words, display_order };
