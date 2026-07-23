@@ -1,6 +1,8 @@
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { requireAdmin } from "@/lib/admin-auth";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { updateEnVocabWordEntry } from "@/lib/en-vocab-db";
 import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
+import { redactJpVocabMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import type { EnVocabKind } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -13,11 +15,13 @@ const ERR = {
     word_required: "Word / grammar cannot be empty",
     word_duplicate: "This entry already exists",
     not_found: "Entry not found",
+    forbidden: "Forbidden",
   },
   zh: {
     word_required: "单词 / 语法不能为空",
     word_duplicate: "该词条已存在",
     not_found: "未找到该词条",
+    forbidden: "无权限",
   },
 };
 
@@ -38,11 +42,21 @@ export async function POST(request: Request) {
       meaning?: string | null;
       pos?: string | null;
       class_notes?: string | null;
+      mnemonic?: string | null;
+      usage?: string | null;
     };
 
     const wordId = Number(body.word_id);
     if (!Number.isInteger(wordId) || wordId <= 0) {
       return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
+    }
+
+    const { isAdmin } = await requireAdmin(request);
+    if (body.mnemonic !== undefined && !isAdmin) {
+      return jsonResponse(
+        { ok: false, error: ERR[locale].forbidden },
+        403
+      );
     }
 
     const result = await updateEnVocabWordEntry(
@@ -55,6 +69,10 @@ export async function POST(request: Request) {
         meaning: body.meaning,
         pos: body.pos,
         class_notes: body.class_notes,
+        usage: body.usage,
+        ...(isAdmin && body.mnemonic !== undefined
+          ? { mnemonic: body.mnemonic }
+          : {}),
       },
       user.username
     );
@@ -70,7 +88,10 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: msg || result.error }, status);
     }
 
-    return jsonResponse({ ok: true, word: result.word });
+    return jsonResponse({
+      ok: true,
+      word: redactJpVocabMnemonicForClient(result.word, isAdmin),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

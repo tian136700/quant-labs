@@ -18,6 +18,8 @@ import {
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { enVocabSaveQueue } from "@/lib/request-queue";
 import type { EnVocabWord } from "@/lib/types";
+import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
+import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
 
 type Props = {
   open: boolean;
@@ -360,22 +362,27 @@ export function EnClassNotesEditModal({
                     {entry.timestamp ? (
                       <div className="jp-notes-edit-entry-ts">{entry.timestamp}</div>
                     ) : null}
-                    <pre className="jp-notes-edit-entry-body">{entry.content}</pre>
+                    <EnVocabClassNoteContent content={entry.content} />
                   </div>
                 ))}
               </div>
             ) : null}
 
             {canEdit ? (
-              <textarea
-                className="jp-notes-edit-textarea"
-                rows={8}
+              <EnVocabImageNotesField
+                id="en-notes-edit-draft"
                 value={draft}
-                placeholder="在此输入新备注，保存后自动带上当前时间…"
-                onChange={(e) => {
+                onChange={(next) => {
                   dirtyRef.current = true;
-                  setDraft(e.target.value);
+                  setDraft(next);
                 }}
+                locale={locale}
+                rows={8}
+                mode="plain"
+                textareaClassName="jp-notes-edit-textarea"
+                placeholder="在此输入新备注，保存后自动带上当前时间…可粘贴或上传图片"
+                onNeedAuth={onNeedAuth}
+                onError={setError}
               />
             ) : pastEntries.length === 0 ? (
               <p className="jp-notes-edit-empty">暂无备注</p>

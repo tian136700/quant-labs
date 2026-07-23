@@ -8,6 +8,7 @@ import {
   sha256HexBytes,
 } from "@/lib/en-vocab-ref-shared";
 import type { EnVocabKind, EnVocabRef, EnVocabWord } from "@/lib/types";
+import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
 
 type Props = {
   open: boolean;
@@ -324,16 +325,19 @@ export function EnVocabManualAddModal({
               />
             </div>
 
-            <div className="field">
+            <div className="field jp-vocab-add-notes-field">
               <label htmlFor="jp-vocab-add-notes">备注（可选）</label>
-              <textarea
+              <EnVocabImageNotesField
                 id="jp-vocab-add-notes"
-                className="jp-vocab-add-textarea"
-                rows={6}
                 value={classNotes}
-                onChange={(e) => setClassNotes(e.target.value)}
-                placeholder="记录例句、用法、易错点…"
+                onChange={setClassNotes}
+                locale={locale}
                 disabled={submitting}
+                rows={6}
+                mode="plain"
+                textareaClassName="jp-vocab-add-textarea"
+                placeholder="记录例句、易错点…可粘贴或上传图片"
+                onError={setError}
               />
             </div>
 

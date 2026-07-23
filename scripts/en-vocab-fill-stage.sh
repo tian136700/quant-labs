@@ -1,18 +1,18 @@
 #!/bin/bash
-# 英语词条补全：单阶段入口（音标 / 释义 / 词性 / 例句 各自独立）
+# 英语词条补全：单阶段入口（音标 / 释义 / 词性 / 例句 / 用法 各自独立）
 #
-# 每阶段自己的 dirlock + ollama_slot：跑完即放槽，不把音标+释义+例句绑成一大坨占死模型。
+# 每阶段自己的 dirlock + ollama_slot：跑完即放槽，不把多阶段绑成一大坨占死模型。
 #
 # 用法：
-#   bash scripts/en-vocab-fill-stage.sh reading|meaning|pos|examples
+#   bash scripts/en-vocab-fill-stage.sh reading|meaning|pos|examples|usage
 #   FORCE=1 bash scripts/en-vocab-fill-stage.sh meaning
 set -euo pipefail
 
 STAGE="${1:-}"
 case "$STAGE" in
-  reading|meaning|pos|examples) ;;
+  reading|meaning|pos|examples|usage) ;;
   *)
-    echo "用法: $0 {reading|meaning|pos|examples}" >&2
+    echo "用法: $0 {reading|meaning|pos|examples|usage}" >&2
     exit 2
     ;;
 esac
@@ -84,6 +84,7 @@ case "$STAGE" in
   meaning) run_cmd=("$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-meaning-api.py" --field meaning) ;;
   pos) run_cmd=("$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-meaning-api.py" --field pos) ;;
   examples) run_cmd=("$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-example-sentences-api.py") ;;
+  usage) run_cmd=("$PYTHON_BIN" "$ROOT/scripts/en-vocab-fill-usage-api.py") ;;
 esac
 
 set +e

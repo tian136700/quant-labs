@@ -11,6 +11,7 @@ import {
 } from "@/lib/en-vocab-db";
 import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
+import { redactJpVocabWordsMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import {
   normalizeEnVocabDailyQuizStyle,
   type EnVocabDailyQuizStyle,
@@ -22,9 +23,10 @@ const AUTH_MSG = {
   zh: "请登录后再操作。",
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const env = await getCloudflareEnv();
+    const { isAdmin } = await requireAdmin(request);
     const [{ words, refs }, daily_quiz_style, shared_today_word_ids] = await Promise.all([
       listEnVocabWordsWithRefs(env.DB),
       getEnVocabDailyQuizStyle(env.DB),
@@ -33,7 +35,7 @@ export async function GET() {
     const display_order = await ensureEnVocabDailyDisplayOrder(env.DB, words);
     return jsonResponse({
       ok: true,
-      words,
+      words: redactJpVocabWordsMnemonicForClient(words, isAdmin),
       refs,
       daily_quiz_style,
       display_order,

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac 安装：英语补全拆成 4 个独立 launchd 任务（音标 / 释义 / 词性 / 例句）
+# Mac 安装：英语补全拆成 5 个独立 launchd 任务（音标 / 释义 / 词性 / 例句 / 用法）
 # 每任务单独占 ollama_slot，跑完即放 —— 勿再绑成一大坨。
 set -euo pipefail
 
@@ -13,7 +13,7 @@ UID_NUM="$(id -u)"
 OLD_COMBINED="com.infoquests.en-vocab-fill"
 OLD_READING_ONLY="com.infoquests.en-vocab-fill-reading"
 
-STAGES=(reading meaning pos examples)
+STAGES=(reading meaning pos examples usage)
 
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 
@@ -36,6 +36,7 @@ chmod +x "$ROOT/scripts/en-vocab-fill-nightly.sh"
 chmod +x "$ROOT/scripts/en-vocab-fill-reading-api.py"
 chmod +x "$ROOT/scripts/en-vocab-fill-meaning-api.py"
 chmod +x "$ROOT/scripts/en-vocab-fill-example-sentences-api.py"
+chmod +x "$ROOT/scripts/en-vocab-fill-usage-api.py"
 
 # 卸掉旧整包 / 旧音标任务
 for old in "$OLD_COMBINED" "$OLD_READING_ONLY"; do
@@ -59,7 +60,7 @@ for stage in "${STAGES[@]}"; do
 done
 
 echo ""
-echo "OK: 英语补全已拆成 4 个独立任务（各占 ollama_slot，跑完即放）"
+echo "OK: 英语补全已拆成 5 个独立任务（各占 ollama_slot，跑完即放）"
 echo "  间隔: 每 ${RUN_INTERVAL}s 检测一次；槽忙则 skip，下一分钟再试"
 echo "  日志: ${LOG_DIR}/com.infoquests.en-vocab-fill-<stage>.log"
 echo "  模型链: gemma4:26b → qwen2.5:14b → qwen2.5:7b（墙钟 600s）"
@@ -69,6 +70,7 @@ echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh reading"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh meaning"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh pos"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh examples"
+echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-stage.sh usage"
 echo ""
-echo "兼容旧入口（仍可顺序跑四阶段，但每阶段单独占/放槽）:"
+echo "兼容旧入口（仍可顺序跑五阶段，但每阶段单独占/放槽）:"
 echo "  FORCE=1 bash $ROOT/scripts/en-vocab-fill-nightly.sh"

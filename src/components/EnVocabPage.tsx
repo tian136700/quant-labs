@@ -37,6 +37,8 @@ import { EnVocabEditModal } from "@/components/EnVocabEditModal";
 import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
+import { EnVocabMnemonicViewModal } from "@/components/EnVocabMnemonicViewModal";
+import { EnVocabUsageViewModal } from "@/components/EnVocabUsageViewModal";
 import { EnVocabManualAddModal } from "@/components/EnVocabManualAddModal";
 import { EnVocabRiskChartModal } from "@/components/EnVocabRiskChartModal";
 import {
@@ -256,6 +258,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingWord, setEditingWord] = useState<EnVocabWord | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<EnVocabWord | null>(null);
+  const [viewingMnemonicWord, setViewingMnemonicWord] = useState<EnVocabWord | null>(null);
+  const [viewingUsageWord, setViewingUsageWord] = useState<EnVocabWord | null>(null);
   const [previewRef, setPreviewRef] = useState<{
     ref: EnVocabRef;
     cacheVersion?: string | null;
@@ -1004,6 +1008,66 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     }
   };
 
+  const deleteWord = async (w: EnVocabWord) => {
+    if (!isAdminMode) {
+      setStatus("仅管理员端可删除词条。");
+      return;
+    }
+    if (!canOperate) {
+      setStatus("请登录后再删除。");
+      openEnAuth();
+      return;
+    }
+    if (deletingBatch) return;
+    const ok = window.confirm(
+      `确定删除词条「${w.word}」？此操作不可恢复。`
+    );
+    if (!ok) return;
+
+    setDeletingBatch(true);
+    setStatus("");
+    setError("");
+    try {
+      const res = await fetch("/api/en-vocab/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ word_ids: [w.id] }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        deleted?: number;
+        error?: string;
+      };
+      if (res.status === 401) {
+        openEnAuth();
+        throw new Error("请登录后再删除。");
+      }
+      if (res.status === 403) {
+        throw new Error("仅 Admin 账户可删除词条。");
+      }
+      if (!data.ok) {
+        throw new Error(data.error || "删除失败");
+      }
+      setWords((prev) => prev.filter((item) => item.id !== w.id));
+      setSelectedDeleteIds((prev) => {
+        const next = new Set(prev);
+        next.delete(w.id);
+        return next;
+      });
+      if (highlightId === w.id) setHighlightId(null);
+      if (editingWord?.id === w.id) setEditingWord(null);
+      setStatus("已删除 1 条词条。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingBatch(false);
+    }
+  };
+
   const renderPaginationNav = () =>
     showPagination ? (
       <nav className="jp-vocab-pagination" aria-label="单词表分页">
@@ -1382,6 +1446,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                   <th rowSpan={2} className="jp-vocab-example-col">
                     例句
                   </th>
+                  {isAdminMode ? (
+                    <th
+                      rowSpan={2}
+                      className="jp-vocab-mnemonic-col"
+                      title="联想记忆 / 巧记口诀（仅管理员）"
+                    >
+                      巧记
+                    </th>
+                  ) : null}
+                  <th rowSpan={2} className="jp-vocab-usage-col" title="雅思/托福常用用法">
+                    用法
+                  </th>
                   <th rowSpan={2} className="jp-vocab-risk-col">
                     <button
                       type="button"
@@ -1620,6 +1696,53 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                           wordLabel={w.word}
                         />
                       </td>
+                      {isAdminMode ? (
+                        <td
+                          className={`jp-vocab-mnemonic-col${
+                            !(w.mnemonic || "").trim() ? " jp-vocab-field-empty" : ""
+                          }`}
+                          data-label="巧记"
+                        >
+                          {(w.mnemonic || "").trim() ? (
+                            <button
+                              type="button"
+                              className="btn-rsi-filter btn-rsi-filter--compact"
+                              title="查看巧记"
+                              onClick={() => setViewingMnemonicWord(w)}
+                            >
+                              查看
+                            </button>
+                          ) : (
+                            <span
+                              className="jp-vocab-mnemonic-empty"
+                              title="可在「编辑」中填写巧记"
+                            >
+                              —
+                            </span>
+                          )}
+                        </td>
+                      ) : null}
+                      <td
+                        className={`jp-vocab-usage-col${
+                          !(w.usage || "").trim() ? " jp-vocab-field-empty" : ""
+                        }`}
+                        data-label="用法"
+                      >
+                        {(w.usage || "").trim() ? (
+                          <button
+                            type="button"
+                            className="btn-rsi-filter btn-rsi-filter--compact"
+                            title="查看用法"
+                            onClick={() => setViewingUsageWord(w)}
+                          >
+                            查看
+                          </button>
+                        ) : (
+                          <span className="jp-vocab-mnemonic-empty" title="可在「编辑」中填写用法">
+                            —
+                          </span>
+                        )}
+                      </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
                           className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
@@ -1757,6 +1880,17 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                             >
                               编辑
                             </button>
+                            {isAdminMode ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--danger"
+                                disabled={deletingBatch}
+                                title="删除此词条"
+                                onClick={() => void deleteWord(w)}
+                              >
+                                删除
+                              </button>
+                            ) : null}
                             {teacherShareUiEnabled ? (
                               <button
                                 type="button"
@@ -1830,6 +1964,18 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onClose={() => setViewingRemarksWord(null)}
       />
 
+      <EnVocabMnemonicViewModal
+        open={viewingMnemonicWord != null}
+        word={viewingMnemonicWord}
+        onClose={() => setViewingMnemonicWord(null)}
+      />
+
+      <EnVocabUsageViewModal
+        open={viewingUsageWord != null}
+        word={viewingUsageWord}
+        onClose={() => setViewingUsageWord(null)}
+      />
+
       <EnVocabRefPreviewModal
         open={previewRef != null}
         refMeta={previewRef?.ref ?? null}
@@ -1857,6 +2003,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         word={editingWord}
         locale={locale}
         canEdit={canOperate}
+        showMnemonic={isAdminMode}
         onClose={() => setEditingWord(null)}
         onSaved={handleWordSaved}
         onSaveFailed={handleWordSaveFailed}
@@ -2403,6 +2550,17 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           vertical-align: middle;
           white-space: nowrap;
           overflow: hidden;
+        }
+        :global(.jp-vocab-table .jp-vocab-mnemonic-col),
+        :global(.jp-vocab-table .jp-vocab-usage-col) {
+          width: 4%;
+          min-width: 0;
+          text-align: center;
+          vertical-align: middle;
+          white-space: nowrap;
+        }
+        .jp-vocab-mnemonic-empty {
+          color: var(--muted);
         }
         :global(.jp-vocab-table .jp-vocab-risk-col) {
           white-space: nowrap;

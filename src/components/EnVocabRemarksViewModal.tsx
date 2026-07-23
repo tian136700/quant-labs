@@ -7,6 +7,7 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { parseEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { EnVocabWord } from "@/lib/types";
+import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 
 type Props = {
   open: boolean;
@@ -133,7 +134,7 @@ export function EnVocabRemarksViewModal({
                     {entry.timestamp ? (
                       <div className="jp-remarks-view-entry-ts">{entry.timestamp}</div>
                     ) : null}
-                    <pre className="jp-remarks-view-entry-body">{entry.content}</pre>
+                    <EnVocabClassNoteContent content={entry.content} />
                   </div>
                 ))}
               </div>

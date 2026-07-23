@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { EnVocabKind, EnVocabWord } from "@/lib/types";
 import {
@@ -16,6 +17,8 @@ type Props = {
   word: EnVocabWord | null;
   locale: "en" | "zh";
   canEdit: boolean;
+  /** 仅管理员可编辑巧记 */
+  showMnemonic?: boolean;
   onClose: () => void;
   onSaved: (word: EnVocabWord) => void;
   onSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;
@@ -32,6 +35,7 @@ export function EnVocabEditModal({
   word,
   locale,
   canEdit,
+  showMnemonic = false,
   onClose,
   onSaved,
   onSaveFailed,
@@ -43,6 +47,8 @@ export function EnVocabEditModal({
   const [reading, setReading] = useState("");
   const [meaning, setMeaning] = useState("");
   const [pos, setPos] = useState("");
+  const [mnemonic, setMnemonic] = useState("");
+  const [usage, setUsage] = useState("");
   const [classNotes, setClassNotes] = useState("");
   const [error, setError] = useState("");
 
@@ -57,6 +63,8 @@ export function EnVocabEditModal({
       setReading(word.reading || "");
       setMeaning(word.meaning || "");
       setPos(word.pos || "");
+      setMnemonic(word.mnemonic || "");
+      setUsage(word.usage || "");
       setClassNotes(word.class_notes || "");
       setError("");
     }
@@ -103,6 +111,8 @@ export function EnVocabEditModal({
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
       class_notes: classNotes.trim() || null,
+      usage: usage.trim() || null,
+      ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
     onSaved(optimistic);
@@ -125,6 +135,8 @@ export function EnVocabEditModal({
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
             class_notes: classNotes.trim() || null,
+            usage: usage.trim() || null,
+            ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
         const data = (await res.json()) as {
@@ -141,7 +153,11 @@ export function EnVocabEditModal({
         onSaveFailed(
           snapshot.id,
           snapshot,
-          err instanceof Error ? err.message : locale === "zh" ? "保存失败" : "Save failed"
+          err instanceof Error
+            ? err.message
+            : locale === "zh"
+              ? "保存失败"
+              : "Save failed"
         );
       }
     });
@@ -213,14 +229,19 @@ export function EnVocabEditModal({
                 rows={2}
                 value={wordText}
                 disabled={!canEdit}
-                placeholder={kind === "grammar" ? "例如：～ばかり" : "例如：勉強"}
+                placeholder={
+                  kind === "grammar" ? "例如：look forward to" : "例如：above"
+                }
                 onChange={(e) => setWordText(e.target.value)}
               />
             </div>
 
             {kind === "word" ? (
               <div className="field">
-                <label htmlFor="jp-vocab-edit-reading" className="jp-vocab-edit-label">
+                <label
+                  htmlFor="jp-vocab-edit-reading"
+                  className="jp-vocab-edit-label"
+                >
                   音标（可选）
                 </label>
                 <input
@@ -236,7 +257,10 @@ export function EnVocabEditModal({
             ) : null}
 
             <div className="field">
-              <label htmlFor="jp-vocab-edit-meaning" className="jp-vocab-edit-label">
+              <label
+                htmlFor="jp-vocab-edit-meaning"
+                className="jp-vocab-edit-label"
+              >
                 释义
               </label>
               <textarea
@@ -245,7 +269,7 @@ export function EnVocabEditModal({
                 rows={2}
                 value={meaning}
                 disabled={!canEdit}
-                placeholder="例如：学习"
+                placeholder="例如：在……之上"
                 onChange={(e) => setMeaning(e.target.value)}
               />
             </div>
@@ -260,25 +284,79 @@ export function EnVocabEditModal({
                 rows={2}
                 value={pos}
                 disabled={!canEdit}
-                placeholder="例如：名词、动词、形容词"
+                placeholder="例如：prep/adv"
                 onChange={(e) => setPos(e.target.value)}
               />
             </div>
 
+            {showMnemonic ? (
+              <div className="field">
+                <label
+                  htmlFor="jp-vocab-edit-mnemonic"
+                  className="jp-vocab-edit-label"
+                >
+                  巧记
+                </label>
+                <textarea
+                  id="jp-vocab-edit-mnemonic"
+                  className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
+                  rows={3}
+                  value={mnemonic}
+                  disabled={!canEdit}
+                  placeholder="联想记忆 / 口诀（仅管理员可见）"
+                  onChange={(e) => setMnemonic(e.target.value)}
+                />
+              </div>
+            ) : null}
+
             <div className="field">
-              <label htmlFor="jp-vocab-edit-notes" className="jp-vocab-edit-label">
+              <label
+                htmlFor="en-vocab-edit-usage"
+                className="jp-vocab-edit-label"
+              >
+                用法
+              </label>
+              <EnVocabImageNotesField
+                id="en-vocab-edit-usage"
+                value={usage}
+                onChange={setUsage}
+                locale={locale}
+                disabled={!canEdit}
+                rows={5}
+                mode="plain"
+                placeholder={
+                  "1. 介词：表示「在……之上」；IELTS/TOEFL 常考方位描述。\n2. 副词：表示「在上方；在上文中」。"
+                }
+                onNeedAuth={onNeedAuth}
+                onError={setError}
+              />
+              <p className="jp-vocab-edit-hint">
+                可写雅思/托福考点用法；支持粘贴或上传图片（居中显示）。
+              </p>
+            </div>
+
+            <div className="field">
+              <label
+                htmlFor="en-vocab-edit-notes"
+                className="jp-vocab-edit-label"
+              >
                 备注
               </label>
-              <textarea
-                id="jp-vocab-edit-notes"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
-                rows={4}
+              <EnVocabImageNotesField
+                id="en-vocab-edit-notes"
                 value={classNotes}
+                onChange={setClassNotes}
+                locale={locale}
                 disabled={!canEdit}
-                placeholder="记录例句、用法、易错点…"
-                onChange={(e) => setClassNotes(e.target.value)}
+                rows={4}
+                mode="notes-blob"
+                placeholder="记录例句、易错点…"
+                onNeedAuth={onNeedAuth}
+                onError={setError}
               />
-              <p className="jp-vocab-edit-hint">备注保存后会同步到英语新课。</p>
+              <p className="jp-vocab-edit-hint">
+                备注保存后会同步到英语新课；支持粘贴或上传图片（居中显示）。
+              </p>
             </div>
 
             {error ? <p className="jp-vocab-edit-error">{error}</p> : null}
@@ -322,8 +400,8 @@ export function EnVocabEditModal({
         .jp-vocab-edit-modal {
           display: flex;
           flex-direction: column;
-          width: min(520px, 100%);
-          max-height: min(92vh, 720px);
+          width: min(560px, 100%);
+          max-height: min(92vh, 820px);
           border: 1px solid var(--border);
           border-radius: 12px;
           background: var(--panel);
@@ -336,7 +414,8 @@ export function EnVocabEditModal({
           justify-content: space-between;
           gap: 0.75rem;
           padding: 1rem 1.1rem 0.85rem;
-          border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          border-bottom: 1px solid
+            color-mix(in srgb, var(--border) 80%, transparent);
           flex-shrink: 0;
         }
 
@@ -347,9 +426,8 @@ export function EnVocabEditModal({
         }
 
         .jp-vocab-edit-subtitle {
-          margin: 0.35rem 0 0;
-          font-size: 0.75rem;
-          line-height: 1.45;
+          margin: 0.25rem 0 0;
+          font-size: 0.8125rem;
           color: var(--muted);
         }
 
@@ -359,19 +437,21 @@ export function EnVocabEditModal({
           height: 2rem;
           border: 1px solid var(--border);
           border-radius: 8px;
-          background: color-mix(in srgb, var(--bg) 55%, transparent);
-          color: var(--muted);
+          background: transparent;
+          color: var(--text);
           font-size: 1.25rem;
           line-height: 1;
           cursor: pointer;
         }
 
         .jp-vocab-edit-body {
+          flex: 1;
+          min-height: 0;
+          overflow: auto;
           padding: 1rem 1.1rem;
           display: flex;
           flex-direction: column;
           gap: 0.85rem;
-          overflow-y: auto;
         }
 
         .field {
@@ -382,43 +462,26 @@ export function EnVocabEditModal({
 
         .jp-vocab-edit-label {
           font-size: 0.8125rem;
+          font-weight: 600;
           color: var(--muted);
         }
 
-        .jp-vocab-edit-input,
-        .jp-vocab-edit-select,
-        .jp-vocab-edit-textarea {
+        :global(.jp-vocab-edit-select),
+        :global(.jp-vocab-edit-input),
+        :global(.jp-vocab-edit-textarea) {
           width: 100%;
           box-sizing: border-box;
           border: 1px solid var(--border);
-          border-radius: 6px;
+          border-radius: 8px;
           background: var(--bg);
           color: var(--text);
           font: inherit;
-          font-size: 0.875rem;
-          padding: 0.55rem 0.65rem;
-          line-height: 1.45;
+          padding: 0.5rem 0.65rem;
         }
 
-        .jp-vocab-edit-select {
-          cursor: pointer;
-        }
-
-        .jp-vocab-edit-select:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        .jp-vocab-edit-textarea {
+        :global(.jp-vocab-edit-textarea) {
           resize: vertical;
-        }
-
-        .jp-vocab-edit-textarea--sm {
-          min-height: 3.2rem;
-        }
-
-        .jp-vocab-edit-textarea--lg {
-          min-height: 5.5rem;
+          min-height: 2.5rem;
         }
 
         .jp-vocab-edit-hint {
@@ -429,12 +492,8 @@ export function EnVocabEditModal({
 
         .jp-vocab-edit-error {
           margin: 0;
-          padding: 0.55rem 0.7rem;
-          border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
-          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
-          color: var(--rise);
-          font-size: 0.8125rem;
+          color: #e85d6f;
+          font-size: 0.875rem;
         }
 
         .jp-vocab-edit-footer {
@@ -442,7 +501,8 @@ export function EnVocabEditModal({
           justify-content: flex-end;
           gap: 0.5rem;
           padding: 0.85rem 1.1rem 1rem;
-          border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          border-top: 1px solid
+            color-mix(in srgb, var(--border) 80%, transparent);
           flex-shrink: 0;
         }
       `}</style>
