@@ -12,6 +12,7 @@ import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
 } from "@/lib/jp-vocab-ref-shared";
+import { useVocabRefLiveVersion } from "@/lib/useVocabRefLiveVersion";
 import type { JpVocabRef } from "@/lib/types";
 
 type Props = {
@@ -30,7 +31,13 @@ export function JpVocabRefViewer({
   cropKind = null,
 }: Props) {
   const { isAdmin } = useEtrAuth();
-  const v = cacheVersion ?? refMeta.updated_at;
+  const initialV = cacheVersion ?? refMeta.updated_at;
+  const { liveUpdatedAt, banner } = useVocabRefLiveVersion({
+    subject: "jp",
+    refKey: refMeta.ref_key,
+    initialUpdatedAt: initialV,
+  });
+  const v = liveUpdatedAt ?? initialV;
   const mediaUrl = jpVocabRefApiPath(refMeta.ref_key, { v });
   const downloadUrl = jpVocabRefApiPath(refMeta.ref_key, { download: true, v });
   const filename =
@@ -52,14 +59,19 @@ export function JpVocabRefViewer({
   const zoomHint = coarsePointer
     ? "单指拖动 · 双指缩放 · ± 按钮"
     : "拖动/双指滚动 · Ctrl+滚轮缩放 · ± 按钮";
+  const subtitle = banner
+    ? banner
+    : isPdf
+      ? "教案预览"
+      : `教案预览 · ${zoomHint}`;
 
   return (
     <div className="jp-ref-viewer">
       <header className="jp-ref-viewer-toolbar">
         <div className="jp-ref-viewer-title-wrap">
           <h1 className="jp-ref-viewer-title">{title}</h1>
-          <p className="jp-ref-viewer-subtitle">
-            {isPdf ? "教案预览" : `教案预览 · ${zoomHint}`}
+          <p className={`jp-ref-viewer-subtitle${banner ? " is-live" : ""}`}>
+            {subtitle}
           </p>
         </div>
         <div className="jp-ref-viewer-actions">
@@ -134,6 +146,10 @@ export function JpVocabRefViewer({
           margin: 0.15rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-ref-viewer-subtitle.is-live {
+          color: var(--accent);
+          font-weight: 500;
         }
         .jp-ref-viewer-actions {
           display: flex;

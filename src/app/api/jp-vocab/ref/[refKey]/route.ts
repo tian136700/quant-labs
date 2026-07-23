@@ -31,7 +31,8 @@ function refResponseHeaders(
     headers.set("Cache-Control", "private, no-transform, max-age=0");
     headers.set("Content-Encoding", "identity");
   } else {
-    headers.set("Cache-Control", "public, max-age=3600, no-transform");
+    // 随手画会覆盖同 refKey；长 max-age 会让已打开的「查看」页卡旧图
+    headers.set("Cache-Control", "private, max-age=0, must-revalidate, no-transform");
   }
 
   if (byteLength != null && byteLength > 0) {
@@ -48,12 +49,28 @@ export async function GET(
   try {
     const { refKey } = await context.params;
     const url = new URL(request.url);
+    const asMeta = url.searchParams.get("meta") === "1";
     const asDownload = url.searchParams.get("download") === "1";
     const env = await getCloudflareEnv();
     const ref = await getJpVocabRef(env.DB, refKey);
 
     if (!ref) {
       return new Response("Not found", { status: 404 });
+    }
+
+    if (asMeta) {
+      return Response.json(
+        {
+          ref_key: ref.ref_key,
+          updated_at: ref.updated_at,
+          media_type: ref.media_type,
+        },
+        {
+          headers: {
+            "Cache-Control": "private, max-age=0, must-revalidate",
+          },
+        }
+      );
     }
 
     if (asDownload && ref.media_type === "image") {

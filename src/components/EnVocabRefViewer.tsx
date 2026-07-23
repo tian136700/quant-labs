@@ -6,6 +6,7 @@ import {
   enVocabRefApiPath,
   enVocabRefFilename,
 } from "@/lib/en-vocab-ref-shared";
+import { useVocabRefLiveVersion } from "@/lib/useVocabRefLiveVersion";
 import type { EnVocabRef } from "@/lib/types";
 
 type Props = {
@@ -24,7 +25,13 @@ export function EnVocabRefViewer({
   cropKind = null,
 }: Props) {
   const { isAdmin } = useEtrAuth();
-  const v = cacheVersion ?? refMeta.updated_at;
+  const initialV = cacheVersion ?? refMeta.updated_at;
+  const { liveUpdatedAt, banner } = useVocabRefLiveVersion({
+    subject: "en",
+    refKey: refMeta.ref_key,
+    initialUpdatedAt: initialV,
+  });
+  const v = liveUpdatedAt ?? initialV;
   const mediaUrl = enVocabRefApiPath(refMeta.ref_key, { v });
   const downloadUrl = enVocabRefApiPath(refMeta.ref_key, { download: true, v });
   const filename =
@@ -37,7 +44,9 @@ export function EnVocabRefViewer({
       <header className="jp-ref-viewer-toolbar">
         <div className="jp-ref-viewer-title-wrap">
           <h1 className="jp-ref-viewer-title">{title}</h1>
-          <p className="jp-ref-viewer-subtitle">教案预览</p>
+          <p className={`jp-ref-viewer-subtitle${banner ? " is-live" : ""}`}>
+            {banner ?? "教案预览"}
+          </p>
         </div>
         <EnVocabRefDownloadMenu
           downloadUrl={downloadUrl}
@@ -95,6 +104,10 @@ export function EnVocabRefViewer({
           margin: 0.15rem 0 0;
           font-size: 0.8125rem;
           color: var(--muted);
+        }
+        .jp-ref-viewer-subtitle.is-live {
+          color: var(--accent);
+          font-weight: 500;
         }
         .jp-ref-viewer-download {
           flex-shrink: 0;

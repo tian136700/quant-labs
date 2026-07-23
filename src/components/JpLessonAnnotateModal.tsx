@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { uploadFormWithProgress } from "@/lib/upload-form-progress";
+import { notifyVocabRefUpdated } from "@/lib/vocab-ref-live";
 import type { JpLessonRecord, JpVocabRef } from "@/lib/types";
 
 type Tool = "brush" | "smear" | "line" | "text" | "zoom";
@@ -1101,6 +1102,11 @@ export function JpLessonAnnotateModal({
       }
 
       setSaveStatus("已保存为最新教案");
+      notifyVocabRefUpdated({
+        subject: "jp",
+        refKey: data.ref.ref_key,
+        updatedAt: data.ref.updated_at,
+      });
       onSaved?.(data.ref, data.lesson);
       window.setTimeout(() => setSaveStatus(""), 2500);
     } catch (err) {

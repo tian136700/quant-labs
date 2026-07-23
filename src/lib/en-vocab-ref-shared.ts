@@ -131,13 +131,14 @@ export function enVocabRefFilename(
   return `${refKey}.${ext}`;
 }
 
-/** 教案文件 API（inline 预览或 ?download=1 附件下载） */
+/** 教案文件 API（inline 预览、?download=1 附件、?meta=1 轻量元数据） */
 export function enVocabRefApiPath(
   refKey: string,
-  opts?: { download?: boolean; v?: string | null }
+  opts?: { download?: boolean; meta?: boolean; v?: string | null }
 ): string {
   const base = `/api/en-vocab/ref/${encodeURIComponent(refKey)}`;
   const params = new URLSearchParams();
+  if (opts?.meta) params.set("meta", "1");
   if (opts?.download) params.set("download", "1");
   if (opts?.v) params.set("v", opts.v);
   const q = params.toString();
