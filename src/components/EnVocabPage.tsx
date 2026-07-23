@@ -1455,7 +1455,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                       巧记
                     </th>
                   ) : null}
-                  <th rowSpan={2} className="jp-vocab-usage-col" title="雅思/托福常用用法">
+                  <th rowSpan={2} className="jp-vocab-usage-col" title="常用用法">
                     用法
                   </th>
                   <th rowSpan={2} className="jp-vocab-risk-col">

@@ -1,8 +1,52 @@
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
-import { nextTodayCheckCount } from "@/lib/en-vocab-daily-check";
+import {
+  beijingDateString,
+  nextTodayCheckCount,
+} from "@/lib/en-vocab-daily-check";
+import {
+  isEnVocabRoundChecked,
+  type EnVocabDailyDisplayOrder,
+} from "@/lib/en-vocab-daily-order";
 
 /** 同一单词在此时间内改选熟悉程度，视为修正上次判断，不重复计次 */
 export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
+
+const EN_VOCAB_LEVELS: EnVocabLevel[] = ["very", "normal", "weak"];
+
+function isEnVocabReviewToday(
+  lastAt: string | null | undefined,
+  now = new Date()
+): boolean {
+  if (!lastAt) return false;
+  return lastAt.slice(0, 10) === beijingDateString(now);
+}
+
+/** 表格 / 抽查卡回显：sessionLevel 优先；否则仅当本轮已勾选且今日有熟悉程度 */
+export function effectiveEnVocabDisplayLevel(
+  word: EnVocabWord,
+  sessionLevel?: EnVocabLevel,
+  opts?: {
+    now?: Date;
+    displayOrder?: EnVocabDailyDisplayOrder;
+  }
+): EnVocabLevel | undefined {
+  if (sessionLevel) return sessionLevel;
+  const now = opts?.now ?? new Date();
+  const order = opts?.displayOrder;
+  if (order?.date) {
+    if (order.date !== beijingDateString(now)) return undefined;
+    if (!isEnVocabRoundChecked(order, word.id)) return undefined;
+  }
+  const level = word.last_review_level;
+  if (
+    level &&
+    EN_VOCAB_LEVELS.includes(level) &&
+    isEnVocabReviewToday(word.last_review_at, now)
+  ) {
+    return level;
+  }
+  return undefined;
+}
 
 export function reviewTimestampMs(iso: string | null | undefined): number | null {
   if (!iso) return null;

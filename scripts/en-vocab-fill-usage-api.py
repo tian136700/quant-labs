@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""补全 en_vocab_word 缺失用法（IELTS/TOEFL）：list_missing → 本机 Ollama → apply。
+"""补全 en_vocab_word 缺失用法：list_missing → 本机 Ollama → apply。
 
-格式：编号中文说明，至少 2 条。
+格式：编号中文说明，至少 2 条。选题按学术考试高频；正文禁止考试标签。
 默认模型 gemma4:26b；source 标「本地 gemma4:26b」。
 """
 
@@ -33,12 +33,71 @@ DEFAULT_API_URL = "https://finance.info-quests.com/api/en-vocab/fill-usage"
 NUMBERED_LINE_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
 HAN_RE = re.compile(r"[\u4E00-\u9FFF]")
 FENCE_RE = re.compile(r"^```(?:\w+)?\s*$")
+# 与 src/lib/en-vocab-usage-ai.ts 一致：上传前屏蔽考试标签（剥掉，不整段拒收）
+EXAM_LABEL_RE = re.compile(
+    r"雅思|托福|四六级|考研|专四|专八|IELTS|TOEFL|ielts|toefl|\bCET\b|\bGRE\b|\bGMAT\b|\bSAT\b",
+    re.IGNORECASE,
+)
+EXAM_LABEL_COMPOUND_RE = re.compile(
+    r"IELTS\s*[\/／、&]\s*TOEFL|TOEFL\s*[\/／、&]\s*IELTS|"
+    r"雅思\s*[\/／、或和与]\s*托福|托福\s*[\/／、或和与]\s*雅思",
+    re.IGNORECASE,
+)
+IMAGE_LINE_RE = re.compile(r"^!\[[^\]]*\]\([^)]+\)\s*$")
+
+
+def _clean_line_debris(line: str) -> str:
+    s = line
+    s = re.sub(r"\s{2,}", " ", s)
+    s = re.sub(r"[；;]{2,}", "；", s)
+    s = re.sub(r"[，,]{2,}", "，", s)
+    s = re.sub(r"([：:；;，,、])\s+", r"\1", s)
+    s = re.sub(r"\s+([：:；;，,、。．.!！？?])", r"\1", s)
+    s = re.sub(r"([：:])\s*[；;，,、／/]+\s*", r"\1", s)
+    s = re.sub(r"\s*[；;，,、／/]+\s*([。．.!！？?])", r"\1", s)
+    s = re.sub(r"([。．.!！？?])\s*[；;，,、／/]+", r"\1", s)
+    s = re.sub(r"([\u4E00-\u9FFF])\s+(?=[\u4E00-\u9FFF])", r"\1", s)
+    s = s.strip()
+    s = re.sub(r"^(\d+\s*[.、．)\]]\s*)[；;，,、／/]+\s*", r"\1", s)
+    s = re.sub(r"[；;，,、／/\s]+$", "", s).strip()
+    if re.match(r"^\d+\s*[.、．)\]]\s*$", s):
+        return ""
+    return s
+
+
+def shield_usage_upload(raw: str) -> str:
+    """上传屏蔽：去掉考试标签词，保留其余正文。"""
+    text = str(raw or "")
+    if not text.strip() or not EXAM_LABEL_RE.search(text):
+        return text.strip()
+    text = EXAM_LABEL_COMPOUND_RE.sub("", text)
+    text = EXAM_LABEL_RE.sub("", text)
+    lines = [_clean_line_debris(ln) for ln in text.splitlines()]
+    lines = [ln for ln in lines if ln.strip()]
+    out: list[str] = []
+    point_idx = 0
+    for line in lines:
+        trimmed = line.strip()
+        if IMAGE_LINE_RE.match(trimmed):
+            out.append(trimmed)
+            continue
+        m = NUMBERED_LINE_RE.match(trimmed)
+        if m:
+            body = m.group(2).strip()
+            if not body or not HAN_RE.search(body):
+                continue
+            point_idx += 1
+            out.append(f"{point_idx}. {body}")
+            continue
+        out.append(trimmed)
+    return "\n".join(out).strip()
 
 
 def validate_usage(raw: str) -> tuple[str | None, str | None]:
+    text = shield_usage_upload(raw)
     lines = [
         ln.strip()
-        for ln in raw.splitlines()
+        for ln in text.splitlines()
         if ln.strip() and not FENCE_RE.match(ln.strip())
     ]
     if not lines:
@@ -50,10 +109,10 @@ def validate_usage(raw: str) -> tuple[str | None, str | None]:
         if not m:
             return None, "invalid_numbering"
         n = int(m.group(1))
-        text = m.group(2).strip()
-        if n <= 0 or not text or not HAN_RE.search(text):
+        body = m.group(2).strip()
+        if n <= 0 or not body or not HAN_RE.search(body):
             return None, "invalid_numbering"
-        points.append((n, text))
+        points.append((n, body))
 
     if len(points) < 2:
         return None, "need_two_points"
@@ -62,7 +121,7 @@ def validate_usage(raw: str) -> tuple[str | None, str | None]:
         if n != i + 1:
             return None, "invalid_numbering"
 
-    out = "\n".join(f"{i + 1}. {text}" for i, (_, text) in enumerate(points))
+    out = "\n".join(f"{i + 1}. {body}" for i, (_, body) in enumerate(points))
     return out, None
 
 
@@ -76,8 +135,10 @@ def generate_for_row(
     if not prompt:
         prompt = (
             f"词条：{word}\n类型：{'语法' if kind == 'grammar' else '单词'}\n\n"
-            "请列出 IELTS/TOEFL 相关用法，至少 2 条编号中文说明，形如：\n"
-            "1. …\n2. …"
+            "请列出常用用法，至少 2 条编号中文说明，形如：\n"
+            "1. 介词：表示「在……之上」；常用于描述位置关系。\n"
+            "2. 副词：表示「在上方；在上文中」。\n"
+            "正文禁止写考试名称（雅思、托福、IELTS、TOEFL 等）。"
         )
 
     base_prompt = prompt
@@ -102,7 +163,7 @@ def generate_for_row(
                 work_prompt = (
                     base_prompt
                     + f"\n\n上次不合格（{last_err}）。请只输出从 1. 连续编号的中文用法行，"
-                    "至少两条，不要 markdown。"
+                    "至少两条，不要 markdown，不要写任何考试名称标签。"
                 )
             except Exception as err:
                 last_err = str(err)
@@ -123,7 +184,7 @@ def generate_for_row(
 def main() -> int:
     cfg = load_env_file("en-vocab-fill.env")
     parser = argparse.ArgumentParser(
-        description="Fill en_vocab usage (IELTS/TOEFL) via Ollama"
+        description="Fill en_vocab usage via Ollama (no exam labels in text)"
     )
     parser.add_argument(
         "--api-url",

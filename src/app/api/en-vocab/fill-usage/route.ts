@@ -2,11 +2,12 @@ import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyEnVocabUsageUpdates,
   scanEnVocabWordsMissingUsage,
+  stripEnVocabUsageExamLabelsInDb,
 } from "@/lib/en-vocab-fill-usage";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillUsageBody = {
-  mode?: "list_missing" | "apply";
+  mode?: "list_missing" | "apply" | "strip_exam_labels";
   dry_run?: boolean;
   limit?: number;
   kind?: "word" | "grammar";
@@ -64,6 +65,18 @@ export async function POST(request: Request) {
       body.limit > 0
         ? Math.floor(body.limit)
         : undefined;
+
+    if (body.mode === "strip_exam_labels") {
+      const result = await stripEnVocabUsageExamLabelsInDb(env.DB, {
+        dryRun,
+        limit,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "strip_exam_labels",
+        ...result,
+      });
+    }
 
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyEnVocabUsageUpdates(env.DB, updates, {

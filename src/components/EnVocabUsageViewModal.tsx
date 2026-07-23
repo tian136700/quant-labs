@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
+import { formatEnVocabUsageForDisplay } from "@/lib/en-vocab-usage-ai";
 import type { EnVocabWord } from "@/lib/types";
 
 type Props = {
@@ -40,7 +41,7 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
 
   if (!open || !mounted || !word) return null;
 
-  const usageTrim = (word.usage || "").trim();
+  const usageTrim = formatEnVocabUsageForDisplay(word.usage || "");
 
   return createPortal(
     <>

@@ -325,13 +325,13 @@ export function EnVocabEditModal({
                 rows={5}
                 mode="plain"
                 placeholder={
-                  "1. 介词：表示「在……之上」；IELTS/TOEFL 常考方位描述。\n2. 副词：表示「在上方；在上文中」。"
+                  "1. 介词：表示「在……之上」；常用于描述位置关系。\n2. 副词：表示「在上方；在上文中」。"
                 }
                 onNeedAuth={onNeedAuth}
                 onError={setError}
               />
               <p className="jp-vocab-edit-hint">
-                可写雅思/托福考点用法；支持粘贴或上传图片（居中显示）。
+                写常用用法即可（勿写考试名称标签）；支持粘贴或上传图片（居中显示）。
               </p>
             </div>
 

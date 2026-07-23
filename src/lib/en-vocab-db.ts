@@ -42,6 +42,7 @@ import { applyEnVocabReview } from "@/lib/en-vocab-review";
 import { parseLessonContent } from "@/lib/en-lesson-shared";
 import { listEnLessons } from "@/lib/en-lesson-db";
 import { listEnLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/en-lesson-note-db";
+import { shieldEnVocabUsageUploadText } from "@/lib/en-vocab-usage-ai";
 import type { EnLessonRecord } from "@/lib/types";
 
 const SEED_WORDS: EnVocabUploadInput[] = [
@@ -1542,7 +1543,7 @@ export async function updateEnVocabWordEntry(
       : current.mnemonic ?? null;
   const nextUsage =
     input.usage !== undefined
-      ? (input.usage || "").trim() || null
+      ? shieldEnVocabUsageUploadText(input.usage || "") || null
       : current.usage ?? null;
   const nextExamples =
     input.example_sentences !== undefined

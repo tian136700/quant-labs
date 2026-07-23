@@ -3,8 +3,11 @@ import "server-only";
 import {
   buildEnVocabUsageAiPrompt,
   EN_VOCAB_USAGE_UPLOAD_SPEC,
+  enVocabUsageHasExamLabel,
   normalizeEnVocabUsageSource,
   normalizeEnVocabUsageText,
+  shieldEnVocabUsageUploadText,
+  stripEnVocabUsageExamLabels,
   validateEnVocabUsageAiOutput,
 } from "@/lib/en-vocab-usage-ai";
 import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
@@ -217,6 +220,7 @@ export async function applyEnVocabUsageUpdates(
     }
 
     if (validateFormat) {
+      // 上传屏蔽：IELTS/TOEFL/雅思/托福等标签直接剥掉后再校验
       const validated = validateEnVocabUsageAiOutput(usage, {
         word: String(row.word),
         kind: String(row.kind),
@@ -234,7 +238,9 @@ export async function applyEnVocabUsageUpdates(
       }
       usage = validated.text;
     } else {
-      usage = normalizeEnVocabUsageText(usage) || usage;
+      usage =
+        normalizeEnVocabUsageText(shieldEnVocabUsageUploadText(usage)) ||
+        shieldEnVocabUsageUploadText(usage);
     }
 
     const changed = await updateUsageIfEmpty(
@@ -259,6 +265,108 @@ export async function applyEnVocabUsageUpdates(
         reason: "already_filled",
       });
     }
+  }
+
+  return {
+    updated,
+    applied,
+    skipped,
+    dry_run: dryRun,
+    upload_spec: EN_VOCAB_USAGE_UPLOAD_SPEC,
+  };
+}
+
+const EN_VOCAB_USAGE_EXAM_LABEL_SQL = `(
+  usage LIKE '%雅思%' OR usage LIKE '%托福%' OR usage LIKE '%四六级%'
+  OR usage LIKE '%考研%' OR usage LIKE '%专四%' OR usage LIKE '%专八%'
+  OR usage LIKE '%IELTS%' OR usage LIKE '%TOEFL%'
+  OR usage LIKE '%ielts%' OR usage LIKE '%toefl%'
+  OR usage LIKE '%GRE%' OR usage LIKE '%GMAT%' OR usage LIKE '%SAT%'
+  OR usage LIKE '%CET%'
+)`;
+
+/** 扫库：剥掉用法正文里的考试标签并写回（可覆盖已有 usage） */
+export async function stripEnVocabUsageExamLabelsInDb(
+  db: D1Database,
+  options: { dryRun?: boolean; limit?: number } = {}
+): Promise<EnVocabFillUsageResult> {
+  await ensureEnVocabWordSchema(db);
+  const dryRun = Boolean(options.dryRun);
+  const limit =
+    typeof options.limit === "number" &&
+    Number.isFinite(options.limit) &&
+    options.limit > 0
+      ? Math.floor(options.limit)
+      : null;
+
+  let sql = `SELECT id, word, usage, usage_source FROM en_vocab_word
+       WHERE usage IS NOT NULL AND TRIM(usage) != ''
+         AND ${EN_VOCAB_USAGE_EXAM_LABEL_SQL}
+       ORDER BY id`;
+  const binds: number[] = [];
+  if (limit != null) {
+    sql += ` LIMIT ?1`;
+    binds.push(limit);
+  }
+
+  const stmt = db.prepare(sql);
+  const result = await (binds.length > 0 ? stmt.bind(...binds) : stmt).all<{
+    id: number;
+    word: string;
+    usage: string;
+    usage_source: string | null;
+  }>();
+
+  const applied: EnVocabFillUsageApplied[] = [];
+  const skipped: Array<{ id: number; word: string; reason: string }> = [];
+  let updated = 0;
+
+  for (const row of result.results ?? []) {
+    const wordId = Number(row.id);
+    const word = String(row.word);
+    const prev = String(row.usage ?? "");
+    if (!enVocabUsageHasExamLabel(prev)) {
+      skipped.push({ id: wordId, word, reason: "no_exam_label" });
+      continue;
+    }
+    const next = stripEnVocabUsageExamLabels(prev).trim();
+    if (!next) {
+      skipped.push({ id: wordId, word, reason: "empty_after_strip" });
+      continue;
+    }
+    if (next === prev.trim()) {
+      skipped.push({ id: wordId, word, reason: "unchanged" });
+      continue;
+    }
+
+    const source =
+      row.usage_source != null
+        ? String(row.usage_source).trim() || null
+        : null;
+
+    if (!dryRun) {
+      const run = await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET usage = ?1,
+               updated_at = datetime('now')
+           WHERE id = ?2`
+        )
+        .bind(next, wordId)
+        .run();
+      if (Number(run.meta?.changes ?? 0) <= 0) {
+        skipped.push({ id: wordId, word, reason: "update_failed" });
+        continue;
+      }
+    }
+
+    updated += 1;
+    applied.push({
+      id: wordId,
+      word,
+      usage: next,
+      usage_source: source,
+    });
   }
 
   return {
