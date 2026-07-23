@@ -216,7 +216,12 @@ export function EnVocabUsageExamplesPairedContent({
           display: flex;
           flex-wrap: wrap;
           gap: 0.35rem;
-          margin: 0 0 0.4rem;
+          margin: 0.15rem 0 0.5rem;
+          padding: 0.4rem 0.5rem;
+          border: 1.5px solid var(--rise);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--rise) 8%, transparent);
+          box-sizing: border-box;
         }
         :global(.en-usage-ex-paired-levels .jp-vocab-level-opt) {
           font-size: 0.78rem;

@@ -94,6 +94,20 @@ def main() -> int:
         if n not in flash.read_text(encoding="utf-8"):
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
 
+    paired = ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
+    paired_text = paired.read_text(encoding="utf-8") if paired.is_file() else ""
+    if not paired.is_file():
+        errors.append(f"missing {paired.relative_to(ROOT)}")
+    else:
+        for n in [
+            "en-usage-ex-paired-levels",
+            "border: 1.5px solid var(--rise)",
+        ]:
+            if n not in paired_text:
+                errors.append(
+                    f"EnVocabUsageExamplesPairedContent.tsx: missing red level box {n!r}"
+                )
+
     page = ROOT / "src/components/EnVocabPage.tsx"
     for n in [
         "recordUsageLevels",
