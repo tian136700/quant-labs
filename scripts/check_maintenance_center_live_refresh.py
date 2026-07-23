@@ -36,7 +36,7 @@ def main() -> int:
         )
         return 1
 
-    # Extract the main 2s setInterval body (first setInterval after EventSource)
+    # Extract the main status setInterval body (first setInterval after EventSource)
     es_pos = text.find("new EventSource")
     if es_pos < 0:
         print("[check_maintenance_center_live_refresh] FAIL: EventSource missing", file=sys.stderr)
@@ -57,13 +57,13 @@ def main() -> int:
 
     if "void refreshManual()" not in window and "refreshManual()" not in window:
         print(
-            "[check_maintenance_center_live_refresh] FAIL: 2s poll must call refreshManual()",
+            "[check_maintenance_center_live_refresh] FAIL: status poll must call refreshManual()",
             file=sys.stderr,
         )
         return 1
     if "void refreshAuto()" not in window and "refreshAuto()" not in window:
         print(
-            "[check_maintenance_center_live_refresh] FAIL: 2s poll must call refreshAuto()",
+            "[check_maintenance_center_live_refresh] FAIL: status poll must call refreshAuto()",
             file=sys.stderr,
         )
         return 1
