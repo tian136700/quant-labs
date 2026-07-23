@@ -318,7 +318,7 @@ body {
 }
 
 .admin-nav-submenu-link {
-  @apply flex items-center text-xs text-muted no-underline rounded-md border border-transparent;
+  @apply flex items-center text-sm text-muted no-underline rounded-md border border-transparent;
   padding: 0.45rem 0.75rem;
   white-space: nowrap;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
