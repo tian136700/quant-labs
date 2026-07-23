@@ -726,20 +726,45 @@ export function KoPronPage({ variant }: Props) {
                           if (!hasLevel(letter.id)) startQuiz(letter.id);
                         }}
                       >
-                        <td>{seq}</td>
-                        <td className="ko-pron-letter-cell">
-                          <span className="ko-pron-letter-glyph">{letter.letter}</span>
-                          <KoPronLetterCopyButton letter={letter.letter} />
-                          <KoPronSpeakButton
-                            letter={letter.letter}
-                            reading={letter.reading}
-                            variant="compact"
-                          />
+                        <td className="ko-pron-seq-col" data-label="序号">
+                          {seq}
                         </td>
-                        <td>{letter.reading}</td>
-                        <td>{letter.meaning}</td>
-                        <td>{letter.category}</td>
-                        <td data-label="抽查优先级">
+                        <td className="ko-pron-letter-col" data-label="字母">
+                          <div className="ko-pron-letter-cell">
+                            <span className="ko-pron-letter-glyph">
+                              {letter.letter}
+                            </span>
+                            <KoPronLetterCopyButton letter={letter.letter} />
+                            <KoPronSpeakButton
+                              letter={letter.letter}
+                              reading={letter.reading}
+                              variant="compact"
+                            />
+                          </div>
+                          {letter.reading ? (
+                            <div className="ko-pron-mobile-reading-row">
+                              {letter.reading}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td
+                          className="ko-pron-reading-col"
+                          data-label="读音"
+                        >
+                          {letter.reading}
+                        </td>
+                        <td
+                          className={`ko-pron-meaning-col${
+                            !letter.meaning ? " ko-pron-field-empty" : ""
+                          }`}
+                          data-label="说明"
+                        >
+                          {letter.meaning || "—"}
+                        </td>
+                        <td className="ko-pron-category-col" data-label="分类">
+                          {letter.category}
+                        </td>
+                        <td className="ko-pron-risk-col" data-label="优先级">
                           {risk == null ? (
                             <span
                               className="ko-pron-risk-badge ko-pron-risk-badge--never"
@@ -756,7 +781,7 @@ export function KoPronPage({ variant }: Props) {
                             </span>
                           )}
                         </td>
-                        <td>
+                        <td className="ko-pron-level-col" data-label="熟悉程度">
                           {level === "very"
                             ? "非常熟悉"
                             : level === "normal"
@@ -777,7 +802,10 @@ export function KoPronPage({ variant }: Props) {
                             />
                           ) : null}
                         </td>
-                        <td className="ko-pron-stats-cell">
+                        <td
+                          className="ko-pron-stats-col ko-pron-stats-cell"
+                          data-label="复习次数"
+                        >
                           <span title="非常熟悉">{letter.cnt_very}</span>
                           <span aria-hidden="true">/</span>
                           <span title="一般">{letter.cnt_normal}</span>
@@ -785,7 +813,7 @@ export function KoPronPage({ variant }: Props) {
                           <span title="不熟悉">{letter.cnt_weak}</span>
                         </td>
                         {isAdminMode ? (
-                          <td>
+                          <td className="ko-pron-action-col" data-label="操作">
                             <button
                               type="button"
                               className="ko-pron-preview-btn"
@@ -1057,12 +1085,18 @@ export function KoPronPage({ variant }: Props) {
           color: var(--muted);
         }
         .ko-pron-letter-cell {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
           font-size: 1.35rem;
           font-weight: 700;
           white-space: nowrap;
         }
         .ko-pron-letter-glyph {
           vertical-align: middle;
+        }
+        .ko-pron-mobile-reading-row {
+          display: none;
         }
         .ko-pron-stats-cell {
           font-variant-numeric: tabular-nums;

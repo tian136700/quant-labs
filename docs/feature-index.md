@@ -150,6 +150,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **字母复制**（勾选 / 抽问列表 / 复习列表旁 compact；**抽问卡 / 学生卡 / 复习卡右上角** `variant=corner`；自带 toast） | `KoPronLetterCopyButton`；`copyTextToClipboard` + `CopyToast` |
 | **分类筛选 + 搜索**（辅音 / 双辅音 / 基本元音 / 复合元音；对齐延世·首尔大·西江·TOPIK 教材用语，非严格语言学；字母归属不变：ㅑㅕㅛㅠ∈基本元音，ㅐㅔ∈复合元音；字母/读音/说明本地即时；**勾选页分类记住上次选择**） | `KoPronPage` / `KoPronSelectPage` 工具栏；`ko-pron-search.ts` → `filterKoPronLettersBySearch` + `read/writeStoredKoPronSelectCategoryFilter`；分类常量 `KO_PRON_CATEGORIES`（`ko-pron-seed.ts`）；文案迁移 `vowel_category_textbook_v2`（单元音/双元音→基本元音/复合元音） |
 | **列表显示抽查优先级数值 + 复习次数**（与日语同公式；从未抽查显示「—」；次数列 非常/一般/不熟悉） | `KoPronPage` 表列；`koPronFinalQuizScoreOrNull` |
+| **手机端列表卡片化**（老师/管理员抽问：表→卡片；字母大字+读音行；搜索/开始抽查全宽；抽问卡 safe-area） | `KoPronPage` 列 `data-label` + `ko-pron-*-col`；`mobile.css`「KO Pron」；规则 `.cursor/rules/ko-pron-mobile-list.mdc` |
 | 种子 40 字母 | `ko-pron-seed.ts` → `KO_PRON_SEED_LETTERS`；**只种进** `ko_pron_catalog`（`seedCatalogIfEmpty`）；抽问表禁止全量 seed |
 | **开课前 30 分钟启用韩语老师账号**（手动日程 `teacher` 姓名匹配 `ko_lesson_teacher`；与日语同一定时 `teacher-user-pre-class-enable`） | `KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS`；`listKoTeacherIdsWithUpcomingClassStart`；`etr_user_ko_lesson_teacher_link`；人员管理 `?subject=ko` →「创建用户」；规则 `.cursor/rules/ko-pron-teacher-account-lifecycle.mdc` |
 | **抽完最后一个字母后 20 分钟禁用**（记操作人到 `ko_pron_teacher_quiz_day`；与日语同一定时 `teacher-user-quiz-complete-disable`） | `ko-pron-teacher-quiz-day.ts`；`POST /api/ko-pron` 勾选后 `trackKoPronTeacherQuizDayAfterReview`；临近韩语课 30min 窗口跳过禁用 |
