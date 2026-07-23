@@ -3094,3 +3094,76 @@ textarea:focus {
 .jp-vocab-page .jp-vocab-mobile-only {
   display: none;
 }
+
+/* 韩语学生端：禁止白底浅字（暗色站上 #fff + 继承 --text 会「一片恰白」看不见字母） */
+.ko-pron-study-page {
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2.5rem;
+  color: var(--text);
+  background: transparent;
+}
+.ko-pron-study-page h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+  color: var(--text);
+}
+.ko-pron-study-hint,
+.ko-pron-study-status,
+.ko-pron-study-waiting {
+  color: var(--muted);
+}
+.ko-pron-study-error {
+  color: var(--rise);
+}
+.ko-pron-study-empty,
+.ko-pron-study-card {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--panel) !important;
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+}
+.ko-pron-study-empty {
+  border-style: dashed;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  border-radius: 0.85rem;
+}
+.ko-pron-study-card {
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+}
+.ko-pron-study-letter {
+  font-size: 4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 0.35rem;
+  color: var(--text) !important;
+}
+.ko-pron-study-hero-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+.ko-pron-study-edit-btn {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.9rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ko-pron-study-hint {
+  margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+.ko-pron-study-waiting {
+  margin: 1rem 0 0;
+}
+

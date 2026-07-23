@@ -15,6 +15,7 @@ FILES = [
     ROOT / "src" / "components" / "KoPronSelectPage.tsx",
     ROOT / "src" / "components" / "KoPronPage.tsx",
     ROOT / "src" / "components" / "KoPronTeacherQuizFlashcardModal.tsx",
+    ROOT / "src" / "components" / "KoPronStudyPage.tsx",
 ]
 
 # Surfaces that must not be solid white / near-white again
@@ -44,10 +45,30 @@ def main() -> int:
                 f"{path.name} still has light surface background(s): {sorted(set(hits))}; "
                 "use var(--panel) / var(--bg)"
             )
-        if "var(--panel)" not in text:
-            return fail(f"{path.name} must use var(--panel) for surfaces")
-        if "var(--text)" not in text:
-            return fail(f"{path.name} must set color: var(--text)")
+        # 学生端样式在 globals.css；组件内可不重复写 panel
+        if path.name != "KoPronStudyPage.tsx":
+            if "var(--panel)" not in text:
+                return fail(f"{path.name} must use var(--panel) for surfaces")
+            if "var(--text)" not in text:
+                return fail(f"{path.name} must set color: var(--text)")
+
+    globals_css = (ROOT / "src" / "app" / "globals.css").read_text(encoding="utf-8")
+    if ".ko-pron-study-card" not in globals_css:
+        return fail("globals.css missing .ko-pron-study-card dark surface")
+    if "ko-pron-study-card" in globals_css:
+        # card block must use panel, not #fff
+        card_idx = globals_css.find(".ko-pron-study-card")
+        snippet = globals_css[card_idx : card_idx + 400]
+        if re.search(r"background:\s*#fff", snippet, re.I):
+            return fail("globals.css .ko-pron-study-card must not use #fff")
+        if "var(--panel)" not in snippet:
+            return fail("globals.css .ko-pron-study-card must use var(--panel)")
+
+    study = (
+        ROOT / "src" / "components" / "KoPronStudyPage.tsx"
+    ).read_text(encoding="utf-8")
+    if "KoPronSpeakButton" in study:
+        return fail("KoPronStudyPage must not show speak button")
 
     flashcard = (
         ROOT / "src" / "components" / "KoPronTeacherQuizFlashcardModal.tsx"
