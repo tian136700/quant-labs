@@ -52,6 +52,27 @@ const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
 }));
 
+/** 手动日程标题：韩语 / 日语 / 英语三选一，或自定义输入 */
+const MANUAL_SCHEDULE_TITLE_PRESETS = ["韩语", "日语", "英语"] as const;
+type ManualScheduleTitlePreset = (typeof MANUAL_SCHEDULE_TITLE_PRESETS)[number];
+type ManualScheduleTitleChoice = ManualScheduleTitlePreset | "custom";
+
+function isManualScheduleTitlePreset(value: string): value is ManualScheduleTitlePreset {
+  return (MANUAL_SCHEDULE_TITLE_PRESETS as readonly string[]).includes(value);
+}
+
+function titleChoiceFromStoredTitle(stored: string): {
+  choice: ManualScheduleTitleChoice | "";
+  custom: string;
+} {
+  const trimmed = stored.trim();
+  if (!trimmed) return { choice: "", custom: "" };
+  if (isManualScheduleTitlePreset(trimmed)) {
+    return { choice: trimmed, custom: "" };
+  }
+  return { choice: "custom", custom: stored };
+}
+
 function draftFromSchedule(
   schedule: JpLessonManualSchedule | null | undefined,
   initialDate: string
@@ -102,7 +123,8 @@ export function JpLessonManualScheduleModal({
   onSave,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [title, setTitle] = useState("");
+  const [titleChoice, setTitleChoice] = useState<ManualScheduleTitleChoice | "">("");
+  const [customTitle, setCustomTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState("");
@@ -114,6 +136,14 @@ export function JpLessonManualScheduleModal({
   const formInitKeyRef = useRef<string | null>(null);
   const teacherPickerRef = useRef<JpLessonTeacherSinglePickerHandle>(null);
   const saveProgress = useSaveProgressBar(saving);
+
+  const title = useMemo(() => {
+    if (titleChoice === "custom") return customTitle;
+    if (titleChoice === "韩语" || titleChoice === "日语" || titleChoice === "英语") {
+      return titleChoice;
+    }
+    return "";
+  }, [titleChoice, customTitle]);
 
   const timeOptions = useMemo(
     () =>
@@ -138,7 +168,9 @@ export function JpLessonManualScheduleModal({
     if (formInitKeyRef.current === initKey) return;
     formInitKeyRef.current = initKey;
     const next = draftFromSchedule(editing, initialDate);
-    setTitle(next.title);
+    const fromTitle = titleChoiceFromStoredTitle(next.title);
+    setTitleChoice(fromTitle.choice);
+    setCustomTitle(fromTitle.custom);
     setDate(next.date);
     setTime(next.time);
     setDuration(next.duration);
@@ -154,6 +186,17 @@ export function JpLessonManualScheduleModal({
       saveInitiatedRef.current = false;
     }
   }, [saving]);
+
+  const selectTitlePreset = (preset: ManualScheduleTitlePreset) => {
+    setTitleChoice(preset);
+    setCustomTitle("");
+    setError("");
+  };
+
+  const activateCustomTitle = () => {
+    setTitleChoice("custom");
+    setError("");
+  };
 
   const teacherSubject = useMemo(
     () => detectScheduleTeacherSubjectFromTitle(title),
@@ -224,7 +267,11 @@ export function JpLessonManualScheduleModal({
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("请填写日程标题");
+      setError(
+        titleChoice === "custom" || !titleChoice
+          ? "请选择或填写日程标题"
+          : "请填写日程标题"
+      );
       return;
     }
     if (!date.trim() || !time.trim()) {
@@ -304,16 +351,45 @@ export function JpLessonManualScheduleModal({
             <div className="jp-lesson-next-class-row">
               <div className="jp-lesson-next-class-fields">
                 {showFullFields ? (
-                  <label className="jp-lesson-next-class-field">
+                  <div className="jp-lesson-next-class-field">
                     <span>标题</span>
-                    <input
-                      type="text"
-                      className="jp-lesson-next-class-input"
-                      value={title}
-                      placeholder="例如：复习 N3 语法"
-                      onChange={(e) => setTitle(e.target.value)}
-                    />
-                  </label>
+                    <div
+                      className="jp-lesson-manual-title-choices"
+                      role="radiogroup"
+                      aria-label="日程标题"
+                    >
+                      {MANUAL_SCHEDULE_TITLE_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          role="radio"
+                          aria-checked={titleChoice === preset}
+                          className={`jp-lesson-manual-title-preset${
+                            titleChoice === preset ? " is-active" : ""
+                          }`}
+                          onClick={() => selectTitlePreset(preset)}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                      <input
+                        type="text"
+                        role="radio"
+                        aria-checked={titleChoice === "custom"}
+                        aria-label="自定义标题"
+                        className={`jp-lesson-next-class-input jp-lesson-manual-title-custom${
+                          titleChoice === "custom" ? " is-active" : ""
+                        }`}
+                        value={customTitle}
+                        placeholder="自己输入…"
+                        onFocus={activateCustomTitle}
+                        onChange={(e) => {
+                          activateCustomTitle();
+                          setCustomTitle(e.target.value);
+                        }}
+                      />
+                    </div>
+                  </div>
                 ) : null}
                 <label className="jp-lesson-next-class-field">
                   <span>日期</span>
@@ -536,6 +612,58 @@ export function JpLessonManualScheduleModal({
           background: color-mix(in srgb, var(--bg) 35%, var(--panel));
           color: inherit;
           font-size: 0.875rem;
+        }
+
+        .jp-lesson-manual-title-choices {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, auto)) minmax(0, 1fr);
+          gap: 0.35rem;
+          align-items: stretch;
+        }
+
+        .jp-lesson-manual-title-preset {
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+          color: var(--muted);
+          padding: 0.55rem 0.75rem;
+          font-size: 0.875rem;
+          line-height: 1.3;
+          cursor: pointer;
+          transition:
+            color 0.15s ease,
+            background 0.15s ease,
+            border-color 0.15s ease;
+        }
+
+        .jp-lesson-manual-title-preset:hover:not(:disabled):not(.is-active) {
+          color: var(--text);
+          background: color-mix(in srgb, var(--panel) 70%, var(--bg));
+        }
+
+        .jp-lesson-manual-title-preset.is-active {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+          background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+        }
+
+        .jp-lesson-manual-title-custom {
+          min-width: 0;
+        }
+
+        .jp-lesson-manual-title-custom.is-active {
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+
+        @media (max-width: 520px) {
+          .jp-lesson-manual-title-choices {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+
+          .jp-lesson-manual-title-custom {
+            grid-column: 1 / -1;
+          }
         }
 
         .jp-lesson-next-class-time-select {
