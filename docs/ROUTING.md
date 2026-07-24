@@ -130,7 +130,8 @@
   → jp_lesson, jp_vocab_word (完成后 sync)
 
 /jp-lesson/schedule
-  → JpLessonSchedulePage.tsx
+  → JpLessonSchedulePage.tsx（编排）
+  → jp-lesson-schedule-page/（Styles、helpers）
   → jp-lesson-manual-schedule.ts
   → GET|POST /api/jp-lesson/schedule
 ```

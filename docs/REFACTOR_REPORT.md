@@ -93,14 +93,44 @@
 
 **验证**：`tsc` ✅ · pending_id_sort / teacher_search / annotate_image_url（含 `jp-lesson-page/`）/ trackpad_scroll / learning_auto_enable ✅
 
-#### ⏳ 待拆（按顺序）
+#### ✅ JpLessonSchedulePage（第 6 项，2026-07-24）
 
-| 顺序 | 文件 | LOC | 下一步 |
-|------|------|----:|--------|
-| ✅ | `EnVocabPage` / `JpVocabPage` / `jp-vocab-db` / `en-vocab-db` / `JpLessonPage` | — | 完成 |
-| 6 | `JpLessonSchedulePage.tsx` | 2891 | schedule 子组件 |
-| 7 | `AdminUsersPage.tsx` | 2580 | table/modals/hooks |
-| 8 | `EnLessonPage.tsx` | 2370 | 对齐日语新课（含 `en-lesson-page/`） |
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 | `jp-lesson-schedule-page/JpLessonSchedulePageStyles.tsx` | 953 | ✅ |
+| helpers / 时间轴工具 / 老师链接 | `jp-lesson-schedule-page/jp-lesson-schedule-page-helpers.tsx` | 343 | ✅ |
+| 编排页 | `JpLessonSchedulePage.tsx` | **1702**（原 2891） | ✅ · 日历视图可再拆 |
+
+**验证**：`tsc` ✅ · custom_schedule_time / schedule_duplicate / manual_teacher_subject / caldav_slot_merge ✅
+
+#### ✅ AdminUsersPage（第 7 项，2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 | `admin-users-page/AdminUsersPageStyles.tsx` | 447 | ✅ |
+| helpers / 卡片字段 / IP / 操作区 | `admin-users-page/admin-users-page-helpers.tsx` | 397 | ✅ |
+| 编排页 | `AdminUsersPage.tsx` | **1778**（原 2580） | ✅ · 表体可再拆 |
+
+**验证**：`tsc` ✅ · admin_users_trackpad_scroll ✅
+
+#### ✅ EnLessonPage（第 8 项，2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 | `en-lesson-page/EnLessonPageStyles.tsx` | 652 | ✅ |
+| helpers | `en-lesson-page/en-lesson-page-helpers.tsx` | 323 | ✅ |
+| 状态区表体 | `en-lesson-page/EnLessonStatusTable.tsx` | 637 | ✅ |
+| 编排页 | `EnLessonPage.tsx` | **937**（原 2370） | ✅ |
+
+**验证**：`tsc` ✅ · annotate_image_url（含 `en-lesson-page/`）✅
+
+#### ⏳ 队列后续（可选，非本轮硬性）
+
+| 文件 | LOC | 说明 |
+|------|----:|------|
+| `JpLessonSchedulePage` | 1702 | 可再抽 day/week/month 日历 |
+| `AdminUsersPage` | 1778 | 可再抽用户表 |
+| `JpVocabEditModal` / Annotate×2 / `etr-auth-db` 等 | 1500+ | 见 §3 中优先级 |
 
 ---
 

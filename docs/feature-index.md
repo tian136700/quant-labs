@@ -178,7 +178,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 |------|--------|------|--------|
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` + `jp-lesson-page/`（Styles / StatusTable / helpers） |
 | `/jp-lesson/notes` | 课堂笔记（按知识点；**支持粘贴/上传图片**；已完成新课保存后同步到日语抽问 `class_notes`，文字+图片） | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
-| `/jp-lesson/schedule` | **日程管理（顶栏一级模块）**（统一日语 + 英语新课 + 手动日程；**不挂在「日语」二级下**） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` |
+| `/jp-lesson/schedule` | **日程管理（顶栏一级模块）**（统一日语 + 英语新课 + 手动日程；**不挂在「日语」二级下**） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` + `jp-lesson-schedule-page/` |
 | `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理**（默认日语；`?subject=en` 英语；`?subject=ko` 韩语可建登录账号；**搜索跨日语+英语+韩语模糊匹配**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
 
 日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}`（英语课加 `&subject=en`）并自动滚动定位。路径常量：`adminJpLessonTeachersPath()`、`jpLessonSchedulePath()` in `locale-path.ts`。导航：`nav.jpLessonSchedule`＝「日程管理」→ **管理员顶栏一级**（`NAV_TOP_LEVEL_CROSS_SUBJECT_IDS`，不进「日语」二级）。
@@ -244,7 +244,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | `/about` | 关于与反馈（**仅管理员**；导航 / 页面 / `about:view`；非管理员不可见） | `about/page.tsx` | `AboutPage.tsx` |
 | `/admin` | 后台管理 | `admin/page.tsx` | `AdminDashboardPage.tsx` |
 | `/admin/rbac` | 角色权限 | `admin/rbac/page.tsx` | `AdminRbacPage.tsx` |
-| `/admin/users` | 用户管理 | `admin/users/page.tsx` | `AdminUsersPage.tsx` |
+| `/admin/users` | 用户管理 | `admin/users/page.tsx` | `AdminUsersPage.tsx` + `admin-users-page/` |
 | `/store-review` | 外卖评价 | `store-review/page.tsx` | |
 
 ### admin/users 子功能
