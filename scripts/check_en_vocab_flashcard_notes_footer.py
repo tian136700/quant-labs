@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODAL = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+MODAL_DIR = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
 STYLES = ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx"
 
 
@@ -16,13 +17,21 @@ def fail(msg: str) -> None:
     raise SystemExit(1)
 
 
+def read_modal_bundle() -> str:
+    parts = [MODAL.read_text(encoding="utf-8")]
+    if MODAL_DIR.is_dir():
+        for f in sorted(MODAL_DIR.glob("*.tsx")) + sorted(MODAL_DIR.glob("*.ts")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def main() -> None:
     if not MODAL.is_file():
         fail(f"missing {MODAL.relative_to(ROOT)}")
     if not STYLES.is_file():
         fail(f"missing {STYLES.relative_to(ROOT)}")
 
-    modal = MODAL.read_text(encoding="utf-8")
+    modal = read_modal_bundle()
     styles = STYLES.read_text(encoding="utf-8")
 
     if "en-vocab-flashcard-page-footer__notes" not in modal:

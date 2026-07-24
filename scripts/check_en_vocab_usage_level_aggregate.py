@@ -111,7 +111,12 @@ def main() -> int:
             errors.append(f"en-vocab/route.ts: missing {n!r}")
 
     flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
-    flash_text = flash.read_text(encoding="utf-8") if flash.is_file() else ""
+    flash_dir = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
+    flash_parts = [flash.read_text(encoding="utf-8")] if flash.is_file() else []
+    if flash_dir.is_dir():
+        for f in sorted(flash_dir.glob("*.tsx")) + sorted(flash_dir.glob("*.ts")):
+            flash_parts.append(f.read_text(encoding="utf-8"))
+    flash_text = "\n".join(flash_parts)
     for n in [
         "onSelectUsageLevels",
         "usageLevelControls",
@@ -180,12 +185,21 @@ def main() -> int:
                 )
 
     page = ROOT / "src/components/EnVocabPage.tsx"
-    page_text = page.read_text(encoding="utf-8") if page.is_file() else ""
+    page_dir = ROOT / "src/components/en-vocab-page"
+    page_parts = [page.read_text(encoding="utf-8")] if page.is_file() else []
+    if page_dir.is_dir():
+        for f in sorted(page_dir.glob("*.tsx")) + sorted(page_dir.glob("*.ts")):
+            page_parts.append(f.read_text(encoding="utf-8"))
+    page_text = "\n".join(page_parts)
     review_actions = ROOT / "src/hooks/useEnVocabReviewActions.ts"
     review_actions_text = (
         review_actions.read_text(encoding="utf-8") if review_actions.is_file() else ""
     )
-    page_ui = page_text + "\n" + review_actions_text
+    teacher_quiz = ROOT / "src/hooks/useEnVocabTeacherQuiz.ts"
+    teacher_quiz_text = (
+        teacher_quiz.read_text(encoding="utf-8") if teacher_quiz.is_file() else ""
+    )
+    page_ui = page_text + "\n" + review_actions_text + "\n" + teacher_quiz_text
     for n in [
         "recordUsageLevels",
         "quizCardPreviewWordId",

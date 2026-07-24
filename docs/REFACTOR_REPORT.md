@@ -97,6 +97,19 @@
 
 **验证**：`JpLessonPage` 无 tsc 报错 · pending_id_sort / teacher_search / annotate_image_url ✅ · `refresh_file_split_queue` 已清出
 
+#### ✅ EnVocabTeacherQuizFlashcardModal（队列 #2，≤1000 达标 · 2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| helpers | `en-vocab-teacher-quiz-flashcard/helpers.ts` | 41 | ✅ |
+| Header | `…/EnVocabFlashcardPageHeader.tsx` | 179 | ✅ |
+| Body | `…/EnVocabFlashcardPageBody.tsx` | 305 | ✅ |
+| Footer | `…/EnVocabFlashcardPageFooter.tsx` | 286 | ✅ |
+| Alerts | `…/EnVocabFlashcardAlerts.tsx` | 109 | ✅ |
+| 编排 | `EnVocabTeacherQuizFlashcardModal.tsx` | **670**（原 1312） | ✅ 出队 |
+
+**验证**：lemma_ipa / notes_footer / study_flashcard_parity / usage_examples_pair / usage_level_aggregate ✅（检查脚本改为扫 `en-vocab-teacher-quiz-flashcard/`）
+
 #### ✅ JpLessonSchedulePage（第 6 项，2026-07-24）
 
 | 步骤 | 文件 | LOC | 状态 |

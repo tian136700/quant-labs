@@ -9,16 +9,20 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-def must_contain(path: pathlib.Path, needles: list[str]) -> list[str]:
-    text = path.read_text(encoding="utf-8")
-    missing = [n for n in needles if n not in text]
-    return missing
+def read_bundle(page: pathlib.Path, sibling: pathlib.Path | None = None) -> str:
+    parts = [page.read_text(encoding="utf-8")] if page.is_file() else []
+    if sibling is not None and sibling.is_dir():
+        for f in sorted(sibling.glob("*.tsx")) + sorted(sibling.glob("*.ts")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
-def must_not_contain(path: pathlib.Path, needles: list[str]) -> list[str]:
-    text = path.read_text(encoding="utf-8")
-    found = [n for n in needles if n in text]
-    return found
+def must_contain_text(text: str, needles: list[str]) -> list[str]:
+    return [n for n in needles if n not in text]
+
+
+def must_not_contain_text(text: str, needles: list[str]) -> list[str]:
+    return [n for n in needles if n in text]
 
 
 def main() -> int:
@@ -41,8 +45,8 @@ def main() -> int:
             errors.append(f"{display_lib.name}: must not use 用法一 / CN_ORDINALS")
 
     modal = ROOT / "src/components/EnVocabUsageViewModal.tsx"
-    missing_modal = must_contain(
-        modal,
+    missing_modal = must_contain_text(
+        modal.read_text(encoding="utf-8") if modal.is_file() else "",
         [
             "formatEnVocabUsageExamplesCopyText",
             "copyTextToClipboard",
@@ -53,9 +57,12 @@ def main() -> int:
     for m in missing_modal:
         errors.append(f"EnVocabUsageViewModal.tsx: missing {m!r}")
 
-    page = ROOT / "src/components/EnVocabPage.tsx"
-    missing = must_contain(
-        page,
+    page_text = read_bundle(
+        ROOT / "src/components/EnVocabPage.tsx",
+        ROOT / "src/components/en-vocab-page",
+    )
+    missing = must_contain_text(
+        page_text,
         [
             "EnVocabUsageExamplesCell",
             "jp-vocab-usage-ex-col",
@@ -65,8 +72,8 @@ def main() -> int:
     for m in missing:
         errors.append(f"EnVocabPage.tsx: missing {m!r}")
 
-    bad = must_not_contain(
-        page,
+    bad = must_not_contain_text(
+        page_text,
         [
             "EnVocabExampleSentencesCell",
             "jp-vocab-example-col",
@@ -75,17 +82,17 @@ def main() -> int:
         ],
     )
     # allow jp-vocab-usage-ex-col; block separate usage-col header/cells
-    text = page.read_text(encoding="utf-8")
-    if "jp-vocab-usage-col" in text and "jp-vocab-usage-ex-col" in text:
-        # only fail if old usage-col class still used as table column (not substring of usage-ex)
-        if "jp-vocab-usage-col" in text.replace("jp-vocab-usage-ex-col", ""):
-            errors.append("EnVocabPage.tsx: still uses separate jp-vocab-usage-col")
+    if "jp-vocab-usage-col" in page_text.replace("jp-vocab-usage-ex-col", ""):
+        errors.append("EnVocabPage.tsx: still uses separate jp-vocab-usage-col")
     for b in bad:
         errors.append(f"EnVocabPage.tsx: must not contain {b!r}")
 
-    flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
-    missing_f = must_contain(
-        flash,
+    flash_text = read_bundle(
+        ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx",
+        ROOT / "src/components/en-vocab-teacher-quiz-flashcard",
+    )
+    missing_f = must_contain_text(
+        flash_text,
         [
             "EnVocabUsageExamplesPairedContent",
             "buildEnVocabUsageExamplePairs",
@@ -95,9 +102,7 @@ def main() -> int:
     for m in missing_f:
         errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {m!r}")
 
-    if 'aria-label="例句"' in flash.read_text(encoding="utf-8") and 'aria-label="用法"' in flash.read_text(
-        encoding="utf-8"
-    ):
+    if 'aria-label="例句"' in flash_text and 'aria-label="用法"' in flash_text:
         errors.append("flashcard still has separate 例句 + 用法 sections")
 
     if errors:

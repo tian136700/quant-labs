@@ -9,7 +9,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = ROOT / "src/components/EnVocabStudyPage.tsx"
 TEACHER = ROOT / "src/components/EnVocabPage.tsx"
+TEACHER_DIR = ROOT / "src/components/en-vocab-page"
 MODAL = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+MODAL_DIR = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
 
 
 def fail(msg: str) -> None:
@@ -17,10 +19,18 @@ def fail(msg: str) -> None:
     sys.exit(1)
 
 
+def read_bundle(page: Path, sibling: Path | None = None) -> str:
+    parts = [page.read_text(encoding="utf-8")]
+    if sibling is not None and sibling.is_dir():
+        for f in sorted(sibling.glob("*.tsx")) + sorted(sibling.glob("*.ts")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def main() -> None:
     study = STUDY.read_text(encoding="utf-8")
-    teacher = TEACHER.read_text(encoding="utf-8")
-    modal = MODAL.read_text(encoding="utf-8")
+    teacher = read_bundle(TEACHER, TEACHER_DIR)
+    modal = read_bundle(MODAL, MODAL_DIR)
 
     if "EnVocabTeacherQuizFlashcardModal" not in study:
         fail("EnVocabStudyPage must use EnVocabTeacherQuizFlashcardModal")
@@ -39,7 +49,10 @@ def main() -> None:
 
     if "studentPeekedCurrentWord" not in teacher:
         fail("EnVocabPage missing studentPeekedCurrentWord")
-    if "studentPeeked={studentPeekedCurrentWord}" not in teacher:
+    if (
+        "studentPeeked={studentPeekedCurrentWord}" not in teacher
+        and "studentPeeked={props.studentPeekedCurrentWord}" not in teacher
+    ):
         fail("EnVocabPage must pass studentPeeked to flashcard modal")
 
     if 'mode?: "quiz" | "study"' not in modal and 'mode?: "quiz" | "study"' not in modal.replace(
@@ -52,9 +65,11 @@ def main() -> None:
         fail("EnVocabTeacherQuizFlashcardModal missing student-peeked banner copy")
     if "jp-vocab-teacher-quiz__student-peek-banner" not in modal:
         fail("peek banner must sit in card header (student-peek-banner), not only scroll body")
-    if "setStudentPeekedCurrentWord(true)" not in teacher:
+    quiz_hook = (ROOT / "src/hooks/useEnVocabTeacherQuiz.ts").read_text(encoding="utf-8")
+    peek_src = teacher + "\n" + quiz_hook
+    if "setStudentPeekedCurrentWord(true)" not in peek_src:
         fail("EnVocabPage must latch studentPeeked=true until next word")
-    if "setStudentPeekedCurrentWord(peeked)" in teacher:
+    if "setStudentPeekedCurrentWord(peeked)" in peek_src:
         fail("EnVocabPage must not overwrite peek latch with poll false")
 
     if "TeacherReviewAuth" not in teacher:

@@ -9,11 +9,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STYLES = ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx"
 MODAL = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+MODAL_DIR = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
 
 
 def fail(msg: str) -> None:
     print(f"FAIL: {msg}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def read_modal_bundle() -> str:
+    parts = [MODAL.read_text(encoding="utf-8")]
+    if MODAL_DIR.is_dir():
+        for p in sorted(MODAL_DIR.glob("*.tsx")) + sorted(MODAL_DIR.glob("*.ts")):
+            parts.append(p.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def main() -> None:
@@ -23,7 +32,7 @@ def main() -> None:
         fail(f"missing {MODAL.relative_to(ROOT)}")
 
     styles = STYLES.read_text(encoding="utf-8")
-    modal = MODAL.read_text(encoding="utf-8")
+    modal = read_modal_bundle()
 
     if "en-vocab-flashcard-reading-row" not in modal:
         fail("modal must use en-vocab-flashcard-reading-row")
