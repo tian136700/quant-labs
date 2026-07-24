@@ -150,10 +150,12 @@ export async function saveEnVocabTeacherQuizLive(
 
 export async function getEnVocabTeacherQuizLive(
   db: D1Database,
-  now = new Date()
+  now = new Date(),
+  options?: { bypassCache?: boolean }
 ): Promise<EnVocabTeacherQuizLive> {
   const at = Date.now();
   if (
+    !options?.bypassCache &&
     enVocabDbState.teacherQuizLiveReadCache &&
     at - enVocabDbState.teacherQuizLiveReadCache.at < EN_VOCAB_SETTING_READ_CACHE_MS
   ) {
@@ -240,7 +242,7 @@ export async function peekEnVocabTeacherQuizLiveWord(
   studentUsername: string,
   now = new Date()
 ): Promise<EnVocabTeacherQuizLivePeekResult> {
-  const live = await getEnVocabTeacherQuizLive(db, now);
+  const live = await getEnVocabTeacherQuizLive(db, now, { bypassCache: true });
   const wordId = live.word_id;
   if (!wordId) {
     return { ok: false, error: "no_active_word" };

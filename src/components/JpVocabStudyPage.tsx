@@ -50,6 +50,10 @@ import {
   JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
 } from "@/lib/jp-vocab-sync";
+import {
+  abortSignalAfter,
+  VOCAB_STUDENT_PEEK_TIMEOUT_MS,
+} from "@/lib/vocab-teacher-quiz-live-sync";
 import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 import { JpVocabStudyPageTable } from "@/components/jp-vocab-study-page/JpVocabStudyPageTable";
 import { JpVocabStudyPageStyles } from "@/components/jp-vocab-study-page/JpVocabStudyPageStyles";
@@ -534,6 +538,7 @@ export function JpVocabStudyPage() {
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
+        signal: abortSignalAfter(VOCAB_STUDENT_PEEK_TIMEOUT_MS),
       });
       const parsed = await readApiJson<{
         ok: boolean;
@@ -551,7 +556,10 @@ export function JpVocabStudyPage() {
         return;
       }
       if (!data.ok || !data.item) {
-        setStatus(data.error || "老师当前没有在抽查单词，请稍后再试。");
+        setStatus(
+          data.error ||
+            "老师当前没有在抽查单词（或同步尚未完成），请过几秒再点一次。"
+        );
         return;
       }
       if (data.refs) {
@@ -581,7 +589,17 @@ export function JpVocabStudyPage() {
       setFlashcardItem(data.item);
       setStatus("已打开老师正在抽查的单词，并加入今日列表。");
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "暂时无法查看，请稍后再试。");
+      const aborted =
+        err instanceof DOMException
+          ? err.name === "AbortError"
+          : err instanceof Error && err.name === "AbortError";
+      setStatus(
+        aborted
+          ? "获取超时，请再点一次「查看老师正在抽查的单词」。"
+          : err instanceof Error
+            ? err.message
+            : "暂时无法查看，请稍后再试。"
+      );
     } finally {
       setPeekingTeacherQuiz(false);
     }

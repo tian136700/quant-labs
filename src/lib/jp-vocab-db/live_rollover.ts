@@ -358,10 +358,12 @@ async function saveJpVocabTeacherQuizLive(
 
 export async function getJpVocabTeacherQuizLive(
   db: D1Database,
-  now = new Date()
+  now = new Date(),
+  options?: { bypassCache?: boolean }
 ): Promise<JpVocabTeacherQuizLive> {
   const at = Date.now();
   if (
+    !options?.bypassCache &&
     jpVocabDbState.teacherQuizLiveReadCache &&
     at - jpVocabDbState.teacherQuizLiveReadCache.at < JP_VOCAB_SETTING_READ_CACHE_MS
   ) {
@@ -448,7 +450,7 @@ export async function peekJpVocabTeacherQuizLiveWord(
   studentUsername: string,
   now = new Date()
 ): Promise<JpVocabTeacherQuizLivePeekResult> {
-  const live = await getJpVocabTeacherQuizLive(db, now);
+  const live = await getJpVocabTeacherQuizLive(db, now, { bypassCache: true });
   const wordId = live.word_id;
   if (!wordId) {
     return { ok: false, error: "no_active_word" };

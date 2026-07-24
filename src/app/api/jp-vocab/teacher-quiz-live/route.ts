@@ -26,8 +26,8 @@ const STUDY_AUTH_MSG = {
 };
 
 const NO_ACTIVE_WORD_MSG = {
-  en: "The teacher is not quizzing a word right now. Please try again later.",
-  zh: "老师当前没有在抽查单词，请稍后再试。",
+  en: "The teacher is not quizzing a word right now (or sync is still catching up). Please try again in a few seconds.",
+  zh: "老师当前没有在抽查单词（或同步尚未完成），请过几秒再点一次。",
 };
 
 const WORD_NOT_FOUND_MSG = {
@@ -49,7 +49,9 @@ export async function GET(request: Request) {
         return jsonResponse({ ok: false, error: STUDY_AUTH_MSG[locale] }, 401);
       }
 
-      const live = await getJpVocabTeacherQuizLive(env.DB);
+      const live = await getJpVocabTeacherQuizLive(env.DB, new Date(), {
+        bypassCache: true,
+      });
       return jsonResponse(
         {
           ok: true,

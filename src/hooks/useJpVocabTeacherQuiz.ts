@@ -13,6 +13,10 @@ import {
   JP_VOCAB_QUIZ_LIVE_POLL_MS,
 } from "@/lib/jp-vocab-sync";
 import {
+  putVocabTeacherQuizLiveWord,
+  VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS,
+} from "@/lib/vocab-teacher-quiz-live-sync";
+import {
   createJpVocabTeacherQuizSession,
   expandJpVocabTeacherQuizSessionForTarget,
   filterJpVocabTeacherQuizUncheckedWords,
@@ -84,7 +88,12 @@ export function useJpVocabTeacherQuiz(options: {
     number | null
   >(null);
 
-  const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
+  /** 已成功写入 D1 的 live word_id；失败时保持 undefined 以便重试 */
+  const teacherQuizLiveSyncedIdRef = useRef<number | null | undefined>(undefined);
+  const liveSyncGenRef = useRef(0);
+  const liveSyncRetryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
   const quizSessionRestoredRef = useRef(false);
 
   const wordsById = useMemo(
@@ -359,20 +368,30 @@ export function useJpVocabTeacherQuiz(options: {
   const syncTeacherQuizLiveWord = useCallback(
     async (wordId: number | null) => {
       if (!canOperate) return;
-      if (teacherQuizLiveWordRef.current === wordId) return;
-      teacherQuizLiveWordRef.current = wordId;
+      if (teacherQuizLiveSyncedIdRef.current === wordId) return;
+
+      const gen = ++liveSyncGenRef.current;
+      if (liveSyncRetryTimerRef.current) {
+        clearTimeout(liveSyncRetryTimerRef.current);
+        liveSyncRetryTimerRef.current = undefined;
+      }
+
       try {
-        await fetch("/api/jp-vocab/teacher-quiz-live", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId }),
+        const ok = await putVocabTeacherQuizLiveWord({
+          apiPath: "/api/jp-vocab/teacher-quiz-live",
+          wordId,
+          locale,
+          localeHeaderName: LOCALE_HEADER,
         });
+        if (gen !== liveSyncGenRef.current) return;
+        if (!ok) throw new Error("teacher quiz live sync failed");
+        teacherQuizLiveSyncedIdRef.current = wordId;
       } catch {
-        teacherQuizLiveWordRef.current = undefined;
+        if (gen !== liveSyncGenRef.current) return;
+        teacherQuizLiveSyncedIdRef.current = undefined;
+        liveSyncRetryTimerRef.current = setTimeout(() => {
+          void syncTeacherQuizLiveWord(wordId);
+        }, VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS);
       }
     },
     [canOperate, locale]
@@ -389,6 +408,16 @@ export function useJpVocabTeacherQuiz(options: {
     }
     void syncTeacherQuizLiveWord(quizFlashcardWordId);
   }, [canOperate, quizSession, quizFlashcardWordId, syncTeacherQuizLiveWord]);
+
+  useEffect(() => {
+    return () => {
+      liveSyncGenRef.current += 1;
+      if (liveSyncRetryTimerRef.current) {
+        clearTimeout(liveSyncRetryTimerRef.current);
+        liveSyncRetryTimerRef.current = undefined;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!canOperate || !showQuizFlashcard || !quizFlashcardWordId) {

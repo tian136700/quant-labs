@@ -30,6 +30,10 @@ import {
   EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
   EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
 } from "@/lib/en-vocab-sync";
+import {
+  abortSignalAfter,
+  VOCAB_STUDENT_PEEK_TIMEOUT_MS,
+} from "@/lib/vocab-teacher-quiz-live-sync";
 import type { EnVocabLevel, EnVocabRef, EnVocabSharedItem, EnVocabWord } from "@/lib/types";
 import { EnVocabStudyPageStyles } from "@/components/en-vocab-study-page/EnVocabStudyPageStyles";
 
@@ -352,6 +356,7 @@ export function EnVocabStudyPage() {
           [LOCALE_HEADER]: locale,
         },
         credentials: "include",
+        signal: abortSignalAfter(VOCAB_STUDENT_PEEK_TIMEOUT_MS),
       });
       const parsed = await readApiJson<{
         ok: boolean;
@@ -369,7 +374,10 @@ export function EnVocabStudyPage() {
         return;
       }
       if (!data.ok || !data.item) {
-        setStatus(data.error || "老师当前没有在抽查单词，请稍后再试。");
+        setStatus(
+          data.error ||
+            "老师当前没有在抽查单词（或同步尚未完成），请过几秒再点一次。"
+        );
         return;
       }
       if (data.refs) {
@@ -390,7 +398,17 @@ export function EnVocabStudyPage() {
       setFlashcardItem(data.item);
       setStatus("已打开老师正在抽查的单词，并加入今日列表。");
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "暂时无法查看，请稍后再试。");
+      const aborted =
+        err instanceof DOMException
+          ? err.name === "AbortError"
+          : err instanceof Error && err.name === "AbortError";
+      setStatus(
+        aborted
+          ? "获取超时，请再点一次「查看老师正在抽查的单词」。"
+          : err instanceof Error
+            ? err.message
+            : "暂时无法查看，请稍后再试。"
+      );
     } finally {
       setPeekingTeacherQuiz(false);
     }
