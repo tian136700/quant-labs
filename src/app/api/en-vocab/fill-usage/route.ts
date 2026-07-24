@@ -12,6 +12,8 @@ type FillUsageBody = {
   limit?: number;
   kind?: "word" | "grammar";
   source?: string;
+  /** 线上付费整词刷新：覆盖已有用法 */
+  force?: boolean;
   updates?: Array<{
     word_id?: number;
     usage?: string;
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
         dryRun,
         validateFormat: true,
         defaultSource: batchSource || null,
+        force: Boolean(body.force),
       });
       return jsonResponse({
         ok: true,

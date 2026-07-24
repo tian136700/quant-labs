@@ -151,11 +151,14 @@ export async function applyEnVocabMeaningUpdates(
     dryRun?: boolean;
     validateFormat?: boolean;
     defaultSource?: string | null;
+    /** 线上付费整词刷新：覆盖已有释义/词性 */
+    force?: boolean;
   } = {}
 ): Promise<EnVocabFillMeaningResult> {
   await ensureEnVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
+  const force = Boolean(options.force);
   const defaultSource = normalizeEnVocabMeaningSource(options.defaultSource);
   const applied: EnVocabFillMeaningApplied[] = [];
   const skipped: Array<{ id: number; word: string; reason: string }> = [];
@@ -204,7 +207,7 @@ export async function applyEnVocabMeaningUpdates(
     let nextMeaning: string | null = null;
     let nextPos: string | null = null;
 
-    if (meaningRaw && meaningEmpty) {
+    if (meaningRaw && (force || meaningEmpty)) {
       if (validateFormat) {
         const validated = validateEnVocabMeaningAiOutput(meaningRaw);
         if (!validated.ok) {
@@ -224,7 +227,7 @@ export async function applyEnVocabMeaningUpdates(
       meaningRaw = "";
     }
 
-    if (posRaw && posEmpty) {
+    if (posRaw && (force || posEmpty)) {
       if (validateFormat) {
         const validated = validateEnVocabPos(posRaw);
         if (!validated.ok) {
@@ -261,29 +264,45 @@ export async function applyEnVocabMeaningUpdates(
     }
 
     if (!dryRun) {
-      const result = await db
-        .prepare(
-          `UPDATE en_vocab_word
-           SET meaning = CASE
-                 WHEN (meaning IS NULL OR TRIM(meaning) = '') AND ?1 IS NOT NULL THEN ?1
-                 ELSE meaning
-               END,
-               pos = CASE
-                 WHEN (pos IS NULL OR TRIM(pos) = '') AND ?2 IS NOT NULL THEN ?2
-                 ELSE pos
-               END,
-               meaning_source = CASE
-                 WHEN (meaning IS NULL OR TRIM(meaning) = '') AND ?1 IS NOT NULL THEN ?3
-                 WHEN (pos IS NULL OR TRIM(pos) = '') AND ?2 IS NOT NULL
-                      AND (meaning_source IS NULL OR TRIM(meaning_source) = '') THEN ?3
-                 ELSE meaning_source
-               END,
-               updated_at = datetime('now')
-           WHERE id = ?4
-             AND kind != 'grammar'`
-        )
-        .bind(nextMeaning, nextPos, source, wordId)
-        .run();
+      const result = force
+        ? await db
+            .prepare(
+              `UPDATE en_vocab_word
+               SET meaning = COALESCE(?1, meaning),
+                   pos = COALESCE(?2, pos),
+                   meaning_source = CASE
+                     WHEN ?1 IS NOT NULL OR ?2 IS NOT NULL THEN ?3
+                     ELSE meaning_source
+                   END,
+                   updated_at = datetime('now')
+               WHERE id = ?4
+                 AND kind != 'grammar'`
+            )
+            .bind(nextMeaning, nextPos, source, wordId)
+            .run()
+        : await db
+            .prepare(
+              `UPDATE en_vocab_word
+               SET meaning = CASE
+                     WHEN (meaning IS NULL OR TRIM(meaning) = '') AND ?1 IS NOT NULL THEN ?1
+                     ELSE meaning
+                   END,
+                   pos = CASE
+                     WHEN (pos IS NULL OR TRIM(pos) = '') AND ?2 IS NOT NULL THEN ?2
+                     ELSE pos
+                   END,
+                   meaning_source = CASE
+                     WHEN (meaning IS NULL OR TRIM(meaning) = '') AND ?1 IS NOT NULL THEN ?3
+                     WHEN (pos IS NULL OR TRIM(pos) = '') AND ?2 IS NOT NULL
+                          AND (meaning_source IS NULL OR TRIM(meaning_source) = '') THEN ?3
+                     ELSE meaning_source
+                   END,
+                   updated_at = datetime('now')
+               WHERE id = ?4
+                 AND kind != 'grammar'`
+            )
+            .bind(nextMeaning, nextPos, source, wordId)
+            .run();
       if (!(Number(result.meta?.changes ?? 0) > 0)) {
         skipped.push({
           id: wordId,

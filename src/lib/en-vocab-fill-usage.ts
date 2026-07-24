@@ -154,20 +154,32 @@ async function updateUsageIfEmpty(
   wordId: number,
   usage: string,
   source: string | null,
-  dryRun: boolean
+  dryRun: boolean,
+  force = false
 ): Promise<boolean> {
   if (dryRun) return true;
-  const result = await db
-    .prepare(
-      `UPDATE en_vocab_word
-       SET usage = ?1,
-           usage_source = ?2,
-           updated_at = datetime('now')
-       WHERE id = ?3
-         AND (usage IS NULL OR TRIM(usage) = '')`
-    )
-    .bind(usage.trim(), source, wordId)
-    .run();
+  const result = force
+    ? await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET usage = ?1,
+               usage_source = ?2,
+               updated_at = datetime('now')
+           WHERE id = ?3`
+        )
+        .bind(usage.trim(), source, wordId)
+        .run()
+    : await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET usage = ?1,
+               usage_source = ?2,
+               updated_at = datetime('now')
+           WHERE id = ?3
+             AND (usage IS NULL OR TRIM(usage) = '')`
+        )
+        .bind(usage.trim(), source, wordId)
+        .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
@@ -184,11 +196,14 @@ export async function applyEnVocabUsageUpdates(
     dryRun?: boolean;
     validateFormat?: boolean;
     defaultSource?: string | null;
+    /** 线上付费整词刷新：覆盖已有用法 */
+    force?: boolean;
   } = {}
 ): Promise<EnVocabFillUsageResult> {
   await ensureEnVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
+  const force = Boolean(options.force);
   const defaultSource = normalizeEnVocabUsageSource(options.defaultSource);
   const applied: EnVocabFillUsageApplied[] = [];
   const skipped: Array<{ id: number; word: string; reason: string }> = [];
@@ -248,7 +263,8 @@ export async function applyEnVocabUsageUpdates(
       wordId,
       usage,
       source,
-      dryRun
+      dryRun,
+      force
     );
     if (changed) {
       updated += 1;

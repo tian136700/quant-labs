@@ -123,20 +123,23 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
     need_keys = [k for k, v in needs.items() if v]
     return f"""词条：{word}
 类型：{kind_label}
+
+说明：该词条有字段缺失或不完整。请用更准确的内容 **整词重写** 下列字段（覆盖旧值，不要只补空缺）：
+{", ".join(need_keys)}
+
+参考（可忽略，以你重写为准）：
 已有音标：{row.get("reading") or "（无）"}
 已有释义：{row.get("meaning") or "（无）"}
 已有词性：{row.get("pos") or "（无）"}
 已有用法：{row.get("usage") or "（无）"}
 已有例句：{row.get("example_sentences") or "（无）"}
 
-本轮只需补齐这些字段（其它字段输出 null）：{", ".join(need_keys)}
-
-输出 JSON 字段说明：
-- reading: 美式 IPA，形如 /həˈloʊ/；不需要则 null
-- meaning: 中文释义，分号分隔，最多 3 义；不需要则 null
-- pos: 英文词性缩写，多词性用 /，如 v 或 adj/n；不需要则 null
-- usage: 至少 2 条编号中文用法（1. …\\n2. …）；选题按学术考试高频，正文禁止考试品牌名；不需要则 null
-- example_sentences: 与 usage 条数相同；每条英文完整句 + 下一行「译文：」中文；须出现词条原文；不要行首编号；不需要则 null
+输出 JSON（需要的字段必须给出非空值）：
+- reading: 美式 IPA，形如 /həˈloʊ/
+- meaning: 中文释义，分号分隔，最多 3 义
+- pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
+- usage: 至少 2 条编号中文用法（1. …\\n2. …）；选题按学术考试高频，正文禁止考试品牌名
+- example_sentences: 与 usage 条数相同；每条英文完整句 + 下一行「译文：」中文；须出现词条原文「{word}」；不要行首编号
 
 只输出 JSON。"""
 
@@ -145,95 +148,69 @@ def source_label() -> str:
     return f"线上 {anthropic_model()}"
 
 
+def full_refresh_needs(kind: str) -> dict[str, bool]:
+    """线上模式：只要触发检测，就整词重拉（付费更准，覆盖写回）。"""
+    if kind == "grammar":
+        return {
+            "reading": False,
+            "meaning": False,
+            "pos": False,
+            "usage": True,
+            "example_sentences": True,
+        }
+    return {
+        "reading": True,
+        "meaning": True,
+        "pos": True,
+        "usage": True,
+        "example_sentences": True,
+    }
+
+
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    """合并各阶段 list_missing，按词去重；优先缺字段多的。"""
+    """合并各阶段 list_missing；任一字段缺 → 整词进入刷新队列。"""
     by_id: dict[int, dict[str, Any]] = {}
 
-    def merge(rows: list, flags: dict[str, bool]) -> None:
+    def merge(rows: list) -> None:
         for row in rows:
             wid = int(row.get("id") or 0)
             if wid <= 0:
                 continue
             cur = by_id.get(wid)
             if not cur:
+                kind = str(row.get("kind") or "word")
                 cur = {
                     "id": wid,
                     "word": row.get("word"),
-                    "kind": row.get("kind") or "word",
+                    "kind": kind,
                     "reading": row.get("reading"),
                     "meaning": row.get("meaning"),
                     "pos": row.get("pos"),
                     "usage": row.get("usage"),
                     "example_sentences": row.get("example_sentences"),
-                    "needs": {
-                        "reading": False,
-                        "meaning": False,
-                        "pos": False,
-                        "usage": False,
-                        "example_sentences": False,
-                    },
+                    "needs": full_refresh_needs(kind),
+                    "triggered": True,
                 }
                 by_id[wid] = cur
-            for k, v in flags.items():
-                if v:
-                    cur["needs"][k] = True
             for field in ("reading", "meaning", "pos", "usage", "kind", "word"):
                 if row.get(field) and not cur.get(field):
                     cur[field] = row.get(field)
+            # 若后来发现是 grammar，收窄 needs
+            if str(cur.get("kind") or "") == "grammar":
+                cur["needs"] = full_refresh_needs("grammar")
 
     scan_limit = max(limit * 8, 24)
-    reading = call_api(
-        READING_URL,
-        token,
-        {"mode": "list_missing", "limit": scan_limit},
-        user_agent="en-vocab-fill-online-batch/1.0",
-    )
-    merge(list(reading.get("missing") or []), {"reading": True})
-
-    meaning = call_api(
-        MEANING_URL,
-        token,
-        {"mode": "list_missing", "limit": scan_limit},
-        user_agent="en-vocab-fill-online-batch/1.0",
-    )
-    for row in meaning.get("missing") or []:
-        merge(
-            [row],
-            {
-                "meaning": bool(row.get("need_meaning")),
-                "pos": bool(row.get("need_pos")),
-            },
+    for url in (READING_URL, MEANING_URL, USAGE_URL, EXAMPLES_URL):
+        data = call_api(
+            url,
+            token,
+            {"mode": "list_missing", "limit": scan_limit},
+            user_agent="en-vocab-fill-online-batch/1.0",
         )
-
-    usage = call_api(
-        USAGE_URL,
-        token,
-        {"mode": "list_missing", "limit": scan_limit},
-        user_agent="en-vocab-fill-online-batch/1.0",
-    )
-    merge(list(usage.get("missing") or []), {"usage": True})
-
-    examples = call_api(
-        EXAMPLES_URL,
-        token,
-        {"mode": "list_missing", "limit": scan_limit},
-        user_agent="en-vocab-fill-online-batch/1.0",
-    )
-    merge(list(examples.get("missing") or []), {"example_sentences": True})
-
-    # 线上一次做完：本轮要补 usage 的词，例句也一并要（examples list_missing 在无 usage 时进不了队）
-    for cur in by_id.values():
-        needs = cur.get("needs") or {}
-        if needs.get("usage"):
-            needs["example_sentences"] = True
+        merge(list(data.get("missing") or []))
 
     rows = list(by_id.values())
-    rows.sort(
-        key=lambda r: (
-            -sum(1 for v in (r.get("needs") or {}).values() if v),
-            int(r.get("id") or 0),
-        )
-    )
+    rows.sort(key=lambda r: int(r.get("id") or 0))
     return rows[: max(1, limit)]
 
 
@@ -246,6 +223,7 @@ def apply_bundle(
     source: str,
     dry_run: bool,
 ) -> list[str]:
+    """force=True：覆盖写回（付费结果替换本地旧值）。"""
     done: list[str] = []
     if dry_run:
         for k, need in needs.items():
@@ -259,6 +237,7 @@ def apply_bundle(
             token,
             {
                 "mode": "apply",
+                "force": True,
                 "source": source,
                 "updates": [
                     {
@@ -272,6 +251,8 @@ def apply_bundle(
         )
         if int(r.get("updated") or 0) > 0:
             done.append("reading")
+        elif r.get("skipped"):
+            print(f"    reading skipped={r.get('skipped')}", flush=True)
 
     meaning_update: dict[str, Any] = {"word_id": word_id, "source": source}
     if needs.get("meaning") and payload.get("meaning"):
@@ -282,11 +263,18 @@ def apply_bundle(
         r = call_api(
             MEANING_URL,
             token,
-            {"mode": "apply", "source": source, "updates": [meaning_update]},
+            {
+                "mode": "apply",
+                "force": True,
+                "source": source,
+                "updates": [meaning_update],
+            },
             user_agent="en-vocab-fill-online-batch/1.0",
         )
         if int(r.get("updated") or 0) > 0:
             done.append("meaning/pos")
+        elif r.get("skipped"):
+            print(f"    meaning skipped={r.get('skipped')}", flush=True)
 
     if needs.get("usage") and payload.get("usage"):
         r = call_api(
@@ -294,6 +282,7 @@ def apply_bundle(
             token,
             {
                 "mode": "apply",
+                "force": True,
                 "source": source,
                 "updates": [
                     {
@@ -307,14 +296,17 @@ def apply_bundle(
         )
         if int(r.get("updated") or 0) > 0:
             done.append("usage")
+        elif r.get("skipped"):
+            print(f"    usage skipped={r.get('skipped')}", flush=True)
 
     if needs.get("example_sentences") and payload.get("example_sentences"):
-        # 例句 apply 要求已有 usage；若本轮刚写 usage，同一词可接着写例句
+        # 先写 usage(force)，例句校验才能对上新用法条数
         r = call_api(
             EXAMPLES_URL,
             token,
             {
                 "mode": "apply",
+                "force": True,
                 "source": source,
                 "updates": [
                     {
@@ -421,7 +413,7 @@ def main() -> int:
         need_list = [k for k, v in needs.items() if v]
         print(
             f"  [{index + 1}/{len(candidates)}] id={wid} word={word!r} "
-            f"need={need_list}",
+            f"full_refresh={need_list}",
             flush=True,
         )
         try:

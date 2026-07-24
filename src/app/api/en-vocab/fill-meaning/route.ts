@@ -10,6 +10,8 @@ type FillMeaningBody = {
   dry_run?: boolean;
   limit?: number;
   source?: string;
+  /** 线上付费整词刷新：覆盖已有释义/词性 */
+  force?: boolean;
   updates?: Array<{
     word_id?: number;
     meaning?: string;
@@ -71,6 +73,7 @@ export async function POST(request: Request) {
         dryRun,
         validateFormat: true,
         defaultSource: batchSource || null,
+        force: Boolean(body.force),
       });
       return jsonResponse({
         ok: true,

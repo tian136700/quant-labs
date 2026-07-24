@@ -100,21 +100,34 @@ async function updateReadingIfEmpty(
   wordId: number,
   reading: string,
   source: string | null,
-  dryRun: boolean
+  dryRun: boolean,
+  force = false
 ): Promise<boolean> {
   if (dryRun) return true;
-  const result = await db
-    .prepare(
-      `UPDATE en_vocab_word
-       SET reading = ?1,
-           reading_source = ?2,
-           updated_at = datetime('now')
-       WHERE id = ?3
-         AND kind != 'grammar'
-         AND (reading IS NULL OR TRIM(reading) = '')`
-    )
-    .bind(reading.trim(), source, wordId)
-    .run();
+  const result = force
+    ? await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET reading = ?1,
+               reading_source = ?2,
+               updated_at = datetime('now')
+           WHERE id = ?3
+             AND kind != 'grammar'`
+        )
+        .bind(reading.trim(), source, wordId)
+        .run()
+    : await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET reading = ?1,
+               reading_source = ?2,
+               updated_at = datetime('now')
+           WHERE id = ?3
+             AND kind != 'grammar'
+             AND (reading IS NULL OR TRIM(reading) = '')`
+        )
+        .bind(reading.trim(), source, wordId)
+        .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
@@ -131,11 +144,14 @@ export async function applyEnVocabReadingUpdates(
     dryRun?: boolean;
     validateFormat?: boolean;
     defaultSource?: string | null;
+    /** 线上付费整词刷新：覆盖已有音标 */
+    force?: boolean;
   } = {}
 ): Promise<EnVocabFillReadingResult> {
   await ensureEnVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
+  const force = Boolean(options.force);
   const defaultSource = normalizeEnVocabReadingSource(options.defaultSource);
   const applied: EnVocabFillReadingApplied[] = [];
   const skipped: Array<{ id: number; word: string; reason: string }> = [];
@@ -186,7 +202,8 @@ export async function applyEnVocabReadingUpdates(
       wordId,
       reading,
       source,
-      dryRun
+      dryRun,
+      force
     );
     if (changed) {
       updated += 1;

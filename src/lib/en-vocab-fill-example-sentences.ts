@@ -177,20 +177,32 @@ async function updateExampleSentencesIfEmpty(
   wordId: number,
   exampleSentences: string,
   source: string | null,
-  dryRun: boolean
+  dryRun: boolean,
+  force = false
 ): Promise<boolean> {
   if (dryRun) return true;
-  const result = await db
-    .prepare(
-      `UPDATE en_vocab_word
-       SET example_sentences = ?1,
-           example_sentences_source = ?2,
-           updated_at = datetime('now')
-       WHERE id = ?3
-         AND (example_sentences IS NULL OR TRIM(example_sentences) = '')`
-    )
-    .bind(exampleSentences.trim(), source, wordId)
-    .run();
+  const result = force
+    ? await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET example_sentences = ?1,
+               example_sentences_source = ?2,
+               updated_at = datetime('now')
+           WHERE id = ?3`
+        )
+        .bind(exampleSentences.trim(), source, wordId)
+        .run()
+    : await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET example_sentences = ?1,
+               example_sentences_source = ?2,
+               updated_at = datetime('now')
+           WHERE id = ?3
+             AND (example_sentences IS NULL OR TRIM(example_sentences) = '')`
+        )
+        .bind(exampleSentences.trim(), source, wordId)
+        .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
@@ -207,11 +219,14 @@ export async function applyEnVocabExampleSentenceUpdates(
     dryRun?: boolean;
     validateFormat?: boolean;
     defaultSource?: string | null;
+    /** 线上付费整词刷新：覆盖已有例句 */
+    force?: boolean;
   } = {}
 ): Promise<EnVocabFillExampleSentencesResult> {
   await ensureEnVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
+  const force = Boolean(options.force);
   const defaultSource = normalizeEnVocabExampleSentencesSource(
     options.defaultSource
   );
@@ -246,6 +261,8 @@ export async function applyEnVocabExampleSentenceUpdates(
       continue;
     }
 
+    // force 整词刷新时：允许用本次 updates 里先写回的 usage；此处仍读库。
+    // 线上 batch 会先 apply usage(force) 再 apply examples(force)。
     const usage =
       row.usage != null ? String(row.usage).trim() || null : null;
     if (!usage) {
@@ -289,7 +306,8 @@ export async function applyEnVocabExampleSentenceUpdates(
       wordId,
       exampleSentences,
       source,
-      dryRun
+      dryRun,
+      force
     );
     if (changed) {
       updated += 1;
