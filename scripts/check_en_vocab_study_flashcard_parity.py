@@ -9,7 +9,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STUDY = ROOT / "src/components/EnVocabStudyPage.tsx"
 TEACHER = ROOT / "src/components/EnVocabPage.tsx"
+HOOK = ROOT / "src/hooks/useEnVocabTeacherQuiz.ts"
 MODAL = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+HEADER = (
+    ROOT
+    / "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageHeader.tsx"
+)
 
 
 def fail(msg: str) -> None:
@@ -20,7 +25,11 @@ def fail(msg: str) -> None:
 def main() -> None:
     study = STUDY.read_text(encoding="utf-8")
     teacher = TEACHER.read_text(encoding="utf-8")
+    hook = HOOK.read_text(encoding="utf-8") if HOOK.is_file() else ""
     modal = MODAL.read_text(encoding="utf-8")
+    header = HEADER.read_text(encoding="utf-8") if HEADER.is_file() else ""
+    banner_surface = modal + "\n" + header
+    latch_surface = hook if "setStudentPeekedCurrentWord(true)" in hook else teacher
 
     if "EnVocabTeacherQuizFlashcardModal" not in study:
         fail("EnVocabStudyPage must use EnVocabTeacherQuizFlashcardModal")
@@ -37,6 +46,8 @@ def main() -> None:
     if ".scrollIntoView(" in study:
         fail("EnVocabStudyPage must not scrollIntoView on flashcard open")
 
+    if "useEnVocabTeacherQuiz" not in teacher:
+        fail("EnVocabPage must wire useEnVocabTeacherQuiz (do not inline quiz latch/poll)")
     if "studentPeekedCurrentWord" not in teacher:
         fail("EnVocabPage missing studentPeekedCurrentWord")
     if "studentPeeked={studentPeekedCurrentWord}" not in teacher:
@@ -48,14 +59,14 @@ def main() -> None:
         # keep soft: just ensure isStudy / mode === "study" exists
         if 'mode === "study"' not in modal and "isStudyMode" not in modal:
             fail("EnVocabTeacherQuizFlashcardModal must support mode=study")
-    if "该学生已查看该单词" not in modal:
-        fail("EnVocabTeacherQuizFlashcardModal missing student-peeked banner copy")
-    if "jp-vocab-teacher-quiz__student-peek-banner" not in modal:
+    if "该学生已查看该单词" not in banner_surface:
+        fail("EnVocab flashcard missing student-peeked banner copy (modal or PageHeader)")
+    if "jp-vocab-teacher-quiz__student-peek-banner" not in banner_surface:
         fail("peek banner must sit in card header (student-peek-banner), not only scroll body")
-    if "setStudentPeekedCurrentWord(true)" not in teacher:
-        fail("EnVocabPage must latch studentPeeked=true until next word")
-    if "setStudentPeekedCurrentWord(peeked)" in teacher:
-        fail("EnVocabPage must not overwrite peek latch with poll false")
+    if "setStudentPeekedCurrentWord(true)" not in latch_surface:
+        fail("must latch studentPeeked=true until next word (hook or EnVocabPage)")
+    if "setStudentPeekedCurrentWord(peeked)" in latch_surface:
+        fail("must not overwrite peek latch with poll false")
 
     if "TeacherReviewAuth" not in teacher:
         fail("EnVocabPage must require login via TeacherReviewAuth (no anonymous browse)")

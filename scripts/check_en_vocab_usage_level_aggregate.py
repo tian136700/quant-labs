@@ -111,7 +111,12 @@ def main() -> int:
             errors.append(f"en-vocab/route.ts: missing {n!r}")
 
     flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
-    flash_text = flash.read_text(encoding="utf-8") if flash.is_file() else ""
+    flash_dir = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
+    flash_parts = [flash.read_text(encoding="utf-8")] if flash.is_file() else []
+    if flash_dir.is_dir():
+        for p in sorted(flash_dir.glob("*.tsx")):
+            flash_parts.append(p.read_text(encoding="utf-8"))
+    flash_text = "\n".join(flash_parts)
     for n in [
         "onSelectUsageLevels",
         "usageLevelControls",
@@ -124,11 +129,13 @@ def main() -> int:
         "勾选已满 1 小时，无法再修改熟悉程度",
     ]:
         if n not in flash_text:
-            errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
+            errors.append(
+                f"EnVocabTeacherQuizFlashcardModal(+flashcard/): missing {n!r}"
+            )
 
     if "今日已共享，熟悉程度不可更改" in flash_text:
         errors.append(
-            "EnVocabTeacherQuizFlashcardModal.tsx: must not say share locks levels"
+            "EnVocabTeacherQuizFlashcardModal(+flashcard/): must not say share locks levels"
         )
     # 禁止再加「滚动定位未勾用法」（暗色主题提示条曾看不清）
     for banned in [
@@ -140,7 +147,7 @@ def main() -> int:
     ]:
         if banned in flash_text:
             errors.append(
-                f"EnVocabTeacherQuizFlashcardModal.tsx: must not use locate/scroll {banned!r}"
+                f"EnVocabTeacherQuizFlashcardModal(+flashcard/): must not use locate/scroll {banned!r}"
             )
 
     review = ROOT / "src/lib/en-vocab-review.ts"
@@ -185,7 +192,11 @@ def main() -> int:
     review_actions_text = (
         review_actions.read_text(encoding="utf-8") if review_actions.is_file() else ""
     )
-    page_ui = page_text + "\n" + review_actions_text
+    teacher_quiz = ROOT / "src/hooks/useEnVocabTeacherQuiz.ts"
+    teacher_quiz_text = (
+        teacher_quiz.read_text(encoding="utf-8") if teacher_quiz.is_file() else ""
+    )
+    page_ui = page_text + "\n" + review_actions_text + "\n" + teacher_quiz_text
     for n in [
         "recordUsageLevels",
         "quizCardPreviewWordId",

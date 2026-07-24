@@ -102,6 +102,7 @@ import { JpLessonSchedulePageStyles } from "@/components/jp-lesson-schedule-page
 import { JpLessonScheduleLayout } from "@/components/jp-lesson-schedule-page/JpLessonScheduleLayout";
 import { JpLessonScheduleToolbar } from "@/components/jp-lesson-schedule-page/JpLessonScheduleToolbar";
 import { JpLessonScheduleModals } from "@/components/jp-lesson-schedule-page/JpLessonScheduleModals";
+import { useJpLessonSchedulePageActions } from "@/components/jp-lesson-schedule-page/useJpLessonSchedulePageActions";
 
 import {
   type ViewMode,
@@ -664,365 +665,52 @@ export function JpLessonSchedulePage() {
     [locale, selectedEvent?.subject]
   );
 
-  const openManualModal = (
-    manual: JpLessonManualSchedule | null = null,
-    mode: "full" | "time" = "full"
-  ) => {
-    setManualModalMode(mode);
-    setEditingManual(manual);
-    setManualModalOpen(true);
-  };
-
-  const closeManualModal = () => {
-    setManualModalOpen(false);
-    setEditingManual(null);
-    setManualModalMode("full");
-  };
-
-  const handleSaveManualSchedule = async (
-    draft: Parameters<typeof createJpLessonManualSchedule>[0]
-  ) => {
-    if (savingManualScheduleRef.current) {
-      setStatusMessage("正在提交，请勿重复提交");
-      window.setTimeout(() => setStatusMessage(""), 2500);
-      return;
-    }
-    savingManualScheduleRef.current = true;
-    setSavingManualSchedule(true);
-    setError("");
-    const isEditing = editingManual != null;
-    try {
-      const saved = isEditing
-        ? await updateJpLessonManualSchedule(editingManual.id, draft)
-        : await createJpLessonManualSchedule(draft);
-      if (!saved) {
-        setError("保存手动日程失败");
-        return;
-      }
-      setManualSchedules((prev) => {
-        const next = isEditing
-          ? prev.map((item) => (item.id === saved.id ? saved : item))
-          : [...prev, saved];
-        const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
-        syncJpLessonManualScheduleCache(sorted);
-        return sorted;
-      });
-      setSelectedEventKey(`manual-${saved.id}`);
-      closeManualModal();
-      setStatusMessage(isEditing ? "手动日程已保存" : "手动日程已添加");
-      window.setTimeout(() => setStatusMessage(""), 2500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      savingManualScheduleRef.current = false;
-      setSavingManualSchedule(false);
-    }
-  };
-
-  const handleDeleteManualSchedule = async () => {
-    if (!selectedManualSchedule) return;
-    if (!window.confirm("确定删除这条手动日程吗？")) return;
-    setError("");
-    try {
-      await deleteJpLessonManualSchedule(selectedManualSchedule.id);
-      setManualSchedules((prev) => {
-        const next = prev.filter((item) => item.id !== selectedManualSchedule.id);
-        syncJpLessonManualScheduleCache(next);
-        return next;
-      });
-      setSelectedEventKey(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const addLessonTeacher = async (
-    input: JpLessonTeacherAddInput
-  ): Promise<JpLessonTeacher | null> => {
-    if (!isAdmin) return null;
-
-    try {
-      const res = await fetch("/api/admin/jp-lesson-teachers", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        teacher?: JpLessonTeacher;
-        renamed_teachers?: JpLessonTeacher[];
-        error?: string;
-        user_account?: {
-          id: number;
-          username: string;
-          password: string;
-          disabled: boolean;
-        };
-      };
-      if (!data.ok || !data.teacher) {
-        if (data.error === "name_duplicate") {
-          return (
-            findLessonTeacherByPickerName(teachers, input.name) ??
-            teachers.find((item) => item.name.trim() === input.name.trim()) ??
-            null
-          );
-        }
-        return null;
-      }
-      if (data.user_account) {
-        rememberAdminUserPassword(data.user_account.id, data.user_account.password);
-        setStatusMessage(
-          `已添加老师，并自动创建禁用账号：${formatAdminUserCredentials(
-            data.user_account.username,
-            data.user_account.password,
-            "zh"
-          )}`
-        );
-        window.setTimeout(() => setStatusMessage(""), 4500);
-      }
-      setTeachers((prev) => {
-        const renamedMap = new Map(
-          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
-        );
-        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
-        const next = sortJpLessonTeachersByLessonCount([
-          ...merged.filter((teacher) => teacher.id !== data.teacher!.id),
-          data.teacher!,
-        ]);
-        const cache = readLessonCache();
-        writeClientCache(JP_LESSON_CACHE_KEY, {
-          lessons,
-          refs,
-          notes: cache?.notes ?? [],
-          teachers: next,
-        });
-        return next;
-      });
-      return data.teacher;
-    } catch {
-      return null;
-    }
-  };
-
-  const addEnLessonTeacher = async (
-    input: JpLessonTeacherAddInput
-  ): Promise<EnLessonTeacher | null> => {
-    if (!isAdmin) return null;
-
-    try {
-      const res = await fetch("/api/admin/en-lesson-teachers", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        teacher?: EnLessonTeacher;
-        renamed_teachers?: EnLessonTeacher[];
-        error?: string;
-      };
-      if (!data.ok || !data.teacher) {
-        if (data.error === "name_duplicate") {
-          return (
-            findLessonTeacherByPickerName(enTeachers, input.name) ??
-            enTeachers.find((item) => item.name.trim() === input.name.trim()) ??
-            null
-          );
-        }
-        return null;
-      }
-      setEnTeachers((prev) => {
-        const renamedMap = new Map(
-          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
-        );
-        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
-        const next = sortJpLessonTeachersByLessonCount([
-          ...merged.filter((teacher) => teacher.id !== data.teacher!.id),
-          data.teacher!,
-        ]);
-        const cache = readEnLessonCache();
-        writeClientCache(EN_LESSON_CACHE_KEY, {
-          lessons: enLessons,
-          refs: enRefs,
-          notes: cache?.notes ?? [],
-          teachers: next,
-        });
-        return next;
-      });
-      return data.teacher;
-    } catch {
-      return null;
-    }
-  };
-
-  const addKoLessonTeacher = async (
-    input: JpLessonTeacherAddInput
-  ): Promise<KoLessonTeacher | null> => {
-    if (!isAdmin) return null;
-
-    try {
-      const res = await fetch("/api/admin/ko-lesson-teachers", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        teacher?: KoLessonTeacher;
-        renamed_teachers?: KoLessonTeacher[];
-        error?: string;
-      };
-      if (!data.ok || !data.teacher) {
-        if (data.error === "name_duplicate") {
-          return (
-            findLessonTeacherByPickerName(koTeachers, input.name) ??
-            koTeachers.find((item) => item.name.trim() === input.name.trim()) ??
-            null
-          );
-        }
-        return null;
-      }
-      setKoTeachers((prev) => {
-        const renamedMap = new Map(
-          (data.renamed_teachers ?? []).map((teacher) => [teacher.id, teacher])
-        );
-        const merged = prev.map((teacher) => renamedMap.get(teacher.id) ?? teacher);
-        return sortJpLessonTeachersByLessonCount([
-          ...merged.filter((teacher) => teacher.id !== data.teacher!.id),
-          data.teacher!,
-        ]);
-      });
-      return data.teacher;
-    } catch {
-      return null;
-    }
-  };
-
-  const setLessonClassSchedules = async (
-    lessonId: number,
-    schedules: JpLessonClassScheduleInput[]
-  ) => {
-    if (!isAdmin) return;
-    if (savingNextClassRef.current === lessonId || savingNextClassId === lessonId) {
-      setStatusMessage("正在提交，请勿重复提交");
-      window.setTimeout(() => setStatusMessage(""), 2500);
-      return;
-    }
-
-    const normalized = schedules.map((item) => ({
-      class_at: item.class_at.trim(),
-      duration_minutes: normalizeClassDurationMinutes(item.duration_minutes),
-    }));
-
-    savingNextClassRef.current = lessonId;
-    setSavingNextClassId(lessonId);
-
-    try {
-      const res = await fetch("/api/jp-lesson", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_class_schedules",
-          lesson_id: lessonId,
-          class_schedules: normalized,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        lesson?: JpLessonRecord;
-        error?: string;
-      };
-      if (!data.ok || !data.lesson) {
-        throw new Error(data.error || "保存失败");
-      }
-      await loadLessons({ force: true });
-      setEditingNextClassLesson(null);
-      setStatusMessage("上课时间已更新");
-      window.setTimeout(() => setStatusMessage(""), 2500);
-    } catch (err) {
-      setStatusMessage(err instanceof Error ? err.message : "保存失败");
-      window.setTimeout(() => setStatusMessage(""), 3500);
-    } finally {
-      savingNextClassRef.current = null;
-      setSavingNextClassId(null);
-    }
-  };
-
-  const setEnLessonClassSchedules = async (
-    lessonId: number,
-    schedules: EnLessonClassScheduleInput[]
-  ) => {
-    if (!isAdmin) return;
-    if (savingNextClassRef.current === lessonId || savingNextClassId === lessonId) {
-      setStatusMessage("正在提交，请勿重复提交");
-      window.setTimeout(() => setStatusMessage(""), 2500);
-      return;
-    }
-
-    const normalized = schedules.map((item) => ({
-      class_at: item.class_at.trim(),
-      duration_minutes: normalizeEnClassDurationMinutes(item.duration_minutes),
-    }));
-
-    savingNextClassRef.current = lessonId;
-    setSavingNextClassId(lessonId);
-
-    try {
-      const res = await fetch("/api/en-lesson", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_class_schedules",
-          lesson_id: lessonId,
-          class_schedules: normalized,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        lesson?: EnLessonRecord;
-        error?: string;
-      };
-      if (!data.ok || !data.lesson) {
-        throw new Error(data.error || "保存失败");
-      }
-      await loadEnLessons({ force: true });
-      setEditingEnNextClassLesson(null);
-      setStatusMessage("上课时间已更新");
-      window.setTimeout(() => setStatusMessage(""), 2500);
-    } catch (err) {
-      setStatusMessage(err instanceof Error ? err.message : "保存失败");
-      window.setTimeout(() => setStatusMessage(""), 3500);
-    } finally {
-      savingNextClassRef.current = null;
-      setSavingNextClassId(null);
-    }
-  };
-
-  const openLessonReschedule = () => {
-    if (!selectedEvent?.lessonId) return;
-    if (selectedEvent.subject === "en") {
-      const lesson = enLessonById.get(selectedEvent.lessonId);
-      if (!lesson) return;
-      setEditingEnNextClassLesson(lesson);
-      return;
-    }
-    if (selectedEvent.subject !== "jp") return;
-    const lesson = lessonById.get(selectedEvent.lessonId);
-    if (!lesson) return;
-    setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
-    setEditingNextClassLesson(lesson);
-  };
+  const {
+    openManualModal,
+    closeManualModal,
+    handleSaveManualSchedule,
+    handleDeleteManualSchedule,
+    addLessonTeacher,
+    addEnLessonTeacher,
+    addKoLessonTeacher,
+    setLessonClassSchedules,
+    setEnLessonClassSchedules,
+    openLessonReschedule,
+  } = useJpLessonSchedulePageActions({
+    locale,
+    isAdmin,
+    lessons,
+    enLessons,
+    refs,
+    enRefs,
+    teachers,
+    enTeachers,
+    koTeachers,
+    editingManual,
+    selectedManualSchedule,
+    selectedEvent,
+    lessonById,
+    enLessonById,
+    savingNextClassId,
+    savingManualScheduleRef,
+    savingNextClassRef,
+    setManualModalMode,
+    setEditingManual,
+    setManualModalOpen,
+    setSavingManualSchedule,
+    setError,
+    setManualSchedules,
+    setSelectedEventKey,
+    setStatusMessage,
+    setTeachers,
+    setEnTeachers,
+    setKoTeachers,
+    setSavingNextClassId,
+    setEditingNextClassLesson,
+    setEditingEnNextClassLesson,
+    loadLessons,
+    loadEnLessons,
+  });
 
   const todayStr = beijingTodayDateString(now);
   const selectedDateRelativeLabel = useMemo(
