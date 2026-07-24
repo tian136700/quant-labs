@@ -323,18 +323,19 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       return { key, dir: "desc" };
     });
   };
-  const displayedWords = useMemo(() => {
-    if (useDailyRowOrder && displayOrder.ids.length > 0) {
-      return enVocabWordsInOrder(words, displayOrder.ids);
-    }
-    return sortEnVocabWordsForDisplay(words, statSort);
-  }, [words, statSort, displayOrder.ids, useDailyRowOrder]);
 
   /** 当日固定序号：来自服务端 display_order，不随列头排序变化 */
   const dailySeqByWordId = useMemo(
     () => buildEnVocabDailySeqMap(displayOrder.ids),
     [displayOrder.ids]
   );
+
+  const displayedWords = useMemo(() => {
+    if (useDailyRowOrder && displayOrder.ids.length > 0) {
+      return enVocabWordsInOrder(words, displayOrder.ids);
+    }
+    return sortEnVocabWordsForDisplay(words, statSort, { dailySeqByWordId });
+  }, [words, statSort, displayOrder.ids, useDailyRowOrder, dailySeqByWordId]);
 
   const quizTarget = Math.min(
     Math.max(0, teacherVisibleLimit.quiz_target),

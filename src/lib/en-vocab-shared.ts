@@ -1,19 +1,38 @@
 import { parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
+import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
+import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
+import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import type { EnVocabWord } from "@/lib/types";
 
+/** 管理员端：除勾选/操作外，表头均可点排序 */
 export type EnVocabStatSortKey =
+  | "seq"
+  | "kind"
+  | "word"
+  | "reading"
+  | "meaning"
+  | "pos"
+  | "usage"
+  | "mnemonic"
   | "very"
   | "normal"
   | "weak"
   | "total"
   | "risk"
-  | "updated";
+  | "level"
+  | "today"
+  | "updated"
+  | "notes";
 
 /** 单词表默认排序：合计为 0 的置顶，其余按抽查优先级降序 */
 export const JP_VOCAB_DEFAULT_STAT_SORT: {
   key: EnVocabStatSortKey;
   dir: "asc" | "desc";
 } = { key: "risk", dir: "desc" };
+
+export type EnVocabStatSortOptions = {
+  dailySeqByWordId?: ReadonlyMap<number, number>;
+};
 
 export function enVocabPriorityLabel(locale: "zh" | "en" = "zh"): string {
   return locale === "zh" ? "抽查优先级" : "Check priority";
@@ -49,27 +68,32 @@ export function enVocabRiskIndex(word: EnVocabWord): number {
   return Math.round(raw * 10) / 10;
 }
 
-function statSortValue(
-  word: EnVocabWord,
-  key: Exclude<EnVocabStatSortKey, "updated">
-): number {
-  switch (key) {
-    case "very":
-      return word.cnt_very;
-    case "normal":
-      return word.cnt_normal;
-    case "weak":
-      return word.cnt_weak;
-    case "total":
-      return enVocabTotalReviews(word);
-    case "risk":
-      return enVocabRiskIndex(word);
-  }
-}
-
 function updatedAtSortMs(word: EnVocabWord): number {
   const ms = parseStoredUtcDateTimeMs(word.updated_at || "");
   return Number.isFinite(ms) ? ms : 0;
+}
+
+function levelSortRank(word: EnVocabWord): number {
+  switch (word.last_review_level) {
+    case "very":
+      return 3;
+    case "normal":
+      return 2;
+    case "weak":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function usageSortRank(word: EnVocabWord): number {
+  const n = listEnVocabUsagePointsForDisplay(word.usage).points.length;
+  if (n > 0) return n;
+  return (word.usage || "").trim() ? 1 : 0;
+}
+
+function cmpText(a: string, b: string): number {
+  return a.localeCompare(b, "en", { sensitivity: "base", numeric: true });
 }
 
 /** 复习优先级：不熟悉次数降序 → 一般次数降序 → 单词名 */
@@ -88,18 +112,70 @@ function compareZeroTotalFirst(a: EnVocabWord, b: EnVocabWord): number {
   return aZero ? -1 : 1;
 }
 
-/** 按复习次数 / 抽查优先级 / 更新时间单列排序（同值按单词名） */
+function compareEnVocabStat(
+  a: EnVocabWord,
+  b: EnVocabWord,
+  key: EnVocabStatSortKey,
+  opts?: EnVocabStatSortOptions
+): number {
+  switch (key) {
+    case "seq": {
+      const seqMap = opts?.dailySeqByWordId;
+      const sa = seqMap?.get(a.id) ?? Number.POSITIVE_INFINITY;
+      const sb = seqMap?.get(b.id) ?? Number.POSITIVE_INFINITY;
+      return sa - sb;
+    }
+    case "kind":
+      return cmpText(a.kind || "word", b.kind || "word");
+    case "word":
+      return cmpText(a.word || "", b.word || "");
+    case "reading":
+      return cmpText((a.reading || "").trim(), (b.reading || "").trim());
+    case "meaning":
+      return cmpText((a.meaning || "").trim(), (b.meaning || "").trim());
+    case "pos":
+      return cmpText((a.pos || "").trim(), (b.pos || "").trim());
+    case "usage":
+      return usageSortRank(a) - usageSortRank(b);
+    case "mnemonic":
+      return cmpText((a.mnemonic || "").trim(), (b.mnemonic || "").trim());
+    case "very":
+      return a.cnt_very - b.cnt_very;
+    case "normal":
+      return a.cnt_normal - b.cnt_normal;
+    case "weak":
+      return a.cnt_weak - b.cnt_weak;
+    case "total":
+      return enVocabTotalReviews(a) - enVocabTotalReviews(b);
+    case "risk":
+      return enVocabRiskIndex(a) - enVocabRiskIndex(b);
+    case "level":
+      return levelSortRank(a) - levelSortRank(b);
+    case "today":
+      return (
+        effectiveTodayCheckCount(a.today_check_count ?? 0, a.today_check_date) -
+        effectiveTodayCheckCount(b.today_check_count ?? 0, b.today_check_date)
+      );
+    case "updated":
+      return updatedAtSortMs(a) - updatedAtSortMs(b);
+    case "notes": {
+      const na = hasEnVocabClassNotes(a.class_notes, a.class_notes_present) ? 1 : 0;
+      const nb = hasEnVocabClassNotes(b.class_notes, b.class_notes_present) ? 1 : 0;
+      return na - nb;
+    }
+  }
+}
+
+/** 按表头列排序（同值按单词名） */
 export function sortEnVocabWordsByStat(
   words: EnVocabWord[],
   key: EnVocabStatSortKey,
-  dir: "asc" | "desc"
+  dir: "asc" | "desc",
+  opts?: EnVocabStatSortOptions
 ): EnVocabWord[] {
   const mul = dir === "asc" ? 1 : -1;
   return [...words].sort((a, b) => {
-    const diff =
-      key === "updated"
-        ? updatedAtSortMs(a) - updatedAtSortMs(b)
-        : statSortValue(a, key) - statSortValue(b, key);
+    const diff = compareEnVocabStat(a, b, key, opts);
     if (diff !== 0) return diff * mul;
     return a.word.localeCompare(b.word, "en");
   });
@@ -116,11 +192,12 @@ export function sortEnVocabWordsForDailyOrder(words: EnVocabWord[]): EnVocabWord
   });
 }
 
-/** 列头点击排序：纯数值升序/降序，不受「从未抽查置顶」影响 */
+/** 列头点击排序：纯数值/文本升序/降序，不受「从未抽查置顶」影响 */
 export function sortEnVocabWordsForDisplay(
   words: EnVocabWord[],
-  statSort: { key: EnVocabStatSortKey; dir: "asc" | "desc" } | null
+  statSort: { key: EnVocabStatSortKey; dir: "asc" | "desc" } | null,
+  opts?: EnVocabStatSortOptions
 ): EnVocabWord[] {
   const effective = statSort ?? JP_VOCAB_DEFAULT_STAT_SORT;
-  return sortEnVocabWordsByStat(words, effective.key, effective.dir);
+  return sortEnVocabWordsByStat(words, effective.key, effective.dir, opts);
 }

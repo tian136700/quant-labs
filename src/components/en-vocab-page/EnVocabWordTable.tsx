@@ -27,6 +27,47 @@ import type { EnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
 
+function EnVocabThSortButton({
+  sortKey,
+  statSort,
+  onStatSort,
+  title,
+  label,
+  labelLines,
+}: {
+  sortKey: EnVocabStatSortKey;
+  statSort: { key: EnVocabStatSortKey; dir: "asc" | "desc" };
+  onStatSort: (key: EnVocabStatSortKey) => void;
+  title: string;
+  label?: string;
+  labelLines?: [string, string];
+}) {
+  const active = statSort?.key === sortKey;
+  return (
+    <button
+      type="button"
+      className="jp-vocab-sort-btn"
+      aria-sort={
+        active ? (statSort.dir === "asc" ? "ascending" : "descending") : "none"
+      }
+      title={title}
+      onClick={() => onStatSort(sortKey)}
+    >
+      {labelLines ? (
+        <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+          <span>{labelLines[0]}</span>
+          <span>{labelLines[1]}</span>
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
+      <span className="jp-vocab-sort-indicator" aria-hidden="true">
+        {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
+}
+
 export type EnVocabWordTableProps = {
   locale: Locale;
   loading: boolean;
@@ -138,29 +179,71 @@ export function EnVocabWordTable({
                     </th>
                   ) : null}
                   <th rowSpan={2} className="jp-vocab-seq-col">
-                    序号
+                    <EnVocabThSortButton
+                      sortKey="seq"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按当日序号排序"
+                      label="序号"
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-kind-col">
-                    类型
+                    <EnVocabThSortButton
+                      sortKey="kind"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按类型排序（单词 / 语法）"
+                      label="类型"
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-word-col">
-                    单词 / 语法
+                    <EnVocabThSortButton
+                      sortKey="word"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按单词 / 语法名排序"
+                      labelLines={["单词 /", "语法"]}
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-reading-col">
-                    音标 / 读音
+                    <EnVocabThSortButton
+                      sortKey="reading"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按音标 / 读音排序"
+                      labelLines={["音标 /", "读音"]}
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-meaning-col">
-                    释义
+                    <EnVocabThSortButton
+                      sortKey="meaning"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按释义排序"
+                      label="释义"
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-pos-col">
-                    词性
+                    <EnVocabThSortButton
+                      sortKey="pos"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按词性排序"
+                      label="词性"
+                    />
                   </th>
                   <th
                     rowSpan={2}
                     className="jp-vocab-usage-ex-col"
                     title="用法与对应用例（第 N 条用法对应第 N 条例句）"
                   >
-                    用法 / 例句
+                    <EnVocabThSortButton
+                      sortKey="usage"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按用法条数排序"
+                      labelLines={["用法 /", "例句"]}
+                    />
                   </th>
                   {isAdmin ? (
                     <th
@@ -168,41 +251,32 @@ export function EnVocabWordTable({
                       className="jp-vocab-mnemonic-col"
                       title="联想记忆 / 巧记口诀（仅管理员）"
                     >
-                      巧记
+                      <EnVocabThSortButton
+                        sortKey="mnemonic"
+                        statSort={statSort}
+                        onStatSort={onStatSort}
+                        title="按巧记内容排序"
+                        label="巧记"
+                      />
                     </th>
                   ) : null}
                   <th rowSpan={2} className="jp-vocab-risk-col">
-                    <button
-                      type="button"
-                      className="jp-vocab-sort-btn"
-                      aria-sort={
-                        statSort?.key === "risk"
-                          ? statSort.dir === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : "none"
-                      }
+                    <EnVocabThSortButton
+                      sortKey="risk"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
                       title={`按${enVocabPriorityLabel(locale)}排序（一般×1 + 不熟悉×2 − 非常熟悉×0.3）`}
-                      onClick={() => onStatSort("risk")}
-                    >
-                      <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                        <span>抽查</span>
-                        <span>优先级</span>
-                      </span>
-                      <span className="jp-vocab-sort-indicator" aria-hidden="true">
-                        {statSort?.key === "risk"
-                          ? statSort.dir === "asc"
-                            ? "↑"
-                            : "↓"
-                          : "↕"}
-                      </span>
-                    </button>
+                      labelLines={["抽查", "优先级"]}
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-level-col">
-                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                      <span>熟悉程度</span>
-                      <span className="jp-vocab-th-multiline__sub">(老师勾选)</span>
-                    </span>
+                    <EnVocabThSortButton
+                      sortKey="level"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按熟悉程度排序"
+                      labelLines={["熟悉程度", "(老师勾选)"]}
+                    />
                   </th>
                   <th rowSpan={2} className="jp-vocab-stats-col">
                     <div className="jp-vocab-stats-col-head">
@@ -242,10 +316,13 @@ export function EnVocabWordTable({
                     </div>
                   </th>
                   <th rowSpan={2} className="jp-vocab-today-check-col" title="今日抽查次数">
-                    <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                      <span>今日</span>
-                      <span>抽查次数</span>
-                    </span>
+                    <EnVocabThSortButton
+                      sortKey="today"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按今日抽查次数排序"
+                      labelLines={["今日", "抽查次数"]}
+                    />
                   </th>
                   {isAdmin ? (
                     <th
@@ -253,36 +330,24 @@ export function EnVocabWordTable({
                       className="jp-vocab-updated-col"
                       title="词条最近一次更新时间（编辑、补全、勾选熟悉程度等）"
                     >
-                      <button
-                        type="button"
-                        className="jp-vocab-sort-btn"
-                        aria-sort={
-                          statSort?.key === "updated"
-                            ? statSort.dir === "asc"
-                              ? "ascending"
-                              : "descending"
-                            : "none"
-                        }
+                      <EnVocabThSortButton
+                        sortKey="updated"
+                        statSort={statSort}
+                        onStatSort={onStatSort}
                         title="按最近更新时间排序"
-                        onClick={() => onStatSort("updated")}
-                      >
-                        <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
-                          <span>更新</span>
-                          <span>时间</span>
-                        </span>
-                        <span className="jp-vocab-sort-indicator" aria-hidden="true">
-                          {statSort?.key === "updated"
-                            ? statSort.dir === "asc"
-                              ? "↑"
-                              : "↓"
-                            : "↕"}
-                        </span>
-                      </button>
+                        labelLines={["更新", "时间"]}
+                      />
                     </th>
                   ) : null}
                   {SHOW_REMARKS_COLUMN ? (
                     <th rowSpan={2} className="jp-vocab-notes-col">
-                      备注
+                      <EnVocabThSortButton
+                        sortKey="notes"
+                        statSort={statSort}
+                        onStatSort={onStatSort}
+                        title="按是否有备注排序"
+                        label="备注"
+                      />
                     </th>
                   ) : null}
                   <th rowSpan={2} className="jp-vocab-action-col">
