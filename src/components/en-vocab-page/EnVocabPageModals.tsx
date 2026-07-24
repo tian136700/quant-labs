@@ -13,6 +13,7 @@ import { EnVocabUsageViewModal } from "@/components/EnVocabUsageViewModal";
 import {
   EnVocabDailyQuizIntroModal,
 } from "@/components/EnVocabDailyQuizIntroModal";
+import { EnVocabDailyQuizCompleteModal } from "@/components/EnVocabDailyQuizCompleteModal";
 import { EnVocabTeacherQuizIntroModal } from "@/components/EnVocabTeacherQuizIntroModal";
 import { SHOW_RISK_CHART } from "@/lib/en-vocab-page-constants";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -41,6 +42,7 @@ type EnVocabPageModalsProps = {
   showManualAdd: boolean;
   showRiskChart: boolean;
   showDailyIntro: boolean;
+  showDailyComplete: boolean;
   showTeacherQuizIntro: boolean;
   showQuizFlashcard: boolean;
   quizSession: EnVocabTeacherQuizSession | null;
@@ -72,6 +74,7 @@ type EnVocabPageModalsProps = {
   onWordAdded: (added: EnVocabWord, ref?: EnVocabRef, refDeduped?: boolean) => void;
   onRiskChartClose: () => void;
   onDailyIntroClose: () => void;
+  onDailyCompleteClose: () => void;
   onTeacherQuizIntroConfirm: () => void;
   onTeacherQuizIntroClose: () => void;
   onQuizFlashcardClose: () => void;
@@ -136,6 +139,13 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         open={props.showDailyIntro}
         onClose={props.onDailyIntroClose}
       />
+
+      {!props.isAdminMode ? (
+        <EnVocabDailyQuizCompleteModal
+          open={props.showDailyComplete}
+          onClose={props.onDailyCompleteClose}
+        />
+      ) : null}
 
       {props.userId != null ? (
         <EnVocabTeacherQuizIntroModal

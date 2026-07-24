@@ -85,8 +85,10 @@ import {
   useEnVocabTeacherListView,
 } from "@/hooks/useEnVocabTeacherListView";
 import { useEnVocabReviewActions } from "@/hooks/useEnVocabReviewActions";
+import { useEnVocabDailyCompleteEffects } from "@/hooks/useEnVocabDailyCompleteEffects";
 import { useEnVocabTeacherQuiz } from "@/hooks/useEnVocabTeacherQuiz";
 import { useEnVocabAdminActions } from "@/hooks/useEnVocabAdminActions";
+import { markEnVocabTeacherDailyCompleteDismissed } from "@/lib/en-vocab-daily-complete-dismiss";
 import {
   readEnVocabPageCache,
   persistEnVocabPageCache,
@@ -189,6 +191,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [page, setPage] = useState(1);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
+  const [showDailyComplete, setShowDailyComplete] = useState(false);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
@@ -330,6 +333,17 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     dailySeqByWordId,
   });
 
+  const { onTeacherQuizSessionFinished } = useEnVocabDailyCompleteEffects({
+    userId: user?.id,
+    isAdminMode,
+    canOperate,
+    loading,
+    checking,
+    wordsLength: words.length,
+    dailyQuizProgress,
+    setShowDailyComplete,
+  });
+
   const {
     quizSession,
     setQuizSession,
@@ -370,6 +384,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     dailyQuizProgress,
     setSharedTodayWordIds,
     setStatus,
+    onTeacherQuizSessionFinished,
   });
 
   useEnVocabBindRemoteResetSessionClear(onRemoteResetClearSessionRef, {
@@ -853,6 +868,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         showManualAdd={showManualAdd}
         showRiskChart={showRiskChart}
         showDailyIntro={showDailyIntro}
+        showDailyComplete={showDailyComplete}
         showTeacherQuizIntro={showTeacherQuizIntro}
         showQuizFlashcard={showQuizFlashcard}
         quizSession={quizSession}
@@ -884,6 +900,15 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onWordAdded={handleWordAdded}
         onRiskChartClose={() => setShowRiskChart(false)}
         onDailyIntroClose={() => setShowDailyIntro(false)}
+        onDailyCompleteClose={() => {
+          if (user) {
+            markEnVocabTeacherDailyCompleteDismissed(
+              user.id,
+              dailyQuizProgress.total
+            );
+          }
+          setShowDailyComplete(false);
+        }}
         onTeacherQuizIntroConfirm={handleTeacherQuizIntroConfirm}
         onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
         onQuizFlashcardClose={() => setShowQuizFlashcard(false)}

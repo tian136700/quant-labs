@@ -58,6 +58,8 @@ export function useEnVocabTeacherQuiz(options: {
   dailyQuizProgress: EnVocabDailyQuizProgress;
   setSharedTodayWordIds: Dispatch<SetStateAction<Set<number>>>;
   setStatus: (message: string) => void;
+  /** 本轮会话真正抽完（卡片关闭前）→ 弹出完成提示 */
+  onTeacherQuizSessionFinished?: () => void;
 }) {
   const {
     locale,
@@ -77,6 +79,7 @@ export function useEnVocabTeacherQuiz(options: {
     dailyQuizProgress,
     setSharedTodayWordIds,
     setStatus,
+    onTeacherQuizSessionFinished,
   } = options;
 
   const [quizSession, setQuizSession] = useState<EnVocabTeacherQuizSession | null>(
@@ -362,7 +365,15 @@ export function useEnVocabTeacherQuiz(options: {
     setShowQuizFlashcard(false);
     setQuizSession(null);
     if (user?.id) clearEnVocabTeacherQuizSession(user.id);
-  }, [quizSession, quizTargetWords, dailySeqByWordId, quizWordHasLevel, user?.id]);
+    onTeacherQuizSessionFinished?.();
+  }, [
+    quizSession,
+    quizTargetWords,
+    dailySeqByWordId,
+    quizWordHasLevel,
+    user?.id,
+    onTeacherQuizSessionFinished,
+  ]);
 
   const syncTeacherQuizLiveWord = useCallback(
     async (wordId: number | null) => {
