@@ -34,6 +34,14 @@ MUST_HAVE = [
     r"\.jpls-toolbar\s*\{[^}]*display\s*:\s*flex",
     r"\.jpls-date-nav\s*\{[^}]*display\s*:\s*flex",
     r"\.jpls-duration-totals\s*\{[^}]*display\s*:\s*inline-flex",
+    # Element+class so specificity ≥ globals-forms `input[type=date]{width:100%}`
+    # (class-only `.jpls-date-input` loses → date box overflows under ›).
+    r"input\.jpls-date-input\s*\{[^}]*width\s*:",
+]
+
+# Band-aid that paints › on top of an overflowing date field (recurring layout bug).
+FORBIDDEN = [
+    r"\.jpls-date-nav\s*>\s*\.jpls-icon-btn[^\{]*\{[^}]*z-index\s*:",
 ]
 
 
@@ -53,6 +61,12 @@ def main() -> int:
             if not re.search(pat, css, re.S):
                 errs.append(
                     f"{CSS.relative_to(ROOT)}: missing required rule matching {pat}"
+                )
+        for pat in FORBIDDEN:
+            if re.search(pat, css, re.S):
+                errs.append(
+                    f"{CSS.relative_to(ROOT)}: forbidden stacking patch matching {pat} "
+                    "(fix width/overflow instead of z-index over the date field)"
                 )
 
     for path in (JP_STYLES, EN_STYLES):

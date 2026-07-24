@@ -403,11 +403,13 @@
     white-space: nowrap;
   }
 
-  .jpls-date-input {
+  /* Beat mobile-base `input[type=date]{width:100%}` — 100% +「今天」会撑进 › 按钮。 */
+  input.jpls-date-input {
     flex: 1 1 auto;
     min-width: 0;
     min-height: 2.25rem;
     width: auto;
+    max-width: 100%;
     padding: 0.2rem 0.45rem;
     font-size: 0.875rem;
   }

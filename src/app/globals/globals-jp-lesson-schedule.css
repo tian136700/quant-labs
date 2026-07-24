@@ -119,11 +119,13 @@
   line-height: 1;
   flex-shrink: 0;
 }
-.jpls-date-input {
+/* Element+class beats globals-forms `input[type=date]{width:100%}` (same (0,1,1)). */
+input.jpls-date-input {
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
   border-radius: 8px;
+  box-sizing: border-box;
   padding: 0.35rem 0.55rem;
   font-size: 0.875rem;
   min-height: 2.25rem;
@@ -198,21 +200,17 @@
     align-items: center;
     width: 100%;
     max-width: 100%;
-    overflow: visible;
+    overflow: hidden;
   }
   .jpls-date-nav > .jpls-icon-btn:first-child {
     grid-column: 1;
     grid-row: 1;
     align-self: center;
-    position: relative;
-    z-index: 1;
   }
   .jpls-date-nav > .jpls-icon-btn:last-child {
     grid-column: 3;
     grid-row: 1;
     align-self: center;
-    position: relative;
-    z-index: 1;
   }
   .jpls-date-nav-center {
     grid-column: 2;
@@ -225,15 +223,18 @@
     row-gap: 0.2rem;
     min-width: 0;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
     text-align: center;
   }
   .jpls-date-relative {
     flex: 0 0 auto;
   }
-  .jpls-date-input {
-    flex: 0 1 auto;
+  input.jpls-date-input {
+    flex: 1 1 auto;
     width: auto;
-    max-width: 10.5rem;
+    min-width: 0;
+    max-width: min(10.5rem, 100%);
   }
   .jpls-date-count {
     flex: 1 0 100%;
