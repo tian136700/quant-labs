@@ -44,12 +44,119 @@ export function formatEnVocabExampleGlossLine(text: string): string {
 export function isEnVocabExampleEnglishLine(text: string): boolean {
   const stripped = stripEnVocabExampleGlossLabel(text);
   if (GLOSS_LABEL_RE.test(text.trim())) return false;
+  // 结构化 dump（Python/JSON 列表）绝不当「英文例句」展示
+  if (enVocabExampleLooksLikeStructuredDump(text)) return false;
   if (!LATIN_RE.test(stripped)) return false;
   // 纯中文行不当英语例句
   const han = (stripped.match(new RegExp(HAN_RE.source, "g")) || []).length;
   const latin = (stripped.match(new RegExp(LATIN_RE.source, "g")) || []).length;
   if (han >= 4 && latin > 0 && han >= latin) return false;
   return true;
+}
+
+/** 模型/脚本误把 JSON·Python 列表 str() 进库时的形态 */
+export function enVocabExampleLooksLikeStructuredDump(
+  raw: string | null | undefined
+): boolean {
+  const t = String(raw ?? "").trim();
+  if (!t) return false;
+  if (!/^\s*[\[{]/.test(t)) return false;
+  if (!/['"](?:sentence|translation|text|gloss|en|zh)['"]\s*:/.test(t)) {
+    return false;
+  }
+  // 至少像「键值对列表/对象」，避免误伤正常英文句里偶发的 [ ]
+  return (
+    /['"]sentence['"]\s*:/.test(t) ||
+    /['"]translation['"]\s*:/.test(t) ||
+    (/^\s*\[\s*\{/.test(t) && /['"]text['"]\s*:/.test(t))
+  );
+}
+
+const STRUCT_PAIR_RE_SQ =
+  /'(?:sentence|text|en)'\s*:\s*'((?:\\'|[^'])*)'\s*,\s*'(?:translation|gloss|zh|译文)'\s*:\s*'((?:\\'|[^'])*)'/gi;
+const STRUCT_PAIR_RE_DQ =
+  /"(?:sentence|text|en)"\s*:\s*"((?:\\"|[^"])*)"\s*,\s*"(?:translation|gloss|zh|译文)"\s*:\s*"((?:\\"|[^"])*)"/gi;
+
+function unescapeStructField(s: string): string {
+  return s
+    .replace(/\\'/g, "'")
+    .replace(/\\"/g, '"')
+    .replace(/\\n/g, "\n")
+    .replace(/\\\\/g, "\\")
+    .trim();
+}
+
+/**
+ * 把误入库的 JSON / Python list[dict] 尽量还原成「英文\\n译文：」条目。
+ * 还原失败返回 null（调用方应拒收，勿原样展示）。
+ */
+export function tryCoerceEnVocabExampleStructuredDump(
+  raw: string | null | undefined
+): EnVocabExampleSentenceItem[] | null {
+  const t = String(raw ?? "").trim();
+  if (!t || !enVocabExampleLooksLikeStructuredDump(t)) return null;
+
+  const items: EnVocabExampleSentenceItem[] = [];
+
+  // 1) 真 JSON
+  try {
+    const parsed = JSON.parse(t) as unknown;
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    for (const row of rows) {
+      if (!row || typeof row !== "object") continue;
+      const rec = row as Record<string, unknown>;
+      const text = String(
+        rec.sentence ?? rec.text ?? rec.en ?? ""
+      ).trim();
+      const glossRaw = String(
+        rec.translation ?? rec.gloss ?? rec.zh ?? ""
+      ).trim();
+      if (!text) continue;
+      items.push({
+        text,
+        gloss: glossRaw ? formatEnVocabExampleGlossLine(glossRaw) : "",
+      });
+    }
+    if (items.length) return items;
+  } catch {
+    /* fall through */
+  }
+
+  // 2) Python repr / 混引号：用键值正则抽
+  for (const re of [STRUCT_PAIR_RE_SQ, STRUCT_PAIR_RE_DQ]) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(t)) != null) {
+      const text = unescapeStructField(m[1] ?? "");
+      const glossRaw = unescapeStructField(m[2] ?? "");
+      if (!text) continue;
+      items.push({
+        text,
+        gloss: glossRaw ? formatEnVocabExampleGlossLine(glossRaw) : "",
+      });
+    }
+    if (items.length) return items;
+  }
+
+  return null;
+}
+
+/** apply / 展示前：结构化 dump → 规范正文；无法还原则返回 null */
+export function shieldEnVocabExampleSentencesUploadText(
+  raw: string | null | undefined
+): { ok: true; text: string } | { ok: false; reason: string } {
+  const t = String(raw ?? "").trim();
+  if (!t) return { ok: false, reason: "empty" };
+  if (!enVocabExampleLooksLikeStructuredDump(t)) {
+    return { ok: true, text: t };
+  }
+  const coerced = tryCoerceEnVocabExampleStructuredDump(t);
+  if (!coerced?.length) {
+    return { ok: false, reason: "structured_dump" };
+  }
+  const text = serializeEnVocabExampleSentenceItems(coerced);
+  if (!text.trim()) return { ok: false, reason: "structured_dump" };
+  return { ok: true, text };
 }
 
 export function enVocabEnglishWordTokens(text: string): string[] {
@@ -202,6 +309,9 @@ export function isEnVocabExampleGlossLine(text: string): boolean {
 export function parseEnVocabExampleSentenceItems(
   raw: string | null | undefined
 ): EnVocabExampleSentenceItem[] {
+  const coerced = tryCoerceEnVocabExampleStructuredDump(raw);
+  if (coerced?.length) return coerced;
+
   const lines = splitEnVocabExampleSentenceLines(raw);
   const items: EnVocabExampleSentenceItem[] = [];
   let i = 0;

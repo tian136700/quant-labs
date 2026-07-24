@@ -374,18 +374,7 @@ export function useEnVocabReviewActions(options: {
         w.id === wordId ? bumpEnVocabWordReview(w, level, prevLevel) : w
       )
     );
-    if (!wasAlreadyShared) {
-      const nextSharedIds = [...sharedIdsSnapshot, wordId];
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      persistCache(
-        words.map((w) =>
-          w.id === wordId ? bumpEnVocabWordReview(w, level, prevLevel) : w
-        ),
-        refs,
-        markEnVocabRoundChecked(displayOrderSnapshot, wordId),
-        nextSharedIds
-      );
-    }
+    // 勿乐观标记「已共享」：否则顶栏已显示「该单词已同步」，「下一个」却仍灰，且进度条文案变成「保存」而非「同步」
     setSavingId(wordId);
 
     try {
@@ -501,23 +490,7 @@ export function useEnVocabReviewActions(options: {
         };
       })
     );
-    if (!wasAlreadyShared) {
-      const nextSharedIds = [...sharedIdsSnapshot, wordId];
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      persistCache(
-        words.map((w) => {
-          if (w.id !== wordId) return w;
-          const bumped = bumpEnVocabWordReview(w, overall, prevLevel);
-          return {
-            ...bumped,
-            last_usage_levels: serializeEnVocabLastUsageLevels(complete),
-          };
-        }),
-        refs,
-        markEnVocabRoundChecked(displayOrderSnapshot, wordId),
-        nextSharedIds
-      );
-    }
+    // 勿乐观标记「已共享」：顶栏勿提前「该单词已同步」；等 runReviewSave 成功后再由 applySharedResponse 写入
     setSavingId(wordId);
 
     try {

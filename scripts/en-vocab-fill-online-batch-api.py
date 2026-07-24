@@ -63,7 +63,9 @@ SYSTEM = (
     "Return ONLY one JSON object. No markdown fences, no commentary. "
     "Usage: Chinese numbered 1. 2. …; pick academic-exam-frequent uses; "
     "NEVER write exam brand names (IELTS/TOEFL/雅思/托福 etc.) in usage text. "
-    "Examples: one short sentence per usage that MATCHES that usage "
+    "Examples: example_sentences MUST be a plain string of alternating "
+    "English line + 译文：Chinese line (NOT a JSON/Python array of objects); "
+    "one short sentence per usage that MATCHES that usage "
     "(if usage is passive be expected to, the example MUST be passive; "
     "if usage is a phrase like get out, include that phrase); "
     "tense/inflection OK; keep other words VERY basic; "
@@ -218,10 +220,92 @@ def strip_exam_labels(text: str) -> str:
     return "\n".join(lines).strip()
 
 
-def normalize_example_sentences(text: str) -> str:
-    """去掉行首序号，保留「译文：」行。"""
+def normalize_example_sentences(value: Any) -> str:
+    """把模型返回的例句规范成「英文\\n译文：」交替纯文本。
+
+    禁止：对 list/dict 直接 str() —— 会变成 Python 列表字面量入库（页面乱码）。
+    """
     lines: list[str] = []
-    for line in str(text or "").splitlines():
+
+    def push_pair(sentence: str, translation: str = "") -> None:
+        sent = LEADING_INDEX_RE.sub("", str(sentence or "")).strip()
+        if not sent:
+            return
+        lines.append(sent)
+        gloss = str(translation or "").strip()
+        if gloss:
+            if not re.match(r"^(译文|翻譯|翻译|译|譯)\s*[:：]", gloss):
+                gloss = f"译文：{gloss}"
+            lines.append(gloss)
+
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict):
+                push_pair(
+                    item.get("sentence")
+                    or item.get("text")
+                    or item.get("en")
+                    or "",
+                    item.get("translation")
+                    or item.get("gloss")
+                    or item.get("zh")
+                    or "",
+                )
+            elif isinstance(item, str):
+                t = LEADING_INDEX_RE.sub("", item).strip()
+                if t:
+                    lines.append(t)
+        return "\n".join(lines).strip()
+
+    if isinstance(value, dict):
+        push_pair(
+            value.get("sentence") or value.get("text") or value.get("en") or "",
+            value.get("translation")
+            or value.get("gloss")
+            or value.get("zh")
+            or "",
+        )
+        return "\n".join(lines).strip()
+
+    text = str(value or "").strip()
+    if not text:
+        return ""
+
+    # 误把 list 用 str() 后的 Python / JSON dump：尽量还原
+    if re.match(r"^\s*[\[{]", text) and re.search(
+        r"['\"](?:sentence|translation|text|gloss)['\"]\s*:", text
+    ):
+        try:
+            parsed = json.loads(text)
+            return normalize_example_sentences(parsed)
+        except json.JSONDecodeError:
+            pass
+        # Python 单引号：正则抽句
+        for m in re.finditer(
+            r"'(?:sentence|text|en)'\s*:\s*'((?:\\'|[^'])*)'\s*,\s*"
+            r"'(?:translation|gloss|zh)'\s*:\s*'((?:\\'|[^'])*)'",
+            text,
+        ):
+            push_pair(
+                m.group(1).replace("\\'", "'"),
+                m.group(2).replace("\\'", "'"),
+            )
+        if lines:
+            return "\n".join(lines).strip()
+        for m in re.finditer(
+            r'"(?:sentence|text|en)"\s*:\s*"((?:\\"|[^"])*)"\s*,\s*'
+            r'"(?:translation|gloss|zh)"\s*:\s*"((?:\\"|[^"])*)"',
+            text,
+        ):
+            push_pair(
+                m.group(1).replace('\\"', '"'),
+                m.group(2).replace('\\"', '"'),
+            )
+        if lines:
+            return "\n".join(lines).strip()
+        return ""  # dump 还原失败 → 空，勿把乱码写回
+
+    for line in text.splitlines():
         t = LEADING_INDEX_RE.sub("", line).strip()
         if t:
             lines.append(t)
@@ -268,7 +352,7 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 - meaning: 中文释义，分号分隔，最多 3 义
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
 - usage: 至少 2 条编号中文用法（1. …\\n2. …）；选题按学术考试高频，正文禁止考试品牌名
-- example_sentences: 与 usage 一一对应；用法是被动则例句必须被动（be expected to），用法是短语则须出现该短语；每条短句 + 下一行「译文：」；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号
+- example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{"sentence":...}] 这类结构
 
 只输出 JSON。"""
 
@@ -551,7 +635,8 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             out["usage"] = usage
 
     if needs.get("example_sentences"):
-        ex = normalize_example_sentences(str(data.get("example_sentences") or ""))
+        # 切勿 str(list)：会变成 Python 列表字面量入库
+        ex = normalize_example_sentences(data.get("example_sentences"))
         if ex:
             out["example_sentences"] = ex
 

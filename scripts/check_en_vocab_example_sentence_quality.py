@@ -118,6 +118,9 @@ def main() -> int:
                 "lemma_only_example",
                 "english_phrase_not_sentence",
                 "missing_sentence_final_punct",
+                "enVocabExampleLooksLikeStructuredDump",
+                "tryCoerceEnVocabExampleStructuredDump",
+                "shieldEnVocabExampleSentencesUploadText",
             ],
         ),
         (
@@ -129,6 +132,8 @@ def main() -> int:
                 "lemma_only_example",
                 "english_phrase_not_sentence",
                 "不要长难从句",
+                "structured_dump",
+                "禁止输出 JSON / Python 列表",
             ],
         ),
         (
@@ -147,6 +152,8 @@ def main() -> int:
                 "完整句门禁",
                 "issue a statement",
                 "时态/词形可变",
+                "structured_dump",
+                "str(list)",
             ],
         ),
     ]:
@@ -197,6 +204,67 @@ def main() -> int:
             errors.append(
                 f"assess({en!r}, {word!r}): got {got!r}, expected {expected!r}"
             )
+
+    # 线上脚本：切勿 str(list)；list/dict 须还原成「英文\\n译文：」
+    online = ROOT / "scripts" / "en-vocab-fill-online-batch-api.py"
+    if online.is_file():
+        ot = online.read_text(encoding="utf-8")
+        if 'normalize_example_sentences(str(data.get("example_sentences")' in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: must not str() example_sentences list"
+            )
+        if "禁止：对 list/dict 直接 str()" not in ot:
+            errors.append(
+                "en-vocab-fill-online-batch-api.py: missing anti-str(list) guard comment"
+            )
+        sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+        try:
+            import importlib.util
+
+            spec = importlib.util.spec_from_file_location("en_online_fill", online)
+            assert spec and spec.loader
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            dump = [
+                {
+                    "sentence": "Air pollution is a growing concern in many cities.",
+                    "translation": "译文：空气污染是许多城市日益增长的担忧。",
+                },
+                {
+                    "sentence": "This is a matter of concern for all students.",
+                    "translation": "译文：这是所有学生都值得关注的事情。",
+                },
+            ]
+            got = mod.normalize_example_sentences(dump)
+            if "Air pollution is a growing concern" not in got:
+                errors.append("normalize_example_sentences(list) lost English sentence")
+            if "[{'sentence'" in got or '[{"sentence"' in got:
+                errors.append("normalize_example_sentences(list) still looks like dump")
+            if "译文：空气污染" not in got:
+                errors.append("normalize_example_sentences(list) lost Chinese gloss")
+            got2 = mod.normalize_example_sentences(str(dump))
+            if "[{'sentence'" in got2:
+                errors.append("normalize_example_sentences(str(list)) must coerce dump")
+            if "Air pollution is a growing concern" not in got2:
+                errors.append("normalize_example_sentences(str(list)) failed to recover")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"online normalize_example_sentences smoke failed: {exc}")
+        finally:
+            lib = str(ROOT / "scripts" / "lib")
+            if lib in sys.path:
+                sys.path.remove(lib)
+    else:
+        errors.append("missing en-vocab-fill-online-batch-api.py")
+
+    fill_lib = ROOT / "src" / "lib" / "en-vocab-fill-example-sentences.ts"
+    if fill_lib.is_file():
+        ft = fill_lib.read_text(encoding="utf-8")
+        if "shieldEnVocabExampleSentencesUploadText" not in ft:
+            errors.append("apply path must call shieldEnVocabExampleSentencesUploadText")
+        if "healed:structured_dump" not in ft:
+            errors.append("clear_invalid must heal structured_dump when possible")
+    else:
+        errors.append("missing en-vocab-fill-example-sentences.ts")
 
     if errors:
         print("[check_en_vocab_example_sentence_quality] FAIL:", file=sys.stderr)

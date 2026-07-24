@@ -1,6 +1,5 @@
 "use client";
 
-import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
   LEVELS,
   LEVEL_LABEL,
@@ -20,9 +19,6 @@ type Props = {
   isSaving: boolean;
   levelSyncHintShort: string;
   levelSyncHint: string;
-  saveBusy: boolean;
-  saveProgressLabel: string;
-  saveProgressPercent: number;
   locale: "zh" | "en";
   priorityLabel: string;
   riskBadgeTier: string;
@@ -37,7 +33,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
   const {
     canOperate, w, isStudy, previewMode, usePerUsageLevels,
     selected, overallFromUsages, reviewLocked, isSaving, levelSyncHintShort, levelSyncHint,
-    saveBusy, saveProgressLabel, saveProgressPercent, locale, priorityLabel, riskBadgeTier,
+    locale, priorityLabel, riskBadgeTier,
     totalDisplay, risk, todayChecks, onSelectLevel, setNextBlockedHint,
   } = props;
   return (
@@ -151,14 +147,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
               </>
             ) : null}
           </div>
-          {saveBusy ? (
-            <JpVocabSaveProgressBar
-              label={saveProgressLabel}
-              percent={saveProgressPercent}
-              fullWidth
-              className="jp-vocab-teacher-quiz__level-progress"
-            />
-          ) : null}
+          {/* 进度条钉在导航旁（en-vocab-flashcard-page__nav-progress），此处不再重复 */}
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">

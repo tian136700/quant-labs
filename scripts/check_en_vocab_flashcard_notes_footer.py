@@ -131,9 +131,30 @@ def main() -> None:
     if "min-height: 0" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must set min-height: 0")
 
+    # 手机端：刘海 safe-area + 导航钉进度条（勿在 footer 重复）
+    if "safe-area-inset-top" not in styles:
+        fail("en-vocab flashcard styles must pad safe-area-inset-top on mobile")
+    if "en-vocab-flashcard-page__nav-progress" not in modal_tsx:
+        fail("modal must pin save progress on __nav-progress (visible while next disabled)")
+    if "JpVocabSaveProgressBar" not in modal_tsx:
+        fail("modal must use JpVocabSaveProgressBar for sync feedback")
+    if "JpVocabSaveProgressBar" in footer:
+        fail("Footer must NOT duplicate JpVocabSaveProgressBar (nav-only)")
+    if "en-usage-ex-paired-levels.jp-vocab-levels" not in styles:
+        fail("mobile styles must isolate usage-level chrome (.en-usage-ex-paired-levels)")
+    if (
+        ".jp-vocab-teacher-quiz-card .jp-vocab-levels {" in styles
+        and ".jp-vocab-teacher-quiz-card .jp-vocab-teacher-quiz__level .jp-vocab-levels {"
+        not in styles
+    ):
+        fail(
+            "mobile .jp-vocab-levels segment styles must be scoped under __level "
+            "(so usage-side levels keep red outline only)"
+        )
+
     print(
         "OK: en-vocab notes under left info pane (scroll + view-all); "
-        "mid-scroll; nav pinned"
+        "mid-scroll; nav pinned; mobile safe-area + nav progress"
     )
 
 

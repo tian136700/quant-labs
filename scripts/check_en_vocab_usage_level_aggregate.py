@@ -130,9 +130,34 @@ def main() -> int:
             "shared_new",
             "今日背英语单词",
             "shareProgressMap",
+            "patchShareProgress",
+            "JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT",
+            "勿乐观标记",
         ]:
             if n not in hook_text:
                 errors.append(f"useEnVocabReviewActions.ts: missing {n!r}")
+        # recordUsageLevels / recordLevel 禁止在 await 前 setSharedTodayWordIds(nextSharedIds)
+        if (
+            "nextSharedIds" in hook_text
+            and "setSharedTodayWordIds(new Set(nextSharedIds))" in hook_text
+        ):
+            # applySharedResponse 用 nextSharedIds 可以；record* 里须已删掉乐观写入
+            record_usage = hook_text.split("const recordUsageLevels", 1)
+            if len(record_usage) > 1:
+                body = record_usage[1].split("const shareWord", 1)[0]
+                if "setSharedTodayWordIds(new Set(nextSharedIds))" in body:
+                    errors.append(
+                        "useEnVocabReviewActions.ts: recordUsageLevels must not "
+                        "optimistically setSharedTodayWordIds before save completes"
+                    )
+            record_level = hook_text.split("const recordLevel", 1)
+            if len(record_level) > 1:
+                body = record_level[1].split("const recordUsageLevels", 1)[0]
+                if "setSharedTodayWordIds(new Set(nextSharedIds))" in body:
+                    errors.append(
+                        "useEnVocabReviewActions.ts: recordLevel must not "
+                        "optimistically setSharedTodayWordIds before save completes"
+                    )
 
     flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
     flash_dir = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
@@ -151,9 +176,19 @@ def main() -> int:
         "usagesCompleteForShare",
         "resolveEnVocabUsageDraftLevels",
         "勾选已满 1 小时，无法再修改熟悉程度",
+        "JpVocabSaveProgressBar",
+        "en-vocab-flashcard-page__nav-progress",
+        "wordSynced={isShared && !saveBusy}",
     ]:
         if n not in flash_text:
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
+
+    # 勾齐用法写库期间：导航旁必须有橙色进度条；禁止只灰掉「下一个」却无反馈
+    if 'disabled={isSaving}' in flash_text and "disabled={saveBusy}" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal.tsx: next button must disable on saveBusy "
+            "(not only isSaving), so sync progress covers queue/share phases"
+        )
 
     if "今日已共享，熟悉程度不可更改" in flash_text:
         errors.append(

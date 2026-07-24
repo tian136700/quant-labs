@@ -81,11 +81,12 @@ export function JpVocabExampleSentenceCopyButton({ items }: Props) {
           border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
           .jp-vocab-flashcard-copy-btn {
-            min-height: 1.75rem;
-            padding: 0.3rem 0.5rem;
-            font-size: 0.75rem;
+            min-height: 2.75rem;
+            padding: 0.4rem 0.65rem;
+            font-size: 0.8125rem;
+            touch-action: manipulation;
           }
         }
       `}</style>

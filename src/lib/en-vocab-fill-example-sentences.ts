@@ -7,8 +7,10 @@ import {
   validateEnVocabExampleSentencesAiOutput,
 } from "@/lib/en-vocab-example-sentences-ai";
 import {
+  enVocabExampleLooksLikeStructuredDump,
   normalizeEnVocabExampleSentencesFormat,
   normalizeEnVocabExampleSentencesSource,
+  shieldEnVocabExampleSentencesUploadText,
 } from "@/lib/en-vocab-example-sentences";
 import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
 
@@ -239,6 +241,18 @@ export async function applyEnVocabExampleSentenceUpdates(
     let exampleSentences = String(item.example_sentences ?? "").trim();
     if (!Number.isInteger(wordId) || wordId <= 0 || !exampleSentences) continue;
 
+    // force 也必须挡结构化 dump（线上曾 str(list) 写入 Python 列表字面量）
+    const shielded = shieldEnVocabExampleSentencesUploadText(exampleSentences);
+    if (!shielded.ok) {
+      skipped.push({
+        id: wordId,
+        word: String(wordId),
+        reason: `invalid_format:${shielded.reason}`,
+      });
+      continue;
+    }
+    exampleSentences = shielded.text;
+
     const source =
       normalizeEnVocabExampleSentencesSource(item.source) ?? defaultSource;
 
@@ -302,8 +316,11 @@ export async function applyEnVocabExampleSentenceUpdates(
         continue;
       }
       exampleSentences = validated.text;
+    } else {
+      // force：结构化 dump 已在上方 shield 还原；再做一次轻量行式规范化
+      const normalized = normalizeEnVocabExampleSentencesFormat(exampleSentences);
+      if (normalized) exampleSentences = normalized;
     }
-    // force / validateFormat=false：保持模型原文（仅 trim），不 normalize、不拒收
 
     const changed = await updateExampleSentencesIfEmpty(
       db,
@@ -426,6 +443,76 @@ export async function clearInvalidEnVocabExampleSentences(
     const usage =
       row.usage != null ? String(row.usage).trim() || null : null;
     const raw = String(row.example_sentences ?? "").trim();
+
+    // 结构化 dump：能还原且校验过 → 写回规范正文；否则清空重造
+    if (enVocabExampleLooksLikeStructuredDump(raw)) {
+      const shielded = shieldEnVocabExampleSentencesUploadText(raw);
+      if (shielded.ok && usage) {
+        const healed = validateEnVocabExampleSentencesAiOutput(shielded.text, {
+          word: String(row.word),
+          kind: String(row.kind),
+          reading: row.reading,
+          meaning: row.meaning,
+          pos: row.pos,
+          usage,
+        });
+        if (healed.ok && healed.text !== raw) {
+          if (!dryRun) {
+            await db
+              .prepare(
+                `UPDATE en_vocab_word
+                 SET example_sentences = ?1,
+                     updated_at = datetime('now')
+                 WHERE id = ?2`
+              )
+              .bind(healed.text, Number(row.id))
+              .run();
+          }
+          cleared += 1;
+          applied.push({
+            id: Number(row.id),
+            word: String(row.word),
+            example_sentences: healed.text,
+            example_sentences_source: null,
+          });
+          skipped.push({
+            id: Number(row.id),
+            word: String(row.word),
+            reason: "healed:structured_dump",
+          });
+          continue;
+        }
+      }
+      // 还原失败或仍不合格 → 清空
+      if (!dryRun) {
+        await db
+          .prepare(
+            `UPDATE en_vocab_word
+             SET example_sentences = NULL,
+                 example_sentences_source = NULL,
+                 updated_at = datetime('now')
+             WHERE id = ?1
+               AND example_sentences IS NOT NULL
+               AND TRIM(example_sentences) != ''`
+          )
+          .bind(Number(row.id))
+          .run();
+      }
+      cleared += 1;
+      applied.push({
+        id: Number(row.id),
+        word: String(row.word),
+        example_sentences: "",
+        example_sentences_source: null,
+      });
+      skipped.push({
+        id: Number(row.id),
+        word: String(row.word),
+        reason: "cleared:structured_dump",
+      });
+      continue;
+    }
+
     const validated = validateEnVocabExampleSentencesAiOutput(raw, {
       word: String(row.word),
       kind: String(row.kind),
