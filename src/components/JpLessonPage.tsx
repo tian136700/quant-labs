@@ -31,6 +31,11 @@ import {
   jpLessonSchedulePath,
 } from "@/lib/locale-path";
 import { filterJpLessonsBySearch } from "@/lib/jp-lesson-search";
+import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
+import {
+  mergeJpLessonTeachersCache,
+  readJpLessonTeachersCache,
+} from "@/lib/jp-lesson-teachers-cache";
 import type {
   JpLessonNote,
   JpLessonRecord,

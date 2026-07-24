@@ -110,6 +110,16 @@
 
 **验证**：lemma_ipa / notes_footer / study_flashcard_parity / usage_examples_pair / usage_level_aggregate ✅（检查脚本改为扫 `en-vocab-teacher-quiz-flashcard/`）
 
+#### ✅ EnVocabPage（队列，≤1000 达标 · 2026-07-25）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 修半拆 JSX | `EnVocabPage.tsx` | — | ✅ 去掉多余 `</div>) : null}` |
+| WordList | `en-vocab-page/EnVocabPageWordList.tsx` | 253 | ✅ |
+| 编排页 | `EnVocabPage.tsx` | **986**（原 1029） | ✅ 出队 |
+
+**验证**：`tsc` ✅ · login_required / heavy_lazy / table_stats_grid / usage_* / study_parity / review_lock ✅
+
 #### ✅ AdminUsersPage（队列，≤1000 达标 · 2026-07-24）
 
 | 步骤 | 文件 | LOC | 状态 |

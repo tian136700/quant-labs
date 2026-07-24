@@ -24,8 +24,17 @@ def fail(msg: str) -> None:
     raise SystemExit(1)
 
 
+def read_page_bundle() -> str:
+    parts = [read("src/components/EnVocabPage.tsx")]
+    page_dir = ROOT / "src/components/en-vocab-page"
+    if page_dir.is_dir():
+        for f in sorted(page_dir.glob("*.tsx")):
+            parts.append(f.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def main() -> None:
-    page = read("src/components/EnVocabPage.tsx")
+    page = read_page_bundle()
     table = read("src/components/en-vocab-page/EnVocabWordTable.tsx")
     helpers = read("src/lib/en-vocab-page-helpers.tsx")
     styles = read("src/components/en-vocab-page/EnVocabPageStyles.tsx")

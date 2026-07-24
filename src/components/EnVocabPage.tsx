@@ -29,11 +29,7 @@ import {
 import { EnVocabPageStyles } from "@/components/en-vocab-page/EnVocabPageStyles";
 import { EnVocabPageModals } from "@/components/en-vocab-page/EnVocabPageModals";
 import { EnVocabPageToolbar } from "@/components/en-vocab-page/EnVocabPageToolbar";
-import { EnVocabPageHelp } from "@/components/en-vocab-page/EnVocabPageHelp";
-import { EnVocabPageSearch } from "@/components/en-vocab-page/EnVocabPageSearch";
-import { EnVocabTeacherQuizResumePanel } from "@/components/en-vocab-page/EnVocabTeacherQuizResumePanel";
-import { EnVocabPagination } from "@/components/en-vocab-page/EnVocabPagination";
-import { EnVocabWordTable } from "@/components/en-vocab-page/EnVocabWordTable";
+import { EnVocabPageWordList } from "@/components/en-vocab-page/EnVocabPageWordList";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
 import { shouldShowEnVocabDailyIntro } from "@/components/EnVocabDailyQuizIntroModal";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
@@ -843,115 +839,76 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           </p>
         ) : null}
 
-        {!loading && words.length ? (
-          <EnVocabPageHelp
-            locale={locale}
-            expanded={showVocabHelp}
-            onToggle={() => setShowVocabHelp((v) => !v)}
-          />
-        ) : null}
-
-          </div>
-        ) : null}
-
-        {loading ? (
-          <p style={{ color: "var(--muted)" }}>加载中…</p>
-        ) : !words.length ? (
-          <p style={{ color: "var(--muted)" }}>
-            暂无条目。复习词表由「英语新课」自动导入
-            {canManualAdd ? "，也可登录后点「手动添加」补充" : ""}。
-          </p>
-        ) : hideTeacherQuizList ? (
-          <EnVocabTeacherQuizResumePanel
-            showContinue={!showQuizFlashcard}
-            onContinue={() => resumeTeacherQuizFlashcard()}
-          />
-        ) : (
-          <>
-            <EnVocabPageSearch
-              loading={loading}
-              searchQuery={searchQuery}
-              kindFilter={kindFilter}
-              filterActive={filterActive}
-              searchActive={searchActive}
-              filteredCount={filteredDisplayedWords.length}
-              displayedCount={displayedWords.length}
-              onSearchChange={setSearchQuery}
-              onKindFilterChange={setKindFilter}
-              onClear={() => {
-                setSearchQuery("");
-                setKindFilter("all");
-              }}
-            />
-            {filteredDisplayedWords.length ? (
-          <>
-            <EnVocabPagination
-              show={showPagination}
-              safePage={safePage}
-              totalPages={totalPages}
-              pageRangeStart={pageRangeStart}
-              pageRangeEnd={pageRangeEnd}
-              totalItems={filteredDisplayedWords.length}
-              onPageChange={setPage}
-            />
-            <EnVocabWordTable
-              locale={locale}
-              loading={loading}
-              isAdmin={isAdminMode}
-              canOperate={canOperate}
-              teacherShareUiEnabled={teacherShareUiEnabled}
-              statSort={statSort}
-              onStatSort={toggleStatSort}
-              words={pagedDisplayedWords}
-              highlightId={highlightId}
-              displayOrder={displayOrder}
-              sessionLevel={sessionLevel}
-              savingId={savingId}
-              sharingId={sharingId}
-              deletingBatch={deletingBatch}
-              sharedTodayWordIds={sharedTodayWordIds}
-              reviewLockedByWordId={reviewLockedByWordId}
-              refs={refs}
-              dailySeqByWordId={dailySeqByWordId}
-              quizTarget={quizTarget}
-              teacherQuizLocksTable={teacherQuizLocksTable}
-              isWordInQuizTarget={isWordInQuizTarget}
-              quizSession={quizSession}
-              selectedDeleteIds={selectedDeleteIds}
-              allPageDeleteSelected={allPageDeleteSelected}
-              somePageDeleteSelected={somePageDeleteSelected}
-              pagedDeleteIds={pagedDeleteIds}
-              onToggleSelectAllPageForDelete={() =>
-                toggleSelectAllPageForDelete(pagedDeleteIds, allPageDeleteSelected)
-              }
-              onToggleDeleteSelection={toggleDeleteSelection}
-              onRefPreview={openRefPreview}
-              onViewUsage={setViewingUsageWord}
-              onViewMnemonic={setViewingMnemonicWord}
-              onViewRemarks={setViewingRemarksWord}
-              onEditRemarks={setEditingRemarksWord}
-              onEditWord={setEditingWord}
-              onPreviewQuizCard={setQuizCardPreviewWordId}
-              onDeleteWord={(w) => void deleteWord(w)}
-              onShareWord={(wordId) => void shareWord(wordId)}
-              onRecordLevel={(wordId, level) => void recordLevel(wordId, level)}
-              onResumeQuiz={(wordId) => resumeTeacherQuizFlashcard(wordId)}
-              onRequestQuizMode={(wordId) => startTeacherQuizWithRandomMode(wordId)}
-              onStatus={setStatus}
-            />
-            <EnVocabPagination
-              show={showPagination}
-              safePage={safePage}
-              totalPages={totalPages}
-              pageRangeStart={pageRangeStart}
-              pageRangeEnd={pageRangeEnd}
-              totalItems={filteredDisplayedWords.length}
-              onPageChange={setPage}
-            />
-          </>
-            ) : null}
-          </>
-        )}
+        <EnVocabPageWordList
+          locale={locale}
+          loading={loading}
+          isAdminMode={isAdminMode}
+          canOperate={canOperate}
+          canManualAdd={canManualAdd}
+          wordsLength={words.length}
+          hideTeacherQuizList={hideTeacherQuizList}
+          showQuizFlashcard={showQuizFlashcard}
+          showVocabHelp={showVocabHelp}
+          searchQuery={searchQuery}
+          kindFilter={kindFilter}
+          filterActive={filterActive}
+          searchActive={searchActive}
+          teacherShareUiEnabled={teacherShareUiEnabled}
+          statSort={statSort}
+          filteredDisplayedWords={filteredDisplayedWords}
+          displayedWordsCount={displayedWords.length}
+          pagedDisplayedWords={pagedDisplayedWords}
+          showPagination={showPagination}
+          safePage={safePage}
+          totalPages={totalPages}
+          pageRangeStart={pageRangeStart}
+          pageRangeEnd={pageRangeEnd}
+          highlightId={highlightId}
+          displayOrder={displayOrder}
+          sessionLevel={sessionLevel}
+          savingId={savingId}
+          sharingId={sharingId}
+          deletingBatch={deletingBatch}
+          sharedTodayWordIds={sharedTodayWordIds}
+          reviewLockedByWordId={reviewLockedByWordId}
+          refs={refs}
+          dailySeqByWordId={dailySeqByWordId}
+          quizTarget={quizTarget}
+          teacherQuizLocksTable={teacherQuizLocksTable}
+          isWordInQuizTarget={isWordInQuizTarget}
+          quizSession={quizSession}
+          selectedDeleteIds={selectedDeleteIds}
+          allPageDeleteSelected={allPageDeleteSelected}
+          somePageDeleteSelected={somePageDeleteSelected}
+          pagedDeleteIds={pagedDeleteIds}
+          onToggleVocabHelp={() => setShowVocabHelp((v) => !v)}
+          onResumeTeacherQuiz={() => resumeTeacherQuizFlashcard()}
+          onSearchChange={setSearchQuery}
+          onKindFilterChange={setKindFilter}
+          onClearSearch={() => {
+            setSearchQuery("");
+            setKindFilter("all");
+          }}
+          onPageChange={setPage}
+          onStatSort={toggleStatSort}
+          onToggleSelectAllPageForDelete={() =>
+            toggleSelectAllPageForDelete(pagedDeleteIds, allPageDeleteSelected)
+          }
+          onToggleDeleteSelection={toggleDeleteSelection}
+          onRefPreview={openRefPreview}
+          onViewUsage={setViewingUsageWord}
+          onViewMnemonic={setViewingMnemonicWord}
+          onViewRemarks={setViewingRemarksWord}
+          onEditRemarks={setEditingRemarksWord}
+          onEditWord={setEditingWord}
+          onPreviewQuizCard={(wordId) => setQuizCardPreviewWordId(wordId)}
+          onDeleteWord={(w) => void deleteWord(w)}
+          onShareWord={(wordId) => void shareWord(wordId)}
+          onRecordLevel={(wordId, level) => void recordLevel(wordId, level)}
+          onResumeQuiz={(wordId) => resumeTeacherQuizFlashcard(wordId)}
+          onRequestQuizMode={(wordId) => startTeacherQuizWithRandomMode(wordId)}
+          onStatus={setStatus}
+        />
       </section>
 
       <EnVocabPageModals

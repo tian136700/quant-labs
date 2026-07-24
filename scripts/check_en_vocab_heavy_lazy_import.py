@@ -78,7 +78,17 @@ def main() -> int:
             "@/lib/en-vocab-ref-pdf-export\") on export actions"
         )
 
-    page = (SRC / "components" / "EnVocabPage.tsx").read_text(encoding="utf-8")
+    page_parts = [
+        (SRC / "components" / "EnVocabPage.tsx").read_text(encoding="utf-8")
+    ]
+    page_dir = SRC / "components" / "en-vocab-page"
+    if page_dir.is_dir():
+        for f in sorted(page_dir.glob("*.tsx")):
+            page_parts.append(f.read_text(encoding="utf-8"))
+    admin_actions = SRC / "hooks" / "useEnVocabAdminActions.ts"
+    if admin_actions.is_file():
+        page_parts.append(admin_actions.read_text(encoding="utf-8"))
+    page = "\n".join(page_parts)
     if re.search(r"""from\s+["']@/lib/en-vocab-export["']""", page):
         errs.append(
             "EnVocabPage.tsx: do not static-import @/lib/en-vocab-export; "
