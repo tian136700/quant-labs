@@ -10,6 +10,7 @@ import {
   buildEnVocabUsageExamplePairs,
   type EnVocabUsageExamplesPairedModel,
 } from "@/lib/en-vocab-usage-examples-display";
+import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
 import type { EnVocabLevel } from "@/lib/types";
 
 const LEVELS: { key: EnVocabLevel; label: string }[] = [
@@ -58,6 +59,11 @@ export function EnVocabUsageExamplesPairedContent({
 
   const imageBlock =
     model.imageLines.length > 0 ? model.imageLines.join("\n") : "";
+  // 用法与例句同源（含展示规范化后相同）只角标一次
+  const sourceLabels = uniqueJpVocabSourcesForDisplay(
+    usageSource,
+    exampleSource
+  );
 
   return (
     <div className={`en-usage-ex-paired${className ? ` ${className}` : ""}`}>
@@ -177,14 +183,13 @@ export function EnVocabUsageExamplesPairedContent({
         </div>
       ) : null}
 
-      <div className="en-usage-ex-paired-sources">
-        {usageSource?.trim() ? (
-          <JpVocabSourceLabel source={usageSource} />
-        ) : null}
-        {exampleSource?.trim() ? (
-          <JpVocabSourceLabel source={exampleSource} />
-        ) : null}
-      </div>
+      {sourceLabels.length > 0 ? (
+        <div className="en-usage-ex-paired-sources">
+          {sourceLabels.map((src) => (
+            <JpVocabSourceLabel key={src} source={src} />
+          ))}
+        </div>
+      ) : null}
 
       <style jsx>{`
         .en-usage-ex-paired {

@@ -63,10 +63,11 @@ SYSTEM = (
     "Return ONLY one JSON object. No markdown fences, no commentary. "
     "Usage: Chinese numbered 1. 2. …; pick academic-exam-frequent uses; "
     "NEVER write exam brand names (IELTS/TOEFL/雅思/托福 etc.) in usage text. "
-    "Examples: one short sentence per usage; tense/inflection OK "
-    "(expect→expected, get→got/get out); keep other words VERY basic; "
-    "NO hard vocabulary, NO long subordinate clauses, NO stacked grammar— "
-    "focus must stay on the target word's usage."
+    "Examples: one short sentence per usage that MATCHES that usage "
+    "(if usage is passive be expected to, the example MUST be passive; "
+    "if usage is a phrase like get out, include that phrase); "
+    "tense/inflection OK; keep other words VERY basic; "
+    "NO hard vocabulary, NO long subordinate clauses—focus on the target usage."
 )
 
 
@@ -267,7 +268,7 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 - meaning: 中文释义，分号分隔，最多 3 义
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
 - usage: 至少 2 条编号中文用法（1. …\\n2. …）；选题按学术考试高频，正文禁止考试品牌名
-- example_sentences: 与 usage 一一对应；每条短句 + 下一行「译文：」；时态/词形可变（expected/got 等 OK）；可用常用短语（get out）；其余词要极简单；不要难词、不要长难从句；不要行首编号
+- example_sentences: 与 usage 一一对应；用法是被动则例句必须被动（be expected to），用法是短语则须出现该短语；每条短句 + 下一行「译文：」；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号
 
 只输出 JSON。"""
 

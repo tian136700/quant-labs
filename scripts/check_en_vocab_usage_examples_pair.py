@@ -105,6 +105,23 @@ def main() -> int:
     if 'aria-label="例句"' in flash_text and 'aria-label="用法"' in flash_text:
         errors.append("flashcard still has separate 例句 + 用法 sections")
 
+    # 用法/例句来源展示相同只角标一次（勿各打一行 JpVocabSourceLabel）
+    paired = ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
+    paired_text = paired.read_text(encoding="utf-8") if paired.is_file() else ""
+    if "uniqueJpVocabSourcesForDisplay" not in paired_text:
+        errors.append(
+            "EnVocabUsageExamplesPairedContent.tsx: must dedupe sources via "
+            "uniqueJpVocabSourcesForDisplay"
+        )
+    source_lib = ROOT / "src/lib/jp-vocab-source-display.ts"
+    source_text = (
+        source_lib.read_text(encoding="utf-8") if source_lib.is_file() else ""
+    )
+    if "uniqueJpVocabSourcesForDisplay" not in source_text:
+        errors.append(
+            "jp-vocab-source-display.ts: missing uniqueJpVocabSourcesForDisplay"
+        )
+
     if errors:
         print("FAIL: en-vocab usage/examples pairing display guards")
         for e in errors:
