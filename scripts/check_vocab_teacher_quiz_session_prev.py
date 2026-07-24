@@ -97,6 +97,37 @@ def check_en_refresh_resume(src: str) -> None:
         )
 
 
+def check_en_restore_hook() -> None:
+    """Refresh restore must not wipe session or mark restored while pool empty."""
+    path = ROOT / "src/hooks/useEnVocabTeacherQuiz.ts"
+    src = path.read_text(encoding="utf-8")
+    if re.search(
+        r"quizTargetWords\.length === 0\s*\{[^}]*quizSessionRestoredRef\.current = true",
+        src,
+        re.S,
+    ):
+        fail(
+            "useEnVocabTeacherQuiz: do not mark restored when quizTargetWords is empty "
+            "(refresh would skip restore → new session at index 0 → 上一个 disabled)"
+        )
+    # persist(null) must not clear storage
+    if re.search(
+        r"if\s*\(\s*!session\s*\)\s*\{[^}]*clearEnVocabTeacherQuizSession",
+        src,
+        re.S,
+    ):
+        fail(
+            "useEnVocabTeacherQuiz: persist must not clearEnVocabTeacherQuizSession on null "
+            "(mount null would wipe mid-quiz session before restore)"
+        )
+    if "savedWordId" not in src:
+        fail(
+            "useEnVocabTeacherQuiz restore must resume by savedWordId "
+            "(keep full queue so 上一个 stays enabled)"
+        )
+    print(f"OK: {path.relative_to(ROOT)} restore/prev guards")
+
+
 def main() -> None:
     for path in LIBS:
         if not path.is_file():
@@ -108,6 +139,7 @@ def main() -> None:
         if lang == "En":
             check_en_refresh_resume(src)
         print(f"OK: {path.relative_to(ROOT)}")
+    check_en_restore_hook()
     print("All teacher-quiz session prev-nav guards passed.")
 
 

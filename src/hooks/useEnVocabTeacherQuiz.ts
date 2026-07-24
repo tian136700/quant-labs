@@ -119,10 +119,9 @@ export function useEnVocabTeacherQuiz(options: {
   const persistQuizSession = useCallback(
     (session: EnVocabTeacherQuizSession | null) => {
       if (!user?.id) return;
-      if (!session) {
-        clearEnVocabTeacherQuizSession(user.id);
-        return;
-      }
+      // 只写不主动清：mount 时 session=null 若 clear 会丢掉待恢复的抽查会话，
+      // 刷新后只能重开第 0 张，「上一个」变灰。结束抽查请显式 clearEnVocabTeacherQuizSession。
+      if (!session) return;
       writeEnVocabTeacherQuizSession(user.id, quizTarget, session);
     },
     [user?.id, quizTarget]
@@ -131,10 +130,8 @@ export function useEnVocabTeacherQuiz(options: {
   useEffect(() => {
     if (!user?.id || quizTarget <= 0 || loading || checking) return;
     if (quizSessionRestoredRef.current) return;
-    if (quizTargetWords.length === 0) {
-      quizSessionRestoredRef.current = true;
-      return;
-    }
+    // 词表未就绪时不要标记已恢复，否则永远不会读回 localStorage
+    if (quizTargetWords.length === 0) return;
 
     quizSessionRestoredRef.current = true;
     const stored = readEnVocabTeacherQuizSession(user.id, quizTarget);
@@ -165,10 +162,17 @@ export function useEnVocabTeacherQuiz(options: {
     }
 
     if (canOperate && !isAdminMode) {
-      const resumeIndex = resolveEnVocabTeacherQuizRefreshResumeIndex(
+      // 按离开时那一词的 id 定位（保留完整队列，已勾选词仍在前面 →「上一个」可用）
+      const savedWordId =
+        reconciled.wordIds[
+          Math.max(
+            0,
+            Math.min(reconciled.currentIndex, reconciled.wordIds.length - 1)
+          )
+        ];
+      const resumeIndex = resolveEnVocabTeacherQuizResumeIndex(
         expanded,
-        wordsById,
-        sessionReviewAt,
+        savedWordId,
         quizWordHasLevel
       );
       const session = { ...expanded, currentIndex: resumeIndex };
@@ -357,7 +361,8 @@ export function useEnVocabTeacherQuiz(options: {
     }
     setShowQuizFlashcard(false);
     setQuizSession(null);
-  }, [quizSession, quizTargetWords, dailySeqByWordId, quizWordHasLevel]);
+    if (user?.id) clearEnVocabTeacherQuizSession(user.id);
+  }, [quizSession, quizTargetWords, dailySeqByWordId, quizWordHasLevel, user?.id]);
 
   const syncTeacherQuizLiveWord = useCallback(
     async (wordId: number | null) => {

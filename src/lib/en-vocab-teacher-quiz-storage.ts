@@ -36,12 +36,14 @@ export function readEnVocabTeacherQuizSession(
     ) {
       return null;
     }
+    const ids = wordIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+    if (!ids.length) return null;
     return {
       mode,
-      wordIds: wordIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
+      wordIds: ids,
       currentIndex: Math.max(
         0,
-        Math.min(Math.floor(currentIndex), wordIds.length - 1)
+        Math.min(Math.floor(currentIndex), ids.length - 1)
       ),
     };
   } catch {

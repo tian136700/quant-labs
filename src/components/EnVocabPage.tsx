@@ -74,6 +74,7 @@ import {
   enVocabWordsInOrder,
   pickRandomEnVocabWord,
 } from "@/lib/en-vocab-page-helpers";
+import { clearEnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz-storage";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
@@ -534,12 +535,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     }
     setShowQuizFlashcard(false);
     setQuizSession(null);
+    if (user?.id) clearEnVocabTeacherQuizSession(user.id);
   }, [
     canOperate,
     isAdminMode,
     quizSession,
     dailyQuizProgress.complete,
     displayQuizProgress.complete,
+    user?.id,
+    setShowQuizFlashcard,
+    setQuizSession,
   ]);
 
   const openRemarksWord = useCallback(
