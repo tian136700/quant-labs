@@ -11,6 +11,7 @@ import {
   LEVEL_LABEL,
   formatEnVocabClassNotesForDisplay,
 } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
+import { enVocabTotalReviewsZeroHint } from "@/lib/en-vocab-shared";
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
 
 type Props = {

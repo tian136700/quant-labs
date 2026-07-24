@@ -2,7 +2,8 @@
 
 import { jpVocabTeacherQuizModeLabel } from "@/lib/jp-vocab-teacher-quiz";
 import { formatJpVocabQuizElapsedLabel } from "@/components/jp-vocab-teacher-quiz-flashcard/helpers";
-import type { JpVocabLevel, JpVocabTeacherQuizSession } from "@/lib/types";
+import type {JpVocabLevel } from "@/lib/types";
+import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 
 type Props = {
   isStudy: boolean;

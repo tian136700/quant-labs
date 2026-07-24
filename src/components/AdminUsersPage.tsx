@@ -49,8 +49,6 @@ import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import type { LoginLinkTemplate } from "@/lib/types";
 import { AdminUsersPageStyles } from "@/components/admin-users-page/AdminUsersPageStyles";
-import { AdminUsersToolbar } from "@/components/admin-users-page/AdminUsersToolbar";
-import { AdminUsersPageModals } from "@/components/admin-users-page/AdminUsersPageModals";
 import { AdminUsersList } from "@/components/admin-users-page/AdminUsersList";
 import { AdminUsersTemplatesModal } from "@/components/admin-users-page/AdminUsersTemplatesModal";
 import { AdminUsersAddUserModal } from "@/components/admin-users-page/AdminUsersAddUserModal";
@@ -977,13 +975,38 @@ function AdminUsersPageContent() {
         </p>
       ) : null}
 
-      <AdminUsersToolbar
-        locale={locale}
-        selectedTemplate={selectedTemplate}
-        onOpenAddUser={openAddUserModal}
-        onOpenTemplates={() => setTemplatesOpen(true)}
-      />
-
+      <section className="section etr-panel admin-rbac-section admin-users-toolbar-section">
+        <div className="admin-users-toolbar">
+          <div className="admin-users-toolbar-title">
+            <h2 className="admin-user-add-title">{locale === "zh" ? "快捷操作" : "Quick actions"}</h2>
+            <p className="hint admin-users-toolbar-sub">
+              {selectedTemplate
+                ? locale === "zh"
+                  ? `当前模板：${selectedTemplate.name}`
+                  : `Active template: ${selectedTemplate.name}`
+                : locale === "zh"
+                  ? "当前模板：未选择（带模板复制将不可用）"
+                  : "Active template: none (copy with template disabled)"}
+            </p>
+          </div>
+          <div className="admin-users-toolbar-actions">
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary"
+              onClick={openAddUserModal}
+            >
+              {locale === "zh" ? "添加用户" : "Add user"}
+            </button>
+            <button
+              type="button"
+              className="btn-rsi-filter"
+              onClick={() => setTemplatesOpen(true)}
+            >
+              {locale === "zh" ? "管理登录模板" : "Manage templates"}
+            </button>
+          </div>
+        </div>
+      </section>
 
 
             <AdminUsersList
@@ -1014,22 +1037,88 @@ function AdminUsersPageContent() {
         onDelete={deleteUser}
       />
 
-      <AdminUsersPageModals
+<AdminUserEditModal
+        open={editingUser != null}
+        user={editingUser}
         locale={locale}
-        editingUser={editingUser}
-        bindingUser={bindingUser}
         teachers={teachers}
         teachersLoading={teachersLoading}
-        addUserOpen={addUserOpen}
+        onClose={() => setEditingUser(null)}
+        onSaved={(updated) => {
+          setEditingUser(null);
+          applyUserUpdate(updated);
+          void loadTeachers();
+        }}
+        onSaveFailed={handleUserSaveFailed}
+        onCredentialsStored={rememberAdminUserPassword}
+      />
+
+      <AdminUserBindTeacherModal
+        open={bindingUser != null}
+        user={bindingUser}
+        locale={locale}
+        teachers={teachers}
+        teachersLoading={teachersLoading}
+        onClose={() => setBindingUser(null)}
+        onBound={(bound) => {
+          setUsers((prev) => {
+            const next = prev.map((item) =>
+              item.id === bound.id
+                ? {
+                    ...item,
+                    jp_lesson_teacher_id: bound.jp_lesson_teacher_id,
+                    jp_lesson_teacher_name: bound.jp_lesson_teacher_name,
+                  }
+                : item.jp_lesson_teacher_id != null &&
+                    bound.jp_lesson_teacher_id != null &&
+                    item.jp_lesson_teacher_id === bound.jp_lesson_teacher_id &&
+                    item.id !== bound.id
+                  ? {
+                      ...item,
+                      jp_lesson_teacher_id: null,
+                      jp_lesson_teacher_name: null,
+                    }
+                  : item
+            );
+            persistUsers(next);
+            return next;
+          });
+          setStatus(
+            locale === "zh"
+              ? `已更新老师绑定：${bound.jp_lesson_teacher_name || "—"}`
+              : `Teacher binding updated: ${bound.jp_lesson_teacher_name || "—"}`
+          );
+          setStatusErr(false);
+          void loadTeachers();
+        }}
+      />
+
+      <AdminUsersAddUserModal
+        open={addUserOpen}
         mounted={mounted}
+        locale={locale}
         creating={creating}
         newUsername={newUsername}
         newPassword={newPassword}
         newTeacherModules={newTeacherModules}
         newTeacherId={newTeacherId}
+        teachers={teachers}
+        teachersLoading={teachersLoading}
         addUserModalError={addUserModalError}
         addUserDisplayedErrors={addUserDisplayedErrors}
-        templatesOpen={templatesOpen}
+        onClose={closeAddUserModal}
+        onUsernameChange={setNewUsername}
+        onPasswordChange={setNewPassword}
+        onTeacherModulesChange={setNewTeacherModules}
+        onTeacherIdChange={setNewTeacherId}
+        onClearModalError={() => setAddUserModalError("")}
+        onSubmit={createUser}
+      />
+
+      <AdminUsersTemplatesModal
+        open={templatesOpen}
+        mounted={mounted}
+        locale={locale}
         templates={templates}
         templatesLoading={templatesLoading}
         templateSaving={templateSaving}
@@ -1039,35 +1128,18 @@ function AdminUsersPageContent() {
         editingTemplateId={editingTemplateId}
         editTemplateName={editTemplateName}
         editTemplateBody={editTemplateBody}
-        setEditingUser={setEditingUser}
-        applyUserUpdate={applyUserUpdate}
-        loadTeachers={loadTeachers}
-        handleUserSaveFailed={handleUserSaveFailed}
-        setBindingUser={setBindingUser}
-        persistUsers={persistUsers}
-        setUsers={setUsers}
-        setStatus={setStatus}
-        setStatusErr={setStatusErr}
-        closeAddUserModal={closeAddUserModal}
-        setNewUsername={setNewUsername}
-        setNewPassword={setNewPassword}
-        setNewTeacherModules={setNewTeacherModules}
-        setNewTeacherId={setNewTeacherId}
-        setAddUserModalError={setAddUserModalError}
-        createUser={createUser}
-        setTemplatesOpen={setTemplatesOpen}
-        setSelectedTemplateId={setSelectedTemplateId}
-        setNewTemplateName={setNewTemplateName}
-        setNewTemplateBody={setNewTemplateBody}
-        setEditTemplateName={setEditTemplateName}
-        setEditTemplateBody={setEditTemplateBody}
-        createTemplate={createTemplate}
-        startEditTemplate={startEditTemplate}
-        saveEditTemplate={saveEditTemplate}
-        cancelEditTemplate={cancelEditTemplate}
-        deleteTemplate={deleteTemplate}
+        onClose={() => setTemplatesOpen(false)}
+        onSelectedTemplateIdChange={setSelectedTemplateId}
+        onNewTemplateNameChange={setNewTemplateName}
+        onNewTemplateBodyChange={setNewTemplateBody}
+        onEditTemplateNameChange={setEditTemplateName}
+        onEditTemplateBodyChange={setEditTemplateBody}
+        onCreateTemplate={createTemplate}
+        onStartEditTemplate={startEditTemplate}
+        onSaveEditTemplate={saveEditTemplate}
+        onCancelEditTemplate={cancelEditTemplate}
+        onDeleteTemplate={deleteTemplate}
       />
-
 
       <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
 

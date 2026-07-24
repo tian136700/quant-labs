@@ -63,10 +63,7 @@ CHECKS = [
     ),
     (
         "LessonAnnotateModal",
-        read_page_bundle(
-            ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx",
-            ROOT / "src/components/lesson-annotate",
-        ),
+        (ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx").read_text(encoding="utf-8"),
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',

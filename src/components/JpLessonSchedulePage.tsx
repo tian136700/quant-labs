@@ -100,6 +100,8 @@ import type {
 } from "@/lib/types";
 import { JpLessonSchedulePageStyles } from "@/components/jp-lesson-schedule-page/JpLessonSchedulePageStyles";
 import { JpLessonScheduleLayout } from "@/components/jp-lesson-schedule-page/JpLessonScheduleLayout";
+import { JpLessonScheduleToolbar } from "@/components/jp-lesson-schedule-page/JpLessonScheduleToolbar";
+import { JpLessonScheduleModals } from "@/components/jp-lesson-schedule-page/JpLessonScheduleModals";
 
 import {
   type ViewMode,

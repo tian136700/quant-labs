@@ -9,25 +9,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
-def read_page_bundle(page: Path, sibling_dir: Path | None = None) -> str:
-    """Page + optional extracted sibling directory (Styles / save / draw)."""
-    parts = [page.read_text(encoding="utf-8")]
-    if sibling_dir is not None and sibling_dir.is_dir():
-        for p in sorted(sibling_dir.glob("*.tsx")):
-            parts.append(p.read_text(encoding="utf-8"))
-        for p in sorted(sibling_dir.glob("*.ts")):
-            parts.append(p.read_text(encoding="utf-8"))
-    return "\n".join(parts)
-
-
-def read_check_text(path: Path) -> str:
-    annotate_modal = ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx"
-    if path == annotate_modal:
-        return read_page_bundle(path, ROOT / "src/components/lesson-annotate")
-    return path.read_text(encoding="utf-8")
-
-
 CHECKS = [
     (
         ROOT / "src/app/api/jp-vocab/ref/[refKey]/route.ts",
@@ -132,7 +113,7 @@ CHECKS = [
 def main() -> int:
     failed = False
     for path, spec in CHECKS:
-        text = read_check_text(path)
+        text = path.read_text(encoding="utf-8")
         for pat in spec["must"]:
             if not re.search(pat, text):
                 print(f"FAIL {path.relative_to(ROOT)}: missing /{pat}/")

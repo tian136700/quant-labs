@@ -2,6 +2,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
   mergeJpVocabClassNotesBlobFromEdit,
   removeJpVocabClassNotesBlobImageAt,
+  type JpVocabClassNotesBlobEditImages,
 } from "@/lib/jp-vocab-class-notes";
 import type { UploadProgressEvent } from "@/lib/upload-form-progress";
 import {
@@ -18,7 +19,7 @@ type Props = {
   classNotesText: string;
   classNotesImageSrcs: string[];
   classNotes: string;
-  classNotesImages: string[];
+  classNotesImages: JpVocabClassNotesBlobEditImages;
   classNotesRef: React.RefObject<HTMLTextAreaElement | null>;
   noteImageInputRef: React.RefObject<HTMLInputElement | null>;
   onNotesPaste: (e: React.ClipboardEvent) => void;

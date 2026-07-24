@@ -16,7 +16,7 @@ export type JpLessonPageSectionsProps = {
   refreshing: boolean;
   lessonsByStatus: Record<JpLessonProgressStatus, JpLessonRecord[]>;
   displayGroupsByStatus: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]>;
-  learningDayToneByDate: Map<string, string>;
+  learningDayToneByDate: Map<string, number>;
   sectionSort: Record<JpLessonProgressStatus, JpLessonSectionSort>;
   isAdmin: boolean;
   batchLessonIds: number[];

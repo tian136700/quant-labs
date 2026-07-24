@@ -944,6 +944,7 @@ export function AdminJpLessonTeachersPageContent() {
         sortKey={sortKey}
         sortOrder={sortOrder}
         fieldLabels={fieldLabels}
+        selectedSearchTeacherId={selectedSearchTeacherId}
         onOpenAddModal={() => setAddModalOpen(true)}
         switchTeacherSubject={switchTeacherSubject}
         setSearchDraft={setSearchDraft}

@@ -459,6 +459,5 @@ export function useEnVocabTeacherQuiz(options: {
     teacherQuizLocksTable,
     teacherQuizInProgress,
     quizFlashcardWordId,
-    wordsById,
   };
 }

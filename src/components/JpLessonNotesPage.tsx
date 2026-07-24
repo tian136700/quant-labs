@@ -7,6 +7,7 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
+  JP_LESSON_CACHE_KEY,
   parseJpLessonApi,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
@@ -141,7 +142,8 @@ export function JpLessonNotesPage() {
     setError("");
     try {
       const payload = await fetchWithClientCache(
-              "/api/jp-lesson",
+        JP_LESSON_CACHE_KEY,
+        "/api/jp-lesson",
         parseJpLessonApi,
         {
           onCached: (data) => {

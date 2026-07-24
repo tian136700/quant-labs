@@ -47,6 +47,7 @@ export type AdminJpLessonTeachersListProps = {
   sortKey: TeacherSortKey;
   sortOrder: SortOrder;
   fieldLabels: Record<string, string>;
+  selectedSearchTeacherId: number | null;
   onOpenAddModal: () => void;
   switchTeacherSubject: (next: LessonTeacherSubject) => void;
   setSearchDraft: (v: string) => void;

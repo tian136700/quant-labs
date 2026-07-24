@@ -4,12 +4,14 @@ import type { Locale } from "@/i18n/messages";
 import { JpEditIconButton } from "@/components/JpEditIconButton";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
+import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
   jpVocabRiskIndex,
   jpVocabTotalReviewsZeroHint,
 } from "@/lib/jp-vocab-shared";
-import type { JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
+import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
 
 const STAT_COLUMNS = [
   { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"] as [string, string], className: "jp-vocab-stat-detail" },
@@ -19,6 +21,12 @@ const STAT_COLUMNS = [
 ] as const;
 
 const SHOW_REMARKS_COLUMN = true;
+
+const LEVELS: { key: JpVocabLevel; label: string }[] = [
+  { key: "very", label: "非常熟悉" },
+  { key: "normal", label: "一般" },
+  { key: "weak", label: "不熟悉" },
+];
 
 export type JpVocabStudyPageTableProps = {
   locale: Locale;
@@ -30,7 +38,8 @@ export type JpVocabStudyPageTableProps = {
   refs: Record<string, JpVocabRef>;
   openRemarksWord: (word: JpVocabWord) => void;
   setEditingWord: (word: JpVocabWord | null) => void;
-  openRefPreview: (refKey: string) => void;
+  setEditingRemarksWord: (word: JpVocabWord | null) => void;
+  openRefPreview: (refKey: string, ref?: JpVocabRef) => void;
 };
 
 export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
@@ -44,6 +53,7 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
     refs,
     openRemarksWord,
     setEditingWord,
+    setEditingRemarksWord,
     openRefPreview,
   } = props;
   return (

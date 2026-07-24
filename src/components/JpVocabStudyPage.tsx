@@ -802,6 +802,7 @@ export function JpVocabStudyPage() {
         refs={refs}
         openRemarksWord={openRemarksWord}
         setEditingWord={setEditingWord}
+        setEditingRemarksWord={setEditingRemarksWord}
         openRefPreview={openRefPreview}
       />
 

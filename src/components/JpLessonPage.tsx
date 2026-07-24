@@ -1081,88 +1081,272 @@ export function JpLessonPage() {
             没有匹配「{searchQuery.trim()}」的新课，请换个关键词试试。
           </p>
         ) : null}
-        <JpLessonPageSections
-          searchActive={searchActive}
-          searchQuery={searchQuery}
-          mobileStatusFilter={mobileStatusFilter}
-          setMobileStatusFilter={setMobileStatusFilter}
-          refreshing={refreshing}
-          lessonsByStatus={lessonsByStatus}
-          displayGroupsByStatus={displayGroupsByStatus}
-          learningDayToneByDate={learningDayToneByDate}
-          sectionSort={sectionSort}
-          isAdmin={isAdmin}
-          batchLessonIds={batchLessonIds}
-          setBatchModalOpen={setBatchModalOpen}
-          setBatchLessonIds={setBatchLessonIds}
-          teachers={teachers}
-          refs={refs}
-          teacherById={teacherById}
-          noteCountByLesson={noteCountByLesson}
-          canOperate={canOperate}
-          savingId={savingId}
-          savingNextClassId={savingNextClassId}
-          expandedContentIds={expandedContentIds}
-          expandedMeaningsIds={expandedMeaningsIds}
-          copiedId={copiedId}
-          copiedBatchKey={copiedBatchKey}
-          setLessonProgress={setLessonProgress}
-          openTeacherEditModal={openTeacherEditModal}
-          openNextClassEditModal={openNextClassEditModal}
-          setEditingLesson={setEditingLesson}
-          setAnnotatingLesson={setAnnotatingLesson}
-          setViewingExamples={setViewingExamples}
-          toggleRecentOperationSort={toggleRecentOperationSort}
-          toggleClassTimeSort={toggleClassTimeSort}
-          toggleBatchLesson={toggleBatchLesson}
-          toggleContentExpanded={toggleContentExpanded}
-          toggleMeaningsExpanded={toggleMeaningsExpanded}
-          handleLessonLinkCopied={handleLessonLinkCopied}
-          handleBatchLinkCopied={handleBatchLinkCopied}
-          handleLessonLinkCopyError={handleLessonLinkCopyError}
-        />
-
+        <div
+          className={`jp-lesson-cards ${
+            searchActive
+              ? "jp-lesson-mobile-filter-search"
+              : `jp-lesson-mobile-filter-${mobileStatusFilter}`
+          }`}
+        >
+          {refreshing ? (
+            <p
+              style={{
+                color: "var(--muted)",
+                fontSize: "0.875rem",
+                margin: "0 0 0.25rem",
+              }}
+            >
+              同步中…
+            </p>
+          ) : null}
+          <div className="jp-lesson-mobile-status-filter" role="tablist" aria-label="学习状态筛选">
+            {LESSON_STATUS_SECTIONS.map(({ status, title }) => {
+              const sectionCount = lessonsByStatus[status].length;
+              const active = mobileStatusFilter === status;
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`jp-lesson-mobile-status-tab jp-lesson-mobile-status-tab--${status}${
+                    active ? " is-active" : ""
+                  }`}
+                  onClick={() => setMobileStatusFilter(status)}
+                >
+                  <span className="jp-lesson-mobile-status-tab-label">{title}</span>
+                  <span className="jp-lesson-mobile-status-tab-count">{sectionCount}</span>
+                </button>
+              );
+            })}
+          </div>
+          {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
+            const sectionGroups = displayGroupsByStatus[status];
+            const sectionCount = lessonsByStatus[status].length;
+            if (searchActive && !sectionCount) return null;
+            return (
+              <section
+                key={status}
+                className={`section etr-panel jp-lesson-status-card jp-lesson-status-card--${status}`}
+                aria-label={`${title}新课`}
+              >
+                <div className="jp-lesson-status-card-head">
+                  <h2 className="jp-lesson-status-card-title">{title}</h2>
+                  <span className="jp-lesson-status-card-count">
+                    {sectionCount} 条
+                  </span>
+                </div>
+                {isAdmin && status === "pending" && sectionCount ? (
+                  <div className="jp-lesson-batch-toolbar">
+                    <button
+                      type="button"
+                      className="jp-lesson-action-btn"
+                      disabled={!batchLessonIds.length}
+                      onClick={() => setBatchModalOpen(true)}
+                    >
+                      设置时间和老师
+                      {batchLessonIds.length ? `（${batchLessonIds.length}）` : ""}
+                    </button>
+                    {batchLessonIds.length ? (
+                      <button
+                        type="button"
+                        className="jp-lesson-action-btn"
+                        onClick={() => setBatchLessonIds([])}
+                      >
+                        清空勾选
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {sectionCount ? (
+                  <JpLessonStatusTable
+                    displayGroups={sectionGroups}
+                    status={status}
+                    dayToneByDate={
+                      status === "learning" ? learningDayToneByDate : undefined
+                    }
+                    sectionSort={sectionSort[status]}
+                    isAdmin={isAdmin}
+                    canOperate={canOperate}
+                    refs={refs}
+                    teacherById={teacherById}
+                    noteCountByLesson={noteCountByLesson}
+                    batchLessonIds={batchLessonIds}
+                    expandedContentIds={expandedContentIds}
+                    expandedMeaningsIds={expandedMeaningsIds}
+                    savingId={savingId}
+                    savingNextClassId={savingNextClassId}
+                    copiedId={copiedId}
+                    copiedBatchKey={copiedBatchKey}
+                    onToggleRecentOperationSort={() =>
+                      toggleRecentOperationSort(status)
+                    }
+                    onToggleClassTimeSort={() => toggleClassTimeSort(status)}
+                    onToggleBatchLesson={toggleBatchLesson}
+                    onToggleContentExpanded={toggleContentExpanded}
+                    onToggleMeaningsExpanded={toggleMeaningsExpanded}
+                    onSetLessonProgress={setLessonProgress}
+                    onViewExamples={setViewingExamples}
+                    onEditLesson={setEditingLesson}
+                    onAnnotateLesson={setAnnotatingLesson}
+                    onOpenTeacherEdit={openTeacherEditModal}
+                    onOpenNextClassEdit={openNextClassEditModal}
+                    onLessonLinkCopied={handleLessonLinkCopied}
+                    onBatchLinkCopied={handleBatchLinkCopied}
+                    onLessonLinkCopyError={handleLessonLinkCopyError}
+                  />
+                ) : searchActive ? null : (
+                  <p className="jp-lesson-status-card-empty">{emptyHint}</p>
+                )}
+              </section>
+            );
+          })}
+        </div>
         </>
       )}
 
-      <JpLessonPageModals
-        locale={locale}
-        canOperate={canOperate}
-        isAdmin={isAdmin}
+      <JpLessonTeacherEditModal
+        open={editingTeacherLesson != null}
+        lesson={editingTeacherLesson}
         teachers={teachers}
-        editingTeacherLesson={editingTeacherLesson}
-        editingTeacherLessonIds={editingTeacherLessonIds}
-        savingTeacherLessonId={savingTeacherLessonId}
-        editingNextClassLesson={editingNextClassLesson}
-        savingNextClassId={savingNextClassId}
-        batchModalOpen={batchModalOpen}
-        batchLessonIds={batchLessonIds}
-        batchSaving={batchSaving}
-        editingLesson={editingLesson}
-        editingRef={editingRef}
-        annotatingLesson={annotatingLesson}
-        viewingExamples={viewingExamples}
-        setEditingTeacherLesson={setEditingTeacherLesson}
-        setEditingTeacherLessonIds={setEditingTeacherLessonIds}
-        addLessonTeacher={addLessonTeacher}
-        updateLessonTeacher={updateLessonTeacher}
-        deleteLessonTeacher={deleteLessonTeacher}
-        setLessonTeachersForMany={setLessonTeachersForMany}
-        setEditingNextClassLesson={setEditingNextClassLesson}
-        setLessonClassSchedules={setLessonClassSchedules}
-        openTeacherEditModal={openTeacherEditModal}
-        setBatchModalOpen={setBatchModalOpen}
-        setBatchClassSchedulesAndTeachers={setBatchClassSchedulesAndTeachers}
-        setEditingLesson={setEditingLesson}
-        handleRefUpdated={handleRefUpdated}
-        openJpAuth={openJpAuth}
-        setAnnotatingLesson={setAnnotatingLesson}
-        handleAnnotateSaved={handleAnnotateSaved}
-        setViewingExamples={setViewingExamples}
+        saving={savingTeacherLessonId === editingTeacherLesson?.id}
+        onClose={() => {
+          setEditingTeacherLesson(null);
+          setEditingTeacherLessonIds([]);
+        }}
+        onAddTeacher={addLessonTeacher}
+        onUpdateTeacher={updateLessonTeacher}
+        onDeleteTeacher={deleteLessonTeacher}
+        onSave={async (teacherIds, teacherOther, teacherUpdates, options) => {
+          if (editingTeacherLesson) {
+            await setLessonTeachersForMany(
+              editingTeacherLessonIds.length
+                ? editingTeacherLessonIds
+                : [editingTeacherLesson.id],
+              teacherIds,
+              teacherOther,
+              teacherUpdates,
+              options
+            );
+          }
+        }}
       />
 
-      <JpLessonApiUploadDocs />
+      <JpLessonNextClassEditModal
+        open={editingNextClassLesson != null}
+        lesson={editingNextClassLesson}
+        saving={savingNextClassId === editingNextClassLesson?.id}
+        onClose={() => setEditingNextClassLesson(null)}
+        onSave={(schedules) => {
+          if (editingNextClassLesson) {
+            void setLessonClassSchedules(editingNextClassLesson.id, schedules);
+          }
+        }}
+        onEditTeachers={() => {
+          if (!editingNextClassLesson) return;
+          const lesson = editingNextClassLesson;
+          setEditingNextClassLesson(null);
+          openTeacherEditModal(lesson);
+        }}
+      />
 
+      <JpLessonBatchScheduleTeacherModal
+        open={batchModalOpen}
+        lessonCount={batchLessonIds.length}
+        teachers={teachers}
+        saving={batchSaving}
+        onClose={() => {
+          if (!batchSaving) setBatchModalOpen(false);
+        }}
+        onSave={(schedules, teacherIds, teacherOther, progressStatus) => {
+          void setBatchClassSchedulesAndTeachers(
+            schedules,
+            teacherIds,
+            teacherOther,
+            progressStatus
+          );
+        }}
+      />
+
+      <JpVocabRefEditModal
+        open={editingLesson != null}
+        lessonId={editingLesson?.id ?? null}
+        refKey={editingLesson?.ref_key ?? null}
+        refMeta={editingRef}
+        locale={locale}
+        canEdit={canOperate}
+        onClose={() => setEditingLesson(null)}
+        onUpdated={handleRefUpdated}
+        onNeedAuth={openJpAuth}
+      />
+
+      <JpLessonAnnotateModal
+        open={annotatingLesson != null}
+        imageUrl={annotatingLesson?.imageUrl ?? ""}
+        refKey={annotatingLesson?.lesson.ref_key ?? ""}
+        lessonId={annotatingLesson?.lesson.id ?? 0}
+        lessonContent={annotatingLesson?.lesson.content ?? ""}
+        locale={locale}
+        canSave={canOperate}
+        onClose={() => setAnnotatingLesson(null)}
+        onSaved={handleAnnotateSaved}
+        onNeedAuth={openJpAuth}
+      />
+
+      <JpLessonExamplesViewModal
+        open={viewingExamples != null}
+        target={viewingExamples}
+        onClose={() => setViewingExamples(null)}
+      />
+
+      <details style={{ marginTop: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
+        <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>API 上传说明</summary>
+        <p style={{ marginTop: "0.5rem" }}>
+          固定链接：<code>{JP_SITE_URL}/jp-lesson</code>
+        </p>
+        <p>
+          上传接口：<code>POST /api/jp-lesson/upload</code>，Header{" "}
+          <code>Authorization: Bearer &lt;JP_REVIEW_UPLOAD_TOKEN&gt;</code>
+        </p>
+        <pre
+          style={{
+            overflow: "auto",
+            padding: "0.75rem",
+            background: "var(--panel)",
+            borderRadius: "6px",
+            border: "1px solid var(--border)",
+            fontSize: "0.8125rem",
+          }}
+        >
+{`curl -X POST "${JP_SITE_URL}/api/jp-lesson/upload" \\
+  -H "Authorization: Bearer <TOKEN>" \\
+  -F "kind=grammar" \\
+  -F "content=～ばかり, ～ようになる, ～に来る" \\
+  -F "meanings=（刚刚，只是……）|（变得能够……）|（来……做……）" \\
+  -F "example_sentences=遊んでばかりいます。
+译文：光在玩。
+今来たばかりです。
+译文：刚来。|||日本語が話せるようになりました。
+译文：已经会说日语了。
+毎日早く起きるようになりました。
+译文：开始每天早起了。|||ご飯を食べに来ます。
+译文：来吃饭。
+買い物に来ました。
+译文：来买东西了。" \\
+  -F "media_type=image" \\
+  -F "file=@lesson02.png"`}
+        </pre>
+        <p>
+          <code>content</code> 中多个单词/语法用英文或中文逗号分隔；可选 <code>meanings</code> 与
+          <code>content</code> 各项一一对应，多项释义用竖线 <code>|</code> 分隔（释义内可含逗号）。
+          强烈建议同时传可选 <code>example_sentences</code>：与 <code>content</code> 各项一一对应，多项之间用{" "}
+          <code>|||</code> 分隔；每一项里写若干「日语句 + 下一行 <code>译文：…</code>」（也可写{" "}
+          <code>1. …</code> 序号，入库时会规范化）。每个单词/语法最多 10 条例句，条数由上传方自定。
+          上传带 <code>file</code> 时，系统会自动生成教案标识（如 <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
+          上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
+          日语单词抽问并带上教案链接、释义与例句。
+        </p>
+      </details>
         </>
       )}
 
