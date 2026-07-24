@@ -261,11 +261,10 @@ export async function applyEnVocabExampleSentenceUpdates(
       continue;
     }
 
-    // force 整词刷新时：允许用本次 updates 里先写回的 usage；此处仍读库。
-    // 线上 batch 会先 apply usage(force) 再 apply examples(force)。
+    // force（线上付费透传）：不拦 usage_required，正文原样写回
     const usage =
       row.usage != null ? String(row.usage).trim() || null : null;
-    if (!usage) {
+    if (!force && !usage) {
       skipped.push({
         id: wordId,
         word: String(row.word),
@@ -275,6 +274,14 @@ export async function applyEnVocabExampleSentenceUpdates(
     }
 
     if (validateFormat) {
+      if (!usage) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "usage_required",
+        });
+        continue;
+      }
       const validated = validateEnVocabExampleSentencesAiOutput(
         exampleSentences,
         {
@@ -295,11 +302,8 @@ export async function applyEnVocabExampleSentenceUpdates(
         continue;
       }
       exampleSentences = validated.text;
-    } else {
-      exampleSentences =
-        normalizeEnVocabExampleSentencesFormat(exampleSentences) ||
-        exampleSentences;
     }
+    // force / validateFormat=false：保持模型原文（仅 trim），不 normalize、不拒收
 
     const changed = await updateExampleSentencesIfEmpty(
       db,

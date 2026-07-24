@@ -194,6 +194,7 @@ export async function applyEnVocabReadingUpdates(
       }
       reading = validated.text;
     } else {
+      // 线上 force：原样写回（normalize 失败也不拒）
       reading = normalizeEnVocabIpa(reading) || reading;
     }
 

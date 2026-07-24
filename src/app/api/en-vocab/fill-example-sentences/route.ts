@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyEnVocabExampleSentenceUpdates(env.DB, updates, {
         dryRun,
-        validateFormat: true,
+        validateFormat: !Boolean(body.force),
         defaultSource: batchSource || null,
         force: Boolean(body.force),
       });

@@ -253,9 +253,8 @@ export async function applyEnVocabUsageUpdates(
       }
       usage = validated.text;
     } else {
-      usage =
-        normalizeEnVocabUsageText(shieldEnVocabUsageUploadText(usage)) ||
-        shieldEnVocabUsageUploadText(usage);
+      // 线上 force：只剥考试品牌词，不做条数/格式拒收
+      usage = shieldEnVocabUsageUploadText(usage).trim() || usage;
     }
 
     const changed = await updateUsageIfEmpty(

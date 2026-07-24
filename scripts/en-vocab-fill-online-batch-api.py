@@ -353,7 +353,7 @@ def apply_bundle(
     source: str,
     dry_run: bool,
 ) -> list[str]:
-    """force=True：覆盖写回（付费结果替换本地旧值）。"""
+    """force=True：覆盖写回；validate_format=False：付费原文透传，不做严校验拒收。"""
     done: list[str] = []
     if dry_run:
         for k, need in needs.items():
@@ -361,23 +361,30 @@ def apply_bundle(
                 done.append(f"dry:{k}")
         return done
 
-    if needs.get("reading") and payload.get("reading"):
-        r = call_api(
-            READING_URL,
+    def _apply(url: str, updates: list[dict]) -> dict:
+        return call_api(
+            url,
             token,
             {
                 "mode": "apply",
                 "force": True,
+                "validate_format": False,
                 "source": source,
-                "updates": [
-                    {
-                        "word_id": word_id,
-                        "reading": payload["reading"],
-                        "source": source,
-                    }
-                ],
+                "updates": updates,
             },
             user_agent="en-vocab-fill-online-batch/1.0",
+        )
+
+    if needs.get("reading") and payload.get("reading"):
+        r = _apply(
+            READING_URL,
+            [
+                {
+                    "word_id": word_id,
+                    "reading": payload["reading"],
+                    "source": source,
+                }
+            ],
         )
         if int(r.get("updated") or 0) > 0:
             done.append("reading")
@@ -390,39 +397,22 @@ def apply_bundle(
     if needs.get("pos") and payload.get("pos"):
         meaning_update["pos"] = payload["pos"]
     if "meaning" in meaning_update or "pos" in meaning_update:
-        r = call_api(
-            MEANING_URL,
-            token,
-            {
-                "mode": "apply",
-                "force": True,
-                "source": source,
-                "updates": [meaning_update],
-            },
-            user_agent="en-vocab-fill-online-batch/1.0",
-        )
+        r = _apply(MEANING_URL, [meaning_update])
         if int(r.get("updated") or 0) > 0:
             done.append("meaning/pos")
         elif r.get("skipped"):
             print(f"    meaning skipped={r.get('skipped')}", flush=True)
 
     if needs.get("usage") and payload.get("usage"):
-        r = call_api(
+        r = _apply(
             USAGE_URL,
-            token,
-            {
-                "mode": "apply",
-                "force": True,
-                "source": source,
-                "updates": [
-                    {
-                        "word_id": word_id,
-                        "usage": payload["usage"],
-                        "source": source,
-                    }
-                ],
-            },
-            user_agent="en-vocab-fill-online-batch/1.0",
+            [
+                {
+                    "word_id": word_id,
+                    "usage": payload["usage"],
+                    "source": source,
+                }
+            ],
         )
         if int(r.get("updated") or 0) > 0:
             done.append("usage")
@@ -430,23 +420,15 @@ def apply_bundle(
             print(f"    usage skipped={r.get('skipped')}", flush=True)
 
     if needs.get("example_sentences") and payload.get("example_sentences"):
-        # 先写 usage(force)，例句校验才能对上新用法条数
-        r = call_api(
+        r = _apply(
             EXAMPLES_URL,
-            token,
-            {
-                "mode": "apply",
-                "force": True,
-                "source": source,
-                "updates": [
-                    {
-                        "word_id": word_id,
-                        "example_sentences": payload["example_sentences"],
-                        "source": source,
-                    }
-                ],
-            },
-            user_agent="en-vocab-fill-online-batch/1.0",
+            [
+                {
+                    "word_id": word_id,
+                    "example_sentences": payload["example_sentences"],
+                    "source": source,
+                }
+            ],
         )
         if int(r.get("updated") or 0) > 0:
             done.append("example_sentences")

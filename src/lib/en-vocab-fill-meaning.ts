@@ -220,7 +220,8 @@ export async function applyEnVocabMeaningUpdates(
         }
         nextMeaning = validated.text;
       } else {
-        nextMeaning = normalizeEnVocabMeaningText(meaningRaw) || meaningRaw;
+        // 线上 force 透传：不拒收，尽量保持原文
+        nextMeaning = meaningRaw;
       }
     } else if (meaningRaw && !meaningEmpty) {
       // 已有释义则忽略本次 meaning，仍可补 pos
@@ -240,15 +241,7 @@ export async function applyEnVocabMeaningUpdates(
         }
         nextPos = validated.text;
       } else {
-        nextPos = normalizeEnVocabPos(posRaw);
-        if (!nextPos) {
-          skipped.push({
-            id: wordId,
-            word: String(row.word),
-            reason: "invalid_format:invalid_pos",
-          });
-          continue;
-        }
+        nextPos = posRaw;
       }
     } else if (posRaw && !posEmpty) {
       posRaw = "";
