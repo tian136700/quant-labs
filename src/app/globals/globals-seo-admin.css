@@ -1,0 +1,267 @@
+/* ── SEO / 页脚 ── */
+.page-footer {
+  @apply mt-2 pt-6 border-t border-border;
+  max-width: var(--readable-max);
+  margin-inline: auto;
+}
+
+.seo-section {
+  @apply min-w-0;
+}
+
+.seo-section h2 {
+  @apply text-sm font-semibold text-muted mb-2;
+}
+
+.seo-intro {
+  @apply text-xs text-muted leading-relaxed mb-4;
+  max-width: var(--readable-max);
+}
+
+.seo-faq {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+@screen sm {
+  .seo-faq {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@screen xl {
+  .seo-faq {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.seo-faq-item {
+  @apply m-0;
+}
+
+.seo-faq-item dt {
+  @apply text-xs font-medium text-text mb-1;
+}
+
+.seo-faq-item dd {
+  @apply text-xs text-muted m-0 leading-relaxed;
+}
+
+/* ── 后台管理 ── */
+.admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-page--auth {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.admin-auth-user-status {
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.admin-auth-user-status--checking {
+  @apply text-muted;
+}
+
+.admin-auth-user-status--guest {
+  @apply text-muted;
+}
+
+.admin-auth-user-status--registered {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.admin-auth-user-label {
+  @apply text-muted;
+}
+
+.admin-auth-user-role {
+  font-weight: 600;
+  color: var(--rise);
+}
+
+.admin-auth-user-name {
+  font-weight: 600;
+}
+
+.admin-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@screen sm {
+  .admin-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@screen lg {
+  .admin-cards {
+    display: none;
+  }
+}
+
+.admin-card .strategy-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-card-meta {
+  @apply text-xs text-muted font-normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table-wrap {
+  @apply w-full;
+  /* Horizontal only: overflow-x:auto alone pairs to overflow-y:auto and can trap
+     Mac trackpad vertical gestures over wide admin tables (e.g. /admin/users). */
+  overflow-x: auto;
+  overflow-y: clip;
+  -webkit-overflow-scrolling: touch;
+  display: none;
+}
+
+@screen lg {
+  .admin-table-wrap {
+    display: block;
+  }
+}
+
+.admin-table th,
+.admin-table td {
+  white-space: normal;
+  text-align: left;
+}
+
+.admin-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-sort-btn:hover {
+  color: var(--foreground);
+}
+
+.admin-sort-btn--active {
+  color: var(--foreground);
+}
+
+.admin-sort-indicator {
+  @apply text-xs text-muted;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.admin-sort-btn--active .admin-sort-indicator {
+  color: var(--foreground);
+}
+
+.admin-cell-wrap {
+  max-width: 16rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin-cell-ip {
+  min-width: 9.5rem;
+  max-width: 14rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.admin-pagination {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--border);
+}
+
+@screen sm {
+  .admin-pagination {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.admin-pagination-summary {
+  @apply text-xs text-muted m-0;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-pagination-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+@screen sm {
+  .admin-pagination-actions {
+    justify-content: flex-end;
+  }
+}
+
+.trend-run-row--active {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.trend-prompt-block {
+  @apply mt-4;
+}
+
+.trend-prompt-head {
+  @apply flex flex-wrap items-center justify-between gap-2 mb-2;
+}
+
+.trend-prompt-head h4 {
+  @apply text-sm font-semibold m-0;
+}
+
+.trend-prompt-textarea {
+  @apply w-full font-mono text-xs leading-relaxed p-3 rounded-lg border border-border bg-panel text-text;
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.trend-desc-preview {
+  @apply text-sm whitespace-pre-wrap break-words;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.trend-item-detail {
+  @apply mt-4;
+}
+

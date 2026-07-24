@@ -11,12 +11,15 @@ ROOT = Path(__file__).resolve().parents[1]
 RATE = ROOT / "src/lib/jp-lesson-teacher-rate.ts"
 MODAL = ROOT / "src/components/JpLessonManualScheduleModal.tsx"
 PAGE = ROOT / "src/components/JpLessonSchedulePage.tsx"
+PAGE_DIR = ROOT / "src/components/jp-lesson-schedule-page"
 
 
 def main() -> int:
     rate = RATE.read_text(encoding="utf-8")
     modal = MODAL.read_text(encoding="utf-8")
-    page = PAGE.read_text(encoding="utf-8")
+    from page_bundle import read_page_bundle
+
+    page = read_page_bundle(PAGE, PAGE_DIR)
     errors: list[str] = []
 
     if 'text.includes("韩语")' not in rate and "includes(\"韩语\")" not in rate:

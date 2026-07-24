@@ -1,0 +1,638 @@
+/* ── 英语老师评价 ── */
+.etr-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--section-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.etr-page--auth {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.etr-hero-center {
+  text-align: center;
+}
+
+.etr-hero-center .sub {
+  margin-inline: auto;
+}
+
+.etr-panel {
+  @apply bg-panel border border-border rounded-card;
+  padding: clamp(0.875rem, 2vw, 1.25rem);
+}
+
+.etr-panel .section h2,
+.etr-panel > h2 {
+  font-size: clamp(0.875rem, 1.2vw + 0.5rem, 1rem);
+  @apply text-muted font-semibold m-0 mb-3;
+}
+
+.section.etr-panel {
+  @apply min-w-0;
+}
+
+.etr-required {
+  color: var(--rise);
+  margin-left: 0.15rem;
+}
+
+.etr-form-actions {
+  @apply flex flex-wrap gap-2 items-stretch mt-3;
+}
+
+.etr-form-actions--center {
+  justify-content: center;
+}
+
+.etr-auth-submit {
+  min-width: 7rem;
+}
+
+.etr-auth-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem 1rem;
+  margin-top: 0.25rem;
+}
+
+.etr-auth-switch-link {
+  @apply bg-transparent border-0 text-accent cursor-pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.25rem 0.15rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.etr-auth-switch-link:hover {
+  opacity: 0.85;
+}
+
+.etr-password-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.etr-password-wrap input {
+  padding-right: 5.5rem;
+}
+
+.etr-password-toggle {
+  @apply absolute border-0 bg-transparent text-muted cursor-pointer rounded;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: 0.25rem 0.5rem;
+  max-width: 5rem;
+}
+
+.etr-password-toggle:hover {
+  @apply text-accent;
+}
+
+.etr-top-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+@screen sm {
+  .etr-top-bar {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+}
+
+.etr-top-bar-main {
+  @apply min-w-0 flex-1;
+}
+
+.etr-top-bar-actions {
+  @apply flex flex-col gap-2 shrink-0;
+}
+
+@screen sm {
+  .etr-top-bar-actions {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
+.etr-history-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.etr-history-head h2 {
+  margin-bottom: 0;
+}
+
+.etr-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.etr-remark-field {
+  @screen lg {
+    grid-column: span 3;
+  }
+}
+
+.etr-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@screen sm {
+  .etr-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@screen lg {
+  .etr-cards {
+    display: none;
+  }
+}
+
+.etr-table-wrap {
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
+  -webkit-overflow-scrolling: touch;
+  display: none;
+}
+
+.jp-vocab-table-wrap {
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+}
+
+@screen lg {
+  .etr-table-wrap {
+    display: block;
+  }
+}
+
+.etr-table th,
+.etr-table td {
+  white-space: normal;
+}
+
+.etr-remark-cell {
+  max-width: 14rem;
+  text-align: left !important;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.etr-sort-btn {
+  @apply bg-transparent border-0 text-inherit cursor-pointer p-0;
+  font: inherit;
+  color: inherit;
+}
+
+.etr-sort-btn.is-active {
+  @apply text-accent font-medium;
+}
+
+.etr-sort-btn:hover {
+  @apply text-accent;
+}
+
+.etr-row-actions,
+.etr-card-actions {
+  @apply flex flex-wrap gap-2 justify-center;
+}
+
+.etr-card .strategy-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.etr-score-badge {
+  @apply inline-block text-xs font-semibold rounded px-2 py-0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.etr-score--high {
+  color: var(--fall);
+  background: color-mix(in srgb, var(--fall) 18%, transparent);
+}
+
+.etr-score--mid {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.etr-score--low {
+  color: var(--rise);
+  background: color-mix(in srgb, var(--rise) 18%, transparent);
+}
+
+.admin-jpl-review-count {
+  margin-left: 0.2rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.admin-jpl-teachers-table-wrap {
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
+  margin-top: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 96%, var(--bg) 4%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 60%, transparent);
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-jpl-teachers-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.admin-jpl-teachers-table th,
+.admin-jpl-teachers-table td {
+  padding: 0.45rem 0.4rem;
+  vertical-align: middle;
+  text-align: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.admin-jpl-teachers-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.admin-jpl-teachers-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.admin-jpl-teachers-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+}
+
+.admin-jpl-teachers-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.admin-jpl-teachers-table tbody tr.admin-jpl-teacher-row--highlight {
+  background: rgba(110, 181, 255, 0.14) !important;
+  box-shadow: inset 0 0 0 1px rgba(110, 181, 255, 0.45);
+}
+
+.admin-jpl-teachers-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-jpl-teachers-table .col-id {
+  width: 2.5rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-name {
+  width: 7%;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-rate {
+  width: 6.5%;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-jpl-teachers-table .col-minutes {
+  width: 7%;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-jpl-teachers-table .col-hourly-equiv {
+  width: 6%;
+  white-space: nowrap;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-jpl-teachers-table .col-score {
+  width: 6.5%;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-score--sortable {
+  padding: 0;
+}
+
+.admin-jpl-teachers-table .admin-jpl-score-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.35rem 0.3rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.admin-jpl-teachers-table .col-remark {
+  width: 16%;
+  min-width: 0;
+  max-width: none;
+}
+
+.admin-jpl-teachers-table .col-updated {
+  width: 10%;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-actions {
+  width: 24%;
+  min-width: 0;
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.admin-jpl-remark-box {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.admin-jpl-remark-box:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.admin-jpl-remark-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.admin-jpl-remark-date {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-jpl-teachers-table .col-remark--empty {
+  color: var(--muted);
+  vertical-align: middle;
+}
+
+.admin-jpl-teachers-table .col-actions .etr-form-actions {
+  gap: 0.25rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0;
+}
+
+.admin-jpl-teachers-table .col-actions .btn-rsi-filter--compact {
+  min-width: 0;
+  padding-inline: 0.4rem;
+  font-size: 0.6875rem;
+}
+
+.admin-jpl-teachers-table td input[type="text"],
+.admin-jpl-teachers-table td input[type="number"],
+.admin-jpl-teachers-table td select {
+  text-align: center;
+}
+
+.admin-jpl-mobile-sort-btn {
+  display: none;
+}
+
+.admin-jpl-teachers-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.admin-jpl-subject-select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 6.25rem;
+  max-width: 7.5rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 1280px) {
+  .admin-jpl-teachers-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-jpl-teachers-head .admin-jpl-teachers-toolbar {
+    justify-content: flex-start;
+  }
+}
+
+.admin-jpl-mobile-id {
+  display: none;
+}
+
+.admin-user-add-field select {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.etr-auth-panel--inline {
+  max-width: none;
+  margin-inline: 0;
+}
+
+.etr-auth-inline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.etr-auth-inline-head h2 {
+  @apply text-muted font-semibold m-0;
+  font-size: clamp(0.875rem, 1.2vw + 0.5rem, 1rem);
+}
+
+.etr-auth-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.etr-auth-close:hover {
+  background: color-mix(in srgb, var(--bg) 65%, var(--panel));
+}
+
+.etr-demo-banner {
+  @apply bg-panel border border-border rounded-card px-3 py-2.5 m-0;
+  line-height: 1.5;
+}
+
+.etr-demo-tag {
+  @apply inline-block ml-2 text-xs font-medium text-accent;
+  vertical-align: middle;
+}
+
+.etr-guest-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+.etr-form-preview-hint {
+  margin-bottom: 0.75rem;
+}
+
+.etr-form--preview input[readonly],
+.etr-form--preview textarea[readonly] {
+  @apply opacity-80 cursor-default;
+}
+
+.etr-history-head h2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.etr-auth-panel {
+  width: 100%;
+}
+
+.etr-auth-tabs {
+  @apply flex gap-2 mb-3;
+  justify-content: center;
+}
+
+.etr-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.etr-auth-hint {
+  margin-bottom: 0.5rem;
+}
+
+.etr-auth-warning {
+  @apply text-rise mb-3;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.etr-user-line {
+  margin: 0;
+}
+
+.etr-mobile-bar {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.etr-mobile-bar .btn-rsi-filter {
+  flex: 1;
+}
+
+@screen md {
+  .etr-mobile-bar {
+    display: none;
+  }
+}
+

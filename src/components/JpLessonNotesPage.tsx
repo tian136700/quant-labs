@@ -7,219 +7,46 @@ import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
-  JP_LESSON_CACHE_KEY,
   parseJpLessonApi,
   type JpLessonApiPayload,
 } from "@/lib/jp-api-cache";
-import {
-  fetchWithClientCache,
-  patchClientCache,
-  readClientCache,
-} from "@/lib/client-swr-cache";
-import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
-import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
-import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
+import { fetchWithClientCache } from "@/lib/client-swr-cache";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
 import {
   appendJpVocabClassNoteImageLine,
-  collectJpVocabClassNoteImageRefKeysFromContent,
   jpVocabClassNoteImageRefKeyFromSrc,
   mergeJpVocabClassNoteDraftFromEdit,
   removeJpVocabClassNoteImageAt,
   splitJpVocabClassNoteDraftForEdit,
 } from "@/lib/jp-vocab-class-notes";
+import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import {
   formatUploadBytes,
   uploadFormWithProgress,
   type UploadProgressEvent,
 } from "@/lib/upload-form-progress";
-import type { JpLessonKind, JpLessonNote, JpLessonRecord } from "@/lib/types";
-
-type SavingTarget = string | "__all__" | null;
-
-function readLessonCache(): JpLessonApiPayload | null {
-  return readClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY);
-}
-
-function pickLessonFromCache(lessonId: number): {
-  lesson: JpLessonRecord;
-  notes: JpLessonNote[];
-} | null {
-  const cached = readLessonCache();
-  if (!cached) return null;
-  const lesson = cached.lessons.find((l) => l.id === lessonId);
-  if (!lesson) return null;
-  return { lesson, notes: cached.notes };
-}
-
-function persistLessonNotesCache(nextNotes: JpLessonNote[]) {
-  patchClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY, (prev) =>
-    prev ? { ...prev, notes: nextNotes } : prev
-  );
-}
-
-type NoteField = {
-  key: string;
-  noteId?: number;
-  body: string;
-};
-
-type ItemFields = Record<string, NoteField[]>;
-
-type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
-
-function kindLabel(kind: JpLessonKind): string {
-  return kind === "grammar" ? "语法" : "单词";
-}
-
-function buildItemFields(
-  items: string[],
-  lessonNotes: JpLessonNote[]
-): ItemFields {
-  const map: ItemFields = {};
-  for (const item of items) {
-    const saved = lessonNotes
-      .filter((n) => n.item_word === item)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at));
-    map[item] =
-      saved.length > 0
-        ? saved.map((n) => ({
-            key: `note-${n.id}`,
-            noteId: n.id,
-            body: n.body,
-          }))
-        : [{ key: `empty-${item}`, body: "" }];
-  }
-  return map;
-}
-
-let fieldKeyCounter = 0;
-function newFieldKey(item: string): string {
-  fieldKeyCounter += 1;
-  return `new-${item}-${fieldKeyCounter}`;
-}
-
-function saveStatusLabel(status: SaveStatus): string {
-  switch (status) {
-    case "pending":
-      return "待保存…";
-    case "saving":
-      return "保存中…";
-    case "saved":
-      return "已保存";
-    case "error":
-      return "保存失败";
-    default:
-      return "";
-  }
-}
-
-function pickClipboardImage(items: DataTransferItemList): File | null {
-  for (const item of items) {
-    if (item.type.startsWith("image/")) {
-      const blob = item.getAsFile();
-      if (blob) {
-        const ext = item.type.split("/")[1] || "png";
-        return new File([blob], `pasted.${ext}`, { type: item.type });
-      }
-    }
-  }
-  return null;
-}
-
-function noteImageUploadLabel(event: UploadProgressEvent): string {
-  if (event.phase === "processing") {
-    return "图片已传完，服务器保存中…";
-  }
-  if (event.phase === "done") {
-    return "图片上传完成";
-  }
-  if (event.total > 0) {
-    return `正在上传图片 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
-  }
-  if (event.loaded > 0) {
-    return `正在上传图片 ${formatUploadBytes(event.loaded)}…`;
-  }
-  return "正在上传图片…";
-}
-
-function noteImageUploadPercent(event: UploadProgressEvent): number {
-  if (event.phase === "processing") return 95;
-  if (event.phase === "done") return 100;
-  return Math.max(0, Math.min(92, event.percent));
-}
-
-function collectItemNoteImageRefKeys(fields: NoteField[]): Set<string> {
-  const keys = new Set<string>();
-  for (const field of fields) {
-    for (const key of collectJpVocabClassNoteImageRefKeysFromContent(field.body)) {
-      keys.add(key);
-    }
-  }
-  return keys;
-}
-
-function ItemSectionSaveFooter({
-  canEdit,
-  saving,
-  status,
-  showSyncHint,
-  disabled,
-  onSave,
-}: {
-  canEdit: boolean;
-  saving: boolean;
-  status: SaveStatus;
-  showSyncHint: boolean;
-  disabled: boolean;
-  onSave: () => void;
-}) {
-  const saveProgress = useSaveProgressBar(saving);
-  const hint = saveStatusLabel(status);
-  const progressLabel = showSyncHint
-    ? "正在保存并同步到单词复习备注…"
-    : jpVocabSaveProgressLabel("save");
-
-  return (
-    <div className="jp-lesson-notes-section-footer">
-      <div className="jp-lesson-notes-section-footer-status">
-        {saveProgress.visible ? (
-          <JpVocabSaveProgressBar
-            label={progressLabel}
-            percent={saveProgress.percent}
-            fullWidth
-          />
-        ) : hint ? (
-          <span
-            className={`jp-lesson-notes-status${
-              status === "saved"
-                ? " jp-lesson-notes-status--saved"
-                : status === "error"
-                  ? " jp-lesson-notes-status--error"
-                  : ""
-            }`}
-          >
-            {hint}
-            {status === "saved" && showSyncHint ? "，已同步到单词复习备注" : ""}
-          </span>
-        ) : showSyncHint ? (
-          <span className="jp-lesson-notes-sync-hint">保存后同步到日语抽问备注</span>
-        ) : null}
-      </div>
-      {canEdit ? (
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-          disabled={disabled}
-          onClick={onSave}
-        >
-          保存
-        </button>
-      ) : null}
-    </div>
-  );
-}
+import type { JpLessonNote, JpLessonRecord } from "@/lib/types";
+import { JpLessonNotesPageStyles } from "@/components/jp-lesson-notes-page/JpLessonNotesPageStyles";
+import {
+  pickLessonFromCache,
+  persistLessonNotesCache,
+  kindLabel,
+  buildItemFields,
+  newFieldKey,
+  pickClipboardImage,
+  noteImageUploadLabel,
+  noteImageUploadPercent,
+  collectItemNoteImageRefKeys,
+  ItemSectionSaveFooter,
+  saveStatusLabel,
+  type NoteField,
+  type ItemFields,
+  type SaveStatus,
+  type SavingTarget,
+} from "@/components/jp-lesson-notes-page/jp-lesson-notes-helpers";
 
 export function JpLessonNotesPage() {
   const searchParams = useSearchParams();
@@ -314,8 +141,7 @@ export function JpLessonNotesPage() {
     setError("");
     try {
       const payload = await fetchWithClientCache(
-        JP_LESSON_CACHE_KEY,
-        "/api/jp-lesson",
+              "/api/jp-lesson",
         parseJpLessonApi,
         {
           onCached: (data) => {
@@ -1005,282 +831,8 @@ export function JpLessonNotesPage() {
           </div>
         </section>
       ) : null}
+      <JpLessonNotesPageStyles />
 
-      <style jsx>{`
-        .jp-lesson-notes-page-head {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 0.75rem;
-          margin-bottom: 0.35rem;
-        }
-
-        .jp-lesson-notes-back {
-          margin: 0;
-          font-size: 0.8125rem;
-        }
-
-        .jp-lesson-notes-back :global(a) {
-          color: var(--accent);
-          text-decoration: none;
-        }
-
-        .jp-lesson-notes-back :global(a:hover) {
-          text-decoration: underline;
-        }
-
-        .jp-lesson-notes-subtitle {
-          margin: 0.35rem 0 0;
-          font-size: 0.8125rem;
-          color: var(--muted);
-        }
-
-        .jp-lesson-notes-user {
-          flex-shrink: 0;
-          font-size: 0.8125rem;
-          color: var(--muted);
-        }
-
-        .jp-lesson-notes-panel {
-          display: flex;
-          flex-direction: column;
-          gap: 0;
-          padding: 0;
-          overflow: hidden;
-        }
-
-        .jp-lesson-notes-body {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-          padding: 1rem 1.1rem;
-        }
-
-        .jp-lesson-notes-section {
-          padding: 0.75rem;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
-        }
-
-        .jp-lesson-notes-section-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.5rem;
-          margin-bottom: 0.55rem;
-        }
-
-        .jp-lesson-notes-item-name {
-          font-size: 0.9375rem;
-          font-weight: 600;
-          color: var(--accent);
-        }
-
-        .jp-lesson-notes-section-add {
-          flex-shrink: 0;
-          border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-          border-radius: 6px;
-          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-          color: var(--accent);
-          font-size: 0.75rem;
-          padding: 0.2rem 0.45rem;
-          cursor: pointer;
-          font: inherit;
-        }
-
-        .jp-lesson-notes-section-add:hover:not(:disabled) {
-          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
-        }
-
-        .jp-lesson-notes-section-add:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        .jp-lesson-notes-fields {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .jp-lesson-notes-field {
-          display: flex;
-          flex-direction: column;
-          gap: 0.45rem;
-        }
-
-        .jp-lesson-notes-field-toolbar {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 0.45rem 0.65rem;
-        }
-
-        .jp-lesson-notes-field-hint {
-          font-size: 0.75rem;
-          color: var(--muted);
-        }
-
-        .jp-lesson-notes-image-input {
-          display: none;
-        }
-
-        .jp-lesson-notes-draft-images {
-          display: flex;
-          flex-direction: column;
-          gap: 0.55rem;
-        }
-
-        .jp-lesson-notes-draft-image-item {
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: 0.35rem;
-          padding: 0.45rem;
-          border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
-        }
-
-        .jp-lesson-notes-draft-image-item :global(img) {
-          display: block;
-          width: auto;
-          max-width: 100%;
-          max-height: 240px;
-          margin: 0 auto;
-          object-fit: contain;
-        }
-
-        .jp-lesson-notes-draft-image-remove {
-          align-self: flex-end;
-          border: none;
-          background: transparent;
-          color: var(--rise);
-          font: inherit;
-          font-size: 0.75rem;
-          cursor: pointer;
-          padding: 0.1rem 0.25rem;
-        }
-
-        .jp-lesson-notes-draft-image-remove:hover:not(:disabled) {
-          text-decoration: underline;
-        }
-
-        .jp-lesson-notes-draft-image-remove:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
-        }
-
-        .jp-lesson-notes-readonly {
-          padding: 0.55rem 0.65rem;
-          border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-          background: color-mix(in srgb, var(--bg) 50%, var(--panel));
-        }
-
-        .jp-lesson-notes-empty {
-          margin: 0;
-          font-size: 0.875rem;
-          color: var(--muted);
-        }
-
-        .jp-lesson-notes-textarea {
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          background: var(--bg);
-          color: var(--text);
-          font: inherit;
-          font-size: 0.875rem;
-          padding: 0.5rem 0.6rem;
-          resize: vertical;
-          min-height: 4rem;
-          line-height: 1.45;
-        }
-
-        .jp-lesson-notes-textarea:disabled {
-          opacity: 0.72;
-          cursor: not-allowed;
-        }
-
-        .jp-lesson-notes-field-remove {
-          align-self: flex-end;
-          border: none;
-          background: transparent;
-          color: var(--muted);
-          font-size: 0.75rem;
-          cursor: pointer;
-          padding: 0;
-        }
-
-        .jp-lesson-notes-field-remove:hover:not(:disabled) {
-          color: var(--rise);
-        }
-
-        .jp-lesson-notes-section-footer {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 0.75rem;
-          margin-top: 0.65rem;
-          padding-top: 0.55rem;
-          border-top: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
-        }
-
-        .jp-lesson-notes-section-footer-status {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .jp-lesson-notes-sync-hint {
-          font-size: 0.75rem;
-          color: var(--muted);
-        }
-
-        .jp-lesson-notes-error {
-          margin: 0;
-          padding: 0.55rem 0.7rem;
-          border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
-          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
-          color: var(--rise);
-          font-size: 0.8125rem;
-        }
-
-        .jp-lesson-notes-footer {
-          display: flex;
-          align-items: flex-end;
-          justify-content: space-between;
-          gap: 0.75rem;
-          padding: 0.85rem 1.1rem 1rem;
-          border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-        }
-
-        .jp-lesson-notes-footer-status {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .jp-lesson-notes-status {
-          font-size: 0.8125rem;
-          color: var(--muted);
-        }
-
-        .jp-lesson-notes-status--saved {
-          color: var(--fall);
-        }
-
-        .jp-lesson-notes-status--error {
-          color: var(--rise);
-        }
-
-        .jp-lesson-notes-footer-actions {
-          display: flex;
-          gap: 0.5rem;
-        }
-      `}</style>
     </main>
   );
 }

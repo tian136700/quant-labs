@@ -1,0 +1,284 @@
+/* ── 标题区 ── */
+h1 {
+  font-size: clamp(1.125rem, 2.5vw + 0.5rem, 1.5rem);
+  @apply font-semibold m-0 mb-1 leading-snug;
+}
+
+.sub {
+  font-size: clamp(0.8125rem, 1.5vw + 0.4rem, 0.9375rem);
+  @apply text-muted mb-0 leading-relaxed;
+}
+
+/* ── 区块 ── */
+.section {
+  @apply min-w-0 mb-7;
+}
+
+.section h2 {
+  font-size: clamp(0.875rem, 1.2vw + 0.5rem, 1rem);
+  @apply text-muted font-semibold m-0 mb-2.5;
+}
+
+.row {
+  @apply flex flex-wrap gap-4 items-end mb-4;
+}
+
+/* 参数行：手机纵向堆叠，PC（md+）恢复横向排列 */
+.cmp-params-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cmp-params-row input[type="text"],
+.cmp-params-row input[type="number"] {
+  @apply w-full;
+}
+
+@screen md {
+  .cmp-params-row {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .cmp-params-row input[type="text"],
+  .cmp-params-row input[type="number"] {
+    width: auto;
+    min-width: 140px;
+  }
+}
+
+/* ── 表单：≤480 单列 / 481–1024 两列 / >1024 最多三列 ── */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+@screen sm {
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+@screen lg {
+  .form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.field {
+  @apply min-w-0;
+}
+
+.field--span-2 {
+  @screen sm {
+    grid-column: span 2;
+  }
+}
+
+@screen lg {
+  .field--span-2 {
+    grid-column: span 1;
+  }
+}
+
+.field--action .btn-rsi-filter {
+  @apply w-full;
+}
+
+label,
+.rsi-filter-actions-label {
+  @apply text-xs text-muted block mb-1;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="date"],
+input[type="password"],
+input[type="search"],
+select,
+textarea {
+  @apply bg-panel text-text border border-border rounded-input px-3 w-full;
+  color-scheme: dark;
+  font-size: 16px;
+  min-height: var(--touch-min);
+  padding-block: 0.625rem;
+}
+
+textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 1.25rem) calc(50% + 0.15rem),
+    calc(100% - 0.9rem) calc(50% + 0.15rem);
+  background-size: 0.35rem 0.35rem, 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+}
+
+@screen md {
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="date"],
+  input[type="password"],
+  input[type="search"],
+  select,
+  textarea {
+    font-size: 0.875rem;
+    min-height: 2.75rem;
+    padding-block: 0.5rem;
+  }
+
+  textarea {
+    min-height: 4.5rem;
+  }
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  @apply outline-none border-accent;
+}
+
+.btn-rsi-filter {
+  @apply bg-panel text-text border border-border rounded-input px-4 text-sm cursor-pointer;
+  font-size: 1rem;
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding-block: 0.625rem;
+}
+
+@screen md {
+  .btn-rsi-filter {
+    font-size: 0.875rem;
+    min-height: 2.75rem;
+    min-width: 0;
+    padding-block: 0.5rem;
+  }
+}
+
+.btn-rsi-filter:hover {
+  @apply border-accent text-accent;
+}
+
+.btn-rsi-filter:disabled {
+  @apply opacity-60 cursor-not-allowed;
+}
+
+.rsi-filter-actions {
+  @apply flex flex-wrap gap-2 items-stretch;
+}
+
+/* 移动端底部固定操作栏 */
+.mobile-action-bar {
+  display: flex;
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 0.75rem var(--page-pad);
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  border-top: 1px solid var(--border);
+}
+
+.mobile-action-bar .btn-rsi-filter {
+  @apply w-full flex-1;
+}
+
+@screen md {
+  .mobile-action-bar {
+    display: none;
+  }
+}
+
+/* 桌面/平板内联操作按钮 */
+.desktop-action {
+  display: none;
+}
+
+@screen md {
+  .desktop-action {
+    display: block;
+  }
+}
+
+.telegram-push-result {
+  @apply text-sm;
+  min-height: 1.25em;
+}
+
+.telegram-push-result--ok {
+  @apply text-accent;
+}
+
+.telegram-push-result--err {
+  @apply text-rise;
+}
+
+.copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(1rem, 3vw, 1.75rem);
+  z-index: 1000;
+  transform: translateX(-50%);
+  padding: 0.65rem 1.15rem;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  opacity: 1;
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+  pointer-events: none;
+}
+
+.copy-toast--leaving {
+  opacity: 0;
+  transform: translateX(-50%) translateY(0.4rem);
+}
+
+.copy-toast--above-modal {
+  z-index: 1010;
+}
+
+.hint {
+  @apply text-xs text-muted leading-relaxed;
+}
+
+.compare-summary-desktop {
+  display: none;
+}
+
+@screen lg {
+  .compare-summary-desktop {
+    display: block;
+  }
+}
+
+.empty {
+  @apply text-muted p-4;
+}
+
+.chg-up {
+  color: var(--rise);
+}
+
+.chg-dn {
+  color: var(--fall);
+}
+

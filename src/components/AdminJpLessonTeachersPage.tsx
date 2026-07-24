@@ -1,14 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
-import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
-import { EnLessonTeacherReviewModal } from "@/components/EnLessonTeacherReviewModal";
-import { JpLessonTeacherReviewModal } from "@/components/JpLessonTeacherReviewModal";
 import {
   adminPath,
   adminRbacPath,
@@ -58,103 +54,30 @@ import {
   teachersApiBase,
 } from "@/lib/lesson-teacher-subject";
 import { JP_LESSON_CLASS_DURATION_MINUTES } from "@/lib/jp-lesson-shared";
-
-type TeacherSearchHit = {
-  teacher: JpLessonTeacher;
-  subject: LessonTeacherSubject;
-};
-
-type PendingSearchFocus = {
-  draft: string;
-  applied: string;
-  teacherId: number | null;
-};
-
-function scoreClass(score: number): string {
-  if (score >= 8) return "etr-score--high";
-  if (score <= 3) return "etr-score--low";
-  return "etr-score--mid";
-}
-
-type SortOrder = "asc" | "desc";
-type TeacherSortKey =
-  | "id"
-  | "name"
-  | "lessonCount"
-  | "rate"
-  | "minutes"
-  | "hourlyEquiv"
-  | "score"
-  | "remark"
-  | "updated";
-
-/** 按课时费和课时时长计算折合时薪：hourly_rate / lesson_minutes * 60 */
-function calcEquivalentHourlyRate(teacher: JpLessonTeacher): number | null {
-  const resolved = resolveLessonTeacherRateFields(teacher);
-  if (resolved.hourly_rate == null || resolved.lesson_minutes == null) return null;
-  if (resolved.lesson_minutes <= 0) return null;
-  return Math.round((resolved.hourly_rate / resolved.lesson_minutes) * 60 * 100) / 100;
-}
-
-const LESSON_MINUTE_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES;
-/** 填写「元/小时」课时费时，未选手动时长则默认按 1 小时计 */
-const DEFAULT_HOURLY_LESSON_MINUTES = 60;
-
-function formatLessonMinuteOptionLabel(minutes: number, locale: "zh" | "en"): string {
-  if (locale === "zh" && minutes === 60) return "60 分钟（1 小时）";
-  return locale === "zh" ? `${minutes} 分钟` : `${minutes} min`;
-}
-
-function isPositiveHourlyRate(value: string): boolean {
-  const rate = Number(value.trim());
-  return Number.isFinite(rate) && rate > 0;
-}
-
-/** 有课时费且时长未选时，默认 1 小时 */
-function defaultLessonMinutesWhenRateSet(
-  hourlyRate: string,
-  lessonMinutes: string
-): string {
-  if (!isPositiveHourlyRate(hourlyRate) || lessonMinutes.trim()) {
-    return lessonMinutes;
-  }
-  return String(DEFAULT_HOURLY_LESSON_MINUTES);
-}
-
-function resolveLessonMinutesForSave(
-  hourlyRate: string,
-  lessonMinutes: string,
-  fallback: number | null
-): number | null {
-  if (lessonMinutes.trim()) return Number(lessonMinutes);
-  if (isPositiveHourlyRate(hourlyRate)) return DEFAULT_HOURLY_LESSON_MINUTES;
-  return fallback;
-}
-
-function formatTeacherRateRmbOnly(rate: number | null | undefined): string {
-  if (rate == null || !Number.isFinite(rate)) return "—";
-  const rounded = Math.round(rate * 100) / 100;
-  const num = rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(2);
-  return `${num} RMB`;
-}
-
-function compareNullableNumber(a: number | null, b: number | null, order: SortOrder): number {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-  return order === "desc" ? b - a : a - b;
-}
-
-function compareString(a: string, b: string, order: SortOrder): number {
-  const result = a.localeCompare(b, "zh-CN", { sensitivity: "base" });
-  return order === "desc" ? -result : result;
-}
-
-function nextSortOrder(currentKey: TeacherSortKey, key: TeacherSortKey, current: SortOrder): SortOrder {
-  if (currentKey === key) return current === "asc" ? "desc" : "asc";
-  if (key === "name" || key === "remark") return "asc";
-  return "desc";
-}
+import {
+  LESSON_MINUTE_OPTIONS,
+  DEFAULT_HOURLY_LESSON_MINUTES,
+  calcEquivalentHourlyRate,
+  compareNullableNumber,
+  compareString,
+  defaultLessonMinutesWhenRateSet,
+  formatLessonMinuteOptionLabel,
+  formatTeacherRateRmbOnly,
+  isPositiveHourlyRate,
+  mapCreateTeacherUserError,
+  nextSortOrder,
+  resolveLessonMinutesForSave,
+  scoreClass,
+  type PendingSearchFocus,
+  type SortOrder,
+  type TeacherSearchHit,
+  type TeacherSortKey,
+} from "@/components/admin-jp-lesson-teachers-page/admin-jp-lesson-teachers-page-helpers";
+import { AdminJpLessonTeachersPageStyles } from "@/components/admin-jp-lesson-teachers-page/AdminJpLessonTeachersPageStyles";
+import { AdminJpLessonTeachersHero } from "@/components/admin-jp-lesson-teachers-page/AdminJpLessonTeachersHero";
+import { AdminJpLessonTeachersList } from "@/components/admin-jp-lesson-teachers-page/AdminJpLessonTeachersList";
+import { AdminJpLessonTeachersAddModal } from "@/components/admin-jp-lesson-teachers-page/AdminJpLessonTeachersAddModal";
+import { AdminJpLessonTeachersReviewModals } from "@/components/admin-jp-lesson-teachers-page/AdminJpLessonTeachersReviewModals";
 
 export function AdminJpLessonTeachersPageContent() {
   const { locale, t } = useI18n();
@@ -892,27 +815,7 @@ export function AdminJpLessonTeachersPageContent() {
     }
   };
 
-function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
-  if (err === "user_exists" || err === "username_taken") {
-    return locale === "zh"
-      ? "用户名已被占用，请在用户管理中手动关联"
-      : "Username taken; link manually in Users";
-  }
-  if (err === "username_unavailable") {
-    return locale === "zh" ? "无法生成可用用户名" : "Could not derive a valid username";
-  }
-  if (err === "username_invalid" || err === "teacher_name_empty") {
-    return locale === "zh"
-      ? "老师名称无效，无法生成用户名"
-      : "Invalid teacher name; cannot derive username";
-  }
-  if (/Cannot read properties of|reading 'length'|reading 'map'|reading 'trim'/i.test(err)) {
-    return locale === "zh"
-      ? "创建账号时内部错误，请刷新后重试；仍失败请到用户管理手动创建"
-      : "Internal error while creating account; refresh and retry, or create manually in Users";
-  }
-  return err;
-}
+
 
   const createTeacherUser = async (teacher: JpLessonTeacher) => {
     if (teacherSubject === "en") return;
@@ -1008,47 +911,8 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
 
   return (
     <div className="admin-page">
-      <div className="page-hero">
-        <h1>{nav.adminJpLessonTeachers}</h1>
-        <p className="sub">
-          {teacherSubject === "en"
-            ? locale === "zh"
-              ? "维护英语新课的上课老师列表与评价；英语老师不创建系统登录账号，也不纳入「今日有课自动启用」。"
-              : "Manage English lesson teachers and reviews. No system login accounts; excluded from daily class-day auto-enable."
-            : teacherSubject === "ko"
-              ? locale === "zh"
-                ? "维护韩语课的上课老师列表与评价；可创建登录账号。开课前 30 分钟自动启用（手动日程老师名须与此一致）；抽完最后一个字母后 20 分钟自动禁用。"
-                : "Manage Korean teachers and reviews. Create login accounts here. Auto-enable 30min before class (manual schedule name must match); disable 20min after last letter."
-            : locale === "zh"
-              ? "维护日语新课的上课老师列表；仅管理员可在新课页面看到并分配。"
-              : "Manage lesson teachers for JP lessons. Only admins can assign them."}
-        </p>
-        <p className="hint">
-          <a href={adminPath(locale)}>{locale === "zh" ? "← 返回后台管理" : "← Back to admin"}</a>
-          {teacherSubject !== "ko" ? (
-            <>
-              {" · "}
-              <a href={teacherSubject === "en" ? enLessonPath() : jpLessonPath()}>
-                {teacherSubject === "en"
-                  ? locale === "zh"
-                    ? "英语新课"
-                    : "English lessons"
-                  : locale === "zh"
-                    ? "日语新课"
-                    : "JP lessons"}
-              </a>
-            </>
-          ) : null}
-          {" · "}
-          <a href={adminUsersPath(locale)}>{locale === "zh" ? "用户管理" : "Users"}</a>
-          {" · "}
-          <a href={adminTrendsPath(locale)}>{locale === "zh" ? "趋势抓取" : "Trends"}</a>
-          {" · "}
-          <a href={adminRbacPath(locale)}>{locale === "zh" ? "角色权限" : "Roles"}</a>
-          {" · "}
-          <a href={adminToolCodesPath(locale)}>{locale === "zh" ? "工具发码" : "Tool codes"}</a>
-        </p>
-      </div>
+      <AdminJpLessonTeachersHero locale={locale} teacherSubject={teacherSubject} navTitle={nav.adminJpLessonTeachers} />
+
 
       {status ? (
         <p className={statusErr ? "telegram-push-result telegram-push-result--err" : "hint"}>
@@ -1056,790 +920,74 @@ function mapCreateTeacherUserError(err: string, locale: "zh" | "en"): string {
         </p>
       ) : null}
 
-      <section className="section etr-panel admin-rbac-section">
-        <div className="etr-history-head admin-jpl-teachers-head">
-          <h2>{locale === "zh" ? "老师列表" : "Teachers"}</h2>
-          <div className="admin-jpl-teachers-toolbar">
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
-              onClick={() => setAddModalOpen(true)}
-            >
-              {locale === "zh" ? "添加老师" : "Add teacher"}
-            </button>
-            <select
-              id="admin-jpl-teacher-subject"
-              className="admin-jpl-subject-select"
-              value={teacherSubject}
-              aria-label={locale === "zh" ? "老师类型" : "Teacher type"}
-              onChange={(event) =>
-                switchTeacherSubject(parseLessonTeacherSubject(event.target.value))
-              }
-            >
-              <option value="jp">{locale === "zh" ? "日语老师" : "Japanese"}</option>
-              <option value="en">{locale === "zh" ? "英语老师" : "English"}</option>
-              <option value="ko">{locale === "zh" ? "韩语老师" : "Korean"}</option>
-            </select>
-            <div className="admin-jpl-search-combo" ref={searchFieldRef}>
-              <label className="admin-jpl-search-field" htmlFor="admin-jpl-teacher-search">
-                <span className="sr-only">
-                  {locale === "zh" ? "搜索老师" : "Search teachers"}
-                </span>
-                <input
-                  id="admin-jpl-teacher-search"
-                  type="text"
-                  value={searchDraft}
-                  placeholder={
-                    locale === "zh"
-                      ? "模糊搜索老师名（日语/英语都搜，如 m、周）"
-                      : "Fuzzy search JP/EN teachers, e.g. m or Zhou"
-                  }
-                  autoComplete="off"
-                  role="combobox"
-                  aria-expanded={searchSuggestOpen && searchSuggestions.length > 0}
-                  aria-controls="admin-jpl-teacher-search-list"
-                  aria-autocomplete="list"
-                  onFocus={() => setSearchSuggestOpen(true)}
-                  onChange={(e) => {
-                    setSearchDraft(e.target.value);
-                    setSelectedSearchTeacherId(null);
-                    setSearchSuggestOpen(true);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applySearch(searchDraft);
-                    } else if (e.key === "Escape") {
-                      setSearchSuggestOpen(false);
-                    }
-                  }}
-                />
-              </label>
-              {searchSuggestOpen && searchDraft.trim() && searchSuggestions.length > 0 ? (
-                <ul
-                  id="admin-jpl-teacher-search-list"
-                  className="admin-jpl-search-suggest"
-                  role="listbox"
-                >
-                  {searchSuggestions.map((hit) => {
-                    const name = resolveLessonTeacherRateFields(hit.teacher).name;
-                    const subjectLabel = lessonTeacherSubjectLabel(hit.subject, locale);
-                    return (
-                      <li key={`${hit.subject}-${hit.teacher.id}`} role="option">
-                        <button
-                          type="button"
-                          className="admin-jpl-search-suggest-item"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => selectSearchTeacher(hit)}
-                        >
-                          <span className="admin-jpl-search-suggest-name">{name}</span>
-                          <span className="admin-jpl-search-suggest-meta">
-                            {subjectLabel}
-                            {" · "}
-                            {locale === "zh" ? "频次" : "Lessons"}{" "}
-                            {hit.teacher.lesson_count ?? 0}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
-              onClick={() => applySearch(searchDraft)}
-            >
-              {locale === "zh" ? "搜索" : "Search"}
-            </button>
-            {appliedSearchQuery || selectedSearchTeacherId != null ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact"
-                onClick={() => applySearch("")}
-              >
-                {locale === "zh" ? "清除" : "Clear"}
-              </button>
-            ) : null}
-          </div>
-        </div>
+      <AdminJpLessonTeachersList
+        locale={locale}
+        teacherSubject={teacherSubject}
+        loading={loading}
+        refreshing={refreshing}
+        saving={saving}
+        teachers={teachers}
+        filteredTeachers={filteredTeachers}
+        searchDraft={searchDraft}
+        appliedSearchQuery={appliedSearchQuery}
+        searchSuggestOpen={searchSuggestOpen}
+        searchSuggestions={searchSuggestions}
+        searchFieldRef={searchFieldRef}
+        rowRefs={rowRefs}
+        highlightTeacherId={highlightTeacherId}
+        editingId={editingId}
+        editName={editName}
+        editHourlyRate={editHourlyRate}
+        editLessonMinutes={editLessonMinutes}
+        reviewSummaries={reviewSummaries}
+        creatingUserTeacherId={creatingUserTeacherId}
+        sortKey={sortKey}
+        sortOrder={sortOrder}
+        fieldLabels={fieldLabels}
+        onOpenAddModal={() => setAddModalOpen(true)}
+        switchTeacherSubject={switchTeacherSubject}
+        setSearchDraft={setSearchDraft}
+        setSelectedSearchTeacherId={setSelectedSearchTeacherId}
+        setSearchSuggestOpen={setSearchSuggestOpen}
+        applySearch={applySearch}
+        selectSearchTeacher={selectSearchTeacher}
+        toggleSort={toggleSort}
+        setEditName={setEditName}
+        setEditHourlyRate={setEditHourlyRate}
+        setEditLessonMinutes={setEditLessonMinutes}
+        startEdit={startEdit}
+        cancelEdit={cancelEdit}
+        saveEdit={saveEdit}
+        deleteTeacher={deleteTeacher}
+        createTeacherUser={createTeacherUser}
+        setReviewTeacher={setReviewTeacher}
+      />
 
-        {refreshing && teachers.length > 0 ? (
-          <p className="hint">{locale === "zh" ? "同步中…" : "Syncing…"}</p>
-        ) : null}
+      <AdminJpLessonTeachersAddModal
+        open={addModalOpen}
+        mounted={mounted}
+        locale={locale}
+        saving={saving}
+        newName={newName}
+        newHourlyRate={newHourlyRate}
+        newLessonMinutes={newLessonMinutes}
+        addNameInputRef={addNameInputRef}
+        onClose={closeAddModal}
+        onNameChange={setNewName}
+        onHourlyRateChange={setNewHourlyRate}
+        onLessonMinutesChange={setNewLessonMinutes}
+        onSubmit={() => void createTeacher()}
+      />
 
-        {loading ? (
-          <p className="hint">{locale === "zh" ? "加载中…" : "Loading…"}</p>
-        ) : teachers.length === 0 ? (
-          <p className="hint">{locale === "zh" ? "暂无老师" : "No teachers yet"}</p>
-        ) : filteredTeachers.length === 0 ? (
-          <p className="hint">
-            {locale === "zh" ? "没有匹配的老师，请调整搜索关键词。" : "No matching teachers."}
-          </p>
-        ) : (
-          <div className="admin-jpl-teachers-table-wrap">
-            <table className="admin-jpl-teachers-table">
-              <thead>
-                <tr>
-                  <th className="col-id col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "id" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("id")}
-                    >
-                      ID
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "id" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-name col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "name" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("name")}
-                    >
-                      {locale === "zh" ? "名称" : "Name"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "name" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-lesson-count col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "lessonCount" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("lessonCount")}
-                    >
-                      {locale === "zh" ? "上课频次" : "Lessons"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "lessonCount" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-rate col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "rate" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("rate")}
-                    >
-                      {locale === "zh" ? "课时费" : "Rate (RMB)"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "rate" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-minutes col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "minutes" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("minutes")}
-                    >
-                      {locale === "zh" ? "课时时长" : "Duration"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "minutes" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th
-                    className={`col-hourly-equiv col-hourly-equiv--sortable${
-                      sortKey === "hourlyEquiv" && sortOrder === "asc"
-                        ? " col-hourly-equiv--sorted-asc"
-                        : sortKey === "hourlyEquiv" && sortOrder === "desc"
-                          ? " col-hourly-equiv--sorted-desc"
-                          : ""
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "hourlyEquiv" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("hourlyEquiv")}
-                    >
-                      {locale === "zh" ? "折合时薪" : "Hourly"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "hourlyEquiv" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th
-                    className={`col-score col-score--sortable${
-                      sortKey === "score" && sortOrder === "asc"
-                        ? " col-score--sorted-asc"
-                        : sortKey === "score"
-                          ? " col-score--sorted-desc"
-                          : ""
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "score" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("score")}
-                    >
-                      {locale === "zh" ? "平均评分" : "Avg"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "score" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-remark col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "remark" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("remark")}
-                    >
-                      {locale === "zh" ? "备注" : "Latest note"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "remark" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-updated col-score--sortable">
-                    <button
-                      type="button"
-                      className={`etr-sort-btn admin-jpl-score-sort-btn${sortKey === "updated" ? " is-active" : ""}`}
-                      onClick={() => toggleSort("updated")}
-                    >
-                      {locale === "zh" ? "更新" : "Updated"}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {sortKey === "updated" ? (sortOrder === "asc" ? "↑" : "↓") : "⇅"}
-                      </span>
-                    </button>
-                  </th>
-                  <th className="col-actions">{locale === "zh" ? "操作" : "Actions"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTeachers.map((teacher) => {
-                  const isEditing = editingId === teacher.id;
-                  const summary = reviewSummaries.get(teacher.id);
-                  const latestRemark = summary?.latest_remark ?? null;
-                  const latestClassDate = summary?.latest_class_date ?? null;
-                  const linkedUser = teacher.linked_user ?? null;
-                  const userActionBusy = creatingUserTeacherId === teacher.id;
-                  return (
-                    <tr
-                      key={teacher.id}
-                      ref={(node) => {
-                        if (node) rowRefs.current.set(teacher.id, node);
-                        else rowRefs.current.delete(teacher.id);
-                      }}
-                      className={
-                        highlightTeacherId === teacher.id
-                          ? "admin-jpl-teacher-row--highlight"
-                          : undefined
-                      }
-                    >
-                      <td className="col-id" data-label={fieldLabels.id}>
-                        {teacher.id}
-                      </td>
-                      <td className="col-name" data-label={fieldLabels.name}>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editName}
-                            disabled={saving}
-                            onChange={(e) => setEditName(e.target.value)}
-                          />
-                        ) : (
-                          <>
-                            {linkedUser ? (
-                              <a
-                                href={adminUsersPath(locale, linkedUser.id)}
-                                className="admin-jpl-teacher-user-link"
-                                title={
-                                  locale === "zh"
-                                    ? `查看用户 ${linkedUser.username}`
-                                    : `View user ${linkedUser.username}`
-                                }
-                              >
-                                {teacher.name}
-                              </a>
-                            ) : (
-                              <span>{teacher.name}</span>
-                            )}
-                            <span className="admin-jpl-mobile-id">#{teacher.id}</span>
-                          </>
-                        )}
-                      </td>
-                      <td className="col-lesson-count" data-label={fieldLabels.lessonCount}>
-                        {teacher.lesson_count ?? 0}
-                      </td>
-                      <td className="col-rate" data-label={fieldLabels.rate}>
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={editHourlyRate}
-                            disabled={saving}
-                            placeholder="RMB"
-                            onChange={(e) => {
-                              const next = e.target.value;
-                              setEditHourlyRate(next);
-                              setEditLessonMinutes((prev) =>
-                                defaultLessonMinutesWhenRateSet(next, prev)
-                              );
-                            }}
-                          />
-                        ) : (
-                          formatTeacherRateRmbOnly(resolveLessonTeacherRateFields(teacher).hourly_rate)
-                        )}
-                      </td>
-                      <td className="col-minutes" data-label={fieldLabels.minutes}>
-                        {isEditing ? (
-                          <select
-                            value={editLessonMinutes}
-                            disabled={saving}
-                            aria-label={
-                              locale === "zh"
-                                ? `${teacher.name} 单次课时长`
-                                : `${teacher.name} lesson duration`
-                            }
-                            onChange={(e) => setEditLessonMinutes(e.target.value)}
-                          >
-                            <option value="">
-                              {locale === "zh" ? "未设置" : "Unset"}
-                            </option>
-                            {LESSON_MINUTE_OPTIONS.map((minutes) => (
-                              <option key={minutes} value={minutes}>
-                                {formatLessonMinuteOptionLabel(minutes, locale)}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          formatTeacherLessonMinutes(
-                            resolveLessonTeacherRateFields(teacher).lesson_minutes,
-                            locale
-                          )
-                        )}
-                      </td>
-                      <td className="col-hourly-equiv" data-label={fieldLabels.hourlyEquiv}>
-                        {(() => {
-                          const equiv = calcEquivalentHourlyRate(teacher);
-                          if (equiv == null) return "—";
-                          const display = equiv % 1 === 0 ? equiv.toFixed(0) : equiv.toFixed(2);
-                          return `${display}/h`;
-                        })()}
-                      </td>
-                      <td className="col-score" data-label={fieldLabels.score}>
-                        {summary && summary.review_count > 0 && summary.avg_score != null ? (
-                          <span
-                            className={`etr-score-badge ${scoreClass(summary.avg_score)}`}
-                            title={locale === "zh" ? "已评价" : "Reviewed"}
-                          >
-                            {summary.avg_score} {locale === "zh" ? "分" : "pts"}
-                          </span>
-                        ) : (
-                          <span className="col-remark--empty">—</span>
-                        )}
-                      </td>
-                      <td
-                        className={`col-remark${!latestRemark ? " col-remark--empty" : ""}`}
-                        data-label={fieldLabels.remark}
-                        title={latestRemark ?? undefined}
-                      >
-                        {latestRemark ? (
-                          <button
-                            type="button"
-                            className="admin-jpl-remark-box"
-                            title={locale === "zh" ? "点击查看评价" : "View review"}
-                            onClick={() => setReviewTeacher(teacher)}
-                          >
-                            {latestClassDate ? (
-                              <span className="admin-jpl-remark-date">{latestClassDate}</span>
-                            ) : null}
-                            <span className="admin-jpl-remark-preview">{latestRemark}</span>
-                          </button>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className="col-updated" data-label={fieldLabels.updated}>
-                        {formatBeijingDateTime(teacher.updated_at)}
-                      </td>
-                      <td className="col-actions" data-label={fieldLabels.actions}>
-                        <div className="etr-form-actions etr-form-actions--inline">
-                          {isEditing ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
-                                disabled={saving || !editName.trim()}
-                                onClick={() => void saveEdit()}
-                              >
-                                {locale === "zh" ? "保存" : "Save"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
-                                disabled={saving}
-                                onClick={cancelEdit}
-                              >
-                                {locale === "zh" ? "取消" : "Cancel"}
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                className={`btn-rsi-filter btn-rsi-filter--compact${
-                                  linkedUser
-                                    ? ""
-                                    : " btn-rsi-filter--primary"
-                                }`}
-                                disabled={
-                                  userActionBusy ||
-                                  linkedUser != null ||
-                                  lessonTeacherSubjectSkipsUserAccount(teacherSubject)
-                                }
-                                onClick={() => void createTeacherUser(teacher)}
-                                title={
-                                  lessonTeacherSubjectSkipsUserAccount(teacherSubject)
-                                    ? locale === "zh"
-                                      ? `${lessonTeacherSubjectLabel(teacherSubject, locale)}不提供系统登录账号`
-                                      : `${lessonTeacherSubjectLabel(teacherSubject, locale)} do not get system login accounts`
-                                    : linkedUser
-                                    ? locale === "zh"
-                                      ? `已关联 ${linkedUser.username}；点击老师名称可跳转到用户管理`
-                                      : `Linked as ${linkedUser.username}; click the teacher name to view in Users`
-                                    : teacherSubject === "ko"
-                                      ? locale === "zh"
-                                        ? "创建韩语教师账号并关联（开课前 30 分钟启用）"
-                                        : "Create and link Korean-teacher account"
-                                      : locale === "zh"
-                                      ? "创建日语教师账号并关联"
-                                      : "Create and link Japanese-teacher account"
-                                }
-                              >
-                                {userActionBusy
-                                  ? locale === "zh"
-                                    ? "创建中…"
-                                    : "Creating…"
-                                  : linkedUser
-                                    ? locale === "zh"
-                                      ? "已生成"
-                                      : "Created"
-                                    : locale === "zh"
-                                      ? "创建用户"
-                                      : "Create user"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--primary btn-rsi-filter--compact"
-                                onClick={() => setReviewTeacher(teacher)}
-                              >
-                                {locale === "zh" ? "评价" : "Review"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact"
-                                onClick={() => startEdit(teacher)}
-                              >
-                                {locale === "zh" ? "编辑" : "Edit"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-rsi-filter btn-rsi-filter--danger btn-rsi-filter--compact"
-                                onClick={() => void deleteTeacher(teacher.id, teacher.name)}
-                              >
-                                {locale === "zh" ? "删除" : "Delete"}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <AdminJpLessonTeachersReviewModals
+        teacherSubject={teacherSubject}
+        reviewTeacher={reviewTeacher}
+        locale={locale}
+        onClose={() => setReviewTeacher(null)}
+        onChanged={() => void loadReviewSummaries({ force: true })}
+      />
 
-      {teacherSubject !== "jp" ? (
-        <EnLessonTeacherReviewModal
-          open={reviewTeacher != null}
-          teacher={reviewTeacher}
-          locale={locale}
-          reviewApiBase={teacherReviewApiBase(teacherSubject)}
-          onClose={() => setReviewTeacher(null)}
-          onChanged={() => void loadReviewSummaries({ force: true })}
-        />
-      ) : (
-        <JpLessonTeacherReviewModal
-          open={reviewTeacher != null}
-          teacher={reviewTeacher}
-          locale={locale}
-          onClose={() => setReviewTeacher(null)}
-          onChanged={() => void loadReviewSummaries({ force: true })}
-        />
-      )}
-
-      {mounted && addModalOpen
-        ? createPortal(
-            <div
-              className="jp-lesson-teacher-overlay"
-              role="presentation"
-              onClick={closeAddModal}
-            >
-              <div
-                className="jp-lesson-teacher-modal admin-jpl-add-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="admin-jpl-add-title"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="jp-lesson-teacher-header">
-                  <div>
-                    <h2 id="admin-jpl-add-title">
-                      {locale === "zh" ? "添加老师" : "Add teacher"}
-                    </h2>
-                    <p className="jp-lesson-teacher-modal-lesson">
-                      {locale === "zh"
-                        ? "新增老师后可在列表中「一键创建用户」；也可在评价弹窗中勾选创建账号。"
-                        : "After adding, use “Create user” in the list, or create from the review modal."}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="jp-lesson-teacher-close"
-                    aria-label={locale === "zh" ? "关闭" : "Close"}
-                    disabled={saving}
-                    onClick={closeAddModal}
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <form
-                  className="admin-jpl-add-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void createTeacher();
-                  }}
-                >
-                  <label className="admin-user-add-field">
-                    <span>{locale === "zh" ? "名称" : "Name"}</span>
-                    <input
-                      ref={addNameInputRef}
-                      type="text"
-                      value={newName}
-                      disabled={saving}
-                      placeholder={locale === "zh" ? "例如：周老师" : "e.g. Teacher Zhou"}
-                      onChange={(e) => setNewName(e.target.value)}
-                    />
-                  </label>
-                  <label className="admin-user-add-field">
-                    <span>{locale === "zh" ? "课时费（RMB/小时）" : "Rate (RMB/h)"}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={newHourlyRate}
-                      disabled={saving}
-                      placeholder={locale === "zh" ? "选填" : "Optional"}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setNewHourlyRate(next);
-                        setNewLessonMinutes((prev) =>
-                          defaultLessonMinutesWhenRateSet(next, prev)
-                        );
-                      }}
-                    />
-                  </label>
-                  <label className="admin-user-add-field">
-                    <span>{locale === "zh" ? "单次课时长" : "Lesson duration"}</span>
-                    <select
-                      value={newLessonMinutes}
-                      disabled={saving}
-                      onChange={(e) => setNewLessonMinutes(e.target.value)}
-                    >
-                      <option value="">{locale === "zh" ? "选填" : "Optional"}</option>
-                      {LESSON_MINUTE_OPTIONS.map((minutes) => (
-                        <option key={minutes} value={minutes}>
-                          {formatLessonMinuteOptionLabel(minutes, locale)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <p className="hint admin-user-add-hint">
-                    {locale === "zh"
-                      ? "老师列表支持「一键创建用户」（拼音用户名 + 易记密码）；评价弹窗中也可勾选创建。"
-                      : "Use “Create user” on the teacher list (pinyin username + memorable password), or create from review."}
-                  </p>
-                  <div className="etr-form-actions etr-form-actions--inline">
-                    <button
-                      type="button"
-                      className="btn-rsi-filter"
-                      disabled={saving}
-                      onClick={closeAddModal}
-                    >
-                      {locale === "zh" ? "取消" : "Cancel"}
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-rsi-filter btn-rsi-filter--primary"
-                      disabled={saving || !newName.trim()}
-                    >
-                      {saving
-                        ? locale === "zh"
-                          ? "提交中…"
-                          : "Saving…"
-                        : locale === "zh"
-                          ? "添加"
-                          : "Add"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
-
-      <style jsx>{`
-        .admin-jpl-teacher-user-link {
-          color: var(--accent, #6eb5ff);
-          font-weight: 600;
-          text-decoration: none;
-        }
-
-        .admin-jpl-teacher-user-link:hover {
-          text-decoration: underline;
-        }
-
-        .admin-jpl-search-combo {
-          position: relative;
-          flex: 1 1 15rem;
-          min-width: min(100%, 15rem);
-        }
-
-        .admin-jpl-search-field {
-          display: block;
-          width: 100%;
-        }
-
-        .admin-jpl-search-field input {
-          width: 100%;
-          box-sizing: border-box;
-          min-height: 2.25rem;
-          padding-block: 0.45rem;
-        }
-
-        .admin-jpl-search-suggest {
-          position: absolute;
-          z-index: 20;
-          top: calc(100% + 0.25rem);
-          left: 0;
-          right: 0;
-          margin: 0;
-          padding: 0.3rem;
-          list-style: none;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          background: var(--panel);
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
-          max-height: 14rem;
-          overflow: auto;
-        }
-
-        .admin-jpl-search-suggest-item {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          border: none;
-          border-radius: 6px;
-          background: transparent;
-          color: inherit;
-          text-align: left;
-          padding: 0.5rem 0.55rem;
-          font-size: 0.875rem;
-          cursor: pointer;
-        }
-
-        .admin-jpl-search-suggest-item:hover {
-          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-        }
-
-        .admin-jpl-search-suggest-name {
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .admin-jpl-search-suggest-meta {
-          flex-shrink: 0;
-          font-size: 0.75rem;
-          color: var(--muted);
-          font-variant-numeric: tabular-nums;
-        }
-
-        .jp-lesson-teacher-overlay {
-          position: fixed;
-          inset: 0;
-          z-index: 1000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 1rem;
-          background: rgba(0, 0, 0, 0.55);
-          backdrop-filter: blur(3px);
-          -webkit-backdrop-filter: blur(3px);
-        }
-
-        .jp-lesson-teacher-modal {
-          width: min(560px, 100%);
-          padding: 1rem 1.1rem;
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          background: var(--panel);
-          box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
-        }
-
-        .jp-lesson-teacher-header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 0.75rem;
-          margin-bottom: 1rem;
-        }
-
-        .jp-lesson-teacher-header h2 {
-          margin: 0;
-          font-size: 1.0625rem;
-          font-weight: 600;
-        }
-
-        .jp-lesson-teacher-modal-lesson {
-          margin: 0.35rem 0 0;
-          color: var(--muted);
-          font-size: 0.8125rem;
-          line-height: 1.45;
-        }
-
-        .jp-lesson-teacher-close {
-          flex-shrink: 0;
-          width: 2rem;
-          height: 2rem;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--bg) 55%, transparent);
-          color: var(--muted);
-          font-size: 1.25rem;
-          line-height: 1;
-          cursor: pointer;
-        }
-
-        .admin-jpl-add-form {
-          display: grid;
-          gap: 0.85rem;
-        }
-      `}</style>
+      <AdminJpLessonTeachersPageStyles />
     </div>
   );
 }

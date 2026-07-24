@@ -1,0 +1,508 @@
+/* ── 角色权限管理 (RBAC) ── */
+.admin-rbac-status {
+  margin: 0;
+}
+
+.admin-rbac-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.625rem;
+}
+
+.admin-rbac-toolbar--inline {
+  margin-bottom: 1rem;
+}
+
+.admin-rbac-step-label {
+  @apply text-xs text-muted font-semibold uppercase tracking-wide;
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-rbac-role-tabs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+@screen sm {
+  .admin-rbac-role-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@screen lg {
+  .admin-rbac-role-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.admin-rbac-role-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 45%, transparent);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.admin-rbac-role-tab:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+
+.admin-rbac-role-tab.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.admin-rbac-role-tab-meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-rbac-role-panel {
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+}
+
+.admin-rbac-role-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-rbac-role-desc {
+  @apply text-sm text-muted m-0;
+  flex: 1 1 14rem;
+  line-height: 1.5;
+}
+
+.admin-rbac-role-lock-badge,
+.admin-rbac-role-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-rbac-role-lock-badge {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.admin-rbac-role-count-badge {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.admin-rbac-dirty-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--rise);
+  flex-shrink: 0;
+}
+
+.admin-rbac-perm-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.admin-rbac-perm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.admin-rbac-perm-row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.admin-rbac-perm-row:last-child {
+  border-bottom: none;
+}
+
+.admin-rbac-perm-row-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-rbac-perm-row-label:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.admin-rbac-perm-row-label--locked {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.admin-rbac-perm-row-label--locked:hover {
+  background: transparent;
+}
+
+.admin-rbac-perm-row-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-rbac-search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.admin-rbac-search-label {
+  @apply text-xs text-muted;
+}
+
+.admin-rbac-search-input {
+  min-height: 2.5rem;
+  padding-block: 0.45rem;
+}
+
+.admin-rbac-search-clear {
+  flex-shrink: 0;
+}
+
+.admin-rbac-section {
+  margin-bottom: 0;
+}
+
+.admin-rbac-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.875rem;
+}
+
+.admin-rbac-section-title {
+  font-size: clamp(1rem, 1.5vw + 0.5rem, 1.125rem);
+  @apply text-text font-semibold m-0;
+}
+
+.admin-rbac-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.admin-rbac-callout {
+  @apply text-sm text-muted;
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  line-height: 1.55;
+}
+
+.admin-rbac-empty {
+  margin: 0.5rem 0 0;
+}
+
+.admin-rbac-users-wrap {
+  @apply w-full;
+  overflow-x: auto;
+  overflow-y: clip;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 96%, var(--bg) 4%);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 60%, transparent);
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-rbac-users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-rbac-users-table th,
+.admin-rbac-users-table td {
+  padding: 0.7rem 0.85rem;
+  vertical-align: middle;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+.admin-rbac-users-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.admin-rbac-users-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.admin-rbac-users-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+}
+
+.admin-rbac-users-table tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.admin-rbac-users-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-rbac-username {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-rbac-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.admin-rbac-tag {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg) 50%, transparent);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.admin-rbac-module {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.admin-rbac-module:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.admin-rbac-module-title {
+  font-size: 1rem;
+  margin: 0 0 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.admin-rbac-group {
+  margin-top: 1.1rem;
+}
+
+.admin-rbac-group--nested {
+  margin-top: 0.85rem;
+  margin-left: 0.5rem;
+  padding-left: 1rem;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.admin-rbac-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.admin-rbac-group-title {
+  font-size: 0.9375rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.admin-rbac-subgroup-title {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.admin-rbac-perm-name {
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.admin-rbac-perm-desc {
+  margin-top: 0.2rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.admin-rbac-perm-excluded-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--rise);
+  line-height: 1.4;
+}
+
+.admin-rbac-perm-key {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: color-mix(in srgb, var(--accent) 75%, var(--muted));
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.admin-rbac-role-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.admin-rbac-role-badge--admin {
+  color: var(--rise);
+  background: color-mix(in srgb, var(--rise) 14%, transparent);
+  border-color: color-mix(in srgb, var(--rise) 28%, transparent);
+}
+
+.admin-rbac-role-badge--jp_vocab {
+  color: #c9a227;
+  background: color-mix(in srgb, #c9a227 14%, transparent);
+  border-color: color-mix(in srgb, #c9a227 28%, transparent);
+}
+
+.admin-rbac-role-badge--en_vocab {
+  color: #7c9fd4;
+  background: color-mix(in srgb, #7c9fd4 14%, transparent);
+  border-color: color-mix(in srgb, #7c9fd4 28%, transparent);
+}
+
+.admin-rbac-role-badge--user {
+  color: var(--fall);
+  background: color-mix(in srgb, var(--fall) 14%, transparent);
+  border-color: color-mix(in srgb, var(--fall) 28%, transparent);
+}
+
+.admin-rbac-check {
+  appearance: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0.2rem 0 0;
+  border: 2px solid color-mix(in srgb, var(--border) 90%, var(--muted));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.admin-rbac-check:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.admin-rbac-check:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.admin-rbac-check:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.admin-rbac-check:checked::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 0.3rem;
+  height: 0.55rem;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.admin-rbac-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-rbac-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+@screen sm {
+  .admin-rbac-save-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin-top: 1.5rem;
+    padding: 0.875rem 0;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(6px);
+  }
+}
+

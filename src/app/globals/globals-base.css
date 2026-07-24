@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * 与原系统 web/static/css/theme.css + app.css 对齐的全局样式
+ * 响应式策略：Mobile First + CSS Grid + clamp/minmax
+ */
+:root {
+  --bg: #0f1419;
+  --panel: #1a2332;
+  --text: #e7ecf3;
+  --muted: #8b9cb3;
+  --accent: #3d8bfd;
+  --border: #2d3a4d;
+  --rise: #e85d6f;
+  --fall: #3fb983;
+  --touch-min: 44px;
+  --content-max: min(100%, 1440px);
+  --readable-max: min(100%, 1280px);
+  --page-pad: clamp(0.75rem, 2.5vw, 1.5rem);
+  --section-gap: clamp(1.25rem, 3vw, 2rem);
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  @apply bg-bg text-text font-sans antialiased;
+  margin: 0;
+  padding: var(--page-pad);
+  padding-bottom: calc(var(--page-pad) + env(safe-area-inset-bottom, 0px));
+  line-height: 1.5;
+  overflow-x: hidden;
+  min-height: 100dvh;
+}
+
+/* ── 页面容器 ── */
+.page-wrap {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+}
+
+/* Mobile header bar — desktop hidden; drawer works on all breakpoints */
+.mobile-header-bar {
+  display: none;
+}
+
+.nav-drawer-backdrop {
+  display: block;
+}
+
+.nav-drawer {
+  display: flex;
+}
+
+.page-header {
+  @apply flex z-20 gap-2;
+  flex-direction: column;
+  align-items: stretch;
+  position: sticky;
+  top: 0;
+  padding-block: 0.5rem;
+  margin-bottom: 0.25rem;
+  background: color-mix(in srgb, var(--bg) 96%, transparent);
+}
+
+.page-header .lang-switch {
+  align-self: flex-end;
+}
+
+.page-header-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  align-self: flex-end;
+  flex-shrink: 0;
+}
+
+.site-auth-bar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.site-auth-user {
+  @apply text-muted;
+  font-size: 0.8125rem;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-auth-checking {
+  @apply text-muted;
+  font-size: 0.8125rem;
+}
+
+.site-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 5rem 1rem 1.5rem;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.site-auth-dialog {
+  width: min(100%, 28rem);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.site-auth-dialog .etr-auth-panel--inline {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@screen md {
+  .page-header {
+    @apply justify-between items-center flex-wrap;
+    flex-direction: row;
+  }
+
+  .page-header .lang-switch {
+    align-self: auto;
+  }
+
+  .page-header-tools {
+    align-self: auto;
+  }
+}
+
+@screen md {
+  .page-header {
+    padding-block: 0.625rem;
+    margin-bottom: 0.5rem;
+  }
+}
+

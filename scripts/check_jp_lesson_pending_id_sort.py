@@ -10,11 +10,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / "src/lib/jp-lesson-shared.ts"
 PAGE = ROOT / "src/components/JpLessonPage.tsx"
+PAGE_DIR = ROOT / "src/components/jp-lesson-page"
 
 
 def main() -> int:
     shared = SHARED.read_text(encoding="utf-8")
-    page = PAGE.read_text(encoding="utf-8")
+    from page_bundle import read_page_bundle
+
+    page = read_page_bundle(PAGE, PAGE_DIR)
     errors: list[str] = []
 
     if "export function buildJpLessonDisplayGroupsById" not in shared:

@@ -25,6 +25,16 @@ import { formatUploadBytes, uploadFormWithProgress, type UploadProgressEvent } f
 import type { JpVocabKind, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { JpVocabEditModalStyles } from "@/components/jp-vocab-edit-modal/JpVocabEditModalStyles";
+import { JpVocabEditBasicFields } from "@/components/jp-vocab-edit-modal/JpVocabEditBasicFields";
+import { JpVocabEditExamplesField } from "@/components/jp-vocab-edit-modal/JpVocabEditExamplesField";
+import { JpVocabEditNotesField } from "@/components/jp-vocab-edit-modal/JpVocabEditNotesField";
+import { JpVocabEditRefField } from "@/components/jp-vocab-edit-modal/JpVocabEditRefField";
+import { JpVocabEditZoomOverlays } from "@/components/jp-vocab-edit-modal/JpVocabEditZoomOverlays";
+import {
+  autoGrowTextarea,
+  pickClipboardImage,
+  REF_ERR,
+} from "@/components/jp-vocab-edit-modal/helpers";
 
 type Props = {
   open: boolean;
@@ -40,76 +50,6 @@ type Props = {
   onSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
   onNeedAuth: () => void;
 };
-
-const KIND_OPTIONS: { key: JpVocabKind; label: string }[] = [
-  { key: "word", label: "单词" },
-  { key: "grammar", label: "语法" },
-];
-
-const REF_ERR = {
-  zh: {
-    no_ref_key: "当前词条还没有绑定教案地址，暂时不能在这里替换教案。",
-    file_required: "请选择或粘贴新的教案图片 / PDF。",
-    file_too_large: "文件过大（最大 20MB）",
-    ref_not_found: "未找到当前教案地址，无法替换。",
-    empty_file: "文件为空",
-    upload_failed: "教案上传失败",
-  },
-  en: {
-    no_ref_key: "This entry is not linked to a lesson plan yet.",
-    file_required: "Please choose or paste a new lesson plan file.",
-    file_too_large: "File too large (max 20MB)",
-    ref_not_found: "Lesson plan not found",
-    empty_file: "Empty file",
-    upload_failed: "Lesson plan upload failed",
-  },
-};
-
-function pickClipboardImage(items: DataTransferItemList): File | null {
-  for (const item of items) {
-    if (item.type.startsWith("image/")) {
-      const blob = item.getAsFile();
-      if (blob) {
-        const ext = item.type.split("/")[1] || "png";
-        return new File([blob], `pasted.${ext}`, { type: item.type });
-      }
-    }
-  }
-  return null;
-}
-
-function uploadProgressLabel(event: UploadProgressEvent): string {
-  if (event.phase === "processing") return "文件已传完，服务器保存中…";
-  if (event.phase === "done") return "上传完成";
-  if (event.total > 0) {
-    return `正在上传 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
-  }
-  if (event.loaded > 0) return `正在上传 ${formatUploadBytes(event.loaded)}…`;
-  return "准备上传…";
-}
-
-function noteImageUploadLabel(event: UploadProgressEvent): string {
-  if (event.phase === "processing") return "图片已传完，服务器保存中…";
-  if (event.phase === "done") return "图片上传完成";
-  if (event.total > 0) {
-    return `正在上传图片 ${formatUploadBytes(event.loaded)} / ${formatUploadBytes(event.total)}`;
-  }
-  if (event.loaded > 0) return `正在上传图片 ${formatUploadBytes(event.loaded)}…`;
-  return "正在上传图片…";
-}
-
-function noteImageUploadPercent(event: UploadProgressEvent): number {
-  if (event.phase === "processing") return 95;
-  if (event.phase === "done") return 100;
-  return Math.max(0, Math.min(92, event.percent));
-}
-
-/** 例句/备注：按内容撑开高度，避免小框内再滚一层 */
-function autoGrowTextarea(el: HTMLTextAreaElement | null) {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${Math.max(el.scrollHeight, 72)}px`;
-}
 
 export function JpVocabEditModal({
   open,
@@ -752,455 +692,75 @@ export function JpVocabEditModal({
                 内容较长，右侧可滚动 · 也可用鼠标滚轮上下浏览
               </p>
             ) : null}
-            {showMnemonic ? (
-              <div className="field">
-                <label htmlFor="jp-vocab-edit-mnemonic" className="jp-vocab-edit-label">
-                  巧记
-                </label>
-                <textarea
-                  id="jp-vocab-edit-mnemonic"
-                  className="jp-vocab-edit-textarea jp-vocab-edit-textarea--lg"
-                  rows={4}
-                  value={mnemonic}
-                  disabled={!canEdit}
-                  placeholder="联想记忆、谐音梗、拆分口诀等（仅管理员可见）"
-                  onChange={(e) => setMnemonic(e.target.value)}
-                />
-                <p className="jp-vocab-edit-hint">
-                  用于管理员复习与自查，不会展示给老师或学生端。
-                </p>
-              </div>
-            ) : null}
+            <JpVocabEditBasicFields
+              canEdit={canEdit}
+              showMnemonic={showMnemonic}
+              kind={kind}
+              wordText={wordText}
+              reading={reading}
+              meaning={meaning}
+              pos={pos}
+              mnemonic={mnemonic}
+              word={word}
+              onKindChange={setKind}
+              onWordTextChange={setWordText}
+              onReadingChange={setReading}
+              onMeaningChange={setMeaning}
+              onPosChange={setPos}
+              onMnemonicChange={setMnemonic}
+            />
 
-            <div className="field">
-              <label htmlFor="jp-vocab-edit-kind" className="jp-vocab-edit-label">
-                类型
-              </label>
-              <select
-                id="jp-vocab-edit-kind"
-                className="jp-vocab-edit-select"
-                value={kind}
-                disabled={!canEdit}
-                onChange={(e) => setKind(e.target.value as JpVocabKind)}
-              >
-                {KIND_OPTIONS.map((opt) => (
-                  <option key={opt.key} value={opt.key}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <JpVocabEditExamplesField
+              canEdit={canEdit}
+              exampleSentences={exampleSentences}
+              word={word}
+              exampleSentencesRef={exampleSentencesRef}
+              onExampleSentencesChange={setExampleSentences}
+            />
 
-            <div className="field">
-              <label htmlFor="jp-vocab-edit-word" className="jp-vocab-edit-label">
-                {kind === "grammar" ? "语法" : "单词 / 语法"}
-                <span className="etr-required">*</span>
-              </label>
-              <textarea
-                id="jp-vocab-edit-word"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
-                rows={2}
-                value={wordText}
-                disabled={!canEdit}
-                placeholder={kind === "grammar" ? "例如：～ばかり" : "例如：勉強"}
-                onChange={(e) => setWordText(e.target.value)}
-              />
-            </div>
-
-            {kind === "word" ? (
-              <div className="field">
-                <label htmlFor="jp-vocab-edit-reading" className="jp-vocab-edit-label">
-                  读音（可选）
-                </label>
-                <input
-                  id="jp-vocab-edit-reading"
-                  type="text"
-                  className="jp-vocab-edit-input"
-                  value={reading}
-                  disabled={!canEdit}
-                  placeholder="例如：べんきょう"
-                  onChange={(e) => setReading(e.target.value)}
-                />
-              </div>
-            ) : null}
-
-            <div className="field">
-              <label htmlFor="jp-vocab-edit-meaning" className="jp-vocab-edit-label">
-                释义
-              </label>
-              <textarea
-                id="jp-vocab-edit-meaning"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
-                rows={2}
-                value={meaning}
-                disabled={!canEdit}
-                placeholder="例如：休息；假期（多义用中文分号；分隔，最多 3 个）"
-                onChange={(e) => setMeaning(e.target.value)}
-              />
-              <p className="jp-vocab-edit-hint">
-                {word?.meaning_source?.trim()
-                  ? `当前释义来源：${word.meaning_source.trim()}（在此修改并保存后记为「手动」）。`
-                  : "人手填写并保存后，释义来源记为「手动」。多义用「；」分隔，最多 3 个常用义。"}
-              </p>
-            </div>
-
-            <div className="field">
-              <label htmlFor="jp-vocab-edit-pos" className="jp-vocab-edit-label">
-                词性
-              </label>
-              <textarea
-                id="jp-vocab-edit-pos"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--sm"
-                rows={2}
-                value={pos}
-                disabled={!canEdit}
-                placeholder="例如：名词、动词、形容词"
-                onChange={(e) => setPos(e.target.value)}
-              />
-            </div>
-
-            <div className="field">
-              <label htmlFor="jp-vocab-edit-example-sentences" className="jp-vocab-edit-label">
-                例句
-              </label>
-              <textarea
-                ref={exampleSentencesRef}
-                id="jp-vocab-edit-example-sentences"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--expand"
-                rows={4}
-                value={exampleSentences}
-                disabled={!canEdit}
-                placeholder="例：&#10;日本語を習います。&#10;译文：我学习日语。&#10;ピアノを習いたいです。&#10;译文：我想学钢琴。"
-                onChange={(e) => {
-                  setExampleSentences(e.target.value);
-                  autoGrowTextarea(e.currentTarget);
-                }}
-              />
-              <p className="jp-vocab-edit-hint">
-                格式：日语句下一行写「译文：…」。列表展示时日语自动带 1、2、3…，译义行不占序号。两条例句完全相同会在保存前提醒。课堂带读会展示；日语抽问表格不显示此列。
-                {word?.example_sentences_source?.trim()
-                  ? ` 当前例句来源：${word.example_sentences_source.trim()}（你在此修改并保存后会记为「手动」）。`
-                  : " 人手填写并保存后，例句来源记为「手动」。"}
-              </p>
-            </div>
-
-            <div
-              className="field jp-vocab-edit-notes-field"
-              onPaste={onNotesPaste}
-              onDragOver={(e) => {
-                if (!canEdit || classNotesLoading || noteImageUploading) return;
-                if (![...e.dataTransfer.types].includes("Files")) return;
-                e.preventDefault();
-                e.currentTarget.classList.add("is-dragover");
+            <JpVocabEditNotesField
+              canEdit={canEdit}
+              classNotesLoading={classNotesLoading}
+              noteImageUploading={noteImageUploading}
+              noteImageUploadProgress={noteImageUploadProgress}
+              classNotesText={classNotesText}
+              classNotesImageSrcs={classNotesImageSrcs}
+              classNotes={classNotes}
+              classNotesImages={classNotesImages}
+              classNotesRef={classNotesRef}
+              noteImageInputRef={noteImageInputRef}
+              onNotesPaste={onNotesPaste}
+              onNotesDrop={onNotesDrop}
+              onClassNotesChange={setClassNotes}
+              onNoteZoom={setNoteZoomSrc}
+              onRemoveNoteImage={(index) => {
+                const next = removeJpVocabClassNotesBlobImageAt(classNotes, index);
+                classNotesValueRef.current = next;
+                setClassNotes(next);
               }}
-              onDragLeave={(e) => {
-                e.currentTarget.classList.remove("is-dragover");
-              }}
-              onDrop={onNotesDrop}
-            >
-              <label htmlFor="jp-vocab-edit-notes" className="jp-vocab-edit-label">
-                备注
-              </label>
-              {canEdit ? (
-                <div className="jp-vocab-edit-notes-toolbar">
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact"
-                    disabled={noteImageUploading || classNotesLoading}
-                    onClick={() => noteImageInputRef.current?.click()}
-                  >
-                    {noteImageUploading ? "上传中…" : "上传图片"}
-                  </button>
-                  <span className="jp-vocab-edit-notes-toolbar-hint">
-                    {noteImageUploading
-                      ? "上传完成前不可再贴图或选图"
-                      : "可多选；支持拖拽 / Ctrl+V / ⌘V 粘贴截图；相同图片不会重复加入"}
-                  </span>
-                  <input
-                    ref={noteImageInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    hidden
-                    disabled={noteImageUploading || classNotesLoading}
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      e.target.value = "";
-                      if (files.length) void uploadNoteImages(files);
-                    }}
-                  />
-                </div>
-              ) : null}
-              {noteImageUploading && noteImageUploadProgress ? (
-                <JpVocabSaveProgressBar
-                  label={noteImageUploadLabel(noteImageUploadProgress)}
-                  percent={noteImageUploadPercent(noteImageUploadProgress)}
-                  fullWidth
-                />
-              ) : null}
-              <textarea
-                ref={classNotesRef}
-                id="jp-vocab-edit-notes"
-                className="jp-vocab-edit-textarea jp-vocab-edit-textarea--expand"
-                rows={5}
-                value={classNotesLoading ? "" : classNotesText}
-                disabled={!canEdit || classNotesLoading || noteImageUploading}
-                placeholder={
-                  classNotesLoading
-                    ? "正在加载备注…"
-                    : "点击此处修改备注文字（时间戳行可保留；可粘贴/上传多张图片，见下方缩略图）"
-                }
-                onPaste={onNotesPaste}
-                onChange={(e) => {
-                  setClassNotes(
-                    mergeJpVocabClassNotesBlobFromEdit(e.target.value, classNotesImages)
-                  );
-                  autoGrowTextarea(e.currentTarget);
-                }}
-              />
-              {classNotesImageSrcs.length ? (
-                <div className="jp-vocab-edit-notes-images" aria-label="备注图片">
-                  {classNotesImageSrcs.map((src, index) => (
-                    <div key={`${src}-${index}`} className="jp-vocab-edit-notes-image-item">
-                      <button
-                        type="button"
-                        className="jp-vocab-edit-notes-image-preview"
-                        title="点击放大预览"
-                        onClick={() => setNoteZoomSrc(src)}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={src} alt={`备注图片 ${index + 1}`} loading="lazy" />
-                        <span className="jp-vocab-edit-notes-image-hint">点击放大</span>
-                      </button>
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          className="jp-vocab-edit-notes-image-remove"
-                          disabled={noteImageUploading}
-                          onClick={() => {
-                            if (!window.confirm(`确定移除第 ${index + 1} 张备注图片吗？`)) return;
-                            const next = removeJpVocabClassNotesBlobImageAt(classNotes, index);
-                            classNotesValueRef.current = next;
-                            setClassNotes(next);
-                          }}
-                        >
-                          移除图片
-                        </button>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <p className="jp-vocab-edit-hint">
-                {canEdit
-                  ? "上方文本框可直接改字；图片与「修改备注」弹窗相同：居中展示、可点放大。备注保存后会同步到日语新课。图片地址已隐藏，避免误改；可用「移除图片」删除。"
-                  : "备注保存后会同步到日语新课。图片居中展示；地址已隐藏，避免误改。"}
-              </p>
-            </div>
+              onUploadNoteImages={(files) => void uploadNoteImages(files)}
+            />
 
-            <div className="field jp-vocab-edit-ref-field" onPaste={onRefPaste}>
-              <div className="jp-vocab-edit-ref-head">
-                <label className="jp-vocab-edit-label">教案</label>
-                {currentRefKey ? (
-                  <span className="jp-vocab-edit-ref-key">共享地址：`{currentRefKey}`</span>
-                ) : (
-                  <span className="jp-vocab-edit-ref-key">当前词条还没绑定教案</span>
-                )}
-              </div>
-              <p className="jp-vocab-edit-hint">
-                同一个教案地址被多个语法 / 单词共用时，这里替换后会一起更新。
-              </p>
-
-              <div className="jp-vocab-edit-ref-grid">
-                <div className="jp-vocab-edit-ref-col">
-                  <div className="jp-vocab-edit-ref-title-row">
-                    <span className="jp-vocab-edit-ref-title">旧教案</span>
-                    {currentRefViewerUrl ? (
-                      <a
-                        href={currentRefViewerUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="jp-vocab-edit-ref-link"
-                      >
-                        新标签页打开
-                      </a>
-                    ) : null}
-                  </div>
-                  {currentRefKey && currentRefMeta ? (
-                    currentRefIsPdf ? (
-                      <button
-                        type="button"
-                        className="jp-vocab-edit-ref-card jp-vocab-edit-ref-card--pdf"
-                        onClick={openCurrentRefPreview}
-                      >
-                        <span className="jp-vocab-edit-ref-pdf-badge">PDF</span>
-                        <span className="jp-vocab-edit-ref-card-title">当前 PDF 教案</span>
-                        <span className="jp-vocab-edit-ref-card-hint">点击预览</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="jp-vocab-edit-ref-card"
-                        onClick={openCurrentRefPreview}
-                        title="点击放大预览旧教案"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={currentRefMediaUrl}
-                          alt="旧教案预览"
-                          className="jp-vocab-edit-ref-current-img"
-                        />
-                        <span className="jp-vocab-edit-ref-card-hint">点击放大预览</span>
-                      </button>
-                    )
-                  ) : (
-                    <div className="jp-vocab-edit-ref-empty">暂无旧教案</div>
-                  )}
-                </div>
-
-                <div className="jp-vocab-edit-ref-col">
-                  <div className="jp-vocab-edit-ref-title-row">
-                    <span className="jp-vocab-edit-ref-title">新教案</span>
-                    <span className="jp-vocab-edit-ref-mini-hint">支持上传或直接粘贴截图</span>
-                  </div>
-
-                  <div
-                    className={`jp-vocab-edit-ref-drop${newRefFile ? " has-file" : ""}${
-                      uploadingRef ? " is-disabled" : ""
-                    }`}
-                    onPaste={onRefPaste}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (!uploadingRef) e.currentTarget.classList.add("is-dragover");
-                    }}
-                    onDragLeave={(e) => {
-                      e.currentTarget.classList.remove("is-dragover");
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove("is-dragover");
-                      if (uploadingRef) return;
-                      const picked = e.dataTransfer.files[0];
-                      if (picked) applyRefFile(picked);
-                    }}
-                  >
-                    {newRefFile ? (
-                      <div className="jp-vocab-edit-ref-picked">
-                        {newRefPreviewUrl && newRefFile.type.startsWith("image/") ? (
-                          <button
-                            type="button"
-                            className="jp-vocab-edit-ref-preview-btn"
-                            onClick={() => setZoomTarget("new")}
-                            title="点击放大预览新教案"
-                            disabled={uploadingRef}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={newRefPreviewUrl}
-                              alt="新教案预览"
-                              className="jp-vocab-edit-ref-preview"
-                            />
-                            <span className="jp-vocab-edit-ref-preview-hint">点击放大</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="jp-vocab-edit-ref-pdf-icon"
-                            onClick={openNewRefPreview}
-                            disabled={uploadingRef}
-                          >
-                            PDF
-                          </button>
-                        )}
-                        <div className="jp-vocab-edit-ref-picked-meta">
-                          <span className="jp-vocab-edit-ref-picked-name">{newRefFile.name}</span>
-                          <span className="jp-vocab-edit-ref-picked-size">
-                            {formatUploadBytes(newRefFile.size)}
-                          </span>
-                          {newRefPreviewUrl ? (
-                            <button
-                              type="button"
-                              className="jp-vocab-edit-ref-link-btn"
-                              onClick={openNewRefPreview}
-                              disabled={uploadingRef}
-                            >
-                              {newRefFile.type.startsWith("image/") ? "放大预览" : "预览 PDF"}
-                            </button>
-                          ) : null}
-                        </div>
-                        {!uploadingRef ? (
-                          <button
-                            type="button"
-                            className="jp-vocab-edit-ref-remove"
-                            onClick={clearRefFile}
-                          >
-                            移除
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <>
-                        <p className="jp-vocab-edit-ref-drop-title">拖拽、粘贴或选择图片 / PDF</p>
-                        <p className="jp-vocab-edit-ref-drop-hint">
-                          支持 PNG / JPG / PDF，最大 20MB；弹窗内可按 Ctrl+V / ⌘V 粘贴截图
-                        </p>
-                        <button
-                          type="button"
-                          className="jp-vocab-edit-ref-pick-btn"
-                          disabled={!canEdit || uploadingRef || !currentRefKey}
-                          onClick={() => refFileInputRef.current?.click()}
-                        >
-                          选择文件
-                        </button>
-                      </>
-                    )}
-                    <input
-                      ref={refFileInputRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      hidden
-                      disabled={!canEdit || uploadingRef || !currentRefKey}
-                      onChange={(e) => {
-                        const picked = e.target.files?.[0];
-                        if (picked) applyRefFile(picked);
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {uploadingRef && uploadProgress ? (
-                <div className="jp-vocab-edit-ref-progress" aria-live="polite">
-                  <div className="jp-vocab-edit-ref-progress-head">
-                    <span>{uploadProgressLabel(uploadProgress)}</span>
-                    <span>
-                      {uploadProgress.phase === "uploading" && uploadProgress.total > 0
-                        ? `${uploadProgress.percent}%`
-                        : uploadProgress.phase === "processing"
-                          ? "处理中"
-                          : "100%"}
-                    </span>
-                  </div>
-                  <div
-                    className={`jp-vocab-edit-ref-progress-track${
-                      uploadProgress.phase === "processing" ? " is-processing" : ""
-                    }`}
-                  >
-                    <div
-                      className="jp-vocab-edit-ref-progress-bar"
-                      style={{
-                        width:
-                          uploadProgress.phase === "processing"
-                            ? "100%"
-                            : `${uploadProgress.percent}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              {refError ? <p className="jp-vocab-edit-error">{refError}</p> : null}
-            </div>
+            <JpVocabEditRefField
+              canEdit={canEdit}
+              currentRefKey={currentRefKey}
+              currentRefMeta={currentRefMeta}
+              currentRefMediaUrl={currentRefMediaUrl}
+              currentRefViewerUrl={currentRefViewerUrl}
+              currentRefIsPdf={currentRefIsPdf}
+              newRefFile={newRefFile}
+              newRefPreviewUrl={newRefPreviewUrl}
+              uploadingRef={uploadingRef}
+              uploadProgress={uploadProgress}
+              refError={refError}
+              refFileInputRef={refFileInputRef}
+              onRefPaste={onRefPaste}
+              onOpenCurrentRefPreview={openCurrentRefPreview}
+              onOpenNewRefPreview={openNewRefPreview}
+              onSetZoomTarget={setZoomTarget}
+              onApplyRefFile={applyRefFile}
+              onClearRefFile={clearRefFile}
+            />
 
             {error ? <p className="jp-vocab-edit-error">{error}</p> : null}
           </div>
@@ -1228,67 +788,16 @@ export function JpVocabEditModal({
 
       <JpVocabEditModalStyles />
 
-      {zoomTarget &&
-      ((zoomTarget === "current" && currentRefMediaUrl && !currentRefIsPdf) ||
-        (zoomTarget === "new" && newRefPreviewUrl && newRefFile?.type.startsWith("image/"))) ? (
-        <div
-          className="jp-vocab-edit-zoom"
-          role="dialog"
-          aria-modal="true"
-          aria-label="教案大图预览"
-          onClick={() => setZoomTarget(null)}
-        >
-          <div className="jp-vocab-edit-zoom-bar">
-            <span>
-              {zoomTarget === "current"
-                ? "旧教案 · 点击空白处或按 Esc 关闭"
-                : "新教案 · 点击空白处或按 Esc 关闭"}
-            </span>
-            <button
-              type="button"
-              className="jp-vocab-edit-close"
-              onClick={() => setZoomTarget(null)}
-              aria-label="关闭大图预览"
-            >
-              ×
-            </button>
-          </div>
-          <div className="jp-vocab-edit-zoom-stage">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={zoomTarget === "current" ? currentRefMediaUrl : newRefPreviewUrl || ""}
-              alt="教案大图预览"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      ) : null}
-
-      {noteZoomSrc ? (
-        <div
-          className="jp-vocab-edit-zoom"
-          role="dialog"
-          aria-modal="true"
-          aria-label="备注图片大图预览"
-          onClick={() => setNoteZoomSrc(null)}
-        >
-          <div className="jp-vocab-edit-zoom-bar">
-            <span>备注图片 · 点击空白处或按 Esc 关闭</span>
-            <button
-              type="button"
-              className="jp-vocab-edit-close"
-              onClick={() => setNoteZoomSrc(null)}
-              aria-label="关闭大图预览"
-            >
-              ×
-            </button>
-          </div>
-          <div className="jp-vocab-edit-zoom-stage">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={noteZoomSrc} alt="备注图片大图" onClick={(e) => e.stopPropagation()} />
-          </div>
-        </div>
-      ) : null}
+      <JpVocabEditZoomOverlays
+        zoomTarget={zoomTarget}
+        currentRefMediaUrl={currentRefMediaUrl}
+        currentRefIsPdf={currentRefIsPdf}
+        newRefPreviewUrl={newRefPreviewUrl}
+        newRefFile={newRefFile}
+        noteZoomSrc={noteZoomSrc}
+        onCloseZoomTarget={() => setZoomTarget(null)}
+        onCloseNoteZoom={() => setNoteZoomSrc(null)}
+      />
     </>,
     document.body
   );

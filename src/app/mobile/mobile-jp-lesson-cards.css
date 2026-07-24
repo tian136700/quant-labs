@@ -1,0 +1,727 @@
+  /* ── 日语/英语新课：手机端卡片（--ja / --en）── */
+  .jp-lesson-page--ja .jp-lesson-cards ,
+
+  /* ── 日语新课：手机端卡片 ── */
+  .jp-lesson-page--en .jp-lesson-cards {
+    gap: 0.625rem;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-status-card ,
+
+  .jp-lesson-page--en .jp-lesson-status-card {
+    padding: 0.5rem;
+    border: none;
+    background: transparent;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-table tbody tr ,
+
+  .jp-lesson-page--en .jp-lesson-table tbody tr {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    align-items: stretch;
+    margin-bottom: 0.625rem;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel) 96%, var(--bg));
+  }
+
+  .jp-lesson-page--ja .jp-lesson-table tbody td ,
+
+  .jp-lesson-page--en .jp-lesson-table tbody td {
+    order: unset !important;
+    gap: 0.35rem !important;
+    min-width: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0.5rem 0.625rem !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-table tbody td::before ,
+
+  .jp-lesson-page--en .jp-lesson-table tbody td::before {
+    display: block;
+    width: 100%;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--muted);
+    line-height: 1.25;
+    text-align: center;
+    margin-bottom: 0.25rem;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-labeled-col,
+
+  .jp-lesson-page--en .jp-lesson-mobile-labeled-col,
+  .jp-lesson-page--ja .jp-lesson-content-count-col,
+  .jp-lesson-page--en .jp-lesson-content-count-col,
+  .jp-lesson-page--ja .jp-lesson-next-class-col,
+  .jp-lesson-page--en .jp-lesson-next-class-col,
+  .jp-lesson-page--ja .jp-lesson-teacher-col,
+  .jp-lesson-page--en .jp-lesson-teacher-col,
+  .jp-lesson-page--ja .jp-lesson-operator-col,
+  .jp-lesson-page--en .jp-lesson-operator-col,
+  .jp-lesson-page--ja .jp-lesson-uploaded-col,
+  .jp-lesson-page--en .jp-lesson-uploaded-col,
+  .jp-lesson-page--ja .jp-lesson-status-at-col ,
+  .jp-lesson-page--en .jp-lesson-status-at-col {
+    align-items: center !important;
+    text-align: center;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-labeled-col > *,
+
+  .jp-lesson-page--en .jp-lesson-mobile-labeled-col > *,
+  .jp-lesson-page--ja .jp-lesson-content-count-col > *,
+  .jp-lesson-page--en .jp-lesson-content-count-col > *,
+  .jp-lesson-page--ja .jp-lesson-next-class-col > *,
+  .jp-lesson-page--en .jp-lesson-next-class-col > *,
+  .jp-lesson-page--ja .jp-lesson-teacher-col > *,
+  .jp-lesson-page--en .jp-lesson-teacher-col > *,
+  .jp-lesson-page--ja .jp-lesson-operator-col > *,
+  .jp-lesson-page--en .jp-lesson-operator-col > *,
+  .jp-lesson-page--ja .jp-lesson-uploaded-col > *,
+  .jp-lesson-page--en .jp-lesson-uploaded-col > *,
+  .jp-lesson-page--ja .jp-lesson-status-at-col > * ,
+  .jp-lesson-page--en .jp-lesson-status-at-col > * {
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-table tbody td > * ,
+
+  .jp-lesson-page--en .jp-lesson-table tbody td > * {
+    font-size: 0.875rem;
+    line-height: 1.35;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-field-value ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-field-value {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.35rem;
+    min-width: 0;
+    width: 100%;
+    text-align: left;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-field-text ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-field-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.8125rem;
+    color: var(--text);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-icon ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-icon {
+    display: block;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    color: var(--muted);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-btn-icon ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+  }
+
+  /* 桌面预览（含孤立「更多」）整块隐藏；手机只用 chips */
+  .jp-lesson-page--ja .jp-lesson-content-preview ,
+  .jp-lesson-page--en .jp-lesson-content-preview,
+  .jp-lesson-page--ja .jp-lesson-content-desktop ,
+  .jp-lesson-page--en .jp-lesson-content-desktop {
+    display: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-item ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-item {
+    display: block;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-id-col,
+
+  .jp-lesson-page--en .jp-lesson-id-col,
+  .jp-lesson-page--ja .jp-lesson-kind-col,
+  .jp-lesson-page--en .jp-lesson-kind-col,
+  .jp-lesson-page--ja .jp-lesson-mobile-card-head ,
+  .jp-lesson-page--en .jp-lesson-mobile-card-head {
+    display: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-dt-full,
+
+  .jp-lesson-page--en .jp-lesson-dt-full,
+  .jp-lesson-page--ja .jp-lesson-next-class-dt-full,
+  .jp-lesson-page--en .jp-lesson-next-class-dt-full,
+  .jp-lesson-page--ja .jp-lesson-class-duration-dt-full ,
+  .jp-lesson-page--en .jp-lesson-class-duration-dt-full {
+    display: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-dt-compact,
+
+  .jp-lesson-page--en .jp-lesson-dt-compact,
+  .jp-lesson-page--ja .jp-lesson-next-class-dt-compact,
+  .jp-lesson-page--en .jp-lesson-next-class-dt-compact,
+  .jp-lesson-page--ja .jp-lesson-class-duration-dt-compact ,
+  .jp-lesson-page--en .jp-lesson-class-duration-dt-compact {
+    display: inline !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-content-col ,
+
+  .jp-lesson-page--en .jp-lesson-content-col {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    align-items: stretch !important;
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.5rem !important;
+    border-left: 3px solid var(--accent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-content-col > * ,
+
+  .jp-lesson-page--en .jp-lesson-content-col > * {
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-item + .jp-lesson-mobile-content-item ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-item + .jp-lesson-mobile-content-item {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-main ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-main {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-id-block ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-id-block {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-id-line ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-id-line {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.25rem;
+    line-height: 1.1;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-id-label ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-id-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-id-value ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-id-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--accent) 75%, #fff);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-kind-tag ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-kind-tag {
+    padding: 0.08rem 0.4rem;
+    font-size: 0.6875rem;
+    border-radius: 999px;
+  }
+
+  /* 学习内容整块展示：日语每行 5 个；英语词更长每行 3 个；禁止单行省略 */
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chips ,
+  .jp-lesson-page--en .jp-lesson-mobile-content-chips {
+    display: grid;
+    gap: 0.3rem 0.35rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chips {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-chips {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chip ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-chip {
+    margin: 0;
+    padding: 0.28rem 0.2rem;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--text);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-text ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-text {
+    display: none;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-examples-toolbar {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.5rem;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar .jp-lesson-mobile-examples-label ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-examples-toolbar .jp-lesson-mobile-examples-label {
+    margin-right: 0.1rem;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.8125rem;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-edit ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-content-edit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-height: 2rem;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* 学习状态 · 课堂笔记 */
+  .jp-lesson-page--ja .jp-lesson-complete-col ,
+
+  /* 学习状态 · 课堂笔记 */
+  .jp-lesson-page--en .jp-lesson-complete-col {
+    grid-column: 1;
+    grid-row: 2;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-notes-col ,
+
+  .jp-lesson-page--en .jp-lesson-notes-col {
+    grid-column: 2;
+    grid-row: 2;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-content-count-col ,
+
+  .jp-lesson-page--en .jp-lesson-content-count-col {
+    grid-column: 3;
+    grid-row: 2;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-content-count-col::before {
+    content: "词/语法数";
+  }
+
+  .jp-lesson-page--en .jp-lesson-content-count-col::before {
+    content: "词/短语数";
+  }
+
+  .jp-lesson-page--ja .jp-lesson-complete-wrap ,
+
+  .jp-lesson-page--en .jp-lesson-complete-wrap {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    border-radius: 8px;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-complete-select ,
+
+  .jp-lesson-page--en .jp-lesson-complete-select {
+    min-height: 2.5rem;
+    width: 100%;
+    min-width: 0;
+    font-size: 0.9375rem;
+    text-align: center;
+    text-align-last: center;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-notes-btn ,
+
+  .jp-lesson-page--en .jp-lesson-notes-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+
+  /* 教案操作（独立模块） */
+  .jp-lesson-page--ja .jp-lesson-actions-col ,
+
+  /* 教案操作（独立模块） */
+  .jp-lesson-page--en .jp-lesson-actions-col {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.75rem !important;
+    margin-bottom: 0.375rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-actions ,
+
+  .jp-lesson-page--en .jp-lesson-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-actions .jp-lesson-action-btn,
+
+  .jp-lesson-page--en .jp-lesson-actions .jp-lesson-action-btn,
+  .jp-lesson-page--ja .jp-lesson-actions .jp-ref-download-menu,
+  .jp-lesson-page--en .jp-lesson-actions .jp-ref-download-menu,
+  .jp-lesson-page--ja .jp-lesson-actions .jp-ref-download-trigger,
+  .jp-lesson-page--en .jp-lesson-actions .jp-ref-download-trigger,
+  .jp-lesson-page--ja .jp-lesson-actions .jp-lesson-copy-menu,
+  .jp-lesson-page--en .jp-lesson-actions .jp-lesson-copy-menu,
+  .jp-lesson-page--ja .jp-lesson-actions .jp-lesson-copy-trigger ,
+  .jp-lesson-page--en .jp-lesson-actions .jp-lesson-copy-trigger {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    flex: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 2.5rem;
+    box-sizing: border-box;
+    font-size: 0.875rem;
+    border-radius: 8px;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-actions .jp-edit-icon-btn ,
+
+  .jp-lesson-page--en .jp-lesson-actions .jp-edit-icon-btn {
+    display: none !important;
+  }
+
+  /* 英语删除仅桌面操作区；手机对齐日语（操作区无删除，避免 2 列网格尾行孤钮） */
+  .jp-lesson-page--en .jp-lesson-actions .jp-lesson-action-btn--danger {
+    display: none !important;
+  }
+
+  /* 复制下拉：fixed 面板加宽，避免选项文字叠在一起 */
+  .jp-lesson-copy-panel.is-fixed {
+    min-width: min(16rem, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+  }
+
+  .jp-lesson-copy-item {
+    min-height: 3rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .jp-lesson-copy-item-title {
+    font-size: 0.9375rem;
+  }
+
+  .jp-lesson-copy-item-desc {
+    font-size: 0.8125rem;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-action-btn--download::before,
+
+  .jp-lesson-page--en .jp-lesson-action-btn--download::before,
+  .jp-lesson-page--ja .jp-ref-download-trigger.jp-lesson-action-btn--download::before ,
+  .jp-lesson-page--en .jp-ref-download-trigger.jp-lesson-action-btn--download::before {
+    content: "";
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    background: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='black' d='M8 2.5v7M5.5 7 8 9.5 10.5 7M3 12.5h10'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='black' d='M8 2.5v7M5.5 7 8 9.5 10.5 7M3 12.5h10'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    color: var(--accent);
+  }
+
+  /* 课程信息三列 */
+  .jp-lesson-page--ja .jp-lesson-next-class-col ,
+
+  /* 课程信息三列 */
+  .jp-lesson-page--en .jp-lesson-next-class-col {
+    grid-column: 1;
+    grid-row: 4;
+    padding-top: 0.625rem !important;
+    border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-teacher-col ,
+
+  .jp-lesson-page--en .jp-lesson-teacher-col {
+    grid-column: 2;
+    grid-row: 4;
+    padding-top: 0.625rem !important;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-operator-col ,
+
+  .jp-lesson-page--en .jp-lesson-operator-col {
+    grid-column: 3;
+    grid-row: 4;
+    padding-top: 0.625rem !important;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja
+    .jp-lesson-table
+    tbody
+    tr:not(:has(.jp-lesson-next-class-col))
+    .jp-lesson-operator-col ,
+
+  .jp-lesson-page--en
+    .jp-lesson-table
+    tbody
+    tr:not(:has(.jp-lesson-next-class-col))
+    .jp-lesson-operator-col {
+    grid-column: 1 / -1;
+    border-left: none;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-next-class-cell,
+
+  .jp-lesson-page--en .jp-lesson-next-class-cell,
+  .jp-lesson-page--ja .jp-lesson-teacher-cell ,
+  .jp-lesson-page--en .jp-lesson-teacher-cell {
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0.25rem !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-merged-edit-stack ,
+
+  .jp-lesson-page--en .jp-lesson-merged-edit-stack {
+    display: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-next-class-lines ,
+
+  .jp-lesson-page--en .jp-lesson-next-class-lines {
+    gap: 0.15rem;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-next-class-label,
+
+  .jp-lesson-page--en .jp-lesson-next-class-label,
+  .jp-lesson-page--ja .jp-lesson-class-duration-label,
+  .jp-lesson-page--en .jp-lesson-class-duration-label,
+  .jp-lesson-page--ja .jp-lesson-next-class-dt-compact ,
+  .jp-lesson-page--en .jp-lesson-next-class-dt-compact {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    white-space: normal !important;
+    color: var(--text);
+  }
+
+  /* 上传 · 最近操作 */
+  .jp-lesson-page--ja .jp-lesson-uploaded-col ,
+
+  /* 上传 · 最近操作 */
+  .jp-lesson-page--en .jp-lesson-uploaded-col {
+    grid-column: 1;
+    grid-row: 5;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-status-at-col ,
+
+  .jp-lesson-page--en .jp-lesson-status-at-col {
+    grid-column: 2 / -1;
+    grid-row: 5;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-uploaded-col > *,
+
+  .jp-lesson-page--en .jp-lesson-uploaded-col > *,
+  .jp-lesson-page--ja .jp-lesson-status-at-col > *,
+  .jp-lesson-page--en .jp-lesson-status-at-col > *,
+  .jp-lesson-page--ja .jp-lesson-uploaded-col .jp-lesson-dt,
+  .jp-lesson-page--en .jp-lesson-uploaded-col .jp-lesson-dt,
+  .jp-lesson-page--ja .jp-lesson-status-at-col .jp-lesson-dt,
+  .jp-lesson-page--en .jp-lesson-status-at-col .jp-lesson-dt,
+  .jp-lesson-page--ja .jp-lesson-dt-compact ,
+  .jp-lesson-page--en .jp-lesson-dt-compact {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--text);
+    white-space: normal !important;
+  }
+
+  /* 底部三按钮 */
+  .jp-lesson-page--ja .jp-lesson-mobile-card-footer ,
+
+  /* 底部三按钮 */
+  .jp-lesson-page--en .jp-lesson-mobile-card-footer {
+    display: block !important;
+    grid-column: 1 / -1;
+    grid-row: 6;
+    padding: 0 !important;
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-card-footer::before ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-card-footer::before {
+    display: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-card-footer[aria-hidden="true"] ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-card-footer[aria-hidden="true"] {
+    display: none !important;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-stack ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-stack {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-row ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-row {
+    display: grid;
+    width: 100%;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-row + .jp-lesson-mobile-footer-row ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-row + .jp-lesson-mobile-footer-row {
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-btn ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 3rem;
+    padding: 0.375rem 0.25rem;
+    border: none;
+    border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    background: color-mix(in srgb, var(--panel) 108%, var(--bg));
+    color: var(--text);
+    font: inherit;
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-btn:last-child ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-btn:last-child {
+    border-right: none;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-btn .jp-lesson-mobile-icon ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-btn .jp-lesson-mobile-icon {
+    margin-top: 0;
+    color: var(--accent);
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-footer-btn:disabled ,
+
+  .jp-lesson-page--en .jp-lesson-mobile-footer-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-merged-stack-item + .jp-lesson-merged-stack-item ,
+
+  .jp-lesson-page--en .jp-lesson-merged-stack-item + .jp-lesson-merged-stack-item {
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+

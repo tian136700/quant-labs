@@ -1,0 +1,932 @@
+  /* ── JP Lesson page ── */
+  .jp-vocab-page {
+    max-width: 100% !important;
+    padding-top: 1rem !important;
+  }
+
+  .jp-vocab-page > p,
+  .jp-vocab-help,
+  .jp-vocab-risk-hint {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .jp-vocab-search {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .jp-vocab-search__row {
+    width: 100%;
+    max-width: none;
+  }
+
+  .jp-vocab-search__kind,
+  .jp-vocab-search__input {
+    width: 100%;
+    max-width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .jp-vocab-search__kind {
+    min-width: 0;
+  }
+
+  .page-wrap:has(.jp-vocab-page) {
+    max-width: 100%;
+  }
+
+  .jp-lesson-page {
+    padding-top: 1rem !important;
+    max-width: 100% !important;
+  }
+
+  .jp-lesson-page h1 {
+    font-size: clamp(1.625rem, 5vw, 1.75rem) !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .jp-lesson-page > p {
+    font-size: 1rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .jp-lesson-search {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .jp-lesson-search__row {
+    width: 100%;
+    max-width: none;
+  }
+
+  .jp-lesson-search__input {
+    width: 100%;
+    max-width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .jp-lesson-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* 移动端状态筛选 — 默认只显示选中分组 */
+  .jp-lesson-mobile-status-filter {
+    display: flex;
+    gap: 0.375rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .jp-lesson-mobile-status-tab {
+    flex: 1 1 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    min-height: 2.75rem;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .jp-lesson-mobile-status-tab-count {
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+  }
+
+  .jp-lesson-mobile-status-tab--learning.is-active {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  }
+
+  .jp-lesson-mobile-status-tab--pending.is-active {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--text) 25%, var(--border));
+    background: color-mix(in srgb, var(--text) 6%, var(--panel));
+  }
+
+  .jp-lesson-mobile-status-tab--completed.is-active {
+    color: var(--fall);
+    border-color: color-mix(in srgb, var(--fall) 50%, var(--border));
+    background: color-mix(in srgb, var(--fall) 10%, var(--panel));
+  }
+
+  .jp-lesson-mobile-filter-learning .jp-lesson-status-card--pending,
+  .jp-lesson-mobile-filter-learning .jp-lesson-status-card--completed,
+  .jp-lesson-mobile-filter-pending .jp-lesson-status-card--learning,
+  .jp-lesson-mobile-filter-pending .jp-lesson-status-card--completed,
+  .jp-lesson-mobile-filter-completed .jp-lesson-status-card--learning,
+  .jp-lesson-mobile-filter-completed .jp-lesson-status-card--pending {
+    display: none !important;
+  }
+
+  /* 搜索时跨状态展示所有匹配分组 */
+  .jp-lesson-mobile-filter-search .jp-lesson-status-card--learning,
+  .jp-lesson-mobile-filter-search .jp-lesson-status-card--pending,
+  .jp-lesson-mobile-filter-search .jp-lesson-status-card--completed {
+    display: block !important;
+  }
+
+  .jp-lesson-status-card-head {
+    display: none;
+  }
+
+  .jp-lesson-status-card {
+    padding: 0.75rem;
+    margin-bottom: 0;
+  }
+
+  .jp-lesson-status-card-title {
+    font-size: 1.375rem !important;
+  }
+
+  .jp-lesson-schedule-page {
+    max-width: 100% !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  .page-wrap:has(.jp-lesson-page),
+  .page-wrap:has(.jp-lesson-schedule-page) {
+    max-width: 100%;
+  }
+
+  .jp-lesson-admin-links {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .jp-lesson-admin-links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    text-decoration: none;
+  }
+
+  /* jp-lesson-table-wrap — see JP Lesson cards section below */
+
+  /* ── Cards: single column on phones ── */
+  .compare-cards,
+  .etr-cards,
+  .results-overview--mobile {
+    grid-template-columns: 1fr !important;
+  }
+
+  .strategy-card-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .etr-row-actions,
+  .etr-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .etr-row-actions .btn-rsi-filter,
+  .etr-card-actions .btn-rsi-filter,
+  .etr-row-actions button,
+  .etr-card-actions button,
+  .etr-row-actions a,
+  .etr-card-actions a {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .site-auth-overlay {
+    align-items: flex-end;
+    padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .site-auth-dialog {
+    width: 100%;
+    max-width: none;
+    border-radius: 12px 12px 0 0;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .site-auth-dialog .etr-auth-panel--inline {
+    padding: 1rem var(--page-pad) calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .etr-auth-inline-head {
+    margin-bottom: 0.5rem;
+  }
+
+  .etr-auth-inline-head h2 {
+    font-size: 1.0625rem;
+    color: var(--text);
+  }
+
+  .etr-auth-close {
+    width: 2.75rem;
+    height: 2.75rem;
+    font-size: 1.375rem;
+  }
+
+  .etr-password-toggle {
+    max-width: none;
+    font-size: 0.8125rem;
+    padding: 0.25rem 0.35rem;
+  }
+
+  .page-header {
+    z-index: 25;
+  }
+
+  .section {
+    margin-bottom: var(--card-margin);
+  }
+
+  .etr-top-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .etr-top-bar-actions {
+    align-items: stretch;
+    text-align: left;
+  }
+
+  .etr-history-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .etr-history-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .etr-history-actions .btn-rsi-filter {
+    width: 100%;
+  }
+
+  .admin-visits-toolbar,
+  .admin-tool-codes-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-visits-filter-select,
+  .admin-tool-codes-filter-select {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  /* Prevent page-level horizontal overflow */
+  html,
+  body,
+  .page-wrap,
+  main {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  /* ── Tables / cards ── */
+  .table-wrap {
+    overflow-x: auto;
+    overflow-y: clip;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .compare-cards,
+  .results-overview--mobile {
+    gap: 0.75rem;
+  }
+
+  /* Prevent nested horizontal overflow */
+  pre,
+  code {
+    max-width: 100%;
+    overflow-x: auto;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  /* ── JP Lesson schedule (jpls) ── */
+  .jpls-toolbar {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+    margin-bottom: 0.375rem;
+    padding-bottom: 0;
+  }
+
+  .jpls-toolbar-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.375rem;
+    width: 100%;
+  }
+
+  .jpls-view-tabs {
+    order: -1;
+    position: sticky;
+    top: var(--mobile-sticky-offset);
+    z-index: 16;
+    display: flex;
+    width: 100%;
+    margin-inline: calc(-1 * var(--page-pad));
+    padding: 0.25rem var(--page-pad);
+    background: color-mix(in srgb, var(--bg) 96%, transparent);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .jpls-view-tab {
+    flex: 1 1 0;
+    min-height: 2.5rem;
+    padding: 0.375rem 0.35rem;
+    text-align: center;
+    font-size: 0.9375rem;
+  }
+
+  .jpls-date-nav {
+    width: 100%;
+    align-items: center;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  .jpls-date-nav-center {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .jpls-date-relative {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: left;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .jpls-date-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 2.25rem;
+    width: auto;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.875rem;
+  }
+
+  .jpls-date-count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-weight: 500;
+    white-space: normal;
+    flex-shrink: 1;
+    min-width: 0;
+    line-height: 1.2;
+    text-align: right;
+  }
+
+  .jpls-icon-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+  }
+
+  .jpls-toolbar-right {
+    margin-left: 0;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .jpls-toolbar-right .jpls-export-btn {
+    flex: 1 1 100%;
+  }
+
+  .jpls-export-btn {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .jpls-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.75rem;
+  }
+
+  /* Flatten sidebar so panels → timeline → tip stack without sticky overlap */
+  .jpls-sidebar {
+    display: contents !important;
+  }
+
+  .jpls-sidebar-panels {
+    order: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* 详情/今日列表优先，日视图时间轴居中，提示放最后 */
+  .jpls-calendar {
+    order: 2;
+    position: relative;
+    z-index: 0;
+    min-width: 0;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    overflow: visible;
+    max-width: 100%;
+    height: auto !important;
+  }
+
+  .jpls-tip {
+    order: 3;
+    width: 100%;
+    margin: 0;
+    padding-top: 0.25rem;
+  }
+
+  .jpls-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .jpls-header h1 {
+    font-size: clamp(1.625rem, 5vw, 1.75rem);
+  }
+
+  .jpls-back-btn {
+    width: 100%;
+    min-height: 2.75rem;
+    justify-content: center;
+    font-size: 1rem;
+  }
+
+  /* Beat styled-jsx flex compression — keep natural slot height, scroll if needed */
+  .jpls-calendar--day-sync {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .jpls-calendar--day-sync .jpls-day-view,
+  .jpls-day-view {
+    height: auto !important;
+    flex: none !important;
+    max-width: 100%;
+    overflow: visible !important;
+  }
+
+  /* Day view: card-style timeline — avoid single-line squeeze and clipped overflow */
+  .jpls-day-view .jpls-timeline-heading {
+    display: block !important;
+    margin: 0 0 0.5rem;
+    font-size: 1.0625rem;
+  }
+
+  .jpls-calendar--day-sync .jpls-slot-grid,
+  .jpls-day-view .jpls-slot-grid {
+    flex: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-width: 100%;
+    width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column;
+    gap: 0.625rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .jpls-calendar--day-sync .jpls-slot-row,
+  .jpls-day-view .jpls-slot-row {
+    flex: none !important;
+    display: grid !important;
+    grid-template-columns: 2.75rem minmax(0, 1fr) !important;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.25rem !important;
+  }
+
+  /* 手机端隐藏空闲格，只保留有课时段 */
+  .jpls-day-view .jpls-slot-row:has(.jpls-slot-cell.is-free) {
+    display: none !important;
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start.is-event-span .jpls-slot-cell.is-busy {
+    min-height: calc(var(--jpls-slot-span, 2) * 2.75rem) !important;
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start {
+    display: flex !important;
+    flex-direction: column;
+    grid-template-columns: unset !important;
+    min-height: 0 !important;
+    border: 1px solid color-mix(in srgb, var(--rise) 30%, var(--border));
+    border-radius: 10px;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start:has(.jpls-slot-cell--past) {
+    border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start:has(.jpls-slot-cell--ongoing) {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start .jpls-slot-time {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    justify-content: flex-start;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text);
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start .jpls-slot-cell.is-busy {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: auto !important;
+    padding: 0.65rem 0.75rem;
+    overflow: visible;
+    border-left: none;
+  }
+
+  .jpls-day-view .jpls-slot-row.is-event-start .jpls-slot-cell.is-busy.jpls-slot-cell--past {
+    opacity: 1;
+  }
+
+  .jpls-slot-cell,
+  .jpls-slot-row.is-event-start .jpls-slot-cell {
+    min-height: 2.25rem !important;
+    align-items: center;
+  }
+
+  .jpls-slot-free-label {
+    white-space: nowrap;
+  }
+
+  .jpls-day-view .jpls-slot-busy-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, #fff 18%, transparent);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .jpls-day-view .jpls-slot-busy-label--past {
+    background: color-mix(in srgb, var(--fall) 18%, transparent);
+  }
+
+  .jpls-day-view .jpls-slot-busy-encourage {
+    width: 100%;
+    font-size: 0.75rem;
+    white-space: normal;
+    flex-shrink: 0;
+  }
+
+  .jpls-day-view .jpls-slot-busy-time {
+    width: 100%;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .jpls-day-title {
+    margin-bottom: 0.375rem;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    flex-wrap: wrap;
+    line-height: 1.3;
+  }
+
+  .jpls-day-weekday {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .jpls-day-view .jpls-slot-busy-meta {
+    width: 100%;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .jpls-day-view .jpls-now-line {
+    display: none;
+  }
+
+  .jpls-calendar--day-sync {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .jpls-week-view {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap;
+    grid-template-columns: unset !important;
+    overflow-x: visible;
+    gap: 0.625rem;
+    min-height: 0 !important;
+    max-width: 100%;
+    padding-bottom: 0;
+  }
+
+  .jpls-week-range {
+    display: block !important;
+    margin: 0 0 0.125rem;
+    padding: 0.375rem 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    color: var(--text);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  }
+
+  .jpls-week-col {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .jpls-week-col.is-today {
+    border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .jpls-week-col-head {
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 0.75rem !important;
+    font-size: 0.9375rem !important;
+  }
+
+  .jpls-week-col.is-today .jpls-week-col-head {
+    background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  }
+
+  .jpls-week-col-main {
+    flex-direction: row !important;
+    align-items: baseline;
+    gap: 0.5rem !important;
+  }
+
+  .jpls-week-col-weekday {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .jpls-week-col-date {
+    font-size: 0.875rem !important;
+    color: var(--muted);
+  }
+
+  .jpls-week-count {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 58%;
+    font-size: 0.75rem !important;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: right;
+    white-space: normal;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    color: var(--muted);
+  }
+
+  .jpls-week-col.is-today .jpls-week-count {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  }
+
+  .jpls-week-list {
+    gap: 0.5rem !important;
+    padding: 0.5rem 0.625rem 0.625rem !important;
+  }
+
+  .jpls-week-empty {
+    font-size: 0.875rem;
+    padding: 0.375rem 0.5rem;
+  }
+
+  /* 周视图：先展示整周日程，再看详情 */
+  .jpls-layout:has(.jpls-week-view) .jpls-calendar {
+    order: 1;
+  }
+
+  .jpls-layout:has(.jpls-week-view) .jpls-sidebar-panels {
+    order: 2;
+  }
+
+  .jpls-layout:has(.jpls-week-view) .jpls-tip {
+    order: 3;
+  }
+
+  .jpls-month-weekdays,
+  .jpls-month-grid {
+    min-width: min(100%, 36rem);
+  }
+
+  .jpls-calendar:has(.jpls-month-grid) {
+    overflow-x: auto;
+    overflow-y: clip;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .jpls-detail,
+  .jpls-today-list {
+    width: 100%;
+    padding: 0.75rem;
+    margin-top: 0;
+    margin-bottom: 0;
+    border-radius: 10px;
+  }
+
+  .jpls-detail h2,
+  .jpls-today-list h2 {
+    font-size: 1.125rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .jpls-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .jpls-detail-list > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .jpls-detail-list dt {
+    font-size: 0.875rem;
+  }
+
+  .jpls-detail-list dd {
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .jpls-link-row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .jpls-link-row a,
+  .jpls-link-row button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.9375rem;
+    box-sizing: border-box;
+  }
+
+  .jpls-today-item,
+  .jpls-week-item {
+    min-height: 2.75rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.9375rem;
+    gap: 0.25rem;
+  }
+
+  .jpls-week-item-time {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .jpls-week-item-meta {
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+
+  .jpls-week-item-content {
+    font-size: 0.875rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .jpls-week-item--past {
+    border-color: color-mix(in srgb, var(--fall) 35%, var(--border));
+    background: color-mix(in srgb, var(--fall) 8%, var(--panel));
+  }
+
+  .jpls-week-item--manual:not(.jpls-week-item--past) {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  }
+
+  .jpls-week-item-manual {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--accent) 82%, var(--text));
+  }
+
+  .jpls-today-item--manual:not(.jpls-today-item--past) {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  }
+
+  .jpls-manual-add-btn {
+    min-height: 2.75rem;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.9375rem;
+  }
+
+  .jpls-week-item.is-selected {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .jpls-today-list ul {
+    gap: 0.375rem;
+  }
+
+  .jpls-sub {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+  }
+

@@ -1,0 +1,252 @@
+/* ── 结果概览（统计卡片，仅手机/平板） ── */
+.results-overview--mobile {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+}
+
+@screen sm {
+  .results-overview--mobile {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+@screen lg {
+  .results-overview--mobile {
+    display: none;
+  }
+}
+
+.stat-card {
+  @apply bg-panel border border-border rounded-card p-3 min-w-0;
+}
+
+.stat-card-label {
+  @apply text-xs text-muted m-0 leading-snug;
+}
+
+.stat-card-value {
+  font-size: clamp(1.125rem, 3vw, 2.25rem);
+  @apply font-semibold text-text m-0 mt-1 leading-none;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-card-value--sm {
+  font-size: clamp(0.9375rem, 2vw, 1.25rem);
+}
+
+.stat-card-value--range {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.35;
+}
+
+.stat-card-range-line {
+  display: block;
+}
+
+/* ── 结果详细：卡片流 / 平板双列 / 桌面表格 ── */
+.compare-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@screen sm {
+  .compare-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.875rem;
+  }
+}
+
+@screen lg {
+  .compare-cards {
+    display: none;
+  }
+}
+
+.strategy-card {
+  @apply bg-panel border border-border rounded-card;
+  padding: clamp(0.875rem, 2vw, 1.125rem);
+}
+
+.strategy-card-title {
+  @apply text-sm font-semibold text-text m-0 mb-3 pb-2 border-b border-border;
+}
+
+.strategy-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.625rem 0.75rem;
+  margin: 0;
+}
+
+@screen xs {
+  .strategy-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.strategy-card-item {
+  @apply min-w-0;
+}
+
+.strategy-card-item--wide {
+  grid-column: 1 / -1;
+}
+
+.strategy-card-item dt {
+  @apply text-[0.7rem] text-muted m-0 leading-snug;
+}
+
+.strategy-card-item dd {
+  @apply text-sm font-medium m-0 mt-0.5;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+.table-wrap {
+  @apply w-full;
+  /* overflow-x:auto alone → overflow-y becomes auto and traps Mac trackpad vertical pan */
+  overflow-x: auto;
+  overflow-y: clip;
+  -webkit-overflow-scrolling: touch;
+}
+
+.compare-table-desktop {
+  display: none;
+}
+
+@screen lg {
+  .compare-table-desktop {
+    display: block;
+  }
+}
+
+.compare-table {
+  @apply w-full border-collapse text-sm bg-panel rounded-card overflow-hidden border border-border;
+}
+
+.compare-table th,
+.compare-table td {
+  @apply px-2.5 py-2 text-center align-middle border border-border;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.compare-table thead {
+  background: #243044;
+  @apply text-muted font-medium;
+}
+
+.compare-table tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.compare-table tbody tr:hover {
+  background: rgba(61, 139, 253, 0.08);
+}
+
+/* ── 图表 ── */
+.chart-panel {
+  @apply bg-panel border border-border rounded-card;
+  padding: clamp(0.75rem, 2vw, 1.125rem);
+}
+
+.chart-panel-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+@screen sm {
+  .chart-panel-head {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+  }
+}
+
+.chart-canvas {
+  width: 100%;
+  min-height: clamp(220px, 40dvh, 360px);
+  height: clamp(220px, 35vw, 360px);
+}
+
+.chart-panel h3 {
+  @apply text-sm text-muted font-semibold m-0;
+}
+
+.chart-rsi-picker {
+  @apply flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2;
+}
+
+.chart-rsi-picker-label {
+  @apply text-xs text-muted;
+}
+
+.chart-rsi-picker-btns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+  gap: 0.375rem;
+}
+
+@screen sm {
+  .chart-rsi-picker-btns {
+    display: flex;
+    flex-wrap: wrap;
+    width: auto;
+  }
+}
+
+.btn-rsi-filter--compact {
+  @apply px-2.5 text-xs;
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding-block: 0.5rem;
+}
+
+@screen md {
+  .btn-rsi-filter--compact {
+    min-height: 2.25rem;
+    min-width: 2.5rem;
+    padding-block: 0.25rem;
+  }
+}
+
+.btn-rsi-filter.is-active {
+  @apply border-accent text-accent bg-accent/10;
+}
+
+.btn-rsi-filter--primary {
+  @apply border-accent text-accent;
+}
+
+.btn-rsi-filter--primary:hover {
+  @apply bg-accent/10;
+}
+
+.btn-rsi-filter--danger {
+  border-color: var(--rise);
+  color: var(--rise);
+}
+
+.btn-rsi-filter--danger:hover {
+  background: color-mix(in srgb, var(--rise) 12%, transparent);
+}
+
+.btn-rsi-filter--success {
+  border-color: var(--fall);
+  color: var(--fall);
+}
+
+.btn-rsi-filter--success:hover {
+  background: color-mix(in srgb, var(--fall) 12%, transparent);
+}
+
