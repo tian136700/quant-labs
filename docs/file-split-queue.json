@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "updated": "2026-07-24",
+  "rule": "业务代码单文件 ≤1000 行；样式/文案/备份不计入队列。queue 内均为超标文件 status=0；从 queue 消失或进入 completed_since_last_refresh 表示已达标 status=1。",
+  "threshold": 1000,
+  "queue": [
+    {
+      "path": "src/components/JpLessonPage.tsx",
+      "lines": 1356,
+      "status": 0,
+      "note": ""
+    },
+    {
+      "path": "src/components/EnVocabTeacherQuizFlashcardModal.tsx",
+      "lines": 1312,
+      "status": 0,
+      "note": ""
+    },
+    {
+      "path": "src/components/AdminUsersPage.tsx",
+      "lines": 1157,
+      "status": 0,
+      "note": ""
+    },
+    {
+      "path": "src/components/EnVocabPage.tsx",
+      "lines": 1029,
+      "status": 0,
+      "note": ""
+    },
+    {
+      "path": "src/components/JpVocabPage.tsx",
+      "lines": 1023,
+      "status": 0,
+      "note": ""
+    },
+    {
+      "path": "src/components/AdminJpLessonTeachersPage.tsx",
+      "lines": 1002,
+      "status": 0,
+      "note": ""
+    }
+  ],
+  "completed_since_last_refresh": [],
+  "excluded_over_threshold": [
+    {
+      "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
+      "lines": 1352,
+      "reason": "style_or_data"
+    }
+  ]
+}
