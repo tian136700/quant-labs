@@ -277,7 +277,14 @@ export async function POST(request: Request) {
 
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400;
-      return jsonResponse({ ok: false, error: result.error }, status);
+      return jsonResponse(
+        {
+          ok: false,
+          error: result.error,
+          ...(result.message ? { message: result.message } : {}),
+        },
+        status
+      );
     }
 
     return jsonResponse({ ok: true, lesson: result.lesson });

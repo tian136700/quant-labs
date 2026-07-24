@@ -225,6 +225,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 设置上课老师弹窗（弹窗内新增老师并保存） | `EnLessonTeacherEditModal.tsx`（添加行右侧「保存」）；`EnLessonPage.tsx` → `addLessonTeacher` / `setLessonTeachers`（合并老师列表，勿用旧闭包覆盖刚添加的老师）；API：`/api/admin/en-lesson-teachers`、`POST /api/en-lesson` `set_teacher` |
+| **单词类禁止多词条目标已完成**（如「Present Perfect」：单词类标已完成会驳回并提示改语法类或拆成单词；语法类允许多词） | `en-lesson-shared.ts` → `validateEnLessonWordKindContentForComplete`；`updateEnLessonProgress`；`EnLessonPage` `setLessonProgress`；规则 `.cursor/rules/en-lesson-word-kind-no-multiword.mdc`；回归 `scripts/check_en_lesson_word_kind_no_multiword.py` |
 | **默认课时长 25 分钟**（设置上课时间时预选；日程未填时长也按 25；勿用日语默认 55） | `en-lesson-shared.ts` → `DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES` / `resolveEnClassDurationMinutes`；`EnLessonNextClassEditModal.tsx` |
 | **手机端卡片布局**（与日语新课同套：状态 Tab（手机+桌面）、内容 chips、底部编辑/老师/时间；根节点 `jp-lesson-page--en`） | `EnLessonPage.tsx`；`mobile.css`（`--ja` / `--en`）；`EN_LESSON_MOBILE_STATUS_FILTER_KEY`；规则 `jp-lesson-mobile-content-layout.mdc`、`jp-lesson-mobile-status-tab.mdc` |
 | **教案下载文件名**（英文：`{id}. Word Learn|Grammar Learn (word1, word2, …)`，空格保留；列表与「查看」页一致；供菲律宾等英语老师识别） | `en-vocab-ref-shared.ts` → `enLessonRefDownloadFilename`；`EnLessonPage.tsx`；`EnVocabRefViewer` + `en-vocab/ref/[refKey]/page.tsx`；`GET /api/en-vocab/ref/[refKey]?download=1`；`getEnLessonByRefKey` |

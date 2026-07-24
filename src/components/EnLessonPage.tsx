@@ -44,6 +44,7 @@ import {
   getLessonClassSchedules,
   enLessonProgressToFields,
   normalizeClassDurationMinutes,
+  validateEnLessonWordKindContentForComplete,
   type EnLessonDisplayGroup,
   type EnLessonClassTimeSortOrder,
   type EnLessonProgressStatus,
@@ -281,6 +282,13 @@ export function EnLessonPage() {
     if (savingId === lessonId) return;
 
     const snapshot = lessons.find((l) => l.id === lessonId);
+    if (progressStatus === "completed" && snapshot) {
+      const check = validateEnLessonWordKindContentForComplete(snapshot);
+      if (!check.ok) {
+        setStatus(check.message);
+        return;
+      }
+    }
     const optimistic = enLessonProgressToFields(progressStatus);
     setSavingId(lessonId);
     // 立刻写共享缓存：日程认「学习中/已完成」，点选后打开日程必须马上生效
@@ -312,9 +320,10 @@ export function EnLessonPage() {
         ok: boolean;
         lesson?: EnLessonRecord;
         error?: string;
+        message?: string;
       };
       if (!data.ok || !data.lesson) {
-        throw new Error(data.error || "保存失败");
+        throw new Error(data.message || data.error || "保存失败");
       }
       setLessons((prev) => {
         const next = prev.map((l) => {

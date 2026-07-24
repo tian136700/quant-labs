@@ -6,6 +6,46 @@ export function parseLessonContent(raw: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * 一项学习内容里的「英文词」个数（按空白切开）。
+ * 「Present Perfect」→ 2；「however」→ 1；「well-known」→ 1。
+ */
+export function countEnLessonContentItemWordTokens(item: string): number {
+  const trimmed = (item || "").trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).filter(Boolean).length;
+}
+
+/** 单词类新课里「一项含多个英文词」的条目（语法类允许多词，不检查） */
+export function listEnLessonMultiWordItemsForWordKind(input: {
+  kind?: string | null;
+  content?: string | null;
+}): string[] {
+  if ((input.kind || "").trim() === "grammar") return [];
+  return parseLessonContent(input.content || "").filter(
+    (item) => countEnLessonContentItemWordTokens(item) >= 2
+  );
+}
+
+export const EN_LESSON_WORD_KIND_MULTI_WORD_ERROR =
+  "word_kind_has_multi_word_items" as const;
+
+/** 标「已完成」前：单词类不得含多词条目（须改语法类或拆成单词） */
+export function validateEnLessonWordKindContentForComplete(input: {
+  kind?: string | null;
+  content?: string | null;
+}): { ok: true } | { ok: false; error: typeof EN_LESSON_WORD_KIND_MULTI_WORD_ERROR; message: string } {
+  const bad = listEnLessonMultiWordItemsForWordKind(input);
+  if (!bad.length) return { ok: true };
+  const shown = bad.slice(0, 5).map((s) => `「${s}」`).join("、");
+  const more = bad.length > 5 ? ` 等 ${bad.length} 项` : "";
+  return {
+    ok: false,
+    error: EN_LESSON_WORD_KIND_MULTI_WORD_ERROR,
+    message: `单词类新课的学习内容不能含多个英文词（如 Present Perfect）。请改为「语法」类，或拆成单个单词后再标已完成。问题项：${shown}${more}`,
+  };
+}
+
 /** 规范化学习内容存储格式（与入库一致，用于去重比对） */
 export function normalizeLessonContentForStorage(raw: string): string {
   return parseLessonContent(raw).join(", ");
