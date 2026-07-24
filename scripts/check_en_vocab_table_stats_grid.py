@@ -28,12 +28,7 @@ def main() -> None:
     page = read("src/components/EnVocabPage.tsx")
     table = read("src/components/en-vocab-page/EnVocabWordTable.tsx")
     helpers = read("src/lib/en-vocab-page-helpers.tsx")
-    styles_dir = ROOT / "src/components/en-vocab-page"
-    styles_parts = [
-        p.read_text(encoding="utf-8")
-        for p in sorted(styles_dir.glob("EnVocabPageStyles*.tsx"))
-    ]
-    styles = "\n".join(styles_parts)
+    styles = read("src/components/en-vocab-page/EnVocabPageStyles.tsx")
     shared = read("src/lib/en-vocab-shared.ts")
     fmt = read("src/lib/format-datetime.ts")
     page_n = page.replace("\r\n", "\n")
@@ -41,8 +36,6 @@ def main() -> None:
     css = (page + "\n" + styles).replace("\r\n", "\n")
     ui = page_n + "\n" + table_n
 
-    if not styles_parts:
-        fail("missing en-vocab-page/EnVocabPageStyles*.tsx")
     if 'colSpan={4} className="jp-vocab-stats-group"' in ui:
         fail("EnVocab table must not use 4-column stats-group header (use jp-vocab-stats-col)")
     if 'className="jp-vocab-stats-col"' not in table_n:
@@ -70,11 +63,11 @@ def main() -> None:
     # Helper is outside the component; scoped styled-jsx never applies → glued "07-2403:50"
     if ":global(.jp-vocab-updated-time--stacked)" not in css:
         fail(
-            "EnVocabPageStyles(+Layout/Table) must use :global(.jp-vocab-updated-time--stacked) "
+            "EnVocabPageStyles must use :global(.jp-vocab-updated-time--stacked) "
             "(renderEnVocabUpdatedAt is outside the component)"
         )
     if ":global(.jp-vocab-updated-date)" not in css:
-        fail("EnVocabPageStyles(+Layout/Table) must :global(.jp-vocab-updated-date) with nowrap")
+        fail("EnVocabPageStyles must :global(.jp-vocab-updated-date) with nowrap")
     if "formatBeijingDateTimeCompact(" in table_n and "formatBeijingDateTimeCompactParts" not in helpers:
         fail("EnVocabWordTable must not render single-line formatBeijingDateTimeCompact in table")
     if (

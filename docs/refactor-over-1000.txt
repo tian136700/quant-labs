@@ -1,0 +1,13 @@
+# refactor-over-1000.txt — 业务代码 >1000 行（不含 CSS / *Styles.tsx / i18n messages）
+# 格式: status<TAB>loc<TAB>path
+# status: 0=未拆完  1=本轮已拆过（即使仍>1000也可标1，表示已处理过）
+# 更新: python3 scripts/update_refactor_over_1000.py
+# 钩子: Cursor stop → .cursor/hooks/refactor-over-1000-stop.py
+
+1	1954	src/components/EnVocabPage.tsx
+0	1461	scripts/maintenance_center/static/app.js
+1	1356	src/components/JpLessonPage.tsx
+0	1312	src/components/EnVocabTeacherQuizFlashcardModal.tsx
+1	1157	src/components/AdminUsersPage.tsx
+1	1023	src/components/JpVocabPage.tsx
+0	1002	src/components/AdminJpLessonTeachersPage.tsx
