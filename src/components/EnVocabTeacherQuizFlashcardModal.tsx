@@ -25,7 +25,6 @@ import {
   formatEnVocabTotalReviewsDisplay,
 } from "@/lib/en-vocab-shared";
 import {
-  enVocabTeacherQuizNotesInline,
   findFirstUncheckedEnVocabTeacherQuizIndex,
   mergeEnVocabWordAfterClassNotesFetch,
   type EnVocabTeacherQuizSession,
@@ -336,8 +335,6 @@ export function EnVocabTeacherQuizFlashcardModal({
   const totalDisplay = formatEnVocabTotalReviewsDisplay(w, locale);
   const priorityLabel = enVocabPriorityLabel(locale);
   const hasNotes = hasEnVocabClassNotes(w.class_notes, w.class_notes_present);
-  const notesInline =
-    hasNotes && enVocabTeacherQuizNotesInline(w.class_notes || "");
   const usageExampleModel = buildEnVocabUsageExamplePairs(
     w.usage,
     w.example_sentences
@@ -539,69 +536,70 @@ export function EnVocabTeacherQuizFlashcardModal({
           studentPeeked={studentPeeked}
         />
 
-        <EnVocabFlashcardPageBody
-          showSideCol={showSideCol}
-          wordTrim={wordTrim}
-          readingTrim={readingTrim}
-          meaningTrim={meaningTrim}
-          posTrim={posTrim}
-          w={w}
-          vocabRef={ref}
-          onOpenRef={onOpenRef}
-          canOperate={canOperate}
-          onEditWord={onEditWord}
-          onEditRemarks={onEditRemarks}
-          shareUiEnabled={shareUiEnabled}
-          isStudy={isStudy}
-          isShared={isShared}
-          onUnshare={onUnshare}
-          isSaving={isSaving}
-          isSharing={isSharing}
-          reviewLocked={reviewLocked}
-          usagesCompleteForShare={usagesCompleteForShare}
-          showUncheckedUsagesBlocked={showUncheckedUsagesBlocked}
-          usageDraftLevels={usageDraftLevels}
-          onShare={onShare}
-          showUsageExamples={showUsageExamples}
-          usageExampleModel={usageExampleModel}
-          usePerUsageLevels={usePerUsageLevels}
-          usageLevelDisabled={usageLevelDisabled}
-          usageLevelDisabledReason={usageLevelDisabledReason}
-          setNextBlockedHint={setNextBlockedHint}
-          setNextBlockedUsageMessage={setNextBlockedUsageMessage}
-          onSelectUsageLevels={onSelectUsageLevels}
-        />
+        {/* 中间可滚：左侧含备注 + 用法 + 熟悉程度/统计；「上一个·下一个」钉在底 */}
+        <div className="en-vocab-flashcard-page__scroll">
+          <EnVocabFlashcardPageBody
+            showSideCol={showSideCol}
+            wordTrim={wordTrim}
+            readingTrim={readingTrim}
+            meaningTrim={meaningTrim}
+            posTrim={posTrim}
+            w={w}
+            vocabRef={ref}
+            onOpenRef={onOpenRef}
+            canOperate={canOperate}
+            onEditWord={onEditWord}
+            onEditRemarks={onEditRemarks}
+            onViewRemarks={onViewRemarks}
+            hasNotes={hasNotes}
+            shareUiEnabled={shareUiEnabled}
+            isStudy={isStudy}
+            isShared={isShared}
+            onUnshare={onUnshare}
+            isSaving={isSaving}
+            isSharing={isSharing}
+            reviewLocked={reviewLocked}
+            usagesCompleteForShare={usagesCompleteForShare}
+            showUncheckedUsagesBlocked={showUncheckedUsagesBlocked}
+            usageDraftLevels={usageDraftLevels}
+            onShare={onShare}
+            showUsageExamples={showUsageExamples}
+            usageExampleModel={usageExampleModel}
+            usePerUsageLevels={usePerUsageLevels}
+            usageLevelDisabled={usageLevelDisabled}
+            usageLevelDisabledReason={usageLevelDisabledReason}
+            setNextBlockedHint={setNextBlockedHint}
+            setNextBlockedUsageMessage={setNextBlockedUsageMessage}
+            onSelectUsageLevels={onSelectUsageLevels}
+          />
 
-        <EnVocabFlashcardPageFooter
-          hasNotes={hasNotes}
-          canOperate={canOperate}
-          notesInline={notesInline}
-          w={w}
-          isStudy={isStudy}
-          previewMode={previewMode}
-          usePerUsageLevels={usePerUsageLevels}
-          selected={selected}
-          overallFromUsages={overallFromUsages}
-          reviewLocked={reviewLocked}
-          isSaving={isSaving}
-          levelSyncHintShort={levelSyncHintShort}
-          levelSyncHint={levelSyncHint}
-          saveBusy={saveBusy}
-          saveProgressLabel={saveProgressLabel}
-          saveProgressPercent={saveProgressPercent}
-          locale={locale}
-          priorityLabel={priorityLabel}
-          riskBadgeTier={riskBadgeTier}
-          totalDisplay={totalDisplay}
-          risk={risk}
-          todayChecks={todayChecks}
-          onViewRemarks={onViewRemarks}
-          onEditRemarks={onEditRemarks}
-          onSelectLevel={onSelectLevel}
-          setNextBlockedHint={setNextBlockedHint}
-        />
+          <EnVocabFlashcardPageFooter
+            canOperate={canOperate}
+            w={w}
+            isStudy={isStudy}
+            previewMode={previewMode}
+            usePerUsageLevels={usePerUsageLevels}
+            selected={selected}
+            overallFromUsages={overallFromUsages}
+            reviewLocked={reviewLocked}
+            isSaving={isSaving}
+            levelSyncHintShort={levelSyncHintShort}
+            levelSyncHint={levelSyncHint}
+            saveBusy={saveBusy}
+            saveProgressLabel={saveProgressLabel}
+            saveProgressPercent={saveProgressPercent}
+            locale={locale}
+            priorityLabel={priorityLabel}
+            riskBadgeTier={riskBadgeTier}
+            totalDisplay={totalDisplay}
+            risk={risk}
+            todayChecks={todayChecks}
+            onSelectLevel={onSelectLevel}
+            setNextBlockedHint={setNextBlockedHint}
+          />
+        </div>
 
-        <div className="jp-vocab-teacher-quiz__nav">
+        <div className="jp-vocab-teacher-quiz__nav en-vocab-flashcard-page__nav">
           {!isStudy ? (
             <button
               type="button"

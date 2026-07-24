@@ -1,8 +1,10 @@
 "use client";
 
+import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { formatEnVocabClassNotesForDisplay } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 
 export type EnVocabFlashcardPageBodyProps = {
@@ -17,6 +19,8 @@ export type EnVocabFlashcardPageBodyProps = {
   canOperate: boolean;
   onEditWord?: (w: EnVocabWord) => void;
   onEditRemarks?: (w: EnVocabWord) => void;
+  onViewRemarks: (w: EnVocabWord) => void;
+  hasNotes: boolean;
   shareUiEnabled: boolean;
   isStudy: boolean;
   isShared: boolean;
@@ -47,8 +51,8 @@ export type EnVocabFlashcardPageBodyProps = {
 export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
   const {
     showSideCol, wordTrim, readingTrim, meaningTrim, posTrim, w, vocabRef, onOpenRef,
-    canOperate, onEditWord, onEditRemarks, shareUiEnabled, isStudy, isShared,
-    onUnshare, isSaving, isSharing, reviewLocked, usagesCompleteForShare,
+    canOperate, onEditWord, onEditRemarks, onViewRemarks, hasNotes, shareUiEnabled,
+    isStudy, isShared, onUnshare, isSaving, isSharing, reviewLocked, usagesCompleteForShare,
     showUncheckedUsagesBlocked, usageDraftLevels, onShare, showUsageExamples,
     usageExampleModel, usePerUsageLevels, usageLevelDisabled, usageLevelDisabledReason,
     setNextBlockedHint, setNextBlockedUsageMessage, onSelectUsageLevels,
@@ -251,6 +255,51 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                   </div>
                 ) : null}
               </section>
+
+              {/* 备注：释义窗格下方空白处；长文可滚 +「查看」弹窗；图可点放大 */}
+              {hasNotes || canOperate ? (
+                <section
+                  className="jp-vocab-teacher-quiz__notes en-vocab-flashcard-page__notes"
+                  aria-label="备注"
+                >
+                  <div className="jp-vocab-teacher-quiz__notes-head">
+                    <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
+                    <div className="jp-vocab-teacher-quiz__notes-actions">
+                      {hasNotes ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
+                          title="弹窗查看全部备注"
+                          onClick={() => onViewRemarks(w)}
+                        >
+                          查看全部
+                        </button>
+                      ) : null}
+                      {canOperate ? (
+                        <button
+                          type="button"
+                          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
+                          title="编辑备注"
+                          onClick={() => onEditRemarks?.(w)}
+                        >
+                          编辑备注
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  {hasNotes ? (
+                    <div className="jp-vocab-teacher-quiz__notes-body en-vocab-flashcard-page__notes-body">
+                      <EnVocabClassNoteContent
+                        content={formatEnVocabClassNotesForDisplay(w.class_notes)}
+                      />
+                    </div>
+                  ) : (
+                    <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
+                      暂无备注
+                    </p>
+                  )}
+                </section>
+              ) : null}
             </div>
 
             {showSideCol ? (

@@ -1,23 +1,15 @@
 "use client";
 
-import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
-  EN_VOCAB_LEVEL_SYNC_HINT,
-  EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED,
-  EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT,
-  EN_VOCAB_LEVEL_SYNC_HINT_SHORT,
   LEVELS,
   LEVEL_LABEL,
-  formatEnVocabClassNotesForDisplay,
 } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
 import { enVocabTotalReviewsZeroHint } from "@/lib/en-vocab-shared";
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
 
 type Props = {
-  hasNotes: boolean;
   canOperate: boolean;
-  notesInline: boolean;
   w: EnVocabWord;
   isStudy: boolean;
   previewMode: boolean;
@@ -37,67 +29,19 @@ type Props = {
   totalDisplay: { label: string; isZero: boolean };
   risk: number;
   todayChecks: number;
-  onViewRemarks: (w: EnVocabWord) => void;
-  onEditRemarks?: (w: EnVocabWord) => void;
   onSelectLevel: (wordId: number, level: EnVocabLevel) => void;
   setNextBlockedHint: (v: boolean) => void;
 };
 
 export function EnVocabFlashcardPageFooter(props: Props) {
   const {
-    hasNotes, canOperate, notesInline, w, isStudy, previewMode, usePerUsageLevels,
+    canOperate, w, isStudy, previewMode, usePerUsageLevels,
     selected, overallFromUsages, reviewLocked, isSaving, levelSyncHintShort, levelSyncHint,
     saveBusy, saveProgressLabel, saveProgressPercent, locale, priorityLabel, riskBadgeTier,
-    totalDisplay, risk, todayChecks, onViewRemarks, onEditRemarks, onSelectLevel, setNextBlockedHint,
+    totalDisplay, risk, todayChecks, onSelectLevel, setNextBlockedHint,
   } = props;
   return (
         <div className="en-vocab-flashcard-page-footer">
-        {/* 备注贴在熟悉程度+统计上方（勿放到两框下面） */}
-        {hasNotes || canOperate ? (
-          <section className="jp-vocab-teacher-quiz__notes en-vocab-flashcard-page-footer__notes">
-            <div className="jp-vocab-teacher-quiz__notes-head">
-              <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
-              <div className="jp-vocab-teacher-quiz__notes-actions">
-                {hasNotes ? (
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
-                    onClick={() => onViewRemarks(w)}
-                  >
-                    查看
-                  </button>
-                ) : null}
-                {canOperate ? (
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--success jp-vocab-teacher-quiz__action-btn"
-                    title="编辑备注"
-                    onClick={() => onEditRemarks?.(w)}
-                  >
-                    编辑备注
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            {hasNotes ? (
-              notesInline ? (
-                <div className="jp-vocab-teacher-quiz__notes-body">
-                  <EnVocabClassNoteContent
-                    content={formatEnVocabClassNotesForDisplay(w.class_notes)}
-                  />
-                </div>
-              ) : (
-                <p className="jp-vocab-teacher-quiz__notes-preview">
-                  备注较长，请点「查看」
-                </p>
-              )
-            ) : (
-              <p className="jp-vocab-teacher-quiz__notes-preview jp-vocab-teacher-quiz__meta-empty">
-                暂无备注
-              </p>
-            )}
-          </section>
-        ) : null}
         <div className="en-vocab-flashcard-page-footer__panels">
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">

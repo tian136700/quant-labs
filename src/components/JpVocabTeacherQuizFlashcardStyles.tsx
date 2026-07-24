@@ -466,23 +466,38 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         /*
          * 英语抽问：近全屏网页式弹层（仅 .en-vocab-flashcard-page*）
          * 窄卡片备份：EnVocabTeacherQuizFlashcardModal.card-compact.tsx
-         * 整卡上下滑动：备注/熟悉程度/统计/导航不钉在底部（勿定高+只滚中间）。
-         * overlay 用 flex-start，避免 align-items:center 时卡过高滚不到「下一个」。
+         * 顶栏 +「上一个/下一个」钉住；中间（用法+备注/熟悉程度/统计）滚动。
+         * 备注/两框不要钉底；导航按钮窗格必须固定可见。
          */
         .en-vocab-flashcard-page-overlay {
-          align-items: flex-start;
+          align-items: stretch;
           justify-content: center;
           padding: clamp(0.35rem, 1.2vw, 0.75rem);
         }
         .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
           width: min(72rem, 98vw);
           max-width: 98vw;
-          height: auto;
+          height: min(96vh, 100dvh);
           max-height: min(96vh, 100dvh);
           margin: 0 auto;
           gap: 0.45rem;
           padding: 0.85rem 1.1rem 0.9rem;
           border-radius: 14px;
+          overflow: hidden;
+          overscroll-behavior: contain;
+        }
+        .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+          .jp-vocab-teacher-quiz__header,
+        .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+          .en-vocab-flashcard-page__nav {
+          flex: 0 0 auto;
+        }
+        .en-vocab-flashcard-page__scroll {
+          display: flex;
+          flex: 1 1 auto;
+          flex-direction: column;
+          gap: 0.55rem;
+          min-height: 0;
           overflow-x: hidden;
           overflow-y: auto;
           overscroll-behavior: contain;
@@ -544,6 +559,23 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           flex: 0 0 auto;
           min-width: 0;
         }
+        /* 备注在左侧释义窗格下方；长文区内滚动；「查看全部」弹窗另开 */
+        .en-vocab-flashcard-page__notes {
+          margin: 0;
+          min-width: 0;
+        }
+        .en-vocab-flashcard-page .en-vocab-flashcard-page__notes-body,
+        .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+          .jp-vocab-teacher-quiz__notes-body {
+          max-height: min(14rem, 32vh);
+          overflow-x: hidden;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          -webkit-overflow-scrolling: touch;
+          padding-right: 0.15rem;
+          font-size: 0.8125rem;
+          line-height: 1.45;
+        }
         .en-vocab-flashcard-page-footer__notes {
           margin: 0;
         }
@@ -556,18 +588,17 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         @media (min-width: 1025px) {
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
             width: min(76rem, 96vw);
-            height: auto;
+            height: min(94vh, 100dvh);
             max-height: min(94vh, 100dvh);
             padding: 1rem 1.35rem 1.05rem;
             gap: 0.5rem;
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
           }
           .en-vocab-flashcard-page-overlay {
-            align-items: flex-start;
+            align-items: center;
             padding: clamp(0.5rem, 1.5vw, 1rem);
           }
-          /* 宽屏：熟悉程度 + 统计并排（自然高度，勿 stretch 成等高格）；备注在两框上方 */
+          /* 宽屏：熟悉程度 + 统计并排（自然高度）；备注在两框上方，随中间区滚动 */
           .en-vocab-flashcard-page-footer__panels {
             display: grid;
             grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
@@ -583,12 +614,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
             width: 100%;
             max-width: 100%;
-            height: auto;
+            height: min(100dvh, 100vh);
             max-height: min(100dvh, 100vh);
             border-radius: 0;
             padding: 0.65rem 0.8rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
-            overflow-x: hidden;
-            overflow-y: auto;
+            overflow: hidden;
           }
           .en-vocab-flashcard-page__grid {
             grid-template-columns: minmax(0, 1fr);
