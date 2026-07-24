@@ -131,7 +131,7 @@
 
 /jp-lesson/schedule
   → JpLessonSchedulePage.tsx（编排）
-  → jp-lesson-schedule-page/（Styles、helpers）
+  → jp-lesson-schedule-page/（Styles、helpers、Layout）
   → jp-lesson-manual-schedule.ts
   → GET|POST /api/jp-lesson/schedule
 ```
@@ -144,7 +144,8 @@
 
 ```
 /admin/users
-  → AdminUsersPage.tsx
+  → AdminUsersPage.tsx（编排）
+  → admin-users-page/（Styles、helpers、List）
   → admin-users-cache.ts / teacher-user-schedule-enable.ts
   → /api/admin/users, /api/admin/users/reset-password
 

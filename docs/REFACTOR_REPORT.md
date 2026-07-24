@@ -98,8 +98,9 @@
 | 步骤 | 文件 | LOC | 状态 |
 |------|------|----:|------|
 | 样式 | `jp-lesson-schedule-page/JpLessonSchedulePageStyles.tsx` | 953 | ✅ |
-| helpers / 时间轴工具 / 老师链接 | `jp-lesson-schedule-page/jp-lesson-schedule-page-helpers.tsx` | 343 | ✅ |
-| 编排页 | `JpLessonSchedulePage.tsx` | **1702**（原 2891） | ✅ · 日历视图可再拆 |
+| helpers | `jp-lesson-schedule-page/jp-lesson-schedule-page-helpers.tsx` | 343 | ✅ |
+| 日历+详情布局 | `jp-lesson-schedule-page/JpLessonScheduleLayout.tsx` | ~515 | ✅ |
+| 编排页 | `JpLessonSchedulePage.tsx` | **~1338**（原 2891） | ✅ |
 
 **验证**：`tsc` ✅ · custom_schedule_time / schedule_duplicate / manual_teacher_subject / caldav_slot_merge ✅
 
@@ -109,7 +110,8 @@
 |------|------|----:|------|
 | 样式 | `admin-users-page/AdminUsersPageStyles.tsx` | 447 | ✅ |
 | helpers / 卡片字段 / IP / 操作区 | `admin-users-page/admin-users-page-helpers.tsx` | 397 | ✅ |
-| 编排页 | `AdminUsersPage.tsx` | **1778**（原 2580） | ✅ · 表体可再拆 |
+| 用户列表（手机卡+桌面表） | `admin-users-page/AdminUsersList.tsx` | ~319 | ✅ |
+| 编排页 | `AdminUsersPage.tsx` | **~1547**（原 2580） | ✅ |
 
 **验证**：`tsc` ✅ · admin_users_trackpad_scroll ✅
 
@@ -128,9 +130,8 @@
 
 | 文件 | LOC | 说明 |
 |------|----:|------|
-| `JpLessonSchedulePage` | 1702 | 可再抽 day/week/month 日历 |
-| `AdminUsersPage` | 1778 | 可再抽用户表 |
 | `JpVocabEditModal` / Annotate×2 / `etr-auth-db` 等 | 1500+ | 见 §3 中优先级 |
+| `AdminUsersPage` | ~1547 | 编排仍偏长，可再抽模板区 / hooks |
 
 ---
 
