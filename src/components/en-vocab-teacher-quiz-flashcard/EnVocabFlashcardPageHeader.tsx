@@ -53,7 +53,7 @@ export function EnVocabFlashcardPageHeader({
     !isStudy && studentPeeked
       ? "该学生已查看该单词"
       : !isStudy && wordSynced
-        ? "该单词已同步"
+        ? "该单词已同步给学生查看"
         : null;
 
   return (

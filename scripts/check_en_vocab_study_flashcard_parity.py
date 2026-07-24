@@ -65,12 +65,12 @@ def main() -> None:
         fail("EnVocabTeacherQuizFlashcardModal/header missing student-peeked banner copy（该学生已查看该单词）")
     if "该学生已获取该单词" in modal:
         fail("peek banner must say 已查看 not 已获取")
-    if "该单词已同步" not in modal:
-        fail("EnVocabTeacherQuizFlashcardModal missing teacher-sync banner copy（该单词已同步）")
+    if "该单词已同步给学生查看" not in modal:
+        fail("EnVocabTeacherQuizFlashcardModal missing teacher-sync banner copy（该单词已同步给学生查看）")
     if "jp-vocab-teacher-quiz__student-peek-banner" not in modal:
         fail("peek banner must sit in card header (student-peek-banner), not only scroll body")
     if "wordSynced" not in modal:
-        fail("header must receive wordSynced (今日已共享 → 该单词已同步)")
+        fail("header must receive wordSynced (今日已共享 → 该单词已同步给学生查看)")
     quiz_hook = (ROOT / "src/hooks/useEnVocabTeacherQuiz.ts").read_text(encoding="utf-8")
     peek_src = teacher + "\n" + quiz_hook
     if "setStudentPeekedCurrentWord(true)" not in peek_src:
