@@ -25,6 +25,7 @@ from en_vocab_llm_backend import (  # noqa: E402
 )
 from paid_anthropic_client import (  # noqa: E402
     anthropic_model,
+    build_online_source_label,
     call_anthropic,
 )
 
@@ -58,13 +59,14 @@ _IPA_WRAPPED = re.compile(r"^([\[\/])(.+)([\]\/])$")
 _IPA_FIND = re.compile(r"[/\[\]]([^/\\[\]]{1,60})[/\[\]]")
 
 SYSTEM = (
-    "You fill English learner flashcard fields for junior-high / academic-exam review. "
+    "You fill English learner flashcards for junior-high / IELTS-TOEFL high-frequency review. "
     "Return ONLY one JSON object. No markdown fences, no commentary. "
-    "Usage explanations: Chinese, numbered 1. 2. …; focus on high-frequency academic "
-    "exam writing/reading/listening uses; NEVER write exam brand names "
-    "(IELTS/TOEFL/雅思/托福/四六级/考研 etc.) in the usage text. "
-    "Examples: full English sentences with the lemma, each followed by a 译文： Chinese line; "
-    "one example per usage point; keep other words very simple."
+    "Usage: Chinese numbered 1. 2. …; pick academic-exam-frequent uses; "
+    "NEVER write exam brand names (IELTS/TOEFL/雅思/托福 etc.) in usage text. "
+    "Examples: one short sentence per usage; tense/inflection OK "
+    "(expect→expected, get→got/get out); keep other words VERY basic; "
+    "NO hard vocabulary, NO long subordinate clauses, NO stacked grammar— "
+    "focus must stay on the target word's usage."
 )
 
 
@@ -265,13 +267,14 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 - meaning: 中文释义，分号分隔，最多 3 义
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
 - usage: 至少 2 条编号中文用法（1. …\\n2. …）；选题按学术考试高频，正文禁止考试品牌名
-- example_sentences: 与 usage 条数相同；每条英文完整句 + 下一行「译文：」中文；每条英文必须出现独立单词「{word}」（expect 可以，expected/expecting 不算）；不要行首编号
+- example_sentences: 与 usage 一一对应；每条短句 + 下一行「译文：」；时态/词形可变（expected/got 等 OK）；可用常用短语（get out）；其余词要极简单；不要难词、不要长难从句；不要行首编号
 
 只输出 JSON。"""
 
 
 def source_label() -> str:
-    return f"线上 {anthropic_model()}"
+    """付费 API 代理实际模型 → 写回 reading/meaning/usage/examples 的 source。"""
+    return build_online_source_label()
 
 
 def full_refresh_needs(kind: str) -> dict[str, bool]:

@@ -52,9 +52,79 @@ export function isEnVocabExampleEnglishLine(text: string): boolean {
   return true;
 }
 
-/** 英文行里的单词 token（含 don't 这类缩写） */
 export function enVocabEnglishWordTokens(text: string): string[] {
   return String(text ?? "").match(/[A-Za-z]+(?:'[A-Za-z]+)?/g) ?? [];
+}
+
+/**
+ * 词条是否在英文句中出现：允许常见时态/词形变化（expect→expected；get→got/getting）。
+ * 语法/多词词条仍要求原文片段出现（如 Present Perfect、get out）。
+ */
+export function listEnVocabLemmaSurfaceForms(word: string): string[] {
+  const w = word.trim().toLowerCase().replace(/^～/, "");
+  if (!w) return [];
+  if (/[\s-]/.test(w)) return [w];
+
+  const forms = new Set<string>([w]);
+  forms.add(`${w}s`);
+  forms.add(`${w}es`);
+  forms.add(`${w}ed`);
+  forms.add(`${w}ing`);
+
+  if (w.endsWith("e") && w.length > 1) {
+    forms.add(`${w}d`);
+    forms.add(`${w.slice(0, -1)}ing`);
+  }
+  if (w.endsWith("y") && w.length > 2 && !/[aeiou]/.test(w[w.length - 2] || "")) {
+    forms.add(`${w.slice(0, -1)}ies`);
+    forms.add(`${w.slice(0, -1)}ied`);
+  }
+  // 短 CVC：get → getting / got（不规则另补）
+  if (w.length >= 3 && /[^aeiou][aeiou][^aeiouwx]$/.test(w)) {
+    const last = w[w.length - 1]!;
+    forms.add(`${w}${last}ed`);
+    forms.add(`${w}${last}ing`);
+  }
+  if (w === "get") {
+    forms.add("got");
+    forms.add("gotten");
+  }
+  if (w === "have") {
+    forms.add("has");
+    forms.add("had");
+    forms.add("having");
+  }
+  if (w === "be") {
+    forms.add("am");
+    forms.add("is");
+    forms.add("are");
+    forms.add("was");
+    forms.add("were");
+    forms.add("been");
+    forms.add("being");
+  }
+  return [...forms];
+}
+
+export function enVocabLemmaAppearsInSentence(
+  sentence: string,
+  word: string,
+  kind = "word"
+): boolean {
+  const target = word.trim();
+  if (!target) return false;
+  const lower = sentence.toLowerCase();
+
+  // 语法 / 多词：须出现词条原文（可含短语 get out）
+  if (kind === "grammar" || /[\s-]/.test(target)) {
+    return lower.includes(target.toLowerCase().replace(/^～/, ""));
+  }
+
+  for (const form of listEnVocabLemmaSurfaceForms(target)) {
+    const escaped = form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${escaped}\\b`, "i").test(sentence)) return true;
+  }
+  return false;
 }
 
 const EN_SENTENCE_FINAL_PUNCT_RE = /[.!?]["']?\s*$/;

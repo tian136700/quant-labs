@@ -121,14 +121,35 @@ def assess_english_sentence(
 
 
 def word_used(sentence: str, word: str, kind: str) -> bool:
+    """允许常见时态/词形（expect→expected；get→got）；多词/语法仍看原文片段。"""
     target = word.strip()
     if not target:
         return False
-    # 语法 / 多词词条（Present Perfect）：须出现词条原文；用 includes，避免只示范时态
+    lower = sentence.lower()
     if kind == "grammar" or (" " in target or "-" in target):
-        return target.lstrip("～~").lower() in sentence.lower()
-    escaped = re.escape(target)
-    return bool(re.search(rf"\b{escaped}\b", sentence, flags=re.I))
+        return target.lstrip("～~").lower() in lower
+
+    w = target.lower().lstrip("～~")
+    forms = {w, w + "s", w + "es", w + "ed", w + "ing"}
+    if w.endswith("e") and len(w) > 1:
+        forms.add(w + "d")
+        forms.add(w[:-1] + "ing")
+    if len(w) > 2 and w.endswith("y") and w[-2] not in "aeiou":
+        forms.add(w[:-1] + "ies")
+        forms.add(w[:-1] + "ied")
+    if len(w) >= 3 and re.search(r"[^aeiou][aeiou][^aeiouwx]$", w):
+        forms.add(w + w[-1] + "ed")
+        forms.add(w + w[-1] + "ing")
+    if w == "get":
+        forms.update({"got", "gotten"})
+    if w == "have":
+        forms.update({"has", "had", "having"})
+    if w == "be":
+        forms.update({"am", "is", "are", "was", "were", "been", "being"})
+    for form in forms:
+        if re.search(rf"\b{re.escape(form)}\b", sentence, flags=re.I):
+            return True
+    return False
 
 
 def resolve_poison_sec() -> int:

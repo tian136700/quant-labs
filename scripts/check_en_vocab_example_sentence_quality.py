@@ -113,6 +113,8 @@ def main() -> int:
             TS_SENT,
             [
                 "assessEnVocabExampleEnglishSentence",
+                "enVocabLemmaAppearsInSentence",
+                "listEnVocabLemmaSurfaceForms",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
                 "missing_sentence_final_punct",
@@ -122,9 +124,11 @@ def main() -> int:
             TS_AI,
             [
                 "assessEnVocabExampleEnglishSentence",
+                "enVocabLemmaAppearsInSentence",
                 "完整句子",
                 "lemma_only_example",
                 "english_phrase_not_sentence",
+                "不要长难从句",
             ],
         ),
         (
@@ -133,14 +137,16 @@ def main() -> int:
                 "assess_english_sentence",
                 "english_phrase_not_sentence",
                 "lemma_only_example",
+                "expected",
             ],
         ),
         (
             RULE,
             [
                 "lemma_only_example",
-                "完整句子",
+                "完整句门禁",
                 "issue a statement",
+                "时态/词形可变",
             ],
         ),
     ]:
@@ -151,6 +157,31 @@ def main() -> int:
         for n in needles:
             if n not in text:
                 errors.append(f"{path.name}: missing {n!r}")
+
+    # 词形：expected / got / getting 应算用到词条
+    def lemma_ok(sentence: str, word: str) -> bool:
+        w = word.lower()
+        forms = {w, w + "s", w + "es", w + "ed", w + "ing"}
+        if w.endswith("e") and len(w) > 1:
+            forms.add(w + "d")
+            forms.add(w[:-1] + "ing")
+        if len(w) >= 3 and re.search(r"[^aeiou][aeiou][^aeiouwx]$", w):
+            forms.add(w + w[-1] + "ed")
+            forms.add(w + w[-1] + "ing")
+        if w == "get":
+            forms.update({"got", "gotten"})
+        for form in forms:
+            if re.search(rf"\b{re.escape(form)}\b", sentence, flags=re.I):
+                return True
+        return False
+
+    for sent, word in [
+        ("Students are expected to arrive early.", "expect"),
+        ("I got out of the car.", "get"),
+        ("She is getting better today.", "get"),
+    ]:
+        if not lemma_ok(sent, word):
+            errors.append(f"lemma_ok failed: {word!r} in {sent!r}")
 
     route = ROOT / "src/app/api/en-vocab/fill-example-sentences/route.ts"
     if route.is_file():

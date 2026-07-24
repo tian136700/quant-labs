@@ -1,5 +1,6 @@
 import {
   assessEnVocabExampleEnglishSentence,
+  enVocabLemmaAppearsInSentence,
   isEnVocabExampleEnglishLine,
   isEnVocabExampleGlossLine,
   parseEnVocabExampleSentenceItems,
@@ -116,16 +117,17 @@ ${singlePoint.n}. ${singlePoint.text}
 - 禁止另起义项；禁止一次输出多句。
 
 用词与难度：
-- 句子要短、口语；除目标词外，其余单词尽量用最简单常见的词（如 I / you / the / book / today）。
-- 不要生僻词、长难从句、学术套话；抽问时焦点应落在目标词上。
+- 句子要短、好记；除目标词及其常用搭配外，其余只用最基础词（I / you / the / book / today / school）。
+- 时态可变（过去/现在/进行/完成都可）；expect→expected、get→got/get out 等常见变形或短语都可以。
+- 不要难词、不要长难从句、不要叠很多语法点；抽问焦点必须落在目标词这一条用法上。
 
 格式要求：
 1. 英文必须是完整句子：有主语和谓语，句末必须有句号 . 或 ! 或 ?。禁止只写单词、词条本身或搭配短语。
    错误示例（禁止）：issue
    错误示例（禁止）：issue a statement
-   正确示例：The issue is hard to solve today.
-   正确示例：The government will issue a statement soon.
-2. 英文必须原样出现词条文字「${input.word.trim()}」（可改大小写）。多词词条如 Present Perfect 也须写出这几个词，禁止只示范时态/含义却不写词条原文。
+   正确示例：The issue is hard today.
+   正确示例：They will issue a statement soon.
+2. 英文须出现目标词或其常见词形/搭配（可改时态；多词词条如 Present Perfect / get out 须写出该短语）。
 3. 语法条同样须在句中自然出现该语法点对应的词条文字。
 4. 英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。中文必须翻译上面那一整句英文，禁止英文短语配中文整句。
 5. 只输出英文行与下一行「译文：」+中文；不要行首编号、不要 markdown、不要解释。`;
@@ -153,7 +155,7 @@ ${singlePoint.n}. ${singlePoint.text}
 已确认的用法说明（必须严格按下列编号一一对应造句，禁止另起义项）：
 ${usageBlock}
 
-请为上述英语${kindLabel}写例句，供初中学习者复习抽问。
+请为上述英语${kindLabel}写例句，供初中学习者复习抽问（聚焦雅思/托福高频用法，但正文不要写考试名）。
 
 条数规则（必须遵守）：
 - 必须写恰好 ${expectedCount} 句（与用法条数相同）。
@@ -161,31 +163,20 @@ ${usageBlock}
 - 禁止脱离上列用法自由发挥；禁止两句挤同一条用法。
 
 用词与难度：
-- 句子要短、口语；除目标词外，其余单词尽量用最简单常见的词（如 I / you / the / book / today）。
-- 不要生僻词、长难从句、学术套话；抽问时焦点应落在目标词上。
+- 句子要短、好记；除目标词及其常用搭配外，其余只用最基础词（I / you / the / book / today / school）。
+- 时态可变（过去/现在/进行/完成都可）；词形变化与常用短语（get out 等）都可以。
+- 不要难词、不要长难从句、不要叠很多语法点；抽问焦点必须落在目标词这一条用法上。
 
 格式要求：
 1. 每条英文必须是完整句子：有主语和谓语，句末必须有句号 . 或 ! 或 ?。禁止只写单词、词条本身或搭配短语。
    错误示例（禁止）：issue
    错误示例（禁止）：issue a statement
-   正确示例：The issue is hard to solve today.
-   正确示例：The government will issue a statement soon.
-2. 每条英文必须原样出现词条文字「${input.word.trim()}」（可改大小写）。多词词条如 Present Perfect 也须写出这几个词，禁止只示范时态/含义却不写词条原文。
+   正确示例：The issue is hard today.
+   正确示例：They will issue a statement soon.
+2. 每条英文须出现目标词或其常见词形/搭配（可改时态；多词词条须写出该短语）。
 3. 语法条同样须在句中自然出现该语法点对应的词条文字。
 4. 每条英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。中文必须翻译上面那一整句英文，禁止英文短语配中文整句。
 5. 只输出英文行与下一行「译文：」+中文交替；不要行首编号、不要 markdown、不要解释。`;
-}
-
-function wordUsedInEnglish(sentence: string, word: string, kind: string): boolean {
-  const target = word.trim();
-  if (!target) return false;
-  // 语法 / 多词词条：须出现词条原文（模型常只示范时态导致 word_not_used）
-  if (kind === "grammar" || /[\s-]/.test(target)) {
-    return sentence.toLowerCase().includes(target.toLowerCase().replace(/^～/, ""));
-  }
-  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`\\b${escaped}\\b`, "i");
-  return re.test(sentence);
 }
 
 /** 单条例句是否合格（完整句 + 译文 + 用到词条） */
@@ -210,7 +201,7 @@ export function validateEnVocabSingleExampleSentenceItem(
   if (!sentenceCheck.ok) {
     return { ok: false, reason: sentenceCheck.reason };
   }
-  if (!wordUsedInEnglish(item.text, input.word, input.kind)) {
+  if (!enVocabLemmaAppearsInSentence(item.text, input.word, input.kind)) {
     return { ok: false, reason: "word_not_used" };
   }
   return { ok: true };
