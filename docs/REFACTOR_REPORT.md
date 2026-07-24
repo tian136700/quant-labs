@@ -20,18 +20,40 @@
 
 ---
 
-## 2. 已完成的代码改动（本会话前/中，非本次批量重构）
+## 2. 已完成的代码改动
 
-以下改动**已落地**，与重构目标一致，**功能已验证**（回归脚本通过）：
+### 2.1 功能修复（本会话前/中）
 
 | 改动 | 文件 | 目的 |
 |------|------|------|
-| 英语 1h 熟悉程度锁（非共享锁） | `en-vocab-review.ts`, `en-vocab-db.ts`, `EnVocabPage` | 学生 peek 后仍可改 |
-| 学生已查看顶栏横幅 | `EnVocabTeacherQuizFlashcardModal`, 样式 | 醒目 + 钉到下一个 |
-| 英语须登录 | `EnVocabPage` + API `requireEnVocabRead` | 不对网友开放 |
-| 样式拆分 | `en-vocab-page/EnVocabPageStyles.tsx` | EnVocabPage 3234→~3200 行 |
+| 英语 1h 熟悉程度锁 | `en-vocab-review.ts`, `en-vocab-db.ts`, `EnVocabPage` | 学生 peek 后仍可改 |
+| 学生已查看顶栏横幅 | `EnVocabTeacherQuizFlashcardModal` | 醒目 + 钉到下一个 |
+| 英语须登录 | `EnVocabPage` + API | 不对网友开放 |
 
-**未在本报告阶段继续拆分的文件**：见 §3。
+### 2.2 重构拆分（按模块逐个执行）
+
+#### ✅ EnVocabPage（第 1 项，进行中）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 | `en-vocab-page/EnVocabPageStyles.tsx` | 1004 | ✅ |
+| 词表 | `en-vocab-page/EnVocabWordTable.tsx` | 772 | ✅ 2026-07-24 |
+| 分页 | `en-vocab-page/EnVocabPagination.tsx` | 44 | ✅ 2026-07-24 |
+| 页内 helpers | `lib/en-vocab-page-helpers.tsx` | 50 | ✅ 2026-07-24 |
+| 编排页 | `EnVocabPage.tsx` | **2528**（原 3234） | ⏳ 仍 >2000，待抽 poll/sync/quiz hooks |
+
+**验证**：`tsc --noEmit` ✅ · `check_en_vocab_table_stats_grid.py` ✅ · `check_en_vocab_review_lock.py` ✅ · `check_en_vocab_login_required.py` ✅ · `check_en_vocab_heavy_lazy_import.py` ✅
+
+#### ⏳ 待拆（按顺序）
+
+| 顺序 | 文件 | LOC | 下一步 |
+|------|------|----:|--------|
+| 1b | `EnVocabPage.tsx` | 2528 | 抽 `useEnVocabPageSync` / quiz hooks |
+| 2 | `JpVocabPage.tsx` | 3302 | 已部分拆，补 hooks |
+| 3 | `jp-vocab-db.ts` | 3994 | 按域拆目录 + barrel |
+| 4 | `en-vocab-db.ts` | 2855 | 对称 |
+| 5 | `JpLessonPage.tsx` | 3250 | `jp-lesson-page/` |
+| … | 见 §3 | | |
 
 ---
 

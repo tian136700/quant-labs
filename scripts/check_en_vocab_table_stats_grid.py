@@ -26,18 +26,22 @@ def fail(msg: str) -> None:
 
 def main() -> None:
     page = read("src/components/EnVocabPage.tsx")
+    table = read("src/components/en-vocab-page/EnVocabWordTable.tsx")
+    helpers = read("src/lib/en-vocab-page-helpers.tsx")
     styles = read("src/components/en-vocab-page/EnVocabPageStyles.tsx")
     shared = read("src/lib/en-vocab-shared.ts")
     fmt = read("src/lib/format-datetime.ts")
     page_n = page.replace("\r\n", "\n")
+    table_n = table.replace("\r\n", "\n")
     css = (page + "\n" + styles).replace("\r\n", "\n")
+    ui = page_n + "\n" + table_n
 
-    if 'colSpan={4} className="jp-vocab-stats-group"' in page:
-        fail("EnVocabPage must not use 4-column stats-group header (use jp-vocab-stats-col)")
-    if 'className="jp-vocab-stats-col"' not in page:
-        fail("EnVocabPage must render jp-vocab-stats-col (aligned with Japanese)")
-    if 'className="jp-vocab-stats-grid"' not in page:
-        fail("EnVocabPage must render jp-vocab-stats-grid 2x2 body")
+    if 'colSpan={4} className="jp-vocab-stats-group"' in ui:
+        fail("EnVocab table must not use 4-column stats-group header (use jp-vocab-stats-col)")
+    if 'className="jp-vocab-stats-col"' not in table_n:
+        fail("EnVocabWordTable must render jp-vocab-stats-col (aligned with Japanese)")
+    if 'className="jp-vocab-stats-grid"' not in table_n:
+        fail("EnVocabWordTable must render jp-vocab-stats-grid 2x2 body")
     if ".jp-vocab-stat-total) {\n          white-space: nowrap" in css:
         fail("must not force nowrap on jp-vocab-stat-total (overflows neighbor)")
 
@@ -48,12 +52,14 @@ def main() -> None:
 
     if "formatBeijingDateTimeCompactParts" not in fmt:
         fail("format-datetime must export formatBeijingDateTimeCompactParts for stacked cells")
-    if "renderEnVocabUpdatedAt" not in page:
-        fail("EnVocabPage must use renderEnVocabUpdatedAt (date/time stacked)")
-    if "jp-vocab-updated-time--stacked" not in page:
-        fail("EnVocabPage must render jp-vocab-updated-time--stacked")
+    if "renderEnVocabUpdatedAt" not in helpers:
+        fail("en-vocab-page-helpers must define renderEnVocabUpdatedAt (date/time stacked)")
+    if "jp-vocab-updated-time--stacked" not in helpers:
+        fail("renderEnVocabUpdatedAt must render jp-vocab-updated-time--stacked")
     if "EnVocabPageStyles" not in page:
         fail("EnVocabPage must mount EnVocabPageStyles (styles extracted from page)")
+    if "EnVocabWordTable" not in page:
+        fail("EnVocabPage must mount EnVocabWordTable (table extracted from page)")
     # Helper is outside the component; scoped styled-jsx never applies → glued "07-2403:50"
     if ":global(.jp-vocab-updated-time--stacked)" not in css:
         fail(
@@ -62,8 +68,8 @@ def main() -> None:
         )
     if ":global(.jp-vocab-updated-date)" not in css:
         fail("EnVocabPageStyles must :global(.jp-vocab-updated-date) with nowrap")
-    if "formatBeijingDateTimeCompact(" in page and "formatBeijingDateTimeCompactParts" not in page:
-        fail("EnVocabPage must not render single-line formatBeijingDateTimeCompact in table")
+    if "formatBeijingDateTimeCompact(" in table_n and "formatBeijingDateTimeCompactParts" not in helpers:
+        fail("EnVocabWordTable must not render single-line formatBeijingDateTimeCompact in table")
     if (
         ".jp-vocab-updated-col) {\n          white-space: nowrap"
         in css
