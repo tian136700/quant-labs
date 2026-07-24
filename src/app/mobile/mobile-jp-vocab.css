@@ -1,3 +1,4 @@
+@media (max-width: 767px) {
   /* ── JP Vocab toolbar (section head with action buttons) ── */
   .jp-vocab-page .jp-vocab-section-head {
     flex-direction: column !important;
@@ -604,3 +605,4 @@
     min-width: 8rem;
   }
 
+}

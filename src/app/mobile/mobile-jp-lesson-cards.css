@@ -1,3 +1,4 @@
+@media (max-width: 767px) {
   /* ── 日语/英语新课：手机端卡片（--ja / --en）── */
   .jp-lesson-page--ja .jp-lesson-cards ,
 
@@ -725,3 +726,4 @@
     border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
   }
 
+}

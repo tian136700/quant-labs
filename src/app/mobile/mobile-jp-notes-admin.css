@@ -1,3 +1,4 @@
+@media (max-width: 767px) {
   /* ── JP Lesson notes page ── */
   .jp-lesson-notes-page {
     max-width: 100% !important;
@@ -406,3 +407,4 @@
     gap: var(--section-gap);
   }
 
+}

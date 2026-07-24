@@ -1,3 +1,4 @@
+@media (max-width: 767px) {
   /* ── KO Pron teacher / admin quiz list ── */
   .page-wrap:has(.ko-pron-page) {
     max-width: 100%;

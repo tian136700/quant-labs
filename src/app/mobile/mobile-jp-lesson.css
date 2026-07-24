@@ -1,3 +1,4 @@
+@media (max-width: 767px) {
   /* ── JP Lesson page ── */
   .jp-vocab-page {
     max-width: 100% !important;
@@ -930,3 +931,4 @@
     line-height: 1.4;
   }
 
+}

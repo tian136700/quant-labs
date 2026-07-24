@@ -1,3 +1,4 @@
+@media (max-width: 767px) {
   /* ── Modals: bottom sheet on phones ── */
   .jp-lesson-teacher-overlay,
   .jp-lesson-next-class-overlay,
@@ -497,3 +498,4 @@
     width: 100%;
   }
 
+}
