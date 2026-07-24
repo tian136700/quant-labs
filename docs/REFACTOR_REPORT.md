@@ -73,15 +73,32 @@
 
 **验证**：`tsc --noEmit` ✅ · `check_jp_vocab_quiz_score.py` ✅ · `check_jp_vocab_quiz_priority_boost.py` ✅ · `check_vocab_reset_clears_shared.py` ✅
 
+#### ✅ en-vocab-db（第 4 项，2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| barrel | `en-vocab-db.ts` | 4 | ✅ |
+| state / helpers / words / lesson / notes / daily / share / live | `en-vocab-db/*` | ≤691/文件 | ✅ 对齐 jp |
+
+**验证**：`tsc` ✅ · review_lock / usage_aggregate / daily_quiz_target / usage_no_exam / reset_clears_shared ✅
+
+#### ✅ JpLessonPage（第 5 项，进行中 · 2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 | `jp-lesson-page/JpLessonPageStyles.tsx` | 826 | ✅ |
+| 页内 helpers / 预览 / 图标 | `jp-lesson-page/jp-lesson-page-helpers.tsx` | 392 | ✅ |
+| 编排页 | `JpLessonPage.tsx` | **2084**（原 3250） | ✅ 本轮 · 待抽 List/Toolbar |
+| 列表表体 | `jp-lesson-page/JpLessonStatusTable.tsx` | — | ⏳ 下轮 |
+
+**验证**：`tsc` ✅ · pending_id_sort / teacher_search / annotate_image_url / trackpad_scroll / learning_auto_enable ✅
+
 #### ⏳ 待拆（按顺序）
 
 | 顺序 | 文件 | LOC | 下一步 |
 |------|------|----:|--------|
-| ✅ | `EnVocabPage.tsx` | 1954 | 完成 |
-| ✅ | `JpVocabPage.tsx` | 1792 | 完成 |
-| ✅ | `jp-vocab-db.ts` | → 目录 | 完成 |
-| 4 | `en-vocab-db.ts` | 2855 | 对称拆分 |
-| 5 | `JpLessonPage.tsx` | 3250 | `jp-lesson-page/` |
+| ✅ | `EnVocabPage` / `JpVocabPage` / `jp-vocab-db` / `en-vocab-db` | — | 完成 |
+| 5 | `JpLessonPage.tsx` | 2084 | 继续抽表体 / toolbar |
 | 6 | `JpLessonSchedulePage.tsx` | 2891 | schedule 子组件 |
 | 7 | `AdminUsersPage.tsx` | 2580 | table/modals/hooks |
 | 8 | `EnLessonPage.tsx` | 2370 | 对齐日语新课 |

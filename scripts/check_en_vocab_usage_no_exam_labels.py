@@ -17,7 +17,15 @@ EXAM_LABEL_RE = re.compile(
 
 
 def read(rel: str) -> str:
-    return (ROOT / rel).read_text(encoding="utf-8")
+    path = ROOT / rel
+    if rel == "src/lib/en-vocab-db.ts":
+        parts = [path.read_text(encoding="utf-8")] if path.is_file() else []
+        db_dir = ROOT / "src/lib/en-vocab-db"
+        if db_dir.is_dir():
+            for p in sorted(db_dir.glob("*.ts")):
+                parts.append(p.read_text(encoding="utf-8"))
+        return "\n".join(parts)
+    return path.read_text(encoding="utf-8")
 
 
 def fail(msg: str) -> None:

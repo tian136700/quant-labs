@@ -9,6 +9,16 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+def read_en_vocab_db() -> str:
+    db = ROOT / "src/lib/en-vocab-db.ts"
+    parts = [db.read_text(encoding="utf-8")] if db.is_file() else []
+    db_dir = ROOT / "src/lib/en-vocab-db"
+    if db_dir.is_dir():
+        for p in sorted(db_dir.glob("*.ts")):
+            parts.append(p.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -22,8 +32,7 @@ def main() -> int:
         if n not in review_text:
             errors.append(f"en-vocab-review.ts: missing {n!r}")
 
-    db = ROOT / "src/lib/en-vocab-db.ts"
-    db_text = db.read_text(encoding="utf-8") if db.is_file() else ""
+    db_text = read_en_vocab_db()
     if "isEnVocabWordReviewLocked" not in db_text:
         errors.append("en-vocab-db.ts: record path must use isEnVocabWordReviewLocked")
     if 'error: "review_locked"' not in db_text:

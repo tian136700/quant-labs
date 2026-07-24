@@ -123,7 +123,8 @@
 
 ```
 /jp-lesson 列表/上传/改状态
-  → JpLessonPage.tsx
+  → JpLessonPage.tsx（编排）
+  → jp-lesson-page/（Styles、helpers；表体待抽）
   → jp-lesson-db.ts / jp-lesson-shared.ts
   → POST /api/jp-lesson/*
   → jp_lesson, jp_vocab_word (完成后 sync)

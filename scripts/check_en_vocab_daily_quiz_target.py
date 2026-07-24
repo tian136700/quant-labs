@@ -9,8 +9,21 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+def read_en_vocab_db() -> str:
+    db = ROOT / "src/lib/en-vocab-db.ts"
+    parts = [db.read_text(encoding="utf-8")] if db.is_file() else []
+    db_dir = ROOT / "src/lib/en-vocab-db"
+    if db_dir.is_dir():
+        for p in sorted(db_dir.glob("*.ts")):
+            parts.append(p.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def must_contain(path: pathlib.Path, needles: list[str]) -> list[str]:
-    text = path.read_text(encoding="utf-8")
+    if path.name == "en-vocab-db.ts":
+        text = read_en_vocab_db()
+    else:
+        text = path.read_text(encoding="utf-8")
     return [n for n in needles if n not in text]
 
 

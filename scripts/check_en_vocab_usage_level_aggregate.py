@@ -12,6 +12,16 @@ RANK = {"weak": 0, "normal": 1, "very": 2}
 RANK_TO = ("weak", "normal", "very")
 
 
+def read_en_vocab_db() -> str:
+    db = ROOT / "src/lib/en-vocab-db.ts"
+    parts = [db.read_text(encoding="utf-8")] if db.is_file() else []
+    db_dir = ROOT / "src/lib/en-vocab-db"
+    if db_dir.is_dir():
+        for p in sorted(db_dir.glob("*.ts")):
+            parts.append(p.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def combine(a: str, b: str) -> str:
     if a == "normal" and b == "normal":
         return "weak"
@@ -86,14 +96,14 @@ def main() -> int:
         errors.append(
             "en-vocab-review.ts: resolveEnVocabUsageDraftLevels must fall back to last_usage_levels"
         )
-    db = ROOT / "src/lib/en-vocab-db.ts"
+    db_text = read_en_vocab_db()
     for n in [
         "last_usage_levels",
         'addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels"',
         "recordEnVocabReviewWithUsageLevels",
     ]:
-        if n not in db.read_text(encoding="utf-8"):
-            errors.append(f"en-vocab-db.ts: missing {n!r}")
+        if n not in db_text:
+            errors.append(f"en-vocab-db/: missing {n!r}")
 
     route = ROOT / "src/app/api/en-vocab/route.ts"
     for n in ["usage_levels", "recordEnVocabReviewWithUsageLevels"]:
@@ -171,6 +181,11 @@ def main() -> int:
 
     page = ROOT / "src/components/EnVocabPage.tsx"
     page_text = page.read_text(encoding="utf-8") if page.is_file() else ""
+    review_actions = ROOT / "src/hooks/useEnVocabReviewActions.ts"
+    review_actions_text = (
+        review_actions.read_text(encoding="utf-8") if review_actions.is_file() else ""
+    )
+    page_ui = page_text + "\n" + review_actions_text
     for n in [
         "recordUsageLevels",
         "quizCardPreviewWordId",
@@ -179,39 +194,40 @@ def main() -> int:
         "areEnVocabUsageLevelsComplete",
         "请先在抽查卡为每条用法勾选熟悉程度",
     ]:
-        if n not in page_text:
-            errors.append(f"EnVocabPage.tsx: missing {n!r}")
+        if n not in page_ui:
+            errors.append(f"EnVocabPage/hooks: missing {n!r}")
 
     # Incomplete draft must not POST
-    if "if (!levels.length || levels.some((lv) => lv == null))" not in page_text:
+    if "if (!levels.length || levels.some((lv) => lv == null))" not in page_ui:
         errors.append(
-            "EnVocabPage.tsx: recordUsageLevels must return early when levels incomplete"
+            "useEnVocabReviewActions: recordUsageLevels must return early when levels incomplete"
         )
 
     # 草稿须在 canOperate 校验之前写入，避免点了无勾选态
-    draft_idx = page_text.find(
+    draft_idx = page_ui.find(
         "setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }))"
     )
-    auth_idx = page_text.find(
+    record_start = page_ui.find("const recordUsageLevels")
+    auth_idx = page_ui.find(
         'setStatus("请登录后再勾选熟悉程度。")',
-        page_text.find("const recordUsageLevels"),
+        record_start if record_start >= 0 else 0,
     )
     if draft_idx < 0 or auth_idx < 0 or draft_idx > auth_idx:
         errors.append(
-            "EnVocabPage.tsx: recordUsageLevels must setSessionUsageLevels before canOperate early-return"
+            "useEnVocabReviewActions: recordUsageLevels must setSessionUsageLevels before canOperate early-return"
         )
     # 写库失败不得把 sessionUsageLevels 打回未齐 / delete（第二条勾选会消失）
-    if "if (prevUsage) next[wordId] = prevUsage" in page_text:
+    if "if (prevUsage) next[wordId] = prevUsage" in page_ui:
         errors.append(
-            "EnVocabPage.tsx: must not roll back sessionUsageLevels to prevUsage on save failure"
+            "useEnVocabReviewActions: must not roll back sessionUsageLevels to prevUsage on save failure"
         )
-    if "usageLevelSavingRef" not in page_text:
+    if "usageLevelSavingRef" not in page_ui:
         errors.append(
-            "EnVocabPage.tsx: missing usageLevelSavingRef concurrent-save guard"
+            "useEnVocabReviewActions: missing usageLevelSavingRef concurrent-save guard"
         )
-    if "setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }))" not in page_text:
+    if "setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }))" not in page_ui:
         errors.append(
-            "EnVocabPage.tsx: on usage-level save failure must keep complete draft"
+            "useEnVocabReviewActions: on usage-level save failure must keep complete draft"
         )
 
     # 草稿已齐但 selected 空时，「下一个」应重试写库而非误报未勾选
@@ -224,10 +240,10 @@ def main() -> int:
             "EnVocabTeacherQuizFlashcardModal.tsx: tryGoNext must call onSelectUsageLevels to retry"
         )
 
-    db_text = db.read_text(encoding="utf-8") if db.is_file() else ""
+    db_text = read_en_vocab_db()
     if "EN_VOCAB_WORD_SCHEMA_VERSION" not in db_text:
         errors.append(
-            "en-vocab-db.ts: missing EN_VOCAB_WORD_SCHEMA_VERSION (schema ready bump)"
+            "en-vocab-db/: missing EN_VOCAB_WORD_SCHEMA_VERSION (schema ready bump)"
         )
 
     schema = ROOT / "schema.sql"
