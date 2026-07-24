@@ -86,6 +86,7 @@ import {
   applyEnVocabReview,
   areEnVocabUsageLevelsComplete,
   effectiveEnVocabDisplayLevel,
+  isEnVocabWordReviewLocked,
   parseEnVocabLastUsageLevels,
   serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
@@ -347,8 +348,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [quizCardPreviewWordId, setQuizCardPreviewWordId] = useState<
     number | null
   >(null);
-  /** 本轮每词最近一次勾选时间（毫秒，用于 15 秒内改选修正） */
+  /** 本轮每词最近一次勾选时间（毫秒，用于 15 秒内改选修正 + 1 小时锁定） */
   const [sessionReviewAt, setSessionReviewAt] = useState<Record<number, number>>({});
+  /** 每分钟刷新，使「勾选满 1 小时」锁能自动生效 */
+  const [reviewLockNow, setReviewLockNow] = useState(() => Date.now());
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [editingWord, setEditingWord] = useState<EnVocabWord | null>(null);
   const [viewingRemarksWord, setViewingRemarksWord] = useState<EnVocabWord | null>(null);
@@ -420,6 +423,11 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   useEffect(() => {
     sharedTodayWordIdsRef.current = sharedTodayWordIds;
   }, [sharedTodayWordIds]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setReviewLockNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
@@ -935,12 +943,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   }, []);
 
   const reviewLockedByWordId = useMemo(() => {
+    const now = new Date(reviewLockNow);
     const map: Record<number, boolean> = {};
     for (const w of words) {
-      map[w.id] = sharedTodayWordIds.has(w.id);
+      map[w.id] = isEnVocabWordReviewLocked(w, {
+        sessionReviewAtMs: sessionReviewAt[w.id],
+        now,
+      });
     }
     return map;
-  }, [words, sharedTodayWordIds]);
+  }, [words, sessionReviewAt, reviewLockNow]);
 
   const launchTeacherQuizSession = useCallback((session: EnVocabTeacherQuizSession) => {
     setQuizSession(session);
@@ -1199,13 +1211,20 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       openEnAuth();
       return;
     }
-    if (sharedTodayWordIds.has(wordId)) {
-      setStatus("今日已共享，熟悉程度不可更改。");
+    const lockSnapshot = words.find((w) => w.id === wordId);
+    if (
+      lockSnapshot &&
+      isEnVocabWordReviewLocked(lockSnapshot, {
+        sessionReviewAtMs: sessionReviewAt[wordId],
+        now: new Date(reviewLockNow),
+      })
+    ) {
+      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
     if (savingId === wordId) return;
 
-    const snapshot = words.find((w) => w.id === wordId);
+    const snapshot = lockSnapshot;
     if (!snapshot) return;
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
@@ -1246,8 +1265,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         }
         if (!data.ok || !data.word) {
           const msg =
-            data.error === "shared_level_locked"
-              ? "今日已共享，熟悉程度不可更改。"
+            data.error === "review_locked" || data.error === "shared_level_locked"
+              ? "勾选已满 1 小时，无法再修改熟悉程度。"
               : data.error || (locale === "zh" ? "保存失败" : "Save failed");
           throw new Error(msg);
         }
@@ -1286,8 +1305,15 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     wordId: number,
     levels: Array<EnVocabLevel | null | undefined>
   ) => {
-    if (sharedTodayWordIds.has(wordId)) {
-      setStatus("今日已共享，熟悉程度不可更改。");
+    const lockSnapshot = words.find((w) => w.id === wordId);
+    if (
+      lockSnapshot &&
+      isEnVocabWordReviewLocked(lockSnapshot, {
+        sessionReviewAtMs: sessionReviewAt[wordId],
+        now: new Date(reviewLockNow),
+      })
+    ) {
+      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
 
@@ -1376,8 +1402,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         if (!data.ok || !data.word) {
           const errKey = data.error || "";
           const msg =
-            errKey === "shared_level_locked"
-              ? "今日已共享，熟悉程度不可更改。"
+            errKey === "review_locked" || errKey === "shared_level_locked"
+              ? "勾选已满 1 小时，无法再修改熟悉程度。"
               : errKey === "usage_levels_count_mismatch"
                 ? "用法条数与勾选不一致，请刷新页面后重试。"
                 : errKey === "usage_levels_invalid"
@@ -1443,6 +1469,15 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
+    if (
+      isEnVocabWordReviewLocked(snapshot, {
+        sessionReviewAtMs: sessionReviewAt[wordId],
+        now: new Date(reviewLockNow),
+      })
+    ) {
+      setStatus("勾选已满 1 小时，无法再发给学生。");
+      return;
+    }
 
     const usageSlotCount = listEnVocabUsagePointsForDisplay(snapshot.usage)
       .points.length;
@@ -2247,6 +2282,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                   为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
                   「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15
                   秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
+                  勾选后
+                  <strong>1 小时内</strong>
+                  仍可改熟悉程度（学生已查看 / 已共享到「今日英语单词」也不锁）；满 1
+                  小时后不可再改。
                   单词表默认按抽查优先级排序，每天北京时间 0
                   点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员可使用「重置
                   → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
@@ -2520,11 +2559,15 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
               <tbody>
                 {pagedDisplayedWords.map((w, rowIndex) => {
                   const isHighlight = highlightId === w.id;
-                  const sharedLocked = sharedTodayWordIds.has(w.id);
-                  const selected =
-                    effectiveEnVocabDisplayLevel(w, sessionLevel[w.id], {
+                  const isSharedToday = sharedTodayWordIds.has(w.id);
+                  const reviewLocked = reviewLockedByWordId[w.id] ?? false;
+                  const selected = effectiveEnVocabDisplayLevel(
+                    w,
+                    sessionLevel[w.id],
+                    {
                       displayOrder,
-                    }) ?? (sharedLocked ? ("weak" as EnVocabLevel) : undefined);
+                    }
+                  );
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const risk = enVocabRiskIndex(w);
@@ -2785,16 +2828,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                                   className={`jp-vocab-level-opt${
                                     checked ? " is-checked" : ""
                                   }${
-                                    !canOperate || sharedLocked
+                                    !canOperate || reviewLocked
                                       ? " jp-vocab-level-opt--readonly"
                                       : ""
                                   }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
                                     lv.key === "weak" ? " jp-vocab-level-opt--weak" : ""
                                   }`}
-                                  disabled={!canOperate || isSaving || sharedLocked}
+                                  disabled={!canOperate || isSaving || reviewLocked}
                                   title={
-                                    sharedLocked
-                                      ? "今日已共享，熟悉程度不可更改"
+                                    reviewLocked
+                                      ? "勾选已满 1 小时，无法再修改熟悉程度"
                                       : !canOperate
                                         ? "登录后可勾选"
                                         : isSaving
@@ -2961,18 +3004,21 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
                                 disabled={
                                   sharingId === w.id ||
                                   isSaving ||
-                                  sharedTodayWordIds.has(w.id)
+                                  isSharedToday ||
+                                  reviewLocked
                                 }
                                 title={
-                                  sharedTodayWordIds.has(w.id)
+                                  isSharedToday
                                     ? "今日已共享"
-                                    : sharingId === w.id
-                                      ? "共享中…"
-                                      : "共享到学生「今日背英语单词」，并标记为不熟悉"
+                                    : reviewLocked
+                                      ? "勾选已满 1 小时，无法再发给学生"
+                                      : sharingId === w.id
+                                        ? "共享中…"
+                                        : "共享到学生「今日背英语单词」，并标记为不熟悉"
                                 }
                                 onClick={() => void shareWord(w.id)}
                               >
-                                {sharedTodayWordIds.has(w.id)
+                                {isSharedToday
                                   ? "已共享"
                                   : sharingId === w.id
                                     ? "共享中…"

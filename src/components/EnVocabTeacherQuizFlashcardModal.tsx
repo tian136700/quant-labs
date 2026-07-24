@@ -388,7 +388,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     : isStudy
       ? "老师已勾选的熟悉程度"
       : reviewLocked
-        ? "今日已共享，熟悉程度不可更改"
+        ? "勾选已满 1 小时，无法再修改熟悉程度"
         : isSaving
           ? "正在保存熟悉程度…"
           : !canOperate
@@ -832,7 +832,7 @@ export function EnVocabTeacherQuizFlashcardModal({
                               disabled={isSaving || isSharing || reviewLocked}
                               title={
                                 reviewLocked
-                                  ? "今日已共享，无法再操作"
+                                  ? "勾选已满 1 小时，无法再操作"
                                   : "从学生「今日英语单词」移除"
                               }
                               onClick={() => onUnshare(w.id)}
@@ -865,7 +865,7 @@ export function EnVocabTeacherQuizFlashcardModal({
                             }
                             title={
                               reviewLocked
-                                ? "今日已共享，无法再共享"
+                                ? "勾选已满 1 小时，无法再共享"
                                 : !usagesCompleteForShare
                                   ? "请先勾完每条用法的熟悉程度，再共享给学生"
                                   : "共享到学生「今日英语单词」"
@@ -1043,7 +1043,7 @@ export function EnVocabTeacherQuizFlashcardModal({
                             : previewMode
                               ? "预览模式，勾选不会保存"
                               : reviewLocked
-                                ? "今日已共享，熟悉程度不可更改"
+                                ? "勾选已满 1 小时，无法再修改熟悉程度"
                                 : !canOperate
                                   ? "请登录后再勾选熟悉程度"
                                   : checked

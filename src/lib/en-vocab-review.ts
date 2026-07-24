@@ -186,6 +186,52 @@ export function reviewTimestampMs(iso: string | null | undefined): number | null
   return Number.isFinite(ms) ? ms : null;
 }
 
+/** 勾选熟悉程度后满 1 小时不可再改（与日语一致；不按「已共享 / 学生 peek」锁） */
+export const EN_VOCAB_REVIEW_LOCK_MS = 60 * 60 * 1000;
+
+function effectiveEnVocabReviewTimestampMs(
+  word: EnVocabWord,
+  sessionReviewAtMs?: number,
+  now = new Date()
+): number | null {
+  const storedMs = reviewTimestampMs(word.last_review_at);
+  if (sessionReviewAtMs != null) {
+    const sessionDay = beijingDateString(new Date(sessionReviewAtMs));
+    if (sessionDay === beijingDateString(now)) {
+      return Math.max(storedMs ?? 0, sessionReviewAtMs);
+    }
+  }
+  return storedMs;
+}
+
+export function hasEnVocabReviewToday(
+  word: EnVocabWord,
+  sessionReviewAtMs?: number,
+  now = new Date()
+): boolean {
+  if (sessionReviewAtMs != null) {
+    const sessionDay = beijingDateString(new Date(sessionReviewAtMs));
+    if (sessionDay === beijingDateString(now)) return true;
+  }
+  return isEnVocabReviewToday(word.last_review_at, now);
+}
+
+/** 今日已勾选且距上次勾选已满 1 小时 */
+export function isEnVocabWordReviewLocked(
+  word: EnVocabWord,
+  opts?: { sessionReviewAtMs?: number; now?: Date }
+): boolean {
+  const now = opts?.now ?? new Date();
+  if (!hasEnVocabReviewToday(word, opts?.sessionReviewAtMs, now)) return false;
+  const reviewMs = effectiveEnVocabReviewTimestampMs(
+    word,
+    opts?.sessionReviewAtMs,
+    now
+  );
+  if (reviewMs == null || reviewMs <= 0) return false;
+  return now.getTime() - reviewMs >= EN_VOCAB_REVIEW_LOCK_MS;
+}
+
 export function isEnVocabReviewCorrection(
   lastLevel: EnVocabLevel | null | undefined,
   lastAt: string | null | undefined,

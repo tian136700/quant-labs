@@ -111,14 +111,14 @@ def main() -> int:
         "showUncheckedUsagesBlocked",
         "usagesCompleteForShare",
         "resolveEnVocabUsageDraftLevels",
-        "今日已共享，熟悉程度不可更改",
+        "勾选已满 1 小时，无法再修改熟悉程度",
     ]:
         if n not in flash_text:
             errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {n!r}")
 
-    if "勾选已满 1 小时" in flash_text:
+    if "今日已共享，熟悉程度不可更改" in flash_text:
         errors.append(
-            "EnVocabTeacherQuizFlashcardModal.tsx: shared lock must not say「勾选已满 1 小时」"
+            "EnVocabTeacherQuizFlashcardModal.tsx: must not say share locks levels"
         )
     # 禁止再加「滚动定位未勾用法」（暗色主题提示条曾看不清）
     for banned in [

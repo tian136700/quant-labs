@@ -42,6 +42,7 @@ import {
   aggregateEnVocabUsageLevels,
   applyEnVocabReview,
   isEnVocabLevel,
+  isEnVocabWordReviewLocked,
   serializeEnVocabLastUsageLevels,
 } from "@/lib/en-vocab-review";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
@@ -736,16 +737,15 @@ export async function recordEnVocabReview(
 
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
-  await ensureEnVocabSharedSchema(db);
-
-  if (await isEnVocabWordSharedToday(db, wordId)) {
-    return { ok: false, error: "shared_level_locked" };
-  }
 
   if (devStoreEnabled) {
     const idx = devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
-    return persistEnVocabReviewUpdate(db, wordId, devWords[idx], level, null);
+    const current = devWords[idx];
+    if (isEnVocabWordReviewLocked(current)) {
+      return { ok: false, error: "review_locked" };
+    }
+    return persistEnVocabReviewUpdate(db, wordId, current, level, null);
   }
 
   const row = await db
@@ -754,8 +754,12 @@ export async function recordEnVocabReview(
     .first<Record<string, unknown>>();
 
   if (!row) return { ok: false, error: "not_found" };
+  const current = mapRow(row);
+  if (isEnVocabWordReviewLocked(current)) {
+    return { ok: false, error: "review_locked" };
+  }
 
-  return persistEnVocabReviewUpdate(db, wordId, mapRow(row), level, null);
+  return persistEnVocabReviewUpdate(db, wordId, current, level, null);
 }
 
 /** 老师抽查卡：按用法勾选 → 汇总总体后写入 cnt_* / last_review_* / last_usage_levels */
@@ -776,11 +780,6 @@ export async function recordEnVocabReviewWithUsageLevels(
 
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
-  await ensureEnVocabSharedSchema(db);
-
-  if (await isEnVocabWordSharedToday(db, wordId)) {
-    return { ok: false, error: "shared_level_locked" };
-  }
 
   let current: EnVocabWord;
   if (devStoreEnabled) {
@@ -794,6 +793,10 @@ export async function recordEnVocabReviewWithUsageLevels(
       .first<Record<string, unknown>>();
     if (!row) return { ok: false, error: "not_found" };
     current = mapRow(row);
+  }
+
+  if (isEnVocabWordReviewLocked(current)) {
+    return { ok: false, error: "review_locked" };
   }
 
   const expectedCount = listEnVocabUsagePointsForDisplay(current.usage).points
