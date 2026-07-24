@@ -8,15 +8,16 @@ import {
 } from "@/lib/en-vocab-example-sentences";
 import { parseEnVocabUsagePoints } from "@/lib/en-vocab-usage-ai";
 
-/** 上传/本地模型须遵守的英语例句契约（须先有 usage；一句对应一条用法） */
+/** 上传/本地模型须遵守的英语例句契约（须先有 usage；队列按用法槽一次一句） */
 export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
-  version: 3,
+  version: 4,
   count_rule:
-    "条数 = 用法编号条数；第 N 句必须对应第 N 条用法（须先有 usage）",
+    "队列按用法槽：每个用法缺例句则入队；每次只造 1 句对应 1 条用法；存库仍按序号 1:1 配对",
   format_example:
-    "I put the book above the shelf.\n译文：我把书放在架子上面。\nSee the note above for details.\n译文：详情见上文注释。",
+    "I put the book above the shelf.\n译文：我把书放在架子上面。",
   rules: [
-    "必须已有「用法」编号说明；按用法逐条造句，禁止脱离用法自由发挥",
+    "必须已有「用法」编号说明；list_missing 按用法槽检测（用法 N 下无合格例句 → 入队）",
+    "每次 apply 只写回 1 句（带 usage_index），合并进该词 example_sentences 对应槽",
     "存库不要写行首序号（展示层会加 1、2、3…）",
     "每条：英文必须是完整句子（有主语谓语，句末 . ! ?），禁止只写单词或搭配短语",
     "每条：英文一行，下一行必须以「译文：」开头的中文（禁止「译文：/ …」）；译文须对应英文整句",
@@ -27,6 +28,9 @@ export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "empty",
     "usage_required",
     "usage_unparsed",
+    "usage_index_required",
+    "usage_index_invalid",
+    "need_prior_example",
     "need_pair_lines",
     "wrong_example_count",
     "invalid_english_line",
@@ -37,6 +41,7 @@ export const EN_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "lemma_only_example",
     "english_phrase_not_sentence",
     "english_too_short_vs_gloss",
+    "already_filled",
   ],
 } as const;
 
@@ -48,6 +53,11 @@ export type EnVocabExampleSentencesAiInput = {
   pos?: string | null;
   /** 已存库的编号用法正文（必填才能造句） */
   usage?: string | null;
+  /**
+   * 1-based 用法槽。传入时只为该条用法造 1 句（队列模式）。
+   * 省略时仍按全部用法条数造齐（兼容旧全量写回）。
+   */
+  usageIndex?: number | null;
 };
 
 /** 由 usage 解析应得例句条数；解析失败返回 null */
@@ -68,6 +78,59 @@ export function buildEnVocabExampleSentencesAiPrompt(
   const pos = input.pos?.trim();
   const usage = input.usage?.trim() || "";
   const points = parseEnVocabUsagePoints(usage);
+  const usageIndex =
+    typeof input.usageIndex === "number" &&
+    Number.isInteger(input.usageIndex) &&
+    input.usageIndex > 0
+      ? input.usageIndex
+      : null;
+
+  const singlePoint =
+    usageIndex != null && points
+      ? points.find((p) => p.n === usageIndex) ?? null
+      : null;
+
+  // 队列模式：一次只造一个用法对应的一句
+  if (usageIndex != null && singlePoint) {
+    const meta = [
+      `词条：${input.word.trim()}`,
+      reading ? `音标：${reading}` : null,
+      meaning ? `释义：${meaning}` : null,
+      pos ? `词性：${pos}` : null,
+      `类型：${kindLabel}`,
+      `目标用法编号：${usageIndex}`,
+      `应写例句条数：1`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    return `${meta}
+
+目标用法（只为下面这一条造 1 句，禁止写其它用法的例句）：
+${singlePoint.n}. ${singlePoint.text}
+
+请为上述英语${kindLabel}写 1 条例句，供初中学习者复习抽问。
+
+条数规则（必须遵守）：
+- 必须写恰好 1 句，且只体现上列用法 ${usageIndex}。
+- 禁止另起义项；禁止一次输出多句。
+
+用词与难度：
+- 句子要短、口语；除目标词外，其余单词尽量用最简单常见的词（如 I / you / the / book / today）。
+- 不要生僻词、长难从句、学术套话；抽问时焦点应落在目标词上。
+
+格式要求：
+1. 英文必须是完整句子：有主语和谓语，句末必须有句号 . 或 ! 或 ?。禁止只写单词、词条本身或搭配短语。
+   错误示例（禁止）：issue
+   错误示例（禁止）：issue a statement
+   正确示例：The issue is hard to solve today.
+   正确示例：The government will issue a statement soon.
+2. 英文必须原样出现词条文字「${input.word.trim()}」（可改大小写）。多词词条如 Present Perfect 也须写出这几个词，禁止只示范时态/含义却不写词条原文。
+3. 语法条同样须在句中自然出现该语法点对应的词条文字。
+4. 英文下一行写中文译义，必须以「译文：」开头；「译文：」后直接写中文，禁止「译文：/ …」。中文必须翻译上面那一整句英文，禁止英文短语配中文整句。
+5. 只输出英文行与下一行「译文：」+中文；不要行首编号、不要 markdown、不要解释。`;
+  }
+
   const expectedCount = points?.length ?? 0;
   const usageBlock =
     points && points.length > 0
@@ -125,7 +188,66 @@ function wordUsedInEnglish(sentence: string, word: string, kind: string): boolea
   return re.test(sentence);
 }
 
-/** 校验 AI 返回的例句块是否可用（条数须与 usage 一致） */
+/** 单条例句是否合格（完整句 + 译文 + 用到词条） */
+export function validateEnVocabSingleExampleSentenceItem(
+  item: { text: string; gloss: string },
+  input: Pick<EnVocabExampleSentencesAiInput, "word" | "kind">
+): { ok: true } | { ok: false; reason: string } {
+  if (!isEnVocabExampleEnglishLine(item.text)) {
+    return { ok: false, reason: "invalid_english_line" };
+  }
+  if (!item.gloss || !isEnVocabExampleGlossLine(item.gloss)) {
+    return { ok: false, reason: "missing_chinese_gloss" };
+  }
+  if (!stripEnVocabExampleGlossLabel(item.gloss)) {
+    return { ok: false, reason: "missing_chinese_gloss" };
+  }
+  const sentenceCheck = assessEnVocabExampleEnglishSentence(
+    item.text,
+    input.word,
+    item.gloss
+  );
+  if (!sentenceCheck.ok) {
+    return { ok: false, reason: sentenceCheck.reason };
+  }
+  if (!wordUsedInEnglish(item.text, input.word, input.kind)) {
+    return { ok: false, reason: "word_not_used" };
+  }
+  return { ok: true };
+}
+
+/** 校验「一次一句」模型输出 */
+export function validateEnVocabSingleExampleSentenceAiOutput(
+  raw: string,
+  input: Pick<EnVocabExampleSentencesAiInput, "word" | "kind">
+): { ok: true; text: string } | { ok: false; reason: string } {
+  const text = raw.trim();
+  if (!text) return { ok: false, reason: "empty" };
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) {
+    return { ok: false, reason: "need_pair_lines" };
+  }
+
+  const items = parseEnVocabExampleSentenceItems(lines.join("\n"));
+  if (items.length !== 1) {
+    return { ok: false, reason: "wrong_example_count" };
+  }
+
+  const item = items[0];
+  const checked = validateEnVocabSingleExampleSentenceItem(item, input);
+  if (!checked.ok) return checked;
+
+  return {
+    ok: true,
+    text: serializeEnVocabExampleSentenceItems([item]),
+  };
+}
+
+/** 校验 AI 返回的例句块是否可用（全量：条数须与 usage 一致） */
 export function validateEnVocabExampleSentencesAiOutput(
   raw: string,
   input: EnVocabExampleSentencesAiInput
@@ -156,26 +278,8 @@ export function validateEnVocabExampleSentencesAiOutput(
   }
 
   for (const item of items) {
-    if (!isEnVocabExampleEnglishLine(item.text)) {
-      return { ok: false, reason: "invalid_english_line" };
-    }
-    if (!item.gloss || !isEnVocabExampleGlossLine(item.gloss)) {
-      return { ok: false, reason: "missing_chinese_gloss" };
-    }
-    if (!stripEnVocabExampleGlossLabel(item.gloss)) {
-      return { ok: false, reason: "missing_chinese_gloss" };
-    }
-    const sentenceCheck = assessEnVocabExampleEnglishSentence(
-      item.text,
-      input.word,
-      item.gloss
-    );
-    if (!sentenceCheck.ok) {
-      return { ok: false, reason: sentenceCheck.reason };
-    }
-    if (!wordUsedInEnglish(item.text, input.word, input.kind)) {
-      return { ok: false, reason: "word_not_used" };
-    }
+    const checked = validateEnVocabSingleExampleSentenceItem(item, input);
+    if (!checked.ok) return checked;
   }
 
   return {
