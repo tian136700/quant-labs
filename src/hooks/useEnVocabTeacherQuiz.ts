@@ -258,7 +258,7 @@ export function useEnVocabTeacherQuiz(options: {
       if (!next) {
         setStatus(
           quizTarget > 0
-            ? "今日抽查池内暂无未抽查词条（已抽过的不会再进入抽查卡片）。"
+            ? "今日抽查池内词条均已勾选熟悉程度。"
             : "今日暂无抽查词条。"
         );
         return;

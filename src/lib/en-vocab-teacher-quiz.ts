@@ -78,7 +78,7 @@ export function sortEnVocabQuizTargetWordsByDailySeq(
   });
 }
 
-/** 抽查队列只保留尚未勾选熟悉程度的词（已抽过的不再进入卡片） */
+/** 抽查队列辅助：尚未勾选熟悉程度的词（用于进度 / 跳「下一个」） */
 export function filterEnVocabTeacherQuizUncheckedWords(
   words: EnVocabWord[],
   hasLevel: (wordId: number) => boolean
@@ -115,6 +115,7 @@ function clampSessionIndex(
 /**
  * 从会话中剔除已勾选词；可选保留当前正在看的词（方便改选熟悉程度后再点「下一个」）。
  * 无剩余词时返回 null。
+ * 注意：进行中的抽查导航（上一个/下一个）不要靠这个剪队列——应保留完整本轮顺序以便回看。
  */
 export function pruneEnVocabTeacherQuizSessionChecked(
   session: EnVocabTeacherQuizSession,
@@ -134,6 +135,11 @@ export function pruneEnVocabTeacherQuizSessionChecked(
   };
 }
 
+/**
+ * 开始抽查：本轮目标词全量入队（正序 1…N 或打乱一次）。
+ * 已勾选词仍留在队列里，便于「上一个」回看勾选；落点优先未勾选词。
+ * 全部已勾选时返回 null。
+ */
 export function createEnVocabTeacherQuizSession(
   mode: EnVocabTeacherQuizMode,
   quizTargetWords: EnVocabWord[],
@@ -141,18 +147,32 @@ export function createEnVocabTeacherQuizSession(
   startWordId?: number,
   hasLevel?: (wordId: number) => boolean
 ): EnVocabTeacherQuizSession | null {
-  const pool = hasLevel
-    ? filterEnVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
-    : quizTargetWords;
   const wordIds = buildEnVocabTeacherQuizWordIds(
     mode,
-    pool,
+    quizTargetWords,
     dailySeqByWordId
   );
   if (!wordIds.length) return null;
-  const foundIndex =
-    startWordId != null ? wordIds.indexOf(startWordId) : -1;
-  const currentIndex = foundIndex >= 0 ? foundIndex : 0;
+  if (hasLevel && wordIds.every((id) => hasLevel(id))) return null;
+
+  let currentIndex = 0;
+  if (startWordId != null) {
+    const foundIndex = wordIds.indexOf(startWordId);
+    if (
+      foundIndex >= 0 &&
+      (!hasLevel || !hasLevel(startWordId))
+    ) {
+      currentIndex = foundIndex;
+    } else if (hasLevel) {
+      const firstUnchecked = wordIds.findIndex((id) => !hasLevel(id));
+      currentIndex = firstUnchecked >= 0 ? firstUnchecked : 0;
+    } else if (foundIndex >= 0) {
+      currentIndex = foundIndex;
+    }
+  } else if (hasLevel) {
+    const firstUnchecked = wordIds.findIndex((id) => !hasLevel(id));
+    currentIndex = firstUnchecked >= 0 ? firstUnchecked : 0;
+  }
   return { mode, wordIds, currentIndex };
 }
 
@@ -195,7 +215,7 @@ export function reconcileEnVocabTeacherQuizSession(
 
 /**
  * 把进行中的抽查会话补全到最新目标词表。
- * 传入 hasLevel 时：队列只保留未勾选词；池空时返回 null。
+ * 保留已勾选词（「上一个」可回看）；仅当目标池内全部已勾选时返回 null。
  */
 export function expandEnVocabTeacherQuizSessionForTarget(
   session: EnVocabTeacherQuizSession,
@@ -203,59 +223,47 @@ export function expandEnVocabTeacherQuizSessionForTarget(
   dailySeqByWordId: ReadonlyMap<number, number>,
   hasLevel?: (wordId: number) => boolean
 ): EnVocabTeacherQuizSession | null {
-  const pool = hasLevel
-    ? filterEnVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
-    : quizTargetWords;
   const targetIds = buildEnVocabTeacherQuizWordIds(
     session.mode,
-    pool,
+    quizTargetWords,
     dailySeqByWordId
   );
   if (!targetIds.length) {
     if (!hasLevel) return session;
+    // 禁止 `prune ?? session`：全部勾选后 prune 为 null 时若回退旧会话，弹窗会永远关不掉
     return pruneEnVocabTeacherQuizSessionChecked(session, hasLevel);
+  }
+
+  if (hasLevel && targetIds.every((id) => hasLevel(id))) {
+    return null;
   }
 
   const currentWordId = session.wordIds[session.currentIndex];
   let wordIds: number[];
 
-  if (hasLevel) {
-    if (session.mode === "sequential") {
-      wordIds = targetIds;
-    } else {
-      const targetSet = new Set(targetIds);
-      const kept = session.wordIds.filter(
-        (id) => targetSet.has(id) && !hasLevel(id)
-      );
-      const inSession = new Set(kept);
-      wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
-    }
+  if (session.mode === "sequential") {
+    wordIds = targetIds;
   } else {
-    if (session.wordIds.length >= targetIds.length) {
-      return (
-        reconcileEnVocabTeacherQuizSession(session, new Set(targetIds)) ??
-        session
-      );
-    }
-    if (session.mode === "sequential") {
-      wordIds = targetIds;
-    } else {
-      const targetSet = new Set(targetIds);
-      const kept = session.wordIds.filter((id) => targetSet.has(id));
-      const inSession = new Set(kept);
-      wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
-    }
+    // 随机：保留本轮已定顺序（含已勾选），再追加目标池里尚未入队的词
+    const targetSet = new Set(targetIds);
+    const kept = session.wordIds.filter((id) => targetSet.has(id));
+    const inSession = new Set(kept);
+    wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
   }
 
   const preferredId =
-    currentWordId != null && (!hasLevel || !hasLevel(currentWordId))
+    currentWordId != null && wordIds.includes(currentWordId)
       ? currentWordId
       : undefined;
 
   return {
     mode: session.mode,
     wordIds,
-    currentIndex: clampSessionIndex(wordIds, preferredId, 0),
+    currentIndex: clampSessionIndex(
+      wordIds,
+      preferredId,
+      session.currentIndex
+    ),
   };
 }
 

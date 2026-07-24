@@ -52,7 +52,7 @@ export function sortJpVocabQuizTargetWordsByDailySeq(
   });
 }
 
-/** 抽查队列只保留尚未勾选熟悉程度的词（已抽过的不再进入卡片） */
+/** 抽查队列辅助：尚未勾选熟悉程度的词（用于进度 / 跳「下一个」） */
 export function filterJpVocabTeacherQuizUncheckedWords(
   words: JpVocabWord[],
   hasLevel: (wordId: number) => boolean
@@ -89,6 +89,7 @@ function clampSessionIndex(
 /**
  * 从会话中剔除已勾选词；可选保留当前正在看的词（方便改选熟悉程度后再点「下一个」）。
  * 无剩余词时返回 null。
+ * 注意：进行中的抽查导航（上一个/下一个）不要靠这个剪队列——应保留完整本轮顺序以便回看。
  */
 export function pruneJpVocabTeacherQuizSessionChecked(
   session: JpVocabTeacherQuizSession,
@@ -108,6 +109,11 @@ export function pruneJpVocabTeacherQuizSessionChecked(
   };
 }
 
+/**
+ * 开始抽查：本轮目标词全量入队（正序 1…N 或打乱一次）。
+ * 已勾选词仍留在队列里，便于「上一个」回看勾选；落点优先未勾选词。
+ * 全部已勾选时返回 null。
+ */
 export function createJpVocabTeacherQuizSession(
   mode: JpVocabTeacherQuizMode,
   quizTargetWords: JpVocabWord[],
@@ -115,18 +121,32 @@ export function createJpVocabTeacherQuizSession(
   startWordId?: number,
   hasLevel?: (wordId: number) => boolean
 ): JpVocabTeacherQuizSession | null {
-  const pool = hasLevel
-    ? filterJpVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
-    : quizTargetWords;
   const wordIds = buildJpVocabTeacherQuizWordIds(
     mode,
-    pool,
+    quizTargetWords,
     dailySeqByWordId
   );
   if (!wordIds.length) return null;
-  const foundIndex =
-    startWordId != null ? wordIds.indexOf(startWordId) : -1;
-  const currentIndex = foundIndex >= 0 ? foundIndex : 0;
+  if (hasLevel && wordIds.every((id) => hasLevel(id))) return null;
+
+  let currentIndex = 0;
+  if (startWordId != null) {
+    const foundIndex = wordIds.indexOf(startWordId);
+    if (
+      foundIndex >= 0 &&
+      (!hasLevel || !hasLevel(startWordId))
+    ) {
+      currentIndex = foundIndex;
+    } else if (hasLevel) {
+      const firstUnchecked = wordIds.findIndex((id) => !hasLevel(id));
+      currentIndex = firstUnchecked >= 0 ? firstUnchecked : 0;
+    } else if (foundIndex >= 0) {
+      currentIndex = foundIndex;
+    }
+  } else if (hasLevel) {
+    const firstUnchecked = wordIds.findIndex((id) => !hasLevel(id));
+    currentIndex = firstUnchecked >= 0 ? firstUnchecked : 0;
+  }
   return { mode, wordIds, currentIndex };
 }
 
@@ -170,8 +190,7 @@ export function reconcileJpVocabTeacherQuizSession(
 
 /**
  * 管理员调高今日抽查数量后，把进行中的抽查会话补全到最新目标词表。
- * 传入 hasLevel 时：队列只保留未勾选词（含新增目标内的未抽查词），已抽过的不再出现。
- * 若未勾选池已空（本轮/今日目标已抽完），返回 null——调用方应清空会话并关闭卡片，展示已抽完列表。
+ * 保留已勾选词（「上一个」可回看）；仅当目标池内全部已勾选时返回 null。
  */
 export function expandJpVocabTeacherQuizSessionForTarget(
   session: JpVocabTeacherQuizSession,
@@ -179,12 +198,9 @@ export function expandJpVocabTeacherQuizSessionForTarget(
   dailySeqByWordId: ReadonlyMap<number, number>,
   hasLevel?: (wordId: number) => boolean
 ): JpVocabTeacherQuizSession | null {
-  const pool = hasLevel
-    ? filterJpVocabTeacherQuizUncheckedWords(quizTargetWords, hasLevel)
-    : quizTargetWords;
   const targetIds = buildJpVocabTeacherQuizWordIds(
     session.mode,
-    pool,
+    quizTargetWords,
     dailySeqByWordId
   );
   if (!targetIds.length) {
@@ -193,48 +209,36 @@ export function expandJpVocabTeacherQuizSessionForTarget(
     return pruneJpVocabTeacherQuizSessionChecked(session, hasLevel);
   }
 
+  if (hasLevel && targetIds.every((id) => hasLevel(id))) {
+    return null;
+  }
+
   const currentWordId = session.wordIds[session.currentIndex];
   let wordIds: number[];
 
-  if (hasLevel) {
-    // 未勾选池即为完整待抽查队列；正序用序号序，随机保留未完成项并追加新增
-    if (session.mode === "sequential") {
-      wordIds = targetIds;
-    } else {
-      const targetSet = new Set(targetIds);
-      const kept = session.wordIds.filter(
-        (id) => targetSet.has(id) && !hasLevel(id)
-      );
-      const inSession = new Set(kept);
-      wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
-    }
+  if (session.mode === "sequential") {
+    wordIds = targetIds;
   } else {
-    if (session.wordIds.length >= targetIds.length) {
-      return (
-        reconcileJpVocabTeacherQuizSession(session, new Set(targetIds)) ??
-        session
-      );
-    }
-    if (session.mode === "sequential") {
-      wordIds = targetIds;
-    } else {
-      const targetSet = new Set(targetIds);
-      const kept = session.wordIds.filter((id) => targetSet.has(id));
-      const inSession = new Set(kept);
-      wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
-    }
+    // 随机：保留本轮已定顺序（含已勾选），再追加目标池里尚未入队的词
+    const targetSet = new Set(targetIds);
+    const kept = session.wordIds.filter((id) => targetSet.has(id));
+    const inSession = new Set(kept);
+    wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
   }
 
-  // 当前词若已勾选（或不在未勾选池中），落到第一个待抽查词
   const preferredId =
-    currentWordId != null && (!hasLevel || !hasLevel(currentWordId))
+    currentWordId != null && wordIds.includes(currentWordId)
       ? currentWordId
       : undefined;
 
   return {
     mode: session.mode,
     wordIds,
-    currentIndex: clampSessionIndex(wordIds, preferredId, 0),
+    currentIndex: clampSessionIndex(
+      wordIds,
+      preferredId,
+      session.currentIndex
+    ),
   };
 }
 

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Regression: teacher quiz session keeps checked words for 上一个 navigation.
+
+create / expand must enqueue the full today's N-word list (sequential or one shuffle).
+Checked words stay in wordIds so teachers can go back; only 「下一个」 skips to unchecked.
+"""
+
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+LIBS = [
+    ROOT / "src/lib/en-vocab-teacher-quiz.ts",
+    ROOT / "src/lib/jp-vocab-teacher-quiz.ts",
+]
+
+
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def fail(msg: str) -> None:
+    print(f"FAIL: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def extract_fn(src: str, name: str) -> str:
+    m = re.search(
+        rf"export function {re.escape(name)}\([\s\S]*?\n\}}(?:\n|$)",
+        src,
+    )
+    if not m:
+        fail(f"missing export function {name}")
+    return m.group(0)
+
+
+def check_create(src: str, lang: str) -> None:
+    body = extract_fn(src, f"create{lang}VocabTeacherQuizSession")
+    # Must NOT filter to unchecked-only before buildWordIds
+    if re.search(
+        r"filter\w+TeacherQuizUncheckedWords\(\s*quizTargetWords",
+        body,
+    ):
+        fail(
+            f"{lang}: create* must not filterUnchecked before buildWordIds "
+            "(checked words must stay for 上一个)"
+        )
+    if "wordIds.every" not in body and "every((id) => hasLevel" not in body:
+        fail(f"{lang}: create* should return null when all words have levels")
+    if "findIndex((id) => !hasLevel" not in body and "findIndex((id) => !hasLevel(id))" not in body:
+        # allow either style
+        if "!hasLevel(id)" not in body:
+            fail(f"{lang}: create* should land on first unchecked")
+
+
+def check_expand(src: str, lang: str) -> None:
+    body = extract_fn(src, f"expand{lang}VocabTeacherQuizSessionForTarget")
+    if re.search(
+        r"filter\w+TeacherQuizUncheckedWords\(\s*quizTargetWords",
+        body,
+    ):
+        fail(
+            f"{lang}: expand* must not rebuild targetIds from unchecked-only pool "
+            "(would drop checked words and disable 上一个)"
+        )
+    if "targetIds.every" not in body and "every((id) => hasLevel" not in body:
+        fail(f"{lang}: expand* should return null when all target words have levels")
+    # random path must keep checked ids still in target, not `&& !hasLevel(id)`
+    if re.search(r"targetSet\.has\(id\)\s*&&\s*!hasLevel\(id\)", body):
+        fail(
+            f"{lang}: expand* random kept= must include checked words "
+            "(do not filter with !hasLevel)"
+        )
+
+
+def main() -> None:
+    for path in LIBS:
+        if not path.is_file():
+            fail(f"missing {path}")
+        src = read(path)
+        lang = "En" if "en-vocab" in path.name else "Jp"
+        check_create(src, lang)
+        check_expand(src, lang)
+        print(f"OK: {path.relative_to(ROOT)}")
+    print("All teacher-quiz session prev-nav guards passed.")
+
+
+if __name__ == "__main__":
+    main()
