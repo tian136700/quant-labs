@@ -54,7 +54,7 @@ def main() -> int:
         return fail("fingerprint must include git status --porcelain")
 
     if "summarize_feature_remark" not in text:
-        return fail("hook must use summarize_feature_remark (≤20 字)")
+        return fail("hook must use summarize_feature_remark (accurate change remark)")
 
     remark_check = ROOT / "scripts" / "check_feature_remark_format.py"
     if not remark_check.is_file():
