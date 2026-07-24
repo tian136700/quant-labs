@@ -1,14 +1,20 @@
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
 import {
   beijingDateString,
+  beijingDateTimeString,
+  effectiveTodayCheckCount,
   nextTodayCheckCount,
 } from "@/lib/en-vocab-daily-check";
 import {
   isEnVocabRoundChecked,
   type EnVocabDailyDisplayOrder,
 } from "@/lib/en-vocab-daily-order";
+import { parseBeijingDateTime } from "@/lib/jp-lesson-shared";
 
-/** 同一单词在此时间内改选熟悉程度，视为修正上次判断，不重复计次 */
+/**
+ * 短窗修正（遗留；英语正式规则见「同日修正」）。
+ * 按用法勾选常超过 15s，不可再靠这个防重复计次。
+ */
 export const JP_VOCAB_REVIEW_CORRECTION_MS = 15_000;
 
 const EN_VOCAB_LEVELS: EnVocabLevel[] = ["very", "normal", "weak"];
@@ -152,7 +158,7 @@ function isEnVocabReviewToday(
   return lastAt.slice(0, 10) === beijingDateString(now);
 }
 
-/** 表格 / 抽查卡回显：sessionLevel 优先；否则仅当本轮已勾选且今日有熟悉程度 */
+/** 表格 / 抽查卡回显：sessionLevel 优先；否则今日已抽（北京）才显示 */
 export function effectiveEnVocabDisplayLevel(
   word: EnVocabWord,
   sessionLevel?: EnVocabLevel,
@@ -163,24 +169,35 @@ export function effectiveEnVocabDisplayLevel(
 ): EnVocabLevel | undefined {
   if (sessionLevel) return sessionLevel;
   const now = opts?.now ?? new Date();
+  const level = word.last_review_level;
+  const reviewedToday =
+    Boolean(level) &&
+    EN_VOCAB_LEVELS.includes(level as EnVocabLevel) &&
+    (hasEnVocabTodayCheckCounted(word, now) ||
+      isEnVocabReviewToday(word.last_review_at, now));
+  if (!reviewedToday || !level) return undefined;
+
   const order = opts?.displayOrder;
   if (order?.date) {
     if (order.date !== beijingDateString(now)) return undefined;
-    if (!isEnVocabRoundChecked(order, word.id)) return undefined;
+    // 本轮 round_checked；若今日已计次则仍认（防 sync/缓存短暂丢 round_checked → 进度条卡 0）
+    if (
+      !isEnVocabRoundChecked(order, word.id) &&
+      !hasEnVocabTodayCheckCounted(word, now)
+    ) {
+      return undefined;
+    }
   }
-  const level = word.last_review_level;
-  if (
-    level &&
-    EN_VOCAB_LEVELS.includes(level) &&
-    isEnVocabReviewToday(word.last_review_at, now)
-  ) {
-    return level;
-  }
-  return undefined;
+  return level;
 }
 
 export function reviewTimestampMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
+  // 与日语一致：无 T 的墙钟按北京时间解析（formatReviewIso 写的是北京墙钟）
+  if (!iso.includes("T")) {
+    const beijing = parseBeijingDateTime(iso);
+    if (beijing) return beijing.getTime();
+  }
   const normalized = iso.includes("T") ? iso : iso.replace(" ", "T");
   const ms = Date.parse(normalized);
   return Number.isFinite(ms) ? ms : null;
@@ -213,6 +230,10 @@ export function hasEnVocabReviewToday(
     const sessionDay = beijingDateString(new Date(sessionReviewAtMs));
     if (sessionDay === beijingDateString(now)) return true;
   }
+  // 以 today_check_date（北京日）为准；last_review_at 在 Worker 上是 UTC 墙钟，清晨会错日
+  if (hasEnVocabTodayCheckCounted(word, now)) {
+    return true;
+  }
   return isEnVocabReviewToday(word.last_review_at, now);
 }
 
@@ -232,6 +253,7 @@ export function isEnVocabWordReviewLocked(
   return now.getTime() - reviewMs >= EN_VOCAB_REVIEW_LOCK_MS;
 }
 
+/** @deprecated 英语请用 resolveEnVocabPreviousLevel（同日 today_check）；保留短窗兼容旧调用 */
 export function isEnVocabReviewCorrection(
   lastLevel: EnVocabLevel | null | undefined,
   lastAt: string | null | undefined,
@@ -243,9 +265,25 @@ export function isEnVocabReviewCorrection(
   return nowMs - t <= JP_VOCAB_REVIEW_CORRECTION_MS;
 }
 
+/**
+ * 今日是否已计过抽查（北京日 today_check_date）。
+ * 统计只记「整词总体熟悉程度」一次：同日再改档（含改某一用法后重汇总）只换档、不 +1。
+ */
+export function hasEnVocabTodayCheckCounted(
+  word: Pick<EnVocabWord, "today_check_count" | "today_check_date">,
+  now = new Date()
+): boolean {
+  return (
+    effectiveTodayCheckCount(
+      word.today_check_count ?? 0,
+      word.today_check_date,
+      now
+    ) > 0
+  );
+}
+
 export function formatReviewIso(now = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  return beijingDateTimeString(now);
 }
 
 function adjustLevelCount(
@@ -270,20 +308,33 @@ export function resolveEnVocabPreviousLevel(
   } = {}
 ): EnVocabLevel | null {
   const nowMs = opts.nowMs ?? Date.now();
+  const now = new Date(nowMs);
+  // 本会话已勾过（同一北京日）→ 改档视为修正
   if (
     opts.sessionLevel &&
     opts.sessionReviewAtMs != null &&
-    nowMs - opts.sessionReviewAtMs <= JP_VOCAB_REVIEW_CORRECTION_MS
+    beijingDateString(new Date(opts.sessionReviewAtMs)) ===
+      beijingDateString(now)
   ) {
     return opts.sessionLevel;
   }
-  if (isEnVocabReviewCorrection(word.last_review_level, word.last_review_at, nowMs)) {
+  // 今日已计过抽查次数 → 只改总体档，不重复计次（按用法勾选常 >15s）
+  if (
+    word.last_review_level &&
+    isEnVocabLevel(word.last_review_level) &&
+    hasEnVocabTodayCheckCounted(word, now)
+  ) {
+    return word.last_review_level;
+  }
+  if (
+    isEnVocabReviewCorrection(word.last_review_level, word.last_review_at, nowMs)
+  ) {
     return word.last_review_level ?? null;
   }
   return null;
 }
 
-/** 应用一次熟悉程度勾选（新抽查 or 15 秒内改选修正） */
+/** 应用一次熟悉程度勾选（新抽查 or 同日改选修正总体档） */
 export function applyEnVocabReview(
   word: EnVocabWord,
   level: EnVocabLevel,

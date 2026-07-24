@@ -378,26 +378,34 @@ export function EnVocabTeacherQuizFlashcardModal({
       ? count + 1
       : count;
   }, 0);
+  const sessionLocalChecked = Math.max(
+    0,
+    session.wordIds.length - sessionUncheckedCount
+  );
   const useDailyProgress = dailyQuizProgress != null && dailyQuizProgress.total > 0;
-  const uncheckedCount = useDailyProgress
-    ? dailyQuizProgress.remaining
-    : sessionUncheckedCount;
-  const remainingLabel =
-    locale === "zh"
-      ? `还剩 ${uncheckedCount} 个未抽查`
-      : `${uncheckedCount} left to quiz`;
+  // 本轮进度：分母用今日目标；分子取「页面进度」与「本会话已勾」较大值
+  // （对齐日语；避免 page displayQuizProgress 因 UTC/round_checked 短暂为 0 时卡片一直 0/N）
+  const dailyChecked = useDailyProgress
+    ? enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress)
+    : 0;
   const sessionTotal = useDailyProgress
     ? dailyQuizProgress.total
     : session.wordIds.length;
   const sessionChecked = useDailyProgress
-    ? enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress)
-    : Math.max(0, session.wordIds.length - sessionUncheckedCount);
+    ? Math.min(sessionTotal, Math.max(dailyChecked, sessionLocalChecked))
+    : sessionLocalChecked;
+  const uncheckedCount = Math.max(0, sessionTotal - sessionChecked);
+  const remainingLabel =
+    locale === "zh"
+      ? `还剩 ${uncheckedCount} 个未抽查`
+      : `${uncheckedCount} left to quiz`;
   const sessionPct =
     sessionTotal > 0
       ? Math.min(100, Math.round((sessionChecked / sessionTotal) * 100))
       : 0;
   const sessionComplete = useDailyProgress
-    ? dailyQuizProgress.complete
+    ? dailyQuizProgress.complete ||
+      (sessionTotal > 0 && sessionChecked >= sessionTotal)
     : session.wordIds.length > 0 && sessionUncheckedCount === 0;
   const progressLabel = sessionComplete
     ? locale === "zh"

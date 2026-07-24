@@ -278,6 +278,33 @@ def main() -> int:
             "EnVocabTeacherQuizFlashcardModal.tsx: tryGoNext must call onSelectUsageLevels to retry"
         )
 
+    # 同日只计总体一次（勿按用法条数 / 15s 短窗重复 +1）
+    for n in [
+        "export function hasEnVocabTodayCheckCounted",
+        "hasEnVocabTodayCheckCounted(word, now)",
+        "今日已计过抽查次数",
+    ]:
+        if n not in review_src:
+            errors.append(f"en-vocab-review.ts: missing same-day overall count guard {n!r}")
+    # resolveEnVocabPreviousLevel 须看 today_check，不能只靠 15s
+    resolve_start = review_src.find("export function resolveEnVocabPreviousLevel")
+    if resolve_start < 0:
+        errors.append("en-vocab-review.ts: missing resolveEnVocabPreviousLevel")
+    else:
+        resolve_chunk = review_src[resolve_start : resolve_start + 1200]
+        if "hasEnVocabTodayCheckCounted" not in resolve_chunk:
+            errors.append(
+                "resolveEnVocabPreviousLevel must use hasEnVocabTodayCheckCounted "
+                "(same Beijing day → correct overall, do not re-increment)"
+            )
+        if (
+            "nowMs - opts.sessionReviewAtMs <= JP_VOCAB_REVIEW_CORRECTION_MS"
+            in resolve_chunk
+        ):
+            errors.append(
+                "resolveEnVocabPreviousLevel must not gate session correction on 15s only"
+            )
+
     db_text = read_en_vocab_db()
     if "EN_VOCAB_WORD_SCHEMA_VERSION" not in db_text:
         errors.append(
@@ -287,6 +314,27 @@ def main() -> int:
     schema = ROOT / "schema.sql"
     if schema.is_file() and "last_usage_levels" not in schema.read_text(encoding="utf-8"):
         errors.append("schema.sql: en_vocab_word must declare last_usage_levels")
+
+
+    # 进度/回显：last_review_at 须北京墙钟（对齐日语），勿 Worker UTC
+    daily_check = ROOT / "src/lib/en-vocab-daily-check.ts"
+    daily_text = daily_check.read_text(encoding="utf-8") if daily_check.is_file() else ""
+    if "export function beijingDateTimeString" not in daily_text:
+        errors.append("en-vocab-daily-check.ts: missing beijingDateTimeString")
+    if "return beijingDateTimeString(now)" not in review_src:
+        errors.append("en-vocab-review.ts formatReviewIso must use beijingDateTimeString")
+    if "parseBeijingDateTime" not in review_src:
+        errors.append("en-vocab-review.ts reviewTimestampMs must parse Beijing wall clock")
+    flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
+    flash_text = flash.read_text(encoding="utf-8") if flash.is_file() else ""
+    if "sessionLocalChecked" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal: must blend sessionLocalChecked into 本轮进度"
+        )
+    if "Math.max(dailyChecked, sessionLocalChecked)" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal: progress numerator must max(daily, sessionLocal)"
+        )
 
     if errors:
         print("FAIL: en-vocab usage-level aggregate guards")
