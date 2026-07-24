@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import {
   JP_VOCAB_CACHE_KEY,
   JP_VOCAB_REFRESH_TTL_MS,
@@ -17,6 +25,10 @@ import {
 } from "@/lib/en-vocab-page-cache";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import {
+  isEnVocabServerReviewCleared,
+  subscribeEnVocabAdminReset,
+} from "@/lib/en-vocab-reset-broadcast";
+import {
   JP_VOCAB_POLL_MS,
   JP_VOCAB_POLL_HIDDEN_MS,
   maxEnVocabUpdatedAt,
@@ -28,7 +40,7 @@ import {
   shouldRejectStaleEnVocabTeacherVisibleLimit,
   type EnVocabTeacherVisibleLimit,
 } from "@/lib/en-vocab-teacher-visible";
-import type { EnVocabRef, EnVocabWord } from "@/lib/types";
+import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import { writeClientCache } from "@/lib/client-swr-cache";
 
 export function useEnVocabPageSync(options: {
@@ -38,6 +50,15 @@ export function useEnVocabPageSync(options: {
   editingWordId: number | null;
   setViewingRemarksWord: Dispatch<SetStateAction<EnVocabWord | null>>;
   onLoadError: (message: string) => void;
+  setSessionLevel: Dispatch<
+    SetStateAction<Record<number, EnVocabLevel | undefined>>
+  >;
+  setSessionUsageLevels: Dispatch<
+    SetStateAction<Record<number, Array<EnVocabLevel | null | undefined>>>
+  >;
+  setSessionReviewAt: Dispatch<SetStateAction<Record<number, number>>>;
+  /** 管理员重置后清抽查会话 / 关卡片（由页面写入最新 setter） */
+  onRemoteResetClearSessionRef: MutableRefObject<(() => void) | null>;
 }) {
   const {
     checking,
@@ -46,6 +67,10 @@ export function useEnVocabPageSync(options: {
     editingWordId,
     setViewingRemarksWord,
     onLoadError,
+    setSessionLevel,
+    setSessionUsageLevels,
+    setSessionReviewAt,
+    onRemoteResetClearSessionRef,
   } = options;
 
   const [words, setWords] = useState<EnVocabWord[]>([]);
@@ -145,6 +170,52 @@ export function useEnVocabPageSync(options: {
 
   const applySyncPatches = useCallback((patches: EnVocabWord[]) => {
     if (!patches.length) return;
+    const clearedIds = patches
+      .filter(isEnVocabServerReviewCleared)
+      .map((w) => w.id);
+    if (clearedIds.length) {
+      const cleared = new Set(clearedIds);
+      setSessionLevel((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const id of cleared) {
+          if (next[id] != null) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setSessionUsageLevels((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const id of cleared) {
+          if (id in next) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setSessionReviewAt((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const id of cleared) {
+          if (id in next) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+      setDisplayOrder((prev) => {
+        const prevRound = prev.round_checked_ids ?? [];
+        if (!prevRound.length) return prev;
+        const nextRound = prevRound.filter((id) => !cleared.has(id));
+        if (nextRound.length === prevRound.length) return prev;
+        return { ...prev, round_checked_ids: nextRound };
+      });
+    }
     setWords((prev) => {
       const next = mergeEnVocabSyncPatches(prev, patches);
       persistEnVocabPageCache(next, refsRef.current, displayOrderRef.current);
@@ -156,7 +227,22 @@ export function useEnVocabPageSync(options: {
       if (!patch || patch.updated_at <= prev.updated_at) return prev;
       return { ...prev, ...patch };
     });
-  }, []);
+  }, [
+    setSessionLevel,
+    setSessionUsageLevels,
+    setSessionReviewAt,
+    setViewingRemarksWord,
+  ]);
+
+  const handleRemoteAdminReset = useCallback(() => {
+    onRemoteResetClearSessionRef.current?.();
+    void loadWords({ force: true });
+  }, [loadWords, onRemoteResetClearSessionRef]);
+
+  useEffect(() => {
+    if (checking || !user) return;
+    return subscribeEnVocabAdminReset(handleRemoteAdminReset);
+  }, [checking, user, handleRemoteAdminReset]);
 
   useEffect(() => {
     if (checking || !user) return;
@@ -205,6 +291,16 @@ export function useEnVocabPageSync(options: {
         };
         if (data.ok && Array.isArray(data.words) && data.words.length) {
           applySyncPatches(data.words);
+          // 批量重置常一次刷满 LIMIT 200；强制全量拉，避免同秒 updated_at 截断后进度条仍显示已抽
+          if (data.words.length >= 200) {
+            onRemoteResetClearSessionRef.current?.();
+            void loadWords({ force: true });
+          } else if (
+            data.words.filter(isEnVocabServerReviewCleared).length >= 10
+          ) {
+            // 多词熟悉程度被清空：多半是今日/全部重置
+            onRemoteResetClearSessionRef.current?.();
+          }
         }
         if (data.ok && data.teacher_visible_limit) {
           const next = normalizeEnVocabTeacherVisibleLimit(
@@ -265,6 +361,8 @@ export function useEnVocabPageSync(options: {
     user,
     editingRemarksWordId,
     editingWordId,
+    loadWords,
+    onRemoteResetClearSessionRef,
   ]);
 
   return {

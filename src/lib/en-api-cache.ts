@@ -16,7 +16,7 @@ import {
 } from "@/lib/en-vocab-teacher-visible";
 import { normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 
-export const JP_VOCAB_CACHE_KEY = "en-api:vocab:v5";
+export const JP_VOCAB_CACHE_KEY = "en-api:vocab:v6";
 export const JP_LESSON_CACHE_KEY = "en-api:lesson:v6";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */

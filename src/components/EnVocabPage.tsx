@@ -23,7 +23,6 @@ import {
   type EnVocabDailyDisplayOrder,
 } from "@/lib/en-vocab-daily-order";
 import {
-  filterEnVocabWordsBySearch,
   type EnVocabKindFilter,
 } from "@/lib/en-vocab-search";
 import { EnVocabPageStyles } from "@/components/en-vocab-page/EnVocabPageStyles";
@@ -54,7 +53,6 @@ import {
 } from "@/lib/en-vocab-sync";
 import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/en-vocab-daily-quiz-style";
 import {
-  effectiveTodayCheckCount,
   enVocabTodayCheckStats,
 } from "@/lib/en-vocab-daily-check";
 import {
@@ -73,46 +71,18 @@ import {
   SHOW_RISK_CHART,
 } from "@/lib/en-vocab-page-constants";
 import {
-  bumpEnVocabWordReview,
-  enVocabCheckedInRound,
   enVocabWordsInOrder,
-  EN_VOCAB_SAVE_ERR,
   pickRandomEnVocabWord,
 } from "@/lib/en-vocab-page-helpers";
-import {
-  defaultEnVocabTeacherVisibleLimit,
-  isEnVocabWordInTeacherVisiblePool,
-  normalizeEnVocabTeacherVisibleLimit,
-  type EnVocabTeacherVisibleLimit,
-} from "@/lib/en-vocab-teacher-visible";
-import {
-  computeEnVocabDailyQuizProgress,
-  computeEnVocabTeacherPageQuizProgress,
-} from "@/lib/en-vocab-daily-quiz-progress";
-import {
-  createEnVocabTeacherQuizSession,
-  expandEnVocabTeacherQuizSessionForTarget,
-  filterEnVocabTeacherQuizUncheckedWords,
-  findFirstUncheckedEnVocabTeacherQuizIndex,
-  isEnVocabTeacherQuizSessionComplete,
-  pickRandomEnVocabTeacherQuizMode,
-  reconcileEnVocabTeacherQuizSession,
-  resolveEnVocabTeacherQuizRefreshResumeIndex,
-  resolveEnVocabTeacherQuizResumeIndex,
-  sortEnVocabQuizTargetWordsByDailySeq,
-  type EnVocabTeacherQuizMode,
-  type EnVocabTeacherQuizSession,
-} from "@/lib/en-vocab-teacher-quiz";
-import {
-  clearEnVocabTeacherQuizSession,
-  readEnVocabTeacherQuizSession,
-  writeEnVocabTeacherQuizSession,
-} from "@/lib/en-vocab-teacher-quiz-storage";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
-import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { useEnVocabPageSync } from "@/hooks/useEnVocabPageSync";
+import { useEnVocabBindRemoteResetSessionClear } from "@/hooks/useEnVocabRemoteResetSessionClear";
+import {
+  useEnVocabQuizTargetPool,
+  useEnVocabTeacherListView,
+} from "@/hooks/useEnVocabTeacherListView";
 import { useEnVocabReviewActions } from "@/hooks/useEnVocabReviewActions";
 import { useEnVocabTeacherQuiz } from "@/hooks/useEnVocabTeacherQuiz";
 import { useEnVocabAdminActions } from "@/hooks/useEnVocabAdminActions";
@@ -224,6 +194,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const scrollToHighlightRef = useRef(false);
 
+  const onRemoteResetClearSessionRef = useRef<(() => void) | null>(null);
+
   const {
     words,
     setWords,
@@ -247,6 +219,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     editingWordId: editingWord?.id ?? null,
     setViewingRemarksWord,
     onLoadError: setError,
+    setSessionLevel,
+    setSessionUsageLevels,
+    setSessionReviewAt,
+    onRemoteResetClearSessionRef,
   });
 
   useEffect(() => {
@@ -297,6 +273,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     teacherVisibleLimit,
     highlightId,
     editingWord,
+    userId: user?.id ?? null,
     setWords,
     setDisplayOrder,
     setSharedTodayWordIds,
@@ -309,6 +286,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setUseDailyRowOrder,
     setStatSort,
     setPage,
+    onResetClearTeacherQuizUi: () => {
+      onRemoteResetClearSessionRef.current?.();
+    },
   });
 
 
@@ -337,28 +317,17 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     return sortEnVocabWordsForDisplay(words, statSort, { dailySeqByWordId });
   }, [words, statSort, displayOrder.ids, useDailyRowOrder, dailySeqByWordId]);
 
-  const quizTarget = Math.min(
-    Math.max(0, teacherVisibleLimit.quiz_target),
-    Math.max(0, words.length)
-  );
-
-  /** 抽查池：优先服务端 visible_ids，否则当日序号 1…quizTarget */
-  const quizTargetWords = useMemo(() => {
-    const pool = displayedWords.filter((w) =>
-      isEnVocabWordInTeacherVisiblePool(w.id, teacherVisibleLimit, dailySeqByWordId)
-    );
-    return sortEnVocabQuizTargetWordsByDailySeq(pool, dailySeqByWordId);
-  }, [displayedWords, dailySeqByWordId, teacherVisibleLimit]);
-
-  const quizTargetWordIds = useMemo(
-    () => new Set(quizTargetWords.map((w) => w.id)),
-    [quizTargetWords]
-  );
-
-  const dailyQuizProgress = useMemo(
-    () => computeEnVocabDailyQuizProgress(words, quizTarget),
-    [words, quizTarget]
-  );
+  const {
+    quizTarget,
+    quizTargetWords,
+    quizTargetWordIds,
+    dailyQuizProgress,
+  } = useEnVocabQuizTargetPool({
+    displayedWords,
+    words,
+    teacherVisibleLimit,
+    dailySeqByWordId,
+  });
 
   const {
     quizSession,
@@ -402,87 +371,39 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setStatus,
   });
 
+  useEnVocabBindRemoteResetSessionClear(onRemoteResetClearSessionRef, {
+    userId: user?.id,
+    setSessionLevel,
+    setSessionUsageLevels,
+    setSessionReviewAt,
+    setQuizSession,
+    setShowQuizFlashcard,
+  });
+
+  const {
+    displayQuizProgress,
+    searchActive,
+    filterActive,
+    hideInoperableRows,
+    filteredDisplayedWords,
+  } = useEnVocabTeacherListView({
+    isAdminMode,
+    canOperate,
+    displayedWords,
+    quizTargetWords,
+    quizTargetWordIds,
+    dailyQuizProgress,
+    quizWordHasLevel,
+    sessionLevel,
+    displayOrder,
+    searchQuery,
+    kindFilter,
+  });
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) => quizTargetWordIds.has(wordId),
     [quizTargetWordIds]
   );
-
-  const teacherPendingWords = useMemo(
-    () =>
-      displayedWords.filter(
-        (w) =>
-          isWordInQuizTarget(w.id) &&
-          (!quizWordHasLevel(w.id) || sessionLevel[w.id] != null)
-      ),
-    [displayedWords, isWordInQuizTarget, quizWordHasLevel, sessionLevel]
-  );
-
-  const teacherPendingWordIds = useMemo(
-    () => new Set(teacherPendingWords.map((w) => w.id)),
-    [teacherPendingWords]
-  );
-
-  const displayQuizProgress = useMemo(() => {
-    if (isAdminMode) return dailyQuizProgress;
-    // 分母必须用整池 quizTargetWords，禁止用「仅剩未勾选」的 pending 列表：
-    // 刷新后 sessionLevel 清空 → pending 变短，卡片再 max(本会话已勾) 会 15/5→假「已完成」
-    const poolComplete =
-      quizTargetWords.length > 0 &&
-      quizTargetWords.every((w) => quizWordHasLevel(w.id));
-    return computeEnVocabTeacherPageQuizProgress(
-      quizTargetWords,
-      quizWordHasLevel,
-      {
-        forceComplete: dailyQuizProgress.complete || poolComplete,
-      }
-    );
-  }, [
-    isAdminMode,
-    dailyQuizProgress,
-    quizTargetWords,
-    quizWordHasLevel,
-  ]);
-
-  const searchActive = searchQuery.trim().length > 0;
-  const filterActive = searchActive || kindFilter !== "all";
-  const hideInoperableRows = canOperate && !isAdminMode;
-
-  const searchMatchedWords = useMemo(
-    () => filterEnVocabWordsBySearch(displayedWords, searchQuery, kindFilter),
-    [displayedWords, searchQuery, kindFilter]
-  );
-
-  const isEnVocabWordCheckedToday = useCallback(
-    (word: EnVocabWord, now = new Date()) => {
-      if (
-        effectiveTodayCheckCount(
-          word.today_check_count ?? 0,
-          word.today_check_date,
-          now
-        ) > 0
-      ) {
-        return true;
-      }
-      return enVocabCheckedInRound(displayOrder, word);
-    },
-    [displayOrder]
-  );
-
-  const filteredDisplayedWords = useMemo(() => {
-    if (!hideInoperableRows) return searchMatchedWords;
-    if (dailyQuizProgress.complete || displayQuizProgress.complete) {
-      return searchMatchedWords.filter((w) => isEnVocabWordCheckedToday(w));
-    }
-    return searchMatchedWords.filter((w) => teacherPendingWordIds.has(w.id));
-  }, [
-    hideInoperableRows,
-    searchMatchedWords,
-    dailyQuizProgress.complete,
-    displayQuizProgress.complete,
-    teacherPendingWordIds,
-    isEnVocabWordCheckedToday,
-  ]);
 
   const totalPages = Math.max(
     1,

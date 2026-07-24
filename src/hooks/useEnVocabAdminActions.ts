@@ -25,6 +25,8 @@ import {
   persistEnVocabPageCache,
   readEnVocabPageCache,
 } from "@/lib/en-vocab-page-cache";
+import { publishEnVocabAdminReset } from "@/lib/en-vocab-reset-broadcast";
+import { clearEnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz-storage";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 
 export function useEnVocabAdminActions(options: {
@@ -41,6 +43,7 @@ export function useEnVocabAdminActions(options: {
   teacherVisibleLimit: EnVocabTeacherVisibleLimit;
   highlightId: number | null;
   editingWord: EnVocabWord | null;
+  userId: number | null;
   setWords: Dispatch<SetStateAction<EnVocabWord[]>>;
   setDisplayOrder: Dispatch<SetStateAction<EnVocabDailyDisplayOrder>>;
   setSharedTodayWordIds: Dispatch<SetStateAction<Set<number>>>;
@@ -59,6 +62,8 @@ export function useEnVocabAdminActions(options: {
     SetStateAction<{ key: EnVocabStatSortKey; dir: "asc" | "desc" }>
   >;
   setPage: Dispatch<SetStateAction<number>>;
+  /** 重置后清本页抽查卡会话 */
+  onResetClearTeacherQuizUi?: () => void;
 }) {
   const {
     locale,
@@ -74,6 +79,7 @@ export function useEnVocabAdminActions(options: {
     teacherVisibleLimit,
     highlightId,
     editingWord,
+    userId,
     setWords,
     setDisplayOrder,
     setSharedTodayWordIds,
@@ -86,6 +92,7 @@ export function useEnVocabAdminActions(options: {
     setUseDailyRowOrder,
     setStatSort,
     setPage,
+    onResetClearTeacherQuizUi,
   } = options;
 
   const [resetting, setResetting] = useState(false);
@@ -197,6 +204,9 @@ export function useEnVocabAdminActions(options: {
       setSessionLevel({});
       setSessionUsageLevels({});
       setSessionReviewAt({});
+      if (userId != null) clearEnVocabTeacherQuizSession(userId);
+      onResetClearTeacherQuizUi?.();
+      publishEnVocabAdminReset(action === "reset_today" ? "today" : "all");
       setUseDailyRowOrder(true);
       setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
       setHighlightId(null);

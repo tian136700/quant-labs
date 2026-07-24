@@ -117,6 +117,35 @@ def main() -> int:
             if n not in jp_ui:
                 errors.append(f"JpVocabPage/useJpVocabAdminActions: missing {n!r}")
 
+    en_admin = ROOT / "src/hooks/useEnVocabAdminActions.ts"
+    en_sync = ROOT / "src/hooks/useEnVocabPageSync.ts"
+    en_broadcast = ROOT / "src/lib/en-vocab-reset-broadcast.ts"
+    if en_admin.is_file():
+        en_admin_text = en_admin.read_text(encoding="utf-8")
+        for n in [
+            "publishEnVocabAdminReset",
+            "clearEnVocabTeacherQuizSession",
+            "setSessionLevel({})",
+        ]:
+            if n not in en_admin_text:
+                errors.append(f"useEnVocabAdminActions: missing {n!r}")
+    if en_sync.is_file():
+        en_sync_text = en_sync.read_text(encoding="utf-8")
+        for n in [
+            "isEnVocabServerReviewCleared",
+            "subscribeEnVocabAdminReset",
+            "setSessionLevel",
+        ]:
+            if n not in en_sync_text:
+                errors.append(f"useEnVocabPageSync: missing {n!r}")
+    if en_broadcast.is_file():
+        bc = en_broadcast.read_text(encoding="utf-8")
+        for n in ["publishEnVocabAdminReset", "subscribeEnVocabAdminReset", "isEnVocabServerReviewCleared"]:
+            if n not in bc:
+                errors.append(f"en-vocab-reset-broadcast: missing {n!r}")
+    else:
+        errors.append("missing src/lib/en-vocab-reset-broadcast.ts")
+
     # resetAll / resetToday must call clear* — not only exist somewhere
     en_text = read_path(en_db) if en_db.is_file() else ""
     if "export async function resetAllEnVocabReviews" in en_text:
