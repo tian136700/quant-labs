@@ -48,28 +48,39 @@
 
 **验证**：`tsc --noEmit` ✅ · `check_en_vocab_table_stats_grid.py` ✅ · `check_en_vocab_review_lock.py` ✅ · `check_en_vocab_login_required.py` ✅ · `check_en_vocab_heavy_lazy_import.py` ✅
 
-#### ✅ JpVocabPage（hooks，2026-07-24）
+#### ✅ JpVocabPage（hooks，已完成）
 
 | 步骤 | 文件 | LOC | 状态 |
 |------|------|----:|------|
-| 样式 / 词表 / 分页 | `jp-vocab-page/*` | — | ✅ 已有 |
-| 编排页 | `JpVocabPage.tsx` | **1792**（原 ~3302） | ✅ 2026-07-24 |
-| 数据 sync | `hooks/useJpVocabPageSync.ts` | 399 | ✅ |
-| 勾选/共享 | `hooks/useJpVocabReviewActions.ts` | 652 | ✅ |
-| 老师抽查 | `hooks/useJpVocabTeacherQuiz.ts` | 463 | ✅ |
-| 协助请求 | `hooks/useJpVocabShareRequests.ts` | 115 | ✅ 2026-07-24 |
-| 管理员操作 | `hooks/useJpVocabAdminActions.ts` | 449 | ✅ 2026-07-24 |
+| 编排页 | `JpVocabPage.tsx` | **1792** | ✅ |
+| hooks | `useJpVocab*.ts` | — | ✅ |
 
-**验证**：`tsc --noEmit` ✅ · `check_jp_vocab_quiz_score.py` ✅ · `check_trackpad_scroll_guards.py` ✅
+#### ✅ jp-vocab-db（第 3 项，2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| barrel | `jp-vocab-db.ts` | 4 | ✅ 仅 re-export |
+| state | `jp-vocab-db/state.ts` | 110 | ✅ `jpVocabDbState` |
+| helpers | `jp-vocab-db/helpers.ts` | 542 | ✅ schema/refs/seed |
+| words | `jp-vocab-db/words.ts` | 929 | ✅ 列表/复习/删除/上传 |
+| lesson | `jp-vocab-db/lesson.ts` | 425 | ✅ 新课同步 |
+| notes_fields | `jp-vocab-db/notes_fields.ts` | 525 | ✅ 备注/编辑 |
+| daily_settings | `jp-vocab-db/daily_settings.ts` | 843 | ✅ 日序/可见池 |
+| share | `jp-vocab-db/share.ts` | 782 | ✅ 共享/协助请求 |
+| live_rollover | `jp-vocab-db/live_rollover.ts` | 647 | ✅ live/跨日 |
+
+原 **3994** 行单文件 → 按域拆分；外部 API 不变：`import { … } from "@/lib/jp-vocab-db"`。
+
+**验证**：`tsc --noEmit` ✅ · `check_jp_vocab_quiz_score.py` ✅ · `check_jp_vocab_quiz_priority_boost.py` ✅ · `check_vocab_reset_clears_shared.py` ✅
 
 #### ⏳ 待拆（按顺序）
 
 | 顺序 | 文件 | LOC | 下一步 |
 |------|------|----:|--------|
-| ✅ | `EnVocabPage.tsx` | 1954 | 完成（可选：接入已写好的 `useEnVocabTeacherQuiz`） |
+| ✅ | `EnVocabPage.tsx` | 1954 | 完成 |
 | ✅ | `JpVocabPage.tsx` | 1792 | 完成 |
-| 3 | `jp-vocab-db.ts` | 3994 | 按域拆目录 + barrel re-export |
-| 4 | `en-vocab-db.ts` | 2855 | 对称 |
+| ✅ | `jp-vocab-db.ts` | → 目录 | 完成 |
+| 4 | `en-vocab-db.ts` | 2855 | 对称拆分 |
 | 5 | `JpLessonPage.tsx` | 3250 | `jp-lesson-page/` |
 | 6 | `JpLessonSchedulePage.tsx` | 2891 | schedule 子组件 |
 | 7 | `AdminUsersPage.tsx` | 2580 | table/modals/hooks |

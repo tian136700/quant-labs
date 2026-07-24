@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCORE = ROOT / "src/lib/jp-vocab-quiz-score.ts"
 SHARED = ROOT / "src/lib/jp-vocab-shared.ts"
 DB = ROOT / "src/lib/jp-vocab-db.ts"
+DB_DIR = ROOT / "src/lib/jp-vocab-db"
 ROUTE = ROOT / "src/app/api/jp-vocab/route.ts"
 PAGE = ROOT / "src/components/JpVocabPage.tsx"
 ADMIN_ACTIONS = ROOT / "src/hooks/useJpVocabAdminActions.ts"
@@ -25,10 +26,19 @@ RULE = ROOT / ".cursor/rules/jp-vocab-quiz-time-weight.mdc"
 errors: list[str] = []
 
 
+def read_jp_vocab_db() -> str:
+    parts = [DB.read_text(encoding="utf-8")]
+    if DB_DIR.is_dir():
+        for p in sorted(DB_DIR.glob("*.ts")):
+            parts.append(p.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 def must_contain(path: Path, needle: str, msg: str) -> None:
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8") if path != DB else read_jp_vocab_db()
     if needle not in text:
-        errors.append(f"{path.relative_to(ROOT)}: {msg}（缺「{needle[:60]}」）")
+        label = "src/lib/jp-vocab-db/" if path == DB else path.relative_to(ROOT)
+        errors.append(f"{label}: {msg}（缺「{needle[:60]}」）")
 
 
 def must_match(path: Path, pattern: str, msg: str) -> None:

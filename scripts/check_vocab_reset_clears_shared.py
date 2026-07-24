@@ -9,8 +9,26 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
+def read_path(path: pathlib.Path) -> str:
+    if path.name == "jp-vocab-db.ts":
+        parts = [path.read_text(encoding="utf-8")]
+        db_dir = path.parent / "jp-vocab-db"
+        if db_dir.is_dir():
+            for p in sorted(db_dir.glob("*.ts")):
+                parts.append(p.read_text(encoding="utf-8"))
+        return "\n".join(parts)
+    if path.name == "en-vocab-db.ts":
+        parts = [path.read_text(encoding="utf-8")]
+        db_dir = path.parent / "en-vocab-db"
+        if db_dir.is_dir():
+            for p in sorted(db_dir.glob("*.ts")):
+                parts.append(p.read_text(encoding="utf-8"))
+        return "\n".join(parts)
+    return path.read_text(encoding="utf-8")
+
+
 def must_contain(path: pathlib.Path, needles: list[str]) -> list[str]:
-    text = path.read_text(encoding="utf-8")
+    text = read_path(path)
     return [n for n in needles if n not in text]
 
 
@@ -62,15 +80,15 @@ def main() -> int:
             en_page,
             [
                 "setSharedTodayWordIds(new Set(nextSharedIds))",
-                "persistVocabCache(data.words, refs, data.display_order, nextSharedIds)",
+                "persistEnVocabPageCache(data.words, refs, data.display_order, nextSharedIds)",
                 "并清除今日共享记录",
             ],
         ),
         (
             jp_page,
             [
-                "setSharedTodayWordIds(new Set(nextSharedIds))",
-                "并清除今日共享记录",
+                # 重置逻辑在 useJpVocabAdminActions；页面须接 setSharedTodayWordIds
+                "setSharedTodayWordIds",
             ],
         ),
         (
@@ -89,8 +107,18 @@ def main() -> int:
         for n in missing:
             errors.append(f"{path.relative_to(ROOT)}: missing {n!r}")
 
+    jp_admin = ROOT / "src/hooks/useJpVocabAdminActions.ts"
+    if jp_admin.is_file():
+        jp_ui = jp_page.read_text(encoding="utf-8") + "\n" + jp_admin.read_text(encoding="utf-8")
+        for n in [
+            "setSharedTodayWordIds(new Set(nextSharedIds))",
+            "并清除今日共享记录",
+        ]:
+            if n not in jp_ui:
+                errors.append(f"JpVocabPage/useJpVocabAdminActions: missing {n!r}")
+
     # resetAll / resetToday must call clear* — not only exist somewhere
-    en_text = en_db.read_text(encoding="utf-8") if en_db.is_file() else ""
+    en_text = read_path(en_db) if en_db.is_file() else ""
     if "export async function resetAllEnVocabReviews" in en_text:
         # crude: clear-all must appear after resetAll function start before next export
         start = en_text.find("export async function resetAllEnVocabReviews")
@@ -105,7 +133,7 @@ def main() -> int:
         if 'clearEnVocabSharedOnReset(db, "today")' not in chunk:
             errors.append("resetTodayEnVocabRound must call clearEnVocabSharedOnReset(today)")
 
-    jp_text = jp_db.read_text(encoding="utf-8") if jp_db.is_file() else ""
+    jp_text = read_path(jp_db) if jp_db.is_file() else ""
     if "export async function resetAllJpVocabReviews" in jp_text:
         start = jp_text.find("export async function resetAllJpVocabReviews")
         end = jp_text.find("export async function resetTodayJpVocabRound", start)
