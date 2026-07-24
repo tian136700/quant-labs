@@ -103,9 +103,11 @@ export function useEnVocabAdminActions(options: {
     () => new Set()
   );
 
+  // 仅在「已保存值」变化时回写输入框；保存中禁止被 sync 旧值打回
   useEffect(() => {
+    if (settingQuizTarget) return;
     setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
-  }, [teacherVisibleLimit.quiz_target]);
+  }, [teacherVisibleLimit.quiz_target, settingQuizTarget]);
 
   const setDailyQuizTarget = async () => {
     if (!isAdminMode || settingQuizTarget) return;
@@ -116,6 +118,7 @@ export function useEnVocabAdminActions(options: {
       return;
     }
     const count = Math.min(999, Math.max(1, Math.floor(parsed)));
+    // 等接口成功后再改 teacherVisibleLimit / 进度分母，禁止乐观更新
     setSettingQuizTarget(true);
     setStatus("");
     try {
@@ -155,6 +158,8 @@ export function useEnVocabAdminActions(options: {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      // 失败时把输入框恢复为当前已保存值（非乐观回滚草稿以外的状态）
+      setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
     } finally {
       setSettingQuizTarget(false);
     }

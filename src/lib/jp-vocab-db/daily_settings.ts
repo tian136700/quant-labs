@@ -548,7 +548,8 @@ export async function setJpVocabQuizTimeWeight(
 }
 
 export async function getJpVocabTeacherVisibleLimit(
-  db: D1Database
+  db: D1Database,
+  opts?: { bypassCache?: boolean }
 ): Promise<JpVocabTeacherVisibleLimit> {
   if (jpVocabDbState.devStoreEnabled) {
     return normalizeJpVocabTeacherVisibleLimit(jpVocabDbState.devTeacherVisibleLimit);
@@ -556,6 +557,7 @@ export async function getJpVocabTeacherVisibleLimit(
 
   const now = Date.now();
   if (
+    !opts?.bypassCache &&
     jpVocabDbState.teacherVisibleLimitReadCache &&
     now - jpVocabDbState.teacherVisibleLimitReadCache.at < JP_VOCAB_SETTING_READ_CACHE_MS
   ) {

@@ -80,6 +80,7 @@ def main() -> int:
             ROOT / "src/app/api/en-vocab/sync/route.ts",
             [
                 "getEnVocabTeacherVisibleLimit",
+                "bypassCache: true",
                 "teacher_visible_limit",
             ],
         ),

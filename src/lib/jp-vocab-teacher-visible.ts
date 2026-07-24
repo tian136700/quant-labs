@@ -839,3 +839,18 @@ export function teacherVisibleLimitNeedsPersist(
     !visibleIdsEqual(before.excluded_batch_ids, after.excluded_batch_ids)
   );
 }
+
+/**
+ * Sync / 全量加载不得用更旧的 `quiz_target_adjusted_at`（或其它 isolate 的 5s 读缓存）
+ * 把管理员刚保存的今日抽查数量打回旧值。
+ */
+export function shouldRejectStaleJpVocabTeacherVisibleLimit(
+  local: JpVocabTeacherVisibleLimit,
+  remote: JpVocabTeacherVisibleLimit
+): boolean {
+  const localAt = (local.quiz_target_adjusted_at || "").trim();
+  if (!localAt) return false;
+  const remoteAt = (remote.quiz_target_adjusted_at || "").trim();
+  if (remoteAt && remoteAt >= localAt) return false;
+  return local.quiz_target !== remote.quiz_target;
+}

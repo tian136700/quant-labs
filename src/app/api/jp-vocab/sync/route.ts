@@ -28,7 +28,8 @@ export async function GET(request: Request) {
     const [words, teacher_visible_limit] = await Promise.all([
       since ? listJpVocabWordsChangedSince(env.DB, since) : Promise.resolve([]),
       includeLimit
-        ? getJpVocabTeacherVisibleLimit(env.DB)
+        ? // sync 必须绕过 isolate 短缓存，否则刚设的今日抽查数量会被其它 isolate 的旧值盖回
+          getJpVocabTeacherVisibleLimit(env.DB, { bypassCache: true })
         : Promise.resolve(null),
     ]);
     return jsonResponse(

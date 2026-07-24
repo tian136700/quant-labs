@@ -44,6 +44,7 @@ import {
 import {
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
+  shouldRejectStaleJpVocabTeacherVisibleLimit,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
@@ -124,7 +125,13 @@ export function useJpVocabPageSync(options: {
     setRefs(payload.refs);
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
-    setTeacherVisibleLimit(payload.teacher_visible_limit);
+    setTeacherVisibleLimit((prev) => {
+      const next = normalizeJpVocabTeacherVisibleLimit(
+        payload.teacher_visible_limit
+      );
+      if (shouldRejectStaleJpVocabTeacherVisibleLimit(prev, next)) return prev;
+      return next;
+    });
     setQuizTimeWeight(
       normalizeJpVocabQuizTimeWeight(
         payload.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
@@ -140,6 +147,9 @@ export function useJpVocabPageSync(options: {
       if (!raw) return;
       const next = normalizeJpVocabTeacherVisibleLimit(raw);
       setTeacherVisibleLimit((prev) => {
+        if (shouldRejectStaleJpVocabTeacherVisibleLimit(prev, next)) {
+          return prev;
+        }
         if (!teacherVisibleLimitNeedsPersist(prev, next)) {
           return prev;
         }

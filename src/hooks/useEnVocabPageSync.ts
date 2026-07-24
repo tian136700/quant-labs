@@ -25,6 +25,7 @@ import {
 import {
   defaultEnVocabTeacherVisibleLimit,
   normalizeEnVocabTeacherVisibleLimit,
+  shouldRejectStaleEnVocabTeacherVisibleLimit,
   type EnVocabTeacherVisibleLimit,
 } from "@/lib/en-vocab-teacher-visible";
 import type { EnVocabRef, EnVocabWord } from "@/lib/types";
@@ -86,7 +87,13 @@ export function useEnVocabPageSync(options: {
     setRefs(payload.refs);
     setDisplayOrder(payload.display_order);
     setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
-    setTeacherVisibleLimit(payload.teacher_visible_limit);
+    setTeacherVisibleLimit((prev) => {
+      const next = normalizeEnVocabTeacherVisibleLimit(
+        payload.teacher_visible_limit
+      );
+      if (shouldRejectStaleEnVocabTeacherVisibleLimit(prev, next)) return prev;
+      return next;
+    });
   }, []);
 
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
@@ -204,23 +211,28 @@ export function useEnVocabPageSync(options: {
             data.teacher_visible_limit
           );
           setTeacherVisibleLimit((prev) => {
+            if (shouldRejectStaleEnVocabTeacherVisibleLimit(prev, next)) {
+              return prev;
+            }
             if (
               prev.quiz_target === next.quiz_target &&
               prev.date === next.date &&
               (prev.visible_ids?.join(",") ?? "") ===
-                (next.visible_ids?.join(",") ?? "")
+                (next.visible_ids?.join(",") ?? "") &&
+              (prev.quiz_target_adjusted_at || "") ===
+                (next.quiz_target_adjusted_at || "")
             ) {
               return prev;
             }
+            const cached = readEnVocabPageCache();
+            if (cached) {
+              writeClientCache(JP_VOCAB_CACHE_KEY, {
+                ...cached,
+                teacher_visible_limit: next,
+              });
+            }
             return next;
           });
-          const cached = readEnVocabPageCache();
-          if (cached) {
-            writeClientCache(JP_VOCAB_CACHE_KEY, {
-              ...cached,
-              teacher_visible_limit: next,
-            });
-          }
         }
       } catch {
         /* 轮询失败静默，下轮再试 */

@@ -113,9 +113,11 @@ export function useJpVocabAdminActions(options: {
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const [settingQuizTimeWeight, setSettingQuizTimeWeight] = useState(false);
 
+  // 仅在「已保存值」变化时回写输入框；保存中禁止被 sync 旧值打回
   useEffect(() => {
+    if (settingQuizTarget) return;
     setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
-  }, [teacherVisibleLimit.quiz_target]);
+  }, [teacherVisibleLimit.quiz_target, settingQuizTarget]);
 
   const boostQuizPriority = async (word: JpVocabWord) => {
     if (!isAdminMode || !canOperate) {

@@ -114,6 +114,21 @@ export function withEnVocabTargetAdjustmentMarker(
   };
 }
 
+/**
+ * Sync / 全量加载不得用更旧的 `quiz_target_adjusted_at`（或其它 isolate 的 5s 读缓存）
+ * 把管理员刚保存的今日抽查数量打回旧值（症状：33→20→几秒后又 33）。
+ */
+export function shouldRejectStaleEnVocabTeacherVisibleLimit(
+  local: EnVocabTeacherVisibleLimit,
+  remote: EnVocabTeacherVisibleLimit
+): boolean {
+  const localAt = (local.quiz_target_adjusted_at || "").trim();
+  if (!localAt) return false;
+  const remoteAt = (remote.quiz_target_adjusted_at || "").trim();
+  if (remoteAt && remoteAt >= localAt) return false;
+  return local.quiz_target !== remote.quiz_target;
+}
+
 export function materializeEnVocabTeacherVisible(
   draft: EnVocabTeacherVisibleLimit,
   words: EnVocabWord[],

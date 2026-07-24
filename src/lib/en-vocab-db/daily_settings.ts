@@ -351,7 +351,8 @@ export async function saveEnVocabTeacherVisibleLimit(
 }
 
 export async function getEnVocabTeacherVisibleLimit(
-  db: D1Database
+  db: D1Database,
+  opts?: { bypassCache?: boolean }
 ): Promise<EnVocabTeacherVisibleLimit> {
   if (enVocabDbState.devStoreEnabled) {
     return normalizeEnVocabTeacherVisibleLimit(enVocabDbState.devTeacherVisibleLimit);
@@ -359,6 +360,7 @@ export async function getEnVocabTeacherVisibleLimit(
 
   const now = Date.now();
   if (
+    !opts?.bypassCache &&
     enVocabDbState.teacherVisibleLimitReadCache &&
     now - enVocabDbState.teacherVisibleLimitReadCache.at < EN_VOCAB_SETTING_READ_CACHE_MS
   ) {
