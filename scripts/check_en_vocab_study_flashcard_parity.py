@@ -61,16 +61,30 @@ def main() -> None:
         # keep soft: just ensure isStudy / mode === "study" exists
         if 'mode === "study"' not in modal and "isStudyMode" not in modal:
             fail("EnVocabTeacherQuizFlashcardModal must support mode=study")
-    if "该学生已查看该单词" not in modal:
-        fail("EnVocabTeacherQuizFlashcardModal missing student-peeked banner copy")
+    if "该学生已获取该单词" not in modal:
+        fail("EnVocabTeacherQuizFlashcardModal missing student-peeked banner copy（该学生已获取该单词）")
+    if "该单词已同步" not in modal:
+        fail("EnVocabTeacherQuizFlashcardModal missing teacher-sync banner copy（该单词已同步）")
+    if "该学生已查看该单词" in modal:
+        fail("EnVocabTeacherQuizFlashcardModal must not use旧文案「该学生已查看该单词」")
     if "jp-vocab-teacher-quiz__student-peek-banner" not in modal:
         fail("peek banner must sit in card header (student-peek-banner), not only scroll body")
+    if "wordSynced" not in modal:
+        fail("header must receive wordSynced (今日已共享 → 该单词已同步)")
     quiz_hook = (ROOT / "src/hooks/useEnVocabTeacherQuiz.ts").read_text(encoding="utf-8")
     peek_src = teacher + "\n" + quiz_hook
     if "setStudentPeekedCurrentWord(true)" not in peek_src:
         fail("EnVocabPage must latch studentPeeked=true until next word")
     if "setStudentPeekedCurrentWord(peeked)" in peek_src:
         fail("EnVocabPage must not overwrite peek latch with poll false")
+    # 换词必须清闩锁（否则上一词 peek 误带到当前词）
+    if "换词必须先清闩锁" not in quiz_hook and quiz_hook.count(
+        "setStudentPeekedCurrentWord(false)"
+    ) < 2:
+        fail(
+            "useEnVocabTeacherQuiz must clear peek latch on word change "
+            "(setStudentPeekedCurrentWord(false) when entering a new quizFlashcardWordId)"
+        )
 
     if "TeacherReviewAuth" not in teacher:
         fail("EnVocabPage must require login via TeacherReviewAuth (no anonymous browse)")

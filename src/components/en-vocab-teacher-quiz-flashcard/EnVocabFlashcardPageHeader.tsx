@@ -21,10 +21,41 @@ type Props = {
   sessionTotal: any;
   uncheckedCount: any;
   sessionPct: any;
+  /** 学生主动「查看老师正在抽查的单词」 */
   studentPeeked: any;
+  /** 老师勾选熟悉程度后已同步到学生「今日背英语单词」 */
+  wordSynced?: boolean;
 };
 
-export function EnVocabFlashcardPageHeader({isStudy, previewMode, session, locale, dailySeq, progressLabel, remainingLabel, sessionComplete, showAnswerTimer, answerTimerArmed, selected, answerElapsedSec, onClose, sessionChecked, sessionTotal, uncheckedCount, sessionPct, studentPeeked}: Props) {
+export function EnVocabFlashcardPageHeader({
+  isStudy,
+  previewMode,
+  session,
+  locale,
+  dailySeq,
+  progressLabel,
+  remainingLabel,
+  sessionComplete,
+  showAnswerTimer,
+  answerTimerArmed,
+  selected,
+  answerElapsedSec,
+  onClose,
+  sessionChecked,
+  sessionTotal,
+  uncheckedCount,
+  sessionPct,
+  studentPeeked,
+  wordSynced = false,
+}: Props) {
+  // 学生主动获取优先于老师同步提示
+  const studentStatusBanner =
+    !isStudy && studentPeeked
+      ? "该学生已获取该单词"
+      : !isStudy && wordSynced
+        ? "该单词已同步"
+        : null;
+
   return (
         <header className="jp-vocab-teacher-quiz__header">
           <div className="jp-vocab-teacher-quiz__header-top">
@@ -160,7 +191,7 @@ export function EnVocabFlashcardPageHeader({isStudy, previewMode, session, local
               </div>
             </div>
           ) : null}
-          {studentPeeked && !isStudy ? (
+          {studentStatusBanner ? (
             <div
               className="jp-vocab-teacher-quiz__student-peek-banner"
               role="status"
@@ -170,7 +201,7 @@ export function EnVocabFlashcardPageHeader({isStudy, previewMode, session, local
                 ●
               </span>
               <span className="jp-vocab-teacher-quiz__student-peek-banner-text">
-                该学生已查看该单词
+                {studentStatusBanner}
               </span>
             </div>
           ) : null}

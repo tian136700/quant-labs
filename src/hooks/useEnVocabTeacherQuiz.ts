@@ -418,6 +418,8 @@ export function useEnVocabTeacherQuiz(options: {
       setStudentPeekedCurrentWord(false);
       return;
     }
+    // 换词必须先清闩锁：否则上一词学生 peek 会误带到当前词顶栏
+    setStudentPeekedCurrentWord(false);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 

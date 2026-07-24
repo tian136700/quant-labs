@@ -534,6 +534,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           uncheckedCount={uncheckedCount}
           sessionPct={sessionPct}
           studentPeeked={studentPeeked}
+          wordSynced={isShared}
         />
 
         {/* 中间可滚：左侧含备注 + 用法 + 熟悉程度/统计；「上一个·下一个」钉在底 */}
