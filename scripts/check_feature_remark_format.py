@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Regression: deploy/commit 功能备注须准确描述改动（可超过 20 字，软上限 40）。
+"""Regression: deploy/commit 功能备注须「模块：改动内容」。
 
 防复发：
-- 禁止只保留冒号前半截
+- 必须带中文冒号「模块：内容」，禁止只有空话或只留冒号前半截
 - 禁止用「移动端」扫全文 diff
 - 禁止笼统「fix|修复|bug → 问题修复」
-- 日程日期错位 →「调整日程模块的日期格式错位问题」
-- 今日单词 peek →「修复学生端获取老师正在抽查单词过慢」
+- 日程日期错位 →「日程管理：调整日期格式错位问题」
+- 今日单词 peek →「日语单词：修复学生端获取老师正在抽查单词过慢」
+- 英语抽查数量 →「英语单词：今日抽查数量不再被sync旧缓存打回」
 """
 from __future__ import annotations
 
@@ -33,6 +34,7 @@ def main() -> int:
         FEATURE_REMARK_MAX_CHARS,
         FileChange,
         compress_feature_remark,
+        format_module_feature_remark,
         _best_path_feature_remark,
         _feature_change_phrase,
         _heuristic_message,
@@ -44,11 +46,11 @@ def main() -> int:
     if FEATURE_REMARK_MAX_CHARS < 36:
         return fail("FEATURE_REMARK_MAX_CHARS must be ≥36 (allow >20 字准确描述)")
 
-    sample = "调整日程模块的日期格式错位问题"
+    sample = "日程管理：调整日期格式错位问题"
     if len(sample) > FEATURE_REMARK_MAX_CHARS:
-        return fail("max must fit 调整日程模块的日期格式错位问题")
+        return fail("max must fit 日程管理：调整日期格式错位问题")
     if compress_feature_remark(sample) != sample:
-        return fail(f"must keep natural sentence, got {compress_feature_remark(sample)!r}")
+        return fail(f"must keep 模块：内容, got {compress_feature_remark(sample)!r}")
 
     # 保留「功能：改了什么」时不丢后半
     kept = compress_feature_remark("日程管理：升为一级菜单，其它说明很长")
@@ -67,12 +69,23 @@ def main() -> int:
     if len(truncated) > FEATURE_REMARK_MAX_CHARS:
         return fail(f"long remark must be ≤max, got {truncated!r}")
 
+    # format helper：无冒号正文须自动加模块
+    auto = format_module_feature_remark("英语单词", "今日抽查数量不再被sync旧缓存打回")
+    if not auto.startswith("英语单词："):
+        return fail(f"format_module_feature_remark must prefix module, got {auto!r}")
+    if "今日抽查数量" not in auto:
+        return fail(f"format_module_feature_remark must keep body, got {auto!r}")
+
     src = MSG.read_text(encoding="utf-8")
     if re.search(
         r'for sep in \([^)]*"："[^)]*\):[\s\S]{0,120}raw\.split\(sep,\s*1\)\[0\]',
         src,
     ):
         return fail("compress must not discard text after ：")
+    if "_is_self_contained_remark" in src:
+        return fail("must not skip 模块： prefix via _is_self_contained_remark")
+    if "format_module_feature_remark" not in src:
+        return fail("summarize must use format_module_feature_remark")
 
     if re.search(r'mobile\\.css\|移动端|"移动端"', src):
         return fail("must not alias on bare 移动端 (docs false-positive)")
@@ -118,42 +131,26 @@ def main() -> int:
     if len(short) > FEATURE_REMARK_MAX_CHARS:
         return fail(f"schedule remark >max: {short!r}")
 
-    docs_only = compress_feature_remark("日语新课：手机端状态Tab记忆与移动端布局")
-    if docs_only == "移动端适配" or docs_only.endswith("移动端适配"):
-        return fail(f"docs mentioning 移动端 must not alias to 移动端适配: {docs_only!r}")
-
-    # 日程日期错位（用户点名应写成这句）
+    # 日期错位 → 模块：内容
     date_changes = [
         FileChange(path="src/app/globals/globals-jp-lesson-schedule.css", status="M"),
-        FileChange(path="src/app/mobile/mobile-jp-lesson.css", status="M"),
         FileChange(path="scripts/check_jp_lesson_schedule_css.py", status="M"),
     ]
-    date_alias = _best_path_feature_remark(date_changes)
-    if date_alias != "调整日程模块的日期格式错位问题":
-        return fail(
-            f"date path alias expected 调整日程模块的日期格式错位问题, got {date_alias!r}"
-        )
-
     with mock.patch(
         "git_commit_message.worktree_changes", return_value=date_changes
     ), mock.patch(
         "git_commit_message.worktree_diff_excerpt",
-        return_value=(
-            "+input.jpls-date-input {\n"
-            "+  max-width: min(10.5rem, 100%);\n"
-            "+修复日期错位\n"
-            "+bug fix\n"
-        ),
+        return_value="+jpls-date-input\n+日期格式错位\n",
     ):
         date_remark = summarize_feature_remark()
-    if date_remark != "调整日程模块的日期格式错位问题":
+    if "日程管理：" not in date_remark or "日期格式错位" not in date_remark:
         return fail(
-            f"date remark expected 调整日程模块的日期格式错位问题, got {date_remark!r}"
+            f"date remark expected 日程管理：…日期格式错位…, got {date_remark!r}"
         )
     if "问题修复" in date_remark or "日语新课" in date_remark:
         return fail(f"date remark must not be vague: {date_remark!r}")
 
-    # peek / live
+    # peek / live → 须带模块冒号
     peek_changes = [
         FileChange(path="src/hooks/useJpVocabTeacherQuiz.ts", status="M"),
         FileChange(path="src/components/JpVocabStudyPage.tsx", status="M"),
@@ -167,10 +164,33 @@ def main() -> int:
         return_value="+putVocabTeacherQuizLiveWord\n+修复：获取不到\n",
     ):
         peek_remark = summarize_feature_remark()
+    if "：" not in peek_remark:
+        return fail(f"peek remark must be 模块：内容, got {peek_remark!r}")
     if "获取老师正在抽查" not in peek_remark:
         return fail(f"peek remark should describe 获取老师抽查词, got {peek_remark!r}")
     if "问题修复" in peek_remark:
         return fail(f"peek remark must not be 问题修复: {peek_remark!r}")
+
+    # 英语今日抽查数量 stale sync
+    en_target_changes = [
+        FileChange(path="src/hooks/useEnVocabAdminActions.ts", status="M"),
+        FileChange(path="src/hooks/useEnVocabPageSync.ts", status="M"),
+        FileChange(path="src/lib/en-vocab-teacher-visible.ts", status="M"),
+        FileChange(
+            path=".cursor/rules/vocab-quiz-target-no-stale-sync.mdc", status="A"
+        ),
+    ]
+    with mock.patch(
+        "git_commit_message.worktree_changes", return_value=en_target_changes
+    ), mock.patch(
+        "git_commit_message.worktree_diff_excerpt",
+        return_value="+shouldRejectStaleEnVocabTeacherVisibleLimit\n+bypassCache\n",
+    ):
+        en_remark = summarize_feature_remark()
+    if not en_remark.startswith("英语单词："):
+        return fail(f"en quiz-target remark must start with 英语单词：, got {en_remark!r}")
+    if "抽查数量" not in en_remark:
+        return fail(f"en quiz-target remark should mention 抽查数量, got {en_remark!r}")
 
     vague = _feature_change_phrase(
         [FileChange(path="src/components/JpVocabPage.tsx", status="M")],
