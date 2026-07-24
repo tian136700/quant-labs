@@ -61,12 +61,12 @@ def main() -> None:
         # keep soft: just ensure isStudy / mode === "study" exists
         if 'mode === "study"' not in modal and "isStudyMode" not in modal:
             fail("EnVocabTeacherQuizFlashcardModal must support mode=study")
-    if "该学生已获取该单词" not in modal:
-        fail("EnVocabTeacherQuizFlashcardModal missing student-peeked banner copy（该学生已获取该单词）")
+    if "该学生已查看该单词" not in modal:
+        fail("EnVocabTeacherQuizFlashcardModal/header missing student-peeked banner copy（该学生已查看该单词）")
+    if "该学生已获取该单词" in modal:
+        fail("peek banner must say 已查看 not 已获取")
     if "该单词已同步" not in modal:
         fail("EnVocabTeacherQuizFlashcardModal missing teacher-sync banner copy（该单词已同步）")
-    if "该学生已查看该单词" in modal:
-        fail("EnVocabTeacherQuizFlashcardModal must not use旧文案「该学生已查看该单词」")
     if "jp-vocab-teacher-quiz__student-peek-banner" not in modal:
         fail("peek banner must sit in card header (student-peek-banner), not only scroll body")
     if "wordSynced" not in modal:

@@ -48,10 +48,10 @@ export function EnVocabFlashcardPageHeader({
   studentPeeked,
   wordSynced = false,
 }: Props) {
-  // 学生主动获取优先于老师同步提示
+  // 学生主动查看优先于老师同步提示
   const studentStatusBanner =
     !isStudy && studentPeeked
-      ? "该学生已获取该单词"
+      ? "该学生已查看该单词"
       : !isStudy && wordSynced
         ? "该单词已同步"
         : null;
