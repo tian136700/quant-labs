@@ -48,16 +48,32 @@
 
 **验证**：`tsc --noEmit` ✅ · `check_en_vocab_table_stats_grid.py` ✅ · `check_en_vocab_review_lock.py` ✅ · `check_en_vocab_login_required.py` ✅ · `check_en_vocab_heavy_lazy_import.py` ✅
 
+#### ✅ JpVocabPage（hooks，2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 / 词表 / 分页 | `jp-vocab-page/*` | — | ✅ 已有 |
+| 编排页 | `JpVocabPage.tsx` | **1792**（原 ~3302） | ✅ 2026-07-24 |
+| 数据 sync | `hooks/useJpVocabPageSync.ts` | 399 | ✅ |
+| 勾选/共享 | `hooks/useJpVocabReviewActions.ts` | 652 | ✅ |
+| 老师抽查 | `hooks/useJpVocabTeacherQuiz.ts` | 463 | ✅ |
+| 协助请求 | `hooks/useJpVocabShareRequests.ts` | 115 | ✅ 2026-07-24 |
+| 管理员操作 | `hooks/useJpVocabAdminActions.ts` | 449 | ✅ 2026-07-24 |
+
+**验证**：`tsc --noEmit` ✅ · `check_jp_vocab_quiz_score.py` ✅ · `check_trackpad_scroll_guards.py` ✅
+
 #### ⏳ 待拆（按顺序）
 
 | 顺序 | 文件 | LOC | 下一步 |
 |------|------|----:|--------|
-| 1b | `EnVocabPage.tsx` | 2528 | 抽 `useEnVocabPageSync` / quiz hooks |
-| 2 | `JpVocabPage.tsx` | 3302 | 已部分拆，补 hooks |
-| 3 | `jp-vocab-db.ts` | 3994 | 按域拆目录 + barrel |
+| ✅ | `EnVocabPage.tsx` | 1954 | 完成（可选：接入已写好的 `useEnVocabTeacherQuiz`） |
+| ✅ | `JpVocabPage.tsx` | 1792 | 完成 |
+| 3 | `jp-vocab-db.ts` | 3994 | 按域拆目录 + barrel re-export |
 | 4 | `en-vocab-db.ts` | 2855 | 对称 |
 | 5 | `JpLessonPage.tsx` | 3250 | `jp-lesson-page/` |
-| … | 见 §3 | | |
+| 6 | `JpLessonSchedulePage.tsx` | 2891 | schedule 子组件 |
+| 7 | `AdminUsersPage.tsx` | 2580 | table/modals/hooks |
+| 8 | `EnLessonPage.tsx` | 2370 | 对齐日语新课 |
 
 ---
 
@@ -69,7 +85,7 @@
 |------|----:|----------|------|
 | `jp-vocab-db.ts` | 3994 | **多职责**：schema、seed、CRUD、shared、review、teacher-visible、coach、fill | 按域拆为 `jp-vocab-db/` 目录：`word.ts`, `shared.ts`, `review.ts`, `visible.ts`；**保留** re-export 入口兼容 |
 | `en-vocab-db.ts` | 2855 | 同上（英语） | 与日语对称拆分 |
-| `JpVocabPage.tsx` | 3302 | 编排+表格+poll+quiz+export | **继续** jp-vocab-page 模式：抽 `useJpVocabPoll`, `JpVocabToolbar`, 对齐 WordTable |
+| `JpVocabPage.tsx` | 1792 | 编排+表格+poll+export | **继续**：Toolbar、export helpers（已 <2000） |
 | `EnVocabPage.tsx` | 3234 | 同上 | 镜像 jp：WordTable、Pagination、hooks |
 | `JpLessonPage.tsx` | 3250 | 列表+编辑+上传+状态 | 拆 `jp-lesson-page/`：List, Toolbar, UploadFlow |
 | `EnLessonPage.tsx` | 2370 | 镜像 | 同上 |

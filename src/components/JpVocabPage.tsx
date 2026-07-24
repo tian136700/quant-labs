@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   jpVocabPriorityLabel,
@@ -16,18 +15,8 @@ import {
 import {
   buildJpVocabDailySeqMap,
   isJpVocabRoundChecked,
-  markJpVocabRoundChecked,
-  unmarkJpVocabRoundChecked,
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
-import {
-  jpVocabTomorrowBoostSeq,
-  type JpVocabQuizPriorityBoost,
-} from "@/lib/jp-vocab-quiz-priority-boost";
-import {
-  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
-  normalizeJpVocabQuizTimeWeight,
-} from "@/lib/jp-vocab-quiz-score";
 import {
   filterJpVocabWordsBySearch,
   type JpVocabKindFilter,
@@ -51,55 +40,8 @@ import { JpVocabQuizTimeWeightAdmin } from "@/components/JpVocabQuizTimeWeightAd
 import { JpVocabDailyQuizCompleteModal } from "@/components/JpVocabDailyQuizCompleteModal";
 import { JpVocabShareRequestModal } from "@/components/JpVocabShareRequestModal";
 import { JpVocabResetChoiceModal } from "@/components/JpVocabResetChoiceModal";
-import {
-  JpVocabTeacherQuizIntroModal,
-  shouldShowJpVocabTeacherQuizIntro,
-} from "@/components/JpVocabTeacherQuizIntroModal";
+import { JpVocabTeacherQuizIntroModal } from "@/components/JpVocabTeacherQuizIntroModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
-import {
-  createJpVocabTeacherQuizSession,
-  expandJpVocabTeacherQuizSessionForTarget,
-  filterJpVocabTeacherQuizUncheckedWords,
-  findFirstUncheckedJpVocabTeacherQuizIndex,
-  isJpVocabTeacherQuizSessionComplete,
-  pickRandomJpVocabTeacherQuizMode,
-  reconcileJpVocabTeacherQuizSession,
-  resolveJpVocabTeacherQuizRefreshResumeIndex,
-  resolveJpVocabTeacherQuizResumeIndex,
-  type JpVocabTeacherQuizMode,
-  type JpVocabTeacherQuizSession,
-} from "@/lib/jp-vocab-teacher-quiz";
-import {
-  clearJpVocabTeacherQuizSession,
-  readJpVocabTeacherQuizSession,
-  writeJpVocabTeacherQuizSession,
-} from "@/lib/jp-vocab-teacher-quiz-storage";
-import {
-  JP_VOCAB_CACHE_KEY,
-  JP_VOCAB_REFRESH_TTL_MS,
-  parseJpVocabApi,
-  type JpVocabApiPayload,
-} from "@/lib/jp-api-cache";
-import {
-  fetchWithClientCache,
-  readClientCacheAge,
-  writeClientCache,
-} from "@/lib/client-swr-cache";
-import { jpVocabSaveQueue } from "@/lib/request-queue";
-import {
-  JP_VOCAB_POLL_MS,
-  JP_VOCAB_POLL_HIDDEN_MS,
-  JP_VOCAB_POLL_IDLE_COMPLETE_HIDDEN_MS,
-  JP_VOCAB_POLL_IDLE_COMPLETE_MS,
-  JP_VOCAB_QUIZ_LIVE_POLL_MS,
-  JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS,
-  JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
-  JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS,
-  JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
-  jpVocabPollIntervalMs,
-  maxJpVocabUpdatedAt,
-  mergeJpVocabSyncPatches,
-} from "@/lib/jp-vocab-sync";
 import { JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT } from "@/lib/jp-vocab-daily-quiz-style";
 import {
   filterJpVocabTodayWeakWords,
@@ -113,21 +55,17 @@ import {
 } from "@/lib/jp-vocab-coach";
 import { jpVocabAdminPath, jpVocabCoachPath, jpVocabPath, jpVocabStudyPath } from "@/lib/locale-path";
 import {
-  effectiveTodayCheckCount,
   jpVocabTodayCheckStats,
   beijingDateString,
 } from "@/lib/jp-vocab-daily-check";
 import {
   effectiveJpVocabDisplayLevel,
   isJpVocabWordReviewLocked,
-  resolveJpVocabPreviousLevel,
 } from "@/lib/jp-vocab-review";
 import {
   isJpVocabWordInTeacherVisiblePool,
   isJpVocabWordQuizCheckedToday,
   listJpVocabTeacherQuizPoolWords,
-  normalizeJpVocabTeacherVisibleLimit,
-  teacherVisibleLimitNeedsPersist,
   type JpVocabTeacherVisibleLimit,
 } from "@/lib/jp-vocab-teacher-visible";
 import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
@@ -142,11 +80,6 @@ import {
   shouldShowJpVocabTeacherDailyComplete,
   type JpVocabDailyCompleteSnapshot,
 } from "@/lib/jp-vocab-daily-complete-dismiss";
-import { notifyJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
-import {
-  notifyJpVocabQuizTargetUpdated,
-  subscribeJpVocabQuizTargetUpdated,
-} from "@/lib/jp-vocab-quiz-target-notify";
 import {
   JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED,
   JP_VOCAB_TEACHER_SHARE_ENABLED,
@@ -154,32 +87,28 @@ import {
 import {
   jpVocabSaveProgressDisplayPercent,
   jpVocabSaveProgressLabel,
-  JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
 } from "@/lib/jp-vocab-save-progress";
 import { JpVocabPagination } from "@/components/jp-vocab-page/JpVocabPagination";
 import { JpVocabPageStyles } from "@/components/jp-vocab-page/JpVocabPageStyles";
 import { JpVocabWordTable } from "@/components/jp-vocab-page/JpVocabWordTable";
-import {
-  readJpVocabPageCache,
-  persistJpVocabPageCache,
-} from "@/lib/jp-vocab-page-cache";
+import { useJpVocabPageSync } from "@/hooks/useJpVocabPageSync";
+import { useJpVocabReviewActions } from "@/hooks/useJpVocabReviewActions";
+import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
+import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
+import { useJpVocabAdminActions } from "@/hooks/useJpVocabAdminActions";
 import {
   SHOW_RANDOM_HIGHLIGHT,
   SHOW_RISK_CHART,
 } from "@/lib/jp-vocab-page-constants";
 import {
-  animateJpVocabShareProgressTo100,
-  bumpJpVocabWordReview,
-  jpVocabShareProgressPercent,
   jpVocabWordsInOrder,
-  JP_VOCAB_SAVE_ERR,
   pickRandomJpVocabWord,
   readStoredJpVocabPage,
   readStoredJpVocabPageSize,
   writeStoredJpVocabPage,
   writeStoredJpVocabPageSize,
 } from "@/lib/jp-vocab-page-helpers";
-import type { JpVocabLevel, JpVocabRef, JpVocabShareRequest, JpVocabWord } from "@/lib/types";
+import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 const JpVocabRiskChartModal = dynamic(
   () => import("@/components/JpVocabRiskChartModal").then((m) => m.JpVocabRiskChartModal),
@@ -251,30 +180,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     canAccessJpVocabTeacherPage,
     router,
   ]);
-  const [words, setWords] = useState<JpVocabWord[]>(() => readJpVocabPageCache()?.words ?? []);
-  const [refs, setRefs] = useState<Record<string, JpVocabRef>>(
-    () => readJpVocabPageCache()?.refs ?? {}
-  );
-  const [loading, setLoading] = useState(() => readJpVocabPageCache() == null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [showResetChoice, setShowResetChoice] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [boostingWordId, setBoostingWordId] = useState<number | null>(null);
-  const [quizPriorityBoost, setQuizPriorityBoost] =
-    useState<JpVocabQuizPriorityBoost | null>(
-      () => readJpVocabPageCache()?.quiz_priority_boost ?? null
-    );
-  const [wordSyncState, setWordSyncState] = useState<
-    Record<number, "queued" | "syncing">
-  >({});
-  const [shareProgressMap, setShareProgressMap] = useState<Record<number, number>>(
-    {}
-  );
-  const [saveQueuePending, setSaveQueuePending] = useState(0);
-  const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
-    () => new Set(readJpVocabPageCache()?.shared_today_word_ids ?? [])
-  );
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [copyToast, setCopyToast] = useState<string | null>(null);
@@ -328,11 +233,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
   /** 未手动点列头排序时，行顺序用当日固定 display_order；点过后按列头数值排序 */
   const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
-  /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
-  const [displayOrder, setDisplayOrder] = useState<JpVocabDailyDisplayOrder>(() => {
-    const cached = readJpVocabPageCache()?.display_order;
-    return cached ?? { date: "", ids: [], round_checked_ids: [] };
-  });
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
   const [page, setPage] = useState(() => readStoredJpVocabPage());
@@ -342,141 +242,85 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
-  const [shareRequests, setShareRequests] = useState<JpVocabShareRequest[]>([]);
-  const [showShareRequestModal, setShowShareRequestModal] = useState(false);
-  const shareRequestPollInFlightRef = useRef(false);
-  const dismissingShareRequestsRef = useRef(false);
   const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
   /** 抽查完成弹窗弹出时已批量写入带读的 key，避免重复打 D1 */
   const coachMergedOnCompleteKeyRef = useRef<string | null>(null);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
   /** 手机端默认收起操作按钮，避免误触导出等 */
   const [mobileToolbarExpanded, setMobileToolbarExpanded] = useState(false);
-  const [quizSession, setQuizSession] = useState<JpVocabTeacherQuizSession | null>(
-    null
-  );
-  const [showQuizFlashcard, setShowQuizFlashcard] = useState(false);
-  const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
-  const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
-    useState<JpVocabTeacherQuizSession | null>(null);
-  /** 管理员预览单条抽问卡片（与老师抽问卡片同 UI） */
-  const [quizCardPreviewWordId, setQuizCardPreviewWordId] = useState<number | null>(
-    null
-  );
-  const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
-  const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
-  const [teacherVisibleLimit, setTeacherVisibleLimit] = useState<JpVocabTeacherVisibleLimit>(
-    () =>
-      readJpVocabPageCache()?.teacher_visible_limit ??
-      normalizeJpVocabTeacherVisibleLimit(null)
-  );
-  const [quizTargetInput, setQuizTargetInput] = useState(
-    () =>
-      String(
-        readJpVocabPageCache()?.teacher_visible_limit?.quiz_target ??
-          normalizeJpVocabTeacherVisibleLimit(null).quiz_target
-      )
-  );
-  const [settingQuizTarget, setSettingQuizTarget] = useState(false);
-  const [quizTimeWeight, setQuizTimeWeight] = useState(() =>
-    normalizeJpVocabQuizTimeWeight(
-      readJpVocabPageCache()?.quiz_time_weight ??
-        JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
-    )
-  );
-  const [settingQuizTimeWeight, setSettingQuizTimeWeight] = useState(false);
   const [reviewLockNow, setReviewLockNow] = useState(() => Date.now());
-  const displayOrderRef = useRef(displayOrder);
-  const wordsRef = useRef(words);
   const sessionLevelRef = useRef(sessionLevel);
-  const refsRef = useRef(refs);
   const editingRemarksIdRef = useRef<number | null>(null);
-  const editingWordIdRef = useRef<number | null>(null);
-  const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
-  const pollInFlightRef = useRef(false);
+  const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   /** 老师（非管理员）今日抽查已全部完成 → 轮询大幅降频，减轻 Worker 压力 */
   const teacherIdleCompleteRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
-  const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
-    new Map()
-  );
 
-  const patchShareProgress = useCallback((wordId: number, percent: number | null) => {
-    setShareProgressMap((prev) => {
-      if (percent == null) {
-        if (!(wordId in prev)) return prev;
-        const next = { ...prev };
-        delete next[wordId];
-        return next;
-      }
-      return { ...prev, [wordId]: percent };
-    });
+  const onDayRolloverClearSession = useCallback(() => {
+    setSessionLevel({});
+    setSessionReviewAt({});
+    setHighlightId(null);
   }, []);
 
-  const setWordSyncPhase = useCallback(
-    (wordId: number, phase: "queued" | "syncing" | null) => {
-      setWordSyncState((prev) => {
-        if (phase == null) {
-          if (!(wordId in prev)) return prev;
-          const next = { ...prev };
-          delete next[wordId];
-          return next;
-        }
-        return { ...prev, [wordId]: phase };
-      });
-    },
-    []
-  );
-
-  const clearShareTimer = useCallback((wordId: number) => {
-    const timer = shareProgressTimersRef.current.get(wordId);
-    if (timer) {
-      clearInterval(timer);
-      shareProgressTimersRef.current.delete(wordId);
-    }
+  const onLoadError = useCallback((message: string) => {
+    setError(message);
   }, []);
 
-  useEffect(() => {
-    return jpVocabSaveQueue.subscribe(setSaveQueuePending);
-  }, []);
+  const {
+    words,
+    setWords,
+    refs,
+    setRefs,
+    loading,
+    refreshing,
+    displayOrder,
+    setDisplayOrder,
+    sharedTodayWordIds,
+    setSharedTodayWordIds,
+    teacherVisibleLimit,
+    setTeacherVisibleLimit,
+    quizTimeWeight,
+    setQuizTimeWeight,
+    quizPriorityBoost,
+    setQuizPriorityBoost,
+    displayOrderRef,
+    wordsRef,
+    refsRef,
+    persistCache,
+  } = useJpVocabPageSync({
+    checking,
+    user,
+    editingRemarksWordId: editingRemarksWord?.id ?? null,
+    editingWordId: editingWord?.id ?? null,
+    teacherIdleCompleteRef,
+    setViewingRemarksWord,
+    onLoadError,
+    onDayRolloverClearSession,
+  });
 
-  useEffect(() => {
-    displayOrderRef.current = displayOrder;
-  }, [displayOrder]);
-  useEffect(() => {
-    wordsRef.current = words;
-  }, [words]);
+  const {
+    shareRequests,
+    showShareRequestModal,
+    dismissShareRequests,
+  } = useJpVocabShareRequests({
+    canOperate,
+    teacherIdleCompleteRef,
+    setStatus,
+  });
+
   useEffect(() => {
     sessionLevelRef.current = sessionLevel;
   }, [sessionLevel]);
   useEffect(() => {
-    refsRef.current = refs;
-  }, [refs]);
-  useEffect(() => {
     editingRemarksIdRef.current = editingRemarksWord?.id ?? null;
   }, [editingRemarksWord?.id]);
   useEffect(() => {
-    editingWordIdRef.current = editingWord?.id ?? null;
-  }, [editingWord?.id]);
-  useEffect(() => {
     sharedTodayWordIdsRef.current = sharedTodayWordIds;
   }, [sharedTodayWordIds]);
-  useEffect(() => {
-    setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
-  }, [teacherVisibleLimit.quiz_target]);
 
   useEffect(() => {
     const timer = setInterval(() => setReviewLockNow(Date.now()), 60_000);
     return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      for (const timer of shareProgressTimersRef.current.values()) {
-        clearInterval(timer);
-      }
-      shareProgressTimersRef.current.clear();
-    };
   }, []);
 
   const toggleStatSort = (key: JpVocabStatSortKey) => {
@@ -495,344 +339,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
     setPage(1);
   };
-
-  const applyVocabPayload = useCallback((payload: JpVocabApiPayload) => {
-    setWords(payload.words);
-    setRefs(payload.refs);
-    setDisplayOrder(payload.display_order);
-    setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
-    setTeacherVisibleLimit(payload.teacher_visible_limit);
-    setQuizTimeWeight(
-      normalizeJpVocabQuizTimeWeight(
-        payload.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
-      )
-    );
-    if (payload.quiz_priority_boost !== undefined) {
-      setQuizPriorityBoost(payload.quiz_priority_boost);
-    }
-  }, []);
-
-  const applyTeacherVisibleSync = useCallback(
-    (raw: Partial<JpVocabTeacherVisibleLimit> | undefined) => {
-      if (!raw) return;
-      const next = normalizeJpVocabTeacherVisibleLimit(raw);
-      setTeacherVisibleLimit((prev) => {
-        if (!teacherVisibleLimitNeedsPersist(prev, next)) {
-          return prev;
-        }
-        const cached = readJpVocabPageCache();
-        if (cached) {
-          writeClientCache(JP_VOCAB_CACHE_KEY, {
-            ...cached,
-            teacher_visible_limit: next,
-          });
-        }
-        return next;
-      });
-    },
-    []
-  );
-
-  /** 从服务端拉取今日抽查目标（跨域名：finance 管理员 vs japanese 老师 localStorage 不共享，只能靠服务端） */
-  const syncTeacherVisibleLimitFromServer = useCallback(async () => {
-    try {
-      const res = await fetch("/api/jp-vocab/teacher-visible", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        teacher_visible_limit?: Partial<JpVocabTeacherVisibleLimit>;
-      };
-      if (data.ok) {
-        applyTeacherVisibleSync(data.teacher_visible_limit);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [applyTeacherVisibleSync]);
-
-  const loadWords = useCallback(async (opts?: { force?: boolean }) => {
-    const cached = readJpVocabPageCache();
-    const hasCache = cached != null;
-    const cacheAge = readClientCacheAge(JP_VOCAB_CACHE_KEY);
-    const cacheFresh =
-      !opts?.force &&
-      hasCache &&
-      cacheAge != null &&
-      cacheAge < JP_VOCAB_REFRESH_TTL_MS;
-
-    if (hasCache) {
-      applyVocabPayload(cached);
-      setLoading(false);
-      if (!cacheFresh) setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError("");
-    // 词表可走本地缓存，但抽查目标必须每次从服务端拉（finance / japanese 域名 localStorage 不共享）
-    void syncTeacherVisibleLimitFromServer();
-    try {
-      const payload = await fetchWithClientCache(
-        JP_VOCAB_CACHE_KEY,
-        "/api/jp-vocab",
-        parseJpVocabApi,
-        {
-          onCached: applyVocabPayload,
-          ttlMs: JP_VOCAB_REFRESH_TTL_MS,
-          force: opts?.force,
-        }
-      );
-      applyVocabPayload(payload);
-    } catch (err) {
-      if (!hasCache) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [applyVocabPayload, syncTeacherVisibleLimitFromServer]);
-
-  useEffect(() => {
-    if (checking || !user) return;
-    void loadWords();
-  }, [loadWords, checking, user]);
-
-  /** 北京时间跨日后清空前端勾选回显，并拉取当日新顺序 */
-  useEffect(() => {
-    if (checking || !user) return;
-    let today = beijingDateString();
-    const onDayRollover = () => {
-      const next = beijingDateString();
-      if (next === today) return;
-      today = next;
-      setSessionLevel({});
-      setSessionReviewAt({});
-      setHighlightId(null);
-      void loadWords({ force: true });
-    };
-    onDayRollover();
-    const timer = window.setInterval(onDayRollover, 60_000);
-    return () => window.clearInterval(timer);
-  }, [loadWords, checking, user]);
-
-  const applySyncPatches = useCallback((patches: JpVocabWord[]) => {
-    if (!patches.length) return;
-    setWords((prev) => {
-      const next = mergeJpVocabSyncPatches(prev, patches);
-      persistJpVocabPageCache(next, refsRef.current, displayOrderRef.current);
-      return next;
-    });
-    setViewingRemarksWord((prev) => {
-      if (!prev) return prev;
-      const patch = patches.find((w) => w.id === prev.id);
-      if (!patch || patch.updated_at <= prev.updated_at) return prev;
-      return { ...prev, ...patch };
-    });
-  }, []);
-
-  useEffect(() => {
-    if (checking || !user) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      jpVocabPollIntervalMs(
-        JP_VOCAB_POLL_MS,
-        JP_VOCAB_POLL_HIDDEN_MS,
-        JP_VOCAB_POLL_IDLE_COMPLETE_MS,
-        JP_VOCAB_POLL_IDLE_COMPLETE_HIDDEN_MS,
-        teacherIdleCompleteRef.current
-      );
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-
-      if (document.hidden || editingRemarksIdRef.current || editingWordIdRef.current) {
-        schedule(pollDelay());
-        return;
-      }
-
-      const since =
-        maxJpVocabUpdatedAt(wordsRef.current) || new Date(0).toISOString();
-
-      if (pollInFlightRef.current) {
-        schedule(pollDelay());
-        return;
-      }
-
-      pollInFlightRef.current = true;
-      try {
-        const res = await fetch(
-          `/api/jp-vocab/sync?since=${encodeURIComponent(since)}&limit=0`,
-          { credentials: "include", cache: "no-store" }
-        );
-        const data = (await res.json()) as {
-          ok: boolean;
-          words?: JpVocabWord[];
-        };
-        if (data.ok) {
-          if (Array.isArray(data.words) && data.words.length) {
-            applySyncPatches(data.words);
-          }
-        }
-      } catch {
-        /* 轮询失败静默，下轮再试 */
-      } finally {
-        pollInFlightRef.current = false;
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    const onVisibility = () => {
-      if (!document.hidden && !cancelled) {
-        if (timer) clearTimeout(timer);
-        schedule(300);
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibility);
-    schedule(JP_VOCAB_POLL_MS);
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [applySyncPatches, checking, user]);
-
-  useEffect(() => {
-    if (checking || !user) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      teacherIdleCompleteRef.current
-        ? JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS
-        : JP_VOCAB_TEACHER_VISIBLE_POLL_MS;
-
-    const schedule = (delayMs = pollDelay()) => {
-      if (cancelled) return;
-      timer = setTimeout(() => {
-        void syncTeacherVisibleLimitFromServer().finally(() => schedule());
-      }, delayMs);
-    };
-
-    void syncTeacherVisibleLimitFromServer();
-    schedule();
-
-    const onVisible = () => {
-      if (!document.hidden && !cancelled) {
-        if (timer) clearTimeout(timer);
-        void syncTeacherVisibleLimitFromServer();
-        schedule();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [syncTeacherVisibleLimitFromServer, checking, user]);
-
-  useEffect(() => {
-    return subscribeJpVocabQuizTargetUpdated(() => {
-      void syncTeacherVisibleLimitFromServer();
-    });
-  }, [syncTeacherVisibleLimitFromServer]);
-
-  useEffect(() => {
-    if (!canOperate || !JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      jpVocabPollIntervalMs(
-        JP_VOCAB_POLL_MS,
-        JP_VOCAB_POLL_HIDDEN_MS,
-        JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
-        JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS,
-        teacherIdleCompleteRef.current
-      );
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-      if (shareRequestPollInFlightRef.current) {
-        schedule(pollDelay());
-        return;
-      }
-      shareRequestPollInFlightRef.current = true;
-      try {
-        const res = await fetch("/api/jp-vocab/share-request", {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          items?: JpVocabShareRequest[];
-        };
-        if (data.ok && Array.isArray(data.items)) {
-          setShareRequests(data.items);
-          if (data.items.length > 0 && !dismissingShareRequestsRef.current) {
-            setShowShareRequestModal(true);
-          }
-        }
-      } catch {
-        /* 轮询失败静默 */
-      } finally {
-        shareRequestPollInFlightRef.current = false;
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    schedule(JP_VOCAB_POLL_MS);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [canOperate]);
-
-  const dismissShareRequests = useCallback(async () => {
-    const ids = shareRequests.map((r) => r.id);
-    if (!ids.length) {
-      setShowShareRequestModal(false);
-      return;
-    }
-    dismissingShareRequestsRef.current = true;
-    setShowShareRequestModal(false);
-    setStatus("请在单词表中找到刚才抽查的单词，点击「发给学生」。");
-    try {
-      const res = await fetch("/api/jp-vocab/share-request", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ request_ids: ids }),
-      });
-      if (res.ok) {
-        setShareRequests([]);
-      }
-    } catch {
-      /* 忽略 */
-    } finally {
-      dismissingShareRequestsRef.current = false;
-    }
-  }, [shareRequests]);
 
   const displayedWords = useMemo(() => {
     if (statSort.key === "seq" && displayOrder.ids.length > 0) {
@@ -877,138 +383,56 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     [words, teacherVisibleLimit.quiz_target]
   );
 
-  const quizSessionRestoredRef = useRef(false);
-
-  const quizWordHasLevel = useCallback(
-    (wordId: number) => {
-      const w = words.find((item) => item.id === wordId);
-      if (!w) return false;
-      return (
-        effectiveJpVocabDisplayLevel(w, sessionLevel[wordId], { displayOrder }) !=
-        null
-      );
-    },
-    [words, sessionLevel, displayOrder]
-  );
-
-  const persistQuizSession = useCallback(
-    (session: JpVocabTeacherQuizSession | null) => {
-      if (!user?.id) return;
-      if (!session) {
-        clearJpVocabTeacherQuizSession(user.id);
-        return;
-      }
-      writeJpVocabTeacherQuizSession(user.id, quizTarget, session);
-    },
-    [user?.id, quizTarget]
-  );
-
-  useEffect(() => {
-    if (!user?.id || quizTarget <= 0 || loading || checking) return;
-    if (quizSessionRestoredRef.current) return;
-    if (quizTargetWords.length === 0) {
-      quizSessionRestoredRef.current = true;
-      return;
+  const onTeacherQuizSessionFinished = useCallback(() => {
+    if (!user || isAdminMode) return;
+    dailyCompleteSnapshotRef.current = {
+      complete: dailyQuizProgress.complete,
+      total: dailyQuizProgress.total,
+    };
+    if (shouldShowJpVocabTeacherDailyComplete(user.id, dailyQuizProgress.total)) {
+      setShowDailyComplete(true);
     }
+  }, [user, isAdminMode, dailyQuizProgress.complete, dailyQuizProgress.total]);
 
-    quizSessionRestoredRef.current = true;
-    const stored = readJpVocabTeacherQuizSession(user.id, quizTarget);
-    if (!stored) return;
-
-    const reconciled = reconcileJpVocabTeacherQuizSession(stored, quizTargetWordIds);
-    if (!reconciled) {
-      clearJpVocabTeacherQuizSession(user.id);
-      return;
-    }
-
-    const expanded = expandJpVocabTeacherQuizSessionForTarget(
-      reconciled,
-      quizTargetWords,
-      dailySeqByWordId,
-      quizWordHasLevel
-    );
-
-    // 已抽完：清会话，勿再自动弹出单词卡片；列表展示今日已抽查词条
-    if (
-      !expanded ||
-      isJpVocabTeacherQuizSessionComplete(expanded, quizWordHasLevel) ||
-      computeJpVocabDailyQuizProgress(words, {
-        quiz_target: quizTarget,
-      }).complete
-    ) {
-      clearJpVocabTeacherQuizSession(user.id);
-      setQuizSession(null);
-      setShowQuizFlashcard(false);
-      return;
-    }
-
-    if (canOperate && !isAdminMode) {
-      const resumeIndex = resolveJpVocabTeacherQuizRefreshResumeIndex(
-        expanded,
-        new Map(words.map((w) => [w.id, w])),
-        sessionReviewAt,
-        quizWordHasLevel
-      );
-      const session = { ...expanded, currentIndex: resumeIndex };
-      setQuizSession(session);
-      setShowQuizFlashcard(true);
-      return;
-    }
-
-    setQuizSession(expanded);
-  }, [
-    user?.id,
-    quizTarget,
-    loading,
+  const {
+    quizSession,
+    setQuizSession,
+    showQuizFlashcard,
+    setShowQuizFlashcard,
+    studentPeekedCurrentWord,
+    showTeacherQuizIntro,
+    handleTeacherQuizIntroConfirm,
+    handleTeacherQuizIntroClose,
+    quizCardPreviewWordId,
+    setQuizCardPreviewWordId,
+    quizCardPreviewSession,
+    closeQuizCardPreview,
+    quizWordHasLevel,
+    startTeacherQuizWithRandomMode,
+    resumeTeacherQuizFlashcard,
+    finishTeacherQuiz,
+    teacherQuizLocksTable,
+    teacherQuizInProgress,
+    quizFlashcardWordId,
+    wordsById,
+  } = useJpVocabTeacherQuiz({
+    locale,
+    user,
     checking,
-    quizTargetWords.length,
-    quizTargetWordIds,
+    loading,
     canOperate,
     isAdminMode,
     words,
+    sessionLevel,
     sessionReviewAt,
-    quizWordHasLevel,
-  ]);
-
-  useEffect(() => {
-    persistQuizSession(quizSession);
-  }, [quizSession, persistQuizSession]);
-
-  /** 管理员调高今日抽查数量后：只把新增的未勾选词补进进行中的抽查队列 */
-  useEffect(() => {
-    if (!quizSession || quizTargetWords.length === 0) return;
-    const sessionSet = new Set(quizSession.wordIds);
-    const hasNewUnchecked = filterJpVocabTeacherQuizUncheckedWords(
-      quizTargetWords,
-      quizWordHasLevel
-    ).some((w) => !sessionSet.has(w.id));
-    if (!hasNewUnchecked) return;
-    setQuizSession((prev) => {
-      if (!prev) return prev;
-      const next = expandJpVocabTeacherQuizSessionForTarget(
-        prev,
-        quizTargetWords,
-        dailySeqByWordId,
-        quizWordHasLevel
-      );
-      if (!next) return null;
-      if (
-        next.mode === prev.mode &&
-        next.currentIndex === prev.currentIndex &&
-        next.wordIds.length === prev.wordIds.length &&
-        next.wordIds.every((id, i) => id === prev.wordIds[i])
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [
+    displayOrder,
     quizTarget,
     quizTargetWords,
+    quizTargetWordIds,
     dailySeqByWordId,
-    quizWordHasLevel,
-    quizSession,
-  ]);
+    setStatus,
+    onTeacherQuizSessionFinished,
+  });
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) =>
@@ -1070,6 +494,130 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     quizWordHasLevel,
     quizTarget,
   ]);
+
+  /**
+   * 老师抽查进行中：不展示单词列表，避免在列表里随意点选。
+   * 今日/本轮已抽完时必须放开列表（展示已抽查词条），不能再藏表。
+   */
+  const hideTeacherQuizList =
+    canOperate &&
+    !isAdminMode &&
+    teacherQuizInProgress &&
+    !dailyQuizProgress.complete &&
+    !displayQuizProgress.complete;
+
+  /**
+   * 今日/本轮进度已完成后立即关卡片、清会话，回到已抽完列表。
+   * 禁止仅因「会话内词都勾了」就关卡：进度仍有剩余时说明可见池里还有未进会话的词，
+   * 交给 expand effect / finishTeacherQuiz 补进队列。
+   */
+  useEffect(() => {
+    if (!canOperate || isAdminMode || !quizSession) return;
+    if (!dailyQuizProgress.complete && !displayQuizProgress.complete) {
+      return;
+    }
+    setShowQuizFlashcard(false);
+    setQuizSession(null);
+  }, [
+    canOperate,
+    isAdminMode,
+    quizSession,
+    dailyQuizProgress.complete,
+    displayQuizProgress.complete,
+    setShowQuizFlashcard,
+    setQuizSession,
+  ]);
+
+  const {
+    wordSyncState,
+    shareProgressMap,
+    saveQueuePending,
+    reviewLockedByWordId,
+    recordLevel,
+    tryRecordLevel,
+    shareWord,
+    unshareWord,
+    quizFlashcardSavingWordId,
+  } = useJpVocabReviewActions({
+    locale,
+    canOperate,
+    canShareToStudy,
+    isAdminMode,
+    quizTarget,
+    isWordInQuizTarget,
+    isWordReviewLocked,
+    quizSession,
+    resumeTeacherQuizFlashcard,
+    startTeacherQuizWithRandomMode,
+    studentPeekedCurrentWord,
+    words,
+    refs,
+    sessionLevel,
+    sessionReviewAt,
+    sharedTodayWordIds,
+    displayOrderRef,
+    wordsRef,
+    refsRef,
+    sharedTodayWordIdsRef,
+    setWords,
+    setDisplayOrder,
+    setSessionLevel,
+    setSessionReviewAt,
+    setSharedTodayWordIds,
+    setHighlightId,
+    setStatus,
+    openJpAuth,
+    refresh,
+    persistCache,
+  });
+
+  const {
+    resetting,
+    showResetChoice,
+    setShowResetChoice,
+    deletingId,
+    boostingWordId,
+    quizTargetInput,
+    setQuizTargetInput,
+    settingQuizTarget,
+    settingQuizTimeWeight,
+    boostQuizPriority,
+    deleteWord,
+    openResetChoice,
+    resetToday,
+    resetAll,
+    setDailyQuizTarget,
+    setQuizTimeWeightConfig,
+  } = useJpVocabAdminActions({
+    locale,
+    isAdminMode,
+    isAdmin,
+    canOperate,
+    openJpAuth,
+    setStatus,
+    setError,
+    words,
+    refs,
+    sharedTodayWordIds,
+    teacherVisibleLimit,
+    highlightId,
+    wordSyncState,
+    sharedTodayWordIdsRef,
+    refsRef,
+    setWords,
+    setDisplayOrder,
+    setSharedTodayWordIds,
+    setTeacherVisibleLimit,
+    setQuizPriorityBoost,
+    setQuizTimeWeight,
+    setSessionLevel,
+    setSessionReviewAt,
+    setHighlightId,
+    setUseDailyRowOrder,
+    setStatSort,
+    setPage,
+    persistCache,
+  });
 
   const searchActive = searchQuery.trim().length > 0;
   /** 老师端隐藏不可操作行（进行中：仅见待抽查；已完成：展示今日已抽查列表） */
@@ -1289,966 +837,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     [quizTargetWords, sessionLevel, displayOrder]
   );
 
-  const wordsById = useMemo(
-    () => new Map(words.map((w) => [w.id, w])),
-    [words]
-  );
-
-  const quizCardPreviewSession = useMemo((): JpVocabTeacherQuizSession | null => {
-    if (quizCardPreviewWordId == null) return null;
-    if (!wordsById.has(quizCardPreviewWordId)) return null;
-    return {
-      mode: "sequential",
-      wordIds: [quizCardPreviewWordId],
-      currentIndex: 0,
-    };
-  }, [quizCardPreviewWordId, wordsById]);
-
-  const closeQuizCardPreview = useCallback(() => {
-    setQuizCardPreviewWordId(null);
-  }, []);
-
-  const reviewLockedByWordId = useMemo(() => {
-    const map: Record<number, boolean> = {};
-    for (const w of words) {
-      map[w.id] = isWordReviewLocked(w, sessionReviewAt[w.id]);
-    }
-    return map;
-  }, [words, sessionReviewAt, isWordReviewLocked]);
-
-  const quizFlashcardSavingWordId = useMemo(() => {
-    for (const [wordId, phase] of Object.entries(wordSyncState)) {
-      if (phase === "queued" || phase === "syncing") {
-        return Number(wordId);
-      }
-    }
-    return null;
-  }, [wordSyncState]);
-
-  const launchTeacherQuizSession = useCallback((session: JpVocabTeacherQuizSession) => {
-    setQuizSession(session);
-    setShowQuizFlashcard(true);
-  }, []);
-
-  const requestTeacherQuizSession = useCallback(
-    (mode: JpVocabTeacherQuizMode, startWordId?: number) => {
-      const next = createJpVocabTeacherQuizSession(
-        mode,
-        quizTargetWords,
-        dailySeqByWordId,
-        startWordId,
-        quizWordHasLevel
-      );
-      if (!next) {
-        setStatus(
-          quizTarget > 0
-            ? "今日抽查池内暂无未抽查词条（已抽过的不会再进入抽查卡片）。"
-            : "请管理员先设置今日抽查数量。"
-        );
-        return;
-      }
-      if (user && shouldShowJpVocabTeacherQuizIntro(user.id)) {
-        setPendingTeacherQuizSession(next);
-        setShowTeacherQuizIntro(true);
-        return;
-      }
-      launchTeacherQuizSession(next);
-    },
-    [
-      quizTargetWords,
-      dailySeqByWordId,
-      quizTarget,
-      quizWordHasLevel,
-      user,
-      launchTeacherQuizSession,
-    ]
-  );
-
-  const handleTeacherQuizIntroConfirm = useCallback(() => {
-    if (!pendingTeacherQuizSession) {
-      setShowTeacherQuizIntro(false);
-      return;
-    }
-    launchTeacherQuizSession(pendingTeacherQuizSession);
-    setPendingTeacherQuizSession(null);
-    setShowTeacherQuizIntro(false);
-  }, [pendingTeacherQuizSession, launchTeacherQuizSession]);
-
-  const handleTeacherQuizIntroClose = useCallback(() => {
-    setPendingTeacherQuizSession(null);
-    setShowTeacherQuizIntro(false);
-  }, []);
-
-  const startTeacherQuizWithRandomMode = useCallback(
-    (startWordId?: number) => {
-      requestTeacherQuizSession(pickRandomJpVocabTeacherQuizMode(), startWordId);
-    },
-    [requestTeacherQuizSession]
-  );
-
-  /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选（管理员可直接在列表改） */
-  const teacherQuizLocksTable = canOperate && !isAdminMode;
-
-  /** 已有活跃抽查会话（用于「继续抽查」按钮） */
-  const teacherQuizInProgress = quizSession != null;
-
-  /**
-   * 老师抽查进行中：不展示单词列表，避免在列表里随意点选。
-   * 今日/本轮已抽完时必须放开列表（展示已抽查词条），不能再藏表。
-   */
-  const hideTeacherQuizList =
-    canOperate &&
-    !isAdminMode &&
-    teacherQuizInProgress &&
-    !dailyQuizProgress.complete &&
-    !displayQuizProgress.complete;
-
-  /**
-   * 今日/本轮进度已完成后立即关卡片、清会话，回到已抽完列表。
-   * 禁止仅因「会话内词都勾了」就关卡：进度仍有剩余时说明可见池里还有未进会话的词，
-   * 交给 expand effect / finishTeacherQuiz 补进队列。
-   */
-  useEffect(() => {
-    if (!canOperate || isAdminMode || !quizSession) return;
-    if (!dailyQuizProgress.complete && !displayQuizProgress.complete) {
-      return;
-    }
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
-  }, [
-    canOperate,
-    isAdminMode,
-    quizSession,
-    dailyQuizProgress.complete,
-    displayQuizProgress.complete,
-  ]);
-
-  /** 会话已清空时同步关掉卡片（避免 expand 返回 null 后 open 仍为 true） */
-  useEffect(() => {
-    if (quizSession == null) setShowQuizFlashcard(false);
-  }, [quizSession]);
-
-  const resumeTeacherQuizFlashcard = useCallback(
-    (preferredWordId?: number) => {
-      if (!quizSession) return;
-      const index =
-        preferredWordId != null
-          ? resolveJpVocabTeacherQuizResumeIndex(
-              quizSession,
-              preferredWordId,
-              quizWordHasLevel
-            )
-          : resolveJpVocabTeacherQuizRefreshResumeIndex(
-              quizSession,
-              wordsById,
-              sessionReviewAt,
-              quizWordHasLevel
-            );
-      setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev));
-      setShowQuizFlashcard(true);
-    },
-    [quizSession, quizWordHasLevel, wordsById, sessionReviewAt]
-  );
-
-  const finishTeacherQuiz = useCallback(() => {
-    if (!quizSession) {
-      setShowQuizFlashcard(false);
-      return;
-    }
-    // 进度/可见池仍有未勾选时，先补进会话并跳到该词，禁止只 setStatus 在遮罩后或直接收尾
-    const expanded = expandJpVocabTeacherQuizSessionForTarget(
-      quizSession,
-      quizTargetWords,
-      dailySeqByWordId,
-      quizWordHasLevel
-    );
-    if (expanded) {
-      const firstUnchecked = findFirstUncheckedJpVocabTeacherQuizIndex(
-        expanded,
-        quizWordHasLevel,
-        0
-      );
-      if (firstUnchecked >= 0) {
-        setQuizSession({ ...expanded, currentIndex: firstUnchecked });
-        setShowQuizFlashcard(true);
-        return;
-      }
-    }
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
-    if (!user || isAdminMode) return;
-    dailyCompleteSnapshotRef.current = {
-      complete: dailyQuizProgress.complete,
-      total: dailyQuizProgress.total,
-    };
-    if (shouldShowJpVocabTeacherDailyComplete(user.id, dailyQuizProgress.total)) {
-      setShowDailyComplete(true);
-    }
-  }, [
-    quizSession,
-    quizTargetWords,
-    dailySeqByWordId,
-    quizWordHasLevel,
-    user,
-    isAdminMode,
-    dailyQuizProgress.complete,
-    dailyQuizProgress.total,
-  ]);
-
-  const syncTeacherQuizLiveWord = useCallback(
-    async (wordId: number | null) => {
-      if (!canOperate) return;
-      if (teacherQuizLiveWordRef.current === wordId) return;
-      teacherQuizLiveWordRef.current = wordId;
-      try {
-        await fetch("/api/jp-vocab/teacher-quiz-live", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId }),
-        });
-      } catch {
-        teacherQuizLiveWordRef.current = undefined;
-      }
-    },
-    [canOperate, locale]
-  );
-
-  const quizFlashcardWordId =
-    quizSession?.wordIds[quizSession.currentIndex] ?? null;
-
-  useEffect(() => {
-    if (!canOperate) return;
-    if (!quizSession) {
-      void syncTeacherQuizLiveWord(null);
-      return;
-    }
-    void syncTeacherQuizLiveWord(quizFlashcardWordId);
-  }, [canOperate, quizSession, quizFlashcardWordId, syncTeacherQuizLiveWord]);
-
-  useEffect(() => {
-    if (!canOperate || !showQuizFlashcard || !quizFlashcardWordId) {
-      setStudentPeekedCurrentWord(false);
-      return;
-    }
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_QUIZ_LIVE_POLL_MS;
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch(
-          `/api/jp-vocab/teacher-quiz-live?word_id=${encodeURIComponent(
-            String(quizFlashcardWordId)
-          )}`,
-          { credentials: "include", cache: "no-store" }
-        );
-        const data = (await res.json()) as {
-          ok: boolean;
-          student_peeked?: boolean;
-        };
-        if (!cancelled && data.ok) {
-          setStudentPeekedCurrentWord(Boolean(data.student_peeked));
-        }
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [canOperate, showQuizFlashcard, quizFlashcardWordId]);
 
   const todayCheckStats = useMemo(
     () => jpVocabTodayCheckStats(words),
     [words]
   );
-
-  const recordLevel = async (
-    wordId: number,
-    level: JpVocabLevel,
-    source: "flashcard" | "table" = "table"
-  ) => {
-    if (!canOperate) {
-      setStatus("请登录后再勾选熟悉程度。");
-      openJpAuth();
-      return;
-    }
-    if (!isWordInQuizTarget(wordId) && !isAdminMode) {
-      setStatus(`仅今日抽查池内的词条可勾选熟悉程度（共 ${quizTarget} 个）。`);
-      return;
-    }
-    if (source !== "flashcard" && !isAdminMode) {
-      if (quizSession != null) {
-        resumeTeacherQuizFlashcard(wordId);
-      } else {
-        startTeacherQuizWithRandomMode(wordId);
-      }
-      setStatus("今日抽查范围内的熟悉程度请在单词卡片内勾选。");
-      return;
-    }
-    const snapshotForLock = words.find((w) => w.id === wordId);
-    if (
-      snapshotForLock &&
-      isWordReviewLocked(snapshotForLock, sessionReviewAt[wordId])
-    ) {
-      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
-      return;
-    }
-    if (wordSyncState[wordId]) {
-      setStatus("正在提交，请勿重复提交");
-      return;
-    }
-
-    const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return;
-    const prevReviewAt = sessionReviewAt[wordId];
-    const nowMs = Date.now();
-    const prevLevel =
-      resolveJpVocabPreviousLevel(snapshot, {
-        sessionLevel: sessionLevel[wordId],
-        sessionReviewAtMs: prevReviewAt,
-        nowMs,
-      }) ?? undefined;
-    const displayOrderSnapshot = displayOrderRef.current;
-    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
-    const wasAlreadyShared = sharedTodayWordIds.has(wordId);
-    const skipShareUi = wasAlreadyShared || studentPeekedCurrentWord;
-
-    setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
-    setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-    setDisplayOrder((prev) => markJpVocabRoundChecked(prev, wordId));
-    setHighlightId(wordId);
-    setWords((prev) =>
-      prev.map((w) =>
-        w.id === wordId ? bumpJpVocabWordReview(w, level, prevLevel) : w
-      )
-    );
-    if (!wasAlreadyShared) {
-      const nextSharedIds = [...sharedIdsSnapshot, wordId];
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      persistJpVocabPageCache(
-        wordsRef.current.map((w) =>
-          w.id === wordId ? bumpJpVocabWordReview(w, level, prevLevel) : w
-        ),
-        refsRef.current,
-        markJpVocabRoundChecked(displayOrderSnapshot, wordId),
-        nextSharedIds
-      );
-    }
-
-    setWordSyncPhase(wordId, "queued");
-    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
-    if (saveQueuePending > 0) {
-      setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
-    } else if (!skipShareUi) {
-      setStatus("已更新界面，正在同步到学生端…");
-    } else {
-      setStatus("已更新界面，正在保存熟悉程度…");
-    }
-
-    try {
-      await jpVocabSaveQueue.enqueue(async () => {
-        setWordSyncPhase(wordId, "syncing");
-        const startedAt = Date.now();
-        patchShareProgress(wordId, 0);
-        clearShareTimer(wordId);
-        shareProgressTimersRef.current.set(
-          wordId,
-          setInterval(() => {
-            patchShareProgress(
-              wordId,
-              jpVocabShareProgressPercent(Date.now() - startedAt)
-            );
-          }, 200)
-        );
-
-        try {
-          const res = await fetch("/api/jp-vocab", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              [LOCALE_HEADER]: locale,
-            },
-            credentials: "include",
-            body: JSON.stringify({ word_id: wordId, level }),
-          });
-          const data = (await res.json()) as {
-            ok: boolean;
-            word?: JpVocabWord;
-            shared?: boolean;
-            shared_new?: boolean;
-            error?: string;
-          };
-          if (res.status === 401) {
-            await refresh();
-            throw new Error(JP_VOCAB_SAVE_ERR[locale]);
-          }
-          if (!data.ok || !data.word) {
-            const msg =
-              data.error || (locale === "zh" ? "保存失败" : "Save failed");
-            throw new Error(msg);
-          }
-
-          clearShareTimer(wordId);
-          await animateJpVocabShareProgressTo100(
-            wordId,
-            startedAt,
-            (id, percent) => patchShareProgress(id, percent)
-          );
-          patchShareProgress(wordId, null);
-
-          const nextSharedIds =
-            data.shared && !sharedTodayWordIdsRef.current.has(wordId)
-              ? [...sharedTodayWordIdsRef.current, wordId]
-              : [...sharedTodayWordIdsRef.current];
-
-          setWords((prev) => {
-            const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-            persistJpVocabPageCache(
-              next,
-              refsRef.current,
-              displayOrderRef.current,
-              nextSharedIds
-            );
-            return next;
-          });
-          if (data.shared) {
-            setSharedTodayWordIds(new Set(nextSharedIds));
-          }
-          setStatus(
-            data.shared_new
-              ? "已勾选熟悉程度，并同步到学生「今日日语单词」。"
-              : studentPeekedCurrentWord
-                ? "熟悉程度已保存。"
-                : wasAlreadyShared || data.shared
-                  ? "熟悉程度已更新，学生端已同步。"
-                  : "熟悉程度已保存。"
-          );
-          if (data.shared_new) {
-            notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
-          }
-        } finally {
-          clearShareTimer(wordId);
-          patchShareProgress(wordId, null);
-          setWordSyncPhase(wordId, null);
-        }
-      });
-    } catch (err) {
-      clearShareTimer(wordId);
-      patchShareProgress(wordId, null);
-      setWordSyncPhase(wordId, null);
-      if (snapshot) {
-        setWords((prev) =>
-          prev.map((w) => (w.id === wordId ? snapshot : w))
-        );
-      }
-      setDisplayOrder(displayOrderSnapshot);
-      setSessionLevel((prev) => {
-        const next = { ...prev };
-        if (prevLevel) next[wordId] = prevLevel;
-        else delete next[wordId];
-        return next;
-      });
-      setSessionReviewAt((prev) => {
-        const next = { ...prev };
-        if (prevReviewAt != null) next[wordId] = prevReviewAt;
-        else delete next[wordId];
-        return next;
-      });
-      if (!wasAlreadyShared) {
-        setSharedTodayWordIds(new Set(sharedIdsSnapshot));
-        persistJpVocabPageCache(
-          wordsRef.current,
-          refsRef.current,
-          displayOrderSnapshot,
-          sharedIdsSnapshot
-        );
-      }
-      setStatus(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const tryRecordLevel = (wordId: number, level: JpVocabLevel) => {
-    void recordLevel(wordId, level, "table");
-  };
-
-  const shareWord = async (wordId: number) => {
-    if (!canShareToStudy) {
-      setStatus("仅管理员或日语老师可共享。");
-      return;
-    }
-    if (!canOperate) {
-      setStatus("请登录后再共享。");
-      openJpAuth();
-      return;
-    }
-    if (!isWordInQuizTarget(wordId)) {
-      setStatus(`仅今日抽查池内的词条可发给学生（共 ${quizTarget} 个）。`);
-      return;
-    }
-    const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return;
-    if (isWordReviewLocked(snapshot, sessionReviewAt[wordId])) {
-      setStatus("勾选已满 1 小时，无法再发给学生。");
-      return;
-    }
-    if (wordSyncState[wordId]) {
-      setStatus("正在提交，请勿重复提交");
-      return;
-    }
-    if (sharedTodayWordIds.has(wordId)) {
-      setStatus("该词今日已共享。");
-      return;
-    }
-
-    setWordSyncPhase(wordId, "queued");
-    patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
-
-    try {
-      const result = await jpVocabSaveQueue.enqueue(async () => {
-        setWordSyncPhase(wordId, "syncing");
-        const startedAt = Date.now();
-        patchShareProgress(wordId, 0);
-        clearShareTimer(wordId);
-        shareProgressTimersRef.current.set(
-          wordId,
-          setInterval(() => {
-            patchShareProgress(
-              wordId,
-              jpVocabShareProgressPercent(Date.now() - startedAt)
-            );
-          }, 200)
-        );
-        setStatus("正在发给学生，传输中…");
-
-        try {
-          const res = await fetch("/api/jp-vocab/share", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              [LOCALE_HEADER]: locale,
-            },
-            credentials: "include",
-            body: JSON.stringify({ word_id: wordId }),
-          });
-          const data = (await res.json()) as {
-            ok: boolean;
-            word?: JpVocabWord;
-            error?: string;
-          };
-          if (res.status === 401) {
-            await refresh();
-            throw new Error(JP_VOCAB_SAVE_ERR[locale]);
-          }
-          if (res.status === 409 || data.error === "already_shared_today") {
-            return { kind: "already" as const, startedAt };
-          }
-          if (!data.ok || !data.word) {
-            throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
-          }
-          return { kind: "ok" as const, word: data.word, startedAt };
-        } finally {
-          clearShareTimer(wordId);
-        }
-      });
-
-      const startedAt =
-        result.kind === "already" || result.kind === "ok"
-          ? result.startedAt
-          : Date.now();
-      await animateJpVocabShareProgressTo100(
-        wordId,
-        startedAt,
-        (id, percent) => patchShareProgress(id, percent)
-      );
-      patchShareProgress(wordId, null);
-      setWordSyncPhase(wordId, null);
-
-      if (result.kind === "already") {
-        setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
-        setStatus("该词今日已共享。");
-        return;
-      }
-
-      const prevReviewAt = sessionReviewAt[wordId];
-      const nowMs = Date.now();
-      const prevLevel =
-        resolveJpVocabPreviousLevel(snapshot, {
-          sessionLevel: sessionLevel[wordId],
-          sessionReviewAtMs: prevReviewAt,
-          nowMs,
-        }) ?? undefined;
-      const alreadyMarked =
-        prevLevel != null ||
-        effectiveTodayCheckCount(
-          snapshot.today_check_count ?? 0,
-          snapshot.today_check_date
-        ) > 0;
-      const updatedWord = result.word;
-      let nextDisplayOrder = displayOrderRef.current;
-
-      if (!alreadyMarked) {
-        nextDisplayOrder = markJpVocabRoundChecked(nextDisplayOrder, wordId);
-        setDisplayOrder(nextDisplayOrder);
-        setSessionLevel((prev) => ({ ...prev, [wordId]: "weak" }));
-        setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-      }
-
-      const nextSharedIds = [...sharedTodayWordIdsRef.current, wordId];
-      setWords((prev) => {
-        const next = prev.map((w) => (w.id === wordId ? updatedWord : w));
-        persistJpVocabPageCache(next, refsRef.current, nextDisplayOrder, nextSharedIds);
-        return next;
-      });
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      setHighlightId(wordId);
-      setStatus(
-        alreadyMarked
-          ? "已共享到学生「今日日语单词」。"
-          : "已共享到学生「今日日语单词」，并标记为不熟悉。"
-      );
-      notifyJpVocabSharedUpdated({ wordId, openRemarks: true });
-    } catch (err) {
-      clearShareTimer(wordId);
-      patchShareProgress(wordId, null);
-      setWordSyncPhase(wordId, null);
-      setStatus(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const unshareWord = async (wordId: number) => {
-    if (!canShareToStudy) {
-      setStatus("仅管理员或日语老师可取消共享。");
-      return;
-    }
-    if (!canOperate) {
-      setStatus("请登录后再取消共享。");
-      openJpAuth();
-      return;
-    }
-    if (wordSyncState[wordId]) {
-      setStatus("正在提交，请勿重复提交");
-      return;
-    }
-    if (!sharedTodayWordIds.has(wordId)) {
-      setStatus("该词今日尚未共享。");
-      return;
-    }
-
-    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
-    const nextSharedIds = sharedIdsSnapshot.filter((id) => id !== wordId);
-    setSharedTodayWordIds(new Set(nextSharedIds));
-    persistJpVocabPageCache(
-      wordsRef.current,
-      refsRef.current,
-      displayOrderRef.current,
-      nextSharedIds
-    );
-
-    setHighlightId(wordId);
-    setStatus("已取消共享，学生「今日日语单词」中不再显示该词。");
-    notifyJpVocabSharedUpdated({ wordId });
-
-    try {
-      await jpVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/jp-vocab/share", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: JpVocabWord;
-          reverted?: boolean;
-          display_order?: JpVocabDailyDisplayOrder | null;
-          error?: string;
-        };
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(JP_VOCAB_SAVE_ERR[locale]);
-        }
-        if (res.status === 409 || data.error === "not_shared_today") {
-          return;
-        }
-        if (!data.ok || !data.word) {
-          throw new Error(data.error || (locale === "zh" ? "取消共享失败" : "Unshare failed"));
-        }
-
-        setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistJpVocabPageCache(
-            next,
-            refsRef.current,
-            data.display_order ?? displayOrderRef.current,
-            [...sharedTodayWordIdsRef.current]
-          );
-          return next;
-        });
-
-        if (data.reverted) {
-          setSessionLevel((prev) => {
-            const next = { ...prev };
-            delete next[wordId];
-            return next;
-          });
-          setSessionReviewAt((prev) => {
-            const next = { ...prev };
-            delete next[wordId];
-            return next;
-          });
-          if (data.display_order) {
-            setDisplayOrder(data.display_order);
-          } else {
-            setDisplayOrder((prev) => unmarkJpVocabRoundChecked(prev, wordId));
-          }
-          setStatus("已取消共享，并撤销自动标记的不熟悉。");
-        }
-      });
-    } catch (err) {
-      setSharedTodayWordIds(new Set(sharedIdsSnapshot));
-      persistJpVocabPageCache(
-        wordsRef.current,
-        refsRef.current,
-        displayOrderRef.current,
-        sharedIdsSnapshot
-      );
-      setStatus(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  const boostQuizPriority = async (word: JpVocabWord) => {
-    if (!isAdminMode || !canOperate) {
-      setStatus("请登录后再操作。");
-      openJpAuth();
-      return;
-    }
-    if (boostingWordId != null) return;
-
-    setBoostingWordId(word.id);
-    setStatus("");
-    setError("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "boost_quiz_priority",
-          word_id: word.id,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        quiz_priority_boost?: JpVocabQuizPriorityBoost;
-        error?: string;
-      };
-      if (!data.ok || !data.quiz_priority_boost) {
-        throw new Error(data.error || "设置失败");
-      }
-      setQuizPriorityBoost(data.quiz_priority_boost);
-      const seq = jpVocabTomorrowBoostSeq(data.quiz_priority_boost, word.id);
-      setStatus(
-        seq != null
-          ? `「${word.word}」已加入明日优先抽查队列（第 ${seq} 位）。`
-          : `「${word.word}」已加入明日优先抽查队列。`
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBoostingWordId(null);
-    }
-  };
-
-  const deleteWord = async (word: JpVocabWord) => {
-    if (!isAdmin) {
-      setStatus("仅 Admin 账户可删除词条。");
-      return;
-    }
-    if (!canOperate) {
-      setStatus("请登录后再删除。");
-      openJpAuth();
-      return;
-    }
-    if (deletingId === word.id || wordSyncState[word.id]) return;
-
-    const ok = window.confirm(`确定删除「${word.word}」？此操作不可恢复。`);
-    if (!ok) return;
-
-    setDeletingId(word.id);
-    setStatus("");
-    setError("");
-
-    try {
-      await jpVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/jp-vocab/delete", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_ids: [word.id] }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          deleted?: number;
-          words?: JpVocabWord[];
-          display_order?: JpVocabDailyDisplayOrder;
-          error?: string;
-        };
-        if (res.status === 403) {
-          throw new Error("仅 Admin 账户可删除词条。");
-        }
-        if (!data.ok || !data.words || !data.display_order) {
-          throw new Error(data.error || "删除失败");
-        }
-
-        const wasShared = sharedTodayWordIds.has(word.id);
-        const nextSharedIds = [...sharedTodayWordIdsRef.current].filter(
-          (id) => id !== word.id
-        );
-        setWords(data.words);
-        setDisplayOrder(data.display_order);
-        persistJpVocabPageCache(
-          data.words,
-          refsRef.current,
-          data.display_order,
-          nextSharedIds
-        );
-        setSharedTodayWordIds(new Set(nextSharedIds));
-        setSessionLevel((prev) => {
-          const next = { ...prev };
-          delete next[word.id];
-          return next;
-        });
-        setSessionReviewAt((prev) => {
-          const next = { ...prev };
-          delete next[word.id];
-          return next;
-        });
-        if (highlightId === word.id) {
-          setHighlightId(null);
-        }
-        if (wasShared) {
-          notifyJpVocabSharedUpdated({ wordId: word.id });
-        }
-        setStatus(`已删除词条「${word.word}」。`);
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const runReset = async (action: "reset_today" | "reset") => {
-    setResetting(true);
-    setStatus("");
-    setError("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ action }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        words?: JpVocabWord[];
-        display_order?: JpVocabDailyDisplayOrder;
-        teacher_visible_limit?: JpVocabTeacherVisibleLimit;
-        shared_today_word_ids?: number[];
-        error?: string;
-      };
-      if (!data.ok || !data.words || !data.display_order) {
-        throw new Error(data.error || "重置失败");
-      }
-      const nextSharedIds = data.shared_today_word_ids ?? [];
-      setWords(data.words);
-      setDisplayOrder(data.display_order);
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      if (data.teacher_visible_limit) {
-        setTeacherVisibleLimit(data.teacher_visible_limit);
-        persistJpVocabPageCache(
-          data.words,
-          refs,
-          data.display_order,
-          nextSharedIds,
-          data.teacher_visible_limit
-        );
-      } else {
-        persistJpVocabPageCache(
-          data.words,
-          refs,
-          data.display_order,
-          nextSharedIds
-        );
-      }
-      setSessionLevel({});
-      setSessionReviewAt({});
-      setUseDailyRowOrder(true);
-      setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
-      setHighlightId(null);
-      setPage(1);
-      setShowResetChoice(false);
-      setStatus(
-        action === "reset_today"
-          ? "已今日重置：单词顺序已更新，当前轮次勾选与今日共享已清空；今日抽查数量与统计次数保持不变。"
-          : "已全部重置（含今日共享记录），可以开始新一轮复习。"
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  const openResetChoice = () => {
-    if (!canOperate) {
-      setStatus("请登录后再重置。");
-      openJpAuth();
-      return;
-    }
-    if (resetting) return;
-    setShowResetChoice(true);
-  };
-
-  const resetToday = () => void runReset("reset_today");
-
-  const resetAll = () => {
-    const ok = window.confirm(
-      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，并清除今日共享记录，开始新一轮复习。"
-    );
-    if (!ok) return;
-    void runReset("reset");
-  };
 
   const pickNext = () => {
     const pool = quizTargetWords.filter(
@@ -2281,7 +874,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setWords(nextWords);
     setRefs(nextRefs);
     setDisplayOrder(nextDisplayOrder);
-    persistJpVocabPageCache(nextWords, nextRefs, nextDisplayOrder);
+    persistCache(nextWords, nextRefs, nextDisplayOrder);
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
@@ -2291,7 +884,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     (word: JpVocabWord) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === word.id ? word : w));
-        persistJpVocabPageCache(next, refs, displayOrderRef.current);
+        persistCache(next, refs, displayOrderRef.current);
         return next;
       });
       setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
@@ -2300,19 +893,19 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         setStatus("词条已保存。");
       }
     },
-    [refs]
+    [refs, persistCache, setWords, setStatus]
   );
 
   const handleWordSaveFailed = useCallback(
     (wordId: number, snapshot: JpVocabWord, message: string) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === wordId ? snapshot : w));
-        persistJpVocabPageCache(next, refs, displayOrderRef.current);
+        persistCache(next, refs, displayOrderRef.current);
         return next;
       });
       setStatus(message);
     },
-    [refs]
+    [refs, persistCache, setWords, setStatus]
   );
 
   const runExport = async (scope: JpVocabExportScope) => {
@@ -2382,109 +975,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setExporting(false);
-    }
-  };
-
-  const setQuizTimeWeightConfig = async (weight: number): Promise<boolean> => {
-    if (!isAdminMode || settingQuizTimeWeight) return false;
-    const normalized = normalizeJpVocabQuizTimeWeight(weight);
-    setSettingQuizTimeWeight(true);
-    setStatus("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_quiz_time_weight",
-          quiz_time_weight: normalized,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        quiz_time_weight?: number;
-        error?: string;
-      };
-      if (!data.ok || data.quiz_time_weight == null) {
-        throw new Error(data.error || "操作失败");
-      }
-      const saved = normalizeJpVocabQuizTimeWeight(data.quiz_time_weight);
-      setQuizTimeWeight(saved);
-      const prev = readJpVocabPageCache();
-      if (prev) {
-        writeClientCache(JP_VOCAB_CACHE_KEY, {
-          ...prev,
-          quiz_time_weight: saved,
-        });
-      }
-      setStatus(
-        `久未复习抬升权重已设为 ${saved}（最终得分 = 抽查优先级 + 距上次抽问天数 × ${saved}）。次日凌晨或「今日重置」后重排生效。`
-      );
-      return true;
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err));
-      return false;
-    } finally {
-      setSettingQuizTimeWeight(false);
-    }
-  };
-
-  const setDailyQuizTarget = async () => {
-    if (!isAdminMode || settingQuizTarget) return;
-    const trimmed = quizTargetInput.trim();
-    const parsed = Number(trimmed);
-    if (!trimmed || !Number.isFinite(parsed)) {
-      setStatus("请输入今日抽查数量。");
-      return;
-    }
-    const count = Math.min(999, Math.max(1, Math.floor(parsed)));
-    setSettingQuizTarget(true);
-    setStatus("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_daily_quiz_target",
-          count,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        teacher_visible_limit?: JpVocabTeacherVisibleLimit;
-        error?: string;
-      };
-      if (!data.ok || !data.teacher_visible_limit) {
-        throw new Error(data.error || "操作失败");
-      }
-      setTeacherVisibleLimit(data.teacher_visible_limit);
-      setQuizTargetInput(String(data.teacher_visible_limit.quiz_target));
-      const prev = readJpVocabPageCache();
-      if (prev) {
-        writeClientCache(JP_VOCAB_CACHE_KEY, {
-          ...prev,
-          teacher_visible_limit: data.teacher_visible_limit,
-        });
-      }
-      notifyJpVocabQuizTargetUpdated({
-        quiz_target: data.teacher_visible_limit.quiz_target,
-        quiz_target_adjusted_at: data.teacher_visible_limit.quiz_target_adjusted_at,
-      });
-      setStatus(
-        `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端按可见池抽查，优先从未抽查过的词条）。` +
-          ` japanese 域名下已打开的老师页约 3 秒内自动同步；若未打开请刷新 japanese.info-quests.com/jp-vocab。`
-      );
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSettingQuizTarget(false);
     }
   };
 

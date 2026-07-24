@@ -14,6 +14,7 @@ SHARED = ROOT / "src/lib/jp-vocab-shared.ts"
 DB = ROOT / "src/lib/jp-vocab-db.ts"
 ROUTE = ROOT / "src/app/api/jp-vocab/route.ts"
 PAGE = ROOT / "src/components/JpVocabPage.tsx"
+ADMIN_ACTIONS = ROOT / "src/hooks/useJpVocabAdminActions.ts"
 ADMIN_UI = ROOT / "src/components/JpVocabQuizTimeWeightAdmin.tsx"
 EXCEL = ROOT / "src/lib/jp-vocab-excel-export.ts"
 RISK = ROOT / "src/lib/jp-vocab-risk.ts"
@@ -102,7 +103,12 @@ def main() -> int:
 
     must_contain(ADMIN_UI, "JpVocabQuizTimeWeightAdmin", "管理员权重 UI 组件")
     must_contain(PAGE, "JpVocabQuizTimeWeightAdmin", "管理员页须挂权重控件")
-    must_contain(PAGE, "set_quiz_time_weight", "管理员页须 POST 保存权重")
+    weight_save = PAGE.read_text(encoding="utf-8") + ADMIN_ACTIONS.read_text(encoding="utf-8")
+    if "set_quiz_time_weight" not in weight_save:
+        errors.append(
+            f"{PAGE.relative_to(ROOT)} 或 {ADMIN_ACTIONS.relative_to(ROOT)}: "
+            "管理员页须 POST 保存权重（缺「set_quiz_time_weight」）"
+        )
     must_contain(PAGE, "quizTimeWeight={quizTimeWeight}", "表格/卡片须传入权重")
 
     must_contain(CACHE, "quiz_time_weight", "本地缓存须保留权重")
