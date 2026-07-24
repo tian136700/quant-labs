@@ -309,7 +309,10 @@ export async function queryEnVocabSharedToday(
         return mapSharedRow(s, liteWord);
       })
       .filter((item): item is EnVocabSharedItem => item != null)
-      .sort((a, b) => a.shared_at.localeCompare(b.shared_at));
+      .sort(
+        (a, b) =>
+          b.shared_at.localeCompare(a.shared_at) || b.id - a.id
+      );
     const refs = refsRecord(Array.from(enVocabDbState.devRefs.values()));
     return { items, refs };
   }
@@ -328,7 +331,7 @@ export async function queryEnVocabSharedToday(
        FROM en_vocab_shared s
        INNER JOIN en_vocab_word w ON w.id = s.word_id
        WHERE s.share_date = ?1
-       ORDER BY s.shared_at ASC, s.id ASC`
+       ORDER BY s.shared_at DESC, s.id DESC`
     )
     .bind(today)
     .all<Record<string, unknown>>();

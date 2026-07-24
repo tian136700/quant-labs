@@ -106,7 +106,7 @@
 |-----------|--------|------|--------|------|
 | `/en-vocab` | 英语抽背-老师端 | `src/app/en-vocab/page.tsx` | `EnVocabPage variant="teacher"` | **须登录**（全页 `TeacherReviewAuth`，不对普通网友开放）；**抽查卡片**、勾选熟悉程度（**勾选后 1h 内可改用法/总体**）、共享到今日单词；学生 peek 顶栏「该学生已获取该单词」、老师勾选同步顶栏「该单词已同步」；隐藏抽查排行/手动添加 |
 | `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、设今日抽查数量、导出 Excel、批量删除、重置（**今日/全部重置须同时清 `en_vocab_shared`**，否则仍显示「已共享」）；列表可直接改熟悉程度（不强制进抽查卡片）；熟悉程度锁=勾选后 **1h**（非按共享） |
-| `/en-vocab/study` | 今日英语单词 | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPageClient.tsx`（`ssr:false` 壳）→ `EnVocabStudyPage.tsx` | **管理员 / `en_vocab:study` 学生**（英语老师不可见）；点单词开详情卡；peek「查看老师正在抽查的单词」；老师端 peek→「该学生已获取该单词」、勾选同步→「该单词已同步」 |
+| `/en-vocab/study` | 今日英语单词（**列表按 `shared_at` 倒序**：最近抽查/同步的在前，最早的在后） | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPageClient.tsx`（`ssr:false` 壳）→ `EnVocabStudyPage.tsx` | **管理员 / `en_vocab:study` 学生**（英语老师不可见）；点单词开详情卡；peek「查看老师正在抽查的单词」；老师端 peek→「该学生已获取该单词」、勾选同步→「该单词已同步」 |
 | `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
 
 RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`；`en_vocab:manual_add` 老师角色默认排除。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
