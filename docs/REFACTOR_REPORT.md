@@ -82,16 +82,20 @@
 
 **验证**：`tsc` ✅ · review_lock / usage_aggregate / daily_quiz_target / usage_no_exam / reset_clears_shared ✅
 
-#### ✅ JpLessonPage（第 5 项，2026-07-24）
+#### ✅ JpLessonPage（队列 #1，≤1000 达标 · 2026-07-24）
 
 | 步骤 | 文件 | LOC | 状态 |
 |------|------|----:|------|
 | 样式 | `jp-lesson-page/JpLessonPageStyles.tsx` | 826 | ✅ |
-| 页内 helpers / 预览 / 图标 | `jp-lesson-page/jp-lesson-page-helpers.tsx` | 392 | ✅ |
+| helpers | `jp-lesson-page/jp-lesson-page-helpers.tsx` | 392 | ✅ |
 | 状态区表体 | `jp-lesson-page/JpLessonStatusTable.tsx` | 840 | ✅ |
-| 编排页 | `JpLessonPage.tsx` | **1356**（原 3250） | ✅ |
+| actions hook | `jp-lesson-page/useJpLessonPageActions.ts` | 743 | ✅ |
+| 分区 UI | `jp-lesson-page/JpLessonPageSections.tsx` | 215 | ✅ |
+| 弹窗集 | `jp-lesson-page/JpLessonPageModals.tsx` | 182 | ✅ |
+| API 上传说明 | `jp-lesson-page/JpLessonApiUploadDocs.tsx` | 56 | ✅ |
+| 编排页 | `JpLessonPage.tsx` | **561**（原 ~3250） | ✅ 出队 |
 
-**验证**：`tsc` ✅ · pending_id_sort / teacher_search / annotate_image_url（含 `jp-lesson-page/`）/ trackpad_scroll / learning_auto_enable ✅
+**验证**：`JpLessonPage` 无 tsc 报错 · pending_id_sort / teacher_search / annotate_image_url ✅ · `refresh_file_split_queue` 已清出
 
 #### ✅ JpLessonSchedulePage（第 6 项，2026-07-24）
 

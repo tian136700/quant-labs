@@ -63,7 +63,11 @@ CHECKS = [
     ),
     (
         "LessonAnnotateModal",
-        (ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx").read_text(encoding="utf-8"),
+        # smear / replace 已拆到 Toolbar / draw / save；整目录一起扫
+        read_page_bundle(
+            ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx",
+            ROOT / "src/components/lesson-annotate",
+        ),
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',

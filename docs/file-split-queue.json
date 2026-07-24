@@ -5,12 +5,6 @@
   "threshold": 1000,
   "queue": [
     {
-      "path": "src/components/JpLessonPage.tsx",
-      "lines": 1356,
-      "status": 0,
-      "note": ""
-    },
-    {
       "path": "src/components/EnVocabTeacherQuizFlashcardModal.tsx",
       "lines": 1312,
       "status": 0,
