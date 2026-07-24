@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "updated_at": "2026-07-24T16:24:38Z",
+  "policy": {
+    "max_loc": 1000,
+    "scope": "src/**/*.{ts,tsx}",
+    "exclude_globs": [
+      "**/*Styles.tsx",
+      "**/*Styles.ts",
+      "**/*.css",
+      "**/i18n/messages.ts",
+      "**/*.card-compact.tsx"
+    ],
+    "status_values": {
+      "0": "pending — 业务文件仍 >1000 行，待拆",
+      "1": "done — 已 ≤1000 行（或已拆出子模块且入口编排 ≤1000）"
+    }
+  },
+  "items": [
+    {
+      "path": "src/components/EnVocabPage.tsx",
+      "status": 0,
+      "loc": 1954,
+      "split_into": [],
+      "note": ""
+    },
+    {
+      "path": "src/components/JpLessonPage.tsx",
+      "status": 0,
+      "loc": 1356,
+      "split_into": [],
+      "note": ""
+    },
+    {
+      "path": "src/components/EnVocabTeacherQuizFlashcardModal.tsx",
+      "status": 0,
+      "loc": 1312,
+      "split_into": [],
+      "note": ""
+    },
+    {
+      "path": "src/components/AdminUsersPage.tsx",
+      "status": 0,
+      "loc": 1157,
+      "split_into": [],
+      "note": ""
+    },
+    {
+      "path": "src/components/JpVocabPage.tsx",
+      "status": 0,
+      "loc": 1023,
+      "split_into": [],
+      "note": ""
+    },
+    {
+      "path": "src/components/AdminJpLessonTeachersPage.tsx",
+      "status": 0,
+      "loc": 1002,
+      "split_into": [],
+      "note": ""
+    }
+  ]
+}
