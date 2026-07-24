@@ -15,7 +15,7 @@ from pathlib import Path
 # ========== 一键切换（改这里）==========
 # 0 = 本地 Ollama（分阶段队列）
 # 1 = 线上付费 Anthropic 中转（tokken.cc，与 STT 博士套磁信同一接口）
-EN_VOCAB_FILL_LLM_BACKEND = 0
+EN_VOCAB_FILL_LLM_BACKEND = 1
 # =====================================
 
 BACKEND_LOCAL = 0
