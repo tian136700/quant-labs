@@ -110,8 +110,8 @@
 |------|------|----:|------|
 | 样式 | `admin-users-page/AdminUsersPageStyles.tsx` | 447 | ✅ |
 | helpers / 卡片字段 / IP / 操作区 | `admin-users-page/admin-users-page-helpers.tsx` | 397 | ✅ |
-| 用户列表（手机卡+桌面表） | `admin-users-page/AdminUsersList.tsx` | ~319 | ✅ |
-| 编排页 | `AdminUsersPage.tsx` | **~1547**（原 2580） | ✅ |
+| 用户列表（手机卡+桌面表） | `admin-users-page/AdminUsersList.tsx` | 392 | ✅ |
+| 编排页 | `AdminUsersPage.tsx` | **1488**（原 2580） | ✅ |
 
 **验证**：`tsc` ✅ · admin_users_trackpad_scroll ✅
 
@@ -131,7 +131,7 @@
 | 文件 | LOC | 说明 |
 |------|----:|------|
 | `JpVocabEditModal` / Annotate×2 / `etr-auth-db` 等 | 1500+ | 见 §3 中优先级 |
-| `AdminUsersPage` | ~1547 | 编排仍偏长，可再抽模板区 / hooks |
+| `AdminUsersPage` | 1488 | 可再抽添加用户 / 模板弹窗 |
 
 ---
 
