@@ -83,9 +83,27 @@ def should_preserve_next_cache() -> bool:
     return value in ("1", "true", "yes", "on")
 
 
+def run_css_comment_guard() -> int:
+    """Fail fast before next build if CSS comments are unbalanced (e.g. lone /**)."""
+    script = ROOT / "scripts" / "check_css_comment_balance.py"
+    if not script.is_file():
+        return 0
+    print("predeploy: 检查 CSS 注释闭合…", flush=True)
+    return subprocess.call([sys.executable, str(script)], cwd=str(ROOT))
+
+
 def main() -> int:
     clean_next = "--clean-next" in sys.argv[1:]
     local_dev = bool(dev_server_pids())
+
+    css_rc = run_css_comment_guard()
+    if css_rc != 0:
+        print(
+            "predeploy 中止：请先修好未闭合的 CSS 注释（见 scripts/check_css_comment_balance.py）",
+            file=sys.stderr,
+            flush=True,
+        )
+        return css_rc
 
     if local_dev:
         stop_dev_server()

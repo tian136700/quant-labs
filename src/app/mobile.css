@@ -1,4 +1,6 @@
 /**
+ * Mobile styles barrel — rules live under ./mobile/ (styles excluded from LOC split).
+ */
 @import "./mobile/mobile-base.css";
 @import "./mobile/mobile-jp-lesson.css";
 @import "./mobile/mobile-modals.css";
