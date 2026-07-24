@@ -110,6 +110,18 @@
 
 **验证**：lemma_ipa / notes_footer / study_flashcard_parity / usage_examples_pair / usage_level_aggregate ✅（检查脚本改为扫 `en-vocab-teacher-quiz-flashcard/`）
 
+#### ✅ AdminUsersPage（队列，≤1000 达标 · 2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| Styles / List / helpers | `admin-users-page/*` | ≤447 | ✅ 先期 |
+| Toolbar | `AdminUsersToolbar.tsx` | 48 | ✅ 接入 |
+| Modals 集 | `AdminUsersPageModals.tsx` | 231 | ✅ 接入 |
+| actions hook | `useAdminUsersPageActions.ts` | 729 | ✅ |
+| 编排页 | `AdminUsersPage.tsx` | **530**（原 1157） | ✅ 出队 |
+
+**验证**：`lockBodyScroll` 仍在编排页 · `check_admin_users_trackpad_scroll`（globals-seo-admin / mobile 拆分 css）✅ · queue 已清出
+
 #### ✅ JpLessonSchedulePage（第 6 项，2026-07-24）
 
 | 步骤 | 文件 | LOC | 状态 |
@@ -120,19 +132,6 @@
 | 编排页 | `JpLessonSchedulePage.tsx` | **~1338**（原 2891） | ✅ |
 
 **验证**：`tsc` ✅ · custom_schedule_time / schedule_duplicate / manual_teacher_subject / caldav_slot_merge ✅
-
-#### ✅ AdminUsersPage（第 7 项，2026-07-24）
-
-| 步骤 | 文件 | LOC | 状态 |
-|------|------|----:|------|
-| 样式 | `admin-users-page/AdminUsersPageStyles.tsx` | 447 | ✅ |
-| helpers / 卡片字段 / IP / 操作区 | `admin-users-page/admin-users-page-helpers.tsx` | 397 | ✅ |
-| 用户列表（手机卡+桌面表） | `admin-users-page/AdminUsersList.tsx` | 392 | ✅ |
-| 添加用户弹窗 | `admin-users-page/AdminUsersAddUserModal.tsx` | 219 | ✅ |
-| 登录模板弹窗 | `admin-users-page/AdminUsersTemplatesModal.tsx` | 264 | ✅ |
-| 编排页 | `AdminUsersPage.tsx` | **1157**（原 2580） | ✅ |
-
-**验证**：`tsc` ✅ · admin_users_trackpad_scroll ✅
 
 #### ✅ EnLessonPage（第 8 项，2026-07-24）
 

@@ -30,22 +30,26 @@ def main() -> None:
         if 'document.body.style.overflow = "hidden"' in text:
             fail(f"{name} must not nest body.overflow lock (parent already locks)")
 
-    globals_css = (ROOT / "src/app/globals.css").read_text(encoding="utf-8")
+    # globals.css 已拆分；宽表规则在 globals-seo-admin / mobile-jp-notes-admin
+    globals_css = (ROOT / "src/app/globals/globals-seo-admin.css").read_text(
+        encoding="utf-8"
+    )
     if ".admin-table-wrap" not in globals_css:
-        fail("globals.css missing .admin-table-wrap")
-    # Require overflow-y: clip near admin-table-wrap block
+        fail("globals-seo-admin.css missing .admin-table-wrap")
     idx = globals_css.find(".admin-table-wrap")
     block = globals_css[idx : idx + 400]
     if "overflow-y: clip" not in block:
-        fail("globals.css .admin-table-wrap must set overflow-y: clip")
+        fail("globals-seo-admin.css .admin-table-wrap must set overflow-y: clip")
 
-    mobile = (ROOT / "src/app/mobile.css").read_text(encoding="utf-8")
+    mobile = (ROOT / "src/app/mobile/mobile-jp-notes-admin.css").read_text(
+        encoding="utf-8"
+    )
     midx = mobile.find(".admin-table-wrap")
     if midx < 0:
-        fail("mobile.css missing .admin-table-wrap")
+        fail("mobile-jp-notes-admin.css missing .admin-table-wrap")
     mblock = mobile[midx : midx + 300]
     if "overflow-y: clip" not in mblock:
-        fail("mobile.css .admin-table-wrap must set overflow-y: clip")
+        fail("mobile-jp-notes-admin.css .admin-table-wrap must set overflow-y: clip")
 
     print("OK: admin users trackpad scroll guards present")
 
