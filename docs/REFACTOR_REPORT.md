@@ -120,6 +120,22 @@
 
 **验证**：`tsc` ✅ · login_required / heavy_lazy / table_stats_grid / usage_* / study_parity / review_lock ✅
 
+#### ✅ JpVocabPage（队列，≤1000 达标 · 2026-07-25）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 权限门禁 | `jp-vocab-page/JpVocabPageGates.tsx` | 82 | ✅ |
+| 编排页 | `JpVocabPage.tsx` | **985**（原 1023） | ✅ 出队 |
+
+#### ✅ AdminJpLessonTeachersPage（队列，≤1000 达标 · 2026-07-25）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| CRUD actions hook | `useAdminJpLessonTeachersActions.ts` | 373 | ✅ |
+| 编排页 | `AdminJpLessonTeachersPage.tsx` | **749**（原 1002） | ✅ 出队 |
+
+**队列清零**：`refresh_file_split_queue.py --check` ✅ · `tsc` ✅
+
 #### ✅ AdminUsersPage（队列，≤1000 达标 · 2026-07-24）
 
 | 步骤 | 文件 | LOC | 状态 |
