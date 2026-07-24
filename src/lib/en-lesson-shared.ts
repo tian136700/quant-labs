@@ -115,12 +115,13 @@ type EnLessonClassScheduleLike = {
   class_duration_minutes?: number | null;
 };
 
-/** 将上课时间规范化为 YYYY-MM-DD HH:mm:00，便于排序与合并比对 */
+/** 将上课时间规范化为 YYYY-MM-DD HH:mm:00，便于排序与合并比对（保留真实分钟，勿半点吸附） */
 export function normalizeClassAtForCompare(classAt: string): string {
   const parsed = parseBeijingDateTime(classAt);
   if (!parsed) return classAt.trim();
   const dateStr = beijingDateStringFromDate(parsed);
-  const timeStr = snapNextClassTimeToHalfHour(beijingTimeHm(parsed));
+  const timeStr =
+    normalizeNextClassTimeHm(beijingTimeHm(parsed)) ?? beijingTimeHm(parsed);
   return `${dateStr} ${timeStr}:00`;
 }
 
@@ -500,7 +501,21 @@ export function formatNextClassHalfHourLabel(time: string): string {
   return `${hour}:${match[2]}`;
 }
 
-/** 将任意 HH:mm 吸附到最近的整点/半点 */
+/** 校验并补零 HH:mm（0–23 / 0–59）；非法返回 null。不要做半点吸附。 */
+export function normalizeNextClassTimeHm(time: string): string | null {
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return null;
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/**
+ * 将任意 HH:mm 吸附到最近的整点/半点。
+ * 仅保留兼容；保存 / 回显 / 比对请用 normalizeNextClassTimeHm，禁止再吸附。
+ */
 export function snapNextClassTimeToHalfHour(time: string): string {
   const match = time.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return "09:00";
@@ -518,9 +533,11 @@ export function splitNextClassAtLocalValue(
   const trimmed = local.trim();
   const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
   if (!match) return null;
+  const time = normalizeNextClassTimeHm(match[2]);
+  if (!time) return null;
   return {
     date: match[1],
-    time: snapNextClassTimeToHalfHour(match[2]),
+    time,
   };
 }
 
@@ -529,7 +546,8 @@ export function nextClassAtFromDatetimeLocalValue(local: string): string | null 
   if (!trimmed) return null;
   const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
   if (!match) return null;
-  const time = snapNextClassTimeToHalfHour(match[2]);
+  const time = normalizeNextClassTimeHm(match[2]);
+  if (!time) return null;
   return `${match[1]} ${time}:00`;
 }
 
