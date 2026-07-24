@@ -297,6 +297,87 @@ def full_refresh_needs(kind: str) -> dict[str, bool]:
     }
 
 
+DB_NAME = "strategy-compare-db"
+ONLINE_SOURCE_MARK = "线上"
+
+
+def _row_from_db(row: dict[str, Any]) -> dict[str, Any]:
+    kind = str(row.get("kind") or "word")
+    return {
+        "id": int(row.get("id") or 0),
+        "word": row.get("word"),
+        "kind": kind,
+        "reading": row.get("reading"),
+        "meaning": row.get("meaning"),
+        "pos": row.get("pos"),
+        "usage": row.get("usage"),
+        "example_sentences": row.get("example_sentences"),
+        "meaning_source": row.get("meaning_source"),
+        "usage_source": row.get("usage_source"),
+        "example_sentences_source": row.get("example_sentences_source"),
+        "reading_source": row.get("reading_source"),
+        "needs": full_refresh_needs(kind),
+        "triggered": True,
+    }
+
+
+def fetch_words_from_d1(
+    *,
+    word_id: int | None = None,
+    skip_online: bool = False,
+) -> list[dict[str, Any]]:
+    """整库强制重拉：经 wrangler 读 D1（list_missing 为空时仍可覆盖本地结果）。"""
+    import json
+    import subprocess
+
+    where = "WHERE 1=1"
+    if word_id and word_id > 0:
+        where = f"WHERE id = {int(word_id)}"
+    sql = (
+        "SELECT id, word, kind, reading, meaning, pos, usage, example_sentences, "
+        "reading_source, meaning_source, usage_source, example_sentences_source "
+        f"FROM en_vocab_word {where} ORDER BY id;"
+    )
+    proc = subprocess.run(
+        [
+            "npx",
+            "wrangler",
+            "d1",
+            "execute",
+            DB_NAME,
+            "--remote",
+            "--json",
+            "--command",
+            sql,
+        ],
+        cwd=str(ROOT),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(proc.stdout)
+    raw_rows = payload[0]["results"] if payload else []
+    out: list[dict[str, Any]] = []
+    for raw in raw_rows:
+        row = _row_from_db(raw)
+        if row["id"] <= 0:
+            continue
+        if skip_online:
+            sources = " ".join(
+                str(row.get(k) or "")
+                for k in (
+                    "meaning_source",
+                    "usage_source",
+                    "example_sentences_source",
+                    "reading_source",
+                )
+            )
+            if ONLINE_SOURCE_MARK in sources:
+                continue
+        out.append(row)
+    return out
+
+
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
     """合并各阶段 list_missing；任一字段缺 → 整词进入刷新队列。"""
     by_id: dict[int, dict[str, Any]] = {}
@@ -477,8 +558,78 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
     return out
 
 
+def process_one(
+    token: str,
+    row: dict[str, Any],
+    *,
+    index: int,
+    total: int,
+    dry_run: bool,
+    allow_burst: bool,
+) -> bool:
+    """处理一词；成功写回返回 True。"""
+    import time
+
+    if not acquire_paid_rate_gate(allow_burst=allow_burst):
+        # 人工整库重跑时等满间隔再继续，不丢词
+        min_sec = resolve_min_interval_sec()
+        print(f"    rate-gate wait {min_sec}s…", flush=True)
+        time.sleep(min_sec)
+        if not acquire_paid_rate_gate(allow_burst=allow_burst):
+            print("    rate-gate still blocked, skip this word this pass", flush=True)
+            return False
+
+    wid = int(row["id"])
+    word = str(row.get("word") or "")
+    needs = dict(row.get("needs") or {})
+    need_list = [k for k, v in needs.items() if v]
+    print(
+        f"  [{index}/{total}] id={wid} word={word!r} full_refresh={need_list}",
+        flush=True,
+    )
+
+    source = source_label()
+    mark_paid_call()
+    try:
+        payload = generate_bundle(row, needs)
+    except Exception as err:
+        print(f"    fail generate: {err}", flush=True)
+        mark_poison(wid, word, f"generate:{err}")
+        return False
+
+    if not payload:
+        print("    empty payload", flush=True)
+        mark_poison(wid, word, "empty_payload")
+        return False
+
+    preview = {
+        k: (str(v)[:80] + ("…" if len(str(v)) > 80 else ""))
+        for k, v in payload.items()
+    }
+    print(f"    got={preview}", flush=True)
+
+    if dry_run:
+        print(f"    dry-run skip apply source={source}", flush=True)
+        return True
+
+    done = apply_bundle(
+        token,
+        word_id=wid,
+        payload=payload,
+        needs=needs,
+        source=source,
+        dry_run=False,
+    )
+    print(f"    applied={done} source={source}", flush=True)
+    if not done:
+        mark_poison(wid, word, "apply_none")
+        return False
+    return True
+
+
 def main() -> int:
     import os
+    import time
 
     cfg = load_env_file("en-vocab-fill.env")
     parser = argparse.ArgumentParser(
@@ -487,7 +638,9 @@ def main() -> int:
     parser.add_argument(
         "--limit",
         type=int,
-        default=int(cfg.get("EN_VOCAB_FILL_ONLINE_LIMIT") or HARD_ONLINE_LIMIT),
+        default=None,
+        help="每轮最多处理条数；定时默认 1。"
+        " --refill-all 不传则整库；传正整数则封顶",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -503,7 +656,23 @@ def main() -> int:
     parser.add_argument(
         "--word-id",
         type=int,
-        help="只处理指定 word_id（调试）",
+        help="只处理指定 word_id（调试 / 整库重拉单条）",
+    )
+    parser.add_argument(
+        "--refill-all",
+        action="store_true",
+        help="整库强制重拉（经 D1 拉全表；覆盖已有本地结果；须配合人工，非定时默认）",
+    )
+    parser.add_argument(
+        "--skip-online",
+        action="store_true",
+        help="与 --refill-all 合用：跳过来源已含「线上」的词",
+    )
+    parser.add_argument(
+        "--sleep-sec",
+        type=float,
+        default=2.0,
+        help="--refill-all 多词之间的间隔秒数（默认 2；仍受 rate-gate 约束除非 --allow-burst）",
     )
     args = parser.parse_args()
 
@@ -519,32 +688,66 @@ def main() -> int:
     if not token:
         raise SystemExit("缺少 JP_REVIEW_UPLOAD_TOKEN")
 
-    # 硬钳制：每轮最多 1 词，杜绝一次脚本连打多个付费请求
-    limit = min(HARD_ONLINE_LIMIT, max(1, int(args.limit)))
     allow_burst = bool(
         args.allow_burst
         or os.environ.get("EN_VOCAB_FILL_ONLINE_ALLOW_BURST", "").strip()
         in ("1", "true", "yes")
     )
-
-    if not acquire_paid_rate_gate(allow_burst=allow_burst):
-        return 0
+    refill_all = bool(args.refill_all)
+    # 定时默认每轮最多 1 词；--refill-all 不传 --limit 则整库
+    if args.limit is None:
+        if refill_all:
+            limit = 10_000
+        else:
+            limit = min(
+                HARD_ONLINE_LIMIT,
+                max(
+                    1,
+                    int(cfg.get("EN_VOCAB_FILL_ONLINE_LIMIT") or HARD_ONLINE_LIMIT),
+                ),
+            )
+    elif int(args.limit) <= 0:
+        limit = 10_000 if refill_all else HARD_ONLINE_LIMIT
+    elif refill_all:
+        limit = max(1, int(args.limit))
+    else:
+        limit = min(HARD_ONLINE_LIMIT, max(1, int(args.limit)))
 
     print(
         f"[en-vocab-fill-online] backend={backend_label()} model={anthropic_model()} "
-        f"limit={limit} min_interval={resolve_min_interval_sec()}s",
+        f"limit={limit} refill_all={refill_all} allow_burst={allow_burst} "
+        f"min_interval={resolve_min_interval_sec()}s",
         flush=True,
     )
-    candidates = fetch_candidates(token, limit=max(limit * 12, 12))
+
     poison = load_poison()
-    if args.word_id:
-        candidates = [r for r in candidates if int(r.get("id") or 0) == args.word_id]
+    if refill_all or args.word_id:
+        candidates = fetch_words_from_d1(
+            word_id=args.word_id,
+            skip_online=bool(args.skip_online),
+        )
+        if not refill_all and args.word_id:
+            candidates = candidates[:1]
+        else:
+            candidates = [
+                r
+                for r in candidates
+                if str(int(r.get("id") or 0)) not in poison
+            ][:limit]
     else:
-        candidates = [
-            r
-            for r in candidates
-            if str(int(r.get("id") or 0)) not in poison
-        ][:limit]
+        if not acquire_paid_rate_gate(allow_burst=allow_burst):
+            return 0
+        candidates = fetch_candidates(token, limit=max(limit * 12, 12))
+        if args.word_id:
+            candidates = [
+                r for r in candidates if int(r.get("id") or 0) == args.word_id
+            ]
+        else:
+            candidates = [
+                r
+                for r in candidates
+                if str(int(r.get("id") or 0)) not in poison
+            ][:limit]
 
     print(
         f"[en-vocab-fill-online] candidates={len(candidates)} "
@@ -552,58 +755,25 @@ def main() -> int:
         flush=True,
     )
     if not candidates:
-        print("  无待补全词条（或均在毒丸冷却中）", flush=True)
+        print("  无待补全词条（或均在毒丸冷却中 / 已全是线上）", flush=True)
         return 0
 
-    source = source_label()
-    # 再保险：循环里也只跑 1 个，且整轮只允许 1 次付费 generate
-    row = candidates[0]
-    wid = int(row["id"])
-    word = str(row.get("word") or "")
-    needs = dict(row.get("needs") or {})
-    need_list = [k for k, v in needs.items() if v]
-    print(
-        f"  [1/1] id={wid} word={word!r} full_refresh={need_list}",
-        flush=True,
-    )
+    ok_n = 0
+    total = len(candidates)
+    for i, row in enumerate(candidates, start=1):
+        if process_one(
+            token,
+            row,
+            index=i,
+            total=total,
+            dry_run=bool(args.dry_run),
+            allow_burst=allow_burst,
+        ):
+            ok_n += 1
+        if i < total and args.sleep_sec > 0:
+            time.sleep(float(args.sleep_sec))
 
-    # 占闸写在真正调付费之前：即使后面失败，这一分钟也不准再打
-    mark_paid_call()
-    try:
-        payload = generate_bundle(row, needs)
-    except Exception as err:
-        print(f"    fail generate: {err}", flush=True)
-        mark_poison(wid, word, f"generate:{err}")
-        return 0
-
-    if not payload:
-        print("    empty payload", flush=True)
-        mark_poison(wid, word, "empty_payload")
-        return 0
-
-    preview = {
-        k: (str(v)[:80] + ("…" if len(str(v)) > 80 else ""))
-        for k, v in payload.items()
-    }
-    print(f"    got={preview}", flush=True)
-
-    if args.dry_run:
-        print(f"    dry-run skip apply source={source}", flush=True)
-        return 0
-
-    done = apply_bundle(
-        token,
-        word_id=wid,
-        payload=payload,
-        needs=needs,
-        source=source,
-        dry_run=False,
-    )
-    print(f"    applied={done} source={source}", flush=True)
-
-    # 关键字段一个都没写上 → 冷却，避免每分钟对同一词再烧一次
-    if not done:
-        mark_poison(wid, word, "apply_none")
+    print(f"[en-vocab-fill-online] done ok={ok_n}/{total}", flush=True)
     return 0
 
 
