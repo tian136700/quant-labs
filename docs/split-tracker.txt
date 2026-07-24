@@ -1,0 +1,16 @@
+# 业务代码拆分跟踪（≤1000 行）
+# updated_at: 2026-07-24T16:37:19Z
+# status: 0=待拆  1=已达标
+# 机器可读：docs/split-tracker.json
+# 命令：python3 scripts/split_tracker.py scan|status|mark|verify
+
+## pending (status=0)  count=6
+0   1356  src/components/JpLessonPage.tsx
+0   1312  src/components/EnVocabTeacherQuizFlashcardModal.tsx
+0   1157  src/components/AdminUsersPage.tsx
+0   1029  src/components/EnVocabPage.tsx
+0   1023  src/components/JpVocabPage.tsx
+0   1002  src/components/AdminJpLessonTeachersPage.tsx
+
+## done (status=1)  count=0
+(none)

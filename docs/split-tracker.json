@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-24T16:24:38Z",
+  "updated_at": "2026-07-24T16:37:19Z",
   "policy": {
     "max_loc": 1000,
     "scope": "src/**/*.{ts,tsx}",
@@ -17,13 +17,6 @@
     }
   },
   "items": [
-    {
-      "path": "src/components/EnVocabPage.tsx",
-      "status": 0,
-      "loc": 1954,
-      "split_into": [],
-      "note": ""
-    },
     {
       "path": "src/components/JpLessonPage.tsx",
       "status": 0,
@@ -42,6 +35,13 @@
       "path": "src/components/AdminUsersPage.tsx",
       "status": 0,
       "loc": 1157,
+      "split_into": [],
+      "note": ""
+    },
+    {
+      "path": "src/components/EnVocabPage.tsx",
+      "status": 0,
+      "loc": 1029,
       "split_into": [],
       "note": ""
     },

@@ -23,6 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TRACKER = ROOT / "docs" / "split-tracker.json"
+TRACKER_TXT = ROOT / "docs" / "split-tracker.txt"
 SRC = ROOT / "src"
 
 SKIP_DIRS = {
@@ -98,6 +99,43 @@ def save_tracker(data: dict) -> None:
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    write_tracker_txt(data)
+
+
+def write_tracker_txt(data: dict) -> None:
+    """Human-readable twin of split-tracker.json (same status 0/1)."""
+    pending = [i for i in data.get("items", []) if i.get("status") == 0]
+    done = [i for i in data.get("items", []) if i.get("status") == 1]
+    lines = [
+        "# 业务代码拆分跟踪（≤1000 行）",
+        f"# updated_at: {data.get('updated_at')}",
+        "# status: 0=待拆  1=已达标",
+        "# 机器可读：docs/split-tracker.json",
+        "# 命令：python3 scripts/split_tracker.py scan|status|mark|verify",
+        "",
+        f"## pending (status=0)  count={len(pending)}",
+    ]
+    if not pending:
+        lines.append("(none)")
+    for i in pending:
+        lines.append(f"0  {i.get('loc', '?'):>5}  {i['path']}")
+        if i.get("note"):
+            lines.append(f"         note: {i['note']}")
+        if i.get("split_into"):
+            lines.append(f"         split_into: {', '.join(i['split_into'])}")
+    lines.append("")
+    lines.append(f"## done (status=1)  count={len(done)}")
+    if not done:
+        lines.append("(none)")
+    for i in done:
+        extra = ""
+        if i.get("split_into"):
+            extra = " → " + ", ".join(i["split_into"])
+        lines.append(f"1  {i.get('loc', '?'):>5}  {i['path']}{extra}")
+        if i.get("note"):
+            lines.append(f"         note: {i['note']}")
+    lines.append("")
+    TRACKER_TXT.write_text("\n".join(lines), encoding="utf-8")
 
 
 def iter_src_ts() -> list[Path]:

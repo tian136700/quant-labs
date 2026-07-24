@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -27,26 +26,16 @@ import {
   filterEnVocabWordsBySearch,
   type EnVocabKindFilter,
 } from "@/lib/en-vocab-search";
-import { EnVocabEditModal } from "@/components/EnVocabEditModal";
-import { EnClassNotesEditModal } from "@/components/EnClassNotesEditModal";
-import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
-import { EnVocabMnemonicViewModal } from "@/components/EnVocabMnemonicViewModal";
-import { EnVocabUsageViewModal } from "@/components/EnVocabUsageViewModal";
-import { EnVocabManualAddModal } from "@/components/EnVocabManualAddModal";
 import { EnVocabPageStyles } from "@/components/en-vocab-page/EnVocabPageStyles";
+import { EnVocabPageModals } from "@/components/en-vocab-page/EnVocabPageModals";
+import { EnVocabPageToolbar } from "@/components/en-vocab-page/EnVocabPageToolbar";
+import { EnVocabPageHelp } from "@/components/en-vocab-page/EnVocabPageHelp";
+import { EnVocabPageSearch } from "@/components/en-vocab-page/EnVocabPageSearch";
+import { EnVocabTeacherQuizResumePanel } from "@/components/en-vocab-page/EnVocabTeacherQuizResumePanel";
 import { EnVocabPagination } from "@/components/en-vocab-page/EnVocabPagination";
 import { EnVocabWordTable } from "@/components/en-vocab-page/EnVocabWordTable";
 import { TeacherReviewAuth } from "@/components/TeacherReviewAuth";
-import {
-  EnVocabDailyQuizIntroModal,
-  shouldShowEnVocabDailyIntro,
-} from "@/components/EnVocabDailyQuizIntroModal";
-import {
-  EnVocabTeacherQuizIntroModal,
-  shouldShowEnVocabTeacherQuizIntro,
-} from "@/components/EnVocabTeacherQuizIntroModal";
-import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQuizFlashcardModal";
-import { EnVocabResetChoiceModal } from "@/components/EnVocabResetChoiceModal";
+import { shouldShowEnVocabDailyIntro } from "@/components/EnVocabDailyQuizIntroModal";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import {
   JP_VOCAB_CACHE_KEY,
@@ -64,7 +53,6 @@ import { enVocabSaveQueue } from "@/lib/request-queue";
 import {
   JP_VOCAB_POLL_MS,
   JP_VOCAB_POLL_HIDDEN_MS,
-  EN_VOCAB_QUIZ_LIVE_POLL_MS,
   maxEnVocabUpdatedAt,
   mergeEnVocabSyncPatches,
 } from "@/lib/en-vocab-sync";
@@ -124,25 +112,19 @@ import {
   readEnVocabTeacherQuizSession,
   writeEnVocabTeacherQuizSession,
 } from "@/lib/en-vocab-teacher-quiz-storage";
-import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 import { useEnVocabPageSync } from "@/hooks/useEnVocabPageSync";
 import { useEnVocabReviewActions } from "@/hooks/useEnVocabReviewActions";
+import { useEnVocabTeacherQuiz } from "@/hooks/useEnVocabTeacherQuiz";
+import { useEnVocabAdminActions } from "@/hooks/useEnVocabAdminActions";
 import {
   readEnVocabPageCache,
   persistEnVocabPageCache,
 } from "@/lib/en-vocab-page-cache";
 
-const EnVocabRiskChartModal = dynamic(
-  () =>
-    import("@/components/EnVocabRiskChartModal").then(
-      (m) => m.EnVocabRiskChartModal
-    ),
-  { ssr: false }
-);
 
 type EnVocabPageVariant = "teacher" | "admin";
 
@@ -203,16 +185,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     canAccessEnVocabTeacherPage,
     router,
   ]);
-  const [resetting, setResetting] = useState(false);
-  const [showResetChoice, setShowResetChoice] = useState(false);
-  const [quizTargetInput, setQuizTargetInput] = useState(
-    () =>
-      String(
-        readEnVocabPageCache()?.teacher_visible_limit?.quiz_target ??
-          defaultEnVocabTeacherVisibleLimit().quiz_target
-      )
-  );
-  const [settingQuizTarget, setSettingQuizTarget] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -224,10 +196,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [sessionUsageLevels, setSessionUsageLevels] = useState<
     Record<number, Array<EnVocabLevel | null | undefined>>
   >({});
-  /** 管理员：预览老师端抽问卡片 */
-  const [quizCardPreviewWordId, setQuizCardPreviewWordId] = useState<
-    number | null
-  >(null);
   /** 本轮每词最近一次勾选时间（毫秒，用于 15 秒内改选修正 + 1 小时锁定） */
   const [sessionReviewAt, setSessionReviewAt] = useState<Record<number, number>>({});
   /** 每分钟刷新，使「勾选满 1 小时」锁能自动生效 */
@@ -252,23 +220,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<EnVocabKindFilter>("all");
   const [page, setPage] = useState(1);
-  const [exporting, setExporting] = useState(false);
-  const [deletingBatch, setDeletingBatch] = useState(false);
-  const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<number>>(
-    () => new Set()
-  );
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showVocabHelp, setShowVocabHelp] = useState(false);
-  const [quizSession, setQuizSession] = useState<EnVocabTeacherQuizSession | null>(
-    null
-  );
-  const [showQuizFlashcard, setShowQuizFlashcard] = useState(false);
-  const [studentPeekedCurrentWord, setStudentPeekedCurrentWord] = useState(false);
-  const teacherQuizLiveWordRef = useRef<number | null | undefined>(undefined);
-  const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
-  const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
-    useState<EnVocabTeacherQuizSession | null>(null);
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
@@ -314,9 +268,54 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    setQuizTargetInput(String(teacherVisibleLimit.quiz_target));
-  }, [teacherVisibleLimit.quiz_target]);
+  const {
+    resetting,
+    showResetChoice,
+    setShowResetChoice,
+    quizTargetInput,
+    setQuizTargetInput,
+    settingQuizTarget,
+    exporting,
+    deletingBatch,
+    selectedDeleteIds,
+    setDailyQuizTarget,
+    openResetChoice,
+    resetToday,
+    resetAll,
+    exportExcel,
+    toggleDeleteSelection,
+    toggleSelectAllPageForDelete,
+    batchDeleteSelected,
+    deleteWord,
+  } = useEnVocabAdminActions({
+    locale,
+    isAdminMode,
+    canOperate,
+    openEnAuth,
+    setStatus,
+    setError,
+    words,
+    refs,
+    refsRef,
+    displayOrderRef,
+    teacherVisibleLimit,
+    highlightId,
+    editingWord,
+    setWords,
+    setDisplayOrder,
+    setSharedTodayWordIds,
+    setTeacherVisibleLimit,
+    setSessionLevel,
+    setSessionUsageLevels,
+    setSessionReviewAt,
+    setHighlightId,
+    setEditingWord,
+    setUseDailyRowOrder,
+    setStatSort,
+    setPage,
+  });
+
+
 
   const toggleStatSort = (key: EnVocabStatSortKey) => {
     setUseDailyRowOrder(false);
@@ -364,135 +363,48 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [words, quizTarget]
   );
 
-  const quizSessionRestoredRef = useRef(false);
-
-  const quizWordHasLevel = useCallback(
-    (wordId: number) => {
-      const w = words.find((item) => item.id === wordId);
-      if (!w) return false;
-      return (
-        effectiveEnVocabDisplayLevel(w, sessionLevel[wordId], { displayOrder }) !=
-        null
-      );
-    },
-    [words, sessionLevel, displayOrder]
-  );
-
-  const persistQuizSession = useCallback(
-    (session: EnVocabTeacherQuizSession | null) => {
-      if (!user?.id) return;
-      if (!session) {
-        clearEnVocabTeacherQuizSession(user.id);
-        return;
-      }
-      writeEnVocabTeacherQuizSession(user.id, quizTarget, session);
-    },
-    [user?.id, quizTarget]
-  );
-
-  useEffect(() => {
-    if (!user?.id || quizTarget <= 0 || loading || checking) return;
-    if (quizSessionRestoredRef.current) return;
-    if (quizTargetWords.length === 0) {
-      quizSessionRestoredRef.current = true;
-      return;
-    }
-
-    quizSessionRestoredRef.current = true;
-    const stored = readEnVocabTeacherQuizSession(user.id, quizTarget);
-    if (!stored) return;
-
-    const reconciled = reconcileEnVocabTeacherQuizSession(stored, quizTargetWordIds);
-    if (!reconciled) {
-      clearEnVocabTeacherQuizSession(user.id);
-      return;
-    }
-
-    const expanded = expandEnVocabTeacherQuizSessionForTarget(
-      reconciled,
-      quizTargetWords,
-      dailySeqByWordId,
-      quizWordHasLevel
-    );
-
-    if (
-      !expanded ||
-      isEnVocabTeacherQuizSessionComplete(expanded, quizWordHasLevel) ||
-      computeEnVocabDailyQuizProgress(words, quizTarget).complete
-    ) {
-      clearEnVocabTeacherQuizSession(user.id);
-      setQuizSession(null);
-      setShowQuizFlashcard(false);
-      return;
-    }
-
-    if (canOperate && !isAdminMode) {
-      const resumeIndex = resolveEnVocabTeacherQuizRefreshResumeIndex(
-        expanded,
-        new Map(words.map((w) => [w.id, w])),
-        sessionReviewAt,
-        quizWordHasLevel
-      );
-      const session = { ...expanded, currentIndex: resumeIndex };
-      setQuizSession(session);
-      setShowQuizFlashcard(true);
-      return;
-    }
-
-    setQuizSession(expanded);
-  }, [
-    user?.id,
-    quizTarget,
-    loading,
+  const {
+    quizSession,
+    setQuizSession,
+    showQuizFlashcard,
+    setShowQuizFlashcard,
+    studentPeekedCurrentWord,
+    setStudentPeekedCurrentWord,
+    showTeacherQuizIntro,
+    pendingTeacherQuizSession,
+    handleTeacherQuizIntroConfirm,
+    handleTeacherQuizIntroClose,
+    quizCardPreviewWordId,
+    setQuizCardPreviewWordId,
+    quizCardPreviewSession,
+    closeQuizCardPreview,
+    quizWordHasLevel,
+    startTeacherQuizWithRandomMode,
+    resumeTeacherQuizFlashcard,
+    finishTeacherQuiz,
+    teacherQuizLocksTable,
+    teacherQuizInProgress,
+    quizFlashcardWordId,
+  } = useEnVocabTeacherQuiz({
+    locale,
+    user,
     checking,
-    quizTargetWords.length,
-    quizTargetWordIds,
+    loading,
     canOperate,
     isAdminMode,
     words,
+    sessionLevel,
     sessionReviewAt,
-    quizWordHasLevel,
-    dailySeqByWordId,
-  ]);
-
-  useEffect(() => {
-    persistQuizSession(quizSession);
-  }, [quizSession, persistQuizSession]);
-
-  useEffect(() => {
-    if (!quizSession || quizTargetWords.length === 0) return;
-    const sessionSet = new Set(quizSession.wordIds);
-    const hasNewUnchecked = filterEnVocabTeacherQuizUncheckedWords(
-      quizTargetWords,
-      quizWordHasLevel
-    ).some((w) => !sessionSet.has(w.id));
-    if (!hasNewUnchecked) return;
-    setQuizSession((prev) => {
-      if (!prev) return prev;
-      const next = expandEnVocabTeacherQuizSessionForTarget(
-        prev,
-        quizTargetWords,
-        dailySeqByWordId,
-        quizWordHasLevel
-      );
-      if (!next) return null;
-      if (
-        next.mode === prev.mode &&
-        next.currentIndex === prev.currentIndex &&
-        next.wordIds.length === prev.wordIds.length &&
-        next.wordIds.every((id, i) => id === prev.wordIds[i])
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [
+    displayOrder,
     quizTarget,
     quizTargetWords,
+    quizTargetWordIds,
     dailySeqByWordId,
-    quizWordHasLevel,
-    quizSession,
-  ]);
+    dailyQuizProgress,
+    setSharedTodayWordIds,
+    setStatus,
+  });
+
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) => quizTargetWordIds.has(wordId),
@@ -648,19 +560,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [words]
   );
 
-  const quizCardPreviewSession = useMemo((): EnVocabTeacherQuizSession | null => {
-    if (quizCardPreviewWordId == null) return null;
-    if (!wordsById.has(quizCardPreviewWordId)) return null;
-    return {
-      mode: "sequential",
-      wordIds: [quizCardPreviewWordId],
-      currentIndex: 0,
-    };
-  }, [quizCardPreviewWordId, wordsById]);
-
-  const closeQuizCardPreview = useCallback(() => {
-    setQuizCardPreviewWordId(null);
-  }, []);
   const {
     savingId,
     sharingId,
@@ -695,72 +594,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     persistCache,
   });
 
-  const launchTeacherQuizSession = useCallback((session: EnVocabTeacherQuizSession) => {
-    setQuizSession(session);
-    setShowQuizFlashcard(true);
-  }, []);
-
-  const requestTeacherQuizSession = useCallback(
-    (mode: EnVocabTeacherQuizMode, startWordId?: number) => {
-      const next = createEnVocabTeacherQuizSession(
-        mode,
-        quizTargetWords,
-        dailySeqByWordId,
-        startWordId,
-        quizWordHasLevel
-      );
-      if (!next) {
-        setStatus(
-          quizTarget > 0
-            ? "今日抽查池内暂无未抽查词条（已抽过的不会再进入抽查卡片）。"
-            : "今日暂无抽查词条。"
-        );
-        return;
-      }
-      if (user && shouldShowEnVocabTeacherQuizIntro(user.id)) {
-        setPendingTeacherQuizSession(next);
-        setShowTeacherQuizIntro(true);
-        return;
-      }
-      launchTeacherQuizSession(next);
-    },
-    [
-      quizTargetWords,
-      dailySeqByWordId,
-      quizTarget,
-      quizWordHasLevel,
-      user,
-      launchTeacherQuizSession,
-    ]
-  );
-
-  const handleTeacherQuizIntroConfirm = useCallback(() => {
-    if (!pendingTeacherQuizSession) {
-      setShowTeacherQuizIntro(false);
-      return;
-    }
-    launchTeacherQuizSession(pendingTeacherQuizSession);
-    setPendingTeacherQuizSession(null);
-    setShowTeacherQuizIntro(false);
-  }, [pendingTeacherQuizSession, launchTeacherQuizSession]);
-
-  const handleTeacherQuizIntroClose = useCallback(() => {
-    setPendingTeacherQuizSession(null);
-    setShowTeacherQuizIntro(false);
-  }, []);
-
-  const startTeacherQuizWithRandomMode = useCallback(
-    (startWordId?: number) => {
-      requestTeacherQuizSession(pickRandomEnVocabTeacherQuizMode(), startWordId);
-    },
-    [requestTeacherQuizSession]
-  );
-
-  /** 老师端今日抽查范围内：熟悉程度只能在单词卡片内勾选（管理员可直接在列表改） */
-  const teacherQuizLocksTable = canOperate && !isAdminMode;
-
-  /** 已有活跃抽查会话（用于「继续抽查」按钮） */
-  const teacherQuizInProgress = quizSession != null;
 
   /**
    * 老师抽查进行中：不展示单词列表，避免在列表里随意点选。
@@ -788,152 +621,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     displayQuizProgress.complete,
   ]);
 
-  useEffect(() => {
-    if (quizSession == null) setShowQuizFlashcard(false);
-  }, [quizSession]);
-
-  const resumeTeacherQuizFlashcard = useCallback(
-    (preferredWordId?: number) => {
-      if (!quizSession) return;
-      const index =
-        preferredWordId != null
-          ? resolveEnVocabTeacherQuizResumeIndex(
-              quizSession,
-              preferredWordId,
-              quizWordHasLevel
-            )
-          : resolveEnVocabTeacherQuizRefreshResumeIndex(
-              quizSession,
-              wordsById,
-              sessionReviewAt,
-              quizWordHasLevel
-            );
-      setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev));
-      setShowQuizFlashcard(true);
-    },
-    [quizSession, quizWordHasLevel, wordsById, sessionReviewAt]
-  );
-
-  const finishTeacherQuiz = useCallback(() => {
-    if (!quizSession) {
-      setShowQuizFlashcard(false);
-      return;
-    }
-    const expanded = expandEnVocabTeacherQuizSessionForTarget(
-      quizSession,
-      quizTargetWords,
-      dailySeqByWordId,
-      quizWordHasLevel
-    );
-    if (expanded) {
-      const firstUnchecked = findFirstUncheckedEnVocabTeacherQuizIndex(
-        expanded,
-        quizWordHasLevel,
-        0
-      );
-      if (firstUnchecked >= 0) {
-        setQuizSession({ ...expanded, currentIndex: firstUnchecked });
-        setShowQuizFlashcard(true);
-        return;
-      }
-    }
-    setShowQuizFlashcard(false);
-    setQuizSession(null);
-  }, [
-    quizSession,
-    quizTargetWords,
-    dailySeqByWordId,
-    quizWordHasLevel,
-  ]);
-
-  const syncTeacherQuizLiveWord = useCallback(
-    async (wordId: number | null) => {
-      if (!canOperate) return;
-      if (teacherQuizLiveWordRef.current === wordId) return;
-      teacherQuizLiveWordRef.current = wordId;
-      try {
-        await fetch("/api/en-vocab/teacher-quiz-live", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId }),
-        });
-      } catch {
-        teacherQuizLiveWordRef.current = undefined;
-      }
-    },
-    [canOperate, locale]
-  );
-
-  const quizFlashcardWordId =
-    quizSession?.wordIds[quizSession.currentIndex] ?? null;
-
-  useEffect(() => {
-    if (!canOperate) return;
-    if (!quizSession) {
-      void syncTeacherQuizLiveWord(null);
-      return;
-    }
-    void syncTeacherQuizLiveWord(quizFlashcardWordId);
-  }, [canOperate, quizSession, quizFlashcardWordId, syncTeacherQuizLiveWord]);
-
-  useEffect(() => {
-    if (!canOperate || !showQuizFlashcard || !quizFlashcardWordId) {
-      setStudentPeekedCurrentWord(false);
-      return;
-    }
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : EN_VOCAB_QUIZ_LIVE_POLL_MS;
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch(
-          `/api/en-vocab/teacher-quiz-live?word_id=${encodeURIComponent(
-            String(quizFlashcardWordId)
-          )}`,
-          { credentials: "include", cache: "no-store" }
-        );
-        const data = (await res.json()) as {
-          ok: boolean;
-          student_peeked?: boolean;
-        };
-        if (!cancelled && data.ok) {
-          const peeked = Boolean(data.student_peeked);
-          // 闩锁：一旦学生查看过本词，提示一直亮到点「下一个」换词（勿被后续 poll false 冲掉）
-          if (peeked) {
-            setStudentPeekedCurrentWord(true);
-            setSharedTodayWordIds((prev) => {
-              if (prev.has(quizFlashcardWordId)) return prev;
-              return new Set([...prev, quizFlashcardWordId]);
-            });
-          }
-        }
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [canOperate, showQuizFlashcard, quizFlashcardWordId]);
-
   const openRemarksWord = useCallback(
     (word: EnVocabWord) => {
       if (canOperate) setEditingRemarksWord(word);
@@ -946,130 +633,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     () => enVocabTodayCheckStats(words),
     [words]
   );
-  const setDailyQuizTarget = async () => {
-    if (!isAdminMode || settingQuizTarget) return;
-    const trimmed = quizTargetInput.trim();
-    const parsed = Number(trimmed);
-    if (!trimmed || !Number.isFinite(parsed)) {
-      setStatus("请输入今日抽查数量。");
-      return;
-    }
-    const count = Math.min(999, Math.max(1, Math.floor(parsed)));
-    setSettingQuizTarget(true);
-    setStatus("");
-    try {
-      const res = await fetch("/api/en-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_daily_quiz_target",
-          count,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        teacher_visible_limit?: EnVocabTeacherVisibleLimit;
-        error?: string;
-      };
-      if (!data.ok || !data.teacher_visible_limit) {
-        throw new Error(data.error || "操作失败");
-      }
-      const next = normalizeEnVocabTeacherVisibleLimit(
-        data.teacher_visible_limit
-      );
-      setTeacherVisibleLimit(next);
-      setQuizTargetInput(String(next.quiz_target));
-      const prev = readEnVocabPageCache();
-      if (prev) {
-        writeClientCache(JP_VOCAB_CACHE_KEY, {
-          ...prev,
-          teacher_visible_limit: next,
-        });
-      }
-      setStatus(
-        `今日抽查数量已设为 ${next.quiz_target} 个（老师端按当日序号 1…N 抽查）。` +
-          ` english 域名下已打开的老师页约数秒内自动同步；若未打开请刷新 english.info-quests.com/en-vocab。`
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSettingQuizTarget(false);
-    }
-  };
-
-  const runReset = async (action: "reset_today" | "reset") => {
-    setResetting(true);
-    setStatus("");
-    setError("");
-    try {
-      const res = await fetch("/api/en-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ action }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        words?: EnVocabWord[];
-        display_order?: EnVocabDailyDisplayOrder;
-        shared_today_word_ids?: number[];
-        error?: string;
-      };
-      if (!data.ok || !data.words || !data.display_order) {
-        throw new Error(data.error || "重置失败");
-      }
-      const nextSharedIds = data.shared_today_word_ids ?? [];
-      setWords(data.words);
-      setDisplayOrder(data.display_order);
-      setSharedTodayWordIds(new Set(nextSharedIds));
-      persistEnVocabPageCache(data.words, refs, data.display_order, nextSharedIds);
-      setSessionLevel({});
-      setSessionUsageLevels({});
-      setSessionReviewAt({});
-      setUseDailyRowOrder(true);
-      setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
-      setHighlightId(null);
-      setPage(1);
-      setShowResetChoice(false);
-      setStatus(
-        action === "reset_today"
-          ? "已今日重置：单词顺序已更新，当前轮次勾选与今日共享已清空，统计次数保持不变。"
-          : "已全部重置（含今日共享记录），可以开始新一轮复习。"
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  const openResetChoice = () => {
-    if (!canOperate) {
-      setStatus("请登录后再重置。");
-      openEnAuth();
-      return;
-    }
-    if (resetting) return;
-    setShowResetChoice(true);
-  };
-
-  const resetToday = () => void runReset("reset_today");
-
-  const resetAll = () => {
-    const ok = window.confirm(
-      "确定全部重置？将清空所有单词的熟悉程度勾选与统计次数，并清除今日共享记录，开始新一轮复习。"
-    );
-    if (!ok) return;
-    void runReset("reset");
-  };
-
   const pickNext = () => {
     const next = pickRandomEnVocabWord(words, highlightId ?? undefined);
     if (!next) return;
@@ -1131,181 +694,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     [refs]
   );
 
-  const exportExcel = async () => {
-    if (exporting || !displayedWords.length) return;
-    setExporting(true);
-    setStatus("");
-    try {
-      const { exportEnVocabToExcel } = await import("@/lib/en-vocab-export");
-      await exportEnVocabToExcel(displayedWords, refs, sessionLevel);
-      setStatus(`已导出 ${displayedWords.length} 条到 Excel。`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const openRefPreview = (refKey: string, ref?: EnVocabRef) => {
     const meta = resolveEnVocabRefForPreview(refKey, refs, ref);
     setPreviewRef({ ref: meta, cacheVersion: ref?.updated_at ?? refs[refKey]?.updated_at });
-  };
-
-  const toggleDeleteSelection = (wordId: number, checked: boolean) => {
-    setSelectedDeleteIds((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(wordId);
-      else next.delete(wordId);
-      return next;
-    });
-  };
-
-  const toggleSelectAllPageForDelete = () => {
-    setSelectedDeleteIds((prev) => {
-      const next = new Set(prev);
-      if (allPageDeleteSelected) {
-        for (const id of pagedDeleteIds) next.delete(id);
-      } else {
-        for (const id of pagedDeleteIds) next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const batchDeleteSelected = async () => {
-    if (!isAdminMode) {
-      setStatus("仅管理员端可删除词条。");
-      return;
-    }
-    if (!canOperate) {
-      setStatus("请登录后再删除。");
-      openEnAuth();
-      return;
-    }
-    if (deletingBatch || selectedDeleteIds.size === 0) return;
-
-    const ids = [...selectedDeleteIds];
-    const ok = window.confirm(
-      `确定删除选中的 ${ids.length} 条词条？此操作不可恢复。`
-    );
-    if (!ok) return;
-
-    setDeletingBatch(true);
-    setStatus("");
-    setError("");
-    try {
-      const res = await fetch("/api/en-vocab/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_ids: ids }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        deleted?: number;
-        words?: EnVocabWord[];
-        display_order?: EnVocabDailyDisplayOrder;
-        error?: string;
-      };
-      if (res.status === 403) {
-        throw new Error("仅 Admin 账户可删除词条。");
-      }
-      if (!data.ok || !data.words || !data.display_order) {
-        throw new Error(data.error || "删除失败");
-      }
-
-      const deletedSet = new Set(ids);
-      setWords(data.words);
-      setDisplayOrder(data.display_order);
-      persistEnVocabPageCache(data.words, refs, data.display_order);
-      setSelectedDeleteIds(new Set());
-      setSharedTodayWordIds((prev) => {
-        const next = new Set(prev);
-        for (const id of ids) next.delete(id);
-        return next;
-      });
-      setSessionLevel((prev) => {
-        const next = { ...prev };
-        for (const id of ids) delete next[id];
-        return next;
-      });
-      setSessionReviewAt((prev) => {
-        const next = { ...prev };
-        for (const id of ids) delete next[id];
-        return next;
-      });
-      if (highlightId != null && deletedSet.has(highlightId)) {
-        setHighlightId(null);
-      }
-      setStatus(`已删除 ${data.deleted ?? ids.length} 条词条。`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeletingBatch(false);
-    }
-  };
-
-  const deleteWord = async (w: EnVocabWord) => {
-    if (!isAdminMode) {
-      setStatus("仅管理员端可删除词条。");
-      return;
-    }
-    if (!canOperate) {
-      setStatus("请登录后再删除。");
-      openEnAuth();
-      return;
-    }
-    if (deletingBatch) return;
-    const ok = window.confirm(
-      `确定删除词条「${w.word}」？此操作不可恢复。`
-    );
-    if (!ok) return;
-
-    setDeletingBatch(true);
-    setStatus("");
-    setError("");
-    try {
-      const res = await fetch("/api/en-vocab/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_ids: [w.id] }),
-      });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        deleted?: number;
-        error?: string;
-      };
-      if (res.status === 401) {
-        openEnAuth();
-        throw new Error("请登录后再删除。");
-      }
-      if (res.status === 403) {
-        throw new Error("仅 Admin 账户可删除词条。");
-      }
-      if (!data.ok) {
-        throw new Error(data.error || "删除失败");
-      }
-      setWords((prev) => prev.filter((item) => item.id !== w.id));
-      setSelectedDeleteIds((prev) => {
-        const next = new Set(prev);
-        next.delete(w.id);
-        return next;
-      });
-      if (highlightId === w.id) setHighlightId(null);
-      if (editingWord?.id === w.id) setEditingWord(null);
-      setStatus("已删除 1 条词条。");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeletingBatch(false);
-    }
   };
 
   if (checking) {
@@ -1406,165 +797,45 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       ) : null}
 
       <section className="section etr-panel" aria-label="单词表">
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "0.75rem",
-            marginBottom: "0.75rem",
+        <EnVocabPageToolbar
+          isAdminMode={isAdminMode}
+          canOperate={canOperate}
+          canManualAdd={canManualAdd}
+          loading={loading}
+          refreshing={refreshing}
+          wordsCount={words.length}
+          unmarkedCount={unmarkedCount}
+          todayCheckStats={todayCheckStats}
+          quizTarget={quizTarget}
+          quizTargetWordsLength={quizTargetWords.length}
+          teacherQuizInProgress={teacherQuizInProgress}
+          exporting={exporting}
+          deletingBatch={deletingBatch}
+          resetting={resetting}
+          selectedDeleteCount={selectedDeleteIds.size}
+          onResumeOrStartQuiz={() => {
+            if (teacherQuizInProgress) {
+              resumeTeacherQuizFlashcard();
+              setStatus("继续今日抽查…");
+              return;
+            }
+            startTeacherQuizWithRandomMode();
           }}
-        >
-          <h2 style={{ fontSize: "1.1rem", margin: 0 }}>单词表</h2>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "0.5rem",
-              alignItems: "center",
-            }}
-          >
-            <span style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-              {isAdminMode ? (
-                <>
-                  共 {words.length} 条
-                  {words.length ? (
-                    <>
-                      {" "}
-                      · 今日抽查{" "}
-                      <span
-                        className={
-                          todayCheckStats.totalActions > 0
-                            ? "jp-vocab-today-summary-value jp-vocab-today-summary-value--active"
-                            : "jp-vocab-today-summary-value"
-                        }
-                        title={
-                          todayCheckStats.totalActions > 0
-                            ? `今日已抽查 ${todayCheckStats.wordCount} 个词条，共 ${todayCheckStats.totalActions} 次（北京时间 0 点归零）`
-                            : "今日尚未抽查（北京时间 0 点归零）"
-                        }
-                      >
-                        {todayCheckStats.wordCount} 个
-                        {todayCheckStats.totalActions > todayCheckStats.wordCount
-                          ? ` · ${todayCheckStats.totalActions} 次`
-                          : null}
-                      </span>
-                    </>
-                  ) : null}
-                  {canOperate ? <> · 本轮未勾选 {unmarkedCount}</> : null}
-                </>
-              ) : canOperate ? (
-                <>本轮未勾选 {unmarkedCount}</>
-              ) : null}
-              {refreshing ? <> · 加载中…</> : null}
-            </span>
-            {canOperate && quizTarget > 0 && quizTargetWords.length > 0 ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--primary"
-                onClick={() => {
-                  if (teacherQuizInProgress) {
-                    resumeTeacherQuizFlashcard();
-                    setStatus("继续今日抽查…");
-                    return;
-                  }
-                  startTeacherQuizWithRandomMode();
-                }}
-                disabled={loading}
-                title={
-                  teacherQuizInProgress
-                    ? "继续抽查卡片"
-                    : "开始抽查（本轮自动随机选用正序或随机）"
-                }
-              >
-                {teacherQuizInProgress ? "继续抽查" : "开始抽查"}
-              </button>
-            ) : null}
-            {SHOW_RANDOM_HIGHLIGHT ? (
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={() => pickNext()}
-                disabled={loading || words.length < 2}
-              >
-                随机高亮
-              </button>
-            ) : null}
-            {isAdminMode ? (
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={() => void exportExcel()}
-                disabled={loading || exporting || !words.length}
-                title="导出当前单词表为 Excel 文件"
-              >
-                {exporting ? "导出中…" : "导出 Excel"}
-              </button>
-            ) : null}
-            {SHOW_RISK_CHART ? (
-              <button
-                type="button"
-                className="btn-rsi-filter"
-                onClick={() => setShowRiskChart(true)}
-                disabled={loading || !words.length}
-                title="按抽查优先级查看知识点排行，辅助下节课抽查"
-              >
-                抽查排行
-              </button>
-            ) : null}
-            {canManualAdd ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--primary"
-                onClick={() => {
-                  if (!canOperate) {
-                    setStatus("请登录后再手动添加。");
-                    openEnAuth();
-                    return;
-                  }
-                  setShowManualAdd(true);
-                }}
-                disabled={loading}
-                title={canOperate ? undefined : "登录后可添加"}
-              >
-                手动添加
-              </button>
-            ) : null}
-            {isAdminMode ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--danger"
-                onClick={() => void batchDeleteSelected()}
-                disabled={
-                  loading || deletingBatch || !selectedDeleteIds.size || !canOperate
-                }
-                title={
-                  selectedDeleteIds.size
-                    ? `删除已选 ${selectedDeleteIds.size} 条`
-                    : "先在表格中勾选要删除的词条"
-                }
-              >
-                {deletingBatch
-                  ? "删除中…"
-                  : selectedDeleteIds.size
-                    ? `批量删除 (${selectedDeleteIds.size})`
-                    : "批量删除"}
-              </button>
-            ) : null}
-            {isAdminMode ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--danger"
-                onClick={openResetChoice}
-                disabled={loading || resetting || !words.length || !canOperate}
-                title={canOperate ? undefined : "登录后可重置"}
-              >
-                {resetting ? "重置中…" : "重置"}
-              </button>
-            ) : null}
-          </div>
-        </div>
+          onPickNext={() => pickNext()}
+          onExportExcel={() => void exportExcel(displayedWords, sessionLevel)}
+          onShowRiskChart={() => setShowRiskChart(true)}
+          onManualAdd={() => {
+            if (!canOperate) {
+              setStatus("请登录后再手动添加。");
+              openEnAuth();
+              return;
+            }
+            setShowManualAdd(true);
+          }}
+          onBatchDelete={() => void batchDeleteSelected()}
+          onOpenResetChoice={openResetChoice}
+        />
+
 
         {status ? (
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
@@ -1573,52 +844,13 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         ) : null}
 
         {!loading && words.length ? (
-          <div className="jp-vocab-help">
-            <button
-              type="button"
-              className="jp-vocab-help-toggle"
-              onClick={() => setShowVocabHelp((v) => !v)}
-              aria-expanded={showVocabHelp}
-            >
-              {showVocabHelp ? "收起说明" : "展开说明"}
-              <span className="jp-vocab-help-toggle-icon" aria-hidden="true">
-                {showVocabHelp ? "▲" : "▼"}
-              </span>
-            </button>
-            {showVocabHelp ? (
-              <div className="jp-vocab-risk-hint" role="note">
-                <p>
-                  <strong>老师端按用法勾选 → 总体熟悉程度（先读这段）</strong>
-                  ：抽查卡片有编号用法时，在每条「N.用法」旁各勾「非常熟悉 / 一般 / 不熟悉」（隐藏整词三档）；全部勾完后按下列规则汇总成
-                  <strong>总体熟悉程度</strong>
-                  ，再计入「非常熟悉 / 一般 / 不熟悉」次数与抽查优先级。管理员列表仍可直接勾整词三档；「查看抽问卡片」预览与老师端同 UI（只读）。
-                </p>
-                <p>
-                  两档汇总（非常熟悉 &gt; 一般 &gt; 不熟悉）：两边都是「一般」→ 总体「不熟悉」；一边「非常熟悉」、一边「不熟悉」→ 总体「一般」；其余取较弱一档。真值表：非常+非常→非常；非常+一般→一般；非常+不熟悉→一般；一般+一般→不熟悉；一般+不熟悉→不熟悉；不熟悉+不熟悉→不熟悉。N
-                  条用法从左到右按上表两两合并；仅 1 条则总体=该条；无编号用法时卡片底栏保留整词勾选兜底。
-                </p>
-                <p>
-                  <strong>{enVocabPriorityLabel(locale)}</strong>
-                  ：根据「复习次数统计」估算每个单词/语法下节课该先抽查谁，数值越高越建议优先提问。
-                  计算公式：一般 × 1 + 不熟悉 × 2 − 非常熟悉 × 0.3（保留 1 位小数）。
-                  ≥ 3 建议重点抽查，≥ 1 建议留意，&lt; 1 掌握较好；
-                  为 0 或更低表示尚未复习，或多次勾选「非常熟悉」。
-                  「今日抽查次数」：每勾选一次熟悉程度 +1，北京时间 0 点自动归零；15
-                  秒内对同一单词改选（如非常熟悉改一般）视为修正，不重复计次，只按最后一次更新统计。
-                  勾选后
-                  <strong>1 小时内</strong>
-                  仍可改熟悉程度（学生已查看 / 已共享到「今日英语单词」也不锁）；满 1
-                  小时后不可再改。
-                  单词表默认按抽查优先级排序，每天北京时间 0
-                  点重排一次；当天内勾选或刷新页面不会改变顺序（所有老师看到相同顺序）。管理员可使用「重置
-                  → 今日重置」立即重排并清空当前轮次勾选，统计次数不变。
-                  搜索框在本地对已加载词表即时过滤，支持单词、读音、释义、词性等字段模糊匹配，多个关键词用空格隔开（需同时满足）；旁边可按「全部
-                  / 单词 / 语法」筛选类型。
-                  备注编辑后约 1 秒自动保存并写入数据库；其他端约 1
-                  秒自动拉取变更（标签页在后台时会降频）。
-                </p>
-              </div>
-            ) : null}
+          <EnVocabPageHelp
+            locale={locale}
+            expanded={showVocabHelp}
+            onToggle={() => setShowVocabHelp((v) => !v)}
+          />
+        ) : null}
+
           </div>
         ) : null}
 
@@ -1630,78 +862,28 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
             {canManualAdd ? "，也可登录后点「手动添加」补充" : ""}。
           </p>
         ) : hideTeacherQuizList ? (
-          <div className="jp-vocab-teacher-quiz-resume" role="status">
-            <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>
-              今日抽查进行中，请在单词卡片内逐词勾选熟悉程度。
-            </p>
-            {!showQuizFlashcard ? (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--primary"
-                onClick={() => resumeTeacherQuizFlashcard()}
-              >
-                继续抽查
-              </button>
-            ) : null}
-          </div>
+          <EnVocabTeacherQuizResumePanel
+            showContinue={!showQuizFlashcard}
+            onContinue={() => resumeTeacherQuizFlashcard()}
+          />
         ) : (
           <>
-            <div className="jp-vocab-search" role="search">
-              <label htmlFor="jp-vocab-search" className="jp-vocab-search__label">
-                搜索
-              </label>
-              <div className="jp-vocab-search__row">
-                <input
-                  id="jp-vocab-search"
-                  type="search"
-                  className="jp-vocab-search__input"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="单词、读音、释义、词性…（本地即时搜索）"
-                  disabled={loading}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <select
-                  id="jp-vocab-kind-filter"
-                  className="jp-vocab-search__kind"
-                  value={kindFilter}
-                  onChange={(e) => setKindFilter(e.target.value as EnVocabKindFilter)}
-                  disabled={loading}
-                  aria-label="类型筛选"
-                >
-                  <option value="all">全部</option>
-                  <option value="word">单词</option>
-                  <option value="grammar">语法</option>
-                </select>
-              </div>
-              {filterActive ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-search__clear"
-                    onClick={() => {
-                      setSearchQuery("");
-                      setKindFilter("all");
-                    }}
-                  >
-                    清除
-                  </button>
-                  <span className="jp-vocab-search__meta">
-                    匹配 {filteredDisplayedWords.length} / {displayedWords.length} 条
-                  </span>
-                </>
-              ) : null}
-            </div>
-            {filterActive && !filteredDisplayedWords.length ? (
-              <p className="jp-vocab-search__empty">
-                {searchActive
-                  ? `没有匹配「${searchQuery.trim()}」的词条，请换个关键词试试。`
-                  : kindFilter === "grammar"
-                    ? "当前没有语法条目。"
-                    : "当前没有单词条目。"}
-              </p>
-            ) : filteredDisplayedWords.length ? (
+            <EnVocabPageSearch
+              loading={loading}
+              searchQuery={searchQuery}
+              kindFilter={kindFilter}
+              filterActive={filterActive}
+              searchActive={searchActive}
+              filteredCount={filteredDisplayedWords.length}
+              displayedCount={displayedWords.length}
+              onSearchChange={setSearchQuery}
+              onKindFilterChange={setKindFilter}
+              onClear={() => {
+                setSearchQuery("");
+                setKindFilter("all");
+              }}
+            />
+            {filteredDisplayedWords.length ? (
           <>
             <EnVocabPagination
               show={showPagination}
@@ -1739,7 +921,9 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
               allPageDeleteSelected={allPageDeleteSelected}
               somePageDeleteSelected={somePageDeleteSelected}
               pagedDeleteIds={pagedDeleteIds}
-              onToggleSelectAllPageForDelete={toggleSelectAllPageForDelete}
+              onToggleSelectAllPageForDelete={() =>
+                toggleSelectAllPageForDelete(pagedDeleteIds, allPageDeleteSelected)
+              }
               onToggleDeleteSelection={toggleDeleteSelection}
               onRefPreview={openRefPreview}
               onViewUsage={setViewingUsageWord}
@@ -1770,182 +954,73 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         )}
       </section>
 
-      <EnVocabResetChoiceModal
-        open={showResetChoice}
-        busy={resetting}
-        onClose={() => setShowResetChoice(false)}
-        onResetToday={resetToday}
-        onResetAll={resetAll}
-      />
-
-      {canManualAdd ? (
-        <EnVocabManualAddModal
-          open={showManualAdd}
-          locale={locale}
-          onClose={() => setShowManualAdd(false)}
-          onAdded={handleWordAdded}
-        />
-      ) : null}
-
-      {SHOW_RISK_CHART ? (
-        <EnVocabRiskChartModal
-          open={showRiskChart}
-          words={words}
-          onClose={() => setShowRiskChart(false)}
-        />
-      ) : null}
-
-      <EnVocabDailyQuizIntroModal
-        open={showDailyIntro}
-        onClose={() => setShowDailyIntro(false)}
-      />
-
-      {user ? (
-        <EnVocabTeacherQuizIntroModal
-          userId={user.id}
-          open={showTeacherQuizIntro}
-          onConfirm={handleTeacherQuizIntroConfirm}
-          onClose={handleTeacherQuizIntroClose}
-        />
-      ) : null}
-
-      <EnVocabTeacherQuizFlashcardModal
-        open={showQuizFlashcard}
-        session={quizSession}
+      <EnVocabPageModals
+        locale={locale}
+        userId={user?.id}
+        isAdminMode={isAdminMode}
+        canOperate={canOperate}
+        canManualAdd={canManualAdd}
+        teacherShareUiEnabled={teacherShareUiEnabled}
+        showResetChoice={showResetChoice}
+        resetting={resetting}
+        showManualAdd={showManualAdd}
+        showRiskChart={showRiskChart}
+        showDailyIntro={showDailyIntro}
+        showTeacherQuizIntro={showTeacherQuizIntro}
+        showQuizFlashcard={showQuizFlashcard}
+        quizSession={quizSession}
+        quizCardPreviewSession={quizCardPreviewSession}
+        words={words}
         wordsById={wordsById}
         refs={refs}
-        locale={locale}
         displayOrder={displayOrder}
         sessionLevel={sessionLevel}
         sessionUsageLevels={sessionUsageLevels}
         reviewLockedByWordId={reviewLockedByWordId}
-        savingWordId={savingId}
+        savingId={savingId}
         dailySeqByWordId={dailySeqByWordId}
-        dailyQuizProgress={displayQuizProgress}
-        canOperate={canOperate}
-        shareUiEnabled={teacherShareUiEnabled}
+        displayQuizProgress={displayQuizProgress}
         sharedTodayWordIds={sharedTodayWordIds}
-        studentPeeked={studentPeekedCurrentWord}
-        onClose={() => setShowQuizFlashcard(false)}
-        onComplete={finishTeacherQuiz}
-        onSelectLevel={(wordId, level) => void recordLevel(wordId, level)}
-        onSelectUsageLevels={(wordId, levels) =>
-          void recordUsageLevels(wordId, levels)
-        }
-        onNavigate={(index) =>
+        studentPeekedCurrentWord={studentPeekedCurrentWord}
+        viewingRemarksWord={viewingRemarksWord}
+        viewingMnemonicWord={viewingMnemonicWord}
+        viewingUsageWord={viewingUsageWord}
+        previewRef={previewRef}
+        editingRemarksWord={editingRemarksWord}
+        editingWord={editingWord}
+        onResetChoiceClose={() => setShowResetChoice(false)}
+        onResetToday={resetToday}
+        onResetAll={resetAll}
+        onManualAddClose={() => setShowManualAdd(false)}
+        onWordAdded={handleWordAdded}
+        onRiskChartClose={() => setShowRiskChart(false)}
+        onDailyIntroClose={() => setShowDailyIntro(false)}
+        onTeacherQuizIntroConfirm={handleTeacherQuizIntroConfirm}
+        onTeacherQuizIntroClose={handleTeacherQuizIntroClose}
+        onQuizFlashcardClose={() => setShowQuizFlashcard(false)}
+        onQuizComplete={finishTeacherQuiz}
+        onRecordLevel={(wordId, level) => void recordLevel(wordId, level)}
+        onRecordUsageLevels={(wordId, levels) => void recordUsageLevels(wordId, levels)}
+        onQuizNavigate={(index) =>
           setQuizSession((prev) => (prev ? { ...prev, currentIndex: index } : prev))
         }
         onOpenRef={openRefPreview}
-        onViewRemarks={openRemarksWord}
+        onOpenRemarks={openRemarksWord}
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
         onShare={(wordId) => void shareWord(wordId)}
-        onWordUpdated={handleWordSaved}
-        nestedModalOpen={
-          viewingRemarksWord != null ||
-          previewRef != null ||
-          editingRemarksWord != null ||
-          editingWord != null ||
-          viewingMnemonicWord != null ||
-          viewingUsageWord != null
-        }
-      />
-
-      {isAdminMode ? (
-        <EnVocabTeacherQuizFlashcardModal
-          open={quizCardPreviewSession != null}
-          session={quizCardPreviewSession}
-          wordsById={wordsById}
-          refs={refs}
-          locale={locale}
-          displayOrder={displayOrder}
-          sessionLevel={sessionLevel}
-          sessionUsageLevels={sessionUsageLevels}
-          reviewLockedByWordId={reviewLockedByWordId}
-          savingWordId={null}
-          dailySeqByWordId={dailySeqByWordId}
-          dailyQuizProgress={null}
-          canOperate
-          shareUiEnabled={false}
-          previewMode
-          onClose={closeQuizCardPreview}
-          onComplete={closeQuizCardPreview}
-          onSelectLevel={() => {
-            /* 预览只读 */
-          }}
-          onSelectUsageLevels={() => {
-            /* 预览只读 */
-          }}
-          onNavigate={() => {
-            /* 单条预览 */
-          }}
-          onOpenRef={openRefPreview}
-          onViewRemarks={openRemarksWord}
-          onEditRemarks={setEditingRemarksWord}
-          onEditWord={setEditingWord}
-          onWordUpdated={handleWordSaved}
-          nestedModalOpen={
-            viewingRemarksWord != null ||
-            previewRef != null ||
-            editingRemarksWord != null ||
-            editingWord != null ||
-            viewingMnemonicWord != null ||
-            viewingUsageWord != null
-          }
-        />
-      ) : null}
-
-      <EnVocabRemarksViewModal
-        open={viewingRemarksWord != null}
-        word={viewingRemarksWord}
-        onClose={() => setViewingRemarksWord(null)}
-      />
-
-      <EnVocabMnemonicViewModal
-        open={viewingMnemonicWord != null}
-        word={viewingMnemonicWord}
-        onClose={() => setViewingMnemonicWord(null)}
-      />
-
-      <EnVocabUsageViewModal
-        open={viewingUsageWord != null}
-        word={viewingUsageWord}
-        onClose={() => setViewingUsageWord(null)}
-      />
-
-      <EnVocabRefPreviewModal
-        open={previewRef != null}
-        refMeta={previewRef?.ref ?? null}
-        cacheVersion={previewRef?.cacheVersion}
-        onClose={() => setPreviewRef(null)}
-      />
-
-      <EnClassNotesEditModal
-        open={editingRemarksWord != null}
-        word={editingRemarksWord}
-        locale={locale}
-        canEdit={canOperate}
-        sharedToday={
-          editingRemarksWord != null &&
-          sharedTodayWordIds.has(editingRemarksWord.id)
-        }
-        onClose={() => setEditingRemarksWord(null)}
-        onSaved={handleWordSaved}
-        onSaveFailed={handleWordSaveFailed}
+        onWordSaved={handleWordSaved}
+        onWordSaveFailed={handleWordSaveFailed}
         onNeedAuth={openEnAuth}
+        onCloseQuizPreview={closeQuizCardPreview}
+        onCloseViewingRemarks={() => setViewingRemarksWord(null)}
+        onCloseViewingMnemonic={() => setViewingMnemonicWord(null)}
+        onCloseViewingUsage={() => setViewingUsageWord(null)}
+        onClosePreviewRef={() => setPreviewRef(null)}
+        onCloseEditingRemarks={() => setEditingRemarksWord(null)}
+        onCloseEditingWord={() => setEditingWord(null)}
       />
 
-      <EnVocabEditModal
-        open={editingWord != null}
-        word={editingWord}
-        locale={locale}
-        canEdit={canOperate}
-        showMnemonic={isAdminMode}
-        onClose={() => setEditingWord(null)}
-        onSaved={handleWordSaved}
-        onSaveFailed={handleWordSaveFailed}
-        onNeedAuth={openEnAuth}
-      />
 
       <EnVocabPageStyles />
 
