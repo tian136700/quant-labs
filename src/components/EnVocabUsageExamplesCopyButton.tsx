@@ -32,7 +32,7 @@ export function EnVocabUsageExamplesCopyButton({ model, wordLabel }: Props) {
         onClick={(e) => {
           e.stopPropagation();
           void copyTextToClipboard(text).then((ok) =>
-            onCopied(ok ? "已复制全部用法与例句" : "复制失败")
+            onCopied(ok ? "复制成功" : "复制失败")
           );
         }}
       >
@@ -60,6 +60,7 @@ export function EnVocabUsageExamplesCopyButton({ model, wordLabel }: Props) {
       <CopyToast
         message={copyToast}
         onDismiss={() => setCopyToast(null)}
+        className="copy-toast--above-modal"
       />
 
       <style jsx global>{`

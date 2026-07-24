@@ -252,8 +252,9 @@ textarea:focus {
   transform: translateX(-50%) translateY(0.4rem);
 }
 
+/* 须高于抽查全屏卡(~1002)与用法查看弹窗(~1100)，否则复制成功提示看不见 */
 .copy-toast--above-modal {
-  z-index: 1010;
+  z-index: 1200;
 }
 
 .hint {

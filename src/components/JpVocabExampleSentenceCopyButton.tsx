@@ -30,7 +30,7 @@ export function JpVocabExampleSentenceCopyButton({ items }: Props) {
         onClick={(e) => {
           e.stopPropagation();
           void copyTextToClipboard(text).then((ok) =>
-            onCopied(ok ? "已复制全部例句" : "复制失败")
+            onCopied(ok ? "复制成功" : "复制失败")
           );
         }}
       >
@@ -58,6 +58,7 @@ export function JpVocabExampleSentenceCopyButton({ items }: Props) {
       <CopyToast
         message={copyToast}
         onDismiss={() => setCopyToast(null)}
+        className="copy-toast--above-modal"
       />
 
       <style jsx global>{`

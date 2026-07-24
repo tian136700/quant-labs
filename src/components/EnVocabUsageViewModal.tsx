@@ -131,7 +131,11 @@ export function EnVocabUsageViewModal({ open, word, onClose }: Props) {
         </div>
       </div>
 
-      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
+      <CopyToast
+        message={copyToast}
+        onDismiss={() => setCopyToast(null)}
+        className="copy-toast--above-modal"
+      />
 
       <style jsx>{`
         .en-usage-view-overlay {
