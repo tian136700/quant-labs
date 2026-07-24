@@ -54,37 +54,42 @@ def main() -> int:
 
     page = ROOT / "src/components/EnVocabPage.tsx"
     page_text = page.read_text(encoding="utf-8") if page.is_file() else ""
-    if "isEnVocabWordReviewLocked" not in page_text:
-        errors.append("EnVocabPage.tsx: must use isEnVocabWordReviewLocked")
+    review_hook = ROOT / "src/hooks/useEnVocabReviewActions.ts"
+    review_hook_text = (
+        review_hook.read_text(encoding="utf-8") if review_hook.is_file() else ""
+    )
+    table = ROOT / "src/components/en-vocab-page/EnVocabWordTable.tsx"
+    table_text = table.read_text(encoding="utf-8") if table.is_file() else ""
+    ui_text = page_text + review_hook_text + table_text
+
+    if "isEnVocabWordReviewLocked" not in ui_text:
+        errors.append("en-vocab page/hooks: must use isEnVocabWordReviewLocked")
     if "reviewLockedByWordId" not in page_text:
         errors.append("EnVocabPage.tsx: missing reviewLockedByWordId")
-    # reviewLockedByWordId must not be driven by sharedTodayWordIds
-    lock_block_start = page_text.find("const reviewLockedByWordId = useMemo")
+    lock_block_start = review_hook_text.find("const reviewLockedByWordId = useMemo")
     if lock_block_start < 0:
-        errors.append("EnVocabPage.tsx: missing reviewLockedByWordId useMemo")
+        errors.append("useEnVocabReviewActions.ts: missing reviewLockedByWordId useMemo")
     else:
-        lock_block_end = page_text.find("}, [", lock_block_start)
-        lock_chunk = page_text[lock_block_start : lock_block_end + 80]
+        lock_block_end = review_hook_text.find("}, [", lock_block_start)
+        lock_chunk = review_hook_text[lock_block_start : lock_block_end + 80]
         if "sharedTodayWordIds" in lock_chunk:
             errors.append(
-                "EnVocabPage.tsx: reviewLockedByWordId must not use sharedTodayWordIds"
+                "useEnVocabReviewActions: reviewLockedByWordId must not use sharedTodayWordIds"
             )
         if "isEnVocabWordReviewLocked" not in lock_chunk:
             errors.append(
-                "EnVocabPage.tsx: reviewLockedByWordId must call isEnVocabWordReviewLocked"
+                "useEnVocabReviewActions: reviewLockedByWordId must call isEnVocabWordReviewLocked"
             )
 
     for banned in [
         "今日已共享，熟悉程度不可更改",
         'setStatus("今日已共享，熟悉程度不可更改。")',
     ]:
-        if banned in page_text:
-            errors.append(f"EnVocabPage.tsx: must not use shared-lock copy {banned!r}")
+        if banned in ui_text:
+            errors.append(f"en-vocab UI: must not use shared-lock copy {banned!r}")
 
-    if "勾选已满 1 小时，无法再修改熟悉程度" not in page_text:
-        errors.append(
-            "EnVocabPage.tsx: missing 1h lock status/title copy"
-        )
+    if "勾选已满 1 小时，无法再修改熟悉程度" not in ui_text:
+        errors.append("en-vocab UI: missing 1h lock status/title copy")
 
     flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
     flash_text = flash.read_text(encoding="utf-8") if flash.is_file() else ""

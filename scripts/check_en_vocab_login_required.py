@@ -19,14 +19,16 @@ def main() -> None:
     route = (ROOT / "src/app/api/en-vocab/route.ts").read_text(encoding="utf-8")
     sync = (ROOT / "src/app/api/en-vocab/sync/route.ts").read_text(encoding="utf-8")
 
+    sync_hook = (ROOT / "src/hooks/useEnVocabPageSync.ts").read_text(encoding="utf-8")
+
     if "TeacherReviewAuth" not in page:
         fail("EnVocabPage must use TeacherReviewAuth for unauthenticated visitors")
     if "if (!user)" not in page:
         fail("EnVocabPage must early-return when !user")
-    if "if (checking || !user) return;\n    void loadWords()" not in page and (
-        "if (checking || !user) return;" not in page or "void loadWords()" not in page
-    ):
-        fail("EnVocabPage must not loadWords until logged in")
+    if "useEnVocabPageSync" not in page:
+        fail("EnVocabPage must use useEnVocabPageSync")
+    if "if (checking || !user) return;" not in sync_hook:
+        fail("useEnVocabPageSync must not load until logged in")
 
     if "requireEnVocabRead" not in route:
         fail("GET /api/en-vocab must use requireEnVocabRead")

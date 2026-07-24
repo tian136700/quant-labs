@@ -40,7 +40,11 @@
 | 词表 | `en-vocab-page/EnVocabWordTable.tsx` | 772 | ✅ 2026-07-24 |
 | 分页 | `en-vocab-page/EnVocabPagination.tsx` | 44 | ✅ 2026-07-24 |
 | 页内 helpers | `lib/en-vocab-page-helpers.tsx` | 50 | ✅ 2026-07-24 |
-| 编排页 | `EnVocabPage.tsx` | **2528**（原 3234） | ⏳ 仍 >2000，待抽 poll/sync/quiz hooks |
+| 编排页 | `EnVocabPage.tsx` | **1954**（原 3234） | ✅ 2026-07-24 · 待抽 teacher quiz hook |
+| 数据 sync | `hooks/useEnVocabPageSync.ts` | ~250 | ✅ |
+| 勾选/共享 | `hooks/useEnVocabReviewActions.ts` | ~400 | ✅ |
+| 缓存 | `lib/en-vocab-page-cache.ts` | ~40 | ✅ |
+| teacher quiz | `hooks/useEnVocabTeacherQuiz.ts` | ~460 | ⏳ 已写好，下轮接入页 |
 
 **验证**：`tsc --noEmit` ✅ · `check_en_vocab_table_stats_grid.py` ✅ · `check_en_vocab_review_lock.py` ✅ · `check_en_vocab_login_required.py` ✅ · `check_en_vocab_heavy_lazy_import.py` ✅
 

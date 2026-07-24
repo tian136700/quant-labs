@@ -129,6 +129,12 @@ import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
+import { useEnVocabPageSync } from "@/hooks/useEnVocabPageSync";
+import { useEnVocabReviewActions } from "@/hooks/useEnVocabReviewActions";
+import {
+  readEnVocabPageCache,
+  persistEnVocabPageCache,
+} from "@/lib/en-vocab-page-cache";
 
 const EnVocabRiskChartModal = dynamic(
   () =>
@@ -137,34 +143,6 @@ const EnVocabRiskChartModal = dynamic(
     ),
   { ssr: false }
 );
-
-function readVocabCache(): EnVocabApiPayload | null {
-  return readClientCache<EnVocabApiPayload>(JP_VOCAB_CACHE_KEY);
-}
-
-function persistVocabCache(
-  words: EnVocabWord[],
-  refs: Record<string, EnVocabRef>,
-  display_order: EnVocabDailyDisplayOrder,
-  shared_today_word_ids?: number[],
-  teacher_visible_limit?: EnVocabTeacherVisibleLimit
-) {
-  const prev = readVocabCache();
-  writeClientCache(JP_VOCAB_CACHE_KEY, {
-    words,
-    refs,
-    daily_quiz_style: prev?.daily_quiz_style ?? JP_VOCAB_DAILY_QUIZ_STYLE_DEFAULT,
-    display_order,
-    shared_today_word_ids:
-      shared_today_word_ids ??
-      prev?.shared_today_word_ids ??
-      [],
-    teacher_visible_limit:
-      teacher_visible_limit ??
-      prev?.teacher_visible_limit ??
-      defaultEnVocabTeacherVisibleLimit(),
-  });
-}
 
 type EnVocabPageVariant = "teacher" | "admin";
 
@@ -225,27 +203,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     canAccessEnVocabTeacherPage,
     router,
   ]);
-  const [words, setWords] = useState<EnVocabWord[]>([]);
-  const [refs, setRefs] = useState<Record<string, EnVocabRef>>({});
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [showResetChoice, setShowResetChoice] = useState(false);
-  const [savingId, setSavingId] = useState<number | null>(null);
-  const [sharingId, setSharingId] = useState<number | null>(null);
-  const [sharedTodayWordIds, setSharedTodayWordIds] = useState<Set<number>>(
-    () => new Set(readVocabCache()?.shared_today_word_ids ?? [])
-  );
-  const [teacherVisibleLimit, setTeacherVisibleLimit] =
-    useState<EnVocabTeacherVisibleLimit>(
-      () =>
-        readVocabCache()?.teacher_visible_limit ??
-        defaultEnVocabTeacherVisibleLimit()
-    );
   const [quizTargetInput, setQuizTargetInput] = useState(
     () =>
       String(
-        readVocabCache()?.teacher_visible_limit?.quiz_target ??
+        readEnVocabPageCache()?.teacher_visible_limit?.quiz_target ??
           defaultEnVocabTeacherVisibleLimit().quiz_target
       )
   );
@@ -286,11 +249,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   /** 未手动点列头排序时，行顺序用当日固定 display_order；点过后按列头数值排序 */
   const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
   /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
-  const [displayOrder, setDisplayOrder] = useState<EnVocabDailyDisplayOrder>({
-    date: "",
-    ids: [],
-    round_checked_ids: [],
-  });
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<EnVocabKindFilter>("all");
   const [page, setPage] = useState(1);
@@ -311,26 +269,36 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const [showTeacherQuizIntro, setShowTeacherQuizIntro] = useState(false);
   const [pendingTeacherQuizSession, setPendingTeacherQuizSession] =
     useState<EnVocabTeacherQuizSession | null>(null);
-  const displayOrderRef = useRef(displayOrder);
-  const wordsRef = useRef(words);
-  const refsRef = useRef(refs);
   const editingRemarksIdRef = useRef<number | null>(null);
   const editingWordIdRef = useRef<number | null>(null);
-  const sharedTodayWordIdsRef = useRef(sharedTodayWordIds);
-  const pollInFlightRef = useRef(false);
+  const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const scrollToHighlightRef = useRef(false);
-  /** 按用法勾选写库中：用 ref 防连点并发，避免失败回滚把草稿打回未齐 */
-  const usageLevelSavingRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    displayOrderRef.current = displayOrder;
-  }, [displayOrder]);
-  useEffect(() => {
-    wordsRef.current = words;
-  }, [words]);
-  useEffect(() => {
-    refsRef.current = refs;
-  }, [refs]);
+  const {
+    words,
+    setWords,
+    refs,
+    setRefs,
+    loading,
+    refreshing,
+    displayOrder,
+    setDisplayOrder,
+    sharedTodayWordIds,
+    setSharedTodayWordIds,
+    teacherVisibleLimit,
+    setTeacherVisibleLimit,
+    displayOrderRef,
+    refsRef,
+    persistCache,
+  } = useEnVocabPageSync({
+    checking,
+    user,
+    editingRemarksWordId: editingRemarksWord?.id ?? null,
+    editingWordId: editingWord?.id ?? null,
+    setViewingRemarksWord,
+    onLoadError: setError,
+  });
+
   useEffect(() => {
     editingRemarksIdRef.current = editingRemarksWord?.id ?? null;
   }, [editingRemarksWord?.id]);
@@ -360,173 +328,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       return { key, dir: "desc" };
     });
   };
-
-  const applyVocabPayload = useCallback((payload: EnVocabApiPayload) => {
-    setWords(payload.words);
-    setRefs(payload.refs);
-    setDisplayOrder(payload.display_order);
-    setSharedTodayWordIds(new Set(payload.shared_today_word_ids ?? []));
-    setTeacherVisibleLimit(payload.teacher_visible_limit);
-    setQuizTargetInput(String(payload.teacher_visible_limit.quiz_target));
-  }, []);
-
-  const loadWords = useCallback(async (opts?: { force?: boolean }) => {
-    const cached = readVocabCache();
-    const hasCache = cached != null;
-    const cacheAge = readClientCacheAge(JP_VOCAB_CACHE_KEY);
-    const cacheFresh =
-      !opts?.force &&
-      hasCache &&
-      cacheAge != null &&
-      cacheAge < JP_VOCAB_REFRESH_TTL_MS;
-
-    if (hasCache) {
-      applyVocabPayload(cached);
-      setLoading(false);
-      if (!cacheFresh) setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError("");
-    try {
-      const payload = await fetchWithClientCache(
-        JP_VOCAB_CACHE_KEY,
-        "/api/en-vocab",
-        parseEnVocabApi,
-        {
-          onCached: applyVocabPayload,
-          ttlMs: JP_VOCAB_REFRESH_TTL_MS,
-          force: opts?.force,
-        }
-      );
-      applyVocabPayload(payload);
-    } catch (err) {
-      if (!hasCache) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [applyVocabPayload]);
-
-  useEffect(() => {
-    if (checking || !user) return;
-    void loadWords();
-  }, [loadWords, checking, user]);
-
-  const applySyncPatches = useCallback((patches: EnVocabWord[]) => {
-    if (!patches.length) return;
-    setWords((prev) => {
-      const next = mergeEnVocabSyncPatches(prev, patches);
-      persistVocabCache(next, refsRef.current, displayOrderRef.current);
-      return next;
-    });
-    setViewingRemarksWord((prev) => {
-      if (!prev) return prev;
-      const patch = patches.find((w) => w.id === prev.id);
-      if (!patch || patch.updated_at <= prev.updated_at) return prev;
-      return { ...prev, ...patch };
-    });
-  }, []);
-
-  useEffect(() => {
-    if (checking || !user) return;
-    if (loading || !words.length) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS;
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-
-      if (document.hidden || editingRemarksIdRef.current || editingWordIdRef.current) {
-        schedule(pollDelay());
-        return;
-      }
-
-      const since = maxEnVocabUpdatedAt(wordsRef.current);
-      if (!since) {
-        schedule(pollDelay());
-        return;
-      }
-
-      if (pollInFlightRef.current) {
-        schedule(pollDelay());
-        return;
-      }
-
-      pollInFlightRef.current = true;
-      try {
-        const res = await fetch(
-          `/api/en-vocab/sync?since=${encodeURIComponent(since)}`,
-          { credentials: "include" }
-        );
-        const data = (await res.json()) as {
-          ok: boolean;
-          words?: EnVocabWord[];
-          teacher_visible_limit?: EnVocabTeacherVisibleLimit;
-        };
-        if (data.ok && Array.isArray(data.words) && data.words.length) {
-          applySyncPatches(data.words);
-        }
-        if (data.ok && data.teacher_visible_limit) {
-          const next = normalizeEnVocabTeacherVisibleLimit(
-            data.teacher_visible_limit
-          );
-          setTeacherVisibleLimit((prev) => {
-            if (
-              prev.quiz_target === next.quiz_target &&
-              prev.date === next.date &&
-              (prev.visible_ids?.join(",") ?? "") ===
-                (next.visible_ids?.join(",") ?? "")
-            ) {
-              return prev;
-            }
-            return next;
-          });
-          setQuizTargetInput(String(next.quiz_target));
-          const cached = readVocabCache();
-          if (cached) {
-            writeClientCache(JP_VOCAB_CACHE_KEY, {
-              ...cached,
-              teacher_visible_limit: next,
-            });
-          }
-        }
-      } catch {
-        /* 轮询失败静默，下轮再试 */
-      } finally {
-        pollInFlightRef.current = false;
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    const onVisibility = () => {
-      if (!document.hidden && !cancelled) {
-        if (timer) clearTimeout(timer);
-        schedule(300);
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibility);
-    schedule(JP_VOCAB_POLL_MS);
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [loading, words.length, applySyncPatches, checking, user]);
-
   const displayedWords = useMemo(() => {
     if (useDailyRowOrder && displayOrder.ids.length > 0) {
       return enVocabWordsInOrder(words, displayOrder.ids);
@@ -860,18 +661,39 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const closeQuizCardPreview = useCallback(() => {
     setQuizCardPreviewWordId(null);
   }, []);
-
-  const reviewLockedByWordId = useMemo(() => {
-    const now = new Date(reviewLockNow);
-    const map: Record<number, boolean> = {};
-    for (const w of words) {
-      map[w.id] = isEnVocabWordReviewLocked(w, {
-        sessionReviewAtMs: sessionReviewAt[w.id],
-        now,
-      });
-    }
-    return map;
-  }, [words, sessionReviewAt, reviewLockNow]);
+  const {
+    savingId,
+    sharingId,
+    reviewLockedByWordId,
+    recordLevel,
+    recordUsageLevels,
+    shareWord,
+  } = useEnVocabReviewActions({
+    locale,
+    canOperate,
+    teacherShareUiEnabled,
+    displayOrder,
+    displayOrderRef,
+    sharedTodayWordIdsRef,
+    words,
+    refs,
+    sessionLevel,
+    sessionUsageLevels,
+    sessionReviewAt,
+    reviewLockNow,
+    sharedTodayWordIds,
+    setWords,
+    setDisplayOrder,
+    setSessionLevel,
+    setSessionUsageLevels,
+    setSessionReviewAt,
+    setSharedTodayWordIds,
+    setHighlightId,
+    setStatus,
+    openEnAuth,
+    refresh,
+    persistCache,
+  });
 
   const launchTeacherQuizSession = useCallback((session: EnVocabTeacherQuizSession) => {
     setQuizSession(session);
@@ -1124,402 +946,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     () => enVocabTodayCheckStats(words),
     [words]
   );
-
-  const recordLevel = async (wordId: number, level: EnVocabLevel) => {
-    if (!canOperate) {
-      setStatus("请登录后再勾选熟悉程度。");
-      openEnAuth();
-      return;
-    }
-    const lockSnapshot = words.find((w) => w.id === wordId);
-    if (
-      lockSnapshot &&
-      isEnVocabWordReviewLocked(lockSnapshot, {
-        sessionReviewAtMs: sessionReviewAt[wordId],
-        now: new Date(reviewLockNow),
-      })
-    ) {
-      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
-      return;
-    }
-    if (savingId === wordId) return;
-
-    const snapshot = lockSnapshot;
-    if (!snapshot) return;
-    const prevLevel = sessionLevel[wordId];
-    const prevReviewAt = sessionReviewAt[wordId];
-    const displayOrderSnapshot = displayOrderRef.current;
-    const nowMs = Date.now();
-
-    setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
-    setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-    setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
-    setHighlightId(wordId);
-    setStatus("");
-    setWords((prev) =>
-      prev.map((w) =>
-        w.id === wordId ? bumpEnVocabWordReview(w, level, prevLevel) : w
-      )
-    );
-    setSavingId(wordId);
-
-    try {
-      await enVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/en-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId, level }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: EnVocabWord;
-          error?: string;
-        };
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(EN_VOCAB_SAVE_ERR[locale]);
-        }
-        if (!data.ok || !data.word) {
-          const msg =
-            data.error === "review_locked" || data.error === "shared_level_locked"
-              ? "勾选已满 1 小时，无法再修改熟悉程度。"
-              : data.error || (locale === "zh" ? "保存失败" : "Save failed");
-          throw new Error(msg);
-        }
-        setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistVocabCache(next, refs, displayOrderRef.current);
-          return next;
-        });
-      });
-    } catch (err) {
-      if (snapshot) {
-        setWords((prev) =>
-          prev.map((w) => (w.id === wordId ? snapshot : w))
-        );
-      }
-      setDisplayOrder(displayOrderSnapshot);
-      setSessionLevel((prev) => {
-        const next = { ...prev };
-        if (prevLevel) next[wordId] = prevLevel;
-        else delete next[wordId];
-        return next;
-      });
-      setSessionReviewAt((prev) => {
-        const next = { ...prev };
-        if (prevReviewAt != null) next[wordId] = prevReviewAt;
-        else delete next[wordId];
-        return next;
-      });
-      setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  const recordUsageLevels = async (
-    wordId: number,
-    levels: Array<EnVocabLevel | null | undefined>
-  ) => {
-    const lockSnapshot = words.find((w) => w.id === wordId);
-    if (
-      lockSnapshot &&
-      isEnVocabWordReviewLocked(lockSnapshot, {
-        sessionReviewAtMs: sessionReviewAt[wordId],
-        now: new Date(reviewLockNow),
-      })
-    ) {
-      setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
-      return;
-    }
-
-    // 草稿始终先落本地（含未齐），保证勾选立刻回显；写库失败也不得清掉
-    setSessionUsageLevels((prev) => ({ ...prev, [wordId]: levels }));
-
-    if (!canOperate) {
-      setStatus("请登录后再勾选熟悉程度。");
-      openEnAuth();
-      return;
-    }
-
-    if (!levels.length || levels.some((lv) => lv == null)) {
-      return;
-    }
-    const complete = levels as EnVocabLevel[];
-
-    if (savingId === wordId || usageLevelSavingRef.current === wordId) return;
-
-    const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return;
-
-    const expected = listEnVocabUsagePointsForDisplay(snapshot.usage).points
-      .length;
-    if (expected > 0 && complete.length !== expected) {
-      setStatus("用法条数与勾选不一致，请刷新页面后重试。");
-      return;
-    }
-
-    let overall: EnVocabLevel;
-    try {
-      overall = aggregateEnVocabUsageLevels(complete);
-    } catch {
-      setStatus("用法熟悉程度无效，请重新勾选。");
-      return;
-    }
-
-    const prevLevel = sessionLevel[wordId];
-    const prevReviewAt = sessionReviewAt[wordId];
-    const displayOrderSnapshot = displayOrderRef.current;
-    const nowMs = Date.now();
-
-    usageLevelSavingRef.current = wordId;
-    setSessionLevel((prev) => ({ ...prev, [wordId]: overall }));
-    setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-    setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
-    setHighlightId(wordId);
-    setStatus("");
-    setWords((prev) =>
-      prev.map((w) => {
-        if (w.id !== wordId) return w;
-        const bumped = bumpEnVocabWordReview(w, overall, prevLevel);
-        return {
-          ...bumped,
-          last_usage_levels: serializeEnVocabLastUsageLevels(complete),
-        };
-      })
-    );
-    setSavingId(wordId);
-
-    try {
-      await enVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/en-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId, usage_levels: complete }),
-        });
-        let data: { ok: boolean; word?: EnVocabWord; error?: string };
-        try {
-          data = (await res.json()) as {
-            ok: boolean;
-            word?: EnVocabWord;
-            error?: string;
-          };
-        } catch {
-          throw new Error(locale === "zh" ? "保存失败" : "Save failed");
-        }
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(EN_VOCAB_SAVE_ERR[locale]);
-        }
-        if (!data.ok || !data.word) {
-          const errKey = data.error || "";
-          const msg =
-            errKey === "review_locked" || errKey === "shared_level_locked"
-              ? "勾选已满 1 小时，无法再修改熟悉程度。"
-              : errKey === "usage_levels_count_mismatch"
-                ? "用法条数与勾选不一致，请刷新页面后重试。"
-                : errKey === "usage_levels_invalid"
-                  ? "用法熟悉程度无效，请重新勾选。"
-                  : errKey === "not_found"
-                    ? "词条不存在或已删除。"
-                    : errKey || (locale === "zh" ? "保存失败" : "Save failed");
-          throw new Error(msg);
-        }
-        setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistVocabCache(next, refs, displayOrderRef.current);
-          return next;
-        });
-        // 写库成功：草稿保持 complete，与 last_usage_levels 一致
-        setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
-      });
-    } catch (err) {
-      if (snapshot) {
-        setWords((prev) =>
-          prev.map((w) => (w.id === wordId ? snapshot : w))
-        );
-      }
-      setDisplayOrder(displayOrderSnapshot);
-      setSessionLevel((prev) => {
-        const next = { ...prev };
-        if (prevLevel) next[wordId] = prevLevel;
-        else delete next[wordId];
-        return next;
-      });
-      setSessionReviewAt((prev) => {
-        const next = { ...prev };
-        if (prevReviewAt != null) next[wordId] = prevReviewAt;
-        else delete next[wordId];
-        return next;
-      });
-      // 禁止回滚 sessionUsageLevels：否则第二条用法勾选会消失，老师以为没点上
-      setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
-      setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (usageLevelSavingRef.current === wordId) {
-        usageLevelSavingRef.current = null;
-      }
-      setSavingId(null);
-    }
-  };
-
-  const shareWord = async (wordId: number) => {
-    if (!teacherShareUiEnabled) {
-      setStatus("当前页面不可共享单词。");
-      return;
-    }
-    if (!canOperate) {
-      setStatus("请登录后再共享。");
-      openEnAuth();
-      return;
-    }
-    if (sharingId === wordId || savingId === wordId) return;
-    if (sharedTodayWordIds.has(wordId)) {
-      setStatus("该词今日已共享。");
-      return;
-    }
-
-    const snapshot = words.find((w) => w.id === wordId);
-    if (!snapshot) return;
-    if (
-      isEnVocabWordReviewLocked(snapshot, {
-        sessionReviewAtMs: sessionReviewAt[wordId],
-        now: new Date(reviewLockNow),
-      })
-    ) {
-      setStatus("勾选已满 1 小时，无法再发给学生。");
-      return;
-    }
-
-    const usageSlotCount = listEnVocabUsagePointsForDisplay(snapshot.usage)
-      .points.length;
-    if (usageSlotCount > 0) {
-      const draft = sessionUsageLevels[wordId];
-      const stored = parseEnVocabLastUsageLevels(snapshot.last_usage_levels);
-      const candidate =
-        draft && draft.length === usageSlotCount
-          ? draft
-          : stored && stored.length === usageSlotCount
-            ? stored
-            : null;
-      const complete =
-        candidate != null &&
-        areEnVocabUsageLevelsComplete(candidate, usageSlotCount);
-      const hasOverall =
-        sessionLevel[wordId] != null ||
-        effectiveEnVocabDisplayLevel(snapshot, sessionLevel[wordId], {
-          displayOrder,
-        }) != null;
-      if (!complete && !hasOverall) {
-        setStatus("请先在抽查卡为每条用法勾选熟悉程度，全部勾完后再共享给学生。");
-        return;
-      }
-    }
-
-    const prevLevel = sessionLevel[wordId];
-    const prevReviewAt = sessionReviewAt[wordId];
-    const displayOrderSnapshot = displayOrderRef.current;
-    const nowMs = Date.now();
-    const weakLevel: EnVocabLevel = "weak";
-    const alreadyMarked =
-      prevLevel != null ||
-      effectiveTodayCheckCount(
-        snapshot.today_check_count ?? 0,
-        snapshot.today_check_date
-      ) > 0;
-
-    setHighlightId(wordId);
-    setStatus("");
-    if (!alreadyMarked) {
-      setSessionLevel((prev) => ({ ...prev, [wordId]: weakLevel }));
-      setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
-      setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
-      setWords((prev) =>
-        prev.map((w) =>
-          w.id === wordId ? bumpEnVocabWordReview(w, weakLevel, prevLevel) : w
-        )
-      );
-    }
-    setSharingId(wordId);
-
-    try {
-      const res = await fetch("/api/en-vocab/share", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({ word_id: wordId }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        word?: EnVocabWord;
-        error?: string;
-      };
-      if (res.status === 401) {
-        await refresh();
-        throw new Error(EN_VOCAB_SAVE_ERR[locale]);
-      }
-      if (res.status === 409 || data.error === "already_shared_today") {
-        setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
-        throw new Error("该词今日已共享。");
-      }
-      if (!data.ok || !data.word) {
-        throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
-      }
-      setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
-      setWords((prev) => {
-        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-        persistVocabCache(
-          next,
-          refs,
-          displayOrderRef.current,
-          [...sharedTodayWordIdsRef.current, wordId]
-        );
-        return next;
-      });
-      setStatus(
-        alreadyMarked
-          ? "已共享到学生「今日背英语单词」。"
-          : "已共享到学生「今日背英语单词」，并标记为不熟悉。"
-      );
-      notifyEnVocabSharedUpdated({ wordId, openRemarks: true });
-    } catch (err) {
-      if (snapshot && !alreadyMarked) {
-        setWords((prev) =>
-          prev.map((w) => (w.id === wordId ? snapshot : w))
-        );
-      }
-      if (!alreadyMarked) {
-        setDisplayOrder(displayOrderSnapshot);
-        setSessionLevel((prev) => {
-          const next = { ...prev };
-          if (prevLevel) next[wordId] = prevLevel;
-          else delete next[wordId];
-          return next;
-        });
-        setSessionReviewAt((prev) => {
-          const next = { ...prev };
-          if (prevReviewAt != null) next[wordId] = prevReviewAt;
-          else delete next[wordId];
-          return next;
-        });
-      }
-      setStatus(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSharingId(null);
-    }
-  };
-
   const setDailyQuizTarget = async () => {
     if (!isAdminMode || settingQuizTarget) return;
     const trimmed = quizTargetInput.trim();
@@ -1557,7 +983,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       );
       setTeacherVisibleLimit(next);
       setQuizTargetInput(String(next.quiz_target));
-      const prev = readVocabCache();
+      const prev = readEnVocabPageCache();
       if (prev) {
         writeClientCache(JP_VOCAB_CACHE_KEY, {
           ...prev,
@@ -1603,7 +1029,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       setWords(data.words);
       setDisplayOrder(data.display_order);
       setSharedTodayWordIds(new Set(nextSharedIds));
-      persistVocabCache(data.words, refs, data.display_order, nextSharedIds);
+      persistEnVocabPageCache(data.words, refs, data.display_order, nextSharedIds);
       setSessionLevel({});
       setSessionUsageLevels({});
       setSessionReviewAt({});
@@ -1672,7 +1098,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setWords(nextWords);
     setRefs(nextRefs);
     setDisplayOrder(nextDisplayOrder);
-    persistVocabCache(nextWords, nextRefs, nextDisplayOrder);
+    persistEnVocabPageCache(nextWords, nextRefs, nextDisplayOrder);
     setStatus(
       `已添加：${added.word}${refDeduped ? "（共用教案链接）" : ""}`
     );
@@ -1682,7 +1108,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     (word: EnVocabWord) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === word.id ? word : w));
-        persistVocabCache(next, refs, displayOrderRef.current);
+        persistEnVocabPageCache(next, refs, displayOrderRef.current);
         return next;
       });
       setEditingRemarksWord((prev) => (prev?.id === word.id ? word : prev));
@@ -1697,7 +1123,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     (wordId: number, snapshot: EnVocabWord, message: string) => {
       setWords((prev) => {
         const next = prev.map((w) => (w.id === wordId ? snapshot : w));
-        persistVocabCache(next, refs, displayOrderRef.current);
+        persistEnVocabPageCache(next, refs, displayOrderRef.current);
         return next;
       });
       setStatus(message);
@@ -1794,7 +1220,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
       const deletedSet = new Set(ids);
       setWords(data.words);
       setDisplayOrder(data.display_order);
-      persistVocabCache(data.words, refs, data.display_order);
+      persistEnVocabPageCache(data.words, refs, data.display_order);
       setSelectedDeleteIds(new Set());
       setSharedTodayWordIds((prev) => {
         const next = new Set(prev);
