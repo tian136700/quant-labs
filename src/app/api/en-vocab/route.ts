@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
 
   try {
-    const { env, allowed } = await requireEnVocabAccess(request);
+    const { env, user, allowed } = await requireEnVocabAccess(request);
     if (!allowed) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
@@ -162,6 +162,11 @@ export async function POST(request: Request) {
       ? body.usage_levels
       : null;
 
+    const shareOpts = {
+      shareToStudy: true as const,
+      sharedBy: user?.username ?? "",
+    };
+
     if (usageLevels) {
       if (!usageLevels.every(isEnVocabLevel) || !usageLevels.length) {
         return jsonResponse({ ok: false, error: "usage_levels_invalid" }, 400);
@@ -169,13 +174,19 @@ export async function POST(request: Request) {
       const result = await recordEnVocabReviewWithUsageLevels(
         env.DB,
         wordId,
-        usageLevels
+        usageLevels,
+        shareOpts
       );
       if (!result.ok) {
         const status = result.error === "not_found" ? 404 : 400;
         return jsonResponse({ ok: false, error: result.error }, status);
       }
-      return jsonResponse({ ok: true, word: result.word });
+      return jsonResponse({
+        ok: true,
+        word: result.word,
+        shared: result.shared,
+        shared_new: result.shared_new,
+      });
     }
 
     const level = body.level;
@@ -184,14 +195,19 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "level_invalid" }, 400);
     }
 
-    const result = await recordEnVocabReview(env.DB, wordId, level);
+    const result = await recordEnVocabReview(env.DB, wordId, level, shareOpts);
 
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400;
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    return jsonResponse({ ok: true, word: result.word });
+    return jsonResponse({
+      ok: true,
+      word: result.word,
+      shared: result.shared,
+      shared_new: result.shared_new,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);

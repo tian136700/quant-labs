@@ -560,6 +560,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     savingId,
     sharingId,
     reviewLockedByWordId,
+    wordSyncState,
+    shareProgressMap,
     recordLevel,
     recordUsageLevels,
     shareWord,
@@ -567,6 +569,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     locale,
     canOperate,
     teacherShareUiEnabled,
+    studentPeekedCurrentWord,
     displayOrder,
     displayOrderRef,
     sharedTodayWordIdsRef,
@@ -935,6 +938,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         sessionUsageLevels={sessionUsageLevels}
         reviewLockedByWordId={reviewLockedByWordId}
         savingId={savingId}
+        wordSyncState={wordSyncState}
+        shareProgressMap={shareProgressMap}
         dailySeqByWordId={dailySeqByWordId}
         displayQuizProgress={displayQuizProgress}
         sharedTodayWordIds={sharedTodayWordIds}

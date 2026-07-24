@@ -53,6 +53,8 @@ type EnVocabPageModalsProps = {
   sessionUsageLevels: Record<number, Array<EnVocabLevel | null | undefined>>;
   reviewLockedByWordId: Record<number, boolean>;
   savingId: number | null;
+  wordSyncState: Record<number, "queued" | "syncing">;
+  shareProgressMap: Record<number, number>;
   dailySeqByWordId: Map<number, number>;
   displayQuizProgress: EnVocabDailyQuizProgress;
   sharedTodayWordIds: Set<number>;
@@ -155,6 +157,8 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         sessionUsageLevels={props.sessionUsageLevels}
         reviewLockedByWordId={props.reviewLockedByWordId}
         savingWordId={props.savingId}
+        wordSyncState={props.wordSyncState}
+        shareProgressMap={props.shareProgressMap}
         dailySeqByWordId={props.dailySeqByWordId}
         dailyQuizProgress={props.displayQuizProgress}
         canOperate={props.canOperate}

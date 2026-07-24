@@ -1,6 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { enVocabSaveQueue } from "@/lib/request-queue";
 import { markEnVocabRoundChecked, type EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -15,15 +24,20 @@ import {
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import { bumpEnVocabWordReview, EN_VOCAB_SAVE_ERR } from "@/lib/en-vocab-page-helpers";
+import {
+  animateJpVocabShareProgressTo100,
+  jpVocabShareProgressPercent,
+} from "@/lib/jp-vocab-page-helpers";
+import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import type { EnVocabRef, EnVocabLevel, EnVocabWord } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 
 export function useEnVocabReviewActions(options: {
   locale: Locale;
   canOperate: boolean;
   teacherShareUiEnabled: boolean;
+  studentPeekedCurrentWord: boolean;
   displayOrder: EnVocabDailyDisplayOrder;
   displayOrderRef: MutableRefObject<EnVocabDailyDisplayOrder>;
   sharedTodayWordIdsRef: MutableRefObject<Set<number>>;
@@ -59,6 +73,7 @@ export function useEnVocabReviewActions(options: {
     locale,
     canOperate,
     teacherShareUiEnabled,
+    studentPeekedCurrentWord,
     displayOrder,
     displayOrderRef,
     sharedTodayWordIdsRef,
@@ -84,7 +99,73 @@ export function useEnVocabReviewActions(options: {
 
   const [savingId, setSavingId] = useState<number | null>(null);
   const [sharingId, setSharingId] = useState<number | null>(null);
+  const [wordSyncState, setWordSyncState] = useState<
+    Record<number, "queued" | "syncing">
+  >({});
+  const [shareProgressMap, setShareProgressMap] = useState<Record<number, number>>(
+    {}
+  );
+  const [saveQueuePending, setSaveQueuePending] = useState(0);
   const usageLevelSavingRef = useRef<number | null>(null);
+  const shareProgressTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(
+    new Map()
+  );
+
+  const patchShareProgress = useCallback((wordId: number, percent: number | null) => {
+    setShareProgressMap((prev) => {
+      if (percent == null) {
+        if (!(wordId in prev)) return prev;
+        const next = { ...prev };
+        delete next[wordId];
+        return next;
+      }
+      return { ...prev, [wordId]: percent };
+    });
+  }, []);
+
+  const setWordSyncPhase = useCallback(
+    (wordId: number, phase: "queued" | "syncing" | null) => {
+      setWordSyncState((prev) => {
+        if (phase == null) {
+          if (!(wordId in prev)) return prev;
+          const next = { ...prev };
+          delete next[wordId];
+          return next;
+        }
+        return { ...prev, [wordId]: phase };
+      });
+    },
+    []
+  );
+
+  const clearShareTimer = useCallback((wordId: number) => {
+    const timer = shareProgressTimersRef.current.get(wordId);
+    if (timer) {
+      clearInterval(timer);
+      shareProgressTimersRef.current.delete(wordId);
+    }
+  }, []);
+
+  useEffect(() => {
+    return enVocabSaveQueue.subscribe(setSaveQueuePending);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      for (const timer of shareProgressTimersRef.current.values()) {
+        clearInterval(timer);
+      }
+      shareProgressTimersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    for (const [wordId, phase] of Object.entries(wordSyncState)) {
+      if (phase === "syncing" && !(Number(wordId) in shareProgressMap)) {
+        patchShareProgress(Number(wordId), 0);
+      }
+    }
+  }, [wordSyncState, shareProgressMap, patchShareProgress]);
 
   const reviewLockedByWordId = useMemo(() => {
     const now = new Date(reviewLockNow);
@@ -97,6 +178,163 @@ export function useEnVocabReviewActions(options: {
     }
     return map;
   }, [words, sessionReviewAt, reviewLockNow]);
+
+  const applySharedResponse = useCallback(
+    (
+      wordId: number,
+      data: {
+        word: EnVocabWord;
+        shared?: boolean;
+        shared_new?: boolean;
+      },
+      opts: { wasAlreadyShared: boolean }
+    ) => {
+      const nextSharedIds =
+        data.shared && !sharedTodayWordIdsRef.current.has(wordId)
+          ? [...sharedTodayWordIdsRef.current, wordId]
+          : [...sharedTodayWordIdsRef.current];
+
+      setWords((prev) => {
+        const next = prev.map((w) => (w.id === data.word.id ? data.word : w));
+        persistCache(next, refs, displayOrderRef.current, nextSharedIds);
+        return next;
+      });
+      if (data.shared) {
+        setSharedTodayWordIds(new Set(nextSharedIds));
+      }
+      setStatus(
+        data.shared_new
+          ? "已勾选熟悉程度，并同步到学生「今日背英语单词」。"
+          : studentPeekedCurrentWord
+            ? "熟悉程度已保存。"
+            : opts.wasAlreadyShared || data.shared
+              ? "熟悉程度已更新，学生端已同步。"
+              : "熟悉程度已保存。"
+      );
+      if (data.shared_new) {
+        notifyEnVocabSharedUpdated({ wordId, openRemarks: true });
+      }
+    },
+    [
+      displayOrderRef,
+      persistCache,
+      refs,
+      setSharedTodayWordIds,
+      setStatus,
+      setWords,
+      sharedTodayWordIdsRef,
+      studentPeekedCurrentWord,
+    ]
+  );
+
+  const runReviewSave = useCallback(
+    async (
+      wordId: number,
+      body: Record<string, unknown>,
+      opts: {
+        wasAlreadyShared: boolean;
+        skipShareUi: boolean;
+        onSuccessExtra?: () => void;
+      }
+    ) => {
+      setWordSyncPhase(wordId, "queued");
+      patchShareProgress(wordId, JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
+      if (saveQueuePending > 0) {
+        setStatus(`已更新界面，排队同步中（${saveQueuePending + 1} 项）…`);
+      } else if (!opts.skipShareUi) {
+        setStatus("已更新界面，正在同步到学生端…");
+      } else {
+        setStatus("已更新界面，正在保存熟悉程度…");
+      }
+
+      await enVocabSaveQueue.enqueue(async () => {
+        setWordSyncPhase(wordId, "syncing");
+        const startedAt = Date.now();
+        patchShareProgress(wordId, 0);
+        clearShareTimer(wordId);
+        shareProgressTimersRef.current.set(
+          wordId,
+          setInterval(() => {
+            patchShareProgress(
+              wordId,
+              jpVocabShareProgressPercent(Date.now() - startedAt)
+            );
+          }, 200)
+        );
+
+        try {
+          const res = await fetch("/api/en-vocab", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              [LOCALE_HEADER]: locale,
+            },
+            credentials: "include",
+            body: JSON.stringify(body),
+          });
+          let data: {
+            ok: boolean;
+            word?: EnVocabWord;
+            shared?: boolean;
+            shared_new?: boolean;
+            error?: string;
+          };
+          try {
+            data = (await res.json()) as typeof data;
+          } catch {
+            throw new Error(locale === "zh" ? "保存失败" : "Save failed");
+          }
+          if (res.status === 401) {
+            await refresh();
+            throw new Error(EN_VOCAB_SAVE_ERR[locale]);
+          }
+          if (!data.ok || !data.word) {
+            const errKey = data.error || "";
+            const msg =
+              errKey === "review_locked" || errKey === "shared_level_locked"
+                ? "勾选已满 1 小时，无法再修改熟悉程度。"
+                : errKey === "usage_levels_count_mismatch"
+                  ? "用法条数与勾选不一致，请刷新页面后重试。"
+                  : errKey === "usage_levels_invalid"
+                    ? "用法熟悉程度无效，请重新勾选。"
+                    : errKey === "not_found"
+                      ? "词条不存在或已删除。"
+                      : errKey || (locale === "zh" ? "保存失败" : "Save failed");
+            throw new Error(msg);
+          }
+
+          clearShareTimer(wordId);
+          await animateJpVocabShareProgressTo100(
+            wordId,
+            startedAt,
+            (id, percent) => patchShareProgress(id, percent)
+          );
+          patchShareProgress(wordId, null);
+
+          applySharedResponse(wordId, {
+            word: data.word,
+            shared: data.shared,
+            shared_new: data.shared_new,
+          }, { wasAlreadyShared: opts.wasAlreadyShared });
+          opts.onSuccessExtra?.();
+        } finally {
+          clearShareTimer(wordId);
+          patchShareProgress(wordId, null);
+          setWordSyncPhase(wordId, null);
+        }
+      });
+    },
+    [
+      applySharedResponse,
+      clearShareTimer,
+      locale,
+      patchShareProgress,
+      refresh,
+      saveQueuePending,
+      setStatus,
+      setWordSyncPhase,
+    ]
+  );
 
   const recordLevel = async (wordId: number, level: EnVocabLevel) => {
     if (!canOperate) {
@@ -115,61 +353,51 @@ export function useEnVocabReviewActions(options: {
       setStatus("勾选已满 1 小时，无法再修改熟悉程度。");
       return;
     }
-    if (savingId === wordId) return;
+    if (savingId === wordId || wordSyncState[wordId]) return;
 
     const snapshot = lockSnapshot;
     if (!snapshot) return;
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
     const displayOrderSnapshot = displayOrderRef.current;
+    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
+    const wasAlreadyShared = sharedTodayWordIds.has(wordId);
+    const skipShareUi = wasAlreadyShared || studentPeekedCurrentWord;
     const nowMs = Date.now();
 
     setSessionLevel((prev) => ({ ...prev, [wordId]: level }));
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
     setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
     setHighlightId(wordId);
-    setStatus("");
     setWords((prev) =>
       prev.map((w) =>
         w.id === wordId ? bumpEnVocabWordReview(w, level, prevLevel) : w
       )
     );
+    if (!wasAlreadyShared) {
+      const nextSharedIds = [...sharedIdsSnapshot, wordId];
+      setSharedTodayWordIds(new Set(nextSharedIds));
+      persistCache(
+        words.map((w) =>
+          w.id === wordId ? bumpEnVocabWordReview(w, level, prevLevel) : w
+        ),
+        refs,
+        markEnVocabRoundChecked(displayOrderSnapshot, wordId),
+        nextSharedIds
+      );
+    }
     setSavingId(wordId);
 
     try {
-      await enVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/en-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
-          },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId, level }),
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          word?: EnVocabWord;
-          error?: string;
-        };
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(EN_VOCAB_SAVE_ERR[locale]);
-        }
-        if (!data.ok || !data.word) {
-          const msg =
-            data.error === "review_locked" || data.error === "shared_level_locked"
-              ? "勾选已满 1 小时，无法再修改熟悉程度。"
-              : data.error || (locale === "zh" ? "保存失败" : "Save failed");
-          throw new Error(msg);
-        }
-        setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistCache(next, refs, displayOrderRef.current);
-          return next;
-        });
-      });
+      await runReviewSave(
+        wordId,
+        { word_id: wordId, level },
+        { wasAlreadyShared, skipShareUi }
+      );
     } catch (err) {
+      clearShareTimer(wordId);
+      patchShareProgress(wordId, null);
+      setWordSyncPhase(wordId, null);
       if (snapshot) {
         setWords((prev) => prev.map((w) => (w.id === wordId ? snapshot : w)));
       }
@@ -186,6 +414,10 @@ export function useEnVocabReviewActions(options: {
         else delete next[wordId];
         return next;
       });
+      if (!wasAlreadyShared) {
+        setSharedTodayWordIds(new Set(sharedIdsSnapshot));
+        persistCache(words, refs, displayOrderSnapshot, sharedIdsSnapshot);
+      }
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingId(null);
@@ -221,7 +453,13 @@ export function useEnVocabReviewActions(options: {
     }
     const complete = levels as EnVocabLevel[];
 
-    if (savingId === wordId || usageLevelSavingRef.current === wordId) return;
+    if (
+      savingId === wordId ||
+      usageLevelSavingRef.current === wordId ||
+      wordSyncState[wordId]
+    ) {
+      return;
+    }
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return;
@@ -243,6 +481,9 @@ export function useEnVocabReviewActions(options: {
     const prevLevel = sessionLevel[wordId];
     const prevReviewAt = sessionReviewAt[wordId];
     const displayOrderSnapshot = displayOrderRef.current;
+    const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
+    const wasAlreadyShared = sharedTodayWordIds.has(wordId);
+    const skipShareUi = wasAlreadyShared || studentPeekedCurrentWord;
     const nowMs = Date.now();
 
     usageLevelSavingRef.current = wordId;
@@ -250,7 +491,6 @@ export function useEnVocabReviewActions(options: {
     setSessionReviewAt((prev) => ({ ...prev, [wordId]: nowMs }));
     setDisplayOrder((prev) => markEnVocabRoundChecked(prev, wordId));
     setHighlightId(wordId);
-    setStatus("");
     setWords((prev) =>
       prev.map((w) => {
         if (w.id !== wordId) return w;
@@ -261,55 +501,41 @@ export function useEnVocabReviewActions(options: {
         };
       })
     );
+    if (!wasAlreadyShared) {
+      const nextSharedIds = [...sharedIdsSnapshot, wordId];
+      setSharedTodayWordIds(new Set(nextSharedIds));
+      persistCache(
+        words.map((w) => {
+          if (w.id !== wordId) return w;
+          const bumped = bumpEnVocabWordReview(w, overall, prevLevel);
+          return {
+            ...bumped,
+            last_usage_levels: serializeEnVocabLastUsageLevels(complete),
+          };
+        }),
+        refs,
+        markEnVocabRoundChecked(displayOrderSnapshot, wordId),
+        nextSharedIds
+      );
+    }
     setSavingId(wordId);
 
     try {
-      await enVocabSaveQueue.enqueue(async () => {
-        const res = await fetch("/api/en-vocab", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            [LOCALE_HEADER]: locale,
+      await runReviewSave(
+        wordId,
+        { word_id: wordId, usage_levels: complete },
+        {
+          wasAlreadyShared,
+          skipShareUi,
+          onSuccessExtra: () => {
+            setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
           },
-          credentials: "include",
-          body: JSON.stringify({ word_id: wordId, usage_levels: complete }),
-        });
-        let data: { ok: boolean; word?: EnVocabWord; error?: string };
-        try {
-          data = (await res.json()) as {
-            ok: boolean;
-            word?: EnVocabWord;
-            error?: string;
-          };
-        } catch {
-          throw new Error(locale === "zh" ? "保存失败" : "Save failed");
         }
-        if (res.status === 401) {
-          await refresh();
-          throw new Error(EN_VOCAB_SAVE_ERR[locale]);
-        }
-        if (!data.ok || !data.word) {
-          const errKey = data.error || "";
-          const msg =
-            errKey === "review_locked" || errKey === "shared_level_locked"
-              ? "勾选已满 1 小时，无法再修改熟悉程度。"
-              : errKey === "usage_levels_count_mismatch"
-                ? "用法条数与勾选不一致，请刷新页面后重试。"
-                : errKey === "usage_levels_invalid"
-                  ? "用法熟悉程度无效，请重新勾选。"
-                  : errKey === "not_found"
-                    ? "词条不存在或已删除。"
-                    : errKey || (locale === "zh" ? "保存失败" : "Save failed");
-          throw new Error(msg);
-        }
-        setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
-          persistCache(next, refs, displayOrderRef.current);
-          return next;
-        });
-        setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
-      });
+      );
     } catch (err) {
+      clearShareTimer(wordId);
+      patchShareProgress(wordId, null);
+      setWordSyncPhase(wordId, null);
       if (snapshot) {
         setWords((prev) => prev.map((w) => (w.id === wordId ? snapshot : w)));
       }
@@ -326,7 +552,12 @@ export function useEnVocabReviewActions(options: {
         else delete next[wordId];
         return next;
       });
+      // 写库失败：用法草稿保持 complete（禁止回滚成未齐，见 usage-level-aggregate 规则）
       setSessionUsageLevels((prev) => ({ ...prev, [wordId]: complete }));
+      if (!wasAlreadyShared) {
+        setSharedTodayWordIds(new Set(sharedIdsSnapshot));
+        persistCache(words, refs, displayOrderSnapshot, sharedIdsSnapshot);
+      }
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       if (usageLevelSavingRef.current === wordId) {
@@ -346,7 +577,9 @@ export function useEnVocabReviewActions(options: {
       openEnAuth();
       return;
     }
-    if (sharingId === wordId || savingId === wordId) return;
+    if (sharingId === wordId || savingId === wordId || wordSyncState[wordId]) {
+      return;
+    }
     if (sharedTodayWordIds.has(wordId)) {
       setStatus("该词今日已共享。");
       return;
@@ -414,6 +647,19 @@ export function useEnVocabReviewActions(options: {
       );
     }
     setSharingId(wordId);
+    setWordSyncPhase(wordId, "syncing");
+    const startedAt = Date.now();
+    patchShareProgress(wordId, 0);
+    clearShareTimer(wordId);
+    shareProgressTimersRef.current.set(
+      wordId,
+      setInterval(() => {
+        patchShareProgress(
+          wordId,
+          jpVocabShareProgressPercent(Date.now() - startedAt)
+        );
+      }, 200)
+    );
 
     try {
       const res = await fetch("/api/en-vocab/share", {
@@ -441,6 +687,11 @@ export function useEnVocabReviewActions(options: {
       if (!data.ok || !data.word) {
         throw new Error(data.error || (locale === "zh" ? "共享失败" : "Share failed"));
       }
+      clearShareTimer(wordId);
+      await animateJpVocabShareProgressTo100(wordId, startedAt, (id, percent) =>
+        patchShareProgress(id, percent)
+      );
+      patchShareProgress(wordId, null);
       setSharedTodayWordIds((prev) => new Set([...prev, wordId]));
       setWords((prev) => {
         const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
@@ -479,6 +730,9 @@ export function useEnVocabReviewActions(options: {
       }
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
+      clearShareTimer(wordId);
+      patchShareProgress(wordId, null);
+      setWordSyncPhase(wordId, null);
       setSharingId(null);
     }
   };
@@ -487,6 +741,8 @@ export function useEnVocabReviewActions(options: {
     savingId,
     sharingId,
     reviewLockedByWordId,
+    wordSyncState,
+    shareProgressMap,
     recordLevel,
     recordUsageLevels,
     shareWord,

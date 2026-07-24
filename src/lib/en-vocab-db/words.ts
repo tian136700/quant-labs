@@ -165,8 +165,21 @@ export async function listEnVocabWordsChangedSince(
   return (result.results || []).map(mapRow);
 }
 
+export type RecordEnVocabReviewOptions = {
+  /** 勾选后同步到学生「今日背英语单词」（对齐日语 shareToStudy） */
+  shareToStudy?: boolean;
+  sharedBy?: string;
+};
+
 export type RecordEnVocabReviewResult =
-  | { ok: true; word: EnVocabWord }
+  | {
+      ok: true;
+      word: EnVocabWord;
+      /** 该词今日已在共享列表（含本次新写入或原本已共享） */
+      shared?: boolean;
+      /** 本次新写入 en_vocab_shared */
+      shared_new?: boolean;
+    }
   | { ok: false; error: string };
 
 export async function persistEnVocabReviewUpdate(
@@ -174,7 +187,8 @@ export async function persistEnVocabReviewUpdate(
   wordId: number,
   current: EnVocabWord,
   level: EnVocabLevel,
-  usageLevels: EnVocabLevel[] | null
+  usageLevels: EnVocabLevel[] | null,
+  options?: RecordEnVocabReviewOptions
 ): Promise<RecordEnVocabReviewResult> {
   const { word: reviewed } = applyEnVocabReview(current, level);
   const updated: EnVocabWord =
@@ -185,17 +199,66 @@ export async function persistEnVocabReviewUpdate(
         }
       : reviewed;
 
+  const sharedByTrim = (options?.sharedBy || "").trim();
+  const shouldShare = Boolean(options?.shareToStudy && sharedByTrim);
+
   if (enVocabDbState.devStoreEnabled) {
     const idx = enVocabDbState.devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
     enVocabDbState.devWords[idx] = updated;
-    enVocabDbState.devDailyDisplayOrder = markEnVocabRoundChecked(enVocabDbState.devDailyDisplayOrder, wordId);
-    return { ok: true, word: updated };
+    enVocabDbState.devDailyDisplayOrder = markEnVocabRoundChecked(
+      enVocabDbState.devDailyDisplayOrder,
+      wordId
+    );
+
+    let shared = false;
+    let shared_new = false;
+    if (shouldShare) {
+      await ensureEnVocabSharedSchema(db);
+      const today = beijingDateString();
+      const already = enVocabDbState.devShared.some(
+        (s) => s.share_date === today && s.word_id === wordId
+      );
+      shared = already;
+      if (!already) {
+        const ts = updated.updated_at || nowIso();
+        enVocabDbState.devShared.push({
+          id: enVocabDbState.devSharedNextId++,
+          word_id: wordId,
+          shared_by: sharedByTrim,
+          shared_at: ts,
+          share_date: today,
+        });
+        shared = true;
+        shared_new = true;
+      }
+    }
+    if (shared_new) {
+      invalidateEnVocabSharedTodayCache();
+    }
+    return { ok: true, word: updated, shared, shared_new };
   }
 
-  const result = await db
-    .prepare(
-      `UPDATE en_vocab_word
+  if (shouldShare) {
+    await ensureEnVocabSharedSchema(db);
+  }
+  const today = beijingDateString();
+  let alreadySharedToday = false;
+  if (shouldShare) {
+    const existing = await db
+      .prepare(
+        `SELECT 1 AS ok FROM en_vocab_shared
+         WHERE share_date = ?1 AND word_id = ?2
+         LIMIT 1`
+      )
+      .bind(today, wordId)
+      .first<{ ok: number }>();
+    alreadySharedToday = Boolean(existing);
+  }
+  const batchStmts = [
+    db
+      .prepare(
+        `UPDATE en_vocab_word
        SET cnt_very = ?1,
            cnt_normal = ?2,
            cnt_weak = ?3,
@@ -206,35 +269,61 @@ export async function persistEnVocabReviewUpdate(
            last_usage_levels = COALESCE(?8, last_usage_levels),
            updated_at = ?9
        WHERE id = ?10`
-    )
-    .bind(
-      updated.cnt_very,
-      updated.cnt_normal,
-      updated.cnt_weak,
-      updated.today_check_count,
-      updated.today_check_date,
-      updated.last_review_level,
-      updated.last_review_at,
-      usageLevels != null
-        ? serializeEnVocabLastUsageLevels(usageLevels)
-        : null,
-      updated.updated_at,
-      wordId
-    )
-    .run();
+      )
+      .bind(
+        updated.cnt_very,
+        updated.cnt_normal,
+        updated.cnt_weak,
+        updated.today_check_count,
+        updated.today_check_date,
+        updated.last_review_level,
+        updated.last_review_at,
+        usageLevels != null
+          ? serializeEnVocabLastUsageLevels(usageLevels)
+          : null,
+        updated.updated_at,
+        wordId
+      ),
+  ];
 
-  if (!result.meta?.changes) {
+  if (shouldShare && !alreadySharedToday) {
+    batchStmts.push(
+      db
+        .prepare(
+          `INSERT INTO en_vocab_shared (word_id, shared_by, shared_at, share_date)
+       VALUES (?1, ?2, ?3, ?4)`
+        )
+        .bind(wordId, sharedByTrim, updated.updated_at, today)
+    );
+  }
+
+  const batchResults = await db.batch(batchStmts);
+
+  if (!batchResults[0]?.meta?.changes) {
     return { ok: false, error: "not_found" };
   }
 
   await markEnVocabWordRoundChecked(db, wordId);
-  return { ok: true, word: updated };
+
+  let shared = false;
+  let shared_new = false;
+  if (shouldShare) {
+    shared_new = !alreadySharedToday;
+    shared = shared_new || alreadySharedToday;
+  }
+
+  if (shared_new) {
+    invalidateEnVocabSharedTodayCache();
+  }
+
+  return { ok: true, word: updated, shared, shared_new };
 }
 
 export async function recordEnVocabReview(
   db: D1Database,
   wordId: number,
-  level: EnVocabLevel
+  level: EnVocabLevel,
+  options?: RecordEnVocabReviewOptions
 ): Promise<RecordEnVocabReviewResult> {
   if (!Number.isInteger(wordId) || wordId <= 0) {
     return { ok: false, error: "word_id_invalid" };
@@ -253,7 +342,7 @@ export async function recordEnVocabReview(
     if (isEnVocabWordReviewLocked(current)) {
       return { ok: false, error: "review_locked" };
     }
-    return persistEnVocabReviewUpdate(db, wordId, current, level, null);
+    return persistEnVocabReviewUpdate(db, wordId, current, level, null, options);
   }
 
   const row = await db
@@ -267,14 +356,15 @@ export async function recordEnVocabReview(
     return { ok: false, error: "review_locked" };
   }
 
-  return persistEnVocabReviewUpdate(db, wordId, current, level, null);
+  return persistEnVocabReviewUpdate(db, wordId, current, level, null, options);
 }
 
-/** 老师抽查卡：按用法勾选 → 汇总总体后写入 cnt_* / last_review_* / last_usage_levels */
+/** 老师抽查卡：按用法勾选 → 汇总总体后写入 cnt_* / last_review_* / last_usage_levels；可顺带共享到学生端 */
 export async function recordEnVocabReviewWithUsageLevels(
   db: D1Database,
   wordId: number,
-  usageLevels: EnVocabLevel[]
+  usageLevels: EnVocabLevel[],
+  options?: RecordEnVocabReviewOptions
 ): Promise<RecordEnVocabReviewResult> {
   if (!Number.isInteger(wordId) || wordId <= 0) {
     return { ok: false, error: "word_id_invalid" };
@@ -323,7 +413,14 @@ export async function recordEnVocabReviewWithUsageLevels(
     return { ok: false, error: "usage_levels_invalid" };
   }
 
-  return persistEnVocabReviewUpdate(db, wordId, current, overall, usageLevels);
+  return persistEnVocabReviewUpdate(
+    db,
+    wordId,
+    current,
+    overall,
+    usageLevels,
+    options
+  );
 }
 
 export type ResetEnVocabReviewsResult =

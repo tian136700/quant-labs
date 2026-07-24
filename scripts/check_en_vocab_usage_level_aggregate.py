@@ -101,14 +101,38 @@ def main() -> int:
         "last_usage_levels",
         'addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels"',
         "recordEnVocabReviewWithUsageLevels",
+        "shareToStudy",
+        "shared_new",
+        "INSERT INTO en_vocab_shared",
+        "RecordEnVocabReviewOptions",
     ]:
         if n not in db_text:
             errors.append(f"en-vocab-db/: missing {n!r}")
 
     route = ROOT / "src/app/api/en-vocab/route.ts"
-    for n in ["usage_levels", "recordEnVocabReviewWithUsageLevels"]:
-        if n not in route.read_text(encoding="utf-8"):
+    route_text = route.read_text(encoding="utf-8")
+    for n in [
+        "usage_levels",
+        "recordEnVocabReviewWithUsageLevels",
+        "shareToStudy: true",
+        "shared_new",
+    ]:
+        if n not in route_text:
             errors.append(f"en-vocab/route.ts: missing {n!r}")
+
+    hook = ROOT / "src/hooks/useEnVocabReviewActions.ts"
+    if not hook.is_file():
+        errors.append(f"missing {hook.relative_to(ROOT)}")
+    else:
+        hook_text = hook.read_text(encoding="utf-8")
+        for n in [
+            "notifyEnVocabSharedUpdated",
+            "shared_new",
+            "今日背英语单词",
+            "shareProgressMap",
+        ]:
+            if n not in hook_text:
+                errors.append(f"useEnVocabReviewActions.ts: missing {n!r}")
 
     flash = ROOT / "src/components/EnVocabTeacherQuizFlashcardModal.tsx"
     flash_dir = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
