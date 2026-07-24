@@ -1,4 +1,4 @@
-/** 手机端新课状态 Tab（学习中 / 未完成 / 已完成）localStorage 记忆 */
+/** 新课状态 Tab（学习中 / 未完成 / 已完成；手机+桌面共用）localStorage 记忆 */
 
 export type LessonMobileStatusFilter = "pending" | "learning" | "completed";
 

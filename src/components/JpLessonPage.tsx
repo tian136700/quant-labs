@@ -2560,10 +2560,77 @@ export function JpLessonPage() {
           overflow: visible;
           border-collapse: collapse;
         }
+        /* 桌面与手机同一套状态 Tab：只显示当前一类（搜索时例外，见 filter-search） */
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-filter) {
+          display: flex;
+          gap: 0.5rem;
+          margin: 0 0 0.75rem;
+        }
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab) {
+          flex: 1 1 0;
+          display: inline-flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 0.4rem;
+          min-height: 2.5rem;
+          padding: 0.45rem 0.75rem;
+          border: 1px solid var(--border);
+          border-radius: 10px;
+          background: var(--panel);
+          color: var(--muted);
+          font: inherit;
+          font-size: 0.9375rem;
+          font-weight: 600;
+          line-height: 1.2;
+          cursor: pointer;
+          transition:
+            border-color 0.15s ease,
+            background 0.15s ease,
+            color 0.15s ease;
+        }
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab-count) {
+          font-size: 0.8125rem;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          opacity: 0.85;
+        }
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab--learning.is-active) {
+          color: var(--accent);
+          border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab--pending.is-active) {
+          color: var(--text);
+          border-color: color-mix(in srgb, var(--text) 25%, var(--border));
+          background: color-mix(in srgb, var(--text) 6%, var(--panel));
+        }
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab--completed.is-active) {
+          color: var(--fall);
+          border-color: color-mix(in srgb, var(--fall) 50%, var(--border));
+          background: color-mix(in srgb, var(--fall) 10%, var(--panel));
+        }
+        .jp-lesson-cards.jp-lesson-mobile-filter-learning :global(.jp-lesson-status-card--pending),
+        .jp-lesson-cards.jp-lesson-mobile-filter-learning :global(.jp-lesson-status-card--completed),
+        .jp-lesson-cards.jp-lesson-mobile-filter-pending :global(.jp-lesson-status-card--learning),
+        .jp-lesson-cards.jp-lesson-mobile-filter-pending :global(.jp-lesson-status-card--completed),
+        .jp-lesson-cards.jp-lesson-mobile-filter-completed :global(.jp-lesson-status-card--learning),
+        .jp-lesson-cards.jp-lesson-mobile-filter-completed :global(.jp-lesson-status-card--pending) {
+          display: none !important;
+        }
+        .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--learning),
+        .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--pending),
+        .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--completed) {
+          display: block !important;
+        }
+        /* Tab 已标状态，隐藏区块大标题，避免与选项卡重复；搜索跨组时再显示 */
+        .jp-lesson-cards :global(.jp-lesson-status-card-head) {
+          display: none;
+        }
+        .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card-head) {
+          display: flex;
+        }
         @media (min-width: 768px) {
-          :global(.jp-lesson-mobile-status-filter) {
-            display: none;
-          }
           /* Excel 式冻结表头：区内滚动时列名（老师/时间等）始终可见 */
           :global(.jp-lesson-table-wrap) {
             overflow-y: auto;
