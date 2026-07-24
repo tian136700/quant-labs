@@ -9,37 +9,61 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+
+def read_page_bundle(page: Path, sibling_dir: Path | None = None) -> str:
+    """Page + optional extracted `*-page/` directory (Styles / Table / helpers)."""
+    parts = [page.read_text(encoding="utf-8")]
+    if sibling_dir is not None and sibling_dir.is_dir():
+        for p in sorted(sibling_dir.glob("*.tsx")):
+            parts.append(p.read_text(encoding="utf-8"))
+        for p in sorted(sibling_dir.glob("*.ts")):
+            parts.append(p.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
 CHECKS = [
     (
-        ROOT / "src/components/JpLessonPage.tsx",
+        "jp-lesson annotate open",
+        read_page_bundle(
+            ROOT / "src/components/JpLessonPage.tsx",
+            ROOT / "src/components/jp-lesson-page",
+        ),
         {
             "must": [
                 r"jpVocabRefApiPath\(lesson\.ref_key!,\s*\{\s*v:\s*ref\.updated_at\s*\}\)",
-                r"setAnnotatingLesson\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl\s*\}\)",
+                # page may pass setAnnotatingLesson; table calls onAnnotateLesson
+                r"(?:setAnnotatingLesson|onAnnotateLesson)\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl\s*\}\)",
                 r"imageUrl=\{annotatingLesson\?\.imageUrl",
             ],
             "forbid": [
                 r"setAnnotatingLesson\(\{[^}]*viewUrl",
+                r"onAnnotateLesson\(\{[^}]*viewUrl",
                 r"imageUrl=\{annotatingLesson\?\.viewUrl",
             ],
         },
     ),
     (
-        ROOT / "src/components/EnLessonPage.tsx",
+        "en-lesson annotate open",
+        read_page_bundle(
+            ROOT / "src/components/EnLessonPage.tsx",
+            ROOT / "src/components/en-lesson-page",
+        ),
         {
             "must": [
                 r"enVocabRefApiPath\(lesson\.ref_key!,\s*\{\s*v:\s*ref\.updated_at\s*\}\)",
-                r"setAnnotatingLesson\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl\s*\}\)",
+                r"(?:setAnnotatingLesson|onAnnotateLesson)\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl\s*\}\)",
                 r"imageUrl=\{annotatingLesson\?\.imageUrl",
             ],
             "forbid": [
                 r"setAnnotatingLesson\(\{[^}]*viewUrl",
+                r"onAnnotateLesson\(\{[^}]*viewUrl",
                 r"imageUrl=\{annotatingLesson\?\.viewUrl",
             ],
         },
     ),
     (
-        ROOT / "src/components/JpLessonAnnotateModal.tsx",
+        "JpLessonAnnotateModal",
+        (ROOT / "src/components/JpLessonAnnotateModal.tsx").read_text(encoding="utf-8"),
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
@@ -58,7 +82,8 @@ CHECKS = [
         },
     ),
     (
-        ROOT / "src/components/EnLessonAnnotateModal.tsx",
+        "EnLessonAnnotateModal",
+        (ROOT / "src/components/EnLessonAnnotateModal.tsx").read_text(encoding="utf-8"),
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
@@ -81,15 +106,14 @@ CHECKS = [
 
 def main() -> int:
     failed = False
-    for path, spec in CHECKS:
-        text = path.read_text(encoding="utf-8")
+    for label, text, spec in CHECKS:
         for pat in spec["must"]:
             if not re.search(pat, text):
-                print(f"FAIL {path.relative_to(ROOT)}: missing /{pat}/")
+                print(f"FAIL {label}: missing /{pat}/")
                 failed = True
         for pat in spec["forbid"]:
             if re.search(pat, text):
-                print(f"FAIL {path.relative_to(ROOT)}: forbidden /{pat}/")
+                print(f"FAIL {label}: forbidden /{pat}/")
                 failed = True
     if failed:
         return 1

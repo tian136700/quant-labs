@@ -176,7 +176,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 | path | 中文名 | 页面 | 主组件 |
 |------|--------|------|--------|
-| `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` |
+| `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` + `jp-lesson-page/`（Styles / StatusTable / helpers） |
 | `/jp-lesson/notes` | 课堂笔记（按知识点；**支持粘贴/上传图片**；已完成新课保存后同步到日语抽问 `class_notes`，文字+图片） | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
 | `/jp-lesson/schedule` | **日程管理（顶栏一级模块）**（统一日语 + 英语新课 + 手动日程；**不挂在「日语」二级下**） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` |
 | `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理**（默认日语；`?subject=en` 英语；`?subject=ko` 韩语可建登录账号；**搜索跨日语+英语+韩语模糊匹配**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
