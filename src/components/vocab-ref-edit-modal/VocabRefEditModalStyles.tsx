@@ -2,7 +2,7 @@
 
 export function VocabRefEditModalStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
 
         .jp-ref-edit-overlay {
           position: fixed;

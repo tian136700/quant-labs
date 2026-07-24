@@ -2,7 +2,7 @@
 
 export function KoPronPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
 
         .ko-pron-page {
           max-width: 1100px;

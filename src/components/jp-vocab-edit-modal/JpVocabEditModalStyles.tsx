@@ -3,7 +3,7 @@
 /** Extracted from JpVocabEditModal. */
 export function JpVocabEditModalStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
         .jp-vocab-edit-overlay {
           position: fixed;
           inset: 0;

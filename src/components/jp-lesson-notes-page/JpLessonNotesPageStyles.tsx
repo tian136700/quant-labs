@@ -2,7 +2,7 @@
 
 export function JpLessonNotesPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
 
         .jp-lesson-notes-page-head {
           display: flex;

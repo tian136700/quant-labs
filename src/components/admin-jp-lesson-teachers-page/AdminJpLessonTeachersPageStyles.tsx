@@ -3,7 +3,7 @@
 /** Extracted from AdminJpLessonTeachersPage.tsx. */
 export function AdminJpLessonTeachersPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
 
         .admin-jpl-teacher-user-link {
           color: var(--accent, #6eb5ff);

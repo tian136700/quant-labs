@@ -3,7 +3,7 @@
 /** Extracted from JpLessonPage to keep the page orchestrator smaller. */
 export function JpLessonPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
           max-width: min(1320px, 92vw);
         }

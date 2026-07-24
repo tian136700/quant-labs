@@ -2,7 +2,7 @@
 
 export function JpClassNotesEditModalStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
 
         .jp-notes-edit-overlay {
           position: fixed;

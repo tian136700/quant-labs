@@ -3,7 +3,7 @@
 /** Extracted from AdminUsersPage.tsx. */
 export function AdminUsersPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
         .admin-users-toolbar {
           display: flex;
           align-items: flex-start;

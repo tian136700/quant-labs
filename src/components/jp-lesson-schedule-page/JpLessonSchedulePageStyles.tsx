@@ -3,7 +3,7 @@
 /** Extracted from JpLessonSchedulePage.tsx. */
 export function JpLessonSchedulePageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
         :global(.page-wrap:has(.jp-lesson-schedule-page)) {
           max-width: min(1480px, 96vw);
         }

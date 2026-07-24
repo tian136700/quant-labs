@@ -3,7 +3,7 @@
 /** Extracted from EnLessonPage.tsx. */
 export function EnLessonPageStyles() {
   return (
-    <style jsx>{`
+    <style jsx global>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
           max-width: min(1320px, 92vw);
         }
