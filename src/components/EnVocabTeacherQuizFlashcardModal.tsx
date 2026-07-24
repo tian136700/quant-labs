@@ -684,15 +684,23 @@ export function EnVocabTeacherQuizFlashcardModal({
               </div>
             </div>
           ) : null}
+          {studentPeeked && !isStudy ? (
+            <div
+              className="jp-vocab-teacher-quiz__student-peek-banner"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="jp-vocab-teacher-quiz__student-peek-banner-mark" aria-hidden="true">
+                ●
+              </span>
+              <span className="jp-vocab-teacher-quiz__student-peek-banner-text">
+                该学生已查看该单词
+              </span>
+            </div>
+          ) : null}
         </header>
 
         <div className="jp-vocab-teacher-quiz__scroll-body en-vocab-flashcard-page__body">
-          {studentPeeked && !isStudy ? (
-            <p className="jp-vocab-teacher-quiz__student-peek-hint" role="status">
-              该学生已查看该单词
-            </p>
-          ) : null}
-
           <div
             className={`en-vocab-flashcard-page__grid${
               showSideCol ? "" : " en-vocab-flashcard-page__grid--single"

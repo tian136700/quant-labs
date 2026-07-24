@@ -26,9 +26,11 @@ def fail(msg: str) -> None:
 
 def main() -> None:
     page = read("src/components/EnVocabPage.tsx")
+    styles = read("src/components/en-vocab-page/EnVocabPageStyles.tsx")
     shared = read("src/lib/en-vocab-shared.ts")
     fmt = read("src/lib/format-datetime.ts")
     page_n = page.replace("\r\n", "\n")
+    css = (page + "\n" + styles).replace("\r\n", "\n")
 
     if 'colSpan={4} className="jp-vocab-stats-group"' in page:
         fail("EnVocabPage must not use 4-column stats-group header (use jp-vocab-stats-col)")
@@ -36,8 +38,8 @@ def main() -> None:
         fail("EnVocabPage must render jp-vocab-stats-col (aligned with Japanese)")
     if 'className="jp-vocab-stats-grid"' not in page:
         fail("EnVocabPage must render jp-vocab-stats-grid 2x2 body")
-    if ".jp-vocab-stat-total) {\n          white-space: nowrap" in page_n:
-        fail("EnVocabPage must not force nowrap on jp-vocab-stat-total (overflows neighbor)")
+    if ".jp-vocab-stat-total) {\n          white-space: nowrap" in css:
+        fail("must not force nowrap on jp-vocab-stat-total (overflows neighbor)")
 
     if '["从未", "抽查"]' not in shared and "['从未', '抽查']" not in shared:
         fail("formatEnVocabTotalReviewsDisplay must expose labelLines 从未/抽查")
@@ -50,22 +52,24 @@ def main() -> None:
         fail("EnVocabPage must use renderEnVocabUpdatedAt (date/time stacked)")
     if "jp-vocab-updated-time--stacked" not in page:
         fail("EnVocabPage must render jp-vocab-updated-time--stacked")
+    if "EnVocabPageStyles" not in page:
+        fail("EnVocabPage must mount EnVocabPageStyles (styles extracted from page)")
     # Helper is outside the component; scoped styled-jsx never applies → glued "07-2403:50"
-    if ":global(.jp-vocab-updated-time--stacked)" not in page:
+    if ":global(.jp-vocab-updated-time--stacked)" not in css:
         fail(
-            "EnVocabPage must use :global(.jp-vocab-updated-time--stacked) "
+            "EnVocabPageStyles must use :global(.jp-vocab-updated-time--stacked) "
             "(renderEnVocabUpdatedAt is outside the component)"
         )
-    if ":global(.jp-vocab-updated-date)" not in page:
-        fail("EnVocabPage must :global(.jp-vocab-updated-date) with nowrap")
+    if ":global(.jp-vocab-updated-date)" not in css:
+        fail("EnVocabPageStyles must :global(.jp-vocab-updated-date) with nowrap")
     if "formatBeijingDateTimeCompact(" in page and "formatBeijingDateTimeCompactParts" not in page:
         fail("EnVocabPage must not render single-line formatBeijingDateTimeCompact in table")
     if (
         ".jp-vocab-updated-col) {\n          white-space: nowrap"
-        in page_n
-        or ".jp-vocab-updated-col) {\n            white-space: nowrap" in page_n
+        in css
+        or ".jp-vocab-updated-col) {\n            white-space: nowrap" in css
     ):
-        fail("EnVocabPage must not force nowrap on jp-vocab-updated-col (truncates time)")
+        fail("must not force nowrap on jp-vocab-updated-col (truncates time)")
 
     rule = read(".cursor/rules/en-vocab-table-actions-visible.mdc")
     if "stats-grid" not in rule or "从未" not in rule:

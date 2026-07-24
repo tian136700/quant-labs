@@ -1,4 +1,4 @@
-import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
   ensureEnVocabDailyDisplayOrder,
   ensureEnVocabTeacherVisibleLimit,
@@ -12,7 +12,7 @@ import {
   setEnVocabDailyQuizStyle,
   setEnVocabDailyQuizTarget,
 } from "@/lib/en-vocab-db";
-import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
+import { requireEnVocabAccess, requireEnVocabRead } from "@/lib/en-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
 import { redactJpVocabWordsMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
 import {
@@ -27,6 +27,11 @@ const AUTH_MSG = {
   zh: "请登录后再操作。",
 };
 
+const READ_AUTH_MSG = {
+  en: "Please log in to view English vocabulary.",
+  zh: "请登录后查看英语抽背。",
+};
+
 function parseEnVocabDailyQuizTargetCount(raw: unknown): number | null {
   const n = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(n)) return null;
@@ -36,8 +41,13 @@ function parseEnVocabDailyQuizTargetCount(raw: unknown): number | null {
 }
 
 export async function GET(request: Request) {
+  const locale = localeFromRequest(request);
+
   try {
-    const env = await getCloudflareEnv();
+    const { env, allowed } = await requireEnVocabRead(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: READ_AUTH_MSG[locale] }, 401);
+    }
     const { isAdmin } = await requireAdmin(request);
     const [{ words, refs }, daily_quiz_style, shared_today_word_ids] =
       await Promise.all([

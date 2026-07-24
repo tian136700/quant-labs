@@ -336,6 +336,51 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             0 0 0 1px color-mix(in srgb, #f0a840 35%, transparent) inset,
             0 2px 10px color-mix(in srgb, #f0a840 25%, transparent);
         }
+        /* 钉在抽查卡顶栏：学生已查看提示不随用法区滚动消失，直到点「下一个」 */
+        .jp-vocab-teacher-quiz__student-peek-banner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          margin: 0.35rem 0 0;
+          padding: 0.65rem 0.85rem;
+          border-radius: 10px;
+          border: 2px solid #f5a623;
+          background: linear-gradient(
+            180deg,
+            color-mix(in srgb, #f5a623 42%, #1a1208) 0%,
+            color-mix(in srgb, #f5a623 22%, var(--panel)) 100%
+          );
+          color: #ffe7a8;
+          font-size: 1rem;
+          font-weight: 800;
+          text-align: center;
+          line-height: 1.4;
+          letter-spacing: 0.04em;
+          box-shadow:
+            0 0 0 1px color-mix(in srgb, #f5a623 45%, transparent) inset,
+            0 4px 16px color-mix(in srgb, #f5a623 35%, transparent);
+        }
+        .jp-vocab-teacher-quiz__student-peek-banner-mark {
+          color: #ffcf66;
+          font-size: 0.85rem;
+          line-height: 1;
+          animation: jp-vocab-student-peek-pulse 1.4s ease-in-out infinite;
+        }
+        .jp-vocab-teacher-quiz__student-peek-banner-text {
+          flex: 0 1 auto;
+        }
+        @keyframes jp-vocab-student-peek-pulse {
+          0%,
+          100% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.45;
+            transform: scale(0.85);
+          }
+        }
         .jp-vocab-teacher-quiz__hero {
           text-align: center;
           padding: 0.15rem 0 0;

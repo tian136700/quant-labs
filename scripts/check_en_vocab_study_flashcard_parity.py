@@ -50,6 +50,17 @@ def main() -> None:
             fail("EnVocabTeacherQuizFlashcardModal must support mode=study")
     if "该学生已查看该单词" not in modal:
         fail("EnVocabTeacherQuizFlashcardModal missing student-peeked banner copy")
+    if "jp-vocab-teacher-quiz__student-peek-banner" not in modal:
+        fail("peek banner must sit in card header (student-peek-banner), not only scroll body")
+    if "setStudentPeekedCurrentWord(true)" not in teacher:
+        fail("EnVocabPage must latch studentPeeked=true until next word")
+    if "setStudentPeekedCurrentWord(peeked)" in teacher:
+        fail("EnVocabPage must not overwrite peek latch with poll false")
+
+    if "TeacherReviewAuth" not in teacher:
+        fail("EnVocabPage must require login via TeacherReviewAuth (no anonymous browse)")
+    if "请登录后继续访问英语抽背" not in teacher:
+        fail("EnVocabPage login gate missing copy")
 
     print("OK: en-vocab study flashcard / peek parity")
 
