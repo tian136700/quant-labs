@@ -111,7 +111,9 @@
 | 样式 | `admin-users-page/AdminUsersPageStyles.tsx` | 447 | ✅ |
 | helpers / 卡片字段 / IP / 操作区 | `admin-users-page/admin-users-page-helpers.tsx` | 397 | ✅ |
 | 用户列表（手机卡+桌面表） | `admin-users-page/AdminUsersList.tsx` | 392 | ✅ |
-| 编排页 | `AdminUsersPage.tsx` | **1488**（原 2580） | ✅ |
+| 添加用户弹窗 | `admin-users-page/AdminUsersAddUserModal.tsx` | 219 | ✅ |
+| 登录模板弹窗 | `admin-users-page/AdminUsersTemplatesModal.tsx` | 264 | ✅ |
+| 编排页 | `AdminUsersPage.tsx` | **1157**（原 2580） | ✅ |
 
 **验证**：`tsc` ✅ · admin_users_trackpad_scroll ✅
 
@@ -126,12 +128,30 @@
 
 **验证**：`tsc` ✅ · annotate_image_url（含 `en-lesson-page/`）✅
 
-#### ⏳ 队列后续（可选，非本轮硬性）
+#### ✅ LessonAnnotate 共享（2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 共享画布+保存 | `lesson-annotate/LessonAnnotateModal.tsx` | 1738 | ✅ `subject: jp\|en` |
+| 日语薄包装 | `JpLessonAnnotateModal.tsx` | 26 | ✅ |
+| 英语薄包装 | `EnLessonAnnotateModal.tsx` | 26 | ✅ |
+
+**验证**：`tsc` ✅ · annotate_image_url / vocab_ref_live_refresh ✅
+
+#### ✅ JpVocabEditModal（样式，2026-07-24）
+
+| 步骤 | 文件 | LOC | 状态 |
+|------|------|----:|------|
+| 样式 | `jp-vocab-edit-modal/JpVocabEditModalStyles.tsx` | 681 | ✅ |
+| 弹窗编排 | `JpVocabEditModal.tsx` | **1295**（原 1967） | ✅ · 表单段可再拆 |
+
+#### ⏳ 队列后续
 
 | 文件 | LOC | 说明 |
 |------|----:|------|
-| `JpVocabEditModal` / Annotate×2 / `etr-auth-db` 等 | 1500+ | 见 §3 中优先级 |
-| `AdminUsersPage` | 1488 | 可再抽添加用户 / 模板弹窗 |
+| `etr-auth-db.ts` | 1661 | 多职责；须连同 **内部 helper** 一起拆（曾试拆漏 helper 已回滚） |
+| `JpVocabEditModal` | 1295 | 可再抽基础字段 / 备注 / 例句 |
+| `AdminJpLessonTeachersPage` / `EnLessonSchedulePage` / Study 页等 | 1500+ | 见 §3 |
 
 ---
 

@@ -63,11 +63,22 @@ CHECKS = [
         },
     ),
     (
-        ROOT / "src/components/JpLessonAnnotateModal.tsx",
+        ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx",
         {
             "must": [
                 r"notifyVocabRefUpdated",
-                r'subject:\s*"jp"',
+                r"subject,",
+                r'subject === "jp" \? "/api/jp-lesson/ref/replace"',
+            ],
+            "forbid": [],
+        },
+    ),
+    (
+        ROOT / "src/components/JpLessonAnnotateModal.tsx",
+        {
+            "must": [
+                r'subject="jp"',
+                r"LessonAnnotateModal",
             ],
             "forbid": [],
         },
@@ -76,8 +87,8 @@ CHECKS = [
         ROOT / "src/components/EnLessonAnnotateModal.tsx",
         {
             "must": [
-                r"notifyVocabRefUpdated",
-                r'subject:\s*"en"',
+                r'subject="en"',
+                r"LessonAnnotateModal",
             ],
             "forbid": [],
         },

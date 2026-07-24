@@ -62,8 +62,8 @@ CHECKS = [
         },
     ),
     (
-        "JpLessonAnnotateModal",
-        (ROOT / "src/components/JpLessonAnnotateModal.tsx").read_text(encoding="utf-8"),
+        "LessonAnnotateModal",
+        (ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx").read_text(encoding="utf-8"),
         {
             "must": [
                 r'\["smear",\s*"涂抹"\]',
@@ -73,6 +73,7 @@ CHECKS = [
                 r"normalizeRect\(",
                 r"drawSmearLabel\(",
                 r"tool === \"smear\"",
+                r'subject === "jp" \? "/api/jp-lesson/ref/replace"',
             ],
             "forbid": [
                 r'SMEAR_COLOR\s*=\s*"#ffffff"',
@@ -82,23 +83,19 @@ CHECKS = [
         },
     ),
     (
-        "EnLessonAnnotateModal",
-        (ROOT / "src/components/EnLessonAnnotateModal.tsx").read_text(encoding="utf-8"),
+        "annotate wrappers",
+        (ROOT / "src/components/JpLessonAnnotateModal.tsx").read_text(encoding="utf-8")
+        + "\n"
+        + (ROOT / "src/components/EnLessonAnnotateModal.tsx").read_text(encoding="utf-8"),
         {
             "must": [
-                r'\["smear",\s*"涂抹"\]',
-                r'SMEAR_COLOR\s*=\s*"#2a3140"',
-                r'SMEAR_LABEL\s*=\s*"此内容由AI生成，经核验不准确，已涂抹"',
-                r'type:\s*"rect"',
-                r"normalizeRect\(",
-                r"drawSmearLabel\(",
-                r"tool === \"smear\"",
+                r"export function JpLessonAnnotateModal",
+                r"export function EnLessonAnnotateModal",
+                r'subject="jp"',
+                r'subject="en"',
+                r'from "@/components/lesson-annotate/LessonAnnotateModal"',
             ],
-            "forbid": [
-                r'SMEAR_COLOR\s*=\s*"#ffffff"',
-                r'SMEAR_COLOR\s*=\s*"#000000"',
-                r"SMEAR_WIDTH",
-            ],
+            "forbid": [],
         },
     ),
 ]
