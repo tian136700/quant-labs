@@ -79,9 +79,9 @@ def main() -> int:
         (
             en_page,
             [
-                "setSharedTodayWordIds(new Set(nextSharedIds))",
-                "persistEnVocabPageCache(data.words, refs, data.display_order, nextSharedIds)",
-                "并清除今日共享记录",
+                # 重置逻辑在 useEnVocabAdminActions；页面须接 setSharedTodayWordIds / persist
+                "setSharedTodayWordIds",
+                "persistEnVocabPageCache",
             ],
         ),
         (

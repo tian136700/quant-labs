@@ -112,8 +112,19 @@ def main() -> int:
     must_contain(ROUTE, "quiz_time_weight", "GET 须返回 quiz_time_weight")
 
     must_contain(ADMIN_UI, "JpVocabQuizTimeWeightAdmin", "管理员权重 UI 组件")
-    must_contain(PAGE, "JpVocabQuizTimeWeightAdmin", "管理员页须挂权重控件")
-    weight_save = PAGE.read_text(encoding="utf-8") + ADMIN_ACTIONS.read_text(encoding="utf-8")
+    page_ui = (
+        PAGE.read_text(encoding="utf-8")
+        + "\n"
+        + (ROOT / "src/components/jp-vocab-page/JpVocabPageHeader.tsx").read_text(
+            encoding="utf-8"
+        )
+    )
+    if "JpVocabQuizTimeWeightAdmin" not in page_ui:
+        errors.append(
+            f"{PAGE.relative_to(ROOT)} / JpVocabPageHeader: "
+            "管理员页须挂权重控件（缺「JpVocabQuizTimeWeightAdmin」）"
+        )
+    weight_save = page_ui + ADMIN_ACTIONS.read_text(encoding="utf-8")
     if "set_quiz_time_weight" not in weight_save:
         errors.append(
             f"{PAGE.relative_to(ROOT)} 或 {ADMIN_ACTIONS.relative_to(ROOT)}: "

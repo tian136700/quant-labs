@@ -674,19 +674,19 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     scrollToHighlightRef,
   });
 
-  const gate = (
-    <JpVocabPageGates
-      checking={checking}
-      user={user}
-      setUser={setUser}
-      isAdminMode={isAdminMode}
-      isTeacherMode={isTeacherMode}
-      canAccessJpVocabAdminPage={canAccessJpVocabAdminPage}
-      canAccessJpVocabTeacherPage={canAccessJpVocabTeacherPage}
-      canAccessJpVocabStudy={canAccessJpVocabStudy}
-    />
-  );
-  if (gate) return gate;
+  // Call as function: JSX `<Gates />` is always truthy even when Gates returns null
+  // (would blank the whole /jp-vocab page for authorized users).
+  const gate = JpVocabPageGates({
+    checking,
+    user,
+    setUser,
+    isAdminMode,
+    isTeacherMode,
+    canAccessJpVocabAdminPage,
+    canAccessJpVocabTeacherPage,
+    canAccessJpVocabStudy,
+  });
+  if (gate != null) return gate;
 
   return (
     <main
