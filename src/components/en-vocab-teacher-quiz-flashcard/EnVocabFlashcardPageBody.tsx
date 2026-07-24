@@ -2,6 +2,7 @@
 
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
+import { EnVocabUsageExamplesCopyButton } from "@/components/EnVocabUsageExamplesCopyButton";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { formatEnVocabClassNotesForDisplay } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
@@ -313,6 +314,12 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                     <h3 className="jp-vocab-teacher-quiz__examples-title">
                       用法与例句
                     </h3>
+                    {usageExampleModel.hasContent ? (
+                      <EnVocabUsageExamplesCopyButton
+                        model={usageExampleModel}
+                        wordLabel={w.word}
+                      />
+                    ) : null}
                   </div>
                   <div className="jp-vocab-teacher-quiz__examples-body">
                     <EnVocabUsageExamplesPairedContent

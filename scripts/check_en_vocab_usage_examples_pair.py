@@ -97,10 +97,24 @@ def main() -> int:
             "EnVocabUsageExamplesPairedContent",
             "buildEnVocabUsageExamplePairs",
             "用法与例句",
+            "EnVocabUsageExamplesCopyButton",
         ],
     )
     for m in missing_f:
         errors.append(f"EnVocabTeacherQuizFlashcardModal.tsx: missing {m!r}")
+
+    copy_btn = ROOT / "src/components/EnVocabUsageExamplesCopyButton.tsx"
+    missing_copy = must_contain_text(
+        copy_btn.read_text(encoding="utf-8") if copy_btn.is_file() else "",
+        [
+            "formatEnVocabUsageExamplesCopyText",
+            "copyTextToClipboard",
+            "CopyToast",
+            "复制全部",
+        ],
+    )
+    for m in missing_copy:
+        errors.append(f"EnVocabUsageExamplesCopyButton.tsx: missing {m!r}")
 
     if 'aria-label="例句"' in flash_text and 'aria-label="用法"' in flash_text:
         errors.append("flashcard still has separate 例句 + 用法 sections")
