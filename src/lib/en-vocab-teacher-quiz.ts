@@ -285,12 +285,24 @@ export function resolveEnVocabTeacherQuizResumeIndex(
   );
 }
 
-/** 刷新/掉线恢复：定位到本会话内第一个尚未勾选熟悉程度的词 */
+/**
+ * 刷新 / 掉线 / 中途退出再进：回到离开时正在看的词（`session.currentIndex`）。
+ * 该下标越界或队列为空时，再回退到「第一个未勾选」。
+ * 不要跳到第一个未勾选——老师中途关页再打开应仍是当时那一词。
+ */
 export function resolveEnVocabTeacherQuizRefreshResumeIndex(
   session: EnVocabTeacherQuizSession,
   _wordsById: ReadonlyMap<number, EnVocabWord>,
   _sessionReviewAt: Readonly<Record<number, number>>,
   hasLevel: (wordId: number) => boolean
 ): number {
+  if (!session.wordIds.length) return 0;
+  const saved = Math.max(
+    0,
+    Math.min(session.currentIndex, session.wordIds.length - 1)
+  );
+  if (Number.isFinite(saved) && session.wordIds[saved] != null) {
+    return saved;
+  }
   return resolveEnVocabTeacherQuizResumeIndex(session, undefined, hasLevel);
 }

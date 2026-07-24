@@ -370,6 +370,47 @@ def main() -> int:
         errors.append(
             "EnVocabTeacherQuizFlashcardModal: progress numerator must max(daily, sessionLocal)"
         )
+    # 刷新假「已完成」：完成态禁止 sessionChecked >= sessionTotal（短分母会误判）
+    code_complete = "\n".join(
+        ln
+        for ln in flash_text.splitlines()
+        if "sessionChecked >= sessionTotal" in ln and not ln.strip().startswith("//")
+    )
+    if code_complete:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal: must not complete via "
+            "sessionChecked >= sessionTotal (refresh false-complete)"
+        )
+    if "sessionUncheckedCount === 0" not in flash_text:
+        errors.append(
+            "EnVocabTeacherQuizFlashcardModal: complete must use sessionUncheckedCount === 0"
+        )
+
+    page_src = (ROOT / "src/components/EnVocabPage.tsx").read_text(encoding="utf-8")
+    # displayQuizProgress 分母须用整池 quizTargetWords，禁止 teacherPendingWords
+    dqp = page_src.find("const displayQuizProgress")
+    if dqp < 0:
+        errors.append("EnVocabPage: missing displayQuizProgress")
+    else:
+        chunk = page_src[dqp : dqp + 900]
+        if "computeEnVocabTeacherPageQuizProgress" not in chunk:
+            errors.append("EnVocabPage displayQuizProgress must use teacher page progress helper")
+        if "quizTargetWords" not in chunk:
+            errors.append(
+                "EnVocabPage displayQuizProgress must use quizTargetWords as denominator "
+                "(not teacherPendingWords — refresh false-complete)"
+            )
+        if (
+            "computeEnVocabTeacherPageQuizProgress(\n      teacherPendingWords"
+            in chunk
+            or "computeEnVocabTeacherPageQuizProgress(\n        teacherPendingWords"
+            in chunk
+            or "computeEnVocabTeacherPageQuizProgress(teacherPendingWords" in chunk
+        ):
+            errors.append(
+                "EnVocabPage displayQuizProgress must NOT pass teacherPendingWords "
+                "as progress total"
+            )
 
     if errors:
         print("FAIL: en-vocab usage-level aggregate guards")

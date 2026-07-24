@@ -384,8 +384,8 @@ export function EnVocabTeacherQuizFlashcardModal({
     session.wordIds.length - sessionUncheckedCount
   );
   const useDailyProgress = dailyQuizProgress != null && dailyQuizProgress.total > 0;
-  // 本轮进度：分母用今日目标；分子取「页面进度」与「本会话已勾」较大值
-  // （对齐日语；避免 page displayQuizProgress 因 UTC/round_checked 短暂为 0 时卡片一直 0/N）
+  // 本轮进度：分母用今日抽查池大小（须稳定，勿用「仅剩未勾选」短分母）；
+  // 分子取「页面进度」与「本会话已勾」较大值（防 page 短暂 0 时卡片卡 0/N）
   const dailyChecked = useDailyProgress
     ? enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress)
     : 0;
@@ -404,9 +404,11 @@ export function EnVocabTeacherQuizFlashcardModal({
     sessionTotal > 0
       ? Math.min(100, Math.round((sessionChecked / sessionTotal) * 100))
       : 0;
+  // 完成态：以页面 progress.complete 为准，或本会话词全部已有熟悉程度；
+  // 禁止用 sessionChecked >= sessionTotal 跨「短分母」误判（刷新假已完成）
   const sessionComplete = useDailyProgress
-    ? dailyQuizProgress.complete ||
-      (sessionTotal > 0 && sessionChecked >= sessionTotal)
+    ? Boolean(dailyQuizProgress.complete) ||
+      (session.wordIds.length > 0 && sessionUncheckedCount === 0)
     : session.wordIds.length > 0 && sessionUncheckedCount === 0;
   const progressLabel = sessionComplete
     ? locale === "zh"

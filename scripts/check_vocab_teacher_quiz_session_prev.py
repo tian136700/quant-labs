@@ -77,6 +77,26 @@ def check_expand(src: str, lang: str) -> None:
         )
 
 
+def check_en_refresh_resume(src: str) -> None:
+    """EN mid-exit / refresh must reopen the word on screen, not first unchecked."""
+    body = extract_fn(src, "resolveEnVocabTeacherQuizRefreshResumeIndex")
+    if re.search(
+        r"resolveEnVocabTeacherQuizResumeIndex\(\s*session\s*,\s*undefined",
+        body,
+    ) and "currentIndex" not in body.split("return resolveEnVocab")[0]:
+        # Allow fallback after currentIndex clamp; forbid sole path = first unchecked
+        if "session.currentIndex" not in body:
+            fail(
+                "EN RefreshResume must prefer session.currentIndex "
+                "(mid-exit refresh should reopen the word being quizzed)"
+            )
+    if "session.currentIndex" not in body:
+        fail(
+            "EN RefreshResume must use session.currentIndex "
+            "(do not jump to first unchecked on refresh)"
+        )
+
+
 def main() -> None:
     for path in LIBS:
         if not path.is_file():
@@ -85,6 +105,8 @@ def main() -> None:
         lang = "En" if "en-vocab" in path.name else "Jp"
         check_create(src, lang)
         check_expand(src, lang)
+        if lang == "En":
+            check_en_refresh_resume(src)
         print(f"OK: {path.relative_to(ROOT)}")
     print("All teacher-quiz session prev-nav guards passed.")
 

@@ -425,23 +425,23 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
 
   const displayQuizProgress = useMemo(() => {
     if (isAdminMode) return dailyQuizProgress;
+    // 分母必须用整池 quizTargetWords，禁止用「仅剩未勾选」的 pending 列表：
+    // 刷新后 sessionLevel 清空 → pending 变短，卡片再 max(本会话已勾) 会 15/5→假「已完成」
+    const poolComplete =
+      quizTargetWords.length > 0 &&
+      quizTargetWords.every((w) => quizWordHasLevel(w.id));
     return computeEnVocabTeacherPageQuizProgress(
-      teacherPendingWords,
+      quizTargetWords,
       quizWordHasLevel,
       {
-        forceComplete:
-          dailyQuizProgress.complete ||
-          (quizTarget > 0 &&
-            teacherPendingWords.length === 0 &&
-            dailyQuizProgress.checked > 0),
+        forceComplete: dailyQuizProgress.complete || poolComplete,
       }
     );
   }, [
     isAdminMode,
     dailyQuizProgress,
-    teacherPendingWords,
+    quizTargetWords,
     quizWordHasLevel,
-    quizTarget,
   ]);
 
   const searchActive = searchQuery.trim().length > 0;
