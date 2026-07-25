@@ -9,9 +9,12 @@ export type JpVocabTeacherQuizSession = {
   currentIndex: number;
 };
 
-/** 老师端开始抽查时自动二选一，免去每次手选正序/随机 */
+/**
+ * 老师端抽查固定随机（禁止正序）。
+ * 正序易让学生背住当日序号顺序；与韩语抽问一致，不提供手选。
+ */
 export function pickRandomJpVocabTeacherQuizMode(): JpVocabTeacherQuizMode {
-  return Math.random() < 0.5 ? "sequential" : "random";
+  return "random";
 }
 
 export function jpVocabTeacherQuizModeLabel(
@@ -110,7 +113,7 @@ export function pruneJpVocabTeacherQuizSessionChecked(
 }
 
 /**
- * 开始抽查：本轮目标词全量入队（正序 1…N 或打乱一次）。
+ * 开始抽查：本轮目标词全量入队并打乱一次（老师端固定随机）。
  * 已勾选词仍留在队列里，便于「上一个」回看勾选；落点优先未勾选词。
  * 全部已勾选时返回 null。
  */

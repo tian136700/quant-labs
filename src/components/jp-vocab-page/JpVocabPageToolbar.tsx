@@ -153,7 +153,7 @@ export function JpVocabPageToolbar({
               title={
                 teacherQuizInProgress
                   ? "继续抽查卡片"
-                  : "开始抽查（本轮自动随机选用正序或随机）"
+                  : "开始抽查（本轮随机打乱顺序）"
               }
             >
               {teacherQuizInProgress ? "继续抽查" : "抽查"}
