@@ -122,6 +122,10 @@ export function inferEnVocabRefCropKind(
 /**
  * 语法教案：按左侧蓝色/紫色序号方块竖条定位「部分」起点。
  * 比颜色分数峰更稳——漫画衣服/气泡不会被当成下一节标题。
+ *
+ * 真·部分序号方块在左侧 40px 内色条平均占比通常 ≥0.34；
+ * 例文漫画蓝衣服/气泡只有约 0.15–0.20，会误当下一节起点（见 lesson-68）。
+ * 因此对整段 run 要求平均占比达标，同间隙内取更密者。
  */
 function detectGrammarSectionPeaks(
   data: Uint8ClampedArray,
@@ -131,6 +135,8 @@ function detectGrammarSectionPeaks(
   const bandW = Math.min(40, width);
   const minRun = 20;
   const minGap = 150;
+  /** 过滤漫画误触发；真方块约 0.34+，lesson-68 假峰约 0.19 */
+  const minAvgBadgeFrac = 0.25;
   const minY = Math.min(80, Math.floor(height * 0.07));
 
   const rowBadgeFrac = (y: number): number => {
@@ -145,28 +151,36 @@ function detectGrammarSectionPeaks(
   };
 
   const peaks: number[] = [];
+  const peakAvgs: number[] = [];
   let runStart: number | null = null;
+
+  const considerRun = (start: number, end: number) => {
+    const len = end - start;
+    if (len < minRun || start < minY) return;
+    let sum = 0;
+    for (let y = start; y < end; y++) sum += rowBadgeFrac(y);
+    const avg = sum / len;
+    if (avg < minAvgBadgeFrac) return;
+    if (!peaks.length || start - peaks[peaks.length - 1] >= minGap) {
+      peaks.push(start);
+      peakAvgs.push(avg);
+    } else if (avg > peakAvgs[peakAvgs.length - 1]) {
+      peaks[peaks.length - 1] = start;
+      peakAvgs[peakAvgs.length - 1] = avg;
+    }
+  };
+
   for (let y = 0; y < height; y++) {
     const on = rowBadgeFrac(y) > 0.15;
     if (on) {
       if (runStart === null) runStart = y;
     } else if (runStart !== null) {
-      const len = y - runStart;
-      if (len >= minRun && runStart >= minY) {
-        if (!peaks.length || runStart - peaks[peaks.length - 1] >= minGap) {
-          peaks.push(runStart);
-        }
-      }
+      considerRun(runStart, y);
       runStart = null;
     }
   }
   if (runStart !== null) {
-    const len = height - runStart;
-    if (len >= minRun && runStart >= minY) {
-      if (!peaks.length || runStart - peaks[peaks.length - 1] >= minGap) {
-        peaks.push(runStart);
-      }
-    }
+    considerRun(runStart, height);
   }
   return peaks;
 }
