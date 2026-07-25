@@ -109,7 +109,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     return items[0]?.href ?? "/";
   }, [items, locale, pathname]);
 
-  if (onMaintenance || onJpVocabRef || onEnVocabRef || compareGatedShell) {
+  if (onJpVocabRef || onEnVocabRef) {
+    // 教案「查看」分享页：不挂科目老师路由笼（微信即使用旧 Cookie/本地缓存也不得踢到韩语）
+    return (
+      <>
+        <MaintenanceRouteGuard />
+        <main>{children}</main>
+      </>
+    );
+  }
+
+  if (onMaintenance || compareGatedShell) {
     return (
       <>
         <MaintenanceRouteGuard />

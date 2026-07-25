@@ -87,6 +87,8 @@ type EtrAuthContextValue = {
   canAccessKoPronStudy: boolean;
   permissions: string[];
   hasPermission: (key: string) => boolean;
+  /** 首轮 /api/.../auth 探测已结束（勿用 localStorage 缓存用户做路由跳转） */
+  authProbeDone: boolean;
   refresh: () => Promise<void>;
   setUser: (user: EtrAuthUser | null) => void;
   openAuthPanel: (opts: AuthPanelState) => void;
@@ -99,6 +101,7 @@ const EtrAuthContext = createContext<EtrAuthContextValue | null>(null);
 export function EtrAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<EtrAuthUser | null>(null);
   const [checking, setChecking] = useState(true);
+  const [authProbeDone, setAuthProbeDone] = useState(false);
   const [maintenance, setMaintenance] = useState(false);
   const [authPanel, setAuthPanel] = useState<AuthPanelState | null>(null);
   const refreshGenRef = useRef(0);
@@ -141,15 +144,19 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     } catch {
       if (gen === refreshGenRef.current) setUser(null);
     } finally {
-      if (gen === refreshGenRef.current) setChecking(false);
+      if (gen === refreshGenRef.current) {
+        setChecking(false);
+        setAuthProbeDone(true);
+      }
     }
   }, [redirectMaintenance]);
 
   useEffect(() => {
     const cached = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY);
     if (cached) {
+      // 可先展示缓存用户，但 checking 保持 true，直到首轮服务端探测结束
+      // （否则微信里过期 Cookie + 本地缓存会被科目路由笼误判已登录并踢走）
       setUser(cached);
-      setChecking(false);
     }
     void refresh();
   }, [refresh]);
@@ -160,6 +167,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     setMaintenance(false);
     setAuthPanel(null);
     setChecking(false);
+    setAuthProbeDone(true);
     if (next) writeClientCache(AUTH_USER_CACHE_KEY, next);
     else clearClientCache(AUTH_USER_CACHE_KEY);
   }, []);
@@ -200,6 +208,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     setMaintenance(false);
     setAuthPanel(null);
     setChecking(false);
+    setAuthProbeDone(true);
   }, []);
 
   const permissions = user?.permissions ?? [];
@@ -248,13 +257,14 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
       canAccessKoPronStudy: canAccessKoPronStudy(user),
       permissions,
       hasPermission,
+      authProbeDone,
       refresh,
       setUser: applyUser,
       openAuthPanel,
       closeAuthPanel,
       logout,
     }),
-    [user, checking, maintenance, authPanel, isAdmin, permissions, hasPermission, refresh, applyUser, openAuthPanel, closeAuthPanel, logout]
+    [user, checking, maintenance, authPanel, isAdmin, permissions, hasPermission, authProbeDone, refresh, applyUser, openAuthPanel, closeAuthPanel, logout]
   );
 
   return (

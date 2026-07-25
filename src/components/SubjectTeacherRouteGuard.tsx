@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
+import { isEnVocabRefPath, isJpVocabRefPath } from "@/lib/locale-path";
 import {
   isPathAllowedForSubjectTeachers,
   isSubjectTeacherNavRestricted,
@@ -11,10 +12,11 @@ import {
 
 /**
  * 科目老师路由笼：多科目身份取「允许路径并集」。
- * 禁止再用三个互斥 Guard 叠跑——日语+韩语老师打开日语教案查看会被韩语 Guard 踢到 /ko-pron。
+ * 须等 authProbeDone（服务端会话探测结束）再跳转，避免微信本地缓存用户误踢。
+ * 教案查看页由 AppShell 不挂本组件；此处再挡一层。
  */
 export function SubjectTeacherRouteGuard() {
-  const { hasPermission, isAdmin, checking } = useEtrAuth();
+  const { hasPermission, isAdmin, checking, authProbeDone } = useEtrAuth();
   const pathname = usePathname() ?? "/";
   const router = useRouter();
 
@@ -24,12 +26,14 @@ export function SubjectTeacherRouteGuard() {
     ko: hasPermission("nav:ko_teacher"),
   };
   const restricted =
+    authProbeDone &&
     !checking &&
     !isAdmin &&
     isSubjectTeacherNavRestricted(flags, hasPermission("nav:full"));
 
   useEffect(() => {
     if (!restricted) return;
+    if (isJpVocabRefPath(pathname) || isEnVocabRefPath(pathname)) return;
     if (isPathAllowedForSubjectTeachers(pathname, flags)) return;
     router.replace(subjectTeacherHomePath(flags));
   }, [restricted, pathname, router, flags.jp, flags.en, flags.ko]);
