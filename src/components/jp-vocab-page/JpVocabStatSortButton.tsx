@@ -3,6 +3,48 @@ import { JP_VOCAB_STAT_SORT_COLUMNS } from "@/lib/jp-vocab-page-constants";
 
 type StatSortColumn = (typeof JP_VOCAB_STAT_SORT_COLUMNS)[number];
 
+/** 表头通用排序按钮（对齐英语 EnVocabThSortButton） */
+export function JpVocabThSortButton({
+  sortKey,
+  statSort,
+  onStatSort,
+  title,
+  label,
+  labelLines,
+}: {
+  sortKey: JpVocabStatSortKey;
+  statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" };
+  onStatSort: (key: JpVocabStatSortKey) => void;
+  title: string;
+  label?: string;
+  labelLines?: [string, string];
+}) {
+  const active = statSort?.key === sortKey;
+  return (
+    <button
+      type="button"
+      className="jp-vocab-sort-btn"
+      aria-sort={
+        active ? (statSort.dir === "asc" ? "ascending" : "descending") : "none"
+      }
+      title={title}
+      onClick={() => onStatSort(sortKey)}
+    >
+      {labelLines ? (
+        <span className="jp-vocab-th-multiline jp-vocab-th-multiline--compact">
+          <span>{labelLines[0]}</span>
+          <span>{labelLines[1]}</span>
+        </span>
+      ) : (
+        <span>{label}</span>
+      )}
+      <span className="jp-vocab-sort-indicator" aria-hidden="true">
+        {active ? (statSort.dir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </button>
+  );
+}
+
 export function JpVocabStatSortButton({
   col,
   statSort,

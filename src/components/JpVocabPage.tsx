@@ -254,6 +254,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setPage(1);
   };
 
+  const dailySeqByWordId = useMemo(
+    () => buildJpVocabDailySeqMap(displayOrder.ids),
+    [displayOrder.ids]
+  );
+
   const displayedWords = useMemo(() => {
     if (statSort.key === "seq" && displayOrder.ids.length > 0) {
       const ordered = jpVocabWordsInOrder(words, displayOrder.ids);
@@ -264,13 +269,16 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     }
     return sortJpVocabWordsForDisplay(words, statSort, {
       timeWeight: quizTimeWeight,
+      dailySeqByWordId,
     });
-  }, [words, statSort, displayOrder.ids, useDailyRowOrder, quizTimeWeight]);
-
-  const dailySeqByWordId = useMemo(
-    () => buildJpVocabDailySeqMap(displayOrder.ids),
-    [displayOrder.ids]
-  );
+  }, [
+    words,
+    statSort,
+    displayOrder.ids,
+    useDailyRowOrder,
+    quizTimeWeight,
+    dailySeqByWordId,
+  ]);
 
   const quizTarget = teacherVisibleLimit.quiz_target;
 

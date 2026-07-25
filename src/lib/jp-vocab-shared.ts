@@ -2,7 +2,9 @@ import {
   isJpVocabWordEligibleNeverQuizzedForFront,
   isJpVocabWordSameDayNewNeverQuizzed,
   isJpVocabWordHistNeverQuizzed,
+  effectiveTodayCheckCount,
 } from "@/lib/jp-vocab-daily-check";
+import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
   jpVocabFinalQuizScore,
@@ -10,13 +12,35 @@ import {
 } from "@/lib/jp-vocab-quiz-score";
 import type { JpVocabWord } from "@/lib/types";
 
-export type JpVocabStatSortKey = "very" | "normal" | "weak" | "total" | "risk" | "seq";
+/** 除操作列外，表头均可点排序（对齐英语管理员端） */
+export type JpVocabStatSortKey =
+  | "seq"
+  | "kind"
+  | "word"
+  | "reading"
+  | "meaning"
+  | "pos"
+  | "mnemonic"
+  | "very"
+  | "normal"
+  | "weak"
+  | "total"
+  | "risk"
+  | "level"
+  | "today"
+  | "notes";
 
 /** 单词表默认排序：合计为 0 的置顶，其余按抽查优先级降序 */
 export const JP_VOCAB_DEFAULT_STAT_SORT: {
   key: JpVocabStatSortKey;
   dir: "asc" | "desc";
 } = { key: "risk", dir: "desc" };
+
+export type JpVocabStatSortOptions = {
+  now?: Date;
+  timeWeight?: number;
+  dailySeqByWordId?: ReadonlyMap<number, number>;
+};
 
 export function jpVocabPriorityLabel(locale: "zh" | "en" = "zh"): string {
   return locale === "zh" ? "抽查优先级" : "Check priority";
@@ -52,29 +76,84 @@ export function jpVocabRiskIndex(word: JpVocabWord): number {
   return Math.round(raw * 10) / 10;
 }
 
-function statSortValue(
-  word: JpVocabWord,
-  key: JpVocabStatSortKey,
-  timeWeight: number,
-  now: Date
-): number {
-  switch (key) {
+function levelSortRank(word: JpVocabWord): number {
+  switch (word.last_review_level) {
     case "very":
-      return word.cnt_very;
+      return 3;
     case "normal":
-      return word.cnt_normal;
+      return 2;
     case "weak":
-      return word.cnt_weak;
-    case "total":
-      return jpVocabTotalReviews(word);
-    case "risk":
-      // 从未抽查：不算分；列头排序时仍置顶（与日序「从未抽查在前」一致）
-      if (isJpVocabWordHistNeverQuizzed(word)) {
-        return Number.POSITIVE_INFINITY;
-      }
-      return jpVocabFinalQuizScore(word, timeWeight, now);
-    case "seq":
+      return 1;
+    default:
       return 0;
+  }
+}
+
+function cmpJaText(a: string, b: string): number {
+  return a.localeCompare(b, "ja", { sensitivity: "base", numeric: true });
+}
+
+function compareJpVocabStat(
+  a: JpVocabWord,
+  b: JpVocabWord,
+  key: JpVocabStatSortKey,
+  opts?: JpVocabStatSortOptions
+): number {
+  const now = opts?.now ?? new Date();
+  const timeWeight = normalizeJpVocabQuizTimeWeight(
+    opts?.timeWeight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+  );
+  switch (key) {
+    case "seq": {
+      const seqMap = opts?.dailySeqByWordId;
+      const sa = seqMap?.get(a.id) ?? Number.POSITIVE_INFINITY;
+      const sb = seqMap?.get(b.id) ?? Number.POSITIVE_INFINITY;
+      return sa - sb;
+    }
+    case "kind":
+      return cmpJaText(a.kind || "word", b.kind || "word");
+    case "word":
+      return cmpJaText(a.word || "", b.word || "");
+    case "reading":
+      return cmpJaText((a.reading || "").trim(), (b.reading || "").trim());
+    case "meaning":
+      return cmpJaText((a.meaning || "").trim(), (b.meaning || "").trim());
+    case "pos":
+      return cmpJaText((a.pos || "").trim(), (b.pos || "").trim());
+    case "mnemonic":
+      return cmpJaText((a.mnemonic || "").trim(), (b.mnemonic || "").trim());
+    case "very":
+      return a.cnt_very - b.cnt_very;
+    case "normal":
+      return a.cnt_normal - b.cnt_normal;
+    case "weak":
+      return a.cnt_weak - b.cnt_weak;
+    case "total":
+      return jpVocabTotalReviews(a) - jpVocabTotalReviews(b);
+    case "risk": {
+      // 从未抽查：列头排序时仍按 +∞（desc 置顶）；两边都从未则相等
+      const aNever = isJpVocabWordHistNeverQuizzed(a);
+      const bNever = isJpVocabWordHistNeverQuizzed(b);
+      if (aNever && bNever) return 0;
+      if (aNever) return Number.POSITIVE_INFINITY;
+      if (bNever) return Number.NEGATIVE_INFINITY;
+      return (
+        jpVocabFinalQuizScore(a, timeWeight, now) -
+        jpVocabFinalQuizScore(b, timeWeight, now)
+      );
+    }
+    case "level":
+      return levelSortRank(a) - levelSortRank(b);
+    case "today":
+      return (
+        effectiveTodayCheckCount(a.today_check_count ?? 0, a.today_check_date) -
+        effectiveTodayCheckCount(b.today_check_count ?? 0, b.today_check_date)
+      );
+    case "notes": {
+      const na = hasJpVocabClassNotes(a.class_notes, a.class_notes_present) ? 1 : 0;
+      const nb = hasJpVocabClassNotes(b.class_notes, b.class_notes_present) ? 1 : 0;
+      return na - nb;
+    }
   }
 }
 
@@ -87,22 +166,16 @@ export function sortJpVocabWords(words: JpVocabWord[]): JpVocabWord[] {
   });
 }
 
-/** 按复习次数单列排序（同值按单词名） */
+/** 按表头列排序（同值按单词名） */
 export function sortJpVocabWordsByStat(
   words: JpVocabWord[],
   key: JpVocabStatSortKey,
   dir: "asc" | "desc",
-  opts?: { now?: Date; timeWeight?: number }
+  opts?: JpVocabStatSortOptions
 ): JpVocabWord[] {
   const mul = dir === "asc" ? 1 : -1;
-  const now = opts?.now ?? new Date();
-  const timeWeight = normalizeJpVocabQuizTimeWeight(
-    opts?.timeWeight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
-  );
   return [...words].sort((a, b) => {
-    const diff =
-      statSortValue(a, key, timeWeight, now) -
-      statSortValue(b, key, timeWeight, now);
+    const diff = compareJpVocabStat(a, b, key, opts);
     if (diff !== 0) return diff * mul;
     return a.word.localeCompare(b.word, "ja");
   });
@@ -156,11 +229,11 @@ export function sortJpVocabWordsForDailyOrder(
   });
 }
 
-/** 列头点击排序：纯数值升序/降序，不受「从未抽查置顶」影响 */
+/** 列头点击排序：纯数值/文本升序/降序，不受「从未抽查置顶」影响 */
 export function sortJpVocabWordsForDisplay(
   words: JpVocabWord[],
   statSort: { key: JpVocabStatSortKey; dir: "asc" | "desc" } | null,
-  opts?: { now?: Date; timeWeight?: number }
+  opts?: JpVocabStatSortOptions
 ): JpVocabWord[] {
   const effective = statSort ?? JP_VOCAB_DEFAULT_STAT_SORT;
   return sortJpVocabWordsByStat(words, effective.key, effective.dir, opts);
