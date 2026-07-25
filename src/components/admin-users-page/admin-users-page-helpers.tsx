@@ -136,6 +136,26 @@ export function formatAdminDateTime(value: string | null | undefined): string {
   return formatBeijingDateTime(value);
 }
 
+/** 桌面表窄列：日期一行、时间一行（对齐新课 jp-lesson-dt-stacked） */
+export function AdminUserDateTimeStacked({
+  value,
+}: {
+  value: string | null | undefined;
+}) {
+  if (!value) return "—";
+  const full = formatBeijingDateTime(value);
+  const space = full.indexOf(" ");
+  if (space < 0) {
+    return <span className="admin-user-dt-stacked">{full}</span>;
+  }
+  return (
+    <span className="admin-user-dt-stacked" title={full}>
+      <span className="admin-user-dt-date">{full.slice(0, space)}</span>
+      <span className="admin-user-dt-time">{full.slice(space + 1)}</span>
+    </span>
+  );
+}
+
 export function AdminUserCardField({
   label,
   value,

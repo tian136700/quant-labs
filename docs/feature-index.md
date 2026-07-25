@@ -256,14 +256,15 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 用户列表、**无对应老师时「绑定老师」/ 已绑定时「更改」**（点开下拉选择并绑定或改绑；一位老师最多绑一个账号）、添加/编辑亦可改关联、创建/禁用/登录链接 | `AdminUsersPage.tsx`、`AdminUserBindTeacherModal.tsx`、`AdminUserEditModal.tsx`；`GET/POST/PATCH /api/admin/users`（`jp_lesson_teacher_id`）；`setUserJpLessonTeacherLink` |
+| **桌面表操作列完整可见**（用户名可换行；创建/登录时间上下两行；操作一行两个按钮；禁止横滑挤掉按钮） | `AdminUsersPageStyles.tsx`；`AdminUserDateTimeStacked`；规则 `.cursor/rules/admin-users-table-actions-visible.mdc`；`scripts/check_admin_users_table_actions_visible.py` |
 | **老师身份可多选**（同一账号可同时是日语老师 + 韩语老师等；列表显示「日语教师 + 韩语老师」） | `AdminUserTeacherModulesField.tsx`；`teacher_modules` → 主 `role` + `etr_user_extra_permissions`；`getUserPermissions` 合并额外权限；规则 `.cursor/rules/admin-user-multi-teacher-roles.mdc` |
 | **列表排序**（ID / 最近登录 / **状态**正常↔已禁用；手机端排序按钮同字段） | `AdminUsersPage.tsx` → `sortUsers`、`toggleSort`、`UserSortField` |
 | **列表搜索**（桌面表格 + 手机卡片共用；本地即时过滤用户名/角色/对应老师/ID/状态/IP） | `AdminUsersPage.tsx` → `searchQuery`、`matchesAdminUserSearch`、`filteredUsers` |
-| **操作按钮 3 列网格**（每行 3 个，排不下换行；桌面表格 + 手机卡片） | `AdminUsersPage.tsx` → `.admin-user-actions`；`mobile.css` |
+| **操作按钮 2 列网格**（每行 2 个，排不下换行；桌面表格 + 手机卡片；保证按钮完整可见） | `admin-users-page/AdminUsersPageStyles.tsx` → `.admin-user-actions` |
 | **永不禁用**（测试账号；开启后课表/抽完等**定时启禁一律跳过**，仅管理员点「取消永不禁用」恢复；手动启用/禁用仍可用） | `etr_users.never_disable`；`setUserNeverDisable`；`isExcludedFromTeacherScheduleAutoEnable`；`AdminUsersPage` → `toggleNeverDisable`；规则 `.cursor/rules/admin-user-never-disable.mdc` |
 | **手机端用户卡片**（&lt; lg 显示卡片 + 排序；桌面端表格） | `AdminUsersPage.tsx` → `admin-cards` / `admin-table-wrap`；`mobile.css` |
 | **复制账号密码**（日语角色 → `japanese…/jp-vocab`；英语角色 `en_vocab` → `english…/en-vocab`；密码来自本机缓存；**李老师 / user1 等保留账号无缓存时禁止一键随机重置**，须「编辑」填写） | `AdminUsersPage.tsx` → `copyUserCredentials`；`resetUserPasswordByAdmin`（`cannot_reset_bootstrap`）；`admin-user-credentials.ts` → `formatAdminUserCredentials`（`JP_SITE_URL` / `EN_SITE_URL`）；规则 `.cursor/rules/bootstrap-account-password.mdc` |
-| 创建/登录时间显示为**北京时间** | `AdminUsersPage.tsx` → `formatBeijingDateTime`；`src/lib/format-datetime.ts` |
+| 创建/登录时间显示为**北京时间**（桌面表日期/时间上下两行） | `AdminUserDateTimeStacked`；`formatBeijingDateTime`；`src/lib/format-datetime.ts` |
 | **最后登录 IP 折叠**（长 IPv6 默认收起 +「展开/收起」；IPv4 一行展示；禁止每行 N 字符强折） | `AdminUsersPage.tsx` → `AdminUserIpDisplay`；规则 `.cursor/rules/admin-users-ip-collapse.mdc` |
 | **今日有课老师账号自动启用**（北京时间 05:00；仅日语新课排课 + 手动日程；**不含英语课/英语老师**——英语老师不建登录账号；`admin` / `user1` / `test` / **永不禁用** 不受控） | `src/lib/teacher-user-schedule-enable.ts`；`POST /api/admin/teacher-user-schedule-enable`；Mac 定时 `scripts/teacher-user-schedule-enable.sh` + `setup-teacher-user-schedule-enable-mac.sh` |
 | **开课前 2 小时自动启用**（每 10 分钟；已禁用→可用；`dirlock` 防重叠；与 05:00 / 学习中 18h 互补；抽完禁用在临近课窗口跳过；**同任务另含韩语 / 英语老师开课前 30 分钟启用**） | `runTeacherUserPreClassEnable`；`POST /api/admin/teacher-user-pre-class-enable`；Mac `scripts/setup-teacher-user-pre-class-enable-mac.sh`（`StartInterval=600`）；规则 `.cursor/rules/teacher-pre-class-auto-enable.mdc`、`ko-pron-teacher-account-lifecycle.mdc`、`en-vocab-teacher-account-lifecycle.mdc` |

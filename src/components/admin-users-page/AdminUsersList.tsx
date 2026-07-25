@@ -6,6 +6,7 @@ import type { LoginLinkTemplate } from "@/lib/types";
 import {
   AdminUserActions,
   AdminUserCardField,
+  AdminUserDateTimeStacked,
   AdminUserIpDisplay,
   formatAdminDateTime,
   type UserRow,
@@ -341,8 +342,12 @@ export function AdminUsersList({
                       <td className="admin-user-col-teacher">
                         {renderTeacherCell(row)}
                       </td>
-                      <td className="admin-user-col-created">{formatAdminDateTime(row.created_at)}</td>
-                      <td className="admin-user-col-login">{formatAdminDateTime(row.last_login_at)}</td>
+                      <td className="admin-user-col-created">
+                        <AdminUserDateTimeStacked value={row.created_at} />
+                      </td>
+                      <td className="admin-user-col-login">
+                        <AdminUserDateTimeStacked value={row.last_login_at} />
+                      </td>
                       <td className="admin-user-ip-col">
                         <AdminUserIpDisplay ip={row.last_login_ip} locale={locale} />
                       </td>

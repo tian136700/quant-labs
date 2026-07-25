@@ -186,9 +186,19 @@ export function AdminUsersPageStyles() {
           border-collapse: collapse;
           font-size: 0.875rem;
         }
+        /* 禁止靠拉宽表 + 横滑挤掉操作列；窄列折行，操作按钮必须完整可见 */
+        .admin-table-wrap:has(.admin-users-table) {
+          overflow-x: hidden;
+        }
         .admin-users-table {
           table-layout: fixed;
-          min-width: 58rem;
+          width: 100%;
+          min-width: 0;
+        }
+        /* 覆盖通用 .admin-rbac-table { min-width: 72rem }，避免逼出横滑裁掉操作列 */
+        .admin-rbac-table.admin-users-table {
+          min-width: 0;
+          width: 100%;
         }
         .admin-rbac-table th,
         .admin-rbac-table td {
@@ -225,9 +235,8 @@ export function AdminUsersPageStyles() {
           text-align: center;
         }
         :global(.admin-users-table .admin-user-col-username) {
-          width: 8.5rem;
-          min-width: 6.5rem;
-          max-width: 12rem;
+          width: 7.25rem;
+          min-width: 5.5rem;
           white-space: normal;
           overflow-wrap: anywhere;
           word-break: break-word;
@@ -235,10 +244,12 @@ export function AdminUsersPageStyles() {
           vertical-align: top;
         }
         :global(.admin-users-table .admin-user-col-role) {
-          width: 5rem;
+          width: 3.75rem;
         }
         :global(.admin-users-table .admin-user-col-teacher) {
-          width: 7.5rem;
+          width: 6.25rem;
+          vertical-align: top;
+          white-space: normal;
         }
         :global(.admin-user-teacher-bound) {
           display: inline-flex;
@@ -249,10 +260,11 @@ export function AdminUsersPageStyles() {
         }
         :global(.admin-user-teacher-name) {
           min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
           max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.3;
         }
         :global(.admin-user-bind-teacher-btn) {
           white-space: nowrap;
@@ -265,19 +277,41 @@ export function AdminUsersPageStyles() {
         }
         :global(.admin-users-table .admin-user-col-created),
         :global(.admin-users-table .admin-user-col-login) {
-          width: 8.75rem;
+          width: 5.75rem;
+          min-width: 5.25rem;
+          max-width: 6.25rem;
           font-size: 0.8125rem;
+          white-space: normal;
+          overflow: visible;
+          vertical-align: top;
+          font-variant-numeric: tabular-nums;
+        }
+        :global(.admin-user-dt-stacked) {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.08rem;
+          line-height: 1.2;
+        }
+        :global(.admin-user-dt-date),
+        :global(.admin-user-dt-time) {
+          display: block;
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+        }
+        :global(.admin-user-dt-time) {
+          color: var(--muted);
+          font-size: 0.75rem;
         }
         :global(.admin-users-table .admin-user-col-status) {
-          width: 3.5rem;
+          width: 3.75rem;
           text-align: center;
+          white-space: normal;
+          vertical-align: top;
+          line-height: 1.3;
         }
         :global(.admin-user-ip-col) {
-          width: 9.5rem;
-          max-width: 9.5rem;
+          width: 7rem;
+          max-width: 7.5rem;
           vertical-align: top;
           white-space: normal !important;
         }
@@ -318,8 +352,8 @@ export function AdminUsersPageStyles() {
           text-decoration: underline;
         }
         :global(.admin-user-actions-col) {
-          width: 22rem;
-          min-width: 22rem;
+          width: 15.5rem;
+          min-width: 15rem;
           vertical-align: top;
           white-space: normal !important;
         }
@@ -342,9 +376,10 @@ export function AdminUsersPageStyles() {
           line-height: 1.35;
           align-items: flex-start;
         }
+        /* 一行两个按钮（对齐新课操作列），避免三列过窄裁字/裁按钮 */
         .admin-user-actions {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 0.4rem;
           align-items: stretch;
           justify-items: stretch;
@@ -358,9 +393,12 @@ export function AdminUsersPageStyles() {
           min-height: 2.1rem;
         }
         .admin-user-never-disable-badge {
+          display: block;
+          margin-top: 0.15rem;
           color: var(--fall);
           font-weight: 600;
-          white-space: nowrap;
+          white-space: normal;
+          line-height: 1.25;
         }
         .admin-user-row--highlight {
           background: rgba(110, 181, 255, 0.14) !important;
