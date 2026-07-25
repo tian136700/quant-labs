@@ -235,9 +235,9 @@ export function EnVocabUsageExamplesPairedContent({
           gap: 0.35rem;
           margin: 0.15rem 0 0.5rem;
           padding: 0.4rem 0.5rem;
-          border: 1.5px solid var(--rise);
+          border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--border));
           border-radius: 8px;
-          background: color-mix(in srgb, var(--rise) 8%, transparent);
+          background: color-mix(in srgb, var(--accent) 10%, transparent);
           box-sizing: border-box;
         }
         :global(.en-usage-ex-paired-levels .jp-vocab-level-opt) {

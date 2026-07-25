@@ -702,7 +702,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             .en-vocab-flashcard-page__notes-body {
             max-height: min(12rem, 28vh);
           }
-          /* 用法旁熟悉程度：独立 3 列触控条 + 勾选框，勿吃底栏灰框样式 */
+          /* 用法旁熟悉程度：独立 3 列触控条 + 勾选框（外框用 accent，勿用 rise 红以免像告警） */
           .en-vocab-flashcard-page .en-usage-ex-paired-levels.jp-vocab-levels {
             display: grid !important;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -711,11 +711,11 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             flex-wrap: nowrap;
             margin: 0.3rem 0 0.6rem;
             padding: 0.4rem;
-            border: 2px solid var(--rise);
+            border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border));
             border-radius: 12px;
             overflow: visible;
-            background: color-mix(in srgb, var(--rise) 12%, var(--panel));
-            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rise) 18%, transparent);
+            background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
           }
           .en-vocab-flashcard-page
             .en-usage-ex-paired-levels
@@ -727,7 +727,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             gap: 0.28rem;
             font-size: clamp(0.6875rem, 3vw, 0.8125rem);
             font-weight: 600;
-            border: 1.5px solid color-mix(in srgb, var(--rise) 45%, var(--border));
+            border: 1.5px solid color-mix(in srgb, var(--accent) 40%, var(--border));
             border-radius: 8px;
             background: color-mix(in srgb, var(--bg) 88%, #fff 12%);
             box-shadow: 0 1px 0 color-mix(in srgb, #000 12%, transparent);
@@ -737,7 +737,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .en-vocab-flashcard-page
             .en-usage-ex-paired-levels
             .jp-vocab-level-opt:last-child {
-            border-right: 1.5px solid color-mix(in srgb, var(--rise) 45%, var(--border));
+            border-right: 1.5px solid color-mix(in srgb, var(--accent) 40%, var(--border));
           }
           .en-vocab-flashcard-page
             .en-usage-ex-paired-levels
