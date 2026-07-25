@@ -113,6 +113,12 @@ def main() -> None:
     if rng.start != date(2026, 7, 26) or rng.end != date(2026, 8, 1):
         fail(f"recent range={rng!r}")
 
+    if not looks_like_schedule_query("日程"):
+        fail("bare 日程 should query")
+    rng_bare = parse_schedule_query_range("日程", now=now)
+    if rng_bare.label != "日程管理":
+        fail(f"bare 日程 label={rng_bare.label!r}")
+
     q2 = "请给我今天的日程"
     if not looks_like_schedule_query(q2):
         fail("looks_like_schedule_query today")
