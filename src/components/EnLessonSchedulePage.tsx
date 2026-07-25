@@ -29,7 +29,7 @@ import {
 } from "@/lib/en-lesson-shared";
 import { enLessonPath } from "@/lib/locale-path";
 import { enVocabRefViewerPath } from "@/lib/en-vocab-ref-shared";
-import { SITE_URL } from "@/lib/site";
+import { EN_SITE_URL } from "@/lib/en-site-host";
 import type { EnLessonRecord, EnLessonTeacher, EnVocabRef } from "@/lib/types";
 import { EnLessonSchedulePageStyles } from "@/components/en-lesson-schedule-page/EnLessonSchedulePageStyles";
 
@@ -444,7 +444,7 @@ export function EnLessonSchedulePage() {
   const copyLessonLink = async () => {
     if (!selectedViewUrl) return;
     try {
-      await navigator.clipboard.writeText(`${SITE_URL}${selectedViewUrl}`);
+      await navigator.clipboard.writeText(`${EN_SITE_URL}${selectedViewUrl}`);
       showCopySuccess();
     } catch {
       /* ignore */

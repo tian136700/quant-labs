@@ -1,27 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { useEtrAuth } from "@/contexts/EtrAuthProvider";
-import { isJpVocabTeacherAllowedPath, jpVocabPath } from "@/lib/locale-path";
-
-/** 仅「日语教师导航」且非完整导航的用户，限制在日语相关页面 */
+/**
+ * @deprecated 请用 SubjectTeacherRouteGuard（多科目并集）。
+ * 保留空组件以免旧 import 叠跑三个互斥 Guard。
+ */
 export function JpVocabTeacherRouteGuard() {
-  const { hasPermission, isAdmin, checking } = useEtrAuth();
-  const pathname = usePathname() ?? "/";
-  const router = useRouter();
-
-  const restricted =
-    !checking &&
-    !isAdmin &&
-    hasPermission("nav:jp_teacher") &&
-    !hasPermission("nav:full");
-
-  useEffect(() => {
-    if (!restricted) return;
-    if (isJpVocabTeacherAllowedPath(pathname)) return;
-    router.replace(jpVocabPath());
-  }, [restricted, pathname, router]);
-
   return null;
 }

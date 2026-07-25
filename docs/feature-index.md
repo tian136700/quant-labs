@@ -175,6 +175,8 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 ## 日语新课（jp-lesson）
 
+**多科目老师**打开「查看」教案链接勿被踢到韩语：`SubjectTeacherRouteGuard` 路径并集；规则 `subject-teacher-route-guard.mdc`。
+
 | path | 中文名 | 页面 | 主组件 |
 |------|--------|------|--------|
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` + `jp-lesson-page/`（Styles / StatusTable / helpers） |

@@ -85,7 +85,8 @@ import {
   readJpLessonTeachersCache,
 } from "@/lib/jp-lesson-teachers-cache";
 import { jpVocabRefViewerPath } from "@/lib/jp-vocab-ref-shared";
-import { SITE_URL } from "@/lib/site";
+import { EN_SITE_URL } from "@/lib/en-site-host";
+import { JP_SITE_URL } from "@/lib/jp-site-host";
 import { enVocabRefViewerPath } from "@/lib/en-vocab-ref-shared";
 import type {
   EnLessonClassScheduleInput,
@@ -770,7 +771,9 @@ export function JpLessonSchedulePage() {
   const copyLessonLink = async () => {
     if (!selectedViewUrl) return;
     try {
-      await navigator.clipboard.writeText(`${SITE_URL}${selectedViewUrl}`);
+      const siteUrl =
+        selectedEvent?.subject === "en" ? EN_SITE_URL : JP_SITE_URL;
+      await navigator.clipboard.writeText(`${siteUrl}${selectedViewUrl}`);
       showCopySuccess();
     } catch {
       /* ignore */

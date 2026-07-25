@@ -37,9 +37,7 @@ import {
 } from "@/lib/locale-path";
 import { COMPARE_ADMIN_ONLY } from "@/lib/feature-flags";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
-import { EnVocabTeacherRouteGuard } from "./EnVocabTeacherRouteGuard";
-import { JpVocabTeacherRouteGuard } from "./JpVocabTeacherRouteGuard";
-import { KoPronTeacherRouteGuard } from "./KoPronTeacherRouteGuard";
+import { SubjectTeacherRouteGuard } from "./SubjectTeacherRouteGuard";
 import { MaintenanceRouteGuard } from "./MaintenanceRouteGuard";
 import { LangSwitch } from "./LangSwitch";
 import { NavDrawer } from "./NavDrawer";
@@ -115,9 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <>
         <MaintenanceRouteGuard />
-        <JpVocabTeacherRouteGuard />
-        <EnVocabTeacherRouteGuard />
-        <KoPronTeacherRouteGuard />
+        <SubjectTeacherRouteGuard />
         <main>{children}</main>
       </>
     );
@@ -126,9 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="page-wrap">
       <MaintenanceRouteGuard />
-      <JpVocabTeacherRouteGuard />
-      <EnVocabTeacherRouteGuard />
-      <KoPronTeacherRouteGuard />
+      <SubjectTeacherRouteGuard />
       <header className="page-header">
         <div className="mobile-header-bar">
           <Link

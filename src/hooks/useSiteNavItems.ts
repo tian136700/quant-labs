@@ -97,81 +97,61 @@ export function useSiteNavItems(): SiteNavItem[] {
   }
 
   // 英语老师：只保留「英语抽背-老师端」，不挂今日单词 / 新课 / 关于（减负）
-  if (enTeacherNav) {
-    return [
-      ...(canAccessEnVocabTeacherPage
-        ? [
-            {
-              id: "enVocab",
-              href: navHref("enVocab", locale, navOpts),
-              label: nav.enVocab,
-              active: onEnVocabTeacherHome,
-            },
-          ]
-        : []),
-    ];
-  }
-
-  if (koTeacherNav) {
-    return [
-      ...(canAccessKoPronTeacherPage
-        ? [
-            {
-              id: "koPron",
-              href: navHref("koPron", locale, navOpts),
-              label: nav.koPron,
-              active: onKoPronTeacherHome,
-            },
-          ]
-        : []),
-      ...(aboutNavItem ? [aboutNavItem] : []),
-    ];
-  }
-
-  if (jpTeacherNav) {
-    return [
-      ...(canAccessJpVocabTeacherPage
-        ? [
-            {
-              id: "jpVocab",
-              href: navHref("jpVocab", locale, navOpts),
-              label: nav.jpVocab,
-              active: onJpVocabTeacherHome,
-            },
-          ]
-        : []),
-      ...(canAccessJpVocabCoach
-        ? [
-            {
-              id: "jpVocabCoach",
-              href: navHref("jpVocabCoach", locale, navOpts),
-              label: nav.jpVocabCoach,
-              active: onJpVocabCoach,
-            },
-          ]
-        : []),
-      ...(canAccessJpVocabStudy
-        ? [
-            {
-              id: "jpVocabStudy",
-              href: navHref("jpVocabStudy", locale, navOpts),
-              label: nav.jpVocabStudy,
-              active: onJpVocabStudy,
-            },
-          ]
-        : []),
-      ...(hasPermission("jp_lesson:read") || hasPermission("jp_lesson:operate")
-        ? [
-            {
-              id: "jpLesson",
-              href: navHref("jpLesson", locale, navOpts),
-              label: nav.jpLesson,
-              active: onJpLessonMain,
-            },
-          ]
-        : []),
-      ...(aboutNavItem ? [aboutNavItem] : []),
-    ];
+  // 多科目（日语+韩语等）取并集，禁止先被 ko/en 单科 early-return 吃掉日语入口
+  if (jpTeacherNav || enTeacherNav || koTeacherNav) {
+    const items: SiteNavItem[] = [];
+    if (jpTeacherNav) {
+      if (canAccessJpVocabTeacherPage) {
+        items.push({
+          id: "jpVocab",
+          href: navHref("jpVocab", locale, navOpts),
+          label: nav.jpVocab,
+          active: onJpVocabTeacherHome,
+        });
+      }
+      if (canAccessJpVocabCoach) {
+        items.push({
+          id: "jpVocabCoach",
+          href: navHref("jpVocabCoach", locale, navOpts),
+          label: nav.jpVocabCoach,
+          active: onJpVocabCoach,
+        });
+      }
+      if (canAccessJpVocabStudy) {
+        items.push({
+          id: "jpVocabStudy",
+          href: navHref("jpVocabStudy", locale, navOpts),
+          label: nav.jpVocabStudy,
+          active: onJpVocabStudy,
+        });
+      }
+      if (hasPermission("jp_lesson:read") || hasPermission("jp_lesson:operate")) {
+        items.push({
+          id: "jpLesson",
+          href: navHref("jpLesson", locale, navOpts),
+          label: nav.jpLesson,
+          active: onJpLessonMain,
+        });
+      }
+    }
+    if (enTeacherNav && canAccessEnVocabTeacherPage) {
+      items.push({
+        id: "enVocab",
+        href: navHref("enVocab", locale, navOpts),
+        label: nav.enVocab,
+        active: onEnVocabTeacherHome,
+      });
+    }
+    if (koTeacherNav && canAccessKoPronTeacherPage) {
+      items.push({
+        id: "koPron",
+        href: navHref("koPron", locale, navOpts),
+        label: nav.koPron,
+        active: onKoPronTeacherHome,
+      });
+    }
+    if (aboutNavItem) items.push(aboutNavItem);
+    return items;
   }
 
   if (onHiddenEn && loggedIn && !hasPermission("nav:full")) {
