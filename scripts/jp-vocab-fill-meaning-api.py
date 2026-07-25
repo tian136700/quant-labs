@@ -41,7 +41,9 @@ DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-meaning"
 HTTP_USER_AGENT = "jp-vocab-fill-meaning-online/1.0"
 DEFAULT_MIN_INTERVAL_SEC = 1
 DEFAULT_POISON_SEC = 6 * 3600
-HARD_LIMIT = 1
+# 每轮只写回 1 条；list 多拉几条是为了跳过毒丸队首，避免永远卡同一词
+FILL_PER_ROUND = 1
+LIST_CANDIDATE_LIMIT = 20
 
 RATE_GATE_PATH = (
     Path.home() / ".config" / "info-quests" / "jp-vocab-fill-meaning.last_paid_call"
@@ -368,7 +370,7 @@ def run_one_fill(
     scan = call_api(
         api_url=api_url,
         token=token,
-        body={"mode": "list_missing", "limit": HARD_LIMIT},
+        body={"mode": "list_missing", "limit": LIST_CANDIDATE_LIMIT},
     )
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
@@ -384,9 +386,11 @@ def run_one_fill(
 
     poison = load_poison()
     row = None
+    skipped_poison = 0
     for cand in missing:
         wid = str(int(cand["id"]))
         if wid in poison:
+            skipped_poison += 1
             print(
                 f"[jp-vocab-fill-meaning] skip poisoned id={wid} "
                 f"reason={poison[wid].get('reason')!r}",
@@ -397,11 +401,19 @@ def run_one_fill(
         break
 
     if row is None:
+        # 本批全是毒丸：若还有更多缺失，说明只是 limit 内全毒；睡一会再试
+        # 切勿对同一毒丸词再打付费
         print(
-            "[jp-vocab-fill-meaning] 本批均在毒丸冷却，本轮 skip（不打付费）",
+            f"[jp-vocab-fill-meaning] 本批 {len(missing)} 条均在毒丸冷却"
+            f"（跳过 {skipped_poison}），本轮不打付费",
             flush=True,
         )
-        return {"ok": True, "skipped_run": True, "reason": "all_poisoned"}
+        return {
+            "ok": True,
+            "skipped_run": True,
+            "reason": "all_poisoned",
+            "total_missing": total_missing,
+        }
 
     word_id = int(row["id"])
     word = str(row["word"])
@@ -413,8 +425,9 @@ def run_one_fill(
         )
 
     print(
-        f"[jp-vocab-fill-meaning] 待补 1/{total_missing}: id={word_id} {word!r} "
-        f"model={anthropic_model()}",
+        f"[jp-vocab-fill-meaning] 待补 {FILL_PER_ROUND}/{total_missing}: "
+        f"id={word_id} {word!r} model={anthropic_model()}"
+        + (f" (已跳过毒丸 {skipped_poison})" if skipped_poison else ""),
         flush=True,
     )
 

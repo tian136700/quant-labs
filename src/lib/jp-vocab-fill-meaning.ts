@@ -67,8 +67,8 @@ export async function listJpVocabWordsMissingMeaning(
     options.limit > 0
       ? Math.floor(options.limit)
       : null;
-  // 硬顶：释义补全热路径禁止一次拉太多（曾 limit=200 直接 1102）
-  const limit = rawLimit == null ? null : Math.min(rawLimit, 5);
+  // 硬顶：释义补全热路径禁止一次拉太多；稍放宽供毒丸跳过队首（仍远小于曾炸 1102 的 200）
+  const limit = rawLimit == null ? null : Math.min(rawLimit, 20);
 
   // 释义不再依赖词性（本机 Ollama 释义已停；tokken 限流可直接补）
   let sql = `SELECT id, word, reading, kind, pos FROM jp_vocab_word

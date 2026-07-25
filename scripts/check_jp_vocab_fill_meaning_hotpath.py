@@ -22,9 +22,10 @@ def main() -> int:
         errors.append("jp-vocab-fill-meaning.ts 仍调用 normalizeJpVocabNaAdjRowsInDb（释义不需要剥だ）")
     if "TRIM(meaning)" in meaning:
         errors.append("jp-vocab-fill-meaning.ts 仍用 TRIM(meaning)（热路径易 1102）")
-    if "Math.min(rawLimit, 5)" not in meaning and "Math.min(rawLimit, 5)" not in route:
-        if "Math.min(Math.floor(body.limit), 5)" not in route:
-            errors.append("fill-meaning limit 未硬顶 ≤5")
+    if "Math.min(rawLimit, 20)" not in meaning and "Math.min(Math.floor(body.limit), 20)" not in route:
+        errors.append("fill-meaning limit 未硬顶 ≤20")
+    if "LIST_CANDIDATE_LIMIT" not in script or "FILL_PER_ROUND" not in script:
+        errors.append("脚本缺 LIST_CANDIDATE_LIMIT/FILL_PER_ROUND（防毒丸队首卡死）")
     if "naAdjNormalizeCleanUntil" not in na_adj:
         errors.append("jp-vocab-na-adj-db.ts 缺 isolate TTL 缓存（例句等 list_missing 用）")
     if "db.batch" not in na_adj:
