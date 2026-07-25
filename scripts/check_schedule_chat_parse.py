@@ -116,10 +116,17 @@ def main() -> None:
     filtered = filter_events_in_range(events, rng)
     if len(filtered) != 2:
         fail(f"filter count={len(filtered)}")
-    body = format_schedule_list_text(filtered, rng)
+    # 2026-07-26 周日=本周；27=下周一、28=下周二
+    body = format_schedule_list_text(filtered, rng, today=date(2026, 7, 26))
     if "16:00–17:00" not in body or "机构老师" not in body:
         fail(f"format body bad: {body[:200]!r}")
-    if "7/27" not in body or "（无课）" not in body:
+    if "7/27 下周一" not in body:
+        fail(f"next-week label missing: {body!r}")
+    if "7/26 周日" not in body:
+        fail(f"this-week Sunday label missing: {body!r}")
+    if "7/28 下周二" not in body:
+        fail(f"next Tue label missing: {body!r}")
+    if "（无课）" not in body:
         fail("empty days should show 无课")
 
     # 接线：telegram_bot 必须实现回复函数
