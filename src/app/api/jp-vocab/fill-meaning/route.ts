@@ -1,15 +1,16 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyJpVocabMeaningUpdates,
+  clearAllJpVocabWordMeanings,
   scanJpVocabWordsMissingMeaning,
 } from "@/lib/jp-vocab-fill-meaning";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillMeaningBody = {
-  /** list_missing=拉取缺释义（默认）；apply=提交 updates */
-  mode?: "list_missing" | "apply";
+  /** list_missing=拉取缺释义（默认）；apply=提交 updates；clear_all=清空全部单词释义 */
+  mode?: "list_missing" | "apply" | "clear_all";
   dry_run?: boolean;
-  /** list_missing：最多返回几条（定时建议 10～30） */
+  /** list_missing：最多返回几条（定时建议 1；禁止一次拉几百） */
   limit?: number;
   /** apply：整批默认来源（单条 updates[].source 优先） */
   source?: string;
@@ -64,6 +65,15 @@ export async function POST(request: Request) {
       typeof body.limit === "number" && Number.isFinite(body.limit) && body.limit > 0
         ? Math.floor(body.limit)
         : undefined;
+
+    if (body.mode === "clear_all") {
+      const result = await clearAllJpVocabWordMeanings(env.DB, { dryRun });
+      return jsonResponse({
+        ok: true,
+        mode: "clear_all",
+        ...result,
+      });
+    }
 
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyJpVocabMeaningUpdates(env.DB, updates, {

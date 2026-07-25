@@ -34,6 +34,8 @@ export type JpVocabFillMeaningResult = {
   missing?: JpVocabMissingMeaningRow[];
   total_missing?: number;
   upload_spec?: typeof JP_VOCAB_MEANING_UPLOAD_SPEC;
+  /** clear_all 时清空的单词条数 */
+  cleared?: number;
 };
 
 export type ListJpVocabMissingMeaningOptions = {
@@ -165,6 +167,55 @@ export async function scanJpVocabWordsMissingMeaning(
     dry_run: true,
     missing,
     total_missing,
+    upload_spec: JP_VOCAB_MEANING_UPLOAD_SPEC,
+  };
+}
+
+/**
+ * 清空全部单词释义（grammar 不动）。含「手动」来源。
+ * 用于纠错后按常用义重补。
+ */
+export async function clearAllJpVocabWordMeanings(
+  db: D1Database,
+  options: { dryRun?: boolean } = {}
+): Promise<JpVocabFillMeaningResult> {
+  await ensureJpVocabWordSchema(db);
+  const dryRun = Boolean(options.dryRun);
+
+  const countRow = await db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM jp_vocab_word
+       WHERE kind != 'grammar'
+         AND (
+           (meaning IS NOT NULL AND TRIM(meaning) != '')
+           OR (meaning_source IS NOT NULL AND TRIM(meaning_source) != '')
+         )`
+    )
+    .first<{ n: number }>();
+  const cleared = Number(countRow?.n ?? 0);
+
+  if (!dryRun && cleared > 0) {
+    await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET meaning = NULL,
+             meaning_source = NULL,
+             updated_at = datetime('now')
+         WHERE kind != 'grammar'
+           AND (
+             (meaning IS NOT NULL AND TRIM(meaning) != '')
+             OR (meaning_source IS NOT NULL AND TRIM(meaning_source) != '')
+           )`
+      )
+      .run();
+  }
+
+  return {
+    updated: 0,
+    applied: [],
+    skipped: [],
+    dry_run: dryRun,
+    cleared,
     upload_spec: JP_VOCAB_MEANING_UPLOAD_SPEC,
   };
 }

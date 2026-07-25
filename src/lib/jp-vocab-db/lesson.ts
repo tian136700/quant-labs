@@ -128,6 +128,7 @@ export async function upsertJpVocabFromLesson(
     word: string;
     kind: JpVocabKind;
     ref_key: string | null;
+    /** @deprecated 新课不同步释义；忽略传入的 meaning */
     meaning?: string | null;
     example_sentences?: string | null;
   }[],
@@ -137,6 +138,7 @@ export async function upsertJpVocabFromLesson(
   if (refs.length) await upsertJpVocabRefMetadata(db, refs);
 
   // 新课「已完成」同步：created_at 记北京时间，今天不进抽查池，次日凌晨置顶
+  // 释义固定 NULL（由 fill-meaning / Jisho 限流补），不写不覆盖 meaning
   const ts = beijingDateTimeString();
   let addedNew = false;
 
@@ -146,21 +148,17 @@ export async function upsertJpVocabFromLesson(
       if (!word) continue;
       const kind = normalizeKind(item.kind);
       const refKey = item.ref_key;
-      const meaning = (item.meaning || "").trim() || null;
       const exampleSentences = (item.example_sentences || "").trim() || null;
       const idx = jpVocabDbState.devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
         const cur = jpVocabDbState.devWords[idx];
-        const nextMeaning =
-          meaning && !cur.meaning?.trim() ? meaning : cur.meaning;
         const nextExamples =
           exampleSentences && !cur.example_sentences?.trim()
             ? exampleSentences
             : cur.example_sentences ?? null;
-        if (nextMeaning !== cur.meaning || nextExamples !== (cur.example_sentences ?? null)) {
+        if (nextExamples !== (cur.example_sentences ?? null)) {
           jpVocabDbState.devWords[idx] = {
             ...cur,
-            meaning: nextMeaning,
             example_sentences: nextExamples,
             updated_at: ts,
           };
@@ -173,7 +171,7 @@ export async function upsertJpVocabFromLesson(
           id: createdId,
           word,
           reading: null,
-          meaning,
+          meaning: null,
           pos: null,
           kind,
           ref_key: refKey,
@@ -209,36 +207,24 @@ export async function upsertJpVocabFromLesson(
     if (!word) continue;
     const kind = normalizeKind(item.kind);
     const refKey = item.ref_key;
-    const meaning = (item.meaning || "").trim() || null;
     const exampleSentences = (item.example_sentences || "").trim() || null;
 
     const existing = await db
       .prepare(
-        `SELECT id, meaning, example_sentences FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
+        `SELECT id, example_sentences FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
       )
       .bind(word)
-      .first<{ id: number; meaning: string | null; example_sentences: string | null }>();
+      .first<{ id: number; example_sentences: string | null }>();
 
     if (existing) {
-      let nextMeaning = existing.meaning;
-      let nextExamples = existing.example_sentences;
-      let changed = false;
-      if (meaning && !(existing.meaning || "").trim()) {
-        nextMeaning = meaning;
-        changed = true;
-      }
       if (exampleSentences && !(existing.example_sentences || "").trim()) {
-        nextExamples = exampleSentences;
-        changed = true;
-      }
-      if (changed) {
         await db
           .prepare(
             `UPDATE jp_vocab_word
-             SET meaning = ?1, example_sentences = ?2, updated_at = ?3
-             WHERE id = ?4`
+             SET example_sentences = ?1, updated_at = ?2
+             WHERE id = ?3`
           )
-          .bind(nextMeaning, nextExamples, ts, existing.id)
+          .bind(exampleSentences, ts, existing.id)
           .run();
       }
       continue;
@@ -248,9 +234,9 @@ export async function upsertJpVocabFromLesson(
     await db
       .prepare(
         `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, created_at, updated_at)
-         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?6)`
+         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, 0, NULL, NULL, ?4, ?5, ?5)`
       )
-      .bind(word, meaning, kind, refKey, exampleSentences, ts)
+      .bind(word, kind, refKey, exampleSentences, ts)
       .run();
   }
 

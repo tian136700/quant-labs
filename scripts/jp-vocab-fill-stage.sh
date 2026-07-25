@@ -1,19 +1,25 @@
 #!/bin/bash
-# 日语词条补全：单阶段入口（词性 / 释义 / 例句 各自独立）
+# 日语词条补全：单阶段入口（词性 / 例句；释义已退役）
 #
-# 每阶段自己的 dirlock + ollama_slot：跑完即放槽，不把三阶段绑成一大坨占死模型。
+# 每阶段自己的 dirlock + ollama_slot：跑完即放槽，不把多阶段绑成一大坨占死模型。
 # 实际逻辑在 wq-code/stt（Ollama 生成 + 单条 apply）。
 #
 # 用法：
-#   bash scripts/jp-vocab-fill-stage.sh pos|meaning|examples
+#   bash scripts/jp-vocab-fill-stage.sh pos|examples
 #   FORCE=1 bash scripts/jp-vocab-fill-stage.sh examples
+#
+# 释义请用：python3 scripts/jp-vocab-fill-meaning-api.py （Jisho，≥60s/条；无 launchd）
 set -euo pipefail
 
 STAGE="${1:-}"
 case "$STAGE" in
-  pos|meaning|examples) ;;
+  pos|examples) ;;
+  meaning)
+    echo "释义阶段已停用本机 Ollama。请用: python3 scripts/jp-vocab-fill-meaning-api.py" >&2
+    exit 2
+    ;;
   *)
-    echo "用法: $0 {pos|meaning|examples}" >&2
+    echo "用法: $0 {pos|examples}" >&2
     exit 2
     ;;
 esac

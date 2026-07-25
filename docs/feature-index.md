@@ -53,7 +53,7 @@
 | 北京时间跨日清理（释放/共享/今日抽查次数/抽查目标恢复 20/课堂带读已带读） | `POST /api/jp-vocab/daily-rollover`；`jp-vocab-daily-rollover.ts`；`resetJpVocabTeacherVisibleLimit()`；`pruneJpVocabCoachCoachedOlderThanRetention()`；Mac 定时 `scripts/jp-vocab-nightly.sh` |
 | **抽完后自动禁用老师账号**（记操作人；普通 +1h / 带读欣欣 +2h） | `jp-vocab-teacher-quiz-day.ts`；`teacher-user-quiz-complete-disable.ts`；见 admin/users 子功能「今日抽查完成后自动禁用」 |
 | **读音「待补全」**（Mac 每分钟补 `reading`；助词尾/斜杠异写有 fallback；长句跳过） | `scripts/jp-vocab-fill-reading-nightly.sh` → `jp-vocab-fill-reading-api.py`；`POST /api/jp-vocab/fill-reading`；`jp-vocab-fill-reading.ts`；规则 `.cursor/rules/jp-vocab-fill-reading.mdc` |
-| **释义补全**（`list_missing` 拉缺释义单词+`prompt`；`apply` 写回中文释义，多义用「；」最多 3 个；传 `source`；老师卡片显示「释义来源」） | `POST /api/jp-vocab/fill-meaning`；`jp-vocab-fill-meaning.ts` / `jp-vocab-meaning-ai.ts`；`meaning_source`；`scripts/jp-vocab-fill-meaning-api.py`；规则 `.cursor/rules/jp-vocab-fill-meaning.mdc` |
+| **释义补全**（`list_missing` / `apply` / **`clear_all`**；多义用「；」最多 3、常用在前；**无本机 Ollama 定时**；Jisho 免费限流 ≥60s/条；新课**不同步**释义） | `POST /api/jp-vocab/fill-meaning`；`jp-vocab-fill-meaning.ts` / `jp-vocab-meaning-ai.ts`；`meaning_source`；`scripts/jp-vocab-fill-meaning-api.py`；规则 `.cursor/rules/jp-vocab-fill-meaning.mdc` |
 | **例句 / 造句补全**（`list_missing` 拉缺例句+`prompt`；`apply` 写回并传 `source`；老师卡片显示「例句来源」；人手改记为「手动」；**Mac 定时静默=今日最后抽查后再等 1h**，见 `fill-schedule-gate`；**存库仍 `漢字(かな)`，页面用 `JpVocabFuriganaText`**；**な形容词「〜だ」用词干造句**见 `jp-vocab-na-adj.ts`） | `POST /api/jp-vocab/fill-example-sentences`；`POST /api/jp-vocab/fill-schedule-gate`；STT `com.stt.jp_vocab_remote_fill_examples`；规则 compose + fill-example-sentences |
 | 学生点「请老师发送」按钮（**默认关闭**；peek 不依赖此开关） | `jp-vocab-share-ui.ts` → `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED`；`JpVocabStudyPage.tsx` → `requestTeacherShare`；`POST /api/jp-vocab/share-request` |
 | **今日共享列表本地缓存**（打开立刻显示；后台刷新；跨日自动失效） | `jp-vocab-study-cache.ts`；`JpVocabStudyPage.tsx` → `loadShared`；Worker 内短缓存 `listJpVocabSharedToday`（`jp-vocab-db.ts`） |
@@ -190,7 +190,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 
 | 功能描述 | 改哪里 |
 |----------|--------|
-| **API 上传新课**（`content` + 可选 `meanings` / **`example_sentences`**；`|||` 分隔各词例句；单项「日语 + 译文：」，每词最多 10 条；已完成同步释义与例句到 `/jp-vocab`） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings`、`normalizeLessonExampleSentencesForStorage` |
+| **API 上传新课**（`content` + 可选 `meanings` / **`example_sentences`**；`|||` 分隔各词例句；单项「日语 + 译文：」，每词最多 10 条；已完成同步**例句**到 `/jp-vocab`，**不同步释义**） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings`、`normalizeLessonExampleSentencesForStorage` |
 | **教案下载文件名**（原图 / 分页 PDF / Word：`{id}、单词学习|语法学习 (词1, 词2, …)`；新课列表下载与「查看」页一致） | `jp-vocab-ref-shared.ts` → `jpLessonRefDownloadFilename`；`JpLessonPage.tsx`；`JpVocabRefViewer` + `jp-vocab/ref/[refKey]/page.tsx`；`GET /api/jp-vocab/ref/[refKey]?download=1`；`getJpLessonByRefKey` |
 | **复制分页 PDF**（一步：剪贴板优先 → 系统分享 → 下载兜底；下载菜单 + 复制菜单） | `jp-vocab-ref-pdf-export.ts` → `buildJpVocabRefPaginatedPdf` / `copyJpVocabRefPaginatedPdf`；`JpVocabRefDownloadMenu`；`JpLessonCopyMenu` |
 | **语法分页切段**（左侧序号方块 + 平均色条密度≥0.25，避免例文漫画蓝衣服误切；如 lesson-68） | `jp-vocab-ref-pdf-export.ts` → `detectGrammarSectionPeaks`；规则 `.cursor/rules/vocab-ref-pdf-section-crop.mdc`；`scripts/check_vocab_ref_pdf_grammar_badge_density.py` |

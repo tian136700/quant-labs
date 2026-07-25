@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac 安装：日语 Ollama 补全拆成 3 个独立 launchd 任务（词性 / 释义 / 例句）
+# Mac 安装：日语 Ollama 补全（词性 / 例句）；释义已改走 Jisho 限流脚本，不再装 launchd
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,7 +9,9 @@ LOG_DIR="${HOME}/Library/Logs"
 UID_NUM="$(id -u)"
 
 OLD_COMBINED="com.stt.jp_vocab_remote_fill_examples"
-STAGES=(pos meaning examples)
+# 释义：停用本机 Ollama 定时（改 Jisho 限流手动/脚本，勿再装）
+RETIRED_MEANING="com.infoquests.jp-vocab-fill-meaning"
+STAGES=(pos examples)
 
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 
@@ -28,6 +30,11 @@ RUN_INTERVAL="${JP_VOCAB_FILL_INTERVAL_SECONDS:-60}"
 launchctl bootout "gui/${UID_NUM}/${OLD_COMBINED}" 2>/dev/null || true
 rm -f "${HOME}/Library/LaunchAgents/${OLD_COMBINED}.plist"
 
+# 卸掉已退役的释义 Ollama 定时
+launchctl bootout "gui/${UID_NUM}/${RETIRED_MEANING}" 2>/dev/null || true
+rm -f "${HOME}/Library/LaunchAgents/${RETIRED_MEANING}.plist"
+echo "  uninstalled ${RETIRED_MEANING} (释义改 Jisho，不装 launchd)"
+
 for stage in "${STAGES[@]}"; do
   label="com.infoquests.jp-vocab-fill-${stage}"
   plist_dst="${HOME}/Library/LaunchAgents/${label}.plist"
@@ -44,12 +51,12 @@ for stage in "${STAGES[@]}"; do
 done
 
 echo ""
-echo "OK: 日语 Ollama 补全已拆成 3 个独立任务（词性 → 释义 → 例句，各 limit=1）"
+echo "OK: 日语 Ollama 补全：词性 + 例句（各 limit=1）；释义定时已卸"
 echo "  间隔: 每 ${RUN_INTERVAL}s 检测；槽忙则 skip"
 echo "  日志: ${LOG_DIR}/com.infoquests.jp-vocab-fill-<stage>.log"
-echo "  已卸载旧任务: ${OLD_COMBINED}"
+echo "  释义（Jisho 限流，无 launchd）:"
+echo "    python3 $ROOT/scripts/jp-vocab-fill-meaning-api.py --loop"
 echo ""
 echo "手动单阶段:"
 echo "  FORCE=1 bash $ROOT/scripts/jp-vocab-fill-stage.sh pos"
-echo "  FORCE=1 bash $ROOT/scripts/jp-vocab-fill-stage.sh meaning"
 echo "  FORCE=1 bash $ROOT/scripts/jp-vocab-fill-stage.sh examples"

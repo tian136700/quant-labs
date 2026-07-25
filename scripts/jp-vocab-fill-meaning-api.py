@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""通过线上 API 补全 jp_vocab_word 缺失释义（Mac 本地查 Jisho + 翻译，再通过 API 写库）。"""
+"""日语单词释义：Jisho（免费）→ 谷歌翻译 → POST /api/jp-vocab/fill-meaning。
+
+硬限流（防狂打）：
+  - 每轮最多 1 条
+  - 两轮最小间隔 ≥60 秒（文件门禁）
+  - 禁止并行；禁止 tokken/Anthropic
+
+用法：
+  python3 scripts/jp-vocab-fill-meaning-api.py --clear-all          # 清空线上单词释义
+  python3 scripts/jp-vocab-fill-meaning-api.py --clear-all --dry-run
+  python3 scripts/jp-vocab-fill-meaning-api.py                     # 补 1 条后退出
+  python3 scripts/jp-vocab-fill-meaning-api.py --loop              # 循环：1 条 / ≥60s
+"""
 
 from __future__ import annotations
 
@@ -25,18 +37,23 @@ HTTP_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+SOURCE_LABEL = "Jisho"
+DEFAULT_MIN_INTERVAL_SEC = 60
+RATE_GATE_PATH = (
+    Path.home() / ".config" / "info-quests" / "jp-vocab-fill-meaning.last_jisho_call"
+)
 
 MANUAL_MEANINGS: dict[str, str] = {
     "はじめまして": "初次见面",
-    "失礼ですが": "打扰一下／不好意思",
+    "失礼ですが": "打扰一下；不好意思",
     "だれ": "谁",
     "えーと": "那个…（思考时用）",
-    "たいへんですね": "真不容易／好辛苦",
+    "たいへんですね": "真不容易；好辛苦",
     "なんばん": "几号",
     "なんぷん": "几分",
     "いかがですか": "怎么样？",
     "三つ": "三个",
-    "結構": "不用了／可以了",
+    "結構": "不用了；可以了",
     "～人": "表示人数",
     "イギリス": "英国",
     "ドイツ": "德国",
@@ -44,16 +61,16 @@ MANUAL_MEANINGS: dict[str, str] = {
     "どようび": "星期六",
     "かようび": "星期二",
     "すいようび": "星期三",
-    "やすみ": "休息／假期",
+    "やすみ": "休息；假期",
     "けさ": "今天早上",
     "あさって": "后天",
-    "無理だ": "不行／做不到",
-    "無理": "不行／做不到",
+    "無理だ": "不行；做不到",
+    "無理": "不行；做不到",
     "お金": "钱",
     "大家": "房东",
     "他/ほか": "其他",
-    "鍵屋": "锁匠／配钥匙的店",
-    "綺麗だ": "漂亮／干净",
+    "鍵屋": "锁匠；配钥匙的店",
+    "綺麗だ": "漂亮；干净",
     "一部": "一部分",
     "好きだ": "喜欢",
     "好き": "喜欢",
@@ -83,13 +100,56 @@ def load_token() -> str:
     review_cfg = load_env_file("jp-review-sync.env")
     token = (review_cfg.get("JP_REVIEW_UPLOAD_TOKEN") or "").strip()
     if not token:
-        raise SystemExit("缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）")
+        raise SystemExit(
+            "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
+        )
     return token
 
 
 def load_api_url() -> str:
-    cfg = load_env_file("jp-vocab-fill-reading.env")
+    cfg = {**load_env_file("jp-vocab-fill-reading.env"), **load_env_file("jp-vocab-fill.env")}
     return (cfg.get("JP_VOCAB_FILL_MEANING_URL") or DEFAULT_API_URL).strip()
+
+
+def resolve_min_interval_sec() -> int:
+    raw = (
+        os.getenv("JP_VOCAB_FILL_MEANING_MIN_INTERVAL_SEC")
+        or load_env_file("jp-vocab-fill.env").get("JP_VOCAB_FILL_MEANING_MIN_INTERVAL_SEC")
+        or str(DEFAULT_MIN_INTERVAL_SEC)
+    )
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return DEFAULT_MIN_INTERVAL_SEC
+
+
+def acquire_rate_gate(*, allow_burst: bool) -> bool:
+    """两轮最小间隔。False = 本轮不许再打。"""
+    if allow_burst:
+        return True
+    min_sec = resolve_min_interval_sec()
+    now = time.time()
+    RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if RATE_GATE_PATH.is_file():
+        try:
+            last = float(RATE_GATE_PATH.read_text(encoding="utf-8").strip() or "0")
+        except (OSError, ValueError):
+            last = 0.0
+        elapsed = now - last
+        if elapsed < min_sec:
+            wait = int(min_sec - elapsed)
+            print(
+                f"[jp-vocab-fill-meaning] rate-gate: 距上次仅 "
+                f"{elapsed:.0f}s < {min_sec}s，skip（约 {wait}s 后再试）",
+                flush=True,
+            )
+            return False
+    return True
+
+
+def mark_rate_gate() -> None:
+    RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RATE_GATE_PATH.write_text(f"{time.time():.3f}\n", encoding="utf-8")
 
 
 def analyze_word(word: str) -> tuple[str, str, bool]:
@@ -113,6 +173,7 @@ def analyze_word(word: str) -> tuple[str, str, bool]:
 
 
 def pick_sense(senses: list[dict], *, prefer_verb: bool) -> dict | None:
+    """取 Jisho 第一条匹配义（API 已按常用度排序）。"""
     if not senses:
         return None
     if prefer_verb:
@@ -125,13 +186,36 @@ def pick_sense(senses: list[dict], *, prefer_verb: bool) -> dict | None:
     return senses[0]
 
 
+def collect_english_defs(
+    senses: list[dict], *, prefer_verb: bool, max_senses: int = 3
+) -> list[str]:
+    """按 Jisho 顺序取最多 max_senses 个英义（常用在前）。"""
+    ordered: list[dict] = []
+    if prefer_verb:
+        primary = pick_sense(senses, prefer_verb=True)
+        if primary:
+            ordered.append(primary)
+    for sense in senses:
+        if sense in ordered:
+            continue
+        ordered.append(sense)
+        if len(ordered) >= max_senses:
+            break
+    defs: list[str] = []
+    for sense in ordered[:max_senses]:
+        en_list = sense.get("english_definitions") or []
+        if en_list:
+            defs.append(str(en_list[0]).strip())
+    return [d for d in defs if d]
+
+
 def lookup_jisho(
     word: str,
     *,
     prefer_verb: bool,
-    cache: dict[str, tuple[str | None, bool]],
+    cache: dict[str, tuple[list[str] | None, bool]],
     delay_sec: float,
-) -> tuple[str | None, bool]:
+) -> tuple[list[str] | None, bool]:
     key = f"{word}|{int(prefer_verb)}"
     if key in cache:
         return cache[key]
@@ -139,7 +223,7 @@ def lookup_jisho(
     url = JISHO_URL + urllib.parse.quote(word)
     req = urllib.request.Request(url, headers={"User-Agent": HTTP_USER_AGENT})
     had_error = False
-    english: str | None = None
+    english_defs: list[str] | None = None
     try:
         ctx = ssl.create_default_context()
         with urllib.request.urlopen(req, timeout=20, context=ctx) as resp:
@@ -149,26 +233,26 @@ def lookup_jisho(
                 surface = str(jp.get("word") or "").strip()
                 reading = str(jp.get("reading") or "").strip()
                 if surface == word or (not surface and reading == word):
-                    sense = pick_sense(item.get("senses") or [], prefer_verb=prefer_verb)
-                    if sense:
-                        defs = sense.get("english_definitions") or []
-                        english = "; ".join(defs[:3])
+                    english_defs = collect_english_defs(
+                        item.get("senses") or [], prefer_verb=prefer_verb
+                    )
                     break
-            if english:
+            if english_defs:
                 break
-        if not english and payload.get("data"):
-            sense = pick_sense(payload["data"][0].get("senses") or [], prefer_verb=prefer_verb)
-            if sense:
-                defs = sense.get("english_definitions") or []
-                english = "; ".join(defs[:3])
+        if not english_defs and payload.get("data"):
+            english_defs = collect_english_defs(
+                payload["data"][0].get("senses") or [], prefer_verb=prefer_verb
+            )
+        if english_defs is not None and not english_defs:
+            english_defs = None
     except Exception:
         had_error = True
-        english = None
+        english_defs = None
 
-    cache[key] = (english, had_error)
+    cache[key] = (english_defs, had_error)
     if delay_sec > 0:
         time.sleep(delay_sec)
-    return english, had_error
+    return english_defs, had_error
 
 
 def translate_en(text: str, cache: dict[str, str]) -> str | None:
@@ -194,17 +278,20 @@ def normalize_meaning(zh: str) -> str:
     seen: set[str] = set()
     for chunk in re.split(r"[;；、,，/／]+", zh):
         item = chunk.strip().rstrip("。.")
+        item = re.sub(r"^(to\s+)", "", item, flags=re.I).strip()
         if not item or item in seen:
             continue
         seen.add(item)
         parts.append(item)
-    return "；".join(parts[:3])
+        if len(parts) >= 3:
+            break
+    return "；".join(parts)
 
 
 def infer_meaning(
     word: str,
     *,
-    jisho_cache: dict[str, tuple[str | None, bool]],
+    jisho_cache: dict[str, tuple[list[str] | None, bool]],
     translate_cache: dict[str, str],
     jisho_delay_sec: float,
 ) -> tuple[str | None, bool]:
@@ -213,36 +300,33 @@ def infer_meaning(
 
     lookup, suffix, is_suru = analyze_word(word)
     if lookup in MANUAL_MEANINGS:
-        meaning = MANUAL_MEANINGS[lookup]
-        if suffix == "だ" and not meaning.endswith("だ"):
-            return meaning, False
-        return meaning, False
+        return MANUAL_MEANINGS[lookup], False
 
-    english, had_error = lookup_jisho(
+    en_defs, had_error = lookup_jisho(
         lookup,
         prefer_verb=is_suru or lookup.endswith("る"),
         cache=jisho_cache,
         delay_sec=jisho_delay_sec,
     )
-    if not english:
+    if not en_defs:
         return None, had_error
 
-    zh = translate_en(english, translate_cache)
-    if not zh:
+    zh_parts: list[str] = []
+    for en in en_defs:
+        zh = translate_en(en, translate_cache)
+        if zh:
+            zh_parts.append(zh)
+    if not zh_parts:
         return None, had_error
-    return normalize_meaning(zh), had_error
+    return normalize_meaning("；".join(zh_parts)), had_error
 
 
 def call_api(
     *,
     api_url: str,
     token: str,
-    dry_run: bool,
-    updates: list[dict] | None,
+    body: dict,
 ) -> dict:
-    body: dict = {"dry_run": dry_run}
-    if updates is not None:
-        body["updates"] = updates
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         api_url,
@@ -262,160 +346,200 @@ def call_api(
         raise SystemExit(f"HTTP {exc.code}: {detail}") from exc
 
 
-def print_result(payload: dict) -> None:
+def run_clear_all(*, api_url: str, token: str, dry_run: bool) -> dict:
+    payload = call_api(
+        api_url=api_url,
+        token=token,
+        body={"mode": "clear_all", "dry_run": dry_run},
+    )
     if not payload.get("ok"):
         raise SystemExit(f"API error: {payload.get('error', payload)}")
-
-    mode = payload.get("mode", "scan")
-    print(f"[jp-vocab-fill-meaning-api] mode={mode}", flush=True)
-
-    for item in payload.get("applied") or []:
-        print(
-            f"  {item.get('id')} {item.get('word')!r} -> {item.get('meaning')!r}",
-            flush=True,
-        )
-
-    skipped = payload.get("skipped") or []
-    if skipped:
-        parts = [f"{x.get('id')}:{x.get('word')!r}" for x in skipped]
-        print(f"  未更新: {', '.join(parts)}", flush=True)
-
-    updated = int(payload.get("updated") or 0)
-    dry_run = bool(payload.get("dry_run"))
+    cleared = int(payload.get("cleared") or 0)
     print(
-        f"[jp-vocab-fill-meaning-api] done, "
-        f"{'would update' if dry_run else 'updated'}: {updated}",
+        f"[jp-vocab-fill-meaning] clear_all "
+        f"{'would clear' if dry_run else 'cleared'}={cleared}",
         flush=True,
     )
+    return payload
 
 
-def run_fill(
+def run_one_fill(
     *,
     api_url: str,
     token: str,
     dry_run: bool,
     jisho_delay_ms: int,
-    manual_updates: list[dict] | None,
+    allow_burst: bool,
 ) -> dict:
-    if manual_updates:
-        payload = call_api(
-            api_url=api_url,
-            token=token,
-            dry_run=dry_run,
-            updates=manual_updates,
-        )
-        print_result(payload)
-        return payload
+    if not acquire_rate_gate(allow_burst=allow_burst):
+        return {"ok": True, "skipped_run": True, "reason": "rate_gate"}
 
-    scan = call_api(api_url=api_url, token=token, dry_run=True, updates=None)
+    scan = call_api(
+        api_url=api_url,
+        token=token,
+        body={"mode": "list_missing", "limit": 1},
+    )
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
 
     missing = scan.get("missing") or []
+    total_missing = int(scan.get("total_missing") or 0)
     if not missing:
-        print("[jp-vocab-fill-meaning-api] 无缺失释义的单词", flush=True)
+        print(
+            f"[jp-vocab-fill-meaning] 无缺失释义（total_missing={total_missing}）",
+            flush=True,
+        )
         return scan
 
-    print(f"[jp-vocab-fill-meaning-api] 待补全 {len(missing)} 条", flush=True)
+    row = missing[0]
+    word_id = int(row["id"])
+    word = str(row["word"])
+    print(
+        f"[jp-vocab-fill-meaning] 待补 1/{total_missing}: id={word_id} {word!r}",
+        flush=True,
+    )
 
-    jisho_cache: dict[str, tuple[str | None, bool]] = {}
+    jisho_cache: dict[str, tuple[list[str] | None, bool]] = {}
     translate_cache: dict[str, str] = {}
     jisho_delay_sec = max(0, jisho_delay_ms) / 1000.0
-    updates: list[dict] = []
-    skipped: list[dict] = []
-    jisho_errors = 0
-
-    for row in missing:
-        word_id = int(row["id"])
-        word = str(row["word"])
-        meaning, had_error = infer_meaning(
-            word,
-            jisho_cache=jisho_cache,
-            translate_cache=translate_cache,
-            jisho_delay_sec=jisho_delay_sec,
+    meaning, had_error = infer_meaning(
+        word,
+        jisho_cache=jisho_cache,
+        translate_cache=translate_cache,
+        jisho_delay_sec=jisho_delay_sec,
+    )
+    if not meaning:
+        print(
+            f"  skip id={word_id} word={word!r} "
+            f"reason={'jisho_error' if had_error else 'no_meaning'}",
+            flush=True,
         )
-        if had_error:
-            jisho_errors += 1
-        if not meaning:
-            skipped.append({"id": word_id, "word": word})
-            continue
-        print(f"  {word_id} {word!r} -> {meaning!r}", flush=True)
-        updates.append({"word_id": word_id, "meaning": meaning})
-
-    if dry_run:
+        # 仍打点，避免对同一词狂打
+        mark_rate_gate()
         return {
             "ok": True,
-            "mode": "local-jisho",
-            "updated": len(updates),
-            "applied": [
-                {
-                    "id": u["word_id"],
-                    "word": next(str(x["word"]) for x in missing if int(x["id"]) == u["word_id"]),
-                    "meaning": u["meaning"],
-                }
-                for u in updates
-            ],
-            "skipped": skipped,
-            "jisho_errors": jisho_errors,
+            "mode": "jisho",
+            "updated": 0,
+            "skipped": [{"id": word_id, "word": word}],
+            "dry_run": dry_run,
+        }
+
+    print(f"  {word_id} {word!r} -> {meaning!r}", flush=True)
+
+    if dry_run:
+        mark_rate_gate()
+        return {
+            "ok": True,
+            "mode": "jisho",
+            "updated": 1,
+            "applied": [{"id": word_id, "word": word, "meaning": meaning}],
             "dry_run": True,
         }
 
-    if not updates:
-        print("[jp-vocab-fill-meaning-api] 无可写入释义", flush=True)
-        return {
-            "ok": True,
-            "mode": "local-jisho",
-            "updated": 0,
-            "applied": [],
-            "skipped": skipped,
-            "jisho_errors": jisho_errors,
-            "dry_run": False,
-        }
-
-    payload = call_api(api_url=api_url, token=token, dry_run=False, updates=updates)
-    payload["mode"] = "local-jisho"
-    payload["jisho_errors"] = jisho_errors
-    print_result(payload)
+    payload = call_api(
+        api_url=api_url,
+        token=token,
+        body={
+            "mode": "apply",
+            "source": SOURCE_LABEL,
+            "updates": [{"word_id": word_id, "meaning": meaning, "source": SOURCE_LABEL}],
+        },
+    )
+    mark_rate_gate()
+    if not payload.get("ok"):
+        raise SystemExit(f"API error: {payload.get('error', payload)}")
+    print(
+        f"[jp-vocab-fill-meaning] apply updated={payload.get('updated')} "
+        f"source={SOURCE_LABEL}",
+        flush=True,
+    )
     return payload
 
 
-def parse_manual_updates(raw: str) -> list[dict]:
-    updates: list[dict] = []
-    for chunk in raw.split(","):
-        chunk = chunk.strip()
-        if not chunk or ":" not in chunk:
-            continue
-        word_id, meaning = chunk.split(":", 1)
-        updates.append({"word_id": int(word_id), "meaning": meaning.strip()})
-    return updates
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser(description="补全日语单词缺失释义")
+    parser = argparse.ArgumentParser(
+        description="日语释义：Jisho 限流补全（免费；≥60s/条）"
+    )
     parser.add_argument("--dry-run", action="store_true", help="只预览，不写库")
-    parser.add_argument("--api-url", default=load_api_url())
+    parser.add_argument("--api-url", default=None)
     parser.add_argument("--jisho-delay-ms", type=int, default=350)
     parser.add_argument(
-        "--update",
-        action="append",
-        default=[],
-        help="手动指定 word_id:释义，可重复",
+        "--clear-all",
+        action="store_true",
+        help="清空线上全部单词释义（grammar 不动）",
+    )
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="循环补全：每轮 1 条，间隔 ≥60s，直到无缺失",
+    )
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=0,
+        help="--loop 时最多轮数（0=不限，直到补完）",
+    )
+    parser.add_argument(
+        "--allow-burst",
+        action="store_true",
+        help="跳过 60s 门禁（仅调试；禁止写进定时）",
     )
     args = parser.parse_args()
 
     token = load_token()
-    manual_updates = None
-    if args.update:
-        manual_updates = []
-        for item in args.update:
-            manual_updates.extend(parse_manual_updates(item))
+    api_url = (args.api_url or load_api_url()).strip()
 
-    run_fill(
-        api_url=args.api_url,
+    if args.clear_all:
+        run_clear_all(api_url=api_url, token=token, dry_run=args.dry_run)
+        if not args.loop:
+            return 0
+
+    if args.loop:
+        rounds = 0
+        min_sec = resolve_min_interval_sec()
+        while True:
+            rounds += 1
+            if args.max_rounds > 0 and rounds > args.max_rounds:
+                print(
+                    f"[jp-vocab-fill-meaning] 达到 max_rounds={args.max_rounds}，停止",
+                    flush=True,
+                )
+                break
+            result = run_one_fill(
+                api_url=api_url,
+                token=token,
+                dry_run=args.dry_run,
+                jisho_delay_ms=args.jisho_delay_ms,
+                allow_burst=args.allow_burst,
+            )
+            missing_left = result.get("total_missing")
+            if result.get("skipped_run") and result.get("reason") == "rate_gate":
+                print(f"[jp-vocab-fill-meaning] 等待 {min_sec}s…", flush=True)
+                time.sleep(min_sec)
+                continue
+            # 再扫一次看是否还有缺
+            probe = call_api(
+                api_url=api_url,
+                token=token,
+                body={"mode": "list_missing", "limit": 1},
+            )
+            left = int(probe.get("total_missing") or 0)
+            if left <= 0 or not (probe.get("missing") or []):
+                print("[jp-vocab-fill-meaning] 全部补完", flush=True)
+                break
+            print(
+                f"[jp-vocab-fill-meaning] 仍缺 {left}，sleep {min_sec}s…",
+                flush=True,
+            )
+            time.sleep(min_sec)
+        return 0
+
+    run_one_fill(
+        api_url=api_url,
         token=token,
         dry_run=args.dry_run,
         jisho_delay_ms=args.jisho_delay_ms,
-        manual_updates=manual_updates,
+        allow_burst=args.allow_burst,
     )
     return 0
 

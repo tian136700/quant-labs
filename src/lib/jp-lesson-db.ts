@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, alignLessonItemMeanings, normalizeLessonExampleSentencesForStorage, alignLessonItemExampleSentences } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, normalizeLessonExampleSentencesForStorage, alignLessonItemExampleSentences } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -335,7 +335,7 @@ async function syncLessonToVocab(
   const items = parseLessonContent(lesson.content);
   if (!items.length) return;
 
-  const itemMeanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
+  // 释义不同步到抽问：由 Jisho 限流脚本 / fill-meaning 补；对齐英语
   const itemExamples = alignLessonItemExampleSentences(
     lesson.content,
     lesson.example_sentences
@@ -357,7 +357,6 @@ async function syncLessonToVocab(
       word,
       kind: lesson.kind,
       ref_key: refKey,
-      meaning: itemMeanings[index] ?? null,
       example_sentences: itemExamples[index] ?? null,
     })),
     refs
