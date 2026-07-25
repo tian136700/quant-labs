@@ -47,9 +47,10 @@ export async function countJpVocabWordsMissingMeaning(
 ): Promise<number> {
   const result = await db
     .prepare(
+      // 空释义写入应是 NULL；不用 TRIM，避免 list_missing 热路径全表函数扫
       `SELECT COUNT(*) AS n FROM jp_vocab_word
        WHERE kind != 'grammar'
-         AND (meaning IS NULL OR TRIM(meaning) = '')`
+         AND (meaning IS NULL OR meaning = '')`
     )
     .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -60,19 +61,21 @@ export async function listJpVocabWordsMissingMeaning(
   options: ListJpVocabMissingMeaningOptions = {}
 ): Promise<JpVocabMissingMeaningRow[]> {
   await ensureJpVocabWordSchema(db);
-  // 补全前置：な形容词「〜だ」先剥成词干（与例句 list_missing 一致）
+  // な形容词剥「だ」：isolate 内有 TTL 缓存，不会每秒全表扫（见 jp-vocab-na-adj-db）
   await normalizeJpVocabNaAdjRowsInDb(db);
-  const limit =
+  const rawLimit =
     typeof options.limit === "number" &&
     Number.isFinite(options.limit) &&
     options.limit > 0
       ? Math.floor(options.limit)
       : null;
+  // 硬顶：释义补全热路径禁止一次拉太多（曾 limit=200 直接 1102）
+  const limit = rawLimit == null ? null : Math.min(rawLimit, 5);
 
   // 释义不再依赖词性（本机 Ollama 释义已停；tokken 限流可直接补）
   let sql = `SELECT id, word, reading, kind, pos FROM jp_vocab_word
        WHERE kind != 'grammar'
-         AND (meaning IS NULL OR TRIM(meaning) = '')
+         AND (meaning IS NULL OR meaning = '')
        ORDER BY id`;
   if (limit != null) {
     sql += ` LIMIT ?1`;
@@ -123,7 +126,7 @@ async function updateMeaningIfEmpty(
            updated_at = datetime('now')
        WHERE id = ?3
          AND kind != 'grammar'
-         AND (meaning IS NULL OR TRIM(meaning) = '')`
+         AND (meaning IS NULL OR meaning = '')`
     )
     .bind(meaning.trim(), source, wordId)
     .run();
@@ -186,8 +189,8 @@ export async function clearAllJpVocabWordMeanings(
       `SELECT COUNT(*) AS n FROM jp_vocab_word
        WHERE kind != 'grammar'
          AND (
-           (meaning IS NOT NULL AND TRIM(meaning) != '')
-           OR (meaning_source IS NOT NULL AND TRIM(meaning_source) != '')
+           (meaning IS NOT NULL AND meaning != '')
+           OR (meaning_source IS NOT NULL AND meaning_source != '')
          )`
     )
     .first<{ n: number }>();
@@ -202,8 +205,8 @@ export async function clearAllJpVocabWordMeanings(
              updated_at = datetime('now')
          WHERE kind != 'grammar'
            AND (
-             (meaning IS NOT NULL AND TRIM(meaning) != '')
-             OR (meaning_source IS NOT NULL AND TRIM(meaning_source) != '')
+             (meaning IS NOT NULL AND meaning != '')
+             OR (meaning_source IS NOT NULL AND meaning_source != '')
            )`
       )
       .run();

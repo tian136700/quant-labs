@@ -465,11 +465,14 @@ def run_one_fill(
     if skipped and not payload.get("updated"):
         poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
 
+    remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
     print(
         f"[jp-vocab-fill-meaning] apply updated={payload.get('updated')} "
-        f"source={source}",
+        f"source={source} remaining≈{remaining}",
         flush=True,
     )
+    payload = dict(payload)
+    payload["total_missing"] = remaining
     return payload
 
 
@@ -545,31 +548,25 @@ def main() -> int:
                     )
                     time.sleep(min_sec)
                     continue
-                try:
-                    probe = call_api(
-                        api_url=api_url,
-                        token=token,
-                        body={"mode": "list_missing", "limit": 1},
-                    )
-                except SystemExit as exc:
-                    wait = max(30, min_sec * 10)
-                    print(
-                        f"[jp-vocab-fill-meaning] probe 失败（{exc}），"
-                        f"{wait}s 后继续…",
-                        flush=True,
-                    )
-                    time.sleep(wait)
-                    continue
-                left = int(probe.get("total_missing") or 0)
-                if left <= 0 or not (probe.get("missing") or []):
+                # 禁止每轮再打一次 list_missing probe（曾把 Worker 打到 1102）
+                # 无缺失时 run_one_fill 直接返回 total_missing=0
+                left = int(result.get("total_missing") or -1)
+                if left == 0 and not (result.get("missing") or []):
                     print("[jp-vocab-fill-meaning] 全部补完", flush=True)
                     break
-                print(
-                    f"[jp-vocab-fill-meaning] 仍缺 {left}，下一轮由 rate-gate 控速"
-                    f"（≥{min_sec}s）…",
-                    flush=True,
-                )
-                # 间隔由 acquire_paid_rate_gate 精确等待；此处不再额外硬 sleep
+                if left > 0:
+                    print(
+                        f"[jp-vocab-fill-meaning] 仍缺约 {left}，下一轮由 rate-gate 控速"
+                        f"（≥{min_sec}s）…",
+                        flush=True,
+                    )
+                else:
+                    # apply 成功：下轮 run_one_fill 再 list；此处不额外打 Worker
+                    print(
+                        f"[jp-vocab-fill-meaning] 本轮写回 updated={result.get('updated')}，"
+                        f"下一轮继续（≥{min_sec}s）…",
+                        flush=True,
+                    )
             return 0
 
         run_one_fill(
