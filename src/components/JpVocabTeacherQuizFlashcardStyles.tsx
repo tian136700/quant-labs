@@ -565,7 +565,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           flex: 0 0 auto;
           min-width: 0;
         }
-        /* 备注在左侧释义窗格下方；长文区内滚动；「查看全部」弹窗另开 */
+        /* 备注：桌面在释义下；手机在抽查优先级块底（两份 DOM，按断点互斥） */
         .en-vocab-flashcard-page__notes {
           margin: 0;
           min-width: 0;
@@ -582,8 +582,19 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-size: 0.8125rem;
           line-height: 1.45;
         }
+        .en-vocab-flashcard-page__notes--mobile,
         .en-vocab-flashcard-page-footer__notes {
+          display: none;
           margin: 0;
+        }
+        @media (min-width: 1025px) {
+          .en-vocab-flashcard-page__notes--desktop {
+            display: block;
+          }
+          .en-vocab-flashcard-page__notes--mobile,
+          .en-vocab-flashcard-page-footer__notes {
+            display: none !important;
+          }
         }
         .en-vocab-flashcard-page-footer__panels {
           display: flex;
@@ -674,44 +685,119 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             font-size: 0.8125rem;
             font-weight: 700;
           }
-          /* 用法旁熟悉程度：独立 3 列触控条，勿吃底栏 .jp-vocab-levels 灰框样式 */
+          /* 手机：释义下备注藏起；抽查优先级块底那份显示 */
+          .en-vocab-flashcard-page__notes--desktop {
+            display: none !important;
+          }
+          .en-vocab-flashcard-page__notes--mobile,
+          .en-vocab-flashcard-page-footer__notes {
+            display: block !important;
+            margin-top: 0.65rem;
+            padding-top: 0.55rem;
+            border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+            width: 100%;
+          }
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__stats
+            .en-vocab-flashcard-page__notes-body {
+            max-height: min(12rem, 28vh);
+          }
+          /* 用法旁熟悉程度：独立 3 列触控条 + 勾选框，勿吃底栏灰框样式 */
           .en-vocab-flashcard-page .en-usage-ex-paired-levels.jp-vocab-levels {
             display: grid !important;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0;
+            gap: 0.35rem;
             width: 100%;
             flex-wrap: nowrap;
-            margin: 0.25rem 0 0.55rem;
-            padding: 0;
-            border: 1.5px solid var(--rise);
-            border-radius: 10px;
-            overflow: hidden;
-            background: color-mix(in srgb, var(--rise) 8%, transparent);
+            margin: 0.3rem 0 0.6rem;
+            padding: 0.4rem;
+            border: 2px solid var(--rise);
+            border-radius: 12px;
+            overflow: visible;
+            background: color-mix(in srgb, var(--rise) 12%, var(--panel));
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rise) 18%, transparent);
           }
           .en-vocab-flashcard-page
             .en-usage-ex-paired-levels
             .jp-vocab-level-opt {
-            min-height: 2.75rem;
-            padding: 0.35rem 0.2rem;
+            min-height: 2.85rem;
+            padding: 0.4rem 0.25rem;
             flex: 1 1 0;
             justify-content: center;
+            gap: 0.28rem;
             font-size: clamp(0.6875rem, 3vw, 0.8125rem);
-            font-weight: 500;
-            border: none;
-            border-radius: 0;
-            border-right: 1px solid color-mix(in srgb, var(--rise) 35%, var(--border));
-            background: transparent;
+            font-weight: 600;
+            border: 1.5px solid color-mix(in srgb, var(--rise) 45%, var(--border));
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--bg) 88%, #fff 12%);
+            box-shadow: 0 1px 0 color-mix(in srgb, #000 12%, transparent);
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
           }
           .en-vocab-flashcard-page
             .en-usage-ex-paired-levels
             .jp-vocab-level-opt:last-child {
-            border-right: none;
+            border-right: 1.5px solid color-mix(in srgb, var(--rise) 45%, var(--border));
+          }
+          .en-vocab-flashcard-page
+            .en-usage-ex-paired-levels
+            .jp-vocab-level-opt:active:not(:disabled) {
+            transform: scale(0.97);
+          }
+          .en-vocab-flashcard-page
+            .en-usage-ex-paired-levels
+            .jp-vocab-level-opt.is-checked {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+          }
+          .en-vocab-flashcard-page
+            .en-usage-ex-paired-levels
+            .jp-vocab-level-opt--very.is-checked {
+            border-color: var(--fall);
+            background: color-mix(in srgb, var(--fall) 16%, var(--bg));
+            color: var(--fall);
+          }
+          .en-vocab-flashcard-page
+            .en-usage-ex-paired-levels
+            .jp-vocab-level-opt--weak.is-checked {
+            border-color: var(--rise);
+            background: color-mix(in srgb, var(--rise) 16%, var(--bg));
+            color: var(--rise);
           }
           .en-vocab-flashcard-page
             .en-usage-ex-paired-levels
             .jp-vocab-check-box {
-            display: none;
+            display: inline-flex;
+            width: 1.05rem;
+            height: 1.05rem;
+            border-width: 2px;
+            border-radius: 4px;
+          }
+          /* 底栏整词熟悉程度（无编号用法时）：同样做成明显可点芯片 */
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-levels {
+            gap: 0.4rem;
+          }
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-level-opt {
+            min-height: 2.85rem;
+            padding: 0.45rem 0.65rem;
+            font-weight: 600;
+            border: 1.5px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--bg) 88%, #fff 12%);
+            box-shadow: 0 1px 0 color-mix(in srgb, #000 12%, transparent);
+            touch-action: manipulation;
+          }
+          .en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-check-box {
+            width: 1.05rem;
+            height: 1.05rem;
+            border-width: 2px;
           }
         }
         .jp-vocab-teacher-quiz__word-link {
@@ -1374,6 +1460,47 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             .jp-vocab-teacher-quiz__level
             .jp-vocab-check-box {
             display: none;
+          }
+          /* 英语抽查卡：手机熟悉程度保留勾选框 + 芯片态，避免像纯文字 */
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-levels {
+            gap: 0.4rem;
+            padding: 0.35rem;
+            border: 2px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+            border-radius: 12px;
+            overflow: visible;
+            background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-level-opt {
+            border: 1.5px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+            border-radius: 8px;
+            border-right: 1.5px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+            background: color-mix(in srgb, var(--bg) 88%, #fff 12%);
+            box-shadow: 0 1px 0 color-mix(in srgb, #000 12%, transparent);
+            font-weight: 600;
+            gap: 0.28rem;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-level-opt:last-child {
+            border-right: 1.5px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .jp-vocab-teacher-quiz__level
+            .jp-vocab-check-box {
+            display: inline-flex;
+            width: 1.05rem;
+            height: 1.05rem;
+            border-width: 2px;
+            border-radius: 4px;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .en-usage-ex-paired-levels
+            .jp-vocab-check-box {
+            display: inline-flex;
           }
           .jp-vocab-teacher-quiz-card
             .jp-vocab-teacher-quiz__level

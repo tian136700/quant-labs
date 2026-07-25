@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: EN flashcard notes under left info pane; mid-scroll; nav pinned."""
+"""Regression: EN flashcard notes desktop under info; mobile under 抽查优先级; mid-scroll; nav pinned."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ MODAL_DIR = ROOT / "src/components/en-vocab-teacher-quiz-flashcard"
 STYLES = ROOT / "src/components/JpVocabTeacherQuizFlashcardStyles.tsx"
 BODY = MODAL_DIR / "EnVocabFlashcardPageBody.tsx"
 FOOTER = MODAL_DIR / "EnVocabFlashcardPageFooter.tsx"
+NOTES = MODAL_DIR / "EnVocabFlashcardNotesSection.tsx"
 
 
 def fail(msg: str) -> None:
@@ -48,33 +49,47 @@ def main() -> None:
         fail(f"missing {BODY.relative_to(ROOT)}")
     if not FOOTER.is_file():
         fail(f"missing {FOOTER.relative_to(ROOT)}")
+    if not NOTES.is_file():
+        fail(f"missing {NOTES.relative_to(ROOT)}")
 
     modal_tsx = MODAL.read_text(encoding="utf-8")
     body = BODY.read_text(encoding="utf-8")
     footer = FOOTER.read_text(encoding="utf-8")
+    notes = NOTES.read_text(encoding="utf-8")
     styles = STYLES.read_text(encoding="utf-8")
 
-    # Notes live under left info pane (Body), not footer
-    if "en-vocab-flashcard-page__notes" not in body:
-        fail("Body must render en-vocab-flashcard-page__notes under left column")
-    if "en-vocab-flashcard-page__notes-body" not in body:
-        fail("Body must use en-vocab-flashcard-page__notes-body (scrollable)")
-    if "EnVocabClassNoteContent" not in body:
-        fail("Body notes must use EnVocabClassNoteContent (thumbnails + zoom)")
-    if "onViewRemarks" not in body:
-        fail("Body must expose 查看全部 via onViewRemarks")
+    if "EnVocabFlashcardNotesSection" not in notes:
+        fail("NotesSection component missing export")
+    if 'placement="desktop"' not in body and "placement=\"desktop\"" not in body:
+        if 'placement="desktop"' not in body:
+            fail("Body must render NotesSection placement=desktop under left column")
+    if "EnVocabFlashcardNotesSection" not in body:
+        fail("Body must render EnVocabFlashcardNotesSection")
+    if "en-vocab-flashcard-page__notes--desktop" not in notes:
+        fail("NotesSection must tag desktop placement class")
+    if "en-vocab-flashcard-page__notes--mobile" not in notes:
+        fail("NotesSection must tag mobile placement class")
+    if "EnVocabClassNoteContent" not in notes:
+        fail("Notes must use EnVocabClassNoteContent (thumbnails + zoom)")
+    if "onViewRemarks" not in notes:
+        fail("Notes must expose 查看全部 via onViewRemarks")
     if "jp-vocab-teacher-quiz__info" not in body:
         fail("Body must keep jp-vocab-teacher-quiz__info (second pane)")
 
     info_pos = body.find('className="jp-vocab-teacher-quiz__info"')
-    notes_pos = body.find("en-vocab-flashcard-page__notes")
+    notes_pos = body.find('placement="desktop"')
     if info_pos < 0 or notes_pos < 0 or notes_pos < info_pos:
-        fail("notes must appear after jp-vocab-teacher-quiz__info (below second pane)")
+        fail("desktop notes must appear after jp-vocab-teacher-quiz__info (below second pane)")
 
-    if "en-vocab-flashcard-page-footer__notes" in footer:
-        fail("Footer must NOT host notes (moved under left info pane)")
-    if "jp-vocab-teacher-quiz__notes" in footer:
-        fail("Footer must NOT render jp-vocab-teacher-quiz__notes")
+    # Mobile: notes live at bottom of 抽查优先级 stats block in Footer
+    if "EnVocabFlashcardNotesSection" not in footer:
+        fail("Footer must render NotesSection for mobile under 抽查优先级")
+    if 'placement="mobile"' not in footer:
+        fail("Footer NotesSection must use placement=mobile")
+    stats_pos = footer.find('className="jp-vocab-teacher-quiz__stats"')
+    mobile_notes_pos = footer.find('placement="mobile"')
+    if stats_pos < 0 or mobile_notes_pos < 0 or mobile_notes_pos < stats_pos:
+        fail("mobile notes must be inside/after jp-vocab-teacher-quiz__stats (抽查优先级块底)")
 
     # Side column must not host notes
     side_idx = body.find('className="en-vocab-flashcard-page__col-side"')
@@ -102,8 +117,11 @@ def main() -> None:
         fail("styles must pin .en-vocab-flashcard-page__nav")
     if "en-vocab-flashcard-page__notes-body" not in styles:
         fail("styles must define scrollable .en-vocab-flashcard-page__notes-body")
+    if "en-vocab-flashcard-page__notes--desktop" not in styles:
+        fail("styles must toggle notes--desktop by breakpoint")
+    if "en-vocab-flashcard-page__notes--mobile" not in styles:
+        fail("styles must toggle notes--mobile by breakpoint")
 
-    # Prefer dedicated class; also accept card-scoped notes-body override
     notes_body_idx = styles.find(".en-vocab-flashcard-page__notes-body")
     if notes_body_idx < 0:
         fail("styles must mention en-vocab-flashcard-page__notes-body")
@@ -131,7 +149,6 @@ def main() -> None:
     if "min-height: 0" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must set min-height: 0")
 
-    # 手机端：刘海 safe-area + 导航钉进度条（勿在 footer 重复）
     if "safe-area-inset-top" not in styles:
         fail("en-vocab flashcard styles must pad safe-area-inset-top on mobile")
     if "en-vocab-flashcard-page__nav-progress" not in modal_tsx:
@@ -151,9 +168,29 @@ def main() -> None:
             "mobile .jp-vocab-levels segment styles must be scoped under __level "
             "(so usage-side levels keep red outline only)"
         )
+    # Mobile: usage / footer level checkboxes must stay visible on EN card
+    if (
+        "en-vocab-flashcard-page" in styles
+        and ".en-usage-ex-paired-levels" in styles
+        and "jp-vocab-check-box" in styles
+    ):
+        # Ensure we did not re-introduce blanket hide for EN usage levels
+        hide_usage = (
+            ".en-usage-ex-paired-levels\n            .jp-vocab-check-box {\n"
+            "            display: none;"
+        )
+        if hide_usage in styles or (
+            ".en-usage-ex-paired-levels" in styles
+            and styles.count(
+                ".en-vocab-flashcard-page\n            .en-usage-ex-paired-levels\n"
+                "            .jp-vocab-check-box {\n            display: none"
+            )
+            > 0
+        ):
+            fail("EN mobile usage levels must NOT hide .jp-vocab-check-box")
 
     print(
-        "OK: en-vocab notes under left info pane (scroll + view-all); "
+        "OK: en-vocab notes desktop under info / mobile under 抽查优先级; "
         "mid-scroll; nav pinned; mobile safe-area + nav progress"
     )
 

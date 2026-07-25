@@ -4,6 +4,7 @@ import {
   LEVELS,
   LEVEL_LABEL,
 } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
+import { EnVocabFlashcardNotesSection } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardNotesSection";
 import { enVocabTotalReviewsZeroHint } from "@/lib/en-vocab-shared";
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
 
@@ -25,6 +26,9 @@ type Props = {
   totalDisplay: { label: string; isZero: boolean };
   risk: number;
   todayChecks: number;
+  hasNotes: boolean;
+  onViewRemarks: (w: EnVocabWord) => void;
+  onEditRemarks?: (w: EnVocabWord) => void;
   onSelectLevel: (wordId: number, level: EnVocabLevel) => void;
   setNextBlockedHint: (v: boolean) => void;
 };
@@ -34,7 +38,8 @@ export function EnVocabFlashcardPageFooter(props: Props) {
     canOperate, w, isStudy, previewMode, usePerUsageLevels,
     selected, overallFromUsages, reviewLocked, isSaving, levelSyncHintShort, levelSyncHint,
     locale, priorityLabel, riskBadgeTier,
-    totalDisplay, risk, todayChecks, onSelectLevel, setNextBlockedHint,
+    totalDisplay, risk, todayChecks, hasNotes, onViewRemarks, onEditRemarks,
+    onSelectLevel, setNextBlockedHint,
   } = props;
   return (
         <div className="en-vocab-flashcard-page-footer">
@@ -211,6 +216,15 @@ export function EnVocabFlashcardPageFooter(props: Props) {
             <span>一般 {w.cnt_normal}</span>
             <span className="chg-up">不熟悉 {w.cnt_weak}</span>
           </div>
+          {/* 手机端：备注挂在抽查优先级块最下面（桌面仍用释义下那份） */}
+          <EnVocabFlashcardNotesSection
+            placement="mobile"
+            w={w}
+            hasNotes={hasNotes}
+            canOperate={canOperate}
+            onViewRemarks={onViewRemarks}
+            onEditRemarks={onEditRemarks}
+          />
         </div>
         </div>
         </div>

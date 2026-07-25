@@ -603,6 +603,9 @@ export function EnVocabTeacherQuizFlashcardModal({
             totalDisplay={totalDisplay}
             risk={risk}
             todayChecks={todayChecks}
+            hasNotes={hasNotes}
+            onViewRemarks={onViewRemarks}
+            onEditRemarks={onEditRemarks}
             onSelectLevel={onSelectLevel}
             setNextBlockedHint={setNextBlockedHint}
           />
