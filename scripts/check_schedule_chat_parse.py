@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Regression: Telegram 日程自然语言解析（父项目 schedule_chat_command）。"""
+"""Regression: Telegram 日程自然语言解析 / 查询（父项目 schedule_chat_command）。"""
 
 from __future__ import annotations
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]  # us_stock_monitor
@@ -14,8 +14,12 @@ if str(LIB) not in sys.path:
 
 from bots.schedule_chat_command import (  # noqa: E402
     ScheduleChatDraft,
+    filter_events_in_range,
+    format_schedule_list_text,
     looks_like_schedule_chat,
+    looks_like_schedule_query,
     parse_schedule_chat_text,
+    parse_schedule_query_range,
 )
 
 BEIJING = timezone(timedelta(hours=8))
@@ -35,6 +39,8 @@ def main() -> None:
         "请帮我录入今天下午4点的那个韩语课，"
         "持续时间是一个小时。老师是那个机构老师。"
     )
+    if looks_like_schedule_query(text):
+        fail("ingest sample must not be schedule_query")
     if not looks_like_schedule_chat(text):
         fail("looks_like_schedule_chat should be True for sample")
 
@@ -59,6 +65,66 @@ def main() -> None:
         fail(f"class_at2={p2.class_at!r}")
     if p2.title != "日语" or p2.teacher != "欣欣" or p2.duration_minutes != 55:
         fail(f"p2={p2!r}")
+
+    # 明确说「系统里面的」→ 去掉前缀，按已有老师名匹配
+    t3 = "录入今天下午4点韩语课，一个小时，老师是系统里面的欣欣"
+    p3 = parse_schedule_chat_text(t3, now=now)
+    if not isinstance(p3, ScheduleChatDraft):
+        fail(f"parse3 failed: {p3}")
+    if p3.teacher != "欣欣" or p3.title != "韩语" or p3.duration_minutes != 60:
+        fail(f"p3={p3!r}")
+    if p3.class_at != "2026-07-26 16:00:00":
+        fail(f"class_at3={p3.class_at!r}")
+
+    # —— 查询日程表 ——
+    q1 = "请给我最近一段时间的日程表"
+    if not looks_like_schedule_query(q1):
+        fail("looks_like_schedule_query recent")
+    if looks_like_schedule_chat(q1):
+        fail("query must not look like ingest")
+    rng = parse_schedule_query_range(q1, now=now)
+    if rng.start != date(2026, 7, 26) or rng.end != date(2026, 8, 1):
+        fail(f"recent range={rng!r}")
+
+    q2 = "请给我今天的日程"
+    if not looks_like_schedule_query(q2):
+        fail("looks_like_schedule_query today")
+    rng2 = parse_schedule_query_range(q2, now=now)
+    if rng2.start != rng2.end or rng2.start != date(2026, 7, 26):
+        fail(f"today range={rng2!r}")
+
+    events = [
+        {
+            "class_at": "2026-07-26 16:00:00",
+            "duration_minutes": 60,
+            "summary": "手动 · 机构老师 · 韩语",
+        },
+        {
+            "class_at": "2026-07-28 10:00:00",
+            "duration_minutes": 55,
+            "summary": "日语课 · 欣欣 · 单词",
+        },
+    ]
+    filtered = filter_events_in_range(events, rng)
+    if len(filtered) != 2:
+        fail(f"filter count={len(filtered)}")
+    body = format_schedule_list_text(filtered, rng)
+    if "16:00–17:00" not in body or "机构老师" not in body:
+        fail(f"format body bad: {body[:200]!r}")
+    if "7/27" not in body or "（无课）" not in body:
+        fail("empty days should show 无课")
+
+    # 接线：telegram_bot 必须实现回复函数
+    bot_src = (LIB / "bots" / "telegram_bot.py").read_text(encoding="utf-8")
+    for needle in (
+        "def _reply_schedule_chat(",
+        "def _reply_schedule_chat_ingest(",
+        "def _reply_schedule_query(",
+        'intent="schedule_teacher"',
+        "schedule_query",
+    ):
+        if needle not in bot_src:
+            fail(f"telegram_bot.py missing {needle!r}")
 
     print("OK: schedule chat parse")
 
