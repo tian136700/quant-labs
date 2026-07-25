@@ -217,9 +217,19 @@ def main() -> int:
     ]:
         if f"export function {n}" not in review_text:
             errors.append(f"en-vocab-review.ts: missing export {n!r}")
-    if "此单词的" not in review_text or "还未勾选" not in review_text:
+    if "此单词的" not in review_text or "还没有勾选" not in review_text:
         errors.append(
             "en-vocab-review.ts: formatEnVocabUncheckedUsagesHint must list unchecked usages"
+        )
+    if "用法${i + 1}" not in review_text and "`用法${i + 1}`" not in review_text:
+        # template: `用法${i + 1}`
+        if "用法${" not in review_text:
+            errors.append(
+                "en-vocab-review.ts: hint labels must be 用法N (number after 用法), not N.用法"
+            )
+    if "1.用法" in review_text and "map((i) => `${i + 1}.用法`)" in review_text:
+        errors.append(
+            "en-vocab-review.ts: must not format unchecked labels as N.用法"
         )
 
     paired = ROOT / "src/components/EnVocabUsageExamplesPairedContent.tsx"
@@ -229,7 +239,7 @@ def main() -> int:
     else:
         for n in [
             "en-usage-ex-paired-levels",
-            "border: 1.5px solid var(--rise)",
+            "var(--accent)",
             "data-en-usage-level-index",
             "disabledReason",
         ]:
@@ -237,6 +247,10 @@ def main() -> int:
                 errors.append(
                     f"EnVocabUsageExamplesPairedContent.tsx: missing {n!r}"
                 )
+        if "border: 1.5px solid var(--rise)" in paired_text:
+            errors.append(
+                "EnVocabUsageExamplesPairedContent.tsx: usage-level chrome must not use rise red outline"
+            )
         for banned in ["focusIndex", "en-usage-ex-paired-levels--focus"]:
             if banned in paired_text:
                 errors.append(
@@ -387,17 +401,24 @@ def main() -> int:
         )
 
     page_src = (ROOT / "src/components/EnVocabPage.tsx").read_text(encoding="utf-8")
-    # displayQuizProgress 分母须用整池 quizTargetWords，禁止 teacherPendingWords
-    dqp = page_src.find("const displayQuizProgress")
+    # displayQuizProgress 在 list-view hook（从 EnVocabPage 拆出）；分母须用整池 quizTargetWords
+    list_view = ROOT / "src/hooks/useEnVocabTeacherListView.ts"
+    list_view_text = list_view.read_text(encoding="utf-8") if list_view.is_file() else ""
+    progress_src = page_src + "\n" + list_view_text
+    dqp = progress_src.find("const displayQuizProgress")
     if dqp < 0:
-        errors.append("EnVocabPage: missing displayQuizProgress")
+        errors.append(
+            "EnVocabPage/useEnVocabTeacherListView: missing displayQuizProgress"
+        )
     else:
-        chunk = page_src[dqp : dqp + 900]
+        chunk = progress_src[dqp : dqp + 900]
         if "computeEnVocabTeacherPageQuizProgress" not in chunk:
-            errors.append("EnVocabPage displayQuizProgress must use teacher page progress helper")
+            errors.append(
+                "displayQuizProgress must use teacher page progress helper"
+            )
         if "quizTargetWords" not in chunk:
             errors.append(
-                "EnVocabPage displayQuizProgress must use quizTargetWords as denominator "
+                "displayQuizProgress must use quizTargetWords as denominator "
                 "(not teacherPendingWords — refresh false-complete)"
             )
         if (
@@ -408,8 +429,7 @@ def main() -> int:
             or "computeEnVocabTeacherPageQuizProgress(teacherPendingWords" in chunk
         ):
             errors.append(
-                "EnVocabPage displayQuizProgress must NOT pass teacherPendingWords "
-                "as progress total"
+                "displayQuizProgress must NOT pass teacherPendingWords as progress total"
             )
 
     if errors:

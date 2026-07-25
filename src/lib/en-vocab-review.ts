@@ -101,7 +101,7 @@ export function findFirstIncompleteEnVocabUsageLevelIndex(
 }
 
 /**
- * 点「下一个」/共享时用法未齐的提示文案（列出未勾的 N.用法；不滚动定位）。
+ * 点「下一个」/共享时用法未齐的提示文案（列出未勾的「用法N」；不滚动定位）。
  * actionHint 例：「再点「下一个」」「再共享给学生」
  */
 export function formatEnVocabUncheckedUsagesHint(
@@ -111,8 +111,8 @@ export function formatEnVocabUncheckedUsagesHint(
   if (incompleteIndices.length === 0) {
     return `还有用法未勾选熟悉程度，请勾选后${actionHint}。`;
   }
-  const labels = incompleteIndices.map((i) => `${i + 1}.用法`).join("、");
-  return `此单词的${labels}还未勾选，请勾选后${actionHint}。`;
+  const labels = incompleteIndices.map((i) => `用法${i + 1}`).join("、");
+  return `此单词的${labels}还没有勾选，请勾选后${actionHint}。`;
 }
 
 /**
