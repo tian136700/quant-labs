@@ -93,6 +93,14 @@ def main() -> None:
     if rng2.start != rng2.end or rng2.start != date(2026, 7, 26):
         fail(f"today range={rng2!r}")
 
+    help_q = "可以帮我新建今天的日程吗？"
+    from bots.schedule_chat_command import looks_like_schedule_create_incomplete
+
+    if not looks_like_schedule_create_incomplete(help_q):
+        fail("incomplete create should be detected")
+    if looks_like_schedule_query(help_q):
+        fail("incomplete create must not be query")
+
     events = [
         {
             "class_at": "2026-07-26 16:00:00",
@@ -122,6 +130,8 @@ def main() -> None:
         "def _reply_schedule_query(",
         'intent="schedule_teacher"',
         "schedule_query",
+        "schedule_help",
+        "schedule_create_help_text",
     ):
         if needle not in bot_src:
             fail(f"telegram_bot.py missing {needle!r}")
