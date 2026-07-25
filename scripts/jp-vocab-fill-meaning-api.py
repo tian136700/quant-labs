@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """日语单词释义：tokken Anthropic（与英语线上补全同一套）→ POST fill-meaning。
 
-硬限流（防烧钱）：
+限流 / 互斥：
   - 每轮最多 1 条
-  - 两轮付费调用最小间隔 ≥60 秒（文件门禁）
+  - 两轮付费调用最小间隔 ≥1 秒（文件门禁；未到点则 sleep 等待，不 skip）
+  - 进程互斥锁：前一任务仍在跑则阻塞等待，禁止并行打 tokken
   - 失败词毒丸 6h，避免队首同一词连环烧钱
-  - 禁止并行；禁止一分钟狂打
 
 用法：
   python3 scripts/jp-vocab-fill-meaning-api.py --clear-all
   python3 scripts/jp-vocab-fill-meaning-api.py              # 补 1 条
-  python3 scripts/jp-vocab-fill-meaning-api.py --loop       # 循环：1 条 / ≥60s
+  python3 scripts/jp-vocab-fill-meaning-api.py --loop       # 循环：1 条 / ≥1s
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -23,7 +24,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "lib"))
@@ -36,7 +39,7 @@ from paid_anthropic_client import (  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-meaning"
 HTTP_USER_AGENT = "jp-vocab-fill-meaning-online/1.0"
-DEFAULT_MIN_INTERVAL_SEC = 60
+DEFAULT_MIN_INTERVAL_SEC = 1
 DEFAULT_POISON_SEC = 6 * 3600
 HARD_LIMIT = 1
 
@@ -45,6 +48,9 @@ RATE_GATE_PATH = (
 )
 POISON_PATH = (
     Path.home() / ".config" / "info-quests" / "jp-vocab-fill-meaning.poison.json"
+)
+RUN_LOCK_PATH = (
+    Path.home() / ".config" / "info-quests" / "jp-vocab-fill-meaning.run.lock"
 )
 
 HAN_RE = re.compile(r"[\u4E00-\u9FFF]")
@@ -97,10 +103,13 @@ def resolve_min_interval_sec() -> int:
     raw = (
         os.getenv("JP_VOCAB_FILL_MEANING_MIN_INTERVAL_SEC")
         or load_env_file("jp-vocab-fill.env").get("JP_VOCAB_FILL_MEANING_MIN_INTERVAL_SEC")
+        or load_env_file("jp-vocab-fill-meaning.env").get(
+            "JP_VOCAB_FILL_MEANING_MIN_INTERVAL_SEC"
+        )
         or str(DEFAULT_MIN_INTERVAL_SEC)
     )
     try:
-        return max(30, int(raw))
+        return max(1, int(raw))
     except ValueError:
         return DEFAULT_MIN_INTERVAL_SEC
 
@@ -109,6 +118,9 @@ def resolve_poison_sec() -> int:
     raw = (
         os.getenv("JP_VOCAB_FILL_MEANING_POISON_SEC")
         or load_env_file("jp-vocab-fill.env").get("JP_VOCAB_FILL_MEANING_POISON_SEC")
+        or load_env_file("jp-vocab-fill-meaning.env").get(
+            "JP_VOCAB_FILL_MEANING_POISON_SEC"
+        )
         or str(DEFAULT_POISON_SEC)
     )
     try:
@@ -117,27 +129,58 @@ def resolve_poison_sec() -> int:
         return DEFAULT_POISON_SEC
 
 
-def acquire_paid_rate_gate(*, allow_burst: bool) -> bool:
-    if allow_burst:
-        return True
-    min_sec = resolve_min_interval_sec()
-    now = time.time()
-    RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if RATE_GATE_PATH.is_file():
+@contextmanager
+def acquire_run_lock() -> Iterator[None]:
+    """进程互斥：前一任务仍在跑则阻塞等待，拿不到锁不并行打 tokken。"""
+    RUN_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(RUN_LOCK_PATH, "a+", encoding="utf-8")
+    try:
         try:
-            last = float(RATE_GATE_PATH.read_text(encoding="utf-8").strip() or "0")
-        except (OSError, ValueError):
-            last = 0.0
-        elapsed = now - last
-        if elapsed < min_sec:
-            wait = int(min_sec - elapsed)
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
             print(
-                f"[jp-vocab-fill-meaning] rate-gate: 距上次付费调用仅 "
-                f"{elapsed:.0f}s < {min_sec}s，skip（约 {wait}s 后再试）",
+                "[jp-vocab-fill-meaning] 前一任务仍在跑，等待锁…",
                 flush=True,
             )
-            return False
-    return True
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+            print("[jp-vocab-fill-meaning] 已拿到运行锁", flush=True)
+        fh.seek(0)
+        fh.truncate()
+        fh.write(f"{os.getpid()}\n")
+        fh.flush()
+        yield
+    finally:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        fh.close()
+
+
+def acquire_paid_rate_gate(*, allow_burst: bool) -> None:
+    """未到最小间隔则 sleep 等到点，不 skip。"""
+    if allow_burst:
+        return
+    min_sec = resolve_min_interval_sec()
+    RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    while True:
+        now = time.time()
+        last = 0.0
+        if RATE_GATE_PATH.is_file():
+            try:
+                last = float(RATE_GATE_PATH.read_text(encoding="utf-8").strip() or "0")
+            except (OSError, ValueError):
+                last = 0.0
+        elapsed = now - last
+        if elapsed >= min_sec:
+            return
+        wait = min_sec - elapsed
+        print(
+            f"[jp-vocab-fill-meaning] rate-gate: 距上次付费调用仅 "
+            f"{elapsed:.1f}s < {min_sec}s，等待 {wait:.1f}s…",
+            flush=True,
+        )
+        time.sleep(wait)
 
 
 def mark_paid_call() -> None:
@@ -288,8 +331,7 @@ def run_one_fill(
     dry_run: bool,
     allow_burst: bool,
 ) -> dict:
-    if not acquire_paid_rate_gate(allow_burst=allow_burst):
-        return {"ok": True, "skipped_run": True, "reason": "rate_gate"}
+    acquire_paid_rate_gate(allow_burst=allow_burst)
 
     scan = call_api(
         api_url=api_url,
@@ -401,7 +443,7 @@ def run_one_fill(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="日语释义：tokken Anthropic 限流补全（与英语线上同套；≥60s/条）"
+        description="日语释义：tokken Anthropic 限流补全（与英语线上同套；≥1s/条，串行等待）"
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--api-url", default=None)
@@ -411,66 +453,71 @@ def main() -> int:
     parser.add_argument(
         "--allow-burst",
         action="store_true",
-        help="跳过 60s 门禁（仅调试；禁止写进定时）",
+        help="跳过 1s 门禁（仅调试；禁止写进定时）",
     )
     args = parser.parse_args()
 
     token = load_token()
     api_url = (args.api_url or load_api_url()).strip()
 
-    if args.clear_all:
-        run_clear_all(api_url=api_url, token=token, dry_run=args.dry_run)
-        if not args.loop:
-            return 0
+    with acquire_run_lock():
+        if args.clear_all:
+            run_clear_all(api_url=api_url, token=token, dry_run=args.dry_run)
+            if not args.loop:
+                return 0
 
-    if args.loop:
-        rounds = 0
-        min_sec = resolve_min_interval_sec()
-        while True:
-            rounds += 1
-            if args.max_rounds > 0 and rounds > args.max_rounds:
-                print(
-                    f"[jp-vocab-fill-meaning] 达到 max_rounds={args.max_rounds}，停止",
-                    flush=True,
-                )
-                break
-            result = run_one_fill(
-                api_url=api_url,
-                token=token,
-                dry_run=args.dry_run,
-                allow_burst=args.allow_burst,
-            )
-            if result.get("skipped_run") and result.get("reason") == "rate_gate":
-                print(f"[jp-vocab-fill-meaning] 等待 {min_sec}s…", flush=True)
-                time.sleep(min_sec)
-                continue
-            if result.get("skipped_run") and result.get("reason") == "all_poisoned":
-                print(f"[jp-vocab-fill-meaning] 毒丸冷却中，等待 {min_sec}s…", flush=True)
-                time.sleep(min_sec)
-                continue
-            probe = call_api(
-                api_url=api_url,
-                token=token,
-                body={"mode": "list_missing", "limit": 1},
-            )
-            left = int(probe.get("total_missing") or 0)
-            if left <= 0 or not (probe.get("missing") or []):
-                print("[jp-vocab-fill-meaning] 全部补完", flush=True)
-                break
+        if args.loop:
+            rounds = 0
+            min_sec = resolve_min_interval_sec()
             print(
-                f"[jp-vocab-fill-meaning] 仍缺 {left}，sleep {min_sec}s…",
+                f"[jp-vocab-fill-meaning] loop 启动 min_interval={min_sec}s",
                 flush=True,
             )
-            time.sleep(min_sec)
-        return 0
+            while True:
+                rounds += 1
+                if args.max_rounds > 0 and rounds > args.max_rounds:
+                    print(
+                        f"[jp-vocab-fill-meaning] 达到 max_rounds={args.max_rounds}，停止",
+                        flush=True,
+                    )
+                    break
+                result = run_one_fill(
+                    api_url=api_url,
+                    token=token,
+                    dry_run=args.dry_run,
+                    allow_burst=args.allow_burst,
+                )
+                if result.get("skipped_run") and result.get("reason") == "all_poisoned":
+                    print(
+                        f"[jp-vocab-fill-meaning] 毒丸冷却中，等待 {min_sec}s…",
+                        flush=True,
+                    )
+                    time.sleep(min_sec)
+                    continue
+                probe = call_api(
+                    api_url=api_url,
+                    token=token,
+                    body={"mode": "list_missing", "limit": 1},
+                )
+                left = int(probe.get("total_missing") or 0)
+                if left <= 0 or not (probe.get("missing") or []):
+                    print("[jp-vocab-fill-meaning] 全部补完", flush=True)
+                    break
+                print(
+                    f"[jp-vocab-fill-meaning] 仍缺 {left}，下一轮由 rate-gate 控速"
+                    f"（≥{min_sec}s）…",
+                    flush=True,
+                )
+                # 间隔由 acquire_paid_rate_gate 精确等待；此处不再额外硬 sleep
+            return 0
 
-    run_one_fill(
-        api_url=api_url,
-        token=token,
-        dry_run=args.dry_run,
-        allow_burst=args.allow_burst,
-    )
-    return 0
+        run_one_fill(
+            api_url=api_url,
+            token=token,
+            dry_run=args.dry_run,
+            allow_burst=args.allow_burst,
+        )
+        return 0
 
 
 if __name__ == "__main__":
