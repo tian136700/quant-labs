@@ -18,13 +18,15 @@ def main() -> int:
     script = (ROOT / "scripts/jp-vocab-fill-meaning-api.py").read_text(encoding="utf-8")
     errors: list[str] = []
 
+    if "normalizeJpVocabNaAdjRowsInDb" in meaning:
+        errors.append("jp-vocab-fill-meaning.ts 仍调用 normalizeJpVocabNaAdjRowsInDb（释义不需要剥だ）")
     if "TRIM(meaning)" in meaning:
         errors.append("jp-vocab-fill-meaning.ts 仍用 TRIM(meaning)（热路径易 1102）")
     if "Math.min(rawLimit, 5)" not in meaning and "Math.min(rawLimit, 5)" not in route:
         if "Math.min(Math.floor(body.limit), 5)" not in route:
             errors.append("fill-meaning limit 未硬顶 ≤5")
     if "naAdjNormalizeCleanUntil" not in na_adj:
-        errors.append("jp-vocab-na-adj-db.ts 缺 isolate TTL 缓存（list_missing 会每秒全表扫）")
+        errors.append("jp-vocab-na-adj-db.ts 缺 isolate TTL 缓存（例句等 list_missing 用）")
     if "db.batch" not in na_adj:
         errors.append("jp-vocab-na-adj-db.ts 更新未用 db.batch")
     if "禁止每轮再打一次 list_missing probe" not in script and "不再 probe" not in script:

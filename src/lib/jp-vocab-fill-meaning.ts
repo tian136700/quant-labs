@@ -1,7 +1,6 @@
 import "server-only";
 
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
-import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
 import {
   buildJpVocabMeaningAiPrompt,
   JP_VOCAB_MEANING_UPLOAD_SPEC,
@@ -61,8 +60,7 @@ export async function listJpVocabWordsMissingMeaning(
   options: ListJpVocabMissingMeaningOptions = {}
 ): Promise<JpVocabMissingMeaningRow[]> {
   await ensureJpVocabWordSchema(db);
-  // な形容词剥「だ」：isolate 内有 TTL 缓存，不会每秒全表扫（见 jp-vocab-na-adj-db）
-  await normalizeJpVocabNaAdjRowsInDb(db);
+  // 释义不剥「〜だ」：Cloud API 能直接出义；语法条已在 WHERE 排除
   const rawLimit =
     typeof options.limit === "number" &&
     Number.isFinite(options.limit) &&
