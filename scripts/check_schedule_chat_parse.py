@@ -76,6 +76,33 @@ def main() -> None:
     if p3.class_at != "2026-07-26 16:00:00":
         fail(f"class_at3={p3.class_at!r}")
 
+    # 「今天下午4点，星老师一个小时日语课」
+    t4 = "今天下午4点，星老师一个小时日语课"
+    if not looks_like_schedule_chat(t4):
+        fail("colloquial create should look like schedule_chat")
+    p4 = parse_schedule_chat_text(t4, now=now)
+    if not isinstance(p4, ScheduleChatDraft):
+        fail(f"parse4 failed: {p4}")
+    if p4.class_at != "2026-07-26 16:00:00":
+        fail(f"class_at4={p4.class_at!r}")
+    if p4.title != "日语" or p4.teacher != "星" or p4.duration_minutes != 60:
+        fail(f"p4={p4!r}")
+
+    # 「今天下午4点，一小时，星老师，日语课」逗号分隔口语
+    t5 = "今天下午4点，一小时，星老师，日语课"
+    if not looks_like_schedule_chat(t5):
+        fail("comma-separated create should look like schedule_chat")
+    p5 = parse_schedule_chat_text(t5, now=now)
+    if not isinstance(p5, ScheduleChatDraft):
+        fail(f"parse5 failed: {p5}")
+    if (
+        p5.class_at != "2026-07-26 16:00:00"
+        or p5.title != "日语"
+        or p5.teacher != "星"
+        or p5.duration_minutes != 60
+    ):
+        fail(f"p5={p5!r}")
+
     # —— 查询日程表 ——
     q1 = "请给我最近一段时间的日程表"
     if not looks_like_schedule_query(q1):
@@ -139,6 +166,7 @@ def main() -> None:
         "schedule_query",
         "schedule_help",
         "schedule_create_help_text",
+        "format_schedule_already_exists_text",
     ):
         if needle not in bot_src:
             fail(f"telegram_bot.py missing {needle!r}")

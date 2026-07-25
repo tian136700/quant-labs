@@ -26,6 +26,8 @@ def main() -> None:
         "createJpLessonManualSchedule",
         "detectScheduleTeacherSubjectFromTitle",
         "teacher_ambiguous",
+        "schedule_already_exists",
+        "listJpLessonManualSchedules",
     ):
         if needle not in ingest:
             fail(f"schedule-chat-ingest.ts missing {needle}")
@@ -35,7 +37,8 @@ def main() -> None:
     ).read_text(encoding="utf-8")
     if "requireAdminOrUploadToken" not in route:
         fail("schedule-chat-ingest route must use requireAdminOrUploadToken")
-
+    if "schedule_already_exists" not in route:
+        fail("route must return schedule_already_exists")
     manual = (
         ROOT / "src/app/api/jp-lesson/manual-schedules/route.ts"
     ).read_text(encoding="utf-8")

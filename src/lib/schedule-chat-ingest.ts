@@ -1,7 +1,10 @@
 import "server-only";
 
 import { createEnLessonTeacher, listEnLessonTeachers } from "@/lib/en-lesson-teacher-db";
-import { createJpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule-db";
+import {
+  createJpLessonManualSchedule,
+  listJpLessonManualSchedules,
+} from "@/lib/jp-lesson-manual-schedule-db";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
 import {
   detectScheduleTeacherSubjectFromTitle,
@@ -40,12 +43,42 @@ export type ScheduleChatIngestResult =
       error: "teacher_ambiguous";
       candidates: ScheduleChatTeacherCandidate[];
     }
+  | {
+      ok: false;
+      error: "schedule_already_exists";
+      schedule: JpLessonManualSchedule;
+    }
   | { ok: false; error: string };
 
 type NamedTeacher = { id: number; name: string };
 
 function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, "").toLowerCase();
+}
+
+function teacherMatchKey(name: string): string {
+  let n = normalizeName(name);
+  if (n.endsWith("老师") && n !== "机构老师" && n.length > 2) {
+    n = n.slice(0, -2);
+  }
+  return n;
+}
+
+function normalizeClassAtKey(raw: string): string {
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(trimmed)) {
+    return `${trimmed}:00`;
+  }
+  return trimmed;
+}
+
+function durationsEqual(
+  a: number | null | undefined,
+  b: number | null | undefined
+): boolean {
+  const na = a == null || Number.isNaN(Number(a)) ? null : Number(a);
+  const nb = b == null || Number.isNaN(Number(b)) ? null : Number(b);
+  return na === nb;
 }
 
 function matchTeachers(
@@ -206,12 +239,31 @@ export async function ingestScheduleChatDraft(
     }
   }
 
+  const durationMinutes =
+    input.duration_minutes === undefined ? null : input.duration_minutes;
+  const classAtKey = normalizeClassAtKey(classAt);
+  const teacherKey = teacherMatchKey(resolvedTeacherName);
+  const titleKey = title.trim();
+  const existingManuals = await listJpLessonManualSchedules(db);
+  const duplicate = existingManuals.find((row) => {
+    if (normalizeClassAtKey(row.class_at) !== classAtKey) return false;
+    if (row.title.trim() !== titleKey) return false;
+    if (teacherMatchKey(row.teacher) !== teacherKey) return false;
+    return durationsEqual(row.duration_minutes, durationMinutes);
+  });
+  if (duplicate) {
+    return {
+      ok: false,
+      error: "schedule_already_exists",
+      schedule: duplicate,
+    };
+  }
+
   const scheduleResult = await createJpLessonManualSchedule(db, {
     class_at: classAt,
     title,
     teacher: resolvedTeacherName,
-    duration_minutes:
-      input.duration_minutes === undefined ? null : input.duration_minutes,
+    duration_minutes: durationMinutes,
     note,
   });
 

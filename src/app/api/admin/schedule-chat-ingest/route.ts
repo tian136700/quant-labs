@@ -47,6 +47,16 @@ export async function POST(request: Request) {
           409
         );
       }
+      if (result.error === "schedule_already_exists" && "schedule" in result) {
+        return jsonResponse(
+          {
+            ok: false,
+            error: result.error,
+            schedule: result.schedule,
+          },
+          409
+        );
+      }
       const status =
         result.error === "draft_invalid" ||
         result.error === "teacher_pick_invalid" ||
