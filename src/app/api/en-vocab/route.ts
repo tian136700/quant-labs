@@ -20,6 +20,7 @@ import {
   type EnVocabDailyQuizStyle,
 } from "@/lib/en-vocab-daily-quiz-style";
 import { isEnVocabLevel } from "@/lib/en-vocab-review";
+import { trackEnVocabTeacherQuizDayAfterReview } from "@/lib/en-vocab-teacher-quiz-day";
 import type { EnVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -162,6 +163,8 @@ export async function POST(request: Request) {
       ? body.usage_levels
       : null;
 
+    const { isAdmin: isAdminForReview } = await requireAdmin(request);
+
     const shareOpts = {
       shareToStudy: true as const,
       sharedBy: user?.username ?? "",
@@ -180,6 +183,16 @@ export async function POST(request: Request) {
       if (!result.ok) {
         const status = result.error === "not_found" ? 404 : 400;
         return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      if (user && !isAdminForReview) {
+        try {
+          await trackEnVocabTeacherQuizDayAfterReview(env.DB, user);
+        } catch (trackErr) {
+          console.error(
+            "[en-vocab] trackEnVocabTeacherQuizDayAfterReview failed",
+            trackErr
+          );
+        }
       }
       return jsonResponse({
         ok: true,
@@ -200,6 +213,17 @@ export async function POST(request: Request) {
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400;
       return jsonResponse({ ok: false, error: result.error }, status);
+    }
+
+    if (user && !isAdminForReview) {
+      try {
+        await trackEnVocabTeacherQuizDayAfterReview(env.DB, user);
+      } catch (trackErr) {
+        console.error(
+          "[en-vocab] trackEnVocabTeacherQuizDayAfterReview failed",
+          trackErr
+        );
+      }
     }
 
     return jsonResponse({

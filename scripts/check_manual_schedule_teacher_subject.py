@@ -37,6 +37,12 @@ def main() -> int:
         errors.append("modal label must show 韩语 when title detects ko")
     if not re.search(r'teacherSubject\s*===\s*"ko"\s*\?\s*onAddKoTeacher', modal):
         errors.append("modal must route ko subject to onAddKoTeacher")
+    if "闲鱼英语抽查" not in modal:
+        errors.append("manual schedule title presets must include 闲鱼英语抽查")
+    if '<select' not in modal and "<select" not in modal:
+        errors.append("manual schedule title must use dropdown <select>")
+    if 'setTeacher("闲鱼英语抽查")' not in modal and "setTeacher('闲鱼英语抽查')" not in modal:
+        errors.append("selecting 闲鱼英语抽查 must auto-fill teacher name")
 
     if "addKoLessonTeacher" not in page:
         errors.append("JpLessonSchedulePage must define addKoLessonTeacher")

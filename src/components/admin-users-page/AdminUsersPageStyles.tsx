@@ -225,7 +225,14 @@ export function AdminUsersPageStyles() {
           text-align: center;
         }
         :global(.admin-users-table .admin-user-col-username) {
-          width: 6.5rem;
+          width: 8.5rem;
+          min-width: 6.5rem;
+          max-width: 12rem;
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.35;
+          vertical-align: top;
         }
         :global(.admin-users-table .admin-user-col-role) {
           width: 5rem;
@@ -321,9 +328,19 @@ export function AdminUsersPageStyles() {
         }
         .admin-rbac-username {
           font-weight: 600;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.35;
+        }
+        .admin-user-card .strategy-card-title {
+          white-space: normal;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+          line-height: 1.35;
+          align-items: flex-start;
         }
         .admin-user-actions {
           display: grid;

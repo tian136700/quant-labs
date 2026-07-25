@@ -3,9 +3,12 @@ import { jsonResponse } from "@/lib/cloudflare-env";
 import {
   createEnLessonTeacher,
   deleteEnLessonTeacher,
+  getEnLessonTeacherById,
   listEnLessonTeachersWithLessonCounts,
   updateEnLessonTeacher,
 } from "@/lib/en-lesson-teacher-db";
+import { ensureEnLessonTeacherUserAccount, listEnLessonTeacherUserLinkMapByTeacherId } from "@/lib/etr-auth-db";
+import { ensureXianyuEnQuizTeacherBound } from "@/lib/en-xianyu-quiz-teacher";
 import {
   normalizeTeacherLessonMinutes,
   resolveLessonTeacherHourlyRateInput,
@@ -51,8 +54,25 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
+    try {
+      await ensureXianyuEnQuizTeacherBound(env.DB);
+    } catch (ensureErr) {
+      console.error("[en-lesson-teachers] ensureXianyuEnQuizTeacherBound", ensureErr);
+    }
     const teachers = await listEnLessonTeachersWithLessonCounts(env.DB);
-    return jsonResponse({ ok: true, teachers });
+    const linkMap = await listEnLessonTeacherUserLinkMapByTeacherId(env.DB);
+    return jsonResponse({
+      ok: true,
+      teachers: teachers.map((teacher) => {
+        const link = linkMap.get(teacher.id);
+        return {
+          ...teacher,
+          linked_user: link
+            ? { id: link.user_id, username: link.username }
+            : null,
+        };
+      }),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ ok: false, error: message }, 500);
@@ -75,6 +95,43 @@ export async function POST(request: Request) {
       lesson_price?: number;
       lesson_minutes?: number;
     };
+
+    if (body.action === "create_user") {
+      const teacherId = Number(body.id);
+      if (!Number.isInteger(teacherId) || teacherId <= 0) {
+        return jsonResponse({ ok: false, error: "teacher_id_invalid" }, 400);
+      }
+      const teacher = await getEnLessonTeacherById(env.DB, teacherId);
+      if (!teacher) {
+        return jsonResponse({ ok: false, error: "not_found" }, 404);
+      }
+      const teacherName = (teacher.name ?? "").trim();
+      if (!teacherName) {
+        return jsonResponse({ ok: false, error: "teacher_name_empty" }, 400);
+      }
+      const result = await ensureEnLessonTeacherUserAccount(
+        env,
+        teacherId,
+        teacherName
+      );
+      if (!result.ok) {
+        const status =
+          result.error === "user_exists" || result.error === "username_taken"
+            ? 409
+            : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+      return jsonResponse({
+        ok: true,
+        created: result.created,
+        user: {
+          id: result.user.id,
+          username: result.user.username,
+          disabled: (result.user.disabled ?? 0) !== 0,
+        },
+        password: result.password,
+      });
+    }
 
     if (body.action === "update") {
       const id = Number(body.id);
@@ -123,7 +180,7 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
-    // 英语老师不提供系统登录账号，也不纳入「今日有课自动启用」定时任务
+    // 英语老师可建登录账号（开课前 30min 启 / 抽完 +1h 禁）
     return jsonResponse({
       ok: true,
       teacher: result.teacher,

@@ -52,6 +52,33 @@ def main() -> int:
     if "teacherClassEndMs" not in enable and "resolveClassDurationMinutes" not in enable:
         errors.append("near-class window should consider class duration/end")
 
+    en_sched = ROOT / "src/lib/teacher-user-en-schedule.ts"
+    if not en_sched.is_file():
+        errors.append("missing teacher-user-en-schedule.ts for EN 30min pre-class")
+    else:
+        en_text = en_sched.read_text(encoding="utf-8")
+        if "EN_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS" not in en_text:
+            errors.append("missing EN_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS")
+        if "listEnTeacherIdsWithUpcomingClassStart" not in en_text:
+            errors.append("missing listEnTeacherIdsWithUpcomingClassStart")
+    if "listEnTeacherIdsWithUpcomingClassStart" not in enable:
+        errors.append("runTeacherUserPreClassEnable must include EN upcoming class list")
+    if "en_within_ms" not in enable:
+        errors.append("pre-class result must expose en_within_ms")
+    if "subject: \"en\"" not in enable and "subject: 'en'" not in enable:
+        errors.append("enableLinkedTeacherUsers must support subject en")
+    if "trackEnVocabTeacherQuizDayAfterReview" not in disable and (
+        "listEnVocabTeacherQuizDaysDueForDisable" not in disable
+    ):
+        errors.append("quiz-complete-disable must scan en_vocab_teacher_quiz_day")
+
+    skips = (ROOT / "src/lib/lesson-teacher-subject.ts").read_text(encoding="utf-8")
+    if re.search(r"return subject === [\"']en[\"']", skips):
+        errors.append(
+            "lessonTeacherSubjectSkipsUserAccount must not skip English "
+            "(闲鱼英语抽查 needs login account)"
+        )
+
     if errors:
         print("check_teacher_user_pre_class_enable: FAIL", file=sys.stderr)
         for err in errors:

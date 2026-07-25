@@ -52,8 +52,13 @@ const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
 }));
 
-/** 手动日程标题：韩语 / 日语 / 英语三选一，或自定义输入 */
-const MANUAL_SCHEDULE_TITLE_PRESETS = ["韩语", "日语", "英语"] as const;
+/** 手动日程标题：下拉预设（含闲鱼英语抽查）或自定义输入 */
+const MANUAL_SCHEDULE_TITLE_PRESETS = [
+  "韩语",
+  "日语",
+  "英语",
+  "闲鱼英语抽查",
+] as const;
 type ManualScheduleTitlePreset = (typeof MANUAL_SCHEDULE_TITLE_PRESETS)[number];
 type ManualScheduleTitleChoice = ManualScheduleTitlePreset | "custom";
 
@@ -139,7 +144,7 @@ export function JpLessonManualScheduleModal({
 
   const title = useMemo(() => {
     if (titleChoice === "custom") return customTitle;
-    if (titleChoice === "韩语" || titleChoice === "日语" || titleChoice === "英语") {
+    if (isManualScheduleTitlePreset(titleChoice)) {
       return titleChoice;
     }
     return "";
@@ -191,6 +196,10 @@ export function JpLessonManualScheduleModal({
     setTitleChoice(preset);
     setCustomTitle("");
     setError("");
+    // 闲鱼英语抽查：自动填上课老师（须与人员管理英语老师同名）
+    if (preset === "闲鱼英语抽查") {
+      setTeacher("闲鱼英语抽查");
+    }
   };
 
   const activateCustomTitle = () => {
@@ -353,42 +362,48 @@ export function JpLessonManualScheduleModal({
                 {showFullFields ? (
                   <div className="jp-lesson-next-class-field">
                     <span>标题</span>
-                    <div
-                      className="jp-lesson-manual-title-choices"
-                      role="radiogroup"
+                    <select
+                      className="jp-lesson-next-class-input"
                       aria-label="日程标题"
+                      value={
+                        titleChoice === "custom"
+                          ? "custom"
+                          : titleChoice || ""
+                      }
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "custom") {
+                          activateCustomTitle();
+                          return;
+                        }
+                        if (isManualScheduleTitlePreset(v)) {
+                          selectTitlePreset(v);
+                        }
+                      }}
                     >
+                      <option value="" disabled>
+                        请选择标题…
+                      </option>
                       {MANUAL_SCHEDULE_TITLE_PRESETS.map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          role="radio"
-                          aria-checked={titleChoice === preset}
-                          className={`jp-lesson-manual-title-preset${
-                            titleChoice === preset ? " is-active" : ""
-                          }`}
-                          onClick={() => selectTitlePreset(preset)}
-                        >
+                        <option key={preset} value={preset}>
                           {preset}
-                        </button>
+                        </option>
                       ))}
+                      <option value="custom">自己输入…</option>
+                    </select>
+                    {titleChoice === "custom" ? (
                       <input
                         type="text"
-                        role="radio"
-                        aria-checked={titleChoice === "custom"}
-                        aria-label="自定义标题"
-                        className={`jp-lesson-next-class-input jp-lesson-manual-title-custom${
-                          titleChoice === "custom" ? " is-active" : ""
-                        }`}
+                        className="jp-lesson-next-class-input"
+                        style={{ marginTop: "0.35rem" }}
                         value={customTitle}
-                        placeholder="自己输入…"
-                        onFocus={activateCustomTitle}
+                        placeholder="自定义标题"
                         onChange={(e) => {
                           activateCustomTitle();
                           setCustomTitle(e.target.value);
                         }}
                       />
-                    </div>
+                    ) : null}
                   </div>
                 ) : null}
                 <label className="jp-lesson-next-class-field">

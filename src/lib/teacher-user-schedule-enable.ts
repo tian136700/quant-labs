@@ -13,6 +13,18 @@ import {
   resolveClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
 import type { JpLessonRecord } from "@/lib/types";
+import {
+  EN_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  EN_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+  listEnTeacherIdsWithClassNearNow,
+  listEnTeacherIdsWithUpcomingClassStart,
+  listLinkedEnTeacherUsersForTeacherIds,
+} from "@/lib/teacher-user-en-schedule";
+
+export {
+  EN_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS,
+  EN_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+} from "@/lib/teacher-user-en-schedule";
 
 /** 不受课表自动启用控制的账号（仅管理员手动开关） */
 export const TEACHER_SCHEDULE_AUTO_ENABLE_EXCLUDED_USERNAMES = [
@@ -104,6 +116,9 @@ export type TeacherUserPreClassEnableResult = {
   /** 韩语老师开课前启用窗口（默认 30min） */
   ko_within_ms?: number;
   ko_teachers_with_upcoming_class?: number[];
+  /** 英语老师开课前启用窗口（默认 30min；手动日程姓名匹配） */
+  en_within_ms?: number;
+  en_teachers_with_upcoming_class?: number[];
 };
 
 export type TeacherUserPostClassDisableHit = {
@@ -416,7 +431,7 @@ export async function listTeacherIdsDueForPostClassDisable(
   return due.sort((a, b) => a - b);
 }
 
-/** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过；含日语 + 韩语） */
+/** 关联登录用户中，临近开课的 user_id 集合（供抽完禁用跳过；含日语 + 韩语 + 英语） */
 export async function listLinkedUserIdsWithClassNearNow(
   db: D1Database,
   options: { beforeMs: number; afterMs?: number; now?: Date } = {
@@ -431,6 +446,11 @@ export async function listLinkedUserIdsWithClassNearNow(
     afterMs: KO_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
     now,
   });
+  const enTeacherIds = await listEnTeacherIdsWithClassNearNow(db, {
+    beforeMs: EN_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    afterMs: EN_TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
+    now,
+  });
   const userIds = new Set<number>();
   if (teacherIds.length) {
     const linked = await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
@@ -441,6 +461,13 @@ export async function listLinkedUserIdsWithClassNearNow(
   }
   if (koTeacherIds.length) {
     const linked = await listLinkedKoTeacherUsersForTeacherIds(db, koTeacherIds);
+    for (const row of linked) {
+      const userId = Number(row.user_id);
+      if (Number.isInteger(userId) && userId > 0) userIds.add(userId);
+    }
+  }
+  if (enTeacherIds.length) {
+    const linked = await listLinkedEnTeacherUsersForTeacherIds(db, enTeacherIds);
     for (const row of linked) {
       const userId = Number(row.user_id);
       if (Number.isInteger(userId) && userId > 0) userIds.add(userId);
@@ -510,14 +537,16 @@ async function listLinkedKoTeacherUsersForTeacherIds(
 async function enableLinkedTeacherUsers(
   db: D1Database,
   teacherIds: number[],
-  options: { dryRun?: boolean; subject?: "jp" | "ko" } = {}
+  options: { dryRun?: boolean; subject?: "jp" | "ko" | "en" } = {}
 ): Promise<{ enabled: TeacherUserEnableHit[]; skipped: TeacherUserEnableSkip[] }> {
   const dryRun = Boolean(options.dryRun);
   const subject = options.subject ?? "jp";
   const linkedUsers =
     subject === "ko"
       ? await listLinkedKoTeacherUsersForTeacherIds(db, teacherIds)
-      : await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
+      : subject === "en"
+        ? await listLinkedEnTeacherUsersForTeacherIds(db, teacherIds)
+        : await listLinkedTeacherUsersForTeacherIds(db, teacherIds);
   const enabled: TeacherUserEnableHit[] = [];
   const skipped: TeacherUserEnableSkip[] = [];
 
@@ -688,6 +717,7 @@ export async function runTeacherUserScheduleEnable(
  * 开课前定时：关联账号若仍禁用则启用。
  * - 日语：开课前 2h（Mac launchd 每 10 分钟）
  * - 韩语：开课前 30min（同一定时任务；手动日程姓名匹配 ko_lesson_teacher）
+ * - 英语：开课前 30min（同一定时任务；手动日程姓名匹配 en_lesson_teacher，如闲鱼英语抽查）
  */
 export async function runTeacherUserPreClassEnable(
   db: D1Database,
@@ -696,6 +726,7 @@ export async function runTeacherUserPreClassEnable(
     now?: Date;
     withinMs?: number;
     koWithinMs?: number;
+    enWithinMs?: number;
   } = {}
 ): Promise<TeacherUserPreClassEnableResult> {
   const dryRun = Boolean(options.dryRun);
@@ -703,13 +734,27 @@ export async function runTeacherUserPreClassEnable(
     options.withinMs ?? TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
   const koWithinMs =
     options.koWithinMs ?? KO_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
+  const enWithinMs =
+    options.enWithinMs ?? EN_TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS;
   const now = options.now ?? new Date();
+  try {
+    const { ensureXianyuEnQuizTeacherBound } = await import(
+      "@/lib/en-xianyu-quiz-teacher"
+    );
+    await ensureXianyuEnQuizTeacherBound(db);
+  } catch {
+    // 绑定失败不阻断开课前启用
+  }
   const teacherIds = await listTeacherIdsWithUpcomingClassStart(db, {
     withinMs,
     now,
   });
   const koTeacherIds = await listKoTeacherIdsWithUpcomingClassStart(db, {
     withinMs: koWithinMs,
+    now,
+  });
+  const enTeacherIds = await listEnTeacherIdsWithUpcomingClassStart(db, {
+    withinMs: enWithinMs,
     now,
   });
   const jpResult = await enableLinkedTeacherUsers(db, teacherIds, {
@@ -720,15 +765,21 @@ export async function runTeacherUserPreClassEnable(
     dryRun,
     subject: "ko",
   });
+  const enResult = await enableLinkedTeacherUsers(db, enTeacherIds, {
+    dryRun,
+    subject: "en",
+  });
 
   return {
     dry_run: dryRun,
     within_ms: withinMs,
     teachers_with_upcoming_class: teacherIds,
-    enabled: [...jpResult.enabled, ...koResult.enabled],
-    skipped: [...jpResult.skipped, ...koResult.skipped],
+    enabled: [...jpResult.enabled, ...koResult.enabled, ...enResult.enabled],
+    skipped: [...jpResult.skipped, ...koResult.skipped, ...enResult.skipped],
     ko_within_ms: koWithinMs,
     ko_teachers_with_upcoming_class: koTeacherIds,
+    en_within_ms: enWithinMs,
+    en_teachers_with_upcoming_class: enTeacherIds,
   };
 }
 

@@ -68,3 +68,17 @@ export type {
   EnsureKoLessonTeacherUserAccountResult,
   CreateKoLessonTeacherUserByReviewResult,
 } from "./teacher_links";
+
+export {
+  linkUserToEnLessonTeacher,
+  findEnLessonTeacherUserLink,
+  listEnLessonTeacherUserLinkMapByTeacherId,
+  ensureEnLessonTeacherUserAccount,
+  createEnLessonTeacherUserByReview,
+  setUserEnLessonTeacherLink,
+} from "./teacher_links_en";
+export type {
+  EnLessonTeacherUserLink,
+  EnsureEnLessonTeacherUserAccountResult,
+  CreateEnLessonTeacherUserByReviewResult,
+} from "./teacher_links_en";

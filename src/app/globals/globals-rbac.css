@@ -300,7 +300,10 @@
 
 .admin-rbac-username {
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
 .admin-rbac-tags {

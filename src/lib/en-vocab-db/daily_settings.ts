@@ -37,6 +37,7 @@ import { sortEnVocabWords } from "@/lib/en-vocab-shared";
 import {
   beijingDateString,
   effectiveTodayCheckCount,
+  enVocabTodayCheckStats,
 } from "@/lib/en-vocab-daily-check";
 import {
   appendEnVocabDailyDisplayOrderId,
@@ -84,6 +85,7 @@ export type { EnVocabTeacherVisibleLimit } from "@/lib/en-vocab-teacher-visible"
 
 import {
   nowIso,
+  ensureVocabWordSchema,
 } from "./helpers";
 import {
   listEnVocabWords,
@@ -518,5 +520,51 @@ export function isEnVocabWordCheckedToday(word: EnVocabWord, now = new Date()): 
   }
   if (!word.last_review_at || !word.last_review_level) return false;
   return word.last_review_at.slice(0, 10) === beijingDateString(now);
+}
+
+/** 轻量统计今日已抽查词条数（抽完禁用跟踪用） */
+export async function countEnVocabTodayCheckedWords(
+  db: D1Database,
+  now = new Date()
+): Promise<number> {
+  if (enVocabDbState.devStoreEnabled) {
+    return enVocabTodayCheckStats(enVocabDbState.devWords, now).wordCount;
+  }
+
+  await ensureVocabWordSchema(db);
+  const today = beijingDateString(now);
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM en_vocab_word
+       WHERE today_check_date = ?1 AND COALESCE(today_check_count, 0) > 0`
+    )
+    .bind(today)
+    .first<{ cnt: number }>();
+  return Math.max(0, Number(row?.cnt ?? 0));
+}
+
+export type EnVocabDailyQuizProgressDb = {
+  total: number;
+  checked: number;
+  remaining: number;
+  complete: boolean;
+};
+
+export async function getEnVocabDailyQuizProgress(
+  db: D1Database,
+  now = new Date()
+): Promise<EnVocabDailyQuizProgressDb> {
+  const [checked, teacherVisibleLimit] = await Promise.all([
+    countEnVocabTodayCheckedWords(db, now),
+    getEnVocabTeacherVisibleLimit(db),
+  ]);
+  const total = Math.max(0, Math.floor(teacherVisibleLimit.quiz_target));
+  const remaining = Math.max(0, total - checked);
+  return {
+    total,
+    checked,
+    remaining,
+    complete: total > 0 && checked >= total,
+  };
 }
 

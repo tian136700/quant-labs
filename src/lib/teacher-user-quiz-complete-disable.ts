@@ -11,6 +11,11 @@ import {
   markKoPronTeacherQuizDayDisabled,
   shouldTrackKoPronTeacherQuizDay,
 } from "@/lib/ko-pron-teacher-quiz-day";
+import {
+  listEnVocabTeacherQuizDaysDueForDisable,
+  markEnVocabTeacherQuizDayDisabled,
+  shouldTrackEnVocabTeacherQuizDay,
+} from "@/lib/en-vocab-teacher-quiz-day";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import {
   isExcludedFromTeacherScheduleAutoEnable,
@@ -28,14 +33,14 @@ export type TeacherUserQuizCompleteDisableResult = {
     quiz_date: string;
     completed_at: string | null;
     disable_after_at: string | null;
-    subject?: "jp" | "ko";
+    subject?: "jp" | "ko" | "en";
   }>;
   skipped: Array<{
     user_id: number;
     username: string;
     quiz_date: string;
     reason: string;
-    subject?: "jp" | "ko";
+    subject?: "jp" | "ko" | "en";
   }>;
 };
 
@@ -45,13 +50,14 @@ type DueRow = {
   quiz_date: string;
   completed_at: string | null;
   disable_after_at: string | null;
-  subject: "jp" | "ko";
+  subject: "jp" | "ko" | "en";
 };
 
 /**
  * 今日抽查完成后的延时自动禁用：
  * - 日语普通老师：completed_at + 1h；带读账号 + 2h
  * - 韩语老师：completed_at + 20min
+ * - 英语老师：completed_at + 1h
  * 与「开课前自动启用」对称；排除 admin / user1 / test。
  */
 export async function runTeacherUserQuizCompleteDisable(
@@ -63,9 +69,11 @@ export async function runTeacherUserQuizCompleteDisable(
   const date = beijingDateString(now);
   const jpDue = await listJpVocabTeacherQuizDaysDueForDisable(db, now);
   const koDue = await listKoPronTeacherQuizDaysDueForDisable(db, now);
+  const enDue = await listEnVocabTeacherQuizDaysDueForDisable(db, now);
   const dueRows: DueRow[] = [
     ...jpDue.map((row) => ({ ...row, subject: "jp" as const })),
     ...koDue.map((row) => ({ ...row, subject: "ko" as const })),
+    ...enDue.map((row) => ({ ...row, subject: "en" as const })),
   ];
   const nearClassUserIds = await listLinkedUserIdsWithClassNearNow(db, {
     beforeMs: TEACHER_QUIZ_DISABLE_SKIP_NEAR_CLASS_MS,
@@ -86,6 +94,13 @@ export async function runTeacherUserQuizCompleteDisable(
       if (dryRun) return;
       if (subject === "ko") {
         await markKoPronTeacherQuizDayDisabled(
+          db,
+          userId,
+          quizDate,
+          now.toISOString()
+        );
+      } else if (subject === "en") {
+        await markEnVocabTeacherQuizDayDisabled(
           db,
           userId,
           quizDate,
@@ -128,7 +143,9 @@ export async function runTeacherUserQuizCompleteDisable(
     const shouldTrack =
       subject === "ko"
         ? shouldTrackKoPronTeacherQuizDay(user)
-        : shouldTrackJpVocabTeacherQuizDay(user);
+        : subject === "en"
+          ? shouldTrackEnVocabTeacherQuizDay(user)
+          : shouldTrackJpVocabTeacherQuizDay(user);
 
     if (isExcludedFromTeacherScheduleAutoEnable(user) || !shouldTrack) {
       skipped.push({
