@@ -500,7 +500,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .en-vocab-flashcard-page__scroll {
           display: flex;
-          flex: 1 1 auto;
+          flex: 1 1 0;
           flex-direction: column;
           gap: 0.55rem;
           min-height: 0;
@@ -624,6 +624,17 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           }
         }
         @media (max-width: 1024px) {
+          /* 压过日语底栏抽屉的 flex-end；禁止整层滚动，只滚中间 __scroll */
+          .jp-vocab-teacher-quiz-overlay.en-vocab-flashcard-page-overlay {
+            align-items: stretch;
+            justify-content: stretch;
+            padding: 0;
+            height: 100dvh;
+            height: 100svh;
+            max-height: 100dvh;
+            max-height: 100svh;
+            overflow: hidden;
+          }
           .en-vocab-flashcard-page-overlay {
             align-items: stretch;
             padding: 0;
@@ -631,14 +642,30 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {
             width: 100%;
             max-width: 100%;
-            height: min(100dvh, 100vh);
-            max-height: min(100dvh, 100vh);
+            /* 勿用 100vh：Chrome 地址栏会把卡片撑高，导航下留一大块黑底 */
+            height: 100%;
+            max-height: 100%;
+            min-height: 0;
+            margin: 0;
             border-radius: 0;
             padding: calc(0.55rem + env(safe-area-inset-top, 0px))
               calc(0.8rem + env(safe-area-inset-right, 0px))
               calc(0.55rem + env(safe-area-inset-bottom, 0px))
               calc(0.8rem + env(safe-area-inset-left, 0px));
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+          }
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .en-vocab-flashcard-page__scroll {
+            flex: 1 1 0;
+            min-height: 0;
+          }
+          /* 兜底：即使中间区未吃满，导航也贴卡片底，避免「下一个」下大块空白 */
+          .jp-vocab-teacher-quiz-card.en-vocab-flashcard-page
+            .en-vocab-flashcard-page__nav {
+            margin-top: auto;
+            flex: 0 0 auto;
           }
           .en-vocab-flashcard-page__grid {
             grid-template-columns: minmax(0, 1fr);

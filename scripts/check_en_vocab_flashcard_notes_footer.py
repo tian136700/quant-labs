@@ -144,10 +144,27 @@ def main() -> None:
     scroll_block = first_rule_block(styles, ".en-vocab-flashcard-page__scroll {")
     if "overflow-y: auto" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must use overflow-y: auto")
-    if "flex: 1 1 auto" not in scroll_block:
+    if "flex: 1 1 0" not in scroll_block and "flex: 1 1 auto" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must flex-grow")
     if "min-height: 0" not in scroll_block:
         fail("en-vocab-flashcard-page__scroll must set min-height: 0")
+
+    # 手机：导航钉底，勿用 100vh 撑出按钮下大块空白
+    if "en-vocab-flashcard-page-overlay" not in styles:
+        fail("styles must define en-vocab-flashcard-page-overlay")
+    if "margin-top: auto" not in styles or "en-vocab-flashcard-page__nav" not in styles:
+        fail("mobile EN flashcard nav must use margin-top: auto to pin bottom")
+    mobile_vh_bad = (
+        ".jp-vocab-teacher-quiz-card.en-vocab-flashcard-page {\n"
+        "            width: 100%;\n"
+        "            max-width: 100%;\n"
+        "            height: min(100dvh, 100vh);"
+    )
+    if mobile_vh_bad in styles:
+        fail(
+            "mobile EN flashcard must not use height: min(100dvh, 100vh) "
+            "(Chrome leaves empty space under 下一个)"
+        )
 
     if "safe-area-inset-top" not in styles:
         fail("en-vocab flashcard styles must pad safe-area-inset-top on mobile")
