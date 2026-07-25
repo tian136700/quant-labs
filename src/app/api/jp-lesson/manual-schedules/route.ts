@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireAdminOrUploadToken } from "@/lib/admin-or-upload-auth";
 import { jsonResponse } from "@/lib/cloudflare-env";
 import {
   createJpLessonManualSchedule,
@@ -10,8 +10,8 @@ import type { JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedul
 
 export async function GET(request: Request) {
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requireAdminOrUploadToken(request);
+    if (!allowed) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
@@ -25,8 +25,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requireAdminOrUploadToken(request);
+    if (!allowed) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
@@ -80,8 +80,8 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requireAdminOrUploadToken(request);
+    if (!allowed) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 

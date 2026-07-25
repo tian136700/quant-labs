@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireAdminOrUploadToken } from "@/lib/admin-or-upload-auth";
 import { jsonResponse } from "@/lib/cloudflare-env";
 import { ensureJpLessonTeacherUserAccount, listJpLessonTeacherUserLinkMapByTeacherId } from "@/lib/etr-auth-db";
 import {
@@ -48,8 +48,8 @@ function resolveTeacherNameAndRate(body: {
 
 export async function GET(request: Request) {
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed } = await requireAdminOrUploadToken(request);
+    if (!allowed) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
@@ -75,8 +75,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed, viaUploadToken } = await requireAdminOrUploadToken(
+      request
+    );
+    if (!allowed) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
@@ -89,6 +91,10 @@ export async function POST(request: Request) {
       lesson_price?: number;
       lesson_minutes?: number;
     };
+
+    if (viaUploadToken && body.action) {
+      return jsonResponse({ ok: false, error: "forbidden" }, 403);
+    }
 
     if (body.action === "create_user") {
       const teacherId = Number(body.id);
@@ -187,8 +193,10 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { env, isAdmin } = await requireAdmin(request);
-    if (!isAdmin) {
+    const { env, allowed, viaUploadToken } = await requireAdminOrUploadToken(
+      request
+    );
+    if (!allowed || viaUploadToken) {
       return jsonResponse({ ok: false, error: "forbidden" }, 403);
     }
 
