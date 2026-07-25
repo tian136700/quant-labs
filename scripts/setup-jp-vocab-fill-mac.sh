@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac 安装：日语 Ollama 补全（词性 / 例句）；释义已改走 Jisho 限流脚本，不再装 launchd
+# Mac 安装：日语 Ollama 补全（词性 / 例句）；释义已改 tokken 限流脚本，不再装 launchd
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,7 +9,7 @@ LOG_DIR="${HOME}/Library/Logs"
 UID_NUM="$(id -u)"
 
 OLD_COMBINED="com.stt.jp_vocab_remote_fill_examples"
-# 释义：停用本机 Ollama 定时（改 Jisho 限流手动/脚本，勿再装）
+# 释义：停用本机 Ollama 定时（改 tokken Anthropic 限流脚本，勿再装）
 RETIRED_MEANING="com.infoquests.jp-vocab-fill-meaning"
 STAGES=(pos examples)
 
@@ -33,7 +33,7 @@ rm -f "${HOME}/Library/LaunchAgents/${OLD_COMBINED}.plist"
 # 卸掉已退役的释义 Ollama 定时
 launchctl bootout "gui/${UID_NUM}/${RETIRED_MEANING}" 2>/dev/null || true
 rm -f "${HOME}/Library/LaunchAgents/${RETIRED_MEANING}.plist"
-echo "  uninstalled ${RETIRED_MEANING} (释义改 Jisho，不装 launchd)"
+echo "  uninstalled ${RETIRED_MEANING} (释义改 tokken，不装 launchd)"
 
 for stage in "${STAGES[@]}"; do
   label="com.infoquests.jp-vocab-fill-${stage}"
@@ -54,7 +54,7 @@ echo ""
 echo "OK: 日语 Ollama 补全：词性 + 例句（各 limit=1）；释义定时已卸"
 echo "  间隔: 每 ${RUN_INTERVAL}s 检测；槽忙则 skip"
 echo "  日志: ${LOG_DIR}/com.infoquests.jp-vocab-fill-<stage>.log"
-echo "  释义（Jisho 限流，无 launchd）:"
+echo "  释义（tokken Anthropic 限流，无 launchd）:"
 echo "    python3 $ROOT/scripts/jp-vocab-fill-meaning-api.py --loop"
 echo ""
 echo "手动单阶段:"

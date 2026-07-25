@@ -8,7 +8,7 @@
 #   bash scripts/jp-vocab-fill-stage.sh pos|examples
 #   FORCE=1 bash scripts/jp-vocab-fill-stage.sh examples
 #
-# 释义请用：python3 scripts/jp-vocab-fill-meaning-api.py （Jisho，≥60s/条；无 launchd）
+# 释义请用：python3 scripts/jp-vocab-fill-meaning-api.py （tokken，≥60s/条；无 launchd）
 set -euo pipefail
 
 STAGE="${1:-}"

@@ -335,7 +335,7 @@ async function syncLessonToVocab(
   const items = parseLessonContent(lesson.content);
   if (!items.length) return;
 
-  // 释义不同步到抽问：由 Jisho 限流脚本 / fill-meaning 补；对齐英语
+  // 释义不同步到抽问：由 tokken 限流脚本 / fill-meaning 补；对齐英语
   const itemExamples = alignLessonItemExampleSentences(
     lesson.content,
     lesson.example_sentences
