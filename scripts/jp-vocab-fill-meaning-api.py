@@ -273,24 +273,56 @@ def validate_meaning(raw: str) -> tuple[str | None, str | None]:
     return text, None
 
 
-def call_api(*, api_url: str, token: str, body: dict) -> dict:
+def call_api(
+    *,
+    api_url: str,
+    token: str,
+    body: dict,
+    retries: int = 6,
+) -> dict:
+    """POST Worker；遇 1102/5xx 退避重试，避免整轮 loop 被一次抖动打死。"""
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        api_url,
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json; charset=utf-8",
-            "User-Agent": HTTP_USER_AGENT,
-        },
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            return json.load(resp)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"HTTP {exc.code}: {detail}") from exc
+    last_err: Exception | None = None
+    for attempt in range(1, max(1, retries) + 1):
+        req = urllib.request.Request(
+            api_url,
+            data=data,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json; charset=utf-8",
+                "User-Agent": HTTP_USER_AGENT,
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return json.load(resp)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            transient = exc.code in {429, 500, 502, 503, 504} or "1102" in detail
+            last_err = SystemExit(f"HTTP {exc.code}: {detail}")
+            if not transient or attempt >= retries:
+                raise last_err from exc
+            wait = min(60, 2 ** attempt)
+            print(
+                f"[jp-vocab-fill-meaning] Worker HTTP {exc.code} "
+                f"(attempt {attempt}/{retries})，{wait}s 后重试… "
+                f"detail={detail[:120]!r}",
+                flush=True,
+            )
+            time.sleep(wait)
+        except urllib.error.URLError as exc:
+            last_err = SystemExit(f"URL error: {exc}")
+            if attempt >= retries:
+                raise last_err from exc
+            wait = min(60, 2 ** attempt)
+            print(
+                f"[jp-vocab-fill-meaning] 网络错误 (attempt {attempt}/{retries})，"
+                f"{wait}s 后重试… {exc}",
+                flush=True,
+            )
+            time.sleep(wait)
+    raise last_err or SystemExit("call_api failed")
 
 
 def run_clear_all(*, api_url: str, token: str, dry_run: bool) -> dict:
@@ -481,12 +513,31 @@ def main() -> int:
                         flush=True,
                     )
                     break
-                result = run_one_fill(
-                    api_url=api_url,
-                    token=token,
-                    dry_run=args.dry_run,
-                    allow_burst=args.allow_burst,
-                )
+                try:
+                    result = run_one_fill(
+                        api_url=api_url,
+                        token=token,
+                        dry_run=args.dry_run,
+                        allow_burst=args.allow_burst,
+                    )
+                except SystemExit as exc:
+                    wait = max(30, min_sec * 10)
+                    print(
+                        f"[jp-vocab-fill-meaning] 本轮失败（{exc}），"
+                        f"{wait}s 后继续 loop…",
+                        flush=True,
+                    )
+                    time.sleep(wait)
+                    continue
+                except Exception as exc:
+                    wait = max(30, min_sec * 10)
+                    print(
+                        f"[jp-vocab-fill-meaning] 本轮异常 {type(exc).__name__}: {exc}，"
+                        f"{wait}s 后继续 loop…",
+                        flush=True,
+                    )
+                    time.sleep(wait)
+                    continue
                 if result.get("skipped_run") and result.get("reason") == "all_poisoned":
                     print(
                         f"[jp-vocab-fill-meaning] 毒丸冷却中，等待 {min_sec}s…",
@@ -494,11 +545,21 @@ def main() -> int:
                     )
                     time.sleep(min_sec)
                     continue
-                probe = call_api(
-                    api_url=api_url,
-                    token=token,
-                    body={"mode": "list_missing", "limit": 1},
-                )
+                try:
+                    probe = call_api(
+                        api_url=api_url,
+                        token=token,
+                        body={"mode": "list_missing", "limit": 1},
+                    )
+                except SystemExit as exc:
+                    wait = max(30, min_sec * 10)
+                    print(
+                        f"[jp-vocab-fill-meaning] probe 失败（{exc}），"
+                        f"{wait}s 后继续…",
+                        flush=True,
+                    )
+                    time.sleep(wait)
+                    continue
                 left = int(probe.get("total_missing") or 0)
                 if left <= 0 or not (probe.get("missing") or []):
                     print("[jp-vocab-fill-meaning] 全部补完", flush=True)
