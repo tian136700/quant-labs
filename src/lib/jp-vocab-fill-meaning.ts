@@ -49,8 +49,7 @@ export async function countJpVocabWordsMissingMeaning(
     .prepare(
       `SELECT COUNT(*) AS n FROM jp_vocab_word
        WHERE kind != 'grammar'
-         AND (meaning IS NULL OR TRIM(meaning) = '')
-         AND pos IS NOT NULL AND TRIM(pos) != ''`
+         AND (meaning IS NULL OR TRIM(meaning) = '')`
     )
     .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -70,10 +69,10 @@ export async function listJpVocabWordsMissingMeaning(
       ? Math.floor(options.limit)
       : null;
 
+  // 释义不再依赖词性（本机 Ollama 释义已停；tokken 限流可直接补）
   let sql = `SELECT id, word, reading, kind, pos FROM jp_vocab_word
        WHERE kind != 'grammar'
          AND (meaning IS NULL OR TRIM(meaning) = '')
-         AND pos IS NOT NULL AND TRIM(pos) != ''
        ORDER BY id`;
   if (limit != null) {
     sql += ` LIMIT ?1`;
