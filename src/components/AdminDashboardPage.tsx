@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
+import type { Locale } from "@/i18n/messages";
 import { formatBeijingDateTime } from "@/lib/format-datetime";
 import { geoLocationDisplay } from "@/lib/geoip";
+import { copyTextToClipboard } from "@/lib/copy-text";
 import { visitLogIpDisplay, visitLogUsernameDisplay } from "@/lib/visit-log-display";
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
+import { CopyToast } from "@/components/CopyToast";
 import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import {
@@ -45,6 +48,51 @@ function AdminCardField({
   );
 }
 
+/** 点击 IP 复制到剪贴板；空值仅展示 — */
+function AdminIpCopyButton({
+  ip,
+  locale,
+  onCopied,
+}: {
+  ip: string | null | undefined;
+  locale: Locale;
+  onCopied: (message: string) => void;
+}) {
+  const display = visitLogIpDisplay(ip);
+  const copyValue = display === "—" ? "" : display;
+
+  if (!copyValue) {
+    return <span>{display}</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      className="admin-ip-copy-btn"
+      title={
+        locale === "zh"
+          ? `${display}（点击复制）`
+          : `${display} (click to copy)`
+      }
+      onClick={() => {
+        void copyTextToClipboard(copyValue).then((ok) =>
+          onCopied(
+            ok
+              ? locale === "zh"
+                ? "复制成功"
+                : "Copied"
+              : locale === "zh"
+                ? "复制失败"
+                : "Copy failed"
+          )
+        );
+      }}
+    >
+      {display}
+    </button>
+  );
+}
+
 export function AdminDashboardPage() {
   const { locale, t, tf } = useI18n();
   const adm = t("adminDashboard");
@@ -66,6 +114,7 @@ export function AdminDashboardPage() {
   const [loadingFeedback, setLoadingFeedback] = useState(false);
   const [status, setStatus] = useState("");
   const [statusKind, setStatusKind] = useState<"" | "err">("");
+  const [copyToast, setCopyToast] = useState<string | null>(null);
 
   const loadVisits = useCallback(
     async (
@@ -177,6 +226,7 @@ export function AdminDashboardPage() {
 
   return (
     <div className="admin-page">
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
       <div className="page-hero">
         <h1>{adm.page.title}</h1>
         <AdminAuthUserStatus registered={canAccess} />
@@ -268,7 +318,16 @@ export function AdminDashboardPage() {
                     </span>
                   </h3>
                   <dl className="strategy-card-grid">
-                    <AdminCardField label={adm.visits.ip} value={visitLogIpDisplay(row.ip)} />
+                    <AdminCardField
+                      label={adm.visits.ip}
+                      value={
+                        <AdminIpCopyButton
+                          ip={row.ip}
+                          locale={locale}
+                          onCopied={setCopyToast}
+                        />
+                      }
+                    />
                     <AdminCardField
                       label={adm.visits.ipVisitCount}
                       value={row.ip_visit_count ?? "—"}
@@ -340,8 +399,12 @@ export function AdminDashboardPage() {
                 {visits.map((row) => (
                   <tr key={row.id}>
                     <td>{row.id}</td>
-                    <td className="admin-cell-ip" title={row.ip}>
-                      {visitLogIpDisplay(row.ip)}
+                    <td className="admin-cell-ip">
+                      <AdminIpCopyButton
+                        ip={row.ip}
+                        locale={locale}
+                        onCopied={setCopyToast}
+                      />
                     </td>
                     <td>{row.ip_visit_count ?? "—"}</td>
                     <td>{visitLogUsernameDisplay(row.username, locale)}</td>
@@ -414,7 +477,16 @@ export function AdminDashboardPage() {
                   </h3>
                   <dl className="strategy-card-grid">
                     <AdminCardField label={adm.feedback.content} value={row.content} wide />
-                    <AdminCardField label={adm.feedback.ip} value={visitLogIpDisplay(row.ip)} />
+                    <AdminCardField
+                      label={adm.feedback.ip}
+                      value={
+                        <AdminIpCopyButton
+                          ip={row.ip}
+                          locale={locale}
+                          onCopied={setCopyToast}
+                        />
+                      }
+                    />
                     <AdminCardField
                       label={adm.feedback.country}
                       value={geoLocationDisplay(row, locale)}
@@ -455,8 +527,12 @@ export function AdminDashboardPage() {
                     <td>{row.id}</td>
                     <td>{row.email}</td>
                     <td className="etr-remark-cell admin-cell-wrap">{row.content}</td>
-                    <td className="admin-cell-ip" title={row.ip}>
-                      {visitLogIpDisplay(row.ip)}
+                    <td className="admin-cell-ip">
+                      <AdminIpCopyButton
+                        ip={row.ip}
+                        locale={locale}
+                        onCopied={setCopyToast}
+                      />
                     </td>
                     <td>{geoLocationDisplay(row, locale)}</td>
                     <td className="admin-cell-wrap">{row.url_path ?? "—"}</td>

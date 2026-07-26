@@ -200,6 +200,37 @@
   word-break: break-all;
 }
 
+/* 后台日志 / 反馈：点击 IP 复制 */
+.admin-ip-copy-btn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0.15rem 0;
+  margin: 0;
+  max-width: 100%;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+  word-break: break-all;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-underline-offset: 0.15em;
+  min-height: 1.75rem; /* 触控可点 */
+}
+
+.admin-ip-copy-btn:hover {
+  text-decoration-color: var(--accent);
+}
+
+.admin-ip-copy-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .admin-pagination {
   display: flex;
   flex-direction: column;
