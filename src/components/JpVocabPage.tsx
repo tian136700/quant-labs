@@ -35,9 +35,7 @@ import {
 } from "@/lib/locale-path";
 import { jpVocabTodayCheckStats } from "@/lib/jp-vocab-daily-check";
 import { markJpVocabTeacherDailyCompleteDismissed } from "@/lib/jp-vocab-daily-complete-dismiss";
-import {
-  filterJpVocabTodayWeakWords,
-} from "@/lib/jp-vocab-export";
+import { filterJpVocabTodayWeakWords } from "@/lib/jp-vocab-export-select";
 import {
   effectiveJpVocabDisplayLevel,
   isJpVocabWordReviewLocked,

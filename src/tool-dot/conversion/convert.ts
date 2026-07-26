@@ -1,5 +1,3 @@
-import { Document, Packer, Paragraph, TextRun } from "docx";
-
 async function loadPdfJs() {
   const pdfjs = await import("pdfjs-dist");
   if (typeof window !== "undefined") {
@@ -9,11 +7,14 @@ async function loadPdfJs() {
 }
 
 export async function pdfToWord(file: File): Promise<Blob> {
-  const pdfjs = await loadPdfJs();
+  const [{ Document, Packer, Paragraph, TextRun }, pdfjs] = await Promise.all([
+    import("docx"),
+    loadPdfJs(),
+  ]);
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjs.getDocument({ data: buffer }).promise;
 
-  const paragraphs: Paragraph[] = [];
+  const paragraphs: InstanceType<typeof Paragraph>[] = [];
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);

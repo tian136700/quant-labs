@@ -10,6 +10,10 @@ Fails if:
    (must next/dynamic ssr:false; match JpVocabPage).
 4) /en-vocab/study or /jp-vocab/study statically imports *StudyPage
    (must *StudyPageClient + next/dynamic { ssr: false }).
+5) JpVocabPage / jp-vocab-coach statically import @/lib/jp-vocab-export
+   (must use @/lib/jp-vocab-export-select for filters; await import export).
+6) tool-dot conversion/convert.ts statically imports docx
+   (must await import("docx")).
 """
 
 from __future__ import annotations
@@ -128,6 +132,36 @@ def main() -> int:
         page_name="JpVocabStudyPage",
         app_subdir="jp-vocab",
     )
+
+    jp_page = (SRC / "components" / "JpVocabPage.tsx").read_text(encoding="utf-8")
+    if re.search(r"""from\s+["']@/lib/jp-vocab-export["']""", jp_page):
+        errs.append(
+            "JpVocabPage.tsx: do not static-import @/lib/jp-vocab-export; "
+            "use @/lib/jp-vocab-export-select for filters"
+        )
+    coach = (SRC / "lib" / "jp-vocab-coach.ts").read_text(encoding="utf-8")
+    if re.search(r"""from\s+["']@/lib/jp-vocab-export["']""", coach):
+        errs.append(
+            "jp-vocab-coach.ts: do not static-import @/lib/jp-vocab-export; "
+            "use @/lib/jp-vocab-export-select"
+        )
+    export_actions = (SRC / "hooks" / "useJpVocabExportActions.ts").read_text(
+        encoding="utf-8"
+    )
+    if re.search(r"""from\s+["']@/lib/jp-vocab-export["']""", export_actions):
+        errs.append(
+            "useJpVocabExportActions.ts: static value import of "
+            "@/lib/jp-vocab-export pulls Word/docx into the page graph; "
+            "import filters from jp-vocab-export-select and await import() export"
+        )
+    convert = (SRC / "tool-dot" / "conversion" / "convert.ts").read_text(
+        encoding="utf-8"
+    )
+    if re.search(r"""from\s+["']docx["']""", convert):
+        errs.append(
+            "tool-dot/conversion/convert.ts: do not static-import docx; "
+            "await import(\"docx\")"
+        )
 
     if errs:
         print("check_en_vocab_heavy_lazy_import: FAIL", file=sys.stderr)

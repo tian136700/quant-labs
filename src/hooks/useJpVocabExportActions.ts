@@ -10,7 +10,7 @@ import {
 import {
   resolveJpVocabExportWords,
   type JpVocabExportScope,
-} from "@/lib/jp-vocab-export";
+} from "@/lib/jp-vocab-export-select";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
 export function useJpVocabExportActions(options: {

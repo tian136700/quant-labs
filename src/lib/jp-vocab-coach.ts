@@ -1,6 +1,6 @@
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
-import { filterJpVocabTodayWeakWords } from "@/lib/jp-vocab-export";
+import { filterJpVocabTodayWeakWords } from "@/lib/jp-vocab-export-select";
 import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";

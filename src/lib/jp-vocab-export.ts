@@ -3,12 +3,16 @@ import {
   parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
 } from "@/lib/jp-vocab-class-notes";
-import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
-import { effectiveJpVocabDisplayLevel } from "@/lib/jp-vocab-review";
-import { jpVocabWordsInOrder } from "@/lib/jp-vocab-page-helpers";
-import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
+import {
+  type JpVocabExportScope,
+} from "@/lib/jp-vocab-export-select";
+import type { JpVocabWord } from "@/lib/types";
 
-export type JpVocabExportScope = "all" | "today_weak";
+export type { JpVocabExportScope } from "@/lib/jp-vocab-export-select";
+export {
+  filterJpVocabTodayWeakWords,
+  resolveJpVocabExportWords,
+} from "@/lib/jp-vocab-export-select";
 
 /** 备注图片每行最多几张 */
 const EXPORT_IMAGES_PER_ROW = 3;
@@ -491,37 +495,6 @@ async function buildExportWordBlocks(
   });
 
   return blocks;
-}
-
-/** 今日抽查后勾选为「一般」或「不熟悉」的词条（用于次日带读） */
-export function filterJpVocabTodayWeakWords(
-  words: JpVocabWord[],
-  sessionLevel: Record<number, JpVocabLevel | undefined>,
-  displayOrder: JpVocabDailyDisplayOrder
-): JpVocabWord[] {
-  const weak = words.filter((word) => {
-    const level = effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], {
-      displayOrder,
-    });
-    return level === "normal" || level === "weak";
-  });
-  if (!displayOrder.ids.length) return weak;
-  return jpVocabWordsInOrder(weak, displayOrder.ids);
-}
-
-export function resolveJpVocabExportWords(
-  scope: JpVocabExportScope,
-  words: JpVocabWord[],
-  displayOrder: JpVocabDailyDisplayOrder,
-  sessionLevel: Record<number, JpVocabLevel | undefined>
-): JpVocabWord[] {
-  if (scope === "today_weak") {
-    return filterJpVocabTodayWeakWords(words, sessionLevel, displayOrder);
-  }
-  if (displayOrder.ids.length > 0) {
-    return jpVocabWordsInOrder(words, displayOrder.ids);
-  }
-  return [...words];
 }
 
 export async function exportJpVocabToWord(

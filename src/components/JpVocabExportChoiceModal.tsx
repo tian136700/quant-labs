@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { JpVocabExportScope } from "@/lib/jp-vocab-export";
+import type { JpVocabExportScope } from "@/lib/jp-vocab-export-select";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
 type Props = {
