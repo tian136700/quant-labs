@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS etr_ip_geo_queue (
             )
         except Exception:
             pass
-    for col in ("geo_area", "updated_at"):
+    for col in ("geo_area", "updated_at", "geo_isp"):
         try:
             run_wrangler(f"ALTER TABLE visit_logs ADD COLUMN {col} TEXT;")
         except Exception:
@@ -285,6 +285,7 @@ WHERE login_ip IS NOT NULL
         prov_sql = sql_literal(prov) if prov else "NULL"
         city_sql = sql_literal(city) if city else "NULL"
         area_sql = sql_literal(area) if area else "NULL"
+        isp_sql = sql_literal(isp) if isp else "NULL"
         payload = run_wrangler(
             f"""
 UPDATE visit_logs
@@ -292,6 +293,7 @@ SET country_code = COALESCE({cc_sql}, country_code),
     geo_region = {prov_sql},
     geo_city = {city_sql},
     geo_area = {area_sql},
+    geo_isp = {isp_sql},
     updated_at = {sql_literal(now)}
 WHERE ip IS NOT NULL
   AND (ip = {sql_literal(ip)} OR TRIM(ip) = {sql_literal(ip)});

@@ -253,6 +253,7 @@ CREATE TABLE IF NOT EXISTS visit_logs (
   geo_region_code TEXT,
   geo_city     TEXT,
   geo_area     TEXT,
+  geo_isp      TEXT,
   username     TEXT,
   url_path     TEXT    NOT NULL,
   event_type   TEXT    NOT NULL,
@@ -678,6 +679,7 @@ CREATE INDEX IF NOT EXISTS idx_en_lesson_note_lesson ON en_lesson_note (lesson_i
 -- ALTER TABLE visit_logs ADD COLUMN geo_region_code TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN geo_city TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN geo_area TEXT;
+-- ALTER TABLE visit_logs ADD COLUMN geo_isp TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN username TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN updated_at TEXT;
 -- CREATE TABLE IF NOT EXISTS jp_vocab_ref (...);  -- 同上

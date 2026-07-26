@@ -323,6 +323,10 @@ export function AdminDashboardPage() {
                       label={adm.visits.country}
                       value={geoLocationDisplay(row, locale)}
                     />
+                    <AdminCardField
+                      label={adm.visits.isp}
+                      value={row.geo_isp?.trim() || "—"}
+                    />
                     <AdminCardField label={adm.visits.eventType} value={row.event_type} />
                     <AdminCardField label={adm.visits.locale} value={row.locale ?? "—"} />
                     <AdminCardField label={adm.visits.url} value={row.url_path} wide />
@@ -383,6 +387,12 @@ export function AdminDashboardPage() {
                     onSort={handleVisitSort}
                   />
                   <AdminVisitSortTh
+                    field="geo_isp"
+                    label={adm.visits.isp}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
                     field="url_path"
                     label={adm.visits.url}
                     sort={visitSort}
@@ -434,6 +444,7 @@ export function AdminDashboardPage() {
                     <td>{row.ip_visit_count ?? "—"}</td>
                     <td>{visitLogUsernameDisplay(row.username, locale)}</td>
                     <td>{geoLocationDisplay(row, locale)}</td>
+                    <td>{row.geo_isp?.trim() || "—"}</td>
                     <td className="admin-cell-wrap">{row.url_path}</td>
                     <td>{row.event_type}</td>
                     <td className="admin-cell-wrap">{row.event_detail ?? "—"}</td>

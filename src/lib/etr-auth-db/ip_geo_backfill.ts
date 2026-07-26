@@ -215,6 +215,7 @@ export async function stepLoginIpGeoBackfill(
       prov: geo.prov,
       city: geo.city,
       area: geo.area,
+      isp: geo.isp,
     });
   }
   await dequeueLoginIpGeo(db, nextIp);

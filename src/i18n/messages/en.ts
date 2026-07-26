@@ -111,6 +111,7 @@ export const enMessages: Messages = {
         ipVisitCount: "IP visits",
         username: "Signed-in user",
         country: "Region",
+        isp: "ISP",
         url: "URL",
         eventType: "Type",
         eventDetail: "Detail",

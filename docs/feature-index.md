@@ -254,7 +254,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | `/english-teacher-review` | 英语老师评价（**已重定向**至上课老师管理） | `english-teacher-review/page.tsx` | |
 | `/jp-review` | 日语口语复习 | `jp-review/page.tsx` | |
 | `/about` | 关于与反馈（**仅管理员**；导航 / 页面 / `about:view`；非管理员不可见） | `about/page.tsx` | `AboutPage.tsx` |
-| `/admin` | 后台管理（访问与操作日志、用户反馈；**IP 可点复制** + CopyToast；**全列排序**；**更新时间**；归属地回填会刷新 `updated_at`；**登录用户下拉即筛**（无搜索/排序下拉/刷新）；**未登录访问日志只保留 10 天**） | `admin/page.tsx` | `AdminDashboardPage.tsx` → `AdminVisitSortTh`；`analytics-db.ts`（`VISIT_LOG_SORT_FIELDS` / `copyIpGeoOntoVisitLogs` / `purgeUnregisteredVisitLogsOlderThan`）；`GET /api/analytics/visits`；规则 `.cursor/rules/admin-dashboard-visit-logs.mdc` |
+| `/admin` | 后台管理（访问与操作日志、用户反馈；**IP 可点复制** + CopyToast；**全列排序**；**更新时间**；**运营商** `geo_isp`；归属地回填会刷新 `updated_at`；**登录用户下拉即筛**（无搜索/排序下拉/刷新）；**未登录访问日志只保留 10 天**） | `admin/page.tsx` | `AdminDashboardPage.tsx` → `AdminVisitSortTh`；`analytics-db.ts`（`VISIT_LOG_SORT_FIELDS` / `copyIpGeoOntoVisitLogs` / `purgeUnregisteredVisitLogsOlderThan`）；`GET /api/analytics/visits`；规则 `.cursor/rules/admin-dashboard-visit-logs.mdc` |
 | `/admin/rbac` | 角色权限 | `admin/rbac/page.tsx` | `AdminRbacPage.tsx` |
 | `/admin/users` | 用户管理 | `admin/users/page.tsx` | `AdminUsersPage.tsx` + `admin-users-page/` |
 | `/store-review` | 外卖评价 | `store-review/page.tsx` | |

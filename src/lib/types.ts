@@ -133,6 +133,8 @@ export interface VisitLogRecord {
   geo_city?: string | null;
   /** 区县（ip9 area；归属地回填写入） */
   geo_area?: string | null;
+  /** 运营商（ip9 isp；归属地回填写入） */
+  geo_isp?: string | null;
   /** 访问时已登录的用户名；未登录为 null */
   username?: string | null;
   url_path: string;

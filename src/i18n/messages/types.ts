@@ -96,6 +96,7 @@ export type Messages = {
       ipVisitCount: string;
       username: string;
       country: string;
+      isp: string;
       url: string;
       eventType: string;
       eventDetail: string;

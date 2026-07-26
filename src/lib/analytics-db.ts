@@ -21,6 +21,7 @@ export type TrackVisitInput = {
   geo_region_code?: string | null;
   geo_city?: string | null;
   geo_area?: string | null;
+  geo_isp?: string | null;
   username?: string | null;
   url_path: string;
   event_type: string;
@@ -30,7 +31,12 @@ export type TrackVisitInput = {
 
 export type CachedGeo = Pick<
   TrackVisitInput,
-  "country_code" | "geo_region" | "geo_region_code" | "geo_city" | "geo_area"
+  | "country_code"
+  | "geo_region"
+  | "geo_region_code"
+  | "geo_city"
+  | "geo_area"
+  | "geo_isp"
 >;
 
 async function listVisitLogColumnNames(db: D1Database): Promise<Set<string>> {
@@ -51,7 +57,7 @@ async function addVisitLogColumnIfMissing(
   cols.add(name);
 }
 
-/** 旧库补齐 geo_area / updated_at（新库 schema.sql 已含） */
+/** 旧库补齐 geo_area / geo_isp / updated_at（新库 schema.sql 已含） */
 export async function ensureVisitLogsSchema(db: D1Database): Promise<void> {
   if (devStoreEnabled || visitLogsSchemaReady) return;
   const cols = await listVisitLogColumnNames(db);
@@ -60,6 +66,7 @@ export async function ensureVisitLogsSchema(db: D1Database): Promise<void> {
     return;
   }
   await addVisitLogColumnIfMissing(db, cols, "geo_area", "TEXT");
+  await addVisitLogColumnIfMissing(db, cols, "geo_isp", "TEXT");
   await addVisitLogColumnIfMissing(db, cols, "updated_at", "TEXT");
   visitLogsSchemaReady = true;
 }
@@ -87,13 +94,14 @@ export async function findCachedGeoForIp(
       geo_region_code: hit.geo_region_code ?? null,
       geo_city: hit.geo_city ?? null,
       geo_area: hit.geo_area ?? null,
+      geo_isp: hit.geo_isp ?? null,
     };
   }
 
   await ensureVisitLogsSchema(db);
   const row = await db
     .prepare(
-      `SELECT country_code, geo_region, geo_region_code, geo_city, geo_area
+      `SELECT country_code, geo_region, geo_region_code, geo_city, geo_area, geo_isp
        FROM visit_logs
        WHERE ip = ?1
          AND (
@@ -101,6 +109,7 @@ export async function findCachedGeoForIp(
            OR geo_city IS NOT NULL
            OR geo_area IS NOT NULL
            OR geo_region_code IS NOT NULL
+           OR geo_isp IS NOT NULL
          )
        ORDER BY created_at DESC
        LIMIT 1`
@@ -113,7 +122,8 @@ export async function findCachedGeoForIp(
     !row.geo_region?.trim() &&
     !row.geo_city?.trim() &&
     !row.geo_area?.trim() &&
-    !row.geo_region_code?.trim()
+    !row.geo_region_code?.trim() &&
+    !row.geo_isp?.trim()
   ) {
     return null;
   }
@@ -132,6 +142,7 @@ export async function copyIpGeoOntoVisitLogs(
     prov?: string | null;
     city?: string | null;
     area?: string | null;
+    isp?: string | null;
   }
 ): Promise<number> {
   const key = ipKey(rawIp);
@@ -141,6 +152,7 @@ export async function copyIpGeoOntoVisitLogs(
   const geoRegion = (geo.prov || "").trim() || null;
   const geoCity = (geo.city || "").trim() || null;
   const geoArea = (geo.area || "").trim() || null;
+  const geoIsp = (geo.isp || "").trim() || null;
 
   if (devStoreEnabled) {
     let n = 0;
@@ -150,6 +162,7 @@ export async function copyIpGeoOntoVisitLogs(
       row.geo_region = geoRegion;
       row.geo_city = geoCity;
       row.geo_area = geoArea;
+      row.geo_isp = geoIsp;
       row.updated_at = updatedAt;
       n += 1;
     }
@@ -164,11 +177,12 @@ export async function copyIpGeoOntoVisitLogs(
            geo_region = ?2,
            geo_city = ?3,
            geo_area = ?4,
-           updated_at = ?5
+           geo_isp = ?5,
+           updated_at = ?6
        WHERE ip IS NOT NULL
-         AND (ip = ?6 OR TRIM(ip) = ?6)`
+         AND (ip = ?7 OR TRIM(ip) = ?7)`
     )
-    .bind(countryCode, geoRegion, geoCity, geoArea, updatedAt, key)
+    .bind(countryCode, geoRegion, geoCity, geoArea, geoIsp, updatedAt, key)
     .run();
   return Number(result.meta?.changes ?? 0);
 }
@@ -195,6 +209,7 @@ export async function trackVisit(
       geo_region_code: input.geo_region_code ?? null,
       geo_city: input.geo_city ?? null,
       geo_area: input.geo_area ?? null,
+      geo_isp: input.geo_isp ?? null,
       username: input.username ?? null,
       url_path: urlPath,
       event_type: eventType,
@@ -211,10 +226,10 @@ export async function trackVisit(
   await db
     .prepare(
       `INSERT INTO visit_logs (
-         ip, country_code, geo_region, geo_region_code, geo_city, geo_area,
+         ip, country_code, geo_region, geo_region_code, geo_city, geo_area, geo_isp,
          username, url_path, event_type, event_detail, locale, created_at, updated_at
        )
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`
     )
     .bind(
       ip,
@@ -223,6 +238,7 @@ export async function trackVisit(
       input.geo_region_code ?? null,
       input.geo_city ?? null,
       input.geo_area ?? null,
+      input.geo_isp ?? null,
       input.username ?? null,
       urlPath,
       eventType,
@@ -249,6 +265,7 @@ export async function trackVisit(
     geo_region_code: input.geo_region_code ?? null,
     geo_city: input.geo_city ?? null,
     geo_area: input.geo_area ?? null,
+    geo_isp: input.geo_isp ?? null,
     username: input.username ?? null,
     url_path: urlPath,
     event_type: eventType,
@@ -305,6 +322,7 @@ export const VISIT_LOG_SORT_FIELDS = [
   "ip_visit_count",
   "username",
   "country",
+  "geo_isp",
   "url_path",
   "event_type",
   "event_detail",
@@ -485,6 +503,9 @@ function sortVisitRecords(
       case "country":
         primary = compareText(visitCountrySortKey(a), visitCountrySortKey(b), dir);
         break;
+      case "geo_isp":
+        primary = compareText(a.geo_isp || "", b.geo_isp || "", dir);
+        break;
       case "url_path":
         primary = compareText(a.url_path || "", b.url_path || "", dir);
         break;
@@ -526,6 +547,8 @@ function visitLogOrderSqlExpr(sort: VisitLogSortField): string {
       return "username COLLATE NOCASE";
     case "country":
       return "COALESCE(geo_region, geo_city, geo_area, country_code, '') COLLATE NOCASE";
+    case "geo_isp":
+      return "COALESCE(geo_isp, '') COLLATE NOCASE";
     case "url_path":
       return "url_path COLLATE NOCASE";
     case "event_type":
@@ -561,7 +584,7 @@ export async function countVisitLogs(
   return row?.total ?? 0;
 }
 
-const VISIT_SELECT_COLS = `id, ip, country_code, geo_region, geo_region_code, geo_city, geo_area, username, url_path, event_type, event_detail, locale, created_at, updated_at`;
+const VISIT_SELECT_COLS = `id, ip, country_code, geo_region, geo_region_code, geo_city, geo_area, geo_isp, username, url_path, event_type, event_detail, locale, created_at, updated_at`;
 
 export async function listVisitLogs(
   db: D1Database,

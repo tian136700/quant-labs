@@ -68,6 +68,7 @@ def main() -> int:
             "--sync-visits",
             "purge_unregistered_visit_logs",
             "--purge-unregistered",
+            "geo_isp",
         ],
         "remote backfill",
     )
@@ -76,8 +77,23 @@ def main() -> int:
         [
             "purgeUnregisteredVisitLogsOlderThan",
             "VISIT_LOG_UNREGISTERED_RETENTION_DAYS",
+            "geo_isp",
         ],
         "analytics-db purge",
+    )
+    errors += must_contain(
+        ROOT / "src/components/AdminDashboardPage.tsx",
+        [
+            "adm.visits.isp",
+            "geo_isp",
+            "handleVisitUsernameFilterChange",
+        ],
+        "AdminDashboardPage isp",
+    )
+    errors += must_contain(
+        ROOT / "src/i18n/messages/zh.ts",
+        ['isp: "运营商"'],
+        "zh isp label",
     )
     # 工具栏禁止：搜索按钮 / 排序下拉 / 刷新（排序靠表头）
     page = (ROOT / "src/components/AdminDashboardPage.tsx").read_text(encoding="utf-8")

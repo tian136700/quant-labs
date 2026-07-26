@@ -110,6 +110,7 @@ export const zhMessages: Messages = {
         ipVisitCount: "IP 访问总次数",
         username: "登录用户",
         country: "地区",
+        isp: "运营商",
         url: "访问网址",
         eventType: "类型",
         eventDetail: "操作详情",
