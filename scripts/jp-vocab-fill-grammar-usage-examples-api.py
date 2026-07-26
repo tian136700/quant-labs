@@ -78,14 +78,15 @@ def load_env_file(name: str) -> dict[str, str]:
 
 
 def load_token() -> str:
-    cfg = load_env_file("jp-vocab-fill.env")
     token = (
-        os.getenv("JP_VOCAB_UPLOAD_TOKEN")
-        or cfg.get("JP_VOCAB_UPLOAD_TOKEN")
+        os.getenv("JP_REVIEW_UPLOAD_TOKEN")
+        or load_env_file("jp-review-sync.env").get("JP_REVIEW_UPLOAD_TOKEN")
         or ""
     ).strip()
     if not token:
-        raise SystemExit("缺少 JP_VOCAB_UPLOAD_TOKEN（jp-vocab-fill.env）")
+        raise SystemExit(
+            "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
+        )
     return token
 
 
