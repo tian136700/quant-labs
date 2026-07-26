@@ -158,6 +158,9 @@ export async function deleteUserByAdmin(
     await revokeUserSessions(db, userId);
     await deleteUserLoginLinks(db, userId);
     etrAuthDbState.devUsers.splice(idx, 1);
+    etrAuthDbState.devLoginHistory = etrAuthDbState.devLoginHistory.filter(
+      (row) => row.user_id !== userId
+    );
     return { ok: true, username };
   }
 
