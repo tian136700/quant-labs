@@ -19,12 +19,13 @@ import {
   countJpVocabExampleSentenceTargetFromMeaning,
   splitJpVocabMeaningMajorSenses,
 } from "@/lib/jp-vocab-meaning-ai";
+import { countJpVocabUsagePoints } from "@/lib/jp-vocab-usage-ai";
 
 /** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
-  version: 1,
+  version: 2,
   count_rule:
-    "释义含 / 时：条数 = 斜杠段数（每段 1 句，须体现对应读音）；否则条数 = max(2, 段内 ； 近义数)",
+    "单词：释义含 / 时条数=斜杠段数；否则 max(2, 段内 ； 近义数)。语法：条数=用法点数（须先有 usage；1:1）",
   format_example:
     "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。",
   rules: [
@@ -34,6 +35,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
+    "语法例句：第 N 句对应第 N 条用法；只用简单词、不要叠更难的语法（避免多焦点）",
     "初学者友好：一句尽量只用一个话题助词「は」；时间/场景已用「今は」等时，主语改用「が」或省略，不要叠「今は傘は…」这类双は（语法虽对但 N5 易误判）",
     "语法词条里的「～」「〜」是占位符，禁止原样写进例句；要用具体词：天气预报によると／彼によると…",
     "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
@@ -60,6 +62,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "double_wa_topic",
     "missing_clause_touten",
     "missing_sentence_final_punct",
+    "usage_required",
   ],
 } as const;
 
@@ -102,7 +105,20 @@ export type JpVocabExampleSentencesAiInput = {
   kind: string;
   reading?: string | null;
   meaning?: string | null;
+  /** 语法条：编号用法；驱动例句条数与 1:1 对应 */
+  usage?: string | null;
 };
+
+/** 例句目标条数：语法看 usage；单词看 meaning */
+export function expectedJpVocabExampleSentenceCount(
+  input: Pick<JpVocabExampleSentencesAiInput, "kind" | "meaning" | "usage">
+): number {
+  if (input.kind === "grammar") {
+    const n = countJpVocabUsagePoints(input.usage);
+    return Math.max(2, n || 2);
+  }
+  return countJpVocabExampleSentenceTargetFromMeaning(input.meaning, input.kind);
+}
 
 export function buildJpVocabExampleSentencesAiPrompt(
   input: JpVocabExampleSentencesAiInput
@@ -110,6 +126,7 @@ export function buildJpVocabExampleSentencesAiPrompt(
   const kindLabel = input.kind === "grammar" ? "语法" : "单词";
   const reading = input.reading?.trim();
   const meaning = input.meaning?.trim();
+  const usage = input.usage?.trim();
   const { stem, hasDa } = jpVocabNaAdjParts(input.word);
   const stemReading = jpVocabNaAdjReadingForStem(reading || "", hasDa);
   const grammarCore = input.word
@@ -128,18 +145,30 @@ export function buildJpVocabExampleSentencesAiPrompt(
     hasDa && stemReading
       ? `词干假名：${stemReading}（标在「${stem}」上，写成 ${stem}(${stemReading})）`
       : null,
-    meaning ? `释义：${meaning}` : null,
+    input.kind === "grammar" && usage ? `用法：\n${usage}` : null,
+    input.kind !== "grammar" && meaning ? `释义：${meaning}` : null,
     `类型：${kindLabel}`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const targetCount = countJpVocabExampleSentenceTargetFromMeaning(meaning, input.kind);
+  const targetCount = expectedJpVocabExampleSentenceCount(input);
   const majorSenses = splitJpVocabMeaningMajorSenses(meaning || "");
   const countRuleHint =
-    majorSenses.length >= 2
-      ? `释义含 ${majorSenses.length} 个斜杠段 → 须造 ${targetCount} 句（每段 1 句，例句须体现对应读音）`
-      : `须造 ${targetCount} 句（无斜杠时 max(2, 近义数)）`;
+    input.kind === "grammar"
+      ? `须造 ${targetCount} 句：与上方「用法」一一对应（第 1 句对应用法 1，第 2 句对应用法 2…）`
+      : majorSenses.length >= 2
+        ? `释义含 ${majorSenses.length} 个斜杠段 → 须造 ${targetCount} 句（每段 1 句，例句须体现对应读音）`
+        : `须造 ${targetCount} 句（无斜杠时 max(2, 近义数)）`;
+
+  const grammarSimplicity =
+    input.kind === "grammar"
+      ? `
+简单句（语法必守，防多焦点）：
+- 只用简单单词（N5～N4）；不要再塞另一个更难的语法点。
+- 若需前后两句（如「あとで」），前后都用短句、简单词；不要后句突然变难。
+- 焦点只有「本语法」本身；其余内容越短越好。`
+      : "";
 
   return `${meta}
 
@@ -147,11 +176,15 @@ export function buildJpVocabExampleSentencesAiPrompt(
 
 条数规则（必须遵守）：
 - ${countRuleHint}
-- 先读「释义」：含半角斜杠 / 时，斜杠分隔不同读音/大义项，每段造 1 句。
+${
+  input.kind === "grammar"
+    ? "- 多用法时一句对应一种用法，不要两句都挤同一义项。"
+    : `- 先读「释义」：含半角斜杠 / 时，斜杠分隔不同读音/大义项，每段造 1 句。
 - 无斜杠时：先判断有几种常用用法；每种用法 1 句；仅 1 种用法则造 2 句（换场景）。
 - 多用法时一句对应一种用法，不要两句都挤同一义项。
 - 例：词条 前，读音 まえ/ぜん，释义 前面；以前/前面的；预先的 → 2 句：第 1 句用 まえ（駅の前），第 2 句用 ぜん（前日）。
-- 例：词条 中，读音 なか/ちゅう，释义 中间；里面/正在进行 → 2 句：第 1 句 なか（箱の中），第 2 句 ちゅう（会議中）。
+- 例：词条 中，读音 なか/ちゅう，释义 中间；里面/正在进行 → 2 句：第 1 句 なか（箱の中），第 2 句 ちゅう（会議中）。`
+}${grammarSimplicity}
 
 格式要求：
 1. JLPT N5～N4，日常口语，句子短（每句约 8～18 字）；优先简单、顺口的句式，避免初学者看了会怀疑写错的结构。
@@ -186,14 +219,15 @@ export function validateJpVocabExampleSentencesAiOutput(
   const text = raw.trim();
   if (!text) return { ok: false, reason: "empty" };
 
+  if (input.kind === "grammar" && countJpVocabUsagePoints(input.usage) < 2) {
+    return { ok: false, reason: "usage_required" };
+  }
+
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const targetCount = countJpVocabExampleSentenceTargetFromMeaning(
-    input.meaning,
-    input.kind
-  );
+  const targetCount = expectedJpVocabExampleSentenceCount(input);
   const minLines = Math.max(4, targetCount * 2);
   if (lines.length < minLines) {
     return { ok: false, reason: "need_four_lines" };

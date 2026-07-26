@@ -25,6 +25,7 @@ export type JpVocabMissingExampleSentenceRow = {
   kind: string;
   reading: string | null;
   meaning: string | null;
+  usage: string | null;
   /** 内置 N5 词表已有例句时非空；本地模型可跳过这些 */
   suggested: string | null;
   /** 可直接喂给本地/远程模型的完整 prompt（含条数与格式规则） */
@@ -117,30 +118,36 @@ export async function countJpVocabWordsMissingExampleSentences(
   options: Pick<ListJpVocabMissingExampleSentencesOptions, "kind"> = {}
 ): Promise<number> {
   const kind = options.kind;
+  // 语法须已有 usage；单词须已有 meaning
   const result =
-    kind === "word" || kind === "grammar"
+    kind === "word"
       ? await db
-          .prepare(
-            kind === "word"
-              ? `SELECT COUNT(*) AS n FROM jp_vocab_word
-             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
-               AND kind = 'word'
-               AND meaning IS NOT NULL AND TRIM(meaning) != ''`
-              : `SELECT COUNT(*) AS n FROM jp_vocab_word
-             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
-               AND kind = 'grammar'`
-          )
-          .first<{ n: number }>()
-      : await db
           .prepare(
             `SELECT COUNT(*) AS n FROM jp_vocab_word
              WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
+               AND kind = 'word'
+               AND meaning IS NOT NULL AND TRIM(meaning) != ''`
+          )
+          .first<{ n: number }>()
+      : kind === "grammar"
+        ? await db
+            .prepare(
+              `SELECT COUNT(*) AS n FROM jp_vocab_word
+             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
+               AND kind = 'grammar'
+               AND usage IS NOT NULL AND TRIM(usage) != ''`
+            )
+            .first<{ n: number }>()
+        : await db
+            .prepare(
+              `SELECT COUNT(*) AS n FROM jp_vocab_word
+             WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
                AND (
-                 kind = 'grammar'
+                 (kind = 'grammar' AND usage IS NOT NULL AND TRIM(usage) != '')
                  OR (kind = 'word' AND meaning IS NOT NULL AND TRIM(meaning) != '')
                )`
-          )
-          .first<{ n: number }>();
+            )
+            .first<{ n: number }>();
   return Number(result?.n ?? 0);
 }
 
@@ -159,19 +166,16 @@ export async function listJpVocabWordsMissingExampleSentences(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, kind, reading, meaning FROM jp_vocab_word
+  let sql = `SELECT id, word, kind, reading, meaning, usage FROM jp_vocab_word
        WHERE (example_sentences IS NULL OR TRIM(example_sentences) = '')
          AND (
-           kind = 'grammar'
+           (kind = 'grammar' AND usage IS NOT NULL AND TRIM(usage) != '')
            OR (kind = 'word' AND meaning IS NOT NULL AND TRIM(meaning) != '')
          )`;
   const binds: Array<string | number> = [];
   if (kind === "word" || kind === "grammar") {
     sql += ` AND kind = ?${binds.length + 1}`;
     binds.push(kind);
-    if (kind === "word") {
-      sql += ` AND meaning IS NOT NULL AND TRIM(meaning) != ''`;
-    }
   }
   sql += ` ORDER BY id`;
   if (limit != null) {
@@ -186,6 +190,7 @@ export async function listJpVocabWordsMissingExampleSentences(
     kind: string;
     reading: string | null;
     meaning: string | null;
+    usage: string | null;
   }>();
 
   return (result.results ?? []).map((row) => {
@@ -195,18 +200,22 @@ export async function listJpVocabWordsMissingExampleSentences(
       row.reading != null ? String(row.reading).trim() || null : null;
     const meaning =
       row.meaning != null ? String(row.meaning).trim() || null : null;
+    const usage =
+      row.usage != null ? String(row.usage).trim() || null : null;
     return {
       id: Number(row.id),
       word,
       kind: rowKind,
       reading,
       meaning,
+      usage,
       suggested: lookupJpVocabExampleSentences(word),
       prompt: buildJpVocabExampleSentencesAiPrompt({
         word,
         kind: rowKind,
         reading,
         meaning,
+        usage,
       }),
     };
   });
@@ -363,7 +372,7 @@ export async function applyJpVocabExampleSentenceUpdates(
 
     const row = await db
       .prepare(
-        `SELECT id, word, kind, reading, meaning FROM jp_vocab_word WHERE id = ?1`
+        `SELECT id, word, kind, reading, meaning, usage FROM jp_vocab_word WHERE id = ?1`
       )
       .bind(wordId)
       .first<{
@@ -372,6 +381,7 @@ export async function applyJpVocabExampleSentenceUpdates(
         kind: string;
         reading: string | null;
         meaning: string | null;
+        usage: string | null;
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
@@ -384,6 +394,7 @@ export async function applyJpVocabExampleSentenceUpdates(
         kind: String(row.kind),
         reading: row.reading,
         meaning: row.meaning,
+        usage: row.usage,
       });
       if (!validated.ok) {
         skipped.push({

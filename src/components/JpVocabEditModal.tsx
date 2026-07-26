@@ -27,6 +27,7 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { JpVocabEditModalStyles } from "@/components/jp-vocab-edit-modal/JpVocabEditModalStyles";
 import { JpVocabEditBasicFields } from "@/components/jp-vocab-edit-modal/JpVocabEditBasicFields";
 import { JpVocabEditExamplesField } from "@/components/jp-vocab-edit-modal/JpVocabEditExamplesField";
+import { JpVocabEditUsageField } from "@/components/jp-vocab-edit-modal/JpVocabEditUsageField";
 import { JpVocabEditNotesField } from "@/components/jp-vocab-edit-modal/JpVocabEditNotesField";
 import { JpVocabEditRefField } from "@/components/jp-vocab-edit-modal/JpVocabEditRefField";
 import { JpVocabEditZoomOverlays } from "@/components/jp-vocab-edit-modal/JpVocabEditZoomOverlays";
@@ -72,6 +73,7 @@ export function JpVocabEditModal({
   const [pos, setPos] = useState("");
   const [classNotes, setClassNotes] = useState("");
   const [exampleSentences, setExampleSentences] = useState("");
+  const [usage, setUsage] = useState("");
   const [mnemonic, setMnemonic] = useState("");
   const [error, setError] = useState("");
   const [refError, setRefError] = useState("");
@@ -90,6 +92,7 @@ export function JpVocabEditModal({
   const noteImageUploadingRef = useRef(false);
   const classNotesValueRef = useRef("");
   const exampleSentencesRef = useRef<HTMLTextAreaElement>(null);
+  const usageRef = useRef<HTMLTextAreaElement>(null);
   const classNotesRef = useRef<HTMLTextAreaElement>(null);
   const editBodyRef = useRef<HTMLDivElement>(null);
   const [bodyCanScroll, setBodyCanScroll] = useState(false);
@@ -132,6 +135,7 @@ export function JpVocabEditModal({
     classNotesReadyRef.current = !notesPresent || Boolean(notesBody.trim());
     setClassNotesLoading(notesPresent && !notesBody.trim());
     setExampleSentences(word.example_sentences || "");
+    setUsage(word.usage || "");
     setMnemonic(word.mnemonic || "");
     setError("");
     setRefError("");
@@ -238,6 +242,7 @@ export function JpVocabEditModal({
   useEffect(() => {
     if (!open) return;
     autoGrowTextarea(exampleSentencesRef.current);
+    autoGrowTextarea(usageRef.current);
     autoGrowTextarea(classNotesRef.current);
     const body = editBodyRef.current;
     const raf = requestAnimationFrame(() => {
@@ -262,13 +267,14 @@ export function JpVocabEditModal({
     const ro = new ResizeObserver(update);
     ro.observe(body);
     if (exampleSentencesRef.current) ro.observe(exampleSentencesRef.current);
+    if (usageRef.current) ro.observe(usageRef.current);
     if (classNotesRef.current) ro.observe(classNotesRef.current);
     body.addEventListener("scroll", update, { passive: true });
     return () => {
       ro.disconnect();
       body.removeEventListener("scroll", update);
     };
-  }, [open, exampleSentences, classNotes, word?.id, kind, meaning, pos, mnemonic]);
+  }, [open, exampleSentences, usage, classNotes, word?.id, kind, meaning, pos, mnemonic]);
 
   const applyRefFile = (file: File) => {
     setRefError("");
@@ -577,6 +583,17 @@ export function JpVocabEditModal({
           ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
           : null
         : snapshot.example_sentences_source ?? null;
+    const nextUsage =
+      kind === "grammar" ? usage.trim() || null : null;
+    const prevUsage = (snapshot.usage || "").trim() || null;
+    const nextUsageSource =
+      kind === "grammar"
+        ? nextUsage !== prevUsage
+          ? nextUsage
+            ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+            : null
+          : snapshot.usage_source ?? null
+        : null;
     const nextMeaning = meaning.trim() || null;
     const prevMeaning = (snapshot.meaning || "").trim() || null;
     const nextMeaningSource =
@@ -595,6 +612,8 @@ export function JpVocabEditModal({
       ...(notesReady ? { class_notes: nextClassNotes } : {}),
       example_sentences: nextExamples,
       example_sentences_source: nextExampleSource,
+      usage: nextUsage,
+      usage_source: nextUsageSource,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
@@ -619,6 +638,7 @@ export function JpVocabEditModal({
             pos: pos.trim() || null,
             ...(notesReady ? { class_notes: nextClassNotes } : {}),
             example_sentences: nextExamples,
+            usage: nextUsage,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
@@ -709,6 +729,16 @@ export function JpVocabEditModal({
               onPosChange={setPos}
               onMnemonicChange={setMnemonic}
             />
+
+            {kind === "grammar" ? (
+              <JpVocabEditUsageField
+                canEdit={canEdit}
+                usage={usage}
+                word={word}
+                usageRef={usageRef}
+                onUsageChange={setUsage}
+              />
+            ) : null}
 
             <JpVocabEditExamplesField
               canEdit={canEdit}

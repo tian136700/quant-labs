@@ -41,6 +41,8 @@ import {
 } from "@/lib/jp-vocab-example-sentences";
 import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabExampleSentenceCopyButton } from "@/components/JpVocabExampleSentenceCopyButton";
+import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
+import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -324,7 +326,12 @@ export function JpVocabTeacherQuizFlashcardModal({
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
-  const showExamples = isCoach || isStudy || exampleSentences.length > 0;
+  const isGrammar = w.kind === "grammar";
+  const grammarUsagePairs = isGrammar
+    ? buildJpVocabUsageExamplePairs(w.usage, w.example_sentences)
+    : null;
+  const showExamples = isCoach || isStudy || exampleSentences.length > 0
+    || Boolean(grammarUsagePairs?.hasContent);
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
@@ -608,46 +615,74 @@ export function JpVocabTeacherQuizFlashcardModal({
         </section>
 
         {showExamples ? (
-          <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
-            <div className="jp-vocab-teacher-quiz__examples-head">
-              <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
-              {exampleSentences.length > 0 ? (
-                <JpVocabExampleSentenceCopyButton items={exampleSentences} />
-              ) : null}
-            </div>
-            {exampleSentences.length > 0 ? (
-              <div className="jp-vocab-teacher-quiz__examples-body">
-                <ol className="jp-vocab-teacher-quiz__examples-list">
-                  {exampleSentences.map((item, index) => (
-                    <li
-                      key={`${index}-${item.text}`}
-                      className="jp-vocab-teacher-quiz__examples-item"
-                    >
-                      <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
-                        {index + 1}.
-                      </span>
-                      <span className="jp-vocab-teacher-quiz__examples-text">
-                        <span className="jp-vocab-teacher-quiz__examples-primary">
-                          <JpVocabFuriganaText text={item.text} />
-                        </span>
-                        {item.glossLines.map((gloss, glossIndex) => (
-                          <span
-                            key={`${index}-gloss-${glossIndex}`}
-                            className="jp-vocab-teacher-quiz__examples-gloss"
-                          >
-                            {formatJpVocabExampleGlossLine(gloss)}
-                          </span>
-                        ))}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-                <JpVocabSourceLabel
-                  source={w.example_sentences_source}
-                />
-              </div>
+          <section
+            className="jp-vocab-teacher-quiz__examples"
+            aria-label={isGrammar ? "用法与例句" : "例句"}
+          >
+            {isGrammar ? (
+              <>
+                <div className="jp-vocab-teacher-quiz__examples-head">
+                  <h3 className="jp-vocab-teacher-quiz__examples-title">
+                    用法 / 例句
+                  </h3>
+                </div>
+                <div className="jp-vocab-teacher-quiz__examples-body">
+                  <JpVocabUsageExamplesPairedContent
+                    usage={w.usage}
+                    exampleSentences={w.example_sentences}
+                    usageSource={w.usage_source}
+                    exampleSource={w.example_sentences_source}
+                    wordLabel={w.word}
+                    model={grammarUsagePairs ?? undefined}
+                    showCopyAll
+                    emptyText="暂无用法与例句"
+                  />
+                </div>
+              </>
             ) : (
-              <p className="jp-vocab-teacher-quiz__examples-empty">暂无例句</p>
+              <>
+                <div className="jp-vocab-teacher-quiz__examples-head">
+                  <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
+                  {exampleSentences.length > 0 ? (
+                    <JpVocabExampleSentenceCopyButton items={exampleSentences} />
+                  ) : null}
+                </div>
+                {exampleSentences.length > 0 ? (
+                  <div className="jp-vocab-teacher-quiz__examples-body">
+                    <ol className="jp-vocab-teacher-quiz__examples-list">
+                      {exampleSentences.map((item, index) => (
+                        <li
+                          key={`${index}-${item.text}`}
+                          className="jp-vocab-teacher-quiz__examples-item"
+                        >
+                          <span
+                            className="jp-vocab-teacher-quiz__examples-index"
+                            aria-hidden="true"
+                          >
+                            {index + 1}.
+                          </span>
+                          <span className="jp-vocab-teacher-quiz__examples-text">
+                            <span className="jp-vocab-teacher-quiz__examples-primary">
+                              <JpVocabFuriganaText text={item.text} />
+                            </span>
+                            {item.glossLines.map((gloss, glossIndex) => (
+                              <span
+                                key={`${index}-gloss-${glossIndex}`}
+                                className="jp-vocab-teacher-quiz__examples-gloss"
+                              >
+                                {formatJpVocabExampleGlossLine(gloss)}
+                              </span>
+                            ))}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                    <JpVocabSourceLabel source={w.example_sentences_source} />
+                  </div>
+                ) : (
+                  <p className="jp-vocab-teacher-quiz__examples-empty">暂无例句</p>
+                )}
+              </>
             )}
           </section>
         ) : null}

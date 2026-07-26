@@ -343,6 +343,8 @@ export type JpVocabWordEntryInput = {
   example_sentences?: string | null;
   example_sentences_source?: string | null;
   meaning_source?: string | null;
+  usage?: string | null;
+  usage_source?: string | null;
 };
 
 /** 一次性更新词条可编辑字段，并同步备注到关联新课 */
@@ -434,6 +436,21 @@ export async function updateJpVocabWordEntry(
         : null;
     }
   }
+  const nextUsage =
+    input.usage !== undefined
+      ? (input.usage || "").trim() || null
+      : current.usage ?? null;
+  let nextUsageSource = current.usage_source ?? null;
+  if (input.usage_source !== undefined) {
+    nextUsageSource = normalizeJpVocabExampleSentencesSource(input.usage_source);
+  } else if (input.usage !== undefined) {
+    const prevUsage = current.usage ?? null;
+    if (nextUsage !== prevUsage) {
+      nextUsageSource = nextUsage
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
 
   if (!nextWord) return { ok: false, error: "word_required" };
 
@@ -466,6 +483,8 @@ export async function updateJpVocabWordEntry(
       mnemonic: nextMnemonic,
       example_sentences: nextExampleSentences,
       example_sentences_source: nextExampleSource,
+      usage: nextUsage,
+      usage_source: nextUsageSource,
       updated_at: ts,
     };
     current = jpVocabDbState.devWords[idx];
@@ -473,8 +492,8 @@ export async function updateJpVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE jp_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, class_notes = ?7, mnemonic = ?8, example_sentences = ?9, example_sentences_source = ?10, updated_at = ?11
-         WHERE id = ?12`
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, class_notes = ?7, mnemonic = ?8, example_sentences = ?9, example_sentences_source = ?10, usage = ?11, usage_source = ?12, updated_at = ?13
+         WHERE id = ?14`
       )
       .bind(
         nextKind,
@@ -487,6 +506,8 @@ export async function updateJpVocabWordEntry(
         nextMnemonic,
         nextExampleSentences,
         nextExampleSource,
+        nextUsage,
+        nextUsageSource,
         ts,
         wordId
       )

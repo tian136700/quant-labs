@@ -7,6 +7,8 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabExampleSentenceCopyButton } from "@/components/JpVocabExampleSentenceCopyButton";
 import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
+import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
+import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
@@ -182,7 +184,13 @@ export function JpVocabAdminReviewFlashcardModal({
   const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
   const showReadingPrimary = Boolean(readingTrim);
   const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
-  const showExamples = contentExpanded && exampleSentences.length > 0;
+  const grammarUsagePairs =
+    w.kind === "grammar"
+      ? buildJpVocabUsageExamplePairs(w.usage, w.example_sentences)
+      : null;
+  const showExamples =
+    contentExpanded &&
+    (exampleSentences.length > 0 || Boolean(grammarUsagePairs?.hasContent));
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
@@ -411,39 +419,68 @@ export function JpVocabAdminReviewFlashcardModal({
         </section>
 
         {showExamples ? (
-          <section className="jp-vocab-teacher-quiz__examples" aria-label="例句">
-            <div className="jp-vocab-teacher-quiz__examples-head">
-              <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
-              <JpVocabExampleSentenceCopyButton items={exampleSentences} />
-            </div>
-            <div className="jp-vocab-teacher-quiz__examples-body">
-              <ol className="jp-vocab-teacher-quiz__examples-list">
-                {exampleSentences.map((item, index) => (
-                  <li
-                    key={`${index}-${item.text}`}
-                    className="jp-vocab-teacher-quiz__examples-item"
-                  >
-                    <span className="jp-vocab-teacher-quiz__examples-index" aria-hidden="true">
-                      {index + 1}.
-                    </span>
-                    <span className="jp-vocab-teacher-quiz__examples-text">
-                      <span className="jp-vocab-teacher-quiz__examples-primary">
-                        <JpVocabFuriganaText text={item.text} />
-                      </span>
-                      {item.glossLines.map((gloss, glossIndex) => (
+          <section
+            className="jp-vocab-teacher-quiz__examples"
+            aria-label={w.kind === "grammar" ? "用法与例句" : "例句"}
+          >
+            {w.kind === "grammar" ? (
+              <>
+                <div className="jp-vocab-teacher-quiz__examples-head">
+                  <h3 className="jp-vocab-teacher-quiz__examples-title">
+                    用法 / 例句
+                  </h3>
+                </div>
+                <div className="jp-vocab-teacher-quiz__examples-body">
+                  <JpVocabUsageExamplesPairedContent
+                    usage={w.usage}
+                    exampleSentences={w.example_sentences}
+                    usageSource={w.usage_source}
+                    exampleSource={w.example_sentences_source}
+                    wordLabel={w.word}
+                    showCopyAll
+                    emptyText="暂无用法与例句"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="jp-vocab-teacher-quiz__examples-head">
+                  <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
+                  <JpVocabExampleSentenceCopyButton items={exampleSentences} />
+                </div>
+                <div className="jp-vocab-teacher-quiz__examples-body">
+                  <ol className="jp-vocab-teacher-quiz__examples-list">
+                    {exampleSentences.map((item, index) => (
+                      <li
+                        key={`${index}-${item.text}`}
+                        className="jp-vocab-teacher-quiz__examples-item"
+                      >
                         <span
-                          key={`${index}-gloss-${glossIndex}`}
-                          className="jp-vocab-teacher-quiz__examples-gloss"
+                          className="jp-vocab-teacher-quiz__examples-index"
+                          aria-hidden="true"
                         >
-                          {formatJpVocabExampleGlossLine(gloss)}
+                          {index + 1}.
                         </span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-              <JpVocabSourceLabel source={w.example_sentences_source} />
-            </div>
+                        <span className="jp-vocab-teacher-quiz__examples-text">
+                          <span className="jp-vocab-teacher-quiz__examples-primary">
+                            <JpVocabFuriganaText text={item.text} />
+                          </span>
+                          {item.glossLines.map((gloss, glossIndex) => (
+                            <span
+                              key={`${index}-gloss-${glossIndex}`}
+                              className="jp-vocab-teacher-quiz__examples-gloss"
+                            >
+                              {formatJpVocabExampleGlossLine(gloss)}
+                            </span>
+                          ))}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                  <JpVocabSourceLabel source={w.example_sentences_source} />
+                </div>
+              </>
+            )}
           </section>
         ) : null}
 
