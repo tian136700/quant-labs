@@ -22,6 +22,22 @@ def main() -> int:
     if "username?: string | null" not in slug:
         return fail("buildLoginLinkUrl / loginLinkPath must accept username")
 
+    # Next.js: sibling dynamic segments must share the same param name.
+    # /sign-in/[slug] + /sign-in/[username]/… → whole-site 500 ("slug !== username").
+    conflicting = ROOT / "src/app/sign-in/[slug]"
+    if conflicting.exists():
+        return fail(
+            "remove src/app/sign-in/[slug] — conflicts with [username] "
+            "(Next: You cannot use different slug names for the same dynamic path)"
+        )
+
+    single = ROOT / "src/app/sign-in/[username]/route.ts"
+    if not single.is_file():
+        return fail("missing /sign-in/[username] route (legacy one-segment slug)")
+    single_text = single.read_text(encoding="utf-8")
+    if "normalizeLoginLinkToken" not in single_text:
+        return fail("legacy /sign-in/[username] must auth by slug token")
+
     route = ROOT / "src/app/sign-in/[username]/[slug]/route.ts"
     if not route.is_file():
         return fail("missing /sign-in/[username]/[slug] route")
