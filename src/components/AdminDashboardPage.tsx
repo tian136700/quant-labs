@@ -241,8 +241,10 @@ export function AdminDashboardPage() {
     }
   };
 
-  const handleVisitUsernameSearch = () => {
-    void loadVisits(1, visitSort, visitUsernameDraft);
+  const handleVisitUsernameFilterChange = (value: string) => {
+    setVisitUsernameDraft(value);
+    setVisitUsernameFilter(value);
+    void loadVisits(1, visitSort, value);
   };
 
   useEffect(() => {
@@ -311,7 +313,9 @@ export function AdminDashboardPage() {
               <select
                 className="admin-visits-filter-select"
                 value={visitUsernameDraft}
-                onChange={(event) => setVisitUsernameDraft(event.target.value)}
+                onChange={(event) =>
+                  handleVisitUsernameFilterChange(event.target.value)
+                }
                 disabled={loadingVisits}
               >
                 <option value="">{adm.visits.filterAll}</option>
@@ -325,14 +329,6 @@ export function AdminDashboardPage() {
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-              onClick={handleVisitUsernameSearch}
-              disabled={loadingVisits}
-            >
-              {adm.visits.filterSearch}
-            </button>
             <label className="admin-visits-sort">
               <span className="admin-visits-filter-label">{adm.visits.sortLabel}</span>
               <select

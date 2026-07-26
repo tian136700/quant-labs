@@ -2,11 +2,14 @@
 """直接回填线上 D1：登录唯一 IP → ip9 归属地（同一 IP 只查一次，默认间隔 30s）。
 
 不依赖 Worker 新接口；写 etr_ip_geo_cache，历史弹窗读缓存即可展示区县。
+查到后会抄到 etr_user_login_history + visit_logs，并刷新 visit_logs.updated_at。
 用法：
   python3 scripts/login-ip-geo-backfill-remote.py --status
   python3 scripts/login-ip-geo-backfill-remote.py --once
   python3 scripts/login-ip-geo-backfill-remote.py --loop   # 直到 pending=0
   python3 scripts/login-ip-geo-backfill-remote.py --requeue --loop
+  python3 scripts/login-ip-geo-backfill-remote.py --sync-visits  # 缓存已齐时补抄访问日志
+  python3 scripts/login-ip-geo-backfill-remote.py --purge-unregistered  # 未登录访问日志只留 10 天
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +31,7 @@ DB = "strategy-compare-db"
 IP9_URL = "https://ip9.com.cn/get"
 DEFAULT_INTERVAL_SEC = 30
 NEGATIVE_CACHE_SEC = 6 * 60 * 60
+UNREGISTERED_VISIT_RETENTION_DAYS = 10
 UA = "strategy-compare-cloud/login-ip-geo-backfill-remote"
 
 
@@ -240,7 +244,21 @@ ON CONFLICT(ip) DO UPDATE SET
   fetched_at = excluded.fetched_at;
 """.strip()
     run_wrangler(sql)
-    # 同 IP 所有登录行抄上归属地（不再为每条登录打接口）
+    copy_geo_onto_history_and_visits(ip, geo, updated_at=now)
+    try:
+        run_wrangler(f"DELETE FROM etr_ip_geo_queue WHERE ip = {sql_literal(ip)};")
+    except Exception:
+        pass
+
+
+def copy_geo_onto_history_and_visits(
+    ip: str, geo: dict, *, updated_at: str | None = None
+) -> int:
+    """把已查到的归属地抄到登录历史 + 访问日志，并刷新 visit_logs.updated_at。
+
+    返回 visit_logs 受影响行数（失败时返回 -1）。
+    """
+    now = updated_at or time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
     label = format_label(geo)
     area = str(geo.get("area") or "").strip()
     isp = str(geo.get("isp") or "").strip()
@@ -257,7 +275,8 @@ WHERE login_ip IS NOT NULL
         )
     except Exception as err:  # noqa: BLE001
         print(f"  warn: copy onto history failed: {err}", flush=True)
-    # 访问日志同 IP：写入省市区并刷新 updated_at
+
+    visit_changes = -1
     try:
         country_code = str(geo.get("country_code") or "").strip().upper()
         prov = str(geo.get("prov") or "").strip()
@@ -266,7 +285,7 @@ WHERE login_ip IS NOT NULL
         prov_sql = sql_literal(prov) if prov else "NULL"
         city_sql = sql_literal(city) if city else "NULL"
         area_sql = sql_literal(area) if area else "NULL"
-        run_wrangler(
+        payload = run_wrangler(
             f"""
 UPDATE visit_logs
 SET country_code = COALESCE({cc_sql}, country_code),
@@ -278,12 +297,119 @@ WHERE ip IS NOT NULL
   AND (ip = {sql_literal(ip)} OR TRIM(ip) = {sql_literal(ip)});
 """.strip()
         )
+        meta = payload[0].get("meta") if payload and isinstance(payload[0], dict) else {}
+        visit_changes = int((meta or {}).get("changes") or 0)
     except Exception as err:  # noqa: BLE001
         print(f"  warn: copy onto visit_logs failed: {err}", flush=True)
+    return visit_changes
+
+
+def list_cached_ok_rows() -> list[dict]:
+    rows = results_of(
+        run_wrangler(
+            """
+SELECT ip, country, country_code, prov, city, area, isp
+FROM etr_ip_geo_cache
+WHERE ok = 1
+ORDER BY fetched_at ASC;
+""".strip()
+        )
+    )
+    return [r for r in rows if str(r.get("ip") or "").strip()]
+
+
+def sync_cache_onto_visit_logs() -> tuple[int, int]:
+    """已有缓存但不在 pending 时：把归属地补抄到 visit_logs 并刷 updated_at。"""
+    ensure_cache_table()
+    rows = list_cached_ok_rows()
+    ip_count = 0
+    visit_rows = 0
+    for row in rows:
+        ip = str(row.get("ip") or "").strip()
+        if not ip:
+            continue
+        geo = {
+            "country": row.get("country"),
+            "country_code": row.get("country_code"),
+            "prov": row.get("prov"),
+            "city": row.get("city"),
+            "area": row.get("area"),
+            "isp": row.get("isp"),
+        }
+        n = copy_geo_onto_history_and_visits(ip, geo)
+        ip_count += 1
+        if n > 0:
+            visit_rows += n
+            print(f"  sync visit_logs ip={ip} rows={n}", flush=True)
+        elif n == 0:
+            print(f"  sync visit_logs ip={ip} rows=0 (no matching visits)", flush=True)
+        else:
+            print(f"  sync visit_logs ip={ip} failed", flush=True)
+    # 从未被归属地回填碰过的行：用 created_at 填上，方便「更新时间」排序
     try:
-        run_wrangler(f"DELETE FROM etr_ip_geo_queue WHERE ip = {sql_literal(ip)};")
-    except Exception:
-        pass
+        payload = run_wrangler(
+            """
+UPDATE visit_logs
+SET updated_at = created_at
+WHERE updated_at IS NULL;
+""".strip()
+        )
+        meta = payload[0].get("meta") if payload and isinstance(payload[0], dict) else {}
+        baseline = int((meta or {}).get("changes") or 0)
+        print(f"baseline updated_at=created_at rows={baseline}", flush=True)
+    except Exception as err:  # noqa: BLE001
+        print(f"  warn: baseline updated_at failed: {err}", flush=True)
+        baseline = 0
+    print(
+        f"sync-visits: cache_ips={ip_count} visit_rows_touched={visit_rows} "
+        f"baseline_nulls={baseline}",
+        flush=True,
+    )
+    return ip_count, visit_rows
+
+
+def beijing_date_str() -> str:
+    # UTC+7 泰国本地也可，但保留策略按北京日历日限频即可
+    return datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d")
+
+
+def purge_state_path() -> Path:
+    return Path.home() / ".config/info-quests/visit-logs-unreg-purge.last_beijing_date"
+
+
+def purge_unregistered_visit_logs(
+    *,
+    retention_days: int = UNREGISTERED_VISIT_RETENTION_DAYS,
+    force: bool = False,
+) -> int:
+    """未登录访问日志只保留近 N 天。默认每个北京日最多跑一次。"""
+    days = max(1, int(retention_days))
+    state = purge_state_path()
+    today = beijing_date_str()
+    if not force and state.is_file() and state.read_text(encoding="utf-8").strip() == today:
+        print(f"purge-unregistered: already ran for Beijing {today}, skip", flush=True)
+        return 0
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=days)
+    ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    ensure_cache_table()
+    payload = run_wrangler(
+        f"""
+DELETE FROM visit_logs
+WHERE (username IS NULL OR TRIM(username) = '')
+  AND created_at < {sql_literal(cutoff)};
+""".strip()
+    )
+    meta = payload[0].get("meta") if payload and isinstance(payload[0], dict) else {}
+    deleted = int((meta or {}).get("changes") or 0)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    state.write_text(today + "\n", encoding="utf-8")
+    print(
+        f"purge-unregistered: deleted={deleted} retention_days={days} cutoff={cutoff}",
+        flush=True,
+    )
+    return deleted
 
 
 def format_label(geo: dict) -> str:
@@ -336,6 +462,11 @@ def print_status() -> list[str]:
 def step_one(pending: list[str] | None = None) -> bool:
     """Return True if an IP was processed."""
     ensure_cache_table()
+    # 顺手：未登录访问日志每日裁剪一次（登录用户记录不动）
+    try:
+        purge_unregistered_visit_logs()
+    except Exception as err:  # noqa: BLE001
+        print(f"  warn: purge-unregistered failed: {err}", flush=True)
     queue = pending if pending is not None else pending_ips()
     if not queue:
         print("idle: no pending IPs", flush=True)
@@ -363,6 +494,16 @@ def main() -> int:
     parser.add_argument("--loop", action="store_true", help="Process until pending=0")
     parser.add_argument("--requeue", action="store_true", help="Clear cache for login IPs first")
     parser.add_argument(
+        "--sync-visits",
+        action="store_true",
+        help="Copy etr_ip_geo_cache onto visit_logs (+ refresh updated_at); no ip9",
+    )
+    parser.add_argument(
+        "--purge-unregistered",
+        action="store_true",
+        help="Delete unregistered visit_logs older than 10 days (force today)",
+    )
+    parser.add_argument(
         "--interval",
         type=float,
         default=DEFAULT_INTERVAL_SEC,
@@ -373,6 +514,14 @@ def main() -> int:
     if args.requeue:
         ensure_cache_table()
         requeue()
+
+    if args.purge_unregistered:
+        purge_unregistered_visit_logs(force=True)
+        return 0
+
+    if args.sync_visits:
+        sync_cache_onto_visit_logs()
+        return 0
 
     if args.status and not args.once and not args.loop:
         print_status()

@@ -331,6 +331,50 @@ export function parseVisitLogSortField(
 /** 访问日志筛选：未注册用户（username 为空） */
 export const VISIT_LOG_USERNAME_UNREGISTERED = "__unregistered__";
 
+/** 未登录访问日志只保留近 N 天（登录用户记录不按此裁剪） */
+export const VISIT_LOG_UNREGISTERED_RETENTION_DAYS = 10;
+
+function unregisteredVisitLogsCutoffIso(
+  retentionDays = VISIT_LOG_UNREGISTERED_RETENTION_DAYS
+): string {
+  const days = Math.max(1, Math.floor(retentionDays));
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * 删除「未登录」且早于保留窗口的访问日志。
+ * 未登录 = username 为空；已登录用户的记录一律保留。
+ */
+export async function purgeUnregisteredVisitLogsOlderThan(
+  db: D1Database,
+  retentionDays = VISIT_LOG_UNREGISTERED_RETENTION_DAYS
+): Promise<number> {
+  const cutoff = unregisteredVisitLogsCutoffIso(retentionDays);
+
+  if (devStoreEnabled) {
+    const before = devRecords.length;
+    const kept = devRecords.filter((row) => {
+      const name = row.username?.trim() ?? "";
+      if (name) return true;
+      return row.created_at >= cutoff;
+    });
+    devRecords.length = 0;
+    devRecords.push(...kept);
+    return before - kept.length;
+  }
+
+  await ensureVisitLogsSchema(db);
+  const result = await db
+    .prepare(
+      `DELETE FROM visit_logs
+       WHERE (username IS NULL OR TRIM(username) = '')
+         AND created_at < ?1`
+    )
+    .bind(cutoff)
+    .run();
+  return Number(result.meta?.changes ?? 0);
+}
+
 export type VisitLogsPage = {
   records: VisitLogRecord[];
   total: number;
@@ -532,6 +576,9 @@ export async function listVisitLogs(
   const safeSort = parseVisitLogSortField(sort);
   const safeOrder: VisitLogSortOrder = order === "asc" ? "asc" : "desc";
   const safeUsernameFilter = usernameFilter?.trim() || null;
+
+  // 列表前顺手裁剪：未登录 IP 只留近 10 天（DELETE 0 行时很轻）
+  await purgeUnregisteredVisitLogsOlderThan(db);
 
   if (devStoreEnabled) {
     const filtered = devRecords.filter((row) =>
