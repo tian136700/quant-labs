@@ -203,6 +203,69 @@ export async function clearAllJpVocabGrammarExampleSentences(
   };
 }
 
+/** 清空单条语法的用法+例句，便于中文用法/条数规则修正后重补（一词一次） */
+export async function clearJpVocabGrammarPairById(
+  db: D1Database,
+  wordId: number,
+  options: { dryRun?: boolean } = {}
+): Promise<JpVocabFillUsageResult> {
+  await ensureJpVocabWordSchema(db);
+  const dryRun = Boolean(options.dryRun);
+  const id = Number(wordId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return {
+      updated: 0,
+      applied: [],
+      skipped: [{ id: 0, word: String(wordId), reason: "bad_id" }],
+      dry_run: dryRun,
+      cleared: 0,
+      upload_spec: JP_VOCAB_USAGE_UPLOAD_SPEC,
+    };
+  }
+  const row = await db
+    .prepare(`SELECT id, word, kind FROM jp_vocab_word WHERE id = ?1`)
+    .bind(id)
+    .first<{ id: number; word: string; kind: string }>();
+  if (!row || row.kind !== "grammar") {
+    return {
+      updated: 0,
+      applied: [],
+      skipped: [
+        {
+          id,
+          word: row ? String(row.word) : String(id),
+          reason: row ? "not_grammar" : "not_found",
+        },
+      ],
+      dry_run: dryRun,
+      cleared: 0,
+      upload_spec: JP_VOCAB_USAGE_UPLOAD_SPEC,
+    };
+  }
+  if (!dryRun) {
+    await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET usage = NULL,
+             usage_source = NULL,
+             example_sentences = NULL,
+             example_sentences_source = NULL,
+             updated_at = datetime('now')
+         WHERE id = ?1 AND kind = 'grammar'`
+      )
+      .bind(id)
+      .run();
+  }
+  return {
+    updated: 0,
+    applied: [],
+    skipped: [],
+    dry_run: dryRun,
+    cleared: 1,
+    upload_spec: JP_VOCAB_USAGE_UPLOAD_SPEC,
+  };
+}
+
 async function updateUsageAndExamples(
   db: D1Database,
   wordId: number,

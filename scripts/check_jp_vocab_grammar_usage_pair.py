@@ -48,10 +48,26 @@ def main() -> int:
         errors.append("fill-usage apply 须接受 example_sentences")
     if "parseJpVocabGrammarUsageExamplePairs" not in usage_ai:
         errors.append("usage-ai 缺成对解析")
+    if "jpVocabUsageLineLooksNonChinese" not in usage_ai:
+        errors.append("usage-ai 缺中文用法校验")
+    if "usage_not_chinese" not in usage_ai:
+        errors.append("须拒 usage_not_chinese")
+    if "至少 2 组" in usage_ai or "至少写 2 条" in usage_ai:
+        errors.append("usage prompt 禁止再强制至少 2 组")
+    if "中文" not in usage_ai:
+        errors.append("usage prompt 须强调中文用法")
     if "不要造例句" in usage_ai or "例句另有" in usage_ai:
         errors.append("usage prompt 禁止再写「例句另有阶段」")
     if "一次写完" not in usage_ai and "同一次输出" not in usage_ai:
         errors.append("usage prompt 须要求用法+例句同一次输出")
+    if "clearJpVocabGrammarPairById" not in fill_usage:
+        errors.append("fill-usage 缺单条 clear_pair")
+    if "clear_pair" not in route:
+        errors.append("route 缺 clear_pair")
+    if "Math.max(2, n || 2)" in (
+        ROOT / "src/lib/jp-vocab-example-sentences-ai.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("语法例句条数禁止再 Math.max(2,…) 硬凑")
     if "buildJpVocabUsageExamplePairs" not in display:
         errors.append("缺配对 helper")
     if "JpVocabFuriganaText" not in paired:

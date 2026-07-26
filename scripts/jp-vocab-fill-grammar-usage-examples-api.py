@@ -56,10 +56,12 @@ NUMBERED_LINE_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
 FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
 
 PAIR_SYSTEM = (
-    "你为日语 N5～N2 学习者一次写完语法「用法+例句」。"
-    "每一条编号用法下面必须立刻跟 1 条日语例句和 1 行「译文：」。"
-    "至少 2 组；常用度降序；例句只用简单词、不叠更难语法。"
-    "汉字后半角括号假名。不要 markdown、不要 JLPT 标签、不要把用法和例句拆成两次回答。"
+    "你为中文母语的日语 N5～N2 学习者一次写完语法「用法+例句」。"
+    "用法说明必须是中文（禁止整段日语用法，禁止用法行写汉字假名括注）；"
+    "可在中文里用「」短引日语形态。"
+    "每一条编号中文用法下面必须立刻跟 1 条日语例句和 1 行「译文：」。"
+    "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
+    "例句只用简单词、不叠更难语法。不要 markdown、不要 JLPT 标签。"
 )
 
 
@@ -267,12 +269,19 @@ def parse_pair_output(raw: str) -> tuple[str, str] | None:
         cur["body"].append(line)
     if cur:
         blocks.append(cur)
-    if len(blocks) < 2:
+    if len(blocks) < 1:
         return None
     for i, b in enumerate(blocks):
         if b["n"] != i + 1:
             return None
         if not b["usage"] or not HAN_RE.search(b["usage"]):
+            return None
+        # 用法须中文：去掉「」后仍有假名，或含 漢字(かな)
+        usage = b["usage"]
+        if re.search(r"\([\u3040-\u309fー]+\)", usage):
+            return None
+        no_quotes = re.sub(r"「[^」]*」", "", usage)
+        if re.search(r"[\u3040-\u30ffー]", no_quotes):
             return None
         if len(b["body"]) < 2:
             return None
@@ -297,6 +306,22 @@ def pick_row(missing: list, poison: dict) -> tuple[dict | None, int]:
             continue
         return row, skipped
     return None, skipped
+
+
+def run_clear_pair(*, api_url: str, token: str, word_id: int, dry_run: bool) -> dict:
+    payload = call_api(
+        api_url=api_url,
+        token=token,
+        body={"mode": "clear_pair", "word_id": word_id, "dry_run": dry_run},
+    )
+    if payload.get("mode") != "clear_pair":
+        raise SystemExit("线上尚未部署 clear_pair。请等部署完成后再清单条。")
+    print(
+        f"[jp-grammar-fill] clear_pair id={word_id} "
+        f"cleared={payload.get('cleared')} dry_run={dry_run}",
+        flush=True,
+    )
+    return payload
 
 
 def run_clear_examples(*, api_url: str, token: str, dry_run: bool) -> dict:
@@ -373,7 +398,8 @@ def run_one_pair(
     if not prompt:
         prompt = (
             f"词条：{word}\n类型：语法\n\n"
-            "请一次写完：每条编号用法下紧跟 1 条例句（日语+译文：）。至少 2 组。"
+            "请一次写完：每条编号「中文」用法下紧跟 1 条例句（日语+译文：）。"
+            "组数=真实常用用法数（1 种就 1 组，禁止硬凑 2 组）。"
         )
     print(
         f"[jp-grammar-fill] pair {FILL_PER_ROUND}/{total_missing}: "
@@ -451,7 +477,9 @@ def run_one_pair(
                 + "\n\nCRITICAL:\n"
                 + f"- 例句必须自然用到「{core}」（中文教学标题除外）。\n"
                 + "- 每个汉字后半角括号假名；每组=用法+日语+译文。\n"
-                + "- 至少 2 组，一一对应。\n"
+                + "- 用法必须中文；禁止日语用法、禁止用法行假名括注。\n"
+                + "- 组数=真实常用用法数（1 种就 1 组，禁止硬凑）。\n"
+                + "- 每组=中文用法+日语例句+译文；每个汉字后半角括号假名。\n"
             )
             try:
                 raw2 = call_anthropic(
@@ -560,6 +588,12 @@ def main() -> int:
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--clear-examples", action="store_true")
+    parser.add_argument(
+        "--word-id",
+        type=int,
+        default=0,
+        help="先 clear_pair 再成对重补这一条（修日语用法/硬凑组数后用）",
+    )
     parser.add_argument("--status", action="store_true")
     parser.add_argument(
         "--loop",
@@ -595,8 +629,26 @@ def main() -> int:
 
         if args.clear_examples:
             run_clear_examples(api_url=api_url, token=token, dry_run=args.dry_run)
-            if not args.loop and args.max_rounds <= 0:
+            if not args.loop and args.max_rounds <= 0 and args.word_id <= 0:
                 return 0
+
+        if args.word_id > 0:
+            run_clear_pair(
+                api_url=api_url,
+                token=token,
+                word_id=args.word_id,
+                dry_run=args.dry_run,
+            )
+            if args.dry_run:
+                return 0
+            # 清完后立刻成对补这一条（list_missing 会排到它）
+            run_one_pair(
+                api_url=api_url,
+                token=token,
+                dry_run=False,
+                allow_burst=args.allow_burst,
+            )
+            return 0
 
         if args.loop or args.max_rounds > 0:
             max_rounds = args.max_rounds

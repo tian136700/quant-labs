@@ -1,27 +1,30 @@
-/** 日语语法用法上传契约：编号中文说明（N5～N2 常用度降序） */
+/** 日语语法用法上传契约：编号「中文」说明 + 1:1 例句（同一次调用） */
 
 export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 2,
+  version: 3,
   count_rule:
-    "至少 2 组；每组=1 条用法说明 + 1 条例句（日语+译文）；常用度降序；一词一次付费调用同时写回",
+    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 1 条例句",
   format_example:
-    "1. 表示原因、理由：前句说明原因，后句说明结果。\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。\n2. 表示接续：承接上文，引出下一句。\n疲(つか)れたから、早(はや)く寝(ね)ます。\n译文：我累了，所以早点睡。",
+    "1. 表示原因、理由：前句说明原因，后句说明结果。\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。",
   level: "N5～N2（含 N1 以下；不要超纲冷僻用法）",
   rules: [
     "只补「语法」（单词不走此接口）",
-    "用法与例句必须同一次输出、一一对应：编号用法下一行立刻跟日语例句，再下一行「译文：」",
+    "用法说明必须是中文（学生要看得懂）；禁止整段日语用法；禁止在用法行里写汉字(假名)括注",
+    "可在中文里用「」短引日语形态（如「～てから」），引号外不要假名",
+    "用法与例句必须同一次输出、一一对应：编号中文用法下一行立刻跟日语例句，再下一行「译文：」",
     "禁止拆成「先用法、后例句」两次模型调用",
-    "每组以「1.」「2.」… 开头写中文用法；紧跟日语（汉字后半角括号假名）与「译文：」",
+    "组数按真实常用义项：1 种→1 组，2 种→2 组，3 种→3 组；不要为了凑数硬写两组",
     "水平限定 N5～N2：最常用排第一；例句只用简单词、不叠更难语法",
-    "至少 2 组；不要 markdown、不要行首给例句再编一次号",
+    "不要 markdown、不要给例句再编行首号",
     "写回时请传 source，建议「线上 claude-…」；人手为「手动」",
   ],
   source_examples: ["线上 claude-sonnet-4-6", "本地 gemma4:26b", "手动"],
   reject_reasons: [
     "empty",
-    "need_two_points",
+    "need_one_point",
     "invalid_numbering",
     "not_grammar",
+    "usage_not_chinese",
     "pair_incomplete",
     "examples_invalid",
   ],
@@ -40,10 +43,26 @@ const FENCE_RE = /^```(?:\w+)?\s*$/;
 /** 正文禁止写 JLPT / 考试标签 */
 const JP_VOCAB_USAGE_LEVEL_LABEL_RE =
   /\bN[1-5]\b|JLPT|日语能力|能力考|高考|考研/i;
+/** 用法行里的假名括注（说明被写成日语了） */
+const USAGE_FURIGANA_PAREN_RE = /\([\u3040-\u309Fー]+\)/;
+const KANA_RE = /[\u3040-\u30FFー]/;
+
+/**
+ * 用法说明是否「不像中文」：
+ * - 用法行出现 漢字(かな) 括注 → 拒
+ * - 去掉「」短引后仍有假名 → 拒（整段日语说明）
+ */
+export function jpVocabUsageLineLooksNonChinese(text: string): boolean {
+  const t = String(text || "").trim();
+  if (!t) return true;
+  if (USAGE_FURIGANA_PAREN_RE.test(t)) return true;
+  const noQuotes = t.replace(/「[^」]*」/g, "").replace(/"[^"]*"/g, "");
+  return KANA_RE.test(noQuotes);
+}
 
 /**
  * 语法：用法+例句同一次输出（1:1）。
- * 禁止拆成两次模型调用。
+ * 禁止拆成两次模型调用。用法必须中文。
  */
 export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   const reading = input.reading?.trim();
@@ -66,23 +85,19 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 
   return `${meta}
 
-请为上述日语语法一次写完「用法 + 例句」，供 N5～N2 抽问卡片复习。
+请为上述日语语法一次写完「用法 + 例句」，供中文母语的 N5～N2 学习者复习。
 
 硬规则（必须遵守）：
 - 同一次输出里完成：每条用法下面立刻跟 1 条例句（日语 + 译文）。禁止只写用法、禁止只写例句、禁止拆成两轮。
-- 至少 2 组；按常用程度排序：第 1 组最常用。
-- 水平约 N5～N2；不要超纲冷僻用法。
-- 例句只用简单词；不要再叠另一个更难的语法（焦点只有本语法）。
-- 中文用法说明；可在引号内保留日语形态。
-- 每个汉字后立刻半角括号假名；「译文：」后直接中文；不要行首给例句再编号。
+- 组数 = 该语法真实常用用法数（约 N5～N2 / 考试常见）：只有 1 种就写 1 组；有 2 种写 2 组；有 3 种写 3 组。禁止为了凑数硬写两组。
+- 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌ 禁止在用法行写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」）。
+- 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
+- 不要 markdown、不要 JLPT 标签、不要给例句再编行首号。
 
-输出格式（严格按此交替，不要 markdown、不要标题、不要 JLPT 标签）：
+输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …）：
 1. 表示原因、理由：前句说明原因，后句说明结果。
 今日(きょう)は雨(あめ)だから、家(いえ)にいます。
-译文：今天下雨，所以我待在家里。
-2. 表示接续：承接上文，引出下一句。
-疲(つか)れたから、早(はや)く寝(ね)ます。
-译文：我累了，所以早点睡。`;
+译文：今天下雨，所以我待在家里。`;
 }
 
 export type JpVocabGrammarUsageExamplePairParsed = {
@@ -92,7 +107,7 @@ export type JpVocabGrammarUsageExamplePairParsed = {
 
 /**
  * 解析「编号用法 + 日语 + 译文」交替块。
- * 失败返回 null。
+ * 失败返回 null。至少 1 组。
  */
 export function parseJpVocabGrammarUsageExamplePairs(
   raw: string
@@ -117,20 +132,19 @@ export function parseJpVocabGrammarUsageExamplePairs(
     cur.body.push(line);
   }
   if (cur) blocks.push(cur);
-  if (blocks.length < 2) return null;
+  if (blocks.length < 1) return null;
 
   for (let i = 0; i < blocks.length; i++) {
     if (blocks[i].n !== i + 1) return null;
     if (!blocks[i].usage || !HAN_RE.test(blocks[i].usage)) return null;
+    if (jpVocabUsageLineLooksNonChinese(blocks[i].usage)) return null;
     if (blocks[i].body.length < 2) return null;
   }
 
   const usage = serializeJpVocabUsagePoints(
     blocks.map((b) => ({ n: b.n, text: b.usage }))
   );
-  const example_sentences = blocks
-    .map((b) => b.body.join("\n"))
-    .join("\n");
+  const example_sentences = blocks.map((b) => b.body.join("\n")).join("\n");
   return { usage, example_sentences };
 }
 
@@ -160,6 +174,7 @@ export function parseJpVocabUsagePoints(
     const text = m[2].trim();
     if (!Number.isInteger(n) || n <= 0 || !text) return null;
     if (!HAN_RE.test(text)) return null;
+    if (jpVocabUsageLineLooksNonChinese(text)) return null;
     points.push({ n, text });
   }
   if (!points.length) return null;
@@ -180,7 +195,7 @@ export function normalizeJpVocabUsageText(
   raw: string | null | undefined
 ): string | null {
   const points = parseJpVocabUsagePoints(String(raw ?? ""));
-  if (!points || points.length < 2) return null;
+  if (!points || points.length < 1) return null;
   return serializeJpVocabUsagePoints(points);
 }
 
@@ -220,17 +235,20 @@ export function validateJpVocabUsageAiOutput(
   }
   const text = String(raw ?? "").trim();
   if (!text) return { ok: false, reason: "empty" };
-  if (JP_VOCAB_USAGE_LEVEL_LABEL_RE.test(text)) {
-    // 剥标签后再验；剥光则 invalid
-    const stripped = text.replace(JP_VOCAB_USAGE_LEVEL_LABEL_RE, "").trim();
-    const points = parseJpVocabUsagePoints(stripped);
-    if (!points) return { ok: false, reason: "invalid_numbering" };
-    if (points.length < 2) return { ok: false, reason: "need_two_points" };
-    return { ok: true, text: serializeJpVocabUsagePoints(points) };
+  const candidate = JP_VOCAB_USAGE_LEVEL_LABEL_RE.test(text)
+    ? text.replace(JP_VOCAB_USAGE_LEVEL_LABEL_RE, "").trim()
+    : text;
+  // 先挡日语用法（含假名括注），再解析编号
+  for (const line of candidate.split(/\r?\n/)) {
+    const m = NUMBERED_LINE_RE.exec(line.trim());
+    const body = m ? m[2].trim() : line.trim();
+    if (body && jpVocabUsageLineLooksNonChinese(body)) {
+      return { ok: false, reason: "usage_not_chinese" };
+    }
   }
-  const points = parseJpVocabUsagePoints(text);
+  const points = parseJpVocabUsagePoints(candidate);
   if (!points) return { ok: false, reason: "invalid_numbering" };
-  if (points.length < 2) return { ok: false, reason: "need_two_points" };
+  if (points.length < 1) return { ok: false, reason: "need_one_point" };
   return { ok: true, text: serializeJpVocabUsagePoints(points) };
 }
 
@@ -250,7 +268,20 @@ export function validateJpVocabGrammarUsageExamplePairsOutput(
     ? text.replace(JP_VOCAB_USAGE_LEVEL_LABEL_RE, "").trim()
     : text;
   const parsed = parseJpVocabGrammarUsageExamplePairs(stripped);
-  if (!parsed) return { ok: false, reason: "pair_incomplete" };
+  if (!parsed) {
+    // 拆对失败时区分：日语用法 vs 结构不全
+    const numbered = stripped
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const line of numbered) {
+      const m = NUMBERED_LINE_RE.exec(line);
+      if (m && jpVocabUsageLineLooksNonChinese(m[2])) {
+        return { ok: false, reason: "usage_not_chinese" };
+      }
+    }
+    return { ok: false, reason: "pair_incomplete" };
+  }
   const usageOk = validateJpVocabUsageAiOutput(parsed.usage, input);
   if (!usageOk.ok) return { ok: false, reason: usageOk.reason };
   return {

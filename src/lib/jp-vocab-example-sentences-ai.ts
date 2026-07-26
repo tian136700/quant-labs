@@ -25,7 +25,7 @@ import { countJpVocabUsagePoints } from "@/lib/jp-vocab-usage-ai";
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   version: 2,
   count_rule:
-    "单词：释义含 / 时条数=斜杠段数；否则 max(2, 段内 ； 近义数)。语法：条数=用法点数（须先有 usage；1:1）",
+    "单词：释义含 / 时条数=斜杠段数；否则 max(2, 段内 ； 近义数)。语法：条数=用法点数（须先有 usage；1:1；可为 1）",
   format_example:
     "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。",
   rules: [
@@ -115,7 +115,7 @@ export function expectedJpVocabExampleSentenceCount(
 ): number {
   if (input.kind === "grammar") {
     const n = countJpVocabUsagePoints(input.usage);
-    return Math.max(2, n || 2);
+    return Math.max(1, n || 1);
   }
   return countJpVocabExampleSentenceTargetFromMeaning(input.meaning, input.kind);
 }
@@ -219,7 +219,7 @@ export function validateJpVocabExampleSentencesAiOutput(
   const text = raw.trim();
   if (!text) return { ok: false, reason: "empty" };
 
-  if (input.kind === "grammar" && countJpVocabUsagePoints(input.usage) < 2) {
+  if (input.kind === "grammar" && countJpVocabUsagePoints(input.usage) < 1) {
     return { ok: false, reason: "usage_required" };
   }
 
@@ -228,7 +228,10 @@ export function validateJpVocabExampleSentencesAiOutput(
     .map((line) => line.trim())
     .filter(Boolean);
   const targetCount = expectedJpVocabExampleSentenceCount(input);
-  const minLines = Math.max(4, targetCount * 2);
+  const minLines =
+    input.kind === "grammar"
+      ? Math.max(2, targetCount * 2)
+      : Math.max(4, targetCount * 2);
   if (lines.length < minLines) {
     return { ok: false, reason: "need_four_lines" };
   }
@@ -237,7 +240,7 @@ export function validateJpVocabExampleSentencesAiOutput(
   if (items.length < targetCount) {
     return { ok: false, reason: "need_more_japanese_lines" };
   }
-  if (items.length < 2) {
+  if (input.kind !== "grammar" && items.length < 2) {
     return { ok: false, reason: "need_two_japanese_lines" };
   }
 

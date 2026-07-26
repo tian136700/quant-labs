@@ -2,17 +2,23 @@ import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import {
   applyJpVocabUsageUpdates,
   clearAllJpVocabGrammarExampleSentences,
+  clearJpVocabGrammarPairById,
   scanJpVocabGrammarMissingUsage,
 } from "@/lib/jp-vocab-fill-usage";
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type FillUsageBody = {
-  /** list_missing | apply | clear_grammar_examples */
-  mode?: "list_missing" | "apply" | "clear_grammar_examples";
+  /** list_missing | apply | clear_grammar_examples | clear_pair */
+  mode?:
+    | "list_missing"
+    | "apply"
+    | "clear_grammar_examples"
+    | "clear_pair";
   dry_run?: boolean;
   limit?: number;
   source?: string;
   force?: boolean;
+  word_id?: number;
   updates?: Array<{
     word_id?: number;
     usage?: string;
@@ -74,6 +80,19 @@ export async function POST(request: Request) {
       return jsonResponse({
         ok: true,
         mode: "clear_grammar_examples",
+        ...result,
+      });
+    }
+
+    if (body.mode === "clear_pair") {
+      const wordId = Number(body.word_id);
+      const result = await clearJpVocabGrammarPairById(env.DB, wordId, {
+        dryRun,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "clear_pair",
+        word_id: wordId,
         ...result,
       });
     }
