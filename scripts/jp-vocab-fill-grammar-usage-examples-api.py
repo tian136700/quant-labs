@@ -60,12 +60,71 @@ PAIR_SYSTEM = (
     "第一行必须直接是「1.」中文用法，不要总标题。"
     "用法说明必须是中文；可在中文里用「」短引日语形态，且「」内不要假名括注。"
     "每条中文用法句末句号后必须紧跟半角等级括号，如。(N5) 或 .(N4).(N3).(N2).(N1)；按该条用法难度估。"
-    "若词条含「变形」或「变化规则」：禁止长篇规则讲解；只给 2～4 组极短中文标签（一律 .(N5)）+ N5 短句；禁止箭头对照句当例句。"
+    "若词条含「变形」「变化规则」「形规则」「变ます」「ます形规则」「ない形」「て形」等活用教学："
+    "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号。"
     "只用本词条本身；禁止把其它语法点（如たことがある）塞进本条凑组数。"
-    "每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」；每组必须写完整；禁止只写用法。"
+    "非变形词条：每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」。"
     "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
     "例句只用简单词、不叠更难语法。不要 markdown；不要写「JLPT」「能力考」字样。"
 )
+
+CONJ_PAIR_SYSTEM = (
+    "这是日语活用「变形」教学词条。学生自己记怎么变。"
+    "禁止写任何用法、规则说明、中文标签、行首编号。"
+    "只输出 2～3 条 N5 口语短句；每条下一行「译文：」+中文。"
+    "每个汉字后半角括号假名；不要箭头对照句。"
+)
+
+
+def is_conjugation_word(word: str) -> bool:
+    w = str(word or "").strip()
+    if not w or w.startswith(("～", "~", "〜")):
+        return False
+    return bool(
+        re.search(
+            r"变形|变化规则|形规则|变ます|変ます|ます形规则|活用规则|活用变形|ない形|て形|た形|辞書形",
+            w,
+        )
+    )
+
+
+def parse_conjugation_examples(raw: str) -> tuple[str, str] | None:
+    """变形课：只收日语+译文；usage 为空。"""
+    lines = [
+        ln.strip()
+        for ln in FENCE_RE.sub("", str(raw or "")).splitlines()
+        if ln.strip() and not ln.strip().startswith("```")
+    ]
+    if not lines:
+        return None
+    for line in lines:
+        m = NUMBERED_LINE_RE.match(line)
+        if not m:
+            continue
+        body = m.group(2).strip()
+        # 中文用法行（带或不带 (N5)）→ 拒
+        if HAN_RE.search(body) and not re.search(r"\([\u3040-\u309fー]+\)", body):
+            kana = re.findall(r"[\u3040-\u30ffー]", body)
+            if len(kana) < 8:
+                return None
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        jp = lines[i]
+        m = NUMBERED_LINE_RE.match(jp)
+        if m:
+            jp = m.group(2).strip()
+        i += 1
+        if i >= len(lines):
+            return None
+        gloss = lines[i]
+        if not (gloss.startswith("译文") or gloss.startswith("譯文")):
+            return None
+        out.extend([jp, gloss])
+        i += 1
+    if not (4 <= len(out) <= 6):
+        return None
+    return "", "\n".join(out)
 
 
 def load_env_file(name: str) -> dict[str, str]:
@@ -432,17 +491,23 @@ def run_one_pair(
             f"内部错误：期望重补 id={target_word_id}，实际拿到 id={word_id}"
         )
     word = str(row["word"])
+    is_conj = is_conjugation_word(word)
     prompt = str(row.get("prompt") or "").strip()
     if not prompt:
         prompt = (
             f"词条：{word}\n类型：语法\n\n"
-            "请一次写完：每条编号「中文」用法下紧跟 1 条例句（日语+译文：）。"
-            "组数=真实常用用法数（1 种就 1 组，禁止硬凑 2 组）。"
+            + (
+                "只写 2～3 条 N5 短句+译文；禁止用法说明与行首编号。"
+                if is_conj
+                else "请一次写完：每条编号「中文」用法下紧跟 1 条例句（日语+译文：）。"
+                "组数=真实常用用法数（1 种就 1 组，禁止硬凑 2 组）。"
+            )
         )
     print(
         f"[jp-grammar-fill] pair {FILL_PER_ROUND}/{total_missing}: "
         f"id={word_id} {word!r} model={anthropic_model()} "
-        f"need_usage={row.get('need_usage')} need_examples={row.get('need_examples')}",
+        f"conj={is_conj} need_usage={row.get('need_usage')} "
+        f"need_examples={row.get('need_examples')}",
         flush=True,
     )
     if dry_run:
@@ -453,10 +518,11 @@ def run_one_pair(
             "total_missing": total_missing,
         }
 
+    system = CONJ_PAIR_SYSTEM if is_conj else PAIR_SYSTEM
     try:
         raw = call_anthropic(
             prompt,
-            system=PAIR_SYSTEM,
+            system=system,
             max_tokens=4096,
             temperature=0.2,
             timeout=180,
@@ -472,18 +538,29 @@ def run_one_pair(
         print(f"  {reason}，追加 CRITICAL 再试 1 次…", flush=True)
         acquire_paid_rate_gate(allow_burst=allow_burst)
         core = re.sub(r"^[～~〜]+|[～~〜]+$", "", word)
-        retry_prompt = (
-            prompt
-            + "\n\nCRITICAL:\n"
-            + "- 第一行必须是「1.」中文用法；每组必须完整：中文用法 + 日语例句 + 译文：\n"
-            + "- 用法必须中文；「」短引日语形态时「」内不要假名括注。\n"
-            + f"- 例句必须自然用到「{core}」（中文教学标题除外）；汉字后半角括号假名。\n"
-            + "- 组数=真实常用用法数（1 种就 1 组，禁止硬凑）。\n"
-        )
+        if is_conj:
+            retry_prompt = (
+                prompt
+                + "\n\nCRITICAL:\n"
+                + "- 禁止任何用法/规则/中文标签/行首编号。\n"
+                + "- 只输出 2～3 条日语短句，每条下一行「译文：」。\n"
+                + "- 汉字后半角括号假名；N5 口语。\n"
+            )
+            sys_msg = CONJ_PAIR_SYSTEM
+        else:
+            retry_prompt = (
+                prompt
+                + "\n\nCRITICAL:\n"
+                + "- 第一行必须是「1.」中文用法；每组必须完整：中文用法 + 日语例句 + 译文：\n"
+                + "- 用法必须中文；「」短引日语形态时「」内不要假名括注。\n"
+                + f"- 例句必须自然用到「{core}」（中文教学标题除外）；汉字后半角括号假名。\n"
+                + "- 组数=真实常用用法数（1 种就 1 组，禁止硬凑）。\n"
+            )
+            sys_msg = PAIR_SYSTEM
         try:
             raw2 = call_anthropic(
                 retry_prompt,
-                system=PAIR_SYSTEM,
+                system=sys_msg,
                 max_tokens=4096,
                 temperature=0.15,
                 timeout=180,
@@ -493,9 +570,15 @@ def run_one_pair(
             poison_word(word_id, f"anthropic_retry_error:{exc}")
             return None
         mark_paid_call()
+        if is_conj:
+            return parse_conjugation_examples(raw2)
         return parse_pair_output(raw2)
 
-    parsed = parse_pair_output(raw)
+    parsed = (
+        parse_conjugation_examples(raw)
+        if is_conj
+        else parse_pair_output(raw)
+    )
     if not parsed:
         print(f"  成对解析失败 raw={str(raw)[:200]!r}", flush=True)
         parsed = retry_pair("成对解析失败")

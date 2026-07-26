@@ -43,6 +43,7 @@ import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabExampleSentenceCopyButton } from "@/components/JpVocabExampleSentenceCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
+import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -327,6 +328,8 @@ export function JpVocabTeacherQuizFlashcardModal({
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
   const exampleSentences = parseJpVocabExampleSentenceItems(w.example_sentences);
   const isGrammar = w.kind === "grammar";
+  const isConjugationGrammar =
+    isGrammar && isJpVocabConjugationGrammar(w.word);
   const grammarUsagePairs = isGrammar
     ? buildJpVocabUsageExamplePairs(w.usage, w.example_sentences)
     : null;
@@ -617,13 +620,19 @@ export function JpVocabTeacherQuizFlashcardModal({
         {showExamples ? (
           <section
             className="jp-vocab-teacher-quiz__examples"
-            aria-label={isGrammar ? "用法与例句" : "例句"}
+            aria-label={
+              isConjugationGrammar
+                ? "例句"
+                : isGrammar
+                  ? "用法与例句"
+                  : "例句"
+            }
           >
             {isGrammar ? (
               <>
                 <div className="jp-vocab-teacher-quiz__examples-head">
                   <h3 className="jp-vocab-teacher-quiz__examples-title">
-                    用法 / 例句
+                    {isConjugationGrammar ? "例句" : "用法 / 例句"}
                   </h3>
                 </div>
                 <div className="jp-vocab-teacher-quiz__examples-body">

@@ -58,8 +58,12 @@ def main() -> int:
         errors.append("usage prompt 须要求句末 (N5) 等级")
     if "isJpVocabConjugationGrammar" not in usage_ai:
         errors.append("须识别变形/变化规则词条")
-    if "禁止长篇讲解变形规则" not in usage_ai:
-        errors.append("变形词条 prompt 须禁止长用法")
+    if "禁止任何「用法」" not in usage_ai and "禁止任何用法" not in usage_ai:
+        errors.append("变形词条 prompt 须禁止用法、只给例句")
+    if "parseJpVocabConjugationExamplesOnly" not in usage_ai:
+        errors.append("须能解析变形课纯例句")
+    if "变ます" not in usage_ai and "ます形规则" not in usage_ai:
+        errors.append("变形识别须含变ます形/ます形规则")
     if "不要 JLPT 标签" in usage_ai:
         errors.append("usage prompt 不得再禁止句末等级括号")
     if "至少 2 组" in usage_ai or "至少写 2 条" in usage_ai:

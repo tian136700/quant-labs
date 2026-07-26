@@ -68,13 +68,17 @@ export function normalizeJpVocabUsageJlptTail(
 }
 
 /**
- * 「て形变形 / ない形变化规则」等活用教学词条：
- * 不写长用法，只给短标签 + 简单例句。
+ * 「て形变形 / 动词变ます形规则 / ない形变化规则」等活用教学词条：
+ * 学生记怎么变，不需要「用法」；只给 2～3 条 N5 例句。
  */
 export function isJpVocabConjugationGrammar(word: string): boolean {
   const w = String(word || "").trim();
   if (!w) return false;
-  return /变形|变化规则/.test(w);
+  // 句型用法（～てから）不是「变形规则」课
+  if (/^[～~〜]/.test(w)) return false;
+  return /变形|变化规则|形规则|变ます|変ます|ます形规则|活用规则|活用变形|ない形|て形|た形|辞書形/.test(
+    w
+  );
 }
 
 /**
@@ -121,24 +125,22 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   if (isConjugation) {
     return `${meta}
 
-请为上述「变形/变化规则」词条一次写完「短标签 + 例句」，供中文母语的 N5 初学者朗读。
+请为上述「变形/变化规则」词条只写例句，供中文母语的 N5 初学者朗读。
 
 硬规则（必须遵守）：
-- ❌ 禁止长篇讲解变形规则、接续基础、与其它活用对照、考试技巧等「用法说明」。
-- ✅ 只输出 2～4 组。每组第一行是极短中文标签（十来个字），句末必须半角等级括号，变形类一律标 .(N5)。
-- 标签示例：「五段动词ない形。(N5)」「一段动词ない形。(N5)」「する／くる 的ない形。(N5)」——不要写成整段说明；标签里禁止写「く→いて」这类括注规则（容易超长/被截断）。
-- 每条标签下一行立刻跟 1 条完整短日语例句 + 「译文：」；禁止只写标签。
-- 例句必须 N5 左右：极短、口语、日常词；禁止难词、禁止再叠另一个语法、禁止「書く→書かない」箭头对照句当例句（箭头可写在短标签里）。
-- 优先覆盖本变形相关的典型分类（如ない形：五段 / 一段 / する或くる）。
-- 每个汉字后半角括号假名；不要 markdown、不要给例句再编行首号、不要总标题。
+- ❌ 禁止任何「用法」「规则讲解」「标签」「1. 五段动词…」这类中文说明。学生自己记怎么变，你只给例句。
+- ✅ 只输出 2～3 条完整短日语例句；每条下一行「译文：」+ 中文。
+- 不要行首编号、不要 markdown、不要总标题、不要箭头对照句（書く→書きます）。
+- 例句必须 N5 左右：极短、口语、日常词；必须自然用到本变形（如ます形出现「ます」、て形出现「て」连接）。
+- 每个汉字后半角括号假名。
 
-输出格式示例：
-1. 五段动词ない形。(N5)
-今日(きょう)は学校(がっこう)へ行(い)かない。
-译文：今天不去学校。
-2. 一段动词ない形。(N5)
-朝(あさ)ご飯(はん)を食(た)べない。
-译文：不吃早饭。`;
+输出格式示例（只有例句，没有用法）：
+今日(きょう)は学校(がっこう)へ行(い)きます。
+译文：今天去学校。
+朝(あさ)ご飯(はん)を食(た)べます。
+译文：吃早饭。
+友(とも)達(だち)と勉強(べんきょう)します。
+译文：和朋友一起学习。`;
   }
 
   return `${meta}
@@ -166,6 +168,53 @@ export type JpVocabGrammarUsageExamplePairParsed = {
   usage: string;
   example_sentences: string;
 };
+
+/**
+ * 变形课：只解析「日语 + 译文」块；usage 固定空串。
+ * 若模型仍输出「1. 中文用法」则失败（应拒后重试）。
+ */
+export function parseJpVocabConjugationExamplesOnly(
+  raw: string
+): JpVocabGrammarUsageExamplePairParsed | null {
+  const lines = stripFenceNoise(raw)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return null;
+
+  // 变形禁止「1. 中文用法」行（含句末 (N5) 的中文说明）
+  for (const line of lines) {
+    const m = NUMBERED_LINE_RE.exec(line);
+    if (!m) continue;
+    const body = m[2].trim();
+    // 编号行若主要是中文说明（汉字多、假名括注少）→ 当作违规用法行
+    if (HAN_RE.test(body) && !USAGE_FURIGANA_PAREN_RE.test(body)) {
+      const kana = body.match(/[\u3040-\u30FFー]/g) || [];
+      if (kana.length < 8) return null;
+    }
+  }
+
+  const exampleLines: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    // 跳过误加的纯数字编号行「1.」空内容已在 NUMBERED 处理
+    let jp = lines[i];
+    const numbered = NUMBERED_LINE_RE.exec(jp);
+    if (numbered) {
+      // 编号后直接是日语例句（少见）：剥掉编号
+      jp = numbered[2].trim();
+    }
+    i += 1;
+    if (i >= lines.length) return null;
+    const gloss = lines[i];
+    if (!/^(译文|譯文)\s*[：:]/.test(gloss)) return null;
+    exampleLines.push(jp, gloss);
+    i += 1;
+  }
+  if (exampleLines.length < 4 || exampleLines.length > 6) return null;
+  // 2～3 组 → 4～6 行
+  return { usage: "", example_sentences: exampleLines.join("\n") };
+}
 
 /**
  * 解析「编号用法 + 日语 + 译文」交替块。
@@ -370,6 +419,17 @@ export function validateJpVocabGrammarUsageExamplePairsOutput(
   }
   const text = String(raw ?? "").trim();
   if (!text) return { ok: false, reason: "empty" };
+
+  if (input?.word && isJpVocabConjugationGrammar(input.word)) {
+    const conj = parseJpVocabConjugationExamplesOnly(text);
+    if (!conj) return { ok: false, reason: "pair_incomplete" };
+    return {
+      ok: true,
+      usage: "",
+      example_sentences: conj.example_sentences,
+    };
+  }
+
   const parsed = parseJpVocabGrammarUsageExamplePairs(text);
   if (!parsed) {
     // 拆对失败时区分：日语用法 vs 结构不全

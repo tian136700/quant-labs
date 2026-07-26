@@ -4,6 +4,7 @@ import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
 import {
   buildJpVocabUsageAiPrompt,
+  isJpVocabConjugationGrammar,
   JP_VOCAB_USAGE_UPLOAD_SPEC,
   normalizeJpVocabUsageSource,
   normalizeJpVocabUsageText,
@@ -303,8 +304,8 @@ async function updateUsageAndExamples(
          WHERE id = ?5 AND kind = 'grammar'`
       )
       .bind(
-        usage.trim(),
-        usageSource,
+        usage.trim() || null,
+        usage.trim() ? usageSource : null,
         exampleSentences.trim(),
         exampleSource,
         wordId
@@ -357,7 +358,8 @@ export async function applyJpVocabUsageUpdates(
     const wordId = Number(item.word_id);
     let usage = String(item.usage ?? "").trim();
     let examples = String(item.example_sentences ?? "").trim() || null;
-    if (!Number.isInteger(wordId) || wordId <= 0 || !usage) continue;
+    if (!Number.isInteger(wordId) || wordId <= 0) continue;
+    if (!usage && !examples) continue;
 
     const source =
       normalizeJpVocabUsageSource(item.source) ?? defaultSource;
@@ -388,18 +390,48 @@ export async function applyJpVocabUsageUpdates(
       continue;
     }
 
+    const isConj = isJpVocabConjugationGrammar(String(row.word));
+
     if (validateFormat) {
       // 付费/自动写回必须成对；人手「手动」可只改用法
+      // 变形课：只要例句，用法清空
       const isManual = source === "手动";
-      if (!examples && !isManual) {
+      if (isConj) {
+        if (!examples && !isManual) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: "invalid_format:examples_required",
+          });
+          continue;
+        }
+        if (examples) {
+          const exOk = validateJpVocabExampleSentencesAiOutput(examples, {
+            word: String(row.word),
+            kind: "grammar",
+            reading: row.reading,
+            meaning: row.meaning,
+            usage: null,
+          });
+          if (!exOk.ok) {
+            skipped.push({
+              id: wordId,
+              word: String(row.word),
+              reason: `invalid_format:${exOk.reason}`,
+            });
+            continue;
+          }
+          examples = exOk.text;
+        }
+        usage = "";
+      } else if (!examples && !isManual) {
         skipped.push({
           id: wordId,
           word: String(row.word),
           reason: "invalid_format:examples_required",
         });
         continue;
-      }
-      if (examples) {
+      } else if (examples) {
         const usageOk = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),
           kind: "grammar",
@@ -446,8 +478,10 @@ export async function applyJpVocabUsageUpdates(
         }
         usage = validated.text;
       }
-    } else {
+    } else if (!isConj) {
       usage = normalizeJpVocabUsageText(usage) || usage;
+    } else {
+      usage = "";
     }
 
     const changed = await updateUsageAndExamples(

@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         (item) =>
           Number.isInteger(item.word_id) &&
           item.word_id > 0 &&
-          item.usage.length > 0
+          (item.usage.length > 0 || Boolean(item.example_sentences))
       );
 
     const limit =

@@ -19,7 +19,7 @@ import {
   countJpVocabExampleSentenceTargetFromMeaning,
   splitJpVocabMeaningMajorSenses,
 } from "@/lib/jp-vocab-meaning-ai";
-import { countJpVocabUsagePoints } from "@/lib/jp-vocab-usage-ai";
+import { countJpVocabUsagePoints, isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
 
 /** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
@@ -109,12 +109,17 @@ export type JpVocabExampleSentencesAiInput = {
   usage?: string | null;
 };
 
-/** 例句目标条数：语法看 usage；单词看 meaning */
+/** 例句目标条数：语法看 usage；变形课无 usage 时固定 2～3（按 2 验收下限） */
 export function expectedJpVocabExampleSentenceCount(
-  input: Pick<JpVocabExampleSentencesAiInput, "kind" | "meaning" | "usage">
+  input: Pick<
+    JpVocabExampleSentencesAiInput,
+    "kind" | "meaning" | "usage" | "word"
+  >
 ): number {
   if (input.kind === "grammar") {
     const n = countJpVocabUsagePoints(input.usage);
+    if (n >= 1) return Math.max(1, n);
+    if (isJpVocabConjugationGrammar(input.word)) return 2;
     return Math.max(1, n || 1);
   }
   return countJpVocabExampleSentenceTargetFromMeaning(input.meaning, input.kind);
@@ -220,7 +225,9 @@ export function validateJpVocabExampleSentencesAiOutput(
   if (!text) return { ok: false, reason: "empty" };
 
   if (input.kind === "grammar" && countJpVocabUsagePoints(input.usage) < 1) {
-    return { ok: false, reason: "usage_required" };
+    if (!isJpVocabConjugationGrammar(input.word)) {
+      return { ok: false, reason: "usage_required" };
+    }
   }
 
   const lines = text
@@ -228,8 +235,11 @@ export function validateJpVocabExampleSentencesAiOutput(
     .map((line) => line.trim())
     .filter(Boolean);
   const targetCount = expectedJpVocabExampleSentenceCount(input);
-  const minLines =
-    input.kind === "grammar"
+  const isConj =
+    input.kind === "grammar" && isJpVocabConjugationGrammar(input.word);
+  const minLines = isConj
+    ? 4
+    : input.kind === "grammar"
       ? Math.max(2, targetCount * 2)
       : Math.max(4, targetCount * 2);
   if (lines.length < minLines) {
@@ -240,11 +250,13 @@ export function validateJpVocabExampleSentencesAiOutput(
   if (items.length < targetCount) {
     return { ok: false, reason: "need_more_japanese_lines" };
   }
-  if (input.kind !== "grammar" && items.length < 2) {
+  const cappedItems =
+    isConj && items.length > 3 ? items.slice(0, 3) : items;
+  if (input.kind !== "grammar" && cappedItems.length < 2) {
     return { ok: false, reason: "need_two_japanese_lines" };
   }
 
-  const cleanedItems = items.map((item) => ({
+  const cleanedItems = cappedItems.map((item) => ({
     ...item,
     text: sanitizeJpVocabExampleJapaneseLine(item.text),
   }));
