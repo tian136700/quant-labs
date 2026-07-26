@@ -84,6 +84,7 @@ export async function POST(request: Request) {
         isp: result.geo?.ok ? result.geo.isp : null,
         geo_ok: result.geo?.ok ?? false,
         history_rows_updated: result.history_rows_updated,
+        visit_rows_updated: result.visit_rows_updated,
         ...result.status,
       });
     }

@@ -111,6 +111,11 @@ CREATE TABLE IF NOT EXISTS etr_ip_geo_queue (
             )
         except Exception:
             pass
+    for col in ("geo_area", "updated_at"):
+        try:
+            run_wrangler(f"ALTER TABLE visit_logs ADD COLUMN {col} TEXT;")
+        except Exception:
+            pass
 
 
 def list_distinct_login_ips() -> list[str]:
@@ -252,6 +257,29 @@ WHERE login_ip IS NOT NULL
         )
     except Exception as err:  # noqa: BLE001
         print(f"  warn: copy onto history failed: {err}", flush=True)
+    # 访问日志同 IP：写入省市区并刷新 updated_at
+    try:
+        country_code = str(geo.get("country_code") or "").strip().upper()
+        prov = str(geo.get("prov") or "").strip()
+        city = str(geo.get("city") or "").strip()
+        cc_sql = sql_literal(country_code) if country_code else "NULL"
+        prov_sql = sql_literal(prov) if prov else "NULL"
+        city_sql = sql_literal(city) if city else "NULL"
+        area_sql = sql_literal(area) if area else "NULL"
+        run_wrangler(
+            f"""
+UPDATE visit_logs
+SET country_code = COALESCE({cc_sql}, country_code),
+    geo_region = {prov_sql},
+    geo_city = {city_sql},
+    geo_area = {area_sql},
+    updated_at = {sql_literal(now)}
+WHERE ip IS NOT NULL
+  AND (ip = {sql_literal(ip)} OR TRIM(ip) = {sql_literal(ip)});
+""".strip()
+        )
+    except Exception as err:  # noqa: BLE001
+        print(f"  warn: copy onto visit_logs failed: {err}", flush=True)
     try:
         run_wrangler(f"DELETE FROM etr_ip_geo_queue WHERE ip = {sql_literal(ip)};")
     except Exception:

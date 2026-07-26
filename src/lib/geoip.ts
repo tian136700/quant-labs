@@ -21,6 +21,8 @@ export type GeoRecord = {
   geo_region?: string | null;
   geo_region_code?: string | null;
   geo_city?: string | null;
+  /** 区县（ip9 area） */
+  geo_area?: string | null;
 };
 
 /** ISO 3166-2:CN 省级代码 → 中文名（Cloudflare CF-Region-Code） */
@@ -224,19 +226,38 @@ function formatCnLocation(record: GeoRecord): string {
     record.geo_region
   );
   const city = cnCityZh(record.geo_city);
+  const area = record.geo_area?.trim() || null;
 
+  let base = "";
   if (province && city && !isSamePlace(province, city)) {
     const cityLabel = city.endsWith("市") ? city : `${city}市`;
-    return `${province} ${cityLabel}`;
+    base = `${province} ${cityLabel}`;
+  } else if (province) {
+    base = province;
+  } else if (city) {
+    base = city.endsWith("市") ? city : `${city}市`;
   }
-  if (province) return province;
-  if (city) return city.endsWith("市") ? city : `${city}市`;
-  return "未知地区";
+
+  if (
+    area &&
+    !isSamePlace(area, city) &&
+    !isSamePlace(area, province) &&
+    !(base && isSamePlace(area, base))
+  ) {
+    return base ? `${base} ${area}` : area;
+  }
+  return base || "未知地区";
 }
 
 function formatIntlLocation(record: GeoRecord, locale: Locale): string {
   const parts: string[] = [];
   if (record.geo_city) parts.push(record.geo_city);
+  if (
+    record.geo_area &&
+    !isSamePlace(record.geo_area, record.geo_city ?? "")
+  ) {
+    parts.push(record.geo_area);
+  }
   if (record.geo_region && !isSamePlace(record.geo_region, record.geo_city ?? "")) {
     parts.push(record.geo_region);
   }
@@ -248,12 +269,13 @@ function formatIntlLocation(record: GeoRecord, locale: Locale): string {
   return parts.length ? parts.join(", ") : locale === "zh" ? "未知" : "Unknown";
 }
 
-/** 后台展示 IP 地区：中国 IP 显示省/市，不显示「中国」 */
+/** 后台展示 IP 地区：中国 IP 显示省/市/区县，不显示「中国」 */
 export function geoLocationDisplay(record: GeoRecord, locale: Locale): string {
   const cc = record.country_code?.toUpperCase();
   const hasDetail =
     Boolean(record.geo_city?.trim()) ||
     Boolean(record.geo_region?.trim()) ||
+    Boolean(record.geo_area?.trim()) ||
     Boolean(record.geo_region_code?.trim());
 
   if (cc === "CN" || cc === "HK" || cc === "TW" || cc === "MO") {

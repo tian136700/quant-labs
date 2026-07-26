@@ -14,19 +14,20 @@ import { CopyToast } from "@/components/CopyToast";
 import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import {
+  VISIT_LOG_SORT_FIELDS,
   VISIT_LOG_USERNAME_UNREGISTERED,
+  parseVisitLogSortField,
   type VisitLogSortField,
-  type VisitLogSortOrder,
 } from "@/lib/analytics-db";
+import {
+  AdminVisitSortTh,
+  nextVisitSortState,
+  type AdminVisitSortState,
+} from "@/components/admin-dashboard/AdminVisitSortTh";
 
 const VISIT_PAGE_SIZE = 50;
 
-type VisitSortState = {
-  field: VisitLogSortField;
-  order: VisitLogSortOrder;
-};
-
-const DEFAULT_VISIT_SORT: VisitSortState = {
+const DEFAULT_VISIT_SORT: AdminVisitSortState = {
   field: "created_at",
   order: "desc",
 };
@@ -105,7 +106,7 @@ export function AdminDashboardPage() {
   const [visitPage, setVisitPage] = useState(1);
   const [visitTotal, setVisitTotal] = useState(0);
   const [visitTotalPages, setVisitTotalPages] = useState(1);
-  const [visitSort, setVisitSort] = useState<VisitSortState>(DEFAULT_VISIT_SORT);
+  const [visitSort, setVisitSort] = useState<AdminVisitSortState>(DEFAULT_VISIT_SORT);
   const [visitUsernameDraft, setVisitUsernameDraft] = useState("");
   const [visitUsernameFilter, setVisitUsernameFilter] = useState("");
   const [visitUsernameOptions, setVisitUsernameOptions] = useState<string[]>([]);
@@ -119,7 +120,7 @@ export function AdminDashboardPage() {
   const loadVisits = useCallback(
     async (
       page = 1,
-      sort: VisitSortState = DEFAULT_VISIT_SORT,
+      sort: AdminVisitSortState = DEFAULT_VISIT_SORT,
       usernameFilter = visitUsernameFilter
     ) => {
       setLoadingVisits(true);
@@ -147,7 +148,9 @@ export function AdminDashboardPage() {
         setVisitTotal(data.total ?? 0);
         setVisitTotalPages(data.totalPages ?? 1);
         setVisitSort({
-          field: data.sort === "ip_visit_count" ? "ip_visit_count" : "created_at",
+          field: parseVisitLogSortField(
+            typeof data.sort === "string" ? data.sort : sort.field
+          ),
           order: data.order === "asc" ? "asc" : "desc",
         });
         setVisitUsernameOptions(data.usernames ?? []);
@@ -188,17 +191,54 @@ export function AdminDashboardPage() {
     await Promise.all([loadVisits(1, DEFAULT_VISIT_SORT), loadFeedback()]);
   }, [loadVisits, loadFeedback]);
 
-  const handleIpVisitCountSort = () => {
-    let next: VisitSortState;
-    if (visitSort.field !== "ip_visit_count") {
-      next = { field: "ip_visit_count", order: "desc" };
-    } else if (visitSort.order === "desc") {
-      next = { field: "ip_visit_count", order: "asc" };
-    } else {
-      next = DEFAULT_VISIT_SORT;
-    }
+  const handleVisitSort = (field: VisitLogSortField) => {
+    const next = nextVisitSortState(visitSort, field);
     setVisitSort(next);
     void loadVisits(1, next, visitUsernameFilter);
+  };
+
+  const handleVisitSortFieldChange = (fieldRaw: string) => {
+    const field = parseVisitLogSortField(fieldRaw);
+    const next: AdminVisitSortState = { field, order: visitSort.order };
+    setVisitSort(next);
+    void loadVisits(1, next, visitUsernameFilter);
+  };
+
+  const handleVisitSortOrderToggle = () => {
+    const next: AdminVisitSortState = {
+      field: visitSort.field,
+      order: visitSort.order === "desc" ? "asc" : "desc",
+    };
+    setVisitSort(next);
+    void loadVisits(1, next, visitUsernameFilter);
+  };
+
+  const visitSortFieldLabel = (field: VisitLogSortField): string => {
+    switch (field) {
+      case "id":
+        return adm.visits.id;
+      case "ip":
+        return adm.visits.ip;
+      case "ip_visit_count":
+        return adm.visits.ipVisitCount;
+      case "username":
+        return adm.visits.username;
+      case "country":
+        return adm.visits.country;
+      case "url_path":
+        return adm.visits.url;
+      case "event_type":
+        return adm.visits.eventType;
+      case "event_detail":
+        return adm.visits.eventDetail;
+      case "locale":
+        return adm.visits.locale;
+      case "updated_at":
+        return adm.visits.updatedAt;
+      case "created_at":
+      default:
+        return adm.visits.time;
+    }
   };
 
   const handleVisitUsernameSearch = () => {
@@ -293,6 +333,38 @@ export function AdminDashboardPage() {
             >
               {adm.visits.filterSearch}
             </button>
+            <label className="admin-visits-sort">
+              <span className="admin-visits-filter-label">{adm.visits.sortLabel}</span>
+              <select
+                className="admin-visits-filter-select"
+                value={visitSort.field}
+                onChange={(event) => handleVisitSortFieldChange(event.target.value)}
+                disabled={loadingVisits}
+              >
+                {VISIT_LOG_SORT_FIELDS.map((field) => (
+                  <option key={field} value={field}>
+                    {visitSortFieldLabel(field)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn-rsi-filter btn-rsi-filter--compact admin-visits-sort-order"
+                onClick={handleVisitSortOrderToggle}
+                disabled={loadingVisits}
+                aria-label={
+                  visitSort.order === "desc"
+                    ? locale === "zh"
+                      ? "降序"
+                      : "Descending"
+                    : locale === "zh"
+                      ? "升序"
+                      : "Ascending"
+                }
+              >
+                {visitSort.order === "desc" ? "↓" : "↑"}
+              </button>
+            </label>
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact"
@@ -348,6 +420,18 @@ export function AdminDashboardPage() {
                       value={row.event_detail ?? "—"}
                       wide
                     />
+                    <AdminCardField
+                      label={adm.visits.time}
+                      value={formatBeijingDateTime(row.created_at)}
+                      wide
+                    />
+                    <AdminCardField
+                      label={adm.visits.updatedAt}
+                      value={formatBeijingDateTime(
+                        row.updated_at ?? row.created_at
+                      )}
+                      wide
+                    />
                   </dl>
                 </article>
               ))}
@@ -357,42 +441,72 @@ export function AdminDashboardPage() {
             <table className="compare-table etr-table admin-table">
               <thead>
                 <tr>
-                  <th>{adm.visits.id}</th>
-                  <th>{adm.visits.ip}</th>
-                  <th>
-                    <button
-                      type="button"
-                      className={`admin-sort-btn${
-                        visitSort.field === "ip_visit_count"
-                          ? " admin-sort-btn--active"
-                          : ""
-                      }`}
-                      onClick={handleIpVisitCountSort}
-                      aria-sort={
-                        visitSort.field === "ip_visit_count"
-                          ? visitSort.order === "desc"
-                            ? "descending"
-                            : "ascending"
-                          : "none"
-                      }
-                    >
-                      {adm.visits.ipVisitCount}
-                      <span className="admin-sort-indicator" aria-hidden="true">
-                        {visitSort.field === "ip_visit_count"
-                          ? visitSort.order === "desc"
-                            ? "↓"
-                            : "↑"
-                          : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                  <th>{adm.visits.username}</th>
-                  <th>{adm.visits.country}</th>
-                  <th>{adm.visits.url}</th>
-                  <th>{adm.visits.eventType}</th>
-                  <th>{adm.visits.eventDetail}</th>
-                  <th>{adm.visits.locale}</th>
-                  <th>{adm.visits.time}</th>
+                  <AdminVisitSortTh
+                    field="id"
+                    label={adm.visits.id}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="ip"
+                    label={adm.visits.ip}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="ip_visit_count"
+                    label={adm.visits.ipVisitCount}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="username"
+                    label={adm.visits.username}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="country"
+                    label={adm.visits.country}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="url_path"
+                    label={adm.visits.url}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="event_type"
+                    label={adm.visits.eventType}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="event_detail"
+                    label={adm.visits.eventDetail}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="locale"
+                    label={adm.visits.locale}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="created_at"
+                    label={adm.visits.time}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
+                  <AdminVisitSortTh
+                    field="updated_at"
+                    label={adm.visits.updatedAt}
+                    sort={visitSort}
+                    onSort={handleVisitSort}
+                  />
                 </tr>
               </thead>
               <tbody>
@@ -414,6 +528,9 @@ export function AdminDashboardPage() {
                     <td className="admin-cell-wrap">{row.event_detail ?? "—"}</td>
                     <td>{row.locale ?? "—"}</td>
                     <td>{formatBeijingDateTime(row.created_at)}</td>
+                    <td>
+                      {formatBeijingDateTime(row.updated_at ?? row.created_at)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

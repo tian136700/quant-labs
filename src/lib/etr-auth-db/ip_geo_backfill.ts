@@ -1,5 +1,6 @@
 import "server-only";
 
+import { copyIpGeoOntoVisitLogs } from "@/lib/analytics-db";
 import { ipKey } from "@/lib/client-ip";
 import {
   copyIpGeoOntoLoginHistory,
@@ -31,6 +32,7 @@ export type LoginIpGeoBackfillStepResult = {
   ip: string | null;
   geo: EtrIpGeoCacheRow | null;
   history_rows_updated: number;
+  visit_rows_updated: number;
   status: LoginIpGeoBackfillStatus;
 };
 
@@ -196,14 +198,24 @@ export async function stepLoginIpGeoBackfill(
       ip: null,
       geo: null,
       history_rows_updated: 0,
+      visit_rows_updated: 0,
       status: before,
     };
   }
 
   const geo = await resolveIpGeoCached(db, nextIp, { force: true });
   let history_rows_updated = 0;
+  let visit_rows_updated = 0;
   if (geo?.ok) {
     history_rows_updated = await copyIpGeoOntoLoginHistory(db, nextIp, geo);
+    // 访问日志同 IP 一并写入归属地，并刷新 updated_at
+    visit_rows_updated = await copyIpGeoOntoVisitLogs(db, nextIp, {
+      ok: true,
+      country_code: geo.country_code,
+      prov: geo.prov,
+      city: geo.city,
+      area: geo.area,
+    });
   }
   await dequeueLoginIpGeo(db, nextIp);
   const status = await getLoginIpGeoBackfillStatus(db);
@@ -212,6 +224,7 @@ export async function stepLoginIpGeoBackfill(
     ip: nextIp,
     geo,
     history_rows_updated,
+    visit_rows_updated,
     status,
   };
 }

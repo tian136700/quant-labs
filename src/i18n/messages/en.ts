@@ -116,6 +116,8 @@ export const enMessages: Messages = {
         eventDetail: "Detail",
         locale: "Locale",
         time: "Time",
+        updatedAt: "Updated",
+        sortLabel: "Sort",
         pagination: {
           prev: "Previous",
           next: "Next",

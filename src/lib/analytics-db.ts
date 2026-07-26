@@ -4,6 +4,7 @@ import type { VisitLogRecord } from "./types";
 let devStoreEnabled = false;
 const devRecords: VisitLogRecord[] = [];
 let devNextId = 1;
+let visitLogsSchemaReady = false;
 
 export function enableAnalyticsDevStore() {
   devStoreEnabled = true;
@@ -19,6 +20,7 @@ export type TrackVisitInput = {
   geo_region?: string | null;
   geo_region_code?: string | null;
   geo_city?: string | null;
+  geo_area?: string | null;
   username?: string | null;
   url_path: string;
   event_type: string;
@@ -28,8 +30,39 @@ export type TrackVisitInput = {
 
 export type CachedGeo = Pick<
   TrackVisitInput,
-  "country_code" | "geo_region" | "geo_region_code" | "geo_city"
+  "country_code" | "geo_region" | "geo_region_code" | "geo_city" | "geo_area"
 >;
+
+async function listVisitLogColumnNames(db: D1Database): Promise<Set<string>> {
+  const { results } = await db
+    .prepare(`PRAGMA table_info(visit_logs)`)
+    .all<{ name: string }>();
+  return new Set((results ?? []).map((row) => row.name));
+}
+
+async function addVisitLogColumnIfMissing(
+  db: D1Database,
+  cols: Set<string>,
+  name: string,
+  sqlType: string
+): Promise<void> {
+  if (cols.has(name)) return;
+  await db.prepare(`ALTER TABLE visit_logs ADD COLUMN ${name} ${sqlType}`).run();
+  cols.add(name);
+}
+
+/** 旧库补齐 geo_area / updated_at（新库 schema.sql 已含） */
+export async function ensureVisitLogsSchema(db: D1Database): Promise<void> {
+  if (devStoreEnabled || visitLogsSchemaReady) return;
+  const cols = await listVisitLogColumnNames(db);
+  if (cols.size === 0) {
+    visitLogsSchemaReady = true;
+    return;
+  }
+  await addVisitLogColumnIfMissing(db, cols, "geo_area", "TEXT");
+  await addVisitLogColumnIfMissing(db, cols, "updated_at", "TEXT");
+  visitLogsSchemaReady = true;
+}
 
 /** 同一 IP 曾写入过省市则复用，避免重复调外部 IP 库 */
 export async function findCachedGeoForIp(
@@ -44,6 +77,7 @@ export async function findCachedGeoForIp(
         ipKey(row.ip) === ipKey(normalized) &&
         (row.geo_region?.trim() ||
           row.geo_city?.trim() ||
+          row.geo_area?.trim() ||
           row.geo_region_code?.trim())
     );
     if (!hit) return null;
@@ -52,15 +86,22 @@ export async function findCachedGeoForIp(
       geo_region: hit.geo_region ?? null,
       geo_region_code: hit.geo_region_code ?? null,
       geo_city: hit.geo_city ?? null,
+      geo_area: hit.geo_area ?? null,
     };
   }
 
+  await ensureVisitLogsSchema(db);
   const row = await db
     .prepare(
-      `SELECT country_code, geo_region, geo_region_code, geo_city
+      `SELECT country_code, geo_region, geo_region_code, geo_city, geo_area
        FROM visit_logs
        WHERE ip = ?1
-         AND (geo_region IS NOT NULL OR geo_city IS NOT NULL OR geo_region_code IS NOT NULL)
+         AND (
+           geo_region IS NOT NULL
+           OR geo_city IS NOT NULL
+           OR geo_area IS NOT NULL
+           OR geo_region_code IS NOT NULL
+         )
        ORDER BY created_at DESC
        LIMIT 1`
     )
@@ -71,11 +112,65 @@ export async function findCachedGeoForIp(
   if (
     !row.geo_region?.trim() &&
     !row.geo_city?.trim() &&
+    !row.geo_area?.trim() &&
     !row.geo_region_code?.trim()
   ) {
     return null;
   }
   return row;
+}
+
+/**
+ * 定时任务 / 回填：把已查到的归属地写到该 IP 的所有访问日志，并刷新 updated_at。
+ */
+export async function copyIpGeoOntoVisitLogs(
+  db: D1Database,
+  rawIp: string,
+  geo: {
+    ok: boolean;
+    country_code?: string | null;
+    prov?: string | null;
+    city?: string | null;
+    area?: string | null;
+  }
+): Promise<number> {
+  const key = ipKey(rawIp);
+  if (!key || !geo.ok) return 0;
+  const updatedAt = nowIso();
+  const countryCode = (geo.country_code || "").trim().toUpperCase() || null;
+  const geoRegion = (geo.prov || "").trim() || null;
+  const geoCity = (geo.city || "").trim() || null;
+  const geoArea = (geo.area || "").trim() || null;
+
+  if (devStoreEnabled) {
+    let n = 0;
+    for (const row of devRecords) {
+      if (ipKey(row.ip) !== key) continue;
+      row.country_code = countryCode ?? row.country_code;
+      row.geo_region = geoRegion;
+      row.geo_city = geoCity;
+      row.geo_area = geoArea;
+      row.updated_at = updatedAt;
+      n += 1;
+    }
+    return n;
+  }
+
+  await ensureVisitLogsSchema(db);
+  const result = await db
+    .prepare(
+      `UPDATE visit_logs
+       SET country_code = COALESCE(?1, country_code),
+           geo_region = ?2,
+           geo_city = ?3,
+           geo_area = ?4,
+           updated_at = ?5
+       WHERE ip IS NOT NULL
+         AND (ip = ?6 OR TRIM(ip) = ?6)`
+    )
+    .bind(countryCode, geoRegion, geoCity, geoArea, updatedAt, key)
+    .run();
+  return Number(result.meta?.changes ?? 0);
 }
 
 export async function trackVisit(
@@ -99,21 +194,27 @@ export async function trackVisit(
       geo_region: input.geo_region ?? null,
       geo_region_code: input.geo_region_code ?? null,
       geo_city: input.geo_city ?? null,
+      geo_area: input.geo_area ?? null,
       username: input.username ?? null,
       url_path: urlPath,
       event_type: eventType,
       event_detail: eventDetail,
       locale: input.locale,
       created_at: createdAt,
+      updated_at: createdAt,
     };
     devRecords.unshift(record);
     return record;
   }
 
+  await ensureVisitLogsSchema(db);
   await db
     .prepare(
-      `INSERT INTO visit_logs (ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
+      `INSERT INTO visit_logs (
+         ip, country_code, geo_region, geo_region_code, geo_city, geo_area,
+         username, url_path, event_type, event_detail, locale, created_at, updated_at
+       )
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
     )
     .bind(
       ip,
@@ -121,11 +222,13 @@ export async function trackVisit(
       input.geo_region ?? null,
       input.geo_region_code ?? null,
       input.geo_city ?? null,
+      input.geo_area ?? null,
       input.username ?? null,
       urlPath,
       eventType,
       eventDetail,
       input.locale,
+      createdAt,
       createdAt
     )
     .run();
@@ -145,12 +248,14 @@ export async function trackVisit(
     geo_region: input.geo_region ?? null,
     geo_region_code: input.geo_region_code ?? null,
     geo_city: input.geo_city ?? null,
+    geo_area: input.geo_area ?? null,
     username: input.username ?? null,
     url_path: urlPath,
     event_type: eventType,
     event_detail: eventDetail,
     locale: input.locale,
     created_at: createdAt,
+    updated_at: createdAt,
   };
 }
 
@@ -189,12 +294,39 @@ function decorateVisitRecords(
   return records.map((row) => ({
     ...row,
     ip: normalizeClientIp(row.ip) ?? row.ip,
+    updated_at: row.updated_at ?? row.created_at,
     ip_visit_count: ipVisitCounts.get(ipKey(row.ip)) ?? row.ip_visit_count ?? 0,
   }));
 }
 
-export type VisitLogSortField = "created_at" | "ip_visit_count";
+export const VISIT_LOG_SORT_FIELDS = [
+  "id",
+  "ip",
+  "ip_visit_count",
+  "username",
+  "country",
+  "url_path",
+  "event_type",
+  "event_detail",
+  "locale",
+  "created_at",
+  "updated_at",
+] as const;
+
+export type VisitLogSortField = (typeof VISIT_LOG_SORT_FIELDS)[number];
 export type VisitLogSortOrder = "asc" | "desc";
+
+export function parseVisitLogSortField(
+  raw: string | null | undefined
+): VisitLogSortField {
+  if (
+    raw &&
+    (VISIT_LOG_SORT_FIELDS as readonly string[]).includes(raw)
+  ) {
+    return raw as VisitLogSortField;
+  }
+  return "created_at";
+}
 
 /** 访问日志筛选：未注册用户（username 为空） */
 export const VISIT_LOG_USERNAME_UNREGISTERED = "__unregistered__";
@@ -254,6 +386,7 @@ export async function listDistinctVisitUsernames(
     );
   }
 
+  await ensureVisitLogsSchema(db);
   const { results } = await db
     .prepare(
       `SELECT DISTINCT username
@@ -266,6 +399,24 @@ export async function listDistinctVisitUsernames(
   return sortUsernames((results ?? []).map((row) => row.username));
 }
 
+function visitCountrySortKey(row: VisitLogRecord): string {
+  return (
+    row.geo_region?.trim() ||
+    row.geo_city?.trim() ||
+    row.geo_area?.trim() ||
+    row.country_code?.trim() ||
+    ""
+  );
+}
+
+function visitUpdatedAt(row: VisitLogRecord): string {
+  return row.updated_at?.trim() || row.created_at;
+}
+
+function compareText(a: string, b: string, dir: number): number {
+  return a.localeCompare(b, undefined, { sensitivity: "base" }) * dir;
+}
+
 function sortVisitRecords(
   records: VisitLogRecord[],
   sort: VisitLogSortField,
@@ -273,15 +424,78 @@ function sortVisitRecords(
 ): VisitLogRecord[] {
   const dir = order === "asc" ? 1 : -1;
   return [...records].sort((a, b) => {
-    if (sort === "ip_visit_count") {
-      const countDiff =
-        ((a.ip_visit_count ?? 0) - (b.ip_visit_count ?? 0)) * dir;
-      if (countDiff !== 0) return countDiff;
+    let primary = 0;
+    switch (sort) {
+      case "id":
+        primary = (a.id - b.id) * dir;
+        break;
+      case "ip":
+        primary = compareText(a.ip || "", b.ip || "", dir);
+        break;
+      case "ip_visit_count":
+        primary = ((a.ip_visit_count ?? 0) - (b.ip_visit_count ?? 0)) * dir;
+        break;
+      case "username":
+        primary = compareText(a.username || "", b.username || "", dir);
+        break;
+      case "country":
+        primary = compareText(visitCountrySortKey(a), visitCountrySortKey(b), dir);
+        break;
+      case "url_path":
+        primary = compareText(a.url_path || "", b.url_path || "", dir);
+        break;
+      case "event_type":
+        primary = compareText(a.event_type || "", b.event_type || "", dir);
+        break;
+      case "event_detail":
+        primary = compareText(a.event_detail || "", b.event_detail || "", dir);
+        break;
+      case "locale":
+        primary = compareText(a.locale || "", b.locale || "", dir);
+        break;
+      case "updated_at":
+        primary =
+          (new Date(visitUpdatedAt(a)).getTime() -
+            new Date(visitUpdatedAt(b)).getTime()) *
+          dir;
+        break;
+      case "created_at":
+      default:
+        primary =
+          (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) *
+          dir;
+        break;
     }
-    return (
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    if (primary !== 0) return primary;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+}
+
+/** SQL ORDER BY 表达式（白名单；禁止拼接外部字符串） */
+function visitLogOrderSqlExpr(sort: VisitLogSortField): string {
+  switch (sort) {
+    case "id":
+      return "id";
+    case "ip":
+      return "ip COLLATE NOCASE";
+    case "username":
+      return "username COLLATE NOCASE";
+    case "country":
+      return "COALESCE(geo_region, geo_city, geo_area, country_code, '') COLLATE NOCASE";
+    case "url_path":
+      return "url_path COLLATE NOCASE";
+    case "event_type":
+      return "event_type COLLATE NOCASE";
+    case "event_detail":
+      return "event_detail COLLATE NOCASE";
+    case "locale":
+      return "locale COLLATE NOCASE";
+    case "updated_at":
+      return "COALESCE(updated_at, created_at)";
+    case "created_at":
+    default:
+      return "created_at";
+  }
 }
 
 export async function countVisitLogs(
@@ -294,6 +508,7 @@ export async function countVisitLogs(
     ).length;
   }
 
+  await ensureVisitLogsSchema(db);
   const { clause, bind } = usernameFilterSql(usernameFilter);
   const stmt = db.prepare(`SELECT COUNT(*) AS total FROM visit_logs ${clause}`);
   const row = bind
@@ -301,6 +516,8 @@ export async function countVisitLogs(
     : await stmt.first<{ total: number }>();
   return row?.total ?? 0;
 }
+
+const VISIT_SELECT_COLS = `id, ip, country_code, geo_region, geo_region_code, geo_city, geo_area, username, url_path, event_type, event_detail, locale, created_at, updated_at`;
 
 export async function listVisitLogs(
   db: D1Database,
@@ -312,8 +529,7 @@ export async function listVisitLogs(
 ): Promise<VisitLogsPage> {
   const safePageSize = Math.min(Math.max(pageSize, 1), 200);
   const safePage = Math.max(page, 1);
-  const safeSort: VisitLogSortField =
-    sort === "ip_visit_count" ? "ip_visit_count" : "created_at";
+  const safeSort = parseVisitLogSortField(sort);
   const safeOrder: VisitLogSortOrder = order === "asc" ? "asc" : "desc";
   const safeUsernameFilter = usernameFilter?.trim() || null;
 
@@ -343,6 +559,7 @@ export async function listVisitLogs(
     };
   }
 
+  await ensureVisitLogsSchema(db);
   const { clause, bind } = usernameFilterSql(safeUsernameFilter);
   const total = await countVisitLogs(db, safeUsernameFilter);
   const totalPages = Math.max(1, Math.ceil(total / safePageSize));
@@ -350,12 +567,11 @@ export async function listVisitLogs(
   const offset = (currentPage - 1) * safePageSize;
 
   const ipVisitCounts = await loadNormalizedIpVisitCounts(db);
-  const selectCols = `id, ip, country_code, geo_region, geo_region_code, geo_city, username, url_path, event_type, event_detail, locale, created_at`;
 
   let records: VisitLogRecord[];
   if (safeSort === "ip_visit_count") {
     const stmt = db.prepare(
-      `SELECT ${selectCols} FROM visit_logs ${clause}`
+      `SELECT ${VISIT_SELECT_COLS} FROM visit_logs ${clause}`
     );
     const { results } = bind
       ? await stmt.bind(bind).all<VisitLogRecord>()
@@ -364,11 +580,12 @@ export async function listVisitLogs(
     const sorted = sortVisitRecords(decorated, safeSort, safeOrder);
     records = sorted.slice(offset, offset + safePageSize);
   } else {
+    const orderExpr = visitLogOrderSqlExpr(safeSort);
     const stmt = db.prepare(
-      `SELECT ${selectCols}
+      `SELECT ${VISIT_SELECT_COLS}
        FROM visit_logs
        ${clause}
-       ORDER BY created_at ${safeOrder.toUpperCase()}
+       ORDER BY ${orderExpr} ${safeOrder.toUpperCase()}
        LIMIT ?${bind ? 2 : 1} OFFSET ?${bind ? 3 : 2}`
     );
     const { results } = bind

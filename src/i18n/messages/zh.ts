@@ -115,6 +115,8 @@ export const zhMessages: Messages = {
         eventDetail: "操作详情",
         locale: "语言",
         time: "时间",
+        updatedAt: "更新时间",
+        sortLabel: "排序",
         pagination: {
           prev: "上一页",
           next: "下一页",

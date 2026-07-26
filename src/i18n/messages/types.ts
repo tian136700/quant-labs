@@ -101,6 +101,8 @@ export type Messages = {
       eventDetail: string;
       locale: string;
       time: string;
+      updatedAt: string;
+      sortLabel: string;
       pagination: {
         prev: string;
         next: string;

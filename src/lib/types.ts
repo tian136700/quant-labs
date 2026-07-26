@@ -131,6 +131,8 @@ export interface VisitLogRecord {
   geo_region?: string | null;
   geo_region_code?: string | null;
   geo_city?: string | null;
+  /** 区县（ip9 area；归属地回填写入） */
+  geo_area?: string | null;
   /** 访问时已登录的用户名；未登录为 null */
   username?: string | null;
   url_path: string;
@@ -138,6 +140,8 @@ export interface VisitLogRecord {
   event_detail: string | null;
   locale: string | null;
   created_at: string;
+  /** 记录内容最后刷新时间（如归属地回填）；缺省等同 created_at */
+  updated_at?: string | null;
   /** 该 IP 自首次访问以来的累计记录数（查询时计算） */
   ip_visit_count?: number;
 }

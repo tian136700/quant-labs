@@ -252,12 +252,14 @@ CREATE TABLE IF NOT EXISTS visit_logs (
   geo_region   TEXT,
   geo_region_code TEXT,
   geo_city     TEXT,
+  geo_area     TEXT,
   username     TEXT,
   url_path     TEXT    NOT NULL,
   event_type   TEXT    NOT NULL,
   event_detail TEXT,
   locale       TEXT,
-  created_at   TEXT    NOT NULL
+  created_at   TEXT    NOT NULL,
+  updated_at   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_visit_logs_created ON visit_logs (created_at);
@@ -675,7 +677,9 @@ CREATE INDEX IF NOT EXISTS idx_en_lesson_note_lesson ON en_lesson_note (lesson_i
 -- ALTER TABLE visit_logs ADD COLUMN geo_region TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN geo_region_code TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN geo_city TEXT;
+-- ALTER TABLE visit_logs ADD COLUMN geo_area TEXT;
 -- ALTER TABLE visit_logs ADD COLUMN username TEXT;
+-- ALTER TABLE visit_logs ADD COLUMN updated_at TEXT;
 -- CREATE TABLE IF NOT EXISTS jp_vocab_ref (...);  -- 同上
 -- ALTER TABLE jp_vocab_word ADD COLUMN kind TEXT NOT NULL DEFAULT 'word';
 -- ALTER TABLE jp_vocab_word ADD COLUMN ref_key TEXT;

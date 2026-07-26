@@ -1,6 +1,7 @@
 import {
   listDistinctVisitUsernames,
   listVisitLogs,
+  parseVisitLogSortField,
   VISIT_LOG_USERNAME_UNREGISTERED,
 } from "@/lib/analytics-db";
 import { requirePermission } from "@/lib/admin-auth";
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
       usernameParam === VISIT_LOG_USERNAME_UNREGISTERED || usernameParam
         ? usernameParam
         : null;
-    const sort = sortParam === "ip_visit_count" ? "ip_visit_count" : "created_at";
+    const sort = parseVisitLogSortField(sortParam);
     const order = orderParam === "asc" ? "asc" : "desc";
 
     const [result, visitUsernames, etrUsers] = await Promise.all([
