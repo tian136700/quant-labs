@@ -28,8 +28,10 @@ export function readEnVocabTeacherQuizSession(
     const parsed = JSON.parse(raw) as StoredTeacherQuizPayload;
     if (!parsed?.session || parsed.token !== sessionToken(quizTarget)) return null;
     const { mode, wordIds, currentIndex } = parsed.session;
+    // 遗留正序会话丢弃，下次开始抽查走固定随机
+    if (mode === "sequential") return null;
     if (
-      (mode !== "sequential" && mode !== "random") ||
+      mode !== "random" ||
       !Array.isArray(wordIds) ||
       wordIds.length === 0 ||
       typeof currentIndex !== "number"
@@ -39,7 +41,7 @@ export function readEnVocabTeacherQuizSession(
     const ids = wordIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
     if (!ids.length) return null;
     return {
-      mode,
+      mode: "random",
       wordIds: ids,
       currentIndex: Math.max(
         0,

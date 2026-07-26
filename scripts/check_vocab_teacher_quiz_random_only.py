@@ -55,6 +55,28 @@ def check_pick(lang: str, path: Path) -> None:
     if 'return "random"' not in body and "return 'random'" not in body:
         fail(f"{path.name}: {name} must return \"random\"")
 
+    create = f"create{lang}VocabTeacherQuizSession"
+    create_body = extract_fn(src, create)
+    if 'const mode' not in create_body and 'mode: "random"' not in create_body:
+        # must force random regardless of _mode arg
+        if 'mode: JpVocabTeacherQuizMode = "random"' not in create_body and \
+           'mode: EnVocabTeacherQuizMode = "random"' not in create_body and \
+           'const mode: JpVocabTeacherQuizMode = "random"' not in create_body and \
+           'const mode: EnVocabTeacherQuizMode = "random"' not in create_body:
+            fail(f"{path.name}: {create} must force mode = \"random\"")
+    if 'session.mode === "sequential"' in src and \
+       "wordIds = targetIds" in extract_fn(src, f"expand{lang}VocabTeacherQuizSessionForTarget"):
+        fail(f"{path.name}: expand must not rebuild sequential target order")
+
+
+def check_storage(lang: str) -> None:
+    path = ROOT / f"src/lib/{lang.lower()}-vocab-teacher-quiz-storage.ts"
+    if not path.is_file():
+        fail(f"missing {path}")
+    src = path.read_text(encoding="utf-8")
+    if 'mode === "sequential"' not in src or "return null" not in src:
+        fail(f"{path.name}: must discard legacy sequential sessions on read")
+
 
 def check_hook(lang: str, path: Path) -> None:
     src = path.read_text(encoding="utf-8")
@@ -88,6 +110,7 @@ def main() -> None:
         if not path.is_file():
             fail(f"missing {path}")
         check_pick(lang, path)
+        check_storage(lang)
     for lang, path in HOOKS:
         if not path.is_file():
             fail(f"missing {path}")

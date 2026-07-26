@@ -116,14 +116,16 @@ export function pruneJpVocabTeacherQuizSessionChecked(
  * 开始抽查：本轮目标词全量入队并打乱一次（老师端固定随机）。
  * 已勾选词仍留在队列里，便于「上一个」回看勾选；落点优先未勾选词。
  * 全部已勾选时返回 null。
+ * `_mode` 保留兼容旧调用；新会话一律 `"random"`，忽略传入的正序。
  */
 export function createJpVocabTeacherQuizSession(
-  mode: JpVocabTeacherQuizMode,
+  _mode: JpVocabTeacherQuizMode,
   quizTargetWords: JpVocabWord[],
   dailySeqByWordId: ReadonlyMap<number, number>,
   startWordId?: number,
   hasLevel?: (wordId: number) => boolean
 ): JpVocabTeacherQuizSession | null {
+  const mode: JpVocabTeacherQuizMode = "random";
   const wordIds = buildJpVocabTeacherQuizWordIds(
     mode,
     quizTargetWords,
@@ -201,15 +203,19 @@ export function expandJpVocabTeacherQuizSessionForTarget(
   dailySeqByWordId: ReadonlyMap<number, number>,
   hasLevel?: (wordId: number) => boolean
 ): JpVocabTeacherQuizSession | null {
+  // 新词追加顺序也按随机池；遗留正序会话一并收成 random
   const targetIds = buildJpVocabTeacherQuizWordIds(
-    session.mode,
+    "random",
     quizTargetWords,
     dailySeqByWordId
   );
   if (!targetIds.length) {
-    if (!hasLevel) return session;
+    if (!hasLevel) return session.mode === "random" ? session : { ...session, mode: "random" };
     // 禁止 `prune ?? session`：全部勾选后 prune 为 null 时若回退旧会话，弹窗会永远关不掉
-    return pruneJpVocabTeacherQuizSessionChecked(session, hasLevel);
+    const pruned = pruneJpVocabTeacherQuizSessionChecked(session, hasLevel);
+    return pruned && pruned.mode !== "random"
+      ? { ...pruned, mode: "random" }
+      : pruned;
   }
 
   if (hasLevel && targetIds.every((id) => hasLevel(id))) {
@@ -217,17 +223,11 @@ export function expandJpVocabTeacherQuizSessionForTarget(
   }
 
   const currentWordId = session.wordIds[session.currentIndex];
-  let wordIds: number[];
-
-  if (session.mode === "sequential") {
-    wordIds = targetIds;
-  } else {
-    // 随机：保留本轮已定顺序（含已勾选），再追加目标池里尚未入队的词
-    const targetSet = new Set(targetIds);
-    const kept = session.wordIds.filter((id) => targetSet.has(id));
-    const inSession = new Set(kept);
-    wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
-  }
+  // 随机：保留本轮已定顺序（含已勾选），再追加目标池里尚未入队的词
+  const targetSet = new Set(targetIds);
+  const kept = session.wordIds.filter((id) => targetSet.has(id));
+  const inSession = new Set(kept);
+  const wordIds = [...kept, ...targetIds.filter((id) => !inSession.has(id))];
 
   const preferredId =
     currentWordId != null && wordIds.includes(currentWordId)
@@ -235,7 +235,7 @@ export function expandJpVocabTeacherQuizSessionForTarget(
       : undefined;
 
   return {
-    mode: session.mode,
+    mode: "random",
     wordIds,
     currentIndex: clampSessionIndex(
       wordIds,
