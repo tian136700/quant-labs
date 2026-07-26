@@ -68,6 +68,18 @@ CREATE TABLE IF NOT EXISTS etr_users (
 
 CREATE INDEX IF NOT EXISTS idx_etr_users_last_login_at ON etr_users (last_login_at DESC, id DESC);
 
+-- 每次登录一条：用户管理「查看历史登录 IP」
+CREATE TABLE IF NOT EXISTS etr_user_login_history (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id   INTEGER NOT NULL,
+  login_at  TEXT    NOT NULL,
+  login_ip  TEXT,
+  FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_etr_user_login_history_user_at
+  ON etr_user_login_history (user_id, login_at DESC, id DESC);
+
 CREATE TABLE IF NOT EXISTS etr_sessions (
   token      TEXT    NOT NULL PRIMARY KEY,
   user_id    INTEGER NOT NULL,

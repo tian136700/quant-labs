@@ -176,26 +176,44 @@ export function AdminUserCardField({
 /** 长于该长度则默认收起，点「展开」看全文（IPv4 通常不触发） */
 export const ADMIN_USER_IP_COLLAPSE_AT = 18;
 
-/** 最后登录 IP：短地址一行展示；长 IPv6 默认折叠，可展开 */
+/** 最后登录 IP：短地址一行展示；长 IPv6 默认折叠，可展开；下方可挂「查看历史登录 IP」 */
 export function AdminUserIpDisplay({
   ip,
   locale,
+  onViewHistory,
 }: {
   ip: string | null | undefined;
   locale: "zh" | "en";
+  onViewHistory?: () => void;
 }) {
   const full = formatIpForDisplay(ip);
   const [expanded, setExpanded] = useState(false);
   const needsCollapse = full !== "—" && full.length > ADMIN_USER_IP_COLLAPSE_AT;
 
+  const historyBtn = onViewHistory ? (
+    <button
+      type="button"
+      className="admin-user-ip-history"
+      onClick={onViewHistory}
+    >
+      {locale === "zh" ? "查看历史登录IP" : "Login IP history"}
+    </button>
+  ) : null;
+
   if (full === "—") {
-    return <span className="admin-user-ip">—</span>;
+    return (
+      <span className="admin-user-ip">
+        <span className="admin-user-ip-text">—</span>
+        {historyBtn}
+      </span>
+    );
   }
 
   if (!needsCollapse) {
     return (
       <span className="admin-user-ip" title={full}>
-        {full}
+        <span className="admin-user-ip-text">{full}</span>
+        {historyBtn}
       </span>
     );
   }
@@ -222,6 +240,7 @@ export function AdminUserIpDisplay({
             ? "展开"
             : "Expand"}
       </button>
+      {historyBtn}
     </span>
   );
 }

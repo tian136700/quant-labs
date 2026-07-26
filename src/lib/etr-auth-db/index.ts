@@ -22,6 +22,13 @@ export {
   logoutSession,
 } from "./session";
 
+export type { EtrUserLoginHistoryRow } from "./login_history";
+export {
+  ensureEtrUserLoginHistorySchema,
+  listUserLoginHistory,
+  recordUserLoginHistory,
+} from "./login_history";
+
 export {
   listEtrUsers,
   revokeUserSessions,

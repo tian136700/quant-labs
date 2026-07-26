@@ -351,6 +351,51 @@ export function AdminUsersPageStyles() {
         :global(.admin-user-ip-toggle:hover) {
           text-decoration: underline;
         }
+        :global(.admin-user-ip-history) {
+          border: 0;
+          background: transparent;
+          color: #6eb5ff;
+          font: inherit;
+          font-size: 0.75rem;
+          line-height: 1.2;
+          padding: 0;
+          cursor: pointer;
+          white-space: normal;
+          text-align: left;
+        }
+        :global(.admin-user-ip-history:hover) {
+          text-decoration: underline;
+        }
+        :global(.admin-user-login-history-body) {
+          padding: 0.85rem 1.1rem 1.1rem;
+        }
+        :global(.admin-user-login-history-table-wrap) {
+          overflow-x: auto;
+          overflow-y: clip;
+          max-width: 100%;
+        }
+        :global(.admin-user-login-history-table) {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.875rem;
+        }
+        :global(.admin-user-login-history-table th),
+        :global(.admin-user-login-history-table td) {
+          padding: 0.45rem 0.55rem;
+          border-bottom: 1px solid var(--border);
+          text-align: left;
+          vertical-align: top;
+        }
+        :global(.admin-user-login-history-table th) {
+          color: var(--muted);
+          font-weight: 600;
+          font-size: 0.78rem;
+        }
+        :global(.admin-user-login-history-ip) {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          font-size: 0.8125rem;
+          word-break: break-all;
+        }
         :global(.admin-user-actions-col) {
           width: 15.5rem;
           min-width: 15rem;

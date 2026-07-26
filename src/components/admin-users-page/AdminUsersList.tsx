@@ -34,6 +34,7 @@ export type AdminUsersListProps = {
   copyingId: number | null;
   onBindTeacher: (row: UserRow) => void;
   onEdit: (row: UserRow) => void;
+  onViewLoginHistory: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
   onGenerateLoginLink: (row: UserRow, withTemplate: boolean) => void;
   onToggleNeverDisable: (row: UserRow) => void;
@@ -62,6 +63,7 @@ export function AdminUsersList({
   copyingId,
   onBindTeacher,
   onEdit,
+  onViewLoginHistory,
   onCopyCredentials,
   onGenerateLoginLink,
   onToggleNeverDisable,
@@ -247,7 +249,13 @@ export function AdminUsersList({
                     />
                     <AdminUserCardField
                       label={locale === "zh" ? "最后一次登录 IP" : "Last login IP"}
-                      value={<AdminUserIpDisplay ip={row.last_login_ip} locale={locale} />}
+                      value={
+                        <AdminUserIpDisplay
+                          ip={row.last_login_ip}
+                          locale={locale}
+                          onViewHistory={() => onViewLoginHistory(row)}
+                        />
+                      }
                       wide
                     />
                   </dl>
@@ -349,7 +357,11 @@ export function AdminUsersList({
                         <AdminUserDateTimeStacked value={row.last_login_at} />
                       </td>
                       <td className="admin-user-ip-col">
-                        <AdminUserIpDisplay ip={row.last_login_ip} locale={locale} />
+                        <AdminUserIpDisplay
+                          ip={row.last_login_ip}
+                          locale={locale}
+                          onViewHistory={() => onViewLoginHistory(row)}
+                        />
                       </td>
                       <td className="admin-user-col-status">
                         {row.disabled

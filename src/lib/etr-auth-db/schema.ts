@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ensureEtrUserLoginHistorySchema } from "./login_history";
 import { etrAuthDbState } from "./state";
 
 export async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
@@ -30,4 +31,5 @@ export async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
        ON etr_users (last_login_at DESC, id DESC)`
     )
     .run();
+  await ensureEtrUserLoginHistorySchema(db);
 }

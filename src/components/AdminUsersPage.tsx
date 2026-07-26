@@ -84,6 +84,7 @@ function AdminUsersPageContent() {
   const [teachersLoading, setTeachersLoading] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [bindingUser, setBindingUser] = useState<UserRow | null>(null);
+  const [loginHistoryUser, setLoginHistoryUser] = useState<UserRow | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addUserModalError, setAddUserModalError] = useState("");
   const [addUserSubmitAttempted, setAddUserSubmitAttempted] = useState(false);
@@ -129,9 +130,9 @@ function AdminUsersPageContent() {
   }, [locale, persistUsers]);
 
   useEffect(() => {
-    if (checking || !isAdmin || editingUser != null || bindingUser != null) return;
+    if (checking || !isAdmin || editingUser != null || bindingUser != null || loginHistoryUser != null) return;
     void load();
-  }, [checking, isAdmin, load, editingUser, bindingUser]);
+  }, [checking, isAdmin, load, editingUser, bindingUser, loginHistoryUser]);
 
   useEffect(() => {
     if (focusUserId == null || loading || users.length === 0) return;
@@ -335,7 +336,11 @@ function AdminUsersPageContent() {
   });
 
   const anyModalOpen =
-    addUserOpen || templatesOpen || editingUser != null || bindingUser != null;
+    addUserOpen ||
+    templatesOpen ||
+    editingUser != null ||
+    bindingUser != null ||
+    loginHistoryUser != null;
   const addUserDisplayedErrors = addUserSubmitAttempted ? addUserSubmitErrors : addUserLiveErrors;
 
   // Hooks must stay above the auth early-return: logout / stale cache flip
@@ -345,6 +350,10 @@ function AdminUsersPageContent() {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing) return;
+      if (loginHistoryUser != null) {
+        setLoginHistoryUser(null);
+        return;
+      }
       if (bindingUser != null) {
         setBindingUser(null);
         return;
@@ -364,7 +373,7 @@ function AdminUsersPageContent() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addUserOpen, templatesOpen, editingUser, bindingUser, anyModalOpen]);
+  }, [addUserOpen, templatesOpen, editingUser, bindingUser, loginHistoryUser, anyModalOpen]);
 
   useEffect(() => {
     if (!anyModalOpen) return;
@@ -453,6 +462,7 @@ function AdminUsersPageContent() {
         copyingId={copyingId}
         onBindTeacher={openBindTeacher}
         onEdit={openEditUser}
+        onViewLoginHistory={setLoginHistoryUser}
         onCopyCredentials={copyUserCredentials}
         onGenerateLoginLink={generateLoginLink}
         onToggleNeverDisable={toggleNeverDisable}
@@ -464,6 +474,7 @@ function AdminUsersPageContent() {
         locale={locale}
         editingUser={editingUser}
         bindingUser={bindingUser}
+        loginHistoryUser={loginHistoryUser}
         teachers={teachers}
         teachersLoading={teachersLoading}
         addUserOpen={addUserOpen}
@@ -486,6 +497,7 @@ function AdminUsersPageContent() {
         editTemplateName={editTemplateName}
         editTemplateBody={editTemplateBody}
         setEditingUser={setEditingUser}
+        setLoginHistoryUser={setLoginHistoryUser}
         applyUserUpdate={applyUserUpdate}
         loadTeachers={loadTeachers}
         handleUserSaveFailed={handleUserSaveFailed}

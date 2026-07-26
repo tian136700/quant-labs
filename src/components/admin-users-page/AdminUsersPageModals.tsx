@@ -3,6 +3,7 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { AdminUserBindTeacherModal } from "@/components/AdminUserBindTeacherModal";
 import { AdminUserEditModal } from "@/components/AdminUserEditModal";
+import { AdminUserLoginHistoryModal } from "@/components/AdminUserLoginHistoryModal";
 import { AdminUsersAddUserModal } from "@/components/admin-users-page/AdminUsersAddUserModal";
 import { AdminUsersTemplatesModal } from "@/components/admin-users-page/AdminUsersTemplatesModal";
 import type { Locale } from "@/i18n/messages";
@@ -16,6 +17,7 @@ export type AdminUsersPageModalsProps = {
   locale: Locale;
   editingUser: UserRow | null;
   bindingUser: UserRow | null;
+  loginHistoryUser: UserRow | null;
   teachers: AdminJpLessonTeacherOption[];
   teachersLoading: boolean;
   addUserOpen: boolean;
@@ -38,6 +40,7 @@ export type AdminUsersPageModalsProps = {
   editTemplateName: string;
   editTemplateBody: string;
   setEditingUser: (v: UserRow | null) => void;
+  setLoginHistoryUser: (v: UserRow | null) => void;
   applyUserUpdate: (updated: AdminUserEditRow) => void;
   loadTeachers: () => void;
   handleUserSaveFailed: (userId: number, snapshot: AdminUserEditRow, message: string) => void;
@@ -71,6 +74,7 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
     locale,
     editingUser,
     bindingUser,
+    loginHistoryUser,
     teachers,
     teachersLoading,
     addUserOpen,
@@ -93,6 +97,7 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
     editTemplateName,
     editTemplateBody,
     setEditingUser,
+    setLoginHistoryUser,
     applyUserUpdate,
     loadTeachers,
     handleUserSaveFailed,
@@ -225,6 +230,13 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
         onSaveEditTemplate={saveEditTemplate}
         onCancelEditTemplate={cancelEditTemplate}
         onDeleteTemplate={deleteTemplate}
+      />
+
+      <AdminUserLoginHistoryModal
+        open={loginHistoryUser != null}
+        user={loginHistoryUser}
+        locale={locale === "zh" ? "zh" : "en"}
+        onClose={() => setLoginHistoryUser(null)}
       />
     </>
   );

@@ -21,6 +21,7 @@ import {
 } from "../etr-auth";
 import type { CloudflareEnv } from "../types";
 import { ensureBootstrapUsers } from "./bootstrap";
+import { recordUserLoginHistory } from "./login_history";
 import { ensureEtrUsersSchema } from "./schema";
 import {
   etrAuthDbState,
@@ -217,6 +218,7 @@ async function recordUserLogin(
     if (!row) return;
     row.last_login_at = loginAt;
     row.last_login_ip = loginIp;
+    await recordUserLoginHistory(db, userId, loginAt, loginIp);
     return;
   }
 
@@ -229,6 +231,7 @@ async function recordUserLogin(
     )
     .bind(loginAt, loginIp, userId)
     .run();
+  await recordUserLoginHistory(db, userId, loginAt, loginIp);
 }
 
 async function createSession(
