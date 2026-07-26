@@ -136,7 +136,7 @@ export function JpVocabUsageExamplesPairedContent({
         .jp-usage-ex-paired {
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
+          gap: 0.85rem;
           min-width: 0;
         }
         .jp-usage-ex-paired-toolbar {
@@ -146,14 +146,14 @@ export function JpVocabUsageExamplesPairedContent({
         .jp-usage-ex-paired-empty {
           margin: 0;
           color: var(--muted);
-          font-size: 0.9rem;
+          font-size: 1.05rem;
         }
         .jp-usage-ex-paired-fallback {
           margin: 0;
           white-space: pre-wrap;
-          line-height: 1.5;
+          line-height: 1.65;
           color: var(--text);
-          font-size: 0.95rem;
+          font-size: 1.125rem;
         }
         .jp-usage-ex-paired-list {
           margin: 0;
@@ -161,7 +161,7 @@ export function JpVocabUsageExamplesPairedContent({
           list-style: none;
           display: flex;
           flex-direction: column;
-          gap: 0.85rem;
+          gap: 1rem;
         }
         .jp-usage-ex-paired-item {
           margin: 0;
@@ -169,36 +169,48 @@ export function JpVocabUsageExamplesPairedContent({
           min-width: 0;
         }
         .jp-usage-ex-paired-usage {
-          margin: 0 0 0.35rem;
-          line-height: 1.5;
+          margin: 0 0 0.4rem;
+          line-height: 1.65;
           color: var(--text);
-          font-size: 0.95rem;
+          font-size: 1.125rem;
         }
         .jp-usage-ex-paired-usage-label {
           font-weight: 600;
         }
         .jp-usage-ex-paired-jp {
           margin: 0;
-          line-height: 1.55;
+          line-height: 1.85;
           color: var(--text);
-          font-size: 0.95rem;
+          font-size: 1.2rem;
         }
         .jp-usage-ex-paired-gloss {
-          margin: 0.2rem 0 0;
-          line-height: 1.45;
+          margin: 0.25rem 0 0;
+          line-height: 1.55;
           color: var(--muted);
-          font-size: 0.875rem;
+          font-size: 1.05rem;
         }
         .jp-usage-ex-paired-example-missing {
-          margin: 0.15rem 0 0;
+          margin: 0.2rem 0 0;
           color: var(--muted);
-          font-size: 0.8rem;
+          font-size: 0.95rem;
         }
         .jp-usage-ex-paired-sources {
           display: flex;
           flex-direction: column;
           align-items: flex-end;
           gap: 0.15rem;
+        }
+        @media (max-width: 767px) {
+          .jp-usage-ex-paired-usage,
+          .jp-usage-ex-paired-fallback {
+            font-size: 1.15rem;
+          }
+          .jp-usage-ex-paired-jp {
+            font-size: 1.25rem;
+          }
+          .jp-usage-ex-paired-gloss {
+            font-size: 1.1rem;
+          }
         }
       `}</style>
     </div>

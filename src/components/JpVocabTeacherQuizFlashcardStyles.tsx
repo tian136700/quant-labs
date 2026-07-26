@@ -1210,12 +1210,42 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         }
         .jp-vocab-teacher-quiz__examples-title {
           margin: 0;
-          font-size: 0.8125rem;
+          font-size: 0.95rem;
           font-weight: 600;
           color: var(--accent);
         }
         .jp-vocab-teacher-quiz__examples-body {
           min-width: 0;
+        }
+        /* 语法「用法/例句」配对：字号对齐单词例句区，避免 0.9rem 过小 */
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-usage),
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-fallback) {
+          font-size: 1.125rem;
+          line-height: 1.65;
+        }
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-jp) {
+          font-size: clamp(1.15rem, 3.8vw, 1.35rem);
+          font-weight: 600;
+          line-height: 1.9;
+        }
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-gloss) {
+          font-size: 1.05rem;
+          line-height: 1.55;
+        }
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-vocab-furigana-reading) {
+          font-size: 0.55em;
+        }
+        @media (max-width: 767px) {
+          .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-usage),
+          .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-fallback) {
+            font-size: 1.15rem;
+          }
+          .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-jp) {
+            font-size: 1.28rem;
+          }
+          .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-gloss) {
+            font-size: 1.1rem;
+          }
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-vocab-source-label) {
           font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas,
