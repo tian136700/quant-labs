@@ -2,7 +2,7 @@ import "server-only";
 
 /** 释义上传契约（list_missing 会原样返回；与本地/线上词典约定一致） */
 export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
-  version: 1,
+  version: 2,
   max_senses: 3,
   max_major_senses: 3,
   /** 同读音/大义项下的近义（按常用程度：第 1 个最常用） */
@@ -13,17 +13,22 @@ export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
   format_example_reading: "おくる",
   format_example_multi: "前面；以前/前面的；预先的",
   format_example_reading_multi: "まえ/ぜん",
+  pos_example: "名词",
+  pos_multi_example: "名词/副词",
   rules: [
     "只补「单词」缺释义（grammar 语法条不走此接口）",
+    "缺释义时：若同时缺词性 / 例句，可在同一次写回一并补上（list_missing 的 need_pos / need_examples）",
     "只写最常用 1～3 个义项，按常用程度排序：第 1 个最常用，其后递减（例：送る → 送人；送东西）",
     "一词多种常用读音（如 前=まえ/ぜん、中=なか/ちゅう）时：不同读音/大义项用半角斜杠 / 分隔，段数与 reading 字段一致",
     "同一大义项下的近义仍用中文分号 ；，不要用英文分号或顿号",
     "斜杠前是第一义（训读等），斜杠后是第二义（音读/构词等）；例：前 → 前面；以前/前面的；预先的",
-    "不要编号、不要 markdown、不要整句解释、不要日语假名",
+    "词性用中文：名词、动词、い形容词、な形容词、副词…；多词性用 /",
+    "例句：只造比较常用的用法；条数 = max(2, 常用用法数)；释义含 / 时按斜杠段数；每条「日语」下一行「译文：」；汉字后半角括号假名",
+    "不要编号、不要 markdown、不要整句解释（释义行不要日语假名）",
     "不要冷僻义挤在前面；不要堆砌词典全义",
     "写回时请传 source，建议「Jisho」或「模型名 本地|线上」；人手为「手动」",
   ],
-  source_examples: ["Jisho", "gemma4:26b 本地", "手动"],
+  source_examples: ["Jisho", "gemma4:26b 本地", "线上 claude-sonnet-4-6", "手动"],
   reject_reasons: [
     "empty",
     "too_long",
@@ -40,21 +45,42 @@ export type JpVocabMeaningAiInput = {
   reading?: string | null;
   kind?: string;
   pos?: string | null;
+  /** 缺释义（本接口主任务；默认 true） */
+  need_meaning?: boolean;
+  /** 同时缺词性时一并要 AI 出词性 */
+  need_pos?: boolean;
+  /** 同时缺例句时一并要 AI 出常用用法例句 */
+  need_examples?: boolean;
 };
 
 export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): string {
   const reading = input.reading?.trim();
-  const pos = input.pos?.trim();
+  const existingPos = input.pos?.trim();
+  const needMeaning = input.need_meaning !== false;
+  const needPos = Boolean(input.need_pos);
+  const needExamples = Boolean(input.need_examples);
+  const combo = needPos || needExamples;
+
   const meta = [
     `词条：${input.word.trim()}`,
     reading ? `读音：${reading}` : null,
-    pos ? `词性：${pos}` : null,
+    existingPos && !needPos ? `词性：${existingPos}` : null,
     "类型：单词",
+    combo
+      ? `本次需补：${[
+          needMeaning ? "释义" : null,
+          needPos ? "词性" : null,
+          needExamples ? "例句（常用用法）" : null,
+        ]
+          .filter(Boolean)
+          .join("、")}`
+      : null,
   ]
     .filter(Boolean)
     .join("\n");
 
-  return `${meta}
+  if (!combo) {
+    return `${meta}
 
 请为上述日语单词写中文释义，供 N5/N4 初学者复习。
 
@@ -66,6 +92,38 @@ export function buildJpVocabMeaningAiPrompt(input: JpVocabMeaningAiInput): strin
 5. 不要冷僻义、不要词典全义堆砌；简短口语化，不要例句、不要编号、不要 markdown、不要解释过程
 6. 不要输出日语假名或英文（专有名词可保留常见中文译名）
 7. 只输出一行释义正文`;
+  }
+
+  const sections: string[] = [];
+  if (needMeaning) {
+    sections.push(
+      "【释义】\n一行中文释义：最常用 1～3 个义项，用「；」连接，常用在前；多读音大义项用半角 /（与读音字段段数一致）。不要日语假名、不要编号。"
+    );
+  }
+  if (needPos) {
+    sections.push(
+      "【词性】\n一行中文词性，例如：名词、动词、い形容词、な形容词、副词；多词性用 /，例如：名词/副词。"
+    );
+  }
+  if (needExamples) {
+    sections.push(
+      `【例句】
+只造比较常用的用法（不要冷僻义）。条数：先看释义——含 / 时按斜杠段数（每段 1 句）；无斜杠时 max(2, 常用用法数)。
+每条两行：日语一行（句中每个汉字后立刻半角括号假名，如 今日(きょう)）；下一行必须以「译文：」开头的自然中文。
+N5～N4 短句口语；必须用到该词条；句末须有「。」等；从句连接（ながら／によると）后加「、」；不要行首编号、不要 markdown、不要句末语法说明括号。`
+    );
+  }
+
+  return `${meta}
+
+请为上述日语单词补全字段，供 N5/N4 初学者复习。
+
+请严格按下列区块输出（缺哪项就省略哪块；块标题必须原样写出）：
+${sections.join("\n\n")}
+
+总规则：
+- 释义不要冷僻义堆砌；例句只要常用用法
+- 不要输出解释过程、不要 markdown`;
 }
 
 /** 按斜杠拆大义项（不同读音/用法）；无斜杠则整段为一义 */

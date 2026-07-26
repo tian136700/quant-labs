@@ -1,19 +1,25 @@
 import "server-only";
 
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
+import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
+import { normalizeJpVocabExampleSentencesSource } from "@/lib/jp-vocab-example-sentences";
 import {
   buildJpVocabMeaningAiPrompt,
   JP_VOCAB_MEANING_UPLOAD_SPEC,
   normalizeJpVocabMeaningText,
   validateJpVocabMeaningAiOutput,
 } from "@/lib/jp-vocab-meaning-ai";
-import { normalizeJpVocabExampleSentencesSource } from "@/lib/jp-vocab-example-sentences";
+import { validateJpVocabPosAiOutput } from "@/lib/jp-vocab-pos-ai";
 
 export type JpVocabMissingMeaningRow = {
   id: number;
   word: string;
   reading: string | null;
   kind: string;
+  /** 缺词性时一并让 Cloud 出词性 */
+  need_pos: boolean;
+  /** 缺例句时一并让 Cloud 出常用用法例句 */
+  need_examples: boolean;
   /** 可直接喂给本地/远程模型的完整 prompt */
   prompt: string;
 };
@@ -21,7 +27,9 @@ export type JpVocabMissingMeaningRow = {
 export type JpVocabFillMeaningApplied = {
   id: number;
   word: string;
-  meaning: string;
+  meaning: string | null;
+  pos: string | null;
+  example_sentences: string | null;
   meaning_source: string | null;
 };
 
@@ -40,6 +48,10 @@ export type JpVocabFillMeaningResult = {
 export type ListJpVocabMissingMeaningOptions = {
   limit?: number;
 };
+
+function isBlankField(value: string | null | undefined): boolean {
+  return !(value != null && String(value).trim());
+}
 
 export async function countJpVocabWordsMissingMeaning(
   db: D1Database
@@ -70,8 +82,7 @@ export async function listJpVocabWordsMissingMeaning(
   // 硬顶：释义补全热路径禁止一次拉太多；稍放宽供毒丸跳过队首（仍远小于曾炸 1102 的 200）
   const limit = rawLimit == null ? null : Math.min(rawLimit, 20);
 
-  // 释义不再依赖词性（本机 Ollama 释义已停；tokken 限流可直接补）
-  let sql = `SELECT id, word, reading, kind, pos FROM jp_vocab_word
+  let sql = `SELECT id, word, reading, kind, pos, example_sentences FROM jp_vocab_word
        WHERE kind != 'grammar'
          AND (meaning IS NULL OR meaning = '')
        ORDER BY id`;
@@ -87,69 +98,33 @@ export async function listJpVocabWordsMissingMeaning(
     reading: string | null;
     kind: string;
     pos: string | null;
+    example_sentences: string | null;
   }>();
 
   return (result.results ?? []).map((row) => {
     const word = String(row.word);
     const reading = row.reading != null ? String(row.reading).trim() || null : null;
     const pos = row.pos != null ? String(row.pos).trim() || null : null;
+    const need_pos = isBlankField(pos);
+    const need_examples = isBlankField(row.example_sentences);
     return {
       id: Number(row.id),
       word,
       reading,
       kind: String(row.kind),
+      need_pos,
+      need_examples,
       prompt: buildJpVocabMeaningAiPrompt({
         word,
         reading,
         kind: String(row.kind),
         pos,
+        need_meaning: true,
+        need_pos,
+        need_examples,
       }),
     };
   });
-}
-
-async function updateMeaningIfEmpty(
-  db: D1Database,
-  wordId: number,
-  meaning: string,
-  source: string | null,
-  dryRun: boolean
-): Promise<boolean> {
-  if (dryRun) return true;
-  const result = await db
-    .prepare(
-      `UPDATE jp_vocab_word
-       SET meaning = ?1,
-           meaning_source = ?2,
-           updated_at = datetime('now')
-       WHERE id = ?3
-         AND kind != 'grammar'
-         AND (meaning IS NULL OR meaning = '')`
-    )
-    .bind(meaning.trim(), source, wordId)
-    .run();
-  return Number(result.meta?.changes ?? 0) > 0;
-}
-
-async function updateMeaningOverwrite(
-  db: D1Database,
-  wordId: number,
-  meaning: string,
-  source: string | null,
-  dryRun: boolean
-): Promise<boolean> {
-  if (dryRun) return true;
-  const result = await db
-    .prepare(
-      `UPDATE jp_vocab_word
-       SET meaning = ?1,
-           meaning_source = ?2,
-           updated_at = datetime('now')
-       WHERE id = ?3 AND kind != 'grammar'`
-    )
-    .bind(meaning.trim(), source, wordId)
-    .run();
-  return Number(result.meta?.changes ?? 0) > 0;
 }
 
 export async function scanJpVocabWordsMissingMeaning(
@@ -222,7 +197,9 @@ export async function clearAllJpVocabWordMeanings(
 
 export type JpVocabMeaningUpdateItem = {
   word_id: number;
-  meaning: string;
+  meaning?: string | null;
+  pos?: string | null;
+  example_sentences?: string | null;
   source?: string | null;
 };
 
@@ -249,16 +226,35 @@ export async function applyJpVocabMeaningUpdates(
 
   for (const item of updates) {
     const wordId = Number(item.word_id);
-    let meaning = String(item.meaning ?? "").trim();
-    if (!Number.isInteger(wordId) || wordId <= 0 || !meaning) continue;
+    if (!Number.isInteger(wordId) || wordId <= 0) continue;
+
+    let meaningRaw =
+      item.meaning != null ? String(item.meaning).trim() : "";
+    let posRaw = item.pos != null ? String(item.pos).trim() : "";
+    let examplesRaw =
+      item.example_sentences != null
+        ? String(item.example_sentences).trim()
+        : "";
+    if (!meaningRaw && !posRaw && !examplesRaw) continue;
 
     const source =
       normalizeJpVocabExampleSentencesSource(item.source) ?? defaultSource;
 
     const row = await db
-      .prepare(`SELECT id, word, kind FROM jp_vocab_word WHERE id = ?1`)
+      .prepare(
+        `SELECT id, word, kind, meaning, pos, example_sentences, reading
+         FROM jp_vocab_word WHERE id = ?1`
+      )
       .bind(wordId)
-      .first<{ id: number; word: string; kind: string }>();
+      .first<{
+        id: number;
+        word: string;
+        kind: string;
+        meaning: string | null;
+        pos: string | null;
+        example_sentences: string | null;
+        reading: string | null;
+      }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
       continue;
@@ -268,39 +264,183 @@ export async function applyJpVocabMeaningUpdates(
       continue;
     }
 
-    if (validateFormat) {
-      const validated = validateJpVocabMeaningAiOutput(meaning);
-      if (!validated.ok) {
-        skipped.push({
-          id: wordId,
-          word: String(row.word),
-          reason: `invalid_format:${validated.reason}`,
-        });
-        continue;
+    const meaningEmpty = isBlankField(row.meaning);
+    const posEmpty = isBlankField(row.pos);
+    const examplesEmpty = isBlankField(row.example_sentences);
+
+    let nextMeaning: string | null = null;
+    let nextPos: string | null = null;
+    let nextExamples: string | null = null;
+
+    if (meaningRaw && (allowOverwrite || meaningEmpty)) {
+      if (validateFormat) {
+        const validated = validateJpVocabMeaningAiOutput(meaningRaw);
+        if (!validated.ok) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `invalid_format:${validated.reason}`,
+          });
+          continue;
+        }
+        nextMeaning = validated.text;
+      } else {
+        nextMeaning = normalizeJpVocabMeaningText(meaningRaw) || meaningRaw;
       }
-      meaning = validated.text;
-    } else {
-      meaning = normalizeJpVocabMeaningText(meaning) || meaning;
+    } else if (meaningRaw && !meaningEmpty) {
+      meaningRaw = "";
     }
 
-    const changed = allowOverwrite
-      ? await updateMeaningOverwrite(db, wordId, meaning, source, dryRun)
-      : await updateMeaningIfEmpty(db, wordId, meaning, source, dryRun);
-    if (changed) {
-      updated += 1;
-      applied.push({
-        id: wordId,
-        word: String(row.word),
-        meaning,
-        meaning_source: source,
-      });
-    } else {
+    if (posRaw && (allowOverwrite || posEmpty)) {
+      if (validateFormat) {
+        const validated = validateJpVocabPosAiOutput(posRaw);
+        if (!validated.ok) {
+          // 词性坏了仍可写释义；记下原因继续
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `pos_invalid:${validated.reason}`,
+          });
+          posRaw = "";
+        } else {
+          nextPos = validated.text;
+        }
+      } else {
+        nextPos = posRaw;
+      }
+    } else if (posRaw && !posEmpty) {
+      posRaw = "";
+    }
+
+    const meaningForExamples = nextMeaning ?? (row.meaning != null ? String(row.meaning) : null);
+    if (examplesRaw && (allowOverwrite || examplesEmpty)) {
+      if (validateFormat) {
+        const validated = validateJpVocabExampleSentencesAiOutput(examplesRaw, {
+          word: String(row.word),
+          kind: String(row.kind),
+          reading: row.reading,
+          meaning: meaningForExamples,
+        });
+        if (!validated.ok) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `examples_invalid:${validated.reason}`,
+          });
+          examplesRaw = "";
+        } else {
+          nextExamples = validated.text;
+        }
+      } else {
+        nextExamples = examplesRaw;
+      }
+    } else if (examplesRaw && !examplesEmpty) {
+      examplesRaw = "";
+    }
+
+    if (!nextMeaning && !nextPos && !nextExamples) {
       skipped.push({
         id: wordId,
         word: String(row.word),
         reason: allowOverwrite ? "unchanged" : "already_filled",
       });
+      continue;
     }
+
+    if (!dryRun) {
+      if (nextMeaning || nextPos) {
+        const result = allowOverwrite
+          ? await db
+              .prepare(
+                `UPDATE jp_vocab_word
+                 SET meaning = COALESCE(?1, meaning),
+                     meaning_source = CASE
+                       WHEN ?1 IS NOT NULL THEN ?2
+                       ELSE meaning_source
+                     END,
+                     pos = COALESCE(?3, pos),
+                     updated_at = datetime('now')
+                 WHERE id = ?4 AND kind != 'grammar'`
+              )
+              .bind(nextMeaning, source, nextPos, wordId)
+              .run()
+          : await db
+              .prepare(
+                `UPDATE jp_vocab_word
+                 SET meaning = CASE
+                       WHEN (meaning IS NULL OR meaning = '') AND ?1 IS NOT NULL THEN ?1
+                       ELSE meaning
+                     END,
+                     meaning_source = CASE
+                       WHEN (meaning IS NULL OR meaning = '') AND ?1 IS NOT NULL THEN ?2
+                       ELSE meaning_source
+                     END,
+                     pos = CASE
+                       WHEN (pos IS NULL OR TRIM(pos) = '') AND ?3 IS NOT NULL THEN ?3
+                       ELSE pos
+                     END,
+                     updated_at = datetime('now')
+                 WHERE id = ?4 AND kind != 'grammar'`
+              )
+              .bind(nextMeaning, source, nextPos, wordId)
+              .run();
+        if (!(Number(result.meta?.changes ?? 0) > 0) && !nextExamples) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: "already_filled",
+          });
+          continue;
+        }
+      }
+
+      if (nextExamples) {
+        const exResult = allowOverwrite
+          ? await db
+              .prepare(
+                `UPDATE jp_vocab_word
+                 SET example_sentences = ?1,
+                     example_sentences_source = ?2,
+                     updated_at = datetime('now')
+                 WHERE id = ?3`
+              )
+              .bind(nextExamples, source, wordId)
+              .run()
+          : await db
+              .prepare(
+                `UPDATE jp_vocab_word
+                 SET example_sentences = ?1,
+                     example_sentences_source = ?2,
+                     updated_at = datetime('now')
+                 WHERE id = ?3
+                   AND (example_sentences IS NULL OR TRIM(example_sentences) = '')`
+              )
+              .bind(nextExamples, source, wordId)
+              .run();
+        if (!(Number(exResult.meta?.changes ?? 0) > 0)) {
+          nextExamples = null;
+        }
+      }
+    }
+
+    if (!nextMeaning && !nextPos && !nextExamples) {
+      skipped.push({
+        id: wordId,
+        word: String(row.word),
+        reason: "already_filled",
+      });
+      continue;
+    }
+
+    updated += 1;
+    applied.push({
+      id: wordId,
+      word: String(row.word),
+      meaning: nextMeaning,
+      pos: nextPos,
+      example_sentences: nextExamples,
+      meaning_source: source,
+    });
   }
 
   return {

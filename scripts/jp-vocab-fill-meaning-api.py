@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """日语单词释义：tokken Anthropic（与英语线上补全同一套）→ POST fill-meaning。
 
+缺释义时：若同时缺词性 / 例句，同一次 Cloud 请求一并要回（常用用法例句即可）。
+
 限流 / 互斥：
   - 每轮最多 1 条
   - 两轮付费调用最小间隔 ≥1 秒（文件门禁；未到点则 sleep 等待，不 skip）
   - 进程互斥锁：前一任务仍在跑则阻塞等待，禁止并行打 tokken
   - 失败词毒丸 6h，避免队首同一词连环烧钱
+  - 释义写回成功则不因例句校验失败毒丸（例句可留给独立定时）
 
 用法：
   python3 scripts/jp-vocab-fill-meaning-api.py --clear-all
@@ -61,12 +64,38 @@ LEADING_INDEX_RE = re.compile(r"^\s*\d+[.、．)\]]\s*")
 FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
 
 SYSTEM = (
-    "你为日语 N5/N4 初学者写单词中文释义。"
-    "只输出一行释义正文，不要 markdown、不要编号、不要解释过程。"
-    "只写最常用 1～3 个义项，按常用程度排序：第 1 个最常用，其后用中文分号「；」连接。"
-    "例：送る → 送人；送东西。不要冷僻义挤前面。"
-    "一词多读音时用半角斜杠 / 分大义项（与读音字段段数一致）。"
+    "你为日语 N5/N4 初学者补全单词字段（释义，必要时词性与常用用法例句）。"
+    "严格按用户要求的【释义】【词性】【例句】区块输出；缺哪项就省略哪块。"
+    "若只要释义：也可只输出一行释义正文。"
+    "释义：最常用 1～3 个中文义项，用「；」连接，常用在前；多读音用 / 分大义项。"
+    "词性：中文（名词/动词/い形容词…），多词性用 /。"
+    "例句：只要比较常用的用法；日语行须汉字后半角括号假名；下一行「译文：」中文。"
+    "不要 markdown、不要解释过程。"
 )
+
+SECTION_RE = re.compile(
+    r"^【\s*(释义|词性|例句|意思)\s*】\s*$|^#{1,3}\s*(释义|词性|例句)\s*$",
+    re.I,
+)
+POS_TOKEN_RE = re.compile(
+    r"^(名词|动词|い形容词|な形容词|形容词|副词|助词|接続词|接续词|"
+    r"感叹词|数词|连体词|代词|接尾词|接头词|连语|固有名詞|专有名词)$"
+)
+POS_ALIASES = {
+    "名詞": "名词",
+    "動詞": "动词",
+    "形容詞": "形容词",
+    "い形": "い形容词",
+    "ナ形": "な形容词",
+    "な形": "な形容词",
+    "副詞": "副词",
+    "助詞": "助词",
+    "接続詞": "接続词",
+    "感嘆詞": "感叹词",
+    "数詞": "数词",
+    "連体詞": "连体词",
+    "代名詞": "代词",
+}
 
 
 def load_env_file(name: str) -> dict[str, str]:
@@ -275,6 +304,111 @@ def validate_meaning(raw: str) -> tuple[str | None, str | None]:
     return text, None
 
 
+def map_pos_token(raw: str) -> str | None:
+    t = raw.strip().replace("。", "").replace("．", "")
+    if not t:
+        return None
+    if t in POS_ALIASES:
+        return POS_ALIASES[t]
+    if POS_TOKEN_RE.match(t):
+        if t == "接续词":
+            return "接続词"
+        if t == "形容词":
+            return "い形容词"
+        return t
+    return None
+
+
+def normalize_pos(raw: str) -> str | None:
+    cleaned = re.sub(r"^(词性|pos)\s*[:：]\s*", "", str(raw or ""), flags=re.I).strip()
+    parts: list[str] = []
+    seen: set[str] = set()
+    for chunk in re.split(r"[\/／|,，;；]+", cleaned):
+        mapped = map_pos_token(chunk)
+        if not mapped or mapped in seen:
+            continue
+        seen.add(mapped)
+        parts.append(mapped)
+        if len(parts) >= 3:
+            break
+    return "/".join(parts) if parts else None
+
+
+def _section_key(label: str) -> str | None:
+    t = label.strip().lower()
+    if t in ("释义", "意思", "meaning"):
+        return "meaning"
+    if t in ("词性", "pos"):
+        return "pos"
+    if t in ("例句", "例子", "examples", "example"):
+        return "examples"
+    return None
+
+
+def parse_combo_output(
+    content: str,
+    *,
+    need_meaning: bool,
+    need_pos: bool,
+    need_examples: bool,
+) -> tuple[str | None, str | None, str | None]:
+    """解析【释义】/【词性】/【例句】区块；仅释义时兼容单行输出。"""
+    text = FENCE_RE.sub("", str(content or "")).strip()
+    if not text:
+        return None, None, None
+
+    lines = text.splitlines()
+    has_section = any(SECTION_RE.match(ln.strip()) for ln in lines)
+
+    meaning: str | None = None
+    pos: str | None = None
+    examples: str | None = None
+
+    if not has_section:
+        # 旧格式：整段当释义；若同时缺词性且第二行像词性则拆开
+        non_empty = [LEADING_INDEX_RE.sub("", ln.strip()) for ln in lines if ln.strip()]
+        if need_meaning and non_empty:
+            meaning, _ = validate_meaning(non_empty[0])
+        if need_pos:
+            for ln in non_empty[1:] if need_meaning else non_empty:
+                maybe = normalize_pos(ln)
+                if maybe:
+                    pos = maybe
+                    break
+        if need_examples and len(non_empty) >= 3:
+            # 从首条像日语例句的行起收尾
+            start = None
+            for i, ln in enumerate(non_empty):
+                if "译文" in ln or "(" in ln or "（" in ln:
+                    start = i if "译文" not in ln else max(0, i - 1)
+                    break
+            if start is not None:
+                examples = "\n".join(non_empty[start:]).strip() or None
+        return meaning, pos, examples
+
+    buckets: dict[str, list[str]] = {"meaning": [], "pos": [], "examples": []}
+    current: str | None = None
+    for raw_line in lines:
+        line = raw_line.strip()
+        m = SECTION_RE.match(line)
+        if m:
+            label = m.group(1) or m.group(2) or ""
+            current = _section_key(label)
+            continue
+        if not line or current is None:
+            continue
+        buckets[current].append(LEADING_INDEX_RE.sub("", line))
+
+    if need_meaning and buckets["meaning"]:
+        meaning, _ = validate_meaning("\n".join(buckets["meaning"]))
+    if need_pos and buckets["pos"]:
+        pos = normalize_pos(" ".join(buckets["pos"]))
+    if need_examples and buckets["examples"]:
+        examples = "\n".join(buckets["examples"]).strip() or None
+
+    return meaning, pos, examples
+
+
 def call_api(
     *,
     api_url: str,
@@ -348,11 +482,15 @@ def run_clear_all(*, api_url: str, token: str, dry_run: bool) -> dict:
     return payload
 
 
-def generate_meaning(prompt: str) -> str:
+def generate_fields(
+    prompt: str,
+    *,
+    need_examples: bool,
+) -> str:
     return call_anthropic(
         prompt,
         system=SYSTEM,
-        max_tokens=256,
+        max_tokens=1600 if need_examples else 256,
         temperature=0.2,
         timeout=180,
     )
@@ -417,16 +555,30 @@ def run_one_fill(
 
     word_id = int(row["id"])
     word = str(row["word"])
+    need_pos = bool(row.get("need_pos"))
+    need_examples = bool(row.get("need_examples"))
     prompt = str(row.get("prompt") or "").strip()
     if not prompt:
+        jobs = ["【释义】一行常用中文义项，用「；」连接"]
+        if need_pos:
+            jobs.append("【词性】一行中文词性，多词性用 /")
+        if need_examples:
+            jobs.append("【例句】常用用法；日语+译文：交替，汉字后半角括号假名")
         prompt = (
             f"词条：{word}\n类型：单词\n\n"
-            "请写中文释义：最常用 1～3 个义项，用「；」连接，常用在前。"
+            "请补全：\n" + "\n".join(jobs)
         )
+
+    extra = []
+    if need_pos:
+        extra.append("pos")
+    if need_examples:
+        extra.append("examples")
+    extra_s = f"+{'+'.join(extra)}" if extra else ""
 
     print(
         f"[jp-vocab-fill-meaning] 待补 {FILL_PER_ROUND}/{total_missing}: "
-        f"id={word_id} {word!r} model={anthropic_model()}"
+        f"id={word_id} {word!r} meaning{extra_s} model={anthropic_model()}"
         + (f" (已跳过毒丸 {skipped_poison})" if skipped_poison else ""),
         flush=True,
     )
@@ -438,11 +590,16 @@ def run_one_fill(
             "mode": "online",
             "updated": 0,
             "dry_run": True,
-            "would_call": {"word_id": word_id, "word": word},
+            "would_call": {
+                "word_id": word_id,
+                "word": word,
+                "need_pos": need_pos,
+                "need_examples": need_examples,
+            },
         }
 
     try:
-        raw = generate_meaning(prompt)
+        raw = generate_fields(prompt, need_examples=need_examples)
     except Exception as exc:
         mark_paid_call()
         poison_word(word_id, f"anthropic_error:{exc}")
@@ -450,14 +607,40 @@ def run_one_fill(
         return {"ok": True, "updated": 0, "error": str(exc)}
 
     mark_paid_call()
-    meaning, reason = validate_meaning(raw)
+    meaning, pos, examples = parse_combo_output(
+        raw,
+        need_meaning=True,
+        need_pos=need_pos,
+        need_examples=need_examples,
+    )
     if not meaning:
-        poison_word(word_id, f"invalid:{reason}")
-        print(f"  校验失败 reason={reason} raw={raw[:80]!r}", flush=True)
-        return {"ok": True, "updated": 0, "skipped": [{"id": word_id, "reason": reason}]}
+        poison_word(word_id, "invalid:empty_meaning")
+        print(f"  校验失败 reason=empty_meaning raw={raw[:120]!r}", flush=True)
+        return {
+            "ok": True,
+            "updated": 0,
+            "skipped": [{"id": word_id, "reason": "empty_meaning"}],
+        }
+
+    if need_pos and not pos:
+        print("  警告: 需要词性但未解析到，仍写释义", flush=True)
+    if need_examples and not examples:
+        print("  警告: 需要例句但未解析到，仍写释义（例句留给独立定时）", flush=True)
 
     source = build_online_source_label()
-    print(f"  {word_id} {word!r} -> {meaning!r} source={source}", flush=True)
+    update: dict = {"word_id": word_id, "meaning": meaning, "source": source}
+    if pos:
+        update["pos"] = pos
+    if examples:
+        update["example_sentences"] = examples
+
+    print(
+        f"  {word_id} {word!r} -> meaning={meaning!r}"
+        + (f" pos={pos!r}" if pos else "")
+        + (f" examples_len={len(examples)}" if examples else "")
+        + f" source={source}",
+        flush=True,
+    )
 
     payload = call_api(
         api_url=api_url,
@@ -465,9 +648,7 @@ def run_one_fill(
         body={
             "mode": "apply",
             "source": source,
-            "updates": [
-                {"word_id": word_id, "meaning": meaning, "source": source}
-            ],
+            "updates": [update],
         },
     )
     if not payload.get("ok"):
@@ -475,8 +656,19 @@ def run_one_fill(
         raise SystemExit(f"API error: {payload.get('error', payload)}")
 
     skipped = payload.get("skipped") or []
-    if skipped and not payload.get("updated"):
+    applied = payload.get("applied") or []
+    meaning_ok = bool(payload.get("updated")) and any(
+        (a.get("meaning") for a in applied)
+    )
+    # 释义已写入：例句/词性校验失败不毒丸（避免白烧钱）
+    if not meaning_ok and skipped and not payload.get("updated"):
         poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
+    elif skipped:
+        for s in skipped:
+            print(
+                f"  apply 部分跳过: {s.get('reason')}",
+                flush=True,
+            )
 
     remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
     print(

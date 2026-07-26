@@ -19,6 +19,8 @@ type FillMeaningBody = {
   updates?: Array<{
     word_id?: number;
     meaning?: string;
+    pos?: string;
+    example_sentences?: string;
     source?: string;
     meaning_source?: string;
   }>;
@@ -50,7 +52,13 @@ export async function POST(request: Request) {
           "";
         return {
           word_id: Number(item.word_id),
-          meaning: String(item.meaning ?? "").trim(),
+          meaning:
+            item.meaning != null ? String(item.meaning).trim() || null : null,
+          pos: item.pos != null ? String(item.pos).trim() || null : null,
+          example_sentences:
+            item.example_sentences != null
+              ? String(item.example_sentences).trim() || null
+              : null,
           source: per || null,
         };
       })
@@ -58,7 +66,7 @@ export async function POST(request: Request) {
         (item) =>
           Number.isInteger(item.word_id) &&
           item.word_id > 0 &&
-          item.meaning.length > 0
+          Boolean(item.meaning || item.pos || item.example_sentences)
       );
 
     const limit =

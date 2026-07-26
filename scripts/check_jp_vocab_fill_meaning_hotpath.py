@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     meaning = (ROOT / "src/lib/jp-vocab-fill-meaning.ts").read_text(encoding="utf-8")
+    ai = (ROOT / "src/lib/jp-vocab-meaning-ai.ts").read_text(encoding="utf-8")
     na_adj = (ROOT / "src/lib/jp-vocab-na-adj-db.ts").read_text(encoding="utf-8")
     route = (
         ROOT / "src/app/api/jp-vocab/fill-meaning/route.ts"
@@ -26,6 +27,12 @@ def main() -> int:
         errors.append("fill-meaning limit 未硬顶 ≤20")
     if "LIST_CANDIDATE_LIMIT" not in script or "FILL_PER_ROUND" not in script:
         errors.append("脚本缺 LIST_CANDIDATE_LIMIT/FILL_PER_ROUND（防毒丸队首卡死）")
+    if "need_pos" not in meaning or "need_examples" not in meaning:
+        errors.append("jp-vocab-fill-meaning.ts 缺 need_pos/need_examples（释义应顺带检测词性/例句）")
+    if "need_pos" not in ai or "need_examples" not in ai:
+        errors.append("jp-vocab-meaning-ai.ts prompt 未支持 need_pos/need_examples")
+    if "parse_combo_output" not in script or "example_sentences" not in script:
+        errors.append("脚本未解析/写回 example_sentences（顺带补例句）")
     if "naAdjNormalizeCleanUntil" not in na_adj:
         errors.append("jp-vocab-na-adj-db.ts 缺 isolate TTL 缓存（例句等 list_missing 用）")
     if "db.batch" not in na_adj:
