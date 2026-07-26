@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: sessionStart hook must warn about Worker gzip 2980 soft limit.
+"""Regression: sessionStart hook must warn about Worker gzip 3005 soft limit.
 
 The soft gate has failed deploys many times; agents must see it before coding.
 Hook path is local (.cursor/ is gitignored) but must stay present on this Mac.
@@ -15,7 +15,7 @@ HOOK = ROOT / ".cursor" / "hooks" / "bug-prevention-session.py"
 
 REQUIRED = (
     "[worker-bundle-size]",
-    "2980",
+    "3005",
     "check_worker_bundle_size",
     "await import",
     "ssr: false",
