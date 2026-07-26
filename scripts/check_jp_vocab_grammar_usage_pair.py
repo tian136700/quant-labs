@@ -33,8 +33,6 @@ def main() -> int:
     rule = (
         ROOT / ".cursor/rules/jp-vocab-grammar-usage.mdc"
     ).read_text(encoding="utf-8")
-    install_sh = ROOT / "scripts/install-jp-vocab-fill-grammar-launchd.sh"
-    plist = ROOT / "scripts/com.infoquests.jp-vocab-fill-grammar.plist"
 
     if 'ADD COLUMN usage TEXT' not in helpers and '"usage"' not in helpers:
         errors.append("helpers.ts 未确保 usage 列")
@@ -44,18 +42,8 @@ def main() -> int:
         errors.append("fill-usage 须只补 grammar")
     if "clear_grammar_examples" not in route and "clearAllJpVocabGrammarExampleSentences" not in fill_usage:
         errors.append("缺 clear_grammar_examples")
-    if "isJpVocabGrammarPairIncomplete" not in fill_usage:
-        errors.append("须用 isJpVocabGrammarPairIncomplete（变形课有例句即完整）")
-    if "row_needs_pair_fill" not in script:
-        errors.append("付费脚本须 row_needs_pair_fill（防旧 API 把变形空 usage 当缺失）")
-    if not install_sh.is_file() or "jp-vocab-fill-grammar-usage-examples-cron.sh" not in install_sh.read_text(
-        encoding="utf-8"
-    ):
-        errors.append("须有 install-jp-vocab-fill-grammar-launchd.sh 指向 cron 脚本")
-    if not plist.is_file() or "StartInterval" not in plist.read_text(encoding="utf-8"):
-        errors.append("须有 com.infoquests.jp-vocab-fill-grammar.plist StartInterval=60")
-    if "空 usage 不算缺失" not in rule and "有例句即完整" not in rule:
-        errors.append("规则须写明变形课有例句即完整、空 usage 不算缺失")
+    if "example_sentences IS NULL OR example_sentences = ''" not in fill_usage:
+        errors.append("list_missing 须含缺例句（成对补）")
     if "example_sentences" not in route:
         errors.append("fill-usage apply 须接受 example_sentences")
     if "parseJpVocabGrammarUsageExamplePairs" not in usage_ai:
@@ -116,7 +104,9 @@ def main() -> int:
         errors.append("脚本须支持 max-rounds 冒烟")
     if "target_word_id" not in script:
         errors.append("脚本 --word-id 须定点 target_word_id（禁止误补 list 下一条）")
-    if "wordId" not in fill_usage and "word_id" not in route:
+    if "wordId" not in fill_usage and "word_id" not in (
+        ROOT / "src/app/api/jp-vocab/fill-usage/route.ts"
+    ).read_text(encoding="utf-8"):
         errors.append("list_missing 须支持 word_id 定点")
     if "同一次" not in rule and "成对" not in rule:
         errors.append("规则须写明用法+例句同一次调用")
