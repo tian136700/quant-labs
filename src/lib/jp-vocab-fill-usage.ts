@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
+import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
 import {
   buildJpVocabUsageAiPrompt,
   JP_VOCAB_USAGE_UPLOAD_SPEC,
@@ -15,6 +16,10 @@ export type JpVocabMissingUsageRow = {
   kind: string;
   reading: string | null;
   meaning: string | null;
+  /** 已有用法时仍可成对重写（缺例句） */
+  usage: string | null;
+  need_usage: boolean;
+  need_examples: boolean;
   prompt: string;
 };
 
@@ -23,6 +28,8 @@ export type JpVocabFillUsageApplied = {
   word: string;
   usage: string;
   usage_source: string | null;
+  example_sentences?: string | null;
+  example_sentences_source?: string | null;
 };
 
 export type JpVocabFillUsageResult = {
@@ -41,6 +48,7 @@ export type ListJpVocabMissingUsageOptions = {
   limit?: number;
 };
 
+/** 缺用法或缺例句（成对一次补） */
 export async function countJpVocabGrammarMissingUsage(
   db: D1Database
 ): Promise<number> {
@@ -48,7 +56,10 @@ export async function countJpVocabGrammarMissingUsage(
     .prepare(
       `SELECT COUNT(*) AS n FROM jp_vocab_word
        WHERE kind = 'grammar'
-         AND (usage IS NULL OR usage = '')`
+         AND (
+           (usage IS NULL OR usage = '')
+           OR (example_sentences IS NULL OR example_sentences = '')
+         )`
     )
     .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -67,9 +78,13 @@ export async function listJpVocabGrammarMissingUsage(
       : null;
   const limit = rawLimit == null ? null : Math.min(rawLimit, 20);
 
-  let sql = `SELECT id, word, kind, reading, meaning FROM jp_vocab_word
+  let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences
+       FROM jp_vocab_word
        WHERE kind = 'grammar'
-         AND (usage IS NULL OR usage = '')
+         AND (
+           (usage IS NULL OR usage = '')
+           OR (example_sentences IS NULL OR example_sentences = '')
+         )
        ORDER BY id`;
   if (limit != null) {
     sql += ` LIMIT ?1`;
@@ -83,6 +98,8 @@ export async function listJpVocabGrammarMissingUsage(
     kind: string;
     reading: string | null;
     meaning: string | null;
+    usage: string | null;
+    example_sentences: string | null;
   }>();
 
   return (result.results ?? []).map((row) => {
@@ -91,12 +108,23 @@ export async function listJpVocabGrammarMissingUsage(
       row.reading != null ? String(row.reading).trim() || null : null;
     const meaning =
       row.meaning != null ? String(row.meaning).trim() || null : null;
+    const usage =
+      row.usage != null ? String(row.usage).trim() || null : null;
+    const examples =
+      row.example_sentences != null
+        ? String(row.example_sentences).trim() || null
+        : null;
+    const need_usage = !usage;
+    const need_examples = !examples;
     return {
       id: Number(row.id),
       word,
       kind: "grammar",
       reading,
       meaning,
+      usage,
+      need_usage,
+      need_examples,
       prompt: buildJpVocabUsageAiPrompt({
         word,
         kind: "grammar",
@@ -175,44 +203,57 @@ export async function clearAllJpVocabGrammarExampleSentences(
   };
 }
 
-async function updateUsageIfEmpty(
+async function updateUsageAndExamples(
   db: D1Database,
   wordId: number,
   usage: string,
-  source: string | null,
-  dryRun: boolean,
-  force = false
+  usageSource: string | null,
+  exampleSentences: string | null,
+  exampleSource: string | null,
+  dryRun: boolean
 ): Promise<boolean> {
   if (dryRun) return true;
-  const result = force
-    ? await db
-        .prepare(
-          `UPDATE jp_vocab_word
-           SET usage = ?1,
-               usage_source = ?2,
-               updated_at = datetime('now')
-           WHERE id = ?3 AND kind = 'grammar'`
-        )
-        .bind(usage.trim(), source, wordId)
-        .run()
-    : await db
-        .prepare(
-          `UPDATE jp_vocab_word
-           SET usage = ?1,
-               usage_source = ?2,
-               updated_at = datetime('now')
-           WHERE id = ?3
-             AND kind = 'grammar'
-             AND (usage IS NULL OR usage = '')`
-        )
-        .bind(usage.trim(), source, wordId)
-        .run();
+  if (exampleSentences) {
+    const result = await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET usage = ?1,
+             usage_source = ?2,
+             example_sentences = ?3,
+             example_sentences_source = ?4,
+             updated_at = datetime('now')
+         WHERE id = ?5 AND kind = 'grammar'`
+      )
+      .bind(
+        usage.trim(),
+        usageSource,
+        exampleSentences.trim(),
+        exampleSource,
+        wordId
+      )
+      .run();
+    return Number(result.meta?.changes ?? 0) > 0;
+  }
+  const result = await db
+    .prepare(
+      `UPDATE jp_vocab_word
+       SET usage = ?1,
+           usage_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3
+         AND kind = 'grammar'
+         AND (usage IS NULL OR usage = '')`
+    )
+    .bind(usage.trim(), usageSource, wordId)
+    .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
 export type JpVocabUsageUpdateItem = {
   word_id: number;
   usage: string;
+  /** 成对写回：有则一次写 usage+例句 */
+  example_sentences?: string | null;
   source?: string | null;
 };
 
@@ -229,7 +270,6 @@ export async function applyJpVocabUsageUpdates(
   await ensureJpVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
-  const force = Boolean(options.force);
   const defaultSource = normalizeJpVocabUsageSource(options.defaultSource);
   const applied: JpVocabFillUsageApplied[] = [];
   const skipped: Array<{ id: number; word: string; reason: string }> = [];
@@ -238,15 +278,25 @@ export async function applyJpVocabUsageUpdates(
   for (const item of updates) {
     const wordId = Number(item.word_id);
     let usage = String(item.usage ?? "").trim();
+    let examples = String(item.example_sentences ?? "").trim() || null;
     if (!Number.isInteger(wordId) || wordId <= 0 || !usage) continue;
 
     const source =
       normalizeJpVocabUsageSource(item.source) ?? defaultSource;
 
     const row = await db
-      .prepare(`SELECT id, word, kind FROM jp_vocab_word WHERE id = ?1`)
+      .prepare(
+        `SELECT id, word, kind, reading, meaning, usage FROM jp_vocab_word WHERE id = ?1`
+      )
       .bind(wordId)
-      .first<{ id: number; word: string; kind: string }>();
+      .first<{
+        id: number;
+        word: string;
+        kind: string;
+        reading: string | null;
+        meaning: string | null;
+        usage: string | null;
+      }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
       continue;
@@ -261,30 +311,63 @@ export async function applyJpVocabUsageUpdates(
     }
 
     if (validateFormat) {
-      const validated = validateJpVocabUsageAiOutput(usage, {
-        word: String(row.word),
-        kind: "grammar",
-      });
-      if (!validated.ok) {
-        skipped.push({
-          id: wordId,
+      if (examples) {
+        const usageOk = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),
-          reason: `invalid_format:${validated.reason}`,
+          kind: "grammar",
         });
-        continue;
+        if (!usageOk.ok) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `invalid_format:${usageOk.reason}`,
+          });
+          continue;
+        }
+        usage = usageOk.text;
+        const exOk = validateJpVocabExampleSentencesAiOutput(examples, {
+          word: String(row.word),
+          kind: "grammar",
+          reading: row.reading,
+          meaning: row.meaning,
+          usage,
+        });
+        if (!exOk.ok) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `invalid_format:${exOk.reason}`,
+          });
+          continue;
+        }
+        examples = exOk.text;
+      } else {
+        const validated = validateJpVocabUsageAiOutput(usage, {
+          word: String(row.word),
+          kind: "grammar",
+        });
+        if (!validated.ok) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `invalid_format:${validated.reason}`,
+          });
+          continue;
+        }
+        usage = validated.text;
       }
-      usage = validated.text;
     } else {
       usage = normalizeJpVocabUsageText(usage) || usage;
     }
 
-    const changed = await updateUsageIfEmpty(
+    const changed = await updateUsageAndExamples(
       db,
       wordId,
       usage,
       source,
-      dryRun,
-      force
+      examples,
+      source,
+      dryRun
     );
     if (changed) {
       updated += 1;
@@ -293,12 +376,14 @@ export async function applyJpVocabUsageUpdates(
         word: String(row.word),
         usage,
         usage_source: source,
+        example_sentences: examples,
+        example_sentences_source: examples ? source : null,
       });
     } else {
       skipped.push({
         id: wordId,
         word: String(row.word),
-        reason: force ? "unchanged" : "already_filled",
+        reason: examples ? "unchanged" : "already_filled",
       });
     }
   }

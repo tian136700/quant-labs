@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""日语语法：用法 → 1:1 例句（tokken 付费串行；单词不动）。
+"""日语语法：用法+例句同一次付费调用（1 词 1 次；1:1 配对）。
 
 防烧钱硬规则：
-  - 每轮只写回 1 条；付费间隔 ≥1s（sleep 等待，不 skip）
-  - 进程互斥锁：禁止并行打 tokken
-  - 失败毒丸 6h
-  - 禁止 --allow-burst 写进任何定时（本脚本也不装 launchd）
+  - 每轮只写回 1 条语法；用法与例句同一次 Anthropic 调用
+  - 禁止拆成「先 usage 再 examples」两次打钱
+  - 付费间隔 ≥1s；进程互斥锁；失败毒丸 6h
+  - 禁止 --allow-burst 写进定时；本脚本不装 launchd
+  - 批量前必须先 --max-rounds 2～3 冒烟
 
 用法：
   python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --status
-  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --clear-examples
-  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --loop
-  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --phase usage --loop
-  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --phase examples --loop
+  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --max-rounds 2
+  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --loop --max-rounds 3
+  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --loop   # 确认冒烟后再全量
 """
 
 from __future__ import annotations
@@ -39,11 +39,8 @@ from paid_anthropic_client import (  # noqa: E402
     call_anthropic,
 )
 
-DEFAULT_USAGE_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
-DEFAULT_EXAMPLES_URL = (
-    "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences"
-)
-HTTP_USER_AGENT = "jp-vocab-fill-grammar-usage-examples/1.0"
+DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
+HTTP_USER_AGENT = "jp-vocab-fill-grammar-usage-examples/2.0"
 DEFAULT_MIN_INTERVAL_SEC = 1
 DEFAULT_POISON_SEC = 6 * 3600
 FILL_PER_ROUND = 1
@@ -57,19 +54,12 @@ RUN_LOCK_PATH = CFG_DIR / "jp-vocab-fill-grammar.run.lock"
 HAN_RE = re.compile(r"[\u4E00-\u9FFF]")
 NUMBERED_LINE_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
 FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
-LEADING_INDEX_RE = re.compile(r"^\s*\d+[.、．)\]]\s*")
 
-USAGE_SYSTEM = (
-    "你为日语 N5～N2 学习者写语法「用法」说明。"
-    "只输出编号行：1. …\\n2. …；至少 2 条；常用度降序。"
-    "中文说明；可在引号内保留日语形态。不要例句、不要 markdown、不要 JLPT 标签。"
-)
-
-EXAMPLES_SYSTEM = (
-    "你为日语语法写例句：第 N 句严格对应第 N 条用法。"
-    "只用简单词，不要再塞更难的语法（避免多焦点）。"
-    "每条：日语一行（汉字后半角括号假名）+ 下一行「译文：」中文。"
-    "不要行首编号、不要 markdown、不要解释。"
+PAIR_SYSTEM = (
+    "你为日语 N5～N2 学习者一次写完语法「用法+例句」。"
+    "每一条编号用法下面必须立刻跟 1 条日语例句和 1 行「译文：」。"
+    "至少 2 组；常用度降序；例句只用简单词、不叠更难语法。"
+    "汉字后半角括号假名。不要 markdown、不要 JLPT 标签、不要把用法和例句拆成两次回答。"
 )
 
 
@@ -82,30 +72,30 @@ def load_env_file(name: str) -> dict[str, str]:
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        key, _, value = line.partition("=")
-        data[key.strip()] = value.strip().strip('"').strip("'")
+        k, v = line.split("=", 1)
+        data[k.strip()] = v.strip().strip('"').strip("'")
     return data
 
 
 def load_token() -> str:
-    token = (load_env_file("jp-review-sync.env").get("JP_REVIEW_UPLOAD_TOKEN") or "").strip()
+    cfg = load_env_file("jp-vocab-fill.env")
+    token = (
+        os.getenv("JP_VOCAB_UPLOAD_TOKEN")
+        or cfg.get("JP_VOCAB_UPLOAD_TOKEN")
+        or ""
+    ).strip()
     if not token:
-        raise SystemExit(
-            "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
-        )
+        raise SystemExit("缺少 JP_VOCAB_UPLOAD_TOKEN（jp-vocab-fill.env）")
     return token
 
 
-def resolve_urls() -> tuple[str, str]:
-    cfg = {
-        **load_env_file("jp-vocab-fill.env"),
-        **load_env_file("jp-vocab-fill-reading.env"),
-    }
-    usage = (cfg.get("JP_VOCAB_FILL_USAGE_URL") or DEFAULT_USAGE_URL).strip()
-    examples = (
-        cfg.get("JP_VOCAB_FILL_EXAMPLE_SENTENCES_URL") or DEFAULT_EXAMPLES_URL
+def resolve_api_url() -> str:
+    cfg = load_env_file("jp-vocab-fill.env")
+    return (
+        cfg.get("JP_VOCAB_FILL_USAGE_URL")
+        or os.getenv("JP_VOCAB_FILL_USAGE_URL")
+        or DEFAULT_API_URL
     ).strip()
-    return usage, examples
 
 
 def resolve_min_interval_sec() -> int:
@@ -129,7 +119,7 @@ def resolve_poison_sec() -> int:
         or str(DEFAULT_POISON_SEC)
     )
     try:
-        return max(300, int(raw))
+        return max(60, int(raw))
     except ValueError:
         return DEFAULT_POISON_SEC
 
@@ -137,25 +127,20 @@ def resolve_poison_sec() -> int:
 @contextmanager
 def acquire_run_lock() -> Iterator[None]:
     RUN_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fh = open(RUN_LOCK_PATH, "a+", encoding="utf-8")
-    try:
+    with RUN_LOCK_PATH.open("a+", encoding="utf-8") as fh:
         try:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             print("[jp-grammar-fill] 前一任务仍在跑，等待锁…", flush=True)
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-            print("[jp-grammar-fill] 已拿到运行锁", flush=True)
         fh.seek(0)
         fh.truncate()
-        fh.write(f"{os.getpid()}\n")
+        fh.write(str(os.getpid()))
         fh.flush()
-        yield
-    finally:
         try:
+            yield
+        finally:
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
-        fh.close()
 
 
 def acquire_paid_rate_gate(*, allow_burst: bool) -> None:
@@ -163,21 +148,18 @@ def acquire_paid_rate_gate(*, allow_burst: bool) -> None:
         return
     min_sec = resolve_min_interval_sec()
     RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    while True:
-        now = time.time()
-        last = 0.0
-        if RATE_GATE_PATH.is_file():
-            try:
-                last = float(RATE_GATE_PATH.read_text(encoding="utf-8").strip() or "0")
-            except (OSError, ValueError):
-                last = 0.0
-        elapsed = now - last
-        if elapsed >= min_sec:
-            return
-        wait = min_sec - elapsed
+    now = time.time()
+    last = 0.0
+    if RATE_GATE_PATH.is_file():
+        try:
+            last = float(RATE_GATE_PATH.read_text(encoding="utf-8").strip() or 0)
+        except ValueError:
+            last = 0.0
+    wait = min_sec - (now - last)
+    if wait > 0:
         print(
-            f"[jp-grammar-fill] rate-gate: 距上次付费仅 {elapsed:.1f}s < {min_sec}s，"
-            f"等待 {wait:.1f}s…",
+            f"[jp-grammar-fill] rate-gate: 距上次付费仅 {now - last:.1f}s "
+            f"< {min_sec}s，等待 {wait:.1f}s…",
             flush=True,
         )
         time.sleep(wait)
@@ -185,7 +167,7 @@ def acquire_paid_rate_gate(*, allow_burst: bool) -> None:
 
 def mark_paid_call() -> None:
     RATE_GATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    RATE_GATE_PATH.write_text(f"{time.time():.3f}\n", encoding="utf-8")
+    RATE_GATE_PATH.write_text(str(time.time()), encoding="utf-8")
 
 
 def load_poison() -> dict[str, dict]:
@@ -193,28 +175,24 @@ def load_poison() -> dict[str, dict]:
         return {}
     try:
         raw = json.loads(POISON_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(raw, dict):
+    except (json.JSONDecodeError, OSError):
         return {}
     now = time.time()
     out: dict[str, dict] = {}
-    for key, val in raw.items():
-        if not isinstance(val, dict):
-            continue
+    for k, v in (raw or {}).items():
         try:
-            until = float(val.get("until") or 0)
+            until = float(v.get("until") or 0)
         except (TypeError, ValueError):
             continue
         if until > now:
-            out[str(key)] = val
+            out[str(k)] = v
     return out
 
 
 def save_poison(data: dict[str, dict]) -> None:
     POISON_PATH.parent.mkdir(parents=True, exist_ok=True)
     POISON_PATH.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
@@ -222,7 +200,7 @@ def poison_word(word_id: int, reason: str) -> None:
     data = load_poison()
     data[str(word_id)] = {
         "until": time.time() + resolve_poison_sec(),
-        "reason": reason[:200],
+        "reason": reason,
     }
     save_poison(data)
     print(
@@ -235,72 +213,79 @@ def poison_word(word_id: int, reason: str) -> None:
 def call_api(*, api_url: str, token: str, body: dict, retries: int = 6) -> dict:
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     last_err: Exception | None = None
-    for attempt in range(1, max(1, retries) + 1):
+    for attempt in range(retries):
         req = urllib.request.Request(
             api_url,
             data=data,
             method="POST",
             headers={
+                "Content-Type": "application/json",
                 "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json; charset=utf-8",
                 "User-Agent": HTTP_USER_AGENT,
             },
         )
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
-                return json.load(resp)
+                return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            transient = exc.code in {429, 500, 502, 503, 504} or "1102" in detail
-            last_err = SystemExit(f"HTTP {exc.code}: {detail}")
-            if not transient or attempt >= retries:
-                raise last_err from exc
-            wait = min(60, 2**attempt)
-            print(
-                f"[jp-grammar-fill] Worker HTTP {exc.code} "
-                f"(attempt {attempt}/{retries})，{wait}s 后重试…",
-                flush=True,
-            )
-            time.sleep(wait)
-        except urllib.error.URLError as exc:
-            last_err = SystemExit(f"URL error: {exc}")
-            if attempt >= retries:
-                raise last_err from exc
-            wait = min(60, 2**attempt)
-            print(
-                f"[jp-grammar-fill] 网络错误 (attempt {attempt}/{retries})，"
-                f"{wait}s 后重试… {exc}",
-                flush=True,
-            )
-            time.sleep(wait)
-    raise last_err or SystemExit("call_api failed")
+            last_err = exc
+            payload = exc.read().decode("utf-8", errors="replace")
+            if exc.code in (429, 500, 502, 503, 504) and attempt + 1 < retries:
+                time.sleep(min(30, 2**attempt))
+                continue
+            raise SystemExit(f"HTTP {exc.code}: {payload[:500]}") from exc
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            if attempt + 1 < retries:
+                time.sleep(min(30, 2**attempt))
+                continue
+            raise
+    raise SystemExit(f"API failed: {last_err}")
 
 
-def normalize_usage(raw: str) -> str | None:
-    text = FENCE_RE.sub("", str(raw or "")).strip()
-    points: list[str] = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        m = NUMBERED_LINE_RE.match(line)
-        if not m:
-            continue
-        body = m.group(2).strip()
-        if not body or not HAN_RE.search(body):
-            continue
-        points.append(body)
-        if len(points) >= 5:
-            break
-    if len(points) < 2:
+def parse_pair_output(raw: str) -> tuple[str, str] | None:
+    """拆「编号用法 + 日语 + 译文」块 → (usage, example_sentences)。"""
+    lines = [
+        ln.strip()
+        for ln in FENCE_RE.sub("", str(raw or "")).splitlines()
+        if ln.strip() and not ln.strip().startswith("```")
+    ]
+    if not lines:
         return None
-    return "\n".join(f"{i + 1}. {p}" for i, p in enumerate(points))
+    blocks: list[dict] = []
+    cur: dict | None = None
+    for line in lines:
+        m = NUMBERED_LINE_RE.match(line)
+        if m:
+            if cur:
+                blocks.append(cur)
+            cur = {"n": int(m.group(1)), "usage": m.group(2).strip(), "body": []}
+            continue
+        if cur is None:
+            return None
+        cur["body"].append(line)
+    if cur:
+        blocks.append(cur)
+    if len(blocks) < 2:
+        return None
+    for i, b in enumerate(blocks):
+        if b["n"] != i + 1:
+            return None
+        if not b["usage"] or not HAN_RE.search(b["usage"]):
+            return None
+        if len(b["body"]) < 2:
+            return None
+        if not any(x.startswith("译文") or x.startswith("譯文") for x in b["body"]):
+            return None
+    usage = "\n".join(f"{i + 1}. {b['usage']}" for i, b in enumerate(blocks))
+    examples = "\n".join("\n".join(b["body"]) for b in blocks)
+    return usage, examples
 
 
 def pick_row(missing: list, poison: dict) -> tuple[dict | None, int]:
     skipped = 0
-    for cand in missing:
-        wid = str(int(cand["id"]))
+    for row in missing:
+        wid = str(int(row["id"]))
         if wid in poison:
             skipped += 1
             print(
@@ -309,7 +294,7 @@ def pick_row(missing: list, poison: dict) -> tuple[dict | None, int]:
                 flush=True,
             )
             continue
-        return cand, skipped
+        return row, skipped
     return None, skipped
 
 
@@ -319,41 +304,32 @@ def run_clear_examples(*, api_url: str, token: str, dry_run: bool) -> dict:
         token=token,
         body={"mode": "clear_grammar_examples", "dry_run": dry_run},
     )
-    if not payload.get("ok"):
-        raise SystemExit(f"API error: {payload.get('error', payload)}")
     if payload.get("mode") != "clear_grammar_examples":
         raise SystemExit(
             "线上尚未部署 clear_grammar_examples。请等部署完成后再清。"
         )
-    cleared = int(payload.get("cleared") or 0)
     print(
         f"[jp-grammar-fill] clear_grammar_examples "
-        f"{'would clear' if dry_run else 'cleared'}={cleared}",
+        f"cleared={payload.get('cleared')} dry_run={dry_run}",
         flush=True,
     )
     return payload
 
 
-def run_status(*, usage_url: str, examples_url: str, token: str) -> None:
-    usage = call_api(
-        api_url=usage_url,
+def run_status(*, api_url: str, token: str) -> None:
+    scan = call_api(
+        api_url=api_url,
         token=token,
         body={"mode": "list_missing", "limit": 1},
     )
-    examples = call_api(
-        api_url=examples_url,
-        token=token,
-        body={"mode": "list_missing", "limit": 1, "kind": "grammar"},
-    )
     print(
-        f"[jp-grammar-fill] status "
-        f"missing_usage={usage.get('total_missing')} "
-        f"missing_examples(grammar)={examples.get('total_missing')}",
+        f"[jp-grammar-fill] status missing_pair={scan.get('total_missing')} "
+        f"(usage 或缺例句，一词一次成对补)",
         flush=True,
     )
 
 
-def run_one_usage(
+def run_one_pair(
     *,
     api_url: str,
     token: str,
@@ -372,15 +348,15 @@ def run_one_usage(
     total_missing = int(scan.get("total_missing") or 0)
     if not missing:
         print(
-            f"[jp-grammar-fill] usage 无缺失（total_missing={total_missing}）",
+            f"[jp-grammar-fill] pair 无缺失（total_missing={total_missing}）",
             flush=True,
         )
-        return {**scan, "total_missing": 0, "phase": "usage"}
+        return {**scan, "total_missing": 0}
 
     row, skipped_poison = pick_row(missing, load_poison())
     if row is None:
         print(
-            f"[jp-grammar-fill] usage 本批均毒丸（跳过 {skipped_poison}）",
+            f"[jp-grammar-fill] pair 本批均毒丸（跳过 {skipped_poison}）",
             flush=True,
         )
         return {
@@ -388,124 +364,20 @@ def run_one_usage(
             "skipped_run": True,
             "reason": "all_poisoned",
             "total_missing": total_missing,
-            "phase": "usage",
-        }
-
-    word_id = int(row["id"])
-    word = str(row["word"])
-    prompt = str(row.get("prompt") or "").strip() or (
-        f"词条：{word}\n类型：语法\n\n请写至少 2 条编号用法（常用在前）。"
-    )
-    print(
-        f"[jp-grammar-fill] usage {FILL_PER_ROUND}/{total_missing}: "
-        f"id={word_id} {word!r} model={anthropic_model()}",
-        flush=True,
-    )
-    if dry_run:
-        return {
-            "ok": True,
-            "updated": 0,
-            "dry_run": True,
-            "total_missing": total_missing,
-            "phase": "usage",
-        }
-
-    try:
-        raw = call_anthropic(
-            prompt, system=USAGE_SYSTEM, max_tokens=512, temperature=0.2, timeout=180
-        )
-    except Exception as exc:
-        mark_paid_call()
-        poison_word(word_id, f"anthropic_error:{exc}")
-        return {"ok": True, "updated": 0, "error": str(exc), "phase": "usage"}
-
-    mark_paid_call()
-    usage = normalize_usage(raw)
-    if not usage:
-        poison_word(word_id, "invalid:usage")
-        print(f"  用法校验失败 raw={raw[:120]!r}", flush=True)
-        return {"ok": True, "updated": 0, "phase": "usage"}
-
-    source = build_online_source_label()
-    print(f"  {word_id} {word!r} -> usage ok source={source}", flush=True)
-    payload = call_api(
-        api_url=api_url,
-        token=token,
-        body={
-            "mode": "apply",
-            "source": source,
-            "updates": [{"word_id": word_id, "usage": usage, "source": source}],
-        },
-    )
-    if not payload.get("ok"):
-        poison_word(word_id, "apply_failed")
-        raise SystemExit(f"API error: {payload.get('error', payload)}")
-    skipped = payload.get("skipped") or []
-    if skipped and not payload.get("updated"):
-        poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
-    remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
-    print(
-        f"[jp-grammar-fill] usage apply updated={payload.get('updated')} "
-        f"remaining≈{remaining}",
-        flush=True,
-    )
-    return {**payload, "total_missing": remaining, "phase": "usage"}
-
-
-def run_one_examples(
-    *,
-    api_url: str,
-    token: str,
-    dry_run: bool,
-    allow_burst: bool,
-) -> dict:
-    acquire_paid_rate_gate(allow_burst=allow_burst)
-    scan = call_api(
-        api_url=api_url,
-        token=token,
-        body={
-            "mode": "list_missing",
-            "limit": LIST_CANDIDATE_LIMIT,
-            "kind": "grammar",
-        },
-    )
-    if not scan.get("ok"):
-        raise SystemExit(f"API error: {scan.get('error', scan)}")
-    missing = scan.get("missing") or []
-    total_missing = int(scan.get("total_missing") or 0)
-    if not missing:
-        print(
-            f"[jp-grammar-fill] examples 无缺失（total_missing={total_missing}）",
-            flush=True,
-        )
-        return {**scan, "total_missing": 0, "phase": "examples"}
-
-    row, skipped_poison = pick_row(missing, load_poison())
-    if row is None:
-        print(
-            f"[jp-grammar-fill] examples 本批均毒丸（跳过 {skipped_poison}）",
-            flush=True,
-        )
-        return {
-            "ok": True,
-            "skipped_run": True,
-            "reason": "all_poisoned",
-            "total_missing": total_missing,
-            "phase": "examples",
         }
 
     word_id = int(row["id"])
     word = str(row["word"])
     prompt = str(row.get("prompt") or "").strip()
     if not prompt:
-        usage = str(row.get("usage") or "").strip()
         prompt = (
-            f"词条：{word}\n类型：语法\n用法：\n{usage}\n\n"
-            "请按用法 1:1 写例句（简单词；日语+译文：）。"
+            f"词条：{word}\n类型：语法\n\n"
+            "请一次写完：每条编号用法下紧跟 1 条例句（日语+译文：）。至少 2 组。"
         )
     print(
-        f"[jp-grammar-fill] examples {FILL_PER_ROUND}/{total_missing}: "
-        f"id={word_id} {word!r} model={anthropic_model()}",
+        f"[jp-grammar-fill] pair {FILL_PER_ROUND}/{total_missing}: "
+        f"id={word_id} {word!r} model={anthropic_model()} "
+        f"need_usage={row.get('need_usage')} need_examples={row.get('need_examples')}",
         flush=True,
     )
     if dry_run:
@@ -514,37 +386,37 @@ def run_one_examples(
             "updated": 0,
             "dry_run": True,
             "total_missing": total_missing,
-            "phase": "examples",
         }
 
     try:
         raw = call_anthropic(
             prompt,
-            system=EXAMPLES_SYSTEM,
-            max_tokens=1600,
+            system=PAIR_SYSTEM,
+            max_tokens=2000,
             temperature=0.2,
             timeout=180,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         mark_paid_call()
         poison_word(word_id, f"anthropic_error:{exc}")
-        return {"ok": True, "updated": 0, "error": str(exc), "phase": "examples"}
+        return {"ok": True, "updated": 0, "error": str(exc)}
 
     mark_paid_call()
-    text = FENCE_RE.sub("", str(raw or "")).strip()
-    # 轻量本地门槛：至少两行「译文」；严校验留给 Worker
-    if text.count("译文") < 2 and text.count("譯文") < 2:
-        poison_word(word_id, "invalid:examples_short")
-        print(f"  例句过短 raw={raw[:120]!r}", flush=True)
-        return {"ok": True, "updated": 0, "phase": "examples"}
+    parsed = parse_pair_output(raw)
+    if not parsed:
+        poison_word(word_id, "invalid:pair_parse")
+        print(f"  成对解析失败 raw={str(raw)[:160]!r}", flush=True)
+        return {"ok": True, "updated": 0}
 
+    usage, examples = parsed
     source = build_online_source_label()
     print(
-        f"  {word_id} {word!r} -> examples_len={len(text)} source={source}",
+        f"  {word_id} {word!r} -> usage_ok examples_len={len(examples)} "
+        f"source={source}",
         flush=True,
     )
 
-    def do_apply(example_text: str) -> dict:
+    def do_apply(u: str, ex: str) -> dict:
         return call_api(
             api_url=api_url,
             token=token,
@@ -554,21 +426,21 @@ def run_one_examples(
                 "updates": [
                     {
                         "word_id": word_id,
-                        "example_sentences": example_text,
+                        "usage": u,
+                        "example_sentences": ex,
                         "source": source,
                     }
                 ],
             },
         )
 
-    payload = do_apply(text)
+    payload = do_apply(usage, examples)
     if not payload.get("ok"):
         poison_word(word_id, "apply_failed")
         raise SystemExit(f"API error: {payload.get('error', payload)}")
     skipped = payload.get("skipped") or []
     if skipped and not payload.get("updated"):
         reason = str(skipped[0].get("reason") or "apply_skipped")
-        # 假名/语法核失败：再付费重试 1 次（追加 CRITICAL），仍失败再毒丸
         if "invalid_format" in reason:
             print(f"  apply 拒收 {reason}，追加 CRITICAL 再试 1 次…", flush=True)
             acquire_paid_rate_gate(allow_burst=allow_burst)
@@ -576,25 +448,28 @@ def run_one_examples(
             retry_prompt = (
                 prompt
                 + "\n\nCRITICAL:\n"
-                + f"- 句中必须自然用到语法「{core}」（不要只写中文标题）。\n"
-                + "- 每个汉字后立刻半角括号假名；不要漏标。\n"
-                + "- 条数必须与用法条数一致；只用简单词。\n"
+                + f"- 例句必须自然用到「{core}」（中文教学标题除外）。\n"
+                + "- 每个汉字后半角括号假名；每组=用法+日语+译文。\n"
+                + "- 至少 2 组，一一对应。\n"
             )
             try:
                 raw2 = call_anthropic(
                     retry_prompt,
-                    system=EXAMPLES_SYSTEM,
-                    max_tokens=1600,
+                    system=PAIR_SYSTEM,
+                    max_tokens=2000,
                     temperature=0.15,
                     timeout=180,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 mark_paid_call()
                 poison_word(word_id, f"anthropic_retry_error:{exc}")
-                return {"ok": True, "updated": 0, "phase": "examples"}
+                return {"ok": True, "updated": 0}
             mark_paid_call()
-            text2 = FENCE_RE.sub("", str(raw2 or "")).strip()
-            payload = do_apply(text2)
+            parsed2 = parse_pair_output(raw2)
+            if not parsed2:
+                poison_word(word_id, "invalid:pair_parse_retry")
+                return {"ok": True, "updated": 0}
+            payload = do_apply(*parsed2)
             skipped = payload.get("skipped") or []
             if skipped and not payload.get("updated"):
                 poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
@@ -602,20 +477,19 @@ def run_one_examples(
                 print("  重试写回成功", flush=True)
         else:
             poison_word(word_id, f"apply_skipped:{reason}")
+
     remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
     print(
-        f"[jp-grammar-fill] examples apply updated={payload.get('updated')} "
+        f"[jp-grammar-fill] pair apply updated={payload.get('updated')} "
         f"remaining≈{remaining}",
         flush=True,
     )
-    return {**payload, "total_missing": remaining, "phase": "examples"}
+    return {**payload, "total_missing": remaining}
 
 
-def loop_phase(
+def loop_pair(
     *,
-    phase: str,
-    usage_url: str,
-    examples_url: str,
+    api_url: str,
     token: str,
     dry_run: bool,
     allow_burst: bool,
@@ -624,32 +498,26 @@ def loop_phase(
     min_sec = resolve_min_interval_sec()
     rounds = 0
     print(
-        f"[jp-grammar-fill] loop phase={phase} min_interval={min_sec}s",
+        f"[jp-grammar-fill] loop pair(用法+例句同次) min_interval={min_sec}s "
+        f"max_rounds={max_rounds or '∞'}",
         flush=True,
     )
     while True:
         rounds += 1
         if max_rounds > 0 and rounds > max_rounds:
             print(
-                f"[jp-grammar-fill] 达到 max_rounds={max_rounds}，停止",
+                f"[jp-grammar-fill] 达到 max_rounds={max_rounds}，停止"
+                f"（请确认无误后再 --loop 全量）",
                 flush=True,
             )
             break
         try:
-            if phase == "usage":
-                result = run_one_usage(
-                    api_url=usage_url,
-                    token=token,
-                    dry_run=dry_run,
-                    allow_burst=allow_burst,
-                )
-            else:
-                result = run_one_examples(
-                    api_url=examples_url,
-                    token=token,
-                    dry_run=dry_run,
-                    allow_burst=allow_burst,
-                )
+            result = run_one_pair(
+                api_url=api_url,
+                token=token,
+                dry_run=dry_run,
+                allow_burst=allow_burst,
+            )
         except SystemExit as exc:
             wait = max(30, min_sec * 10)
             print(
@@ -658,7 +526,7 @@ def loop_phase(
             )
             time.sleep(wait)
             continue
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             wait = max(30, min_sec * 10)
             print(
                 f"[jp-grammar-fill] 本轮异常 {type(exc).__name__}: {exc}，"
@@ -671,14 +539,13 @@ def loop_phase(
         if result.get("skipped_run") and result.get("reason") == "all_poisoned":
             time.sleep(min_sec)
             continue
-        # 注意：total_missing=0 在 Python 里是 falsy，禁止 `or -1`（会变成永远不退出）
         left_raw = result.get("total_missing")
         left = int(left_raw) if left_raw is not None else -1
         if left == 0:
-            print(f"[jp-grammar-fill] phase={phase} 全部补完", flush=True)
+            print("[jp-grammar-fill] pair 全部补完", flush=True)
             break
         print(
-            f"[jp-grammar-fill] phase={phase} 仍缺约 {left}，"
+            f"[jp-grammar-fill] pair 仍缺约 {left}，"
             f"下一轮由 rate-gate 控速（≥{min_sec}s）…",
             flush=True,
         )
@@ -686,79 +553,74 @@ def loop_phase(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="日语语法用法+例句：tokken 付费串行（≥1s/条；单词不动）"
+        description=(
+            "日语语法用法+例句：一词一次付费成对写回（禁止拆成两次模型调用）"
+        )
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--clear-examples", action="store_true")
     parser.add_argument("--status", action="store_true")
-    parser.add_argument("--loop", action="store_true")
     parser.add_argument(
-        "--phase",
-        choices=["all", "usage", "examples"],
-        default="all",
-        help="all=先补完用法再补例句；也可只跑某一阶段",
+        "--loop",
+        action="store_true",
+        help="循环；务必先 --max-rounds 2～3 冒烟",
     )
-    parser.add_argument("--max-rounds", type=int, default=0)
+    parser.add_argument(
+        "--max-rounds",
+        type=int,
+        default=0,
+        help="最多补几条（冒烟用 2～3；0=不限制，仅 --loop 时）",
+    )
     parser.add_argument(
         "--allow-burst",
         action="store_true",
         help="跳过 1s 门禁（仅调试；禁止写进定时）",
     )
+    parser.add_argument(
+        "--phase",
+        choices=["pair"],
+        default="pair",
+        help="仅保留 pair（用法+例句同次）；旧 usage/examples 分阶段已废弃",
+    )
     args = parser.parse_args()
 
     token = load_token()
-    usage_url, examples_url = resolve_urls()
+    api_url = resolve_api_url()
 
     with acquire_run_lock():
         if args.status:
-            run_status(usage_url=usage_url, examples_url=examples_url, token=token)
+            run_status(api_url=api_url, token=token)
             return 0
 
         if args.clear_examples:
-            run_clear_examples(
-                api_url=usage_url, token=token, dry_run=args.dry_run
-            )
-            if not args.loop:
+            run_clear_examples(api_url=api_url, token=token, dry_run=args.dry_run)
+            if not args.loop and args.max_rounds <= 0:
                 return 0
 
-        if args.loop:
-            if args.phase in ("all", "usage"):
-                loop_phase(
-                    phase="usage",
-                    usage_url=usage_url,
-                    examples_url=examples_url,
-                    token=token,
-                    dry_run=args.dry_run,
-                    allow_burst=args.allow_burst,
-                    max_rounds=args.max_rounds,
+        if args.loop or args.max_rounds > 0:
+            max_rounds = args.max_rounds
+            if args.loop and max_rounds <= 0:
+                print(
+                    "[jp-grammar-fill] 警告：全量 --loop 无 max_rounds。"
+                    "若尚未冒烟，请 Ctrl+C，改用 --max-rounds 2",
+                    flush=True,
                 )
-            if args.phase in ("all", "examples"):
-                loop_phase(
-                    phase="examples",
-                    usage_url=usage_url,
-                    examples_url=examples_url,
-                    token=token,
-                    dry_run=args.dry_run,
-                    allow_burst=args.allow_burst,
-                    max_rounds=args.max_rounds,
-                )
+            loop_pair(
+                api_url=api_url,
+                token=token,
+                dry_run=args.dry_run,
+                allow_burst=args.allow_burst,
+                max_rounds=max_rounds if max_rounds > 0 else (1 if not args.loop else 0),
+            )
             return 0
 
-        # 单轮：按 phase 补 1 条
-        if args.phase == "examples":
-            run_one_examples(
-                api_url=examples_url,
-                token=token,
-                dry_run=args.dry_run,
-                allow_burst=args.allow_burst,
-            )
-        else:
-            run_one_usage(
-                api_url=usage_url,
-                token=token,
-                dry_run=args.dry_run,
-                allow_burst=args.allow_burst,
-            )
+        # 默认只补 1 条（强制冒烟习惯）
+        run_one_pair(
+            api_url=api_url,
+            token=token,
+            dry_run=args.dry_run,
+            allow_burst=args.allow_burst,
+        )
         return 0
 
 

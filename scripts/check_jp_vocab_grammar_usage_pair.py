@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""回归：日语语法用法+例句配对与付费脚本门禁。"""
+"""回归：日语语法用法+例句成对同次调用与付费脚本门禁。"""
 
 from __future__ import annotations
 
@@ -15,9 +15,6 @@ def main() -> int:
     helpers = (ROOT / "src/lib/jp-vocab-db/helpers.ts").read_text(encoding="utf-8")
     fill_usage = (ROOT / "src/lib/jp-vocab-fill-usage.ts").read_text(encoding="utf-8")
     usage_ai = (ROOT / "src/lib/jp-vocab-usage-ai.ts").read_text(encoding="utf-8")
-    fill_ex = (
-        ROOT / "src/lib/jp-vocab-fill-example-sentences.ts"
-    ).read_text(encoding="utf-8")
     display = (
         ROOT / "src/lib/jp-vocab-usage-examples-display.ts"
     ).read_text(encoding="utf-8")
@@ -33,6 +30,9 @@ def main() -> int:
     route = (
         ROOT / "src/app/api/jp-vocab/fill-usage/route.ts"
     ).read_text(encoding="utf-8")
+    rule = (
+        ROOT / ".cursor/rules/jp-vocab-grammar-usage.mdc"
+    ).read_text(encoding="utf-8")
 
     if 'ADD COLUMN usage TEXT' not in helpers and '"usage"' not in helpers:
         errors.append("helpers.ts 未确保 usage 列")
@@ -42,14 +42,16 @@ def main() -> int:
         errors.append("fill-usage 须只补 grammar")
     if "clear_grammar_examples" not in route and "clearAllJpVocabGrammarExampleSentences" not in fill_usage:
         errors.append("缺 clear_grammar_examples")
-    if "TRIM(usage)" in fill_usage.split("WHERE")[0] if False else False:
-        pass
-    if "usage IS NULL OR usage = ''" not in fill_usage:
-        errors.append("fill-usage list_missing 应用 usage IS NULL OR usage=''（勿全表 TRIM 热扫）")
-    if "countJpVocabUsagePoints" not in usage_ai:
-        errors.append("usage-ai 缺 countJpVocabUsagePoints")
-    if "kind = 'grammar' AND usage IS NOT NULL" not in fill_ex:
-        errors.append("例句 list_missing 语法须要求已有 usage")
+    if "example_sentences IS NULL OR example_sentences = ''" not in fill_usage:
+        errors.append("list_missing 须含缺例句（成对补）")
+    if "example_sentences" not in route:
+        errors.append("fill-usage apply 须接受 example_sentences")
+    if "parseJpVocabGrammarUsageExamplePairs" not in usage_ai:
+        errors.append("usage-ai 缺成对解析")
+    if "不要造例句" in usage_ai or "例句另有" in usage_ai:
+        errors.append("usage prompt 禁止再写「例句另有阶段」")
+    if "一次写完" not in usage_ai and "同一次输出" not in usage_ai:
+        errors.append("usage prompt 须要求用法+例句同一次输出")
     if "buildJpVocabUsageExamplePairs" not in display:
         errors.append("缺配对 helper")
     if "JpVocabFuriganaText" not in paired:
@@ -58,23 +60,27 @@ def main() -> int:
         errors.append("抽问卡未接语法配对组件")
     if "FILL_PER_ROUND" not in script or "acquire_paid_rate_gate" not in script:
         errors.append("付费脚本缺限流门禁")
-    if "clear_grammar_examples" not in script:
-        errors.append("脚本缺 --clear-examples / clear_grammar_examples")
-    if "kind\": \"grammar\"" not in script and '"kind": "grammar"' not in script:
-        errors.append("脚本例句 list_missing 须 kind=grammar")
+    if "parse_pair_output" not in script or "run_one_pair" not in script:
+        errors.append("脚本须成对 run_one_pair（禁止拆两次付费）")
+    if "run_one_usage" in script or "run_one_examples" in script:
+        errors.append("脚本不得再保留分阶段 run_one_usage/examples")
     if 'get("total_missing") or -1' in script:
         errors.append(
             "脚本 loop 用 total_missing or -1（0 会变成 -1 空转狂打 list_missing）"
         )
     if "left_raw is not None" not in script:
         errors.append("脚本须显式判断 total_missing is not None（防 0 falsy）")
+    if "max-rounds" not in script and "max_rounds" not in script:
+        errors.append("脚本须支持 max-rounds 冒烟")
+    if "同一次" not in rule and "成对" not in rule:
+        errors.append("规则须写明用法+例句同一次调用")
 
     if errors:
         print("FAIL:")
         for e in errors:
             print(" -", e)
         return 1
-    print("ok: jp-vocab grammar usage/examples guards")
+    print("ok: jp-vocab grammar usage/examples pair-once guards")
     return 0
 
 

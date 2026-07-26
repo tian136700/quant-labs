@@ -16,6 +16,7 @@ type FillUsageBody = {
   updates?: Array<{
     word_id?: number;
     usage?: string;
+    example_sentences?: string;
     source?: string;
     usage_source?: string;
   }>;
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
         return {
           word_id: Number(item.word_id),
           usage: String(item.usage ?? "").trim(),
+          example_sentences: String(item.example_sentences ?? "").trim() || null,
           source: per || null,
         };
       })
