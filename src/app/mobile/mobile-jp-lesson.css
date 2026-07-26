@@ -23,6 +23,11 @@
     max-width: none;
   }
 
+  .jp-vocab-search__input-wrap {
+    width: 100%;
+    max-width: 100%;
+  }
+
   .jp-vocab-search__kind,
   .jp-vocab-search__input {
     width: 100%;
@@ -32,6 +37,15 @@
 
   .jp-vocab-search__kind {
     min-width: 0;
+  }
+
+  .jp-vocab-search__history {
+    max-height: 14rem;
+  }
+
+  .jp-vocab-search__history-pick,
+  .jp-vocab-search__history-remove {
+    min-height: 2.5rem;
   }
 
   .page-wrap:has(.jp-vocab-page) {

@@ -58,9 +58,8 @@ FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
 PAIR_SYSTEM = (
     "你为中文母语的日语 N5～N2 学习者一次写完语法「用法+例句」。"
     "第一行必须直接是「1.」中文用法，不要总标题。"
-    "用法说明必须是中文（禁止整段日语用法，禁止用法行写汉字假名括注）；"
-    "可在中文里用「」短引日语形态。"
-    "每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」。"
+    "用法说明必须是中文；可在中文里用「」短引日语形态，且「」内不要假名括注。"
+    "每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」；每组必须写完整。"
     "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
     "例句只用简单词、不叠更难语法。不要 markdown、不要 JLPT 标签。"
 )
@@ -281,12 +280,13 @@ def parse_pair_output(raw: str) -> tuple[str, str] | None:
             return None
         if not b["usage"] or not HAN_RE.search(b["usage"]):
             return None
-        # 用法须中文：去掉「」后仍有假名，或含 漢字(かな)
+        # 用法须中文：只检查「」外；引号外假名括注或假名过多 → 拒
         usage = b["usage"]
-        if re.search(r"\([\u3040-\u309fー]+\)", usage):
-            return None
         no_quotes = re.sub(r"「[^」]*」", "", usage)
-        if re.search(r"[\u3040-\u30ffー]", no_quotes):
+        if re.search(r"\([\u3040-\u309fー]+\)", no_quotes):
+            return None
+        kana = re.findall(r"[\u3040-\u30ffー]", no_quotes)
+        if len(kana) >= 8:
             return None
         if len(b["body"]) < 2:
             return None
@@ -424,21 +424,51 @@ def run_one_pair(
         raw = call_anthropic(
             prompt,
             system=PAIR_SYSTEM,
-            max_tokens=3200,
+            max_tokens=4096,
             temperature=0.2,
             timeout=180,
         )
     except Exception as exc:  # noqa: BLE001
         mark_paid_call()
         poison_word(word_id, f"anthropic_error:{exc}")
-        return {"ok": True, "updated": 0, "error": str(exc)}
+        return {"ok": True, "updated": 0, "error": str(exc), "total_missing": total_missing}
 
     mark_paid_call()
+
+    def retry_pair(reason: str) -> tuple[str, str] | None:
+        print(f"  {reason}，追加 CRITICAL 再试 1 次…", flush=True)
+        acquire_paid_rate_gate(allow_burst=allow_burst)
+        core = re.sub(r"^[～~〜]+|[～~〜]+$", "", word)
+        retry_prompt = (
+            prompt
+            + "\n\nCRITICAL:\n"
+            + "- 第一行必须是「1.」中文用法；每组必须完整：中文用法 + 日语例句 + 译文：\n"
+            + "- 用法必须中文；「」短引日语形态时「」内不要假名括注。\n"
+            + f"- 例句必须自然用到「{core}」（中文教学标题除外）；汉字后半角括号假名。\n"
+            + "- 组数=真实常用用法数（1 种就 1 组，禁止硬凑）。\n"
+        )
+        try:
+            raw2 = call_anthropic(
+                retry_prompt,
+                system=PAIR_SYSTEM,
+                max_tokens=4096,
+                temperature=0.15,
+                timeout=180,
+            )
+        except Exception as exc:  # noqa: BLE001
+            mark_paid_call()
+            poison_word(word_id, f"anthropic_retry_error:{exc}")
+            return None
+        mark_paid_call()
+        return parse_pair_output(raw2)
+
     parsed = parse_pair_output(raw)
     if not parsed:
-        poison_word(word_id, "invalid:pair_parse")
-        print(f"  成对解析失败 raw={str(raw)[:160]!r}", flush=True)
-        return {"ok": True, "updated": 0}
+        print(f"  成对解析失败 raw={str(raw)[:200]!r}", flush=True)
+        parsed = retry_pair("成对解析失败")
+        if not parsed:
+            poison_word(word_id, "invalid:pair_parse")
+            return {"ok": True, "updated": 0, "total_missing": total_missing}
 
     usage, examples = parsed
     source = build_online_source_label()
@@ -474,35 +504,10 @@ def run_one_pair(
     if skipped and not payload.get("updated"):
         reason = str(skipped[0].get("reason") or "apply_skipped")
         if "invalid_format" in reason:
-            print(f"  apply 拒收 {reason}，追加 CRITICAL 再试 1 次…", flush=True)
-            acquire_paid_rate_gate(allow_burst=allow_burst)
-            core = re.sub(r"^[～~〜]+|[～~〜]+$", "", word)
-            retry_prompt = (
-                prompt
-                + "\n\nCRITICAL:\n"
-                + f"- 例句必须自然用到「{core}」（中文教学标题除外）。\n"
-                + "- 每个汉字后半角括号假名；每组=用法+日语+译文。\n"
-                + "- 用法必须中文；禁止日语用法、禁止用法行假名括注。\n"
-                + "- 组数=真实常用用法数（1 种就 1 组，禁止硬凑）。\n"
-                + "- 每组=中文用法+日语例句+译文；每个汉字后半角括号假名。\n"
-            )
-            try:
-                raw2 = call_anthropic(
-                    retry_prompt,
-                    system=PAIR_SYSTEM,
-                    max_tokens=3200,
-                    temperature=0.15,
-                    timeout=180,
-                )
-            except Exception as exc:  # noqa: BLE001
-                mark_paid_call()
-                poison_word(word_id, f"anthropic_retry_error:{exc}")
-                return {"ok": True, "updated": 0}
-            mark_paid_call()
-            parsed2 = parse_pair_output(raw2)
+            parsed2 = retry_pair(f"apply 拒收 {reason}")
             if not parsed2:
-                poison_word(word_id, "invalid:pair_parse_retry")
-                return {"ok": True, "updated": 0}
+                poison_word(word_id, f"apply_skipped:{reason}")
+                return {"ok": True, "updated": 0, "total_missing": total_missing}
             payload = do_apply(*parsed2)
             skipped = payload.get("skipped") or []
             if skipped and not payload.get("updated"):

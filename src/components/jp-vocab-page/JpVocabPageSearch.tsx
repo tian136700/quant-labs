@@ -1,9 +1,18 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import { jpVocabPriorityLabel } from "@/lib/jp-vocab-shared";
 import type { JpVocabKindFilter } from "@/lib/jp-vocab-search";
 import type { JpVocabStatSortKey } from "@/lib/jp-vocab-shared";
 import type { Locale } from "@/i18n/messages";
+import {
+  clearJpVocabSearchHistory,
+  pushJpVocabSearchHistory,
+  readStoredJpVocabSearchHistory,
+  removeJpVocabSearchHistoryItem,
+  writeStoredJpVocabKindFilter,
+  writeStoredJpVocabSearchQuery,
+} from "@/lib/jp-vocab-page-helpers";
 
 type JpVocabPageSearchProps = {
   locale: Locale;
@@ -46,6 +55,63 @@ export function JpVocabPageSearch({
   onRestoreDailyRowOrder,
   onToggleStatSort,
 }: JpVocabPageSearchProps) {
+  const listboxId = useId();
+  const blurCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    setHistory(readStoredJpVocabSearchHistory());
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (blurCloseTimerRef.current) clearTimeout(blurCloseTimerRef.current);
+    };
+  }, []);
+
+  const commitHistory = (value: string = searchQuery) => {
+    const next = pushJpVocabSearchHistory(value);
+    setHistory(next);
+  };
+
+  const handleSearchChange = (value: string) => {
+    writeStoredJpVocabSearchQuery(value);
+    onSearchChange(value);
+  };
+
+  const handleKindFilterChange = (value: JpVocabKindFilter) => {
+    writeStoredJpVocabKindFilter(value);
+    onKindFilterChange(value);
+  };
+
+  const handleClear = () => {
+    writeStoredJpVocabSearchQuery("");
+    writeStoredJpVocabKindFilter("all");
+    onClear();
+    setHistoryOpen(false);
+  };
+
+  const handlePickHistory = (item: string) => {
+    writeStoredJpVocabSearchQuery(item);
+    onSearchChange(item);
+    commitHistory(item);
+    setHistoryOpen(false);
+  };
+
+  const handleClearHistory = () => {
+    if (!window.confirm("确定清除全部搜索记录吗？")) return;
+    clearJpVocabSearchHistory();
+    setHistory([]);
+    setHistoryOpen(false);
+  };
+
+  const handleRemoveHistoryItem = (item: string) => {
+    setHistory(removeJpVocabSearchHistoryItem(item));
+  };
+
+  const showHistory = historyOpen && history.length > 0 && !loading;
+
   return (
     <>
       <div
@@ -105,22 +171,97 @@ export function JpVocabPageSearch({
           搜索
         </label>
         <div className="jp-vocab-search__row">
-          <input
-            id="jp-vocab-search"
-            type="search"
-            className="jp-vocab-search__input"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="单词、读音、释义、词性…（搜索全库，本地即时）"
-            disabled={loading}
-            autoComplete="off"
-            spellCheck={false}
-          />
+          <div className="jp-vocab-search__input-wrap">
+            <input
+              id="jp-vocab-search"
+              type="search"
+              className="jp-vocab-search__input"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => {
+                if (blurCloseTimerRef.current) {
+                  clearTimeout(blurCloseTimerRef.current);
+                  blurCloseTimerRef.current = null;
+                }
+                setHistory(readStoredJpVocabSearchHistory());
+                setHistoryOpen(true);
+              }}
+              onBlur={() => {
+                blurCloseTimerRef.current = setTimeout(() => {
+                  setHistoryOpen(false);
+                  commitHistory();
+                }, 150);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitHistory();
+                  setHistoryOpen(false);
+                  (e.currentTarget as HTMLInputElement).blur();
+                } else if (e.key === "Escape") {
+                  setHistoryOpen(false);
+                }
+              }}
+              placeholder="单词、读音、释义、词性…（搜索全库，本地即时）"
+              disabled={loading}
+              autoComplete="off"
+              spellCheck={false}
+              role="combobox"
+              aria-expanded={showHistory}
+              aria-controls={listboxId}
+              aria-autocomplete="list"
+            />
+            {showHistory ? (
+              <div
+                id={listboxId}
+                className="jp-vocab-search__history"
+                role="listbox"
+                aria-label="最近搜索"
+              >
+                <div className="jp-vocab-search__history-head">
+                  <span>最近搜索</span>
+                  <button
+                    type="button"
+                    className="jp-vocab-search__history-clear"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleClearHistory}
+                  >
+                    清除记录
+                  </button>
+                </div>
+                <ul className="jp-vocab-search__history-list">
+                  {history.map((item) => (
+                    <li key={item} className="jp-vocab-search__history-item" role="option">
+                      <button
+                        type="button"
+                        className="jp-vocab-search__history-pick"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handlePickHistory(item)}
+                      >
+                        {item}
+                      </button>
+                      <button
+                        type="button"
+                        className="jp-vocab-search__history-remove"
+                        aria-label={`删除搜索记录「${item}」`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleRemoveHistoryItem(item)}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
           <select
             id="jp-vocab-kind-filter"
             className="jp-vocab-search__kind"
             value={kindFilter}
-            onChange={(e) => onKindFilterChange(e.target.value as JpVocabKindFilter)}
+            onChange={(e) =>
+              handleKindFilterChange(e.target.value as JpVocabKindFilter)
+            }
             disabled={loading}
             aria-label="类型筛选"
           >
@@ -134,7 +275,7 @@ export function JpVocabPageSearch({
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-search__clear"
-              onClick={onClear}
+              onClick={handleClear}
             >
               清除
             </button>

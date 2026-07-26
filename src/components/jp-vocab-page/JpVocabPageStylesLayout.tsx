@@ -80,6 +80,92 @@ export function JpVocabPageStylesLayout() {
           min-width: 0;
           max-width: 24rem;
         }
+        .jp-vocab-search__input-wrap {
+          position: relative;
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .jp-vocab-search__history {
+          position: absolute;
+          z-index: 40;
+          top: calc(100% + 0.25rem);
+          left: 0;
+          right: 0;
+          max-height: 16rem;
+          overflow: auto;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: var(--panel);
+          box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 12%, transparent);
+        }
+        .jp-vocab-search__history-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          padding: 0.45rem 0.65rem;
+          font-size: 0.75rem;
+          color: var(--muted);
+          border-bottom: 1px solid var(--border);
+        }
+        .jp-vocab-search__history-clear {
+          border: 0;
+          background: transparent;
+          color: var(--muted);
+          font: inherit;
+          font-size: 0.75rem;
+          cursor: pointer;
+          padding: 0.15rem 0.25rem;
+          border-radius: 4px;
+        }
+        .jp-vocab-search__history-clear:hover {
+          color: var(--text);
+          background: color-mix(in srgb, var(--accent) 10%, transparent);
+        }
+        .jp-vocab-search__history-list {
+          list-style: none;
+          margin: 0;
+          padding: 0.25rem 0;
+        }
+        .jp-vocab-search__history-item {
+          display: flex;
+          align-items: stretch;
+          gap: 0.15rem;
+        }
+        .jp-vocab-search__history-pick {
+          flex: 1 1 auto;
+          min-width: 0;
+          text-align: left;
+          border: 0;
+          background: transparent;
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          padding: 0.5rem 0.65rem;
+          cursor: pointer;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .jp-vocab-search__history-pick:hover {
+          background: color-mix(in srgb, var(--accent) 12%, transparent);
+        }
+        .jp-vocab-search__history-remove {
+          flex: 0 0 auto;
+          border: 0;
+          background: transparent;
+          color: var(--muted);
+          font: inherit;
+          font-size: 1rem;
+          line-height: 1;
+          padding: 0.45rem 0.55rem;
+          cursor: pointer;
+          border-radius: 4px;
+        }
+        .jp-vocab-search__history-remove:hover {
+          color: var(--text);
+          background: color-mix(in srgb, var(--accent) 10%, transparent);
+        }
         .jp-vocab-search__kind {
           flex: 0 0 auto;
           width: 3.4rem;
@@ -115,10 +201,9 @@ export function JpVocabPageStylesLayout() {
           cursor: not-allowed;
         }
         .jp-vocab-search__input {
-          flex: 1 1 auto;
+          display: block;
+          width: 100%;
           min-width: 0;
-          width: auto;
-          max-width: none;
           padding: 0.45rem 0.65rem;
           border-radius: 6px;
           border: 1px solid var(--border);

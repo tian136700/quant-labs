@@ -64,8 +64,10 @@ import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
 import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
 import {
   jpVocabWordsInOrder,
+  readStoredJpVocabKindFilter,
   readStoredJpVocabPage,
   readStoredJpVocabPageSize,
+  readStoredJpVocabSearchQuery,
   writeStoredJpVocabPage,
   writeStoredJpVocabPageSize,
 } from "@/lib/jp-vocab-page-helpers";
@@ -153,8 +155,10 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     dir: "asc" | "desc";
   }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
   const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>("all");
+  const [searchQuery, setSearchQuery] = useState(() => readStoredJpVocabSearchQuery());
+  const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>(
+    () => readStoredJpVocabKindFilter()
+  );
   const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [pageSize, setPageSize] = useState(() => readStoredJpVocabPageSize());
   const [showExportChoice, setShowExportChoice] = useState(false);

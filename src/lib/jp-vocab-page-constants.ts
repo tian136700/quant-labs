@@ -38,3 +38,12 @@ export const JP_VOCAB_SHARE_HINT =
 
 export const JP_VOCAB_PAGE_STORAGE_KEY = "jp_vocab_current_page";
 export const JP_VOCAB_PAGE_SIZE_STORAGE_KEY = "jp_vocab_page_size";
+
+/** 当前搜索关键词（刷新后恢复，点「清除」才清空） */
+export const JP_VOCAB_SEARCH_QUERY_STORAGE_KEY = "jp_vocab_search_query";
+/** 当前类型筛选 */
+export const JP_VOCAB_SEARCH_KIND_STORAGE_KEY = "jp_vocab_search_kind";
+/** 最近搜索记录 */
+export const JP_VOCAB_SEARCH_HISTORY_STORAGE_KEY = "jp_vocab_search_history";
+/** 最近搜索最多保留条数 */
+export const JP_VOCAB_SEARCH_HISTORY_MAX = 8;
