@@ -76,7 +76,7 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
   if (!w) return false;
   // 句型用法（～てから）不是「变形规则」课
   if (/^[～~〜]/.test(w)) return false;
-  return /变形|变化规则|形规则|变ます|変ます|ます形规则|活用规则|活用变形|ない形|て形|た形|辞書形/.test(
+  return /变形|变化规则|形规则|变ます|変ます|ます形规则|活用规则|活用变形|ない形|て形|た形|辞書形|变否定|变过去|过去式规则|否定形规则/.test(
     w
   );
 }
