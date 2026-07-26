@@ -132,16 +132,26 @@ export function normalizeLoginLinkToken(raw: string): string {
   return trimmed;
 }
 
-export function loginLinkPath(slug: string): string {
-  return `/sign-in/${normalizeLoginLinkToken(slug)}`;
+export function loginLinkPath(
+  slug: string,
+  username?: string | null
+): string {
+  const token = normalizeLoginLinkToken(slug);
+  const name = (username ?? "").trim();
+  // 路径里带用户名便于管理员辨认发给谁；兑换时只认 slug，用户名仅展示
+  if (name) {
+    return `/sign-in/${encodeURIComponent(name)}/${token}`;
+  }
+  return `/sign-in/${token}`;
 }
 
 /** 对外分享的登录链接用日语/英语/韩语子域名，避免 finance 金融域名引起误解 */
 export function buildLoginLinkUrl(
   token: string,
-  site: LoginLinkSite = "jp"
+  site: LoginLinkSite = "jp",
+  username?: string | null
 ): string {
   const base =
     site === "en" ? EN_SITE_URL : site === "ko" ? KO_SITE_URL : JP_SITE_URL;
-  return `${base}${loginLinkPath(token)}`;
+  return `${base}${loginLinkPath(token, username)}`;
 }

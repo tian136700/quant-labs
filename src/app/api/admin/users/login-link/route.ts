@@ -59,12 +59,14 @@ export async function POST(request: Request) {
 
     const loginUrl = buildLoginLinkUrl(
       result.token,
-      loginLinkSiteForRole(result.role)
+      loginLinkSiteForRole(result.role),
+      result.username
     );
 
     return jsonResponse({
       ok: true,
       url: loginUrl,
+      username: result.username,
       link_expires_at: result.link_expires_at,
       session_days: result.session_days,
     });

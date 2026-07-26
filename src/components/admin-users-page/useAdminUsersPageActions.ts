@@ -478,7 +478,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       const url = String(data.url || "");
       const copyText =
         withTemplate && selectedTemplate
-          ? renderLoginLinkTemplate(selectedTemplate.body, url)
+          ? renderLoginLinkTemplate(selectedTemplate.body, url, row.username)
           : url;
       let copied = false;
       if (copyText && navigator.clipboard?.writeText) {

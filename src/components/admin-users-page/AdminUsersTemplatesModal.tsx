@@ -99,8 +99,8 @@ export function AdminUsersTemplatesModal({
         <div className="admin-users-modal-body admin-users-templates-body">
           <p className="hint admin-login-link-templates-hint" style={{ marginTop: 0 }}>
             {locale === "zh"
-              ? "复制登录链接时可选择「仅链接」或「带模板复制」。每次生成都会作废该用户此前的登录链接与已登录状态。正文会放在链接前面；也可写 {login_url} 指定链接位置。"
-              : "Copy plain URL or copy with template text. Each new link invalidates previous links/sessions. Use {login_url} to place the link inline."}
+              ? "复制登录链接时可选择「仅链接」或「带模板复制」。每次生成都会作废该用户此前的登录链接与已登录状态。链接路径会带上用户名（如 /sign-in/用户名/助记词）。正文会放在链接前面；也可写 {login_url} / {username} 指定位置。"
+              : "Copy plain URL or copy with template text. Each new link invalidates previous links/sessions. URLs include the username (/sign-in/username/slug). Use {login_url} / {username} placeholders."}
           </p>
 
           {templates.length > 0 ? (
