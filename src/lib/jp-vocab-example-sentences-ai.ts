@@ -294,8 +294,13 @@ export function validateJpVocabExampleSentencesAiOutput(
       .filter((run) => run.length >= 2)
       .sort((a, b) => b.length - a.length);
     if (longKana.length > 0) {
-      // ～ばかり / ～ておく / ～について：须出现假名语法核
-      const hit = longKana.some(
+      // ～ておく / ～てみる：须出现假名语法核或其词干（ておきました→ておき）
+      const variants = longKana.flatMap((n) => {
+        const out = [n];
+        if (n.length >= 3) out.push(n.slice(0, -1));
+        return out;
+      });
+      const hit = variants.some(
         (n) => combinedPlain.includes(n) || combined.includes(n)
       );
       if (!hit) {
