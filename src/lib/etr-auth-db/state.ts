@@ -14,6 +14,9 @@ export type DevLoginHistory = {
   user_id: number;
   login_at: string;
   login_ip: string | null;
+  geo_region_label?: string | null;
+  geo_area?: string | null;
+  geo_isp?: string | null;
 };
 export type DevIpGeoCache = {
   ip: string;
@@ -40,6 +43,8 @@ export const etrAuthDbState = {
   devSessions: [] as DevSession[],
   devLoginHistory: [] as DevLoginHistory[],
   devIpGeoCache: [] as DevIpGeoCache[],
+  /** 待查归属地的唯一 IP（仅未命中缓存时入队） */
+  devIpGeoQueue: [] as string[],
   devUserIdSeq: 1,
   devLoginHistoryIdSeq: 1,
   /** 同一 Worker 实例内只 bootstrap 一次，避免每次鉴权都跑 PBKDF2 */

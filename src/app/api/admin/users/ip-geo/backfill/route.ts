@@ -83,6 +83,7 @@ export async function POST(request: Request) {
         area: result.geo?.ok ? result.geo.area : null,
         isp: result.geo?.ok ? result.geo.isp : null,
         geo_ok: result.geo?.ok ?? false,
+        history_rows_updated: result.history_rows_updated,
         ...result.status,
       });
     }

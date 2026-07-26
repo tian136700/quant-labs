@@ -1,8 +1,10 @@
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  enqueueLoginIpGeoLookup,
   findUserById,
   getCachedIpGeoMap,
   listUserLoginHistory,
+  copyIpGeoOntoLoginHistory,
 } from "@/lib/etr-auth-db";
 import { formatIpForDisplay, ipKey } from "@/lib/client-ip";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
@@ -24,8 +26,8 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
 
 /**
  * GET /api/admin/users/login-history?user_id=
- * 管理员查看某用户历次登录 IP（新→旧，最多 100 条）。
- * 仅附带已缓存的归属地；未缓存的由前端逐个调 /ip-geo（节流），勿在此批量打 ip9。
+ * 只读：优先用登录行上已抄好的归属地；否则读缓存。
+ * 不调 ip9；缺归属地由 30s 定时队列补，弹窗可软刷新。
  */
 export async function GET(request: Request) {
   const locale = localeFromRequest(request);
@@ -56,27 +58,45 @@ export async function GET(request: Request) {
     }
 
     const rows = await listUserLoginHistory(env.DB, userId, 100);
-    const geoMap = await getCachedIpGeoMap(
-      env.DB,
-      rows.map((row) => row.login_ip ?? "").filter(Boolean)
-    );
+    const needCache = rows
+      .filter((row) => row.login_ip && !(row.geo_region_label || "").trim())
+      .map((row) => row.login_ip as string);
+    const geoMap = await getCachedIpGeoMap(env.DB, needCache);
+
+    const toEnqueue = new Set<string>();
+    for (const row of rows) {
+      const key = ipKey(row.login_ip);
+      if (!key) continue;
+      if ((row.geo_region_label || "").trim()) continue;
+      const geo = geoMap.get(key);
+      if (geo?.ok) {
+        await copyIpGeoOntoLoginHistory(env.DB, key, geo);
+        row.geo_region_label = geo.region_label || null;
+        row.geo_area = geo.area;
+        row.geo_isp = geo.isp;
+      } else if (!geo) {
+        toEnqueue.add(key);
+      }
+    }
+    for (const ip of toEnqueue) {
+      await enqueueLoginIpGeoLookup(env.DB, ip);
+    }
 
     return jsonResponse({
       ok: true,
       user: { id: user.id, username: user.username },
       history: rows.map((row) => {
         const key = ipKey(row.login_ip);
-        const geo = key ? geoMap.get(key) : undefined;
+        const label = (row.geo_region_label || "").trim();
         return {
           id: row.id,
           login_at: row.login_at,
           login_ip: row.login_ip,
           login_ip_display: formatIpForDisplay(row.login_ip),
-          region_label: geo?.ok ? geo.region_label || null : null,
-          area: geo?.ok ? geo.area : null,
-          isp: geo?.ok ? geo.isp : null,
-          /** 无缓存才需要前端逐个调 /ip-geo；失败缓存也算已处理 */
-          geo_pending: Boolean(key) && !geo,
+          region_label: label || null,
+          area: row.geo_area ?? null,
+          isp: row.geo_isp ?? null,
+          geo_pending: Boolean(key) && !label,
         };
       }),
     });

@@ -68,17 +68,23 @@ CREATE TABLE IF NOT EXISTS etr_users (
 
 CREATE INDEX IF NOT EXISTS idx_etr_users_last_login_at ON etr_users (last_login_at DESC, id DESC);
 
--- 每次登录一条：用户管理「查看历史登录 IP」
+-- 每次登录一条：用户管理「查看历史登录 IP」；归属地从缓存抄上（同 IP 不重复查）
 CREATE TABLE IF NOT EXISTS etr_user_login_history (
-  id        INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id   INTEGER NOT NULL,
-  login_at  TEXT    NOT NULL,
-  login_ip  TEXT,
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id           INTEGER NOT NULL,
+  login_at          TEXT    NOT NULL,
+  login_ip          TEXT,
+  geo_region_label  TEXT,
+  geo_area          TEXT,
+  geo_isp           TEXT,
   FOREIGN KEY (user_id) REFERENCES etr_users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_etr_user_login_history_user_at
   ON etr_user_login_history (user_id, login_at DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_etr_user_login_history_ip
+  ON etr_user_login_history (login_ip);
 
 -- IP 归属地缓存（ip9.com.cn；含区县 area；避免重复打爆外部接口）
 CREATE TABLE IF NOT EXISTS etr_ip_geo_cache (
@@ -91,6 +97,12 @@ CREATE TABLE IF NOT EXISTS etr_ip_geo_cache (
   isp           TEXT,
   ok            INTEGER NOT NULL DEFAULT 1,
   fetched_at    TEXT NOT NULL
+);
+
+-- 待查归属地队列：登录遇到新 IP 入队；定时任务每 30s 出队查一次
+CREATE TABLE IF NOT EXISTS etr_ip_geo_queue (
+  ip           TEXT NOT NULL PRIMARY KEY,
+  enqueued_at  TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS etr_sessions (

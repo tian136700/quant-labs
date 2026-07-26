@@ -2,8 +2,8 @@ import "server-only";
 
 import { ipKey } from "@/lib/client-ip";
 
-/** 对 ip9.com.cn 的最小间隔（毫秒）——全 Worker 实例内串行，禁止并行打爆 */
-export const IP9_MIN_INTERVAL_MS = 1500;
+/** 对 ip9.com.cn 的最小间隔（毫秒）——全 Worker 实例内串行；与 Mac 定时 30s 对齐，禁止打爆免费接口 */
+export const IP9_MIN_INTERVAL_MS = 30_000;
 const IP9_TIMEOUT_MS = 8000;
 const IP9_ENDPOINT = "https://ip9.com.cn/get";
 

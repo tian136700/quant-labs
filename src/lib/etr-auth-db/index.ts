@@ -27,6 +27,10 @@ export {
   ensureEtrUserLoginHistorySchema,
   listUserLoginHistory,
   recordUserLoginHistory,
+  enqueueLoginIpGeoLookup,
+  listQueuedLoginIpGeo,
+  dequeueLoginIpGeo,
+  copyIpGeoOntoLoginHistory,
 } from "./login_history";
 
 export type { EtrIpGeoCacheRow } from "./ip_geo_cache";

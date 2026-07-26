@@ -96,6 +96,21 @@ CREATE TABLE IF NOT EXISTS etr_ip_geo_cache (
 );
 """.strip()
     )
+    run_wrangler(
+        """
+CREATE TABLE IF NOT EXISTS etr_ip_geo_queue (
+  ip           TEXT NOT NULL PRIMARY KEY,
+  enqueued_at  TEXT NOT NULL
+);
+""".strip()
+    )
+    for col in ("geo_region_label", "geo_area", "geo_isp"):
+        try:
+            run_wrangler(
+                f"ALTER TABLE etr_user_login_history ADD COLUMN {col} TEXT;"
+            )
+        except Exception:
+            pass
 
 
 def list_distinct_login_ips() -> list[str]:
@@ -220,6 +235,27 @@ ON CONFLICT(ip) DO UPDATE SET
   fetched_at = excluded.fetched_at;
 """.strip()
     run_wrangler(sql)
+    # 同 IP 所有登录行抄上归属地（不再为每条登录打接口）
+    label = format_label(geo)
+    area = str(geo.get("area") or "").strip()
+    isp = str(geo.get("isp") or "").strip()
+    try:
+        run_wrangler(
+            f"""
+UPDATE etr_user_login_history
+SET geo_region_label = {sql_literal(label)},
+    geo_area = {sql_literal(area)},
+    geo_isp = {sql_literal(isp)}
+WHERE login_ip IS NOT NULL
+  AND (login_ip = {sql_literal(ip)} OR TRIM(login_ip) = {sql_literal(ip)});
+""".strip()
+        )
+    except Exception as err:  # noqa: BLE001
+        print(f"  warn: copy onto history failed: {err}", flush=True)
+    try:
+        run_wrangler(f"DELETE FROM etr_ip_geo_queue WHERE ip = {sql_literal(ip)};")
+    except Exception:
+        pass
 
 
 def format_label(geo: dict) -> str:
