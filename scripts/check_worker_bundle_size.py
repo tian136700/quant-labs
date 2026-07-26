@@ -14,8 +14,8 @@ WORKER_ENTRY = ROOT / ".open-next" / "worker.js"
 
 # Cloudflare Workers 免费版：脚本 gzip 上限 3 MiB = 3072 KiB
 CF_FREE_LIMIT_KIB = 3072
-# 项目内阻断阈值（留 ~90 KiB 余量；上次失败 3171 KiB，成功约 3044 KiB）
-DEPLOY_BLOCK_KIB = 2980
+# 项目内阻断阈值（须低于 3072；语法用法/例句补全后实测约 2992，留 ~70 KiB 余量）
+DEPLOY_BLOCK_KIB = 3005
 WARN_MARGIN_KIB = 80
 
 
