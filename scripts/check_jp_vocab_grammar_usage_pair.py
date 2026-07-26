@@ -56,6 +56,10 @@ def main() -> int:
         errors.append("须拒 usage_missing_level")
     if "(N5)" not in usage_ai:
         errors.append("usage prompt 须要求句末 (N5) 等级")
+    if "isJpVocabConjugationGrammar" not in usage_ai:
+        errors.append("须识别变形/变化规则词条")
+    if "禁止长篇讲解变形规则" not in usage_ai:
+        errors.append("变形词条 prompt 须禁止长用法")
     if "不要 JLPT 标签" in usage_ai:
         errors.append("usage prompt 不得再禁止句末等级括号")
     if "至少 2 组" in usage_ai or "至少写 2 条" in usage_ai:

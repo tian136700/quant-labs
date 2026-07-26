@@ -68,6 +68,16 @@ export function normalizeJpVocabUsageJlptTail(
 }
 
 /**
+ * 「て形变形 / ない形变化规则」等活用教学词条：
+ * 不写长用法，只给短标签 + 简单例句。
+ */
+export function isJpVocabConjugationGrammar(word: string): boolean {
+  const w = String(word || "").trim();
+  if (!w) return false;
+  return /变形|变化规则/.test(w);
+}
+
+/**
  * 用法说明是否「不像中文」：
  * - 只看「」短引之外：出现 漢字(かな) 或假名过多 → 拒（整段日语）
  * - 「」内可短引日语形态；引号外允许少量假名（如「て形」写作习惯）
@@ -84,25 +94,52 @@ export function jpVocabUsageLineLooksNonChinese(text: string): boolean {
 /**
  * 语法：用法+例句同一次输出（1:1）。
  * 禁止拆成两次模型调用。用法必须中文。
+ * 「变形/变化规则」词条走短标签模式，禁止长篇规则讲解。
  */
 export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   const reading = input.reading?.trim();
   const meaning = input.meaning?.trim();
-  const grammarCore = input.word
-    .trim()
+  const word = input.word.trim();
+  const isConjugation = isJpVocabConjugationGrammar(word);
+  const grammarCore = word
     .replace(/^[～~〜]+/, "")
     .replace(/[～~〜]+$/, "");
   const meta = [
-    `词条：${input.word.trim()}`,
-    grammarCore
+    `词条：${word}`,
+    !isConjugation && grammarCore
       ? `语法点：句中例句必须自然出现「${grammarCore}」（词条里的「～」「〜」禁止写进例句）。中文教学标题（如「て形变形」）不要求原文照抄。`
-      : null,
+      : isConjugation
+        ? `说明：本条是动词/形容词「活用变形」教学，学生会自己回答怎么变；不要写长篇规则讲解。`
+        : null,
     reading ? `读音：${reading}` : null,
     meaning ? `旧释义参考（可忽略）：${meaning}` : null,
     "类型：语法",
   ]
     .filter(Boolean)
     .join("\n");
+
+  if (isConjugation) {
+    return `${meta}
+
+请为上述「变形/变化规则」词条一次写完「短标签 + 例句」，供中文母语的 N5 初学者朗读。
+
+硬规则（必须遵守）：
+- ❌ 禁止长篇讲解变形规则、接续基础、与其它活用对照、考试技巧等「用法说明」。
+- ✅ 只输出 2～4 组。每组第一行是极短中文标签（十来个字），句末必须半角等级括号，变形类一律标 .(N5)。
+- 标签示例：「五段动词ない形。(N5)」「一段动词ない形。(N5)」「する／くる 的ない形。(N5)」——不要写成整段说明。
+- 每条标签下一行立刻跟 1 条完整短日语例句 + 「译文：」；禁止只写标签。
+- 例句必须 N5 左右：极短、口语、日常词；禁止难词、禁止再叠另一个语法、禁止「書く→書かない」箭头对照句当例句（箭头可写在短标签里）。
+- 优先覆盖本变形相关的典型分类（如ない形：五段 / 一段 / する或くる）。
+- 每个汉字后半角括号假名；不要 markdown、不要给例句再编行首号、不要总标题。
+
+输出格式示例：
+1. 五段动词ない形。(N5)
+今日(きょう)は学校(がっこう)へ行(い)かない。
+译文：今天不去学校。
+2. 一段动词ない形。(N5)
+朝(あさ)ご飯(はん)を食(た)べない。
+译文：不吃早饭。`;
+  }
 
   return `${meta}
 
