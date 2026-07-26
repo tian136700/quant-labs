@@ -152,20 +152,52 @@ export function EnVocabPageStylesLayout() {
         }
         .jp-vocab-pagination {
           display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-          gap: 0.65rem 0.85rem;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.45rem;
           margin: 0 0 0.75rem;
         }
         .jp-vocab-pagination:last-of-type {
           margin: 0.75rem 0 0;
         }
+        .jp-vocab-pagination__controls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 0.65rem 0.85rem;
+          width: 100%;
+        }
         .jp-vocab-pagination__info {
           font-size: 0.8125rem;
           color: var(--muted);
           font-variant-numeric: tabular-nums;
-          text-align: center;
+          text-align: left;
+        }
+        .jp-vocab-pagination__size {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .jp-vocab-pagination__size-label {
+          white-space: nowrap;
+        }
+        .jp-vocab-pagination__size-select {
+          min-width: 4.5rem;
+          padding: 0.35rem 1.25rem 0.35rem 0.45rem;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background-color: var(--panel);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.8125rem;
+          font-variant-numeric: tabular-nums;
+        }
+        .jp-vocab-pagination__size-select:focus {
+          outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+          outline-offset: 1px;
         }
         .jp-vocab-level-unavailable {
           display: inline-block;

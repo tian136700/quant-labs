@@ -28,7 +28,11 @@ export const SHOW_RISK_CHART = false;
 /** 默认今日抽查数量（管理员可改；跨日回到此值；见 en-vocab-teacher-visible.ts） */
 export const EN_VOCAB_DAILY_QUIZ_TOP = 20;
 
-/** 单词表默认每页条数 */
-export const EN_VOCAB_PAGE_SIZE = 100;
+/** 单词表默认每页条数（对齐日语抽问） */
+export const EN_VOCAB_PAGE_SIZE = 20;
+
+/** 单词表可选每页条数（对齐日语抽问） */
+export const EN_VOCAB_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
 export const EN_VOCAB_PAGE_STORAGE_KEY = "en_vocab_current_page";
+export const EN_VOCAB_PAGE_SIZE_STORAGE_KEY = "en_vocab_page_size";

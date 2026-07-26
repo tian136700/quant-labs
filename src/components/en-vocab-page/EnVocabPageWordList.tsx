@@ -31,11 +31,11 @@ export type EnVocabPageWordListProps = {
   filteredDisplayedWords: EnVocabWord[];
   displayedWordsCount: number;
   pagedDisplayedWords: EnVocabWord[];
-  showPagination: boolean;
   safePage: number;
   totalPages: number;
   pageRangeStart: number;
   pageRangeEnd: number;
+  pageSize: number;
   highlightId: number | null;
   displayOrder: EnVocabDailyDisplayOrder;
   sessionLevel: Record<number, EnVocabLevel | undefined>;
@@ -60,6 +60,7 @@ export type EnVocabPageWordListProps = {
   onKindFilterChange: (value: EnVocabKindFilter) => void;
   onClearSearch: () => void;
   onPageChange: (updater: (page: number) => number) => void;
+  onPageSizeChange: (size: number) => void;
   onStatSort: (key: EnVocabStatSortKey) => void;
   onToggleSelectAllPageForDelete: () => void;
   onToggleDeleteSelection: (wordId: number, checked: boolean) => void;
@@ -98,11 +99,11 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     filteredDisplayedWords,
     displayedWordsCount,
     pagedDisplayedWords,
-    showPagination,
     safePage,
     totalPages,
     pageRangeStart,
     pageRangeEnd,
+    pageSize,
     highlightId,
     displayOrder,
     sessionLevel,
@@ -127,6 +128,7 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
     onKindFilterChange,
     onClearSearch,
     onPageChange,
+    onPageSizeChange,
     onStatSort,
     onToggleSelectAllPageForDelete,
     onToggleDeleteSelection,
@@ -184,13 +186,14 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
           {filteredDisplayedWords.length ? (
             <>
               <EnVocabPagination
-                show={showPagination}
                 safePage={safePage}
                 totalPages={totalPages}
                 pageRangeStart={pageRangeStart}
                 pageRangeEnd={pageRangeEnd}
                 totalItems={filteredDisplayedWords.length}
+                pageSize={pageSize}
                 onPageChange={onPageChange}
+                onPageSizeChange={onPageSizeChange}
               />
               <EnVocabWordTable
                 locale={locale}
@@ -236,13 +239,14 @@ export function EnVocabPageWordList(props: EnVocabPageWordListProps) {
                 onStatus={onStatus}
               />
               <EnVocabPagination
-                show={showPagination}
                 safePage={safePage}
                 totalPages={totalPages}
                 pageRangeStart={pageRangeStart}
                 pageRangeEnd={pageRangeEnd}
                 totalItems={filteredDisplayedWords.length}
+                pageSize={pageSize}
                 onPageChange={onPageChange}
+                onPageSizeChange={onPageSizeChange}
               />
             </>
           ) : null}

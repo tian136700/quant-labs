@@ -66,13 +66,16 @@ import {
 } from "@/lib/en-vocab-review";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import {
-  EN_VOCAB_PAGE_SIZE,
   SHOW_RANDOM_HIGHLIGHT,
   SHOW_RISK_CHART,
 } from "@/lib/en-vocab-page-constants";
 import {
   enVocabWordsInOrder,
   pickRandomEnVocabWord,
+  readStoredEnVocabPage,
+  readStoredEnVocabPageSize,
+  writeStoredEnVocabPage,
+  writeStoredEnVocabPageSize,
 } from "@/lib/en-vocab-page-helpers";
 import { clearEnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz-storage";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
@@ -188,7 +191,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   /** 服务端持久化的当日行顺序（北京时间 0 点重排，当天内刷新/勾选不变） */
   const [searchQuery, setSearchQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<EnVocabKindFilter>("all");
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => readStoredEnVocabPage());
+  const [pageSize, setPageSize] = useState(() => readStoredEnVocabPageSize());
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
@@ -423,13 +427,13 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredDisplayedWords.length / EN_VOCAB_PAGE_SIZE)
+    Math.ceil(filteredDisplayedWords.length / pageSize)
   );
   const safePage = Math.min(page, totalPages);
   const pagedDisplayedWords = useMemo(() => {
-    const start = (safePage - 1) * EN_VOCAB_PAGE_SIZE;
-    return filteredDisplayedWords.slice(start, start + EN_VOCAB_PAGE_SIZE);
-  }, [filteredDisplayedWords, safePage]);
+    const start = (safePage - 1) * pageSize;
+    return filteredDisplayedWords.slice(start, start + pageSize);
+  }, [filteredDisplayedWords, safePage, pageSize]);
   const pagedDeleteIds = useMemo(
     () => pagedDisplayedWords.map((w) => w.id),
     [pagedDisplayedWords]
@@ -439,13 +443,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     pagedDeleteIds.every((id) => selectedDeleteIds.has(id));
   const somePageDeleteSelected =
     !allPageDeleteSelected && pagedDeleteIds.some((id) => selectedDeleteIds.has(id));
-  const showPagination = filteredDisplayedWords.length > EN_VOCAB_PAGE_SIZE;
   const pageRangeStart =
     filteredDisplayedWords.length === 0
       ? 0
-      : (safePage - 1) * EN_VOCAB_PAGE_SIZE + 1;
+      : (safePage - 1) * pageSize + 1;
   const pageRangeEnd = Math.min(
-    safePage * EN_VOCAB_PAGE_SIZE,
+    safePage * pageSize,
     filteredDisplayedWords.length
   );
 
@@ -456,6 +459,21 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    writeStoredEnVocabPage(safePage);
+  }, [safePage]);
+
+  useEffect(() => {
+    writeStoredEnVocabPageSize(pageSize);
+  }, [pageSize]);
+
+  const handlePageSizeChange = (nextSize: number) => {
+    if (nextSize === pageSize) return;
+    const firstIndex = (safePage - 1) * pageSize;
+    setPageSize(nextSize);
+    setPage(Math.floor(firstIndex / nextSize) + 1);
+  };
 
   useEffect(() => {
     if (!scrollToHighlightRef.current || highlightId == null) return;
@@ -579,7 +597,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     if (!next) return;
     const idx = filteredDisplayedWords.findIndex((w) => w.id === next.id);
     if (idx >= 0) {
-      setPage(Math.floor(idx / EN_VOCAB_PAGE_SIZE) + 1);
+      setPage(Math.floor(idx / pageSize) + 1);
     }
     scrollToHighlightRef.current = true;
     setHighlightId(next.id);
@@ -803,11 +821,11 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           filteredDisplayedWords={filteredDisplayedWords}
           displayedWordsCount={displayedWords.length}
           pagedDisplayedWords={pagedDisplayedWords}
-          showPagination={showPagination}
           safePage={safePage}
           totalPages={totalPages}
           pageRangeStart={pageRangeStart}
           pageRangeEnd={pageRangeEnd}
+          pageSize={pageSize}
           highlightId={highlightId}
           displayOrder={displayOrder}
           sessionLevel={sessionLevel}
@@ -835,6 +853,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
             setKindFilter("all");
           }}
           onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
           onStatSort={toggleStatSort}
           onToggleSelectAllPageForDelete={() =>
             toggleSelectAllPageForDelete(pagedDeleteIds, allPageDeleteSelected)
