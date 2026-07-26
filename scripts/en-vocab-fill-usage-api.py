@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """补全 en_vocab_word 缺失用法：list_missing → 本机 Ollama → apply。
 
-格式：编号中文说明，至少 2 条。选题按学术考试高频；正文禁止考试标签。
+格式：编号中文说明，组数按真实常用用法（可为 1）。选题按学术考试高频；正文禁止考试标签。
 默认模型 gemma4:26b；source 标「本地 gemma4:26b」。
 """
 
@@ -114,8 +114,8 @@ def validate_usage(raw: str) -> tuple[str | None, str | None]:
             return None, "invalid_numbering"
         points.append((n, body))
 
-    if len(points) < 2:
-        return None, "need_two_points"
+    if len(points) < 1:
+        return None, "need_one_point"
 
     for i, (n, _) in enumerate(points):
         if n != i + 1:
@@ -135,9 +135,9 @@ def generate_for_row(
     if not prompt:
         prompt = (
             f"词条：{word}\n类型：{'语法' if kind == 'grammar' else '单词'}\n\n"
-            "请列出常用用法，至少 2 条编号中文说明，形如：\n"
-            "1. 介词：表示「在……之上」；常用于描述位置关系。\n"
-            "2. 副词：表示「在上方；在上文中」。\n"
+            "请列出常用用法，组数按真实常用义项（只有 1 种就 1 条，禁止硬凑 2 条），"
+            "编号中文说明，形如：\n"
+            "1. 动词：表示「期待；预计」；后接名词或 that 从句。\n"
             "正文禁止写考试名称（雅思、托福、IELTS、TOEFL 等）。"
         )
 
@@ -163,7 +163,7 @@ def generate_for_row(
                 work_prompt = (
                     base_prompt
                     + f"\n\n上次不合格（{last_err}）。请只输出从 1. 连续编号的中文用法行，"
-                    "至少两条，不要 markdown，不要写任何考试名称标签。"
+                    "组数按真实常用用法（1 种就 1 条），不要 markdown，不要写任何考试名称标签。"
                 )
             except Exception as err:
                 last_err = str(err)

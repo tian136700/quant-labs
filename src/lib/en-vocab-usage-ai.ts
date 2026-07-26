@@ -8,8 +8,9 @@ export const EN_VOCAB_USAGE_EXAM_LABEL_RE =
   /雅思|托福|四六级|考研|专四|专八|IELTS|TOEFL|ielts|toefl|\bCET\b|\bGRE\b|\bGMAT\b|\bSAT\b/i;
 
 export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 1,
-  count_rule: "至少 2 条编号用法；聚焦写作/阅读/听力高频用法（覆盖常见义项）",
+  version: 2,
+  count_rule:
+    "组数=该词真实常用用法数（学术考试写作/阅读/听力高频）；只有 1 种就 1 条，有几种写几条；禁止硬凑 2 条",
   format_example:
     "1. 介词：表示「在……之上」；常用于描述位置关系。\n2. 副词：表示「在上方；在上文中」。",
   rules: [
@@ -17,13 +18,13 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "说明用中文；可在引号内保留英文术语（如「look forward to」）",
     "聚焦写作、阅读、听力中的高频用法",
     "上传接口自动屏蔽考试名称/标签（雅思、托福、IELTS、TOEFL、四六级、考研等）——直接去掉该词，不拒整段",
-    "至少 2 条；多词性/多义时按常用度分条，勿把无关冷僻义塞进来",
+    "组数按实需：1 种→1 条，2 种→2 条，3 种→3 条；勿为凑数硬拆/硬凑",
     "不要 markdown、不要整段散文、不要造例句（例句另有 fill 阶段）",
     "写回时请传 source，建议「本地 gemma4:26b」；人手为「手动」",
   ],
   reject_reasons: [
     "empty",
-    "need_two_points",
+    "need_one_point",
     "invalid_numbering",
   ],
 } as const;
@@ -62,17 +63,17 @@ export function buildEnVocabUsageAiPrompt(input: EnVocabUsageAiInput): string {
 选材（仅供你选题，禁止写进正文）：优先该词在学术英语考试写作、阅读、听力里的高频用法与搭配。
 
 条数与内容：
-- 至少写 2 条编号说明；若有多种常用词性/义项，每种一条。
+- 组数 = 该词真实常用用法数：只有 1 种就写 1 条；有 2 种写 2 条；有 3 种写 3 条。禁止为了凑数硬拆成两组，也禁止无关冷僻义硬凑。
 - 聚焦高频用法；不要堆冷僻义。
 - 用中文解释；可在引号内保留英文短语或术语。
 
 格式要求（必须严格遵守）：
-1. 只输出编号行，形如：
-1. 介词：表示「在……之上」；常用于描述位置关系。
-2. 副词：表示「在上方；在上文中」。
-2. 编号从 1 连续递增；半角「数字.」后接正文。
-3. 正文中绝对禁止出现任何考试名称或标签（不要写：雅思、托福、IELTS、TOEFL、四六级、考研、专四、专八、GRE、GMAT、SAT、CET 等）。
-4. 不要 markdown、不要标题、不要例句、不要额外解释。`;
+- 只输出编号行；半角「数字.」后接中文正文；编号从 1 连续递增。
+- 仅 1 种常用用法时只输出一行，例如：
+1. 动词：表示「期待；预计」；后接名词或 that 从句。
+- 多种常用词性/义项时再继续 2. 3. …
+- 正文中绝对禁止出现任何考试名称或标签（不要写：雅思、托福、IELTS、TOEFL、四六级、考研、专四、专八、GRE、GMAT、SAT、CET 等）。
+- 不要 markdown、不要标题、不要例句、不要额外解释。`;
 }
 
 function stripFenceNoise(raw: string): string {
@@ -122,7 +123,7 @@ export function normalizeEnVocabUsageText(
   raw: string | null | undefined
 ): string | null {
   const points = parseEnVocabUsagePoints(String(raw ?? ""));
-  if (!points || points.length < 2) return null;
+  if (!points || points.length < 1) return null;
   return serializeEnVocabUsagePoints(points);
 }
 
@@ -251,7 +252,7 @@ export function validateEnVocabUsageAiOutput(
 
   const points = parseEnVocabUsagePoints(text);
   if (!points) return { ok: false, reason: "invalid_numbering" };
-  if (points.length < 2) return { ok: false, reason: "need_two_points" };
+  if (points.length < 1) return { ok: false, reason: "need_one_point" };
 
   return { ok: true, text: serializeEnVocabUsagePoints(points) };
 }

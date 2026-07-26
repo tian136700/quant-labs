@@ -136,6 +136,20 @@ def main() -> int:
             "jp-vocab-source-display.ts: missing uniqueJpVocabSourcesForDisplay"
         )
 
+    usage_ai = (ROOT / "src/lib/en-vocab-usage-ai.ts").read_text(encoding="utf-8")
+    if "至少写 2 条" in usage_ai or "至少 2 条编号" in usage_ai:
+        errors.append("en-vocab-usage-ai: 禁止再强制至少 2 条用法")
+    if "need_two_points" in usage_ai:
+        errors.append("en-vocab-usage-ai: 须改为允许 1 条（勿再 need_two_points）")
+    if "points.length < 1" not in usage_ai and "need_one_point" not in usage_ai:
+        errors.append("en-vocab-usage-ai: 校验须允许仅 1 条用法")
+    if "禁止为了凑数" not in usage_ai and "硬凑" not in usage_ai:
+        errors.append("en-vocab-usage-ai prompt: 须写明禁止硬凑组数")
+
+    fill_rule = (ROOT / ".cursor/rules/en-vocab-fill.mdc").read_text(encoding="utf-8")
+    if "至少 2 条（选题按学术考试高频" in fill_rule:
+        errors.append("en-vocab-fill.mdc: 用法勿再写强制至少 2 条")
+
     if errors:
         print("FAIL: en-vocab usage/examples pairing display guards")
         for e in errors:
