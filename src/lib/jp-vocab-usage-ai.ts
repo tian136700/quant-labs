@@ -1,21 +1,22 @@
 /** 日语语法用法上传契约：编号「中文」说明 + 1:1 例句（同一次调用） */
 
 export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 3,
+  version: 4,
   count_rule:
     "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 1 条例句",
   format_example:
-    "1. 表示原因、理由：前句说明原因，后句说明结果。\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。",
+    "1. 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。",
   level: "N5～N2（含 N1 以下；不要超纲冷僻用法）",
   rules: [
     "只补「语法」（单词不走此接口）",
     "用法说明必须是中文（学生要看得懂）；禁止整段日语用法；「」外不要写汉字(假名)括注",
     "可在中文里用「」短引日语形态（如「～てから」「て形」）；「」内也不要假名括注",
+    "每条用法句末句号后必须标该用法大概 JLPT 等级：半角括号 (N5)/(N4)/(N3)/(N2)/(N1)，紧贴句末",
     "用法与例句必须同一次输出、一一对应：编号中文用法下一行立刻跟日语例句，再下一行「译文：」",
     "禁止拆成「先用法、后例句」两次模型调用",
     "组数按真实常用义项：1 种→1 组，2 种→2 组，3 种→3 组；不要为了凑数硬写两组",
     "水平限定 N5～N2：最常用排第一；例句只用简单词、不叠更难语法",
-    "不要 markdown、不要给例句再编行首号",
+    "不要 markdown、不要给例句再编行首号；等级只写在用法句末括号，不要写「JLPT」「能力考」等字样",
     "写回时请传 source，建议「线上 claude-…」；人手为「手动」",
   ],
   source_examples: ["线上 claude-sonnet-4-6", "本地 gemma4:26b", "手动"],
@@ -25,6 +26,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "invalid_numbering",
     "not_grammar",
     "usage_not_chinese",
+    "usage_missing_level",
     "usage_off_lemma",
     "examples_required",
     "pair_incomplete",
@@ -37,16 +39,33 @@ export type JpVocabUsageAiInput = {
   kind: string;
   reading?: string | null;
   meaning?: string | null;
+  /** 付费/自动写回须句末 (N5)；人手「手动」可省略 */
+  requireJlptLevel?: boolean;
 };
 
 const NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;
 const HAN_RE = /[\u4E00-\u9FFF]/;
 const FENCE_RE = /^```(?:\w+)?\s*$/;
-/** 正文禁止写 JLPT / 考试标签 */
-const JP_VOCAB_USAGE_LEVEL_LABEL_RE =
-  /\bN[1-5]\b|JLPT|日语能力|能力考|高考|考研/i;
+/** 用法句末等级：。(N5) / （N4）等 → 规范成半角 (N5) */
+const JP_VOCAB_USAGE_JLPT_TAIL_RE =
+  /^(.*?)[（(]\s*N\s*([1-5])\s*[）)]\s*$/i;
+/** 禁止在用法正文里写考试套话（等级只用句末 (N5)） */
+const JP_VOCAB_USAGE_EXAM_BOILERPLATE_RE =
+  /JLPT|日语能力|能力考|高考|考研/i;
 /** 用法行里的假名括注（说明被写成日语了） */
 const USAGE_FURIGANA_PAREN_RE = /\([\u3040-\u309Fー]+\)/;
+
+/** 把句末 （N5）/ ( N4 ) 规范成 `(N5)`；没有则 null */
+export function normalizeJpVocabUsageJlptTail(
+  text: string
+): string | null {
+  const t = String(text || "").trim();
+  const m = JP_VOCAB_USAGE_JLPT_TAIL_RE.exec(t);
+  if (!m) return null;
+  const body = m[1].replace(/\s+$/u, "");
+  if (!body) return null;
+  return `${body}(N${m[2]})`;
+}
 
 /**
  * 用法说明是否「不像中文」：
@@ -93,14 +112,15 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - 同一次输出里完成：每条用法下面立刻跟 1 条例句（日语 + 译文）。禁止只写用法、禁止只写例句、禁止拆成两轮。
 - 组数 = 该语法真实常用用法数（约 N5～N2 / 考试常见）：只有 1 种就写 1 组；有 2 种写 2 组；有 3 种写 3 组。禁止为了凑数硬写两组。
 - 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌「」外不要写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」「場所に＋名詞がある」），「」内也不要假名括注。
+- 每条中文用法在句末句号后，必须紧跟该用法大概对应的 JLPT 等级，半角括号：。(N5) 或 .(N4) .(N3) .(N2) .(N1)。按该条用法的常见考试难度估，不要整词条只标一个级；不要写「JLPT」「能力考」等字样。
 - 只用本词条本身的用法。❌ 禁止把其它语法点塞进来凑组数（词条「～がある」时，不要写「～たことがある」「～ことがある」等别的句型当独立用法；那些是别的词条）。
-- 每一组必须完整：中文用法 + 日语例句 + 译文：；禁止只输出用法。
+- 每一组必须完整：中文用法（含句末等级） + 日语例句 + 译文：；禁止只输出用法。
 - 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
-- 不要 markdown、不要 JLPT 标签、不要给例句再编行首号。
+- 不要 markdown、不要给例句再编行首号。
 - 不要写总标题；第一行就必须是「1. …」中文用法。
 
 输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …）：
-1. 表示原因、理由：前句说明原因，后句说明结果。
+1. 表示原因、理由：前句说明原因，后句说明结果。(N5)
 今日(きょう)は雨(あめ)だから、家(いえ)にいます。
 译文：今天下雨，所以我待在家里。`;
 }
@@ -268,11 +288,8 @@ export function validateJpVocabUsageAiOutput(
   }
   const text = String(raw ?? "").trim();
   if (!text) return { ok: false, reason: "empty" };
-  const candidate = JP_VOCAB_USAGE_LEVEL_LABEL_RE.test(text)
-    ? text.replace(JP_VOCAB_USAGE_LEVEL_LABEL_RE, "").trim()
-    : text;
   // 先挡日语用法（含假名括注），再解析编号
-  for (const line of candidate.split(/\r?\n/)) {
+  for (const line of text.split(/\r?\n/)) {
     const m = NUMBERED_LINE_RE.exec(line.trim());
     const body = m ? m[2].trim() : line.trim();
     if (body && jpVocabUsageLineLooksNonChinese(body)) {
@@ -281,11 +298,27 @@ export function validateJpVocabUsageAiOutput(
     if (input?.word && body && jpVocabGrammarUsageOffLemma(input.word, body)) {
       return { ok: false, reason: "usage_off_lemma" };
     }
+    if (body && JP_VOCAB_USAGE_EXAM_BOILERPLATE_RE.test(body)) {
+      return { ok: false, reason: "usage_missing_level" };
+    }
   }
-  const points = parseJpVocabUsagePoints(candidate);
+  const points = parseJpVocabUsagePoints(text);
   if (!points) return { ok: false, reason: "invalid_numbering" };
   if (points.length < 1) return { ok: false, reason: "need_one_point" };
-  return { ok: true, text: serializeJpVocabUsagePoints(points) };
+  const requireLevel = input?.requireJlptLevel !== false;
+  const withLevel: { n: number; text: string }[] = [];
+  for (const p of points) {
+    const normalized = normalizeJpVocabUsageJlptTail(p.text);
+    if (normalized) {
+      withLevel.push({ n: p.n, text: normalized });
+      continue;
+    }
+    if (requireLevel) {
+      return { ok: false, reason: "usage_missing_level" };
+    }
+    withLevel.push({ n: p.n, text: p.text.trim() });
+  }
+  return { ok: true, text: serializeJpVocabUsagePoints(withLevel) };
 }
 
 /** 用法+例句成对校验（只拆对；例句细则由 fill apply 再验） */
@@ -300,13 +333,10 @@ export function validateJpVocabGrammarUsageExamplePairsOutput(
   }
   const text = String(raw ?? "").trim();
   if (!text) return { ok: false, reason: "empty" };
-  const stripped = JP_VOCAB_USAGE_LEVEL_LABEL_RE.test(text)
-    ? text.replace(JP_VOCAB_USAGE_LEVEL_LABEL_RE, "").trim()
-    : text;
-  const parsed = parseJpVocabGrammarUsageExamplePairs(stripped);
+  const parsed = parseJpVocabGrammarUsageExamplePairs(text);
   if (!parsed) {
     // 拆对失败时区分：日语用法 vs 结构不全
-    const numbered = stripped
+    const numbered = text
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);

@@ -52,6 +52,12 @@ def main() -> int:
         errors.append("usage-ai 缺中文用法校验")
     if "usage_not_chinese" not in usage_ai:
         errors.append("须拒 usage_not_chinese")
+    if "usage_missing_level" not in usage_ai:
+        errors.append("须拒 usage_missing_level")
+    if "(N5)" not in usage_ai:
+        errors.append("usage prompt 须要求句末 (N5) 等级")
+    if "不要 JLPT 标签" in usage_ai:
+        errors.append("usage prompt 不得再禁止句末等级括号")
     if "至少 2 组" in usage_ai or "至少写 2 条" in usage_ai:
         errors.append("usage prompt 禁止再强制至少 2 组")
     if "中文" not in usage_ai:
@@ -90,6 +96,8 @@ def main() -> int:
         errors.append("脚本须支持 max-rounds 冒烟")
     if "同一次" not in rule and "成对" not in rule:
         errors.append("规则须写明用法+例句同一次调用")
+    if "(N5)" not in rule and "句末" not in rule:
+        errors.append("规则须写明用法句末 (N5) 等级")
 
     if errors:
         print("FAIL:")

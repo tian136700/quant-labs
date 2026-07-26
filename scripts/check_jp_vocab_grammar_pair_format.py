@@ -35,29 +35,40 @@ def main() -> int:
 
     # 1 组也合法（禁止硬凑 2）
     one = (
-        "1. 表示原因、理由：前句说明原因，后句说明结果。\n"
+        "1. 表示原因、理由：前句说明原因，后句说明结果。(N5)\n"
         "今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n"
         "译文：今天下雨，所以我待在家里。"
     )
     got = parse(one)
     if not got or "1." not in got[0] or "译文" not in got[1]:
         errors.append("单组成对应解析成功")
+    if got and "(N5)" not in got[0]:
+        errors.append("用法须保留句末 (N5)")
 
     # 中文用法 +「」内短引（可含少量形态）
     ok_cn = (
-        "1. 表示某处有东西：用「場所に＋名詞がある」结构。\n"
+        "1. 表示某处有东西：用「場所に＋名詞がある」结构。(N5)\n"
         "机(つくえ)の上(うえ)に本(ほん)がある。\n"
         "译文：桌子上有一本书。\n"
-        "2. 表示拥有。\n"
+        "2. 表示拥有。(N5)\n"
         "私(わたし)はお金(かね)がある。\n"
         "译文：我有钱。"
     )
     if not parse(ok_cn):
         errors.append("中文用法+「」短引应通过")
 
+    # 缺句末等级应拒
+    no_level = (
+        "1. 表示原因、理由：前句说明原因，后句说明结果。\n"
+        "今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n"
+        "译文：今天下雨，所以我待在家里。"
+    )
+    if parse(no_level) is not None:
+        errors.append("缺句末 (N5) 应解析失败")
+
     # 整段日语用法（引号外假名过多）应拒
     bad_jp = (
-        "1. 机の上に本があるときに使います。場所を表します。\n"
+        "1. 机の上に本があるときに使います。場所を表します。(N5)\n"
         "机(つくえ)の上(うえ)に本(ほん)がある。\n"
         "译文：桌子上有一本书。"
     )
@@ -66,7 +77,7 @@ def main() -> int:
 
     # 「」外假名括注过多/日语正文应拒（冷たい样例）
     bad_furi = (
-        "1. 「冷(つめ)たい」は触(ふ)れられる物(もの)に使(つか)う。\n"
+        "1. 「冷(つめ)たい」は触(ふ)れられる物(もの)に使(つか)う。(N5)\n"
         "この水(みず)は冷(つめ)たいです。\n"
         "译文：这水很凉。"
     )
@@ -90,6 +101,14 @@ def main() -> int:
         errors.append("TS 缺 jpVocabGrammarUsageOffLemma（防塞其它语法点）")
     if "usage_off_lemma" not in usage_ai:
         errors.append("须拒 usage_off_lemma")
+    if "usage_missing_level" not in usage_ai:
+        errors.append("须拒 usage_missing_level（句末 N 级）")
+    if "normalizeJpVocabUsageJlptTail" not in usage_ai:
+        errors.append("须规范句末 (N5)")
+    if "。(N5)" not in usage_ai and "(N5)" not in usage_ai:
+        errors.append("prompt 示例须含句末 (N5)")
+    if "不要 JLPT 标签" in usage_ai:
+        errors.append("prompt 不得再禁止句末 (N5) 等级标注")
     if "examples_required" not in fill_usage and "examples_required" not in usage_ai:
         errors.append("非手动写回须要求 examples_required")
     if "Math.max(2, n || 2)" in ex_ai:
@@ -101,7 +120,7 @@ def main() -> int:
 
     # off-lemma 样例（纯本地）
     off = (
-        "1. 表示经历：「～たことがある」。\n"
+        "1. 表示经历：「～たことがある」。(N5)\n"
         "富士山(ふじさん)に登(のぼ)ったことがある。\n"
         "译文：我爬过富士山。"
     )

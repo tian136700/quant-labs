@@ -59,10 +59,11 @@ PAIR_SYSTEM = (
     "你为中文母语的日语 N5～N2 学习者一次写完语法「用法+例句」。"
     "第一行必须直接是「1.」中文用法，不要总标题。"
     "用法说明必须是中文；可在中文里用「」短引日语形态，且「」内不要假名括注。"
+    "每条中文用法句末句号后必须紧跟半角等级括号，如。(N5) 或 .(N4).(N3).(N2).(N1)；按该条用法难度估。"
     "只用本词条本身；禁止把其它语法点（如たことがある）塞进本条凑组数。"
     "每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」；每组必须写完整；禁止只写用法。"
     "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
-    "例句只用简单词、不叠更难语法。不要 markdown、不要 JLPT 标签。"
+    "例句只用简单词、不叠更难语法。不要 markdown；不要写「JLPT」「能力考」字样。"
 )
 
 
@@ -293,6 +294,11 @@ def parse_pair_output(raw: str) -> tuple[str, str] | None:
             return None
         if not any(x.startswith("译文") or x.startswith("譯文") for x in b["body"]):
             return None
+        # 句末须有 (N5)～(N1)（与线上 apply 对齐）
+        level_m = re.search(r"^(.*)[（(]\s*N\s*([1-5])\s*[）)]\s*$", usage, re.I)
+        if not level_m:
+            return None
+        b["usage"] = f"{level_m.group(1).rstrip()}(N{level_m.group(2)})"
     usage = "\n".join(f"{i + 1}. {b['usage']}" for i, b in enumerate(blocks))
     examples = "\n".join("\n".join(b["body"]) for b in blocks)
     return usage, examples

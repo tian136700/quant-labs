@@ -388,6 +388,7 @@ export async function applyJpVocabUsageUpdates(
         const usageOk = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),
           kind: "grammar",
+          requireJlptLevel: !isManual,
         });
         if (!usageOk.ok) {
           skipped.push({
@@ -418,6 +419,7 @@ export async function applyJpVocabUsageUpdates(
         const validated = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),
           kind: "grammar",
+          requireJlptLevel: !isManual,
         });
         if (!validated.ok) {
           skipped.push({
