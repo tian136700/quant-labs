@@ -25,6 +25,8 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "invalid_numbering",
     "not_grammar",
     "usage_not_chinese",
+    "usage_off_lemma",
+    "examples_required",
     "pair_incomplete",
     "examples_invalid",
   ],
@@ -91,8 +93,9 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - 同一次输出里完成：每条用法下面立刻跟 1 条例句（日语 + 译文）。禁止只写用法、禁止只写例句、禁止拆成两轮。
 - 组数 = 该语法真实常用用法数（约 N5～N2 / 考试常见）：只有 1 种就写 1 组；有 2 种写 2 组；有 3 种写 3 组。禁止为了凑数硬写两组。
 - 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌「」外不要写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」「場所に＋名詞がある」），「」内也不要假名括注。
+- 只用本词条本身的用法。❌ 禁止把其它语法点塞进来凑组数（词条「～がある」时，不要写「～たことがある」「～ことがある」等别的句型当独立用法；那些是别的词条）。
+- 每一组必须完整：中文用法 + 日语例句 + 译文：；禁止只输出用法。
 - 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
-- 每一组必须完整输出（用法 + 日语例句 + 译文：），不要写到一半断开。
 - 不要 markdown、不要 JLPT 标签、不要给例句再编行首号。
 - 不要写总标题；第一行就必须是「1. …」中文用法。
 
@@ -232,6 +235,30 @@ export function formatJpVocabUsageForDisplay(raw: string): string {
     .join("\n");
 }
 
+/**
+ * 用法是否「跑题」到其它语法点（例：词条～がある 却写 たことがある）。
+ */
+export function jpVocabGrammarUsageOffLemma(
+  word: string,
+  usageBody: string
+): boolean {
+  const core = String(word || "")
+    .replace(/^\s*\d+\.\s*/, "")
+    .replace(/[～~〜\s]/g, "")
+    .trim();
+  const body = String(usageBody || "");
+  if (!core || !body) return false;
+  // ～がある：禁止把「たことがある／ことがある」写成独立用法
+  if (core === "がある" || core.endsWith("がある")) {
+    if (/たことがある/.test(body)) return true;
+    if (/ことがある/.test(body) && !/ものがある|ことがあるが/.test(body)) {
+      // 「ことがある」作语法核（非「が」存在句）
+      return true;
+    }
+  }
+  return false;
+}
+
 export function validateJpVocabUsageAiOutput(
   raw: string,
   input?: JpVocabUsageAiInput
@@ -250,6 +277,9 @@ export function validateJpVocabUsageAiOutput(
     const body = m ? m[2].trim() : line.trim();
     if (body && jpVocabUsageLineLooksNonChinese(body)) {
       return { ok: false, reason: "usage_not_chinese" };
+    }
+    if (input?.word && body && jpVocabGrammarUsageOffLemma(input.word, body)) {
+      return { ok: false, reason: "usage_off_lemma" };
     }
   }
   const points = parseJpVocabUsagePoints(candidate);

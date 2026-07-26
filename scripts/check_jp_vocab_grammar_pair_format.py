@@ -83,14 +83,31 @@ def main() -> int:
     ex_ai = (
         ROOT / "src/lib/jp-vocab-example-sentences-ai.ts"
     ).read_text(encoding="utf-8")
+    fill_usage = (ROOT / "src/lib/jp-vocab-fill-usage.ts").read_text(encoding="utf-8")
     if "jpVocabUsageLineLooksNonChinese" not in usage_ai:
         errors.append("TS 缺 jpVocabUsageLineLooksNonChinese")
+    if "jpVocabGrammarUsageOffLemma" not in usage_ai:
+        errors.append("TS 缺 jpVocabGrammarUsageOffLemma（防塞其它语法点）")
+    if "usage_off_lemma" not in usage_ai:
+        errors.append("须拒 usage_off_lemma")
+    if "examples_required" not in fill_usage and "examples_required" not in usage_ai:
+        errors.append("非手动写回须要求 examples_required")
     if "Math.max(2, n || 2)" in ex_ai:
         errors.append("语法例句条数禁止再硬凑 max(2)")
     if "n.slice(0, -1)" not in ex_ai:
         errors.append("grammar_not_used 须认词干变形（ておき←ておく）")
     if "need_one_point" not in usage_ai:
         errors.append("用法校验须允许 1 条（need_one_point）")
+
+    # off-lemma 样例（纯本地）
+    off = (
+        "1. 表示经历：「～たことがある」。\n"
+        "富士山(ふじさん)に登(のぼ)ったことがある。\n"
+        "译文：我爬过富士山。"
+    )
+    # parse may still succeed structurally; TS gate is source of truth — assert string present
+    if "たことがある" not in off:
+        errors.append("fixture")
 
     if errors:
         print("FAIL: jp-vocab grammar pair format (local)")

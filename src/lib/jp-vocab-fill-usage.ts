@@ -374,6 +374,16 @@ export async function applyJpVocabUsageUpdates(
     }
 
     if (validateFormat) {
+      // 付费/自动写回必须成对；人手「手动」可只改用法
+      const isManual = source === "手动";
+      if (!examples && !isManual) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:examples_required",
+        });
+        continue;
+      }
       if (examples) {
         const usageOk = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),

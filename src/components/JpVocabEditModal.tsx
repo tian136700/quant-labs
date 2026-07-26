@@ -28,6 +28,7 @@ import { JpVocabEditModalStyles } from "@/components/jp-vocab-edit-modal/JpVocab
 import { JpVocabEditBasicFields } from "@/components/jp-vocab-edit-modal/JpVocabEditBasicFields";
 import { JpVocabEditExamplesField } from "@/components/jp-vocab-edit-modal/JpVocabEditExamplesField";
 import { JpVocabEditUsageField } from "@/components/jp-vocab-edit-modal/JpVocabEditUsageField";
+import { JpVocabEditGrammarPairPreview } from "@/components/jp-vocab-edit-modal/JpVocabEditGrammarPairPreview";
 import { JpVocabEditNotesField } from "@/components/jp-vocab-edit-modal/JpVocabEditNotesField";
 import { JpVocabEditRefField } from "@/components/jp-vocab-edit-modal/JpVocabEditRefField";
 import { JpVocabEditZoomOverlays } from "@/components/jp-vocab-edit-modal/JpVocabEditZoomOverlays";
@@ -747,6 +748,14 @@ export function JpVocabEditModal({
               exampleSentencesRef={exampleSentencesRef}
               onExampleSentencesChange={setExampleSentences}
             />
+
+            {kind === "grammar" ? (
+              <JpVocabEditGrammarPairPreview
+                usage={usage}
+                exampleSentences={exampleSentences}
+                wordLabel={wordText || word?.word}
+              />
+            ) : null}
 
             <JpVocabEditNotesField
               canEdit={canEdit}
