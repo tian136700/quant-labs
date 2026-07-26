@@ -37,6 +37,17 @@ export {
   resolveIpGeoCached,
 } from "./ip_geo_cache";
 
+export type {
+  LoginIpGeoBackfillStatus,
+  LoginIpGeoBackfillStepResult,
+} from "./ip_geo_backfill";
+export {
+  listDistinctLoginIps,
+  getLoginIpGeoBackfillStatus,
+  requeueLoginIpGeoBackfill,
+  stepLoginIpGeoBackfill,
+} from "./ip_geo_backfill";
+
 export {
   listEtrUsers,
   revokeUserSessions,

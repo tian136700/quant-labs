@@ -60,6 +60,39 @@ def main() -> int:
             ["resolveIpGeoCached", "requireAdmin"],
         ),
         (
+            ROOT / "src/app/api/admin/users/ip-geo/backfill/route.ts",
+            [
+                "stepLoginIpGeoBackfill",
+                "requeueLoginIpGeoBackfill",
+                "verifyUploadAuth",
+            ],
+        ),
+        (
+            ROOT / "src/lib/etr-auth-db/ip_geo_backfill.ts",
+            [
+                "listDistinctLoginIps",
+                "stepLoginIpGeoBackfill",
+                "requeueLoginIpGeoBackfill",
+                "pending_ips",
+            ],
+        ),
+        (
+            ROOT / "scripts/login-ip-geo-backfill-api.py",
+            ["ip-geo/backfill", "--mode", "requeue"],
+        ),
+        (
+            ROOT / "scripts/maintenance_center/cron_tasks/registry.py",
+            ["login-ip-geo-backfill", "StartInterval=30"],
+        ),
+        (
+            ROOT / "scripts/login-ip-geo-backfill-remote.py",
+            ["etr_ip_geo_cache", "ip9.com.cn", "--interval"],
+        ),
+        (
+            ROOT / "scripts/login-ip-geo-backfill.sh",
+            ["LOGIN_IP_GEO_BACKFILL_VIA", "login-ip-geo-backfill-remote.py"],
+        ),
+        (
             ROOT / "src/components/admin-users-page/admin-users-page-helpers.tsx",
             ["查看历史登录IP", "onViewHistory", "admin-user-ip-history"],
         ),

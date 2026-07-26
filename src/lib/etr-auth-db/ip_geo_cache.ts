@@ -263,16 +263,20 @@ async function writeIpGeoCache(
 /**
  * 读缓存；未命中再串行打 ip9 并写入。
  * 调用方必须保证「一次只查一个 IP」，不要循环并发。
+ * `force: true` 时跳过成功缓存，强制向 ip9 再查一次（定时回填 / 重跑用）。
  */
 export async function resolveIpGeoCached(
   db: D1Database,
-  rawIp: string
+  rawIp: string,
+  opts?: { force?: boolean }
 ): Promise<EtrIpGeoCacheRow | null> {
   const key = ipKey(rawIp);
   if (!key) return null;
 
-  const cached = await getCachedIpGeo(db, key);
-  if (cached) return cached;
+  if (!opts?.force) {
+    const cached = await getCachedIpGeo(db, key);
+    if (cached) return cached;
+  }
 
   let geo: Ip9GeoData | null = null;
   try {
