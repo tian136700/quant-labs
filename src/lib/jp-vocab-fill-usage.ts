@@ -46,6 +46,8 @@ export type JpVocabFillUsageResult = {
 
 export type ListJpVocabMissingUsageOptions = {
   limit?: number;
+  /** 只扫这一条（--word-id 清完后定点重补，避免误补 list 里别的词） */
+  wordId?: number;
 };
 
 /** 缺用法或缺例句（成对一次补） */
@@ -77,6 +79,12 @@ export async function listJpVocabGrammarMissingUsage(
       ? Math.floor(options.limit)
       : null;
   const limit = rawLimit == null ? null : Math.min(rawLimit, 20);
+  const wordId =
+    typeof options.wordId === "number" &&
+    Number.isInteger(options.wordId) &&
+    options.wordId > 0
+      ? options.wordId
+      : null;
 
   let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences
        FROM jp_vocab_word
@@ -84,14 +92,21 @@ export async function listJpVocabGrammarMissingUsage(
          AND (
            (usage IS NULL OR usage = '')
            OR (example_sentences IS NULL OR example_sentences = '')
-         )
-       ORDER BY id`;
+         )`;
+  const binds: number[] = [];
+  if (wordId != null) {
+    sql += ` AND id = ?${binds.length + 1}`;
+    binds.push(wordId);
+  }
+  sql += ` ORDER BY id`;
   if (limit != null) {
-    sql += ` LIMIT ?1`;
+    sql += ` LIMIT ?${binds.length + 1}`;
+    binds.push(limit);
   }
 
+  const stmt = db.prepare(sql);
   const result = await (
-    limit != null ? db.prepare(sql).bind(limit) : db.prepare(sql)
+    binds.length > 0 ? stmt.bind(...binds) : stmt
   ).all<{
     id: number;
     word: string;

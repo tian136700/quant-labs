@@ -374,17 +374,38 @@ def run_one_pair(
     token: str,
     dry_run: bool,
     allow_burst: bool,
+    target_word_id: int | None = None,
 ) -> dict:
     acquire_paid_rate_gate(allow_burst=allow_burst)
+    body: dict = {"mode": "list_missing", "limit": LIST_CANDIDATE_LIMIT}
+    if target_word_id and target_word_id > 0:
+        # 定点重补：必须带 word_id，否则会误补 list 里别的缺例句词条
+        body["word_id"] = int(target_word_id)
+        body["limit"] = 1
     scan = call_api(
         api_url=api_url,
         token=token,
-        body={"mode": "list_missing", "limit": LIST_CANDIDATE_LIMIT},
+        body=body,
     )
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
     missing = scan.get("missing") or []
     total_missing = int(scan.get("total_missing") or 0)
+    if target_word_id and target_word_id > 0:
+        missing = [r for r in missing if int(r.get("id") or 0) == int(target_word_id)]
+        if not missing:
+            print(
+                f"[jp-grammar-fill] pair 指定 id={target_word_id} 不在缺失列表"
+                f"（可能已有用法+例句，或 clear 失败） total_missing={total_missing}",
+                flush=True,
+            )
+            return {
+                "ok": True,
+                "updated": 0,
+                "skipped_run": True,
+                "reason": "target_not_missing",
+                "total_missing": total_missing,
+            }
     if not missing:
         print(
             f"[jp-grammar-fill] pair 无缺失（total_missing={total_missing}）",
@@ -406,6 +427,10 @@ def run_one_pair(
         }
 
     word_id = int(row["id"])
+    if target_word_id and target_word_id > 0 and word_id != int(target_word_id):
+        raise SystemExit(
+            f"内部错误：期望重补 id={target_word_id}，实际拿到 id={word_id}"
+        )
     word = str(row["word"])
     prompt = str(row.get("prompt") or "").strip()
     if not prompt:
@@ -659,12 +684,13 @@ def main() -> int:
             )
             if args.dry_run:
                 return 0
-            # 清完后立刻成对补这一条（list_missing 会排到它）
+            # 清完后立刻成对补这一条（必须带 word_id，禁止误补 list 里其它词）
             run_one_pair(
                 api_url=api_url,
                 token=token,
                 dry_run=False,
                 allow_burst=args.allow_burst,
+                target_word_id=args.word_id,
             )
             return 0
 

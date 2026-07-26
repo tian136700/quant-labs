@@ -111,11 +111,22 @@ export async function POST(request: Request) {
       });
     }
 
-    const result = await scanJpVocabGrammarMissingUsage(env.DB, { limit });
+    const wordId =
+      typeof body.word_id === "number" &&
+      Number.isFinite(body.word_id) &&
+      body.word_id > 0
+        ? Math.floor(body.word_id)
+        : undefined;
+
+    const result = await scanJpVocabGrammarMissingUsage(env.DB, {
+      limit,
+      wordId,
+    });
     return jsonResponse({
       ok: true,
       mode: "list_missing",
       limit,
+      word_id: wordId ?? null,
       ...result,
     });
   } catch (err) {

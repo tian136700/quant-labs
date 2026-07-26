@@ -98,6 +98,12 @@ def main() -> int:
         errors.append("脚本须显式判断 total_missing is not None（防 0 falsy）")
     if "max-rounds" not in script and "max_rounds" not in script:
         errors.append("脚本须支持 max-rounds 冒烟")
+    if "target_word_id" not in script:
+        errors.append("脚本 --word-id 须定点 target_word_id（禁止误补 list 下一条）")
+    if "wordId" not in fill_usage and "word_id" not in (
+        ROOT / "src/app/api/jp-vocab/fill-usage/route.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append("list_missing 须支持 word_id 定点")
     if "同一次" not in rule and "成对" not in rule:
         errors.append("规则须写明用法+例句同一次调用")
     if "(N5)" not in rule and "句末" not in rule:
