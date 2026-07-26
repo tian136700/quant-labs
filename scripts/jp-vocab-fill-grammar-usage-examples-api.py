@@ -57,9 +57,10 @@ FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
 
 PAIR_SYSTEM = (
     "你为中文母语的日语 N5～N2 学习者一次写完语法「用法+例句」。"
+    "第一行必须直接是「1.」中文用法，不要总标题。"
     "用法说明必须是中文（禁止整段日语用法，禁止用法行写汉字假名括注）；"
     "可在中文里用「」短引日语形态。"
-    "每一条编号中文用法下面必须立刻跟 1 条日语例句和 1 行「译文：」。"
+    "每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」。"
     "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
     "例句只用简单词、不叠更难语法。不要 markdown、不要 JLPT 标签。"
 )
@@ -257,12 +258,16 @@ def parse_pair_output(raw: str) -> tuple[str, str] | None:
         return None
     blocks: list[dict] = []
     cur: dict | None = None
+    started = False
     for line in lines:
         m = NUMBERED_LINE_RE.match(line)
         if m:
+            started = True
             if cur:
                 blocks.append(cur)
             cur = {"n": int(m.group(1)), "usage": m.group(2).strip(), "body": []}
+            continue
+        if not started:
             continue
         if cur is None:
             return None
@@ -419,7 +424,7 @@ def run_one_pair(
         raw = call_anthropic(
             prompt,
             system=PAIR_SYSTEM,
-            max_tokens=2000,
+            max_tokens=3200,
             temperature=0.2,
             timeout=180,
         )
@@ -485,7 +490,7 @@ def run_one_pair(
                 raw2 = call_anthropic(
                     retry_prompt,
                     system=PAIR_SYSTEM,
-                    max_tokens=2000,
+                    max_tokens=3200,
                     temperature=0.15,
                     timeout=180,
                 )

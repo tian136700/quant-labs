@@ -93,6 +93,7 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌ 禁止在用法行写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」）。
 - 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
 - 不要 markdown、不要 JLPT 标签、不要给例句再编行首号。
+- 不要写总标题；第一行就必须是「1. …」中文用法。
 
 输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …）：
 1. 表示原因、理由：前句说明原因，后句说明结果。
@@ -121,13 +122,17 @@ export function parseJpVocabGrammarUsageExamplePairs(
   type Block = { n: number; usage: string; body: string[] };
   const blocks: Block[] = [];
   let cur: Block | null = null;
+  let started = false;
   for (const line of lines) {
     const m = NUMBERED_LINE_RE.exec(line);
     if (m) {
+      started = true;
       if (cur) blocks.push(cur);
       cur = { n: Number(m[1]), usage: m[2].trim(), body: [] };
       continue;
     }
+    // 允许模型多写标题行；正式内容从第一个「1.」开始
+    if (!started) continue;
     if (!cur) return null;
     cur.body.push(line);
   }
