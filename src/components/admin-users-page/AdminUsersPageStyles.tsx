@@ -396,6 +396,15 @@ export function AdminUsersPageStyles() {
           font-size: 0.8125rem;
           word-break: break-all;
         }
+        :global(.admin-user-login-history-region) {
+          font-size: 0.8125rem;
+          line-height: 1.35;
+          color: var(--text);
+          word-break: break-word;
+        }
+        :global(.admin-user-login-history-enrich) {
+          margin: 0 0 0.65rem;
+        }
         :global(.admin-user-actions-col) {
           width: 15.5rem;
           min-width: 15rem;

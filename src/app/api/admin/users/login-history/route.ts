@@ -1,6 +1,10 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import { findUserById, listUserLoginHistory } from "@/lib/etr-auth-db";
-import { formatIpForDisplay } from "@/lib/client-ip";
+import {
+  findUserById,
+  getCachedIpGeoMap,
+  listUserLoginHistory,
+} from "@/lib/etr-auth-db";
+import { formatIpForDisplay, ipKey } from "@/lib/client-ip";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 
 const ERR: Record<string, Record<"en" | "zh", string>> = {
@@ -21,6 +25,7 @@ const ERR: Record<string, Record<"en" | "zh", string>> = {
 /**
  * GET /api/admin/users/login-history?user_id=
  * 管理员查看某用户历次登录 IP（新→旧，最多 100 条）。
+ * 仅附带已缓存的归属地；未缓存的由前端逐个调 /ip-geo（节流），勿在此批量打 ip9。
  */
 export async function GET(request: Request) {
   const locale = localeFromRequest(request);
@@ -51,15 +56,29 @@ export async function GET(request: Request) {
     }
 
     const rows = await listUserLoginHistory(env.DB, userId, 100);
+    const geoMap = await getCachedIpGeoMap(
+      env.DB,
+      rows.map((row) => row.login_ip ?? "").filter(Boolean)
+    );
+
     return jsonResponse({
       ok: true,
       user: { id: user.id, username: user.username },
-      history: rows.map((row) => ({
-        id: row.id,
-        login_at: row.login_at,
-        login_ip: row.login_ip,
-        login_ip_display: formatIpForDisplay(row.login_ip),
-      })),
+      history: rows.map((row) => {
+        const key = ipKey(row.login_ip);
+        const geo = key ? geoMap.get(key) : undefined;
+        return {
+          id: row.id,
+          login_at: row.login_at,
+          login_ip: row.login_ip,
+          login_ip_display: formatIpForDisplay(row.login_ip),
+          region_label: geo?.ok ? geo.region_label || null : null,
+          area: geo?.ok ? geo.area : null,
+          isp: geo?.ok ? geo.isp : null,
+          /** 无缓存才需要前端逐个调 /ip-geo；失败缓存也算已处理 */
+          geo_pending: Boolean(key) && !geo,
+        };
+      }),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

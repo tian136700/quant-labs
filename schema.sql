@@ -80,6 +80,19 @@ CREATE TABLE IF NOT EXISTS etr_user_login_history (
 CREATE INDEX IF NOT EXISTS idx_etr_user_login_history_user_at
   ON etr_user_login_history (user_id, login_at DESC, id DESC);
 
+-- IP 归属地缓存（ip9.com.cn；含区县 area；避免重复打爆外部接口）
+CREATE TABLE IF NOT EXISTS etr_ip_geo_cache (
+  ip            TEXT NOT NULL PRIMARY KEY,
+  country       TEXT,
+  country_code  TEXT,
+  prov          TEXT,
+  city          TEXT,
+  area          TEXT,
+  isp           TEXT,
+  ok            INTEGER NOT NULL DEFAULT 1,
+  fetched_at    TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS etr_sessions (
   token      TEXT    NOT NULL PRIMARY KEY,
   user_id    INTEGER NOT NULL,

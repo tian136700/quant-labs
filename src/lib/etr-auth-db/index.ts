@@ -29,6 +29,14 @@ export {
   recordUserLoginHistory,
 } from "./login_history";
 
+export type { EtrIpGeoCacheRow } from "./ip_geo_cache";
+export {
+  ensureEtrIpGeoCacheSchema,
+  getCachedIpGeo,
+  getCachedIpGeoMap,
+  resolveIpGeoCached,
+} from "./ip_geo_cache";
+
 export {
   listEtrUsers,
   revokeUserSessions,

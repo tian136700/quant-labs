@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: admin users login IP history must stay wired end-to-end."""
+"""Regression: admin users login IP history + ip9 geo throttle must stay wired."""
 
 from __future__ import annotations
 
@@ -12,6 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def must_contain(path: Path, needles: list[str]) -> list[str]:
     text = path.read_text(encoding="utf-8")
     return [n for n in needles if n not in text]
+
+
+def must_not_contain(path: Path, needles: list[str]) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    return [n for n in needles if n in text]
 
 
 def main() -> int:
@@ -29,8 +34,30 @@ def main() -> int:
             ["recordUserLoginHistory"],
         ),
         (
+            ROOT / "src/lib/ip9-geo.ts",
+            [
+                "ip9.com.cn/get",
+                "IP9_MIN_INTERVAL_MS",
+                "outboundChain",
+                "formatIp9RegionLabel",
+            ],
+        ),
+        (
+            ROOT / "src/lib/etr-auth-db/ip_geo_cache.ts",
+            [
+                "etr_ip_geo_cache",
+                "resolveIpGeoCached",
+                "getCachedIpGeoMap",
+                "area",
+            ],
+        ),
+        (
             ROOT / "src/app/api/admin/users/login-history/route.ts",
-            ["listUserLoginHistory", "requireAdmin"],
+            ["listUserLoginHistory", "requireAdmin", "getCachedIpGeoMap", "geo_pending"],
+        ),
+        (
+            ROOT / "src/app/api/admin/users/ip-geo/route.ts",
+            ["resolveIpGeoCached", "requireAdmin"],
         ),
         (
             ROOT / "src/components/admin-users-page/admin-users-page-helpers.tsx",
@@ -38,11 +65,17 @@ def main() -> int:
         ),
         (
             ROOT / "src/components/AdminUserLoginHistoryModal.tsx",
-            ["/api/admin/users/login-history", "历史登录 IP"],
+            [
+                "/api/admin/users/login-history",
+                "/api/admin/users/ip-geo",
+                "历史登录 IP",
+                "GEO_ENRICH_GAP_MS",
+                "归属地（省/市/区县）",
+            ],
         ),
         (
             ROOT / "schema.sql",
-            ["etr_user_login_history"],
+            ["etr_user_login_history", "etr_ip_geo_cache"],
         ),
     ]
     failed = False
@@ -56,6 +89,25 @@ def main() -> int:
             failed = True
             rel = path.relative_to(ROOT)
             print(f"FAIL {rel}: missing {missing}", file=sys.stderr)
+
+    # 列表接口禁止直接打 ip9
+    history_route = ROOT / "src/app/api/admin/users/login-history/route.ts"
+    bad = must_not_contain(history_route, ["fetchIp9Geo", "ip9.com.cn"])
+    if bad:
+        failed = True
+        print(
+            f"FAIL {history_route.relative_to(ROOT)}: must not call ip9 directly ({bad})",
+            file=sys.stderr,
+        )
+
+    modal = ROOT / "src/components/AdminUserLoginHistoryModal.tsx"
+    if "Promise.all" in modal.read_text(encoding="utf-8"):
+        failed = True
+        print(
+            f"FAIL {modal.relative_to(ROOT)}: must not Promise.all geo lookups",
+            file=sys.stderr,
+        )
+
     if failed:
         return 1
     print("check_admin_users_login_history: ok")
