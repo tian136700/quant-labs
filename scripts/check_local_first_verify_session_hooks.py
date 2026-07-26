@@ -16,9 +16,10 @@ RULE = ROOT / ".cursor" / "rules" / "local-first-verify.mdc"
 HOOK_CMD = ".cursor/hooks/local-first-verify-session.py"
 
 REQUIRED_PHRASES = [
-    "本地先验证",
-    "db:sync-remote-to-local",
-    "部署",
+    "本地先测通",
+    "git commit",
+    "git push",
+    "publish",
 ]
 
 
@@ -41,11 +42,16 @@ def main() -> None:
             fail(f"missing {path.relative_to(ROOT)}")
 
     rule_text = RULE.read_text(encoding="utf-8")
-    for phrase in ("本地先验证", "db:sync-remote-to-local", "禁止", "alwaysApply"):
+    for phrase in (
+        "本地先验证",
+        "git commit",
+        "git push",
+        "publish",
+        "db:sync-remote-to-local",
+        "alwaysApply: true",
+    ):
         if phrase not in rule_text:
             fail(f"{RULE.name} missing {phrase!r}")
-    if "alwaysApply: true" not in rule_text:
-        fail(f"{RULE.name} must have alwaysApply: true")
 
     proc = subprocess.run(
         [sys.executable, str(HOOK)],
