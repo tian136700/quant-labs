@@ -196,6 +196,13 @@ export interface JpVocabWord {
   last_review_level?: JpVocabLevel | null;
   last_review_at?: string | null;
   /**
+   * 间隔重复：当前间隔（天）。勾选熟悉程度后写入；日序已抽查桶按到期排。
+   * 非常熟悉阶梯 10→20→30→…；不熟悉=1；一般约×1.2。
+   */
+  srs_interval_days?: number;
+  /** 间隔重复：下次应抽查的北京日期 YYYY-MM-DD；空=旧数据（日序当已到期） */
+  srs_due_date?: string | null;
+  /**
    * 英语抽查卡：最近一次按用法勾选的熟悉程度 JSON 数组（如 `["very","normal"]`）。
    * 总体熟悉程度仍写在 last_review_level / cnt_*。
    */

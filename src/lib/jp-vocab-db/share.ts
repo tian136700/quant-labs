@@ -392,8 +392,10 @@ export async function unshareJpVocabWord(
              today_check_date = ?5,
              last_review_level = ?6,
              last_review_at = ?7,
-             updated_at = ?8
-         WHERE id = ?9`
+             srs_interval_days = ?8,
+             srs_due_date = ?9,
+             updated_at = ?10
+         WHERE id = ?11`
       )
       .bind(
         updatedWord.cnt_very,
@@ -403,6 +405,8 @@ export async function unshareJpVocabWord(
         updatedWord.today_check_date,
         updatedWord.last_review_level,
         updatedWord.last_review_at,
+        updatedWord.srs_interval_days ?? 0,
+        updatedWord.srs_due_date ?? null,
         updatedWord.updated_at,
         wordId
       )
@@ -487,7 +491,8 @@ export async function queryJpVocabSharedToday(
       `SELECT s.id, s.word_id, s.shared_by, s.shared_at, s.share_date,
               w.id AS w_id, w.word, w.reading, w.meaning, w.pos, w.kind, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
-              w.last_review_level, w.last_review_at, w.created_at, w.updated_at,
+              w.last_review_level, w.last_review_at, w.srs_interval_days, w.srs_due_date,
+              w.created_at, w.updated_at,
               w.example_sentences, w.example_sentences_source, w.meaning_source,
               (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
@@ -514,6 +519,8 @@ export async function queryJpVocabSharedToday(
       today_check_date: row.today_check_date,
       last_review_level: row.last_review_level,
       last_review_at: row.last_review_at,
+      srs_interval_days: row.srs_interval_days,
+      srs_due_date: row.srs_due_date,
       created_at: row.created_at,
       updated_at: row.updated_at,
       example_sentences: row.example_sentences,

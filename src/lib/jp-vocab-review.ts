@@ -10,6 +10,7 @@ import {
   type JpVocabDailyDisplayOrder,
 } from "@/lib/jp-vocab-daily-order";
 import { parseBeijingDateTime } from "@/lib/jp-lesson-shared";
+import { computeJpVocabSrsAfterReview } from "@/lib/jp-vocab-srs";
 
 const JP_VOCAB_LEVELS: JpVocabLevel[] = ["very", "normal", "weak"];
 
@@ -197,10 +198,16 @@ export function applyJpVocabReview(
       };
     }
     const afterPrev = { ...word, ...adjustLevelCount(word, prev, -1) };
+    const srs = computeJpVocabSrsAfterReview(word, level, {
+      isCorrection: true,
+      previousLevel: prev,
+      now,
+    });
     return {
       word: {
         ...afterPrev,
         ...adjustLevelCount(afterPrev, level, 1),
+        ...srs,
         last_review_level: level,
         last_review_at: ts,
         updated_at: ts,
@@ -214,10 +221,12 @@ export function applyJpVocabReview(
     word.today_check_date,
     now
   );
+  const srs = computeJpVocabSrsAfterReview(word, level, { now });
   return {
     word: {
       ...word,
       ...adjustLevelCount(word, level, 1),
+      ...srs,
       today_check_count: daily.count,
       today_check_date: daily.date,
       last_review_level: level,
@@ -256,6 +265,8 @@ export function revertJpVocabAutoShareReview(
     today_check_date,
     last_review_level: null,
     last_review_at: null,
+    srs_interval_days: 0,
+    srs_due_date: null,
     updated_at: ts,
   };
 }

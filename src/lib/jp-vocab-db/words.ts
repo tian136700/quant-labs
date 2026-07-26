@@ -304,8 +304,10 @@ export async function recordJpVocabReview(
            today_check_date = ?5,
            last_review_level = ?6,
            last_review_at = ?7,
-           updated_at = ?8
-       WHERE id = ?9`
+           srs_interval_days = ?8,
+           srs_due_date = ?9,
+           updated_at = ?10
+       WHERE id = ?11`
       )
       .bind(
         updated.cnt_very,
@@ -315,6 +317,8 @@ export async function recordJpVocabReview(
         updated.today_check_date,
         updated.last_review_level,
         updated.last_review_at,
+        updated.srs_interval_days ?? 0,
+        updated.srs_due_date ?? null,
         updated.updated_at,
         wordId
       ),
@@ -568,6 +572,8 @@ export async function resetAllJpVocabReviews(
         today_check_date: null,
         last_review_level: null,
         last_review_at: null,
+        srs_interval_days: 0,
+        srs_due_date: null,
         updated_at: ts,
       };
     }
@@ -584,6 +590,7 @@ export async function resetAllJpVocabReviews(
        SET cnt_very = 0, cnt_normal = 0, cnt_weak = 0,
            today_check_count = 0, today_check_date = NULL,
            last_review_level = NULL, last_review_at = NULL,
+           srs_interval_days = 0, srs_due_date = NULL,
            updated_at = ?1`
     )
     .bind(ts)

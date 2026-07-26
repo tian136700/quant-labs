@@ -424,7 +424,8 @@ async function getJpVocabWordByIdLite(
     .prepare(
       `SELECT id, word, reading, meaning, pos, kind, ref_key,
               cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
-              last_review_level, last_review_at, created_at, updated_at,
+              last_review_level, last_review_at, srs_interval_days, srs_due_date,
+              created_at, updated_at,
               example_sentences, example_sentences_source, meaning_source,
               (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word

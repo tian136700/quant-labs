@@ -228,6 +228,11 @@ export function mapRow(row: Record<string, unknown>): JpVocabWord {
         : null,
     last_review_at:
       row.last_review_at != null ? String(row.last_review_at) : null,
+    srs_interval_days: Math.max(0, Math.floor(Number(row.srs_interval_days) || 0)),
+    srs_due_date:
+      row.srs_due_date != null && /^\d{4}-\d{2}-\d{2}$/.test(String(row.srs_due_date).trim())
+        ? String(row.srs_due_date).trim()
+        : null,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -280,6 +285,16 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("usage_source")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN usage_source TEXT`).run();
   }
+  if (!cols.has("srs_interval_days")) {
+    await db
+      .prepare(
+        `ALTER TABLE jp_vocab_word ADD COLUMN srs_interval_days INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  }
+  if (!cols.has("srs_due_date")) {
+    await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN srs_due_date TEXT`).run();
+  }
   jpVocabDbState.vocabWordSchemaReady = true;
 }
 
@@ -291,7 +306,7 @@ export async function ensureJpVocabWordSchema(db: D1Database): Promise<void> {
 export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, example_sentences,
   example_sentences_source, meaning_source, usage, usage_source,
-  last_review_level, last_review_at, created_at, updated_at FROM jp_vocab_word`;
+  last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
 export function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));
