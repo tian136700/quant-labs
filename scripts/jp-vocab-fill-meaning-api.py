@@ -755,7 +755,9 @@ def main() -> int:
                     continue
                 # 禁止每轮再打一次 list_missing probe（曾把 Worker 打到 1102）
                 # 无缺失时 run_one_fill 直接返回 total_missing=0
-                left = int(result.get("total_missing") or -1)
+                # 注意：0 是 falsy，禁止 `or -1`（会永远不退出空转）
+                left_raw = result.get("total_missing")
+                left = int(left_raw) if left_raw is not None else -1
                 if left == 0 and not (result.get("missing") or []):
                     print("[jp-vocab-fill-meaning] 全部补完", flush=True)
                     break

@@ -62,6 +62,12 @@ def main() -> int:
         errors.append("脚本缺 --clear-examples / clear_grammar_examples")
     if "kind\": \"grammar\"" not in script and '"kind": "grammar"' not in script:
         errors.append("脚本例句 list_missing 须 kind=grammar")
+    if 'get("total_missing") or -1' in script:
+        errors.append(
+            "脚本 loop 用 total_missing or -1（0 会变成 -1 空转狂打 list_missing）"
+        )
+    if "left_raw is not None" not in script:
+        errors.append("脚本须显式判断 total_missing is not None（防 0 falsy）")
 
     if errors:
         print("FAIL:")

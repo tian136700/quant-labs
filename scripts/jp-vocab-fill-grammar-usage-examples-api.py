@@ -543,27 +543,65 @@ def run_one_examples(
         f"  {word_id} {word!r} -> examples_len={len(text)} source={source}",
         flush=True,
     )
-    payload = call_api(
-        api_url=api_url,
-        token=token,
-        body={
-            "mode": "apply",
-            "source": source,
-            "updates": [
-                {
-                    "word_id": word_id,
-                    "example_sentences": text,
-                    "source": source,
-                }
-            ],
-        },
-    )
+
+    def do_apply(example_text: str) -> dict:
+        return call_api(
+            api_url=api_url,
+            token=token,
+            body={
+                "mode": "apply",
+                "source": source,
+                "updates": [
+                    {
+                        "word_id": word_id,
+                        "example_sentences": example_text,
+                        "source": source,
+                    }
+                ],
+            },
+        )
+
+    payload = do_apply(text)
     if not payload.get("ok"):
         poison_word(word_id, "apply_failed")
         raise SystemExit(f"API error: {payload.get('error', payload)}")
     skipped = payload.get("skipped") or []
     if skipped and not payload.get("updated"):
-        poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
+        reason = str(skipped[0].get("reason") or "apply_skipped")
+        # 假名/语法核失败：再付费重试 1 次（追加 CRITICAL），仍失败再毒丸
+        if "invalid_format" in reason:
+            print(f"  apply 拒收 {reason}，追加 CRITICAL 再试 1 次…", flush=True)
+            acquire_paid_rate_gate(allow_burst=allow_burst)
+            core = re.sub(r"^[～~〜]+|[～~〜]+$", "", word)
+            retry_prompt = (
+                prompt
+                + "\n\nCRITICAL:\n"
+                + f"- 句中必须自然用到语法「{core}」（不要只写中文标题）。\n"
+                + "- 每个汉字后立刻半角括号假名；不要漏标。\n"
+                + "- 条数必须与用法条数一致；只用简单词。\n"
+            )
+            try:
+                raw2 = call_anthropic(
+                    retry_prompt,
+                    system=EXAMPLES_SYSTEM,
+                    max_tokens=1600,
+                    temperature=0.15,
+                    timeout=180,
+                )
+            except Exception as exc:
+                mark_paid_call()
+                poison_word(word_id, f"anthropic_retry_error:{exc}")
+                return {"ok": True, "updated": 0, "phase": "examples"}
+            mark_paid_call()
+            text2 = FENCE_RE.sub("", str(raw2 or "")).strip()
+            payload = do_apply(text2)
+            skipped = payload.get("skipped") or []
+            if skipped and not payload.get("updated"):
+                poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
+            else:
+                print("  重试写回成功", flush=True)
+        else:
+            poison_word(word_id, f"apply_skipped:{reason}")
     remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
     print(
         f"[jp-grammar-fill] examples apply updated={payload.get('updated')} "
@@ -633,7 +671,9 @@ def loop_phase(
         if result.get("skipped_run") and result.get("reason") == "all_poisoned":
             time.sleep(min_sec)
             continue
-        left = int(result.get("total_missing") or -1)
+        # 注意：total_missing=0 在 Python 里是 falsy，禁止 `or -1`（会变成永远不退出）
+        left_raw = result.get("total_missing")
+        left = int(left_raw) if left_raw is not None else -1
         if left == 0:
             print(f"[jp-grammar-fill] phase={phase} 全部补完", flush=True)
             break

@@ -286,9 +286,25 @@ export function validateJpVocabExampleSentencesAiOutput(
   const combinedPlain = stripAllJpVocabParenBlocks(combined);
   if (input.kind === "grammar") {
     const core = target.replace(/^[～~〜]+/, "").replace(/[～~〜]+$/, "");
-    if (core && !combinedPlain.includes(core) && !combinedPlain.includes(target)) {
-      return { ok: false, reason: "grammar_not_used" };
+    const allKana = core.match(/[\u3040-\u30FFー]+/g) || [];
+    const longKana = allKana
+      .filter((run) => run.length >= 2)
+      .sort((a, b) => b.length - a.length);
+    if (longKana.length > 0) {
+      // ～ばかり / ～ておく / ～について：须出现假名语法核
+      const hit = longKana.some(
+        (n) => combinedPlain.includes(n) || combined.includes(n)
+      );
+      if (!hit) {
+        return { ok: false, reason: "grammar_not_used" };
+      }
+    } else if (core && !/[\u4E00-\u9FFF]/.test(core)) {
+      // ～が / ～を：纯短助词
+      if (!combinedPlain.includes(core) && !combinedPlain.includes(target)) {
+        return { ok: false, reason: "grammar_not_used" };
+      }
     }
+    // 「て形变形」等中文教学标题：不硬卡全文出现
   } else {
     const surfaces = jpVocabExampleLemmaSurfaces(target);
     const hit = surfaces.some(
