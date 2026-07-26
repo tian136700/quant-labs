@@ -51,21 +51,59 @@ export type ListJpVocabMissingUsageOptions = {
   wordId?: number;
 };
 
-/** 缺用法或缺例句（成对一次补） */
+/**
+ * 语法「成对」是否仍缺：非变形 → 缺用法或缺例句；变形课 → 只要有例句即完整（用法应为空）。
+ * 禁止把「变形课空 usage」算成永久缺失，否则 1 分钟定时会反复付费重补。
+ */
+export function isJpVocabGrammarPairIncomplete(
+  word: string,
+  usage: string | null | undefined,
+  exampleSentences: string | null | undefined
+): { incomplete: boolean; need_usage: boolean; need_examples: boolean } {
+  const hasUsage = Boolean(String(usage ?? "").trim());
+  const hasExamples = Boolean(String(exampleSentences ?? "").trim());
+  if (isJpVocabConjugationGrammar(word)) {
+    return {
+      incomplete: !hasExamples,
+      need_usage: false,
+      need_examples: !hasExamples,
+    };
+  }
+  return {
+    incomplete: !hasUsage || !hasExamples,
+    need_usage: !hasUsage,
+    need_examples: !hasExamples,
+  };
+}
+
+/** 缺用法或缺例句（成对一次补；变形课仅看例句） */
 export async function countJpVocabGrammarMissingUsage(
   db: D1Database
 ): Promise<number> {
+  await ensureJpVocabWordSchema(db);
   const result = await db
     .prepare(
-      `SELECT COUNT(*) AS n FROM jp_vocab_word
-       WHERE kind = 'grammar'
-         AND (
-           (usage IS NULL OR usage = '')
-           OR (example_sentences IS NULL OR example_sentences = '')
-         )`
+      `SELECT word, usage, example_sentences FROM jp_vocab_word
+       WHERE kind = 'grammar'`
     )
-    .first<{ n: number }>();
-  return Number(result?.n ?? 0);
+    .all<{
+      word: string;
+      usage: string | null;
+      example_sentences: string | null;
+    }>();
+  let n = 0;
+  for (const row of result.results ?? []) {
+    if (
+      isJpVocabGrammarPairIncomplete(
+        String(row.word),
+        row.usage,
+        row.example_sentences
+      ).incomplete
+    ) {
+      n += 1;
+    }
+  }
+  return n;
 }
 
 export async function listJpVocabGrammarMissingUsage(
@@ -87,23 +125,16 @@ export async function listJpVocabGrammarMissingUsage(
       ? options.wordId
       : null;
 
+  // 先拉候选再按变形规则过滤（SQL 无法表达 isJpVocabConjugationGrammar）
   let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences
        FROM jp_vocab_word
-       WHERE kind = 'grammar'
-         AND (
-           (usage IS NULL OR usage = '')
-           OR (example_sentences IS NULL OR example_sentences = '')
-         )`;
+       WHERE kind = 'grammar'`;
   const binds: number[] = [];
   if (wordId != null) {
     sql += ` AND id = ?${binds.length + 1}`;
     binds.push(wordId);
   }
   sql += ` ORDER BY id`;
-  if (limit != null) {
-    sql += ` LIMIT ?${binds.length + 1}`;
-    binds.push(limit);
-  }
 
   const stmt = db.prepare(sql);
   const result = await (
@@ -118,7 +149,8 @@ export async function listJpVocabGrammarMissingUsage(
     example_sentences: string | null;
   }>();
 
-  return (result.results ?? []).map((row) => {
+  const out: JpVocabMissingUsageRow[] = [];
+  for (const row of result.results ?? []) {
     const word = String(row.word);
     const reading =
       row.reading != null ? String(row.reading).trim() || null : null;
@@ -130,25 +162,27 @@ export async function listJpVocabGrammarMissingUsage(
       row.example_sentences != null
         ? String(row.example_sentences).trim() || null
         : null;
-    const need_usage = !usage;
-    const need_examples = !examples;
-    return {
+    const status = isJpVocabGrammarPairIncomplete(word, usage, examples);
+    if (!status.incomplete) continue;
+    out.push({
       id: Number(row.id),
       word,
       kind: "grammar",
       reading,
       meaning,
       usage,
-      need_usage,
-      need_examples,
+      need_usage: status.need_usage,
+      need_examples: status.need_examples,
       prompt: buildJpVocabUsageAiPrompt({
         word,
         kind: "grammar",
         reading,
         meaning,
       }),
-    };
-  });
+    });
+    if (limit != null && out.length >= limit) break;
+  }
+  return out;
 }
 
 export async function scanJpVocabGrammarMissingUsage(

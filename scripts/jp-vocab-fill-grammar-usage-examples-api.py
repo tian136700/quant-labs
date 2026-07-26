@@ -5,14 +5,17 @@
   - 每轮只写回 1 条语法；用法与例句同一次 Anthropic 调用
   - 禁止拆成「先 usage 再 examples」两次打钱
   - 付费间隔 ≥1s；进程互斥锁；失败毒丸 6h
-  - 禁止 --allow-burst 写进定时；本脚本不装 launchd
-  - 批量前必须先 --max-rounds 2～3 冒烟
+  - 禁止 --allow-burst 写进定时
+  - 缺失定时（每 1 分钟最多 1 条）：install-jp-vocab-fill-grammar-launchd.sh
+  - 变形课：有例句即完整（空 usage 不算缺失）；客户端二次过滤防旧 API 误补
+  - 全量强制重写用 --word-id / --refill-all（先 clear_pair），不要写进 launchd
 
 用法：
   python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --status
   python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --max-rounds 2
   python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --loop --max-rounds 3
-  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --loop   # 确认冒烟后再全量
+  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --loop   # 确认冒烟后再补缺失
+  python3 scripts/jp-vocab-fill-grammar-usage-examples-api.py --refill-all
 """
 
 from __future__ import annotations
@@ -364,6 +367,14 @@ def parse_pair_output(raw: str) -> tuple[str, str] | None:
     return usage, examples
 
 
+def row_needs_pair_fill(row: dict) -> bool:
+    """与线上 isJpVocabGrammarPairIncomplete 对齐；旧 API 把变形空 usage 当缺失时本地跳过。"""
+    word = str(row.get("word") or "")
+    if is_conjugation_word(word):
+        return bool(row.get("need_examples"))
+    return bool(row.get("need_usage") or row.get("need_examples"))
+
+
 def pick_row(missing: list, poison: dict) -> tuple[dict | None, int]:
     skipped = 0
     for row in missing:
@@ -373,6 +384,15 @@ def pick_row(missing: list, poison: dict) -> tuple[dict | None, int]:
             print(
                 f"[jp-grammar-fill] skip poisoned id={wid} "
                 f"reason={poison[wid].get('reason')!r}",
+                flush=True,
+            )
+            continue
+        if not row_needs_pair_fill(row):
+            skipped += 1
+            print(
+                f"[jp-grammar-fill] skip complete-enough id={wid} "
+                f"{str(row.get('word') or '')!r} "
+                f"(conj 有例句且空 usage 不算缺)",
                 flush=True,
             )
             continue
@@ -471,6 +491,16 @@ def run_one_pair(
             flush=True,
         )
         return {**scan, "total_missing": 0}
+
+    # 旧 API 可能把「变形课空 usage」算进 missing；本地再滤一层
+    missing = [r for r in missing if row_needs_pair_fill(r)]
+    if not missing:
+        print(
+            f"[jp-grammar-fill] pair 过滤后无待补"
+            f"（API total_missing={total_missing}；变形有例句已跳过）",
+            flush=True,
+        )
+        return {**scan, "total_missing": 0, "updated": 0}
 
     row, skipped_poison = pick_row(missing, load_poison())
     if row is None:
@@ -706,6 +736,32 @@ def loop_pair(
         )
 
 
+def run_refill_ids(
+    *,
+    api_url: str,
+    token: str,
+    word_ids: list[int],
+    dry_run: bool,
+    allow_burst: bool,
+) -> None:
+    total = len(word_ids)
+    print(f"[jp-grammar-fill] refill-all count={total}", flush=True)
+    for i, wid in enumerate(word_ids, 1):
+        print(f"======== REFILL {i}/{total} id={wid} ========", flush=True)
+        run_clear_pair(
+            api_url=api_url, token=token, word_id=wid, dry_run=dry_run
+        )
+        if dry_run:
+            continue
+        run_one_pair(
+            api_url=api_url,
+            token=token,
+            dry_run=False,
+            allow_burst=allow_burst,
+            target_word_id=wid,
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -719,6 +775,17 @@ def main() -> int:
         type=int,
         default=0,
         help="先 clear_pair 再成对重补这一条（修日语用法/硬凑组数后用）",
+    )
+    parser.add_argument(
+        "--refill-all",
+        action="store_true",
+        help="按 --ids 或内置从 API 拉到的语法 id 列表，逐条 clear+成对重补",
+    )
+    parser.add_argument(
+        "--ids",
+        type=str,
+        default="",
+        help="逗号/空格分隔的 grammar id（配合 --refill-all；不传则读环境 JP_VOCAB_GRAMMAR_REFILL_IDS）",
     )
     parser.add_argument("--status", action="store_true")
     parser.add_argument(
@@ -755,8 +822,33 @@ def main() -> int:
 
         if args.clear_examples:
             run_clear_examples(api_url=api_url, token=token, dry_run=args.dry_run)
-            if not args.loop and args.max_rounds <= 0 and args.word_id <= 0:
+            if not args.loop and args.max_rounds <= 0 and args.word_id <= 0 and not args.refill_all:
                 return 0
+
+        if args.refill_all:
+            raw_ids = (
+                args.ids.strip()
+                or os.getenv("JP_VOCAB_GRAMMAR_REFILL_IDS", "").strip()
+            )
+            if not raw_ids:
+                raise SystemExit(
+                    "--refill-all 需要 --ids '60,72,…' 或环境变量 JP_VOCAB_GRAMMAR_REFILL_IDS"
+                )
+            word_ids = [
+                int(x)
+                for x in re.split(r"[\s,;]+", raw_ids)
+                if x.strip().isdigit()
+            ]
+            if not word_ids:
+                raise SystemExit("--refill-all：未能解析任何 id")
+            run_refill_ids(
+                api_url=api_url,
+                token=token,
+                word_ids=word_ids,
+                dry_run=args.dry_run,
+                allow_burst=args.allow_burst,
+            )
+            return 0
 
         if args.word_id > 0:
             run_clear_pair(
