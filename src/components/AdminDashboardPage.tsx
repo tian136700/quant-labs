@@ -14,7 +14,6 @@ import { CopyToast } from "@/components/CopyToast";
 import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import {
-  VISIT_LOG_SORT_FIELDS,
   VISIT_LOG_USERNAME_UNREGISTERED,
   parseVisitLogSortField,
   type VisitLogSortField,
@@ -197,50 +196,6 @@ export function AdminDashboardPage() {
     void loadVisits(1, next, visitUsernameFilter);
   };
 
-  const handleVisitSortFieldChange = (fieldRaw: string) => {
-    const field = parseVisitLogSortField(fieldRaw);
-    const next: AdminVisitSortState = { field, order: visitSort.order };
-    setVisitSort(next);
-    void loadVisits(1, next, visitUsernameFilter);
-  };
-
-  const handleVisitSortOrderToggle = () => {
-    const next: AdminVisitSortState = {
-      field: visitSort.field,
-      order: visitSort.order === "desc" ? "asc" : "desc",
-    };
-    setVisitSort(next);
-    void loadVisits(1, next, visitUsernameFilter);
-  };
-
-  const visitSortFieldLabel = (field: VisitLogSortField): string => {
-    switch (field) {
-      case "id":
-        return adm.visits.id;
-      case "ip":
-        return adm.visits.ip;
-      case "ip_visit_count":
-        return adm.visits.ipVisitCount;
-      case "username":
-        return adm.visits.username;
-      case "country":
-        return adm.visits.country;
-      case "url_path":
-        return adm.visits.url;
-      case "event_type":
-        return adm.visits.eventType;
-      case "event_detail":
-        return adm.visits.eventDetail;
-      case "locale":
-        return adm.visits.locale;
-      case "updated_at":
-        return adm.visits.updatedAt;
-      case "created_at":
-      default:
-        return adm.visits.time;
-    }
-  };
-
   const handleVisitUsernameFilterChange = (value: string) => {
     setVisitUsernameDraft(value);
     setVisitUsernameFilter(value);
@@ -329,46 +284,6 @@ export function AdminDashboardPage() {
                 ))}
               </select>
             </label>
-            <label className="admin-visits-sort">
-              <span className="admin-visits-filter-label">{adm.visits.sortLabel}</span>
-              <select
-                className="admin-visits-filter-select"
-                value={visitSort.field}
-                onChange={(event) => handleVisitSortFieldChange(event.target.value)}
-                disabled={loadingVisits}
-              >
-                {VISIT_LOG_SORT_FIELDS.map((field) => (
-                  <option key={field} value={field}>
-                    {visitSortFieldLabel(field)}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact admin-visits-sort-order"
-                onClick={handleVisitSortOrderToggle}
-                disabled={loadingVisits}
-                aria-label={
-                  visitSort.order === "desc"
-                    ? locale === "zh"
-                      ? "降序"
-                      : "Descending"
-                    : locale === "zh"
-                      ? "升序"
-                      : "Ascending"
-                }
-              >
-                {visitSort.order === "desc" ? "↓" : "↑"}
-              </button>
-            </label>
-            <button
-              type="button"
-              className="btn-rsi-filter btn-rsi-filter--compact"
-              onClick={() => void loadVisits(visitPage, visitSort, visitUsernameFilter)}
-              disabled={loadingVisits}
-            >
-              {adm.visits.refresh}
-            </button>
           </div>
         </div>
 

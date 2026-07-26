@@ -38,8 +38,8 @@ def main() -> int:
             "AdminVisitSortTh",
             "updatedAt",
             "handleVisitSort",
-            "admin-visits-sort",
-            "VISIT_LOG_SORT_FIELDS",
+            "handleVisitUsernameFilterChange",
+            "AdminVisitSortTh",
         ],
         "AdminDashboardPage",
     )
@@ -79,21 +79,19 @@ def main() -> int:
         ],
         "analytics-db purge",
     )
-    errors += must_contain(
-        ROOT / "src/components/AdminDashboardPage.tsx",
-        [
-            "handleVisitUsernameFilterChange",
-            "AdminVisitSortTh",
-            "updatedAt",
-        ],
-        "AdminDashboardPage filter",
-    )
-    # 选用户须立刻筛选；禁止再保留「搜索」按钮依赖
+    # 工具栏禁止：搜索按钮 / 排序下拉 / 刷新（排序靠表头）
     page = (ROOT / "src/components/AdminDashboardPage.tsx").read_text(encoding="utf-8")
-    if "handleVisitUsernameSearch" in page:
-        errors.append("AdminDashboardPage: remove handleVisitUsernameSearch (select must filter immediately)")
-    if "adm.visits.filterSearch" in page:
-        errors.append("AdminDashboardPage: remove filterSearch button (select onChange searches)")
+    for banned, why in (
+        ("handleVisitUsernameSearch", "select must filter immediately"),
+        ("adm.visits.filterSearch", "no Search button"),
+        ("admin-visits-sort", "no toolbar sort; use table headers"),
+        ("adm.visits.sortLabel", "no toolbar sort label"),
+        ("adm.visits.refresh", "no Refresh button in visits toolbar"),
+        ("handleVisitSortFieldChange", "no toolbar sort field select"),
+        ("handleVisitSortOrderToggle", "no toolbar sort order toggle"),
+    ):
+        if banned in page:
+            errors.append(f"AdminDashboardPage: remove {banned} ({why})")
 
     errors += must_contain(
         ROOT / "schema.sql",
