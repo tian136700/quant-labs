@@ -208,7 +208,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     editingRemarksWordId: editingRemarksWord?.id ?? null,
     editingWordId: editingWord?.id ?? null,
     teacherIdleCompleteRef,
-    teacherQuizPollActive,
+    enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive,
     setViewingRemarksWord,
     onLoadError: setError,
     onDayRolloverClearSession,

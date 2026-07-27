@@ -177,7 +177,6 @@ export function useJpVocabTeacherQuiz(options: {
       );
       const session = { ...expanded, currentIndex: resumeIndex };
       setQuizSession(session);
-      setShowQuizFlashcard(true);
       return;
     }
 
@@ -311,8 +310,8 @@ export function useJpVocabTeacherQuiz(options: {
   const teacherQuizInProgress = quizSession != null;
 
   useEffect(() => {
-    onTeacherQuizPollActiveChange?.(quizSession != null);
-  }, [quizSession, onTeacherQuizPollActiveChange]);
+    onTeacherQuizPollActiveChange?.(showQuizFlashcard);
+  }, [showQuizFlashcard, onTeacherQuizPollActiveChange]);
 
   useEffect(() => {
     if (quizSession == null) setShowQuizFlashcard(false);

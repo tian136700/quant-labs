@@ -21,6 +21,7 @@ type EnVocabPageToolbarProps = {
   deletingBatch: boolean;
   resetting: boolean;
   selectedDeleteCount: number;
+  onRefresh: () => void;
   onResumeOrStartQuiz: () => void;
   onPickNext: () => void;
   onExportExcel: () => void;
@@ -46,6 +47,7 @@ export function EnVocabPageToolbar({
   deletingBatch,
   resetting,
   selectedDeleteCount,
+  onRefresh,
   onResumeOrStartQuiz,
   onPickNext,
   onExportExcel,
@@ -108,6 +110,15 @@ export function EnVocabPageToolbar({
           ) : null}
           {refreshing ? <> · 加载中…</> : null}
         </span>
+        <button
+          type="button"
+          className="btn-rsi-filter"
+          onClick={onRefresh}
+          disabled={loading || refreshing}
+          title="从服务器重新加载词表"
+        >
+          {refreshing ? "刷新中…" : "刷新"}
+        </button>
         {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (
           <button
             type="button"

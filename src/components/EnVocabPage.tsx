@@ -233,7 +233,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSessionUsageLevels,
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
-    teacherQuizPollActive,
+    enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive,
   });
 
   const handleRefreshWords = useCallback(() => {
@@ -780,6 +780,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
           deletingBatch={deletingBatch}
           resetting={resetting}
           selectedDeleteCount={selectedDeleteIds.size}
+          onRefresh={() => handleRefreshWords()}
           onResumeOrStartQuiz={() => {
             if (teacherQuizInProgress) {
               resumeTeacherQuizFlashcard();

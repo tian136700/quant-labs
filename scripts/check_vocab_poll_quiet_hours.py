@@ -100,14 +100,17 @@ def main() -> int:
                 "resolveVocabPollIntervalMs",
                 "usernameRef",
                 "{ username: usernameRef.current }",
-                "syncPollGated",
-                "teacherQuizPollActive",
+                "enableBackgroundSyncPoll",
             ],
             "jp-page-sync",
         ),
         (
             ROOT / "src/hooks/useEnVocabPageSync.ts",
-            ["resolveVocabPollIntervalMs", "usernameRef", "syncPollGated", "teacherQuizPollActive"],
+            [
+                "resolveVocabPollIntervalMs",
+                "usernameRef",
+                "enableBackgroundSyncPoll",
+            ],
             "en-page-sync",
         ),
         (

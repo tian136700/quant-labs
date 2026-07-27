@@ -60,8 +60,8 @@ export function useJpVocabPageSync(options: {
   editingRemarksWordId: number | null;
   editingWordId: number | null;
   teacherIdleCompleteRef: MutableRefObject<boolean>;
-  /** 仅抽查会话进行中才轮询；否则靠用户点「刷新」 */
-  teacherQuizPollActive?: boolean;
+  /** 仅老师抽查会话进行中才后台轮询；否则靠用户点「刷新」 */
+  enableBackgroundSyncPoll?: boolean;
   setViewingRemarksWord: Dispatch<SetStateAction<JpVocabWord | null>>;
   onLoadError: (message: string) => void;
   onDayRolloverClearSession: () => void;
@@ -72,7 +72,7 @@ export function useJpVocabPageSync(options: {
     editingRemarksWordId,
     editingWordId,
     teacherIdleCompleteRef,
-    teacherQuizPollActive = false,
+    enableBackgroundSyncPoll = false,
     setViewingRemarksWord,
     onLoadError,
     onDayRolloverClearSession,
@@ -271,7 +271,7 @@ export function useJpVocabPageSync(options: {
 
   useEffect(() => {
     if (checking || !user) return;
-    if (!teacherQuizPollActive) return;
+    if (!enableBackgroundSyncPoll) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -351,12 +351,12 @@ export function useJpVocabPageSync(options: {
     user,
     editingRemarksWordId,
     editingWordId,
-    teacherQuizPollActive,
+    enableBackgroundSyncPoll,
   ]);
 
   useEffect(() => {
     if (checking || !user) return;
-    if (!teacherQuizPollActive) return;
+    if (!enableBackgroundSyncPoll) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -400,18 +400,15 @@ export function useJpVocabPageSync(options: {
     syncTeacherVisibleLimitFromServer,
     checking,
     user,
-    teacherQuizPollActive,
+    enableBackgroundSyncPoll,
   ]);
 
   useEffect(() => {
-    if (!teacherQuizPollActive) return;
+    if (checking || !user) return;
     return subscribeJpVocabQuizTargetUpdated(() => {
       void syncTeacherVisibleLimitFromServer();
     });
-  }, [
-    syncTeacherVisibleLimitFromServer,
-    teacherQuizPollActive,
-  ]);
+  }, [checking, user, syncTeacherVisibleLimitFromServer]);
 
   return {
     words,
