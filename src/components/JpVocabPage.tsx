@@ -171,6 +171,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const teacherIdleCompleteRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
+  const [teacherQuizPollActive, setTeacherQuizPollActive] = useState(false);
 
   const onDayRolloverClearSession = useCallback(() => {
     setSessionLevel({});
@@ -205,6 +206,8 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     editingRemarksWordId: editingRemarksWord?.id ?? null,
     editingWordId: editingWord?.id ?? null,
     teacherIdleCompleteRef,
+    syncPollGated: isTeacherMode,
+    teacherQuizPollActive,
     setViewingRemarksWord,
     onLoadError: setError,
     onDayRolloverClearSession,
@@ -216,6 +219,8 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       teacherIdleCompleteRef,
       setStatus,
       username: user?.username,
+      pollGated: isTeacherMode,
+      pollActive: teacherQuizPollActive,
     });
 
   const { exporting, runExport, runExportExcel, runCoachExport } =
@@ -361,6 +366,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     dailySeqByWordId,
     setStatus,
     onTeacherQuizSessionFinished,
+    onTeacherQuizPollActiveChange: setTeacherQuizPollActive,
   });
 
   const isWordInQuizTarget = useCallback(

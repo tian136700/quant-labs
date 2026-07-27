@@ -96,12 +96,18 @@ def main() -> int:
     for path, needles, label in (
         (
             ROOT / "src/hooks/useJpVocabPageSync.ts",
-            ["resolveVocabPollIntervalMs", "usernameRef", "{ username: usernameRef.current }"],
+            [
+                "resolveVocabPollIntervalMs",
+                "usernameRef",
+                "{ username: usernameRef.current }",
+                "syncPollGated",
+                "teacherQuizPollActive",
+            ],
             "jp-page-sync",
         ),
         (
             ROOT / "src/hooks/useEnVocabPageSync.ts",
-            ["resolveVocabPollIntervalMs", "usernameRef"],
+            ["resolveVocabPollIntervalMs", "usernameRef", "syncPollGated", "teacherQuizPollActive"],
             "en-page-sync",
         ),
         (

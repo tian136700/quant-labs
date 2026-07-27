@@ -201,6 +201,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const editingWordIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const scrollToHighlightRef = useRef(false);
+  const [teacherQuizPollActive, setTeacherQuizPollActive] = useState(false);
 
   const onRemoteResetClearSessionRef = useRef<(() => void) | null>(null);
 
@@ -231,6 +232,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSessionUsageLevels,
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
+    syncPollGated: isTeacherMode,
+    teacherQuizPollActive,
   });
 
   useEffect(() => {
@@ -389,6 +392,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,
+    onTeacherQuizPollActiveChange: setTeacherQuizPollActive,
   });
 
   useEnVocabBindRemoteResetSessionClear(onRemoteResetClearSessionRef, {

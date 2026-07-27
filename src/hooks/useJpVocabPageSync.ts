@@ -60,6 +60,9 @@ export function useJpVocabPageSync(options: {
   editingRemarksWordId: number | null;
   editingWordId: number | null;
   teacherIdleCompleteRef: MutableRefObject<boolean>;
+  /** 老师端：未开始抽查时不轮询 sync / teacher-visible（管理员端勿开） */
+  syncPollGated?: boolean;
+  teacherQuizPollActive?: boolean;
   setViewingRemarksWord: Dispatch<SetStateAction<JpVocabWord | null>>;
   onLoadError: (message: string) => void;
   onDayRolloverClearSession: () => void;
@@ -70,6 +73,8 @@ export function useJpVocabPageSync(options: {
     editingRemarksWordId,
     editingWordId,
     teacherIdleCompleteRef,
+    syncPollGated = false,
+    teacherQuizPollActive = false,
     setViewingRemarksWord,
     onLoadError,
     onDayRolloverClearSession,
@@ -268,6 +273,7 @@ export function useJpVocabPageSync(options: {
 
   useEffect(() => {
     if (checking || !user) return;
+    if (syncPollGated && !teacherQuizPollActive) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -341,10 +347,19 @@ export function useJpVocabPageSync(options: {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [applySyncPatches, checking, user, editingRemarksWordId, editingWordId]);
+  }, [
+    applySyncPatches,
+    checking,
+    user,
+    editingRemarksWordId,
+    editingWordId,
+    syncPollGated,
+    teacherQuizPollActive,
+  ]);
 
   useEffect(() => {
     if (checking || !user) return;
+    if (syncPollGated && !teacherQuizPollActive) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -384,13 +399,24 @@ export function useJpVocabPageSync(options: {
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [syncTeacherVisibleLimitFromServer, checking, user]);
+  }, [
+    syncTeacherVisibleLimitFromServer,
+    checking,
+    user,
+    syncPollGated,
+    teacherQuizPollActive,
+  ]);
 
   useEffect(() => {
+    if (syncPollGated && !teacherQuizPollActive) return;
     return subscribeJpVocabQuizTargetUpdated(() => {
       void syncTeacherVisibleLimitFromServer();
     });
-  }, [syncTeacherVisibleLimitFromServer]);
+  }, [
+    syncTeacherVisibleLimitFromServer,
+    syncPollGated,
+    teacherQuizPollActive,
+  ]);
 
   return {
     words,

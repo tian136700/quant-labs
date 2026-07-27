@@ -61,6 +61,7 @@ export function useEnVocabTeacherQuiz(options: {
   setStatus: (message: string) => void;
   /** 本轮会话真正抽完（卡片关闭前）→ 弹出完成提示 */
   onTeacherQuizSessionFinished?: () => void;
+  onTeacherQuizPollActiveChange?: (active: boolean) => void;
 }) {
   const {
     locale,
@@ -81,6 +82,7 @@ export function useEnVocabTeacherQuiz(options: {
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,
+    onTeacherQuizPollActiveChange,
   } = options;
 
   const usernameRef = useRef(user?.username);
@@ -316,6 +318,10 @@ export function useEnVocabTeacherQuiz(options: {
 
   const teacherQuizLocksTable = canOperate && !isAdminMode;
   const teacherQuizInProgress = quizSession != null;
+
+  useEffect(() => {
+    onTeacherQuizPollActiveChange?.(quizSession != null);
+  }, [quizSession, onTeacherQuizPollActiveChange]);
 
   useEffect(() => {
     if (quizSession == null) setShowQuizFlashcard(false);

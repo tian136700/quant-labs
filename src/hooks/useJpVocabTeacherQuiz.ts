@@ -57,6 +57,7 @@ export function useJpVocabTeacherQuiz(options: {
   dailySeqByWordId: Map<number, number>;
   setStatus: (message: string) => void;
   onTeacherQuizSessionFinished?: () => void;
+  onTeacherQuizPollActiveChange?: (active: boolean) => void;
 }) {
   const {
     locale,
@@ -75,6 +76,7 @@ export function useJpVocabTeacherQuiz(options: {
     dailySeqByWordId,
     setStatus,
     onTeacherQuizSessionFinished,
+    onTeacherQuizPollActiveChange,
   } = options;
   const usernameRef = useRef(user?.username);
   usernameRef.current = user?.username;
@@ -307,6 +309,10 @@ export function useJpVocabTeacherQuiz(options: {
 
   const teacherQuizLocksTable = canOperate && !isAdminMode;
   const teacherQuizInProgress = quizSession != null;
+
+  useEffect(() => {
+    onTeacherQuizPollActiveChange?.(quizSession != null);
+  }, [quizSession, onTeacherQuizPollActiveChange]);
 
   useEffect(() => {
     if (quizSession == null) setShowQuizFlashcard(false);

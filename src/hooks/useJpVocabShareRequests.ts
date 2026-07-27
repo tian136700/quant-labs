@@ -16,8 +16,12 @@ export function useJpVocabShareRequests(options: {
   teacherIdleCompleteRef: MutableRefObject<boolean>;
   setStatus: (message: string) => void;
   username?: string | null;
+  /** 老师端：未开始抽查时不轮询协助请求 */
+  pollGated?: boolean;
+  pollActive?: boolean;
 }) {
-  const { canOperate, teacherIdleCompleteRef, setStatus, username } = options;
+  const { canOperate, teacherIdleCompleteRef, setStatus, username, pollGated, pollActive } =
+    options;
   const usernameRef = useRef(username);
   usernameRef.current = username;
 
@@ -28,6 +32,7 @@ export function useJpVocabShareRequests(options: {
 
   useEffect(() => {
     if (!canOperate || !JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED) return;
+    if (pollGated && !pollActive) return;
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -82,7 +87,7 @@ export function useJpVocabShareRequests(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, teacherIdleCompleteRef, username]);
+  }, [canOperate, teacherIdleCompleteRef, username, pollGated, pollActive]);
 
   const dismissShareRequests = useCallback(async () => {
     const ids = shareRequests.map((r) => r.id);
