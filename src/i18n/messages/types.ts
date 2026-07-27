@@ -108,7 +108,11 @@ export type Messages = {
       pagination: {
         prev: string;
         next: string;
-        summary: string;
+        summaryMulti: string;
+        summarySingle: string;
+        pageSizeLabel: string;
+        pageSizeOption: string;
+        pageSizeAria: string;
       };
       filterLabel: string;
       filterAll: string;

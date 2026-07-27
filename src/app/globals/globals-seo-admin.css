@@ -234,33 +234,85 @@
 .admin-pagination {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
+  align-items: flex-start;
+  gap: 0.45rem;
   margin-top: 1rem;
   padding-top: 0.875rem;
   border-top: 1px solid var(--border);
 }
 
-@screen sm {
-  .admin-pagination {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
+.admin-pagination__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem 0.85rem;
+  width: 100%;
 }
 
-.admin-pagination-summary {
-  @apply text-xs text-muted m-0;
+.admin-pagination__info {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  margin: 0;
+}
+
+.admin-pagination__size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.admin-pagination__size-label {
+  white-space: nowrap;
+}
+
+.admin-pagination__size-select {
+  min-width: 4.5rem;
+  padding: 0.35rem 1.25rem 0.35rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background-color: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
 }
 
-.admin-pagination-actions {
-  @apply flex flex-wrap gap-2;
+.admin-pagination__size-select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 1px;
 }
 
-@screen sm {
-  .admin-pagination-actions {
-    justify-content: flex-end;
+@media (max-width: 767px) {
+  .admin-pagination {
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .admin-pagination .btn-rsi-filter {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .admin-pagination__info {
+    text-align: center;
+    font-size: 0.875rem;
+    width: 100%;
+  }
+
+  .admin-pagination__size {
+    width: auto;
+    justify-content: flex-start;
+  }
+
+  .admin-pagination__size-select {
+    min-height: 2.75rem;
+    min-width: 5.5rem;
+    font-size: 0.875rem;
   }
 }
 

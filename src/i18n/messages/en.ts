@@ -123,7 +123,12 @@ export const enMessages: Messages = {
         pagination: {
           prev: "Previous",
           next: "Next",
-          summary: "Page {page} of {totalPages} ({total} records)",
+          summaryMulti:
+            "Page {page} / {totalPages} · showing {from}–{to} / {total}",
+          summarySingle: "Showing {from}–{to} / {total}",
+          pageSizeLabel: "Per page",
+          pageSizeOption: "{size}",
+          pageSizeAria: "Items per page",
         },
         filterLabel: "Signed-in user",
         filterAll: "All users",

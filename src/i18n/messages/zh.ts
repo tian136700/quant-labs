@@ -122,7 +122,11 @@ export const zhMessages: Messages = {
         pagination: {
           prev: "上一页",
           next: "下一页",
-          summary: "第 {page} / {totalPages} 页，共 {total} 条",
+          summaryMulti: "第 {page} / {totalPages} 页 · 显示 {from}–{to} / {total} 条",
+          summarySingle: "显示 {from}–{to} / {total} 条",
+          pageSizeLabel: "每页",
+          pageSizeOption: "{size} 条",
+          pageSizeAria: "每页显示条数",
         },
         filterLabel: "登录用户",
         filterAll: "全部",

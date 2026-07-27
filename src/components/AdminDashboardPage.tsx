@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import type { Locale } from "@/i18n/messages";
@@ -23,8 +23,22 @@ import {
   nextVisitSortState,
   type AdminVisitSortState,
 } from "@/components/admin-dashboard/AdminVisitSortTh";
+import { AdminListPagination } from "@/components/admin-dashboard/AdminListPagination";
 
-const VISIT_PAGE_SIZE = 50;
+const VISIT_PAGE_SIZE_DEFAULT = 50;
+const VISIT_PAGE_SIZE_STORAGE_KEY = "admin_visits_page_size";
+
+function readStoredVisitPageSize(): number {
+  if (typeof window === "undefined") return VISIT_PAGE_SIZE_DEFAULT;
+  try {
+    const raw = window.localStorage.getItem(VISIT_PAGE_SIZE_STORAGE_KEY);
+    const n = raw ? Number(raw) : NaN;
+    if ([10, 20, 50, 100].includes(n)) return n;
+  } catch {
+    /* ignore */
+  }
+  return VISIT_PAGE_SIZE_DEFAULT;
+}
 
 const DEFAULT_VISIT_SORT: AdminVisitSortState = {
   field: "created_at",
@@ -94,7 +108,7 @@ function AdminIpCopyButton({
 }
 
 export function AdminDashboardPage() {
-  const { locale, t, tf } = useI18n();
+  const { locale, t } = useI18n();
   const adm = t("adminDashboard");
   const admTrends = t("adminTrends");
   const { isAdmin, hasPermission, checking } = useEtrAuth();
@@ -103,6 +117,9 @@ export function AdminDashboardPage() {
 
   const [visits, setVisits] = useState<VisitLogRecord[]>([]);
   const [visitPage, setVisitPage] = useState(1);
+  const [visitPageSize, setVisitPageSize] = useState(VISIT_PAGE_SIZE_DEFAULT);
+  const [visitPageSizeReady, setVisitPageSizeReady] = useState(false);
+  const visitPageSizeRef = useRef(VISIT_PAGE_SIZE_DEFAULT);
   const [visitTotal, setVisitTotal] = useState(0);
   const [visitTotalPages, setVisitTotalPages] = useState(1);
   const [visitSort, setVisitSort] = useState<AdminVisitSortState>(DEFAULT_VISIT_SORT);
@@ -116,17 +133,25 @@ export function AdminDashboardPage() {
   const [statusKind, setStatusKind] = useState<"" | "err">("");
   const [copyToast, setCopyToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    const size = readStoredVisitPageSize();
+    visitPageSizeRef.current = size;
+    setVisitPageSize(size);
+    setVisitPageSizeReady(true);
+  }, []);
+
   const loadVisits = useCallback(
     async (
       page = 1,
       sort: AdminVisitSortState = DEFAULT_VISIT_SORT,
-      usernameFilter = visitUsernameFilter
+      usernameFilter = visitUsernameFilter,
+      pageSize = visitPageSizeRef.current
     ) => {
       setLoadingVisits(true);
       try {
         const params = new URLSearchParams({
           page: String(page),
-          limit: String(VISIT_PAGE_SIZE),
+          limit: String(pageSize),
           sort: sort.field,
           order: sort.order,
         });
@@ -202,10 +227,21 @@ export function AdminDashboardPage() {
     void loadVisits(1, visitSort, value);
   };
 
+  const handleVisitPageSizeChange = (size: number) => {
+    visitPageSizeRef.current = size;
+    setVisitPageSize(size);
+    try {
+      window.localStorage.setItem(VISIT_PAGE_SIZE_STORAGE_KEY, String(size));
+    } catch {
+      /* ignore */
+    }
+    void loadVisits(1, visitSort, visitUsernameFilter, size);
+  };
+
   useEffect(() => {
-    if (checking || !canAccess) return;
+    if (checking || !canAccess || !visitPageSizeReady) return;
     void loadAll();
-  }, [checking, canAccess, loadAll]);
+  }, [checking, canAccess, visitPageSizeReady, loadAll]);
 
   if (checking || !canAccess) {
     return (
@@ -459,33 +495,31 @@ export function AdminDashboardPage() {
             </table>
           </div>
 
-            <nav className="admin-pagination" aria-label={adm.visits.heading}>
-              <p className="admin-pagination-summary">
-                {tf(adm.visits.pagination.summary, {
-                  page: visitPage,
-                  totalPages: visitTotalPages,
-                  total: visitTotal,
-                })}
-              </p>
-              <div className="admin-pagination-actions">
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void loadVisits(visitPage - 1, visitSort, visitUsernameFilter)}
-                  disabled={loadingVisits || visitPage <= 1}
-                >
-                  {adm.visits.pagination.prev}
-                </button>
-                <button
-                  type="button"
-                  className="btn-rsi-filter btn-rsi-filter--compact"
-                  onClick={() => void loadVisits(visitPage + 1, visitSort, visitUsernameFilter)}
-                  disabled={loadingVisits || visitPage >= visitTotalPages}
-                >
-                  {adm.visits.pagination.next}
-                </button>
-              </div>
-            </nav>
+            <AdminListPagination
+              safePage={visitPage}
+              totalPages={visitTotalPages}
+              pageRangeStart={
+                visitTotal === 0 ? 0 : (visitPage - 1) * visitPageSize + 1
+              }
+              pageRangeEnd={Math.min(visitPage * visitPageSize, visitTotal)}
+              totalItems={visitTotal}
+              pageSize={visitPageSize}
+              onPageChange={(page) =>
+                void loadVisits(page, visitSort, visitUsernameFilter)
+              }
+              onPageSizeChange={handleVisitPageSizeChange}
+              disabled={loadingVisits}
+              labels={{
+                prev: adm.visits.pagination.prev,
+                next: adm.visits.pagination.next,
+                summaryMulti: adm.visits.pagination.summaryMulti,
+                summarySingle: adm.visits.pagination.summarySingle,
+                pageSizeLabel: adm.visits.pagination.pageSizeLabel,
+                pageSizeOption: adm.visits.pagination.pageSizeOption,
+                pageSizeAria: adm.visits.pagination.pageSizeAria,
+                ariaLabel: adm.visits.heading,
+              }}
+            />
           </>
         ) : null}
       </section>
