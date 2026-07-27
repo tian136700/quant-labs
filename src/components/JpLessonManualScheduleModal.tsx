@@ -16,6 +16,11 @@ import {
   detectScheduleTeacherSubjectFromTitle,
   scheduleTeacherPickerListForSubject,
 } from "@/lib/jp-lesson-teacher-rate";
+import {
+  formatJpLessonDefaultDurationFormValue,
+  resolveJpLessonTeacherLessonMinutes,
+} from "@/lib/jp-lesson-teacher-default-duration";
+import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
 import type { JpLessonTeacher } from "@/lib/types";
 import {
   beijingTodayDateString,
@@ -198,8 +203,32 @@ export function JpLessonManualScheduleModal({
     setError("");
     // 闲鱼英语抽查：自动填上课老师（须与人员管理英语老师同名）
     if (preset === "闲鱼英语抽查") {
-      setTeacher("闲鱼英语抽查");
+      applyTeacherName("闲鱼英语抽查");
     }
+  };
+
+  const applyTeacherName = (name: string) => {
+    setTeacher(name);
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    // 时长已手选则不覆盖；空着时按老师默认时长带出
+    setDuration((prev) => {
+      if (prev.trim()) return prev;
+      const matched =
+        findLessonTeacherByPickerName(jpTeachers, trimmed) ??
+        findLessonTeacherByPickerName(enTeachers, trimmed) ??
+        findLessonTeacherByPickerName(koTeachers, trimmed);
+      if (!matched) {
+        return formatJpLessonDefaultDurationFormValue(
+          resolveJpLessonTeacherLessonMinutes({ name: trimmed, lesson_minutes: null })
+        ) || prev;
+      }
+      return (
+        formatJpLessonDefaultDurationFormValue(
+          resolveJpLessonTeacherLessonMinutes(matched)
+        ) || prev
+      );
+    });
   };
 
   const activateCustomTitle = () => {
@@ -261,7 +290,7 @@ export function JpLessonManualScheduleModal({
         setError(result.error);
         return null;
       }
-      setTeacher(result.name);
+      applyTeacherName(result.name);
       return result.name;
     } finally {
       setAddingTeacher(false);
@@ -448,7 +477,7 @@ export function JpLessonManualScheduleModal({
                           value={teacher}
                           teachers={pickerTeachers}
                           placeholder={teacherPlaceholder}
-                          onChange={setTeacher}
+                          onChange={applyTeacherName}
                           onAddTeacher={onAddTeacher}
                           disabled={saving || addingTeacher}
                         />
@@ -458,7 +487,7 @@ export function JpLessonManualScheduleModal({
                           className="jp-lesson-next-class-input"
                           value={teacher}
                           placeholder="例如：张老师"
-                          onChange={(e) => setTeacher(e.target.value)}
+                          onChange={(e) => applyTeacherName(e.target.value)}
                         />
                       )}
                     </label>

@@ -15,17 +15,26 @@ import {
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
 } from "@/lib/jp-lesson-shared";
+import {
+  formatJpLessonDefaultDurationFormValue,
+  resolveJpLessonDefaultDurationFromTeachers,
+} from "@/lib/jp-lesson-teacher-default-duration";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import {
   findDuplicateLessonScheduleRowKeys,
   hasDuplicateLessonScheduleRows,
   LESSON_SCHEDULE_DUPLICATE_MESSAGE,
 } from "@/lib/lesson-class-schedule-form";
-import type { JpLessonClassScheduleInput, JpLessonRecord } from "@/lib/types";
+import type {
+  JpLessonClassScheduleInput,
+  JpLessonRecord,
+  JpLessonTeacher,
+} from "@/lib/types";
 
 type Props = {
   open: boolean;
   lesson: JpLessonRecord | null;
+  teachers?: JpLessonTeacher[];
   saving?: boolean;
   onClose: () => void;
   onSave: (schedules: JpLessonClassScheduleInput[]) => void;
@@ -49,18 +58,21 @@ function createRowKey(): string {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function emptyRow(): ScheduleRow {
+function emptyRow(defaultDuration = ""): ScheduleRow {
   return {
     key: createRowKey(),
     date: beijingTodayDateString(),
     time: "",
-    duration: "",
+    duration: defaultDuration,
   };
 }
 
-function rowsFromLesson(lesson: JpLessonRecord): ScheduleRow[] {
+function rowsFromLesson(
+  lesson: JpLessonRecord,
+  defaultDuration: string
+): ScheduleRow[] {
   const schedules = getLessonClassSchedules(lesson);
-  if (!schedules.length) return [emptyRow()];
+  if (!schedules.length) return [emptyRow(defaultDuration)];
 
   return schedules.map((schedule) => {
     const local = nextClassAtToDatetimeLocalValue(schedule.class_at);
@@ -70,7 +82,9 @@ function rowsFromLesson(lesson: JpLessonRecord): ScheduleRow[] {
       date: parts?.date ?? "",
       time: parts?.time ?? "",
       duration:
-        schedule.duration_minutes != null ? String(schedule.duration_minutes) : "",
+        schedule.duration_minutes != null
+          ? String(schedule.duration_minutes)
+          : defaultDuration,
     };
   });
 }
@@ -78,6 +92,7 @@ function rowsFromLesson(lesson: JpLessonRecord): ScheduleRow[] {
 export function JpLessonNextClassEditModal({
   open,
   lesson,
+  teachers = [],
   saving = false,
   onClose,
   onSave,
@@ -86,6 +101,16 @@ export function JpLessonNextClassEditModal({
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
   const saveProgress = useSaveProgressBar(saving);
+
+  const defaultDuration = useMemo(() => {
+    if (!lesson) return "";
+    const selected = (lesson.teacher_ids ?? [])
+      .map((id) => teachers.find((teacher) => teacher.id === id))
+      .filter((teacher): teacher is JpLessonTeacher => teacher != null);
+    return formatJpLessonDefaultDurationFormValue(
+      resolveJpLessonDefaultDurationFromTeachers(selected)
+    );
+  }, [lesson, teachers]);
 
   const timeOptions = useMemo(
     () =>
@@ -107,7 +132,15 @@ export function JpLessonNextClassEditModal({
 
   useEffect(() => {
     if (!open || !lesson) return;
-    setRows(rowsFromLesson(lesson));
+    const selected = (lesson.teacher_ids ?? [])
+      .map((id) => teachers.find((teacher) => teacher.id === id))
+      .filter((teacher): teacher is JpLessonTeacher => teacher != null);
+    const duration = formatJpLessonDefaultDurationFormValue(
+      resolveJpLessonDefaultDurationFromTeachers(selected)
+    );
+    setRows(rowsFromLesson(lesson, duration));
+    // 仅在打开/切换课程时灌草稿；老师列表晚到不打断正在编辑的预约
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers snapshot at open
   }, [open, lesson?.id]);
 
   const updateRow = (key: string, patch: Partial<Omit<ScheduleRow, "key">>) => {
@@ -117,14 +150,14 @@ export function JpLessonNextClassEditModal({
   };
 
   const addRow = () => {
-    setRows((prev) => [...prev, emptyRow()]);
+    setRows((prev) => [...prev, emptyRow(defaultDuration)]);
   };
 
   const removeRow = (key: string) => {
     if (!window.confirm("确定删除这条预约吗？")) return;
     setRows((prev) => {
       const next = prev.filter((row) => row.key !== key);
-      return next.length ? next : [emptyRow()];
+      return next.length ? next : [emptyRow(defaultDuration)];
     });
   };
 
@@ -154,7 +187,7 @@ export function JpLessonNextClassEditModal({
   };
 
   const handleClear = () => {
-    setRows([emptyRow()]);
+    setRows([emptyRow(defaultDuration)]);
   };
 
   if (!open || !mounted || !lesson) return null;

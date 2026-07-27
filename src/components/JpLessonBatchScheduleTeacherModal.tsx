@@ -11,6 +11,10 @@ import {
   nextClassAtFromDatetimeLocalValue,
 } from "@/lib/jp-lesson-shared";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
+import {
+  formatJpLessonDefaultDurationFormValue,
+  resolveJpLessonDefaultDurationFromTeachers,
+} from "@/lib/jp-lesson-teacher-default-duration";
 import { formatTeacherDisplayLabel, sortJpLessonTeachersByLessonCount } from "@/lib/jp-lesson-teacher-rate";
 import { filterLessonTeachersBySearch } from "@/lib/lesson-teacher-search";
 import type { JpLessonClassScheduleInput, JpLessonTeacher } from "@/lib/types";
@@ -46,12 +50,12 @@ function createRowKey(): string {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function emptyRow(): ScheduleRow {
+function emptyRow(defaultDuration = ""): ScheduleRow {
   return {
     key: createRowKey(),
     date: beijingTodayDateString(),
     time: "",
-    duration: "",
+    duration: defaultDuration,
   };
 }
 
@@ -83,6 +87,15 @@ export function JpLessonBatchScheduleTeacherModal({
     [teachers]
   );
 
+  const defaultDuration = useMemo(() => {
+    const selected = selectedIds
+      .map((id) => teachers.find((teacher) => teacher.id === id))
+      .filter((teacher): teacher is JpLessonTeacher => teacher != null);
+    return formatJpLessonDefaultDurationFormValue(
+      resolveJpLessonDefaultDurationFromTeachers(selected)
+    );
+  }, [selectedIds, teachers]);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -95,18 +108,27 @@ export function JpLessonBatchScheduleTeacherModal({
     setProgressStatus("learning");
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !defaultDuration) return;
+    setRows((prev) =>
+      prev.map((row) =>
+        row.duration.trim() ? row : { ...row, duration: defaultDuration }
+      )
+    );
+  }, [open, defaultDuration]);
+
   const updateRow = (key: string, patch: Partial<Omit<ScheduleRow, "key">>) => {
     setRows((prev) =>
       prev.map((row) => (row.key === key ? { ...row, ...patch } : row))
     );
   };
 
-  const addRow = () => setRows((prev) => [...prev, emptyRow()]);
+  const addRow = () => setRows((prev) => [...prev, emptyRow(defaultDuration)]);
 
   const removeRow = (key: string) => {
     setRows((prev) => {
       const next = prev.filter((row) => row.key !== key);
-      return next.length ? next : [emptyRow()];
+      return next.length ? next : [emptyRow(defaultDuration)];
     });
   };
 

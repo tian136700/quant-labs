@@ -114,6 +114,7 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
       <JpLessonNextClassEditModal
         open={editingNextClassLesson != null}
         lesson={editingNextClassLesson}
+        teachers={teachers}
         saving={savingNextClassId === editingNextClassLesson?.id}
         onClose={() => setEditingNextClassLesson(null)}
         onSave={(schedules) => {
