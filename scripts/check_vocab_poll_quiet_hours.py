@@ -161,9 +161,28 @@ def main() -> int:
     else:
         errors += must_contain(
             rule,
-            ["resolveVocabPollIntervalMs", "00:00", "今日日程", "test", "user1"],
+            [
+                "alwaysApply: true",
+                "resolveVocabPollIntervalMs",
+                "00:00",
+                "今日日程",
+                "1027",
+                "test",
+                "user1",
+            ],
             "rule",
         )
+
+    hook = ROOT / ".cursor/hooks/worker-daily-request-session.py"
+    errors += must_contain(
+        hook,
+        ["worker-daily-requests", "1027", "resolveVocabPollIntervalMs", "00:00"],
+        "session-hook",
+    )
+
+    hooks_json = (ROOT / ".cursor/hooks.json").read_text(encoding="utf-8")
+    if "worker-daily-request-session.py" not in hooks_json:
+        errors.append("hooks.json: missing worker-daily-request-session.py in sessionStart")
 
     if errors:
         print("FAIL:")
