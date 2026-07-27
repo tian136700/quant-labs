@@ -10,20 +10,16 @@ import {
 } from "@/lib/jp-vocab-save-progress";
 import type { JpVocabWord } from "@/lib/types";
 
-type FillOk = {
-  ok: true;
-  word_id: number;
-  word: string;
-  usage: string | null;
-  example_sentences: string | null;
-  usage_source: string | null;
-  example_sentences_source: string | null;
-  source: string | null;
-};
-
-type FillErr = {
-  ok: false;
+type FillResponse = {
+  ok: boolean;
   error?: string;
+  word_id?: number;
+  word?: string;
+  usage?: string | null;
+  example_sentences?: string | null;
+  usage_source?: string | null;
+  example_sentences_source?: string | null;
+  source?: string | null;
 };
 
 type Props = {
@@ -91,22 +87,24 @@ export function JpVocabFlashcardManualFillExamples({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ word_id: word.id }),
         });
-        const data = await readApiJson<FillOk | FillErr>(res);
-        if (!res.ok || !data || data.ok !== true) {
-          const msg =
-            data && "error" in data && data.error
-              ? String(data.error)
-              : `补全失败（HTTP ${res.status}）`;
-          throw new Error(msg);
+        const parsed = await readApiJson<FillResponse>(res);
+        if (!parsed.ok) {
+          throw new Error(parsed.error || `补全失败（HTTP ${parsed.status}）`);
+        }
+        const data = parsed.data;
+        if (!res.ok || data.ok !== true) {
+          throw new Error(
+            data.error ? String(data.error) : `补全失败（HTTP ${res.status}）`
+          );
         }
         clearTimer();
         await animateJpVocabSaveProgressTo100(startedAt, setPercent);
         onPatched({
           ...word,
-          usage: data.usage,
-          usage_source: data.usage_source,
-          example_sentences: data.example_sentences,
-          example_sentences_source: data.example_sentences_source,
+          usage: data.usage ?? null,
+          usage_source: data.usage_source ?? null,
+          example_sentences: data.example_sentences ?? null,
+          example_sentences_source: data.example_sentences_source ?? null,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));

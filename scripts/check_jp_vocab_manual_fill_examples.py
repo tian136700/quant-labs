@@ -32,6 +32,13 @@ def main() -> int:
     must_contain(lib, "星期三是学校")
     must_contain(btn, "/api/jp-vocab/manual-fill-examples")
     must_contain(btn, "手动补全例句")
+    # readApiJson 返回 { ok, data }，禁止把外层当业务 body
+    must_contain(btn, "parsed.data")
+    btn_text = btn.read_text(encoding="utf-8")
+    if "const data = await readApiJson" in btn_text:
+        raise SystemExit(
+            "FAIL: use parsed = await readApiJson; then parsed.data (not data = readApiJson)"
+        )
     must_contain(modal, "canManualFillExamples")
     must_contain(modal, "JpVocabFlashcardManualFillExamples")
     must_contain(modal, "JpVocabUsageExamplesPairedContent")
