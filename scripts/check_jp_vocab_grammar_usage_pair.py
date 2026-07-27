@@ -58,6 +58,14 @@ def main() -> int:
         errors.append("usage prompt 须要求句末 (N5) 等级")
     if "isJpVocabConjugationGrammar" not in usage_ai:
         errors.append("须识别变形/变化规则词条")
+    if "isJpVocabGrammarUsageExamplesPairComplete" not in usage_ai:
+        errors.append("usage-ai 须判断变形课有例句即完成")
+    if "isJpVocabGrammarUsageExamplesPairComplete" not in fill_usage:
+        errors.append("fill-usage list_missing 须过滤已完成的变形课")
+    if "is_grammar_pair_still_missing" not in script:
+        errors.append("Mac 脚本须客户端跳过已完成的变形课（防卡队）")
+    if "活用课" not in rule or "有例句即算完成" not in rule:
+        errors.append("规则须写明变形课有例句即完成、勿卡 list_missing")
     if "禁止任何「用法」" not in usage_ai and "禁止任何用法" not in usage_ai:
         errors.append("变形词条 prompt 须禁止用法、只给例句")
     if "parseJpVocabConjugationExamplesOnly" not in usage_ai:

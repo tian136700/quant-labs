@@ -82,6 +82,23 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
 }
 
 /**
+ * 语法「用法+例句」是否已齐。
+ * 活用变形课：usage 故意为空，有例句即算完成（勿再进 list_missing，否则会卡死队列）。
+ */
+export function isJpVocabGrammarUsageExamplesPairComplete(
+  word: string,
+  usage: string | null | undefined,
+  examples: string | null | undefined
+): boolean {
+  const hasExamples = Boolean(String(examples ?? "").trim());
+  const hasUsage = Boolean(String(usage ?? "").trim());
+  if (isJpVocabConjugationGrammar(word)) {
+    return hasExamples;
+  }
+  return hasUsage && hasExamples;
+}
+
+/**
  * 用法说明是否「不像中文」：
  * - 只看「」短引之外：出现 漢字(かな) 或假名过多 → 拒（整段日语）
  * - 「」内可短引日语形态；引号外允许少量假名（如「て形」写作习惯）

@@ -91,6 +91,20 @@ def is_conjugation_word(word: str) -> bool:
     )
 
 
+def is_grammar_pair_still_missing(row: dict) -> bool:
+    """活用变形课：有例句即算完成（usage 故意为空）。线上旧 list_missing 会把它们反复排到队首。"""
+    word = str(row.get("word") or "")
+    need_examples = bool(row.get("need_examples"))
+    need_usage = bool(row.get("need_usage"))
+    if is_conjugation_word(word):
+        return need_examples
+    return need_usage or need_examples
+
+
+def filter_missing_pairs(missing: list) -> list:
+    return [row for row in missing if is_grammar_pair_still_missing(row)]
+
+
 def parse_conjugation_examples(raw: str) -> tuple[str, str] | None:
     """变形课：只收日语+译文；usage 为空。"""
     lines = [
@@ -459,7 +473,19 @@ def run_one_pair(
     if not scan.get("ok"):
         raise SystemExit(f"API error: {scan.get('error', scan)}")
     missing = scan.get("missing") or []
-    total_missing = int(scan.get("total_missing") or 0)
+    raw_total = int(scan.get("total_missing") or 0)
+    missing = filter_missing_pairs(missing)
+    # 旧线上 total_missing 会把「变形课已有例句」算进去；客户端按本批比例修正
+    if raw_total > 0 and (scan.get("missing") or []):
+        kept = len(missing)
+        raw_batch = len(scan.get("missing") or [])
+        total_missing = (
+            max(kept, int(round(raw_total * kept / raw_batch)))
+            if raw_batch > 0
+            else raw_total
+        )
+    else:
+        total_missing = len(missing) if missing else 0
     if target_word_id and target_word_id > 0:
         missing = [r for r in missing if int(r.get("id") or 0) == int(target_word_id)]
         if not missing:
