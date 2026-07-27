@@ -110,13 +110,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [items, locale, pathname]);
 
   if (onJpVocabRef || onEnVocabRef) {
-    // 教案「查看」分享页：不挂科目老师路由笼（微信即使用旧 Cookie/本地缓存也不得踢到韩语）
-    return (
-      <>
-        <MaintenanceRouteGuard />
-        <main>{children}</main>
-      </>
-    );
+    // 教案「查看」分享页：不挂任何鉴权/封禁路由笼。
+    // 账号被禁用也要能打开链接；微信旧 Cookie/本地缓存也不得踢到韩语或维护页。
+    return <main>{children}</main>;
   }
 
   if (onMaintenance || compareGatedShell) {

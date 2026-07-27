@@ -4,7 +4,12 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
-import { isMaintenancePath, maintenancePath } from "@/lib/locale-path";
+import {
+  isEnVocabRefPath,
+  isJpVocabRefPath,
+  isMaintenancePath,
+  maintenancePath,
+} from "@/lib/locale-path";
 
 /** 被禁用账号：统一跳转到功能维护页，不暴露封禁原因 */
 export function MaintenanceRouteGuard() {
@@ -14,6 +19,8 @@ export function MaintenanceRouteGuard() {
   const router = useRouter();
 
   useEffect(() => {
+    // 教案「查看」链接：账号被封也不能拦（AppShell 已不挂本组件；此处再挡一层）
+    if (isJpVocabRefPath(pathname) || isEnVocabRefPath(pathname)) return;
     if (checking || !maintenance || isMaintenancePath(pathname)) return;
     router.replace(maintenancePath(locale));
   }, [checking, maintenance, pathname, locale, router]);

@@ -26,7 +26,8 @@ export function isSubjectTeacherNavRestricted(
 
 /**
  * 多科目老师取并集：日语+韩语可同时进日语新课查看页与韩语抽问。
- * 教案查看页（/jp-vocab/ref、/en-vocab/ref）始终放行（发给老师的分享链接）。
+ * 教案查看页（/jp-vocab/ref、/en-vocab/ref）始终放行（发给老师的分享链接；
+ * 不设登录/科目/封禁权限，账号 disabled 也能打开）。
  */
 export function isPathAllowedForSubjectTeachers(
   pathname: string,
