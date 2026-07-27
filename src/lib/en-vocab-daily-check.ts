@@ -48,6 +48,20 @@ export function nextTodayCheckCount(
   return { count, date: today };
 }
 
+/** 今日是否已在英语抽背页完成抽查（勾选熟悉程度） */
+export function isEnVocabWordQuizzedToday(
+  word: Pick<EnVocabWord, "today_check_count" | "today_check_date">,
+  now = new Date()
+): boolean {
+  return (
+    effectiveTodayCheckCount(
+      word.today_check_count ?? 0,
+      word.today_check_date,
+      now
+    ) > 0
+  );
+}
+
 /** 全表今日抽查汇总（北京时间 0 点归零） */
 export function enVocabTodayCheckStats(
   words: EnVocabWord[],

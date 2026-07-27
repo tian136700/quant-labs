@@ -100,6 +100,7 @@ import {
 import {
   clearEnVocabTeacherQuizLiveIfDeleted,
 } from "./live";
+import { ensureEnVocabReviewDoneSchema } from "./review";
 
 export async function upsertEnVocabFromLesson(
   db: D1Database,
@@ -346,6 +347,9 @@ export async function deleteEnVocabWordsByIds(
         enVocabDbState.devShared.splice(i, 1);
       }
     }
+    enVocabDbState.devReviewDoneWordIds = enVocabDbState.devReviewDoneWordIds.filter(
+      (id) => !idSet.has(id)
+    );
     if (deleted === 0) {
       return { ok: false, error: "not_found" };
     }
@@ -365,12 +369,17 @@ export async function deleteEnVocabWordsByIds(
   }
 
   const placeholders = ids.map((_, i) => `?${i + 1}`).join(", ");
-  // D1：先清 shared，再删词；勿只靠 ON DELETE CASCADE
+  // D1：先清 shared / review_done，再删词；勿只靠 ON DELETE CASCADE
   await ensureEnVocabSharedSchema(db);
-  await db
-    .prepare(`DELETE FROM en_vocab_shared WHERE word_id IN (${placeholders})`)
-    .bind(...ids)
-    .run();
+  await ensureEnVocabReviewDoneSchema(db);
+  await db.batch([
+    db
+      .prepare(`DELETE FROM en_vocab_shared WHERE word_id IN (${placeholders})`)
+      .bind(...ids),
+    db
+      .prepare(`DELETE FROM en_vocab_review_done WHERE word_id IN (${placeholders})`)
+      .bind(...ids),
+  ]);
   const result = await db
     .prepare(`DELETE FROM en_vocab_word WHERE id IN (${placeholders})`)
     .bind(...ids)

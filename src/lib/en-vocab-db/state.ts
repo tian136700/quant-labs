@@ -68,6 +68,8 @@ export const enVocabDbState = {
     at: number;
     value: EnVocabTeacherQuizLive;
   } | null,
+  devReviewDoneWordIds: [] as number[],
+  enVocabReviewDoneSchemaReady: false,
 };
 
 export const EN_VOCAB_WORD_SCHEMA_VERSION = 2;

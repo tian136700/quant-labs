@@ -50,3 +50,4 @@ export const jpLessonSaveQueue = new RequestQueue();
 export const koPronReviewSaveQueue = new RequestQueue();
 /** 日语复习：点「下一个」乐观标记后串行写库 */
 export const jpVocabReviewSaveQueue = new RequestQueue();
+export const enVocabReviewSaveQueue = new RequestQueue();
