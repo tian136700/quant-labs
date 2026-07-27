@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { readApiJson } from "@/lib/api-json";
 import {
@@ -27,6 +33,8 @@ type Props = {
   /** 仅管理员角色可见并可用 */
   enabled: boolean;
   onPatched: (next: JpVocabWord) => void;
+  /** 与「手动补全例句」同一行横排的操作（如「复制全部」） */
+  endAction?: React.ReactNode;
 };
 
 /**
@@ -37,6 +45,7 @@ export function JpVocabFlashcardManualFillExamples({
   word,
   enabled,
   onPatched,
+  endAction,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
@@ -59,7 +68,33 @@ export function JpVocabFlashcardManualFillExamples({
     clearTimer();
   }, [word.id, clearTimer]);
 
-  if (!enabled || word.kind === "grammar") return null;
+  const showFill = enabled && word.kind !== "grammar";
+  if (!showFill) {
+    return endAction ? (
+      <div className="jp-vocab-flashcard-manual-fill jp-vocab-flashcard-manual-fill--end-only">
+        <div className="jp-vocab-flashcard-manual-fill__row">{endAction}</div>
+        <style jsx>{`
+          .jp-vocab-flashcard-manual-fill {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.45rem;
+            flex: 1 1 auto;
+            min-width: 0;
+            max-width: 100%;
+          }
+          .jp-vocab-flashcard-manual-fill__row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.45rem;
+          }
+        `}</style>
+      </div>
+    ) : null;
+  }
 
   const onClick = () => {
     if (busy) return;
