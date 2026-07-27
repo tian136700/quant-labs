@@ -95,6 +95,39 @@ def main() -> int:
 
     for path, needles, label in (
         (
+            ROOT / "src/lib/vocab-teacher-quiz-sync-poll.ts",
+            [
+                "VOCAB_TEACHER_QUIZ_SYNC_POLL_GRACE_MS = 30 * 60 * 1000",
+                "shouldEnableVocabTeacherQuizSyncPoll",
+                "maxSessionReviewAtMs",
+            ],
+            "teacher-quiz-sync-poll-helper",
+        ),
+        (
+            ROOT / "src/components/JpVocabPage.tsx",
+            [
+                "useVocabTeacherQuizSyncPollActive",
+                "enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive",
+            ],
+            "jp-page-poll-gate",
+        ),
+        (
+            ROOT / "src/components/EnVocabPage.tsx",
+            [
+                "useVocabTeacherQuizSyncPollActive",
+                "enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive",
+            ],
+            "en-page-poll-gate",
+        ),
+        (
+            ROOT / "src/hooks/useVocabTeacherQuizSyncPollActive.ts",
+            [
+                "shouldEnableVocabTeacherQuizSyncPoll",
+                "maxSessionReviewAtMs",
+            ],
+            "teacher-quiz-sync-poll-hook",
+        ),
+        (
             ROOT / "src/hooks/useJpVocabPageSync.ts",
             [
                 "resolveVocabPollIntervalMs",

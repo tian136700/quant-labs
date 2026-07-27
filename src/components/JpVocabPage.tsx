@@ -60,6 +60,7 @@ import { useJpVocabPageSync } from "@/hooks/useJpVocabPageSync";
 import { useJpVocabReviewActions } from "@/hooks/useJpVocabReviewActions";
 import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
 import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
+import { useVocabTeacherQuizSyncPollActive } from "@/hooks/useVocabTeacherQuizSyncPollActive";
 import {
   jpVocabWordsInOrder,
   readStoredJpVocabKindFilter,
@@ -171,7 +172,17 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const teacherIdleCompleteRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
-  const [teacherQuizPollActive, setTeacherQuizPollActive] = useState(false);
+  /** 先占位；真正值在 displayQuizProgress 出来后由 hook 重算（见下方） */
+  const [teacherQuizPollGate, setTeacherQuizPollGate] = useState({
+    showQuizFlashcard: false,
+    quizComplete: false,
+  });
+  const teacherQuizPollActive = useVocabTeacherQuizSyncPollActive({
+    enabled: isTeacherMode,
+    showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
+    quizComplete: teacherQuizPollGate.quizComplete,
+    sessionReviewAt,
+  });
 
   const onDayRolloverClearSession = useCallback(() => {
     setSessionLevel({});
@@ -371,7 +382,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     dailySeqByWordId,
     setStatus,
     onTeacherQuizSessionFinished,
-    onTeacherQuizPollActiveChange: setTeacherQuizPollActive,
   });
 
   const isWordInQuizTarget = useCallback(
@@ -423,6 +433,13 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     quizWordHasLevel,
     quizTarget,
   ]);
+
+  useEffect(() => {
+    setTeacherQuizPollGate({
+      showQuizFlashcard,
+      quizComplete: displayQuizProgress.complete,
+    });
+  }, [showQuizFlashcard, displayQuizProgress.complete]);
 
   const hideTeacherQuizList =
     canOperate &&

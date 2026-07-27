@@ -91,6 +91,7 @@ import { useEnVocabReviewActions } from "@/hooks/useEnVocabReviewActions";
 import { useEnVocabDailyCompleteEffects } from "@/hooks/useEnVocabDailyCompleteEffects";
 import { useEnVocabTeacherQuiz } from "@/hooks/useEnVocabTeacherQuiz";
 import { useEnVocabAdminActions } from "@/hooks/useEnVocabAdminActions";
+import { useVocabTeacherQuizSyncPollActive } from "@/hooks/useVocabTeacherQuizSyncPollActive";
 import { markEnVocabTeacherDailyCompleteDismissed } from "@/lib/en-vocab-daily-complete-dismiss";
 import {
   readEnVocabPageCache,
@@ -201,7 +202,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const editingWordIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const scrollToHighlightRef = useRef(false);
-  const [teacherQuizPollActive, setTeacherQuizPollActive] = useState(false);
+  const [teacherQuizPollGate, setTeacherQuizPollGate] = useState({
+    showQuizFlashcard: false,
+    quizComplete: false,
+  });
+  const teacherQuizPollActive = useVocabTeacherQuizSyncPollActive({
+    enabled: isTeacherMode,
+    showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
+    quizComplete: teacherQuizPollGate.quizComplete,
+    sessionReviewAt,
+  });
 
   const onRemoteResetClearSessionRef = useRef<(() => void) | null>(null);
 
@@ -396,7 +406,6 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,
-    onTeacherQuizPollActiveChange: setTeacherQuizPollActive,
   });
 
   useEnVocabBindRemoteResetSessionClear(onRemoteResetClearSessionRef, {
@@ -427,6 +436,13 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     searchQuery,
     kindFilter,
   });
+
+  useEffect(() => {
+    setTeacherQuizPollGate({
+      showQuizFlashcard,
+      quizComplete: displayQuizProgress.complete,
+    });
+  }, [showQuizFlashcard, displayQuizProgress.complete]);
 
   const isWordInQuizTarget = useCallback(
     (wordId: number) => quizTargetWordIds.has(wordId),
