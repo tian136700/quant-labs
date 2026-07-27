@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: jp-lesson completed sync — grammar examples yes, word examples no."""
+"""Regression: jp-lesson completed sync — grammar meanings yes, word meanings no."""
 
 from __future__ import annotations
 
@@ -12,37 +12,41 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 def main() -> int:
     errors: list[str] = []
 
-    db = ROOT / "src/lib/jp-lesson-db.ts"
-    text = db.read_text(encoding="utf-8") if db.is_file() else ""
-    if "syncLessonToVocab" not in text:
+    lesson_db = ROOT / "src/lib/jp-lesson-db.ts"
+    lesson_text = lesson_db.read_text(encoding="utf-8") if lesson_db.is_file() else ""
+    if "syncLessonToVocab" not in lesson_text:
         errors.append("jp-lesson-db.ts: missing syncLessonToVocab")
-    if 'lesson.kind === "grammar"' not in text:
-        errors.append('jp-lesson-db.ts: syncLessonToVocab must gate on kind === "grammar"')
-    if "syncExamples" not in text:
-        errors.append("jp-lesson-db.ts: must use syncExamples flag for example_sentences")
-    if "fill-example-sentences" not in text and "fill-example" not in text:
-        # comment may mention fill-example-sentences
-        pass
+    if "alignLessonItemMeanings" not in lesson_text:
+        errors.append("jp-lesson-db.ts: must align meanings for grammar sync")
+    if 'lesson.kind === "grammar"' not in lesson_text:
+        errors.append('jp-lesson-db.ts: must gate meaning sync on kind === "grammar"')
+
+    vocab_lesson = ROOT / "src/lib/jp-vocab-db/lesson.ts"
+    vocab_text = vocab_lesson.read_text(encoding="utf-8") if vocab_lesson.is_file() else ""
+    if "JP_VOCAB_LESSON_MEANING_SOURCE" not in vocab_text:
+        errors.append("jp-vocab-db/lesson.ts: missing lesson meaning source constant")
+    if 'kind === "grammar"' not in vocab_text:
+        errors.append("jp-vocab-db/lesson.ts: meaning write must be grammar-only")
+
+    fill = ROOT / "src/lib/jp-vocab-fill-meaning.ts"
+    fill_text = fill.read_text(encoding="utf-8") if fill.is_file() else ""
+    if "kind != 'grammar'" not in fill_text:
+        errors.append("jp-vocab-fill-meaning.ts: must exclude grammar from fill-meaning")
 
     rule = ROOT / ".cursor/rules/jp-lesson-upload-examples.mdc"
     rule_text = rule.read_text(encoding="utf-8") if rule.is_file() else ""
-    if "kind=grammar" not in rule_text and "**`kind=grammar`**" not in rule_text:
-        errors.append("jp-lesson-upload-examples.mdc: must document grammar-only example sync")
-    if "kind=word" not in rule_text and "**`kind=word`**" not in rule_text:
-        errors.append("jp-lesson-upload-examples.mdc: must document word kind skips examples")
-
-    index = ROOT / "docs/feature-index.md"
-    index_text = index.read_text(encoding="utf-8") if index.is_file() else ""
-    if "语法类**同步例句" not in index_text and "语法类" not in index_text:
-        errors.append("feature-index.md: jp-lesson row must note grammar-only example sync")
+    if "meanings" not in rule_text or "kind=grammar" not in rule_text:
+        errors.append("jp-lesson-upload-examples.mdc: must document grammar meaning sync")
+    if "kind=word" not in rule_text or "不同步释义" not in rule_text:
+        errors.append("jp-lesson-upload-examples.mdc: must document word kind skips meanings")
 
     if errors:
-        print("FAIL: jp-lesson vocab example sync guards")
+        print("FAIL: jp-lesson vocab meaning sync guards")
         for e in errors:
             print(f"  - {e}")
         return 1
 
-    print("ok: jp-lesson vocab example sync (grammar only)")
+    print("ok: jp-lesson vocab meaning sync (grammar only)")
     return 0
 
 

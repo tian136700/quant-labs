@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, normalizeLessonExampleSentencesForStorage, alignLessonItemExampleSentences } from "@/lib/jp-lesson-shared";
+import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, normalizeLessonExampleSentencesForStorage, alignLessonItemExampleSentences, alignLessonItemMeanings } from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -335,11 +335,13 @@ async function syncLessonToVocab(
   const items = parseLessonContent(lesson.content);
   if (!items.length) return;
 
-  // 释义不同步到抽问：由 tokken 限流脚本 / fill-meaning 补；对齐英语
-  // 例句：仅语法类带入抽问；单词类由 Mac 定时 fill-example-sentences 补
-  const syncExamples = lesson.kind === "grammar";
-  const itemExamples = syncExamples
-    ? alignLessonItemExampleSentences(lesson.content, lesson.example_sentences)
+  const itemExamples = alignLessonItemExampleSentences(
+    lesson.content,
+    lesson.example_sentences
+  );
+  const syncGrammarMeanings = lesson.kind === "grammar";
+  const itemMeanings = syncGrammarMeanings
+    ? alignLessonItemMeanings(lesson.content, lesson.meanings)
     : [];
   const refKey = lesson.ref_key;
   const refs = refKey
@@ -358,7 +360,8 @@ async function syncLessonToVocab(
       word,
       kind: lesson.kind,
       ref_key: refKey,
-      example_sentences: syncExamples ? (itemExamples[index] ?? null) : null,
+      meaning: syncGrammarMeanings ? (itemMeanings[index] ?? null) : null,
+      example_sentences: itemExamples[index] ?? null,
     })),
     refs
   );
