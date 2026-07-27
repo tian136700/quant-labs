@@ -200,18 +200,24 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     wordsRef,
     refsRef,
     persistCache,
+    loadWords,
+    syncTeacherVisibleLimitFromServer,
   } = useJpVocabPageSync({
     checking,
     user,
     editingRemarksWordId: editingRemarksWord?.id ?? null,
     editingWordId: editingWord?.id ?? null,
     teacherIdleCompleteRef,
-    syncPollGated: isTeacherMode,
     teacherQuizPollActive,
     setViewingRemarksWord,
     onLoadError: setError,
     onDayRolloverClearSession,
   });
+
+  const handleRefreshWords = useCallback(() => {
+    void syncTeacherVisibleLimitFromServer();
+    void loadWords({ force: true });
+  }, [loadWords, syncTeacherVisibleLimitFromServer]);
 
   const { shareRequests, showShareRequestModal, dismissShareRequests } =
     useJpVocabShareRequests({
@@ -219,7 +225,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       teacherIdleCompleteRef,
       setStatus,
       username: user?.username,
-      pollGated: isTeacherMode,
       pollActive: teacherQuizPollActive,
     });
 
@@ -753,6 +758,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           resetting={resetting}
           mobileToolbarExpanded={mobileToolbarExpanded}
           onToggleMobileToolbar={() => setMobileToolbarExpanded((v) => !v)}
+          onRefresh={() => handleRefreshWords()}
           onResumeOrStartQuiz={() => {
             if (teacherQuizInProgress) {
               resumeTeacherQuizFlashcard();

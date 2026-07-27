@@ -60,8 +60,7 @@ export function useEnVocabPageSync(options: {
   setSessionReviewAt: Dispatch<SetStateAction<Record<number, number>>>;
   /** 管理员重置后清抽查会话 / 关卡片（由页面写入最新 setter） */
   onRemoteResetClearSessionRef: MutableRefObject<(() => void) | null>;
-  /** 老师端：未开始抽查时不轮询 sync（管理员端勿开） */
-  syncPollGated?: boolean;
+  /** 仅抽查会话进行中才轮询；否则靠用户点「刷新」 */
   teacherQuizPollActive?: boolean;
 }) {
   const {
@@ -75,7 +74,6 @@ export function useEnVocabPageSync(options: {
     setSessionUsageLevels,
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
-    syncPollGated = false,
     teacherQuizPollActive = false,
   } = options;
 
@@ -250,19 +248,18 @@ export function useEnVocabPageSync(options: {
 
   useEffect(() => {
     if (checking || !user) return;
-    if (syncPollGated && !teacherQuizPollActive) return;
+    if (!teacherQuizPollActive) return;
     return subscribeEnVocabAdminReset(handleRemoteAdminReset);
   }, [
     checking,
     user,
     handleRemoteAdminReset,
-    syncPollGated,
     teacherQuizPollActive,
   ]);
 
   useEffect(() => {
     if (checking || !user) return;
-    if (syncPollGated && !teacherQuizPollActive) return;
+    if (!teacherQuizPollActive) return;
     if (loading || !words.length) return;
 
     let cancelled = false;
@@ -384,7 +381,6 @@ export function useEnVocabPageSync(options: {
     editingWordId,
     loadWords,
     onRemoteResetClearSessionRef,
-    syncPollGated,
     teacherQuizPollActive,
   ]);
 

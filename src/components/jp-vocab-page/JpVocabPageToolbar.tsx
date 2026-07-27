@@ -22,6 +22,7 @@ type JpVocabPageToolbarProps = {
   resetting: boolean;
   mobileToolbarExpanded: boolean;
   onToggleMobileToolbar: () => void;
+  onRefresh: () => void;
   onResumeOrStartQuiz: () => void;
   onPickNext: () => void;
   onOpenExportChoice: () => void;
@@ -47,6 +48,7 @@ export function JpVocabPageToolbar({
   resetting,
   mobileToolbarExpanded,
   onToggleMobileToolbar,
+  onRefresh,
   onResumeOrStartQuiz,
   onPickNext,
   onOpenExportChoice,
@@ -144,6 +146,15 @@ export function JpVocabPageToolbar({
             mobileToolbarExpanded ? " jp-vocab-toolbar-actions--expanded" : ""
           }`}
         >
+          <button
+            type="button"
+            className="btn-rsi-filter"
+            onClick={onRefresh}
+            disabled={loading || refreshing}
+            title="从服务器重新加载词表"
+          >
+            {refreshing ? "刷新中…" : "刷新"}
+          </button>
           {canOperate && quizTarget > 0 && quizTargetWordsLength > 0 ? (
             <button
               type="button"

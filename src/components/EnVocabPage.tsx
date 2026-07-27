@@ -221,6 +221,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     displayOrderRef,
     refsRef,
     persistCache,
+    loadWords,
   } = useEnVocabPageSync({
     checking,
     user,
@@ -232,9 +233,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSessionUsageLevels,
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
-    syncPollGated: isTeacherMode,
     teacherQuizPollActive,
   });
+
+  const handleRefreshWords = useCallback(() => {
+    void loadWords({ force: true });
+  }, [loadWords]);
 
   useEffect(() => {
     editingRemarksIdRef.current = editingRemarksWord?.id ?? null;
