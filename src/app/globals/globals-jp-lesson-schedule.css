@@ -715,6 +715,19 @@ input.jpls-date-input {
 .jpls-content-line {
   display: block;
 }
+.jpls-manual-linked-lessons {
+  display: grid;
+  gap: 0.4rem;
+}
+.jpls-manual-linked-lesson {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-word;
+}
+.jpls-manual-linked-lesson:hover {
+  text-decoration: underline;
+}
 .jpls-link-row {
   display: flex;
   align-items: center;

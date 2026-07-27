@@ -34,6 +34,12 @@ import type {
   JpLessonTeacher,
 } from "@/lib/types";
 
+export type ManualScheduleLinkedLessonDisplay = {
+  key: string;
+  label: string;
+  href: string;
+};
+
 export type JpLessonScheduleLayoutProps = {
   calendarRef: RefObject<HTMLElement | null>;
   sidebarPanelsRef: RefObject<HTMLDivElement | null>;
@@ -61,6 +67,7 @@ export type JpLessonScheduleLayoutProps = {
   selectedEnLesson: EnLessonRecord | null;
   selectedTeacherHref: (teacherId: number) => string;
   selectedManualSchedule: JpLessonManualSchedule | null;
+  selectedManualLinkedLessons: ManualScheduleLinkedLessonDisplay[];
   teachersById: Map<number, JpLessonTeacher>;
   enTeachersById: Map<number, EnLessonTeacher>;
   teachers: JpLessonTeacher[];
@@ -99,6 +106,7 @@ export function JpLessonScheduleLayout({
   selectedEnLesson,
   selectedTeacherHref,
   selectedManualSchedule,
+  selectedManualLinkedLessons,
   teachersById,
   enTeachersById,
   teachers,
@@ -415,6 +423,25 @@ export function JpLessonScheduleLayout({
                         <div>
                           <dt>备注</dt>
                           <dd>{selectedEvent.manualNote}</dd>
+                        </div>
+                      ) : null}
+                      {selectedEvent.source === "manual" &&
+                      selectedManualLinkedLessons.length > 0 ? (
+                        <div>
+                          <dt>教材</dt>
+                          <dd className="jpls-manual-linked-lessons">
+                            {selectedManualLinkedLessons.map((item) => (
+                              <a
+                                key={item.key}
+                                className="jpls-manual-linked-lesson"
+                                href={item.href}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {item.label}
+                              </a>
+                            ))}
+                          </dd>
                         </div>
                       ) : null}
                       {selectedViewUrl ? (

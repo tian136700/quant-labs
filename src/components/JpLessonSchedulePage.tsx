@@ -72,6 +72,7 @@ import {
   type JpLessonSchedulePageEvent,
   type LessonScheduleSubject,
 } from "@/lib/jp-lesson-manual-schedule";
+import { formatManualScheduleLessonOptionLabel } from "@/lib/jp-lesson-manual-schedule-linked";
 import { jpLessonPath, enLessonPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
 import {
@@ -646,6 +647,33 @@ export function JpLessonSchedulePage() {
     return manualSchedules.find((item) => item.id === selectedEvent.manualId) ?? null;
   }, [selectedEvent, manualSchedules]);
 
+  const selectedManualLinkedLessons = useMemo(() => {
+    if (!selectedManualSchedule?.linked_lessons?.length) return [];
+    return selectedManualSchedule.linked_lessons.map((link) => {
+      const lesson =
+        link.subject === "jp"
+          ? lessonById.get(link.lesson_id)
+          : enLessonById.get(link.lesson_id);
+      const option = {
+        subject: link.subject,
+        id: link.lesson_id,
+        kind: (lesson?.kind === "grammar" ? "grammar" : "word") as "word" | "grammar",
+        content: lesson?.content ?? "",
+        title: lesson?.title ?? null,
+        completed: lesson?.completed ?? false,
+        learning: lesson?.learning,
+      };
+      return {
+        key: `${link.subject}:${link.lesson_id}`,
+        label: formatManualScheduleLessonOptionLabel(option),
+        href:
+          link.subject === "en"
+            ? `/en-lesson/notes?id=${link.lesson_id}`
+            : `/jp-lesson/notes?id=${link.lesson_id}`,
+      };
+    });
+  }, [selectedManualSchedule, lessonById, enLessonById]);
+
   const selectedJpLesson = useMemo(() => {
     if (!selectedEvent?.lessonId || selectedEvent.subject !== "jp") return null;
     return lessonById.get(selectedEvent.lessonId) ?? null;
@@ -857,6 +885,7 @@ export function JpLessonSchedulePage() {
         selectedEnLesson={selectedEnLesson}
         selectedTeacherHref={selectedTeacherHref}
         selectedManualSchedule={selectedManualSchedule}
+        selectedManualLinkedLessons={selectedManualLinkedLessons}
         teachersById={teachersById}
         enTeachersById={enTeachersById}
         teachers={teachers}
@@ -876,6 +905,8 @@ export function JpLessonSchedulePage() {
         teachers={teachers}
         enTeachers={enTeachers}
         koTeachers={koTeachers}
+        jpLessons={lessons}
+        enLessons={enLessons}
         savingManualSchedule={savingManualSchedule}
         closeManualModal={closeManualModal}
         handleSaveManualSchedule={handleSaveManualSchedule}

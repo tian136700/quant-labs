@@ -7,6 +7,7 @@ import {
   updateJpLessonManualSchedule,
 } from "@/lib/jp-lesson-manual-schedule-db";
 import type { JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
+import { normalizeManualScheduleLinkedLessons } from "@/lib/jp-lesson-manual-schedule-linked";
 
 export async function GET(request: Request) {
   try {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       title?: string;
       teacher?: string;
       note?: string;
+      linked_lessons?: unknown;
     };
 
     const draft: JpLessonManualScheduleDraft = {
@@ -49,6 +51,7 @@ export async function POST(request: Request) {
       title: typeof body.title === "string" ? body.title : "",
       teacher: typeof body.teacher === "string" ? body.teacher : "",
       note: typeof body.note === "string" ? body.note : "",
+      linked_lessons: normalizeManualScheduleLinkedLessons(body.linked_lessons),
     };
 
     if (body.action === "update") {

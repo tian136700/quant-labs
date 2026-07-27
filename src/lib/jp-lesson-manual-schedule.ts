@@ -2,8 +2,14 @@ import {
   parseBeijingDateTime,
   resolveClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
+import {
+  normalizeManualScheduleLinkedLessons,
+  type ManualScheduleLinkedLesson,
+} from "@/lib/jp-lesson-manual-schedule-linked";
 
 export const JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY = "jp-lesson-manual-schedules";
+
+export type { ManualScheduleLinkedLesson };
 
 export type JpLessonManualSchedule = {
   id: number;
@@ -12,6 +18,8 @@ export type JpLessonManualSchedule = {
   title: string;
   teacher: string;
   note: string;
+  /** 关联日语/英语新课教材，最多 2 条（可选） */
+  linked_lessons: ManualScheduleLinkedLesson[];
   created_at: string;
   updated_at: string;
 };
@@ -22,6 +30,7 @@ export type JpLessonManualScheduleDraft = {
   title: string;
   teacher: string;
   note: string;
+  linked_lessons?: ManualScheduleLinkedLesson[];
 };
 
 type LegacyJpLessonManualSchedule = {
@@ -31,6 +40,7 @@ type LegacyJpLessonManualSchedule = {
   title: string;
   teacher: string;
   note: string;
+  linked_lessons?: ManualScheduleLinkedLesson[];
   created_at: string;
   updated_at: string;
 };
@@ -87,6 +97,27 @@ async function parseManualScheduleResponse(
   return data;
 }
 
+function coerceJpLessonManualSchedule(
+  raw: unknown
+): JpLessonManualSchedule | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Partial<JpLessonManualSchedule>;
+  const id = Number(row.id);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return {
+    id,
+    class_at: String(row.class_at ?? ""),
+    duration_minutes:
+      row.duration_minutes == null ? null : Number(row.duration_minutes),
+    title: String(row.title ?? ""),
+    teacher: String(row.teacher ?? ""),
+    note: String(row.note ?? ""),
+    linked_lessons: normalizeManualScheduleLinkedLessons(row.linked_lessons),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
 export async function fetchJpLessonManualSchedules(): Promise<JpLessonManualSchedule[]> {
   const res = await fetch("/api/jp-lesson/manual-schedules", {
     credentials: "include",
@@ -94,7 +125,9 @@ export async function fetchJpLessonManualSchedules(): Promise<JpLessonManualSche
   const data = await parseManualScheduleResponse(res);
   const schedules = data.schedules;
   if (!Array.isArray(schedules)) return [];
-  return schedules as JpLessonManualSchedule[];
+  return schedules
+    .map((item) => coerceJpLessonManualSchedule(item))
+    .filter((item): item is JpLessonManualSchedule => item != null);
 }
 
 export async function createJpLessonManualSchedule(
@@ -107,9 +140,7 @@ export async function createJpLessonManualSchedule(
     body: JSON.stringify(draft),
   });
   const data = await parseManualScheduleResponse(res);
-  const schedule = data.schedule;
-  if (!schedule || typeof schedule !== "object") return null;
-  return schedule as JpLessonManualSchedule;
+  return coerceJpLessonManualSchedule(data.schedule);
 }
 
 export async function updateJpLessonManualSchedule(
@@ -123,9 +154,7 @@ export async function updateJpLessonManualSchedule(
     body: JSON.stringify({ action: "update", id, ...draft }),
   });
   const data = await parseManualScheduleResponse(res);
-  const schedule = data.schedule;
-  if (!schedule || typeof schedule !== "object") return null;
-  return schedule as JpLessonManualSchedule;
+  return coerceJpLessonManualSchedule(data.schedule);
 }
 
 export async function deleteJpLessonManualSchedule(id: number): Promise<boolean> {
@@ -153,6 +182,7 @@ export async function loadJpLessonManualSchedulesWithLegacyMigration(): Promise<
       title: item.title,
       teacher: item.teacher,
       note: item.note,
+      linked_lessons: normalizeManualScheduleLinkedLessons(item.linked_lessons),
     };
     if (existing.has(manualScheduleDedupeKey(draft))) continue;
     const created = await createJpLessonManualSchedule(draft);

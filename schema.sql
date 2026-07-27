@@ -499,6 +499,8 @@ CREATE TABLE IF NOT EXISTS jp_lesson_manual_schedule (
   title            TEXT    NOT NULL,
   teacher          TEXT    NOT NULL DEFAULT '',
   note             TEXT    NOT NULL DEFAULT '',
+  /** JSON：关联教材 [{subject:"jp"|"en", lesson_id:number}]，最多 2 条，可选 */
+  linked_lessons   TEXT    NOT NULL DEFAULT '[]',
   created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
 );

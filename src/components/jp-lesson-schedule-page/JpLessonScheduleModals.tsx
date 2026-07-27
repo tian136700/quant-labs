@@ -1,10 +1,8 @@
 "use client";
 
-import { CopyToast } from "@/components/CopyToast";
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
-import type { Locale } from "@/i18n/messages";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
 import type { EnLessonRecord, EnLessonTeacher, JpLessonRecord, JpLessonTeacher, KoLessonTeacher } from "@/lib/types";
 
@@ -16,6 +14,8 @@ export type JpLessonScheduleModalsProps = {
   teachers: JpLessonTeacher[];
   enTeachers: EnLessonTeacher[];
   koTeachers: KoLessonTeacher[];
+  jpLessons: JpLessonRecord[];
+  enLessons: EnLessonRecord[];
   savingManualSchedule: boolean;
   closeManualModal: () => void;
   handleSaveManualSchedule: (...args: any[]) => void;
@@ -34,6 +34,7 @@ export type JpLessonScheduleModalsProps = {
 export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
   const {
     manualModalOpen, selectedDate, editingManual, manualModalMode, teachers, enTeachers, koTeachers,
+    jpLessons, enLessons,
     savingManualSchedule, closeManualModal, handleSaveManualSchedule, addLessonTeacher, addEnLessonTeacher,
     addKoLessonTeacher, editingNextClassLesson, editingEnNextClassLesson, savingNextClassId,
     setEditingNextClassLesson, setEditingEnNextClassLesson, setLessonClassSchedules, setEnLessonClassSchedules,
@@ -48,6 +49,8 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
         jpTeachers={teachers}
         enTeachers={enTeachers}
         koTeachers={koTeachers}
+        jpLessons={jpLessons}
+        enLessons={enLessons}
         onAddJpTeacher={addLessonTeacher}
         onAddEnTeacher={addEnLessonTeacher}
         onAddKoTeacher={addKoLessonTeacher}

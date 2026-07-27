@@ -1,7 +1,7 @@
 import { readClientCache, readClientCacheAge, writeClientCache } from "@/lib/client-swr-cache";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
 
-export const JP_LESSON_MANUAL_SCHEDULE_CACHE_KEY = "jp-api:manual-schedules:v1";
+export const JP_LESSON_MANUAL_SCHEDULE_CACHE_KEY = "jp-api:manual-schedules:v2";
 
 /** 与词表/新课列表一致的 TTL */
 export const JP_LESSON_MANUAL_SCHEDULE_TTL_MS = 45_000;

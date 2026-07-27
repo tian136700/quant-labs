@@ -41,7 +41,12 @@ def main() -> int:
         errors.append("manual schedule title presets must include 闲鱼英语抽查")
     if '<select' not in modal and "<select" not in modal:
         errors.append("manual schedule title must use dropdown <select>")
-    if 'setTeacher("闲鱼英语抽查")' not in modal and "setTeacher('闲鱼英语抽查')" not in modal:
+    if (
+        'setTeacher("闲鱼英语抽查")' not in modal
+        and "setTeacher('闲鱼英语抽查')" not in modal
+        and 'applyTeacherName("闲鱼英语抽查")' not in modal
+        and "applyTeacherName('闲鱼英语抽查')" not in modal
+    ):
         errors.append("selecting 闲鱼英语抽查 must auto-fill teacher name")
 
     if "addKoLessonTeacher" not in page:

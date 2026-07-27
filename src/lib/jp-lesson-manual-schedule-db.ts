@@ -8,10 +8,16 @@ import type {
   JpLessonManualSchedule,
   JpLessonManualScheduleDraft,
 } from "@/lib/jp-lesson-manual-schedule";
+import {
+  normalizeManualScheduleLinkedLessons,
+  parseManualScheduleLinkedLessonsJson,
+  serializeManualScheduleLinkedLessons,
+} from "@/lib/jp-lesson-manual-schedule-linked";
 
 let devStoreEnabled = false;
 const devSchedules: JpLessonManualSchedule[] = [];
 let devNextId = 1;
+let schemaReady = false;
 
 export function enableJpLessonManualScheduleDevStore() {
   devStoreEnabled = true;
@@ -21,6 +27,56 @@ function nowIso(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function isSqliteDuplicateColumnError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /duplicate column name/i.test(msg);
+}
+
+async function ensureManualScheduleSchema(db: D1Database): Promise<void> {
+  if (schemaReady) return;
+
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS jp_lesson_manual_schedule (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         class_at TEXT NOT NULL,
+         duration_minutes INTEGER,
+         title TEXT NOT NULL,
+         teacher TEXT NOT NULL DEFAULT '',
+         note TEXT NOT NULL DEFAULT '',
+         linked_lessons TEXT NOT NULL DEFAULT '[]',
+         created_at TEXT NOT NULL DEFAULT (datetime('now')),
+         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+       )`
+    )
+    .run();
+
+  const info = await db
+    .prepare(`PRAGMA table_info(jp_lesson_manual_schedule)`)
+    .all<{ name: string }>();
+  const cols = new Set(
+    (info.results ?? [])
+      .map((row) => (typeof row.name === "string" ? row.name : ""))
+      .filter(Boolean)
+  );
+
+  if (!cols.has("linked_lessons")) {
+    try {
+      await db
+        .prepare(
+          `ALTER TABLE jp_lesson_manual_schedule ADD COLUMN linked_lessons TEXT NOT NULL DEFAULT '[]'`
+        )
+        .run();
+      cols.add("linked_lessons");
+    } catch (err) {
+      if (!isSqliteDuplicateColumnError(err)) throw err;
+      cols.add("linked_lessons");
+    }
+  }
+
+  schemaReady = true;
 }
 
 function normalizeClassAt(raw: string | null | undefined): string | null {
@@ -51,6 +107,7 @@ function normalizeDraft(
     duration_minutes: durationMinutes,
     teacher: draft.teacher.trim(),
     note: draft.note.trim(),
+    linked_lessons: normalizeManualScheduleLinkedLessons(draft.linked_lessons),
   };
 }
 
@@ -64,12 +121,15 @@ function mapRow(row: Record<string, unknown>): JpLessonManualSchedule {
     title: String(row.title).trim(),
     teacher: String(row.teacher ?? "").trim(),
     note: String(row.note ?? "").trim(),
+    linked_lessons: parseManualScheduleLinkedLessonsJson(
+      row.linked_lessons != null ? String(row.linked_lessons) : "[]"
+    ),
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
 }
 
-const SCHEDULE_SELECT = `SELECT id, class_at, duration_minutes, title, teacher, note, created_at, updated_at FROM jp_lesson_manual_schedule`;
+const SCHEDULE_SELECT = `SELECT id, class_at, duration_minutes, title, teacher, note, linked_lessons, created_at, updated_at FROM jp_lesson_manual_schedule`;
 
 export async function listJpLessonManualSchedules(
   db: D1Database
@@ -77,6 +137,8 @@ export async function listJpLessonManualSchedules(
   if (devStoreEnabled) {
     return [...devSchedules].sort((a, b) => a.class_at.localeCompare(b.class_at));
   }
+
+  await ensureManualScheduleSchema(db);
 
   const result = await db
     .prepare(`${SCHEDULE_SELECT} ORDER BY class_at ASC, id ASC`)
@@ -97,11 +159,15 @@ export async function createJpLessonManualSchedule(
   if (!normalized) return { ok: false, error: "draft_invalid" };
 
   const ts = nowIso();
+  const linkedLessons = normalizeManualScheduleLinkedLessons(
+    normalized.linked_lessons
+  );
 
   if (devStoreEnabled) {
     const schedule: JpLessonManualSchedule = {
       id: devNextId++,
       ...normalized,
+      linked_lessons: linkedLessons,
       created_at: ts,
       updated_at: ts,
     };
@@ -110,11 +176,13 @@ export async function createJpLessonManualSchedule(
     return { ok: true, schedule };
   }
 
+  await ensureManualScheduleSchema(db);
+
   const result = await db
     .prepare(
       `INSERT INTO jp_lesson_manual_schedule
-       (class_at, duration_minutes, title, teacher, note, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)`
+       (class_at, duration_minutes, title, teacher, note, linked_lessons, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)`
     )
     .bind(
       normalized.class_at,
@@ -122,6 +190,7 @@ export async function createJpLessonManualSchedule(
       normalized.title,
       normalized.teacher,
       normalized.note,
+      serializeManualScheduleLinkedLessons(linkedLessons),
       ts
     )
     .run();
@@ -155,6 +224,9 @@ export async function updateJpLessonManualSchedule(
   if (!normalized) return { ok: false, error: "draft_invalid" };
 
   const ts = nowIso();
+  const linkedLessons = normalizeManualScheduleLinkedLessons(
+    normalized.linked_lessons
+  );
 
   if (devStoreEnabled) {
     const index = devSchedules.findIndex((item) => item.id === id);
@@ -162,16 +234,20 @@ export async function updateJpLessonManualSchedule(
     devSchedules[index] = {
       ...devSchedules[index],
       ...normalized,
+      linked_lessons: linkedLessons,
       updated_at: ts,
     };
     return { ok: true, schedule: devSchedules[index] };
   }
 
+  await ensureManualScheduleSchema(db);
+
   const result = await db
     .prepare(
       `UPDATE jp_lesson_manual_schedule
-       SET class_at = ?1, duration_minutes = ?2, title = ?3, teacher = ?4, note = ?5, updated_at = ?6
-       WHERE id = ?7`
+       SET class_at = ?1, duration_minutes = ?2, title = ?3, teacher = ?4, note = ?5,
+           linked_lessons = ?6, updated_at = ?7
+       WHERE id = ?8`
     )
     .bind(
       normalized.class_at,
@@ -179,6 +255,7 @@ export async function updateJpLessonManualSchedule(
       normalized.title,
       normalized.teacher,
       normalized.note,
+      serializeManualScheduleLinkedLessons(linkedLessons),
       ts,
       id
     )
@@ -213,6 +290,8 @@ export async function deleteJpLessonManualSchedule(
     devSchedules.splice(index, 1);
     return { ok: true };
   }
+
+  await ensureManualScheduleSchema(db);
 
   const result = await db
     .prepare("DELETE FROM jp_lesson_manual_schedule WHERE id = ?1")

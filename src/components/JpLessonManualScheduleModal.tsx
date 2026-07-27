@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
+import { JpLessonManualScheduleLessonPicker } from "@/components/JpLessonManualScheduleLessonPicker";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import {
   JpLessonTeacherSinglePicker,
@@ -11,6 +12,10 @@ import {
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import type { JpLessonManualSchedule, JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
+import {
+  normalizeManualScheduleLinkedLessons,
+  type ManualScheduleLinkedLesson,
+} from "@/lib/jp-lesson-manual-schedule-linked";
 import { jpVocabSaveProgressLabel } from "@/lib/jp-vocab-save-progress";
 import {
   detectScheduleTeacherSubjectFromTitle,
@@ -21,7 +26,7 @@ import {
   resolveJpLessonTeacherLessonMinutes,
 } from "@/lib/jp-lesson-teacher-default-duration";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
-import type { JpLessonTeacher } from "@/lib/types";
+import type { EnLessonRecord, JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 import {
   beijingTodayDateString,
   formatNextClassHalfHourLabel,
@@ -43,6 +48,8 @@ type Props = {
   jpTeachers?: JpLessonTeacher[];
   enTeachers?: JpLessonTeacher[];
   koTeachers?: JpLessonTeacher[];
+  jpLessons?: JpLessonRecord[];
+  enLessons?: EnLessonRecord[];
   onAddJpTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onAddEnTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onAddKoTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
@@ -93,6 +100,7 @@ function draftFromSchedule(
   duration: string;
   teacher: string;
   note: string;
+  linked_lessons: ManualScheduleLinkedLesson[];
 } {
   if (!schedule) {
     return {
@@ -102,6 +110,7 @@ function draftFromSchedule(
       duration: "",
       teacher: "",
       note: "",
+      linked_lessons: [],
     };
   }
 
@@ -114,6 +123,7 @@ function draftFromSchedule(
     duration: schedule.duration_minutes != null ? String(schedule.duration_minutes) : "",
     teacher: schedule.teacher,
     note: schedule.note,
+    linked_lessons: normalizeManualScheduleLinkedLessons(schedule.linked_lessons),
   };
 }
 
@@ -125,6 +135,8 @@ export function JpLessonManualScheduleModal({
   jpTeachers = [],
   enTeachers = [],
   koTeachers = [],
+  jpLessons = [],
+  enLessons = [],
   onAddJpTeacher,
   onAddEnTeacher,
   onAddKoTeacher,
@@ -140,6 +152,7 @@ export function JpLessonManualScheduleModal({
   const [duration, setDuration] = useState("");
   const [teacher, setTeacher] = useState("");
   const [note, setNote] = useState("");
+  const [linkedLessons, setLinkedLessons] = useState<ManualScheduleLinkedLesson[]>([]);
   const [error, setError] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
   const saveInitiatedRef = useRef(false);
@@ -186,6 +199,7 @@ export function JpLessonManualScheduleModal({
     setDuration(next.duration);
     setTeacher(next.teacher);
     setNote(next.note);
+    setLinkedLessons(next.linked_lessons);
     setError("");
     setAddingTeacher(false);
     saveInitiatedRef.current = false;
@@ -334,6 +348,7 @@ export function JpLessonManualScheduleModal({
       duration_minutes: duration ? Number(duration) : null,
       teacher: teacherName,
       note: note.trim(),
+      linked_lessons: normalizeManualScheduleLinkedLessons(linkedLessons),
     });
   };
 
@@ -491,6 +506,16 @@ export function JpLessonManualScheduleModal({
                         />
                       )}
                     </label>
+                    <div className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
+                      <JpLessonManualScheduleLessonPicker
+                        value={linkedLessons}
+                        onChange={setLinkedLessons}
+                        titleSubject={teacherSubject}
+                        jpLessons={jpLessons}
+                        enLessons={enLessons}
+                        disabled={saving || addingTeacher}
+                      />
+                    </div>
                     <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
                       <span>备注（可选）</span>
                       <textarea
