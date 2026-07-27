@@ -41,6 +41,7 @@ import {
   maxJpVocabUpdatedAt,
   mergeJpVocabSyncPatches,
 } from "@/lib/jp-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
@@ -55,7 +56,7 @@ import type { JpVocabRef, JpVocabWord } from "@/lib/types";
 
 export function useJpVocabPageSync(options: {
   checking: boolean;
-  user: { id: number } | null;
+  user: { id: number; username?: string } | null;
   editingRemarksWordId: number | null;
   editingWordId: number | null;
   teacherIdleCompleteRef: MutableRefObject<boolean>;
@@ -73,6 +74,8 @@ export function useJpVocabPageSync(options: {
     onLoadError,
     onDayRolloverClearSession,
   } = options;
+  const usernameRef = useRef(user?.username);
+  usernameRef.current = user?.username;
 
   const [words, setWords] = useState<JpVocabWord[]>(
     () => readJpVocabPageCache()?.words ?? []
@@ -275,7 +278,8 @@ export function useJpVocabPageSync(options: {
         JP_VOCAB_POLL_HIDDEN_MS,
         JP_VOCAB_POLL_IDLE_COMPLETE_MS,
         JP_VOCAB_POLL_IDLE_COMPLETE_HIDDEN_MS,
-        teacherIdleCompleteRef.current
+        teacherIdleCompleteRef.current,
+        { username: usernameRef.current }
       );
 
     const schedule = (delayMs: number) => {
@@ -346,9 +350,15 @@ export function useJpVocabPageSync(options: {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      teacherIdleCompleteRef.current
-        ? JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS
-        : JP_VOCAB_TEACHER_VISIBLE_POLL_MS;
+      resolveVocabPollIntervalMs({
+        activeMs: teacherIdleCompleteRef.current
+          ? JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS
+          : JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
+        hiddenMs: teacherIdleCompleteRef.current
+          ? JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS
+          : JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
+        username: usernameRef.current,
+      });
 
     const schedule = (delayMs = pollDelay()) => {
       if (cancelled) return;

@@ -1,5 +1,6 @@
 import { sanitizeJpVocabWordExampleSentences } from "@/lib/jp-vocab-example-sentences";
 import type { JpVocabWord } from "@/lib/types";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 
 /** 页面可见时增量拉取间隔（备注等多端实时同步） */
 export const JP_VOCAB_POLL_MS = 5_000;
@@ -41,18 +42,23 @@ export const JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS = 120_000;
 
 export const JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS = 300_000;
 
-/** 按是否「老师 + 今日已抽完」选择轮询间隔 */
+/** 按夜间静默 / 测试账号 /「今日已抽完」选择轮询间隔 */
 export function jpVocabPollIntervalMs(
   activeMs: number,
   hiddenMs: number,
   idleCompleteMs: number,
   idleCompleteHiddenMs: number,
-  idleComplete: boolean
+  idleComplete: boolean,
+  opts?: { username?: string | null }
 ): number {
-  if (idleComplete) {
-    return document.hidden ? idleCompleteHiddenMs : idleCompleteMs;
-  }
-  return document.hidden ? hiddenMs : activeMs;
+  return resolveVocabPollIntervalMs({
+    activeMs,
+    hiddenMs,
+    idleCompleteMs,
+    idleCompleteHiddenMs,
+    idleComplete,
+    username: opts?.username,
+  });
 }
 
 export function maxJpVocabUpdatedAt(words: JpVocabWord[]): string {

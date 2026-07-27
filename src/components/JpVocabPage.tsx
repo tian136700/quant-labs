@@ -215,6 +215,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       canOperate,
       teacherIdleCompleteRef,
       setStatus,
+      username: user?.username,
     });
 
   const { exporting, runExport, runExportExcel, runCoachExport } =

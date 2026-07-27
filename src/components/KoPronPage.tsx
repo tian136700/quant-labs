@@ -47,6 +47,7 @@ import {
   jpVocabSaveProgressPercent,
 } from "@/lib/jp-vocab-save-progress";
 import { JP_VOCAB_POLL_HIDDEN_MS, JP_VOCAB_POLL_MS } from "@/lib/jp-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import { koPronAdminPath, koPronPath, koPronSelectPath } from "@/lib/locale-path";
 import type { KoPronLetter, KoPronLevel } from "@/lib/types";
 import { KoPronPageStyles } from "@/components/ko-pron-page/KoPronPageStyles";
@@ -175,6 +176,9 @@ export function KoPronPage({ variant }: Props) {
 
   useEffect(() => {
     if (checking || !user) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     const tick = async () => {
       try {
         const since = encodeURIComponent(sinceRef.current || "");
@@ -209,13 +213,25 @@ export function KoPronPage({ variant }: Props) {
         /* ignore poll errors */
       }
     };
-    const id = window.setInterval(
-      () => {
-        void tick();
-      },
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS
-    );
-    return () => window.clearInterval(id);
+
+    const schedule = () => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void tick().finally(() => {
+          if (!cancelled) schedule();
+        });
+      }, resolveVocabPollIntervalMs({
+        activeMs: JP_VOCAB_POLL_MS,
+        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        username: user.username,
+      }));
+    };
+
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [checking, user]);
 
   const visible = teacherVisible ?? {

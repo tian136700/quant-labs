@@ -50,6 +50,7 @@ import {
   JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
   JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
 } from "@/lib/jp-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
   abortSignalAfter,
   VOCAB_STUDENT_PEEK_TIMEOUT_MS,
@@ -351,21 +352,24 @@ export function JpVocabStudyPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const schedule = () => {
-      const hidden = typeof document !== "undefined" && document.hidden;
       timer = setTimeout(() => {
         if (saveQueuePendingRef.current > 0) {
           schedule();
           return;
         }
         void loadShared().finally(schedule);
-      }, hidden ? JP_VOCAB_STUDY_POLL_HIDDEN_MS : JP_VOCAB_STUDY_POLL_MS);
+      }, resolveVocabPollIntervalMs({
+        activeMs: JP_VOCAB_STUDY_POLL_MS,
+        hiddenMs: JP_VOCAB_STUDY_POLL_HIDDEN_MS,
+        username: user?.username,
+      }));
     };
 
     schedule();
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [loadShared, canViewStudy]);
+  }, [loadShared, canViewStudy, user?.username]);
 
   useEffect(() => {
     if (!canViewStudy) return;
@@ -450,9 +454,11 @@ export function JpVocabStudyPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      typeof document !== "undefined" && document.hidden
-        ? JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS
-        : JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS;
+      resolveVocabPollIntervalMs({
+        activeMs: JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
+        hiddenMs: JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
+        username: user?.username,
+      });
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -486,7 +492,7 @@ export function JpVocabStudyPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [showPeekTeacherQuiz, showRequestTeacherShare]);
+  }, [showPeekTeacherQuiz, showRequestTeacherShare, user?.username]);
 
   const requestTeacherShare = useCallback(async () => {
     if (!user || !showRequestTeacherShare || requestingShare) return;

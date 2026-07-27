@@ -34,6 +34,7 @@ import {
   maxEnVocabUpdatedAt,
   mergeEnVocabSyncPatches,
 } from "@/lib/en-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
   defaultEnVocabTeacherVisibleLimit,
   normalizeEnVocabTeacherVisibleLimit,
@@ -45,7 +46,7 @@ import { writeClientCache } from "@/lib/client-swr-cache";
 
 export function useEnVocabPageSync(options: {
   checking: boolean;
-  user: { id: number } | null;
+  user: { id: number; username?: string } | null;
   editingRemarksWordId: number | null;
   editingWordId: number | null;
   setViewingRemarksWord: Dispatch<SetStateAction<EnVocabWord | null>>;
@@ -72,6 +73,9 @@ export function useEnVocabPageSync(options: {
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
   } = options;
+
+  const usernameRef = useRef(user?.username);
+  usernameRef.current = user?.username;
 
   const [words, setWords] = useState<EnVocabWord[]>([]);
   const [refs, setRefs] = useState<Record<string, EnVocabRef>>({});
@@ -252,7 +256,11 @@ export function useEnVocabPageSync(options: {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS;
+      resolveVocabPollIntervalMs({
+        activeMs: JP_VOCAB_POLL_MS,
+        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        username: usernameRef.current,
+      });
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;

@@ -30,6 +30,7 @@ import {
   EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
   EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
 } from "@/lib/en-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
   abortSignalAfter,
   VOCAB_STUDENT_PEEK_TIMEOUT_MS,
@@ -246,17 +247,20 @@ export function EnVocabStudyPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const schedule = () => {
-      const hidden = typeof document !== "undefined" && document.hidden;
       timer = setTimeout(() => {
         void loadShared().finally(schedule);
-      }, hidden ? EN_VOCAB_STUDY_POLL_HIDDEN_MS : EN_VOCAB_STUDY_POLL_MS);
+      }, resolveVocabPollIntervalMs({
+        activeMs: EN_VOCAB_STUDY_POLL_MS,
+        hiddenMs: EN_VOCAB_STUDY_POLL_HIDDEN_MS,
+        username: user?.username,
+      }));
     };
 
     schedule();
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [loadShared, canViewStudy]);
+  }, [loadShared, canViewStudy, user?.username]);
 
   useEffect(() => {
     if (!canViewStudy) return;
@@ -303,9 +307,11 @@ export function EnVocabStudyPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      typeof document !== "undefined" && document.hidden
-        ? EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS
-        : EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS;
+      resolveVocabPollIntervalMs({
+        activeMs: EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
+        hiddenMs: EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
+        username: user?.username,
+      });
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -339,7 +345,7 @@ export function EnVocabStudyPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [showPeekTeacherQuiz]);
+  }, [showPeekTeacherQuiz, user?.username]);
 
   const peekTeacherQuizWord = useCallback(async () => {
     if (!user || !showPeekTeacherQuiz || peekingTeacherQuiz) return;

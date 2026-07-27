@@ -12,6 +12,7 @@ import {
   JP_VOCAB_POLL_HIDDEN_MS,
   JP_VOCAB_QUIZ_LIVE_POLL_MS,
 } from "@/lib/jp-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
   putVocabTeacherQuizLiveWord,
   VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS,
@@ -37,7 +38,7 @@ import {
 import { shouldShowJpVocabTeacherQuizIntro } from "@/components/JpVocabTeacherQuizIntroModal";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 
-type AuthUser = { id: number };
+type AuthUser = { id: number; username?: string };
 
 export function useJpVocabTeacherQuiz(options: {
   locale: Locale;
@@ -75,6 +76,8 @@ export function useJpVocabTeacherQuiz(options: {
     setStatus,
     onTeacherQuizSessionFinished,
   } = options;
+  const usernameRef = useRef(user?.username);
+  usernameRef.current = user?.username;
 
   const [quizSession, setQuizSession] = useState<JpVocabTeacherQuizSession | null>(
     null
@@ -428,7 +431,11 @@ export function useJpVocabTeacherQuiz(options: {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const pollDelay = () =>
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_QUIZ_LIVE_POLL_MS;
+      resolveVocabPollIntervalMs({
+        activeMs: JP_VOCAB_QUIZ_LIVE_POLL_MS,
+        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        username: usernameRef.current,
+      });
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;

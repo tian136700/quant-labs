@@ -6,6 +6,7 @@ import { KoPronEditModal } from "@/components/KoPronEditModal";
 import { KoPronLetterCopyButton } from "@/components/KoPronLetterCopyButton";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { JP_VOCAB_POLL_HIDDEN_MS, JP_VOCAB_POLL_MS } from "@/lib/jp-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import type { KoPronLetter } from "@/lib/types";
 
 type StudyLetter = {
@@ -59,13 +60,27 @@ export function KoPronStudyPage() {
 
   useEffect(() => {
     if (checking || !user || !canAccessKoPronStudy) return;
-    const id = window.setInterval(
-      () => {
-        void loadLive();
-      },
-      document.hidden ? JP_VOCAB_POLL_HIDDEN_MS : JP_VOCAB_POLL_MS
-    );
-    return () => window.clearInterval(id);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = () => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void loadLive().finally(() => {
+          if (!cancelled) schedule();
+        });
+      }, resolveVocabPollIntervalMs({
+        activeMs: JP_VOCAB_POLL_MS,
+        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        username: user.username,
+      }));
+    };
+
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [checking, user, canAccessKoPronStudy, loadLive]);
 
   if (checking) {

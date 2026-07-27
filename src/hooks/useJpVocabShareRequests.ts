@@ -15,8 +15,11 @@ export function useJpVocabShareRequests(options: {
   canOperate: boolean;
   teacherIdleCompleteRef: MutableRefObject<boolean>;
   setStatus: (message: string) => void;
+  username?: string | null;
 }) {
-  const { canOperate, teacherIdleCompleteRef, setStatus } = options;
+  const { canOperate, teacherIdleCompleteRef, setStatus, username } = options;
+  const usernameRef = useRef(username);
+  usernameRef.current = username;
 
   const [shareRequests, setShareRequests] = useState<JpVocabShareRequest[]>([]);
   const [showShareRequestModal, setShowShareRequestModal] = useState(false);
@@ -35,7 +38,8 @@ export function useJpVocabShareRequests(options: {
         JP_VOCAB_POLL_HIDDEN_MS,
         JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
         JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_HIDDEN_MS,
-        teacherIdleCompleteRef.current
+        teacherIdleCompleteRef.current,
+        { username: usernameRef.current }
       );
 
     const schedule = (delayMs: number) => {
@@ -78,7 +82,7 @@ export function useJpVocabShareRequests(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, teacherIdleCompleteRef]);
+  }, [canOperate, teacherIdleCompleteRef, username]);
 
   const dismissShareRequests = useCallback(async () => {
     const ids = shareRequests.map((r) => r.id);
