@@ -28,6 +28,8 @@ RUN_INTERVAL="${JP_VOCAB_FILL_READING_INTERVAL_SECONDS:-600}"
 chmod +x "$ROOT/scripts/jp-vocab-nightly.sh"
 chmod +x "$ROOT/scripts/jp-vocab-fill-reading-nightly.sh"
 chmod +x "$ROOT/scripts/jp-vocab-daily-rollover-api.py"
+chmod +x "$ROOT/scripts/jp-vocab-daily-rollover-nightly.sh"
+chmod +x "$ROOT/scripts/setup-jp-vocab-daily-rollover-mac.sh"
 
 sed \
   -e "s|__REPO_ROOT__|${ROOT}|g" \
@@ -41,21 +43,24 @@ rm -f "${HOME}/Library/LaunchAgents/com.infoquests.jp-vocab-fill-reading-catchup
 launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
 launchctl enable "gui/$(id -u)/${LABEL}"
 
+# 读音补全不再顺带跑跨日清理；必须另装 rollover（开机补跑）
+bash "$ROOT/scripts/setup-jp-vocab-daily-rollover-mac.sh"
+
 echo ""
 echo "OK: launchd 已安装"
-echo "  nightly plist: $PLIST_DST"
-echo "  每 ${RUN_INTERVAL}s 执行一次"
+echo "  fill-reading plist: $PLIST_DST"
+echo "  每 ${RUN_INTERVAL}s 执行一次（仅读音；白天静默）"
 echo "  日志: ${LOG_DIR}/jp-vocab-fill-reading.log"
 echo "  错误日志: ${LOG_DIR}/jp-vocab-fill-reading.err.log"
 echo ""
-echo "若 nightly 日志出现 Operation not permitted："
+echo "若日志出现 Operation not permitted："
 echo "  系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 添加 /bin/bash"
 echo ""
 echo "试跑跨日清理（不写库）:"
 echo "  python3 $ROOT/scripts/jp-vocab-daily-rollover-api.py --dry-run"
 echo "试跑读音补全（不写库）:"
 echo "  python3 $ROOT/scripts/jp-vocab-fill-reading-api.py --dry-run"
-echo "立即跑一次（跨日清理 + 读音补全）:"
-echo "  bash $ROOT/scripts/jp-vocab-nightly.sh"
+echo "立即补跑跨日清理:"
+echo "  FORCE=1 bash $ROOT/scripts/jp-vocab-daily-rollover-nightly.sh"
 echo ""
 echo "Bearer Token 直接用 ~/.config/info-quests/jp-review-sync.env 里的 JP_REVIEW_UPLOAD_TOKEN（日语教案上传那串，无需另配）"

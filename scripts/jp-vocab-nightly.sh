@@ -72,7 +72,8 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
 fi
 
 echo "$(date '+%F %T') nightly: daily rollover..."
-if ! "$PYTHON_BIN" "$ROOT/scripts/jp-vocab-daily-rollover-api.py"; then
+# 走带「同日 skip / 漏跑补跑」的入口，避免与独立 launchd 双写逻辑分叉
+if ! FORCE=1 "$ROOT/scripts/jp-vocab-daily-rollover-nightly.sh"; then
   echo "$(date '+%F %T') nightly: daily rollover FAILED" >&2
   exit 1
 fi
