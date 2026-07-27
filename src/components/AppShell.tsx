@@ -11,7 +11,6 @@ import {
   isEnModulePath,
   isEnVocabPath,
   isEnVocabAdminPath,
-  isEnVocabRefPath,
   isKoPronPath,
   isKoPronAdminPath,
   isKoPronStudyPath,
@@ -20,8 +19,8 @@ import {
   isJpReviewPath,
   isJpVocabPath,
   isJpVocabAdminPath,
-  isJpVocabRefPath,
   isMaintenancePath,
+  isVocabRefSharePath,
   isComparePath,
   adminJpLessonTeachersPath,
   enLessonPath,
@@ -68,8 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (activeItemId) recordVisit(activeItemId);
   }, [activeItemId, recordVisit]);
 
-  const onJpVocabRef = isJpVocabRefPath(pathname);
-  const onEnVocabRef = isEnVocabRefPath(pathname);
+  const onVocabRefShare = isVocabRefSharePath(pathname);
   const onJpModule = isJpModulePath(pathname);
   const onEnModule = isEnModulePath(pathname);
   const onKoModule = isKoPronPath(pathname);
@@ -109,9 +107,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     return items[0]?.href ?? "/";
   }, [items, locale, pathname]);
 
-  if (onJpVocabRef || onEnVocabRef) {
+  if (onVocabRefShare) {
     // 教案「查看」分享页：不挂任何鉴权/封禁路由笼。
     // 账号被禁用也要能打开链接；微信旧 Cookie/本地缓存也不得踢到韩语或维护页。
+    // 注意：EtrAuthProvider 也不得对 ref 路径 hard-redirect 维护页（否则会闪一下又没了）。
     return <main>{children}</main>;
   }
 

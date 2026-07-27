@@ -421,6 +421,11 @@ export function isEnVocabRefPath(pathname: string): boolean {
   return path.startsWith("/en-vocab/ref/");
 }
 
+/** 教案「查看」分享链接：不设登录/科目/封禁权限（含账号 disabled） */
+export function isVocabRefSharePath(pathname: string): boolean {
+  return isJpVocabRefPath(pathname) || isEnVocabRefPath(pathname);
+}
+
 export function enLessonPath(): string {
   return "/en-lesson";
 }

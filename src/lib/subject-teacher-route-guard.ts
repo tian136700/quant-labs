@@ -1,10 +1,9 @@
 import {
   enVocabPath,
-  isEnVocabRefPath,
   isEnVocabTeacherAllowedPath,
-  isJpVocabRefPath,
   isJpVocabTeacherAllowedPath,
   isKoPronTeacherAllowedPath,
+  isVocabRefSharePath,
   jpVocabPath,
   koPronPath,
 } from "@/lib/locale-path";
@@ -33,7 +32,7 @@ export function isPathAllowedForSubjectTeachers(
   pathname: string,
   flags: SubjectTeacherNavFlags
 ): boolean {
-  if (isJpVocabRefPath(pathname) || isEnVocabRefPath(pathname)) {
+  if (isVocabRefSharePath(pathname)) {
     return true;
   }
   if (flags.jp && isJpVocabTeacherAllowedPath(pathname)) return true;

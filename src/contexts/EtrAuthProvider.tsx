@@ -31,7 +31,12 @@ import {
 } from "@/lib/etr-auth";
 import { isAdminSuperuser } from "@/lib/rbac";
 import { LOCALE_HEADER, readStoredLocale } from "@/lib/locale-detect";
-import { comparePath, isMaintenancePath, maintenancePath } from "@/lib/locale-path";
+import {
+  comparePath,
+  isMaintenancePath,
+  isVocabRefSharePath,
+  maintenancePath,
+} from "@/lib/locale-path";
 import {
   clearClientCache,
   readClientCache,
@@ -108,7 +113,9 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
 
   const redirectMaintenance = useCallback(() => {
     if (typeof window === "undefined") return;
-    if (isMaintenancePath(window.location.pathname)) return;
+    const pathname = window.location.pathname;
+    // 教案查看链接：账号被封也不能硬跳维护页（否则闪一下又没了）
+    if (isMaintenancePath(pathname) || isVocabRefSharePath(pathname)) return;
     const locale = readStoredLocale() ?? "en";
     window.location.href = maintenancePath(locale);
   }, []);

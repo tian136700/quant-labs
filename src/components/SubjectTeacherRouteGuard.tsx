@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
-import { isEnVocabRefPath, isJpVocabRefPath } from "@/lib/locale-path";
+import { isVocabRefSharePath } from "@/lib/locale-path";
 import {
   isPathAllowedForSubjectTeachers,
   isSubjectTeacherNavRestricted,
@@ -33,7 +33,7 @@ export function SubjectTeacherRouteGuard() {
 
   useEffect(() => {
     if (!restricted) return;
-    if (isJpVocabRefPath(pathname) || isEnVocabRefPath(pathname)) return;
+    if (isVocabRefSharePath(pathname)) return;
     if (isPathAllowedForSubjectTeachers(pathname, flags)) return;
     router.replace(subjectTeacherHomePath(flags));
   }, [restricted, pathname, router, flags.jp, flags.en, flags.ko]);

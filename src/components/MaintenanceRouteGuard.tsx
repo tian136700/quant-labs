@@ -5,9 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
-  isEnVocabRefPath,
-  isJpVocabRefPath,
   isMaintenancePath,
+  isVocabRefSharePath,
   maintenancePath,
 } from "@/lib/locale-path";
 
@@ -20,7 +19,7 @@ export function MaintenanceRouteGuard() {
 
   useEffect(() => {
     // 教案「查看」链接：账号被封也不能拦（AppShell 已不挂本组件；此处再挡一层）
-    if (isJpVocabRefPath(pathname) || isEnVocabRefPath(pathname)) return;
+    if (isVocabRefSharePath(pathname)) return;
     if (checking || !maintenance || isMaintenancePath(pathname)) return;
     router.replace(maintenancePath(locale));
   }, [checking, maintenance, pathname, locale, router]);

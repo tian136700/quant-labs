@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 LIB = ROOT / "src/lib/subject-teacher-route-guard.ts"
+LOCALE = ROOT / "src/lib/locale-path.ts"
 GUARD = ROOT / "src/components/SubjectTeacherRouteGuard.tsx"
 MAINT = ROOT / "src/components/MaintenanceRouteGuard.tsx"
 SHELL = ROOT / "src/components/AppShell.tsx"
@@ -23,13 +24,17 @@ def fail(msg: str) -> None:
 
 
 def main() -> None:
-    for path in (LIB, GUARD, MAINT, SHELL, NAV, AUTH, KO_GUARD):
+    for path in (LIB, LOCALE, GUARD, MAINT, SHELL, NAV, AUTH, KO_GUARD):
         if not path.is_file():
             fail(f"missing {path.relative_to(ROOT)}")
 
+    locale = LOCALE.read_text(encoding="utf-8")
+    if "function isVocabRefSharePath" not in locale:
+        fail("locale-path must export isVocabRefSharePath for share-link bypass")
+
     lib = LIB.read_text(encoding="utf-8")
-    if "isJpVocabRefPath" not in lib or "isEnVocabRefPath" not in lib:
-        fail("subject-teacher-route-guard must allow jp/en ref share paths")
+    if "isVocabRefSharePath" not in lib:
+        fail("subject-teacher-route-guard must allow vocab ref share paths")
 
     shell = SHELL.read_text(encoding="utf-8")
     if "SubjectTeacherRouteGuard" not in shell:
@@ -38,13 +43,13 @@ def main() -> None:
         fail("AppShell must not import KoPronTeacherRouteGuard")
 
     # 查看页分支不得挂科目笼 / 封禁笼（链接不设权限，账号被封也能看）
-    if "onJpVocabRef || onEnVocabRef" not in shell and "onJpVocabRef" not in shell:
+    if "onVocabRefShare" not in shell and "onJpVocabRef" not in shell:
         fail("AppShell must special-case vocab ref viewer paths")
-    ref_idx = shell.find("if (onJpVocabRef || onEnVocabRef)")
+    ref_idx = shell.find("if (onVocabRefShare)")
     if ref_idx < 0:
-        ref_idx = shell.find("onJpVocabRef")
+        ref_idx = shell.find("if (onJpVocabRef || onEnVocabRef)")
     if ref_idx < 0:
-        fail("AppShell missing onJpVocabRef")
+        fail("AppShell missing vocab ref share early return")
     next_if = shell.find("\n  if (", ref_idx + 10)
     early = shell[ref_idx : next_if if next_if > ref_idx else ref_idx + 600]
     if "SubjectTeacherRouteGuard" in early:
@@ -57,16 +62,24 @@ def main() -> None:
     guard = GUARD.read_text(encoding="utf-8")
     if "authProbeDone" not in guard:
         fail("SubjectTeacherRouteGuard must wait for authProbeDone")
-    if "isJpVocabRefPath" not in guard:
-        fail("SubjectTeacherRouteGuard must no-op on jp ref paths")
+    if "isVocabRefSharePath" not in guard:
+        fail("SubjectTeacherRouteGuard must no-op on vocab ref share paths")
 
     maint = MAINT.read_text(encoding="utf-8")
-    if "isJpVocabRefPath" not in maint or "isEnVocabRefPath" not in maint:
-        fail("MaintenanceRouteGuard must no-op on jp/en ref paths (banned account still opens lesson view)")
+    if "isVocabRefSharePath" not in maint:
+        fail("MaintenanceRouteGuard must no-op on vocab ref share paths (banned account still opens lesson view)")
 
     auth = AUTH.read_text(encoding="utf-8")
     if "authProbeDone" not in auth:
         fail("EtrAuthProvider must expose authProbeDone")
+    if "isVocabRefSharePath" not in auth:
+        fail("EtrAuthProvider must not hard-redirect maintenance on vocab ref share paths (flash-then-gone)")
+    if "redirectMaintenance" in auth:
+        # ensure redirect helper actually checks share path
+        rd = auth.find("const redirectMaintenance")
+        rd_block = auth[rd : rd + 450]
+        if "isVocabRefSharePath" not in rd_block:
+            fail("redirectMaintenance must skip isVocabRefSharePath")
     if "setChecking(false)" in auth and "if (cached)" in auth:
         # ensure we don't set checking false solely from cache before probe
         cached_block_start = auth.find("const cached = readClientCache")
@@ -82,7 +95,7 @@ def main() -> None:
     if "jpTeacherNav || enTeacherNav || koTeacherNav" not in nav:
         fail("useSiteNavItems must build multi-teacher nav as a union")
 
-    print("OK: subject teacher route guard / ref share (no auth/ban) / authProbeDone")
+    print("OK: subject teacher route guard / ref share (no auth/ban flash) / authProbeDone")
 
 
 if __name__ == "__main__":
