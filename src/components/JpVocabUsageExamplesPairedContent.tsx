@@ -94,7 +94,36 @@ export function JpVocabUsageExamplesPairedContent({
                   </span>
                 </p>
               ) : null}
-              {pair.example?.text ? (
+              {pair.nestedExamples && pair.nestedExamples.length > 0 ? (
+                <ol className="jp-usage-ex-paired-nested">
+                  {pair.nestedExamples.map((ex, ni) => (
+                    <li
+                      key={`${pair.index}-n-${ni}`}
+                      className="jp-usage-ex-paired-nested-item"
+                    >
+                      <span
+                        className="jp-usage-ex-paired-nested-index"
+                        aria-hidden="true"
+                      >
+                        {ni + 1}.
+                      </span>
+                      <span className="jp-usage-ex-paired-nested-body">
+                        <p className="jp-usage-ex-paired-jp">
+                          <JpVocabFuriganaText text={ex.text} />
+                        </p>
+                        {ex.glossLines.map((gloss, gi) => (
+                          <p
+                            key={`${pair.index}-n-${ni}-g-${gi}`}
+                            className="jp-usage-ex-paired-gloss"
+                          >
+                            {formatJpVocabExampleGlossLine(gloss)}
+                          </p>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : pair.example?.text ? (
                 <>
                   <p className="jp-usage-ex-paired-jp">
                     <JpVocabFuriganaText text={pair.example.text} />
@@ -193,6 +222,31 @@ export function JpVocabUsageExamplesPairedContent({
           margin: 0.2rem 0 0;
           color: var(--muted);
           font-size: 0.95rem;
+        }
+        .jp-usage-ex-paired-nested {
+          margin: 0.15rem 0 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .jp-usage-ex-paired-nested-item {
+          display: flex;
+          gap: 0.45rem;
+          align-items: flex-start;
+          min-width: 0;
+        }
+        .jp-usage-ex-paired-nested-index {
+          flex: 0 0 auto;
+          color: #5b9fd4;
+          font-weight: 600;
+          line-height: 1.85;
+          font-size: 1.15rem;
+        }
+        .jp-usage-ex-paired-nested-body {
+          flex: 1 1 auto;
+          min-width: 0;
         }
         .jp-usage-ex-paired-sources {
           display: flex;

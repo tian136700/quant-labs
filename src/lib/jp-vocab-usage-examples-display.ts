@@ -1,5 +1,6 @@
 /**
  * 日语语法「用法 + 例句」展示配对：第 N 条用法对应第 N 条例句。
+ * 单词：仅 1 条用法且多条例句时，全部例句挂在用法 1 下（嵌套 1. 2.）。
  * 存库字段仍分 usage / example_sentences；仅页面合并展示。
  */
 
@@ -19,6 +20,8 @@ export type JpVocabUsageExamplePair = {
   usageLabel: string;
   usageText: string | null;
   example: JpVocabExampleSentenceItem | null;
+  /** 单词单用法多例句：挂在该用法下的全部例句 */
+  nestedExamples?: JpVocabExampleSentenceItem[];
 };
 
 export type JpVocabUsageExamplesPairedModel = {
@@ -26,6 +29,8 @@ export type JpVocabUsageExamplesPairedModel = {
   fallbackUsage: string | null;
   pairCount: number;
   hasContent: boolean;
+  /** 单词：单用法下嵌套多条例句 */
+  nestExamplesUnderSingleUsage: boolean;
 };
 
 export function buildJpVocabUsageExamplePairs(
@@ -50,6 +55,25 @@ export function buildJpVocabUsageExamplePairs(
       fallbackUsage,
       pairCount: Math.max(pairs.length, fallbackUsage ? 1 : 0),
       hasContent: Boolean(fallbackUsage || pairs.length),
+      nestExamplesUnderSingleUsage: false,
+    };
+  }
+
+  if (points.length === 1 && examples.length > 1) {
+    return {
+      pairs: [
+        {
+          index: 1,
+          usageLabel: jpVocabUsagePairLabel(1),
+          usageText: points[0]?.text ?? null,
+          example: null,
+          nestedExamples: examples,
+        },
+      ],
+      fallbackUsage: null,
+      pairCount: 1,
+      hasContent: true,
+      nestExamplesUnderSingleUsage: true,
     };
   }
 
@@ -69,6 +93,7 @@ export function buildJpVocabUsageExamplePairs(
     fallbackUsage: null,
     pairCount: pairs.length,
     hasContent: pairs.length > 0,
+    nestExamplesUnderSingleUsage: false,
   };
 }
 
@@ -90,7 +115,17 @@ export function formatJpVocabUsageExamplesCopyText(
     if (pair.usageText) {
       lines.push(`${pair.usageLabel}：${pair.usageText}`);
     }
-    if (pair.example?.text) {
+    const nested = pair.nestedExamples;
+    if (nested && nested.length) {
+      nested.forEach((ex, i) => {
+        lines.push(`${i + 1}. ${ex.text}`);
+        const glossRaw = ex.glossLines[0]
+          ? stripJpVocabExampleGlossLabel(ex.glossLines[0])
+          : "";
+        const glossLine = glossRaw ? formatJpVocabExampleGlossLine(glossRaw) : "";
+        if (glossLine) lines.push(glossLine);
+      });
+    } else if (pair.example?.text) {
       lines.push(pair.example.text);
       const glossRaw = pair.example.glossLines[0]
         ? stripJpVocabExampleGlossLabel(pair.example.glossLines[0])

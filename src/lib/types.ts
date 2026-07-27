@@ -92,6 +92,11 @@ export interface CloudflareEnv {
   ETR_EN_VOCAB_USERNAME?: string;
   /** 英语单词模块：老师密码（仅环境变量/Secret，勿提交 Git） */
   ETR_EN_VOCAB_PASSWORD?: string;
+  /** 管理员手动补例句：tokken Anthropic（仅 Secret；定时任务仍走 Mac） */
+  ANTHROPIC_AUTH_TOKEN?: string;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_BASE_URL?: string;
+  ANTHROPIC_MODEL?: string;
 }
 
 export interface EnglishTeacherReviewRecord {

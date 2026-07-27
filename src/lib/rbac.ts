@@ -92,16 +92,6 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     descriptionEn: "Disable or enable user accounts",
   },
   {
-    key: "admin:fill_ops_log",
-    labelZh: "补全熔断状态日志",
-    labelEn: "Vocab fill circuit log",
-    category: "admin",
-    descriptionZh:
-      "查看日语/英语补全定时熔断状态（已暂停/正常运行/原因）；仅管理员；本机维护中心「定时任务管理」",
-    descriptionEn:
-      "View JP/EN fill circuit breaker status (paused/running/reason); admin only; local maintenance center",
-  },
-  {
     key: "compare:view",
     labelZh: "策略对比",
     labelEn: "Strategy compare",
@@ -479,8 +469,6 @@ export const RBAC_JP_TEACHER_EXCLUDED_PERMISSIONS = [
   "nav:ko_teacher",
   /** 关于页仅管理员 */
   "about:view",
-  /** 补全熔断日志仅管理员（本机维护中心） */
-  "admin:fill_ops_log",
 ] as const;
 
 /** 网上注册用户（学生）不应持有的日语/韩语老师权限；韩语学生端默认不开（见默认权限表） */
@@ -496,8 +484,6 @@ export const RBAC_USER_EXCLUDED_PERMISSIONS = [
   "ko_pron:operate",
   /** 关于页仅管理员 */
   "about:view",
-  /** 补全熔断日志仅管理员 */
-  "admin:fill_ops_log",
 ] as const;
 
 /** 英语教师角色不应持有的权限（默认关闭，可由管理员手动开启） */
@@ -514,8 +500,6 @@ export const RBAC_EN_TEACHER_EXCLUDED_PERMISSIONS = [
   "nav:ko_teacher",
   /** 关于页仅管理员 */
   "about:view",
-  /** 补全熔断日志仅管理员 */
-  "admin:fill_ops_log",
 ] as const;
 
 /** 韩语老师角色不应持有的权限（默认关闭） */
@@ -524,8 +508,6 @@ export const RBAC_KO_TEACHER_EXCLUDED_PERMISSIONS = [
   "ko_pron:study",
   /** 关于页仅管理员 */
   "about:view",
-  /** 补全熔断日志仅管理员 */
-  "admin:fill_ops_log",
 ] as const;
 
 /** 用户管理：可多选的老师身份（主 role 仍只存一个，其余写入额外权限） */
