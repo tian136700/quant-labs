@@ -204,7 +204,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     teacherVisibleLimit,
     setTeacherVisibleLimit,
     quizTimeWeight,
-    setQuizTimeWeight,
     quizPriorityBoost,
     setQuizPriorityBoost,
     displayOrderRef,
@@ -515,14 +514,12 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     quizTargetInput,
     setQuizTargetInput,
     settingQuizTarget,
-    settingQuizTimeWeight,
     boostQuizPriority,
     deleteWord,
     openResetChoice,
     resetToday,
     resetAll,
     setDailyQuizTarget,
-    setQuizTimeWeightConfig,
   } = useJpVocabAdminActions({
     locale,
     isAdminMode,
@@ -544,7 +541,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setSharedTodayWordIds,
     setTeacherVisibleLimit,
     setQuizPriorityBoost,
-    setQuizTimeWeight,
     setSessionLevel,
     setSessionReviewAt,
     setHighlightId,
@@ -747,14 +743,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         showTeacherCoachEntry={showTeacherCoachEntry}
         exporting={exporting}
         dailyCoachLevelCounts={dailyCoachLevelCounts}
-        quizTimeWeight={quizTimeWeight}
-        settingQuizTimeWeight={settingQuizTimeWeight}
         onQuizTargetInputChange={setQuizTargetInput}
         onSaveQuizTarget={() => void setDailyQuizTarget()}
         onGoToCoach={() => {
           window.location.assign(jpVocabCoachPath());
         }}
-        onSaveQuizTimeWeight={setQuizTimeWeightConfig}
       />
 
       <section className="section etr-panel" aria-label="单词表">

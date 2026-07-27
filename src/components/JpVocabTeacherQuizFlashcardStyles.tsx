@@ -1203,7 +1203,7 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__examples-head {
           display: flex;
           flex-wrap: wrap;
-          align-items: baseline;
+          align-items: center;
           justify-content: space-between;
           gap: 0.25rem 0.75rem;
           margin-bottom: 0.4rem;

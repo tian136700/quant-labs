@@ -6,6 +6,7 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
+import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
@@ -436,6 +437,12 @@ export function JpVocabAdminReviewFlashcardModal({
                   setNotesWord(next);
                   onWordUpdated?.(next);
                 }}
+                endAction={
+                  <JpVocabUsageExamplesCopyButton
+                    model={usageExamplePairs}
+                    wordLabel={w.word}
+                  />
+                }
               />
             </div>
             <div className="jp-vocab-teacher-quiz__examples-body">
@@ -446,7 +453,6 @@ export function JpVocabAdminReviewFlashcardModal({
                 exampleSource={w.example_sentences_source}
                 wordLabel={w.word}
                 model={usageExamplePairs}
-                showCopyAll
                 emptyText={isGrammar ? "暂无用法与例句" : "暂无例句"}
               />
             </div>

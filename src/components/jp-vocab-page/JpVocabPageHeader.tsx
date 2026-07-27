@@ -1,7 +1,6 @@
 "use client";
 
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
-import { JpVocabQuizTimeWeightAdmin } from "@/components/JpVocabQuizTimeWeightAdmin";
 import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progress";
 
 type JpVocabPageHeaderProps = {
@@ -19,12 +18,9 @@ type JpVocabPageHeaderProps = {
   showTeacherCoachEntry: boolean;
   exporting: boolean;
   dailyCoachLevelCounts: { normal: number; weak: number };
-  quizTimeWeight: number;
-  settingQuizTimeWeight: boolean;
   onQuizTargetInputChange: (value: string) => void;
   onSaveQuizTarget: () => void;
   onGoToCoach: () => void;
-  onSaveQuizTimeWeight: (weight: number) => Promise<boolean>;
 };
 
 export function JpVocabPageHeader({
@@ -42,12 +38,9 @@ export function JpVocabPageHeader({
   showTeacherCoachEntry,
   exporting,
   dailyCoachLevelCounts,
-  quizTimeWeight,
-  settingQuizTimeWeight,
   onQuizTargetInputChange,
   onSaveQuizTarget,
   onGoToCoach,
-  onSaveQuizTimeWeight,
 }: JpVocabPageHeaderProps) {
   return (
     <>
@@ -124,14 +117,6 @@ export function JpVocabPageHeader({
                 }
               : undefined
           }
-        />
-      ) : null}
-
-      {isAdminMode ? (
-        <JpVocabQuizTimeWeightAdmin
-          value={quizTimeWeight}
-          saving={settingQuizTimeWeight}
-          onSave={onSaveQuizTimeWeight}
         />
       ) : null}
     </>

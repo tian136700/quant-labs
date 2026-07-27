@@ -16,7 +16,6 @@ import {
   jpVocabTomorrowBoostSeq,
   type JpVocabQuizPriorityBoost,
 } from "@/lib/jp-vocab-quiz-priority-boost";
-import { normalizeJpVocabQuizTimeWeight } from "@/lib/jp-vocab-quiz-score";
 import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   type JpVocabStatSortKey,
@@ -50,7 +49,6 @@ export function useJpVocabAdminActions(options: {
   setSharedTodayWordIds: Dispatch<SetStateAction<Set<number>>>;
   setTeacherVisibleLimit: Dispatch<SetStateAction<JpVocabTeacherVisibleLimit>>;
   setQuizPriorityBoost: Dispatch<SetStateAction<JpVocabQuizPriorityBoost | null>>;
-  setQuizTimeWeight: Dispatch<SetStateAction<number>>;
   setSessionLevel: Dispatch<
     SetStateAction<Record<number, JpVocabLevel | undefined>>
   >;
@@ -90,7 +88,6 @@ export function useJpVocabAdminActions(options: {
     setSharedTodayWordIds,
     setTeacherVisibleLimit,
     setQuizPriorityBoost,
-    setQuizTimeWeight,
     setSessionLevel,
     setSessionReviewAt,
     setHighlightId,
@@ -111,7 +108,6 @@ export function useJpVocabAdminActions(options: {
     )
   );
   const [settingQuizTarget, setSettingQuizTarget] = useState(false);
-  const [settingQuizTimeWeight, setSettingQuizTimeWeight] = useState(false);
 
   // 仅在「已保存值」变化时回写输入框；保存中禁止被 sync 旧值打回
   useEffect(() => {
@@ -327,53 +323,6 @@ export function useJpVocabAdminActions(options: {
     void runReset("reset");
   };
 
-  const setQuizTimeWeightConfig = async (weight: number): Promise<boolean> => {
-    if (!isAdminMode || settingQuizTimeWeight) return false;
-    const normalized = normalizeJpVocabQuizTimeWeight(weight);
-    setSettingQuizTimeWeight(true);
-    setStatus("");
-    try {
-      const res = await fetch("/api/jp-vocab", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          [LOCALE_HEADER]: locale,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          action: "set_quiz_time_weight",
-          quiz_time_weight: normalized,
-        }),
-      });
-      const data = (await res.json()) as {
-        ok: boolean;
-        quiz_time_weight?: number;
-        error?: string;
-      };
-      if (!data.ok || data.quiz_time_weight == null) {
-        throw new Error(data.error || "操作失败");
-      }
-      const saved = normalizeJpVocabQuizTimeWeight(data.quiz_time_weight);
-      setQuizTimeWeight(saved);
-      const prev = readJpVocabPageCache();
-      if (prev) {
-        writeClientCache(JP_VOCAB_CACHE_KEY, {
-          ...prev,
-          quiz_time_weight: saved,
-        });
-      }
-      setStatus(
-        `久未复习抬升权重已设为 ${saved}（最终得分 = 抽查优先级 + 距上次抽问天数 × ${saved}）。次日凌晨或「今日重置」后重排生效。`
-      );
-      return true;
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : String(err));
-      return false;
-    } finally {
-      setSettingQuizTimeWeight(false);
-    }
-  };
-
   const setDailyQuizTarget = async () => {
     if (!isAdminMode || settingQuizTarget) return;
     const trimmed = quizTargetInput.trim();
@@ -439,13 +388,11 @@ export function useJpVocabAdminActions(options: {
     quizTargetInput,
     setQuizTargetInput,
     settingQuizTarget,
-    settingQuizTimeWeight,
     boostQuizPriority,
     deleteWord,
     openResetChoice,
     resetToday,
     resetAll,
     setDailyQuizTarget,
-    setQuizTimeWeightConfig,
   };
 }

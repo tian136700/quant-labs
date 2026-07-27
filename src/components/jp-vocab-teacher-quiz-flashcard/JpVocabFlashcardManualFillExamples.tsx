@@ -34,7 +34,7 @@ type Props = {
   enabled: boolean;
   onPatched: (next: JpVocabWord) => void;
   /** 与「手动补全例句」同一行横排的操作（如「复制全部」） */
-  endAction?: React.ReactNode;
+  endAction?: ReactNode;
 };
 
 /**
@@ -153,15 +153,18 @@ export function JpVocabFlashcardManualFillExamples({
 
   return (
     <div className="jp-vocab-flashcard-manual-fill">
-      <button
-        type="button"
-        className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn"
-        disabled={busy}
-        title="调用线上大模型重写用法与例句（仅管理员）"
-        onClick={onClick}
-      >
-        {busy ? "补全中…" : "手动补全例句"}
-      </button>
+      <div className="jp-vocab-flashcard-manual-fill__row">
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn"
+          disabled={busy}
+          title="调用线上大模型重写用法与例句（仅管理员）"
+          onClick={onClick}
+        >
+          {busy ? "补全中…" : "手动补全例句"}
+        </button>
+        {endAction}
+      </div>
       {busy ? (
         <JpVocabSaveProgressBar
           label="正在调用线上模型补全例句…"
@@ -184,6 +187,13 @@ export function JpVocabFlashcardManualFillExamples({
           flex: 1 1 auto;
           min-width: 0;
           max-width: 100%;
+        }
+        .jp-vocab-flashcard-manual-fill__row {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          align-items: center;
+          gap: 0.45rem;
         }
         .jp-vocab-flashcard-manual-fill :global(.jp-vocab-share-progress),
         .jp-vocab-flashcard-manual-fill__error {

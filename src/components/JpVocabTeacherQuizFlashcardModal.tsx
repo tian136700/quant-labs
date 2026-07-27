@@ -36,6 +36,7 @@ import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
+import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
@@ -643,6 +644,12 @@ export function JpVocabTeacherQuizFlashcardModal({
                   setNotesWord(next);
                   onWordUpdated?.(next);
                 }}
+                endAction={
+                  <JpVocabUsageExamplesCopyButton
+                    model={usageExamplePairs}
+                    wordLabel={w.word}
+                  />
+                }
               />
             </div>
             <div className="jp-vocab-teacher-quiz__examples-body">
@@ -653,7 +660,6 @@ export function JpVocabTeacherQuizFlashcardModal({
                 exampleSource={w.example_sentences_source}
                 wordLabel={w.word}
                 model={usageExamplePairs}
-                showCopyAll
                 emptyText={
                   isGrammar ? "暂无用法与例句" : "暂无例句"
                 }

@@ -41,8 +41,26 @@ def main() -> int:
         )
     must_contain(modal, "canManualFillExamples")
     must_contain(modal, "JpVocabFlashcardManualFillExamples")
+    must_contain(modal, "JpVocabUsageExamplesCopyButton")
+    must_contain(modal, "endAction=")
     must_contain(modal, "JpVocabUsageExamplesPairedContent")
     must_contain(modals, "canManualFillExamples={props.isAdmin}")
+    # 「手动补全例句」与「复制全部」须同一行横排（endAction），禁止再把复制塞回内容区竖排
+    must_contain(btn, "jp-vocab-flashcard-manual-fill__row")
+    must_contain(btn, "{endAction}")
+    modal_text = modal.read_text(encoding="utf-8")
+    if "showCopyAll" in modal_text:
+        raise SystemExit(
+            "FAIL: flashcard must pass copy via ManualFill endAction, not showCopyAll (vertical stack)"
+        )
+    review = ROOT / "src/components/JpVocabAdminReviewFlashcardModal.tsx"
+    review_text = review.read_text(encoding="utf-8")
+    must_contain(review, "endAction=")
+    must_contain(review, "JpVocabUsageExamplesCopyButton")
+    if "showCopyAll" in review_text:
+        raise SystemExit(
+            "FAIL: review flashcard must pass copy via ManualFill endAction, not showCopyAll"
+        )
     # 无用法时例句仍须带序号
     must_contain(paired, "jp-usage-ex-paired-example-row")
     # 禁止老师 canOperate 误开手动补全

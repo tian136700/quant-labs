@@ -5,14 +5,11 @@ import {
 } from "@/lib/jp-vocab-daily-check";
 import type { JpVocabWord } from "@/lib/types";
 
-/** jp_vocab_setting.key：抽问时间权重（久未复习抬升 final_score） */
+/** jp_vocab_setting.key：历史时间权重 key（已固定默认，不再读写） */
 export const JP_VOCAB_QUIZ_TIME_WEIGHT_KEY = "quiz_time_weight";
 
-/** 默认：priority + days × 0.1（约 30 天把 -3 抬回 0） */
+/** 固定：priority + days × 0.1（同档打平；日序主依据为 SRS） */
 export const JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT = 0.1;
-
-/** 管理员端可选预设（也可手填，经 normalize 落入合法区间） */
-export const JP_VOCAB_QUIZ_TIME_WEIGHT_PRESETS = [0.05, 0.1, 0.2, 0.3] as const;
 
 const WEIGHT_MIN = 0;
 const WEIGHT_MAX = 2;

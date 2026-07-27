@@ -13,7 +13,6 @@ import {
   resetTodayJpVocabRound,
   setJpVocabDailyQuizStyle,
   setJpVocabDailyQuizTarget,
-  setJpVocabQuizTimeWeight,
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess, requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import { requireAdmin } from "@/lib/admin-auth";
@@ -23,7 +22,6 @@ import {
   normalizeJpVocabDailyQuizStyle,
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
-import { normalizeJpVocabQuizTimeWeight } from "@/lib/jp-vocab-quiz-score";
 import { trackJpVocabTeacherQuizDayAfterReview } from "@/lib/jp-vocab-teacher-quiz-day";
 import type { JpVocabLevel } from "@/lib/types";
 
@@ -94,7 +92,6 @@ export async function POST(request: Request) {
       word_id?: number;
       level?: JpVocabLevel;
       daily_quiz_style?: Partial<JpVocabDailyQuizStyle>;
-      quiz_time_weight?: number | string;
       count?: number;
       hide_checked_today?: boolean;
     };
@@ -109,18 +106,6 @@ export async function POST(request: Request) {
         normalizeJpVocabDailyQuizStyle(body.daily_quiz_style)
       );
       return jsonResponse({ ok: true, daily_quiz_style });
-    }
-
-    if (body.action === "set_quiz_time_weight") {
-      const { isAdmin } = await requireAdmin(request);
-      if (!isAdmin) {
-        return jsonResponse({ ok: false, error: "forbidden" }, 403);
-      }
-      const quiz_time_weight = await setJpVocabQuizTimeWeight(
-        env.DB,
-        body.quiz_time_weight ?? normalizeJpVocabQuizTimeWeight(undefined)
-      );
-      return jsonResponse({ ok: true, quiz_time_weight });
     }
 
     if (body.action === "set_daily_quiz_target") {
