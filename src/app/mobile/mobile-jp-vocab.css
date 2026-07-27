@@ -555,22 +555,24 @@
   }
 
   .jp-vocab-quiz-progress {
-    padding: 0.85rem 0.9rem !important;
+    padding: 0.45rem 0.65rem 0.5rem !important;
   }
 
   .jp-vocab-quiz-target-admin {
+    flex: 1 1 100%;
     flex-wrap: wrap;
-    gap: 0.5rem !important;
+    gap: 0.35rem 0.4rem !important;
   }
 
   .jp-vocab-quiz-target-admin__input {
-    min-height: 2.75rem;
-    flex: 1 1 5rem;
+    min-height: 2.25rem;
+    flex: 0 0 4rem;
   }
 
   .jp-vocab-quiz-target-admin .btn-rsi-filter {
-    width: 100%;
-    min-height: 2.75rem;
+    min-height: 2.25rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
   }
 
   .jp-vocab-flashcard-overlay {
