@@ -11,6 +11,7 @@ import {
   isEnModulePath,
   isEnVocabPath,
   isEnVocabAdminPath,
+  isEnVocabReviewPath,
   isKoPronPath,
   isKoPronAdminPath,
   isKoPronStudyPath,
@@ -26,6 +27,7 @@ import {
   enLessonPath,
   enVocabPath,
   enVocabAdminPath,
+  enVocabReviewPath,
   koPronPath,
   koPronAdminPath,
   koPronStudyPath,
@@ -83,6 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isJpVocabPath(pathname)) return nav.jpVocab;
     if (isEnLessonPath(pathname)) return nav.enLesson;
     if (isEnVocabAdminPath(pathname)) return nav.enVocabAdmin;
+    if (isEnVocabReviewPath(pathname)) return nav.enVocabReview;
     if (isEnVocabPath(pathname)) return nav.enVocab;
     if (isKoPronAdminPath(pathname)) return nav.koPronAdmin;
     if (isKoPronStudyPath(pathname)) return nav.koPronStudy;
@@ -99,6 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (isJpVocabPath(pathname)) return jpVocabPath();
     if (isEnLessonPath(pathname)) return enLessonPath();
     if (isEnVocabAdminPath(pathname)) return enVocabAdminPath();
+    if (isEnVocabReviewPath(pathname)) return enVocabReviewPath();
     if (isEnVocabPath(pathname)) return enVocabPath();
     if (isKoPronAdminPath(pathname)) return koPronAdminPath();
     if (isKoPronStudyPath(pathname)) return koPronStudyPath();

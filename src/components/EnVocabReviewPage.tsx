@@ -13,7 +13,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import {
-        EN_VOCAB_CACHE_KEY,
+  JP_VOCAB_CACHE_KEY,
   parseEnVocabApi,
   type EnVocabApiPayload,
 } from "@/lib/en-api-cache";
@@ -146,7 +146,7 @@ export function EnVocabReviewPage() {
   const loadData = useCallback(async () => {
     const [payload, reviewRes] = await Promise.all([
       fetchWithClientCache(
-        EN_VOCAB_CACHE_KEY,
+        JP_VOCAB_CACHE_KEY,
         "/api/en-vocab",
         parseEnVocabApi,
         { credentials: "include" }
@@ -369,13 +369,13 @@ export function EnVocabReviewPage() {
       return;
     }
     setClearBusy(true);
-    setClearProgress(enVocabSaveProgressDisplayPercent(null));
+    setClearProgress(jpVocabSaveProgressDisplayPercent(null));
     clearStartedAtRef.current = Date.now();
     if (clearProgressTimerRef.current) {
       clearInterval(clearProgressTimerRef.current);
     }
     clearProgressTimerRef.current = setInterval(() => {
-      setClearProgress(enVocabSaveProgressPercent(Date.now() - clearStartedAtRef.current));
+      setClearProgress(jpVocabSaveProgressPercent(Date.now() - clearStartedAtRef.current));
     }, 120);
     try {
       await enVocabReviewSaveQueue.enqueue(async () => {
@@ -398,7 +398,7 @@ export function EnVocabReviewPage() {
         }
         setReviewProgress(normalizeEnVocabReviewProgress(data.review_progress));
       });
-      await animateEnVocabSaveProgressTo100(clearStartedAtRef.current, setClearProgress);
+      await animateJpVocabSaveProgressTo100(clearStartedAtRef.current, setClearProgress);
       setStatus("已将全部词条重置为待复习。");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -446,7 +446,7 @@ export function EnVocabReviewPage() {
   if (!user) {
     return (
       <div className="page-wrap en-vocab-review-page">
-        <h1 className="page-title">日语复习</h1>
+        <h1 className="page-title">英语复习</h1>
         <p className="page-status">请先登录。</p>
         <button type="button" className="btn-rsi-filter" onClick={() => openAuthPanel({ mode: "login" })}>
           登录
@@ -458,8 +458,8 @@ export function EnVocabReviewPage() {
   if (!isAdmin) {
     return (
       <div className="page-wrap en-vocab-review-page">
-        <h1 className="page-title">日语复习</h1>
-        <p className="page-status">仅管理员可使用日语复习功能。</p>
+        <h1 className="page-title">英语复习</h1>
+        <p className="page-status">仅管理员可使用英语复习功能。</p>
       </div>
     );
   }
@@ -467,7 +467,7 @@ export function EnVocabReviewPage() {
   return (
     <div className="page-wrap en-vocab-review-page">
       <header className="en-vocab-review-header">
-        <h1 className="page-title">日语复习</h1>
+        <h1 className="page-title">英语复习</h1>
         <p className="en-vocab-review-sub">
           选择复习数量与排序方式，开始卡片复习。默认复习数量与「今日抽查数量」（当前 {quizTarget} 个）一致。下方表格的「复习状态」：今日已在抽问页抽查过的显示「已抽问」；卡片复习后显示「已复习」；其余为「待复习」。复习进度<strong>不会每天北京时间 0 点自动清空</strong>，需点击「重置复习状态」才会将全部词条恢复为待复习。
         </p>
@@ -575,9 +575,9 @@ export function EnVocabReviewPage() {
         ) : null}
 
         {clearBusy ? (
-          <EnVocabSaveProgressBar
-            label={enVocabSaveProgressLabel("save")}
-            percent={clearProgress ?? enVocabSaveProgressDisplayPercent(null)}
+          <JpVocabSaveProgressBar
+            label={jpVocabSaveProgressLabel("save")}
+            percent={clearProgress ?? jpVocabSaveProgressDisplayPercent(null)}
             fullWidth
           />
         ) : null}
@@ -588,7 +588,7 @@ export function EnVocabReviewPage() {
           <thead>
             <tr>
               <th>{prefs.sortMode === "seq" ? "序号" : "本轮序"}</th>
-              <th>单词 / 语法</th>
+              <th>单词</th>
               <th>释义</th>
               <th>{enVocabPriorityLabel(locale)}</th>
               <th>复习状态</th>
@@ -631,7 +631,7 @@ export function EnVocabReviewPage() {
                     <td data-label="释义">
                       <div className="en-vocab-review-meaning">
                         <span>{w.meaning || "—"}</span>
-                        <EnVocabSourceLabel
+                        <JpVocabSourceLabel
                           source={w.meaning_source}
                         />
                       </div>
@@ -710,15 +710,13 @@ export function EnVocabReviewPage() {
         <EnVocabRemarksViewModal
           open
           word={viewingRemarksWord}
-          canDelete
           onClose={() => setViewingRemarksWord(null)}
           onWordUpdated={handleWordSaved}
-          onNeedAuth={() => openAuthPanel({ mode: "login" })}
         />
       ) : null}
 
       {editingRemarksWord ? (
-        <JpClassNotesEditModal
+        <EnClassNotesEditModal
           open
           word={editingRemarksWord}
           locale={locale}
@@ -734,15 +732,11 @@ export function EnVocabReviewPage() {
         <EnVocabEditModal
           open
           word={editingWord}
-          refs={refs}
           locale={locale}
           canEdit
           showMnemonic
           onClose={() => setEditingWord(null)}
           onSaved={handleWordSaved}
-          onRefUpdated={(ref) => {
-            setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
-          }}
           onSaveFailed={() => {}}
           onNeedAuth={() => openAuthPanel({ mode: "login" })}
         />

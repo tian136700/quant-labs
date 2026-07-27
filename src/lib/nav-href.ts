@@ -25,6 +25,7 @@ import {
   enVocabPath,
   enVocabAdminPath,
   enVocabStudyPath,
+  enVocabReviewPath,
   koPronPath,
   koPronAdminPath,
   koPronSelectPath,
@@ -50,6 +51,7 @@ export type NavTarget =
   | "enVocab"
   | "enVocabAdmin"
   | "enVocabStudy"
+  | "enVocabReview"
   | "koPron"
   | "koPronAdmin"
   | "koPronSelect"
@@ -107,6 +109,8 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return "/en-vocab/admin";
     case "enVocabStudy":
       return "/en-vocab/study";
+    case "enVocabReview":
+      return "/en-vocab/review";
     case "koPron":
       return "/ko-pron";
     case "koPronAdmin":
@@ -184,6 +188,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return enVocabAdminPath();
     case "enVocabStudy":
       return enVocabStudyPath();
+    case "enVocabReview":
+      return enVocabReviewPath();
     case "koPron":
       return koPronPath();
     case "koPronAdmin":

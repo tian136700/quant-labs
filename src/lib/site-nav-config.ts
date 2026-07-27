@@ -36,7 +36,7 @@ export const NAV_LANG_GROUPS: readonly NavLangGroupDef[] = [
     id: "langEn",
     labelKey: "langEn",
     category: "en",
-    childIds: ["enVocabAdmin", "enVocab", "enVocabStudy", "enLesson"],
+    childIds: ["enVocabAdmin", "enVocab", "enVocabReview", "enVocabStudy", "enLesson"],
   },
   {
     id: "langKo",
@@ -116,6 +116,7 @@ export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
   adminJpLessonTeachers: "jp",
   enVocab: "en",
   enVocabAdmin: "en",
+  enVocabReview: "en",
   enVocabStudy: "en",
   enLesson: "en",
   koPron: "ko",

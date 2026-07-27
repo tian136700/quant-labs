@@ -5,32 +5,31 @@ import { createPortal } from "react-dom";
 import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
-import { EnVocabExampleSentenceCopyButton } from "@/components/EnVocabExampleSentenceCopyButton";
-import { EnVocabFuriganaText } from "@/components/EnVocabFuriganaText";
+import { EnVocabFlashcardWordHero } from "@/components/EnVocabFlashcardWordHero";
 import { EnVocabUsageExamplesPairedContent } from "@/components/EnVocabUsageExamplesPairedContent";
 import { buildEnVocabUsageExamplePairs } from "@/lib/en-vocab-usage-examples-display";
-import { EnVocabSourceLabel } from "@/components/EnVocabSourceLabel";
-import { EnVocabTeacherQuizFlashcardStyles } from "@/components/EnVocabTeacherQuizFlashcardStyles";
-import { EnVocabFlashcardWordHero } from "@/components/EnVocabFlashcardWordHero";
+import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
+import { formatEnVocabClassNotesForDisplay } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
 import {
   effectiveTodayCheckCount,
   isEnVocabWordQuizzedToday,
 } from "@/lib/en-vocab-daily-check";
-import {
-  formatEnVocabClassNotesForDisplay,
-  hasEnVocabClassNotes,
-  mergeEnVocabWordAfterClassNotesFetch,
-} from "@/lib/en-vocab-class-notes";
+import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import {
   formatEnVocabExampleGlossLine,
   parseEnVocabExampleSentenceItems,
 } from "@/lib/en-vocab-example-sentences";
 import {
-  formatEnVocabTotalReviewsDisplay,
+  enVocabRiskIndex,
+  enVocabTotalReviews,
   enVocabTotalReviewsZeroHint,
+  formatEnVocabTotalReviewsDisplay,
 } from "@/lib/en-vocab-shared";
-import { enVocabFinalQuizScoreOrNull } from "@/lib/en-vocab-quiz-score";
-import { enVocabTeacherQuizNotesInline } from "@/lib/en-vocab-teacher-quiz";
+import {
+  enVocabTeacherQuizNotesInline,
+  mergeEnVocabWordAfterClassNotesFetch,
+} from "@/lib/en-vocab-teacher-quiz";
 import { computeEnVocabReviewRoundProgress } from "@/lib/en-vocab-review-session";
 import type { EnVocabReviewSession } from "@/lib/en-vocab-review-session";
 import type { EnVocabRef, EnVocabWord } from "@/lib/types";
@@ -174,7 +173,7 @@ export function EnVocabAdminReviewFlashcardModal({
   const wordTrim = w.word.trim();
   const meaningTrim = (w.meaning || "").trim();
   const posTrim = (w.pos || "").trim();
-  const risk = enVocabFinalQuizScoreOrNull(w);
+  const risk = enVocabTotalReviews(w) === 0 ? null : enVocabRiskIndex(w);
   const riskBadgeTier =
     risk == null ? "never" : risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(
@@ -333,6 +332,7 @@ export function EnVocabAdminReviewFlashcardModal({
           readingTrim={readingTrim}
           wordTrim={wordTrim}
           kind={w.kind}
+          readingSource={w.reading_source}
           refKey={w.ref_key}
           ref={ref}
           onOpenRef={onOpenRef}
@@ -363,7 +363,7 @@ export function EnVocabAdminReviewFlashcardModal({
                 {meaningTrim ? (
                   <span className="en-vocab-teacher-quiz__meaning-wrap">
                     <span>{meaningTrim}</span>
-                    <EnVocabSourceLabel source={w.meaning_source} />
+                    <JpVocabSourceLabel source={w.meaning_source} />
                   </span>
                 ) : null}
               </dd>
@@ -436,8 +436,6 @@ export function EnVocabAdminReviewFlashcardModal({
                     exampleSentences={w.example_sentences}
                     usageSource={w.usage_source}
                     exampleSource={w.example_sentences_source}
-                    wordLabel={w.word}
-                    showCopyAll
                     emptyText="暂无用法与例句"
                   />
                 </div>
@@ -446,7 +444,6 @@ export function EnVocabAdminReviewFlashcardModal({
               <>
                 <div className="en-vocab-teacher-quiz__examples-head">
                   <h3 className="en-vocab-teacher-quiz__examples-title">例句</h3>
-                  <EnVocabExampleSentenceCopyButton items={exampleSentences} />
                 </div>
                 <div className="en-vocab-teacher-quiz__examples-body">
                   <ol className="en-vocab-teacher-quiz__examples-list">
@@ -463,21 +460,18 @@ export function EnVocabAdminReviewFlashcardModal({
                         </span>
                         <span className="en-vocab-teacher-quiz__examples-text">
                           <span className="en-vocab-teacher-quiz__examples-primary">
-                            <EnVocabFuriganaText text={item.text} />
+                            {item.text}
                           </span>
-                          {item.glossLines.map((gloss, glossIndex) => (
-                            <span
-                              key={`${index}-gloss-${glossIndex}`}
-                              className="en-vocab-teacher-quiz__examples-gloss"
-                            >
-                              {formatEnVocabExampleGlossLine(gloss)}
+                          {item.gloss ? (
+                            <span className="en-vocab-teacher-quiz__examples-gloss">
+                              {formatEnVocabExampleGlossLine(item.gloss)}
                             </span>
-                          ))}
+                          ) : null}
                         </span>
                       </li>
                     ))}
                   </ol>
-                  <EnVocabSourceLabel source={w.example_sentences_source} />
+                  <JpVocabSourceLabel source={w.example_sentences_source} />
                 </div>
               </>
             )}
@@ -616,7 +610,7 @@ export function EnVocabAdminReviewFlashcardModal({
         </div>
       </article>
 
-      <EnVocabTeacherQuizFlashcardStyles />
+      <JpVocabTeacherQuizFlashcardStyles />
       <style jsx global>{`
         .en-vocab-admin-review__today-banner {
           margin: 0;

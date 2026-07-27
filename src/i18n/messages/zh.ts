@@ -26,6 +26,7 @@ export const zhMessages: Messages = {
       enLesson: "英语新课",
       enVocab: "英语抽背-老师端",
       enVocabAdmin: "英语抽背-管理员端",
+      enVocabReview: "英语复习",
       enVocabStudy: "今日英语单词",
       koPron: "韩语发音抽问-老师端",
       koPronAdmin: "韩语发音抽问-管理员端",

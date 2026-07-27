@@ -26,6 +26,7 @@ export const enMessages: Messages = {
       enLesson: "English Lesson",
       enVocab: "English Vocab — Teacher",
       enVocabAdmin: "English Vocab — Admin",
+      enVocabReview: "English Vocab Review",
       enVocabStudy: "Today's English Words",
       koPron: "Korean Pronunciation Quiz — Teacher",
       koPronAdmin: "Korean Pronunciation Quiz — Admin",

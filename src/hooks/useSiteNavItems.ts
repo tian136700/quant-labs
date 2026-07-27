@@ -26,6 +26,7 @@ import {
   isEnVocabTeacherHomePath,
   isEnVocabAdminPath,
   isEnVocabStudyPath,
+  isEnVocabReviewPath,
   isKoPronTeacherHomePath,
   isKoPronAdminPath,
   isKoPronSelectPath,
@@ -83,6 +84,7 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onEnVocabTeacherHome = isEnVocabTeacherHomePath(pathname);
   const onEnVocabAdmin = isEnVocabAdminPath(pathname);
   const onEnVocabStudy = isEnVocabStudyPath(pathname);
+  const onEnVocabReview = isEnVocabReviewPath(pathname);
   const onKoPronTeacherHome = isKoPronTeacherHomePath(pathname);
   const onKoPronAdmin = isKoPronAdminPath(pathname);
   const onKoPronSelect = isKoPronSelectPath(pathname);
@@ -90,7 +92,7 @@ export function useSiteNavItems(): SiteNavItem[] {
   const onKoPronStudy = isKoPronStudyPath(pathname);
   const onHiddenJp =
     onJpLesson || onJpVocab || onJpVocabStudy || onJpVocabReview || onJpVocabCoach;
-  const onHiddenEn = onEnLesson || onEnVocab || onEnVocabStudy;
+  const onHiddenEn = onEnLesson || onEnVocab || onEnVocabStudy || onEnVocabReview;
 
   if (!loggedIn && !checking) {
     return aboutNavItem ? [aboutNavItem] : [];
@@ -182,6 +184,16 @@ export function useSiteNavItems(): SiteNavItem[] {
               id: "enVocabStudy",
               href: navHref("enVocabStudy", locale, navOpts),
               label: nav.enVocabStudy,
+              active: true,
+            },
+          ]
+        : []),
+      ...(onEnVocabReview && isAdmin
+        ? [
+            {
+              id: "enVocabReview",
+              href: navHref("enVocabReview", locale, navOpts),
+              label: nav.enVocabReview,
               active: true,
             },
           ]
@@ -461,6 +473,16 @@ export function useSiteNavItems(): SiteNavItem[] {
                           href: navHref("enVocabStudy", locale, navOpts),
                           label: nav.enVocabStudy,
                           active: onEnVocabStudy,
+                        },
+                      ]
+                    : []),
+                  ...(isAdmin
+                    ? [
+                        {
+                          id: "enVocabReview",
+                          href: navHref("enVocabReview", locale, navOpts),
+                          label: nav.enVocabReview,
+                          active: onEnVocabReview,
                         },
                       ]
                     : []),

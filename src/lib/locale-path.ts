@@ -395,7 +395,11 @@ export function enVocabStudyPath(): string {
   return "/en-vocab/study";
 }
 
-/** 老师端首页：精确 /en-vocab（不含 admin / study / ref） */
+export function enVocabReviewPath(): string {
+  return "/en-vocab/review";
+}
+
+/** 老师端首页：精确 /en-vocab（不含 admin / study / review / ref） */
 export function isEnVocabTeacherHomePath(pathname: string): boolean {
   const path = stripZhPrefix(pathname.split("?")[0] ?? pathname);
   return path === "/en-vocab";
@@ -409,6 +413,11 @@ export function isEnVocabAdminPath(pathname: string): boolean {
 export function isEnVocabStudyPath(pathname: string): boolean {
   const path = stripZhPrefix(pathname);
   return path === "/en-vocab/study";
+}
+
+export function isEnVocabReviewPath(pathname: string): boolean {
+  const path = stripZhPrefix(pathname);
+  return path === "/en-vocab/review";
 }
 
 export function isEnVocabPath(pathname: string): boolean {
@@ -449,9 +458,9 @@ export function isEnModulePath(pathname: string): boolean {
   );
 }
 
-/** 英语模块老师可访问的页面（不含 API / 静态资源；不含管理员端） */
+/** 英语模块老师可访问的页面（不含 API / 静态资源；不含管理员端 / 英语复习） */
 export function isEnVocabTeacherAllowedPath(pathname: string): boolean {
-  if (isEnVocabAdminPath(pathname)) return false;
+  if (isEnVocabAdminPath(pathname) || isEnVocabReviewPath(pathname)) return false;
   return (
     isEnVocabPath(pathname) ||
     isEnVocabStudyPath(pathname) ||

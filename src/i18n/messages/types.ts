@@ -27,6 +27,7 @@ export type Messages = {
     enLesson: string;
     enVocab: string;
     enVocabAdmin: string;
+    enVocabReview: string;
     enVocabStudy: string;
     koPron: string;
     koPronAdmin: string;
