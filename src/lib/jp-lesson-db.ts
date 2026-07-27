@@ -336,10 +336,11 @@ async function syncLessonToVocab(
   if (!items.length) return;
 
   // 释义不同步到抽问：由 tokken 限流脚本 / fill-meaning 补；对齐英语
-  const itemExamples = alignLessonItemExampleSentences(
-    lesson.content,
-    lesson.example_sentences
-  );
+  // 例句：仅语法类带入抽问；单词类由 Mac 定时 fill-example-sentences 补
+  const syncExamples = lesson.kind === "grammar";
+  const itemExamples = syncExamples
+    ? alignLessonItemExampleSentences(lesson.content, lesson.example_sentences)
+    : [];
   const refKey = lesson.ref_key;
   const refs = refKey
     ? [
@@ -357,7 +358,7 @@ async function syncLessonToVocab(
       word,
       kind: lesson.kind,
       ref_key: refKey,
-      example_sentences: itemExamples[index] ?? null,
+      example_sentences: syncExamples ? (itemExamples[index] ?? null) : null,
     })),
     refs
   );
