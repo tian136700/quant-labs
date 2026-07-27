@@ -66,6 +66,10 @@ FORCE_RUN="${JP_VOCAB_FILL_FORCE:-${FORCE:-0}}"
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
+# shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
+source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
+vocab_fill_circuit_assert_not_killed "$OWNER"
+
 # shellcheck source=scripts/lib/dirlock.sh
 source "$ROOT/scripts/lib/dirlock.sh"
 

@@ -41,6 +41,10 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
+from vocab_fill_circuit_breaker import (  # noqa: E402
+    after_attempt,
+    assert_not_killed,
+)
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
 HTTP_USER_AGENT = "jp-vocab-fill-grammar-usage-examples/2.0"
@@ -459,6 +463,7 @@ def run_one_pair(
     allow_burst: bool,
     target_word_id: int | None = None,
 ) -> dict:
+    assert_not_killed("jp-grammar-fill")
     acquire_paid_rate_gate(allow_burst=allow_burst)
     body: dict = {"mode": "list_missing", "limit": LIST_CANDIDATE_LIMIT}
     if target_word_id and target_word_id > 0:
@@ -566,6 +571,13 @@ def run_one_pair(
     except Exception as exc:  # noqa: BLE001
         mark_paid_call()
         poison_word(word_id, f"anthropic_error:{exc}")
+        after_attempt(
+            scope="jp-grammar",
+            word_id=word_id,
+            word=word,
+            fixed=False,
+            detail=f"anthropic_error:{exc}",
+        )
         return {"ok": True, "updated": 0, "error": str(exc), "total_missing": total_missing}
 
     mark_paid_call()
@@ -620,6 +632,13 @@ def run_one_pair(
         parsed = retry_pair("成对解析失败")
         if not parsed:
             poison_word(word_id, "invalid:pair_parse")
+            after_attempt(
+                scope="jp-grammar",
+                word_id=word_id,
+                word=word,
+                fixed=False,
+                detail="invalid:pair_parse",
+            )
             return {"ok": True, "updated": 0, "total_missing": total_missing}
 
     usage, examples = parsed
@@ -651,6 +670,13 @@ def run_one_pair(
     payload = do_apply(usage, examples)
     if not payload.get("ok"):
         poison_word(word_id, "apply_failed")
+        after_attempt(
+            scope="jp-grammar",
+            word_id=word_id,
+            word=word,
+            fixed=False,
+            detail="apply_failed",
+        )
         raise SystemExit(f"API error: {payload.get('error', payload)}")
     skipped = payload.get("skipped") or []
     if skipped and not payload.get("updated"):
@@ -659,8 +685,16 @@ def run_one_pair(
             parsed2 = retry_pair(f"apply 拒收 {reason}")
             if not parsed2:
                 poison_word(word_id, f"apply_skipped:{reason}")
+                after_attempt(
+                    scope="jp-grammar",
+                    word_id=word_id,
+                    word=word,
+                    fixed=False,
+                    detail=f"apply_skipped:{reason}",
+                )
                 return {"ok": True, "updated": 0, "total_missing": total_missing}
-            payload = do_apply(*parsed2)
+            usage, examples = parsed2
+            payload = do_apply(usage, examples)
             skipped = payload.get("skipped") or []
             if skipped and not payload.get("updated"):
                 poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
@@ -669,7 +703,41 @@ def run_one_pair(
         else:
             poison_word(word_id, f"apply_skipped:{reason}")
 
-    remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
+    updated_n = int(payload.get("updated") or 0)
+    # 客户端判定是否真正搞定（变形课有例句即可；勿因 usage 空反复计数空烧）
+    fixed = False
+    fail_detail = "no_update"
+    if updated_n > 0 and not (payload.get("skipped") or []):
+        still = is_grammar_pair_still_missing(
+            {
+                "word": word,
+                "need_usage": (not str(usage or "").strip()) and not is_conj,
+                "need_examples": not str(examples or "").strip(),
+            }
+        )
+        fixed = not still
+        if still:
+            fail_detail = (
+                "apply_ok_but_still_missing:"
+                f"conj={is_conj} usage_len={len(str(usage or ''))} "
+                f"examples_len={len(str(examples or ''))}"
+            )
+        else:
+            fail_detail = "updated"
+    elif updated_n > 0:
+        # apply 部分成功但有 skipped → 未搞定
+        fixed = False
+        sk = payload.get("skipped") or []
+        fail_detail = f"apply_partial_skipped:{sk[0].get('reason') if sk else 'unknown'}"
+    after_attempt(
+        scope="jp-grammar",
+        word_id=word_id,
+        word=word,
+        fixed=fixed,
+        detail=fail_detail if not fixed else "updated",
+    )
+
+    remaining = max(0, total_missing - (1 if updated_n else 0))
     print(
         f"[jp-grammar-fill] pair apply updated={payload.get('updated')} "
         f"remaining≈{remaining}",

@@ -28,6 +28,10 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
+from vocab_fill_circuit_breaker import (  # noqa: E402
+    after_attempt,
+    assert_not_killed,
+)
 
 BASE = "https://finance.info-quests.com"
 READING_URL = f"{BASE}/api/en-vocab/fill-reading"
@@ -680,11 +684,25 @@ def process_one(
     except Exception as err:
         print(f"    fail generate: {err}", flush=True)
         mark_poison(wid, word, f"generate:{err}")
+        after_attempt(
+            scope="en-online",
+            word_id=wid,
+            word=word,
+            fixed=False,
+            detail=f"generate:{err}",
+        )
         return False
 
     if not payload:
         print("    empty payload", flush=True)
         mark_poison(wid, word, "empty_payload")
+        after_attempt(
+            scope="en-online",
+            word_id=wid,
+            word=word,
+            fixed=False,
+            detail="empty_payload",
+        )
         return False
 
     preview = {
@@ -708,11 +726,26 @@ def process_one(
     print(f"    applied={done} source={source}", flush=True)
     if not done:
         mark_poison(wid, word, "apply_none")
+        after_attempt(
+            scope="en-online",
+            word_id=wid,
+            word=word,
+            fixed=False,
+            detail="apply_none",
+        )
         return False
+    after_attempt(
+        scope="en-online",
+        word_id=wid,
+        word=word,
+        fixed=True,
+        detail="applied",
+    )
     return True
 
 
 def main() -> int:
+    assert_not_killed("en-online-batch")
     import os
     import time
 

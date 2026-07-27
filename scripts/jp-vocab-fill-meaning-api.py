@@ -39,6 +39,10 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
+from vocab_fill_circuit_breaker import (  # noqa: E402
+    after_attempt,
+    assert_not_killed,
+)
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-meaning"
 HTTP_USER_AGENT = "jp-vocab-fill-meaning-online/1.0"
@@ -653,6 +657,13 @@ def run_one_fill(
     )
     if not payload.get("ok"):
         poison_word(word_id, "apply_failed")
+        after_attempt(
+            scope="jp-meaning",
+            word_id=word_id,
+            word=word,
+            fixed=False,
+            detail="apply_failed",
+        )
         raise SystemExit(f"API error: {payload.get('error', payload)}")
 
     skipped = payload.get("skipped") or []
@@ -670,6 +681,14 @@ def run_one_fill(
                 flush=True,
             )
 
+    after_attempt(
+        scope="jp-meaning",
+        word_id=word_id,
+        word=word,
+        fixed=bool(meaning_ok),
+        detail="meaning_ok" if meaning_ok else "meaning_not_ok",
+    )
+
     remaining = max(0, total_missing - (1 if payload.get("updated") else 0))
     print(
         f"[jp-vocab-fill-meaning] apply updated={payload.get('updated')} "
@@ -682,6 +701,7 @@ def run_one_fill(
 
 
 def main() -> int:
+    assert_not_killed("jp-meaning-fill")
     parser = argparse.ArgumentParser(
         description="日语释义：tokken Anthropic 限流补全（与英语线上同套；≥1s/条，串行等待）"
     )

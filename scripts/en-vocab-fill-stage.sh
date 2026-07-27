@@ -65,6 +65,10 @@ QUIET_END_HOUR="${EN_VOCAB_FILL_QUIET_END_HOUR:-24}"
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 
+# shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
+source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
+vocab_fill_circuit_assert_not_killed "$OWNER"
+
 # 解析 0/1 后端（与 scripts/lib/en_vocab_llm_backend.py 一致）
 BACKEND="$("$PYTHON_BIN" -c "
 import sys

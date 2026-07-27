@@ -34,6 +34,10 @@ fi
 export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
 export PYTHONUNBUFFERED=1
 
+# shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
+source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
+vocab_fill_circuit_assert_not_killed "$OWNER"
+
 # 固定 Homebrew Python，避免 launchd 走到 /usr/local 的 Frameworks 3.14（缺 CA → SSL 炸）
 PYTHON_BIN="${JP_VOCAB_FILL_GRAMMAR_PYTHON:-/opt/homebrew/bin/python3}"
 if [[ ! -x "$PYTHON_BIN" ]]; then
