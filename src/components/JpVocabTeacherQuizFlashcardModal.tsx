@@ -35,12 +35,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
-import {
-  formatJpVocabExampleGlossLine,
-  parseJpVocabExampleSentenceItems,
-} from "@/lib/jp-vocab-example-sentences";
-import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
-import { JpVocabExampleSentenceCopyButton } from "@/components/JpVocabExampleSentenceCopyButton";
+import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
@@ -49,6 +44,7 @@ import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { JpVocabFlashcardAlerts } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardAlerts";
 import { JpVocabFlashcardHeader } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardHeader";
+import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
 import {
   JP_VOCAB_LEVEL_SYNC_HINT,
   JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED,
@@ -101,6 +97,8 @@ type Props = {
   nestedModalOpen?: boolean;
   /** 久未复习抬升权重（final_score） */
   quizTimeWeight?: number;
+  /** 管理员：卡片内手动调线上模型重补用法+例句 */
+  canManualFillExamples?: boolean;
 };
 
 export function JpVocabTeacherQuizFlashcardModal({
@@ -138,6 +136,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   nestedModalOpen = false,
   onMarkCoached,
   quizTimeWeight = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  canManualFillExamples = false,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
@@ -330,11 +329,22 @@ export function JpVocabTeacherQuizFlashcardModal({
   const isGrammar = w.kind === "grammar";
   const isConjugationGrammar =
     isGrammar && isJpVocabConjugationGrammar(w.word);
-  const grammarUsagePairs = isGrammar
-    ? buildJpVocabUsageExamplePairs(w.usage, w.example_sentences)
-    : null;
-  const showExamples = isCoach || isStudy || exampleSentences.length > 0
-    || Boolean(grammarUsagePairs?.hasContent);
+  const usageExamplePairs = buildJpVocabUsageExamplePairs(
+    w.usage,
+    w.example_sentences
+  );
+  const hasUsageText = Boolean(String(w.usage ?? "").trim());
+  const examplesSectionTitle = isConjugationGrammar
+    ? "例句"
+    : isGrammar || hasUsageText
+      ? "用法 / 例句"
+      : "例句";
+  const showExamples =
+    isCoach ||
+    isStudy ||
+    exampleSentences.length > 0 ||
+    Boolean(usageExamplePairs.hasContent) ||
+    (canManualFillExamples && !isGrammar);
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
@@ -620,79 +630,35 @@ export function JpVocabTeacherQuizFlashcardModal({
         {showExamples ? (
           <section
             className="jp-vocab-teacher-quiz__examples"
-            aria-label={
-              isConjugationGrammar
-                ? "例句"
-                : isGrammar
-                  ? "用法与例句"
-                  : "例句"
-            }
+            aria-label={examplesSectionTitle}
           >
-            {isGrammar ? (
-              <>
-                <div className="jp-vocab-teacher-quiz__examples-head">
-                  <h3 className="jp-vocab-teacher-quiz__examples-title">
-                    {isConjugationGrammar ? "例句" : "用法 / 例句"}
-                  </h3>
-                </div>
-                <div className="jp-vocab-teacher-quiz__examples-body">
-                  <JpVocabUsageExamplesPairedContent
-                    usage={w.usage}
-                    exampleSentences={w.example_sentences}
-                    usageSource={w.usage_source}
-                    exampleSource={w.example_sentences_source}
-                    wordLabel={w.word}
-                    model={grammarUsagePairs ?? undefined}
-                    showCopyAll
-                    emptyText="暂无用法与例句"
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="jp-vocab-teacher-quiz__examples-head">
-                  <h3 className="jp-vocab-teacher-quiz__examples-title">例句</h3>
-                  {exampleSentences.length > 0 ? (
-                    <JpVocabExampleSentenceCopyButton items={exampleSentences} />
-                  ) : null}
-                </div>
-                {exampleSentences.length > 0 ? (
-                  <div className="jp-vocab-teacher-quiz__examples-body">
-                    <ol className="jp-vocab-teacher-quiz__examples-list">
-                      {exampleSentences.map((item, index) => (
-                        <li
-                          key={`${index}-${item.text}`}
-                          className="jp-vocab-teacher-quiz__examples-item"
-                        >
-                          <span
-                            className="jp-vocab-teacher-quiz__examples-index"
-                            aria-hidden="true"
-                          >
-                            {index + 1}.
-                          </span>
-                          <span className="jp-vocab-teacher-quiz__examples-text">
-                            <span className="jp-vocab-teacher-quiz__examples-primary">
-                              <JpVocabFuriganaText text={item.text} />
-                            </span>
-                            {item.glossLines.map((gloss, glossIndex) => (
-                              <span
-                                key={`${index}-gloss-${glossIndex}`}
-                                className="jp-vocab-teacher-quiz__examples-gloss"
-                              >
-                                {formatJpVocabExampleGlossLine(gloss)}
-                              </span>
-                            ))}
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
-                    <JpVocabSourceLabel source={w.example_sentences_source} />
-                  </div>
-                ) : (
-                  <p className="jp-vocab-teacher-quiz__examples-empty">暂无例句</p>
-                )}
-              </>
-            )}
+            <div className="jp-vocab-teacher-quiz__examples-head">
+              <h3 className="jp-vocab-teacher-quiz__examples-title">
+                {examplesSectionTitle}
+              </h3>
+              <JpVocabFlashcardManualFillExamples
+                word={w}
+                enabled={canManualFillExamples}
+                onPatched={(next) => {
+                  setNotesWord(next);
+                  onWordUpdated?.(next);
+                }}
+              />
+            </div>
+            <div className="jp-vocab-teacher-quiz__examples-body">
+              <JpVocabUsageExamplesPairedContent
+                usage={w.usage}
+                exampleSentences={w.example_sentences}
+                usageSource={w.usage_source}
+                exampleSource={w.example_sentences_source}
+                wordLabel={w.word}
+                model={usageExamplePairs}
+                showCopyAll
+                emptyText={
+                  isGrammar ? "暂无用法与例句" : "暂无例句"
+                }
+              />
+            </div>
           </section>
         ) : null}
 

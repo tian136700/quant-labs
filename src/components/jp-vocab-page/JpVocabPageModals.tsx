@@ -299,6 +299,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
         onUnshare={props.onUnshare}
         onWordUpdated={props.onWordSaved}
         nestedModalOpen={nestedModalOpen}
+        canManualFillExamples={props.isAdmin}
       />
 
       {props.isAdminMode ? (
@@ -318,6 +319,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
           canOperate
           shareUiEnabled={false}
           previewMode
+          canManualFillExamples={props.isAdmin}
           onClose={props.onCloseQuizPreview}
           onComplete={props.onCloseQuizPreview}
           onSelectLevel={() => {

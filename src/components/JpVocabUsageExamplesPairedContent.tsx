@@ -124,19 +124,29 @@ export function JpVocabUsageExamplesPairedContent({
                   ))}
                 </ol>
               ) : pair.example?.text ? (
-                <>
-                  <p className="jp-usage-ex-paired-jp">
-                    <JpVocabFuriganaText text={pair.example.text} />
-                  </p>
-                  {pair.example.glossLines.map((gloss, gi) => (
-                    <p
-                      key={`${pair.index}-g-${gi}`}
-                      className="jp-usage-ex-paired-gloss"
+                <div className="jp-usage-ex-paired-example-row">
+                  {!pair.usageText ? (
+                    <span
+                      className="jp-usage-ex-paired-nested-index"
+                      aria-hidden="true"
                     >
-                      {formatJpVocabExampleGlossLine(gloss)}
+                      {pair.index}.
+                    </span>
+                  ) : null}
+                  <span className="jp-usage-ex-paired-nested-body">
+                    <p className="jp-usage-ex-paired-jp">
+                      <JpVocabFuriganaText text={pair.example.text} />
                     </p>
-                  ))}
-                </>
+                    {pair.example.glossLines.map((gloss, gi) => (
+                      <p
+                        key={`${pair.index}-g-${gi}`}
+                        className="jp-usage-ex-paired-gloss"
+                      >
+                        {formatJpVocabExampleGlossLine(gloss)}
+                      </p>
+                    ))}
+                  </span>
+                </div>
               ) : pair.usageText ? (
                 <p className="jp-usage-ex-paired-example-missing">
                   （暂无对应用例）
@@ -232,6 +242,12 @@ export function JpVocabUsageExamplesPairedContent({
           gap: 0.75rem;
         }
         .jp-usage-ex-paired-nested-item {
+          display: flex;
+          gap: 0.45rem;
+          align-items: flex-start;
+          min-width: 0;
+        }
+        .jp-usage-ex-paired-example-row {
           display: flex;
           gap: 0.45rem;
           align-items: flex-start;
