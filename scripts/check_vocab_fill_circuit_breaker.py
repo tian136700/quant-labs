@@ -42,6 +42,28 @@ def main() -> int:
         errors.append("须有三次失败人读报告")
     if "KILL_REPORT_PATH" not in br:
         errors.append("须写 vocab-fill-KILL-report.txt")
+    if "TASK_STATUS_LOG_PATH" not in br:
+        errors.append("须有任务状态日志 vocab-fill-task-status.log")
+    if "write_task_status_snapshot" not in br:
+        errors.append("熔断须写任务状态快照（某某任务已暂停）")
+    if "public_circuit_snapshot" not in br:
+        errors.append("须有维护中心用 public_circuit_snapshot")
+    mc = (ROOT / "scripts/maintenance_center/cron_tasks/circuit_breaker.py").read_text(
+        encoding="utf-8"
+    )
+    if "circuit_breaker_snapshot" not in mc:
+        errors.append("维护中心缺 circuit_breaker 包装")
+    server = (ROOT / "scripts/maintenance_center/server.py").read_text(encoding="utf-8")
+    if "/api/vocab-fill-circuit" not in server:
+        errors.append("server 须暴露 /api/vocab-fill-circuit")
+    html = (ROOT / "scripts/maintenance_center/static/index.html").read_text(
+        encoding="utf-8"
+    )
+    if "vocab-fill-circuit-card" not in html:
+        errors.append("维护中心 UI 须有熔断状态日志卡片")
+    appjs = (ROOT / "scripts/maintenance_center/static/app.js").read_text(encoding="utf-8")
+    if "refreshCircuitBreaker" not in appjs:
+        errors.append("app.js 须刷新熔断状态")
     if "com.infoquests.jp-vocab-fill-grammar" not in br:
         errors.append("KILL 列表须含 jp-vocab-fill-grammar")
     if "com.infoquests.en-vocab-fill-examples" not in br:

@@ -298,7 +298,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
 | **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；成功后 Mac 桌面通知优先、已弹则不推 Bark） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
-| **定时任务管理**（维护中心页签：精选任务列表 / 运行中定位 / 实时日志与时长；只读） | `scripts/maintenance_center/cron_tasks/registry.py`（登记表）、`status.py`、`logs.py`；API `GET /api/cron-tasks`、`GET /api/cron-tasks/<id>`；UI `static/index.html` → `view-cron`；规则 `.cursor/rules/cron-tasks-registry.mdc` |
+| **定时任务管理**（维护中心页签：精选任务列表 / 运行中定位 / 实时日志与时长；**日语/英语补全熔断状态日志**：同一词调接口 3 次未搞定则暂停全部补全定时并记录原因；**仅管理员** RBAC `admin:fill_ops_log`，本机维护中心老师不可见） | `scripts/maintenance_center/cron_tasks/registry.py`、`status.py`、`logs.py`、`circuit_breaker.py`；API `GET /api/cron-tasks`、`GET /api/cron-tasks/<id>`、`GET /api/vocab-fill-circuit`、`POST /api/vocab-fill-circuit/resume`；UI `static/index.html` → `view-cron`（`#vocab-fill-circuit-card`）；权限 `src/lib/rbac.ts` → `admin:fill_ops_log`；规则 `.cursor/rules/cron-tasks-registry.mdc`、`.cursor/rules/vocab-fill-circuit-breaker.mdc` |
 
 ---
 

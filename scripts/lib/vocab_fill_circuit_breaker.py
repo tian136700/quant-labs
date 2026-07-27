@@ -26,21 +26,64 @@ ATTEMPTS_PATH = CFG_DIR / "vocab-fill-attempts.json"
 KILL_PATH = CFG_DIR / "vocab-fill-KILL.switch"
 KILL_REPORT_PATH = CFG_DIR / "vocab-fill-KILL-report.txt"
 KILL_LOG_PATH = Path.home() / "Library" / "Logs" / "vocab-fill-circuit-breaker.log"
+# 人读任务状态日志（某某任务已暂停 / 正常运行 / 原因）
+TASK_STATUS_LOG_PATH = (
+    Path.home() / "Library" / "Logs" / "vocab-fill-task-status.log"
+)
+TASK_STATUS_JSON_PATH = CFG_DIR / "vocab-fill-task-status.json"
 
 DEFAULT_MAX_ATTEMPTS = 3
 
-# 日语 + 英语：所有会调 Ollama / 付费 API 的补全 launchd（不含跨日 rollover / 部署）
-FILL_LAUNCHD_LABELS: tuple[str, ...] = (
-    "com.infoquests.jp-vocab-fill-grammar",
-    "com.infoquests.jp-vocab-fill-examples",
-    "com.infoquests.jp-vocab-fill-pos",
-    "com.infoquests.jp-vocab-fill-reading",
-    "com.infoquests.en-vocab-fill-examples",
-    "com.infoquests.en-vocab-fill-meaning",
-    "com.infoquests.en-vocab-fill-pos",
-    "com.infoquests.en-vocab-fill-reading",
-    "com.infoquests.en-vocab-fill-usage",
+# label → 中文名（维护中心日志用）
+FILL_TASKS: tuple[dict[str, str], ...] = (
+    {
+        "label": "com.infoquests.jp-vocab-fill-grammar",
+        "id": "jp-vocab-fill-grammar",
+        "title": "日语语法用法+例句补全",
+    },
+    {
+        "label": "com.infoquests.jp-vocab-fill-examples",
+        "id": "jp-vocab-fill-examples",
+        "title": "日语例句补全",
+    },
+    {
+        "label": "com.infoquests.jp-vocab-fill-pos",
+        "id": "jp-vocab-fill-pos",
+        "title": "日语词性补全",
+    },
+    {
+        "label": "com.infoquests.jp-vocab-fill-reading",
+        "id": "jp-vocab-fill-reading",
+        "title": "日语读音补全",
+    },
+    {
+        "label": "com.infoquests.en-vocab-fill-examples",
+        "id": "en-vocab-fill-examples",
+        "title": "英语例句补全",
+    },
+    {
+        "label": "com.infoquests.en-vocab-fill-meaning",
+        "id": "en-vocab-fill-meaning",
+        "title": "英语释义补全",
+    },
+    {
+        "label": "com.infoquests.en-vocab-fill-pos",
+        "id": "en-vocab-fill-pos",
+        "title": "英语词性补全",
+    },
+    {
+        "label": "com.infoquests.en-vocab-fill-reading",
+        "id": "en-vocab-fill-reading",
+        "title": "英语音标补全",
+    },
+    {
+        "label": "com.infoquests.en-vocab-fill-usage",
+        "id": "en-vocab-fill-usage",
+        "title": "英语用法补全",
+    },
 )
+
+FILL_LAUNCHD_LABELS: tuple[str, ...] = tuple(t["label"] for t in FILL_TASKS)
 
 
 def max_attempts() -> int:
@@ -233,6 +276,186 @@ def format_attempt_report(
     lines.append(f"计数文件：{ATTEMPTS_PATH}")
     return "\n".join(lines).rstrip() + "\n"
 
+def _append_task_status_log(line: str) -> None:
+    """追加一行人读状态日志（某某任务已暂停 / 正常运行…）。"""
+    text = line.rstrip("\n")
+    stamped = f"{time.strftime('%F %T')} | {text}"
+    print(stamped, flush=True)
+    try:
+        TASK_STATUS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with TASK_STATUS_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(stamped + "\n")
+        with KILL_LOG_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(stamped + "\n")
+    except OSError:
+        pass
+
+
+def _launchctl_loaded_labels() -> set[str]:
+    loaded: set[str] = set()
+    try:
+        proc = subprocess.run(
+            ["launchctl", "list"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return loaded
+    for line in (proc.stdout or "").splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 3 and parts[2].strip():
+            loaded.add(parts[2].strip())
+    return loaded
+
+
+def build_fill_task_status_rows(
+    *,
+    pause_reason: str | None = None,
+) -> list[dict[str, Any]]:
+    """每条补全定时：paused / running_ok / not_loaded + 说明。"""
+    killed = is_killed()
+    reason = (pause_reason or read_kill_reason() or "").strip()
+    loaded = _launchctl_loaded_labels()
+    rows: list[dict[str, Any]] = []
+    for task in FILL_TASKS:
+        label = task["label"]
+        title = task["title"]
+        tid = task["id"]
+        if killed:
+            state = "paused"
+            state_label = "已暂停"
+            detail = reason or "熔断：同一词条调满 3 次仍未搞定"
+            line = f"{title}：已暂停（原因：{detail[:200]}）"
+        elif label in loaded:
+            state = "running_ok"
+            state_label = "正常运行"
+            detail = "定时任务已加载，按调度检测/补全"
+            line = f"{title}：正常运行"
+        else:
+            state = "not_loaded"
+            state_label = "未加载"
+            detail = "LaunchAgent 未加载（未安装或已卸下）"
+            line = f"{title}：未加载"
+        rows.append(
+            {
+                "id": tid,
+                "label": label,
+                "title": title,
+                "state": state,
+                "state_label": state_label,
+                "detail": detail,
+                "line": line,
+            }
+        )
+    return rows
+
+
+def write_task_status_snapshot(
+    *,
+    event: str,
+    pause_reason: str | None = None,
+) -> dict[str, Any]:
+    """写 JSON 快照 + 追加状态日志（维护中心日志模块用）。"""
+    rows = build_fill_task_status_rows(pause_reason=pause_reason)
+    killed = is_killed()
+    payload = {
+        "ok": True,
+        "event": event,
+        "killed": killed,
+        "status": "paused" if killed else "running",
+        "status_label": "补全定时已全部暂停（熔断）"
+        if killed
+        else "补全定时正常（未熔断）",
+        "pause_reason": (pause_reason or read_kill_reason() or "").strip() or None,
+        "updated_at": time.strftime("%F %T"),
+        "tasks": rows,
+        "paths": {
+            "kill_switch": str(KILL_PATH),
+            "kill_report": str(KILL_REPORT_PATH),
+            "attempts": str(ATTEMPTS_PATH),
+            "task_status_log": str(TASK_STATUS_LOG_PATH),
+            "task_status_json": str(TASK_STATUS_JSON_PATH),
+            "circuit_log": str(KILL_LOG_PATH),
+        },
+        "resume_hint": "bash scripts/vocab-fill-circuit-resume.sh",
+    }
+    try:
+        CFG_DIR.mkdir(parents=True, exist_ok=True)
+        TASK_STATUS_JSON_PATH.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        _log(f"write task status json failed: {exc}")
+
+    _append_task_status_log(f"—— 事件：{event} ——")
+    _append_task_status_log(payload["status_label"])
+    if payload.get("pause_reason"):
+        _append_task_status_log(f"熔断原因：{payload['pause_reason'][:300]}")
+    for row in rows:
+        _append_task_status_log(row["line"])
+    return payload
+
+
+def public_circuit_snapshot(*, log_tail_lines: int = 80) -> dict[str, Any]:
+    """维护中心 API 用：当前状态 + 任务列表 + 日志尾。"""
+    # 刷新一份最新快照（不追加「事件」噪音时用 silent rebuild）
+    rows = build_fill_task_status_rows()
+    killed = is_killed()
+    report = ""
+    if KILL_REPORT_PATH.is_file():
+        try:
+            report = KILL_REPORT_PATH.read_text(encoding="utf-8")
+        except OSError:
+            report = ""
+    log_tail = ""
+    if TASK_STATUS_LOG_PATH.is_file():
+        try:
+            lines = TASK_STATUS_LOG_PATH.read_text(encoding="utf-8").splitlines()
+            log_tail = "\n".join(lines[-max(1, log_tail_lines) :])
+        except OSError:
+            log_tail = ""
+    attempts_summary: list[dict[str, Any]] = []
+    data = _load_attempts()
+    for key, meta in sorted((data.get("items") or {}).items()):
+        if not isinstance(meta, dict):
+            continue
+        attempts_summary.append(
+            {
+                "key": key,
+                "word": meta.get("word"),
+                "word_id": meta.get("word_id"),
+                "scope": meta.get("scope"),
+                "count": meta.get("count"),
+                "history": meta.get("history") or [],
+            }
+        )
+    return {
+        "ok": True,
+        "killed": killed,
+        "status": "paused" if killed else "running",
+        "status_label": "补全定时已全部暂停（熔断）"
+        if killed
+        else "补全定时正常（未熔断）",
+        "pause_reason": read_kill_reason() or None,
+        "report": report,
+        "tasks": rows,
+        "attempts": attempts_summary,
+        "task_status_log_tail": log_tail,
+        "paths": {
+            "kill_switch": str(KILL_PATH),
+            "kill_report": str(KILL_REPORT_PATH),
+            "attempts": str(ATTEMPTS_PATH),
+            "task_status_log": str(TASK_STATUS_LOG_PATH),
+            "task_status_json": str(TASK_STATUS_JSON_PATH),
+        },
+        "resume_hint": "bash scripts/vocab-fill-circuit-resume.sh",
+        "server_time": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def _gui_domain() -> str:
     try:
         uid = os.getuid()
@@ -298,6 +521,10 @@ def trip_kill_switch(
     _log(f"KILL SWITCH TRIPPED: {reason}")
     print(report, flush=True)
     bootout_all_fill_launchd()
+    write_task_status_snapshot(
+        event="熔断触发：停掉全部日语/英语补全定时",
+        pause_reason=reason,
+    )
     _log(
         "All jp/en vocab fill launchd stopped. "
         "Resume: bash scripts/vocab-fill-circuit-resume.sh"
@@ -404,17 +631,21 @@ def resume_fill_launchd() -> None:
                 f"resume bootstrap failed: {label} "
                 f"err={(proc.stderr or proc.stdout or '').strip()}"
             )
+    write_task_status_snapshot(event="熔断已解除：补全定时已恢复加载")
 
 
 def main(argv: list[str] | None = None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     if not args or args[0] in {"status", "--status"}:
-        print(f"killed={is_killed()}")
-        if is_killed():
-            print(f"reason=\n{read_kill_reason()}")
-        if KILL_REPORT_PATH.is_file():
-            print(f"report_file={KILL_REPORT_PATH}")
+        snap = public_circuit_snapshot()
+        print(f"killed={snap['killed']} status={snap['status_label']}")
+        if snap.get("pause_reason"):
+            print(f"pause_reason=\n{snap['pause_reason']}")
+        print("--- tasks ---")
+        for row in snap.get("tasks") or []:
+            print(f"  {row.get('line')}")
         print(f"attempts_file={ATTEMPTS_PATH}")
+        print(f"task_status_log={TASK_STATUS_LOG_PATH}")
         data = _load_attempts()
         items = data.get("items") or {}
         print(f"tracked_items={len(items)}")
