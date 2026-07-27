@@ -1,0 +1,85 @@
+/** 管理员调整今日抽查数量后，通知同域其他标签页 / 老师端立即同步一次 */
+
+const CHANNEL_NAME = "en-vocab-quiz-target-updated";
+const STORAGE_KEY = "en-vocab-quiz-target-bump";
+
+export type EnVocabQuizTargetNotifyDetail = {
+  ts: number;
+  quiz_target: number;
+  quiz_target_adjusted_at?: string;
+};
+
+function parseDetail(raw: unknown): EnVocabQuizTargetNotifyDetail | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Partial<EnVocabQuizTargetNotifyDetail>;
+  const quiz_target = Number(obj.quiz_target);
+  if (!Number.isFinite(quiz_target) || quiz_target < 1) return null;
+  return {
+    ts: Number(obj.ts) || Date.now(),
+    quiz_target: Math.floor(quiz_target),
+    quiz_target_adjusted_at:
+      obj.quiz_target_adjusted_at != null
+        ? String(obj.quiz_target_adjusted_at)
+        : undefined,
+  };
+}
+
+export function notifyEnVocabQuizTargetUpdated(
+  detail: Pick<
+    EnVocabQuizTargetNotifyDetail,
+    "quiz_target" | "quiz_target_adjusted_at"
+  >
+): void {
+  if (typeof window === "undefined") return;
+  const payload: EnVocabQuizTargetNotifyDetail = {
+    ts: Date.now(),
+    quiz_target: detail.quiz_target,
+    quiz_target_adjusted_at: detail.quiz_target_adjusted_at,
+  };
+  try {
+    const channel = new BroadcastChannel(CHANNEL_NAME);
+    channel.postMessage(payload);
+    channel.close();
+  } catch {
+    /* BroadcastChannel unavailable */
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    /* private mode / quota */
+  }
+}
+
+export function subscribeEnVocabQuizTargetUpdated(
+  onUpdate: (detail: EnVocabQuizTargetNotifyDetail) => void
+): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  const handler = (raw: unknown) => {
+    const detail = parseDetail(raw);
+    if (detail) onUpdate(detail);
+  };
+
+  let channel: BroadcastChannel | null = null;
+  try {
+    channel = new BroadcastChannel(CHANNEL_NAME);
+    channel.onmessage = (e) => handler(e.data);
+  } catch {
+    /* ignore */
+  }
+
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== STORAGE_KEY || !e.newValue) return;
+    try {
+      handler(JSON.parse(e.newValue));
+    } catch {
+      /* ignore */
+    }
+  };
+  window.addEventListener("storage", onStorage);
+
+  return () => {
+    channel?.close();
+    window.removeEventListener("storage", onStorage);
+  };
+};

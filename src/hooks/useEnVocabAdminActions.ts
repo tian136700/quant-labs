@@ -26,6 +26,7 @@ import {
   readEnVocabPageCache,
 } from "@/lib/en-vocab-page-cache";
 import { publishEnVocabAdminReset } from "@/lib/en-vocab-reset-broadcast";
+import { notifyEnVocabQuizTargetUpdated } from "@/lib/en-vocab-quiz-target-notify";
 import { clearEnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz-storage";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 
@@ -159,9 +160,13 @@ export function useEnVocabAdminActions(options: {
           teacher_visible_limit: next,
         });
       }
+      notifyEnVocabQuizTargetUpdated({
+        quiz_target: next.quiz_target,
+        quiz_target_adjusted_at: next.quiz_target_adjusted_at,
+      });
       setStatus(
         `今日抽查数量已设为 ${next.quiz_target} 个（老师端按当日序号 1…N 抽查）。` +
-          ` english 域名下已打开的老师页约数秒内自动同步；若未打开请刷新 english.info-quests.com/en-vocab。`
+          ` 同浏览器已打开的老师页会立即同步；老师在别的手机/电脑上请点「刷新」，或开着抽查卡时会自动跟上。`
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

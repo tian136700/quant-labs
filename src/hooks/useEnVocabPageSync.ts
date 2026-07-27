@@ -43,6 +43,7 @@ import {
 } from "@/lib/en-vocab-teacher-visible";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import { writeClientCache } from "@/lib/client-swr-cache";
+import { subscribeEnVocabQuizTargetUpdated } from "@/lib/en-vocab-quiz-target-notify";
 
 export function useEnVocabPageSync(options: {
   checking: boolean;
@@ -250,6 +251,14 @@ export function useEnVocabPageSync(options: {
     if (checking || !user) return;
     return subscribeEnVocabAdminReset(handleRemoteAdminReset);
   }, [checking, user, handleRemoteAdminReset]);
+
+  // 管理员改「今日抽查数量」：同域标签页立刻拉一次（不靠定时轮询）
+  useEffect(() => {
+    if (checking || !user) return;
+    return subscribeEnVocabQuizTargetUpdated(() => {
+      void loadWords({ force: true });
+    });
+  }, [checking, user, loadWords]);
 
   useEffect(() => {
     if (checking || !user) return;

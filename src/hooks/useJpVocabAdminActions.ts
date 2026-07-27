@@ -421,7 +421,7 @@ export function useJpVocabAdminActions(options: {
       });
       setStatus(
         `今日抽查数量已设为 ${data.teacher_visible_limit.quiz_target} 个（老师端按可见池抽查，优先从未抽查过的词条）。` +
-          ` japanese 域名下已打开的老师页约 3 秒内自动同步；若未打开请刷新 japanese.info-quests.com/jp-vocab。`
+          ` 同浏览器已打开的老师页会立即同步；老师在别的手机/电脑上请点「刷新」，或开着抽查卡时会自动跟上。`
       );
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));

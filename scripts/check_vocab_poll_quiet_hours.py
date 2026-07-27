@@ -143,8 +143,22 @@ def main() -> int:
                 "resolveVocabPollIntervalMs",
                 "usernameRef",
                 "enableBackgroundSyncPoll",
+                "subscribeEnVocabQuizTargetUpdated",
             ],
             "en-page-sync",
+        ),
+        (
+            ROOT / "src/lib/en-vocab-quiz-target-notify.ts",
+            [
+                "notifyEnVocabQuizTargetUpdated",
+                "subscribeEnVocabQuizTargetUpdated",
+            ],
+            "en-quiz-target-notify",
+        ),
+        (
+            ROOT / "src/hooks/useEnVocabAdminActions.ts",
+            ["notifyEnVocabQuizTargetUpdated"],
+            "en-admin-quiz-target-notify",
         ),
         (
             ROOT / "src/hooks/useJpVocabShareRequests.ts",
