@@ -21,8 +21,9 @@ import {
 import { MobileScrollToTopButton } from "@/components/MobileScrollToTopButton";
 import { JpVocabPageGates } from "@/components/jp-vocab-page/JpVocabPageGates";
 import { shouldShowJpVocabDailyIntro } from "@/components/JpVocabDailyQuizIntroModal";
-import { JpVocabPageHeader } from "@/components/jp-vocab-page/JpVocabPageHeader";
+import { JpVocabPageHeaderSlot } from "@/components/jp-vocab-page/JpVocabPageHeaderSlot";
 import { JpVocabPageModals } from "@/components/jp-vocab-page/JpVocabPageModals";
+import { JpVocabPageStatusHints } from "@/components/jp-vocab-page/JpVocabPageStatusHints";
 import { JpVocabPageStyles } from "@/components/jp-vocab-page/JpVocabPageStyles";
 import { JpVocabPageToolbar } from "@/components/jp-vocab-page/JpVocabPageToolbar";
 import { JpVocabPageWordList } from "@/components/jp-vocab-page/JpVocabPageWordList";
@@ -728,9 +729,8 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
       className="page-wrap jp-vocab-page"
       style={{ maxWidth: "min(1480px, 96vw)", paddingTop: "1.5rem" }}
     >
-      <JpVocabPageHeader
+      <JpVocabPageHeaderSlot
         isAdminMode={isAdminMode}
-        isTeacherMode={isTeacherMode}
         teacherShareUiEnabled={teacherShareUiEnabled}
         canOperate={canOperate}
         checking={checking}
@@ -745,9 +745,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         dailyCoachLevelCounts={dailyCoachLevelCounts}
         onQuizTargetInputChange={setQuizTargetInput}
         onSaveQuizTarget={() => void setDailyQuizTarget()}
-        onGoToCoach={() => {
-          window.location.assign(jpVocabCoachPath());
-        }}
       />
 
       <section className="section etr-panel" aria-label="单词表">
@@ -791,31 +788,10 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
           onOpenResetChoice={openResetChoice}
         />
 
-        {status ? (
-          <p
-            style={{
-              color: "var(--muted)",
-              fontSize: "0.875rem",
-              marginBottom: "0.75rem",
-            }}
-          >
-            {status}
-          </p>
-        ) : null}
-
-        {saveQueuePending > 0 ? (
-          <p
-            className="jp-vocab-save-queue-hint"
-            role="status"
-            style={{
-              color: "var(--muted)",
-              fontSize: "0.8125rem",
-              marginBottom: "0.75rem",
-            }}
-          >
-            后台同步队列 {saveQueuePending} 项 · 逐项写入数据库，避免免费服务器拥堵
-          </p>
-        ) : null}
+        <JpVocabPageStatusHints
+          status={status}
+          saveQueuePending={saveQueuePending}
+        />
 
         <JpVocabPageWordList
           locale={locale}

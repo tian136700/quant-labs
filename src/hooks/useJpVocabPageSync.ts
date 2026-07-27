@@ -28,7 +28,6 @@ import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabQuizPriorityBoost } from "@/lib/jp-vocab-quiz-priority-boost";
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
-  normalizeJpVocabQuizTimeWeight,
 } from "@/lib/jp-vocab-quiz-score";
 import {
   JP_VOCAB_POLL_MS,
@@ -100,11 +99,8 @@ export function useJpVocabPageSync(options: {
     const cached = readJpVocabPageCache()?.display_order;
     return cached ?? { date: "", ids: [], round_checked_ids: [] };
   });
-  const [quizTimeWeight, setQuizTimeWeight] = useState(() =>
-    normalizeJpVocabQuizTimeWeight(
-      readJpVocabPageCache()?.quiz_time_weight ??
-        JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
-    )
+  const [quizTimeWeight, setQuizTimeWeight] = useState(
+    () => JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
   );
   const [quizPriorityBoost, setQuizPriorityBoost] =
     useState<JpVocabQuizPriorityBoost | null>(
@@ -138,11 +134,7 @@ export function useJpVocabPageSync(options: {
       if (shouldRejectStaleJpVocabTeacherVisibleLimit(prev, next)) return prev;
       return next;
     });
-    setQuizTimeWeight(
-      normalizeJpVocabQuizTimeWeight(
-        payload.quiz_time_weight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
-      )
-    );
+    setQuizTimeWeight(JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT);
     if (payload.quiz_priority_boost !== undefined) {
       setQuizPriorityBoost(payload.quiz_priority_boost);
     }

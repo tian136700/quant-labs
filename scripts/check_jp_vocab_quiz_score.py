@@ -17,6 +17,7 @@ ROUTE = ROOT / "src/app/api/jp-vocab/route.ts"
 PAGE = ROOT / "src/components/JpVocabPage.tsx"
 ADMIN_ACTIONS = ROOT / "src/hooks/useJpVocabAdminActions.ts"
 ADMIN_UI = ROOT / "src/components/JpVocabQuizTimeWeightAdmin.tsx"
+HEADER = ROOT / "src/components/jp-vocab-page/JpVocabPageHeader.tsx"
 EXCEL = ROOT / "src/lib/jp-vocab-excel-export.ts"
 RISK = ROOT / "src/lib/jp-vocab-risk.ts"
 CACHE = ROOT / "src/lib/jp-vocab-page-cache.ts"
@@ -103,34 +104,35 @@ def main() -> int:
     must_contain(EXCEL, "从未抽查", "Excel 规则须写明从未抽查不算分")
     must_contain(RULE, "不算 priority", "规则须禁止给从未抽查算分")
 
-    must_contain(DB, "getJpVocabQuizTimeWeight", "DB 须可读时间权重")
-    must_contain(DB, "setJpVocabQuizTimeWeight", "DB 须可写时间权重")
-    must_contain(DB, "JP_VOCAB_QUIZ_TIME_WEIGHT_KEY", "DB 须用 setting key 常量")
-    must_contain(SCORE, 'JP_VOCAB_QUIZ_TIME_WEIGHT_KEY = "quiz_time_weight"', "setting key 须为 quiz_time_weight")
+    must_contain(DB, "getJpVocabQuizTimeWeight", "DB 须可读时间权重（固定默认）")
+    must_contain(SCORE, 'JP_VOCAB_QUIZ_TIME_WEIGHT_KEY = "quiz_time_weight"', "setting key 常量保留")
+    must_contain(SCORE, "JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT = 0.1", "默认权重 0.1")
 
-    must_contain(ROUTE, 'set_quiz_time_weight', "API 须有 set_quiz_time_weight")
     must_contain(ROUTE, "quiz_time_weight", "GET 须返回 quiz_time_weight")
+    route_text = ROUTE.read_text(encoding="utf-8")
+    if "set_quiz_time_weight" in route_text:
+        errors.append(f"{ROUTE.relative_to(ROOT)}: 禁止再提供 set_quiz_time_weight（权重已固定）")
+    if "setJpVocabQuizTimeWeight" in read_jp_vocab_db():
+        errors.append("src/lib/jp-vocab-db/: 禁止再导出 setJpVocabQuizTimeWeight")
 
-    must_contain(ADMIN_UI, "JpVocabQuizTimeWeightAdmin", "管理员权重 UI 组件")
-    page_ui = (
-        PAGE.read_text(encoding="utf-8")
-        + "\n"
-        + (ROOT / "src/components/jp-vocab-page/JpVocabPageHeader.tsx").read_text(
-            encoding="utf-8"
-        )
-    )
-    if "JpVocabQuizTimeWeightAdmin" not in page_ui:
+    if ADMIN_UI.exists():
         errors.append(
-            f"{PAGE.relative_to(ROOT)} / JpVocabPageHeader: "
-            "管理员页须挂权重控件（缺「JpVocabQuizTimeWeightAdmin」）"
+            f"{ADMIN_UI.relative_to(ROOT)}: 管理员权重 UI 已删除，勿再恢复"
         )
-    weight_save = page_ui + ADMIN_ACTIONS.read_text(encoding="utf-8")
-    if "set_quiz_time_weight" not in weight_save:
+    page_ui = PAGE.read_text(encoding="utf-8") + "\n" + HEADER.read_text(encoding="utf-8")
+    admin_actions = ADMIN_ACTIONS.read_text(encoding="utf-8")
+    if "JpVocabQuizTimeWeightAdmin" in page_ui:
         errors.append(
-            f"{PAGE.relative_to(ROOT)} 或 {ADMIN_ACTIONS.relative_to(ROOT)}: "
-            "管理员页须 POST 保存权重（缺「set_quiz_time_weight」）"
+            f"{HEADER.relative_to(ROOT)}: 禁止再挂 JpVocabQuizTimeWeightAdmin"
+        )
+    if "set_quiz_time_weight" in page_ui + admin_actions:
+        errors.append(
+            f"{PAGE.relative_to(ROOT)} / {ADMIN_ACTIONS.relative_to(ROOT)}: "
+            "禁止再 POST 保存权重"
         )
     must_contain(PAGE, "quizTimeWeight={quizTimeWeight}", "表格/卡片须传入权重")
+    must_contain(RULE, "set_quiz_time_weight", "规则须禁止再开放调节")
+    must_contain(RULE, "JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT", "规则须写明固定默认权重")
 
     must_contain(CACHE, "quiz_time_weight", "本地缓存须保留权重")
     must_contain(RISK, "jpVocabFinalQuizScore", "排行图须按 final_score")

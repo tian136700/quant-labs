@@ -71,8 +71,6 @@ import {
 } from "@/lib/jp-vocab-daily-quiz-style";
 import {
   JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
-  JP_VOCAB_QUIZ_TIME_WEIGHT_KEY,
-  normalizeJpVocabQuizTimeWeight,
 } from "@/lib/jp-vocab-quiz-score";
 import {
   JP_VOCAB_TEACHER_VISIBLE_DEFAULT,

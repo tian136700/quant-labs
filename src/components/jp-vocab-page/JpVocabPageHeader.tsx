@@ -5,7 +5,6 @@ import type { JpVocabDailyQuizProgress } from "@/lib/jp-vocab-daily-quiz-progres
 
 type JpVocabPageHeaderProps = {
   isAdminMode: boolean;
-  isTeacherMode: boolean;
   teacherShareUiEnabled: boolean;
   canOperate: boolean;
   checking: boolean;
@@ -25,7 +24,6 @@ type JpVocabPageHeaderProps = {
 
 export function JpVocabPageHeader({
   isAdminMode,
-  isTeacherMode,
   teacherShareUiEnabled,
   canOperate,
   checking,
