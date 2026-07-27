@@ -15,7 +15,7 @@ import {
 export type JpVocabMissingUsageRow = {
   id: number;
   word: string;
-  kind: string;
+  kind: "grammar";
   reading: string | null;
   meaning: string | null;
   /** 已有用法时仍可成对重写（缺例句） */
