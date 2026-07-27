@@ -1,4 +1,5 @@
 import { resolveLessonTeacherRateFields } from "@/lib/jp-lesson-teacher-rate";
+import { jpLessonTeacherSearchAliasTerms } from "@/lib/jp-lesson-teacher-default-duration";
 import type { JpLessonTeacher } from "@/lib/types";
 
 function normalizeSearchTokens(query: string): string[] {
@@ -36,6 +37,7 @@ export function lessonTeacherSearchHaystack(
     teacher.name,
     name,
     resolved.name,
+    ...jpLessonTeacherSearchAliasTerms(name),
     teacher.lesson_count != null ? String(teacher.lesson_count) : "",
     resolved.hourly_rate != null ? String(resolved.hourly_rate) : "",
     resolved.lesson_minutes != null ? String(resolved.lesson_minutes) : "",

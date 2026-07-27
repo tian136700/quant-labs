@@ -102,15 +102,27 @@ export function JpLessonNextClassEditModal({
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
   const saveProgress = useSaveProgressBar(saving);
 
-  const defaultDuration = useMemo(() => {
-    if (!lesson) return "";
-    const selected = (lesson.teacher_ids ?? [])
+  const selectedTeachers = useMemo(() => {
+    if (!lesson) return [] as JpLessonTeacher[];
+    return (lesson.teacher_ids ?? [])
       .map((id) => teachers.find((teacher) => teacher.id === id))
       .filter((teacher): teacher is JpLessonTeacher => teacher != null);
-    return formatJpLessonDefaultDurationFormValue(
-      resolveJpLessonDefaultDurationFromTeachers(selected)
-    );
   }, [lesson, teachers]);
+
+  const defaultDuration = useMemo(
+    () =>
+      formatJpLessonDefaultDurationFormValue(
+        resolveJpLessonDefaultDurationFromTeachers(selectedTeachers)
+      ),
+    [selectedTeachers]
+  );
+
+  const teacherJumpLabel = useMemo(() => {
+    if (!selectedTeachers.length) return "去设置老师";
+    const names = selectedTeachers.map((teacher) => teacher.name.trim()).filter(Boolean);
+    if (!names.length) return "去设置老师";
+    return `上课老师：${names.join("、")}（点击更改）`;
+  }, [selectedTeachers]);
 
   const timeOptions = useMemo(
     () =>
@@ -132,16 +144,20 @@ export function JpLessonNextClassEditModal({
 
   useEffect(() => {
     if (!open || !lesson) return;
-    const selected = (lesson.teacher_ids ?? [])
-      .map((id) => teachers.find((teacher) => teacher.id === id))
-      .filter((teacher): teacher is JpLessonTeacher => teacher != null);
-    const duration = formatJpLessonDefaultDurationFormValue(
-      resolveJpLessonDefaultDurationFromTeachers(selected)
-    );
-    setRows(rowsFromLesson(lesson, duration));
-    // 仅在打开/切换课程时灌草稿；老师列表晚到不打断正在编辑的预约
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers snapshot at open
+    setRows(rowsFromLesson(lesson, defaultDuration));
+    // 仅在打开/切换课程时灌草稿；老师列表晚到用下面 effect 补空时长
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers/defaultDuration snapshot at open
   }, [open, lesson?.id]);
+
+  // 老师列表异步到达后，只填仍为空的时长，不覆盖用户已选
+  useEffect(() => {
+    if (!open || !defaultDuration) return;
+    setRows((prev) =>
+      prev.map((row) =>
+        row.duration.trim() ? row : { ...row, duration: defaultDuration }
+      )
+    );
+  }, [open, defaultDuration]);
 
   const updateRow = (key: string, patch: Partial<Omit<ScheduleRow, "key">>) => {
     setRows((prev) =>
@@ -233,8 +249,14 @@ export function JpLessonNextClassEditModal({
               disabled={saving}
               onClick={onEditTeachers}
             >
-              去设置老师
+              {teacherJumpLabel}
             </button>
+            {defaultDuration ? (
+              <p className="jp-lesson-next-class-teacher-duration-hint">
+                新预约默认时长：
+                {defaultDuration === "60" ? "1小时" : `${defaultDuration}分钟`}
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -459,6 +481,13 @@ export function JpLessonNextClassEditModal({
 
         .jp-lesson-next-class-teacher-jump-btn:hover:not(:disabled) {
           background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+        }
+
+        .jp-lesson-next-class-teacher-duration-hint {
+          margin: 0.4rem 0 0;
+          font-size: 0.75rem;
+          line-height: 1.4;
+          color: var(--muted);
         }
 
         .jp-lesson-next-class-rows {

@@ -40,6 +40,16 @@ def main() -> int:
             errors.append(
                 f"{HELPER.relative_to(ROOT)}: expected {name}: {minutes} in known map"
             )
+    if "jpLessonTeacherSearchAliasTerms" not in helper:
+        errors.append(
+            f"{HELPER.relative_to(ROOT)}: missing 秦→琴 search alias helper"
+        )
+
+    search = (ROOT / "src/lib/lesson-teacher-search.ts").read_text(encoding="utf-8")
+    if "jpLessonTeacherSearchAliasTerms" not in search:
+        errors.append(
+            "src/lib/lesson-teacher-search.ts: must include 秦老师 aliases for 琴老师"
+        )
 
     next_class = NEXT_CLASS.read_text(encoding="utf-8")
     if "resolveJpLessonDefaultDurationFromTeachers" not in next_class:
@@ -48,6 +58,14 @@ def main() -> int:
         )
     if "teachers?" not in next_class and "teachers =" not in next_class:
         errors.append(f"{NEXT_CLASS.relative_to(ROOT)}: must accept teachers prop")
+    if "row.duration.trim()" not in next_class:
+        errors.append(
+            f"{NEXT_CLASS.relative_to(ROOT)}: must late-fill empty durations when teachers load"
+        )
+    if "teacherJumpLabel" not in next_class:
+        errors.append(
+            f"{NEXT_CLASS.relative_to(ROOT)}: must show selected teacher names on jump button"
+        )
 
     modals = MODALS.read_text(encoding="utf-8")
     if "teachers={teachers}" not in modals or "JpLessonNextClassEditModal" not in modals:

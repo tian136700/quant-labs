@@ -24,6 +24,19 @@ export function jpLessonTeacherBaseNameForDuration(name: string): string {
   return base.replace(/\d+$/u, "").trim() || base;
 }
 
+/** 搜索别名：口语「秦老师」对应库里的「琴老师」 */
+export const JP_LESSON_TEACHER_SEARCH_ALIASES: Readonly<
+  Record<string, readonly string[]>
+> = {
+  琴老师: ["秦老师", "秦"],
+};
+
+export function jpLessonTeacherSearchAliasTerms(name: string): string[] {
+  const base = jpLessonTeacherBaseNameForDuration(name);
+  if (!base) return [];
+  return [...(JP_LESSON_TEACHER_SEARCH_ALIASES[base] ?? [])];
+}
+
 export function knownJpLessonTeacherDefaultDurationMinutes(
   name: string
 ): number | null {
