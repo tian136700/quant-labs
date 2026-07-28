@@ -35,6 +35,10 @@ import {
   jpVocabStudyPath,
 } from "@/lib/locale-path";
 import { jpVocabTodayCheckStats } from "@/lib/jp-vocab-daily-check";
+import {
+  isVocabTeacherAccountActiveForRefresh,
+  VOCAB_TEACHER_SOFT_REFRESH_MS,
+} from "@/lib/vocab-poll-throttle";
 import { markJpVocabTeacherDailyCompleteDismissed } from "@/lib/jp-vocab-daily-complete-dismiss";
 import { filterJpVocabTodayWeakWords } from "@/lib/jp-vocab-export-select";
 import {
@@ -232,6 +236,16 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     void syncTeacherVisibleLimitFromServer();
     void loadWords({ force: true });
   }, [loadWords, syncTeacherVisibleLimitFromServer]);
+
+  // 账号正常：约 30 分钟软刷新今日抽查数量/词表；禁用账号不刷新
+  useEffect(() => {
+    if (!isTeacherMode) return;
+    if (!isVocabTeacherAccountActiveForRefresh(user)) return;
+    const timer = window.setInterval(() => {
+      handleRefreshWords();
+    }, VOCAB_TEACHER_SOFT_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [isTeacherMode, user, handleRefreshWords]);
 
   const { shareRequests, showShareRequestModal, dismissShareRequests } =
     useJpVocabShareRequests({

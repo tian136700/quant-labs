@@ -34,6 +34,8 @@ def main() -> int:
             "isVocabPollLowFreqUsername",
             "ensureVocabPollTodayHasClassFetched",
             "todayHasClass",
+            "VOCAB_TEACHER_SOFT_REFRESH_MS = 30 * 60 * 1000",
+            "isVocabTeacherAccountActiveForRefresh",
         ],
         "helper",
     )
@@ -80,13 +82,11 @@ def main() -> int:
         ROOT / "src/hooks/useEnVocabPageSync.ts",
         ROOT / "src/hooks/useJpVocabTeacherQuiz.ts",
         ROOT / "src/hooks/useEnVocabTeacherQuiz.ts",
-        ROOT / "src/components/JpVocabStudyPage.tsx",
-        ROOT / "src/components/EnVocabStudyPage.tsx",
         ROOT / "src/components/KoPronPage.tsx",
         ROOT / "src/components/KoPronStudyPage.tsx",
     ):
         text = path.read_text(encoding="utf-8")
-        n = text.count("import { resolveVocabPollIntervalMs }")
+        n = len(re.findall(r"import \{[^}]*resolveVocabPollIntervalMs[^}]*\}", text))
         if n > 1:
             errors.append(
                 f"{path.relative_to(ROOT)}: resolveVocabPollIntervalMs imported {n} times "
@@ -110,18 +110,18 @@ def main() -> int:
         (
             ROOT / "src/components/JpVocabPage.tsx",
             [
-                "useVocabTeacherQuizSyncPollActive",
-                "teacherQuizIdleRef",
-                "enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive",
+                "enableBackgroundSyncPoll: false",
+                "VOCAB_TEACHER_SOFT_REFRESH_MS",
+                "isVocabTeacherAccountActiveForRefresh",
             ],
             "jp-page-poll-gate",
         ),
         (
             ROOT / "src/components/EnVocabPage.tsx",
             [
-                "useVocabTeacherQuizSyncPollActive",
-                "teacherQuizIdleRef",
-                "enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive",
+                "enableBackgroundSyncPoll: false",
+                "VOCAB_TEACHER_SOFT_REFRESH_MS",
+                "isVocabTeacherAccountActiveForRefresh",
             ],
             "en-page-poll-gate",
         ),
@@ -204,12 +204,12 @@ def main() -> int:
         ),
         (
             ROOT / "src/components/JpVocabStudyPage.tsx",
-            ["resolveVocabPollIntervalMs", "username: user?.username"],
+            ["visibilitychange", 'method: "POST"', "teacher-quiz-live"],
             "jp-study",
         ),
         (
             ROOT / "src/components/EnVocabStudyPage.tsx",
-            ["resolveVocabPollIntervalMs", "username: user?.username"],
+            ["visibilitychange", 'method: "POST"', "teacher-quiz-live"],
             "en-study",
         ),
         (

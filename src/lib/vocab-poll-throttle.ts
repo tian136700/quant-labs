@@ -34,6 +34,19 @@ export const VOCAB_POLL_LOW_FREQ_MS = 60_000; // 1 min
 /** 测试账号后台标签 */
 export const VOCAB_POLL_LOW_FREQ_HIDDEN_MS = 180_000; // 3 min
 
+/** 老师端账号正常时：软刷新词表 / 今日抽查数量（不常驻 5s sync） */
+export const VOCAB_TEACHER_SOFT_REFRESH_MS = 30 * 60 * 1000; // 30 min
+
+/** 老师账号是否可做后台刷新（禁用则不做任何定时刷新） */
+export function isVocabTeacherAccountActiveForRefresh(user: {
+  disabled?: number | boolean | null;
+} | null | undefined): boolean {
+  if (!user) return false;
+  const d = user.disabled;
+  if (d === true || d === 1 || d === "1") return false;
+  return true;
+}
+
 export function beijingHour(now = new Date()): number {
   const raw = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Shanghai",

@@ -12,6 +12,10 @@ import {
 } from "@/lib/locale-path";
 import { EN_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/en-vocab-share-ui";
 import {
+  isVocabTeacherAccountActiveForRefresh,
+  VOCAB_TEACHER_SOFT_REFRESH_MS,
+} from "@/lib/vocab-poll-throttle";
+import {
   JP_VOCAB_DEFAULT_STAT_SORT,
   enVocabPriorityLabel,
   sortEnVocabWordsForDisplay,
@@ -254,6 +258,16 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const handleRefreshWords = useCallback(() => {
     void loadWords({ force: true });
   }, [loadWords]);
+
+  // 账号正常：约 30 分钟软刷新今日抽查数量/词表；禁用账号不刷新
+  useEffect(() => {
+    if (!isTeacherMode) return;
+    if (!isVocabTeacherAccountActiveForRefresh(user)) return;
+    const timer = window.setInterval(() => {
+      handleRefreshWords();
+    }, VOCAB_TEACHER_SOFT_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [isTeacherMode, user, handleRefreshWords]);
 
   useEffect(() => {
     editingRemarksIdRef.current = editingRemarksWord?.id ?? null;

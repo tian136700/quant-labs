@@ -6,7 +6,7 @@ import {
   JP_VOCAB_POLL_HIDDEN_MS,
   EN_VOCAB_QUIZ_LIVE_POLL_MS,
 } from "@/lib/en-vocab-sync";
-import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
+import { resolveVocabPollIntervalMs, isVocabTeacherAccountActiveForRefresh } from "@/lib/vocab-poll-throttle";
 import {
   putVocabTeacherQuizLiveWord,
   VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS,
@@ -43,7 +43,7 @@ import { shouldShowEnVocabTeacherQuizIntro } from "@/components/EnVocabTeacherQu
 import type { EnVocabLevel, EnVocabWord } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
 
-type AuthUser = { id: number; username?: string };
+type AuthUser = { id: number; username?: string; disabled?: number | boolean | null };
 
 export function useEnVocabTeacherQuiz(options: {
   locale: Locale;
@@ -442,7 +442,12 @@ export function useEnVocabTeacherQuiz(options: {
   }, []);
 
   useEffect(() => {
-    if (!canOperate || !showQuizFlashcard || !quizFlashcardWordId) {
+    if (
+      !canOperate ||
+      !isVocabTeacherAccountActiveForRefresh(user) ||
+      !showQuizFlashcard ||
+      !quizFlashcardWordId
+    ) {
       setStudentPeekedCurrentWord(false);
       return;
     }
@@ -503,7 +508,7 @@ export function useEnVocabTeacherQuiz(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, showQuizFlashcard, quizFlashcardWordId, setSharedTodayWordIds, teacherQuizPollIdle]);
+  }, [canOperate, user, showQuizFlashcard, quizFlashcardWordId, setSharedTodayWordIds, teacherQuizPollIdle]);
 
   return {
     quizSession,
