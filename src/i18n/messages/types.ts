@@ -119,6 +119,24 @@ export type Messages = {
       filterUnregistered: string;
       filterSearch: string;
     };
+    traffic: {
+      heading: string;
+      refresh: string;
+      dateLabel: string;
+      quotaLabel: string;
+      quotaUsed: string;
+      topRoutes: string;
+      topUsers: string;
+      route: string;
+      kind: string;
+      kindApi: string;
+      kindPage: string;
+      hits: string;
+      username: string;
+      unregistered: string;
+      empty: string;
+      loadFailed: string;
+    };
     feedback: {
       heading: string;
       refresh: string;

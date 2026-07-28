@@ -2,6 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { LS_LOCALE } from "@/i18n/messages";
 import { LOCALE_HEADER, parseLocale } from "@/lib/locale-detect";
 import { enableAnalyticsDevStore } from "@/lib/analytics-db";
+import { enableWorkerTrafficDevStore } from "@/lib/worker-traffic-db";
 import { enableEtrAuthDevStore } from "@/lib/etr-auth-db";
 import { enableEtrLoginGuardDevStore } from "@/lib/etr-login-guard";
 import { enableEtrLoginLinkDevStore } from "@/lib/etr-login-link-db";
@@ -77,6 +78,7 @@ export async function getCloudflareEnv(): Promise<CloudflareEnv> {
   enableStoreReviewDevStore();
   enableFeedbackDevStore();
   enableAnalyticsDevStore();
+  enableWorkerTrafficDevStore();
   enableJpVocabDevStore();
   enableJpLessonDevStore();
   enableJpLessonManualScheduleDevStore();

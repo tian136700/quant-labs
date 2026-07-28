@@ -19,6 +19,7 @@ import {
   trendBlogPublicPath,
   trendBlogSubdomainHomePath,
 } from "@/lib/trend-blog-host";
+import { maybeRecordWorkerTraffic } from "@/lib/worker-traffic-middleware";
 
 function nextWithLocale(request: NextRequest): NextResponse {
   const locale = resolveServerLocale(request);
@@ -154,6 +155,8 @@ function redirectStoreReviewToFoodSubdomain(
 }
 
 export function middleware(request: NextRequest) {
+  maybeRecordWorkerTraffic(request);
+
   // Global maintenance switch:
   // MAINTENANCE_MODE === "1" → normal service
   // MAINTENANCE_MODE === "0" → maintenance mode (short‑circuit everything)

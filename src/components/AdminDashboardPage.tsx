@@ -24,6 +24,7 @@ import {
   type AdminVisitSortState,
 } from "@/components/admin-dashboard/AdminVisitSortTh";
 import { AdminListPagination } from "@/components/admin-dashboard/AdminListPagination";
+import { AdminWorkerTrafficPanel } from "@/components/admin-dashboard/AdminWorkerTrafficPanel";
 
 const VISIT_PAGE_SIZE_DEFAULT = 50;
 const VISIT_PAGE_SIZE_STORAGE_KEY = "admin_visits_page_size";
@@ -294,6 +295,8 @@ export function AdminDashboardPage() {
       </div>
 
       {status ? <p className={statusClass}>{status}</p> : null}
+
+      <AdminWorkerTrafficPanel />
 
       <section className="section etr-panel">
         <div className="etr-history-head admin-visits-head">

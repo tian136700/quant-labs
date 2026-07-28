@@ -1,0 +1,54 @@
+/** Cloudflare Workers 免费档日请求上限（多子域共用） */
+export const WORKER_DAILY_REQUEST_LIMIT = 100_000;
+
+export type WorkerTrafficKind = "api" | "page";
+
+const STATIC_SKIP = new Set([
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+]);
+
+const PREFIX_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^\/jp-vocab\/ref\/[^/]+$/, "/jp-vocab/ref/[refKey]"],
+  [/^\/en-vocab\/ref\/[^/]+$/, "/en-vocab/ref/[refKey]"],
+  [/^\/api\/jp-vocab\/ref\/[^/]+$/, "/api/jp-vocab/ref/[refKey]"],
+  [/^\/api\/en-vocab\/ref\/[^/]+$/, "/api/en-vocab/ref/[refKey]"],
+  [/^\/sign-in\/[^/]+\/[^/]+$/, "/sign-in/[username]/[slug]"],
+  [/^\/sign-in\/[^/]+$/, "/sign-in/[slug]"],
+  [/^\/zh\/sign-in\/[^/]+\/[^/]+$/, "/zh/sign-in/[username]/[slug]"],
+  [/^\/zh\/sign-in\/[^/]+$/, "/zh/sign-in/[slug]"],
+];
+
+function normalizeSegment(segment: string): string {
+  if (!segment) return segment;
+  if (/^\d+$/.test(segment)) return "[id]";
+  if (/^[a-f0-9-]{16,}$/i.test(segment)) return "[id]";
+  if (segment.length > 32) return "[id]";
+  return segment;
+}
+
+/** 归一化路径，便于按接口/页面聚合统计 */
+export function normalizeWorkerTrafficRoute(pathname: string): string {
+  const raw = (pathname || "/").split("?")[0] || "/";
+  for (const [pattern, replacement] of PREFIX_REPLACEMENTS) {
+    if (pattern.test(raw)) return replacement;
+  }
+
+  const parts = raw.split("/").map((segment) => normalizeSegment(segment));
+  const joined = parts.join("/") || "/";
+  return joined.length > 256 ? joined.slice(0, 256) : joined;
+}
+
+export function workerTrafficKind(pathname: string): WorkerTrafficKind {
+  return pathname.startsWith("/api/") ? "api" : "page";
+}
+
+export function shouldCountWorkerTraffic(pathname: string): boolean {
+  if (!pathname) return false;
+  if (STATIC_SKIP.has(pathname)) return false;
+  if (pathname.startsWith("/_next/")) return false;
+  // 页面浏览已由 visit_logs + ActivityTracker 记录，避免重复噪声
+  if (pathname === "/api/analytics/track") return false;
+  return true;
+}

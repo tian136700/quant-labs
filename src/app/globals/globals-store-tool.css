@@ -500,3 +500,66 @@
   min-width: 9rem;
   max-width: 14rem;
 }
+
+.admin-traffic-panel {
+  margin-bottom: 1.25rem;
+}
+
+.admin-traffic-date-input {
+  @apply bg-bg border border-border rounded-input text-text;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+  min-height: 2.25rem;
+}
+
+.admin-traffic-quota {
+  margin: 0.75rem 0 1rem;
+}
+
+.admin-traffic-quota-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.admin-traffic-quota-track {
+  height: 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  overflow: hidden;
+}
+
+.admin-traffic-quota-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--rise);
+  transition: width 0.25s ease;
+}
+
+.admin-traffic-quota-fill--warn {
+  background: #e8a317;
+}
+
+.admin-traffic-quota-fill--critical {
+  background: var(--rise);
+}
+
+.admin-traffic-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.admin-traffic-block h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+@media (max-width: 900px) {
+  .admin-traffic-grid {
+    grid-template-columns: 1fr;
+  }
+}
