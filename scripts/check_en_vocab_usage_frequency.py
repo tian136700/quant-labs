@@ -33,6 +33,8 @@ def main() -> None:
         fail("prompt/label must mention 出现频次")
     if "[8]" not in ai and "[9]" not in ai:
         fail("format_example / prompt must show [score] sample")
+    if "同一核心义项" not in ai:
+        fail("usage prompt must tell model to merge near-duplicate senses")
 
     # format_example 须带分值、禁考试标签
     m = re.search(r'format_example:\s*\n?\s*"((?:\\.|[^"\\])*)"', ai)
@@ -75,6 +77,8 @@ def main() -> None:
         fail("online batch must normalize_usage (string or array)")
     if "frequency score" not in online.lower() and "[1]-[10]" not in online:
         fail("online SYSTEM/prompt must require frequency scores")
+    if "near-duplicate" not in online and "同一义项" not in online:
+        fail("online prompt must forbid splitting one core sense into duplicate lines")
 
     edit = read("src/components/EnVocabEditModal.tsx")
     if "[8]" not in edit:

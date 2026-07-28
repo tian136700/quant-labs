@@ -68,6 +68,9 @@ SYSTEM = (
     "Usage: Chinese numbered 1. 2. …; EACH line MUST include frequency score [1]-[10] "
     "right after the number (e.g. '1. [8] 动词：…'); 10=most common sense for that word; "
     "pick academic-exam-frequent uses; "
+    "if the word has only one real high-frequency sense, output only ONE usage line; "
+    "do NOT split one core sense into two near-duplicate lines just by rephrasing, narrowing the scene, "
+    "or restating the same preposition/verb meaning; merge similar paraphrases into one line. "
     "NEVER write exam brand names (IELTS/TOEFL/雅思/托福 etc.) in usage text. "
     "Examples: example_sentences MUST be a plain string of alternating "
     "English line + 译文：Chinese line (NOT a JSON/Python array of objects); "
@@ -459,7 +462,7 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 - reading: 美式 IPA，形如 /həˈloʊ/
 - meaning: 中文释义，分号分隔，最多 3 义
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
-- usage: 编号中文用法；每条必须带出现频次 [1]～[10]（10=该词最常见用法），形如「1. [8] 介词：…」；组数按真实常用义项（1 种就 1 条，禁止硬凑 2 条）；选题按学术考试高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","frequency":8}},…]（frequency 必填 1～10）
+- usage: 编号中文用法；每条必须带出现频次 [1]～[10]（10=该词最常见用法），形如「1. [8] 介词：…」；组数按真实常用义项（1 种就 1 条，禁止硬凑 2 条）；若两个候选用法本质上还是同一义项的近义改写，必须合并成 1 条；选题按学术考试高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","frequency":8}},…]（frequency 必填 1～10）
 - example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{{"sentence":...}}] 这类结构
 
 只输出 JSON。"""
