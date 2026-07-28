@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -16,6 +17,23 @@ from typing import Any
 
 DEFAULT_BASE = "https://tokken.cc"
 DEFAULT_MODEL = "claude-sonnet-4-6"
+
+
+def build_ssl_context() -> ssl.SSLContext | None:
+    """与 en_vocab_fill_common 保持一致：优先显式 CA，再回退 certifi。"""
+    cafile = os.environ.get("SSL_CERT_FILE", "").strip()
+    capath = os.environ.get("SSL_CERT_DIR", "").strip()
+    if cafile or capath:
+        return ssl.create_default_context(cafile=cafile or None, capath=capath or None)
+    try:
+        import certifi  # type: ignore
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
+
+
+_SSL = build_ssl_context()
 
 
 def _read_dotenv(path: Path) -> dict[str, str]:
@@ -140,7 +158,7 @@ def call_anthropic(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=_SSL) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as err:
         detail = err.read().decode("utf-8", errors="replace")[:400]

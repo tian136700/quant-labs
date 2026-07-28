@@ -57,29 +57,9 @@ FILL_TASKS: tuple[dict[str, str], ...] = (
         "title": "日语读音补全",
     },
     {
-        "label": "com.infoquests.en-vocab-fill-examples",
-        "id": "en-vocab-fill-examples",
-        "title": "英语例句补全",
-    },
-    {
-        "label": "com.infoquests.en-vocab-fill-meaning",
-        "id": "en-vocab-fill-meaning",
-        "title": "英语释义补全",
-    },
-    {
-        "label": "com.infoquests.en-vocab-fill-pos",
-        "id": "en-vocab-fill-pos",
-        "title": "英语词性补全",
-    },
-    {
-        "label": "com.infoquests.en-vocab-fill-reading",
-        "id": "en-vocab-fill-reading",
-        "title": "英语音标补全",
-    },
-    {
-        "label": "com.infoquests.en-vocab-fill-usage",
-        "id": "en-vocab-fill-usage",
-        "title": "英语用法补全",
+        "label": "com.infoquests.en-vocab-fill",
+        "id": "en-vocab-fill",
+        "title": "英语整词补全",
     },
 )
 
