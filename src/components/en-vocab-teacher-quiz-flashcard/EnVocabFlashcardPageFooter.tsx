@@ -47,7 +47,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">
             {isStudy
-              ? "老师勾选"
+              ? "熟悉程度（可改成对自己更严；仅本机，不同步老师）"
               : previewMode
                 ? usePerUsageLevels
                   ? "预览模式：用法旁熟悉程度仅为展示，不会保存"
@@ -79,7 +79,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
                   {LEVELS.map((lv) => {
                     const checked = selected === lv.key;
                     const levelDisabled =
-                      previewMode || isStudy || reviewLocked || isSaving || !canOperate;
+                      previewMode || reviewLocked || isSaving || (!isStudy && !canOperate);
                     return (
                       <button
                         key={lv.key}
@@ -87,7 +87,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
                         className={`jp-vocab-level-opt${
                           checked ? " is-checked" : ""
                         }${
-                          reviewLocked || previewMode || isStudy
+                          reviewLocked || previewMode
                             ? " jp-vocab-level-opt--locked"
                             : ""
                         }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
@@ -97,7 +97,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
                         aria-pressed={checked}
                         title={
                           isStudy
-                            ? "老师已勾选的熟悉程度"
+                            ? "可改成对自己更严；只保存在本机，不会同步给老师"
                             : previewMode
                               ? "预览模式，勾选不会保存"
                               : reviewLocked

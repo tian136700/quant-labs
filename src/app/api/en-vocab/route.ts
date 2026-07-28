@@ -21,7 +21,6 @@ import {
 } from "@/lib/en-vocab-daily-quiz-style";
 import { isEnVocabLevel } from "@/lib/en-vocab-review";
 import { trackEnVocabTeacherQuizDayAfterReview } from "@/lib/en-vocab-teacher-quiz-day";
-import { EN_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/en-vocab-share-ui";
 import type { EnVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -167,7 +166,8 @@ export async function POST(request: Request) {
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
     const shareOpts = {
-      shareToStudy: EN_VOCAB_TEACHER_SHARE_ENABLED,
+      // 用法齐了 / 整词勾选后整卡同步到学生「今日背英语单词」
+      shareToStudy: true as const,
       sharedBy: user?.username ?? "",
     };
 

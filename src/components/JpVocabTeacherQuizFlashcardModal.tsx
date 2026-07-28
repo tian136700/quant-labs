@@ -716,7 +716,7 @@ export function JpVocabTeacherQuizFlashcardModal({
         <div className="jp-vocab-teacher-quiz__level">
           <p className="jp-vocab-teacher-quiz__level-label" role="note">
             {isStudy
-              ? "老师勾选"
+              ? "熟悉程度（可改成对自己更严；仅本机，不同步老师）"
               : isCoach
                 ? "熟悉程度（带读不可勾选，与抽问记录一致）"
                 : previewMode
@@ -729,7 +729,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                 {LEVELS.map((lv) => {
                   const checked = selected === lv.key;
                   const levelDisabled =
-                    previewMode || isStudy || isCoach || reviewLocked || isSaving;
+                    previewMode || isCoach || reviewLocked || isSaving;
                   return (
                     <button
                       key={lv.key}
@@ -737,7 +737,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                       className={`jp-vocab-level-opt${
                         checked ? " is-checked" : ""
                       }${
-                        reviewLocked || previewMode || isStudy || isCoach
+                        reviewLocked || previewMode || isCoach
                           ? " jp-vocab-level-opt--locked"
                           : ""
                       }${lv.key === "very" ? " jp-vocab-level-opt--very" : ""}${
@@ -747,7 +747,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                       aria-pressed={checked}
                       title={
                         isStudy
-                          ? "老师已勾选的熟悉程度"
+                          ? "可改成对自己更严；只保存在本机，不会同步给老师"
                           : isCoach
                             ? "带读卡片不可勾选熟悉程度"
                             : previewMode

@@ -31,6 +31,7 @@ import { JpVocabRefPreviewModal } from "@/components/JpVocabRefPreviewModal";
 import { resolveJpVocabRefForPreview } from "@/lib/jp-vocab-ref-shared";
 import { JpVocabRemarksViewModal } from "@/components/JpVocabRemarksViewModal";
 import { JpVocabTeacherQuizFlashcardModal } from "@/components/JpVocabTeacherQuizFlashcardModal";
+import { useJpVocabStudyPersonalLevels } from "@/hooks/useVocabStudyPersonalLevels";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { subscribeJpVocabSharedUpdated } from "@/lib/jp-vocab-shared-notify";
 import {
@@ -69,6 +70,7 @@ export function JpVocabStudyPage() {
   const { locale } = useI18n();
   const { user, checking, canAccessJpVocab, canAccessJpVocabStudy, isAdmin, openAuthPanel } =
     useEtrAuth();
+  const { personalLevels, setPersonalLevel } = useJpVocabStudyPersonalLevels(user?.id);
   const canOperate = canAccessJpVocab;
   const canViewStudy = canAccessJpVocabStudy;
   /** 学生与管理员可见；日语老师不可进复习页 */
@@ -661,8 +663,12 @@ export function JpVocabStudyPage() {
       const level = resolveJpVocabSharedTeacherLevel(flashcardItem.word);
       if (level) out[flashcardItem.word_id] = level;
     }
+    // 学生自用覆盖（本机）；不写回老师抽查统计
+    for (const [id, level] of Object.entries(personalLevels)) {
+      out[Number(id)] = level;
+    }
     return out;
-  }, [items, flashcardItem]);
+  }, [items, flashcardItem, personalLevels]);
 
   const studyDailySeqByWordId = useMemo(() => {
     const map = new Map<number, number>();
@@ -858,7 +864,7 @@ export function JpVocabStudyPage() {
         shareUiEnabled={false}
         onClose={() => setFlashcardItem(null)}
         onComplete={() => setFlashcardItem(null)}
-        onSelectLevel={() => {}}
+        onSelectLevel={(wordId, level) => setPersonalLevel(wordId, level)}
         onNavigate={() => {}}
         onOpenRef={openRefPreview}
         onViewRemarks={openRemarksWord}

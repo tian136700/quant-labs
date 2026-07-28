@@ -23,7 +23,6 @@ import {
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
 import { trackJpVocabTeacherQuizDayAfterReview } from "@/lib/jp-vocab-teacher-quiz-day";
-import { JP_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -186,7 +185,8 @@ export async function POST(request: Request) {
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
     const result = await recordJpVocabReview(env.DB, wordId, level, {
-      shareToStudy: JP_VOCAB_TEACHER_SHARE_ENABLED,
+      // 老师勾选熟悉程度后整卡同步到学生「今日单词」（与手动「发给学生」按钮无关）
+      shareToStudy: true,
       sharedBy: user?.username ?? "",
     });
 

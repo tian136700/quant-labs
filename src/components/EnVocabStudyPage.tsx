@@ -23,6 +23,7 @@ import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
 import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQuizFlashcardModal";
+import { useEnVocabStudyPersonalLevels } from "@/hooks/useVocabStudyPersonalLevels";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import {
   EN_VOCAB_STUDY_POLL_HIDDEN_MS,
@@ -63,6 +64,12 @@ export function EnVocabStudyPage() {
     isAdmin,
     openAuthPanel,
   } = useEtrAuth();
+  const {
+    personalLevels,
+    personalUsageLevels,
+    setPersonalLevel,
+    setPersonalUsageLevelsForWord,
+  } = useEnVocabStudyPersonalLevels(user?.id);
   const canOperate = canAccessEnVocab;
   const canViewStudy = canAccessEnVocabStudy;
   /** 学生自行查看老师当前抽查词（对齐日语 study peek） */
@@ -466,8 +473,11 @@ export function EnVocabStudyPage() {
     if (flashcardItem?.level) {
       out[flashcardItem.word_id] = flashcardItem.level;
     }
+    for (const [id, level] of Object.entries(personalLevels)) {
+      out[Number(id)] = level;
+    }
     return out;
-  }, [items, flashcardItem]);
+  }, [items, flashcardItem, personalLevels]);
 
   const studySessionUsageLevels = useMemo(() => {
     const out: Record<number, Array<EnVocabLevel | null | undefined>> = {};
@@ -477,8 +487,11 @@ export function EnVocabStudyPage() {
     };
     for (const item of items) apply(item);
     if (flashcardItem) apply(flashcardItem);
+    for (const [id, levels] of Object.entries(personalUsageLevels)) {
+      out[Number(id)] = levels;
+    }
     return out;
-  }, [items, flashcardItem]);
+  }, [items, flashcardItem, personalUsageLevels]);
 
   const studyDailySeqByWordId = useMemo(() => {
     const map = new Map<number, number>();
@@ -915,8 +928,10 @@ export function EnVocabStudyPage() {
         shareUiEnabled={false}
         onClose={() => setFlashcardItem(null)}
         onComplete={() => setFlashcardItem(null)}
-        onSelectLevel={() => {}}
-        onSelectUsageLevels={() => {}}
+        onSelectLevel={(wordId, level) => setPersonalLevel(wordId, level)}
+        onSelectUsageLevels={(wordId, levels) =>
+          setPersonalUsageLevelsForWord(wordId, levels)
+        }
         onNavigate={() => {}}
         onOpenRef={openRefPreview}
         onViewRemarks={openRemarksWord}

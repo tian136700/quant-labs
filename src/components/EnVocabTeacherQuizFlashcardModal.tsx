@@ -348,11 +348,11 @@ export function EnVocabTeacherQuizFlashcardModal({
     w.last_usage_levels
   );
   const usageLevelDisabled =
-    previewMode || isStudy || reviewLocked || isSaving || !canOperate;
+    previewMode || reviewLocked || isSaving || (!isStudy && !canOperate);
   const usageLevelDisabledReason = previewMode
     ? "预览模式：用法旁熟悉程度仅为展示，不会保存"
     : isStudy
-      ? "老师已勾选的熟悉程度"
+      ? "可改成对自己更严；只保存在本机，不会同步给老师"
       : reviewLocked
         ? "勾选已满 1 小时，无法再修改熟悉程度"
         : isSaving
