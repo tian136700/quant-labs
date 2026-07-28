@@ -5,6 +5,7 @@ import { AdminUserBindTeacherModal } from "@/components/AdminUserBindTeacherModa
 import { AdminUserEditModal } from "@/components/AdminUserEditModal";
 import { AdminUserLoginHistoryModal } from "@/components/AdminUserLoginHistoryModal";
 import { AdminUsersAddUserModal } from "@/components/admin-users-page/AdminUsersAddUserModal";
+import { AdminUsersTemplatePickModal } from "@/components/admin-users-page/AdminUsersTemplatePickModal";
 import { AdminUsersTemplatesModal } from "@/components/admin-users-page/AdminUsersTemplatesModal";
 import type { Locale } from "@/i18n/messages";
 import { rememberAdminUserPassword } from "@/lib/admin-user-credentials";
@@ -30,6 +31,8 @@ export type AdminUsersPageModalsProps = {
   addUserModalError: string;
   addUserDisplayedErrors: Record<string, string>;
   templatesOpen: boolean;
+  templatePickUser: UserRow | null;
+  templateCopyBusy: boolean;
   templates: LoginLinkTemplate[];
   templatesLoading: boolean;
   templateSaving: boolean;
@@ -57,6 +60,8 @@ export type AdminUsersPageModalsProps = {
   setAddUserModalError: (v: string) => void;
   createUser: (e: FormEvent) => void;
   setTemplatesOpen: (v: boolean) => void;
+  setTemplatePickUser: (v: UserRow | null) => void;
+  onPickTemplateForCopy: (template: LoginLinkTemplate) => void | Promise<void>;
   setSelectedTemplateId: (v: number | null) => void;
   setNewTemplateName: (v: string) => void;
   setNewTemplateBody: (v: string) => void;
@@ -87,6 +92,8 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
     addUserModalError,
     addUserDisplayedErrors,
     templatesOpen,
+    templatePickUser,
+    templateCopyBusy,
     templates,
     templatesLoading,
     templateSaving,
@@ -114,6 +121,8 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
     setAddUserModalError,
     createUser,
     setTemplatesOpen,
+    setTemplatePickUser,
+    onPickTemplateForCopy,
     setSelectedTemplateId,
     setNewTemplateName,
     setNewTemplateBody,
@@ -230,6 +239,23 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
         onSaveEditTemplate={saveEditTemplate}
         onCancelEditTemplate={cancelEditTemplate}
         onDeleteTemplate={deleteTemplate}
+      />
+
+      <AdminUsersTemplatePickModal
+        open={templatePickUser != null}
+        mounted={mounted}
+        locale={locale}
+        username={templatePickUser?.username ?? ""}
+        templates={templates}
+        preferredTemplateId={selectedTemplateId}
+        busy={templateCopyBusy}
+        onClose={() => {
+          if (templateCopyBusy) return;
+          setTemplatePickUser(null);
+        }}
+        onPick={(template) => {
+          void onPickTemplateForCopy(template);
+        }}
       />
 
       <AdminUserLoginHistoryModal

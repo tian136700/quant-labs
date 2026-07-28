@@ -89,6 +89,7 @@ function AdminUsersPageContent() {
   const [addUserModalError, setAddUserModalError] = useState("");
   const [addUserSubmitAttempted, setAddUserSubmitAttempted] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatePickUser, setTemplatePickUser] = useState<UserRow | null>(null);
   const [mounted, setMounted] = useState(false);
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
@@ -191,11 +192,6 @@ function AdminUsersPageContent() {
     rememberSelectedTemplateId(selectedTemplateId);
   }, [selectedTemplateId]);
 
-  const selectedTemplate =
-    selectedTemplateId != null
-      ? templates.find((item) => item.id === selectedTemplateId) ?? null
-      : null;
-
   const sortedUsers = useMemo(
     () => sortUsers(users, sortField, sortDirection),
     [users, sortDirection, sortField]
@@ -286,6 +282,7 @@ function AdminUsersPageContent() {
     toggleNeverDisable,
     createUser,
     generateLoginLink,
+    copyWithTemplate,
     copyUserCredentials,
     deleteUser,
     applyUserUpdate,
@@ -293,7 +290,6 @@ function AdminUsersPageContent() {
   } = useAdminUsersPageActions({
     locale,
     users,
-    selectedTemplate,
     selectedTemplateId,
     newUsername,
     newPassword,
@@ -338,10 +334,34 @@ function AdminUsersPageContent() {
   const anyModalOpen =
     addUserOpen ||
     templatesOpen ||
+    templatePickUser != null ||
     editingUser != null ||
     bindingUser != null ||
     loginHistoryUser != null;
   const addUserDisplayedErrors = addUserSubmitAttempted ? addUserSubmitErrors : addUserLiveErrors;
+  const templateCopyBusy =
+    templatePickUser != null &&
+    linkGeneratingId === templatePickUser.id &&
+    linkGeneratingWithTemplate;
+
+  const openCopyWithTemplatePick = useCallback(
+    (row: UserRow) => {
+      if (templates.length === 0) {
+        setStatus(
+          locale === "zh"
+            ? "请先在「管理登录模板」中添加至少一个模板"
+            : "Add at least one template under Manage templates first"
+        );
+        setStatusErr(true);
+        setTemplatesOpen(true);
+        return;
+      }
+      setStatus("");
+      setStatusErr(false);
+      setTemplatePickUser(row);
+    },
+    [locale, templates.length]
+  );
 
   // Hooks must stay above the auth early-return: logout / stale cache flip
   // checking→admin can change whether we hit that return, and React #310/#300
@@ -350,6 +370,11 @@ function AdminUsersPageContent() {
     if (!anyModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing) return;
+      if (templateCopyBusy) return;
+      if (templatePickUser != null) {
+        setTemplatePickUser(null);
+        return;
+      }
       if (loginHistoryUser != null) {
         setLoginHistoryUser(null);
         return;
@@ -373,7 +398,18 @@ function AdminUsersPageContent() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addUserOpen, templatesOpen, editingUser, bindingUser, loginHistoryUser, anyModalOpen]);
+  }, [
+    addUserOpen,
+    templatesOpen,
+    templatePickUser,
+    templateCopyBusy,
+    editingUser,
+    bindingUser,
+    loginHistoryUser,
+    anyModalOpen,
+    cancelEditTemplate,
+    closeAddUserModal,
+  ]);
 
   useEffect(() => {
     if (!anyModalOpen) return;
@@ -435,13 +471,12 @@ function AdminUsersPageContent() {
 
       <AdminUsersToolbar
         locale={locale}
-        selectedTemplate={selectedTemplate}
+        templateCount={templates.length}
         onOpenAddUser={openAddUserModal}
         onOpenTemplates={() => setTemplatesOpen(true)}
       />
 
-
-            <AdminUsersList
+      <AdminUsersList
         locale={locale}
         loading={loading}
         refreshing={refreshing}
@@ -455,7 +490,7 @@ function AdminUsersPageContent() {
         onToggleSort={toggleSort}
         highlightUserId={highlightUserId}
         currentUserId={currentUser?.id}
-        selectedTemplate={selectedTemplate}
+        hasTemplates={templates.length > 0}
         deletingId={deletingId}
         linkGeneratingId={linkGeneratingId}
         linkGeneratingWithTemplate={linkGeneratingWithTemplate}
@@ -465,6 +500,7 @@ function AdminUsersPageContent() {
         onViewLoginHistory={setLoginHistoryUser}
         onCopyCredentials={copyUserCredentials}
         onGenerateLoginLink={generateLoginLink}
+        onCopyWithTemplate={openCopyWithTemplatePick}
         onToggleNeverDisable={toggleNeverDisable}
         onToggleDisabled={toggleDisabled}
         onDelete={deleteUser}
@@ -487,6 +523,8 @@ function AdminUsersPageContent() {
         addUserModalError={addUserModalError}
         addUserDisplayedErrors={addUserDisplayedErrors}
         templatesOpen={templatesOpen}
+        templatePickUser={templatePickUser}
+        templateCopyBusy={templateCopyBusy}
         templates={templates}
         templatesLoading={templatesLoading}
         templateSaving={templateSaving}
@@ -514,6 +552,13 @@ function AdminUsersPageContent() {
         setAddUserModalError={setAddUserModalError}
         createUser={createUser}
         setTemplatesOpen={setTemplatesOpen}
+        setTemplatePickUser={setTemplatePickUser}
+        onPickTemplateForCopy={async (template) => {
+          const row = templatePickUser;
+          if (!row) return;
+          const ok = await copyWithTemplate(row, template);
+          if (ok) setTemplatePickUser(null);
+        }}
         setSelectedTemplateId={setSelectedTemplateId}
         setNewTemplateName={setNewTemplateName}
         setNewTemplateBody={setNewTemplateBody}
@@ -526,7 +571,11 @@ function AdminUsersPageContent() {
         deleteTemplate={deleteTemplate}
       />
 
-<CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
+      <CopyToast
+        message={copyToast}
+        onDismiss={() => setCopyToast(null)}
+        className={anyModalOpen ? "copy-toast--above-modal" : undefined}
+      />
 
       <AdminUsersPageStyles />
     </div>

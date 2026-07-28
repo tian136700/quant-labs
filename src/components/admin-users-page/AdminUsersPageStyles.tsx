@@ -551,6 +551,64 @@ export function AdminUsersPageStyles() {
           gap: 0.45rem;
           align-items: center;
         }
+        .admin-users-template-pick-body {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .admin-users-template-pick-list {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+        .admin-users-template-pick-item {
+          width: 100%;
+          box-sizing: border-box;
+          text-align: left;
+          display: flex;
+          flex-direction: column;
+          gap: 0.3rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.02);
+          color: var(--text);
+          font: inherit;
+          padding: 0.75rem 0.85rem;
+          cursor: pointer;
+        }
+        .admin-users-template-pick-item:hover:not(:disabled),
+        .admin-users-template-pick-item:focus-visible:not(:disabled) {
+          border-color: var(--accent, #4c8bf5);
+          outline: none;
+        }
+        .admin-users-template-pick-item:disabled {
+          opacity: 0.65;
+          cursor: wait;
+        }
+        .admin-users-template-pick-item--preferred {
+          border-color: rgba(76, 139, 245, 0.55);
+          background: rgba(76, 139, 245, 0.08);
+        }
+        .admin-users-template-pick-item-name {
+          font-size: 0.9375rem;
+          font-weight: 600;
+        }
+        .admin-users-template-pick-item-preview {
+          font-size: 0.8125rem;
+          color: var(--muted);
+          line-height: 1.45;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        @media (max-width: 767px) {
+          .admin-users-template-pick-item {
+            padding: 0.85rem 0.9rem;
+            min-height: 2.75rem;
+          }
+        }
       `}</style>
   );
 }
