@@ -1,8 +1,3 @@
-/**
- * 英语「用法 + 例句」展示配对：第 N 条用法对应第 N 条例句（定时 fill 已按此约定写库）。
- * 存库字段仍分 usage / example_sentences；仅页面合并展示。
- */
-
 import {
   formatEnVocabExampleGlossLine,
   parseEnVocabExampleSentenceItems,
@@ -10,7 +5,9 @@ import {
   type EnVocabExampleSentenceItem,
 } from "@/lib/en-vocab-example-sentences";
 import {
+  extractEnVocabUsageFrequency,
   formatEnVocabUsageForDisplay,
+  formatEnVocabUsageFrequencyLabel,
   stripEnVocabUsageExamLabels,
 } from "@/lib/en-vocab-usage-ai";
 
@@ -24,6 +21,8 @@ export function enVocabUsagePairLabel(n: number): string {
 
 export type EnVocabUsagePointForDisplay = {
   text: string;
+  /** 出现频次 1～10；旧数据无标记时为 null */
+  frequency: number | null;
 };
 
 export function listEnVocabUsagePointsForDisplay(
@@ -51,8 +50,8 @@ export function listEnVocabUsagePointsForDisplay(
     }
     const m = NUMBERED_LINE_RE.exec(trimmed);
     if (m) {
-      const body = m[2].trim();
-      if (body) points.push({ text: body });
+      const { frequency, text: body } = extractEnVocabUsageFrequency(m[2].trim());
+      if (body) points.push({ text: body, frequency });
       continue;
     }
     leftoverLines.push(trimmed);
@@ -65,6 +64,8 @@ export type EnVocabUsageExamplePair = {
   index: number;
   usageLabel: string;
   usageText: string | null;
+  /** 出现频次 1～10 */
+  frequency: number | null;
   example: EnVocabExampleSentenceItem | null;
 };
 
@@ -102,6 +103,7 @@ export function buildEnVocabUsageExamplePairs(
       index: i + 1,
       usageLabel: enVocabUsagePairLabel(i + 1),
       usageText: null,
+      frequency: null,
       example,
     }));
     return {
@@ -120,6 +122,7 @@ export function buildEnVocabUsageExamplePairs(
       index: i + 1,
       usageLabel: enVocabUsagePairLabel(i + 1),
       usageText: points[i]?.text ?? null,
+      frequency: points[i]?.frequency ?? null,
       example: examples[i] ?? null,
     });
   }
@@ -155,7 +158,12 @@ export function formatEnVocabUsageExamplesCopyText(
   for (const pair of model.pairs) {
     const lines: string[] = [];
     if (pair.usageText) {
-      lines.push(`${pair.usageLabel}：${pair.usageText}`);
+      const freqLabel = formatEnVocabUsageFrequencyLabel(pair.frequency);
+      lines.push(
+        freqLabel
+          ? `${pair.usageLabel}（${freqLabel}）：${pair.usageText}`
+          : `${pair.usageLabel}：${pair.usageText}`
+      );
     }
     if (pair.example?.text) {
       lines.push(pair.example.text);

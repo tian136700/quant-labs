@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """补全 en_vocab_word 缺失用法：list_missing → 本机 Ollama → apply。
 
-格式：编号中文说明，组数按真实常用用法（可为 1）。选题按学术考试高频；正文禁止考试标签。
+格式：编号中文说明 + 出现频次 [1]～[10]，组数按真实常用用法（可为 1）。
+选题按学术考试高频；正文禁止考试标签。
 默认模型 gemma4:26b；source 标「本地 gemma4:26b」。
 """
 
@@ -66,7 +67,7 @@ def _clean_line_debris(line: str) -> str:
 
 
 def shield_usage_upload(raw: str) -> str:
-    """上传屏蔽：去掉考试标签词，保留其余正文。"""
+    """上传屏蔽：去掉考试标签词，保留其余正文与 [频次] 标记。"""
     text = str(raw or "")
     if not text.strip() or not EXAM_LABEL_RE.search(text):
         return text.strip()
@@ -84,13 +85,47 @@ def shield_usage_upload(raw: str) -> str:
         m = NUMBERED_LINE_RE.match(trimmed)
         if m:
             body = m.group(2).strip()
-            if not body or not HAN_RE.search(body):
+            freq, body_text = _extract_frequency(body)
+            if not body_text or not HAN_RE.search(body_text):
                 continue
             point_idx += 1
-            out.append(f"{point_idx}. {body}")
+            freq_s = f"[{freq}] " if freq is not None else ""
+            out.append(f"{point_idx}. {freq_s}{body_text}")
             continue
         out.append(trimmed)
     return "\n".join(out).strip()
+
+
+FREQ_PREFIX_RE = re.compile(r"^\[(\d{1,2})\]\s*(.+)$")
+FREQ_LABEL_RE = re.compile(r"^\[频次\s*(\d{1,2})\]\s*(.+)$")
+FREQ_TRAILING_RE = re.compile(
+    r"^(.+?)\s*[【\[]\s*(?:频次\s*[:：]?\s*)?(\d{1,2})\s*[】\]]\s*$"
+)
+
+
+def _extract_frequency(body: str) -> tuple[int | None, str]:
+    raw = str(body or "").strip()
+    if not raw:
+        return None, ""
+    m = FREQ_PREFIX_RE.match(raw)
+    if m:
+        score = int(m.group(1))
+        text = m.group(2).strip()
+        if 1 <= score <= 10 and text:
+            return score, text
+    m = FREQ_LABEL_RE.match(raw)
+    if m:
+        score = int(m.group(1))
+        text = m.group(2).strip()
+        if 1 <= score <= 10 and text:
+            return score, text
+    m = FREQ_TRAILING_RE.match(raw)
+    if m:
+        score = int(m.group(2))
+        text = m.group(1).strip()
+        if 1 <= score <= 10 and text:
+            return score, text
+    return None, raw
 
 
 def validate_usage(raw: str) -> tuple[str | None, str | None]:
@@ -103,25 +138,34 @@ def validate_usage(raw: str) -> tuple[str | None, str | None]:
     if not lines:
         return None, "empty"
 
-    points: list[tuple[int, str]] = []
+    points: list[tuple[int, str, int]] = []
     for line in lines:
         m = NUMBERED_LINE_RE.match(line)
         if not m:
             return None, "invalid_numbering"
         n = int(m.group(1))
         body = m.group(2).strip()
-        if n <= 0 or not body or not HAN_RE.search(body):
+        if n <= 0 or not body:
             return None, "invalid_numbering"
-        points.append((n, body))
+        freq, body_text = _extract_frequency(body)
+        if freq is None and re.match(r"^\[\d{1,2}\]\s*", body):
+            return None, "invalid_frequency"
+        if freq is None:
+            return None, "missing_frequency"
+        if not body_text or not HAN_RE.search(body_text):
+            return None, "invalid_numbering"
+        points.append((n, body_text, freq))
 
     if len(points) < 1:
         return None, "need_one_point"
 
-    for i, (n, _) in enumerate(points):
+    for i, (n, _, _) in enumerate(points):
         if n != i + 1:
             return None, "invalid_numbering"
 
-    out = "\n".join(f"{i + 1}. {body}" for i, (_, body) in enumerate(points))
+    out = "\n".join(
+        f"{i + 1}. [{freq}] {body}" for i, (_, body, freq) in enumerate(points)
+    )
     return out, None
 
 
@@ -136,8 +180,8 @@ def generate_for_row(
         prompt = (
             f"词条：{word}\n类型：{'语法' if kind == 'grammar' else '单词'}\n\n"
             "请列出常用用法，组数按真实常用义项（只有 1 种就 1 条，禁止硬凑 2 条），"
-            "编号中文说明，形如：\n"
-            "1. 动词：表示「期待；预计」；后接名词或 that 从句。\n"
+            "每条必须带出现频次 1～10，形如：\n"
+            "1. [9] 动词：表示「期待；预计」；后接名词或 that 从句。\n"
             "正文禁止写考试名称（雅思、托福、IELTS、TOEFL 等）。"
         )
 
@@ -163,7 +207,8 @@ def generate_for_row(
                 work_prompt = (
                     base_prompt
                     + f"\n\n上次不合格（{last_err}）。请只输出从 1. 连续编号的中文用法行，"
-                    "组数按真实常用用法（1 种就 1 条），不要 markdown，不要写任何考试名称标签。"
+                    "每条必须是「数字. [1-10分] 中文说明」，组数按真实常用用法（1 种就 1 条），"
+                    "不要 markdown，不要写任何考试名称标签。"
                 )
             except Exception as err:
                 last_err = str(err)

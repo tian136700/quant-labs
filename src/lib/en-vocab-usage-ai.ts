@@ -1,4 +1,4 @@
-/** 英语用法上传契约：编号中文说明（选题按学术考试高频；正文禁考试标签） */
+/** 英语用法上传契约：编号中文说明 + 出现频次 1～10（选题按学术考试高频；正文禁考试标签） */
 
 /**
  * 展示/存库正文禁止的考试品牌与标签。
@@ -7,14 +7,20 @@
 export const EN_VOCAB_USAGE_EXAM_LABEL_RE =
   /雅思|托福|四六级|考研|专四|专八|IELTS|TOEFL|ielts|toefl|\bCET\b|\bGRE\b|\bGMAT\b|\bSAT\b/i;
 
+/** 编号后紧跟的出现频次标记：`[8]` = 1～10 */
+export const EN_VOCAB_USAGE_FREQUENCY_PREFIX_RE = /^\[(\d{1,2})\]\s*(.+)$/;
+
 export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 2,
+  version: 3,
   count_rule:
     "组数=该词真实常用用法数（学术考试写作/阅读/听力高频）；只有 1 种就 1 条，有几种写几条；禁止硬凑 2 条",
   format_example:
-    "1. 介词：表示「在……之上」；常用于描述位置关系。\n2. 副词：表示「在上方；在上文中」。",
+    "1. [8] 介词：表示「在……之上」；常用于描述位置关系。\n2. [5] 副词：表示「在上方；在上文中」。",
+  frequency_rule:
+    "每条用法编号后必须带 [1]～[10] 出现频次分（10=该词最常见用法；相对其它义项打分）",
   rules: [
     "每行必须以「1.」「2.」… 编号开头（半角点号）",
+    "编号后紧跟 [分值]（1～10），再接中文说明，例如：1. [8] 动词：表示「期待」",
     "说明用中文；可在引号内保留英文术语（如「look forward to」）",
     "聚焦写作、阅读、听力中的高频用法",
     "上传接口自动屏蔽考试名称/标签（雅思、托福、IELTS、TOEFL、四六级、考研等）——直接去掉该词，不拒整段",
@@ -26,8 +32,17 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "empty",
     "need_one_point",
     "invalid_numbering",
+    "missing_frequency",
+    "invalid_frequency",
   ],
 } as const;
+
+export type EnVocabUsagePoint = {
+  n: number;
+  text: string;
+  /** 出现频次 1～10；旧数据或人手未填时为 null */
+  frequency: number | null;
+};
 
 export type EnVocabUsageAiInput = {
   word: string;
@@ -58,7 +73,7 @@ export function buildEnVocabUsageAiPrompt(input: EnVocabUsageAiInput): string {
 
   return `${meta}
 
-请为上述英语${kindLabel}列出常用用法说明。
+请为上述英语${kindLabel}列出常用用法说明，并为每种用法的出现频次打分。
 
 选材（仅供你选题，禁止写进正文）：优先该词在学术英语考试写作、阅读、听力里的高频用法与搭配。
 
@@ -67,13 +82,75 @@ export function buildEnVocabUsageAiPrompt(input: EnVocabUsageAiInput): string {
 - 聚焦高频用法；不要堆冷僻义。
 - 用中文解释；可在引号内保留英文短语或术语。
 
+出现频次分值（必须）：
+- 每条用法都必须打 1～10 分：10=该词最常见/最核心用法；1=极少见。
+- 多条时按相对常用度区分，不要全部打同一分。
+- 分值写在编号后的方括号里，形如 [8]。
+
 格式要求（必须严格遵守）：
-- 只输出编号行；半角「数字.」后接中文正文；编号从 1 连续递增。
+- 只输出编号行；半角「数字.」+ 空格 + [分值] + 空格 + 中文正文；编号从 1 连续递增。
 - 仅 1 种常用用法时只输出一行，例如：
-1. 动词：表示「期待；预计」；后接名词或 that 从句。
-- 多种常用词性/义项时再继续 2. 3. …
+1. [9] 动词：表示「期待；预计」；后接名词或 that 从句。
+- 多种常用词性/义项时再继续 2. 3. …，例如：
+1. [8] 介词：表示「在……之上」；常用于描述位置关系。
+2. [5] 副词：表示「在上方；在上文中」。
 - 正文中绝对禁止出现任何考试名称或标签（不要写：雅思、托福、IELTS、TOEFL、四六级、考研、专四、专八、GRE、GMAT、SAT、CET 等）。
 - 不要 markdown、不要标题、不要例句、不要额外解释。`;
+}
+
+/** 从编号行正文提取 [1]～[10]；兼容「[频次8]」「【8】」等变体 */
+export function extractEnVocabUsageFrequency(
+  body: string
+): { frequency: number | null; text: string } {
+  const raw = String(body ?? "").trim();
+  if (!raw) return { frequency: null, text: "" };
+
+  const bracket = EN_VOCAB_USAGE_FREQUENCY_PREFIX_RE.exec(raw);
+  if (bracket) {
+    const score = Number(bracket[1]);
+    const text = bracket[2].trim();
+    if (Number.isInteger(score) && score >= 1 && score <= 10 && text) {
+      return { frequency: score, text };
+    }
+  }
+
+  const freqLabel = /^\[频次\s*(\d{1,2})\]\s*(.+)$/u.exec(raw);
+  if (freqLabel) {
+    const score = Number(freqLabel[1]);
+    const text = freqLabel[2].trim();
+    if (Number.isInteger(score) && score >= 1 && score <= 10 && text) {
+      return { frequency: score, text };
+    }
+  }
+
+  const trailingFull =
+    /^(.+?)\s*[【\[]\s*(?:频次\s*[:：]?\s*)?(\d{1,2})\s*[】\]]\s*$/u.exec(raw);
+  if (trailingFull) {
+    const score = Number(trailingFull[2]);
+    const text = trailingFull[1].trim();
+    if (Number.isInteger(score) && score >= 1 && score <= 10 && text) {
+      return { frequency: score, text };
+    }
+  }
+
+  return { frequency: null, text: raw };
+}
+
+export function clampEnVocabUsageFrequency(
+  value: unknown
+): number | null {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 10) return null;
+  return n;
+}
+
+/** 展示文案：出现频次 8 */
+export function formatEnVocabUsageFrequencyLabel(
+  frequency: number | null | undefined
+): string | null {
+  const score = clampEnVocabUsageFrequency(frequency);
+  if (score == null) return null;
+  return `出现频次 ${score}`;
 }
 
 function stripFenceNoise(raw: string): string {
@@ -84,25 +161,34 @@ function stripFenceNoise(raw: string): string {
     .join("\n");
 }
 
-/** 解析并规范化编号用法行；失败返回 null */
+/** 解析并规范化编号用法行；失败返回 null。频次可选（旧数据可无）。 */
 export function parseEnVocabUsagePoints(
   raw: string
-): { n: number; text: string }[] | null {
+): EnVocabUsagePoint[] | null {
   const lines = stripFenceNoise(raw)
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
   if (!lines.length) return null;
 
-  const points: { n: number; text: string }[] = [];
+  const points: EnVocabUsagePoint[] = [];
   for (const line of lines) {
     const m = NUMBERED_LINE_RE.exec(line);
     if (!m) return null;
     const n = Number(m[1]);
-    const text = m[2].trim();
-    if (!Number.isInteger(n) || n <= 0 || !text) return null;
-    if (!HAN_RE.test(text)) return null;
-    points.push({ n, text });
+    const body = m[2].trim();
+    if (!Number.isInteger(n) || n <= 0 || !body) return null;
+    const { frequency, text } = extractEnVocabUsageFrequency(body);
+    if (!text || !HAN_RE.test(text)) return null;
+    // 形如 [15] / [0] 的非法分值：方括号数字却不在 1～10 → 拒收
+    if (
+      frequency == null &&
+      /^\[\d{1,2}\]\s*/.test(body) &&
+      !/^\[频次/u.test(body)
+    ) {
+      return null;
+    }
+    points.push({ n, text, frequency });
   }
   if (!points.length) return null;
 
@@ -114,9 +200,15 @@ export function parseEnVocabUsagePoints(
 }
 
 export function serializeEnVocabUsagePoints(
-  points: { n: number; text: string }[]
+  points: Array<Pick<EnVocabUsagePoint, "text" | "frequency"> & { n?: number }>
 ): string {
-  return points.map((p, i) => `${i + 1}. ${p.text.trim()}`).join("\n");
+  return points
+    .map((p, i) => {
+      const score = clampEnVocabUsageFrequency(p.frequency);
+      const freq = score != null ? `[${score}] ` : "";
+      return `${i + 1}. ${freq}${String(p.text ?? "").trim()}`;
+    })
+    .join("\n");
 }
 
 export function normalizeEnVocabUsageText(
@@ -192,10 +284,12 @@ export function stripEnVocabUsageExamLabels(raw: string): string {
     }
     const m = NUMBERED_LINE_RE.exec(trimmed);
     if (m) {
-      const body = m[2].trim();
+      const { frequency, text: body } = extractEnVocabUsageFrequency(m[2].trim());
       if (!body || !HAN_RE.test(body)) continue;
       pointIdx += 1;
-      out.push(`${pointIdx}. ${body}`);
+      const freq =
+        frequency != null ? `[${frequency}] ` : "";
+      out.push(`${pointIdx}. ${freq}${body}`);
       continue;
     }
     out.push(trimmed);
@@ -205,7 +299,7 @@ export function stripEnVocabUsageExamLabels(raw: string): string {
 
 /**
  * 展示用：先剥考试标签，编号行改成「1.用法：… / 2.用法：…」。
- * 仅一条时只显示「1.用法：…」。图片行不动。
+ * 仅一条时只显示「1.用法：…」。图片行不动。频次标记不写进正文（由 UI 单独展示）。
  */
 export function formatEnVocabUsageForDisplay(raw: string): string {
   const stripped = stripEnVocabUsageExamLabels(String(raw ?? ""));
@@ -223,7 +317,7 @@ export function formatEnVocabUsageForDisplay(raw: string): string {
     }
     const m = NUMBERED_LINE_RE.exec(trimmed);
     if (m) {
-      const body = m[2].trim();
+      const { text: body } = extractEnVocabUsageFrequency(m[2].trim());
       if (!body) continue;
       pointIdx += 1;
       out.push(`${pointIdx}.用法：${body}`);
@@ -242,17 +336,32 @@ export function shieldEnVocabUsageUploadText(raw: string): string {
   return stripEnVocabUsageExamLabels(String(raw ?? "")).trim();
 }
 
-/** 校验 AI 返回的用法块是否可用（先屏蔽考试标签，再验编号格式） */
+/** 校验 AI 返回的用法块是否可用（先屏蔽考试标签，再验编号格式 + 频次） */
 export function validateEnVocabUsageAiOutput(
   raw: string,
-  _input?: EnVocabUsageAiInput
+  _input?: EnVocabUsageAiInput,
+  options: { requireFrequency?: boolean } = {}
 ): { ok: true; text: string } | { ok: false; reason: string } {
   const text = shieldEnVocabUsageUploadText(raw);
   if (!text) return { ok: false, reason: "empty" };
 
   const points = parseEnVocabUsagePoints(text);
-  if (!points) return { ok: false, reason: "invalid_numbering" };
+  if (!points) {
+    // 区分非法分值与普通编号错误
+    const hasBadBracket = /^\s*\d+\s*[.、．)\]]\s*\[\d{1,2}\]/m.test(text);
+    if (hasBadBracket) return { ok: false, reason: "invalid_frequency" };
+    return { ok: false, reason: "invalid_numbering" };
+  }
   if (points.length < 1) return { ok: false, reason: "need_one_point" };
+
+  const requireFrequency = options.requireFrequency !== false;
+  if (requireFrequency) {
+    for (const p of points) {
+      if (p.frequency == null) {
+        return { ok: false, reason: "missing_frequency" };
+      }
+    }
+  }
 
   return { ok: true, text: serializeEnVocabUsagePoints(points) };
 }

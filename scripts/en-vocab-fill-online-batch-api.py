@@ -65,7 +65,9 @@ _IPA_FIND = re.compile(r"[/\[\]]([^/\\[\]]{1,60})[/\[\]]")
 SYSTEM = (
     "You fill English learner flashcards for junior-high / IELTS-TOEFL high-frequency review. "
     "Return ONLY one JSON object. No markdown fences, no commentary. "
-    "Usage: Chinese numbered 1. 2. …; pick academic-exam-frequent uses; "
+    "Usage: Chinese numbered 1. 2. …; EACH line MUST include frequency score [1]-[10] "
+    "right after the number (e.g. '1. [8] 动词：…'); 10=most common sense for that word; "
+    "pick academic-exam-frequent uses; "
     "NEVER write exam brand names (IELTS/TOEFL/雅思/托福 etc.) in usage text. "
     "Examples: example_sentences MUST be a plain string of alternating "
     "English line + 译文：Chinese line (NOT a JSON/Python array of objects); "
@@ -224,6 +226,95 @@ def strip_exam_labels(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+FREQ_PREFIX_RE = re.compile(r"^\[(\d{1,2})\]\s*(.+)$")
+FREQ_LABEL_RE = re.compile(r"^\[频次\s*(\d{1,2})\]\s*(.+)$")
+FREQ_TRAILING_RE = re.compile(
+    r"^(.+?)\s*[【\[]\s*(?:频次\s*[:：]?\s*)?(\d{1,2})\s*[】\]]\s*$"
+)
+NUMBERED_USAGE_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
+
+
+def _extract_usage_frequency(body: str) -> tuple[int | None, str]:
+    raw = str(body or "").strip()
+    if not raw:
+        return None, ""
+    for pattern, score_g, text_g in (
+        (FREQ_PREFIX_RE, 1, 2),
+        (FREQ_LABEL_RE, 1, 2),
+        (FREQ_TRAILING_RE, 2, 1),
+    ):
+        m = pattern.match(raw)
+        if not m:
+            continue
+        try:
+            score = int(m.group(score_g))
+        except (TypeError, ValueError):
+            continue
+        text = str(m.group(text_g) or "").strip()
+        if 1 <= score <= 10 and text:
+            return score, text
+    return None, raw
+
+
+def normalize_usage(value: Any) -> str:
+    """用法 →「1. [8] 中文…」；支持字符串或 [{text, frequency}, …]。"""
+    lines_out: list[str] = []
+
+    def push(text: str, frequency: Any = None) -> None:
+        body = LEADING_INDEX_RE.sub("", str(text or "")).strip()
+        if not body:
+            return
+        freq, body_text = _extract_usage_frequency(body)
+        if freq is None and frequency is not None:
+            try:
+                score = int(frequency)
+            except (TypeError, ValueError):
+                score = 0
+            if 1 <= score <= 10:
+                freq = score
+        if not body_text:
+            return
+        freq_s = f"[{freq}] " if freq is not None else ""
+        lines_out.append(f"{len(lines_out) + 1}. {freq_s}{body_text}")
+
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, dict):
+                push(
+                    item.get("text")
+                    or item.get("usage")
+                    or item.get("zh")
+                    or "",
+                    item.get("frequency")
+                    or item.get("freq")
+                    or item.get("score"),
+                )
+            elif isinstance(item, str):
+                push(item)
+        return "\n".join(lines_out).strip()
+
+    if isinstance(value, dict):
+        push(
+            value.get("text") or value.get("usage") or "",
+            value.get("frequency") or value.get("freq") or value.get("score"),
+        )
+        return "\n".join(lines_out).strip()
+
+    text = strip_exam_labels(str(value or ""))
+    if not text:
+        return ""
+    for line in text.splitlines():
+        trimmed = line.strip()
+        if not trimmed:
+            continue
+        m = NUMBERED_USAGE_RE.match(trimmed)
+        if m:
+            push(m.group(2))
+        else:
+            push(trimmed)
+    return "\n".join(lines_out).strip()
+
+
 def normalize_example_sentences(value: Any) -> str:
     """把模型返回的例句规范成「英文\\n译文：」交替纯文本。
 
@@ -355,8 +446,8 @@ def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
 - reading: 美式 IPA，形如 /həˈloʊ/
 - meaning: 中文释义，分号分隔，最多 3 义
 - pos: 英文词性缩写，多词性用 /，如 v 或 adj/n
-- usage: 编号中文用法，组数按真实常用义项（1 种就 1 条，禁止硬凑 2 条）；选题按学术考试高频，正文禁止考试品牌名
-- example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{"sentence":...}] 这类结构
+- usage: 编号中文用法；每条必须带出现频次 [1]～[10]（10=该词最常见用法），形如「1. [8] 介词：…」；组数按真实常用义项（1 种就 1 条，禁止硬凑 2 条）；选题按学术考试高频，正文禁止考试品牌名。也可返回数组 [{{"text":"…","frequency":8}},…]（frequency 必填 1～10）
+- example_sentences: 字符串（不要 JSON 数组）。与 usage 一一对应；每条英文完整短句 + 下一行「译文：中文」交替；用法是被动则例句必须被动；时态/词形可变；其余词要极简单；不要难词、不要长难从句；不要行首编号；禁止输出 [{{"sentence":...}}] 这类结构
 
 只输出 JSON。"""
 
@@ -634,7 +725,7 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
             out["pos"] = pos
 
     if needs.get("usage"):
-        usage = strip_exam_labels(str(data.get("usage") or ""))
+        usage = normalize_usage(data.get("usage"))
         if usage:
             out["usage"] = usage
 

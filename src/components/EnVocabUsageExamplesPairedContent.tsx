@@ -10,6 +10,7 @@ import {
   buildEnVocabUsageExamplePairs,
   type EnVocabUsageExamplesPairedModel,
 } from "@/lib/en-vocab-usage-examples-display";
+import { formatEnVocabUsageFrequencyLabel } from "@/lib/en-vocab-usage-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
 import type { EnVocabLevel } from "@/lib/types";
 
@@ -91,6 +92,7 @@ export function EnVocabUsageExamplesPairedContent({
             const selectedLevel = showLevel
               ? usageLevelControls.levels[usageIndex] ?? null
               : null;
+            const freqLabel = formatEnVocabUsageFrequencyLabel(pair.frequency);
             return (
               <li
                 key={pair.index}
@@ -102,6 +104,14 @@ export function EnVocabUsageExamplesPairedContent({
                     <span className="en-usage-ex-paired-usage-label">
                       {pair.usageLabel}：
                     </span>
+                    {freqLabel ? (
+                      <span
+                        className="en-usage-ex-paired-freq"
+                        title="该用法在英语中的相对出现频次（1～10）"
+                      >
+                        {freqLabel}
+                      </span>
+                    ) : null}
                     <span className="en-usage-ex-paired-usage-body">
                       {pair.usageText}
                     </span>
@@ -226,6 +236,21 @@ export function EnVocabUsageExamplesPairedContent({
           font-weight: 600;
           color: var(--text);
         }
+        .en-usage-ex-paired-freq {
+          display: inline-block;
+          margin: 0 0.35rem 0 0;
+          padding: 0.05rem 0.4rem;
+          border-radius: 999px;
+          font-size: 0.72rem;
+          font-weight: 600;
+          line-height: 1.35;
+          letter-spacing: 0.01em;
+          color: color-mix(in srgb, var(--accent) 88%, var(--text));
+          background: color-mix(in srgb, var(--accent) 14%, transparent);
+          border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+          vertical-align: 0.08em;
+          white-space: nowrap;
+        }
         .en-usage-ex-paired-usage-body {
           font-weight: 400;
         }
@@ -266,6 +291,13 @@ export function EnVocabUsageExamplesPairedContent({
           flex-direction: column;
           align-items: flex-end;
           gap: 0.15rem;
+        }
+        @media (max-width: 767px) {
+          .en-usage-ex-paired-freq {
+            font-size: 0.68rem;
+            padding: 0.04rem 0.32rem;
+            margin-right: 0.28rem;
+          }
         }
       `}</style>
     </div>
