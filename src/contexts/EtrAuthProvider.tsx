@@ -130,7 +130,13 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
         headers: { [LOCALE_HEADER]: locale },
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        ok?: boolean;
+        authenticated?: boolean;
+        user?: EtrAuthUser | null;
+        maintenance?: boolean;
+        session_conflict?: boolean;
+      };
       if (gen !== refreshGenRef.current) return;
       if (data.maintenance) {
         setUser(null);
@@ -139,9 +145,21 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
         redirectMaintenance();
         return;
       }
+      if (data.session_conflict) {
+        setUser(null);
+        setMaintenance(false);
+        clearClientCache(AUTH_USER_CACHE_KEY);
+        setAuthPanel({
+          mode: "login",
+          loginOnly: true,
+          title: "账号在其他设备登录",
+          subtitle: "当前设备已退出，请重新登录。",
+        });
+        return;
+      }
       setMaintenance(false);
       if (data.ok && data.authenticated && data.user) {
-        const next = data.user as EtrAuthUser;
+        const next = data.user;
         setUser(next);
         writeClientCache(AUTH_USER_CACHE_KEY, next);
       } else {

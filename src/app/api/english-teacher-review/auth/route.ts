@@ -150,6 +150,19 @@ export async function GET(request: Request) {
       });
     }
 
+    if (resolved.status === "session_conflict") {
+      return jsonWithSetCookies(
+        {
+          ok: true,
+          authenticated: false,
+          user: null,
+          session_conflict: true,
+        },
+        200,
+        clearAllSessionCookieHeaders(etrCookieContextFromRequest(request))
+      );
+    }
+
     if (resolved.staleCookie) {
       return jsonWithSetCookies(
         { ok: true, authenticated: false, user: null, stale_cookie_cleared: true },
