@@ -101,6 +101,39 @@ def main() -> int:
     ):
         return _fail(f"failure body has banned text: {fail_body!r}")
 
+    # 失败须有提示音，且与成功铃声不同（勿再 passive 静音）
+    fail_fn = re.search(
+        r"def notify_deploy_failure\(.*?\n(?P<body>.*?)(?=\ndef |\Z)",
+        text,
+        re.DOTALL,
+    )
+    ok_fn = re.search(
+        r"def notify_deploy_success\(.*?\n(?P<body>.*?)(?=\ndef |\Z)",
+        text,
+        re.DOTALL,
+    )
+    if not fail_fn or not ok_fn:
+        return _fail("cannot parse notify_deploy_failure/success")
+    fail_body_src = fail_fn.group("body")
+    ok_body_src = ok_fn.group("body")
+    if 'level="passive"' in fail_body_src:
+        return _fail("notify_deploy_failure must not use level=passive (silent)")
+    if "BARK_SOUND_DEPLOY_FAIL" not in fail_body_src:
+        return _fail("notify_deploy_failure must read BARK_SOUND_DEPLOY_FAIL")
+    if 'or "shake"' not in fail_body_src:
+        return _fail('notify_deploy_failure default sound must be "shake"')
+    if "BARK_SOUND_DEPLOY_OK" not in ok_body_src:
+        return _fail("notify_deploy_success must read BARK_SOUND_DEPLOY_OK")
+    if 'or "paymentsuccess"' not in ok_body_src:
+        return _fail('notify_deploy_success default sound must be "paymentsuccess"')
+
+    mac_path = ROOT / "scripts" / "maintenance_center" / "mac_notify.py"
+    if mac_path.is_file():
+        mac_text = mac_path.read_text(encoding="utf-8")
+        # 电脑端失败可不改音；只强制手机 Bark 成败铃声不同
+        if "def notify_mac_deploy_failure" not in mac_text:
+            return _fail("notify_mac_deploy_failure missing")
+
     print("[check_bark_deploy_notify_format] OK")
     return 0
 
