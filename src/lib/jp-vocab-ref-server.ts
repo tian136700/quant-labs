@@ -1,7 +1,7 @@
 import "server-only";
 
-import { readFile, mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile, mkdir, writeFile } from "fs/promises";
+import path from "path";
 import type { CloudflareEnv, JpVocabMediaType } from "@/lib/types";
 import { hasJpReviewBucket } from "@/lib/jp-review";
 import {
