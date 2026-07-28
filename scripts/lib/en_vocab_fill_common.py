@@ -146,6 +146,29 @@ def call_api(
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as err:
         detail = err.read().decode("utf-8", errors="replace")
+        try:
+            from worker_api_guard import (  # noqa: WPS433
+                looks_rate_limited_body,
+                record_worker_unavailable,
+            )
+
+            if err.code == 429 or looks_rate_limited_body(detail):
+                reason = (
+                    "rate_limited_1027"
+                    if looks_rate_limited_body(detail)
+                    else "http_429"
+                )
+                record_worker_unavailable(api_url, reason)
+                print(
+                    f"[{user_agent}] skip: Worker {reason}；本轮退出，"
+                    "约 10 分钟后再试（配额约北京 08:00 重置）。",
+                    flush=True,
+                )
+                raise SystemExit(0) from err
+        except SystemExit:
+            raise
+        except Exception:
+            pass
         raise SystemExit(f"API HTTP {err.code}: {detail}") from err
 
 

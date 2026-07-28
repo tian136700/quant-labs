@@ -24,6 +24,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
+
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences"
 
 
@@ -104,6 +108,9 @@ def main() -> int:
     if not token:
         print("缺少 JP_REVIEW_UPLOAD_TOKEN", file=sys.stderr)
         return 1
+
+    if skip_if_worker_unavailable(args.api_url, label="jp-vocab-fill-examples"):
+        return 0
 
     if args.apply:
         raw = json.loads(Path(args.apply).read_text(encoding="utf-8"))

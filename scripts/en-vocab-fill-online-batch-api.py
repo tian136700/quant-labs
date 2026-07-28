@@ -28,7 +28,7 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
-from worker_api_guard import worker_origin_available  # noqa: E402
+from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
@@ -950,13 +950,7 @@ def main() -> int:
         )
         return 0
 
-    available, reason = worker_origin_available(READING_URL)
-    if not available:
-        print(
-            f"[en-vocab-fill-online] skip: Worker origin unavailable ({reason}); "
-            "不会调用付费 AI 接口。",
-            flush=True,
-        )
+    if skip_if_worker_unavailable(READING_URL, label="en-vocab-fill-online"):
         return 0
 
     token = resolve_token()

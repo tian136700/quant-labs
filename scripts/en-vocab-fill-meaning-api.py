@@ -16,6 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
+from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from en_vocab_fill_common import (  # noqa: E402
     build_source_label,
     call_api,
@@ -264,6 +265,9 @@ def main() -> int:
         raise SystemExit(
             "缺少 JP_REVIEW_UPLOAD_TOKEN（~/.config/info-quests/jp-review-sync.env）"
         )
+
+    if skip_if_worker_unavailable(args.api_url, label="en-vocab-fill-meaning"):
+        return 0
 
     # 单字段时多拉一些，过滤后仍够一批
     list_limit = max(1, args.limit)

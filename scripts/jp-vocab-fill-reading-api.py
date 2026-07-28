@@ -18,6 +18,10 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
+
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-reading"
 JISHO_URL = "https://jisho.org/api/v1/search/words?keyword="
 HTTP_USER_AGENT = (
@@ -588,6 +592,9 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+    if skip_if_worker_unavailable(args.api_url, label="jp-vocab-fill-reading"):
+        return 0
 
     manual_updates: list[dict] | None = None
     if args.update:

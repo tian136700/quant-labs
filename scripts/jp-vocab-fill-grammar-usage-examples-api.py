@@ -45,6 +45,11 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
 )
+from worker_api_guard import (  # noqa: E402
+    looks_rate_limited_body,
+    record_worker_unavailable,
+    skip_if_worker_unavailable,
+)
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
 HTTP_USER_AGENT = "jp-vocab-fill-grammar-usage-examples/2.0"
@@ -323,7 +328,21 @@ def call_api(*, api_url: str, token: str, body: dict, retries: int = 6) -> dict:
         except urllib.error.HTTPError as exc:
             last_err = exc
             payload = exc.read().decode("utf-8", errors="replace")
-            if exc.code in (429, 500, 502, 503, 504) and attempt + 1 < retries:
+            # 1027 / 日配额顶满：立刻停，写 10 分钟负缓存，勿再重试烧 Worker
+            if exc.code == 429 or looks_rate_limited_body(payload):
+                reason = (
+                    "rate_limited_1027"
+                    if looks_rate_limited_body(payload)
+                    else "http_429"
+                )
+                record_worker_unavailable(api_url, reason)
+                print(
+                    f"[jp-grammar-fill] skip: Worker {reason}；本轮退出，"
+                    "约 10 分钟后再试（配额约北京 08:00 重置）。",
+                    flush=True,
+                )
+                raise SystemExit(0) from exc
+            if exc.code in (500, 502, 503, 504) and attempt + 1 < retries:
                 time.sleep(min(30, 2**attempt))
                 continue
             raise SystemExit(f"HTTP {exc.code}: {payload[:500]}") from exc
@@ -948,6 +967,12 @@ def main() -> int:
 
     token = load_token()
     api_url = resolve_api_url()
+
+    # 定时每分钟唤醒；命中 1027 后负缓存 10 分钟，避免反复探首页/打 API
+    if not args.status and skip_if_worker_unavailable(
+        api_url, label="jp-grammar-fill"
+    ):
+        return 0
 
     with acquire_run_lock(skip_if_busy=args.skip_if_busy):
         if args.status:
