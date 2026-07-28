@@ -28,6 +28,7 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
+from worker_api_guard import worker_origin_available  # noqa: E402
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
@@ -945,6 +946,15 @@ def main() -> int:
         print(
             f"[en-vocab-fill-online] backend={backend_label()} → skip "
             f"(改 scripts/lib/en_vocab_llm_backend.py 里 EN_VOCAB_FILL_LLM_BACKEND=1)",
+            flush=True,
+        )
+        return 0
+
+    available, reason = worker_origin_available(READING_URL)
+    if not available:
+        print(
+            f"[en-vocab-fill-online] skip: Worker origin unavailable ({reason}); "
+            "不会调用付费 AI 接口。",
             flush=True,
         )
         return 0

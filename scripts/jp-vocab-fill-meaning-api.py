@@ -39,6 +39,7 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
+from worker_api_guard import worker_origin_available  # noqa: E402
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
@@ -717,8 +718,17 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    token = load_token()
     api_url = (args.api_url or load_api_url()).strip()
+    available, reason = worker_origin_available(api_url)
+    if not available:
+        print(
+            f"[jp-vocab-fill-meaning] skip: Worker origin unavailable ({reason}); "
+            "不会调用付费 AI 接口。",
+            flush=True,
+        )
+        return 0
+
+    token = load_token()
 
     with acquire_run_lock():
         if args.clear_all:
