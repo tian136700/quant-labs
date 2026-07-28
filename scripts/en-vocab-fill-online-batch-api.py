@@ -257,13 +257,16 @@ def _extract_usage_frequency(body: str) -> tuple[int | None, str]:
 
 
 def normalize_usage(value: Any) -> str:
-    """用法 →「1. [8] 中文…」；支持字符串或 [{text, frequency}, …]。"""
+    """用法 →「1. [8] 中文…」；支持字符串或 [{text, frequency}, …]。
+
+    任一条缺 1～10 出现频次则返回空串（调用方应重试，勿写库）。
+    """
     lines_out: list[str] = []
 
-    def push(text: str, frequency: Any = None) -> None:
+    def push(text: str, frequency: Any = None) -> bool:
         body = LEADING_INDEX_RE.sub("", str(text or "")).strip()
         if not body:
-            return
+            return True
         freq, body_text = _extract_usage_frequency(body)
         if freq is None and frequency is not None:
             try:
@@ -273,14 +276,17 @@ def normalize_usage(value: Any) -> str:
             if 1 <= score <= 10:
                 freq = score
         if not body_text:
-            return
-        freq_s = f"[{freq}] " if freq is not None else ""
-        lines_out.append(f"{len(lines_out) + 1}. {freq_s}{body_text}")
+            return True
+        if freq is None:
+            return False
+        lines_out.append(f"{len(lines_out) + 1}. [{freq}] {body_text}")
+        return True
 
+    ok = True
     if isinstance(value, list):
         for item in value:
             if isinstance(item, dict):
-                push(
+                if not push(
                     item.get("text")
                     or item.get("usage")
                     or item.get("zh")
@@ -288,16 +294,21 @@ def normalize_usage(value: Any) -> str:
                     item.get("frequency")
                     or item.get("freq")
                     or item.get("score"),
-                )
+                ):
+                    ok = False
+                    break
             elif isinstance(item, str):
-                push(item)
-        return "\n".join(lines_out).strip()
+                if not push(item):
+                    ok = False
+                    break
+        return "\n".join(lines_out).strip() if ok and lines_out else ""
 
     if isinstance(value, dict):
-        push(
+        if not push(
             value.get("text") or value.get("usage") or "",
             value.get("frequency") or value.get("freq") or value.get("score"),
-        )
+        ):
+            return ""
         return "\n".join(lines_out).strip()
 
     text = strip_exam_labels(str(value or ""))
@@ -309,10 +320,12 @@ def normalize_usage(value: Any) -> str:
             continue
         m = NUMBERED_USAGE_RE.match(trimmed)
         if m:
-            push(m.group(2))
+            if not push(m.group(2)):
+                return ""
         else:
-            push(trimmed)
-    return "\n".join(lines_out).strip()
+            if not push(trimmed):
+                return ""
+    return "\n".join(lines_out).strip() if lines_out else ""
 
 
 def normalize_example_sentences(value: Any) -> str:
@@ -726,6 +739,29 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
 
     if needs.get("usage"):
         usage = normalize_usage(data.get("usage"))
+        if not usage:
+            # 缺 [1]～[10] 时再要一次，避免 force 写回无频次旧格式
+            retry_raw = call_anthropic(
+                build_prompt(row, needs)
+                + "\n\nCRITICAL: usage 每一行必须带出现频次 [1]～[10]，"
+                "形如「1. [8] 中文说明」。缺分值的 JSON 不可用，请重输出完整 JSON。",
+                system=SYSTEM,
+                max_tokens=4500,
+                temperature=0.2,
+                timeout=180,
+            )
+            retry_data = parse_json_object(retry_raw)
+            usage = normalize_usage(retry_data.get("usage"))
+            if usage and not out.get("meaning") and needs.get("meaning"):
+                meaning = str(retry_data.get("meaning") or "").strip()
+                if meaning:
+                    out["meaning"] = meaning
+            if usage and not out.get("pos") and needs.get("pos"):
+                pos = str(retry_data.get("pos") or "").strip()
+                if pos:
+                    out["pos"] = pos
+            if usage and needs.get("example_sentences"):
+                data = retry_data
         if usage:
             out["usage"] = usage
 

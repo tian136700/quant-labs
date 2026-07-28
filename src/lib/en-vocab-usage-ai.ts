@@ -153,6 +153,55 @@ export function formatEnVocabUsageFrequencyLabel(
   return `出现频次 ${score}`;
 }
 
+/**
+ * 编号用法是否每条都有 1～10 出现频次。
+ * 无编号点 / 空正文 → false（不算齐全）。
+ */
+export function enVocabUsageHasCompleteFrequency(
+  raw: string | null | undefined
+): boolean {
+  const points = parseEnVocabUsagePoints(String(raw ?? ""));
+  if (!points || points.length < 1) return false;
+  return points.every((p) => p.frequency != null);
+}
+
+/** 已有用法缺 [分值] 时：只补频次，尽量保留原中文说明 */
+export function buildEnVocabUsageFrequencyBackfillPrompt(input: {
+  word: string;
+  kind: string;
+  usage: string;
+  reading?: string | null;
+  meaning?: string | null;
+  pos?: string | null;
+}): string {
+  const kindLabel = input.kind === "grammar" ? "语法" : "单词";
+  const reading = input.reading?.trim();
+  const meaning = input.meaning?.trim();
+  const pos = input.pos?.trim();
+  const meta = [
+    `词条：${input.word.trim()}`,
+    reading ? `音标：${reading}` : null,
+    meaning ? `释义：${meaning}` : null,
+    pos ? `词性：${pos}` : null,
+    `类型：${kindLabel}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `${meta}
+
+已有用法（请保留每条中文说明的含义与顺序，不要删条、不要新造义项）：
+${String(input.usage || "").trim()}
+
+任务：仅为每条用法补上出现频次分值 1～10（10=该词最常见用法；多条时按相对常用度区分，不要全打同一分）。
+
+输出格式（必须）：
+- 只输出编号行：数字. [分值] 中文说明
+- 条数与顺序必须与上面已有用法一致
+- 正文禁止考试名称/标签
+- 不要 markdown、不要例句、不要额外解释`;
+}
+
 function stripFenceNoise(raw: string): string {
   return String(raw || "")
     .split(/\r?\n/)

@@ -72,6 +72,21 @@ def main() -> None:
     if "[8]" not in edit:
         fail("edit modal placeholder should show [score] sample")
 
+    fill = read("src/lib/en-vocab-fill-usage.ts")
+    if "enVocabUsageHasCompleteFrequency" not in fill:
+        fail("fill-usage must use enVocabUsageHasCompleteFrequency")
+    if "needs_frequency_only" not in fill:
+        fail("list_missing must flag needs_frequency_only for backfill")
+    if "buildEnVocabUsageFrequencyBackfillPrompt" not in fill:
+        fail("list_missing must use frequency backfill prompt")
+    if "missing_frequency" not in fill:
+        fail("force apply must still reject missing_frequency")
+
+    if "enVocabUsageHasCompleteFrequency" not in ai:
+        fail("missing enVocabUsageHasCompleteFrequency helper")
+    if "buildEnVocabUsageFrequencyBackfillPrompt" not in ai:
+        fail("missing frequency backfill prompt builder")
+
     print("OK: en-vocab usage frequency score (1–10) wired end-to-end")
 
 

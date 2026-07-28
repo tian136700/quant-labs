@@ -2,10 +2,13 @@ import "server-only";
 
 import {
   buildEnVocabUsageAiPrompt,
+  buildEnVocabUsageFrequencyBackfillPrompt,
   EN_VOCAB_USAGE_UPLOAD_SPEC,
+  enVocabUsageHasCompleteFrequency,
   enVocabUsageHasExamLabel,
   normalizeEnVocabUsageSource,
-  normalizeEnVocabUsageText,
+  parseEnVocabUsagePoints,
+  serializeEnVocabUsagePoints,
   shieldEnVocabUsageUploadText,
   stripEnVocabUsageExamLabels,
   validateEnVocabUsageAiOutput,
@@ -19,8 +22,26 @@ export type EnVocabMissingUsageRow = {
   reading: string | null;
   meaning: string | null;
   pos: string | null;
+  /** 已有用法正文（仅「缺出现频次」回填时带上） */
+  usage?: string | null;
+  /** true=已有用法但缺 [1]～[10]，只需补分值 */
+  needs_frequency_only?: boolean;
   prompt: string;
 };
+
+/** SQL：用法正文里完全看不到 [1]～[10] 频次括号（旧数据） */
+const EN_VOCAB_USAGE_NO_FREQ_MARKER_SQL = `(
+  usage NOT LIKE '%[1]%'
+  AND usage NOT LIKE '%[2]%'
+  AND usage NOT LIKE '%[3]%'
+  AND usage NOT LIKE '%[4]%'
+  AND usage NOT LIKE '%[5]%'
+  AND usage NOT LIKE '%[6]%'
+  AND usage NOT LIKE '%[7]%'
+  AND usage NOT LIKE '%[8]%'
+  AND usage NOT LIKE '%[9]%'
+  AND usage NOT LIKE '%[10]%'
+)`;
 
 export type EnVocabFillUsageApplied = {
   id: number;
@@ -44,28 +65,92 @@ export type ListEnVocabMissingUsageOptions = {
   kind?: "word" | "grammar";
 };
 
+/** 空用法，或有用法但正文看不到 [1]～[10] 频次标记 */
+function enVocabUsageMissingWhereSql(kindBindIndex: number | null): string {
+  const kindClause =
+    kindBindIndex != null ? ` AND kind = ?${kindBindIndex}` : "";
+  return `(
+    usage IS NULL OR TRIM(usage) = ''
+    OR (
+      usage IS NOT NULL AND TRIM(usage) != ''
+      AND ${EN_VOCAB_USAGE_NO_FREQ_MARKER_SQL}
+    )
+  )${kindClause}`;
+}
+
 export async function countEnVocabWordsMissingUsage(
   db: D1Database,
   options: Pick<ListEnVocabMissingUsageOptions, "kind"> = {}
 ): Promise<number> {
   const kind = options.kind;
-  const result =
-    kind === "word" || kind === "grammar"
-      ? await db
-          .prepare(
-            `SELECT COUNT(*) AS n FROM en_vocab_word
-             WHERE (usage IS NULL OR TRIM(usage) = '')
-               AND kind = ?1`
-          )
-          .bind(kind)
-          .first<{ n: number }>()
-      : await db
-          .prepare(
-            `SELECT COUNT(*) AS n FROM en_vocab_word
-             WHERE usage IS NULL OR TRIM(usage) = ''`
-          )
-          .first<{ n: number }>();
+  const useKind = kind === "word" || kind === "grammar";
+  const result = useKind
+    ? await db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM en_vocab_word
+           WHERE ${enVocabUsageMissingWhereSql(1)}`
+        )
+        .bind(kind)
+        .first<{ n: number }>()
+    : await db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM en_vocab_word
+           WHERE ${enVocabUsageMissingWhereSql(null)}`
+        )
+        .first<{ n: number }>();
   return Number(result?.n ?? 0);
+}
+
+function mapMissingUsageRow(row: {
+  id: number;
+  word: string;
+  kind: string;
+  reading: string | null;
+  meaning: string | null;
+  pos: string | null;
+  usage?: string | null;
+}): EnVocabMissingUsageRow {
+  const word = String(row.word);
+  const rowKind = String(row.kind);
+  const reading =
+    row.reading != null ? String(row.reading).trim() || null : null;
+  const meaning =
+    row.meaning != null ? String(row.meaning).trim() || null : null;
+  const pos = row.pos != null ? String(row.pos).trim() || null : null;
+  const existingUsage =
+    row.usage != null ? String(row.usage).trim() || null : null;
+  const needsFrequencyOnly = Boolean(
+    existingUsage && !enVocabUsageHasCompleteFrequency(existingUsage)
+  );
+
+  const prompt = needsFrequencyOnly
+    ? buildEnVocabUsageFrequencyBackfillPrompt({
+        word,
+        kind: rowKind,
+        usage: existingUsage!,
+        reading,
+        meaning,
+        pos,
+      })
+    : buildEnVocabUsageAiPrompt({
+        word,
+        kind: rowKind,
+        reading,
+        meaning,
+        pos,
+      });
+
+  return {
+    id: Number(row.id),
+    word,
+    kind: rowKind,
+    reading,
+    meaning,
+    pos,
+    usage: needsFrequencyOnly ? existingUsage : null,
+    needs_frequency_only: needsFrequencyOnly || undefined,
+    prompt,
+  };
 }
 
 export async function listEnVocabWordsMissingUsage(
@@ -81,14 +166,13 @@ export async function listEnVocabWordsMissingUsage(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, kind, reading, meaning, pos FROM en_vocab_word
-       WHERE usage IS NULL OR TRIM(usage) = ''`;
   const binds: Array<string | number> = [];
-  if (kind === "word" || kind === "grammar") {
-    sql += ` AND kind = ?${binds.length + 1}`;
-    binds.push(kind);
-  }
-  sql += ` ORDER BY id`;
+  const useKind = kind === "word" || kind === "grammar";
+  if (useKind) binds.push(kind);
+
+  let sql = `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word
+       WHERE ${enVocabUsageMissingWhereSql(useKind ? 1 : null)}
+       ORDER BY id`;
   if (limit != null) {
     sql += ` LIMIT ?${binds.length + 1}`;
     binds.push(limit);
@@ -102,32 +186,18 @@ export async function listEnVocabWordsMissingUsage(
     reading: string | null;
     meaning: string | null;
     pos: string | null;
+    usage: string | null;
   }>();
 
-  return (result.results ?? []).map((row) => {
-    const word = String(row.word);
-    const rowKind = String(row.kind);
-    const reading =
-      row.reading != null ? String(row.reading).trim() || null : null;
-    const meaning =
-      row.meaning != null ? String(row.meaning).trim() || null : null;
-    const pos = row.pos != null ? String(row.pos).trim() || null : null;
-    return {
-      id: Number(row.id),
-      word,
-      kind: rowKind,
-      reading,
-      meaning,
-      pos,
-      prompt: buildEnVocabUsageAiPrompt({
-        word,
-        kind: rowKind,
-        reading,
-        meaning,
-        pos,
-      }),
-    };
-  });
+  return (result.results ?? [])
+    .map(mapMissingUsageRow)
+    .filter((row) => {
+      // SQL 粗筛后：若已有用法但其实已齐全（误伤），丢掉
+      if (row.needs_frequency_only && row.usage) {
+        return !enVocabUsageHasCompleteFrequency(row.usage);
+      }
+      return true;
+    });
 }
 
 export async function scanEnVocabWordsMissingUsage(
@@ -158,28 +228,29 @@ async function updateUsageIfEmpty(
   force = false
 ): Promise<boolean> {
   if (dryRun) return true;
-  const result = force
-    ? await db
-        .prepare(
-          `UPDATE en_vocab_word
-           SET usage = ?1,
-               usage_source = ?2,
-               updated_at = datetime('now')
-           WHERE id = ?3`
-        )
-        .bind(usage.trim(), source, wordId)
-        .run()
-    : await db
-        .prepare(
-          `UPDATE en_vocab_word
-           SET usage = ?1,
-               usage_source = ?2,
-               updated_at = datetime('now')
-           WHERE id = ?3
-             AND (usage IS NULL OR TRIM(usage) = '')`
-        )
-        .bind(usage.trim(), source, wordId)
-        .run();
+
+  if (!force) {
+    const existing = await db
+      .prepare(`SELECT usage FROM en_vocab_word WHERE id = ?1`)
+      .bind(wordId)
+      .first<{ usage: string | null }>();
+    const cur = existing?.usage != null ? String(existing.usage).trim() : "";
+    // 已有完整频次用法 → 不覆盖（除非 force）
+    if (cur && enVocabUsageHasCompleteFrequency(cur)) {
+      return false;
+    }
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE en_vocab_word
+       SET usage = ?1,
+           usage_source = ?2,
+           updated_at = datetime('now')
+       WHERE id = ?3`
+    )
+    .bind(usage.trim(), source, wordId)
+    .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
 
@@ -253,8 +324,26 @@ export async function applyEnVocabUsageUpdates(
       }
       usage = validated.text;
     } else {
-      // 线上 force：只剥考试品牌词，不做条数/格式拒收
+      // 线上 force：条数可放宽，但出现频次 [1]～[10] 仍必填（卡片要展示）
       usage = shieldEnVocabUsageUploadText(usage).trim() || usage;
+      const points = parseEnVocabUsagePoints(usage);
+      if (!points || points.length < 1) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:invalid_numbering",
+        });
+        continue;
+      }
+      if (points.some((p) => p.frequency == null)) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:missing_frequency",
+        });
+        continue;
+      }
+      usage = serializeEnVocabUsagePoints(points);
     }
 
     const changed = await updateUsageIfEmpty(
