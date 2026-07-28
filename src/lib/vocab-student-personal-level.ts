@@ -1,6 +1,6 @@
 /** 学生端自用熟悉程度（仅本机；不写老师抽查统计、不轮询回老师） */
 
-import { beijingDateString } from "@/lib/beijing-time";
+import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import type { EnVocabLevel, JpVocabLevel } from "@/lib/types";
 
 type Lang = "jp" | "en";
