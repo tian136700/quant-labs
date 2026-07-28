@@ -72,7 +72,8 @@ export const enVocabDbState = {
   enVocabReviewDoneSchemaReady: false,
 };
 
-export const EN_VOCAB_WORD_SCHEMA_VERSION = 2;
+/** v3: en_vocab_word.category 分类标签（默认雅思托福） */
+export const EN_VOCAB_WORD_SCHEMA_VERSION = 3;
 export const EN_VOCAB_SHARED_LIST_CACHE_MS = 5_000;
 export const EN_VOCAB_SETTING_READ_CACHE_MS = 5_000;
 export const EN_VOCAB_TEACHER_QUIZ_LIVE_KEY = "teacher_quiz_live";

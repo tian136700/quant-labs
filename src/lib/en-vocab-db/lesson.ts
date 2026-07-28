@@ -29,6 +29,7 @@ import {
   enVocabRefLocalMarker,
   normalizeEnVocabRefKey,
 } from "@/lib/en-vocab-ref-shared";
+import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
   enVocabRefFileExists,
   putEnVocabRefFile,
@@ -104,7 +105,12 @@ import { ensureEnVocabReviewDoneSchema } from "./review";
 
 export async function upsertEnVocabFromLesson(
   db: D1Database,
-  items: { word: string; kind: EnVocabKind; ref_key: string | null }[],
+  items: {
+    word: string;
+    kind: EnVocabKind;
+    ref_key: string | null;
+    category?: string | null;
+  }[],
   refs: EnVocabRefUploadInput[] = []
 ): Promise<void> {
   if (!items.length) return;
@@ -117,6 +123,7 @@ export async function upsertEnVocabFromLesson(
       const word = normalizeWord(item.word);
       if (!word) continue;
       const kind = normalizeKind(item.kind);
+      const category = normalizeEnVocabCategory(item.category);
       const refKey = item.ref_key;
       const idx = enVocabDbState.devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
@@ -129,6 +136,7 @@ export async function upsertEnVocabFromLesson(
           meaning: null,
           pos: null,
           kind,
+          category,
           ref_key: refKey,
           cnt_very: 0,
           cnt_normal: 0,
@@ -147,6 +155,7 @@ export async function upsertEnVocabFromLesson(
     const word = normalizeWord(item.word);
     if (!word) continue;
     const kind = normalizeKind(item.kind);
+    const category = normalizeEnVocabCategory(item.category);
     const refKey = item.ref_key;
 
     const existing = await db
@@ -158,10 +167,10 @@ export async function upsertEnVocabFromLesson(
 
     await db
       .prepare(
-        `INSERT INTO en_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-         VALUES (?1, NULL, NULL, ?2, ?3, 0, 0, 0, 0, NULL, NULL, ?4, ?4)`
+        `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+         VALUES (?1, NULL, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?5)`
       )
-      .bind(word, kind, refKey, ts)
+      .bind(word, kind, category, refKey, ts)
       .run();
   }
 }

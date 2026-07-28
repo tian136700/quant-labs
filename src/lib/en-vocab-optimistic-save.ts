@@ -10,6 +10,7 @@ export function buildOptimisticEnVocabWord(
       | "reading"
       | "meaning"
       | "pos"
+      | "category"
       | "class_notes"
       | "mnemonic"
       | "usage"

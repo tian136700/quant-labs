@@ -529,6 +529,8 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   meaning_source TEXT,
   pos        TEXT,
   kind       TEXT    NOT NULL DEFAULT 'word',
+  /** 分类标签（如「雅思托福」；上传 API 字段 category） */
+  category   TEXT    NOT NULL DEFAULT '雅思托福',
   ref_key    TEXT,
   cnt_very   INTEGER NOT NULL DEFAULT 0,
   cnt_normal INTEGER NOT NULL DEFAULT 0,
@@ -598,6 +600,8 @@ CREATE TABLE IF NOT EXISTS en_lesson (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   kind        TEXT    NOT NULL DEFAULT 'word',
   content     TEXT    NOT NULL,
+  /** 分类标签（如「雅思托福」；同步到抽问词库） */
+  category    TEXT    NOT NULL DEFAULT '雅思托福',
   title       TEXT,
   ref_key     TEXT,
   completed           INTEGER NOT NULL DEFAULT 0,

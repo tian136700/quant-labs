@@ -63,6 +63,7 @@ import { parseLessonContent } from "@/lib/en-lesson-shared";
 import { listEnLessons } from "@/lib/en-lesson-db";
 import { listEnLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/en-lesson-note-db";
 import { shieldEnVocabUsageUploadText } from "@/lib/en-vocab-usage-ai";
+import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
   EN_VOCAB_TEACHER_QUIZ_LIVE_EMPTY,
   isEnVocabTeacherQuizLiveStudentPeeked,
@@ -292,6 +293,7 @@ export type EnVocabWordEntryInput = {
   reading?: string | null;
   meaning?: string | null;
   pos?: string | null;
+  category?: string | null;
   class_notes?: string | null;
   mnemonic?: string | null;
   usage?: string | null;
@@ -344,6 +346,10 @@ export async function updateEnVocabWordEntry(
     input.pos !== undefined
       ? (input.pos || "").trim() || null
       : current.pos;
+  const nextCategory =
+    input.category !== undefined
+      ? normalizeEnVocabCategory(input.category)
+      : normalizeEnVocabCategory(current.category);
   const nextNotes =
     input.class_notes !== undefined
       ? (input.class_notes || "").trim() || null
@@ -423,6 +429,7 @@ export async function updateEnVocabWordEntry(
       meaning: nextMeaning,
       meaning_source: nextMeaningSource,
       pos: nextPos,
+      category: nextCategory,
       class_notes: nextNotes,
       mnemonic: nextMnemonic,
       usage: nextUsage,
@@ -437,11 +444,11 @@ export async function updateEnVocabWordEntry(
       .prepare(
         `UPDATE en_vocab_word
          SET kind = ?1, word = ?2, reading = ?3, reading_source = ?4,
-             meaning = ?5, meaning_source = ?6, pos = ?7, class_notes = ?8,
-             mnemonic = ?9, usage = ?10, usage_source = ?11,
-             example_sentences = ?12, example_sentences_source = ?13,
-             updated_at = ?14
-         WHERE id = ?15`
+             meaning = ?5, meaning_source = ?6, pos = ?7, category = ?8, class_notes = ?9,
+             mnemonic = ?10, usage = ?11, usage_source = ?12,
+             example_sentences = ?13, example_sentences_source = ?14,
+             updated_at = ?15
+         WHERE id = ?16`
       )
       .bind(
         nextKind,
@@ -451,6 +458,7 @@ export async function updateEnVocabWordEntry(
         nextMeaning,
         nextMeaningSource,
         nextPos,
+        nextCategory,
         nextNotes,
         nextMnemonic,
         nextUsage,

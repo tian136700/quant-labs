@@ -391,14 +391,23 @@ export interface JpLessonNote {
   updated_at: string;
 }
 
-/** 英语单词/新课：与日语模块结构相同，独立表存储 */
+/** 英语单词/新课：与日语模块结构相同，独立表存储；另有分类标签 category */
 export type EnVocabLevel = JpVocabLevel;
 export type EnVocabKind = JpVocabKind;
 export type EnVocabMediaType = JpVocabMediaType;
 export type EnVocabRef = JpVocabRef;
-export type EnVocabWord = JpVocabWord;
-export type EnVocabUploadInput = JpVocabUploadInput;
-export type EnVocabSharedItem = JpVocabSharedItem;
+/** 英语词条：在日语字段基础上增加分类标签（如「雅思托福」） */
+export interface EnVocabWord extends JpVocabWord {
+  /** 分类标签；缺省按「雅思托福」 */
+  category: string | null;
+}
+export type EnVocabUploadInput = JpVocabUploadInput & {
+  /** 分类标签；缺省「雅思托福」；可传 IELTS/TOEFL 等别名 */
+  category?: string | null;
+};
+export type EnVocabSharedItem = Omit<JpVocabSharedItem, "word"> & {
+  word: EnVocabWord;
+};
 export type EnVocabRefUploadInput = JpVocabRefUploadInput;
 export type EnLessonKind = JpLessonKind;
 export type EnLessonTeacher = JpLessonTeacher;
@@ -411,8 +420,15 @@ export type KoLessonTeacherReviewSortField = JpLessonTeacherReviewSortField;
 export type KoLessonTeacherReviewSummary = JpLessonTeacherReviewSummary;
 export type EnLessonClassSchedule = JpLessonClassSchedule;
 export type EnLessonClassScheduleInput = JpLessonClassScheduleInput;
-export type EnLessonRecord = JpLessonRecord;
-export type EnLessonUploadInput = JpLessonUploadInput;
+/** 英语新课：带分类标签，完成时同步到 en_vocab_word.category */
+export interface EnLessonRecord extends JpLessonRecord {
+  /** 分类标签；缺省「雅思托福」 */
+  category: string | null;
+}
+export type EnLessonUploadInput = JpLessonUploadInput & {
+  /** 分类标签；缺省「雅思托福」 */
+  category?: string | null;
+};
 export type EnLessonNote = JpLessonNote;
 
 /** 韩语发音：熟悉程度（抽问卡勾选） */
