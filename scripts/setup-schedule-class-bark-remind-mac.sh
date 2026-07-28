@@ -1,5 +1,5 @@
 #!/bin/bash
-# Mac 一次性安装：开课前 10 分钟 Bark 提醒（launchd 每分钟）
+# Mac 一次性安装：开课前 Bark 提醒备用（launchd 每 10 分钟；主路径仍是线上 Worker Cron）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,7 +32,7 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
 launchctl enable "gui/$(id -u)/${LABEL}" 2>/dev/null || true
 
 echo ""
-echo "OK: launchd 已安装（每分钟检查；进入开课前 10 分钟窗口时推一条 Bark）"
+echo "OK: launchd 已安装（每 10 分钟检查；主提醒请用线上 Worker Cron，本机默认关防双推）"
 echo "  plist: $PLIST_DST"
 echo "  配置: $ENV_FILE"
 echo "  日志: ${LOG_DIR}/schedule-class-bark-remind.log"

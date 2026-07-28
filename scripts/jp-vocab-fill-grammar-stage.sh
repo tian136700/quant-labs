@@ -1,10 +1,11 @@
 #!/bin/bash
-# 日语语法：用法+例句缺项检测（每分钟最多补 1 条；串行；忙则跳过）
+# 日语语法：用法+例句缺项检测（launchd 每 10 分钟最多补 1 条；串行；忙则跳过）
 #
 # 硬规则：
 #   - 默认只跑「缺用法或缺例句」的下一条（一次付费 1 词）
-#   - --skip-if-busy：全量重表或其它进程占锁时本分钟直接退出，绝不排队叠烧
+#   - --skip-if-busy：全量重表或其它进程占锁时本轮直接退出，绝不排队叠烧
 #   - 禁止 --loop / --allow-burst / --refill-ids 写进本入口
+#   - StartInterval 须 ≥600（见 setup-jp-vocab-fill-grammar-mac.sh）
 #
 # 用法：
 #   bash scripts/jp-vocab-fill-grammar-stage.sh

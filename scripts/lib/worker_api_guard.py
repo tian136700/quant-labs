@@ -3,7 +3,7 @@
 
 约定（与 launchd 10 分钟对齐）：
   - 探测到 Error 1027 / 429 / 5xx → 本轮跳过，不打付费、不写库
-  - 把「不可用」结果缓存约 10 分钟，避免语法每分钟任务反复探首页烧配额
+  - 把「不可用」结果缓存约 10 分钟，避免各 fill 任务反复探首页烧配额
   - 缓存过期后再探；直到站点恢复才继续补全
   - Cloudflare 免费档日配额约 UTC 0 点重置 ≈ 北京时间 08:00
 """
@@ -29,7 +29,7 @@ _RATE_LIMIT_HINTS = (
     "worker exceeded",
 )
 
-# 与多数 fill launchd StartInterval=600 对齐；语法虽每分钟跑，命中后也只 10 分钟再探一次
+# 与 fill launchd StartInterval=600（含语法）对齐
 _NEGATIVE_CACHE_SEC = 600
 _CACHE_PATH = (
     Path.home() / ".config" / "info-quests" / "worker-api-guard.cache.json"

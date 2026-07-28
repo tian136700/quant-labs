@@ -1,5 +1,5 @@
 #!/bin/bash
-# 开课前 Bark 提醒（默认每分钟由 launchd 调用）
+# 开课前 Bark 提醒（本机备用；launchd 每 10 分钟；主路径为线上 Worker Cron）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

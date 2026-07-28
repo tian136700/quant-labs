@@ -3,24 +3,28 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.infoquests.schedule-class-bark-remind</string>
+  <string>com.infoquests.jp-vocab-fill-grammar</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>__REPO_ROOT__/scripts/schedule-class-bark-remind.sh</string>
+    <string>__REPO_ROOT__/scripts/jp-vocab-fill-grammar-stage.sh</string>
   </array>
-  <key>StartInterval</key>
-  <integer>600</integer>
   <key>RunAtLoad</key>
   <true/>
+  <key>StartInterval</key>
+  <integer>__INTERVAL__</integer>
+  <key>ThrottleInterval</key>
+  <integer>__INTERVAL__</integer>
   <key>StandardOutPath</key>
-  <string>__LOG_DIR__/schedule-class-bark-remind.log</string>
+  <string>__LOG_DIR__/com.infoquests.jp-vocab-fill-grammar.log</string>
   <key>StandardErrorPath</key>
-  <string>__LOG_DIR__/schedule-class-bark-remind.err.log</string>
+  <string>__LOG_DIR__/com.infoquests.jp-vocab-fill-grammar.err.log</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
   </dict>
 </dict>
 </plist>
