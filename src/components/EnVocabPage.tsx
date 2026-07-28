@@ -705,7 +705,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         variant="page"
         loginOnly
         title="登录 · 英语单词"
-        subtitle="请登录后继续访问英语抽背（需账号密码，不对普通网友开放）。"
+        subtitle="请登录后继续访问英语抽背。"
         onAuthenticated={(next) => setUser(next)}
       />
     );
