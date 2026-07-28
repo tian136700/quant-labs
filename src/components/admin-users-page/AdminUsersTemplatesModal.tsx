@@ -82,8 +82,8 @@ export function AdminUsersTemplatesModal({
             </h2>
             <p className="admin-users-modal-subtitle">
               {locale === "zh"
-                ? "这里管理模板；列表操作里「带模板复制」会使用当前选用模板。"
-                : "Manage templates here. 'Copy with template' uses the active template."}
+                ? "可添加、编辑多个模板。列表里点「带模板复制」时会再让你选用哪一个。"
+                : "Add and edit multiple templates. 'Copy with template' asks which one to use."}
             </p>
           </div>
           <button
@@ -99,13 +99,13 @@ export function AdminUsersTemplatesModal({
         <div className="admin-users-modal-body admin-users-templates-body">
           <p className="hint admin-login-link-templates-hint" style={{ marginTop: 0 }}>
             {locale === "zh"
-              ? "复制登录链接时可选择「仅链接」或「带模板复制」。每次生成都会作废该用户此前的登录链接与已登录状态。链接路径会带上用户名（如 /sign-in/用户名/助记词）。正文会放在链接前面；也可写 {login_url} / {username} 指定位置。"
-              : "Copy plain URL or copy with template text. Each new link invalidates previous links/sessions. URLs include the username (/sign-in/username/slug). Use {login_url} / {username} placeholders."}
+              ? "「带模板复制」会先选模板，再写入用户名、密码与抽查链接。正文可写 {username} / {password} / {quiz_url}；未写密码与抽查占位时会在末尾自动附上。另有「复制链接」单独生成免密登录链接（可写 {login_url}）。"
+              : "'Copy with template' asks which template, then fills username, password, and quiz link. Use {username} / {password} / {quiz_url}; credentials are appended if password/quiz placeholders are missing. 'Copy link' still generates a sign-in URL ({login_url})."}
           </p>
 
           {templates.length > 0 ? (
             <label className="admin-login-link-template-select">
-              <span>{locale === "zh" ? "当前选用模板" : "Active template"}</span>
+              <span>{locale === "zh" ? "默认常用模板（选择时会标出）" : "Usual template (highlighted when picking)"}</span>
               <select
                 value={selectedTemplateId ?? ""}
                 disabled={templatesLoading || templateSaving}
@@ -235,8 +235,8 @@ export function AdminUsersTemplatesModal({
                 disabled={templateSaving}
                 placeholder={
                   locale === "zh"
-                    ? "例如：老师请在上课前十几二十分钟，抽查前 20 个单词。"
-                    : "e.g. Please review the first 20 words 15–20 minutes before class."
+                    ? "例如：老师请在上课前十几二十分钟抽查。可用 {username} / {password} / {quiz_url}"
+                    : "e.g. Please quiz before class. Placeholders: {username} / {password} / {quiz_url}"
                 }
                 onChange={(e) => onNewTemplateBodyChange(e.target.value)}
               />

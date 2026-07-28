@@ -6,8 +6,8 @@ import { enVocabPath, jpVocabPath, koPronPath } from "@/lib/locale-path";
 
 export const ADMIN_USER_CREDENTIALS_CACHE_KEY = "admin-user-credentials:v1";
 
-/** 复制账号密码时附带的抽问入口（按角色选日语/英语/韩语入口） */
-function vocabShareUrl(role?: string | null): {
+/** 复制账号密码 / 带模板复制时附带的抽问入口（按角色选日语/英语/韩语入口） */
+export function adminUserQuizShareUrl(role?: string | null): {
   url: string;
   labelZh: string;
   labelEn: string;
@@ -71,7 +71,7 @@ export function formatAdminUserCredentials(
   locale: "en" | "zh",
   role?: string | null
 ): string {
-  const { url, labelZh, labelEn } = vocabShareUrl(role);
+  const { url, labelZh, labelEn } = adminUserQuizShareUrl(role);
   if (locale === "zh") {
     return `用户名：${username}\n密码：${password}\n${labelZh}：${url}`;
   }

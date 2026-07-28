@@ -15,7 +15,6 @@ import {
 } from "@/lib/rbac";
 import { formatBeijingDateTime, parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { formatIpForDisplay } from "@/lib/client-ip";
-import type { LoginLinkTemplate } from "@/lib/types";
 
 export const LOGIN_LINK_TEMPLATE_STORAGE_KEY = "admin_login_link_template_id";
 
@@ -249,14 +248,15 @@ export type AdminUserActionsProps = {
   row: UserRow;
   locale: "zh" | "en";
   currentUserId: number | undefined;
-  selectedTemplate: LoginLinkTemplate | null;
+  hasTemplates: boolean;
   deletingId: number | null;
   linkGeneratingId: number | null;
   linkGeneratingWithTemplate: boolean;
   copyingId: number | null;
   onEdit: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
-  onGenerateLoginLink: (row: UserRow, withTemplate: boolean) => void;
+  onGenerateLoginLink: (row: UserRow) => void;
+  onCopyWithTemplate: (row: UserRow) => void;
   onToggleNeverDisable: (row: UserRow) => void;
   onToggleDisabled: (row: UserRow) => void;
   onDelete: (row: UserRow) => void;
@@ -266,7 +266,7 @@ export function AdminUserActions({
   row,
   locale,
   currentUserId,
-  selectedTemplate,
+  hasTemplates,
   deletingId,
   linkGeneratingId,
   linkGeneratingWithTemplate,
@@ -274,6 +274,7 @@ export function AdminUserActions({
   onEdit,
   onCopyCredentials,
   onGenerateLoginLink,
+  onCopyWithTemplate,
   onToggleNeverDisable,
   onToggleDisabled,
   onDelete,
@@ -330,60 +331,39 @@ export function AdminUserActions({
         </button>
       ) : null}
       {canCopyCredentials ? (
-        <button
-          type="button"
-          className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
-          disabled={busy}
-          onClick={() => void onCopyCredentials(row)}
-          title={
-            locale === "zh"
-              ? "复制用户名与密码（密码来自本机缓存；系统保留账号如李老师无缓存时不会重置）"
-              : "Copy username and password (from local cache; bootstrap accounts are never random-reset)"
-          }
-        >
-          {copyingId === row.id
-            ? locale === "zh"
-              ? "处理中…"
-              : "Working…"
-            : locale === "zh"
-              ? "复制账号密码"
-              : "Copy credentials"}
-        </button>
-      ) : null}
-      {canGenerateLink ? (
         <>
           <button
             type="button"
-            className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-btn"
+            className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
             disabled={busy}
-            onClick={() => void onGenerateLoginLink(row, false)}
+            onClick={() => void onCopyCredentials(row)}
             title={
               locale === "zh"
-                ? "生成并复制登录链接（不含模板文字）"
-                : "Generate and copy login link only"
+                ? "复制用户名与密码（密码来自本机缓存；系统保留账号如李老师无缓存时不会重置）"
+                : "Copy username and password (from local cache; bootstrap accounts are never random-reset)"
             }
           >
-            {linkGeneratingId === row.id && !linkGeneratingWithTemplate
+            {copyingId === row.id
               ? locale === "zh"
-                ? "生成中…"
-                : "Generating…"
+                ? "处理中…"
+                : "Working…"
               : locale === "zh"
-                ? "复制链接"
-                : "Copy link"}
+                ? "复制账号密码"
+                : "Copy credentials"}
           </button>
           <button
             type="button"
             className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
-            disabled={busy || !selectedTemplate}
-            onClick={() => void onGenerateLoginLink(row, true)}
+            disabled={busy || !hasTemplates}
+            onClick={() => onCopyWithTemplate(row)}
             title={
               locale === "zh"
-                ? selectedTemplate
-                  ? `带模板「${selectedTemplate.name}」复制登录链接`
-                  : "请先在上方添加并选择文字模板"
-                : selectedTemplate
-                  ? `Copy login link with template "${selectedTemplate.name}"`
-                  : "Add and select a template above first"
+                ? hasTemplates
+                  ? "先选择模板，再复制用户名、密码与抽查链接"
+                  : "请先在「管理登录模板」中添加模板"
+                : hasTemplates
+                  ? "Pick a template, then copy username, password, and quiz link"
+                  : "Add a template under Manage templates first"
             }
           >
             {linkGeneratingId === row.id && linkGeneratingWithTemplate
@@ -395,6 +375,27 @@ export function AdminUserActions({
                 : "Copy with template"}
           </button>
         </>
+      ) : null}
+      {canGenerateLink ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary admin-user-btn"
+          disabled={busy}
+          onClick={() => void onGenerateLoginLink(row)}
+          title={
+            locale === "zh"
+              ? "生成并复制登录链接"
+              : "Generate and copy login link"
+          }
+        >
+          {linkGeneratingId === row.id && !linkGeneratingWithTemplate
+            ? locale === "zh"
+              ? "生成中…"
+              : "Generating…"
+            : locale === "zh"
+              ? "复制链接"
+              : "Copy link"}
+        </button>
       ) : null}
       {canToggle ? (
         <button

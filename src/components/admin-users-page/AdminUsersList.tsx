@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import type { Locale } from "@/i18n/messages";
-import type { LoginLinkTemplate } from "@/lib/types";
 import {
   AdminUserActions,
   AdminUserCardField,
@@ -27,7 +26,7 @@ export type AdminUsersListProps = {
   onToggleSort: (field: UserSortField) => void;
   highlightUserId: number | null;
   currentUserId: number | undefined;
-  selectedTemplate: LoginLinkTemplate | null;
+  hasTemplates: boolean;
   deletingId: number | null;
   linkGeneratingId: number | null;
   linkGeneratingWithTemplate: boolean;
@@ -36,7 +35,8 @@ export type AdminUsersListProps = {
   onEdit: (row: UserRow) => void;
   onViewLoginHistory: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
-  onGenerateLoginLink: (row: UserRow, withTemplate: boolean) => void;
+  onGenerateLoginLink: (row: UserRow) => void;
+  onCopyWithTemplate: (row: UserRow) => void;
   onToggleNeverDisable: (row: UserRow) => void;
   onToggleDisabled: (row: UserRow) => void;
   onDelete: (row: UserRow) => void;
@@ -56,7 +56,7 @@ export function AdminUsersList({
   onToggleSort,
   highlightUserId,
   currentUserId,
-  selectedTemplate,
+  hasTemplates,
   deletingId,
   linkGeneratingId,
   linkGeneratingWithTemplate,
@@ -66,6 +66,7 @@ export function AdminUsersList({
   onViewLoginHistory,
   onCopyCredentials,
   onGenerateLoginLink,
+  onCopyWithTemplate,
   onToggleNeverDisable,
   onToggleDisabled,
   onDelete,
@@ -263,7 +264,7 @@ export function AdminUsersList({
                     row={row}
                     locale={locale}
                     currentUserId={currentUserId}
-                    selectedTemplate={selectedTemplate}
+                    hasTemplates={hasTemplates}
                     deletingId={deletingId}
                     linkGeneratingId={linkGeneratingId}
                     linkGeneratingWithTemplate={linkGeneratingWithTemplate}
@@ -271,6 +272,7 @@ export function AdminUsersList({
                     onEdit={onEdit}
                     onCopyCredentials={onCopyCredentials}
                     onGenerateLoginLink={onGenerateLoginLink}
+                    onCopyWithTemplate={onCopyWithTemplate}
                     onToggleNeverDisable={onToggleNeverDisable}
                     onToggleDisabled={onToggleDisabled}
                     onDelete={onDelete}
@@ -382,7 +384,7 @@ export function AdminUsersList({
                           row={row}
                           locale={locale}
                           currentUserId={currentUserId}
-                          selectedTemplate={selectedTemplate}
+                          hasTemplates={hasTemplates}
                           deletingId={deletingId}
                           linkGeneratingId={linkGeneratingId}
                           linkGeneratingWithTemplate={linkGeneratingWithTemplate}
@@ -390,6 +392,7 @@ export function AdminUsersList({
                           onEdit={onEdit}
                           onCopyCredentials={onCopyCredentials}
                           onGenerateLoginLink={onGenerateLoginLink}
+                          onCopyWithTemplate={onCopyWithTemplate}
                           onToggleNeverDisable={onToggleNeverDisable}
                           onToggleDisabled={onToggleDisabled}
                           onDelete={onDelete}

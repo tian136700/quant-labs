@@ -11,13 +11,14 @@ import {
   forgetAdminUserPassword,
 } from "@/lib/admin-user-credentials";
 import { hasAdminUserFieldErrors } from "@/lib/admin-user-validation";
+import { copyTextToClipboard } from "@/lib/copy-text";
 import {
   ETR_DEFAULT_JP_VOCAB_USERNAME,
   ETR_DEFAULT_JP_VOCAB_USER1_USERNAME,
   ETR_DEFAULT_ADMIN_USERNAME,
   isReservedUsername,
 } from "@/lib/etr-auth";
-import { renderLoginLinkTemplate } from "@/lib/login-link-template-render";
+import { renderAdminTemplateCredentialsCopy } from "@/lib/login-link-template-render";
 import { emptyTeacherModules, type RbacTeacherModules } from "@/lib/rbac";
 import type { LoginLinkTemplate } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
@@ -25,7 +26,6 @@ import type { Locale } from "@/i18n/messages";
 export type UseAdminUsersPageActionsOptions = {
   locale: Locale;
   users: UserRow[];
-  selectedTemplate: LoginLinkTemplate | null;
   selectedTemplateId: number | null;
   newUsername: string;
   newPassword: string;
@@ -71,7 +71,6 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
   const {
     locale,
     users,
-    selectedTemplate,
     selectedTemplateId,
     newUsername,
     newPassword,
@@ -447,19 +446,87 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setCopyToast(locale === "zh" ? "复制成功" : "Copied");
   };
 
-  const generateLoginLink = async (row: UserRow, withTemplate: boolean) => {
-    if (withTemplate && !selectedTemplate) {
+  const showCopyFailure = () => {
+    setCopyToast(locale === "zh" ? "复制失败" : "Copy failed");
+  };
+
+  /** 解析可复制的密码；取消 / 失败返回 null（已写 status）。 */
+  const resolvePasswordForCopy = async (row: UserRow): Promise<string | null> => {
+    let password = readAdminUserPassword(row.id);
+    const username = row.username;
+    const isBootstrapAccount = isReservedUsername(
+      username,
+      ETR_DEFAULT_ADMIN_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
+    );
+
+    if (password) return password;
+
+    if (isBootstrapAccount) {
       setStatus(
         locale === "zh"
-          ? "请先添加并选择文字模板，再使用「带模板复制」"
-          : "Add and select a template before copying with template"
+          ? `「${username}」是系统保留账号，禁止一键随机重置密码。请点「编辑」填写已知密码（填完会缓存在本机，之后才能复制）。`
+          : `"${username}" is a system account and cannot be random-reset. Use Edit to enter the known password (then it can be copied from local cache).`
       );
       setStatusErr(true);
-      return;
+      return null;
     }
 
+    const ok = window.confirm(
+      locale === "zh"
+        ? `本地未保存用户「${username}」的密码。\n是否重置为新密码并复制？（旧密码将失效）`
+        : `No saved password for "${username}". Reset to a new password and copy? (The old password will stop working.)`
+    );
+    if (!ok) return null;
+
+    setCopyingId(row.id);
+    try {
+      const res = await fetch("/api/admin/users/reset-password", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: row.id }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        password?: string;
+        user?: UserRow;
+        error?: string;
+      };
+      if (!data.ok || !data.password) {
+        throw new Error(String(data.error || "reset failed"));
+      }
+      password = data.password;
+      rememberAdminUserPassword(row.id, password);
+      if (data.user) {
+        setUsers((prev) => {
+          const next = prev.map((item) =>
+            item.id === row.id ? { ...item, ...data.user! } : item
+          );
+          persistUsers(next);
+          return next;
+        });
+      }
+      return password;
+    } catch (err) {
+      setStatus(
+        err instanceof Error
+          ? err.message
+          : locale === "zh"
+            ? "重置密码失败"
+            : "Failed to reset password"
+      );
+      setStatusErr(true);
+      return null;
+    } finally {
+      setCopyingId(null);
+    }
+  };
+
+  const generateLoginLink = async (row: UserRow) => {
     setLinkGeneratingId(row.id);
-    setLinkGeneratingWithTemplate(withTemplate);
+    setLinkGeneratingWithTemplate(false);
     setStatus("");
     setStatusErr(false);
     try {
@@ -476,24 +543,13 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
         return;
       }
       const url = String(data.url || "");
-      const copyText =
-        withTemplate && selectedTemplate
-          ? renderLoginLinkTemplate(selectedTemplate.body, url, row.username)
-          : url;
-      let copied = false;
-      if (copyText && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(copyText);
-        copied = true;
-        showCopySuccess();
-      }
+      const copied = url ? await copyTextToClipboard(url) : false;
+      if (copied) showCopySuccess();
+      else if (url) showCopyFailure();
       setStatus(
         locale === "zh"
-          ? withTemplate
-            ? `已为 ${row.username} 生成新登录链接并带模板复制${copied ? "到剪贴板" : ""}（旧链接与已登录状态已失效；登录后 ${data.session_days ?? 30} 天免登录）`
-            : `已为 ${row.username} 生成新登录链接（旧链接与已登录状态已失效；登录后 ${data.session_days ?? 30} 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
-          : withTemplate
-            ? `New login link for ${row.username} copied with template${copied ? "" : " (copy failed)"} (previous links and sessions invalidated; ${data.session_days ?? 30}-day session after sign-in)`
-            : `New login link for ${row.username} (previous links and sessions invalidated; ${data.session_days ?? 30}-day session after sign-in)${copied ? ", copied" : ""}: ${url}`
+          ? `已为 ${row.username} 生成新登录链接（旧链接与已登录状态已失效；登录后 ${data.session_days ?? 30} 天免登录）${copied ? "，已复制到剪贴板" : ""}：${url}`
+          : `New login link for ${row.username} (previous links and sessions invalidated; ${data.session_days ?? 30}-day session after sign-in)${copied ? ", copied" : ""}: ${url}`
       );
     } catch {
       setStatus(locale === "zh" ? "生成链接失败" : "Failed to generate link");
@@ -504,105 +560,81 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     }
   };
 
-  const copyUserCredentials = async (row: UserRow) => {
+  const copyWithTemplate = async (row: UserRow, template: LoginLinkTemplate) => {
     setStatus("");
     setStatusErr(false);
+    setSelectedTemplateId(template.id);
 
-    let password = readAdminUserPassword(row.id);
-    const username = row.username;
-    const isBootstrapAccount = isReservedUsername(
-      username,
-      ETR_DEFAULT_ADMIN_USERNAME,
-      ETR_DEFAULT_JP_VOCAB_USERNAME,
-      ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
-    );
+    const password = await resolvePasswordForCopy(row);
+    if (!password) return false;
 
-    if (!password) {
-      if (isBootstrapAccount) {
+    const text = renderAdminTemplateCredentialsCopy({
+      body: template.body,
+      username: row.username,
+      password,
+      locale,
+      role: row.role,
+    });
+
+    setLinkGeneratingId(row.id);
+    setLinkGeneratingWithTemplate(true);
+    try {
+      const copied = await copyTextToClipboard(text);
+      if (copied) {
+        showCopySuccess();
         setStatus(
           locale === "zh"
-            ? `「${username}」是系统保留账号，禁止一键随机重置密码。请点「编辑」填写已知密码（填完会缓存在本机，之后才能复制）。`
-            : `"${username}" is a system account and cannot be random-reset. Use Edit to enter the known password (then it can be copied from local cache).`
+            ? `已用模板「${template.name}」复制 ${row.username} 的用户名、密码与抽查链接`
+            : `Copied ${row.username} credentials with template "${template.name}"`
         );
-        setStatusErr(true);
-        return;
+        setStatusErr(false);
+        return true;
       }
-
-      const ok = window.confirm(
-        locale === "zh"
-          ? `本地未保存用户「${username}」的密码。\n是否重置为新密码并复制？（旧密码将失效）`
-          : `No saved password for "${username}". Reset to a new password and copy? (The old password will stop working.)`
-      );
-      if (!ok) return;
-
-      setCopyingId(row.id);
-      try {
-        const res = await fetch("/api/admin/users/reset-password", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: row.id }),
-        });
-        const data = (await res.json()) as {
-          ok?: boolean;
-          password?: string;
-          user?: UserRow;
-          error?: string;
-        };
-        if (!data.ok || !data.password) {
-          throw new Error(String(data.error || "reset failed"));
-        }
-        password = data.password;
-        rememberAdminUserPassword(row.id, password);
-        if (data.user) {
-          setUsers((prev) => {
-            const next = prev.map((item) =>
-              item.id === row.id ? { ...item, ...data.user! } : item
-            );
-            persistUsers(next);
-            return next;
-          });
-        }
-      } catch (err) {
-        setStatus(
-          err instanceof Error
-            ? err.message
-            : locale === "zh"
-              ? "重置密码失败"
-              : "Failed to reset password"
-        );
-        setStatusErr(true);
-        return;
-      } finally {
-        setCopyingId(null);
-      }
-    }
-
-    const text = formatAdminUserCredentials(
-      username,
-      password!,
-      locale,
-      row.role
-    );
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        showCopySuccess();
-      }
-      setStatus(
-        locale === "zh"
-          ? `已复制 ${username} 的用户名与密码`
-          : `Copied username and password for ${username}`
-      );
-      setStatusErr(false);
-    } catch {
+      showCopyFailure();
       setStatus(
         locale === "zh"
           ? `复制失败，请手动复制：\n${text}`
           : `Copy failed. Manual copy:\n${text}`
       );
       setStatusErr(true);
+      return false;
+    } finally {
+      setLinkGeneratingId(null);
+      setLinkGeneratingWithTemplate(false);
     }
+  };
+
+  const copyUserCredentials = async (row: UserRow) => {
+    setStatus("");
+    setStatusErr(false);
+
+    const password = await resolvePasswordForCopy(row);
+    if (!password) return;
+
+    const text = formatAdminUserCredentials(
+      row.username,
+      password,
+      locale,
+      row.role
+    );
+    const copied = await copyTextToClipboard(text);
+    if (copied) {
+      showCopySuccess();
+      setStatus(
+        locale === "zh"
+          ? `已复制 ${row.username} 的用户名与密码`
+          : `Copied username and password for ${row.username}`
+      );
+      setStatusErr(false);
+      return;
+    }
+    showCopyFailure();
+    setStatus(
+      locale === "zh"
+        ? `复制失败，请手动复制：\n${text}`
+        : `Copy failed. Manual copy:\n${text}`
+    );
+    setStatusErr(true);
   };
 
   const deleteUser = async (row: UserRow) => {
@@ -721,6 +753,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     toggleNeverDisable,
     createUser,
     generateLoginLink,
+    copyWithTemplate,
     copyUserCredentials,
     deleteUser,
     applyUserUpdate,
