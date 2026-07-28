@@ -37,12 +37,18 @@ export const VOCAB_POLL_LOW_FREQ_HIDDEN_MS = 180_000; // 3 min
 /** 老师端账号正常时：软刷新词表 / 今日抽查数量（不常驻 5s sync） */
 export const VOCAB_TEACHER_SOFT_REFRESH_MS = 30 * 60 * 1000; // 30 min
 
-/** 老师账号是否可做后台刷新（禁用则不做任何定时刷新） */
-export function isVocabTeacherAccountActiveForRefresh(user: {
-  disabled?: number | boolean | null;
-} | null | undefined): boolean {
+/**
+ * 老师账号是否可做后台刷新（禁用则不做任何定时刷新）。
+ *
+ * 参数用 `object` 而非仅含可选 `disabled` 的弱类型：客户端 `EtrAuthUser` 无
+ * `disabled` 字段（禁用时鉴权返回 maintenance + user=null），弱类型会触发
+ * TS「no properties in common」导致 next build 失败。
+ */
+export function isVocabTeacherAccountActiveForRefresh(
+  user: object | null | undefined
+): boolean {
   if (!user) return false;
-  const d = user.disabled;
+  const d = (user as { disabled?: unknown }).disabled;
   if (d === true || d === 1 || d === "1") return false;
   return true;
 }

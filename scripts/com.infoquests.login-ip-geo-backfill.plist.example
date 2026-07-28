@@ -10,7 +10,9 @@
     <string>__REPO_ROOT__/scripts/login-ip-geo-backfill.sh</string>
   </array>
   <key>StartInterval</key>
-  <integer>30</integer>
+  <integer>600</integer>
+  <key>ThrottleInterval</key>
+  <integer>600</integer>
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>

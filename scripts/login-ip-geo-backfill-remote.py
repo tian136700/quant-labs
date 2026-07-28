@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""直接回填线上 D1：登录唯一 IP → ip9 归属地（同一 IP 只查一次，默认间隔 30s）。
+"""直接回填线上 D1：登录唯一 IP → ip9 归属地（同一 IP 只查一次，默认间隔 600s）。
 
 不依赖 Worker 新接口；写 etr_ip_geo_cache，历史弹窗读缓存即可展示区县。
 查到后会抄到 etr_user_login_history + visit_logs，并刷新 visit_logs.updated_at。
@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DB = "strategy-compare-db"
 IP9_URL = "https://ip9.com.cn/get"
-DEFAULT_INTERVAL_SEC = 30
+DEFAULT_INTERVAL_SEC = 600
 NEGATIVE_CACHE_SEC = 6 * 60 * 60
 UNREGISTERED_VISIT_RETENTION_DAYS = 10
 UA = "strategy-compare-cloud/login-ip-geo-backfill-remote"

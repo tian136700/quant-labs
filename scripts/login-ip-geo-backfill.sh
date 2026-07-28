@@ -1,5 +1,5 @@
 #!/bin/bash
-# 登录 IP 归属地回填：每次只查 1 个尚未缓存的唯一 IP（ip9），约每 30s 由 launchd 唤醒
+# 登录 IP 归属地回填：每次只查 1 个尚未缓存的唯一 IP（ip9），约每 10 分钟由 launchd 唤醒
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

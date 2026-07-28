@@ -36,9 +36,21 @@ def main() -> int:
             "todayHasClass",
             "VOCAB_TEACHER_SOFT_REFRESH_MS = 30 * 60 * 1000",
             "isVocabTeacherAccountActiveForRefresh",
+            # 须接受 EtrAuthUser（无 disabled）；禁止弱类型 { disabled?: … } 导致 next build 失败
+            "user: object | null | undefined",
         ],
         "helper",
     )
+    helper_text = helper.read_text(encoding="utf-8")
+    # 曾用仅含可选 disabled 的弱类型参数 → EtrAuthUser 触发 TS「no properties in common」
+    if re.search(
+        r"isVocabTeacherAccountActiveForRefresh\s*\(\s*user\s*:\s*\{\s*disabled\?",
+        helper_text,
+    ):
+        errors.append(
+            "helper: isVocabTeacherAccountActiveForRefresh must not use weak "
+            "{ disabled?: … } param (breaks EtrAuthUser at next build)"
+        )
 
     errors += must_contain(
         ROOT / "src/lib/vocab-poll-today-has-class.ts",
