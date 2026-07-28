@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS etr_users (
   never_disable INTEGER NOT NULL DEFAULT 0,
   last_login_at TEXT,
   last_login_ip TEXT,
+  -- 非管理员单设备在线：当前唯一有效会话 token（管理员不受限）
+  current_session_token TEXT,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

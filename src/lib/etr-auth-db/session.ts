@@ -56,7 +56,7 @@ export async function findUserByUsername(
     (await db
       .prepare(
         `SELECT id, username, password_hash, role, disabled, never_disable, created_at
-         , last_login_at, last_login_ip
+         , last_login_at, last_login_ip, current_session_token
          FROM etr_users WHERE username = ?1 LIMIT 1`
       )
       .bind(name)
@@ -76,6 +76,7 @@ export async function findUserById(db: D1Database, userId: number): Promise<EtrU
     (await db
       .prepare(
         `SELECT id, username, role, disabled, never_disable, created_at, last_login_at, last_login_ip
+         , current_session_token
          FROM etr_users WHERE id = ?1 LIMIT 1`
       )
       .bind(userId)
@@ -181,6 +182,7 @@ export async function registerUser(
       disabled: 0,
       last_login_at: null,
       last_login_ip: null,
+      current_session_token: null,
       created_at: ts,
     };
     etrAuthDbState.devUsers.push(created);
@@ -245,10 +247,17 @@ async function createSession(
     ttlMs ?? sessionTtlMs(user.role as EtrUserRole)
   );
   const ts = nowIso();
+  const singleDeviceOnly = isSingleDeviceRestrictedRole(user.role);
   await recordUserLogin(db, user.id, loginMeta);
 
   if (etrAuthDbState.devAuthEnabled) {
     const currentUser = etrAuthDbState.devUsers.find((item) => item.id === user.id);
+    if (singleDeviceOnly) {
+      etrAuthDbState.devSessions = etrAuthDbState.devSessions.filter(
+        (session) => session.user_id !== user.id
+      );
+      if (currentUser) currentUser.current_session_token = token;
+    }
     etrAuthDbState.devSessions.push({
       token,
       user_id: user.id,
@@ -258,13 +267,33 @@ async function createSession(
     return { ok: true, user: currentUser ?? user, token, expires_at: expiresAt };
   }
 
-  await db
-    .prepare(
-      `INSERT INTO etr_sessions (token, user_id, expires_at, created_at)
-       VALUES (?1, ?2, ?3, ?4)`
-    )
-    .bind(token, user.id, expiresAt, ts)
-    .run();
+  if (singleDeviceOnly) {
+    await ensureEtrUsersSchema(db);
+    await db.batch([
+      db.prepare(`DELETE FROM etr_sessions WHERE user_id = ?1`).bind(user.id),
+      db
+        .prepare(
+          `INSERT INTO etr_sessions (token, user_id, expires_at, created_at)
+           VALUES (?1, ?2, ?3, ?4)`
+        )
+        .bind(token, user.id, expiresAt, ts),
+      db
+        .prepare(
+          `UPDATE etr_users
+           SET current_session_token = ?1
+           WHERE id = ?2`
+        )
+        .bind(token, user.id),
+    ]);
+  } else {
+    await db
+      .prepare(
+        `INSERT INTO etr_sessions (token, user_id, expires_at, created_at)
+         VALUES (?1, ?2, ?3, ?4)`
+      )
+      .bind(token, user.id, expiresAt, ts)
+      .run();
+  }
 
   return { ok: true, user, token, expires_at: expiresAt };
 }
@@ -311,6 +340,9 @@ export async function resolveAuthSession(
     if (result.kind === "maintenance") {
       return { status: "maintenance" };
     }
+    if (result.kind === "session_conflict") {
+      return { status: "session_conflict" };
+    }
     if (result.kind === "expired") staleCookie = true;
   }
 
@@ -320,6 +352,7 @@ export async function resolveAuthSession(
 type SessionLookupResult =
   | { kind: "valid"; user: EtrSessionUser }
   | { kind: "maintenance" }
+  | { kind: "session_conflict" }
   | { kind: "expired" }
   | { kind: "missing" };
 
@@ -332,6 +365,10 @@ const sessionLookupCache = new Map<
 
 function invalidateSessionLookupCache(token: string) {
   sessionLookupCache.delete(token);
+}
+
+function isSingleDeviceRestrictedRole(role: string | null | undefined): boolean {
+  return (role ?? "").trim() !== "admin";
 }
 
 async function lookupSession(
@@ -354,7 +391,11 @@ async function lookupSession(
   }
 
   const result = await lookupSessionFromDb(env, token);
-  if (result.kind === "valid" || result.kind === "maintenance") {
+  if (
+    result.kind === "valid" ||
+    result.kind === "maintenance" ||
+    result.kind === "session_conflict"
+  ) {
     sessionLookupCache.set(token, { at: now, result });
   } else {
     sessionLookupCache.delete(token);
@@ -383,6 +424,13 @@ async function lookupSessionFromDb(
     if (isUserDisabled(user)) {
       return { kind: "maintenance" };
     }
+    if (
+      isSingleDeviceRestrictedRole(user.role) &&
+      user.current_session_token &&
+      user.current_session_token !== token
+    ) {
+      return { kind: "session_conflict" };
+    }
     return {
       kind: "valid",
       user: {
@@ -401,7 +449,7 @@ async function lookupSessionFromDb(
   const row = await db
     .prepare(
       `SELECT u.id, u.username, u.role, u.disabled, u.created_at, s.expires_at
-         , u.last_login_at, u.last_login_ip
+         , u.last_login_at, u.last_login_ip, u.current_session_token
        FROM etr_sessions s
        JOIN etr_users u ON u.id = s.user_id
        WHERE s.token = ?1
@@ -419,6 +467,14 @@ async function lookupSessionFromDb(
 
   if (isUserDisabled(row)) {
     return { kind: "maintenance" };
+  }
+
+  if (
+    isSingleDeviceRestrictedRole(row.role) &&
+    row.current_session_token &&
+    row.current_session_token !== token
+  ) {
+    return { kind: "session_conflict" };
   }
 
   return {

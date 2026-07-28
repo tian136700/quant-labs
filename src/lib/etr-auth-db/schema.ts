@@ -25,6 +25,7 @@ export async function ensureEtrUsersSchema(db: D1Database): Promise<void> {
   await addColumnIfMissing("last_login_at", "TEXT");
   await addColumnIfMissing("last_login_ip", "TEXT");
   await addColumnIfMissing("never_disable", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing("current_session_token", "TEXT");
   await db
     .prepare(
       `CREATE INDEX IF NOT EXISTS idx_etr_users_last_login_at

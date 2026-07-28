@@ -34,6 +34,7 @@ export type LoginAuditMeta = { loginIp?: string | null };
 export type AuthSessionResolve =
   | { status: "authenticated"; user: EtrSessionUser }
   | { status: "maintenance" }
+  | { status: "session_conflict" }
   | { status: "anonymous"; staleCookie: boolean };
 
 /** 模块级可变状态（dev store + bootstrap 一次性标记）。拆文件后统一经此对象读写。 */

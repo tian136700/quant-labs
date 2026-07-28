@@ -36,6 +36,8 @@ export interface EtrUser {
   never_disable?: number;
   last_login_at?: string | null;
   last_login_ip?: string | null;
+  /** 非管理员：当前唯一有效会话 token；新设备登录会顶掉旧设备 */
+  current_session_token?: string | null;
 }
 
 export interface EtrSessionUser extends EtrUser {
