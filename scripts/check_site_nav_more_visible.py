@@ -18,6 +18,8 @@ FIT = ROOT / "src" / "lib" / "site-nav-fit.ts"
 CONFIG = ROOT / "src" / "lib" / "site-nav-config.ts"
 GROUPS = ROOT / "src" / "lib" / "site-nav-groups.ts"
 CSS = ROOT / "src" / "app" / "globals.css"
+CSS_NAV = ROOT / "src" / "app" / "globals" / "globals-nav.css"
+CSS_BASE = ROOT / "src" / "app" / "globals" / "globals-base.css"
 
 
 def fail(msg: str) -> int:
@@ -26,7 +28,7 @@ def fail(msg: str) -> int:
 
 
 def main() -> int:
-    for path in (SITE_NAV, SPLIT, FIT, CONFIG, GROUPS, CSS):
+    for path in (SITE_NAV, SPLIT, FIT, CONFIG, GROUPS, CSS, CSS_NAV, CSS_BASE):
         if not path.is_file():
             return fail(f"missing {path.relative_to(ROOT)}")
 
@@ -35,7 +37,9 @@ def main() -> int:
     fit = FIT.read_text(encoding="utf-8")
     config = CONFIG.read_text(encoding="utf-8")
     groups = GROUPS.read_text(encoding="utf-8")
-    css = CSS.read_text(encoding="utf-8")
+    css = "\n".join(
+        p.read_text(encoding="utf-8") for p in (CSS, CSS_NAV, CSS_BASE)
+    )
 
     if "MAX_PRIMARY_NAV" not in config:
         return fail("MAX_PRIMARY_NAV missing from site-nav-config.ts")
@@ -46,29 +50,38 @@ def main() -> int:
     if 'PINNED_PRIMARY_NAV_ID = "langJp"' not in config:
         return fail('PINNED_PRIMARY_NAV_ID must be "langJp" (language group)')
 
-    # 日程管理 = 跨科目一级，禁止塞回「日语」二级
+    # 日程管理 / 人员管理 = 跨科目一级，禁止塞回「日语」二级
     if "NAV_TOP_LEVEL_CROSS_SUBJECT_IDS" not in config:
-        return fail("NAV_TOP_LEVEL_CROSS_SUBJECT_IDS missing (schedule top-level)")
-    if '"jpLessonSchedule"' not in config.split("NAV_TOP_LEVEL_CROSS_SUBJECT_IDS", 1)[1].split(
+        return fail("NAV_TOP_LEVEL_CROSS_SUBJECT_IDS missing (schedule/personnel top-level)")
+    top_level_block = config.split("NAV_TOP_LEVEL_CROSS_SUBJECT_IDS", 1)[1].split(
         "PINNED_PRIMARY_NAV_ID", 1
-    )[0]:
-        return fail("jpLessonSchedule must be listed in NAV_TOP_LEVEL_CROSS_SUBJECT_IDS")
+    )[0]
+    for top_id in ('"jpLessonSchedule"', '"adminJpLessonTeachers"'):
+        if top_id not in top_level_block:
+            return fail(f"{top_id.strip(chr(34))} must be listed in NAV_TOP_LEVEL_CROSS_SUBJECT_IDS")
     lang_jp_block = re.search(
         r'id:\s*"langJp"[\s\S]*?childIds:\s*\[([\s\S]*?)\]',
         config,
     )
     if not lang_jp_block:
         return fail("langJp childIds block not found")
-    if "jpLessonSchedule" in lang_jp_block.group(1):
-        return fail(
-            "jpLessonSchedule must NOT be under langJp secondary menu "
-            "(unified schedule is top-level)"
-        )
+    for banned in ("jpLessonSchedule", "adminJpLessonTeachers"):
+        if banned in lang_jp_block.group(1):
+            return fail(
+                f"{banned} must NOT be under langJp secondary menu "
+                "(cross-subject module is top-level)"
+            )
     primary_order = re.search(r"PRIMARY_NAV_ORDER\s*=\s*\[([\s\S]*?)\]\s*as const", config)
-    if not primary_order or '"jpLessonSchedule"' not in primary_order.group(1):
-        return fail("PRIMARY_NAV_ORDER must include jpLessonSchedule as top-level")
-    if 'jpLessonSchedule: "system"' not in config and "jpLessonSchedule: 'system'" not in config:
-        return fail('NAV_ITEM_CATEGORY jpLessonSchedule must be "system" (not jp)')
+    if not primary_order:
+        return fail("PRIMARY_NAV_ORDER block not found")
+    for top_id in ('"jpLessonSchedule"', '"adminJpLessonTeachers"'):
+        if top_id not in primary_order.group(1):
+            return fail(
+                f"PRIMARY_NAV_ORDER must include {top_id.strip(chr(34))} as top-level"
+            )
+    for cat_id in ("jpLessonSchedule", "adminJpLessonTeachers"):
+        if f'{cat_id}: "system"' not in config and f"{cat_id}: 'system'" not in config:
+            return fail(f'NAV_ITEM_CATEGORY {cat_id} must be "system" (not jp)')
 
     if "groupSiteNavItems" not in groups:
         return fail("site-nav-groups.ts must export groupSiteNavItems")

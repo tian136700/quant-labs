@@ -191,9 +191,9 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | `/jp-lesson` | 日语新课 | `src/app/jp-lesson/page.tsx` | `JpLessonPage.tsx` + `jp-lesson-page/`（Styles / StatusTable / helpers） |
 | `/jp-lesson/notes` | 课堂笔记（按知识点；**支持粘贴/上传图片**；已完成新课保存后同步到日语抽问 `class_notes`，文字+图片） | `src/app/jp-lesson/notes/page.tsx` | `JpLessonNotesPage.tsx` |
 | `/jp-lesson/schedule` | **日程管理（顶栏一级模块）**（统一日语 + 英语新课 + 手动日程；**不挂在「日语」二级下**） | `src/app/jp-lesson/schedule/page.tsx` | `JpLessonSchedulePage.tsx` + `jp-lesson-schedule-page/` |
-| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理**（默认日语；`?subject=en` 英语；`?subject=ko` 韩语可建登录账号；**搜索跨日语+英语+韩语模糊匹配**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
+| `/admin/jp-lesson-teachers` | **人员管理 / 上课老师管理（顶栏一级模块）**（默认日语；`?subject=en` 英语；`?subject=ko` 韩语可建登录账号；**搜索跨日语+英语+韩语模糊匹配**；**不挂在「日语」二级下**） | `src/app/admin/jp-lesson-teachers/page.tsx` | `AdminJpLessonTeachersPage.tsx`；搜索 `lesson-teacher-search.ts` |
 
-日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}`（英语课加 `&subject=en`）并自动滚动定位。路径常量：`adminJpLessonTeachersPath()`、`jpLessonSchedulePath()` in `locale-path.ts`。导航：`nav.jpLessonSchedule`＝「日程管理」→ **管理员顶栏一级**（`NAV_TOP_LEVEL_CROSS_SUBJECT_IDS`，不进「日语」二级）。
+日程详情右侧「老师」名称可点击，跳转 `/admin/jp-lesson-teachers?teacher={id}`（英语课加 `&subject=en`）并自动滚动定位。路径常量：`adminJpLessonTeachersPath()`、`jpLessonSchedulePath()` in `locale-path.ts`。导航：`nav.jpLessonSchedule`＝「日程管理」、`nav.adminJpLessonTeachers`＝「人员管理」→ **管理员顶栏一级**（`NAV_TOP_LEVEL_CROSS_SUBJECT_IDS`，不进「日语」二级）。
 
 逻辑：`src/lib/jp-lesson-db.ts`；API：`src/app/api/jp-lesson/*`；手动日程表 `jp_lesson_manual_schedule`（英语课事件来自 `en_lesson` + `en_lesson_class_schedule`，日程页合并展示）
 
@@ -296,7 +296,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 |------|------|
 | 登录 / 会话 / 前端权限 | `src/contexts/EtrAuthProvider.tsx`、`src/lib/etr-auth.ts`、`src/app/api/english-teacher-review/auth/route.ts` |
 | RBAC 权限表 | `src/lib/rbac.ts`、`src/lib/rbac-db.ts`、`schema.sql` → `etr_role_permissions` |
-| 站点导航（**管理员**：日语/英语/韩语二级菜单，「日语」组最左；**日程管理**为跨科目**顶栏一级**（不进语言二级）；**老师等非管理员**：一级扁平链接，无语言下拉；其余按频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`（`useLangGroups: isAdmin`）、`src/lib/site-nav-config.ts`（`NAV_LANG_GROUPS` / `NAV_TOP_LEVEL_CROSS_SUBJECT_IDS` / `PINNED_PRIMARY_NAV_ID=langJp`）、`src/lib/site-nav-groups.ts`、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/NavDrawer.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc`；回归 `scripts/check_site_nav_more_visible.py` |
+| 站点导航（**管理员**：日语/英语/韩语二级菜单，「日语」组最左；**日程管理 / 人员管理**为跨科目**顶栏一级**（不进语言二级）；**老师等非管理员**：一级扁平链接，无语言下拉；其余按频次；溢出→「更多」） | `src/hooks/useSiteNavSplit.ts`（`useLangGroups: isAdmin`）、`src/lib/site-nav-config.ts`（`NAV_LANG_GROUPS` / `NAV_TOP_LEVEL_CROSS_SUBJECT_IDS` / `PINNED_PRIMARY_NAV_ID=langJp`）、`src/lib/site-nav-groups.ts`、`src/hooks/useSiteNavItems.ts`、`src/components/SiteNav.tsx`、`src/components/NavDrawer.tsx`、`src/components/AppShell.tsx`；规则 `.cursor/rules/site-nav-pin-freq.mdc`；回归 `scripts/check_site_nav_more_visible.py` |
 | 全站样式 / 红涨绿跌 | `src/app/globals.css`、`src/app/mobile.css`；规则见 `.cursor/rules/red-rise-green-fall.mdc`（父仓库） |
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
 | **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；成功后 Mac 桌面通知优先、已弹则不推 Bark） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |

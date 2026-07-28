@@ -29,7 +29,6 @@ export const NAV_LANG_GROUPS: readonly NavLangGroupDef[] = [
       "jpVocabReview",
       "jpVocabStudy",
       "jpLesson",
-      "adminJpLessonTeachers",
     ],
   },
   {
@@ -55,9 +54,12 @@ export const NAV_LANG_GROUPS: readonly NavLangGroupDef[] = [
 /**
  * Cross-subject modules that must stay **top-level** primary links for admin
  * (not nested under 日语/英语/韩语 secondary menus).
- * Schedule covers jp + en + ko + manual — never put back under langJp.
+ * Schedule + personnel cover jp + en + ko (+ manual) — never put back under langJp.
  */
-export const NAV_TOP_LEVEL_CROSS_SUBJECT_IDS = ["jpLessonSchedule"] as const;
+export const NAV_TOP_LEVEL_CROSS_SUBJECT_IDS = [
+  "jpLessonSchedule",
+  "adminJpLessonTeachers",
+] as const;
 
 /** Leaf id → language group (for drawer / grouping). */
 export const NAV_LEAF_LANG_GROUP: Record<string, NavLangGroupId> = (() => {
@@ -80,6 +82,7 @@ export const PRIMARY_NAV_ORDER = [
   "langEn",
   "langKo",
   "jpLessonSchedule",
+  "adminJpLessonTeachers",
   "admin",
   "adminUsers",
   "adminTrends",
@@ -113,7 +116,8 @@ export const NAV_ITEM_CATEGORY: Record<string, NavCategory> = {
   jpLesson: "jp",
   /** Unified schedule (jp/en/ko/manual) — drawer「系统」, not under 日语 */
   jpLessonSchedule: "system",
-  adminJpLessonTeachers: "jp",
+  /** Personnel (jp/en/ko teachers) — drawer「系统」, not under 日语 */
+  adminJpLessonTeachers: "system",
   enVocab: "en",
   enVocabAdmin: "en",
   enVocabReview: "en",
