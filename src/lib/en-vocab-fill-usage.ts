@@ -22,6 +22,7 @@ export type EnVocabMissingUsageRow = {
   reading: string | null;
   meaning: string | null;
   pos: string | null;
+  category: string | null;
   /** 已有用法正文（仅「缺出现频次」回填时带上） */
   usage?: string | null;
   /** true=已有用法但缺 [1]～[10]，只需补分值 */
@@ -108,6 +109,7 @@ function mapMissingUsageRow(row: {
   reading: string | null;
   meaning: string | null;
   pos: string | null;
+  category: string | null;
   usage?: string | null;
 }): EnVocabMissingUsageRow {
   const word = String(row.word);
@@ -117,6 +119,8 @@ function mapMissingUsageRow(row: {
   const meaning =
     row.meaning != null ? String(row.meaning).trim() || null : null;
   const pos = row.pos != null ? String(row.pos).trim() || null : null;
+  const category =
+    row.category != null ? String(row.category).trim() || null : null;
   const existingUsage =
     row.usage != null ? String(row.usage).trim() || null : null;
   const needsFrequencyOnly = Boolean(
@@ -131,6 +135,7 @@ function mapMissingUsageRow(row: {
         reading,
         meaning,
         pos,
+        category,
       })
     : buildEnVocabUsageAiPrompt({
         word,
@@ -138,6 +143,7 @@ function mapMissingUsageRow(row: {
         reading,
         meaning,
         pos,
+        category,
       });
 
   return {
@@ -147,6 +153,7 @@ function mapMissingUsageRow(row: {
     reading,
     meaning,
     pos,
+    category,
     usage: needsFrequencyOnly ? existingUsage : null,
     needs_frequency_only: needsFrequencyOnly || undefined,
     prompt,
@@ -170,7 +177,7 @@ export async function listEnVocabWordsMissingUsage(
   const useKind = kind === "word" || kind === "grammar";
   if (useKind) binds.push(kind);
 
-  let sql = `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word
+  let sql = `SELECT id, word, kind, reading, meaning, pos, category, usage FROM en_vocab_word
        WHERE ${enVocabUsageMissingWhereSql(useKind ? 1 : null)}
        ORDER BY id`;
   if (limit != null) {
@@ -186,6 +193,7 @@ export async function listEnVocabWordsMissingUsage(
     reading: string | null;
     meaning: string | null;
     pos: string | null;
+    category: string | null;
     usage: string | null;
   }>();
 

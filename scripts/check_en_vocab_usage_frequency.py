@@ -35,6 +35,8 @@ def main() -> None:
         fail("format_example / prompt must show [score] sample")
     if "同一核心义项" not in ai:
         fail("usage prompt must tell model to merge near-duplicate senses")
+    if "分类：" not in ai or "托业" not in ai:
+        fail("usage prompt must adapt exam focus by category")
 
     # format_example 须带分值、禁考试标签
     m = re.search(r'format_example:\s*\n?\s*"((?:\\.|[^"\\])*)"', ai)
@@ -79,6 +81,8 @@ def main() -> None:
         fail("online SYSTEM/prompt must require frequency scores")
     if "near-duplicate" not in online and "同一义项" not in online:
         fail("online prompt must forbid splitting one core sense into duplicate lines")
+    if "category_focus" not in online or "托业" not in online:
+        fail("online batch prompt must adapt by category")
 
     edit = read("src/components/EnVocabEditModal.tsx")
     if "[8]" not in edit:

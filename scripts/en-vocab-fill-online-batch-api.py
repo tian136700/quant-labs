@@ -443,13 +443,28 @@ def parse_json_object(raw: str) -> dict[str, Any]:
 def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
     word = str(row.get("word") or "").strip()
     kind = str(row.get("kind") or "word")
+    category = str(row.get("category") or "").strip()
     kind_label = "语法" if kind == "grammar" else "单词"
     need_keys = [k for k, v in needs.items() if v]
+    if not category or category == "雅思托福":
+        category_focus = (
+            "选题按雅思、托福这类学术英语考试的高频语境，"
+            "优先写作、阅读、听力常见用法。"
+        )
+    elif "托业" in category or "TOEIC" in category.upper():
+        category_focus = (
+            "选题按托业这类职场/商务英语考试的高频语境，"
+            "优先邮件、会议、办公室、客户沟通、日常工作场景用法。"
+        )
+    else:
+        category_focus = f"选题按「{category}」这一分类对应语境的高频用法。"
     return f"""词条：{word}
+分类：{category or "雅思托福"}
 类型：{kind_label}
 
 说明：该词条有字段缺失或不完整。请用更准确的内容 **整词重写** 下列字段（覆盖旧值，不要只补空缺）：
 {", ".join(need_keys)}
+{category_focus}
 
 参考（可忽略，以你重写为准）：
 已有音标：{row.get("reading") or "（无）"}
@@ -505,6 +520,7 @@ def _row_from_db(row: dict[str, Any]) -> dict[str, Any]:
         "reading": row.get("reading"),
         "meaning": row.get("meaning"),
         "pos": row.get("pos"),
+        "category": row.get("category"),
         "usage": row.get("usage"),
         "example_sentences": row.get("example_sentences"),
         "meaning_source": row.get("meaning_source"),
@@ -529,7 +545,7 @@ def fetch_words_from_d1(
     if word_id and word_id > 0:
         where = f"WHERE id = {int(word_id)}"
     sql = (
-        "SELECT id, word, kind, reading, meaning, pos, usage, example_sentences, "
+        "SELECT id, word, kind, reading, meaning, pos, category, usage, example_sentences, "
         "reading_source, meaning_source, usage_source, example_sentences_source "
         f"FROM en_vocab_word {where} ORDER BY id;"
     )
@@ -592,13 +608,14 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "reading": row.get("reading"),
                     "meaning": row.get("meaning"),
                     "pos": row.get("pos"),
+                    "category": row.get("category"),
                     "usage": row.get("usage"),
                     "example_sentences": row.get("example_sentences"),
                     "needs": full_refresh_needs(kind),
                     "triggered": True,
                 }
                 by_id[wid] = cur
-            for field in ("reading", "meaning", "pos", "usage", "kind", "word"):
+            for field in ("reading", "meaning", "pos", "category", "usage", "kind", "word"):
                 if row.get(field) and not cur.get(field):
                     cur[field] = row.get(field)
             # 若后来发现是 grammar，收窄 needs

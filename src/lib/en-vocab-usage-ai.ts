@@ -1,5 +1,7 @@
 /** 英语用法上传契约：编号中文说明 + 出现频次 1～10（选题按学术考试高频；正文禁考试标签） */
 
+import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
+
 /**
  * 展示/存库正文禁止的考试品牌与标签。
  * 选题仍可按「学术英语考试写作/阅读/听力高频」来做，但字面不得出现这些词。
@@ -50,22 +52,36 @@ export type EnVocabUsageAiInput = {
   reading?: string | null;
   meaning?: string | null;
   pos?: string | null;
+  category?: string | null;
 };
 
 const NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;
 const HAN_RE = /[\u4E00-\u9FFF]/;
 const FENCE_RE = /^```(?:\w+)?\s*$/;
 
+function buildEnVocabUsageCategoryFocusLine(categoryRaw?: string | null): string {
+  const category = normalizeEnVocabCategory(categoryRaw);
+  if (category === "雅思托福") {
+    return "选材（仅供你选题，禁止写进正文）：优先该词在雅思、托福这类学术英语考试的写作、阅读、听力中的高频用法与搭配。";
+  }
+  if (category.includes("托业") || category.toUpperCase().includes("TOEIC")) {
+    return "选材（仅供你选题，禁止写进正文）：优先该词在托业这类职场/商务英语考试中的高频用法与搭配，如邮件、会议、办公室、客户沟通、日常工作场景。";
+  }
+  return `选材（仅供你选题，禁止写进正文）：优先该词在「${category}」这一分类对应语境中的高频用法与搭配。`;
+}
+
 export function buildEnVocabUsageAiPrompt(input: EnVocabUsageAiInput): string {
   const kindLabel = input.kind === "grammar" ? "语法" : "单词";
   const reading = input.reading?.trim();
   const meaning = input.meaning?.trim();
   const pos = input.pos?.trim();
+  const category = normalizeEnVocabCategory(input.category);
   const meta = [
     `词条：${input.word.trim()}`,
     reading ? `音标：${reading}` : null,
     meaning ? `释义：${meaning}` : null,
     pos ? `词性：${pos}` : null,
+    category ? `分类：${category}` : null,
     `类型：${kindLabel}`,
   ]
     .filter(Boolean)
@@ -75,7 +91,7 @@ export function buildEnVocabUsageAiPrompt(input: EnVocabUsageAiInput): string {
 
 请为上述英语${kindLabel}列出常用用法说明，并为每种用法的出现频次打分。
 
-选材（仅供你选题，禁止写进正文）：优先该词在学术英语考试写作、阅读、听力里的高频用法与搭配。
+${buildEnVocabUsageCategoryFocusLine(category)}
 
 条数与内容：
 - 组数 = 该词真实常用用法数：只有 1 种就写 1 条；有 2 种写 2 条；有 3 种写 3 条。禁止为了凑数硬拆成两组，也禁止无关冷僻义硬凑。
@@ -175,16 +191,19 @@ export function buildEnVocabUsageFrequencyBackfillPrompt(input: {
   reading?: string | null;
   meaning?: string | null;
   pos?: string | null;
+  category?: string | null;
 }): string {
   const kindLabel = input.kind === "grammar" ? "语法" : "单词";
   const reading = input.reading?.trim();
   const meaning = input.meaning?.trim();
   const pos = input.pos?.trim();
+  const category = normalizeEnVocabCategory(input.category);
   const meta = [
     `词条：${input.word.trim()}`,
     reading ? `音标：${reading}` : null,
     meaning ? `释义：${meaning}` : null,
     pos ? `词性：${pos}` : null,
+    category ? `分类：${category}` : null,
     `类型：${kindLabel}`,
   ]
     .filter(Boolean)
@@ -196,6 +215,7 @@ export function buildEnVocabUsageFrequencyBackfillPrompt(input: {
 ${String(input.usage || "").trim()}
 
 任务：仅为每条用法补上出现频次分值 1～10（10=该词最常见用法；多条时按相对常用度区分，不要全打同一分）。
+${buildEnVocabUsageCategoryFocusLine(category)}
 
 输出格式（必须）：
 - 只输出编号行：数字. [分值] 中文说明
