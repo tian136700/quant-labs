@@ -27,12 +27,21 @@ export type WorkerTrafficUserRow = {
   hit_count: number;
 };
 
+export type WorkerTrafficPairRow = {
+  username: string;
+  route_key: string;
+  kind: WorkerTrafficKind;
+  hit_count: number;
+};
+
 export type WorkerTrafficDailySummary = {
   stat_date: string;
   total_hits: number;
   quota_limit: number;
+  anonymous_hits: number;
   top_routes: WorkerTrafficRouteRow[];
   top_users: WorkerTrafficUserRow[];
+  top_pairs: WorkerTrafficPairRow[];
 };
 
 export const WORKER_TRAFFIC_RETENTION_DAYS = 30;
@@ -148,12 +157,15 @@ export async function getWorkerTrafficDailySummary(
   if (devStoreEnabled) {
     const routeMap = new Map<string, WorkerTrafficRouteRow>();
     const userMap = new Map<string, number>();
+    const pairRows: WorkerTrafficPairRow[] = [];
     let total = 0;
+    let anonymousHits = 0;
 
     for (const [key, count] of devHits.entries()) {
       const [rowDate, routeKey, username, kind] = key.split("\0");
       if (rowDate !== date) continue;
       total += count;
+      if (!username) anonymousHits += count;
       const routeId = `${kind}\0${routeKey}`;
       const routeRow = routeMap.get(routeId);
       if (routeRow) routeRow.hit_count += count;
@@ -167,16 +179,29 @@ export async function getWorkerTrafficDailySummary(
       if (username) {
         userMap.set(username, (userMap.get(username) ?? 0) + count);
       }
+      pairRows.push({
+        username: username ?? "",
+        route_key: routeKey ?? "/",
+        kind: kind as WorkerTrafficKind,
+        hit_count: count,
+      });
     }
 
     return {
       stat_date: date,
       total_hits: total,
       quota_limit: WORKER_DAILY_REQUEST_LIMIT,
-      top_routes: [...routeMap.values()].sort((a, b) => b.hit_count - a.hit_count),
+      anonymous_hits: anonymousHits,
+      top_routes: [...routeMap.values()]
+        .sort((a, b) => b.hit_count - a.hit_count)
+        .slice(0, 40),
       top_users: [...userMap.entries()]
         .map(([username, hit_count]) => ({ username, hit_count }))
-        .sort((a, b) => b.hit_count - a.hit_count),
+        .sort((a, b) => b.hit_count - a.hit_count)
+        .slice(0, 20),
+      top_pairs: pairRows
+        .sort((a, b) => b.hit_count - a.hit_count)
+        .slice(0, 40),
     };
   }
 
@@ -187,6 +212,15 @@ export async function getWorkerTrafficDailySummary(
       `SELECT COALESCE(SUM(hit_count), 0) AS total
        FROM worker_daily_hits
        WHERE stat_date = ?1`
+    )
+    .bind(date)
+    .first<{ total: number }>();
+
+  const anonymousRow = await db
+    .prepare(
+      `SELECT COALESCE(SUM(hit_count), 0) AS total
+       FROM worker_daily_hits
+       WHERE stat_date = ?1 AND username = ''`
     )
     .bind(date)
     .first<{ total: number }>();
@@ -215,11 +249,24 @@ export async function getWorkerTrafficDailySummary(
     .bind(date)
     .all<WorkerTrafficUserRow>();
 
+  const { results: pairRows } = await db
+    .prepare(
+      `SELECT username, route_key, kind, hit_count
+       FROM worker_daily_hits
+       WHERE stat_date = ?1
+       ORDER BY hit_count DESC
+       LIMIT 40`
+    )
+    .bind(date)
+    .all<WorkerTrafficPairRow>();
+
   return {
     stat_date: date,
     total_hits: Number(totalRow?.total ?? 0),
     quota_limit: WORKER_DAILY_REQUEST_LIMIT,
+    anonymous_hits: Number(anonymousRow?.total ?? 0),
     top_routes: routeRows ?? [],
     top_users: userRows ?? [],
+    top_pairs: pairRows ?? [],
   };
 }

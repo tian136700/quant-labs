@@ -125,17 +125,28 @@ export type Messages = {
       dateLabel: string;
       quotaLabel: string;
       quotaUsed: string;
+      anonymousLabel: string;
+      anonymousHits: string;
       topRoutes: string;
       topUsers: string;
+      topPairs: string;
+      filterUserAll: string;
+      filterUserHint: string;
+      copyReport: string;
+      copySuccess: string;
+      copyFailed: string;
+      reportTitle: string;
       route: string;
       kind: string;
       kindApi: string;
       kindPage: string;
       hits: string;
       username: string;
+      anonymousUser: string;
       unregistered: string;
       empty: string;
       loadFailed: string;
+      diagnoseHint: string;
     };
     feedback: {
       heading: string;

@@ -553,6 +553,47 @@
   gap: 1rem;
 }
 
+.admin-traffic-hint {
+  margin: 0 0 0.75rem;
+}
+
+.admin-traffic-anon {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted, #6b7280);
+}
+
+.admin-traffic-filter-hint {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+}
+
+.admin-traffic-user-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+  text-align: left;
+  min-height: 2rem;
+}
+
+.admin-traffic-row--active {
+  background: color-mix(in srgb, var(--rise) 12%, transparent);
+}
+
+.admin-traffic-clear-filter {
+  margin-top: 0.5rem;
+}
+
+.admin-traffic-block--pairs {
+  margin-top: 1rem;
+}
+
 .admin-traffic-block h3 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
