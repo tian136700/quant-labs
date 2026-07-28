@@ -663,16 +663,19 @@ export function JpLessonSchedulePage() {
         completed: lesson?.completed ?? false,
         learning: lesson?.learning,
       };
+      const refKey = lesson?.ref_key?.trim() || null;
+      const href = refKey
+        ? link.subject === "en"
+          ? enVocabRefViewerPath(refKey, enRefs[refKey]?.updated_at)
+          : jpVocabRefViewerPath(refKey, refs[refKey]?.updated_at)
+        : null;
       return {
         key: `${link.subject}:${link.lesson_id}`,
         label: formatManualScheduleLessonOptionLabel(option),
-        href:
-          link.subject === "en"
-            ? `/en-lesson/notes?id=${link.lesson_id}`
-            : `/jp-lesson/notes?id=${link.lesson_id}`,
+        href,
       };
     });
-  }, [selectedManualSchedule, lessonById, enLessonById]);
+  }, [selectedManualSchedule, lessonById, enLessonById, refs, enRefs]);
 
   const selectedJpLesson = useMemo(() => {
     if (!selectedEvent?.lessonId || selectedEvent.subject !== "jp") return null;

@@ -68,6 +68,14 @@ def main() -> int:
         errors.append("schedule page must pass jp lessons to modal")
     if "enLessons={enLessons}" not in page:
         errors.append("schedule page must pass en lessons to modal")
+    if "/jp-lesson/notes?id=" in page or "/en-lesson/notes?id=" in page:
+        errors.append(
+            "manual linked 教材 must open ref viewer, not /jp-lesson/notes or /en-lesson/notes"
+        )
+    if "jpVocabRefViewerPath" not in page or "enVocabRefViewerPath" not in page:
+        errors.append("manual linked 教材 must use jpVocabRefViewerPath / enVocabRefViewerPath")
+    if "selectedManualLinkedLessons" not in page:
+        errors.append("schedule page must build selectedManualLinkedLessons")
 
     schema = SCHEMA.read_text(encoding="utf-8")
     if not re.search(r"jp_lesson_manual_schedule[\s\S]*linked_lessons", schema):

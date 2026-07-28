@@ -37,7 +37,8 @@ import type {
 export type ManualScheduleLinkedLessonDisplay = {
   key: string;
   label: string;
-  href: string;
+  /** 教案查看页；无 ref_key 时仅展示文案 */
+  href: string | null;
 };
 
 export type JpLessonScheduleLayoutProps = {
@@ -430,17 +431,23 @@ export function JpLessonScheduleLayout({
                         <div>
                           <dt>教材</dt>
                           <dd className="jpls-manual-linked-lessons">
-                            {selectedManualLinkedLessons.map((item) => (
-                              <a
-                                key={item.key}
-                                className="jpls-manual-linked-lesson"
-                                href={item.href}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                {item.label}
-                              </a>
-                            ))}
+                            {selectedManualLinkedLessons.map((item) =>
+                              item.href ? (
+                                <a
+                                  key={item.key}
+                                  className="jpls-manual-linked-lesson"
+                                  href={item.href}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {item.label}
+                                </a>
+                              ) : (
+                                <span key={item.key} className="jpls-manual-linked-lesson">
+                                  {item.label}
+                                </span>
+                              )
+                            )}
                           </dd>
                         </div>
                       ) : null}
