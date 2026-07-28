@@ -42,16 +42,11 @@ import {
   readJpVocabStudyCacheAge,
   type JpVocabStudyApiPayload,
 } from "@/lib/jp-vocab-study-cache";
+import {
+  JP_VOCAB_STUDY_QUIZ_EVERY_N,
+} from "@/lib/jp-vocab-sync";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
-import {
-  JP_VOCAB_STUDY_POLL_HIDDEN_MS,
-  JP_VOCAB_STUDY_POLL_MS,
-  JP_VOCAB_STUDY_QUIZ_EVERY_N,
-  JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
-  JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
-} from "@/lib/jp-vocab-sync";
-import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
   abortSignalAfter,
   VOCAB_STUDENT_PEEK_TIMEOUT_MS,
@@ -351,30 +346,6 @@ export function JpVocabStudyPage() {
 
   useEffect(() => {
     if (!canViewStudy) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const schedule = () => {
-      timer = setTimeout(() => {
-        if (saveQueuePendingRef.current > 0) {
-          schedule();
-          return;
-        }
-        void loadShared().finally(schedule);
-      }, resolveVocabPollIntervalMs({
-        activeMs: JP_VOCAB_STUDY_POLL_MS,
-        hiddenMs: JP_VOCAB_STUDY_POLL_HIDDEN_MS,
-        username: user?.username,
-      }));
-    };
-
-    schedule();
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [loadShared, canViewStudy, user?.username]);
-
-  useEffect(() => {
-    if (!canViewStudy) return;
     return subscribeJpVocabSharedUpdated((detail) => {
       if (detail.wordId && detail.openRemarks) {
         pendingFlashcardWordIdRef.current = detail.wordId;
@@ -444,57 +415,6 @@ export function JpVocabStudyPage() {
   const teacherLiveWordShared =
     teacherLiveWordId != null &&
     items.some((item) => item.word_id === teacherLiveWordId);
-
-  useEffect(() => {
-    // peek /「请老师发送」都要知道当前 live 词：已在共享列表则按钮变灰，避免再弹一次
-    if (!showPeekTeacherQuiz && !showRequestTeacherShare) {
-      setTeacherLiveWordId(null);
-      return;
-    }
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      resolveVocabPollIntervalMs({
-        activeMs: JP_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
-        hiddenMs: JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
-        username: user?.username,
-      });
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch("/api/jp-vocab/teacher-quiz-live?scope=study", {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          live?: { word_id?: number | null };
-        };
-        if (!cancelled && data.ok) {
-          const id = Number(data.live?.word_id);
-          setTeacherLiveWordId(Number.isFinite(id) && id > 0 ? Math.floor(id) : null);
-        }
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [showPeekTeacherQuiz, showRequestTeacherShare, user?.username]);
 
   const requestTeacherShare = useCallback(async () => {
     if (!user || !showRequestTeacherShare || requestingShare) return;
@@ -594,6 +514,7 @@ export function JpVocabStudyPage() {
         return nextItems;
       });
       hasLoadedOnceRef.current = true;
+      setTeacherLiveWordId(data.item.word_id);
       setFlashcardItem(data.item);
       setStatus("已打开老师正在抽查的单词，并加入今日列表。");
     } catch (err) {

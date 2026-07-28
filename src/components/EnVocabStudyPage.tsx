@@ -26,13 +26,6 @@ import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQui
 import { useEnVocabStudyPersonalLevels } from "@/hooks/useVocabStudyPersonalLevels";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import {
-  EN_VOCAB_STUDY_POLL_HIDDEN_MS,
-  EN_VOCAB_STUDY_POLL_MS,
-  EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
-  EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
-} from "@/lib/en-vocab-sync";
-import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
-import {
   abortSignalAfter,
   VOCAB_STUDENT_PEEK_TIMEOUT_MS,
 } from "@/lib/vocab-teacher-quiz-live-sync";
@@ -251,26 +244,6 @@ export function EnVocabStudyPage() {
 
   useEffect(() => {
     if (!canViewStudy) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const schedule = () => {
-      timer = setTimeout(() => {
-        void loadShared().finally(schedule);
-      }, resolveVocabPollIntervalMs({
-        activeMs: EN_VOCAB_STUDY_POLL_MS,
-        hiddenMs: EN_VOCAB_STUDY_POLL_HIDDEN_MS,
-        username: user?.username,
-      }));
-    };
-
-    schedule();
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [loadShared, canViewStudy, user?.username]);
-
-  useEffect(() => {
-    if (!canViewStudy) return;
     return subscribeEnVocabSharedUpdated((detail) => {
       // 与日语一致：openRemarks 表示打开详情卡（历史字段名）
       if (detail.wordId && detail.openRemarks) {
@@ -303,56 +276,6 @@ export function EnVocabStudyPage() {
   const teacherLiveWordShared =
     teacherLiveWordId != null &&
     items.some((item) => item.word_id === teacherLiveWordId);
-
-  useEffect(() => {
-    if (!showPeekTeacherQuiz) {
-      setTeacherLiveWordId(null);
-      return;
-    }
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    const pollDelay = () =>
-      resolveVocabPollIntervalMs({
-        activeMs: EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS,
-        hiddenMs: EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS,
-        username: user?.username,
-      });
-
-    const schedule = (delayMs: number) => {
-      if (cancelled) return;
-      timer = setTimeout(() => void poll(), delayMs);
-    };
-
-    const poll = async () => {
-      if (cancelled) return;
-      try {
-        const res = await fetch("/api/en-vocab/teacher-quiz-live?scope=study", {
-          credentials: "include",
-          cache: "no-store",
-        });
-        const data = (await res.json()) as {
-          ok: boolean;
-          live?: { word_id?: number | null };
-        };
-        if (!cancelled && data.ok) {
-          const id = Number(data.live?.word_id);
-          setTeacherLiveWordId(Number.isFinite(id) && id > 0 ? Math.floor(id) : null);
-        }
-      } catch {
-        /* ignore */
-      } finally {
-        if (!cancelled) schedule(pollDelay());
-      }
-    };
-
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [showPeekTeacherQuiz, user?.username]);
 
   const peekTeacherQuizWord = useCallback(async () => {
     if (!user || !showPeekTeacherQuiz || peekingTeacherQuiz) return;
@@ -408,6 +331,7 @@ export function EnVocabStudyPage() {
         return [next, ...prev];
       });
       hasLoadedOnceRef.current = true;
+      setTeacherLiveWordId(data.item.word_id);
       setFlashcardItem(data.item);
       setStatus("已打开老师正在抽查的单词，并加入今日列表。");
     } catch (err) {
