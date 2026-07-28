@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { Locale } from "@/i18n/messages";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
@@ -17,6 +17,10 @@ import {
   putVocabTeacherQuizLiveWord,
   VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS,
 } from "@/lib/vocab-teacher-quiz-live-sync";
+import {
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+} from "@/lib/vocab-teacher-quiz-sync-poll";
 import {
   createJpVocabTeacherQuizSession,
   expandJpVocabTeacherQuizSessionForTarget,
@@ -55,6 +59,9 @@ export function useJpVocabTeacherQuiz(options: {
   quizTargetWords: JpVocabWord[];
   quizTargetWordIds: Set<number>;
   dailySeqByWordId: Map<number, number>;
+  /** 开卡后半小时无勾选 → live 轮询降频 */
+  teacherQuizIdleRef?: MutableRefObject<boolean>;
+  teacherQuizPollIdle?: boolean;
   setStatus: (message: string) => void;
   onTeacherQuizSessionFinished?: () => void;
 }) {
@@ -73,6 +80,8 @@ export function useJpVocabTeacherQuiz(options: {
     quizTargetWords,
     quizTargetWordIds,
     dailySeqByWordId,
+    teacherQuizIdleRef,
+    teacherQuizPollIdle = false,
     setStatus,
     onTeacherQuizSessionFinished,
   } = options;
@@ -431,8 +440,12 @@ export function useJpVocabTeacherQuiz(options: {
 
     const pollDelay = () =>
       resolveVocabPollIntervalMs({
-        activeMs: JP_VOCAB_QUIZ_LIVE_POLL_MS,
-        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        activeMs: teacherQuizIdleRef?.current
+          ? VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS
+          : JP_VOCAB_QUIZ_LIVE_POLL_MS,
+        hiddenMs: teacherQuizIdleRef?.current
+          ? VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS
+          : JP_VOCAB_POLL_HIDDEN_MS,
         username: usernameRef.current,
       });
 
@@ -469,7 +482,7 @@ export function useJpVocabTeacherQuiz(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, showQuizFlashcard, quizFlashcardWordId]);
+  }, [canOperate, showQuizFlashcard, quizFlashcardWordId, teacherQuizPollIdle]);
 
   return {
     quizSession,

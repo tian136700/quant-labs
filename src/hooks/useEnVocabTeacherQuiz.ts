@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   JP_VOCAB_POLL_HIDDEN_MS,
@@ -11,6 +11,10 @@ import {
   putVocabTeacherQuizLiveWord,
   VOCAB_TEACHER_QUIZ_LIVE_SYNC_RETRY_MS,
 } from "@/lib/vocab-teacher-quiz-live-sync";
+import {
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+} from "@/lib/vocab-teacher-quiz-sync-poll";
 import { effectiveEnVocabDisplayLevel } from "@/lib/en-vocab-review";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import {
@@ -57,6 +61,9 @@ export function useEnVocabTeacherQuiz(options: {
   quizTargetWordIds: Set<number>;
   dailySeqByWordId: Map<number, number>;
   dailyQuizProgress: EnVocabDailyQuizProgress;
+  /** 开卡后半小时无勾选 → live 轮询降频 */
+  teacherQuizIdleRef?: MutableRefObject<boolean>;
+  teacherQuizPollIdle?: boolean;
   setSharedTodayWordIds: Dispatch<SetStateAction<Set<number>>>;
   setStatus: (message: string) => void;
   /** 本轮会话真正抽完（卡片关闭前）→ 弹出完成提示 */
@@ -78,6 +85,8 @@ export function useEnVocabTeacherQuiz(options: {
     quizTargetWordIds,
     dailySeqByWordId,
     dailyQuizProgress,
+    teacherQuizIdleRef,
+    teacherQuizPollIdle = false,
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,
@@ -444,8 +453,12 @@ export function useEnVocabTeacherQuiz(options: {
 
     const pollDelay = () =>
       resolveVocabPollIntervalMs({
-        activeMs: EN_VOCAB_QUIZ_LIVE_POLL_MS,
-        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        activeMs: teacherQuizIdleRef?.current
+          ? VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS
+          : EN_VOCAB_QUIZ_LIVE_POLL_MS,
+        hiddenMs: teacherQuizIdleRef?.current
+          ? VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS
+          : JP_VOCAB_POLL_HIDDEN_MS,
         username: usernameRef.current,
       });
 
@@ -489,7 +502,7 @@ export function useEnVocabTeacherQuiz(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, showQuizFlashcard, quizFlashcardWordId, setSharedTodayWordIds]);
+  }, [canOperate, showQuizFlashcard, quizFlashcardWordId, setSharedTodayWordIds, teacherQuizPollIdle]);
 
   return {
     quizSession,

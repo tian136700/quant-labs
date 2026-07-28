@@ -202,16 +202,19 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
   const editingWordIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const scrollToHighlightRef = useRef(false);
+  const teacherQuizIdleRef = useRef(false);
   const [teacherQuizPollGate, setTeacherQuizPollGate] = useState({
     showQuizFlashcard: false,
     quizComplete: false,
   });
-  const teacherQuizPollActive = useVocabTeacherQuizSyncPollActive({
-    enabled: isTeacherMode,
-    showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
-    quizComplete: teacherQuizPollGate.quizComplete,
-    sessionReviewAt,
-  });
+  const { active: teacherQuizPollActive, idle: teacherQuizPollIdle } =
+    useVocabTeacherQuizSyncPollActive({
+      enabled: isTeacherMode,
+      showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
+      quizComplete: teacherQuizPollGate.quizComplete,
+      sessionReviewAt,
+    });
+  teacherQuizIdleRef.current = teacherQuizPollIdle;
 
   const onRemoteResetClearSessionRef = useRef<(() => void) | null>(null);
 
@@ -244,6 +247,8 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
     enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive,
+    teacherQuizIdleRef,
+    teacherQuizPollIdle,
   });
 
   const handleRefreshWords = useCallback(() => {
@@ -403,6 +408,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     quizTargetWordIds,
     dailySeqByWordId,
     dailyQuizProgress,
+    teacherQuizIdleRef, teacherQuizPollIdle,
     setSharedTodayWordIds,
     setStatus,
     onTeacherQuizSessionFinished,

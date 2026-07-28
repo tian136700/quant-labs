@@ -98,7 +98,11 @@ def main() -> int:
             ROOT / "src/lib/vocab-teacher-quiz-sync-poll.ts",
             [
                 "VOCAB_TEACHER_QUIZ_SYNC_POLL_GRACE_MS = 30 * 60 * 1000",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS = 5 * 60 * 1000",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS = 10 * 60 * 1000",
                 "shouldEnableVocabTeacherQuizSyncPoll",
+                "isVocabTeacherQuizSyncIdle",
+                "vocabTeacherQuizLastActivityAtMs",
                 "maxSessionReviewAtMs",
             ],
             "teacher-quiz-sync-poll-helper",
@@ -107,6 +111,7 @@ def main() -> int:
             ROOT / "src/components/JpVocabPage.tsx",
             [
                 "useVocabTeacherQuizSyncPollActive",
+                "teacherQuizIdleRef",
                 "enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive",
             ],
             "jp-page-poll-gate",
@@ -115,6 +120,7 @@ def main() -> int:
             ROOT / "src/components/EnVocabPage.tsx",
             [
                 "useVocabTeacherQuizSyncPollActive",
+                "teacherQuizIdleRef",
                 "enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive",
             ],
             "en-page-poll-gate",
@@ -123,7 +129,10 @@ def main() -> int:
             ROOT / "src/hooks/useVocabTeacherQuizSyncPollActive.ts",
             [
                 "shouldEnableVocabTeacherQuizSyncPoll",
+                "isVocabTeacherQuizSyncIdle",
                 "maxSessionReviewAtMs",
+                "active",
+                "idle",
             ],
             "teacher-quiz-sync-poll-hook",
         ),
@@ -134,6 +143,8 @@ def main() -> int:
                 "usernameRef",
                 "{ username: usernameRef.current }",
                 "enableBackgroundSyncPoll",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS",
+                "teacherQuizIdleRef",
             ],
             "jp-page-sync",
         ),
@@ -144,6 +155,8 @@ def main() -> int:
                 "usernameRef",
                 "enableBackgroundSyncPoll",
                 "subscribeEnVocabQuizTargetUpdated",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS",
+                "teacherQuizIdleRef",
             ],
             "en-page-sync",
         ),
@@ -162,17 +175,31 @@ def main() -> int:
         ),
         (
             ROOT / "src/hooks/useJpVocabShareRequests.ts",
-            ["username: usernameRef.current"],
+            [
+                "username: usernameRef.current",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS",
+                "teacherQuizIdleRef",
+            ],
             "share-requests",
         ),
         (
             ROOT / "src/hooks/useJpVocabTeacherQuiz.ts",
-            ["resolveVocabPollIntervalMs", "usernameRef"],
+            [
+                "resolveVocabPollIntervalMs",
+                "usernameRef",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS",
+                "teacherQuizIdleRef",
+            ],
             "jp-quiz-live",
         ),
         (
             ROOT / "src/hooks/useEnVocabTeacherQuiz.ts",
-            ["resolveVocabPollIntervalMs", "usernameRef"],
+            [
+                "resolveVocabPollIntervalMs",
+                "usernameRef",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS",
+                "teacherQuizIdleRef",
+            ],
             "en-quiz-live",
         ),
         (
@@ -225,6 +252,9 @@ def main() -> int:
                 "1027",
                 "test",
                 "user1",
+                "半小时无勾选",
+                "VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS",
+                "isVocabTeacherQuizSyncIdle",
             ],
             "rule",
         )

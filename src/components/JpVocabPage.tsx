@@ -172,18 +172,19 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
   const editingRemarksIdRef = useRef<number | null>(null);
   const sharedTodayWordIdsRef = useRef<Set<number>>(new Set());
   const teacherIdleCompleteRef = useRef(false);
+  const teacherQuizIdleRef = useRef(false);
   const scrollToHighlightRef = useRef(false);
-  /** 先占位；真正值在 displayQuizProgress 出来后由 hook 重算（见下方） */
   const [teacherQuizPollGate, setTeacherQuizPollGate] = useState({
-    showQuizFlashcard: false,
-    quizComplete: false,
+    showQuizFlashcard: false, quizComplete: false,
   });
-  const teacherQuizPollActive = useVocabTeacherQuizSyncPollActive({
-    enabled: isTeacherMode,
-    showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
-    quizComplete: teacherQuizPollGate.quizComplete,
-    sessionReviewAt,
-  });
+  const { active: teacherQuizPollActive, idle: teacherQuizPollIdle } =
+    useVocabTeacherQuizSyncPollActive({
+      enabled: isTeacherMode,
+      showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
+      quizComplete: teacherQuizPollGate.quizComplete,
+      sessionReviewAt,
+    });
+  teacherQuizIdleRef.current = teacherQuizPollIdle;
 
   const onDayRolloverClearSession = useCallback(() => {
     setSessionLevel({});
@@ -219,7 +220,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     editingRemarksWordId: editingRemarksWord?.id ?? null,
     editingWordId: editingWord?.id ?? null,
     teacherIdleCompleteRef,
+    teacherQuizIdleRef,
     enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive,
+    teacherQuizPollIdle,
     setViewingRemarksWord,
     onLoadError: setError,
     onDayRolloverClearSession,
@@ -234,9 +237,11 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     useJpVocabShareRequests({
       canOperate,
       teacherIdleCompleteRef,
+      teacherQuizIdleRef,
       setStatus,
       username: user?.username,
       pollActive: teacherQuizPollActive,
+      pollIdle: teacherQuizPollIdle,
     });
 
   const { exporting, runExport, runExportExcel, runCoachExport } =
@@ -380,6 +385,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     quizTargetWords,
     quizTargetWordIds,
     dailySeqByWordId,
+    teacherQuizIdleRef, teacherQuizPollIdle,
     setStatus,
     onTeacherQuizSessionFinished,
   });

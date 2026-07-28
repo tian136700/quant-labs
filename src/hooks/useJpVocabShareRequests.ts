@@ -8,19 +8,34 @@ import {
   JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
   jpVocabPollIntervalMs,
 } from "@/lib/jp-vocab-sync";
+import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
+import {
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+} from "@/lib/vocab-teacher-quiz-sync-poll";
 import { JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabShareRequest } from "@/lib/types";
 
 export function useJpVocabShareRequests(options: {
   canOperate: boolean;
   teacherIdleCompleteRef: MutableRefObject<boolean>;
+  teacherQuizIdleRef?: MutableRefObject<boolean>;
   setStatus: (message: string) => void;
   username?: string | null;
   /** 仅抽查会话进行中才轮询协助请求 */
   pollActive?: boolean;
+  /** idle 态变化时重排 timer */
+  pollIdle?: boolean;
 }) {
-  const { canOperate, teacherIdleCompleteRef, setStatus, username, pollActive } =
-    options;
+  const {
+    canOperate,
+    teacherIdleCompleteRef,
+    teacherQuizIdleRef,
+    setStatus,
+    username,
+    pollActive,
+    pollIdle,
+  } = options;
   const usernameRef = useRef(username);
   usernameRef.current = username;
 
@@ -36,8 +51,15 @@ export function useJpVocabShareRequests(options: {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const pollDelay = () =>
-      jpVocabPollIntervalMs(
+    const pollDelay = () => {
+      if (teacherQuizIdleRef?.current) {
+        return resolveVocabPollIntervalMs({
+          activeMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+          hiddenMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+          username: usernameRef.current,
+        });
+      }
+      return jpVocabPollIntervalMs(
         JP_VOCAB_POLL_MS,
         JP_VOCAB_POLL_HIDDEN_MS,
         JP_VOCAB_SHARE_REQUEST_POLL_IDLE_COMPLETE_MS,
@@ -45,6 +67,7 @@ export function useJpVocabShareRequests(options: {
         teacherIdleCompleteRef.current,
         { username: usernameRef.current }
       );
+    };
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -86,7 +109,7 @@ export function useJpVocabShareRequests(options: {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [canOperate, teacherIdleCompleteRef, username, pollActive]);
+  }, [canOperate, teacherIdleCompleteRef, teacherQuizIdleRef, username, pollActive, pollIdle]);
 
   const dismissShareRequests = useCallback(async () => {
     const ids = shareRequests.map((r) => r.id);

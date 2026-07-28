@@ -36,6 +36,10 @@ import {
 } from "@/lib/en-vocab-sync";
 import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+} from "@/lib/vocab-teacher-quiz-sync-poll";
+import {
   defaultEnVocabTeacherVisibleLimit,
   normalizeEnVocabTeacherVisibleLimit,
   shouldRejectStaleEnVocabTeacherVisibleLimit,
@@ -63,6 +67,10 @@ export function useEnVocabPageSync(options: {
   onRemoteResetClearSessionRef: MutableRefObject<(() => void) | null>;
   /** 仅老师抽查会话进行中才后台轮询；管理员与老师 idle 靠点「刷新」 */
   enableBackgroundSyncPoll?: boolean;
+  /** 开卡后半小时无勾选熟悉程度 → 降频 */
+  teacherQuizIdleRef?: MutableRefObject<boolean>;
+  /** idle 态变化时重排 timer（再勾选立刻恢复日间间隔） */
+  teacherQuizPollIdle?: boolean;
 }) {
   const {
     checking,
@@ -76,6 +84,8 @@ export function useEnVocabPageSync(options: {
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
     enableBackgroundSyncPoll = false,
+    teacherQuizIdleRef,
+    teacherQuizPollIdle = false,
   } = options;
 
   const usernameRef = useRef(user?.username);
@@ -270,8 +280,12 @@ export function useEnVocabPageSync(options: {
 
     const pollDelay = () =>
       resolveVocabPollIntervalMs({
-        activeMs: JP_VOCAB_POLL_MS,
-        hiddenMs: JP_VOCAB_POLL_HIDDEN_MS,
+        activeMs: teacherQuizIdleRef?.current
+          ? VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS
+          : JP_VOCAB_POLL_MS,
+        hiddenMs: teacherQuizIdleRef?.current
+          ? VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS
+          : JP_VOCAB_POLL_HIDDEN_MS,
         username: usernameRef.current,
       });
 
@@ -385,6 +399,7 @@ export function useEnVocabPageSync(options: {
     loadWords,
     onRemoteResetClearSessionRef,
     enableBackgroundSyncPoll,
+    teacherQuizPollIdle,
   ]);
 
   return {

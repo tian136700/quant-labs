@@ -42,6 +42,10 @@ import {
 } from "@/lib/jp-vocab-sync";
 import { resolveVocabPollIntervalMs } from "@/lib/vocab-poll-throttle";
 import {
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+  VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+} from "@/lib/vocab-teacher-quiz-sync-poll";
+import {
   normalizeJpVocabTeacherVisibleLimit,
   teacherVisibleLimitNeedsPersist,
   shouldRejectStaleJpVocabTeacherVisibleLimit,
@@ -59,8 +63,12 @@ export function useJpVocabPageSync(options: {
   editingRemarksWordId: number | null;
   editingWordId: number | null;
   teacherIdleCompleteRef: MutableRefObject<boolean>;
+  /** 开卡后半小时无勾选熟悉程度 → 降频 */
+  teacherQuizIdleRef?: MutableRefObject<boolean>;
   /** 仅老师抽查会话进行中才后台轮询；否则靠用户点「刷新」 */
   enableBackgroundSyncPoll?: boolean;
+  /** 半小时无勾选降频态变化时重排 timer（再勾选立刻恢复日间间隔） */
+  teacherQuizPollIdle?: boolean;
   setViewingRemarksWord: Dispatch<SetStateAction<JpVocabWord | null>>;
   onLoadError: (message: string) => void;
   onDayRolloverClearSession: () => void;
@@ -71,7 +79,9 @@ export function useJpVocabPageSync(options: {
     editingRemarksWordId,
     editingWordId,
     teacherIdleCompleteRef,
+    teacherQuizIdleRef,
     enableBackgroundSyncPoll = false,
+    teacherQuizPollIdle = false,
     setViewingRemarksWord,
     onLoadError,
     onDayRolloverClearSession,
@@ -268,8 +278,15 @@ export function useJpVocabPageSync(options: {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const pollDelay = () =>
-      jpVocabPollIntervalMs(
+    const pollDelay = () => {
+      if (teacherQuizIdleRef?.current) {
+        return resolveVocabPollIntervalMs({
+          activeMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+          hiddenMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+          username: usernameRef.current,
+        });
+      }
+      return jpVocabPollIntervalMs(
         JP_VOCAB_POLL_MS,
         JP_VOCAB_POLL_HIDDEN_MS,
         JP_VOCAB_POLL_IDLE_COMPLETE_MS,
@@ -277,6 +294,7 @@ export function useJpVocabPageSync(options: {
         teacherIdleCompleteRef.current,
         { username: usernameRef.current }
       );
+    };
 
     const schedule = (delayMs: number) => {
       if (cancelled) return;
@@ -344,6 +362,7 @@ export function useJpVocabPageSync(options: {
     editingRemarksWordId,
     editingWordId,
     enableBackgroundSyncPoll,
+    teacherQuizPollIdle,
   ]);
 
   useEffect(() => {
@@ -353,8 +372,15 @@ export function useJpVocabPageSync(options: {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const pollDelay = () =>
-      resolveVocabPollIntervalMs({
+    const pollDelay = () => {
+      if (teacherQuizIdleRef?.current) {
+        return resolveVocabPollIntervalMs({
+          activeMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+          hiddenMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+          username: usernameRef.current,
+        });
+      }
+      return resolveVocabPollIntervalMs({
         activeMs: teacherIdleCompleteRef.current
           ? JP_VOCAB_TEACHER_VISIBLE_POLL_IDLE_COMPLETE_MS
           : JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
@@ -363,6 +389,7 @@ export function useJpVocabPageSync(options: {
           : JP_VOCAB_TEACHER_VISIBLE_POLL_MS,
         username: usernameRef.current,
       });
+    };
 
     const schedule = (delayMs = pollDelay()) => {
       if (cancelled) return;
@@ -393,6 +420,7 @@ export function useJpVocabPageSync(options: {
     checking,
     user,
     enableBackgroundSyncPoll,
+    teacherQuizPollIdle,
   ]);
 
   useEffect(() => {
