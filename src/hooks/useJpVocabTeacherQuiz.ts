@@ -468,15 +468,21 @@ export function useJpVocabTeacherQuiz(options: {
           student_peeked?: boolean;
         };
         if (!cancelled && data.ok) {
-          setStudentPeekedCurrentWord(Boolean(data.student_peeked));
+          const peeked = Boolean(data.student_peeked);
+          if (peeked) {
+            // 学生 peek 只写一次；老师端亮灯后停轮询，勿再每 8s 打 Worker
+            setStudentPeekedCurrentWord(true);
+            return;
+          }
         }
       } catch {
         /* ignore */
-      } finally {
-        if (!cancelled) schedule(pollDelay());
       }
+      if (!cancelled) schedule(pollDelay());
     };
 
+    // 换词先清闩锁，避免上一词「已查看」带到当前词
+    setStudentPeekedCurrentWord(false);
     void poll();
     return () => {
       cancelled = true;

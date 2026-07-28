@@ -483,18 +483,19 @@ export function useEnVocabTeacherQuiz(options: {
         if (!cancelled && data.ok) {
           const peeked = Boolean(data.student_peeked);
           if (peeked) {
+            // 学生 peek 只写一次；老师端亮灯后停轮询，勿再每 8s 打 Worker
             setStudentPeekedCurrentWord(true);
             setSharedTodayWordIds((prev) => {
               if (prev.has(quizFlashcardWordId)) return prev;
               return new Set([...prev, quizFlashcardWordId]);
             });
+            return;
           }
         }
       } catch {
         /* ignore */
-      } finally {
-        if (!cancelled) schedule(pollDelay());
       }
+      if (!cancelled) schedule(pollDelay());
     };
 
     void poll();

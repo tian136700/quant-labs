@@ -207,7 +207,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     showQuizFlashcard: false,
     quizComplete: false,
   });
-  const { active: teacherQuizPollActive, idle: teacherQuizPollIdle } =
+  const { idle: teacherQuizPollIdle } =
     useVocabTeacherQuizSyncPollActive({
       enabled: isTeacherMode,
       showQuizFlashcard: teacherQuizPollGate.showQuizFlashcard,
@@ -246,7 +246,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     setSessionUsageLevels,
     setSessionReviewAt,
     onRemoteResetClearSessionRef,
-    enableBackgroundSyncPoll: isTeacherMode && teacherQuizPollActive,
+    enableBackgroundSyncPoll: false,
     teacherQuizIdleRef,
     teacherQuizPollIdle,
   });
@@ -977,6 +977,12 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onWordSaveFailed={handleWordSaveFailed}
         onNeedAuth={openEnAuth}
         onCloseQuizPreview={closeQuizCardPreview}
+        onSharedToStudy={(wordId) => {
+          setSharedTodayWordIds((prev) => {
+            if (prev.has(wordId)) return prev;
+            return new Set([...prev, wordId]);
+          });
+        }}
         onCloseViewingRemarks={() => setViewingRemarksWord(null)}
         onCloseViewingMnemonic={() => setViewingMnemonicWord(null)}
         onCloseViewingUsage={() => setViewingUsageWord(null)}

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   formatBeijingClassNoteTimestamp,
@@ -32,6 +31,7 @@ type Props = {
   onSaved: (word: EnVocabWord) => void;
   onSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;
   onNeedAuth: () => void;
+  onSharedToStudy?: (wordId: number) => void;
 };
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
@@ -54,8 +54,8 @@ export function EnClassNotesEditModal({
   onSaved,
   onSaveFailed,
   onNeedAuth,
+  onSharedToStudy,
 }: Props) {
-  const { isAdmin } = useEtrAuth();
   const [mounted, setMounted] = useState(false);
   const [draft, setDraft] = useState("");
   const [historyEntries, setHistoryEntries] = useState<EnVocabClassNoteEntry[]>([]);
@@ -262,7 +262,7 @@ export function EnClassNotesEditModal({
 
   const handleShare = async () => {
     const current = wordRef.current;
-    if (!current || !isAdmin || sharing) return;
+    if (!current || !canEdit || sharing) return;
 
     setSharing(true);
     setError("");
@@ -288,6 +288,7 @@ export function EnClassNotesEditModal({
         wordId: current.id,
         openRemarks: true,
       });
+      onSharedToStudy?.(current.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -408,7 +409,7 @@ export function EnClassNotesEditModal({
             >
               完成
             </button>
-            {isAdmin ? (
+            {canEdit ? (
               <button
                 type="button"
                 className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
@@ -416,11 +417,11 @@ export function EnClassNotesEditModal({
                 title={
                   sharedToday
                     ? "将该词备注共享到学生「今日背英语单词」"
-                    : "共享到学生「今日背英语单词」，并标记为不熟悉"
+                    : "共享到学生「今日背英语单词」"
                 }
                 onClick={() => void handleShare()}
               >
-                {sharing ? "共享中…" : "共享备注给学生"}
+                {sharing ? "共享中…" : sharedToday ? "已共享备注" : "共享备注给学生"}
               </button>
             ) : null}
           </div>

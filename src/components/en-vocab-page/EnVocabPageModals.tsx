@@ -97,6 +97,7 @@ type EnVocabPageModalsProps = {
   onClosePreviewRef: () => void;
   onCloseEditingRemarks: () => void;
   onCloseEditingWord: () => void;
+  onSharedToStudy?: (wordId: number) => void;
 };
 
 export function EnVocabPageModals(props: EnVocabPageModalsProps) {
@@ -269,6 +270,7 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         onSaved={props.onWordSaved}
         onSaveFailed={props.onWordSaveFailed}
         onNeedAuth={props.onNeedAuth}
+        onSharedToStudy={props.onSharedToStudy}
       />
 
       <EnVocabEditModal

@@ -1,5 +1,6 @@
-/** 老师端抽问卡片「发给学生」（产品关闭：学生改走 peek，不靠老师主动发送）
- *  false 时：UI 隐藏按钮；勾选熟悉程度不再 shareToStudy；POST /share 拒绝。
+/** 老师端抽问卡片「发给学生」按钮（产品关闭；学生主路径用 peek）
+ *  false 时：卡片不显示「发给学生」；勾选熟悉程度不再自动 shareToStudy。
+ *  备注弹窗「共享备注给学生」仍走 POST /api/*/share（手动一次）。
  */
 export const JP_VOCAB_TEACHER_SHARE_ENABLED = false;
 

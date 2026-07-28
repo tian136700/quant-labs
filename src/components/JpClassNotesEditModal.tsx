@@ -955,14 +955,31 @@ export function JpClassNotesEditModal({
                 fullWidth
               />
             ) : (
-              <button
-                type="button"
-                className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
-                disabled={imageUploading || deletingIndex != null}
-                onClick={() => void handleSaveClick()}
-              >
-                保存
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary"
+                  disabled={imageUploading || deletingIndex != null}
+                  onClick={() => void handleSaveClick()}
+                >
+                  保存
+                </button>
+                {canEdit && canShareToStudy ? (
+                  <button
+                    type="button"
+                    className="btn-rsi-filter btn-rsi-filter--compact jp-notes-edit-share-btn"
+                    disabled={imageUploading || deletingIndex != null || actionBusy}
+                    title={
+                      sharedToday
+                        ? "备注已在学生「今日日语单词」；可再点一次确认同步"
+                        : "将本词备注共享到学生「今日日语单词」"
+                    }
+                    onClick={() => void shareToStudent()}
+                  >
+                    {sharedToday ? "已共享备注" : "共享备注给学生"}
+                  </button>
+                ) : null}
+              </>
             )}
           </div>
         </div>
