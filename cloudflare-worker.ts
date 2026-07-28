@@ -20,7 +20,36 @@ type CronEnv = {
   SCHEDULE_CLASS_BARK_CRON_ORIGIN?: string;
 };
 
+async function isOriginRateLimited(origin: string): Promise<boolean> {
+  try {
+    const probe = await fetch(`${origin}/`, {
+      method: "GET",
+      headers: {
+        Accept: "text/html",
+      },
+    });
+    const body = (await probe.text()).slice(0, 800).toLowerCase();
+    return (
+      probe.status === 429 ||
+      body.includes("error 1027") ||
+      body.includes("temporarily rate limited")
+    );
+  } catch {
+    return true;
+  }
+}
+
 async function runClassBarkRemind(env: CronEnv): Promise<void> {
+  const origin = (
+    env.SCHEDULE_CLASS_BARK_CRON_ORIGIN || DEFAULT_ORIGIN
+  ).replace(/\/$/, "");
+  if (await isOriginRateLimited(origin)) {
+    console.error(
+      "[schedule-class-bark-remind] skip: origin unavailable/rate-limited"
+    );
+    return;
+  }
+
   const token = (env.JP_REVIEW_UPLOAD_TOKEN || "").trim();
   if (!token) {
     console.error(
@@ -28,9 +57,7 @@ async function runClassBarkRemind(env: CronEnv): Promise<void> {
     );
     return;
   }
-  const origin = (
-    env.SCHEDULE_CLASS_BARK_CRON_ORIGIN || DEFAULT_ORIGIN
-  ).replace(/\/$/, "");
+
   const url = `${origin}${REMIND_PATH}`;
   try {
     const res = await fetch(url, {

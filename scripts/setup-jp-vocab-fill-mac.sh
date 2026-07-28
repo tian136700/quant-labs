@@ -24,7 +24,7 @@ fi
 
 chmod +x "$ROOT/scripts/jp-vocab-fill-stage.sh"
 
-RUN_INTERVAL="${JP_VOCAB_FILL_INTERVAL_SECONDS:-60}"
+RUN_INTERVAL="${JP_VOCAB_FILL_INTERVAL_SECONDS:-600}"
 
 # 卸掉旧「例句+释义」整包任务
 launchctl bootout "gui/${UID_NUM}/${OLD_COMBINED}" 2>/dev/null || true

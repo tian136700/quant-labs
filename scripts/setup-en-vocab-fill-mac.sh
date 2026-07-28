@@ -27,7 +27,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-RUN_INTERVAL="${EN_VOCAB_FILL_INTERVAL_SECONDS:-60}"
+RUN_INTERVAL="${EN_VOCAB_FILL_INTERVAL_SECONDS:-600}"
 
 chmod +x "$ROOT/scripts/en-vocab-fill-stage.sh"
 chmod +x "$ROOT/scripts/en-vocab-fill-nightly.sh"
