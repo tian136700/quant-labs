@@ -287,6 +287,17 @@
     content: "学习类型";
   }
 
+  .en-lesson-category-col {
+    order: 10;
+    flex: 1 1 auto;
+    min-width: 4.5rem;
+    max-width: calc(50% - 0.3125rem);
+  }
+
+  .en-lesson-category-col::before {
+    content: "分类";
+  }
+
   .jp-lesson-content-count-col {
     order: 10;
     flex: 1 1 auto;

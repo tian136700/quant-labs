@@ -4,6 +4,7 @@ import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesCell } from "@/components/EnVocabUsageExamplesCell";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { displayEnVocabCategory } from "@/lib/en-vocab-category";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import {
@@ -194,6 +195,15 @@ export function EnVocabWordTable({
                       onStatSort={onStatSort}
                       title="按类型排序（单词 / 语法）"
                       label="类型"
+                    />
+                  </th>
+                  <th rowSpan={2} className="en-vocab-category-col">
+                    <EnVocabThSortButton
+                      sortKey="category"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按分类排序（如雅思托福）"
+                      label="分类"
                     />
                   </th>
                   <th rowSpan={2} className="jp-vocab-word-col">
@@ -437,6 +447,13 @@ export function EnVocabWordTable({
                         >
                           {w.kind === "grammar" ? "语法" : "单词"}
                         </span>
+                      </td>
+                      <td
+                        className="en-vocab-category-col"
+                        data-label="分类"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        {displayEnVocabCategory(w.category)}
                       </td>
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
                         <div className="jp-vocab-word-cell">

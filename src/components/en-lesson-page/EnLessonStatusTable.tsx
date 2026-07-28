@@ -26,6 +26,7 @@ import {
   type EnLessonProgressStatus,
 } from "@/lib/en-lesson-shared";
 import { SITE_URL } from "@/lib/site";
+import { displayEnVocabCategory } from "@/lib/en-vocab-category";
 import { enVocabRefApiPath } from "@/lib/en-vocab-ref-shared";
 import type { EnLessonRecord, EnVocabRef } from "@/lib/types";
 
@@ -342,6 +343,9 @@ export function EnLessonStatusTable({
             <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
               类
             </th>
+            <th className="en-lesson-category-col" title="分类标签（如雅思托福）">
+              分类
+            </th>
             <th className="jp-lesson-content-col">学习内容</th>
             <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计的词/短语数">
               数
@@ -427,6 +431,19 @@ export function EnLessonStatusTable({
                         >
                           {lesson.kind === "grammar" ? "法" : "词"}
                         </span>
+                      </div>
+                    ))}
+                  </div>
+                </td>
+                <td data-label="分类" className="en-lesson-category-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                        title={displayEnVocabCategory(lesson.category)}
+                      >
+                        {displayEnVocabCategory(lesson.category)}
                       </div>
                     ))}
                   </div>

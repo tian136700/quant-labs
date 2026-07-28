@@ -8,6 +8,7 @@ import type { EnVocabWord } from "@/lib/types";
 export type EnVocabStatSortKey =
   | "seq"
   | "kind"
+  | "category"
   | "word"
   | "reading"
   | "meaning"
@@ -127,6 +128,8 @@ function compareEnVocabStat(
     }
     case "kind":
       return cmpText(a.kind || "word", b.kind || "word");
+    case "category":
+      return cmpText((a.category || "").trim(), (b.category || "").trim());
     case "word":
       return cmpText(a.word || "", b.word || "");
     case "reading":

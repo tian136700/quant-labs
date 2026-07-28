@@ -206,6 +206,19 @@ export function EnLessonPageStyles() {
           padding-right: 0.05rem !important;
           text-align: center;
         }
+        :global(.en-lesson-category-col) {
+          width: 4.5rem;
+          min-width: 3.75rem;
+          max-width: 5.5rem;
+          padding-left: 0.2rem !important;
+          padding-right: 0.2rem !important;
+          text-align: center;
+          font-size: 0.75rem;
+          color: var(--muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
         :global(.jp-lesson-content-col) {
           min-width: 0;
           width: 16%;

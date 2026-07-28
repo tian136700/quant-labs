@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       reading?: string | null;
       meaning?: string | null;
       pos?: string | null;
+      category?: string | null;
       class_notes?: string | null;
       mnemonic?: string | null;
       usage?: string | null;
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
         reading: body.reading,
         meaning: body.meaning,
         pos: body.pos,
+        category: body.category,
         class_notes: body.class_notes,
         usage: body.usage,
         example_sentences: body.example_sentences,

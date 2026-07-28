@@ -3,6 +3,11 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { EnVocabImageNotesField } from "@/components/EnVocabImageNotesField";
+import {
+  EN_VOCAB_CATEGORY_PRESETS,
+  EN_VOCAB_DEFAULT_CATEGORY,
+  displayEnVocabCategory,
+} from "@/lib/en-vocab-category";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import type { EnVocabKind, EnVocabWord } from "@/lib/types";
 import {
@@ -48,6 +53,7 @@ export function EnVocabEditModal({
   const [reading, setReading] = useState("");
   const [meaning, setMeaning] = useState("");
   const [pos, setPos] = useState("");
+  const [category, setCategory] = useState(EN_VOCAB_DEFAULT_CATEGORY);
   const [mnemonic, setMnemonic] = useState("");
   const [usage, setUsage] = useState("");
   const [exampleSentences, setExampleSentences] = useState("");
@@ -65,6 +71,7 @@ export function EnVocabEditModal({
       setReading(word.reading || "");
       setMeaning(word.meaning || "");
       setPos(word.pos || "");
+      setCategory(displayEnVocabCategory(word.category));
       setMnemonic(word.mnemonic || "");
       setUsage(word.usage || "");
       setExampleSentences(word.example_sentences || "");
@@ -117,6 +124,7 @@ export function EnVocabEditModal({
       reading: kind === "word" ? reading.trim() || null : null,
       meaning: meaning.trim() || null,
       pos: pos.trim() || null,
+      category: category.trim() || EN_VOCAB_DEFAULT_CATEGORY,
       class_notes: classNotes.trim() || null,
       usage: usage.trim() || null,
       example_sentences: nextExamples,
@@ -143,6 +151,7 @@ export function EnVocabEditModal({
             reading: kind === "word" ? reading.trim() || null : null,
             meaning: meaning.trim() || null,
             pos: pos.trim() || null,
+            category: category.trim() || EN_VOCAB_DEFAULT_CATEGORY,
             class_notes: classNotes.trim() || null,
             usage: usage.trim() || null,
             example_sentences: nextExamples,
@@ -226,6 +235,30 @@ export function EnVocabEditModal({
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="field">
+              <label
+                htmlFor="en-vocab-edit-category"
+                className="jp-vocab-edit-label"
+              >
+                分类
+              </label>
+              <input
+                id="en-vocab-edit-category"
+                type="text"
+                className="jp-vocab-edit-input"
+                list="en-vocab-category-presets"
+                value={category}
+                disabled={!canEdit}
+                placeholder={EN_VOCAB_DEFAULT_CATEGORY}
+                onChange={(e) => setCategory(e.target.value)}
+              />
+              <datalist id="en-vocab-category-presets">
+                {EN_VOCAB_CATEGORY_PRESETS.map((preset) => (
+                  <option key={preset} value={preset} />
+                ))}
+              </datalist>
             </div>
 
             <div className="field">

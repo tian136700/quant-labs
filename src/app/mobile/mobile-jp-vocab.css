@@ -237,6 +237,15 @@
     content: "类型：";
   }
 
+  .jp-vocab-table .en-vocab-category-col {
+    order: unset;
+    grid-column: 1 / -1;
+  }
+
+  .jp-vocab-table .en-vocab-category-col::before {
+    content: "分类：";
+  }
+
   .jp-vocab-table .jp-vocab-reading-col {
     display: none !important;
   }

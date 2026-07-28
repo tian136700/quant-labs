@@ -25,6 +25,7 @@ def main() -> None:
     for key in [
         "seq",
         "kind",
+        "category",
         "word",
         "reading",
         "meaning",
@@ -53,6 +54,7 @@ def main() -> None:
     for key in [
         "seq",
         "kind",
+        "category",
         "word",
         "reading",
         "meaning",

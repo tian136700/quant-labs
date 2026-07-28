@@ -251,6 +251,12 @@ export function EnVocabPageStylesTable() {
           width: 4%;
           min-width: 0;
         }
+        :global(.jp-vocab-table .en-vocab-category-col) {
+          white-space: nowrap;
+          width: 5.5%;
+          min-width: 0;
+          font-size: 0.8125rem;
+        }
         :global(.jp-vocab-table .jp-vocab-seq-col) {
           white-space: nowrap;
           width: 3.5%;
@@ -368,6 +374,9 @@ export function EnVocabPageStylesTable() {
             order: 1;
           }
           :global(.jp-vocab-table .jp-vocab-kind-col) {
+            order: 2;
+          }
+          :global(.jp-vocab-table .en-vocab-category-col) {
             order: 2;
           }
           :global(.jp-vocab-table .jp-vocab-reading-col) {

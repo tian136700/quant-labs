@@ -64,6 +64,11 @@ export async function POST(request: Request) {
         : null;
     const kind: EnVocabKind =
       form.get("kind") === "grammar" ? "grammar" : "word";
+    const categoryRaw = form.get("category");
+    const category =
+      typeof categoryRaw === "string" && categoryRaw.trim()
+        ? categoryRaw.trim()
+        : null;
 
     const refTitleRaw = form.get("ref_title");
     const refTitle =
@@ -130,6 +135,7 @@ export async function POST(request: Request) {
       reading,
       meaning,
       kind,
+      category,
       ref_key: refKey,
       class_notes: classNotes,
     });

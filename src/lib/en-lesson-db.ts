@@ -2,6 +2,7 @@ import "server-only";
 
 import type { EnLessonKind, EnLessonRecord, EnLessonUploadInput } from "@/lib/types";
 import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes, validateEnLessonWordKindContentForComplete } from "@/lib/en-lesson-shared";
+import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 import {
   removeEnVocabLessonWords,
@@ -28,6 +29,7 @@ const devLessons: EnLessonRecord[] = [];
 let devNextId = 1;
 let devSeeded = false;
 let enLessonLinkCopyCountColumnReady = false;
+let enLessonCategoryColumnReady = false;
 
 async function ensureEnLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
   if (devStoreEnabled || enLessonLinkCopyCountColumnReady) return;
@@ -35,10 +37,47 @@ async function ensureEnLessonLinkCopyCountColumn(db: D1Database): Promise<void> 
     await db
       .prepare(`ALTER TABLE en_lesson ADD COLUMN link_copy_count INTEGER NOT NULL DEFAULT 0`)
       .run();
-  } catch {
-    /* column may already exist */
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) {
+      /* column may already exist under other errors; still mark ready */
+    }
   }
   enLessonLinkCopyCountColumnReady = true;
+}
+
+/** 分类标签；旧库缺列时幂等补上，空值回填默认「雅思托福」 */
+async function ensureEnLessonCategoryColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || enLessonCategoryColumnReady) return;
+  try {
+    await db
+      .prepare(
+        `ALTER TABLE en_lesson ADD COLUMN category TEXT NOT NULL DEFAULT '雅思托福'`
+      )
+      .run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) {
+      /* column may already exist */
+    }
+  }
+  try {
+    await db
+      .prepare(
+        `UPDATE en_lesson
+         SET category = '雅思托福'
+         WHERE category IS NULL OR TRIM(category) = ''`
+      )
+      .run();
+  } catch {
+    /* ignore */
+  }
+  enLessonCategoryColumnReady = true;
+}
+
+async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
+  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonCategoryColumn(db);
 }
 
 export function enableEnLessonDevStore() {
@@ -70,6 +109,9 @@ function mapRow(row: Record<string, unknown>): EnLessonRecord {
     content: String(row.content),
     meanings: null,
     example_sentences: null,
+    category: normalizeEnVocabCategory(
+      row.category != null ? String(row.category) : null
+    ),
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
@@ -131,7 +173,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, category, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM en_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -146,6 +188,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       content: item.content.trim(),
       meanings: null,
       example_sentences: null,
+      category: normalizeEnVocabCategory(item.category),
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeEnVocabRefKey(item.ref_key) || null : null,
       completed: false,
@@ -212,7 +255,7 @@ async function enLessonContentExists(
 
 export async function listEnLessons(db: D1Database): Promise<EnLessonRecord[]> {
   await seedIfEmpty(db);
-  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonSchemaColumns(db);
 
   if (devStoreEnabled) {
     return attachTeacherIds(db, [...devLessons].sort(compareEnLessonsByProgress));
@@ -242,7 +285,7 @@ export async function getEnLessonById(
   if (!Number.isInteger(lessonId) || lessonId <= 0) return null;
 
   await seedIfEmpty(db);
-  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonSchemaColumns(db);
 
   if (devStoreEnabled) {
     const lesson = devLessons.find((l) => l.id === lessonId) ?? null;
@@ -269,7 +312,7 @@ export async function getEnLessonByRefKey(
   if (!key) return null;
 
   await seedIfEmpty(db);
-  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonSchemaColumns(db);
 
   if (devStoreEnabled) {
     const lesson = devLessons.find((l) => l.ref_key === key) ?? null;
@@ -345,6 +388,7 @@ async function syncLessonToVocab(
       word,
       kind: lesson.kind,
       ref_key: refKey,
+      category: lesson.category,
     })),
     refs
   );
@@ -381,6 +425,7 @@ export async function createEnLesson(
     return { ok: false, error: "content_duplicate" };
   }
   const title = (input.title || "").trim() || null;
+  const category = normalizeEnVocabCategory(input.category);
   const refKey = input.ref_key
     ? normalizeEnVocabRefKey(input.ref_key) || null
     : null;
@@ -394,6 +439,7 @@ export async function createEnLesson(
       content: storedContent,
       meanings: null,
       example_sentences: null,
+      category,
       title,
       ref_key: refKey,
       completed: false,
@@ -418,14 +464,14 @@ export async function createEnLesson(
     return { ok: false, error: "ref_key_not_found" };
   }
 
-  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonSchemaColumns(db);
 
   const result = await db
     .prepare(
-      `INSERT INTO en_lesson (kind, content, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, 0, 0, ?5, ?5, ?5)`
+      `INSERT INTO en_lesson (kind, content, category, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, ?6, ?6, ?6)`
     )
-    .bind(kind, storedContent, title, refKey, ts)
+    .bind(kind, storedContent, category, title, refKey, ts)
     .run();
 
   const id = Number(result.meta?.last_row_id);
@@ -472,7 +518,7 @@ export async function updateEnLessonProgress(
   const { completed, learning } = enLessonProgressToFields(progressStatus);
 
   await seedIfEmpty(db);
-  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonSchemaColumns(db);
 
   let before: EnLessonRecord | undefined;
   if (devStoreEnabled) {
@@ -783,7 +829,7 @@ export async function incrementEnLessonLinkCopyCount(
     return { ok: true, link_copy_count: next };
   }
 
-  await ensureEnLessonLinkCopyCountColumn(db);
+  await ensureEnLessonSchemaColumns(db);
 
   const ts = nowIso();
   const result = await db

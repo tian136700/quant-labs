@@ -406,6 +406,7 @@ export function EnVocabPageStylesLayout() {
         }
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
+        :global(.jp-vocab-table .en-vocab-category-col),
         :global(.jp-vocab-table .jp-vocab-risk-col),
         :global(.jp-vocab-table .jp-vocab-stats-col),
         :global(.jp-vocab-table .jp-vocab-today-check-col),
@@ -528,6 +529,7 @@ export function EnVocabPageStylesLayout() {
         }
         :global(.jp-vocab-table .jp-vocab-seq-col),
         :global(.jp-vocab-table .jp-vocab-kind-col),
+        :global(.jp-vocab-table .en-vocab-category-col),
         :global(.jp-vocab-table .jp-vocab-reading-col),
         :global(.jp-vocab-table .jp-vocab-meaning-col),
         :global(.jp-vocab-table .jp-vocab-pos-col),

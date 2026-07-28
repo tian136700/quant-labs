@@ -1,5 +1,6 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { createEnLesson, updateEnLessonRefKey } from "@/lib/en-lesson-db";
+import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import { saveEnVocabRefFileMeta } from "@/lib/en-vocab-db";
 import { putEnVocabRefFile } from "@/lib/en-vocab-ref-server";
 import { enLessonRefKey, normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
     let kind: EnLessonKind = "word";
     let content = "";
     let title: string | null = null;
+    let categoryRaw: string | null = null;
     let refKey = "";
     let fileBytes: ArrayBuffer | null = null;
     let mediaType: EnVocabMediaType = "image";
@@ -31,6 +33,9 @@ export async function POST(request: Request) {
       const titleRaw = form.get("title");
       title =
         typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : null;
+      const catRaw = form.get("category");
+      categoryRaw =
+        typeof catRaw === "string" && catRaw.trim() ? catRaw.trim() : null;
       refKey = normalizeEnVocabRefKey(String(form.get("ref_key") || ""));
 
       const file = form.get("file");
@@ -48,11 +53,13 @@ export async function POST(request: Request) {
         kind?: EnLessonKind;
         content?: string;
         title?: string | null;
+        category?: string | null;
         ref_key?: string | null;
       };
       kind = body.kind === "grammar" ? "grammar" : "word";
       content = String(body.content || "").trim();
       title = (body.title || "").trim() || null;
+      categoryRaw = (body.category || "").trim() || null;
       refKey = normalizeEnVocabRefKey(String(body.ref_key || ""));
     }
 
@@ -60,12 +67,14 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "content_required" }, 400);
     }
 
+    const category = normalizeEnVocabCategory(categoryRaw);
     const hasFile = Boolean(fileBytes?.byteLength);
 
     const result = await createEnLesson(env.DB, {
       kind,
       content,
       title,
+      category,
       ref_key: hasFile ? null : refKey || null,
     });
 
