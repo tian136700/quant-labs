@@ -10,7 +10,10 @@ import {
   buildEnVocabUsageExamplePairs,
   type EnVocabUsageExamplesPairedModel,
 } from "@/lib/en-vocab-usage-examples-display";
-import { formatEnVocabUsageFrequencyLabel } from "@/lib/en-vocab-usage-ai";
+import {
+  clampEnVocabUsageFrequency,
+  formatEnVocabUsageFrequencyLabel,
+} from "@/lib/en-vocab-usage-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
 import type { EnVocabLevel } from "@/lib/types";
 
@@ -41,6 +44,39 @@ type Props = {
   /** 抽查卡：每条用法旁熟悉程度（有编号用法时） */
   usageLevelControls?: EnVocabUsageLevelControls | null;
 };
+
+function EnVocabUsageFrequencyBar({
+  frequency,
+}: {
+  frequency: number | null | undefined;
+}) {
+  const score = clampEnVocabUsageFrequency(frequency);
+  if (score == null) return null;
+  const label = formatEnVocabUsageFrequencyLabel(score);
+  const pct = Math.round((score / 10) * 100);
+  return (
+    <span
+      className="en-usage-ex-paired-freq"
+      title="该用法在英语中的相对出现频次（1～10）"
+      aria-label={label ?? undefined}
+    >
+      <span className="en-usage-ex-paired-freq-caption">出现频次</span>
+      <span
+        className="en-usage-ex-paired-freq-bar"
+        role="progressbar"
+        aria-valuemin={1}
+        aria-valuemax={10}
+        aria-valuenow={score}
+      >
+        <span
+          className="en-usage-ex-paired-freq-fill"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="en-usage-ex-paired-freq-score">{score}</span>
+    </span>
+  );
+}
 
 export function EnVocabUsageExamplesPairedContent({
   usage,
@@ -92,7 +128,6 @@ export function EnVocabUsageExamplesPairedContent({
             const selectedLevel = showLevel
               ? usageLevelControls.levels[usageIndex] ?? null
               : null;
-            const freqLabel = formatEnVocabUsageFrequencyLabel(pair.frequency);
             return (
               <li
                 key={pair.index}
@@ -104,17 +139,10 @@ export function EnVocabUsageExamplesPairedContent({
                     <span className="en-usage-ex-paired-usage-label">
                       {pair.usageLabel}：
                     </span>
-                    {freqLabel ? (
-                      <span
-                        className="en-usage-ex-paired-freq"
-                        title="该用法在英语中的相对出现频次（1～10）"
-                      >
-                        {freqLabel}
-                      </span>
-                    ) : null}
                     <span className="en-usage-ex-paired-usage-body">
                       {pair.usageText}
                     </span>
+                    <EnVocabUsageFrequencyBar frequency={pair.frequency} />
                   </p>
                 ) : null}
                 {showLevel ? (
@@ -236,23 +264,47 @@ export function EnVocabUsageExamplesPairedContent({
           font-weight: 600;
           color: var(--text);
         }
-        .en-usage-ex-paired-freq {
-          display: inline-block;
-          margin: 0 0.35rem 0 0;
-          padding: 0.05rem 0.4rem;
-          border-radius: 999px;
-          font-size: 0.72rem;
-          font-weight: 600;
-          line-height: 1.35;
-          letter-spacing: 0.01em;
-          color: color-mix(in srgb, var(--accent) 88%, var(--text));
-          background: color-mix(in srgb, var(--accent) 14%, transparent);
-          border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
-          vertical-align: 0.08em;
-          white-space: nowrap;
-        }
         .en-usage-ex-paired-usage-body {
           font-weight: 400;
+        }
+        /* FrequencyBar 是子函数组件：须 :global，否则 styled-jsx 作用域套不上 */
+        :global(.en-usage-ex-paired-freq) {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          margin: 0.28rem 0 0;
+          max-width: 100%;
+          white-space: nowrap;
+        }
+        :global(.en-usage-ex-paired-freq-caption) {
+          flex: 0 0 auto;
+          font-size: 0.72rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          color: var(--muted);
+        }
+        :global(.en-usage-ex-paired-freq-bar) {
+          display: inline-block;
+          width: 4.5rem;
+          height: 0.42rem;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--border) 70%, transparent);
+          overflow: hidden;
+          flex: 0 0 auto;
+        }
+        :global(.en-usage-ex-paired-freq-fill) {
+          display: block;
+          height: 100%;
+          border-radius: inherit;
+          background: color-mix(in srgb, var(--accent) 82%, var(--text));
+        }
+        :global(.en-usage-ex-paired-freq-score) {
+          flex: 0 0 auto;
+          min-width: 1.1rem;
+          font-size: 0.72rem;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          color: color-mix(in srgb, var(--accent) 88%, var(--text));
         }
         :global(.en-usage-ex-paired-levels) {
           display: flex;
@@ -293,10 +345,13 @@ export function EnVocabUsageExamplesPairedContent({
           gap: 0.15rem;
         }
         @media (max-width: 767px) {
-          .en-usage-ex-paired-freq {
+          :global(.en-usage-ex-paired-freq-bar) {
+            width: 3.6rem;
+            height: 0.38rem;
+          }
+          :global(.en-usage-ex-paired-freq-caption),
+          :global(.en-usage-ex-paired-freq-score) {
             font-size: 0.68rem;
-            padding: 0.04rem 0.32rem;
-            margin-right: 0.28rem;
           }
         }
       `}</style>

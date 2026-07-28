@@ -52,9 +52,17 @@ def main() -> None:
 
     ui = read("src/components/EnVocabUsageExamplesPairedContent.tsx")
     if "en-usage-ex-paired-freq" not in ui:
-        fail("flashcard UI must render frequency badge class")
+        fail("flashcard UI must render frequency class")
+    if "en-usage-ex-paired-freq-bar" not in ui:
+        fail("flashcard UI must render frequency progress bar")
     if "出现频次" not in ui and "formatEnVocabUsageFrequencyLabel" not in ui:
         fail("flashcard UI must show frequency label")
+    # 进度条须在用法正文之后（勿插在「N.用法：」标签后）
+    if not re.search(
+        r"en-usage-ex-paired-usage-body[\s\S]{0,200}EnVocabUsageFrequencyBar",
+        ui,
+    ):
+        fail("frequency bar must come after usage body text")
 
     py = read("scripts/en-vocab-fill-usage-api.py")
     if "missing_frequency" not in py:

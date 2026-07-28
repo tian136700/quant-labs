@@ -161,7 +161,7 @@ export function formatEnVocabUsageExamplesCopyText(
       const freqLabel = formatEnVocabUsageFrequencyLabel(pair.frequency);
       lines.push(
         freqLabel
-          ? `${pair.usageLabel}（${freqLabel}）：${pair.usageText}`
+          ? `${pair.usageLabel}：${pair.usageText}\n${freqLabel}`
           : `${pair.usageLabel}：${pair.usageText}`
       );
     }
