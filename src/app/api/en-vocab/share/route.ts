@@ -1,6 +1,7 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { shareEnVocabWord } from "@/lib/en-vocab-db";
 import { requireEnVocabAccess } from "@/lib/en-vocab-auth";
+import { EN_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/en-vocab-share-ui";
 
 const AUTH_MSG = {
   en: "Please log in to share words.",
@@ -21,6 +22,13 @@ export async function POST(request: Request) {
       return jsonResponse(
         { ok: false, error: user ? PERM_MSG[locale] : AUTH_MSG[locale] },
         user ? 403 : 401
+      );
+    }
+
+    if (!EN_VOCAB_TEACHER_SHARE_ENABLED) {
+      return jsonResponse(
+        { ok: false, error: "teacher_share_disabled" },
+        403
       );
     }
 

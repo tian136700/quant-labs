@@ -1,6 +1,7 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { shareJpVocabWord, unshareJpVocabWord } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess } from "@/lib/jp-vocab-auth";
+import { JP_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 
 const AUTH_MSG = {
   en: "Please log in to share words.",
@@ -38,6 +39,13 @@ export async function POST(request: Request) {
       return jsonResponse(
         { ok: false, error: user ? PERM_MSG[locale] : AUTH_MSG[locale] },
         user ? 403 : 401
+      );
+    }
+
+    if (!JP_VOCAB_TEACHER_SHARE_ENABLED) {
+      return jsonResponse(
+        { ok: false, error: "teacher_share_disabled" },
+        403
       );
     }
 

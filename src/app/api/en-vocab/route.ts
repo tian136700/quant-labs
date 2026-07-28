@@ -21,6 +21,7 @@ import {
 } from "@/lib/en-vocab-daily-quiz-style";
 import { isEnVocabLevel } from "@/lib/en-vocab-review";
 import { trackEnVocabTeacherQuizDayAfterReview } from "@/lib/en-vocab-teacher-quiz-day";
+import { EN_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/en-vocab-share-ui";
 import type { EnVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -166,7 +167,7 @@ export async function POST(request: Request) {
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
     const shareOpts = {
-      shareToStudy: true as const,
+      shareToStudy: EN_VOCAB_TEACHER_SHARE_ENABLED,
       sharedBy: user?.username ?? "",
     };
 

@@ -23,6 +23,7 @@ import {
   type JpVocabDailyQuizStyle,
 } from "@/lib/jp-vocab-daily-quiz-style";
 import { trackJpVocabTeacherQuizDayAfterReview } from "@/lib/jp-vocab-teacher-quiz-day";
+import { JP_VOCAB_TEACHER_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 import type { JpVocabLevel } from "@/lib/types";
 
 const AUTH_MSG = {
@@ -185,7 +186,7 @@ export async function POST(request: Request) {
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
     const result = await recordJpVocabReview(env.DB, wordId, level, {
-      shareToStudy: true,
+      shareToStudy: JP_VOCAB_TEACHER_SHARE_ENABLED,
       sharedBy: user?.username ?? "",
     });
 

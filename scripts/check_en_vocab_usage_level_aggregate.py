@@ -114,7 +114,8 @@ def main() -> int:
     for n in [
         "usage_levels",
         "recordEnVocabReviewWithUsageLevels",
-        "shareToStudy: true",
+        "EN_VOCAB_TEACHER_SHARE_ENABLED",
+        "shareToStudy: EN_VOCAB_TEACHER_SHARE_ENABLED",
         "shared_new",
     ]:
         if n not in route_text:
