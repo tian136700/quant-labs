@@ -291,15 +291,15 @@ export function JpVocabUsageExamplesPairedContent({
         }
         .jp-usage-ex-paired-jp {
           margin: 0;
-          line-height: 1.85;
+          line-height: 1.8;
           color: var(--text);
-          font-size: 1.2rem;
+          font-size: 1.1rem;
         }
         .jp-usage-ex-paired-gloss {
           margin: 0.25rem 0 0;
-          line-height: 1.55;
+          line-height: 1.5;
           color: var(--muted);
-          font-size: 1.05rem;
+          font-size: 0.98rem;
         }
         .jp-usage-ex-paired-example-missing {
           margin: 0.2rem 0 0;
@@ -330,8 +330,8 @@ export function JpVocabUsageExamplesPairedContent({
           flex: 0 0 auto;
           color: #5b9fd4;
           font-weight: 600;
-          line-height: 1.85;
-          font-size: 1.15rem;
+          line-height: 1.8;
+          font-size: 1.05rem;
         }
         .jp-usage-ex-paired-nested-body {
           flex: 1 1 auto;
@@ -352,9 +352,12 @@ export function JpVocabUsageExamplesPairedContent({
             font-size: 0.98rem;
           }
           .jp-usage-ex-paired-jp {
-            font-size: 1.25rem;
+            font-size: 1.15rem;
           }
           .jp-usage-ex-paired-gloss {
+            font-size: 1.02rem;
+          }
+          .jp-usage-ex-paired-nested-index {
             font-size: 1.1rem;
           }
         }

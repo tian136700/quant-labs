@@ -1278,16 +1278,20 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: var(--muted);
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-jp) {
-          font-size: clamp(1.15rem, 3.8vw, 1.35rem);
+          font-size: clamp(1.05rem, 3.2vw, 1.2rem);
           font-weight: 600;
-          line-height: 1.9;
+          line-height: 1.8;
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-gloss) {
-          font-size: 1.05rem;
-          line-height: 1.55;
+          font-size: 0.98rem;
+          line-height: 1.5;
         }
         .jp-vocab-teacher-quiz__examples-body :global(.jp-vocab-furigana-reading) {
           font-size: 0.55em;
+        }
+        .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-nested-index) {
+          font-size: 1.05rem;
+          line-height: 1.8;
         }
         @media (max-width: 767px) {
           .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-usage),
@@ -1298,9 +1302,12 @@ export function JpVocabTeacherQuizFlashcardStyles() {
             font-size: 0.98rem;
           }
           .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-jp) {
-            font-size: 1.28rem;
+            font-size: 1.15rem;
           }
           .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-gloss) {
+            font-size: 1.02rem;
+          }
+          .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-nested-index) {
             font-size: 1.1rem;
           }
         }
