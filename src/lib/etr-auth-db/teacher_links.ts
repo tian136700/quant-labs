@@ -21,7 +21,6 @@ import {
 } from "./session";
 import {
   createUserByAdmin,
-  generateAdminResetPassword,
   generateMemorableTeacherPassword,
 } from "./users";
 import { etrAuthDbState, nowIso } from "./state";
@@ -322,7 +321,7 @@ export async function provisionJpLessonTeacherUser(
     return { ok: true, created: false, reason: "username_unavailable" };
   }
 
-  const password = generateAdminResetPassword(10);
+  const password = generateMemorableTeacherPassword();
   const result = await createUserByAdmin(env, username, password, "jp_vocab", {
     disabled: false,
   });

@@ -380,7 +380,8 @@ export function generateAdminResetPassword(minLength: number): string {
   return Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
 
-export function generateMemorableTeacherPassword(minLength: number): string {
+/** 老师/学生账号：英文词组 + 数字，带连字符，方便微信口述（用户名已难猜，不必随机乱码） */
+export function generateMemorableTeacherPassword(_minLength = 8): string {
   const wordsA = [
     "sun",
     "rain",
@@ -390,6 +391,14 @@ export function generateMemorableTeacherPassword(minLength: number): string {
     "leaf",
     "wind",
     "snow",
+    "blue",
+    "gold",
+    "mint",
+    "rose",
+    "warm",
+    "cool",
+    "soft",
+    "bright",
   ];
   const wordsB = [
     "class",
@@ -400,19 +409,26 @@ export function generateMemorableTeacherPassword(minLength: number): string {
     "focus",
     "review",
     "lesson",
+    "book",
+    "word",
+    "talk",
+    "read",
+    "team",
+    "page",
+    "line",
+    "time",
   ];
-  const pick = (items: string[]) => items[Math.floor(Math.random() * items.length)];
+  const pick = (items: string[]) =>
+    items[Math.floor(Math.random() * items.length)];
   const digits = String(Math.floor(Math.random() * 90) + 10);
-  const base = `${pick(wordsA)}${pick(wordsB)}${digits}`;
-  if (base.length >= minLength) return base;
-  return `${base}${"x".repeat(minLength - base.length)}`;
+  return `${pick(wordsA)}-${pick(wordsB)}-${digits}`;
 }
 
 export type ResetUserPasswordByAdminResult =
   | { ok: true; user: EtrUser; password: string }
   | { ok: false; error: string };
 
-/** 管理员重置用户密码并返回明文（仅本次响应，供复制账号密码） */
+/** 管理员重置用户密码并返回明文（仅本次响应，供复制账号密码）；非保留账号用词组密码，勿用随机乱码 */
 export async function resetUserPasswordByAdmin(
   env: CloudflareEnv,
   userId: number
@@ -433,7 +449,7 @@ export async function resetUserPasswordByAdmin(
     return { ok: false, error: "cannot_reset_bootstrap" };
   }
 
-  const password = generateAdminResetPassword(6);
+  const password = generateMemorableTeacherPassword();
   const { salt, hash } = await hashPassword(password);
   const passwordHash = encodePasswordStorage(salt, hash);
 
