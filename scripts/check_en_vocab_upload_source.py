@@ -66,6 +66,22 @@ def main() -> None:
         "EN_VOCAB_UPLOAD_SOURCE_API",
     )
     must_contain(
+        ROOT / "src/app/api/en-vocab/local-upload/route.ts",
+        "duplicate_words",
+    )
+    must_contain(
+        ROOT / "src/app/api/en-vocab/local-upload/route.ts",
+        "单词重复了，库中已存在，已跳过",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-db/words.ts",
+        "duplicate_words",
+    )
+    must_contain(
+        ROOT / "docs/en-vocab-local-upload-api.txt",
+        "POST https://english.info-quests.com/api/en-vocab/local-upload",
+    )
+    must_contain(
         ROOT / "src/app/api/en-vocab/upload/route.ts",
         "EN_VOCAB_UPLOAD_SOURCE_API",
     )

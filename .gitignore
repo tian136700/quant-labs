@@ -182,6 +182,7 @@ wechat-jp-vocab-review/
 .open-next/cache/n8-AEyFS32dBCXFVHY6H0/zh/store-review/plaza.cache
 .open-next/cache/n8-AEyFS32dBCXFVHY6H0/zh/tool-dot.cache
 .open-next/cache/n8-AEyFS32dBCXFVHY6H0/zh/tool-dot/admin.cache
+docs/en-vocab-local-upload-api.txt
 scripts/__pycache__/auto_ignore_local_files.cpython-314.pyc
 scripts/deploy_center/
 tmp/maintenance_center/deploy_logs.sqlite3
