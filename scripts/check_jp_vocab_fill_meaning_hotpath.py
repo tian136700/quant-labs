@@ -53,10 +53,16 @@ def main() -> int:
 
     if "meta_label" not in ai or "isJpVocabMeaningMetaLabel" not in ai:
         errors.append("jp-vocab-meaning-ai.ts 须拒区块标题壳 meta_label / isJpVocabMeaningMetaLabel")
+    if "释义：一行中文义项" not in ai and "释义：很多；大量" not in ai:
+        errors.append("jp-vocab-meaning-ai.ts combo prompt 须用「释义：正文」而非单独【释义】标题行")
+    if "【释义】\n一行中文释义" in ai:
+        errors.append("jp-vocab-meaning-ai.ts 仍用【释义】单独标题行教模型（易写进库）")
     if "【释义】" not in meaning or "JP_VOCAB_MEANING_MISSING_SQL" not in meaning:
         errors.append("jp-vocab-fill-meaning.ts list_missing 须把 meaning='【释义】' 当缺释义")
     if "is_meaning_meta_label" not in script or "meta_label" not in script:
         errors.append("jp-vocab-fill-meaning-api.py 须拒 is_meaning_meta_label / meta_label")
+    if "LABELED_FIELD_RE" not in script:
+        errors.append("脚本须解析「释义：正文」（LABELED_FIELD_RE）")
     if "MEANING_SECTION_INLINE_RE" not in script:
         errors.append("脚本须解析同行【释义】正文（MEANING_SECTION_INLINE_RE）")
 

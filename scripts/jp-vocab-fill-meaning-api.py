@@ -79,16 +79,25 @@ FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
 
 SYSTEM = (
     "你为日语 N5/N4 初学者补全单词字段（释义，必要时词性与常用用法例句）。"
-    "严格按用户要求的【释义】【词性】【例句】区块输出；缺哪项就省略哪块。"
-    "若只要释义：也可只输出一行释义正文。"
+    "按「释义：…」「词性：…」「例句：」格式输出；缺哪项就省略哪行。"
+    "若只要释义：只输出一行中文释义正文（例：很多；大量）。"
+    "释义必须是中文义项正文，禁止只输出「释义」「【释义】」这类标题壳。"
     "释义：最常用 1～3 个中文义项，用「；」连接，常用在前；多读音用 / 分大义项。"
     "词性：中文（名词/动词/い形容词…），多词性用 /。"
     "例句：只要比较常用的用法；日语行须汉字后半角括号假名；下一行「译文：」中文。"
     "不要 markdown、不要解释过程。"
 )
 
+# 旧【释义】标题行 + 新「释义：」标签行（兼容）
 SECTION_RE = re.compile(
-    r"^【\s*(释义|词性|例句|意思)\s*】\s*$|^#{1,3}\s*(释义|词性|例句)\s*$",
+    r"^【\s*(释义|词性|例句|意思)\s*】\s*$"
+    r"|^#{1,3}\s*(释义|词性|例句)\s*$"
+    r"|^(释义|意思|词性|例句|meaning|pos|examples?)\s*[:：]\s*$",
+    re.I,
+)
+# 「释义：很多」同行正文
+LABELED_FIELD_RE = re.compile(
+    r"^(释义|意思|词性|例句|meaning|pos|examples?)\s*[:：]\s*(.+)$",
     re.I,
 )
 POS_TOKEN_RE = re.compile(
@@ -417,7 +426,12 @@ def parse_combo_output(
         return None, None, None
 
     lines = text.splitlines()
-    has_section = any(SECTION_RE.match(ln.strip()) for ln in lines)
+    has_section = any(
+        SECTION_RE.match(ln.strip())
+        or LABELED_FIELD_RE.match(ln.strip())
+        or MEANING_SECTION_INLINE_RE.match(ln.strip())
+        for ln in lines
+    )
 
     meaning: str | None = None
     pos: str | None = None
@@ -451,10 +465,17 @@ def parse_combo_output(
         line = raw_line.strip()
         m = SECTION_RE.match(line)
         if m:
-            label = m.group(1) or m.group(2) or ""
+            label = m.group(1) or m.group(2) or m.group(3) or ""
             current = _section_key(label)
             continue
-        # 同行「【释义】很多」：旧模型偶发把正文粘在标题后
+        # 「释义：很多」/「【释义】很多」同行正文
+        labeled = LABELED_FIELD_RE.match(line)
+        if labeled:
+            current = _section_key(labeled.group(1) or "")
+            rest = (labeled.group(2) or "").strip()
+            if current and rest and not is_meaning_meta_label(rest):
+                buckets[current].append(LEADING_INDEX_RE.sub("", rest))
+            continue
         inline = MEANING_SECTION_INLINE_RE.match(line)
         if inline:
             current = _section_key(inline.group(1) or "")
@@ -594,14 +615,14 @@ def run_one_fill(
     need_examples = bool(row.get("need_examples"))
     prompt = str(row.get("prompt") or "").strip()
     if not prompt:
-        jobs = ["【释义】一行常用中文义项，用「；」连接"]
+        jobs = ["释义：一行常用中文义项，用「；」连接（禁止只写标题）"]
         if need_pos:
-            jobs.append("【词性】一行中文词性，多词性用 /")
+            jobs.append("词性：一行中文词性，多词性用 /")
         if need_examples:
-            jobs.append("【例句】常用用法；日语+译文：交替，汉字后半角括号假名")
+            jobs.append("例句：常用用法；日语+译文：交替，汉字后半角括号假名")
         prompt = (
             f"词条：{word}\n类型：单词\n\n"
-            "请补全：\n" + "\n".join(jobs)
+            "请补全（标签后必须跟正文）：\n" + "\n".join(jobs)
         )
 
     extra = []
@@ -648,13 +669,14 @@ def run_one_fill(
         need_pos=need_pos,
         need_examples=need_examples,
     )
-    if not meaning:
-        poison_word(word_id, "invalid:empty_meaning")
-        print(f"  校验失败 reason=empty_meaning raw={raw[:120]!r}", flush=True)
+    if not meaning or is_meaning_meta_label(meaning):
+        reason = "meta_label" if meaning and is_meaning_meta_label(meaning) else "empty_meaning"
+        poison_word(word_id, f"invalid:{reason}")
+        print(f"  校验失败 reason={reason} raw={raw[:160]!r}", flush=True)
         return {
             "ok": True,
             "updated": 0,
-            "skipped": [{"id": word_id, "reason": "empty_meaning"}],
+            "skipped": [{"id": word_id, "reason": reason}],
         }
 
     if need_pos and not pos:

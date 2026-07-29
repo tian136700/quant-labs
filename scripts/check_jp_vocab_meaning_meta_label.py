@@ -45,6 +45,10 @@ def main() -> int:
     if ok3 != "很多；大量":
         errors.append(f"同行标题前缀应剥掉，得到 {ok3!r}")
 
+    ok4, _ = mod.validate_meaning("释义：很多；大量")
+    if ok4 != "很多；大量":
+        errors.append(f"「释义：」前缀应剥掉，得到 {ok4!r}")
+
     m, p, e = mod.parse_combo_output(
         "【释义】很多；大量\n【词性】\n副词",
         need_meaning=True,
@@ -56,6 +60,17 @@ def main() -> int:
     if p != "副词":
         errors.append(f"parse 词性失败 pos={p!r}")
 
+    m3, p3, _ = mod.parse_combo_output(
+        "释义：很多；大量\n词性：副词",
+        need_meaning=True,
+        need_pos=True,
+        need_examples=False,
+    )
+    if m3 != "很多；大量":
+        errors.append(f"parse 新格式释义失败 meaning={m3!r}")
+    if p3 != "副词":
+        errors.append(f"parse 新格式词性失败 pos={p3!r}")
+
     m2, _, _ = mod.parse_combo_output(
         "【释义】\n【词性】\n副词",
         need_meaning=True,
@@ -64,6 +79,12 @@ def main() -> int:
     )
     if m2 is not None:
         errors.append(f"空释义区块不应产出 meaning，得到 {m2!r}")
+
+    system = getattr(mod, "SYSTEM", "")
+    if "标题壳" not in system:
+        errors.append("SYSTEM 须明确禁止只输出标题壳")
+    if "严格按用户要求的【释义】【词性】【例句】区块输出" in system:
+        errors.append("SYSTEM 仍教【释义】单独区块（易写进库）")
 
     if errors:
         print("FAIL:")
