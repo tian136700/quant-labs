@@ -268,6 +268,8 @@ export async function listJpVocabGrammarMissingConnection(
       ) {
         return null;
       }
+      const connection =
+        row.connection != null ? String(row.connection).trim() || null : null;
       return {
         id: Number(row.id),
         word,
@@ -275,7 +277,7 @@ export async function listJpVocabGrammarMissingConnection(
         reading,
         meaning,
         usage,
-        connection: null,
+        connection,
         prompt: buildJpVocabConnectionOnlyAiPrompt({
           word,
           kind: "grammar",
