@@ -18,6 +18,9 @@ import json
 import re
 import sys
 import time
+import urllib.error
+import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +50,7 @@ HARD_ONLINE_LIMIT = 1
 POISON_PATH = Path.home() / ".config" / "info-quests" / "jp-vocab-fill-online.poison.json"
 RATE_GATE_PATH = Path.home() / ".config" / "info-quests" / "jp-vocab-fill-online.last_paid_call"
 DEFAULT_POISON_SEC = 6 * 3600
+MAINTENANCE_WORD_RUN_URL = "http://127.0.0.1:17823/api/jp-vocab-fill/word-runs"
 
 FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE | re.IGNORECASE)
 EXAMPLE_JLPT_TAIL_RE = re.compile(
@@ -233,6 +237,25 @@ def full_refresh_needs(kind: str, word: str) -> dict[str, bool]:
         "connection": False,
         "example_sentences": True,
     }
+
+
+def now_local_str() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def report_word_run_to_maintenance_center(payload: dict[str, Any]) -> None:
+    """维护中心「最近词条」；维护中心未开时静默跳过。"""
+    try:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        req = urllib.request.Request(
+            MAINTENANCE_WORD_RUN_URL,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        pass
 
 
 def normalize_example_jlpt_tail(line: str) -> str:
@@ -624,6 +647,15 @@ def process_one(
         f"full_bundle={list(req_keys)}",
         flush=True,
     )
+    report_word_run_to_maintenance_center(
+        {
+            "word_id": wid,
+            "word": word,
+            "kind": kind,
+            "status": "running",
+            "started_at": now_local_str(),
+        }
+    )
 
     source = build_online_source_label()
     mark_paid_call()
@@ -631,6 +663,16 @@ def process_one(
         payload = generate_bundle(row, needs)
     except Exception as err:
         print(f"    fail generate: {err}", flush=True)
+        report_word_run_to_maintenance_center(
+            {
+                "word_id": wid,
+                "word": word,
+                "kind": kind,
+                "status": "failed",
+                "error": f"generate:{err}",
+                "finished_at": now_local_str(),
+            }
+        )
         mark_poison(wid, word, f"generate:{err}")
         after_attempt(
             scope="jp-online",
@@ -671,6 +713,20 @@ def process_one(
         dry_run=False,
     )
     print(f"    applied={done} source={source}", flush=True)
+    preview_text = json.dumps(preview, ensure_ascii=False)
+    report_word_run_to_maintenance_center(
+        {
+            "word_id": wid,
+            "word": word,
+            "kind": kind,
+            "status": "success" if done else "failed",
+            "source": source,
+            "applied": str(done),
+            "preview": preview_text,
+            "error": "" if done else "apply_none",
+            "finished_at": now_local_str(),
+        }
+    )
     if not done:
         mark_poison(wid, word, "apply_none")
         after_attempt(

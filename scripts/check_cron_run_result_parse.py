@@ -51,6 +51,14 @@ SAMPLE_BUSY = """
 2026-07-20 06:05:55 en-vocab-fill-examples: done
 """
 
+SAMPLE_JP_UNIFIED = """
+2026-07-29 21:45:03 jp-vocab-fill-unified: start backend=1 stage=unified
+  [1/1] id=34 kind=word word='イギリス' full_bundle=['reading', 'meaning', 'pos', 'example_sentences']
+    got={'reading': 'イギリス', 'meaning': '英国'}
+    applied=['reading', 'word_bundle'] source=线上 claude-sonnet-4-6
+2026-07-29 21:45:40 jp-vocab-fill-unified: done
+"""
+
 
 def main() -> int:
     r = extract_result_from_log(SAMPLE_SUCCESS)
@@ -68,6 +76,10 @@ def main() -> int:
 
     r3 = extract_result_from_log(SAMPLE_BUSY)
     assert r3 and r3.get("outcome") == "slot_busy", r3
+
+    r4 = extract_result_from_log(SAMPLE_JP_UNIFIED)
+    assert r4 and r4.get("outcome") == "applied", r4
+    assert r4.get("items") and r4["items"][0]["word"] == "イギリス", r4
 
     print("ok: cron run result parse")
     return 0
