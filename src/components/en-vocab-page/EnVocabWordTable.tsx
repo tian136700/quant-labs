@@ -199,24 +199,28 @@ export function EnVocabWordTable({
                       label="类型"
                     />
                   </th>
-                  <th rowSpan={2} className="en-vocab-category-col">
-                    <EnVocabThSortButton
-                      sortKey="category"
-                      statSort={statSort}
-                      onStatSort={onStatSort}
-                      title="按分类排序（如雅思托福）"
-                      label="分类"
-                    />
-                  </th>
-                  <th rowSpan={2} className="en-vocab-upload-source-col">
-                    <EnVocabThSortButton
-                      sortKey="upload_source"
-                      statSort={statSort}
-                      onStatSort={onStatSort}
-                      title="按上传类型排序（新课同步 / API / 手动）"
-                      labelLines={["上传", "类型"]}
-                    />
-                  </th>
+                  {isAdmin ? (
+                    <th rowSpan={2} className="en-vocab-category-col">
+                      <EnVocabThSortButton
+                        sortKey="category"
+                        statSort={statSort}
+                        onStatSort={onStatSort}
+                        title="按分类排序（如雅思托福）"
+                        label="分类"
+                      />
+                    </th>
+                  ) : null}
+                  {isAdmin ? (
+                    <th rowSpan={2} className="en-vocab-upload-source-col">
+                      <EnVocabThSortButton
+                        sortKey="upload_source"
+                        statSort={statSort}
+                        onStatSort={onStatSort}
+                        title="按上传类型排序（新课同步 / API / 手动）"
+                        labelLines={["上传", "类型"]}
+                      />
+                    </th>
+                  ) : null}
                   <th rowSpan={2} className="jp-vocab-word-col">
                     <EnVocabThSortButton
                       sortKey="word"
@@ -459,21 +463,25 @@ export function EnVocabWordTable({
                           {w.kind === "grammar" ? "语法" : "单词"}
                         </span>
                       </td>
-                      <td
-                        className="en-vocab-category-col"
-                        data-label="分类"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        {displayEnVocabCategory(w.category)}
-                      </td>
-                      <td
-                        className="en-vocab-upload-source-col"
-                        data-label="上传类型"
-                        style={{ color: "var(--muted)", fontSize: "0.82rem" }}
-                        title={displayEnVocabUploadSource(w.upload_source)}
-                      >
-                        {displayEnVocabUploadSource(w.upload_source)}
-                      </td>
+                      {isAdmin ? (
+                        <td
+                          className="en-vocab-category-col"
+                          data-label="分类"
+                          style={{ color: "var(--muted)" }}
+                        >
+                          {displayEnVocabCategory(w.category)}
+                        </td>
+                      ) : null}
+                      {isAdmin ? (
+                        <td
+                          className="en-vocab-upload-source-col"
+                          data-label="上传类型"
+                          style={{ color: "var(--muted)", fontSize: "0.82rem" }}
+                          title={displayEnVocabUploadSource(w.upload_source)}
+                        >
+                          {displayEnVocabUploadSource(w.upload_source)}
+                        </td>
+                      ) : null}
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
                         <div className="jp-vocab-word-cell">
                           {w.ref_key ? (
