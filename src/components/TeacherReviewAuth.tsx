@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n/I18nProvider";
 import { readStoredLocale } from "@/lib/locale-detect";
 import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 import { maintenancePath } from "@/lib/locale-path";
+import { readApiJson } from "@/lib/api-json";
 
 export type { EtrAuthUser };
 
@@ -180,7 +181,17 @@ export function TeacherReviewAuth({
           password_confirm: passwordConfirm,
         }),
       });
-      const data = await res.json();
+      const parsed = await readApiJson<{
+        ok?: boolean;
+        error?: string;
+        maintenance?: boolean;
+        user?: EtrAuthUser;
+      }>(res);
+      if (!parsed.ok) {
+        setError(parsed.error || auth.failed);
+        return;
+      }
+      const data = parsed.data;
       if (data.maintenance) {
         const locale = readStoredLocale() ?? "en";
         window.location.href = maintenancePath(locale);

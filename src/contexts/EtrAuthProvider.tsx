@@ -43,6 +43,7 @@ import {
   writeClientCache,
 } from "@/lib/client-swr-cache";
 import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
+import { readApiJson } from "@/lib/api-json";
 
 const AUTH_USER_CACHE_KEY = "etr-auth:user:v1";
 
@@ -130,14 +131,20 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
         headers: { [LOCALE_HEADER]: locale },
       });
-      const data = (await res.json()) as {
+      const parsed = await readApiJson<{
         ok?: boolean;
         authenticated?: boolean;
         user?: EtrAuthUser | null;
         maintenance?: boolean;
         session_conflict?: boolean;
-      };
+      }>(res);
       if (gen !== refreshGenRef.current) return;
+      if (!parsed.ok) {
+        setUser(null);
+        clearClientCache(AUTH_USER_CACHE_KEY);
+        return;
+      }
+      const data = parsed.data;
       if (data.maintenance) {
         setUser(null);
         setMaintenance(true);
