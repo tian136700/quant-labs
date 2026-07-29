@@ -215,9 +215,10 @@ export function JpLessonManualScheduleModal({
     setTitleChoice(preset);
     setCustomTitle("");
     setError("");
-    // 闲鱼英语抽查：自动填上课老师（须与人员管理英语老师同名）
+    // 闲鱼英语抽查：自动填上课老师 + 30 分钟（须与人员管理英语老师同名）
     if (preset === "闲鱼英语抽查") {
       applyTeacherName("闲鱼英语抽查");
+      setDuration("30");
     }
   };
 

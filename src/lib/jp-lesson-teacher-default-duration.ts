@@ -16,6 +16,8 @@ export const JP_LESSON_TEACHER_KNOWN_DEFAULT_DURATION_MINUTES: Readonly<
   琴老师: 45,
   玉老师: 60,
   星老师: 60,
+  /** 手动日程「闲鱼英语抽查」预设 */
+  闲鱼英语抽查: 30,
 };
 
 /** 去掉旧版「名称-80/h」后缀与末尾编号（如 李老师1 → 李老师） */

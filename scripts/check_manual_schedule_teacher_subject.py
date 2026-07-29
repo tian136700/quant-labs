@@ -48,6 +48,8 @@ def main() -> int:
         and "applyTeacherName('闲鱼英语抽查')" not in modal
     ):
         errors.append("selecting 闲鱼英语抽查 must auto-fill teacher name")
+    if 'setDuration("30")' not in modal and "setDuration('30')" not in modal:
+        errors.append("selecting 闲鱼英语抽查 must default duration to 30 minutes")
 
     if "addKoLessonTeacher" not in page:
         errors.append("JpLessonSchedulePage must define addKoLessonTeacher")
