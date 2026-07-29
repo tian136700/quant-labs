@@ -246,7 +246,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | 设置上课老师弹窗（弹窗内新增老师并保存） | `EnLessonTeacherEditModal.tsx`（添加行右侧「保存」）；`EnLessonPage.tsx` → `addLessonTeacher` / `setLessonTeachers`（合并老师列表，勿用旧闭包覆盖刚添加的老师）；API：`/api/admin/en-lesson-teachers`、`POST /api/en-lesson` `set_teacher` |
-| **单词类禁止多词条目标已完成**（如「Present Perfect」：单词类标已完成会驳回并提示改语法类或拆成单词；语法类允许多词） | `en-lesson-shared.ts` → `validateEnLessonWordKindContentForComplete`；`updateEnLessonProgress`；`EnLessonPage` `setLessonProgress`；规则 `.cursor/rules/en-lesson-word-kind-no-multiword.mdc`；回归 `scripts/check_en_lesson_word_kind_no_multiword.py` |
+| **单词类允许多词标已完成**（如「Present Perfect」：不必改语法类；点「已完成」即 sync 进 `/en-vocab` 作单词；**禁止**再拦 `word_kind_has_multi_word_items`） | `updateEnLessonProgress` → `syncLessonToVocab`；规则 `.cursor/rules/en-lesson-word-kind-no-multiword.mdc`；回归 `scripts/check_en_lesson_word_kind_no_multiword.py` |
 | **默认课时长 25 分钟**（设置上课时间时预选；日程未填时长也按 25；勿用日语默认 55） | `en-lesson-shared.ts` → `DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES` / `resolveEnClassDurationMinutes`；`EnLessonNextClassEditModal.tsx` |
 | **分类标签**（默认「雅思托福」；上传传 `category`；标已完成时同步到 `en_vocab_word.category`） | `en_lesson.category`；`POST /api/en-lesson/upload`；`createEnLesson` / `syncLessonToVocab`；列表「分类」列；`en-vocab-category.ts`；回归 `scripts/check_en_vocab_category.py` |
 | **手机端卡片布局**（与日语新课同套：状态 Tab（手机+桌面）、内容 chips、底部编辑/老师/时间；根节点 `jp-lesson-page--en`） | `EnLessonPage.tsx`；`mobile.css`（`--ja` / `--en`）；`EN_LESSON_MOBILE_STATUS_FILTER_KEY`；规则 `jp-lesson-mobile-content-layout.mdc`、`jp-lesson-mobile-status-tab.mdc` |

@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { EnLessonKind, EnLessonRecord, EnLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes, validateEnLessonWordKindContentForComplete } from "@/lib/en-lesson-shared";
+import { parseLessonContent, normalizeLessonContentForStorage, compareEnLessonsByProgress, type EnLessonProgressStatus, enLessonProgressToFields, normalizeClassDurationMinutes } from "@/lib/en-lesson-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import { normalizeEnVocabRefKey } from "@/lib/en-vocab-ref-shared";
 import {
@@ -531,14 +531,6 @@ export async function updateEnLessonProgress(
     before = prevRow ? mapRow(prevRow) : undefined;
   }
   if (!before) return { ok: false, error: "not_found" };
-
-  // 单词类：学习内容含多个英文词（如 Present Perfect）→ 禁止标已完成（须改语法类或拆词）
-  if (completed && !before.completed) {
-    const contentCheck = validateEnLessonWordKindContentForComplete(before);
-    if (!contentCheck.ok) {
-      return { ok: false, error: contentCheck.error, message: contentCheck.message };
-    }
-  }
 
   const ts = nowIso();
   const completedFlag = completed ? 1 : 0;
