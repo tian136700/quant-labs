@@ -605,7 +605,8 @@ export async function clearEnVocabApiUploadMeanings(
     .bind(ts, EN_VOCAB_UPLOAD_SOURCE_API)
     .run();
 
-  return { ok: true, cleared: result.meta.changes ?? 0 };
+  const cleared = Number(result.meta?.changes) || 0;
+  return { ok: true, cleared };
 }
 
 export async function uploadEnVocabWords(
