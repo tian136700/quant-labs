@@ -2,21 +2,27 @@
 
 import { JpLessonStatusTable } from "@/components/jp-lesson-page/JpLessonStatusTable";
 import {
+  JP_LESSON_IN_CLASS_SECTION,
   LESSON_STATUS_SECTIONS,
   type JpLessonSectionSort,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
+import type { JpLessonListFilter } from "@/lib/lesson-mobile-status-filter";
+import { JP_LESSON_IN_CLASS_TEACHER_BASE_NAME } from "@/lib/lesson-mobile-status-filter";
 import type { JpLessonDisplayGroup, JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import type { JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 
 export type JpLessonPageSectionsProps = {
   searchActive: boolean;
   searchQuery: string;
-  mobileStatusFilter: JpLessonProgressStatus;
-  setMobileStatusFilter: (status: JpLessonProgressStatus) => void;
+  mobileStatusFilter: JpLessonListFilter;
+  setMobileStatusFilter: (status: JpLessonListFilter) => void;
   refreshing: boolean;
   lessonsByStatus: Record<JpLessonProgressStatus, JpLessonRecord[]>;
   displayGroupsByStatus: Record<JpLessonProgressStatus, JpLessonDisplayGroup<JpLessonRecord>[]>;
   learningDayToneByDate: Map<string, number>;
+  inClassLessons: JpLessonRecord[];
+  inClassDisplayGroups: JpLessonDisplayGroup<JpLessonRecord>[];
+  inClassDayToneByDate: Map<string, number>;
   sectionSort: Record<JpLessonProgressStatus, JpLessonSectionSort>;
   isAdmin: boolean;
   batchLessonIds: number[];
@@ -58,6 +64,9 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     lessonsByStatus,
     displayGroupsByStatus,
     learningDayToneByDate,
+    inClassLessons,
+    inClassDisplayGroups,
+    inClassDayToneByDate,
     sectionSort,
     isAdmin,
     batchLessonIds,
@@ -88,6 +97,36 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     handleBatchLinkCopied,
     handleLessonLinkCopyError,
   } = props;
+
+  const inClassCount = inClassLessons.length;
+  const inClassActive = mobileStatusFilter === "in_class";
+
+  const tableSharedProps = {
+    isAdmin,
+    canOperate,
+    refs,
+    teacherById,
+    noteCountByLesson,
+    batchLessonIds,
+    expandedContentIds,
+    expandedMeaningsIds,
+    savingId,
+    savingNextClassId,
+    copiedId,
+    copiedBatchKey,
+    onToggleBatchLesson: toggleBatchLesson,
+    onToggleContentExpanded: toggleContentExpanded,
+    onToggleMeaningsExpanded: toggleMeaningsExpanded,
+    onSetLessonProgress: setLessonProgress,
+    onViewExamples: setViewingExamples,
+    onEditLesson: setEditingLesson,
+    onAnnotateLesson: setAnnotatingLesson,
+    onOpenTeacherEdit: openTeacherEditModal,
+    onOpenNextClassEdit: openNextClassEditModal,
+    onLessonLinkCopied: handleLessonLinkCopied,
+    onBatchLinkCopied: handleBatchLinkCopied,
+    onLessonLinkCopyError: handleLessonLinkCopyError,
+  };
 
   return (
         <div
@@ -128,6 +167,21 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
                 </button>
               );
             })}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={inClassActive}
+              aria-label={`${JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}正在上课`}
+              className={`jp-lesson-mobile-status-tab jp-lesson-mobile-status-tab--in_class${
+                inClassActive ? " is-active" : ""
+              }`}
+              onClick={() => setMobileStatusFilter("in_class")}
+            >
+              <span className="jp-lesson-mobile-status-tab-label">
+                {JP_LESSON_IN_CLASS_SECTION.title}
+              </span>
+              <span className="jp-lesson-mobile-status-tab-count">{inClassCount}</span>
+            </button>
           </div>
           {LESSON_STATUS_SECTIONS.map(({ status, title, emptyHint }) => {
             const sectionGroups = displayGroupsByStatus[status];
@@ -175,34 +229,11 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
                       status === "learning" ? learningDayToneByDate : undefined
                     }
                     sectionSort={sectionSort[status]}
-                    isAdmin={isAdmin}
-                    canOperate={canOperate}
-                    refs={refs}
-                    teacherById={teacherById}
-                    noteCountByLesson={noteCountByLesson}
-                    batchLessonIds={batchLessonIds}
-                    expandedContentIds={expandedContentIds}
-                    expandedMeaningsIds={expandedMeaningsIds}
-                    savingId={savingId}
-                    savingNextClassId={savingNextClassId}
-                    copiedId={copiedId}
-                    copiedBatchKey={copiedBatchKey}
                     onToggleRecentOperationSort={() =>
                       toggleRecentOperationSort(status)
                     }
                     onToggleClassTimeSort={() => toggleClassTimeSort(status)}
-                    onToggleBatchLesson={toggleBatchLesson}
-                    onToggleContentExpanded={toggleContentExpanded}
-                    onToggleMeaningsExpanded={toggleMeaningsExpanded}
-                    onSetLessonProgress={setLessonProgress}
-                    onViewExamples={setViewingExamples}
-                    onEditLesson={setEditingLesson}
-                    onAnnotateLesson={setAnnotatingLesson}
-                    onOpenTeacherEdit={openTeacherEditModal}
-                    onOpenNextClassEdit={openNextClassEditModal}
-                    onLessonLinkCopied={handleLessonLinkCopied}
-                    onBatchLinkCopied={handleBatchLinkCopied}
-                    onLessonLinkCopyError={handleLessonLinkCopyError}
+                    {...tableSharedProps}
                   />
                 ) : searchActive ? null : (
                   <p className="jp-lesson-status-card-empty">{emptyHint}</p>
@@ -210,6 +241,37 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
               </section>
             );
           })}
+          {/* 搜索时不展示快捷区；点「上课中」才看李老师学习中教案 */}
+          {searchActive ? null : (
+            <section
+              className="section etr-panel jp-lesson-status-card jp-lesson-status-card--in_class"
+              aria-label={`${JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}正在上课`}
+            >
+              <div className="jp-lesson-status-card-head">
+                <h2 className="jp-lesson-status-card-title">
+                  {JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}正在上课
+                </h2>
+                <span className="jp-lesson-status-card-count">{inClassCount} 条</span>
+              </div>
+              {inClassCount ? (
+                <JpLessonStatusTable
+                  displayGroups={inClassDisplayGroups}
+                  status="learning"
+                  dayToneByDate={inClassDayToneByDate}
+                  sectionSort={sectionSort.learning}
+                  onToggleRecentOperationSort={() =>
+                    toggleRecentOperationSort("learning")
+                  }
+                  onToggleClassTimeSort={() => toggleClassTimeSort("learning")}
+                  {...tableSharedProps}
+                />
+              ) : (
+                <p className="jp-lesson-status-card-empty">
+                  {JP_LESSON_IN_CLASS_SECTION.emptyHint}
+                </p>
+              )}
+            </section>
+          )}
         </div>
   );
 }

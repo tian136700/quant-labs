@@ -116,6 +116,12 @@ export function JpLessonPageStyles() {
         .jp-lesson-status-card--learning .jp-lesson-status-card-title {
           color: var(--accent);
         }
+        .jp-lesson-status-card--in_class {
+          border-left: 3px solid color-mix(in srgb, var(--accent) 70%, var(--border));
+        }
+        .jp-lesson-status-card--in_class .jp-lesson-status-card-title {
+          color: var(--accent);
+        }
         .jp-lesson-status-card--pending {
           border-left: 3px solid var(--border);
         }
@@ -140,18 +146,20 @@ export function JpLessonPageStyles() {
         /* 桌面与手机同一套状态 Tab：只显示当前一类（搜索时例外，见 filter-search） */
         .jp-lesson-cards :global(.jp-lesson-mobile-status-filter) {
           display: flex;
+          flex-wrap: wrap;
           gap: 0.5rem;
           margin: 0 0 0.75rem;
         }
         .jp-lesson-cards :global(.jp-lesson-mobile-status-tab) {
-          flex: 1 1 0;
+          flex: 1 1 calc(25% - 0.4rem);
+          min-width: 4.75rem;
           display: inline-flex;
           flex-direction: row;
           align-items: center;
           justify-content: center;
           gap: 0.4rem;
           min-height: 2.5rem;
-          padding: 0.45rem 0.75rem;
+          padding: 0.45rem 0.55rem;
           border: 1px solid var(--border);
           border-radius: 10px;
           background: var(--panel);
@@ -172,7 +180,8 @@ export function JpLessonPageStyles() {
           font-variant-numeric: tabular-nums;
           opacity: 0.85;
         }
-        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab--learning.is-active) {
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab--learning.is-active),
+        .jp-lesson-cards :global(.jp-lesson-mobile-status-tab--in_class.is-active) {
           color: var(--accent);
           border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
@@ -189,16 +198,25 @@ export function JpLessonPageStyles() {
         }
         .jp-lesson-cards.jp-lesson-mobile-filter-learning :global(.jp-lesson-status-card--pending),
         .jp-lesson-cards.jp-lesson-mobile-filter-learning :global(.jp-lesson-status-card--completed),
+        .jp-lesson-cards.jp-lesson-mobile-filter-learning :global(.jp-lesson-status-card--in_class),
         .jp-lesson-cards.jp-lesson-mobile-filter-pending :global(.jp-lesson-status-card--learning),
         .jp-lesson-cards.jp-lesson-mobile-filter-pending :global(.jp-lesson-status-card--completed),
+        .jp-lesson-cards.jp-lesson-mobile-filter-pending :global(.jp-lesson-status-card--in_class),
         .jp-lesson-cards.jp-lesson-mobile-filter-completed :global(.jp-lesson-status-card--learning),
-        .jp-lesson-cards.jp-lesson-mobile-filter-completed :global(.jp-lesson-status-card--pending) {
+        .jp-lesson-cards.jp-lesson-mobile-filter-completed :global(.jp-lesson-status-card--pending),
+        .jp-lesson-cards.jp-lesson-mobile-filter-completed :global(.jp-lesson-status-card--in_class),
+        .jp-lesson-cards.jp-lesson-mobile-filter-in_class :global(.jp-lesson-status-card--learning),
+        .jp-lesson-cards.jp-lesson-mobile-filter-in_class :global(.jp-lesson-status-card--pending),
+        .jp-lesson-cards.jp-lesson-mobile-filter-in_class :global(.jp-lesson-status-card--completed) {
           display: none !important;
         }
         .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--learning),
         .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--pending),
         .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--completed) {
           display: block !important;
+        }
+        .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card--in_class) {
+          display: none !important;
         }
         /* Tab 已标状态，隐藏区块大标题，避免与选项卡重复；搜索跨组时再显示 */
         .jp-lesson-cards :global(.jp-lesson-status-card-head) {

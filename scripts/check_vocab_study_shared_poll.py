@@ -3,6 +3,7 @@
 
 Teacher level→shareToStudy writes D1; BroadcastChannel only same browser.
 Without resolveVocabPollIntervalMs polling, student cards wait until tab focus.
+Visible interval must be 5s (floor), not slower classroom default.
 """
 
 from __future__ import annotations
@@ -50,6 +51,12 @@ def main() -> None:
         )
 
     must_contain(RULE, "useVocabStudySharedPoll", "rule documents required poll")
+    jp = (ROOT / "src/lib/jp-vocab-sync.ts").read_text(encoding="utf-8")
+    en = (ROOT / "src/lib/en-vocab-sync.ts").read_text(encoding="utf-8")
+    if "JP_VOCAB_STUDY_POLL_MS = 5_000" not in jp:
+        fail("JP_VOCAB_STUDY_POLL_MS must be 5_000 for classroom card sync")
+    if "EN_VOCAB_STUDY_POLL_MS = 5_000" not in en:
+        fail("EN_VOCAB_STUDY_POLL_MS must be 5_000 for classroom card sync")
     print("OK: study shared poll guards passed.")
 
 

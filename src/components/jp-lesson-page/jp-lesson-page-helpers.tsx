@@ -27,6 +27,10 @@ import {
   writeClientCache,
 } from "@/lib/client-swr-cache";
 import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
+import { jpLessonTeacherBaseNameForDuration } from "@/lib/jp-lesson-teacher-default-duration";
+import {
+  JP_LESSON_IN_CLASS_TEACHER_BASE_NAME,
+} from "@/lib/lesson-mobile-status-filter";
 import {
   jpLessonRefDownloadFilename,
   jpVocabRefViewerPath,
@@ -70,6 +74,27 @@ export const LESSON_STATUS_SECTIONS: {
   { status: "pending", title: "未完成", emptyHint: "暂无未完成的新课" },
   { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
 ];
+
+/** 日语新课第四个快捷 Tab：学习中 ∩ 李老师 */
+export const JP_LESSON_IN_CLASS_SECTION = {
+  key: "in_class" as const,
+  title: "上课中",
+  emptyHint: `暂无${JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}学习中的新课`,
+};
+
+/** 课次是否已指定「上课中」快捷老师（默认李老师；名称去编号后缀） */
+export function jpLessonAssignedToInClassTeacher(
+  lesson: { teacher_ids?: number[] | null },
+  teacherById: Map<number, Pick<JpLessonTeacher, "name">>,
+  baseName: string = JP_LESSON_IN_CLASS_TEACHER_BASE_NAME
+): boolean {
+  for (const id of lesson.teacher_ids ?? []) {
+    const teacher = teacherById.get(id);
+    if (!teacher) continue;
+    if (jpLessonTeacherBaseNameForDuration(teacher.name) === baseName) return true;
+  }
+  return false;
+}
 
 /** API：学习中 + 开课 18h 内自动启用老师账号的回包摘要 */
 export type TeacherAutoEnableInfo = {

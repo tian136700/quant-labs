@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
-  JP_LESSON_MOBILE_STATUS_FILTER_KEY,
-  readStoredLessonMobileStatusFilter,
-  writeStoredLessonMobileStatusFilter,
+  readStoredJpLessonListFilter,
+  writeStoredJpLessonListFilter,
+  type JpLessonListFilter,
 } from "@/lib/lesson-mobile-status-filter";
 import {
   JP_LESSON_CACHE_KEY,
@@ -51,6 +51,7 @@ import {
   DEFAULT_JP_LESSON_SECTION_SORT,
   buildTeacherById,
   groupLessonsForDisplay,
+  jpLessonAssignedToInClassTeacher,
   readLessonCache,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 
@@ -89,12 +90,10 @@ export function JpLessonPage() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copiedBatchKey, setCopiedBatchKey] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
-    useState<JpLessonProgressStatus>(() =>
-      readStoredLessonMobileStatusFilter(JP_LESSON_MOBILE_STATUS_FILTER_KEY)
-    );
-  const setMobileStatusFilter = useCallback((status: JpLessonProgressStatus) => {
+    useState<JpLessonListFilter>(() => readStoredJpLessonListFilter());
+  const setMobileStatusFilter = useCallback((status: JpLessonListFilter) => {
     setMobileStatusFilterState(status);
-    writeStoredLessonMobileStatusFilter(JP_LESSON_MOBILE_STATUS_FILTER_KEY, status);
+    writeStoredJpLessonListFilter(status);
   }, []);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
@@ -256,9 +255,28 @@ export function JpLessonPage() {
     return groups;
   }, [lessonsByStatus, sectionSort]);
 
+  /** 「上课中」= 学习中 ∩ 李老师；复用学习中排序与日色 */
+  const inClassLessons = useMemo(
+    () =>
+      lessonsByStatus.learning.filter((lesson) =>
+        jpLessonAssignedToInClassTeacher(lesson, teacherById)
+      ),
+    [lessonsByStatus.learning, teacherById]
+  );
+
+  const inClassDisplayGroups = useMemo(
+    () => groupLessonsForDisplay(inClassLessons, sectionSort.learning),
+    [inClassLessons, sectionSort.learning]
+  );
+
   const learningDayToneByDate = useMemo(
     () => buildLearningClassDayToneMap(displayGroupsByStatus.learning),
     [displayGroupsByStatus.learning]
+  );
+
+  const inClassDayToneByDate = useMemo(
+    () => buildLearningClassDayToneMap(inClassDisplayGroups),
+    [inClassDisplayGroups]
   );
 
   const noteCountByLesson = useMemo(() => {
@@ -486,6 +504,9 @@ export function JpLessonPage() {
           lessonsByStatus={lessonsByStatus}
           displayGroupsByStatus={displayGroupsByStatus}
           learningDayToneByDate={learningDayToneByDate}
+          inClassLessons={inClassLessons}
+          inClassDisplayGroups={inClassDisplayGroups}
+          inClassDayToneByDate={inClassDayToneByDate}
           sectionSort={sectionSort}
           isAdmin={isAdmin}
           batchLessonIds={batchLessonIds}

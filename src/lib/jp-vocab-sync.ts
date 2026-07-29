@@ -20,8 +20,8 @@ export const JP_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS = 45_000;
 /** 今日抽查目标跨域名同步（D1 读取，不必与词条补丁同频） */
 export const JP_VOCAB_TEACHER_VISIBLE_POLL_MS = 30_000;
 
-/** 学生复习页：共享列表轮询（比老师端略慢，减轻 Worker CPU） */
-export const JP_VOCAB_STUDY_POLL_MS = 15_000;
+/** 学生复习页：共享列表轮询（可见 5s，课堂勾选后尽快弹卡；≥ 下限 JP_VOCAB_POLL_MS） */
+export const JP_VOCAB_STUDY_POLL_MS = 5_000;
 
 /** 学生复习页：后台轮询 */
 export const JP_VOCAB_STUDY_POLL_HIDDEN_MS = 45_000;

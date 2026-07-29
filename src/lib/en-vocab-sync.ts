@@ -1,7 +1,8 @@
 import type { EnVocabWord } from "@/lib/types";
 
 /** 学生复习页：共享列表轮询（对齐 jp-vocab study，禁止 <5s） */
-export const EN_VOCAB_STUDY_POLL_MS = 15_000;
+/** 学生今日单词：可见 5s 拉 shared，课堂勾选后尽快弹卡 */
+export const EN_VOCAB_STUDY_POLL_MS = 5_000;
 
 /** 学生复习页：后台轮询 */
 export const EN_VOCAB_STUDY_POLL_HIDDEN_MS = 45_000;
