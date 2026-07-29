@@ -2,6 +2,7 @@
 """Regression: 用法正文不得夹带接序/接续；展示与校验须剥「接在…／构成＋」。
 
 不调模型。对照 src/lib/jp-vocab-usage-ai.ts 的 strip / reject。
+禁止把「た形＋とき表示…」这类义项整句剥成只剩 (N3)。
 """
 
 from __future__ import annotations
@@ -18,8 +19,31 @@ RULE = ROOT / ".cursor/rules/jp-vocab-grammar-usage.mdc"
 JLPT_TAIL_RE = re.compile(r"^(.*?)[（(]\s*N\s*([1-5])\s*[）)]\s*$", re.I)
 
 
+def is_connection_formula(s: str) -> bool:
+    t = s.strip()
+    if not t:
+        return False
+    if re.match(r"^接在", t):
+        return True
+    if re.match(r"^构成「", t):
+        return True
+    if re.match(r"^接续", t):
+        return True
+    if re.match(r"^(?:前接|后接)", t):
+        return True
+    if re.match(r"^(?:可)?接(?:在)?(?:动词|名词|一类|二类|い|な|形容词)", t):
+        return True
+    if (
+        re.match(r"^(?:动词|名词|一类|二类|い形容|な形容|形容词)", t)
+        and re.search(r"[＋+]", t)
+        and re.search(r"(?:辞书形|て形|た形|ます形|普通形|词干)", t)
+    ):
+        return True
+    return False
+
+
 def strip_line(text: str) -> str:
-    """Mirror stripJpVocabUsageConnectionNoiseFromLine (关键路径)."""
+    """Mirror stripJpVocabUsageConnectionNoiseFromLine."""
     t = text.strip()
     if not t:
         return ""
@@ -33,25 +57,23 @@ def strip_line(text: str) -> str:
         s = raw.strip()
         if not s:
             continue
-        if re.match(r"^接在", s):
-            continue
-        if re.match(r"^构成「", s):
-            continue
-        if re.match(r"^接续", s):
-            continue
-        if re.match(r"^(?:前接|后接)", s):
-            continue
-        if (
-            not re.match(r"^表示", s)
-            and re.search(r"[＋+]", s)
-            and re.search(r"(?:辞书形|て形|た形|ます形|普通形|词干)", s)
-            and re.search(r"(?:动词|名词|形容词|一类|二类)", s)
-        ):
+        if is_connection_formula(s):
             continue
         kept.append(s)
     body = "".join(kept)
     body = re.sub(r"[，、；;]?\s*接在[^。！？]*", "", body)
     body = re.sub(r"[，、；;]?\s*构成「[^」]*」(?:或「[^」]*」)*", "", body)
+    body = re.sub(r"[，、；;]?\s*接续(?:形态|方式|方法|规则)?[^。！？]*", "", body)
+    body = re.sub(
+        r"[，、；;]?\s*(?:前接|后接)(?:动词|形容词|名词|一类|二类)[^。！？]*",
+        "",
+        body,
+    )
+    body = re.sub(
+        r"[，、；;]?\s*(?:可)?接(?:在)?(?:动词|名词|一类|二类|い|な|形容词)[^。！？]*",
+        "",
+        body,
+    )
     body = body.strip(" ，、；;\t")
     if body and not re.search(r"[。！？]$", body):
         body += "。"
@@ -71,6 +93,7 @@ def main() -> None:
         "stripJpVocabUsageConnectionNoise",
         "stripJpVocabUsageConnectionNoiseFromLine",
         "jpVocabUsageLineHasConnectionNoise",
+        "jpVocabUsageSentenceIsConnectionFormula",
         "usage_has_connection",
         "接在…之后",
     ):
@@ -97,12 +120,35 @@ def main() -> None:
     if "場所に＋名詞がある" not in kept:
         fail(f"义项里「」短引＋结构应保留: {kept!r}")
 
+    # ～とき 用法2：义项说明含「た形＋とき」，禁止剥成只剩 (N3)
+    toki2 = (
+        "前句动词用现在形还是过去形，表达的时间关系不同："
+        "动词「た形＋とき」表示前句动作完成之后；"
+        "动词「る形＋とき」表示前句动作还未完成时。(N3)"
+    )
+    toki_got = strip_line(toki2)
+    if toki_got.strip() in {"(N3)", "（N3）"} or len(toki_got) < 20:
+        fail(f"～とき 用法2 不可剥光，得到: {toki_got!r}")
+    if "た形＋とき" not in toki_got or "る形＋とき" not in toki_got:
+        fail(f"～とき 用法2 应保留た/る对比义项: {toki_got!r}")
+
+    # 纯公式句仍须剥掉
+    formula = "动词た形＋とき。(N5)"
+    if strip_line(formula) not in {"(N5)", ""}:
+        # 句首「动词」+ た形＋ → 公式，应只剩等级
+        got_f = strip_line(formula)
+        if "动词た形" in got_f:
+            fail(f"纯公式句应剥掉: {got_f!r}")
+
     rule = RULE.read_text(encoding="utf-8")
     if "usage_has_connection" not in rule:
         fail("jp-vocab-grammar-usage.mdc 须写明 usage_has_connection")
+    if "误伤义项" not in rule and "た形＋とき" not in rule:
+        fail("规则须写明剥接续勿误伤「た形＋とき」义项")
 
     print("OK: strip connection noise from usage")
     print(f"OK: dirty → {got}")
+    print(f"OK: toki2 → {toki_got}")
     print("All jp-vocab usage-no-connection-noise checks passed.")
 
 

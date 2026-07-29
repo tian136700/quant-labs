@@ -388,6 +388,31 @@ export function formatJpVocabUsageForDisplay(raw: string): string {
  * 用法行是否夹带接序/接续说明（应只出现在 connection 字段）。
  * 例：「接在动词辞书形…」「构成「动词辞书形＋前に」」
  */
+/**
+ * 是否「纯接续公式句」：句首就是词类/可接…，不是义项说明。
+ * 义项里提到「た形＋とき」表示时间关系 → 不算噪音（～とき 用法2）。
+ */
+function jpVocabUsageSentenceIsConnectionFormula(s: string): boolean {
+  const t = String(s || "").trim();
+  if (!t) return false;
+  if (/^接在/.test(t)) return true;
+  if (/^构成「/.test(t)) return true;
+  if (/^接续/.test(t)) return true;
+  if (/^(?:前接|后接)/.test(t)) return true;
+  if (/^(?:可)?接(?:在)?(?:动词|名词|一类|二类|い|な|形容词)/.test(t)) {
+    return true;
+  }
+  // 句首词类 + 活用形＋…（如「动词た形＋とき」整句公式）
+  if (
+    /^(?:动词|名词|一类|二类|い形容|な形容|形容词)/.test(t) &&
+    /[＋+]/.test(t) &&
+    /(?:辞书形|て形|た形|ます形|普通形|词干)/.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function jpVocabUsageLineHasConnectionNoise(text: string): boolean {
   const t = String(text || "").trim();
   if (!t) return false;
@@ -395,14 +420,13 @@ export function jpVocabUsageLineHasConnectionNoise(text: string): boolean {
   if (/构成「[^」]*[＋+]/.test(t)) return true;
   if (/接续(?:形态|方式|方法|规则)?/.test(t)) return true;
   if (/(?:前接|后接)(?:动词|形容词|名词|一类|二类)/.test(t)) return true;
-  // 独立接续公式句（非「表示…」义项说明）
-  if (
-    !/^表示/.test(t) &&
-    /[＋+]/.test(t) &&
-    /(?:辞书形|て形|た形|ます形|普通形|词干)/.test(t)
-  ) {
+  // 「…。可接动词…」夹带；或整段以公式句开头
+  if (/(?:^|[。！？])\s*(?:可)?接(?:在)?(?:动词|名词|一类|二类|い|な)/.test(t)) {
     return true;
   }
+  // 勿把「表达…た形＋とき 表示…」义项整段判成噪音
+  const body = t.replace(JP_VOCAB_USAGE_JLPT_TAIL_RE, "$1").trim();
+  if (jpVocabUsageSentenceIsConnectionFormula(body)) return true;
   return false;
 }
 
@@ -415,35 +439,28 @@ export function stripJpVocabUsageConnectionNoiseFromLine(text: string): string {
   let body = levelMatch ? levelMatch[1].replace(/\s+$/u, "") : t;
   const level = levelMatch ? `(N${levelMatch[2]})` : "";
 
-  // 先按句号切开：整句是接续说明则丢掉
+  // 先按句号切开：整句是接续公式则丢掉；义项里提「た形＋とき」要保留
   const sentences = body.split(/(?<=[。！？])/u);
   const keptSentences: string[] = [];
   for (const rawSent of sentences) {
     const s = rawSent.trim();
     if (!s) continue;
-    if (/^接在/.test(s)) continue;
-    if (/^构成「/.test(s)) continue;
-    if (/^接续/.test(s)) continue;
-    if (/^(?:前接|后接)/.test(s)) continue;
-    if (
-      !/^表示/.test(s) &&
-      /[＋+]/.test(s) &&
-      /(?:辞书形|て形|た形|ます形|普通形|词干)/.test(s) &&
-      /(?:动词|名词|形容词|一类|二类)/.test(s)
-    ) {
-      continue;
-    }
+    if (jpVocabUsageSentenceIsConnectionFormula(s)) continue;
     keptSentences.push(s);
   }
   body = keptSentences.join("");
 
-  // 同一句内夹带：「…。另一件事，接在…，构成…。」→ 剥子句
+  // 同一句内夹带：「…，接在…，构成…。」→ 剥子句（不剥「表示…た形＋とき」义项）
   body = body
     .replace(/[，、；;]?\s*接在[^。！？]*/gu, "")
     .replace(/[，、；;]?\s*构成「[^」]*」(?:或「[^」]*」)*/gu, "")
     .replace(/[，、；;]?\s*接续(?:形态|方式|方法|规则)?[^。！？]*/gu, "")
     .replace(
       /[，、；;]?\s*(?:前接|后接)(?:动词|形容词|名词|一类|二类)[^。！？]*/gu,
+      ""
+    )
+    .replace(
+      /[，、；;]?\s*(?:可)?接(?:在)?(?:动词|名词|一类|二类|い|な|形容词)[^。！？]*/gu,
       ""
     );
 
