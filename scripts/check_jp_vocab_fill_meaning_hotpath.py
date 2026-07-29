@@ -27,6 +27,16 @@ def main() -> int:
         errors.append("fill-meaning limit 未硬顶 ≤20")
     if "LIST_CANDIDATE_LIMIT" not in script or "FILL_PER_ROUND" not in script:
         errors.append("脚本缺 LIST_CANDIDATE_LIMIT/FILL_PER_ROUND（防毒丸队首卡死）")
+    if "LOOP_BUSY_SEC" not in script or "LOOP_IDLE_SEC" not in script:
+        errors.append("脚本缺 LOOP_BUSY_SEC/LOOP_IDLE_SEC（--loop 禁止秒级空转）")
+    if "LOOP_BUSY_SEC = 3 * 60" not in script:
+        errors.append("LOOP_BUSY_SEC 须为 3 分钟（有待补）")
+    if "LOOP_IDLE_SEC = 10 * 60" not in script:
+        errors.append("LOOP_IDLE_SEC 须为 10 分钟（暂无/毒丸）")
+    if "等待 {min_sec}s" in script or "等待 {min_sec}s…" in script:
+        errors.append("--loop 毒丸/空闲仍按付费 1s 门禁 sleep（会秒级打 Worker）")
+    if 'print("[jp-vocab-fill-meaning] 全部补完"' in script:
+        errors.append("--loop 暂无待补不应直接 break；应 idle 10 分钟再扫")
     if "need_pos" not in meaning or "need_examples" not in meaning:
         errors.append("jp-vocab-fill-meaning.ts 缺 need_pos/need_examples（释义应顺带检测词性/例句）")
     if "need_pos" not in ai or "need_examples" not in ai:

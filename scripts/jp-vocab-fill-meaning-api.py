@@ -6,6 +6,8 @@
 限流 / 互斥：
   - 每轮最多 1 条
   - 两轮付费调用最小间隔 ≥1 秒（文件门禁；未到点则 sleep 等待，不 skip）
+  - --loop Worker 轮询：有待补 → 3 分钟一轮；暂无待补 / 毒丸冷却 → 10 分钟再扫
+    （禁止几秒一次 list_missing 空转烧配额）
   - 进程互斥锁：前一任务仍在跑则阻塞等待，禁止并行打 tokken
   - 失败词毒丸 6h，避免队首同一词连环烧钱
   - 释义写回成功则不因例句校验失败毒丸（例句可留给独立定时）
@@ -13,7 +15,7 @@
 用法：
   python3 scripts/jp-vocab-fill-meaning-api.py --clear-all
   python3 scripts/jp-vocab-fill-meaning-api.py              # 补 1 条
-  python3 scripts/jp-vocab-fill-meaning-api.py --loop       # 循环：1 条 / ≥1s
+  python3 scripts/jp-vocab-fill-meaning-api.py --loop       # 循环：有活 3min / 空闲 10min
 """
 
 from __future__ import annotations
@@ -49,6 +51,9 @@ DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-meaning"
 HTTP_USER_AGENT = "jp-vocab-fill-meaning-online/1.0"
 DEFAULT_MIN_INTERVAL_SEC = 1
 DEFAULT_POISON_SEC = 6 * 3600
+# --loop：有待补 3 分钟一轮；暂无 / 毒丸冷却 10 分钟再扫（禁止秒级空转打 Worker）
+LOOP_BUSY_SEC = 3 * 60
+LOOP_IDLE_SEC = 10 * 60
 # 每轮只写回 1 条；list 多拉几条是为了跳过毒丸队首，避免永远卡同一词
 FILL_PER_ROUND = 1
 LIST_CANDIDATE_LIMIT = 20
@@ -732,9 +737,10 @@ def main() -> int:
 
         if args.loop:
             rounds = 0
-            min_sec = resolve_min_interval_sec()
             print(
-                f"[jp-vocab-fill-meaning] loop 启动 min_interval={min_sec}s",
+                f"[jp-vocab-fill-meaning] loop 启动 "
+                f"busy={LOOP_BUSY_SEC}s idle={LOOP_IDLE_SEC}s "
+                f"(paid_gate≥{resolve_min_interval_sec()}s)",
                 flush=True,
             )
             while True:
@@ -753,7 +759,7 @@ def main() -> int:
                         allow_burst=args.allow_burst,
                     )
                 except SystemExit as exc:
-                    wait = max(30, min_sec * 10)
+                    wait = LOOP_BUSY_SEC
                     print(
                         f"[jp-vocab-fill-meaning] 本轮失败（{exc}），"
                         f"{wait}s 后继续 loop…",
@@ -762,7 +768,7 @@ def main() -> int:
                     time.sleep(wait)
                     continue
                 except Exception as exc:
-                    wait = max(30, min_sec * 10)
+                    wait = LOOP_BUSY_SEC
                     print(
                         f"[jp-vocab-fill-meaning] 本轮异常 {type(exc).__name__}: {exc}，"
                         f"{wait}s 后继续 loop…",
@@ -771,33 +777,40 @@ def main() -> int:
                     time.sleep(wait)
                     continue
                 if result.get("skipped_run") and result.get("reason") == "all_poisoned":
+                    wait = LOOP_IDLE_SEC
                     print(
-                        f"[jp-vocab-fill-meaning] 毒丸冷却中，等待 {min_sec}s…",
+                        f"[jp-vocab-fill-meaning] 毒丸冷却中，{wait}s 后再扫…",
                         flush=True,
                     )
-                    time.sleep(min_sec)
+                    time.sleep(wait)
                     continue
                 # 禁止每轮再打一次 list_missing probe（曾把 Worker 打到 1102）
                 # 无缺失时 run_one_fill 直接返回 total_missing=0
-                # 注意：0 是 falsy，禁止 `or -1`（会永远不退出空转）
+                # 注意：0 是 falsy，禁止 `or -1`（会当成 -1 永不 idle）
                 left_raw = result.get("total_missing")
                 left = int(left_raw) if left_raw is not None else -1
                 if left == 0 and not (result.get("missing") or []):
-                    print("[jp-vocab-fill-meaning] 全部补完", flush=True)
-                    break
+                    wait = LOOP_IDLE_SEC
+                    print(
+                        f"[jp-vocab-fill-meaning] 暂无待补释义，{wait}s 后再扫…",
+                        flush=True,
+                    )
+                    time.sleep(wait)
+                    continue
+                wait = LOOP_BUSY_SEC
                 if left > 0:
                     print(
-                        f"[jp-vocab-fill-meaning] 仍缺约 {left}，下一轮由 rate-gate 控速"
-                        f"（≥{min_sec}s）…",
+                        f"[jp-vocab-fill-meaning] 仍缺约 {left}，{wait}s 后下一轮…",
                         flush=True,
                     )
                 else:
-                    # apply 成功：下轮 run_one_fill 再 list；此处不额外打 Worker
+                    # apply 成功：下轮再 list；此处不额外打 Worker
                     print(
                         f"[jp-vocab-fill-meaning] 本轮写回 updated={result.get('updated')}，"
-                        f"下一轮继续（≥{min_sec}s）…",
+                        f"{wait}s 后下一轮…",
                         flush=True,
                     )
+                time.sleep(wait)
             return 0
 
         run_one_fill(
