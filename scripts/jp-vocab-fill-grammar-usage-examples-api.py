@@ -69,16 +69,18 @@ NUMBERED_LINE_RE = re.compile(r"^\s*(\d+)\s*[.、．)\]]\s*(.+)$")
 FENCE_RE = re.compile(r"^```(?:\w+)?\s*|\s*```$", re.MULTILINE)
 
 PAIR_SYSTEM = (
-    "你为中文母语的日语 N5～N2 学习者一次写完语法「用法+例句」。"
+    "你为中文母语的日语 N5～N2 学习者一次写完语法「用法+例句+接序」。"
     "第一行必须直接是「1.」中文用法，不要总标题。"
     "用法说明必须是中文；可在中文里用「」短引日语形态，且「」内不要假名括注。"
+    "❌ 用法行禁止写接序清单（动词て形＋…）；接序只写在文末【接序】段。"
     "每条中文用法句末句号后必须紧跟半角等级括号，如。(N5) 或 .(N4).(N3).(N2).(N1)；按该条用法难度估。"
     "若词条含「变形」「变化规则」「形规则」「变ます」「ます形规则」「ない形」「て形」等活用教学："
-    "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号。"
+    "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号；文末仍要【接序】。"
     "只用本词条本身；禁止把其它语法点（如たことがある）塞进本条凑组数。"
     "非变形词条：每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」。"
     "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
     "例句只用简单词、不叠更难语法。不要 markdown；不要写「JLPT」「能力考」字样。"
+    "全部写完后另起一行「【接序】」，下面写动词/一类·二类形容词/名词如何接本语法。"
 )
 
 CONJ_PAIR_SYSTEM = (
@@ -86,7 +88,17 @@ CONJ_PAIR_SYSTEM = (
     "禁止写任何用法、规则说明、中文标签、行首编号。"
     "只输出 2～3 条 N5 口语短句；每条下一行「译文：」+中文。"
     "每个汉字后半角括号假名；不要箭头对照句。"
+    "全部例句后另起一行「【接序】」，写该变形的接续/活用要点（中文+「」短引日语）。"
 )
+
+CONNECTION_ONLY_SYSTEM = (
+    "你只写日语语法的「接序」（接续形态）。"
+    "第一行必须是「【接序】」，下面 2～6 行："
+    "动词哪一形、一类/二类形容词、名词等如何接本语法；日语形态用「」短引；不要假名括注。"
+    "不要写用法长文、不要写例句、不要 markdown。"
+)
+
+CONNECTION_MARKER = "【接序】"
 
 
 def is_conjugation_word(word: str) -> bool:
@@ -102,21 +114,44 @@ def is_conjugation_word(word: str) -> bool:
 
 
 def is_grammar_pair_still_missing(row: dict) -> bool:
-    """活用变形课：有例句即算完成（usage 故意为空）。线上旧 list_missing 会把它们反复排到队首。"""
+    """活用变形课：有例句+接序即算完成（usage 故意为空）。线上旧 list_missing 会把它们反复排到队首。"""
     word = str(row.get("word") or "")
     need_examples = bool(row.get("need_examples"))
     need_usage = bool(row.get("need_usage"))
+    need_connection = bool(row.get("need_connection", True))
+    # 旧 API 无 need_connection 字段时默认视为仍缺，促使补接序
+    if "need_connection" not in row:
+        need_connection = True
     if is_conjugation_word(word):
-        return need_examples
-    return need_usage or need_examples
+        return need_examples or need_connection
+    return need_usage or need_examples or need_connection
 
 
 def filter_missing_pairs(missing: list) -> list:
     return [row for row in missing if is_grammar_pair_still_missing(row)]
 
 
+def split_connection_section(raw: str) -> tuple[str, str | None]:
+    """拆出【接序】段 → (body, connection)。"""
+    text = str(raw or "").replace("\r\n", "\n").strip()
+    if not text:
+        return "", None
+    idx = text.find(CONNECTION_MARKER)
+    if idx < 0:
+        return text, None
+    body = text[:idx].strip()
+    after = text[idx + len(CONNECTION_MARKER) :].strip()
+    lines = [
+        ln.strip()
+        for ln in after.splitlines()
+        if ln.strip() and ln.strip() != CONNECTION_MARKER
+    ]
+    connection = "\n".join(lines).strip() or None
+    return body, connection
+
+
 def parse_conjugation_examples(raw: str) -> tuple[str, str] | None:
-    """变形课：只收日语+译文；usage 为空。"""
+    """变形课：只收日语+译文；usage 为空。调用前应先 split_connection_section。"""
     lines = [
         ln.strip()
         for ln in FENCE_RE.sub("", str(raw or "")).splitlines()
@@ -532,7 +567,8 @@ def run_one_pair(
         f"[jp-grammar-fill] pair {FILL_PER_ROUND}/{total_missing}: "
         f"id={word_id} {word!r} model={anthropic_model()} "
         f"conj={is_conj} need_usage={row.get('need_usage')} "
-        f"need_examples={row.get('need_examples')}",
+        f"need_examples={row.get('need_examples')} "
+        f"need_connection={row.get('need_connection')}",
         flush=True,
     )
     if dry_run:
@@ -543,7 +579,16 @@ def run_one_pair(
             "total_missing": total_missing,
         }
 
-    system = CONJ_PAIR_SYSTEM if is_conj else PAIR_SYSTEM
+    only_connection = (
+        bool(row.get("need_connection"))
+        and not bool(row.get("need_usage"))
+        and not bool(row.get("need_examples"))
+    )
+    system = (
+        CONNECTION_ONLY_SYSTEM
+        if only_connection
+        else (CONJ_PAIR_SYSTEM if is_conj else PAIR_SYSTEM)
+    )
     try:
         raw = call_anthropic(
             prompt,
@@ -566,17 +611,26 @@ def run_one_pair(
 
     mark_paid_call()
 
-    def retry_pair(reason: str) -> tuple[str, str] | None:
+    def retry_pair(reason: str) -> tuple[str, str, str | None] | None:
         print(f"  {reason}，追加 CRITICAL 再试 1 次…", flush=True)
         acquire_paid_rate_gate(allow_burst=allow_burst)
         core = re.sub(r"^[～~〜]+|[～~〜]+$", "", word)
-        if is_conj:
+        if only_connection:
+            retry_prompt = (
+                prompt
+                + "\n\nCRITICAL:\n"
+                + f"- 第一行必须是「{CONNECTION_MARKER}」。\n"
+                + "- 只写接序；不要用法、不要例句。\n"
+            )
+            sys_msg = CONNECTION_ONLY_SYSTEM
+        elif is_conj:
             retry_prompt = (
                 prompt
                 + "\n\nCRITICAL:\n"
                 + "- 禁止任何用法/规则/中文标签/行首编号。\n"
                 + "- 只输出 2～3 条日语短句，每条下一行「译文：」。\n"
                 + "- 汉字后半角括号假名；N5 口语。\n"
+                + f"- 文末必须有「{CONNECTION_MARKER}」接序段。\n"
             )
             sys_msg = CONJ_PAIR_SYSTEM
         else:
@@ -584,9 +638,10 @@ def run_one_pair(
                 prompt
                 + "\n\nCRITICAL:\n"
                 + "- 第一行必须是「1.」中文用法；每组必须完整：中文用法 + 日语例句 + 译文：\n"
-                + "- 用法必须中文；「」短引日语形态时「」内不要假名括注。\n"
+                + "- 用法必须中文；「」短引日语形态时「」内不要假名括注；用法禁止写接序清单。\n"
                 + f"- 例句必须自然用到「{core}」（中文教学标题除外）；汉字后半角括号假名。\n"
                 + "- 组数=真实常用用法数（1 种就 1 组，禁止硬凑）。\n"
+                + f"- 文末必须有「{CONNECTION_MARKER}」接序段。\n"
             )
             sys_msg = PAIR_SYSTEM
         try:
@@ -602,18 +657,35 @@ def run_one_pair(
             poison_word(word_id, f"anthropic_retry_error:{exc}")
             return None
         mark_paid_call()
-        if is_conj:
-            return parse_conjugation_examples(raw2)
-        return parse_pair_output(raw2)
+        return parse_fill_output(raw2, is_conj=is_conj, only_connection=only_connection)
 
-    parsed = (
-        parse_conjugation_examples(raw)
-        if is_conj
-        else parse_pair_output(raw)
-    )
+    def parse_fill_output(
+        text: str, *, is_conj: bool, only_connection: bool
+    ) -> tuple[str, str, str | None] | None:
+        body, connection = split_connection_section(text)
+        if only_connection:
+            if not connection:
+                # 整段可能就是接序（模型忘了写标记）
+                connection = body.strip() or None
+                body = ""
+            if not connection:
+                return None
+            return "", "", connection
+        if not connection:
+            return None
+        if is_conj:
+            parsed = parse_conjugation_examples(body)
+        else:
+            parsed = parse_pair_output(body)
+        if not parsed:
+            return None
+        usage, examples = parsed
+        return usage, examples, connection
+
+    parsed = parse_fill_output(raw, is_conj=is_conj, only_connection=only_connection)
     if not parsed:
-        print(f"  成对解析失败 raw={str(raw)[:200]!r}", flush=True)
-        parsed = retry_pair("成对解析失败")
+        print(f"  成对/接序解析失败 raw={str(raw)[:200]!r}", flush=True)
+        parsed = retry_pair("成对/接序解析失败")
         if not parsed:
             poison_word(word_id, "invalid:pair_parse")
             after_attempt(
@@ -625,33 +697,36 @@ def run_one_pair(
             )
             return {"ok": True, "updated": 0, "total_missing": total_missing}
 
-    usage, examples = parsed
+    usage, examples, connection = parsed
     source = build_online_source_label()
     print(
         f"  {word_id} {word!r} -> usage_ok examples_len={len(examples)} "
-        f"source={source}",
+        f"connection_len={len(connection or '')} source={source}",
         flush=True,
     )
 
-    def do_apply(u: str, ex: str) -> dict:
+    def do_apply(u: str, ex: str, conn: str | None) -> dict:
+        update: dict = {
+            "word_id": word_id,
+            "source": source,
+            "connection": conn,
+        }
+        if only_connection:
+            update["usage"] = ""
+        else:
+            update["usage"] = u
+            update["example_sentences"] = ex
         return call_api(
             api_url=api_url,
             token=token,
             body={
                 "mode": "apply",
                 "source": source,
-                "updates": [
-                    {
-                        "word_id": word_id,
-                        "usage": u,
-                        "example_sentences": ex,
-                        "source": source,
-                    }
-                ],
+                "updates": [update],
             },
         )
 
-    payload = do_apply(usage, examples)
+    payload = do_apply(usage, examples, connection)
     if not payload.get("ok"):
         poison_word(word_id, "apply_failed")
         after_attempt(

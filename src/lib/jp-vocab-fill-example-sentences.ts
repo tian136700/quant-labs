@@ -625,7 +625,7 @@ export async function applyJpVocabExampleSentenceUpdates(
     applied,
     skipped,
     dry_run: dryRun,
-    catalog_size: JP_VOCAB_EXAMPLE_SENTENCES_CATALOG.length,
+    catalog_size: Object.keys(JP_VOCAB_EXAMPLE_SENTENCES_CATALOG).length,
     upload_spec: JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
   };
 }
