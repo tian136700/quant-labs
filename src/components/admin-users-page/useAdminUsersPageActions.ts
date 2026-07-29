@@ -450,9 +450,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setCopyToast(locale === "zh" ? "复制失败" : "Copy failed");
   };
 
-  /** 解析可复制的密码；取消 / 失败返回 null（已写 status）。 */
+  /** 解析可复制的密码：每次都重置为新密码再复制，保证复制结果与数据库一致。系统保留账号除外。 */
   const resolvePasswordForCopy = async (row: UserRow): Promise<string | null> => {
-    let password = readAdminUserPassword(row.id);
     const username = row.username;
     const isBootstrapAccount = isReservedUsername(
       username,
@@ -461,24 +460,15 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
     );
 
-    if (password) return password;
-
     if (isBootstrapAccount) {
       setStatus(
         locale === "zh"
-          ? `「${username}」是系统保留账号，禁止一键随机重置密码。请点「编辑」填写已知密码（填完会缓存在本机，之后才能复制）。`
-          : `"${username}" is a system account and cannot be random-reset. Use Edit to enter the known password (then it can be copied from local cache).`
+          ? `「${username}」是系统保留账号，禁止一键随机重置密码。请点「编辑」填写已知密码。`
+          : `"${username}" is a system account and cannot be random-reset. Use Edit to set the password.`
       );
       setStatusErr(true);
       return null;
     }
-
-    const ok = window.confirm(
-      locale === "zh"
-        ? `本地未保存用户「${username}」的密码。\n是否重置为新密码并复制？（旧密码将失效）`
-        : `No saved password for "${username}". Reset to a new password and copy? (The old password will stop working.)`
-    );
-    if (!ok) return null;
 
     setCopyingId(row.id);
     try {
@@ -497,7 +487,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       if (!data.ok || !data.password) {
         throw new Error(String(data.error || "reset failed"));
       }
-      password = data.password;
+      const password = data.password;
       rememberAdminUserPassword(row.id, password);
       if (data.user) {
         setUsers((prev) => {
