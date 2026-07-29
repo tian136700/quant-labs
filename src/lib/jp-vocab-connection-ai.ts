@@ -27,16 +27,91 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
 const FENCE_RE = /^```(?:\w+)?\s*$/;
 const FURIGANA_PAREN_RE = /\([\u3040-\u309Fー]+\)/;
 const GLOSS_LINE_RE = /^(译文|譯文)\s*[：:]/;
-/** 已带「（动词原形）」或半角括号的，归一成全角注解 */
+/** 已带「（动词原形）」或半角括号的，归一成全角注解（中/日） */
 const DONGCI_JISHOKEI_RE =
-  /动词辞书形(?:（动词原形）|\(动词原形\))?/g;
+  /(?:动词辞书形|動詞辞書形)(?:（动词原形）|\(动词原形\))?/g;
 
 /**
- * 「动词辞书形」一律写成「动词辞书形（动词原形）」；已有注解则归一、不叠写。
- * 展示 / 写回 / prompt 规范化共用。
+ * 「动词辞书形 / 動詞辞書形」一律写成带「（动词原形）」注解；已有则归一、不叠写。
  */
 export function formatJpVocabDongciJishokeiLabel(raw: string): string {
-  return String(raw ?? "").replace(DONGCI_JISHOKEI_RE, "动词辞书形（动词原形）");
+  return String(raw ?? "").replace(DONGCI_JISHOKEI_RE, (m) =>
+    m.startsWith("動") ? "動詞辞書形（动词原形）" : "动词辞书形（动词原形）"
+  );
+}
+
+/** 行内「用法1: …。用法2: …」拆成多行，便于展示与配对 */
+export function expandJpVocabConnectionUsageInlineBreaks(
+  raw: string
+): string {
+  return String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/([^\n])\s*(?=用法\s*\d+\s*[：:])/g, "$1\n")
+    .replace(/([^\n])\s*(?=(?:否定形|肯定形)\s*[：:])/g, "$1\n");
+}
+
+export type JpVocabConnectionDisplayParts = {
+  /** 第 N 条用法对应的接续正文（不含「用法N:」前缀） */
+  byUsageIndex: Record<number, string>;
+  /** 无法挂到某条用法的剩余行（如否定形） */
+  leftover: string[];
+  /** 是否出现过「用法N:」标签 */
+  hasUsageTagged: boolean;
+  normalized: string | null;
+};
+
+/**
+ * 把接序拆成「按用法编号」+「剩余行」。
+ * 无用法标签时：整段进 leftover（由展示层挂到第一条用法下）。
+ */
+export function parseJpVocabConnectionDisplayParts(
+  raw: string | null | undefined
+): JpVocabConnectionDisplayParts {
+  const normalized = normalizeJpVocabConnectionText(raw);
+  const empty: JpVocabConnectionDisplayParts = {
+    byUsageIndex: {},
+    leftover: [],
+    hasUsageTagged: false,
+    normalized: null,
+  };
+  if (!normalized) return empty;
+
+  const byUsageIndex: Record<number, string> = {};
+  const leftover: string[] = [];
+  let hasUsageTagged = false;
+  const usageLineRe = /^用法\s*(\d+)\s*[：:]\s*(.*)$/;
+
+  for (const line of normalized.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    const m = usageLineRe.exec(t);
+    if (m) {
+      hasUsageTagged = true;
+      const idx = Number(m[1]);
+      const body = String(m[2] ?? "").trim();
+      if (Number.isInteger(idx) && idx > 0 && body) {
+        byUsageIndex[idx] = byUsageIndex[idx]
+          ? `${byUsageIndex[idx]}\n${body}`
+          : body;
+      }
+      continue;
+    }
+    leftover.push(t);
+  }
+
+  return { byUsageIndex, leftover, hasUsageTagged, normalized };
+}
+
+/** 有编号用法且有接序 → 卡片上接续贴在用法下，不再单独露「接序」块 */
+export function jpVocabConnectionShownInlineWithUsage(
+  usage: string | null | undefined,
+  connection: string | null | undefined
+): boolean {
+  if (!hasJpVocabConnection(connection)) return false;
+  const usageClean = String(usage ?? "").trim();
+  if (!usageClean) return false;
+  // 延迟 import 会循环；用简单编号检测即可
+  return /^\s*\d+\s*[.、．)\]]/m.test(usageClean);
 }
 
 export type JpVocabConnectionAiInput = {
@@ -50,8 +125,8 @@ export type JpVocabConnectionAiInput = {
 export function normalizeJpVocabConnectionText(
   raw: string | null | undefined
 ): string | null {
-  const lines = String(raw ?? "")
-    .replace(/\r\n/g, "\n")
+  const expanded = expandJpVocabConnectionUsageInlineBreaks(String(raw ?? ""));
+  const lines = expanded
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)

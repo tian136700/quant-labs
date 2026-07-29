@@ -14,6 +14,9 @@ import {
   jpVocabCircledExampleIndex,
   type JpVocabUsageExamplesPairedModel,
 } from "@/lib/jp-vocab-usage-examples-display";
+import {
+  parseJpVocabConnectionDisplayParts,
+} from "@/lib/jp-vocab-connection-ai";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
 
 type Props = {
@@ -21,6 +24,9 @@ type Props = {
   exampleSentences: string | null | undefined;
   usageSource?: string | null;
   exampleSource?: string | null;
+  /** 接序：有编号用法时贴在每条用法下显示「接续：」 */
+  connection?: string | null;
+  connectionSource?: string | null;
   wordLabel?: string | null;
   model?: JpVocabUsageExamplesPairedModel;
   emptyText?: string;
@@ -33,6 +39,8 @@ export function JpVocabUsageExamplesPairedContent({
   exampleSentences,
   usageSource,
   exampleSource,
+  connection,
+  connectionSource,
   wordLabel,
   model: modelProp,
   emptyText = "暂无用法与例句",
@@ -40,8 +48,13 @@ export function JpVocabUsageExamplesPairedContent({
 }: Props) {
   const model =
     modelProp ?? buildJpVocabUsageExamplePairs(usage, exampleSentences);
+  const connParts = parseJpVocabConnectionDisplayParts(connection);
   const [copyToast, setCopyToast] = useState<string | null>(null);
-  const copyText = formatJpVocabUsageExamplesCopyText(model, wordLabel);
+  const copyText = formatJpVocabUsageExamplesCopyText(model, wordLabel, {
+    connectionByUsageIndex: connParts.byUsageIndex,
+    connectionLeftover: connParts.leftover,
+    connectionHasUsageTagged: connParts.hasUsageTagged,
+  });
   const onCopy = useCallback(() => {
     if (!copyText) return;
     void copyTextToClipboard(copyText).then((ok) =>
@@ -55,11 +68,38 @@ export function JpVocabUsageExamplesPairedContent({
 
   const sourceLabels = uniqueJpVocabSourcesForDisplay(
     usageSource,
-    exampleSource
+    exampleSource,
+    connectionSource
   );
   const circled = model.useCircledExampleIndex;
   const exampleMark = (n: number) =>
     circled ? jpVocabCircledExampleIndex(n) : `${n}.`;
+
+  const usageIndexesWithText = model.pairs
+    .filter((p) => Boolean(p.usageText))
+    .map((p) => p.index);
+  const firstUsageIndex = usageIndexesWithText[0] ?? null;
+  const lastUsageIndex =
+    usageIndexesWithText[usageIndexesWithText.length - 1] ?? null;
+
+  const connectionTextFor = (usageIndex: number): string | null => {
+    const tagged = connParts.byUsageIndex[usageIndex]?.trim() || "";
+    const isFirst = firstUsageIndex === usageIndex;
+    const isLast = lastUsageIndex === usageIndex;
+    if (connParts.hasUsageTagged) {
+      const bits: string[] = [];
+      if (tagged) bits.push(tagged);
+      if (isLast && connParts.leftover.length) {
+        bits.push(...connParts.leftover);
+      }
+      return bits.length ? bits.join("\n") : null;
+    }
+    // 无「用法N」标签：整段接序挂在第一条有用法的下面
+    if (isFirst && connParts.leftover.length) {
+      return connParts.leftover.join("\n");
+    }
+    return null;
+  };
 
   return (
     <div className="jp-usage-ex-paired">
@@ -86,7 +126,11 @@ export function JpVocabUsageExamplesPairedContent({
 
       {model.pairs.length > 0 ? (
         <ol className="jp-usage-ex-paired-list">
-          {model.pairs.map((pair) => (
+          {model.pairs.map((pair) => {
+            const connText = pair.usageText
+              ? connectionTextFor(pair.index)
+              : null;
+            return (
             <li key={pair.index} className="jp-usage-ex-paired-item">
               {pair.usageText ? (
                 <p className="jp-usage-ex-paired-usage">
@@ -95,6 +139,16 @@ export function JpVocabUsageExamplesPairedContent({
                   </span>
                   <span className="jp-usage-ex-paired-usage-body">
                     {pair.usageText}
+                  </span>
+                </p>
+              ) : null}
+              {connText ? (
+                <p className="jp-usage-ex-paired-connection">
+                  <span className="jp-usage-ex-paired-connection-label">
+                    接续：
+                  </span>
+                  <span className="jp-usage-ex-paired-connection-body">
+                    {connText}
                   </span>
                 </p>
               ) : null}
@@ -157,7 +211,8 @@ export function JpVocabUsageExamplesPairedContent({
                 </p>
               ) : null}
             </li>
-          ))}
+            );
+          })}
         </ol>
       ) : null}
 
@@ -212,13 +267,27 @@ export function JpVocabUsageExamplesPairedContent({
           min-width: 0;
         }
         .jp-usage-ex-paired-usage {
-          margin: 0 0 0.4rem;
+          margin: 0 0 0.35rem;
           line-height: 1.65;
           color: var(--text);
           font-size: 1.125rem;
         }
         .jp-usage-ex-paired-usage-label {
           font-weight: 600;
+        }
+        .jp-usage-ex-paired-connection {
+          margin: 0 0 0.45rem;
+          line-height: 1.55;
+          font-size: 0.9375rem;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .jp-usage-ex-paired-connection-label {
+          font-weight: 600;
+          color: color-mix(in srgb, var(--accent) 75%, var(--muted));
+        }
+        .jp-usage-ex-paired-connection-body {
+          color: var(--muted);
         }
         .jp-usage-ex-paired-jp {
           margin: 0;
@@ -278,6 +347,9 @@ export function JpVocabUsageExamplesPairedContent({
           .jp-usage-ex-paired-usage,
           .jp-usage-ex-paired-fallback {
             font-size: 1.15rem;
+          }
+          .jp-usage-ex-paired-connection {
+            font-size: 0.98rem;
           }
           .jp-usage-ex-paired-jp {
             font-size: 1.25rem;

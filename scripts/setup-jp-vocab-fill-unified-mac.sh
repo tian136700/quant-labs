@@ -65,12 +65,18 @@ sed \
   -e "s|__INTERVAL__|${RUN_INTERVAL}|g" \
   "$ROOT/scripts/com.infoquests.jp-vocab-fill-unified.plist.example" > "$plist_dst"
 
+PAUSE_SWITCH="${CONFIG_DIR}/jp-vocab-fill-unified-PAUSE.switch"
 launchctl bootout "gui/${UID_NUM}/${LABEL}" 2>/dev/null || true
-launchctl bootstrap "gui/${UID_NUM}" "$plist_dst"
-launchctl enable "gui/${UID_NUM}/${LABEL}"
-
-echo ""
-echo "OK: 日语统一补全 ${LABEL}"
+if [[ -f "$PAUSE_SWITCH" ]]; then
+  echo ""
+  echo "OK: 日语统一补全 ${LABEL}（plist 已更新，但维护中心处于「暂停」→ 未加载 launchd）"
+  echo "  继续：维护中心「日语补全」点「继续」，或删 ${PAUSE_SWITCH} 后重跑本脚本"
+else
+  launchctl bootstrap "gui/${UID_NUM}" "$plist_dst"
+  launchctl enable "gui/${UID_NUM}/${LABEL}"
+  echo ""
+  echo "OK: 日语统一补全 ${LABEL}"
+fi
 echo "  间隔: 每 ${RUN_INTERVAL}s；每轮最多 1 词（tokken）"
 echo "  日志: ${LOG_DIR}/com.infoquests.jp-vocab-fill-unified.log"
 echo "  开关: ${ENV_FILE} → JP_VOCAB_FILL_LLM_BACKEND=1"

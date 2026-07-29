@@ -10,7 +10,10 @@ import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExample
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
 import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
-import { hasJpVocabConnection } from "@/lib/jp-vocab-connection-ai";
+import {
+  hasJpVocabConnection,
+  jpVocabConnectionShownInlineWithUsage,
+} from "@/lib/jp-vocab-connection-ai";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
@@ -200,6 +203,10 @@ export function JpVocabAdminReviewFlashcardModal({
   const showConnection =
     contentExpanded &&
     (showExamples || hasJpVocabConnection(w.connection));
+  const inlineConnection = jpVocabConnectionShownInlineWithUsage(
+    w.usage,
+    w.connection
+  );
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
@@ -447,6 +454,7 @@ export function JpVocabAdminReviewFlashcardModal({
                   <JpVocabUsageExamplesCopyButton
                     model={usageExamplePairs}
                     wordLabel={w.word}
+                    connection={w.connection}
                   />
                 }
               />
@@ -457,6 +465,8 @@ export function JpVocabAdminReviewFlashcardModal({
                 exampleSentences={w.example_sentences}
                 usageSource={w.usage_source}
                 exampleSource={w.example_sentences_source}
+                connection={w.connection}
+                connectionSource={w.connection_source}
                 wordLabel={w.word}
                 model={usageExamplePairs}
                 emptyText={isGrammar ? "暂无用法与例句" : "暂无例句"}
@@ -465,7 +475,7 @@ export function JpVocabAdminReviewFlashcardModal({
           </section>
         ) : null}
 
-        {showConnection ? (
+        {showConnection && !inlineConnection ? (
           <JpVocabConnectionSection
             connection={w.connection}
             connectionSource={w.connection_source}

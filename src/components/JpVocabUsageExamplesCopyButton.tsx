@@ -7,17 +7,28 @@ import {
   formatJpVocabUsageExamplesCopyText,
   type JpVocabUsageExamplesPairedModel,
 } from "@/lib/jp-vocab-usage-examples-display";
+import { parseJpVocabConnectionDisplayParts } from "@/lib/jp-vocab-connection-ai";
 
 type Props = {
   model: JpVocabUsageExamplesPairedModel;
   /** 复制时放在文首的词条（可选） */
   wordLabel?: string | null;
+  connection?: string | null;
 };
 
 /** 用法与例句区标题旁：一键复制全部用法+例句（含译文） */
-export function JpVocabUsageExamplesCopyButton({ model, wordLabel }: Props) {
+export function JpVocabUsageExamplesCopyButton({
+  model,
+  wordLabel,
+  connection,
+}: Props) {
   const [copyToast, setCopyToast] = useState<string | null>(null);
-  const text = formatJpVocabUsageExamplesCopyText(model, wordLabel);
+  const connParts = parseJpVocabConnectionDisplayParts(connection);
+  const text = formatJpVocabUsageExamplesCopyText(model, wordLabel, {
+    connectionByUsageIndex: connParts.byUsageIndex,
+    connectionLeftover: connParts.leftover,
+    connectionHasUsageTagged: connParts.hasUsageTagged,
+  });
   const onCopied = useCallback((message: string) => setCopyToast(message), []);
 
   if (!text) return null;

@@ -42,6 +42,14 @@ export PYTHONUNBUFFERED=1
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
 
+# 维护中心「暂停」：有开关则 exit 0（FORCE=1 手动调试可绕过）
+PAUSE_SWITCH="${CONFIG_DIR}/jp-vocab-fill-unified-PAUSE.switch"
+FORCE_RUN_EARLY="${JP_VOCAB_FILL_FORCE:-${FORCE:-0}}"
+if [[ -f "$PAUSE_SWITCH" && "$FORCE_RUN_EARLY" != "1" ]]; then
+  echo "$(date '+%F %T') ${OWNER}: manually paused → skip"
+  exit 0
+fi
+
 BACKEND="$("$PYTHON_BIN" -c "
 import sys
 from pathlib import Path

@@ -145,7 +145,12 @@ export function buildJpVocabUsageExamplePairs(
 
 export function formatJpVocabUsageExamplesCopyText(
   model: JpVocabUsageExamplesPairedModel,
-  wordLabel?: string | null
+  wordLabel?: string | null,
+  connectionOpts?: {
+    connectionByUsageIndex?: Record<number, string>;
+    connectionLeftover?: string[];
+    connectionHasUsageTagged?: boolean;
+  }
 ): string {
   if (!model.hasContent) return "";
 
@@ -156,11 +161,31 @@ export function formatJpVocabUsageExamplesCopyText(
   const fallback = String(model.fallbackUsage ?? "").trim();
   if (fallback) blocks.push(fallback);
 
+  const byUsage = connectionOpts?.connectionByUsageIndex ?? {};
+  const leftover = connectionOpts?.connectionLeftover ?? [];
+  const tagged = Boolean(connectionOpts?.connectionHasUsageTagged);
+  const usageIndexes = model.pairs
+    .filter((p) => Boolean(p.usageText))
+    .map((p) => p.index);
+  const firstUsage = usageIndexes[0] ?? null;
+  const lastUsage = usageIndexes[usageIndexes.length - 1] ?? null;
+
   const circled = model.useCircledExampleIndex;
   for (const pair of model.pairs) {
     const lines: string[] = [];
     if (pair.usageText) {
       lines.push(`${pair.usageLabel}：${pair.usageText}`);
+      const taggedBody = byUsage[pair.index]?.trim() || "";
+      const bits: string[] = [];
+      if (tagged) {
+        if (taggedBody) bits.push(taggedBody);
+        if (pair.index === lastUsage && leftover.length) bits.push(...leftover);
+      } else if (pair.index === firstUsage && leftover.length) {
+        bits.push(...leftover);
+      }
+      if (bits.length) {
+        lines.push(`接续：${bits.join("\n")}`);
+      }
     }
     const nested = pair.nestedExamples;
     if (nested && nested.length) {

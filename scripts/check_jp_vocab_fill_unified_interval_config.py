@@ -37,12 +37,23 @@ def main() -> int:
         errors.append("app.js 缺 saveJpFillInterval")
     if 'path == "/api/jp-vocab-fill/interval"' not in server:
         errors.append("server.py 缺 POST /api/jp-vocab-fill/interval")
+    if 'path == "/api/jp-vocab-fill/pause"' not in server:
+        errors.append("server.py 缺 POST /api/jp-vocab-fill/pause")
+    if 'path == "/api/jp-vocab-fill/resume"' not in server:
+        errors.append("server.py 缺 POST /api/jp-vocab-fill/resume")
+    if 'id="jp-fill-pause"' not in index:
+        errors.append("index.html 缺暂停按钮")
+    if 'id="jp-fill-resume"' not in index:
+        errors.append("index.html 缺继续按钮")
+    if "postJpFillPauseOrResume" not in app_js:
+        errors.append("app.js 缺 postJpFillPauseOrResume")
 
     # 不碰本机真实 launchd：临时 plist + mock reload
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         plist = tmp_path / "com.infoquests.jp-vocab-fill-unified.plist"
         env_file = tmp_path / "jp-vocab-fill.env"
+        pause_path = tmp_path / "jp-vocab-fill-unified-PAUSE.switch"
         # 最小合法 plist
         import plistlib
 
@@ -60,8 +71,11 @@ def main() -> int:
         with (
             mock.patch.object(mod, "PLIST_PATH", plist),
             mock.patch.object(mod, "ENV_FILE", env_file),
+            mock.patch.object(mod, "PAUSE_PATH", pause_path),
             mock.patch.object(mod, "_is_launchd_loaded", return_value=False),
-            mock.patch.object(mod, "_reload_launchd", return_value="loaded"),
+            mock.patch.object(mod, "_reload_launchd", return_value="loaded") as reload_mock,
+            mock.patch.object(mod, "_bootout_agent"),
+            mock.patch.object(mod, "_wait_unloaded", return_value=True),
         ):
             try:
                 mod.set_unified_interval(30)
@@ -80,6 +94,25 @@ def main() -> int:
             ):
                 errors.append("未写入 env 间隔")
 
+            paused = mod.pause_unified()
+            if not paused.get("ok") or not paused.get("paused"):
+                errors.append(f"pause_unified 失败: {paused}")
+            if not pause_path.is_file():
+                errors.append("pause 未写 PAUSE switch")
+            reload_mock.reset_mock()
+            while_paused = mod.set_unified_interval(120)
+            if while_paused.get("reload") != "paused_skip_reload":
+                errors.append(
+                    f"暂停时应跳过 reload，得到: {while_paused.get('reload')}"
+                )
+            if reload_mock.called:
+                errors.append("暂停时改间隔不应调用 _reload_launchd")
+            resumed = mod.resume_unified()
+            if not resumed.get("ok") or resumed.get("paused"):
+                errors.append(f"resume_unified 失败: {resumed}")
+            if pause_path.is_file():
+                errors.append("resume 未清除 PAUSE switch")
+
     src = (ROOT / "scripts/maintenance_center/jp_vocab_fill_interval.py").read_text(
         encoding="utf-8"
     )
@@ -89,6 +122,11 @@ def main() -> int:
             errors.append("须用 bootout domain+plist 路径（避免 Bootstrap Error 5）")
     if "_wait_unloaded" not in src:
         errors.append("须等待 unload 完成再 bootstrap")
+    if "paused_skip_reload" not in src:
+        errors.append("暂停时改间隔须 paused_skip_reload")
+    stage = (ROOT / "scripts/jp-vocab-fill-unified-stage.sh").read_text(encoding="utf-8")
+    if "jp-vocab-fill-unified-PAUSE.switch" not in stage:
+        errors.append("stage.sh 须检查手动暂停开关")
 
     if errors:
         for e in errors:

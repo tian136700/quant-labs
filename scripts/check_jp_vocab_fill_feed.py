@@ -119,6 +119,16 @@ def main() -> int:
         raise SystemExit("FAIL: POST /api/jp-vocab-fill/interval missing in server.py")
     if "set_unified_interval" not in server_py:
         raise SystemExit("FAIL: set_unified_interval not wired in server.py")
+    if 'path == "/api/jp-vocab-fill/pause"' not in server_py:
+        raise SystemExit("FAIL: POST /api/jp-vocab-fill/pause missing in server.py")
+    if 'path == "/api/jp-vocab-fill/resume"' not in server_py:
+        raise SystemExit("FAIL: POST /api/jp-vocab-fill/resume missing in server.py")
+    if 'id="jp-fill-pause"' not in index_html or 'id="jp-fill-resume"' not in index_html:
+        raise SystemExit("FAIL: pause/resume buttons missing in index.html")
+    if "postJpFillPauseOrResume" not in app_js:
+        raise SystemExit("FAIL: postJpFillPauseOrResume missing in app.js")
+    if "paused" not in snap:
+        raise SystemExit("FAIL: feed snapshot must include paused")
 
     # 同词 running→success 应 UPDATE 成一行，不留下「生成中」幽灵行
     rid = feed.insert_jp_vocab_fill_word_run(

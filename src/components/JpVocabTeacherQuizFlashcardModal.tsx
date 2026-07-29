@@ -41,7 +41,10 @@ import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExam
 import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
-import { hasJpVocabConnection } from "@/lib/jp-vocab-connection-ai";
+import {
+  hasJpVocabConnection,
+  jpVocabConnectionShownInlineWithUsage,
+} from "@/lib/jp-vocab-connection-ai";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -351,6 +354,10 @@ export function JpVocabTeacherQuizFlashcardModal({
   // 有用法/例句区就始终露出「接序」块（空也显示「暂无接序」），避免库里还没补时整段消失像没加字段
   const showConnection =
     showExamples || hasJpVocabConnection(w.connection);
+  const inlineConnection = jpVocabConnectionShownInlineWithUsage(
+    w.usage,
+    w.connection
+  );
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
@@ -653,6 +660,7 @@ export function JpVocabTeacherQuizFlashcardModal({
                   <JpVocabUsageExamplesCopyButton
                     model={usageExamplePairs}
                     wordLabel={w.word}
+                    connection={w.connection}
                   />
                 }
               />
@@ -663,6 +671,8 @@ export function JpVocabTeacherQuizFlashcardModal({
                 exampleSentences={w.example_sentences}
                 usageSource={w.usage_source}
                 exampleSource={w.example_sentences_source}
+                connection={w.connection}
+                connectionSource={w.connection_source}
                 wordLabel={w.word}
                 model={usageExamplePairs}
                 emptyText={
@@ -673,7 +683,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           </section>
         ) : null}
 
-        {showConnection ? (
+        {showConnection && !inlineConnection ? (
           <JpVocabConnectionSection
             connection={w.connection}
             connectionSource={w.connection_source}
