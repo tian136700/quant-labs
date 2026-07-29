@@ -198,6 +198,47 @@ export async function listJpVocabWordsChangedSince(
   return (result.results || []).map(mapRow);
 }
 
+export async function existsJpVocabWordByLemma(
+  db: D1Database,
+  word: string,
+  kind?: JpVocabKind
+): Promise<boolean> {
+  const target = (word || "").trim();
+  if (!target) return false;
+
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+
+  if (jpVocabDbState.devStoreEnabled) {
+    const normalizedTarget = target.toLowerCase();
+    return jpVocabDbState.devWords.some((item) => {
+      if ((item.word || "").trim().toLowerCase() !== normalizedTarget) return false;
+      return kind ? item.kind === kind : true;
+    });
+  }
+
+  const result = kind
+    ? await db
+        .prepare(
+          `SELECT id FROM jp_vocab_word
+           WHERE LOWER(TRIM(word)) = LOWER(?1)
+             AND kind = ?2
+           LIMIT 1`
+        )
+        .bind(target, kind)
+        .first<{ id: number }>()
+    : await db
+        .prepare(
+          `SELECT id FROM jp_vocab_word
+           WHERE LOWER(TRIM(word)) = LOWER(?1)
+           LIMIT 1`
+        )
+        .bind(target)
+        .first<{ id: number }>();
+
+  return Boolean(result?.id);
+}
+
 export type RecordJpVocabReviewOptions = {
   /** 勾选后同步到学生「今日日语单词」 */
   shareToStudy?: boolean;

@@ -1,0 +1,122 @@
+日语抽问 · 词条存在性检测 API（给其它项目调用）
+===========================================
+
+用途
+----
+传入一个「单词」或「语法」，检测线上日语抽问词库是否已存在该词条：
+- 存在：返回 1
+- 不存在：返回 0
+
+可用于你在上传/提取词条前先做去重判断。
+
+
+线上地址
+--------
+GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
+
+说明：
+- 也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+- `kind` 可选；不传时默认查全部类型（单词+语法）。
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/jp-vocab/exists?word=東&kind=word
+
+
+鉴权
+----
+支持两种方式（二选一）：
+
+1) 登录态 Cookie（老师/管理员可读权限）
+2) Bearer Token（推荐给外部项目）
+
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+
+请求参数（Query）
+-----------------
+word   必填。要检测的词条内容（会 trim；空字符串报错）。
+kind   选填。`word` / `grammar` / `any`
+       - 不传或传 `any`：不区分类型，只要存在任意类型即返回 1
+       - 传 `word`：只在单词里查
+       - 传 `grammar`：只在语法里查
+
+
+成功响应示例
+------------
+1) 存在
+{
+  "ok": true,
+  "word": "東",
+  "kind": "word",
+  "exists": 1
+}
+
+2) 不存在
+{
+  "ok": true,
+  "word": "架空テスト語",
+  "kind": "word",
+  "exists": 0
+}
+
+说明：
+- `exists` 固定返回数字：`1` 或 `0`（不是布尔值）。
+
+
+失败响应
+--------
+400
+  { "ok": false, "error": "word_required" }
+  → 缺少 word 或 word 为空
+
+400
+  { "ok": false, "error": "kind_invalid" }
+  → kind 不是 word / grammar / any
+
+401
+  { "ok": false, "error": "请登录后查看单词。" }
+  或
+  { "ok": false, "error": "Please log in to view vocabulary." }
+  → 没有登录态且 token 无效
+
+500
+  { "ok": false, "error": "..." }
+  → 服务器内部异常
+
+
+curl 示例
+---------
+curl -sS \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  'https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.parse
+import urllib.request
+
+BASE_URL = "https://japanese.info-quests.com/api/jp-vocab/exists"
+TOKEN = "你的TOKEN"
+
+params = {
+    "word": "東",
+    "kind": "word",  # 可改为 grammar / any，或不传
+}
+url = BASE_URL + "?" + urllib.parse.urlencode(params)
+
+req = urllib.request.Request(
+    url,
+    headers={"Authorization": f"Bearer {TOKEN}"},
+    method="GET",
+)
+
+with urllib.request.urlopen(req, timeout=20) as resp:
+    data = json.loads(resp.read().decode("utf-8"))
+    print(data)
+    # 1=存在，0=不存在
+    print("exists =", data.get("exists"))
