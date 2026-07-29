@@ -9,10 +9,15 @@
     <string>/bin/bash</string>
     <string>__REPO_ROOT__/scripts/schedule-caldav-sync.sh</string>
   </array>
+  <!-- 10 分钟兜底；改课/Telegram 录入会 touch kick 文件立刻跑 -->
   <key>StartInterval</key>
-  <integer>1800</integer>
+  <integer>600</integer>
+  <key>WatchPaths</key>
+  <array>
+    <string>__CONFIG_DIR__/schedule-caldav.kick</string>
+  </array>
   <key>RunAtLoad</key>
-  <false/>
+  <true/>
   <key>StandardOutPath</key>
   <string>__LOG_DIR__/schedule-caldav.log</string>
   <key>StandardErrorPath</key>

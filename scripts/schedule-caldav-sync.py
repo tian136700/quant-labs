@@ -172,6 +172,39 @@ def is_ours(uid: str | None) -> bool:
     return uid.strip().endswith(f"@{UID_DOMAIN}")
 
 
+def _ical_prop(data: str, name: str) -> str:
+    """取 VEVENT 属性值（忽略参数，如 DTSTART;TZID=…:…）。"""
+    match = re.search(rf"^{name}[^:]*:(.*)$", data, flags=re.M | re.I)
+    if not match:
+        return ""
+    return match.group(1).strip().replace("\\,", ",").replace("\\;", ";")
+
+
+def fingerprint_from_ical(data: str) -> str:
+    """用 SUMMARY+DTSTART+DTEND 判断远端是否已是同一条课（避免每次全量删写）。"""
+    return "|".join(
+        [
+            _ical_prop(data, "SUMMARY"),
+            _ical_prop(data, "DTSTART"),
+            _ical_prop(data, "DTEND"),
+        ]
+    )
+
+
+def fingerprint_from_event(event: dict[str, Any]) -> str:
+    start = parse_beijing(str(event["class_at"]))
+    duration = int(event.get("duration_minutes") or 60)
+    end = start + timedelta(minutes=duration)
+    summary = str(event.get("summary") or "日程").strip() or "日程"
+    return "|".join(
+        [
+            ical_escape(summary),
+            start.strftime("%Y%m%dT%H%M%S+0800"),
+            end.strftime("%Y%m%dT%H%M%S+0800"),
+        ]
+    )
+
+
 def resolve_calendar_url(*, host: str, email: str, calendar_id: str) -> str:
     host = host.rstrip("/")
     if host.endswith("/calendar/") or "CALENDAR-" in host:
@@ -216,8 +249,8 @@ class NetEaseCalDav:
                 f"{payload[:300].decode('utf-8', errors='replace')}"
             ) from err
 
-    def list_our_events(self) -> dict[str, str]:
-        """uid -> href (absolute or path)."""
+    def list_our_events(self) -> dict[str, dict[str, str]]:
+        """uid -> {href, fingerprint}。"""
         report = """<?xml version="1.0" encoding="utf-8" ?>
 <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>
@@ -242,19 +275,25 @@ class NetEaseCalDav:
             raise SystemExit(f"CalDAV REPORT unexpected status {status}")
 
         text = payload.decode("utf-8", errors="replace")
+        found: dict[str, dict[str, str]] = {}
+
+        def _remember(uid: str, href: str, data: str) -> None:
+            if not is_ours(uid):
+                return
+            found[uid] = {
+                "href": href.strip(),
+                "fingerprint": fingerprint_from_ical(data),
+            }
+
         # 网易混用命名空间前缀，用宽松正则即可
-        found: dict[str, str] = {}
         for href, data in re.findall(
             r"<A:href>(.*?)</A:href>.*?<c:calendar-data[^>]*>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</c:calendar-data>",
             text,
             flags=re.S | re.I,
         ):
             uid_match = re.search(r"^UID:(.+)$", data, flags=re.M)
-            if not uid_match:
-                continue
-            uid = uid_match.group(1).strip()
-            if is_ours(uid):
-                found[uid] = href.strip()
+            if uid_match:
+                _remember(uid_match.group(1).strip(), href, data)
         # 兜底：ElementTree（若命名空间干净）
         if not found:
             try:
@@ -274,9 +313,11 @@ class NetEaseCalDav:
                     uid_match = re.search(r"^UID:(.+)$", data_el.text, flags=re.M)
                     if not uid_match:
                         continue
-                    uid = uid_match.group(1).strip()
-                    if is_ours(uid):
-                        found[uid] = (href_el.text or "").strip()
+                    _remember(
+                        uid_match.group(1).strip(),
+                        (href_el.text or "").strip(),
+                        data_el.text,
+                    )
             except ET.ParseError:
                 pass
         return found
@@ -317,6 +358,7 @@ def sync_to_caldav(
     calendar_id: str,
     events: list[dict[str, Any]],
     dry_run: bool,
+    force: bool = False,
 ) -> dict[str, int]:
     desired = {
         str(event["uid"]).strip(): event
@@ -329,7 +371,12 @@ def sync_to_caldav(
         print(f"dry-run: would sync {len(desired)} events to {calendar_url}")
         for uid, event in sorted(desired.items(), key=lambda x: x[1].get("class_at", "")):
             print(f"  {event.get('class_at')}  {event.get('summary')}  ({uid})")
-        return {"upserted": 0, "deleted": 0, "kept": len(desired)}
+        return {
+            "upserted": 0,
+            "deleted": 0,
+            "unchanged": 0,
+            "kept": len(desired),
+        }
 
     client = NetEaseCalDav(calendar_url=calendar_url, email=email, password=password)
     remote = client.list_our_events()
@@ -337,8 +384,16 @@ def sync_to_caldav(
 
     upserted = 0
     deleted = 0
+    unchanged = 0
     for uid, event in desired.items():
-        href = remote.pop(uid, None)
+        remote_row = remote.pop(uid, None)
+        href = remote_row["href"] if remote_row else None
+        remote_fp = remote_row["fingerprint"] if remote_row else ""
+        desired_fp = fingerprint_from_event(event)
+        # 未改动的课跳过：以前每次全量删写 100+ 条，易中断且拖慢，iPhone 常感觉「没同步」
+        if not force and href is not None and remote_fp and remote_fp == desired_fp:
+            unchanged += 1
+            continue
         # 网易对覆盖 PUT 常回 412：先删再写
         if href is not None:
             try:
@@ -350,14 +405,19 @@ def sync_to_caldav(
         if upserted % 10 == 0:
             print(f"  upserted {upserted}/{len(desired)} ...")
 
-    for uid, href in remote.items():
+    for uid, row in remote.items():
         try:
-            client.delete_event(uid, href)
+            client.delete_event(uid, row.get("href"))
             deleted += 1
         except SystemExit as err:
             print(f"warning: {err}", file=sys.stderr)
 
-    return {"upserted": upserted, "deleted": deleted, "kept": len(desired)}
+    return {
+        "upserted": upserted,
+        "deleted": deleted,
+        "unchanged": unchanged,
+        "kept": len(desired),
+    }
 
 
 def main() -> int:
@@ -366,6 +426,11 @@ def main() -> int:
         "--dry-run",
         action="store_true",
         help="只拉取并打印，不写入网易日历",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="强制重写全部事件（默认跳过 SUMMARY/时间未变的课）",
     )
     args = parser.parse_args()
 
@@ -430,10 +495,11 @@ def main() -> int:
         calendar_id=calendar_id,
         events=events,
         dry_run=args.dry_run,
+        force=args.force,
     )
     print(
         f"done: upserted={stats['upserted']} deleted={stats['deleted']} "
-        f"desired={stats['kept']}"
+        f"unchanged={stats['unchanged']} desired={stats['kept']}"
     )
     return 0
 

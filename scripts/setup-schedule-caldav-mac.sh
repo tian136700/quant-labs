@@ -7,10 +7,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="com.infoquests.schedule-caldav"
 CONFIG_DIR="${HOME}/.config/info-quests"
 ENV_FILE="${CONFIG_DIR}/schedule-caldav.env"
+KICK_FILE="${CONFIG_DIR}/schedule-caldav.kick"
 PLIST_DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 LOG_DIR="${HOME}/Library/Logs"
 
 mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+# WatchPaths 目标文件必须存在
+if [[ ! -f "$KICK_FILE" ]]; then
+  date +%s >"$KICK_FILE"
+fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   cp "$ROOT/scripts/schedule-caldav.env.example" "$ENV_FILE"
@@ -29,10 +34,12 @@ fi
 
 chmod +x "$ROOT/scripts/schedule-caldav-sync.sh"
 chmod +x "$ROOT/scripts/schedule-caldav-sync.py"
+chmod +x "$ROOT/scripts/schedule-caldav-kick.sh"
 
 sed \
   -e "s|__REPO_ROOT__|${ROOT}|g" \
   -e "s|__LOG_DIR__|${LOG_DIR}|g" \
+  -e "s|__CONFIG_DIR__|${CONFIG_DIR}|g" \
   "$ROOT/scripts/com.infoquests.schedule-caldav.plist.example" > "$PLIST_DST"
 
 launchctl bootout "gui/$(id -u)/${LABEL}" 2>/dev/null || true
@@ -40,7 +47,7 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
 launchctl enable "gui/$(id -u)/${LABEL}"
 
 echo ""
-echo "OK: launchd 已安装（每 30 分钟同步一次到网易日历）"
+echo "OK: launchd 已安装（每 10 分钟 + kick 文件立刻同步到网易日历）"
 echo "  plist: $PLIST_DST"
 echo "  日志: ${LOG_DIR}/schedule-caldav.log"
 echo ""
@@ -48,5 +55,6 @@ echo "试跑（不写网易）:"
 echo "  $ROOT/scripts/.venv-schedule-caldav/bin/python3 $ROOT/scripts/schedule-caldav-sync.py --dry-run"
 echo "立即同步:"
 echo "  bash $ROOT/scripts/schedule-caldav-sync.sh"
+echo "  bash $ROOT/scripts/schedule-caldav-kick.sh"
 echo ""
 echo "ICS 订阅（可选，系统日历直订）见: ${CONFIG_DIR}/schedule-ics-subscribe-url.txt"
