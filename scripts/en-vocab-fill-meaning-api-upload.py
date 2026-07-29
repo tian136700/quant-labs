@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""只补 upload_source=api 且缺释义的单词；不碰已有用法/例句/音标。
+"""只补 upload_source=api、用法+例句已齐、释义被清空的单词；其它缺释义交给定时 fill-meaning。
 
 线上 Anthropic（tokken）；释义格式：最常用义；次常用义；第三义（中文分号「；」，最多 3 义）。
-优先处理已有用法+例句的词条。
 """
 
 from __future__ import annotations
@@ -62,12 +61,17 @@ def validate_meaning(raw: str) -> tuple[str | None, str | None]:
 def fetch_api_upload_missing_meaning(
     *,
     word_id: int | None = None,
-    prioritize_usage: bool = True,
+    usage_examples_only: bool = False,
 ) -> list[dict[str, Any]]:
     where = (
         "WHERE upload_source = 'api' AND kind != 'grammar' "
         "AND (meaning IS NULL OR TRIM(meaning) = '')"
     )
+    if usage_examples_only:
+        where += (
+            " AND TRIM(COALESCE(usage, '')) != ''"
+            " AND TRIM(COALESCE(example_sentences, '')) != ''"
+        )
     if word_id and word_id > 0:
         where += f" AND id = {int(word_id)}"
     sql = (
@@ -92,15 +96,6 @@ def fetch_api_upload_missing_meaning(
         text=True,
     )
     rows = json.loads(proc.stdout)[0]["results"]
-
-    def score(row: dict[str, Any]) -> tuple[int, int]:
-        has_usage = 1 if str(row.get("usage") or "").strip() else 0
-        has_ex = 1 if str(row.get("example_sentences") or "").strip() else 0
-        if prioritize_usage:
-            return (-(has_usage and has_ex), -(has_usage or has_ex), int(row["id"]))
-        return (0, 0, int(row["id"]))
-
-    rows.sort(key=score)
     return rows
 
 
@@ -156,7 +151,12 @@ def main() -> int:
         type=int,
         default=int(cfg.get("EN_VOCAB_FILL_ONLINE_MIN_INTERVAL_SEC") or 60),
     )
-    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--usage-examples-only",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="只补用法+例句都已有的词（默认开；其余缺释义交给定时任务）",
+    )
     parser.add_argument("--scan", action="store_true")
     args = parser.parse_args()
 
@@ -170,7 +170,7 @@ def main() -> int:
 
     rows = fetch_api_upload_missing_meaning(
         word_id=args.word_id or None,
-        prioritize_usage=True,
+        usage_examples_only=bool(args.usage_examples_only),
     )
     batch = rows[: max(1, args.limit)]
     print(
