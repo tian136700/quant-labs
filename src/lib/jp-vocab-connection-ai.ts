@@ -9,13 +9,14 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
   version: 1,
   label: "接序",
   format_example_grammar:
-    "动词て形＋「～てから」\n一类形容词て形＋「～てから」\n二类形容词て形＋「～てから」\n名词＋で＋「～てから」",
+    "动词辞书形（动词原形）＋「～前に」\n名词＋の＋「前に」",
   format_example_word:
-    "一类动词（五段）／辞书形：書く；ます形：書きます；て形：書いて",
+    "一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」",
   rules: [
     "接序单独成段，放在用法/例句之后，以「【接序】」起头",
     "用法说明里禁止再写接序（接续形态）；接序只写在本字段",
     "用中文说明；日语形态用「」短引，禁止 漢字(かな) 假名括注",
+    "凡写「动词辞书形」必须写成「动词辞书形（动词原形）」；不要只写「动词辞书形」",
     "语法：写清各类词怎么接本语法（动词哪一形、一类/二类形容词、名词等）",
     "单词：写词类与常用活用（辞书形/ます形/て形或一类·二类形容词等）",
     "2～6 行即可；不要 markdown、不要行首编号（可用顿号或换行）",
@@ -26,6 +27,17 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
 const FENCE_RE = /^```(?:\w+)?\s*$/;
 const FURIGANA_PAREN_RE = /\([\u3040-\u309Fー]+\)/;
 const GLOSS_LINE_RE = /^(译文|譯文)\s*[：:]/;
+/** 已带「（动词原形）」或半角括号的，归一成全角注解 */
+const DONGCI_JISHOKEI_RE =
+  /动词辞书形(?:（动词原形）|\(动词原形\))?/g;
+
+/**
+ * 「动词辞书形」一律写成「动词辞书形（动词原形）」；已有注解则归一、不叠写。
+ * 展示 / 写回 / prompt 规范化共用。
+ */
+export function formatJpVocabDongciJishokeiLabel(raw: string): string {
+  return String(raw ?? "").replace(DONGCI_JISHOKEI_RE, "动词辞书形（动词原形）");
+}
 
 export type JpVocabConnectionAiInput = {
   word: string;
@@ -44,7 +56,8 @@ export function normalizeJpVocabConnectionText(
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((line) => line !== JP_VOCAB_CONNECTION_SECTION_MARKER)
-    .filter((line) => !FENCE_RE.test(line));
+    .filter((line) => !FENCE_RE.test(line))
+    .map((line) => formatJpVocabDongciJishokeiLabel(line));
   if (!lines.length) return null;
   return lines.join("\n");
 }
@@ -96,25 +109,25 @@ export function jpVocabConnectionPromptAppendix(
 - 在全部用法与例句写完后，另起一行写「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面写接续形态。
 - ❌ 禁止把接序写进「用法」行（用法只讲含义/功能，不写「动词て形＋…」这类接续清单）。
 - ✅ 接序写清：动词用哪一形、一类形容词（い形容词）、二类形容词（な形容词）、名词等如何接本语法；日语形态用「」短引，不要假名括注。
+- ✅ 凡出现「动词辞书形」必须写成「动词辞书形（动词原形）」，不要省略括号说明。
 - 2～6 行；不要 markdown、不要给接序再编 1. 2.。
 
 示例接序段：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-动词て形＋「～てから」
-一类形容词て形＋「～てから」
-二类形容词て形＋「～てから」
-名词＋で＋「～てから」`;
+动词辞书形（动词原形）＋「～前に」
+名词＋の＋「前に」`;
   }
   return `
 接序（必须同一次输出，单独成段）：
 - 在全部例句写完后，另起一行写「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面写本词接序/活用要点。
 - ❌ 不要把接序混进例句或译文。
 - ✅ 写词类（一类动词／二类动词／一类形容词／二类形容词／名词等）及常用形（辞书形、ます形、て形等，按本词需要）；日语用「」短引，不要假名括注。
+- ✅ 若写「动词辞书形」须写成「动词辞书形（动词原形）」。
 - 2～4 行即可。
 
 示例接序段：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-一类动词（五段）／辞书形：「書く」；ます形：「書きます」；て形：「書いて」`;
+一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」`;
 }
 
 /** 仅补接序（用法/例句已有） */
@@ -143,14 +156,13 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 硬规则：
 - 第一行必须是「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面 2～6 行接续说明。
 - 写清动词哪一形、一类/二类形容词、名词等如何接本语法；日语形态用「」短引；不要假名括注。
+- 凡出现「动词辞书形」必须写成「动词辞书形（动词原形）」。
 - 不要写用法长文、不要写例句、不要 markdown。
 
 输出示例：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-动词て形＋「～てから」
-一类形容词て形＋「～てから」
-二类形容词て形＋「～てから」
-名词＋で＋「～てから」`;
+动词辞书形（动词原形）＋「～前に」
+名词＋の＋「前に」`;
   }
 
   return `${meta}
@@ -160,11 +172,12 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 硬规则：
 - 第一行必须是「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面 2～4 行。
 - 写词类与辞书形/ます形/て形等（按本词需要）；日语用「」短引；不要假名括注。
+- 若写「动词辞书形」须写成「动词辞书形（动词原形）」。
 - 不要写例句、不要 markdown。
 
 输出示例：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-一类动词（五段）／辞书形：「書く」；ます形：「書きます」；て形：「書いて」`;
+一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」`;
 }
 
 export function validateJpVocabConnectionAiOutput(

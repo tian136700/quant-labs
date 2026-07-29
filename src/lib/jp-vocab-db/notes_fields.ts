@@ -105,6 +105,7 @@ import {
   JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
+import { normalizeJpVocabConnectionText } from "@/lib/jp-vocab-connection-ai";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
 import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
@@ -455,7 +456,8 @@ export async function updateJpVocabWordEntry(
   }
   const nextConnection =
     input.connection !== undefined
-      ? (input.connection || "").trim() || null
+      ? normalizeJpVocabConnectionText(input.connection) ??
+        ((input.connection || "").trim() || null)
       : current.connection ?? null;
   let nextConnectionSource = current.connection_source ?? null;
   if (input.connection_source !== undefined) {

@@ -4,7 +4,10 @@ import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { copyTextToClipboard } from "@/lib/copy-text";
-import { hasJpVocabConnection } from "@/lib/jp-vocab-connection-ai";
+import {
+  hasJpVocabConnection,
+  normalizeJpVocabConnectionText,
+} from "@/lib/jp-vocab-connection-ai";
 
 type Props = {
   connection: string | null | undefined;
@@ -23,7 +26,9 @@ export function JpVocabConnectionSection({
 }: Props) {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const onCopied = useCallback((message: string) => setCopyToast(message), []);
-  const text = String(connection ?? "").trim();
+  const text =
+    normalizeJpVocabConnectionText(connection) ??
+    String(connection ?? "").trim();
   const has = hasJpVocabConnection(text);
   if (!has && !showWhenEmpty) return null;
 
