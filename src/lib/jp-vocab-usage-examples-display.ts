@@ -1,6 +1,7 @@
 /**
  * 日语语法「用法 + 例句」展示配对：第 N 条用法对应第 N 条例句。
- * 单词：仅 1 条用法且多条例句时，全部例句挂在用法 1 下（嵌套 1. 2.）。
+ * 单词：仅 1 条用法且多条例句时，全部例句挂在用法 1 下（嵌套 ①②）。
+ * 用法多于 1 且例句更多：多余例句挂在最后一条用法下，避免出现「4. 5.」假一级序号。
  * 存库字段仍分 usage / example_sentences；仅页面合并展示。
  */
 
@@ -13,6 +14,7 @@ import {
 import {
   jpVocabUsagePairLabel,
   parseJpVocabUsagePoints,
+  stripJpVocabUsageConnectionNoise,
 } from "@/lib/jp-vocab-usage-ai";
 
 export type JpVocabUsageExamplePair = {
@@ -20,7 +22,7 @@ export type JpVocabUsageExamplePair = {
   usageLabel: string;
   usageText: string | null;
   example: JpVocabExampleSentenceItem | null;
-  /** 单词单用法多例句：挂在该用法下的全部例句 */
+  /** 单词单用法多例句 / 末条用法挂多余例句：挂在该用法下的全部例句 */
   nestedExamples?: JpVocabExampleSentenceItem[];
 };
 
@@ -29,21 +31,33 @@ export type JpVocabUsageExamplesPairedModel = {
   fallbackUsage: string | null;
   pairCount: number;
   hasContent: boolean;
+  /** 有编号用法：例句用二级圈号 ①②；无用法则例句用一级阿拉伯数字 */
+  useCircledExampleIndex: boolean;
   /** 单词：单用法下嵌套多条例句 */
   nestExamplesUnderSingleUsage: boolean;
 };
+
+/** 二级序号：①～⑳，超出用 (21) */
+export function jpVocabCircledExampleIndex(n: number): string {
+  const i = Math.floor(Number(n));
+  if (!Number.isFinite(i) || i < 1) return "①";
+  if (i <= 20) return String.fromCharCode(0x245f + i); // ① = U+2460
+  return `(${i})`;
+}
 
 export function buildJpVocabUsageExamplePairs(
   usage: string | null | undefined,
   exampleSentences: string | null | undefined
 ): JpVocabUsageExamplesPairedModel {
-  const points = parseJpVocabUsagePoints(String(usage ?? "")) ?? [];
+  // 有接序字段时用法里常仍夹「接在…／构成＋」；展示前剥掉，避免与接序块重复
+  const usageClean = stripJpVocabUsageConnectionNoise(String(usage ?? ""));
+  const points = parseJpVocabUsagePoints(usageClean) ?? [];
   const examples = parseJpVocabExampleSentenceItems(
     String(exampleSentences ?? "")
   );
 
   if (!points.length) {
-    const fallbackUsage = String(usage ?? "").trim() || null;
+    const fallbackUsage = usageClean.trim() || null;
     const pairs: JpVocabUsageExamplePair[] = examples.map((example, i) => ({
       index: i + 1,
       usageLabel: jpVocabUsagePairLabel(i + 1),
@@ -55,6 +69,7 @@ export function buildJpVocabUsageExamplePairs(
       fallbackUsage,
       pairCount: Math.max(pairs.length, fallbackUsage ? 1 : 0),
       hasContent: Boolean(fallbackUsage || pairs.length),
+      useCircledExampleIndex: false,
       nestExamplesUnderSingleUsage: false,
     };
   }
@@ -73,13 +88,43 @@ export function buildJpVocabUsageExamplePairs(
       fallbackUsage: null,
       pairCount: 1,
       hasContent: true,
+      useCircledExampleIndex: true,
       nestExamplesUnderSingleUsage: true,
     };
   }
 
-  const count = Math.max(points.length, examples.length);
+  // 例句多于用法：1..(N-1) 一对一；末条用法挂「自己的例句 + 全部多余例句」
+  if (examples.length > points.length) {
+    const last = points.length - 1;
+    const pairs: JpVocabUsageExamplePair[] = [];
+    for (let i = 0; i < last; i++) {
+      pairs.push({
+        index: i + 1,
+        usageLabel: jpVocabUsagePairLabel(i + 1),
+        usageText: points[i]?.text ?? null,
+        example: examples[i] ?? null,
+      });
+    }
+    const nested = examples.slice(last);
+    pairs.push({
+      index: points.length,
+      usageLabel: jpVocabUsagePairLabel(points.length),
+      usageText: points[last]?.text ?? null,
+      example: null,
+      nestedExamples: nested.length ? nested : undefined,
+    });
+    return {
+      pairs,
+      fallbackUsage: null,
+      pairCount: pairs.length,
+      hasContent: pairs.length > 0,
+      useCircledExampleIndex: true,
+      nestExamplesUnderSingleUsage: false,
+    };
+  }
+
   const pairs: JpVocabUsageExamplePair[] = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < points.length; i++) {
     pairs.push({
       index: i + 1,
       usageLabel: jpVocabUsagePairLabel(i + 1),
@@ -93,6 +138,7 @@ export function buildJpVocabUsageExamplePairs(
     fallbackUsage: null,
     pairCount: pairs.length,
     hasContent: pairs.length > 0,
+    useCircledExampleIndex: true,
     nestExamplesUnderSingleUsage: false,
   };
 }
@@ -110,6 +156,7 @@ export function formatJpVocabUsageExamplesCopyText(
   const fallback = String(model.fallbackUsage ?? "").trim();
   if (fallback) blocks.push(fallback);
 
+  const circled = model.useCircledExampleIndex;
   for (const pair of model.pairs) {
     const lines: string[] = [];
     if (pair.usageText) {
@@ -118,7 +165,10 @@ export function formatJpVocabUsageExamplesCopyText(
     const nested = pair.nestedExamples;
     if (nested && nested.length) {
       nested.forEach((ex, i) => {
-        lines.push(`${i + 1}. ${ex.text}`);
+        const mark = circled
+          ? jpVocabCircledExampleIndex(i + 1)
+          : `${i + 1}.`;
+        lines.push(`${mark} ${ex.text}`);
         const glossRaw = ex.glossLines[0]
           ? stripJpVocabExampleGlossLabel(ex.glossLines[0])
           : "";
@@ -126,7 +176,13 @@ export function formatJpVocabUsageExamplesCopyText(
         if (glossLine) lines.push(glossLine);
       });
     } else if (pair.example?.text) {
-      lines.push(pair.example.text);
+      if (circled && pair.usageText) {
+        lines.push(`${jpVocabCircledExampleIndex(1)} ${pair.example.text}`);
+      } else if (!pair.usageText) {
+        lines.push(`${pair.index}. ${pair.example.text}`);
+      } else {
+        lines.push(pair.example.text);
+      }
       const glossRaw = pair.example.glossLines[0]
         ? stripJpVocabExampleGlossLabel(pair.example.glossLines[0])
         : "";

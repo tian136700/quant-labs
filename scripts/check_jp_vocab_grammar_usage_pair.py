@@ -89,6 +89,10 @@ def main() -> int:
         errors.append("须拒 usage_not_chinese")
     if "usage_missing_level" not in usage_ai:
         errors.append("须拒 usage_missing_level")
+    if "usage_has_connection" not in usage_ai:
+        errors.append("须拒 usage_has_connection（用法夹接续）")
+    if "stripJpVocabUsageConnectionNoise" not in usage_ai:
+        errors.append("须有 stripJpVocabUsageConnectionNoise")
     if "(N5)" not in usage_ai:
         errors.append("usage prompt 须要求句末 (N5) 等级")
     if "isJpVocabConjugationGrammar" not in usage_ai:

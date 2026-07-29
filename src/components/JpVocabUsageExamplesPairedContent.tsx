@@ -11,6 +11,7 @@ import {
 import {
   buildJpVocabUsageExamplePairs,
   formatJpVocabUsageExamplesCopyText,
+  jpVocabCircledExampleIndex,
   type JpVocabUsageExamplesPairedModel,
 } from "@/lib/jp-vocab-usage-examples-display";
 import { uniqueJpVocabSourcesForDisplay } from "@/lib/jp-vocab-source-display";
@@ -56,6 +57,9 @@ export function JpVocabUsageExamplesPairedContent({
     usageSource,
     exampleSource
   );
+  const circled = model.useCircledExampleIndex;
+  const exampleMark = (n: number) =>
+    circled ? jpVocabCircledExampleIndex(n) : `${n}.`;
 
   return (
     <div className="jp-usage-ex-paired">
@@ -105,7 +109,7 @@ export function JpVocabUsageExamplesPairedContent({
                         className="jp-usage-ex-paired-nested-index"
                         aria-hidden="true"
                       >
-                        {ni + 1}.
+                        {exampleMark(ni + 1)}
                       </span>
                       <span className="jp-usage-ex-paired-nested-body">
                         <p className="jp-usage-ex-paired-jp">
@@ -125,12 +129,12 @@ export function JpVocabUsageExamplesPairedContent({
                 </ol>
               ) : pair.example?.text ? (
                 <div className="jp-usage-ex-paired-example-row">
-                  {!pair.usageText ? (
+                  {circled || !pair.usageText ? (
                     <span
                       className="jp-usage-ex-paired-nested-index"
                       aria-hidden="true"
                     >
-                      {pair.index}.
+                      {exampleMark(circled && pair.usageText ? 1 : pair.index)}
                     </span>
                   ) : null}
                   <span className="jp-usage-ex-paired-nested-body">

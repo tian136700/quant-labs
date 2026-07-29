@@ -18,8 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MUST_ABOVE_MODAL = [
     ROOT / "src/components/EnVocabUsageExamplesCopyButton.tsx",
     ROOT / "src/components/EnVocabUsageViewModal.tsx",
+    ROOT / "src/components/JpVocabConnectionSection.tsx",
     ROOT / "src/components/JpVocabExampleSentenceCopyButton.tsx",
     ROOT / "src/components/JpVocabFlashcardWordHero.tsx",
+    ROOT / "src/components/JpVocabUsageExamplesCopyButton.tsx",
 ]
 
 GLOBALS_CSS = ROOT / "src/app/globals/globals-forms.css"

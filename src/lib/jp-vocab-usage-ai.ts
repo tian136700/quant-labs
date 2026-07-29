@@ -16,7 +16,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "只补「语法」（单词不走此接口）",
     "用法说明必须是中文（学生要看得懂）；禁止整段日语用法；「」外不要写汉字(假名)括注",
     "可在中文里用「」短引日语形态（如「～てから」「て形」）；「」内也不要假名括注",
-    "❌ 用法行禁止写接序清单（动词て形＋…）；接序只写在文末【接序】段",
+    "❌ 用法行禁止写接序/接续（接在…、构成「…＋…」、动词辞书形＋…）；接序只写在文末【接序】段",
     "每条用法句末句号后必须标该用法大概 JLPT 等级：半角括号 (N5)/(N4)/(N3)/(N2)/(N1)，紧贴句末",
     "用法与例句必须同一次输出、一一对应：编号中文用法下一行立刻跟日语例句，再下一行「译文：」",
     "同一次输出末尾必须有【接序】段（动词/一类·二类形容词/名词如何接本语法）",
@@ -35,6 +35,7 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "usage_not_chinese",
     "usage_missing_level",
     "usage_off_lemma",
+    "usage_has_connection",
     "examples_required",
     "pair_incomplete",
     "examples_invalid",
@@ -181,6 +182,7 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - 组数 = 该语法真实常用用法数（约 N5～N2 / 考试常见）：只有 1 种就写 1 组；有 2 种写 2 组；有 3 种写 3 组。禁止为了凑数硬写两组。
 - 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌「」外不要写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」「場所に＋名詞がある」），「」内也不要假名括注。
 - ❌ 用法行禁止写接序清单（如「动词て形＋本语法」）；接序只放在文末【接序】段。
+- ❌ 用法禁止写「接在…之后」「构成「…＋…」」等接续说明；这些只写在【接序】。
 - 每条中文用法在句末句号后，必须紧跟该用法大概对应的 JLPT 等级，半角括号：。(N5) 或 .(N4) .(N3) .(N2) .(N1)。按该条用法的常见考试难度估，不要整词条只标一个级；不要写「JLPT」「能力考」等字样。
 - 只用本词条本身的用法。❌ 禁止把其它语法点塞进来凑组数（词条「～がある」时，不要写「～たことがある」「～ことがある」等别的句型当独立用法；那些是别的词条）。
 - 每一组必须完整：中文用法（含句末等级） + 日语例句 + 译文：；禁止只输出用法。
@@ -345,7 +347,8 @@ export function serializeJpVocabUsagePoints(
 export function normalizeJpVocabUsageText(
   raw: string | null | undefined
 ): string | null {
-  const points = parseJpVocabUsagePoints(String(raw ?? ""));
+  const cleaned = stripJpVocabUsageConnectionNoise(String(raw ?? ""));
+  const points = parseJpVocabUsagePoints(cleaned);
   if (!points || points.length < 1) return null;
   return serializeJpVocabUsagePoints(points);
 }
@@ -370,11 +373,106 @@ export function jpVocabUsagePairLabel(n: number): string {
 }
 
 export function formatJpVocabUsageForDisplay(raw: string): string {
-  const points = parseJpVocabUsagePoints(String(raw ?? ""));
-  if (!points?.length) return String(raw ?? "").trim();
+  const cleaned = stripJpVocabUsageConnectionNoise(String(raw ?? ""));
+  const points = parseJpVocabUsagePoints(cleaned);
+  if (!points?.length) return cleaned.trim();
   return points
     .map((p, i) => `${jpVocabUsagePairLabel(i + 1)}：${p.text}`)
     .join("\n");
+}
+
+/**
+ * 用法行是否夹带接序/接续说明（应只出现在 connection 字段）。
+ * 例：「接在动词辞书形…」「构成「动词辞书形＋前に」」
+ */
+export function jpVocabUsageLineHasConnectionNoise(text: string): boolean {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (/接在/.test(t)) return true;
+  if (/构成「[^」]*[＋+]/.test(t)) return true;
+  if (/接续(?:形态|方式|方法|规则)?/.test(t)) return true;
+  if (/(?:前接|后接)(?:动词|形容词|名词|一类|二类)/.test(t)) return true;
+  // 独立接续公式句（非「表示…」义项说明）
+  if (
+    !/^表示/.test(t) &&
+    /[＋+]/.test(t) &&
+    /(?:辞书形|て形|た形|ます形|普通形|词干)/.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** 剥掉单条用法正文里的接续噪音，保留义项与句末 (N5) */
+export function stripJpVocabUsageConnectionNoiseFromLine(text: string): string {
+  let t = String(text || "").trim();
+  if (!t) return "";
+
+  const levelMatch = JP_VOCAB_USAGE_JLPT_TAIL_RE.exec(t);
+  let body = levelMatch ? levelMatch[1].replace(/\s+$/u, "") : t;
+  const level = levelMatch ? `(N${levelMatch[2]})` : "";
+
+  // 先按句号切开：整句是接续说明则丢掉
+  const sentences = body.split(/(?<=[。！？])/u);
+  const keptSentences: string[] = [];
+  for (const rawSent of sentences) {
+    const s = rawSent.trim();
+    if (!s) continue;
+    if (/^接在/.test(s)) continue;
+    if (/^构成「/.test(s)) continue;
+    if (/^接续/.test(s)) continue;
+    if (/^(?:前接|后接)/.test(s)) continue;
+    if (
+      !/^表示/.test(s) &&
+      /[＋+]/.test(s) &&
+      /(?:辞书形|て形|た形|ます形|普通形|词干)/.test(s) &&
+      /(?:动词|名词|形容词|一类|二类)/.test(s)
+    ) {
+      continue;
+    }
+    keptSentences.push(s);
+  }
+  body = keptSentences.join("");
+
+  // 同一句内夹带：「…。另一件事，接在…，构成…。」→ 剥子句
+  body = body
+    .replace(/[，、；;]?\s*接在[^。！？]*/gu, "")
+    .replace(/[，、；;]?\s*构成「[^」]*」(?:或「[^」]*」)*/gu, "")
+    .replace(/[，、；;]?\s*接续(?:形态|方式|方法|规则)?[^。！？]*/gu, "")
+    .replace(
+      /[，、；;]?\s*(?:前接|后接)(?:动词|形容词|名词|一类|二类)[^。！？]*/gu,
+      ""
+    );
+
+  body = body
+    .replace(/[，、；;\s]+$/u, "")
+    .replace(/^[，、；;\s]+/u, "")
+    .trim();
+  if (body && !/[。！？]$/u.test(body)) body = `${body}。`;
+
+  if (!body) return level;
+  return level ? `${body}${level}` : body;
+}
+
+/**
+ * 剥掉整段编号用法里的接续噪音（展示 / 写回共用）。
+ * 编号解析失败时按单段处理。
+ */
+export function stripJpVocabUsageConnectionNoise(
+  raw: string | null | undefined
+): string {
+  const text = String(raw ?? "").trim();
+  if (!text) return "";
+  const points = parseJpVocabUsagePoints(text);
+  if (!points?.length) {
+    return stripJpVocabUsageConnectionNoiseFromLine(text);
+  }
+  return serializeJpVocabUsagePoints(
+    points.map((p) => ({
+      n: p.n,
+      text: stripJpVocabUsageConnectionNoiseFromLine(p.text),
+    }))
+  );
 }
 
 /**
@@ -408,7 +506,8 @@ export function validateJpVocabUsageAiOutput(
   if (input && input.kind !== "grammar") {
     return { ok: false, reason: "not_grammar" };
   }
-  const text = String(raw ?? "").trim();
+  // 先剥接续噪音，再校验（存量/模型常把接序写进用法）
+  const text = stripJpVocabUsageConnectionNoise(String(raw ?? "")).trim();
   if (!text) return { ok: false, reason: "empty" };
   // 先挡日语用法（含假名括注），再解析编号
   for (const line of text.split(/\r?\n/)) {
@@ -416,6 +515,9 @@ export function validateJpVocabUsageAiOutput(
     const body = m ? m[2].trim() : line.trim();
     if (body && jpVocabUsageLineLooksNonChinese(body)) {
       return { ok: false, reason: "usage_not_chinese" };
+    }
+    if (body && jpVocabUsageLineHasConnectionNoise(body)) {
+      return { ok: false, reason: "usage_has_connection" };
     }
     if (input?.word && body && jpVocabGrammarUsageOffLemma(input.word, body)) {
       return { ok: false, reason: "usage_off_lemma" };
@@ -430,7 +532,11 @@ export function validateJpVocabUsageAiOutput(
   const requireLevel = input?.requireJlptLevel !== false;
   const withLevel: { n: number; text: string }[] = [];
   for (const p of points) {
-    const normalized = normalizeJpVocabUsageJlptTail(p.text);
+    const cleaned = stripJpVocabUsageConnectionNoiseFromLine(p.text);
+    if (!cleaned || jpVocabUsageLineHasConnectionNoise(cleaned)) {
+      return { ok: false, reason: "usage_has_connection" };
+    }
+    const normalized = normalizeJpVocabUsageJlptTail(cleaned);
     if (normalized) {
       withLevel.push({ n: p.n, text: normalized });
       continue;
@@ -438,7 +544,7 @@ export function validateJpVocabUsageAiOutput(
     if (requireLevel) {
       return { ok: false, reason: "usage_missing_level" };
     }
-    withLevel.push({ n: p.n, text: p.text.trim() });
+    withLevel.push({ n: p.n, text: cleaned.trim() });
   }
   return { ok: true, text: serializeJpVocabUsagePoints(withLevel) };
 }

@@ -79,6 +79,8 @@ def main() -> int:
         raise SystemExit("FAIL: word copy button missing in jp-fill feed")
     if 'button.jp-fill-word-copy[data-copy-word]' not in app_js:
         raise SystemExit("FAIL: jp-fill word copy click handler missing")
+    if "已复制：${word}" not in app_js:
+        raise SystemExit("FAIL: jp-fill word copy toast must show which word was copied")
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
     if 'id="jp-fill-interval-save"' not in index_html:
