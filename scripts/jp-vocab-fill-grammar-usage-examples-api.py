@@ -851,6 +851,11 @@ def refill_ids_one_by_one(
     )
 
 
+# --loop：有待补 3 分钟一轮；暂无 / 毒丸冷却 10 分钟再扫（禁止秒级空转打 Worker）
+LOOP_BUSY_SEC = 3 * 60
+LOOP_IDLE_SEC = 10 * 60
+
+
 def loop_pair(
     *,
     api_url: str,
@@ -859,10 +864,11 @@ def loop_pair(
     allow_burst: bool,
     max_rounds: int,
 ) -> None:
-    min_sec = resolve_min_interval_sec()
     rounds = 0
     print(
-        f"[jp-grammar-fill] loop pair(用法+例句同次) min_interval={min_sec}s "
+        f"[jp-grammar-fill] loop pair(用法+例句同次) "
+        f"busy={LOOP_BUSY_SEC}s idle={LOOP_IDLE_SEC}s "
+        f"(paid_gate≥{resolve_min_interval_sec()}s) "
         f"max_rounds={max_rounds or '∞'}",
         flush=True,
     )
@@ -883,7 +889,7 @@ def loop_pair(
                 allow_burst=allow_burst,
             )
         except SystemExit as exc:
-            wait = max(30, min_sec * 10)
+            wait = LOOP_BUSY_SEC
             print(
                 f"[jp-grammar-fill] 本轮失败（{exc}），{wait}s 后继续…",
                 flush=True,
@@ -891,7 +897,7 @@ def loop_pair(
             time.sleep(wait)
             continue
         except Exception as exc:  # noqa: BLE001
-            wait = max(30, min_sec * 10)
+            wait = LOOP_BUSY_SEC
             print(
                 f"[jp-grammar-fill] 本轮异常 {type(exc).__name__}: {exc}，"
                 f"{wait}s 后继续…",
@@ -901,18 +907,30 @@ def loop_pair(
             continue
 
         if result.get("skipped_run") and result.get("reason") == "all_poisoned":
-            time.sleep(min_sec)
+            wait = LOOP_IDLE_SEC
+            print(
+                f"[jp-grammar-fill] 毒丸冷却中，{wait}s 后再扫…",
+                flush=True,
+            )
+            time.sleep(wait)
             continue
+        # 注意：0 是 falsy，禁止 `or -1`（会当成 -1 永不 idle）
         left_raw = result.get("total_missing")
         left = int(left_raw) if left_raw is not None else -1
         if left == 0:
-            print("[jp-grammar-fill] pair 全部补完", flush=True)
-            break
+            wait = LOOP_IDLE_SEC
+            print(
+                f"[jp-grammar-fill] 暂无待补，{wait}s 后再扫…",
+                flush=True,
+            )
+            time.sleep(wait)
+            continue
+        wait = LOOP_BUSY_SEC
         print(
-            f"[jp-grammar-fill] pair 仍缺约 {left}，"
-            f"下一轮由 rate-gate 控速（≥{min_sec}s）…",
+            f"[jp-grammar-fill] pair 仍缺约 {left}，{wait}s 后下一轮…",
             flush=True,
         )
+        time.sleep(wait)
 
 
 def main() -> int:

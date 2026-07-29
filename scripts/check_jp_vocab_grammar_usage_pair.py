@@ -108,6 +108,12 @@ def main() -> int:
         )
     if "left_raw is not None" not in script:
         errors.append("脚本须显式判断 total_missing is not None（防 0 falsy）")
+    if "LOOP_BUSY_SEC = 3 * 60" not in script:
+        errors.append("--loop 有待补须 LOOP_BUSY_SEC=3 分钟（禁止秒级空转）")
+    if "LOOP_IDLE_SEC = 10 * 60" not in script:
+        errors.append("--loop 暂无/毒丸须 LOOP_IDLE_SEC=10 分钟")
+    if "time.sleep(min_sec)" in script:
+        errors.append("--loop 毒丸/空闲禁止再 sleep(min_sec) 秒级打 Worker")
     if "max-rounds" not in script and "max_rounds" not in script:
         errors.append("脚本须支持 max-rounds 冒烟")
     if "target_word_id" not in script:
