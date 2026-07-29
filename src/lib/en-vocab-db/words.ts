@@ -31,6 +31,11 @@ import {
 } from "@/lib/en-vocab-ref-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
+  EN_VOCAB_UPLOAD_SOURCE_API,
+  EN_VOCAB_UPLOAD_SOURCE_MANUAL,
+  normalizeEnVocabUploadSource,
+} from "@/lib/en-vocab-upload-source";
+import {
   enVocabRefFileExists,
   putEnVocabRefFile,
 } from "@/lib/en-vocab-ref-server";
@@ -554,6 +559,9 @@ export async function uploadEnVocabWords(
       meaning: (w.meaning || "").trim() || null,
       kind: normalizeKind(w.kind),
       category: normalizeEnVocabCategory(w.category),
+      upload_source: normalizeEnVocabUploadSource(
+        w.upload_source || EN_VOCAB_UPLOAD_SOURCE_API
+      ),
       ref_key: w.ref_key ? normalizeEnVocabRefKey(w.ref_key) || null : null,
     }))
     .filter((w) => w.word);
@@ -590,6 +598,7 @@ export async function uploadEnVocabWords(
         pos: null,
         kind: item.kind,
         category: item.category,
+        upload_source: item.upload_source,
         ref_key: item.ref_key,
         cnt_very: 0,
         cnt_normal: 0,
@@ -631,8 +640,8 @@ export async function uploadEnVocabWords(
     inserts.push(
       db
         .prepare(
-          `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0, 0, NULL, NULL, ?7, ?7)`
+          `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, upload_source, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, 0, 0, NULL, NULL, ?8, ?8)`
         )
         .bind(
           item.word,
@@ -640,6 +649,7 @@ export async function uploadEnVocabWords(
           item.meaning,
           item.kind,
           item.category,
+          item.upload_source,
           item.ref_key,
           ts
         )
@@ -680,6 +690,9 @@ export async function addEnVocabWord(
     meaning: (input.meaning || "").trim() || null,
     kind: normalizeKind(input.kind),
     category: normalizeEnVocabCategory(input.category),
+    upload_source: normalizeEnVocabUploadSource(
+      input.upload_source || EN_VOCAB_UPLOAD_SOURCE_MANUAL
+    ),
     ref_key: input.ref_key
       ? normalizeEnVocabRefKey(input.ref_key) || null
       : null,
@@ -701,6 +714,7 @@ export async function addEnVocabWord(
       pos: null,
       kind: item.kind,
       category: item.category,
+      upload_source: item.upload_source,
       ref_key: item.ref_key,
       cnt_very: 0,
       cnt_normal: 0,
@@ -728,8 +742,8 @@ export async function addEnVocabWord(
 
   const insertResult = await db
     .prepare(
-      `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0, 0, NULL, ?7, ?8, ?8)`
+      `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, upload_source, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, 0, 0, NULL, ?8, ?9, ?9)`
     )
     .bind(
       item.word,
@@ -737,6 +751,7 @@ export async function addEnVocabWord(
       item.meaning,
       item.kind,
       item.category,
+      item.upload_source,
       item.ref_key,
       item.class_notes,
       ts

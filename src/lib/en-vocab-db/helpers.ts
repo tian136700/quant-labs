@@ -31,6 +31,11 @@ import {
 } from "@/lib/en-vocab-ref-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
+  EN_VOCAB_DEFAULT_UPLOAD_SOURCE,
+  EN_VOCAB_UPLOAD_SOURCE_LESSON,
+  normalizeEnVocabUploadSource,
+} from "@/lib/en-vocab-upload-source";
+import {
   enVocabRefFileExists,
   putEnVocabRefFile,
 } from "@/lib/en-vocab-ref-server";
@@ -163,6 +168,9 @@ export function mapRow(row: Record<string, unknown>): EnVocabWord {
     category: normalizeEnVocabCategory(
       row.category != null ? String(row.category) : null
     ),
+    upload_source: normalizeEnVocabUploadSource(
+      row.upload_source != null ? String(row.upload_source) : null
+    ),
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     cnt_very: Number(row.cnt_very) || 0,
     cnt_normal: Number(row.cnt_normal) || 0,
@@ -282,6 +290,12 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
     "category",
     "TEXT NOT NULL DEFAULT '雅思托福'"
   );
+  await addEnVocabWordColumnIfMissing(
+    db,
+    cols,
+    "upload_source",
+    `TEXT NOT NULL DEFAULT '${EN_VOCAB_UPLOAD_SOURCE_LESSON}'`
+  );
   // 旧行补默认分类（ALTER 默认值只作用于新插入）
   try {
     await db
@@ -289,6 +303,18 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
         `UPDATE en_vocab_word
          SET category = '雅思托福'
          WHERE category IS NULL OR TRIM(category) = ''`
+      )
+      .run();
+  } catch {
+    /* ignore if column race */
+  }
+  // 存量词条一律标为「由英语新课模块同步」
+  try {
+    await db
+      .prepare(
+        `UPDATE en_vocab_word
+         SET upload_source = '${EN_VOCAB_UPLOAD_SOURCE_LESSON}'
+         WHERE upload_source IS NULL OR TRIM(upload_source) = ''`
       )
       .run();
   } catch {
@@ -336,7 +362,7 @@ export async function listEnVocabRefsByKeys(
   return (result.results || []).map(mapRefRow);
 }
 
-export const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, ref_key,
+export const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
   usage, usage_source, example_sentences, example_sentences_source,
   last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
@@ -524,6 +550,7 @@ export async function seedIfEmpty(db: D1Database): Promise<void> {
         pos: null,
         kind: normalizeKind(item.kind),
         category: normalizeEnVocabCategory(item.category),
+        upload_source: EN_VOCAB_DEFAULT_UPLOAD_SOURCE,
         ref_key: item.ref_key
           ? normalizeEnVocabRefKey(item.ref_key) || null
           : null,
@@ -552,8 +579,8 @@ export async function seedIfEmpty(db: D1Database): Promise<void> {
   const stmts = SEED_WORDS.map((item) =>
     db
       .prepare(
-        `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, 0, 0, NULL, NULL, ?7, ?7)`
+        `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, upload_source, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, 0, 0, NULL, NULL, ?8, ?8)`
       )
       .bind(
         item.word,
@@ -561,6 +588,7 @@ export async function seedIfEmpty(db: D1Database): Promise<void> {
         item.meaning?.trim() || null,
         normalizeKind(item.kind),
         normalizeEnVocabCategory(item.category),
+        EN_VOCAB_DEFAULT_UPLOAD_SOURCE,
         item.ref_key ? normalizeEnVocabRefKey(item.ref_key) || null : null,
         ts
       )

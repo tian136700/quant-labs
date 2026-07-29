@@ -5,6 +5,7 @@ import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesCell } from "@/components/EnVocabUsageExamplesCell";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { displayEnVocabCategory } from "@/lib/en-vocab-category";
+import { displayEnVocabUploadSource } from "@/lib/en-vocab-upload-source";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
 import {
@@ -204,6 +205,15 @@ export function EnVocabWordTable({
                       onStatSort={onStatSort}
                       title="按分类排序（如雅思托福）"
                       label="分类"
+                    />
+                  </th>
+                  <th rowSpan={2} className="en-vocab-upload-source-col">
+                    <EnVocabThSortButton
+                      sortKey="upload_source"
+                      statSort={statSort}
+                      onStatSort={onStatSort}
+                      title="按上传类型排序（新课同步 / API / 手动）"
+                      labelLines={["上传", "类型"]}
                     />
                   </th>
                   <th rowSpan={2} className="jp-vocab-word-col">
@@ -454,6 +464,14 @@ export function EnVocabWordTable({
                         style={{ color: "var(--muted)" }}
                       >
                         {displayEnVocabCategory(w.category)}
+                      </td>
+                      <td
+                        className="en-vocab-upload-source-col"
+                        data-label="上传类型"
+                        style={{ color: "var(--muted)", fontSize: "0.82rem" }}
+                        title={displayEnVocabUploadSource(w.upload_source)}
+                      >
+                        {displayEnVocabUploadSource(w.upload_source)}
                       </td>
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
                         <div className="jp-vocab-word-cell">

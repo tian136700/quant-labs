@@ -577,6 +577,11 @@ CREATE TABLE IF NOT EXISTS en_vocab_word (
   kind       TEXT    NOT NULL DEFAULT 'word',
   /** 分类标签（如「雅思托福」；上传 API 字段 category） */
   category   TEXT    NOT NULL DEFAULT '雅思托福',
+  /**
+   * 上传类型：en_lesson=由英语新课模块同步；api=通过API接口上传；manual=手动添加
+   * 存量默认 en_lesson
+   */
+  upload_source TEXT NOT NULL DEFAULT 'en_lesson',
   ref_key    TEXT,
   cnt_very   INTEGER NOT NULL DEFAULT 0,
   cnt_normal INTEGER NOT NULL DEFAULT 0,

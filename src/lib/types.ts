@@ -400,10 +400,17 @@ export type EnVocabRef = JpVocabRef;
 export interface EnVocabWord extends JpVocabWord {
   /** 分类标签；缺省按「雅思托福」 */
   category: string | null;
+  /**
+   * 上传类型码：`en_lesson` | `api` | `manual`
+   * 展示见 displayEnVocabUploadSource（由英语新课模块同步 / 通过API接口上传 / 手动添加）
+   */
+  upload_source: string | null;
 }
 export type EnVocabUploadInput = JpVocabUploadInput & {
   /** 分类标签；缺省「雅思托福」；可传 IELTS/TOEFL 等别名 */
   category?: string | null;
+  /** 上传类型；本地 API 上传默认 api，可不传 */
+  upload_source?: string | null;
 };
 export type EnVocabSharedItem = Omit<JpVocabSharedItem, "word"> & {
   word: EnVocabWord;

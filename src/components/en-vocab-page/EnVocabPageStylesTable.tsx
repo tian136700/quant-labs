@@ -257,6 +257,13 @@ export function EnVocabPageStylesTable() {
           min-width: 0;
           font-size: 0.8125rem;
         }
+        :global(.jp-vocab-table .en-vocab-upload-source-col) {
+          white-space: normal;
+          width: 7%;
+          min-width: 0;
+          font-size: 0.75rem;
+          line-height: 1.25;
+        }
         :global(.jp-vocab-table .jp-vocab-seq-col) {
           white-space: nowrap;
           width: 3.5%;
@@ -377,6 +384,9 @@ export function EnVocabPageStylesTable() {
             order: 2;
           }
           :global(.jp-vocab-table .en-vocab-category-col) {
+            order: 2;
+          }
+          :global(.jp-vocab-table .en-vocab-upload-source-col) {
             order: 2;
           }
           :global(.jp-vocab-table .jp-vocab-reading-col) {

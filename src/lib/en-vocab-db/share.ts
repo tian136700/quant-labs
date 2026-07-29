@@ -321,7 +321,7 @@ export async function queryEnVocabSharedToday(
     .prepare(
       `SELECT s.id, s.word_id, s.shared_by, s.shared_at, s.share_date,
               w.id AS w_id, w.word, w.reading, w.reading_source, w.meaning, w.meaning_source,
-              w.pos, w.kind, w.category, w.ref_key,
+              w.pos, w.kind, w.category, w.upload_source, w.ref_key,
               w.cnt_very, w.cnt_normal, w.cnt_weak, w.today_check_count, w.today_check_date,
               w.last_review_level, w.last_review_at, w.last_usage_levels,
               w.created_at, w.updated_at,
@@ -347,6 +347,7 @@ export async function queryEnVocabSharedToday(
       pos: row.pos,
       kind: row.kind,
       category: row.category,
+      upload_source: row.upload_source,
       ref_key: row.ref_key,
       cnt_very: row.cnt_very,
       cnt_normal: row.cnt_normal,

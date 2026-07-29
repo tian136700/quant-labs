@@ -214,7 +214,7 @@ export async function getEnVocabWordByIdLite(
   }
   const row = await db
     .prepare(
-      `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, ref_key,
+      `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
               cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
               last_review_level, last_review_at, last_usage_levels, created_at, updated_at,
               mnemonic, usage, usage_source, example_sentences, example_sentences_source,

@@ -31,6 +31,9 @@ import {
 } from "@/lib/en-vocab-ref-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
 import {
+  EN_VOCAB_UPLOAD_SOURCE_LESSON,
+} from "@/lib/en-vocab-upload-source";
+import {
   enVocabRefFileExists,
   putEnVocabRefFile,
 } from "@/lib/en-vocab-ref-server";
@@ -137,6 +140,7 @@ export async function upsertEnVocabFromLesson(
           pos: null,
           kind,
           category,
+          upload_source: EN_VOCAB_UPLOAD_SOURCE_LESSON,
           ref_key: refKey,
           cnt_very: 0,
           cnt_normal: 0,
@@ -167,10 +171,10 @@ export async function upsertEnVocabFromLesson(
 
     await db
       .prepare(
-        `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-         VALUES (?1, NULL, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?5)`
+        `INSERT INTO en_vocab_word (word, reading, meaning, kind, category, upload_source, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
+         VALUES (?1, NULL, NULL, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?6)`
       )
-      .bind(word, kind, category, refKey, ts)
+      .bind(word, kind, category, EN_VOCAB_UPLOAD_SOURCE_LESSON, refKey, ts)
       .run();
   }
 }
