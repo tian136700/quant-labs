@@ -1,5 +1,9 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { listJpVocabSharedToday, getJpVocabStudyQuizProgressTarget } from "@/lib/jp-vocab-db";
+import {
+  getJpVocabTeacherQuizLive,
+  listJpVocabSharedToday,
+  getJpVocabStudyQuizProgressTarget,
+} from "@/lib/jp-vocab-db";
 import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import { redactJpVocabMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
@@ -23,9 +27,11 @@ export async function GET(request: Request) {
     const isAdmin = isAdminSuperuser(user?.role);
     const listPromise = listJpVocabSharedToday(env.DB);
     const quizPromise = lite ? null : getJpVocabStudyQuizProgressTarget(env.DB);
-    const [{ items, refs }, quiz_progress] = await Promise.all([
+    const livePromise = getJpVocabTeacherQuizLive(env.DB);
+    const [{ items, refs }, quiz_progress, live] = await Promise.all([
       listPromise,
       quizPromise ?? Promise.resolve(null),
+      livePromise,
     ]);
     const clientItems = isAdmin
       ? items
@@ -39,6 +45,8 @@ export async function GET(request: Request) {
         items: clientItems,
         refs,
         share_date: beijingDateString(),
+        // 学生 peek 按钮灰态须跟「老师当前 live 词」，勿只钉上次 peek 的 id
+        teacher_live_word_id: live.word_id,
         ...(quiz_progress ? { quiz_progress } : {}),
       },
       200,

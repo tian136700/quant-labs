@@ -152,6 +152,18 @@ export function EnVocabStudyPage() {
     []
   );
 
+  const applyTeacherLiveWordId = useCallback((raw: unknown) => {
+    // 跟 shared 轮询里的老师当前 live 词；老师切词后按钮可再点（勿只钉上次 peek）
+    // undefined = 字段缺失（旧响应），保留本地；null = 老师当前无 live 词
+    if (raw === undefined) return;
+    if (raw === null) {
+      setTeacherLiveWordId(null);
+      return;
+    }
+    const n = typeof raw === "number" ? raw : Number(raw);
+    setTeacherLiveWordId(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+  }, []);
+
   const applyStudyPayload = useCallback(
     (payload: {
       items: EnVocabSharedItem[];
@@ -199,6 +211,7 @@ export function EnVocabStudyPage() {
         items?: EnVocabSharedItem[];
         refs?: Record<string, EnVocabRef>;
         share_date?: string;
+        teacher_live_word_id?: number | null;
         error?: string;
       }>(res);
       if (!parsed.ok) {
@@ -212,6 +225,7 @@ export function EnVocabStudyPage() {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
+        setTeacherLiveWordId(null);
         setError("请登录后查看今日英语单词。");
         return;
       }
@@ -223,6 +237,7 @@ export function EnVocabStudyPage() {
         refs: data.refs,
         share_date: data.share_date,
       });
+      applyTeacherLiveWordId(data.teacher_live_word_id);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -234,7 +249,7 @@ export function EnVocabStudyPage() {
         void loadShared({ force: true });
       }
     }
-  }, [locale, canViewStudy, applyStudyPayload]);
+  }, [locale, canViewStudy, applyStudyPayload, applyTeacherLiveWordId]);
 
   useEffect(() => {
     if (checking) return;

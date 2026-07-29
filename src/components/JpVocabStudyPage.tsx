@@ -211,6 +211,18 @@ export function JpVocabStudyPage() {
     []
   );
 
+  const applyTeacherLiveWordId = useCallback((raw: unknown) => {
+    // 跟 shared 轮询里的老师当前 live 词；老师切词后按钮可再点（勿只钉上次 peek）
+    // undefined = 字段缺失（旧响应），保留本地；null = 老师当前无 live 词
+    if (raw === undefined) return;
+    if (raw === null) {
+      setTeacherLiveWordId(null);
+      return;
+    }
+    const n = typeof raw === "number" ? raw : Number(raw);
+    setTeacherLiveWordId(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+  }, []);
+
   const applyStudyPayload = useCallback((payload: JpVocabStudyApiPayload) => {
     const wasLoadedBefore = hasLoadedOnceRef.current;
     const newWordIds = payload.items.map((item) => item.word_id);
@@ -284,6 +296,7 @@ export function JpVocabStudyPage() {
         refs?: Record<string, JpVocabRef>;
         share_date?: string;
         quiz_progress?: JpVocabDailyQuizProgress;
+        teacher_live_word_id?: number | null;
         error?: string;
       };
 
@@ -312,6 +325,7 @@ export function JpVocabStudyPage() {
         setShareDate(beijingDateString());
         setQuizTargetTotal(0);
         quizTargetTotalRef.current = 0;
+        setTeacherLiveWordId(null);
         hasLoadedOnceRef.current = false;
         setError("仅管理员或已授权学生可访问今日日语单词。");
         return;
@@ -336,6 +350,7 @@ export function JpVocabStudyPage() {
             : null,
       };
       applyStudyPayload(next);
+      applyTeacherLiveWordId(data.teacher_live_word_id);
       persistJpVocabStudyCache(next);
       setError("");
     } catch (err) {
@@ -351,7 +366,7 @@ export function JpVocabStudyPage() {
         void loadShared({ force: true });
       }
     }
-  }, [locale, canViewStudy, applyStudyPayload]);
+  }, [locale, canViewStudy, applyStudyPayload, applyTeacherLiveWordId]);
 
   useEffect(() => {
     if (saveQueuePending > 0) return;
