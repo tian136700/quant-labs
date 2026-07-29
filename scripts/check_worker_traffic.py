@@ -23,6 +23,8 @@ def main() -> int:
     schema = read("schema.sql")
     if "worker_daily_hits" not in schema:
         errors.append("schema.sql 缺少 worker_daily_hits 表")
+    if "worker_hourly_hits" not in schema:
+        errors.append("schema.sql 缺少 worker_hourly_hits 表（分时折线）")
 
     page = read("src/components/AdminWorkerTrafficPage.tsx")
     if "AdminWorkerTrafficPanel" not in page:
@@ -80,13 +82,34 @@ def main() -> int:
         "CopyToast",
         "top_pairs",
         "anonymous_hits",
+        "AdminWorkerTrafficCharts",
+        "hourly",
+        "daily_trend",
     ):
         if needle not in panel:
             errors.append(f"AdminWorkerTrafficPanel 须含 {needle}")
 
+    charts = read("src/components/admin-dashboard/AdminWorkerTrafficCharts.tsx")
+    for needle in ("LineChart", "recharts", "ReferenceLine", "08:00"):
+        if needle not in charts:
+            errors.append(f"AdminWorkerTrafficCharts 须含 {needle}")
+    if 'next/dynamic' not in panel and "dynamic(" not in panel:
+        errors.append("AdminWorkerTrafficPanel 须 dynamic 懒加载 Charts（recharts 体积）")
+
+    css = read("src/app/globals/globals-store-tool.css")
+    if "admin-traffic-charts" not in css:
+        errors.append("globals-store-tool.css 须含 admin-traffic-charts 样式")
+
     report = read("src/lib/worker-traffic-report.ts")
     if "formatWorkerTrafficDiagnosticReport" not in report:
         errors.append("缺少 worker-traffic-report.ts")
+
+    for needle in ("worker_hourly_hits", "getWorkerTrafficHourlySeries", "daily_trend"):
+        if needle not in db:
+            errors.append(f"worker-traffic-db.ts 须含 {needle}")
+
+    if "hourlyHeading" not in zh or "分时折线" not in zh:
+        errors.append("zh i18n 须含分时折线文案")
 
     if errors:
         for err in errors:

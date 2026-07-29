@@ -167,9 +167,9 @@ export const zhMessages: Messages = {
         hourlyHeading: "分时折线（北京时间）",
         dailyTrendHeading: "近 14 日趋势",
         hourlyHint:
-          "按小时看高峰；竖线≈北京 08:00 Cloudflare 日配额重置。分时从本次部署后开始累计，更早只有日合计。",
+          "看哪一小时冲高；橙色竖线≈北京 08:00 日配额重置（昨晚 1027 后从这儿重新计数）。分时从部署后开始累计。",
         hourLabel: "时刻",
-        quotaResetLabel: "配额重置",
+        quotaResetLabel: "配额重置≈08:00",
         dateShort: "日期",
       },
       feedback: {

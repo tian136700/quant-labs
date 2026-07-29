@@ -168,9 +168,9 @@ export const enMessages: Messages = {
         hourlyHeading: "Hourly (Beijing time)",
         dailyTrendHeading: "Last 14 days",
         hourlyHint:
-          "Hourly peaks; dashed line ≈ 08:00 Beijing Cloudflare quota reset. Hourly series starts after this deploy; older days only have daily totals.",
+          "Spot hourly peaks; orange line ≈ Beijing 08:00 daily quota reset. Hourly counts start after this deploy.",
         hourLabel: "Hour",
-        quotaResetLabel: "Quota reset",
+        quotaResetLabel: "Reset ≈08:00",
         dateShort: "Date",
       },
       feedback: {

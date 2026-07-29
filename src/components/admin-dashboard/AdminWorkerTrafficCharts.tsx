@@ -91,16 +91,17 @@ export function AdminWorkerTrafficCharts({
 }: Props) {
   const layout = useChartLayout();
 
+  // 始终画满 0–23，方便一眼看高峰；无分时数据时为全 0 折线
   const hourlyData = useMemo(
     () =>
-      (hourly.length === 24 ? hourly : Array.from({ length: 24 }, (_, hour) => {
+      Array.from({ length: 24 }, (_, hour) => {
         const found = hourly.find((row) => row.hour === hour);
-        return { hour, hit_count: found?.hit_count ?? 0 };
-      })).map((row) => ({
-        hour: row.hour,
-        label: formatHourLabel(row.hour),
-        hits: row.hit_count,
-      })),
+        return {
+          hour,
+          label: formatHourLabel(hour),
+          hits: found?.hit_count ?? 0,
+        };
+      }),
     [hourly]
   );
 
@@ -115,115 +116,124 @@ export function AdminWorkerTrafficCharts({
   );
 
   const hourlyHasData = hourlyData.some((row) => row.hits > 0);
-  const dailyHasData = dailyData.some((row) => row.hits > 0);
 
   return (
     <div className="admin-traffic-charts">
       <div className="admin-traffic-chart-block">
         <h3>{labels.hourlyHeading}</h3>
         <p className="hint admin-traffic-chart-hint">{labels.hourlyHint}</p>
-        {hourlyHasData ? (
-          <div className="admin-traffic-chart-frame" style={{ height: layout.height }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={hourlyData}
-                margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: layout.tickFontSize }}
-                  minTickGap={layout.minTickGap}
-                />
-                <YAxis
-                  width={layout.yAxisWidth}
-                  tick={{ fontSize: layout.tickFontSize }}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  formatter={(value) => [
-                    Number(value).toLocaleString(),
-                    labels.hits,
-                  ]}
-                  labelFormatter={(label) => `${labels.hourLabel} ${label}`}
-                />
-                <Legend />
-                <ReferenceLine
-                  x="08:00"
-                  stroke="#c45c26"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: labels.quotaResetLabel,
-                    fill: "#c45c26",
-                    fontSize: layout.tickFontSize,
-                    position: "insideTopRight",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="hits"
-                  name={labels.hits}
-                  stroke="#2f6fed"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="hint">{labels.hourlyHint}</p>
-        )}
+        <div
+          className="admin-traffic-chart-frame"
+          style={{ height: layout.height }}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={hourlyData}
+              margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(0,0,0,0.08)"
+              />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: layout.tickFontSize }}
+                minTickGap={layout.minTickGap}
+              />
+              <YAxis
+                width={layout.yAxisWidth}
+                tick={{ fontSize: layout.tickFontSize }}
+                allowDecimals={false}
+              />
+              <Tooltip
+                formatter={(value) => [
+                  Number(value).toLocaleString(),
+                  labels.hits,
+                ]}
+                labelFormatter={(label) => `${labels.hourLabel} ${label}`}
+              />
+              <Legend />
+              <ReferenceLine
+                x="08:00"
+                stroke="#c45c26"
+                strokeDasharray="4 4"
+                label={{
+                  value: labels.quotaResetLabel,
+                  fill: "#c45c26",
+                  fontSize: layout.tickFontSize,
+                  position: "insideTopRight",
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="hits"
+                name={labels.hits}
+                stroke="#2f6fed"
+                strokeWidth={2}
+                dot={hourlyHasData ? false : { r: 2 }}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="admin-traffic-chart-block">
         <h3>{labels.dailyTrendHeading}</h3>
-        {dailyHasData ? (
-          <div className="admin-traffic-chart-frame" style={{ height: layout.height }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={dailyData}
-                margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.08)" />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: layout.tickFontSize }}
-                  minTickGap={layout.minTickGap}
-                />
-                <YAxis
-                  width={layout.yAxisWidth}
-                  tick={{ fontSize: layout.tickFontSize }}
-                  allowDecimals={false}
-                />
-                <Tooltip
-                  formatter={(value) => [
-                    Number(value).toLocaleString(),
-                    labels.hits,
-                  ]}
-                  labelFormatter={(label, payload) => {
-                    const full = payload?.[0]?.payload?.date as string | undefined;
-                    return `${labels.dateShort} ${full || label}`;
-                  }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="hits"
-                  name={labels.hits}
-                  stroke="#1a9f6d"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <p className="hint">{labels.hourlyHint}</p>
-        )}
+        <div
+          className="admin-traffic-chart-frame"
+          style={{ height: layout.height }}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={
+                dailyData.length > 0
+                  ? dailyData
+                  : [{ date: "", label: "—", hits: 0 }]
+              }
+              margin={{ top: 8, right: 12, left: 0, bottom: 4 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(0,0,0,0.08)"
+              />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: layout.tickFontSize }}
+                minTickGap={layout.minTickGap}
+              />
+              <YAxis
+                width={layout.yAxisWidth}
+                tick={{ fontSize: layout.tickFontSize }}
+                allowDecimals={false}
+              />
+              <Tooltip
+                formatter={(value) => [
+                  Number(value).toLocaleString(),
+                  labels.hits,
+                ]}
+                labelFormatter={(label, payload) => {
+                  const full = payload?.[0]?.payload?.date as
+                    | string
+                    | undefined;
+                  return `${labels.dateShort} ${full || label}`;
+                }}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="hits"
+                name={labels.hits}
+                stroke="#1a9f6d"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={{ r: 4 }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
