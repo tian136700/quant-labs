@@ -32,6 +32,7 @@ import {
   downloadAnnotatedImage,
   saveAnnotatedLessonRef,
 } from "@/components/lesson-annotate/lesson-annotate-save";
+import { useLessonAnnotateBrowserBack } from "@/lib/lesson-annotate-browser-back";
 import { LessonAnnotateModalStyles } from "@/components/lesson-annotate/LessonAnnotateModalStyles";
 import { LessonAnnotateToolbar } from "@/components/lesson-annotate/LessonAnnotateToolbar";
 
@@ -151,6 +152,8 @@ export function LessonAnnotateModal({
   }, []);
 
   const displayScale = fitScale * zoom;
+
+  useLessonAnnotateBrowserBack(open, lessonId, onClose);
 
   const computeFitScale = useCallback(() => {
     const img = imgRef.current;

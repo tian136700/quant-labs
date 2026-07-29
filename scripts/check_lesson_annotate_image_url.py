@@ -67,9 +67,15 @@ CHECKS = [
         read_page_bundle(
             ROOT / "src/components/lesson-annotate/LessonAnnotateModal.tsx",
             ROOT / "src/components/lesson-annotate",
-        ),
+        )
+        + "\n"
+        + (ROOT / "src/lib/lesson-annotate-browser-back.ts").read_text(encoding="utf-8"),
         {
             "must": [
+                r"useLessonAnnotateBrowserBack\(",
+                r"pushState\(",
+                r'addEventListener\("popstate"',
+                r"scrollLessonListItemIntoView\(",
                 r'\["smear",\s*"涂抹"\]',
                 r'SMEAR_COLOR\s*=\s*"#2a3140"',
                 r'SMEAR_LABEL\s*=\s*"此内容由AI生成，经核验不准确，已涂抹"',

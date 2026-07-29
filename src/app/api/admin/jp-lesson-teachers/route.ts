@@ -180,10 +180,40 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, status);
     }
 
+    let userAccount:
+      | {
+          id: number;
+          username: string;
+          password: string;
+          disabled: boolean;
+        }
+      | undefined;
+    const teacherName = (result.teacher.name ?? "").trim();
+    if (teacherName) {
+      try {
+        const account = await ensureJpLessonTeacherUserAccount(
+          env,
+          result.teacher.id,
+          teacherName
+        );
+        if (account.ok && account.created && account.password) {
+          userAccount = {
+            id: account.user.id,
+            username: account.user.username,
+            password: account.password,
+            disabled: (account.user.disabled ?? 0) !== 0,
+          };
+        }
+      } catch {
+        // 老师已入库；账号创建失败不阻断新课添加
+      }
+    }
+
     return jsonResponse({
       ok: true,
       teacher: result.teacher,
       renamed_teachers: result.renamed_teachers,
+      user_account: userAccount,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
