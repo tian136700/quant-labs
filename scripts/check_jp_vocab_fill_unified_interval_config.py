@@ -61,7 +61,7 @@ def main() -> int:
             mock.patch.object(mod, "PLIST_PATH", plist),
             mock.patch.object(mod, "ENV_FILE", env_file),
             mock.patch.object(mod, "_is_launchd_loaded", return_value=False),
-            mock.patch.object(mod, "_reload_launchd", return_value="plist_updated_not_loaded"),
+            mock.patch.object(mod, "_reload_launchd", return_value="loaded"),
         ):
             try:
                 mod.set_unified_interval(30)
@@ -79,6 +79,16 @@ def main() -> int:
                 encoding="utf-8"
             ):
                 errors.append("未写入 env 间隔")
+
+    src = (ROOT / "scripts/maintenance_center/jp_vocab_fill_interval.py").read_text(
+        encoding="utf-8"
+    )
+    if 'bootout", domain, str(PLIST_PATH)' not in src and "bootout\", domain, str(PLIST_PATH)" not in src:
+        # allow either quote style
+        if '["bootout", domain, str(PLIST_PATH)]' not in src:
+            errors.append("须用 bootout domain+plist 路径（避免 Bootstrap Error 5）")
+    if "_wait_unloaded" not in src:
+        errors.append("须等待 unload 完成再 bootstrap")
 
     if errors:
         for e in errors:
