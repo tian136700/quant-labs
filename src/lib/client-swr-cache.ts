@@ -95,7 +95,11 @@ export async function fetchWithClientCache<T>(
 
   const promise = (async () => {
     try {
-      const res = await fetch(url, { credentials: opts?.credentials ?? "include" });
+      // 本地 SWR（localStorage + ttl）才是缓存层；浏览器 HTTP 缓存会让 force 仍拿到旧响应
+      const res = await fetch(url, {
+        credentials: opts?.credentials ?? "include",
+        cache: "no-store",
+      });
       const json = (await res.json()) as unknown;
       const fresh = parse(json);
       writeClientCache(cacheKey, fresh);

@@ -76,7 +76,7 @@
 | **抽问/带读/学生/复习卡片**（**同 UI**：老师抽问、课堂带读、学生收到自动弹卡、学生 peek；一律 `JpVocabTeacherQuizFlashcardModal`；带读 `mode="coach"` 熟悉程度**展示不可勾选**（勿隐藏）；列表操作「查看该带读卡片」=`previewMode` 与点「带读」同卡；学生 `mode="study"`；有例句都显示；**单词/语法统一「用法 / 例句」配对展示**（无用法则只显示带序号例句）；**管理员「手动补全例句」**；**例句标题旁「复制全部」**；**当前** live 词已在列表则 peek 按钮变灰（live id 随 shared 刷新）；备注合并勿冲例句；**复习卡** `JpVocabAdminReviewFlashcardModal` 同样式，无熟悉程度，未展开只露汉字） | `JpVocabStudyPage.tsx` → `mode="study"`；`JpVocabCoachPage.tsx` → `mode="coach"` + `openCoachCardPreview`；`JpVocabTeacherQuizFlashcardModal.tsx`；`JpVocabAdminReviewFlashcardModal.tsx`；`JpVocabExampleSentenceCopyButton.tsx`；`jpVocabExampleSentencesCopyText`；`JpVocabTeacherQuizFlashcardStyles.tsx`；`jp-vocab-example-sentences.ts`；`mergeJpVocabWordAfterClassNotesFetch`；规则 `.cursor/rules/jp-vocab-flashcard-examples-parity.mdc`、`jp-vocab-study-scroll-stable.mdc`、`vocab-study-peek-button-live.mdc` |
 | 老师端列表、分页、表格样式 | `JpVocabPage.tsx`（编排）；`jp-vocab-page/JpVocabWordTable.tsx`、`JpVocabPagination.tsx`、`JpVocabPageStyles.tsx`；`lib/jp-vocab-page-*.ts`、`lib/vocab-page-shared.ts` |
 | **每页条数选择**（10/20/50/100；localStorage 记住；刷新后沿用） | `JpVocabPagination.tsx`；`JpVocabPage.tsx` → `pageSize` / `handlePageSizeChange`；`jp-vocab-page-helpers.ts` → `readStoredJpVocabPageSize` / `writeStoredJpVocabPageSize`；`jp-vocab-page-constants.ts` → `JP_VOCAB_PAGE_SIZE_OPTIONS` |
-| **搜索记住 + 最近记录**（当前关键词/类型筛选 localStorage 持久化，刷新仍在，点「清除」才空；点搜索框弹出最近最多 8 条，可单条删或清全部） | `JpVocabPageSearch.tsx`；`jp-vocab-page-helpers.ts` → `read/writeStoredJpVocabSearchQuery`、`pushJpVocabSearchHistory`；`jp-vocab-page-constants.ts` → `JP_VOCAB_SEARCH_*`；回归 `scripts/check_jp_vocab_search_persist.py` |
+| **搜索记住 + 最近记录**（当前关键词/类型筛选 localStorage 持久化，刷新仍在，点「清除」才空；点搜索框弹出最近最多 8 条，可单条删或清全部；**有关键词时防抖强制 `loadWords({ force: true })` 拉最新，不滤过期 SWR 缓存**） | `JpVocabPageSearch.tsx`；`useJpVocabSearchFreshLoad.ts`；`jp-vocab-page-helpers.ts` → `read/writeStoredJpVocabSearchQuery`、`pushJpVocabSearchHistory`；`jp-vocab-page-constants.ts` → `JP_VOCAB_SEARCH_*`；回归 `scripts/check_jp_vocab_search_persist.py` |
 | **保存/同步橙色进度条**（D1 写入较慢；**改保存 UI 必引**） | `src/components/JpVocabSaveProgressBar.tsx`；`src/lib/jp-vocab-save-progress.ts` → `jpVocabSaveProgressLabel`；`.cursor/rules/save-progress-ui.mdc` |
 | **课堂备注、共享备注**（支持粘贴/上传图片；**相同图片内容不可重复粘贴/加入**；抽问/带读卡片内点「保存」询问是否共享给学生，进度条：正在保存→正在共享；**study 页有 `canOperate` 时「查看」进可编辑备注**，学生仍只读） | `JpClassNotesEditModal.tsx`（`sharePromptOnSave`）；`jp-vocab-class-notes.ts` → `collectJpVocabClassNoteImageRefKeys`；`POST /api/jp-vocab/class-notes`、`/api/jp-vocab/class-notes/upload`（内容哈希去重）；`JpVocabStudyPage.tsx` → `openRemarksWord`；规则 `.cursor/rules/jp-vocab-study-notes-edit.mdc` |
 | 手动添加 / 编辑词条 | `JpVocabManualAddModal.tsx`（备注可多图上传/粘贴，与修改备注同格式）、`JpVocabEditModal.tsx`（含**巧记**字段，仅管理员；**备注可多图上传/粘贴**，展示与 `JpClassNotesEditModal` 同：居中、去重）；`/api/jp-vocab/add`、`/edit`；`jp_vocab_word.mnemonic` |
@@ -102,8 +102,8 @@
 | 抽了 N 个但序号勾选只连到中间某号（如 62）、后面没勾 | 旧 bug：池按从未抽查插队；现应为正序 1…N。查 `visible_ids` 是否等于序号前 N；今日新词应在末尾且不进池，见 `jp-vocab-teacher-quiz-pool.mdc` |
 | 今天刚「已完成」的新课词被马上抽到 / 插到序号最前 | 应次日凌晨才置顶；`created_at` 北京日 ≥ 今日则 `isJpVocabWordSameDayNewNeverQuizzed`；重排见 `sortJpVocabWordsForDailyOrder` |
 | 下午老师看到 3/13（其实只剩 10 没抽） | `teacherPendingWords`：只计未勾选，不按 1 小时锁定 |
-| 老师搜索 | `JpVocabPage.tsx` → `searchMatchedWords` 扫全库，`filteredDisplayedWords` 老师端再滤掉不可操作行 |
-| 刷新后搜索没了 / 最近搜索记录 | `JpVocabPageSearch.tsx` + `jp-vocab-page-helpers.ts`（localStorage；点「清除」才清当前词，历史另清） |
+| 老师搜索 | `JpVocabPage.tsx` → `searchMatchedWords` 扫全库，`filteredDisplayedWords` 老师端再滤掉不可操作行；有关键词时 `useJpVocabSearchFreshLoad` 强制拉最新 |
+| 刷新后搜索没了 / 最近搜索记录 / 搜到旧释义 | `JpVocabPageSearch.tsx` + `useJpVocabSearchFreshLoad` + `jp-vocab-page-helpers.ts` |
 | 今日抽查次数列、北京时间 0 点归零 | `jp-vocab-daily-check.ts`；`jp-vocab-review.ts` |
 
 ---

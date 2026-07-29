@@ -63,6 +63,7 @@ import { useJpVocabExportActions } from "@/hooks/useJpVocabExportActions";
 import { useJpVocabPageWordHandlers } from "@/hooks/useJpVocabPageWordHandlers";
 import { useJpVocabPageSync } from "@/hooks/useJpVocabPageSync";
 import { useJpVocabReviewActions } from "@/hooks/useJpVocabReviewActions";
+import { useJpVocabSearchFreshLoad } from "@/hooks/useJpVocabSearchFreshLoad";
 import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
 import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
 import { useVocabTeacherQuizSyncPollActive } from "@/hooks/useVocabTeacherQuizSyncPollActive";
@@ -236,6 +237,9 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     void syncTeacherVisibleLimitFromServer();
     void loadWords({ force: true });
   }, [loadWords, syncTeacherVisibleLimitFromServer]);
+
+  // 搜索时强制拉最新词表，避免匹配到 localStorage SWR 过期数据
+  useJpVocabSearchFreshLoad(searchQuery, loadWords);
 
   // 账号正常：约 30 分钟软刷新今日抽查数量/词表；禁用账号不刷新
   useEffect(() => {

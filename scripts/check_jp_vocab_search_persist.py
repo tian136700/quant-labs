@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: 日语抽问搜索关键词刷新后保留，并有最近搜索下拉。"""
+"""Regression: 日语抽问搜索关键词刷新后保留，最近搜索下拉，有关键词强制拉最新。"""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ HELPERS = ROOT / "src/lib/jp-vocab-page-helpers.ts"
 PAGE = ROOT / "src/components/JpVocabPage.tsx"
 SEARCH = ROOT / "src/components/jp-vocab-page/JpVocabPageSearch.tsx"
 STYLES = ROOT / "src/components/jp-vocab-page/JpVocabPageStylesLayout.tsx"
+FRESH_HOOK = ROOT / "src/hooks/useJpVocabSearchFreshLoad.ts"
+SWR = ROOT / "src/lib/client-swr-cache.ts"
 
 
 def fail(msg: str) -> None:
@@ -25,12 +27,15 @@ def main() -> None:
     page = PAGE.read_text(encoding="utf-8")
     search = SEARCH.read_text(encoding="utf-8")
     styles = STYLES.read_text(encoding="utf-8")
+    fresh_hook = FRESH_HOOK.read_text(encoding="utf-8")
+    swr = SWR.read_text(encoding="utf-8")
 
     for needle in [
         'JP_VOCAB_SEARCH_QUERY_STORAGE_KEY = "jp_vocab_search_query"',
         'JP_VOCAB_SEARCH_KIND_STORAGE_KEY = "jp_vocab_search_kind"',
         'JP_VOCAB_SEARCH_HISTORY_STORAGE_KEY = "jp_vocab_search_history"',
         "JP_VOCAB_SEARCH_HISTORY_MAX = 8",
+        "JP_VOCAB_SEARCH_FRESH_DEBOUNCE_MS",
     ]:
         if needle not in constants:
             fail(f"constants missing {needle}")
@@ -52,9 +57,8 @@ def main() -> None:
         fail("JpVocabPage must init searchQuery from localStorage")
     if "readStoredJpVocabKindFilter()" not in page:
         fail("JpVocabPage must init kindFilter from localStorage")
-    if 'useState("")' in page and "searchQuery" in page.split('useState("")')[0][-80:]:
-        # soft: empty init is OK only if not for searchQuery — already checked above
-        pass
+    if "useJpVocabSearchFreshLoad(searchQuery, loadWords)" not in page:
+        fail("JpVocabPage must call useJpVocabSearchFreshLoad(searchQuery, loadWords)")
 
     for needle in [
         "writeStoredJpVocabSearchQuery",
@@ -72,7 +76,18 @@ def main() -> None:
     if "jp-vocab-search__history" not in styles:
         fail("styles missing history panel")
 
-    print("OK: jp-vocab search persist + recent history")
+    for needle in [
+        "loadWords({ force: true })",
+        "JP_VOCAB_SEARCH_FRESH_DEBOUNCE_MS",
+        "searchQuery.trim()",
+    ]:
+        if needle not in fresh_hook:
+            fail(f"useJpVocabSearchFreshLoad missing {needle}")
+
+    if 'cache: "no-store"' not in swr:
+        fail("fetchWithClientCache must use cache: no-store so force bypasses HTTP cache")
+
+    print("OK: jp-vocab search persist + recent history + fresh-on-search")
 
 
 if __name__ == "__main__":

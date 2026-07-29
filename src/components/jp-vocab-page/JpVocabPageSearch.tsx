@@ -202,7 +202,7 @@ export function JpVocabPageSearch({
                   setHistoryOpen(false);
                 }
               }}
-              placeholder="单词、读音、释义、词性…（搜索全库，本地即时）"
+              placeholder="单词、读音、释义、词性…（搜索全库；有关键词时自动拉最新）"
               disabled={loading}
               autoComplete="off"
               spellCheck={false}

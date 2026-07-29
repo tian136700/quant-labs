@@ -47,3 +47,5 @@ export const JP_VOCAB_SEARCH_KIND_STORAGE_KEY = "jp_vocab_search_kind";
 export const JP_VOCAB_SEARCH_HISTORY_STORAGE_KEY = "jp_vocab_search_history";
 /** 最近搜索最多保留条数 */
 export const JP_VOCAB_SEARCH_HISTORY_MAX = 8;
+/** 搜索关键词变化后多久强制拉最新词表（绕过本地 SWR TTL） */
+export const JP_VOCAB_SEARCH_FRESH_DEBOUNCE_MS = 400;
