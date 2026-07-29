@@ -555,6 +555,59 @@ export type UploadEnVocabWordsResult =
     }
   | { ok: false; error: string };
 
+export type ClearEnVocabApiUploadMeaningsResult = {
+  ok: true;
+  cleared: number;
+};
+
+/** 清空 upload_source=api 词条的释义（STT 侧释义不准，留给 fill-meaning） */
+export async function clearEnVocabApiUploadMeanings(
+  db: D1Database
+): Promise<ClearEnVocabApiUploadMeaningsResult> {
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+  const ts = nowIso();
+
+  if (enVocabDbState.devStoreEnabled) {
+    let cleared = 0;
+    for (let i = 0; i < enVocabDbState.devWords.length; i++) {
+      const row = enVocabDbState.devWords[i];
+      if (
+        normalizeEnVocabUploadSource(row.upload_source) !==
+        EN_VOCAB_UPLOAD_SOURCE_API
+      ) {
+        continue;
+      }
+      if (!(row.meaning || "").trim() && !(row.meaning_source || "").trim()) {
+        continue;
+      }
+      enVocabDbState.devWords[i] = {
+        ...row,
+        meaning: null,
+        meaning_source: null,
+        updated_at: ts,
+      };
+      cleared++;
+    }
+    return { ok: true, cleared };
+  }
+
+  const result = await db
+    .prepare(
+      `UPDATE en_vocab_word
+       SET meaning = NULL, meaning_source = NULL, updated_at = ?1
+       WHERE upload_source = ?2
+         AND (
+           meaning IS NOT NULL AND TRIM(meaning) != ''
+           OR meaning_source IS NOT NULL AND TRIM(meaning_source) != ''
+         )`
+    )
+    .bind(ts, EN_VOCAB_UPLOAD_SOURCE_API)
+    .run();
+
+  return { ok: true, cleared: result.meta.changes ?? 0 };
+}
+
 export async function uploadEnVocabWords(
   db: D1Database,
   words: EnVocabUploadInput[],
@@ -562,17 +615,24 @@ export async function uploadEnVocabWords(
   refs: EnVocabRefUploadInput[] = []
 ): Promise<UploadEnVocabWordsResult> {
   const cleaned = words
-    .map((w) => ({
-      word: normalizeWord(w.word),
-      reading: (w.reading || "").trim() || null,
-      meaning: (w.meaning || "").trim() || null,
-      kind: normalizeKind(w.kind),
-      category: normalizeEnVocabCategory(w.category),
-      upload_source: normalizeEnVocabUploadSource(
+    .map((w) => {
+      const upload_source = normalizeEnVocabUploadSource(
         w.upload_source || EN_VOCAB_UPLOAD_SOURCE_API
-      ),
-      ref_key: w.ref_key ? normalizeEnVocabRefKey(w.ref_key) || null : null,
-    }))
+      );
+      return {
+        word: normalizeWord(w.word),
+        reading: (w.reading || "").trim() || null,
+        /** API 上传只推词与分类；释义走 fill-meaning，勿写入 STT/脚本侧释义 */
+        meaning:
+          upload_source === EN_VOCAB_UPLOAD_SOURCE_API
+            ? null
+            : (w.meaning || "").trim() || null,
+        kind: normalizeKind(w.kind),
+        category: normalizeEnVocabCategory(w.category),
+        upload_source,
+        ref_key: w.ref_key ? normalizeEnVocabRefKey(w.ref_key) || null : null,
+      };
+    })
     .filter((w) => w.word);
 
   if (!cleaned.length) {

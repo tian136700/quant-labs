@@ -1,6 +1,7 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import { uploadEnVocabWords } from "@/lib/en-vocab-db";
+import { sanitizeEnVocabLocalUploadInputs } from "@/lib/en-vocab-local-upload";
 import { EN_VOCAB_UPLOAD_SOURCE_API } from "@/lib/en-vocab-upload-source";
 import type { EnVocabRefUploadInput, EnVocabUploadInput } from "@/lib/types";
 
@@ -18,7 +19,9 @@ export async function POST(request: Request) {
       refs?: EnVocabRefUploadInput[];
     };
 
-    const words = (Array.isArray(body.words) ? body.words : []).map((w) => ({
+    const words = sanitizeEnVocabLocalUploadInputs(
+      Array.isArray(body.words) ? body.words : []
+    ).map((w) => ({
       ...w,
       upload_source: w.upload_source || EN_VOCAB_UPLOAD_SOURCE_API,
     }));

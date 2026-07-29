@@ -1,6 +1,10 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { verifyUploadAuth } from "@/lib/jp-review";
-import { uploadEnVocabWords } from "@/lib/en-vocab-db";
+import { clearEnVocabApiUploadMeanings, uploadEnVocabWords } from "@/lib/en-vocab-db";
+import {
+  sanitizeEnVocabLocalUploadInput,
+  sanitizeEnVocabLocalUploadInputs,
+} from "@/lib/en-vocab-local-upload";
 import { EN_VOCAB_UPLOAD_SOURCE_API } from "@/lib/en-vocab-upload-source";
 import type { EnVocabUploadInput } from "@/lib/types";
 
@@ -25,9 +29,12 @@ function buildUploadSummaryMessage(
  * 本地 STT / 脚本：直接往英语抽背词库推词（不经英语新课）。
  * 自动标记 upload_source=api → 页面显示「通过API接口上传」。
  * 重复词不覆盖，返回 duplicate_words / duplicates 提示。
+ * 不接受释义：即使请求体带 meaning 也会忽略，释义由 fill-meaning 后续补全。
  *
  * POST /api/en-vocab/local-upload
  * Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+ *
+ * 维护：{ "mode": "clear_api_meanings" } 清空已有 api 上传词条的释义。
  */
 export async function POST(request: Request) {
   try {
@@ -38,6 +45,7 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json()) as {
+      mode?: string;
       words?: EnVocabUploadInput[] | EnVocabUploadInput;
       word?: string;
       category?: string | null;
@@ -46,6 +54,19 @@ export async function POST(request: Request) {
       meaning?: string | null;
     };
 
+    if (body.mode === "clear_api_meanings") {
+      const result = await clearEnVocabApiUploadMeanings(env.DB);
+      return jsonResponse({
+        ok: true,
+        mode: "clear_api_meanings",
+        cleared: result.cleared,
+        message:
+          result.cleared > 0
+            ? `已清空 ${result.cleared} 条「通过API接口上传」词条的释义`
+            : "没有需要清空的 API 上传释义",
+      });
+    }
+
     let words: EnVocabUploadInput[] = [];
     if (Array.isArray(body.words)) {
       words = body.words;
@@ -53,17 +74,16 @@ export async function POST(request: Request) {
       words = [body.words];
     } else if (typeof body.word === "string" && body.word.trim()) {
       words = [
-        {
+        sanitizeEnVocabLocalUploadInput({
           word: body.word,
           category: body.category,
           kind: body.kind === "grammar" ? "grammar" : "word",
           reading: body.reading,
-          meaning: body.meaning,
-        },
+        }),
       ];
     }
 
-    words = words.map((w) => ({
+    words = sanitizeEnVocabLocalUploadInputs(words).map((w) => ({
       ...w,
       upload_source: EN_VOCAB_UPLOAD_SOURCE_API,
     }));

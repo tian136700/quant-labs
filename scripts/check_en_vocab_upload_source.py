@@ -78,6 +78,22 @@ def main() -> None:
         "duplicate_words",
     )
     must_contain(
+        ROOT / "src/app/api/en-vocab/local-upload/route.ts",
+        "clear_api_meanings",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-local-upload.ts",
+        "sanitizeEnVocabLocalUploadInput",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-db/words.ts",
+        "clearEnVocabApiUploadMeanings",
+    )
+    must_contain(
+        ROOT / "docs/en-vocab-local-upload-api.txt",
+        "不接受释义",
+    )
+    must_contain(
         ROOT / "docs/en-vocab-local-upload-api.txt",
         "POST https://english.info-quests.com/api/en-vocab/local-upload",
     )
