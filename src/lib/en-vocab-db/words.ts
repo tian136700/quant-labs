@@ -30,6 +30,7 @@ import {
   normalizeEnVocabRefKey,
 } from "@/lib/en-vocab-ref-shared";
 import { normalizeEnVocabCategory } from "@/lib/en-vocab-category";
+import { isEnVocabTrustedOnlineMeaningSource } from "@/lib/en-vocab-local-upload";
 import {
   EN_VOCAB_UPLOAD_SOURCE_API,
   EN_VOCAB_UPLOAD_SOURCE_MANUAL,
@@ -560,7 +561,16 @@ export type ClearEnVocabApiUploadMeaningsResult = {
   cleared: number;
 };
 
-/** 清空 upload_source=api 词条的释义（STT 侧释义不准，留给 fill-meaning） */
+/** STT / 本地误写释义（非 fill-meaning 线上来源） */
+function isEnVocabSttMeaningToScrub(
+  meaning: string | null | undefined,
+  meaningSource: string | null | undefined
+): boolean {
+  if (!(meaning || "").trim()) return false;
+  return !isEnVocabTrustedOnlineMeaningSource(meaningSource);
+}
+
+/** 清空 upload_source=api 词条里 STT 误传的释义（保留「线上 …」来源） */
 export async function clearEnVocabApiUploadMeanings(
   db: D1Database
 ): Promise<ClearEnVocabApiUploadMeaningsResult> {
@@ -578,7 +588,7 @@ export async function clearEnVocabApiUploadMeanings(
       ) {
         continue;
       }
-      if (!(row.meaning || "").trim() && !(row.meaning_source || "").trim()) {
+      if (!isEnVocabSttMeaningToScrub(row.meaning, row.meaning_source)) {
         continue;
       }
       enVocabDbState.devWords[i] = {
@@ -597,9 +607,11 @@ export async function clearEnVocabApiUploadMeanings(
       `UPDATE en_vocab_word
        SET meaning = NULL, meaning_source = NULL, updated_at = ?1
        WHERE upload_source = ?2
+         AND meaning IS NOT NULL AND TRIM(meaning) != ''
          AND (
-           meaning IS NOT NULL AND TRIM(meaning) != ''
-           OR meaning_source IS NOT NULL AND TRIM(meaning_source) != ''
+           meaning_source IS NULL
+           OR TRIM(meaning_source) = ''
+           OR meaning_source NOT LIKE '线上%'
          )`
     )
     .bind(ts, EN_VOCAB_UPLOAD_SOURCE_API)
@@ -607,6 +619,67 @@ export async function clearEnVocabApiUploadMeanings(
 
   const cleared = Number(result.meta?.changes) || 0;
   return { ok: true, cleared };
+}
+
+/**
+ * 本批 local-upload 涉及的词（含重复跳过）：清掉库中 api 词条的 STT 误传释义。
+ * 重复词不会 INSERT，但仍可能留着旧 STT 释义，须主动清。
+ */
+export async function scrubEnVocabApiUploadSttMeaningsForWords(
+  db: D1Database,
+  words: string[]
+): Promise<{ cleared: number }> {
+  const keys = [...new Set(words.map((w) => normalizeWord(w)).filter(Boolean))];
+  if (!keys.length) return { cleared: 0 };
+
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+  const ts = nowIso();
+
+  if (enVocabDbState.devStoreEnabled) {
+    let cleared = 0;
+    const keySet = new Set(keys);
+    for (let i = 0; i < enVocabDbState.devWords.length; i++) {
+      const row = enVocabDbState.devWords[i];
+      if (!keySet.has(row.word)) continue;
+      if (
+        normalizeEnVocabUploadSource(row.upload_source) !==
+        EN_VOCAB_UPLOAD_SOURCE_API
+      ) {
+        continue;
+      }
+      if (!isEnVocabSttMeaningToScrub(row.meaning, row.meaning_source)) {
+        continue;
+      }
+      enVocabDbState.devWords[i] = {
+        ...row,
+        meaning: null,
+        meaning_source: null,
+        updated_at: ts,
+      };
+      cleared++;
+    }
+    return { cleared };
+  }
+
+  const placeholders = keys.map((_, i) => `?${i + 3}`).join(", ");
+  const result = await db
+    .prepare(
+      `UPDATE en_vocab_word
+       SET meaning = NULL, meaning_source = NULL, updated_at = ?1
+       WHERE upload_source = ?2
+         AND word IN (${placeholders})
+         AND meaning IS NOT NULL AND TRIM(meaning) != ''
+         AND (
+           meaning_source IS NULL
+           OR TRIM(meaning_source) = ''
+           OR meaning_source NOT LIKE '线上%'
+         )`
+    )
+    .bind(ts, EN_VOCAB_UPLOAD_SOURCE_API, ...keys)
+    .run();
+
+  return { cleared: Number(result.meta?.changes) || 0 };
 }
 
 export async function uploadEnVocabWords(

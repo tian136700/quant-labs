@@ -1,6 +1,6 @@
 import { getCloudflareEnv, jsonResponse } from "@/lib/cloudflare-env";
 import { verifyUploadAuth } from "@/lib/jp-review";
-import { clearEnVocabApiUploadMeanings, uploadEnVocabWords } from "@/lib/en-vocab-db";
+import { clearEnVocabApiUploadMeanings, scrubEnVocabApiUploadSttMeaningsForWords, uploadEnVocabWords } from "@/lib/en-vocab-db";
 import {
   sanitizeEnVocabLocalUploadInput,
   sanitizeEnVocabLocalUploadInputs,
@@ -28,13 +28,13 @@ function buildUploadSummaryMessage(
 /**
  * 本地 STT / 脚本：直接往英语抽背词库推词（不经英语新课）。
  * 自动标记 upload_source=api → 页面显示「通过API接口上传」。
- * 重复词不覆盖，返回 duplicate_words / duplicates 提示。
+ * 重复词不覆盖，但会清掉该词上残留的 STT 误传释义（保留 fill-meaning「线上」来源）。
  * 不接受释义：即使请求体带 meaning 也会忽略，释义由 fill-meaning 后续补全。
  *
  * POST /api/en-vocab/local-upload
  * Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
  *
- * 维护：{ "mode": "clear_api_meanings" } 清空已有 api 上传词条的释义。
+ * 维护：{ "mode": "clear_api_meanings" } 清空已有 api 上传词条的 STT 误传释义。
  */
 export async function POST(request: Request) {
   try {
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
         cleared: result.cleared,
         message:
           result.cleared > 0
-            ? `已清空 ${result.cleared} 条「通过API接口上传」词条的释义`
-            : "没有需要清空的 API 上传释义",
+            ? `已清空 ${result.cleared} 条「通过API接口上传」词条的 STT 误传释义`
+            : "没有需要清空的 API 上传 STT 释义",
       });
     }
 
@@ -94,6 +94,11 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, 400);
     }
 
+    const scrubbed = await scrubEnVocabApiUploadSttMeaningsForWords(
+      env.DB,
+      words.map((w) => w.word)
+    );
+
     const duplicateWords = result.duplicate_words;
     const hasDuplicates = duplicateWords.length > 0;
     const message = buildUploadSummaryMessage(result.added, duplicateWords);
@@ -112,6 +117,7 @@ export async function POST(request: Request) {
       })),
       has_duplicates: hasDuplicates,
       message,
+      meanings_scrubbed: scrubbed.cleared,
       upload_source: EN_VOCAB_UPLOAD_SOURCE_API,
       upload_source_label: "通过API接口上传",
     });

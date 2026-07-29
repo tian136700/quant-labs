@@ -87,7 +87,7 @@ def main() -> None:
     )
     must_contain(
         ROOT / "src/lib/en-vocab-db/words.ts",
-        "clearEnVocabApiUploadMeanings",
+        "scrubEnVocabApiUploadSttMeaningsForWords",
     )
     must_contain(
         ROOT / "docs/en-vocab-local-upload-api.txt",
