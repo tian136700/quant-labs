@@ -17,6 +17,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "lib"))
+from worker_fill_http import post_worker_fill_api  # noqa: E402
+
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences"
 DEFAULT_MODEL = "gpt-4o-mini"
 
@@ -81,23 +85,13 @@ def call_api(
     payload: dict,
     timeout: int = 180,
 ) -> dict:
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
+    return post_worker_fill_api(
         api_url,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-            "User-Agent": "jp-vocab-fill-example-sentences-ai/1.0",
-        },
-        method="POST",
+        token,
+        payload,
+        user_agent="jp-vocab-fill-example-sentences-ai/1.0",
+        timeout=timeout,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout, context=_SSL) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as err:
-        detail = err.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"API HTTP {err.code}: {detail}") from err
 
 
 def is_japanese_line(text: str) -> bool:

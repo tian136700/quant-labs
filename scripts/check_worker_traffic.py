@@ -136,14 +136,26 @@ def main() -> int:
             errors.append(f"{rel} 须 enforceVocabFillRouteRateLimit（5s 硬限）")
 
     fill_script = read("scripts/jp-vocab-fill-meaning-api.py")
-    if "API_MIN_INTERVAL_SEC = 5" not in fill_script:
-        errors.append("释义脚本须 API_MIN_INTERVAL_SEC=5 对齐线上硬限")
+    if "post_worker_fill_api" not in fill_script:
+        errors.append("释义脚本须走 worker_fill_http.post_worker_fill_api（5s）")
 
     en_common = read("scripts/lib/en_vocab_fill_common.py")
-    if "API_MIN_INTERVAL_SEC = 5" not in en_common:
-        errors.append("en_vocab_fill_common 须 API_MIN_INTERVAL_SEC=5")
-    if "_is_fill_interval_rate_limited" not in en_common:
-        errors.append("en_vocab_fill_common 须区分接口限流 429 与配额 1027")
+    if "post_worker_fill_api" not in en_common:
+        errors.append("en_vocab_fill_common 须走 post_worker_fill_api（5s）")
+
+    fill_http = read("scripts/lib/worker_fill_http.py")
+    if "API_MIN_INTERVAL_SEC = 5" not in fill_http:
+        errors.append("worker_fill_http 须 API_MIN_INTERVAL_SEC=5")
+
+    for rel in (
+        "scripts/jp-vocab-fill-reading-api.py",
+        "scripts/jp-vocab-fill-example-sentences-api.py",
+        "scripts/jp-vocab-fill-example-sentences-ai.py",
+        "scripts/jp-vocab-fill-grammar-usage-examples-api.py",
+    ):
+        script = read(rel)
+        if "post_worker_fill_api" not in script:
+            errors.append(f"{rel} 须走 post_worker_fill_api（定时打线上须 5s）")
 
     if "VOCAB_FILL_API_MIN_INTERVAL_MS" not in rate_limit:
         errors.append("worker-api-rate-limit 须含 VOCAB_FILL_API_MIN_INTERVAL_MS")

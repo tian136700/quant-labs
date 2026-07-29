@@ -50,6 +50,7 @@ from worker_api_guard import (  # noqa: E402
     record_worker_unavailable,
     skip_if_worker_unavailable,
 )
+from worker_fill_http import post_worker_fill_api  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
 HTTP_USER_AGENT = "jp-vocab-fill-grammar-usage-examples/2.0"
@@ -309,50 +310,14 @@ def poison_word(word_id: int, reason: str) -> None:
 
 
 def call_api(*, api_url: str, token: str, body: dict, retries: int = 6) -> dict:
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    last_err: Exception | None = None
-    for attempt in range(retries):
-        req = urllib.request.Request(
-            api_url,
-            data=data,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {token}",
-                "User-Agent": HTTP_USER_AGENT,
-            },
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            last_err = exc
-            payload = exc.read().decode("utf-8", errors="replace")
-            # 1027 / 日配额顶满：立刻停，写 10 分钟负缓存，勿再重试烧 Worker
-            if exc.code == 429 or looks_rate_limited_body(payload):
-                reason = (
-                    "rate_limited_1027"
-                    if looks_rate_limited_body(payload)
-                    else "http_429"
-                )
-                record_worker_unavailable(api_url, reason)
-                print(
-                    f"[jp-grammar-fill] skip: Worker {reason}；本轮退出，"
-                    "约 10 分钟后再试（配额约北京 08:00 重置）。",
-                    flush=True,
-                )
-                raise SystemExit(0) from exc
-            if exc.code in (500, 502, 503, 504) and attempt + 1 < retries:
-                time.sleep(min(30, 2**attempt))
-                continue
-            raise SystemExit(f"HTTP {exc.code}: {payload[:500]}") from exc
-        except Exception as exc:  # noqa: BLE001
-            last_err = exc
-            if attempt + 1 < retries:
-                time.sleep(min(30, 2**attempt))
-                continue
-            raise
-    raise SystemExit(f"API failed: {last_err}")
+    return post_worker_fill_api(
+        api_url,
+        token,
+        body,
+        user_agent=HTTP_USER_AGENT,
+        timeout=120,
+        retries=retries,
+    )
 
 
 def parse_pair_output(raw: str) -> tuple[str, str] | None:

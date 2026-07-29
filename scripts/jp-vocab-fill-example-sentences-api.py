@@ -27,6 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
+from worker_fill_http import post_worker_fill_api  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-example-sentences"
 
@@ -60,23 +61,13 @@ def load_api_url() -> str:
 
 
 def call_api(*, api_url: str, token: str, payload: dict, timeout: int = 180) -> dict:
-    req = urllib.request.Request(
+    return post_worker_fill_api(
         api_url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-            "User-Agent": "jp-vocab-fill-example-sentences-api/2.0",
-        },
-        method="POST",
+        token,
+        payload,
+        user_agent="jp-vocab-fill-example-sentences-api/2.0",
+        timeout=timeout,
     )
-    ctx = ssl.create_default_context()
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as err:
-        body = err.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"HTTP {err.code}: {body}") from err
 
 
 def main() -> int:

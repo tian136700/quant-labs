@@ -23,10 +23,12 @@ DEFAULT_FALLBACK_MODELS = "qwen2.5:14b,qwen2.5:7b"
 DEFAULT_SOURCE = "本地 gemma4:26b"
 # 单模型读超时（秒）；超时立刻切下一档，不把 10 分钟再重试一遍
 DEFAULT_OLLAMA_TIMEOUT_SEC = 600
-# 与线上 Worker 词表补全硬限流对齐（每 IP × 路径 ≥5s）
-API_MIN_INTERVAL_SEC = 5
 
-_last_worker_api_at = 0.0
+# 与线上硬限流对齐（re-export）
+from worker_fill_http import (  # noqa: E402
+    API_MIN_INTERVAL_SEC,
+    post_worker_fill_api,
+)
 
 
 def load_env_file(name: str) -> dict[str, str]:
@@ -126,11 +128,6 @@ def build_ssl_context() -> ssl.SSLContext | None:
 _SSL = build_ssl_context()
 
 
-def _is_fill_interval_rate_limited(detail: str) -> bool:
-    text = (detail or "").lower()
-    return "rate_limited" in text and "1027" not in text
-
-
 def call_api(
     api_url: str,
     token: str,
@@ -140,86 +137,16 @@ def call_api(
     user_agent: str = "en-vocab-fill/1.0",
     retries: int = 6,
 ) -> dict:
-    """POST Worker；本地对齐 ≥5s；接口限流 429 尊 Retry-After；配额 1027 才整轮退出。"""
-    import time
-
-    global _last_worker_api_at
-
-    gap = API_MIN_INTERVAL_SEC - (time.time() - _last_worker_api_at)
-    if _last_worker_api_at > 0 and gap > 0:
-        print(
-            f"[{user_agent}] Worker 间隔门禁：等待 {gap:.1f}s"
-            f"（≥{API_MIN_INTERVAL_SEC}s）…",
-            flush=True,
-        )
-        time.sleep(gap)
-
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    last_err: Exception | None = None
-
-    for attempt in range(1, max(1, retries) + 1):
-        req = urllib.request.Request(
-            api_url,
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {token}",
-                "User-Agent": user_agent,
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=_SSL) as resp:
-                payload_out = json.loads(resp.read().decode("utf-8"))
-                _last_worker_api_at = time.time()
-                return payload_out
-        except urllib.error.HTTPError as err:
-            detail = err.read().decode("utf-8", errors="replace")
-            if err.code == 429 and _is_fill_interval_rate_limited(detail):
-                retry_hdr = err.headers.get("Retry-After") if err.headers else None
-                try:
-                    wait = max(API_MIN_INTERVAL_SEC, int(float(retry_hdr or "5")))
-                except ValueError:
-                    wait = API_MIN_INTERVAL_SEC
-                print(
-                    f"[{user_agent}] 接口限流 429 "
-                    f"(attempt {attempt}/{retries})，等待 {wait}s… "
-                    f"detail={detail[:120]!r}",
-                    flush=True,
-                )
-                time.sleep(wait)
-                _last_worker_api_at = time.time()
-                last_err = SystemExit(f"API HTTP 429: {detail}")
-                if attempt >= retries:
-                    raise last_err from err
-                continue
-
-            try:
-                from worker_api_guard import (  # noqa: WPS433
-                    looks_rate_limited_body,
-                    record_worker_unavailable,
-                )
-
-                if err.code == 429 or looks_rate_limited_body(detail):
-                    reason = (
-                        "rate_limited_1027"
-                        if looks_rate_limited_body(detail)
-                        else "http_429"
-                    )
-                    record_worker_unavailable(api_url, reason)
-                    print(
-                        f"[{user_agent}] skip: Worker {reason}；本轮退出，"
-                        "约 10 分钟后再试（配额约北京 08:00 重置）。",
-                        flush=True,
-                    )
-                    raise SystemExit(0) from err
-            except SystemExit:
-                raise
-            except Exception:
-                pass
-            raise SystemExit(f"API HTTP {err.code}: {detail}") from err
-
-    raise last_err or SystemExit("call_api failed")
+    """POST Worker；≥5s 间隔 + 429/1027 见 worker_fill_http。"""
+    return post_worker_fill_api(
+        api_url,
+        token,
+        payload,
+        user_agent=user_agent,
+        timeout=timeout,
+        retries=retries,
+        ssl_context=_SSL,
+    )
 
 
 def probe_ollama(*, timeout: int = 5) -> bool:

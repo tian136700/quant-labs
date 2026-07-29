@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
+from worker_fill_http import post_worker_fill_api  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-reading"
 JISHO_URL = "https://jisho.org/api/v1/search/words?keyword="
@@ -142,25 +143,14 @@ def call_api(
     elif mode:
         payload["mode"] = mode
 
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
+    return post_worker_fill_api(
         api_url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": HTTP_USER_AGENT,
-            "Accept": "application/json",
-        },
+        token,
+        payload,
+        user_agent=HTTP_USER_AGENT,
+        timeout=300,
+        ssl_context=_SSL_CONTEXT,
     )
-
-    try:
-        with urllib.request.urlopen(request, timeout=300, context=_SSL_CONTEXT) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as err:
-        detail = err.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"API HTTP {err.code}: {detail}") from err
 
 
 def analyze_word(word: str) -> tuple[str, str, str | None]:
