@@ -1,4 +1,5 @@
 import type { EnVocabWord } from "@/lib/types";
+import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 
 /** 学生复习页：共享列表轮询（对齐 jp-vocab study，禁止 <5s） */
 /** 学生今日单词：可见 5s 拉 shared，课堂勾选后尽快弹卡 */
@@ -30,6 +31,26 @@ export function maxEnVocabUpdatedAt(words: EnVocabWord[]): string {
   return max;
 }
 
+/** 列表 / sync 补丁省略备注正文时，勿用 null 冲掉本地已拉取的 class_notes */
+function mergeEnVocabWordSyncPatch(
+  current: EnVocabWord,
+  patch: EnVocabWord
+): EnVocabWord {
+  const merged: EnVocabWord = { ...current, ...patch };
+  const patchHasNotesBody = hasEnVocabClassNotes(patch.class_notes);
+  if (patchHasNotesBody) return merged;
+  if (patch.class_notes_present === false) return merged;
+  if (
+    patch.class_notes_present === true ||
+    hasEnVocabClassNotes(current.class_notes, current.class_notes_present)
+  ) {
+    merged.class_notes = current.class_notes;
+    merged.class_notes_present =
+      patch.class_notes_present ?? current.class_notes_present;
+  }
+  return merged;
+}
+
 /** 用服务端较新的词条补丁合并本地列表（按 updated_at） */
 export function mergeEnVocabSyncPatches(
   current: EnVocabWord[],
@@ -40,6 +61,6 @@ export function mergeEnVocabSyncPatches(
   return current.map((w) => {
     const patch = byId.get(w.id);
     if (!patch || patch.updated_at <= w.updated_at) return w;
-    return { ...w, ...patch };
+    return mergeEnVocabWordSyncPatch(w, patch);
   });
 }

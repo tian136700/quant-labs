@@ -96,6 +96,9 @@ import {
   mapRow,
   ensureVocabWordSchema,
   WORD_SELECT,
+  WORD_SELECT_LIST,
+  mapEnVocabListWordRow,
+  stripEnVocabWordNotesForList,
   refsRecord,
   upsertEnVocabRefMetadata,
   saveEnVocabRefFileMeta,
@@ -121,17 +124,19 @@ export async function listEnVocabWords(db: D1Database): Promise<EnVocabWord[]> {
   await ensureVocabWordSchema(db);
 
   if (enVocabDbState.devStoreEnabled) {
-    return sortEnVocabWords(enVocabDbState.devWords);
+    return sortEnVocabWords(
+      enVocabDbState.devWords.map(stripEnVocabWordNotesForList)
+    );
   }
 
   const result = await db
     .prepare(
-      `${WORD_SELECT}
+      `${WORD_SELECT_LIST}
        ORDER BY cnt_weak DESC, cnt_normal DESC, word COLLATE NOCASE ASC`
     )
     .all<Record<string, unknown>>();
 
-  return (result.results || []).map(mapRow);
+  return (result.results || []).map(mapEnVocabListWordRow);
 }
 
 export async function listEnVocabWordsWithRefs(db: D1Database): Promise<{
@@ -159,17 +164,18 @@ export async function listEnVocabWordsChangedSince(
   if (enVocabDbState.devStoreEnabled) {
     return enVocabDbState.devWords
       .filter((w) => w.updated_at > marker)
+      .map(stripEnVocabWordNotesForList)
       .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
   }
 
   const result = await db
     .prepare(
-      `${WORD_SELECT} WHERE updated_at > ?1 ORDER BY updated_at ASC LIMIT 200`
+      `${WORD_SELECT_LIST} WHERE updated_at > ?1 ORDER BY updated_at ASC LIMIT 200`
     )
     .bind(marker)
     .all<Record<string, unknown>>();
 
-  return (result.results || []).map(mapRow);
+  return (result.results || []).map(mapEnVocabListWordRow);
 }
 
 export type RecordEnVocabReviewOptions = {

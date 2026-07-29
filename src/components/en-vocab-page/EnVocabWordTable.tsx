@@ -5,6 +5,7 @@ import { EnVocabSpeakButton } from "@/components/EnVocabSpeakButton";
 import { EnVocabUsageExamplesCell } from "@/components/EnVocabUsageExamplesCell";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { displayEnVocabCategory } from "@/lib/en-vocab-category";
+import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import { displayEnVocabUploadSource } from "@/lib/en-vocab-upload-source";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import type { EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -772,14 +773,20 @@ export function EnVocabWordTable({
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
-                            !(w.class_notes || "").trim() && !canOperate
+                            !hasEnVocabClassNotes(
+                              w.class_notes,
+                              w.class_notes_present
+                            ) && !canOperate
                               ? " jp-vocab-field-empty"
                               : ""
                           }`}
                           data-label="备注"
                         >
                           <div className="jp-vocab-notes-actions">
-                            {(w.class_notes || "").trim() ? (
+                            {hasEnVocabClassNotes(
+                              w.class_notes,
+                              w.class_notes_present
+                            ) ? (
                               <button
                                 type="button"
                                 className="btn-rsi-filter btn-rsi-filter--compact"

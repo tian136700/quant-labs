@@ -330,11 +330,26 @@ export async function ensureEnVocabWordSchema(db: D1Database): Promise<void> {
 }
 
 export function mapSharedListWordRow(row: Record<string, unknown>): EnVocabWord {
+  return mapEnVocabListWordRow(row);
+}
+
+/** 词表 / sync 列表：不读 class_notes 正文（含贴图时易 1102），只带 has_class_notes */
+export function mapEnVocabListWordRow(row: Record<string, unknown>): EnVocabWord {
   const word = mapRow({ ...row, class_notes: null });
   return {
     ...word,
     class_notes: null,
     class_notes_present: Boolean(Number(row.has_class_notes)),
+  };
+}
+
+/** dev store 列表与 D1 列表对齐：省略备注正文 */
+export function stripEnVocabWordNotesForList(word: EnVocabWord): EnVocabWord {
+  const present = Boolean((word.class_notes || "").trim());
+  return {
+    ...word,
+    class_notes: null,
+    class_notes_present: present,
   };
 }
 
@@ -364,6 +379,13 @@ export async function listEnVocabRefsByKeys(
 
 export const WORD_SELECT = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic,
+  usage, usage_source, example_sentences, example_sentences_source,
+  last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
+
+/** 全库列表 / 增量 sync：省略 class_notes 正文，用 has_class_notes 标记 */
+export const WORD_SELECT_LIST = `SELECT id, word, reading, reading_source, meaning, meaning_source, pos, kind, category, upload_source, ref_key,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
+  (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes, mnemonic,
   usage, usage_source, example_sentences, example_sentences_source,
   last_review_level, last_review_at, last_usage_levels, created_at, updated_at FROM en_vocab_word`;
 
