@@ -8,7 +8,7 @@ import {
   validateJpVocabConnectionAiOutput,
 } from "@/lib/jp-vocab-connection-ai";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
-import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
+import { validateJpVocabExampleSentencesAiOutput, normalizeJpVocabExampleSentencesForOnlineApply } from "@/lib/jp-vocab-example-sentences-ai";
 import {
   buildJpVocabUsageAiPrompt,
   isJpVocabConjugationGrammar,
@@ -750,6 +750,26 @@ export async function applyJpVocabUsageUpdates(
       usage = normalizeJpVocabUsageText(usage) || usage;
     } else {
       usage = "";
+    }
+
+    if (!validateFormat && examples) {
+      const normalized = normalizeJpVocabExampleSentencesForOnlineApply(examples, {
+        word: String(row.word),
+        kind: "grammar",
+        reading: row.reading,
+        meaning: row.meaning,
+        usage: usage || row.usage,
+      });
+      if (!normalized.ok) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: `examples_online_normalize:${normalized.reason}`,
+        });
+        examples = null;
+      } else {
+        examples = normalized.text;
+      }
     }
 
     const changed = await updateUsageExamplesAndConnection(

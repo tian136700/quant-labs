@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
-import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
+import { validateJpVocabExampleSentencesAiOutput, normalizeJpVocabExampleSentencesForOnlineApply } from "@/lib/jp-vocab-example-sentences-ai";
 import { normalizeJpVocabExampleSentencesSource } from "@/lib/jp-vocab-example-sentences";
 import {
   buildJpVocabMeaningAiPrompt,
@@ -342,7 +342,25 @@ export async function applyJpVocabMeaningUpdates(
           nextExamples = validated.text;
         }
       } else {
-        nextExamples = examplesRaw;
+        const normalized = normalizeJpVocabExampleSentencesForOnlineApply(
+          examplesRaw,
+          {
+            word: String(row.word),
+            kind: String(row.kind),
+            reading: row.reading,
+            meaning: meaningForExamples,
+          }
+        );
+        if (!normalized.ok) {
+          skipped.push({
+            id: wordId,
+            word: String(row.word),
+            reason: `examples_online_normalize:${normalized.reason}`,
+          });
+          examplesRaw = "";
+        } else {
+          nextExamples = normalized.text;
+        }
       }
     } else if (examplesRaw && !examplesEmpty) {
       examplesRaw = "";

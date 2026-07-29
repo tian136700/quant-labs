@@ -13,6 +13,7 @@ import {
 import {
   buildJpVocabExampleSentencesAiPrompt,
   JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC,
+  normalizeJpVocabExampleSentencesForOnlineApply,
   validateJpVocabExampleSentencesAiOutput,
 } from "@/lib/jp-vocab-example-sentences-ai";
 import {
@@ -565,6 +566,26 @@ export async function applyJpVocabExampleSentenceUpdates(
       exampleSentences = validated.text;
       // 接序随例句同次写回；暂不硬拒缺接序（旧 Mac/STT 客户端可能尚未拆【接序】）
       // 有传 connection 则上面已校验；无则 COALESCE 保留库里旧值
+    } else {
+      const normalized = normalizeJpVocabExampleSentencesForOnlineApply(
+        exampleSentences,
+        {
+          word: String(row.word),
+          kind: String(row.kind),
+          reading: row.reading,
+          meaning: row.meaning,
+          usage: row.usage,
+        }
+      );
+      if (!normalized.ok) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: `examples_online_normalize:${normalized.reason}`,
+        });
+        continue;
+      }
+      exampleSentences = normalized.text;
     }
 
     const changed = allowOverwrite

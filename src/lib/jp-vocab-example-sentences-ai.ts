@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  formatJpVocabExampleGlossLine,
   isJpVocabExampleGlossLine,
   isJpVocabExampleJapaneseLine,
   jpVocabExampleHasInvalidFuriganaParen,
@@ -353,5 +354,79 @@ export function validateJpVocabExampleSentencesAiOutput(
   return {
     ok: true,
     text: serializeJpVocabExampleSentenceItems(cleanedItems),
+  };
+}
+
+/**
+ * 线上付费 batch 写回：sanitize + 保留 JLPT (N5) 尾标；不硬拒漏标汉字 / 缺顿号等本地 STT 级校验。
+ * 本地 Ollama / 老师手改仍走 validateJpVocabExampleSentencesAiOutput。
+ */
+export function normalizeJpVocabExampleSentencesForOnlineApply(
+  raw: string,
+  input: JpVocabExampleSentencesAiInput
+): { ok: true; text: string } | { ok: false; reason: string } {
+  const split = splitJpVocabAiOutputConnectionSection(String(raw ?? ""));
+  const text = split.body.trim();
+  if (!text) return { ok: false, reason: "empty" };
+
+  const items = parseJpVocabExampleSentenceItems(text)
+    .map((item) => ({
+      text: sanitizeJpVocabExampleJapaneseLine(item.text),
+      glossLines: item.glossLines
+        .map((g) => formatJpVocabExampleGlossLine(g))
+        .filter(Boolean),
+    }))
+    .filter((item) => item.text.trim());
+
+  if (items.length < 1) {
+    return { ok: false, reason: "need_japanese_lines" };
+  }
+  if (input.kind !== "grammar" && items.length < 2) {
+    return { ok: false, reason: "need_two_japanese_lines" };
+  }
+
+  for (const item of items) {
+    if (!item.text || !isJpVocabExampleJapaneseLine(item.text)) {
+      return { ok: false, reason: "invalid_japanese_line" };
+    }
+    if (
+      LEMMA_PLACEHOLDER_WAVE_RE.test(stripAllJpVocabParenBlocks(item.text))
+    ) {
+      return { ok: false, reason: "lemma_placeholder_in_sentence" };
+    }
+    if (item.glossLines.length === 0) {
+      return { ok: false, reason: "missing_chinese_gloss" };
+    }
+    const glossBody = item.glossLines[0].replace(
+      /^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/,
+      ""
+    );
+    if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
+      return { ok: false, reason: "literal_chinese_gloss" };
+    }
+  }
+
+  if (input.kind !== "grammar") {
+    const target = input.word.trim();
+    const combined = items.map((item) => item.text).join("");
+    const combinedPlain = stripAllJpVocabParenBlocks(combined);
+    const surfaces = jpVocabExampleLemmaSurfaces(target);
+    const hit = surfaces.some(
+      (s) => combinedPlain.includes(s) || combined.includes(s)
+    );
+    if (!hit) {
+      const { stem } = jpVocabNaAdjParts(target);
+      const kans = (stem.match(/[\u4E00-\u9FFF]/g) || []).join("");
+      if (
+        !(kans && (combinedPlain.includes(kans) || combinedPlain.includes(kans[0]!)))
+      ) {
+        return { ok: false, reason: "word_not_used" };
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    text: serializeJpVocabExampleSentenceItems(items),
   };
 }
