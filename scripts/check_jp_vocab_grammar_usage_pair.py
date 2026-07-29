@@ -47,6 +47,17 @@ def main() -> int:
         errors.append("connection-ai 须用【接序】标记段")
     if "JpVocabConnectionSection" not in flash:
         errors.append("抽问卡须展示 JpVocabConnectionSection")
+    if "showWhenEmpty" not in flash:
+        errors.append("抽问卡接序须 showWhenEmpty（无数据也显示「接序」块）")
+    review = (
+        ROOT / "src/components/JpVocabAdminReviewFlashcardModal.tsx"
+    ).read_text(encoding="utf-8")
+    if "JpVocabConnectionSection" not in review or "showWhenEmpty" not in review:
+        errors.append("复习卡接序须 JpVocabConnectionSection + showWhenEmpty")
+    if "showExamples || hasJpVocabConnection" not in flash and "showExamples || hasJpVocabConnection" not in review:
+        # teacher card uses showExamples || has…
+        if "showExamples || hasJpVocabConnection(w.connection)" not in flash:
+            errors.append("抽问卡无接序数据时仍应随用法/例句区显示接序块")
     if "need_connection" not in fill_usage:
         errors.append("fill-usage list_missing 须含 need_connection")
     if "connection" not in script or "split_connection_section" not in script:

@@ -348,7 +348,9 @@ export function JpVocabTeacherQuizFlashcardModal({
     exampleSentences.length > 0 ||
     Boolean(usageExamplePairs.hasContent) ||
     (canManualFillExamples && !isGrammar);
-  const showConnection = hasJpVocabConnection(w.connection);
+  // 有用法/例句区就始终露出「接序」块（空也显示「暂无接序」），避免库里还没补时整段消失像没加字段
+  const showConnection =
+    showExamples || hasJpVocabConnection(w.connection);
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
@@ -675,6 +677,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           <JpVocabConnectionSection
             connection={w.connection}
             connectionSource={w.connection_source}
+            showWhenEmpty
           />
         ) : null}
 

@@ -196,8 +196,10 @@ export function JpVocabAdminReviewFlashcardModal({
     (exampleSentences.length > 0 ||
       Boolean(usageExamplePairs.hasContent) ||
       !isGrammar);
+  // 展开后与用法/例句同现：无接序也显示空态，避免预览/复习卡「像没加字段」
   const showConnection =
-    contentExpanded && hasJpVocabConnection(w.connection);
+    contentExpanded &&
+    (showExamples || hasJpVocabConnection(w.connection));
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
@@ -467,6 +469,7 @@ export function JpVocabAdminReviewFlashcardModal({
           <JpVocabConnectionSection
             connection={w.connection}
             connectionSource={w.connection_source}
+            showWhenEmpty
           />
         ) : null}
 
