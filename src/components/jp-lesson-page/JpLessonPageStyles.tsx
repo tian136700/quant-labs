@@ -417,58 +417,58 @@ export function JpLessonPageStyles() {
         :global(.jp-lesson-row--merged) {
           background: color-mix(in srgb, var(--accent) 4%, transparent);
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0) {
           background: color-mix(in srgb, #c9b86a 10%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1) {
           background: color-mix(in srgb, var(--fall) 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2) {
           background: color-mix(in srgb, #6ab8c8 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3) {
           background: color-mix(in srgb, var(--accent) 8%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4) {
           background: color-mix(in srgb, #9a8fbf 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5) {
           background: color-mix(in srgb, #c8a882 9%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0:hover) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-0:hover) {
           background: color-mix(in srgb, #c9b86a 13%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1:hover) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-1:hover) {
           background: color-mix(in srgb, var(--fall) 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2:hover) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-2:hover) {
           background: color-mix(in srgb, #6ab8c8 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3:hover) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-3:hover) {
           background: color-mix(in srgb, var(--accent) 11%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4:hover) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-4:hover) {
           background: color-mix(in srgb, #9a8fbf 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5:hover) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--day-tone-5:hover) {
           background: color-mix(in srgb, #c8a882 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-0) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-0) {
           background: color-mix(in srgb, #c9b86a 12%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-1) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-1) {
           background: color-mix(in srgb, var(--fall) 11%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-2) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-2) {
           background: color-mix(in srgb, #6ab8c8 11%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-3) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-3) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-4) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-4) {
           background: color-mix(in srgb, #9a8fbf 11%, var(--panel));
         }
-        :global(.jp-lesson-status-card--learning .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-5) {
+        :global(:is(.jp-lesson-status-card--learning, .jp-lesson-status-card--in_class) .jp-lesson-table tbody tr.jp-lesson-row--merged.jp-lesson-row--day-tone-5) {
           background: color-mix(in srgb, #c8a882 11%, var(--panel));
         }
         :global(.jp-lesson-merged-edit-stack) {
