@@ -9,6 +9,7 @@ import {
   adminPath,
   adminRbacPath,
   adminTrendsPath,
+  adminWorkerTrafficPath,
   adminUsersPath,
   adminToolCodesPath,
   adminJpLessonTeachersPath,
@@ -58,6 +59,7 @@ export type NavTarget =
   | "koPronStudy"
   | "koPronReview"
   | "admin"
+  | "adminWorkerTraffic"
   | "adminTrends"
   | "adminRbac"
   | "adminUsers"
@@ -123,6 +125,10 @@ function mainSitePath(target: NavTarget, locale: Locale): string {
       return "/ko-pron/review";
     case "admin":
       return locale === "zh" ? "/zh/admin" : "/admin";
+    case "adminWorkerTraffic":
+      return locale === "zh"
+        ? "/zh/admin/worker-traffic"
+        : "/admin/worker-traffic";
     case "adminTrends":
       return locale === "zh" ? "/zh/admin/trends" : "/admin/trends";
     case "adminRbac":
@@ -202,6 +208,8 @@ function relativePath(target: NavTarget, locale: Locale): string {
       return koPronReviewPath();
     case "admin":
       return adminPath(locale);
+    case "adminWorkerTraffic":
+      return adminWorkerTrafficPath(locale);
     case "adminTrends":
       return adminTrendsPath(locale);
     case "adminRbac":

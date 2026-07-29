@@ -36,6 +36,7 @@ export const enMessages: Messages = {
       storeReview: "Store Review",
       about: "About",
       adminDashboard: "Admin",
+      adminWorkerTraffic: "Traffic",
       adminTrends: "AI Prompts",
       adminRbac: "Roles",
       adminUsers: "Users",
@@ -101,7 +102,7 @@ export const enMessages: Messages = {
       page: {
         title: "Admin Dashboard",
         subtitle:
-          "Monitor visitor activity and feedback submissions. Admin login required.",
+          "Monitor visitor IPs, action logs, and feedback. Worker daily quota / Error 1027 is under Traffic. Admin login required.",
       },
       visits: {
         heading: "Visit & action logs",
@@ -187,6 +188,22 @@ export const enMessages: Messages = {
       },
       status: {
         loadFailed: "Failed to load data. Please try again.",
+      },
+    },
+    adminWorkerTraffic: {
+      meta: {
+        title: "Worker traffic monitor",
+        description: "Diagnose Cloudflare Workers Error 1027 daily request quota.",
+      },
+      page: {
+        title: "Worker traffic monitor",
+        subtitle:
+          "Beijing-day quota, top routes, top users, user×route pairs, and anonymous traffic. Use this for Error 1027; visit logs do not count API polling.",
+        backToAdmin: "← Back to admin (visit logs)",
+      },
+      auth: {
+        required: "Please sign in with an admin account.",
+        login: "Sign in",
       },
     },
     adminTrends: {

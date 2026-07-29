@@ -64,8 +64,8 @@ export const RBAC_PERMISSION_CATALOG: RbacPermissionDef[] = [
     labelZh: "后台管理",
     labelEn: "Admin dashboard",
     category: "admin",
-    descriptionZh: "访问统计与用户反馈",
-    descriptionEn: "Visit logs and user feedback",
+    descriptionZh: "访问日志、用户反馈；含流量检测看板入口",
+    descriptionEn: "Visit logs, feedback; includes worker traffic monitor",
   },
   {
     key: "admin:trends",

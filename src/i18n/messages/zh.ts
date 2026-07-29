@@ -36,6 +36,7 @@ export const zhMessages: Messages = {
       storeReview: "商店评价",
       about: "关于",
       adminDashboard: "后台管理",
+      adminWorkerTraffic: "流量检测",
       adminTrends: "AI 提示词",
       adminRbac: "角色权限",
       adminUsers: "用户管理",
@@ -100,7 +101,8 @@ export const zhMessages: Messages = {
       },
       page: {
         title: "后台管理",
-        subtitle: "查看访客操作记录与用户提交的建议。需管理员登录。",
+        subtitle:
+          "查看访客 IP、操作记录与用户反馈。Worker 日请求 / Error 1027 请到「流量检测」。需管理员登录。",
       },
       visits: {
         heading: "访问与操作日志",
@@ -185,6 +187,22 @@ export const zhMessages: Messages = {
       },
       status: {
         loadFailed: "加载失败，请重试。",
+      },
+    },
+    adminWorkerTraffic: {
+      meta: {
+        title: "流量检测看板",
+        description: "定位 Cloudflare Workers Error 1027（日请求顶满）。",
+      },
+      page: {
+        title: "流量检测看板",
+        subtitle:
+          "北京日配额进度、接口 Top、用户 Top、用户×接口交叉与匿名流量。用于定位 Error 1027；访问日志不统计 API 轮询。",
+        backToAdmin: "← 返回后台管理（访问日志）",
+      },
+      auth: {
+        required: "请使用管理员账号登录后查看。",
+        login: "去登录",
       },
     },
     adminTrends: {

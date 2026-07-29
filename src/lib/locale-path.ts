@@ -140,6 +140,11 @@ export function adminTrendsPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/trends" : "/admin/trends";
 }
 
+/** Worker 流量检测看板（Error 1027）；与访问日志 /admin 分开 */
+export function adminWorkerTrafficPath(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/worker-traffic" : "/admin/worker-traffic";
+}
+
 export function adminRbacPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/rbac" : "/admin/rbac";
 }
@@ -196,6 +201,13 @@ export function isAdminTrendsPath(pathname: string): boolean {
   return pathname === "/admin/trends" || pathname === "/zh/admin/trends";
 }
 
+export function isAdminWorkerTrafficPath(pathname: string): boolean {
+  return (
+    pathname === "/admin/worker-traffic" ||
+    pathname === "/zh/admin/worker-traffic"
+  );
+}
+
 export function isAdminRbacPath(pathname: string): boolean {
   return pathname === "/admin/rbac" || pathname === "/zh/admin/rbac";
 }
@@ -229,6 +241,7 @@ export function isMaintenancePath(pathname: string): boolean {
 export function isAdminPath(pathname: string): boolean {
   return (
     isAdminDashboardPath(pathname) ||
+    isAdminWorkerTrafficPath(pathname) ||
     isAdminTrendsPath(pathname) ||
     isAdminRbacPath(pathname) ||
     isAdminUsersPath(pathname) ||

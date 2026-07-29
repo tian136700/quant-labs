@@ -11,7 +11,14 @@ import { visitLogIpDisplay, visitLogUsernameDisplay } from "@/lib/visit-log-disp
 import { AdminAuthGate } from "@/components/AdminAuthGate";
 import { AdminAuthUserStatus } from "@/components/AdminAuthUserStatus";
 import { CopyToast } from "@/components/CopyToast";
-import { adminTrendsPath, adminRbacPath, adminUsersPath, adminToolCodesPath, adminJpLessonTeachersPath } from "@/lib/locale-path";
+import {
+  adminTrendsPath,
+  adminRbacPath,
+  adminUsersPath,
+  adminToolCodesPath,
+  adminJpLessonTeachersPath,
+  adminWorkerTrafficPath,
+} from "@/lib/locale-path";
 import type { UserFeedbackRecord, VisitLogRecord } from "@/lib/types";
 import {
   VISIT_LOG_USERNAME_UNREGISTERED,
@@ -24,7 +31,6 @@ import {
   type AdminVisitSortState,
 } from "@/components/admin-dashboard/AdminVisitSortTh";
 import { AdminListPagination } from "@/components/admin-dashboard/AdminListPagination";
-import { AdminWorkerTrafficPanel } from "@/components/admin-dashboard/AdminWorkerTrafficPanel";
 
 const VISIT_PAGE_SIZE_DEFAULT = 50;
 const VISIT_PAGE_SIZE_STORAGE_KEY = "admin_visits_page_size";
@@ -112,6 +118,7 @@ export function AdminDashboardPage() {
   const { locale, t } = useI18n();
   const adm = t("adminDashboard");
   const admTrends = t("adminTrends");
+  const admTraffic = t("adminWorkerTraffic");
   const { isAdmin, hasPermission, checking } = useEtrAuth();
   const canAccess = isAdmin || hasPermission("admin:dashboard");
   const canViewRbac = isAdmin || hasPermission("admin:rbac");
@@ -266,6 +273,8 @@ export function AdminDashboardPage() {
         <AdminAuthUserStatus registered={canAccess} />
         <p className="sub">{adm.page.subtitle}</p>
         <p className="hint">
+          <a href={adminWorkerTrafficPath(locale)}>{admTraffic.page.title} →</a>
+          {" · "}
           <a href={adminTrendsPath(locale)}>{admTrends.page.title} →</a>
           {canViewRbac ? (
             <>
@@ -295,8 +304,6 @@ export function AdminDashboardPage() {
       </div>
 
       {status ? <p className={statusClass}>{status}</p> : null}
-
-      <AdminWorkerTrafficPanel />
 
       <section className="section etr-panel">
         <div className="etr-history-head admin-visits-head">

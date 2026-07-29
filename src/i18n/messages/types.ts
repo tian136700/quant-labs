@@ -37,6 +37,7 @@ export type Messages = {
     storeReview: string;
     about: string;
     adminDashboard: string;
+    adminWorkerTraffic: string;
     adminTrends: string;
     adminRbac: string;
     adminUsers: string;
@@ -170,6 +171,18 @@ export type Messages = {
     };
     status: {
       loadFailed: string;
+    };
+  };
+  adminWorkerTraffic: {
+    meta: { title: string; description: string };
+    page: {
+      title: string;
+      subtitle: string;
+      backToAdmin: string;
+    };
+    auth: {
+      required: string;
+      login: string;
     };
   };
   adminTrends: {
