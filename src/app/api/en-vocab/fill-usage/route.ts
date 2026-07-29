@@ -5,6 +5,7 @@ import {
   stripEnVocabUsageExamLabelsInDb,
 } from "@/lib/en-vocab-fill-usage";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillUsageBody = {
   mode?: "list_missing" | "apply" | "strip_exam_labels";
@@ -29,6 +30,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/en-vocab/fill-usage"
+    );
+    if (limited) return limited;
 
     let body: FillUsageBody = {};
     try {

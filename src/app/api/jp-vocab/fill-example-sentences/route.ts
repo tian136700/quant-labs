@@ -8,6 +8,7 @@ import {
 } from "@/lib/jp-vocab-fill-example-sentences";
 import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillExampleSentencesBody = {
   /**
@@ -55,6 +56,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/jp-vocab/fill-example-sentences"
+    );
+    if (limited) return limited;
 
     let body: FillExampleSentencesBody = {};
     try {

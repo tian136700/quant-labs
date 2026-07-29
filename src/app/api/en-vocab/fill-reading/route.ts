@@ -4,6 +4,7 @@ import {
   scanEnVocabWordsMissingReading,
 } from "@/lib/en-vocab-fill-reading";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillReadingBody = {
   mode?: "list_missing" | "apply";
@@ -27,6 +28,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/en-vocab/fill-reading"
+    );
+    if (limited) return limited;
 
     let body: FillReadingBody = {};
     try {

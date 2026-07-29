@@ -164,7 +164,15 @@ export const enMessages: Messages = {
         empty: "No stats for this date yet (counting starts after deploy).",
         loadFailed: "Failed to load traffic stats.",
         diagnoseHint:
-          "Use this panel for Error 1027 (daily quota). Visit logs do not cover API polls.",
+          "Use this panel for Error 1027 (daily quota). Visit logs do not cover API polls. JP/EN vocab fill APIs are hard-capped at 1 req / 5s per IP per path.",
+        avgPerSec:
+          "Avg {rate} req/s in quota window ({elapsed}s since Beijing 08:00)",
+        peakPerSec: "Peak hour {hour}:00 ≈ {rate} req/s",
+        routeClickHint: "Click a path to see Top IPs (aggregated, not raw logs)",
+        routeIpsHeading: "Top IPs for route",
+        routeIpsHint: "IP counts start after this deploy; older hits may lack IP.",
+        ip: "IP",
+        close: "Close",
         hourlyHeading: "Hourly (Beijing time)",
         dailyTrendHeading: "Last 14 days",
         hourlyHint:

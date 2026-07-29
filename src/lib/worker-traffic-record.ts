@@ -1,6 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
+import { clientIp } from "@/lib/locale-pref";
 import {
   beijingDateString,
   beijingHour,
@@ -28,6 +29,7 @@ async function recordWorkerTrafficHitNow(request: Request): Promise<void> {
     routeKey: normalizeWorkerTrafficRoute(pathname),
     username,
     kind: workerTrafficKind(pathname),
+    ip: clientIp(request),
   });
 }
 

@@ -54,9 +54,13 @@ DEFAULT_POISON_SEC = 6 * 3600
 # --loop：有待补 3 分钟一轮；暂无 / 毒丸冷却 10 分钟再扫（禁止秒级空转打 Worker）
 LOOP_BUSY_SEC = 3 * 60
 LOOP_IDLE_SEC = 10 * 60
+# 与线上 fill-meaning 硬限流对齐（每 IP ≥5s；list 与 apply 各算一次）
+API_MIN_INTERVAL_SEC = 5
 # 每轮只写回 1 条；list 多拉几条是为了跳过毒丸队首，避免永远卡同一词
 FILL_PER_ROUND = 1
 LIST_CANDIDATE_LIMIT = 20
+
+_last_worker_api_at = 0.0
 
 RATE_GATE_PATH = (
     Path.home() / ".config" / "info-quests" / "jp-vocab-fill-meaning.last_paid_call"
@@ -426,7 +430,17 @@ def call_api(
     body: dict,
     retries: int = 6,
 ) -> dict:
-    """POST Worker；遇 1102/5xx 退避重试，避免整轮 loop 被一次抖动打死。"""
+    """POST Worker；本地先对齐 5s 间隔；遇 429 尊 Retry-After；1102/5xx 退避。"""
+    global _last_worker_api_at
+    gap = API_MIN_INTERVAL_SEC - (time.time() - _last_worker_api_at)
+    if _last_worker_api_at > 0 and gap > 0:
+        print(
+            f"[jp-vocab-fill-meaning] Worker 间隔门禁：等待 {gap:.1f}s"
+            f"（≥{API_MIN_INTERVAL_SEC}s）…",
+            flush=True,
+        )
+        time.sleep(gap)
+
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     last_err: Exception | None = None
     for attempt in range(1, max(1, retries) + 1):
@@ -442,10 +456,30 @@ def call_api(
         )
         try:
             with urllib.request.urlopen(req, timeout=120) as resp:
-                return json.load(resp)
+                payload = json.load(resp)
+                _last_worker_api_at = time.time()
+                return payload
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            transient = exc.code in {429, 500, 502, 503, 504} or "1102" in detail
+            if exc.code == 429:
+                retry_hdr = exc.headers.get("Retry-After") if exc.headers else None
+                try:
+                    wait = max(API_MIN_INTERVAL_SEC, int(float(retry_hdr or "5")))
+                except ValueError:
+                    wait = API_MIN_INTERVAL_SEC
+                print(
+                    f"[jp-vocab-fill-meaning] 接口限流 429 "
+                    f"(attempt {attempt}/{retries})，按 Retry-After 等待 {wait}s…"
+                    f" detail={detail[:120]!r}",
+                    flush=True,
+                )
+                time.sleep(wait)
+                _last_worker_api_at = time.time()
+                last_err = SystemExit(f"HTTP 429: {detail}")
+                if attempt >= retries:
+                    raise last_err from exc
+                continue
+            transient = exc.code in {500, 502, 503, 504} or "1102" in detail
             last_err = SystemExit(f"HTTP {exc.code}: {detail}")
             if not transient or attempt >= retries:
                 raise last_err from exc

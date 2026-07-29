@@ -5,6 +5,10 @@ import {
   scanJpVocabWordsMissingMeaning,
 } from "@/lib/jp-vocab-fill-meaning";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import {
+  enforceVocabFillRouteRateLimit,
+  JP_VOCAB_FILL_MEANING_ROUTE,
+} from "@/lib/worker-api-rate-limit";
 
 type FillMeaningBody = {
   /** list_missing=拉取缺释义（默认）；apply=提交 updates；clear_all=清空全部单词释义 */
@@ -34,6 +38,13 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
 
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      JP_VOCAB_FILL_MEANING_ROUTE
+    );
+    if (limited) return limited;
+
     let body: FillMeaningBody = {};
     try {
       body = (await request.json()) as FillMeaningBody;
@@ -48,7 +59,8 @@ export async function POST(request: Request) {
       .map((item) => {
         const per =
           (typeof item.source === "string" && item.source.trim()) ||
-          (typeof item.meaning_source === "string" && item.meaning_source.trim()) ||
+          (typeof item.meaning_source === "string" &&
+            item.meaning_source.trim()) ||
           "";
         return {
           word_id: Number(item.word_id),
@@ -70,7 +82,9 @@ export async function POST(request: Request) {
       );
 
     const limit =
-      typeof body.limit === "number" && Number.isFinite(body.limit) && body.limit > 0
+      typeof body.limit === "number" &&
+      Number.isFinite(body.limit) &&
+      body.limit > 0
         ? Math.min(Math.floor(body.limit), 20)
         : 1;
 

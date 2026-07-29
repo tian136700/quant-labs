@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
+import { AdminWorkerTrafficRouteIpModal } from "@/components/admin-dashboard/AdminWorkerTrafficRouteIpModal";
 import { useI18n } from "@/i18n/I18nProvider";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
@@ -43,6 +44,7 @@ export function AdminWorkerTrafficPanel() {
   const [error, setError] = useState("");
   const [userFilter, setUserFilter] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [ipRoute, setIpRoute] = useState<string | null>(null);
 
   const loadTraffic = useCallback(
     async (date = statDate) => {
@@ -196,6 +198,25 @@ export function AdminWorkerTrafficPanel() {
                 formatNumber(summary.anonymous_hits)
               )}
             </p>
+            <p className="admin-traffic-rate" aria-live="polite">
+              {labels.avgPerSec
+                .replace(
+                  "{rate}",
+                  String(summary.avg_hits_per_sec ?? 0)
+                )
+                .replace(
+                  "{elapsed}",
+                  formatNumber(summary.quota_elapsed_sec ?? 0)
+                )}
+              {summary.peak_hour != null
+                ? ` · ${labels.peakPerSec
+                    .replace("{hour}", String(summary.peak_hour).padStart(2, "0"))
+                    .replace(
+                      "{rate}",
+                      String(summary.peak_hour_hits_per_sec ?? 0)
+                    )}`
+                : ""}
+            </p>
           </div>
 
           <AdminWorkerTrafficCharts
@@ -219,6 +240,9 @@ export function AdminWorkerTrafficPanel() {
               <div className="admin-traffic-grid">
                 <div className="admin-traffic-block">
                   <h3>{labels.topRoutes}</h3>
+                  <p className="hint admin-traffic-filter-hint">
+                    {labels.routeClickHint}
+                  </p>
                   <div className="admin-table-wrap">
                     <table className="compare-table etr-table admin-table">
                       <thead>
@@ -231,7 +255,15 @@ export function AdminWorkerTrafficPanel() {
                       <tbody>
                         {summary.top_routes.map((row: WorkerTrafficRouteRow) => (
                           <tr key={`${row.kind}:${row.route_key}`}>
-                            <td className="admin-cell-wrap">{row.route_key}</td>
+                            <td className="admin-cell-wrap">
+                              <button
+                                type="button"
+                                className="admin-traffic-user-btn"
+                                onClick={() => setIpRoute(row.route_key)}
+                              >
+                                {row.route_key}
+                              </button>
+                            </td>
                             <td>
                               {row.kind === "api"
                                 ? labels.kindApi
@@ -374,6 +406,22 @@ export function AdminWorkerTrafficPanel() {
           )}
         </>
       ) : null}
+
+      <AdminWorkerTrafficRouteIpModal
+        open={ipRoute != null}
+        statDate={statDate}
+        routeKey={ipRoute || ""}
+        labels={{
+          routeIpsHeading: labels.routeIpsHeading,
+          ip: labels.ip,
+          hits: labels.hits,
+          empty: labels.empty,
+          loadFailed: labels.loadFailed,
+          close: labels.close,
+          routeIpsHint: labels.routeIpsHint,
+        }}
+        onClose={() => setIpRoute(null)}
+      />
 
       <CopyToast
         message={copyToast}

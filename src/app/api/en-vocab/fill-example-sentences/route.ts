@@ -6,6 +6,7 @@ import {
   scanEnVocabWordsMissingExampleSentences,
 } from "@/lib/en-vocab-fill-example-sentences";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillExampleSentencesBody = {
   mode?: "list_missing" | "apply" | "clear_all" | "clear_invalid";
@@ -30,6 +31,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/en-vocab/fill-example-sentences"
+    );
+    if (limited) return limited;
 
     let body: FillExampleSentencesBody = {};
     try {

@@ -5,6 +5,7 @@ import {
   listJpVocabWordsMissingReading,
 } from "@/lib/jp-vocab-fill-reading";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillReadingBody = {
   /** list_missing=仅 SQL 列举；auto=Worker 内规则补全（有上限）；apply=提交 updates */
@@ -25,6 +26,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/jp-vocab/fill-reading"
+    );
+    if (limited) return limited;
 
     let body: FillReadingBody = {};
     try {

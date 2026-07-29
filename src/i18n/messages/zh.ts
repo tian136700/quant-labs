@@ -163,7 +163,14 @@ export const zhMessages: Messages = {
         empty: "该日暂无统计数据（部署后从下一请求开始累计）。",
         loadFailed: "加载流量统计失败，请重试。",
         diagnoseHint:
-          "定位 Error 1027（日请求顶满）看本看板；访问日志不统计 API 轮询。",
+          "定位 Error 1027（日请求顶满）看本看板；访问日志不统计 API 轮询。日语/英语补全接口已硬限每 IP 每路径 5 秒 1 次。",
+        avgPerSec: "配额窗口平均 {rate} 次/秒（自北京 08:00 起已过 {elapsed} 秒）",
+        peakPerSec: "高峰 {hour}:00 折合 {rate} 次/秒",
+        routeClickHint: "点路径可看该接口 Top IP（聚合次数，非逐条日志）",
+        routeIpsHeading: "接口请求 IP Top",
+        routeIpsHint: "部署后开始按 IP 累计；更早请求可能没有 IP。",
+        ip: "IP",
+        close: "关闭",
         hourlyHeading: "分时折线（北京时间）",
         dailyTrendHeading: "近 14 日趋势",
         hourlyHint:

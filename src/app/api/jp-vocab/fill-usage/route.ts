@@ -6,6 +6,7 @@ import {
   scanJpVocabGrammarMissingUsage,
 } from "@/lib/jp-vocab-fill-usage";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillUsageBody = {
   /** list_missing | apply | clear_grammar_examples | clear_pair */
@@ -35,6 +36,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/jp-vocab/fill-usage"
+    );
+    if (limited) return limited;
 
     let body: FillUsageBody = {};
     try {

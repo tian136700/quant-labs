@@ -4,6 +4,7 @@ import {
   scanEnVocabWordsMissingMeaning,
 } from "@/lib/en-vocab-fill-meaning";
 import { verifyUploadAuth } from "@/lib/jp-review";
+import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillMeaningBody = {
   mode?: "list_missing" | "apply";
@@ -28,6 +29,13 @@ export async function POST(request: Request) {
     if (!verifyUploadAuth(request, env)) {
       return jsonResponse({ ok: false, error: "Unauthorized" }, 401);
     }
+
+    const limited = await enforceVocabFillRouteRateLimit(
+      env.DB,
+      request,
+      "/api/en-vocab/fill-meaning"
+    );
+    if (limited) return limited;
 
     let body: FillMeaningBody = {};
     try {

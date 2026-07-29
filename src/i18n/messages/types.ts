@@ -148,6 +148,13 @@ export type Messages = {
       empty: string;
       loadFailed: string;
       diagnoseHint: string;
+      avgPerSec: string;
+      peakPerSec: string;
+      routeClickHint: string;
+      routeIpsHeading: string;
+      routeIpsHint: string;
+      ip: string;
+      close: string;
       hourlyHeading: string;
       dailyTrendHeading: string;
       hourlyHint: string;

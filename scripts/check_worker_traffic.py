@@ -104,12 +104,59 @@ def main() -> int:
     if "formatWorkerTrafficDiagnosticReport" not in report:
         errors.append("缺少 worker-traffic-report.ts")
 
-    for needle in ("worker_hourly_hits", "getWorkerTrafficHourlySeries", "daily_trend"):
+    for needle in ("worker_hourly_hits", "getWorkerTrafficHourlySeries", "daily_trend", "getWorkerTrafficRouteIps", "avg_hits_per_sec"):
         if needle not in db:
             errors.append(f"worker-traffic-db.ts 须含 {needle}")
 
+    rate_limit = read("src/lib/worker-api-rate-limit.ts")
+    if "JP_VOCAB_FILL_MEANING_MIN_INTERVAL_MS" not in rate_limit:
+        errors.append("缺少 fill-meaning Worker 硬限流常量")
+    if "5000" not in rate_limit and "5_000" not in rate_limit:
+        errors.append("fill-meaning 硬限流须为 5 秒")
+
+    fill_route = read("src/app/api/jp-vocab/fill-meaning/route.ts")
+    if "enforceVocabFillRouteRateLimit" not in fill_route and "enforceWorkerApiMinInterval" not in fill_route:
+        errors.append("fill-meaning route 须 enforceVocabFillRouteRateLimit 并返回 429")
+    if "429" not in fill_route and "enforceVocabFillRouteRateLimit" not in fill_route:
+        # helper returns 429 Response
+        pass
+
+    for rel in (
+        "src/app/api/en-vocab/fill-meaning/route.ts",
+        "src/app/api/en-vocab/fill-reading/route.ts",
+        "src/app/api/en-vocab/fill-usage/route.ts",
+        "src/app/api/en-vocab/fill-example-sentences/route.ts",
+        "src/app/api/jp-vocab/fill-reading/route.ts",
+        "src/app/api/jp-vocab/fill-usage/route.ts",
+        "src/app/api/jp-vocab/fill-pos/route.ts",
+        "src/app/api/jp-vocab/fill-example-sentences/route.ts",
+    ):
+        route = read(rel)
+        if "enforceVocabFillRouteRateLimit" not in route:
+            errors.append(f"{rel} 须 enforceVocabFillRouteRateLimit（5s 硬限）")
+
+    fill_script = read("scripts/jp-vocab-fill-meaning-api.py")
+    if "API_MIN_INTERVAL_SEC = 5" not in fill_script:
+        errors.append("释义脚本须 API_MIN_INTERVAL_SEC=5 对齐线上硬限")
+
+    en_common = read("scripts/lib/en_vocab_fill_common.py")
+    if "API_MIN_INTERVAL_SEC = 5" not in en_common:
+        errors.append("en_vocab_fill_common 须 API_MIN_INTERVAL_SEC=5")
+    if "_is_fill_interval_rate_limited" not in en_common:
+        errors.append("en_vocab_fill_common 须区分接口限流 429 与配额 1027")
+
+    if "VOCAB_FILL_API_MIN_INTERVAL_MS" not in rate_limit:
+        errors.append("worker-api-rate-limit 须含 VOCAB_FILL_API_MIN_INTERVAL_MS")
+    if "/api/en-vocab/fill-meaning" not in rate_limit:
+        errors.append("VOCAB_FILL_RATE_LIMITED_ROUTES 须含英语 fill-meaning")
+
     if "hourlyHeading" not in zh or "分时折线" not in zh:
         errors.append("zh i18n 须含分时折线文案")
+    if "avgPerSec" not in zh or "routeIpsHeading" not in zh:
+        errors.append("zh i18n 须含平均每秒 / 接口 IP 文案")
+
+    if "AdminWorkerTrafficRouteIpModal" not in panel:
+        errors.append("AdminWorkerTrafficPanel 须挂载 RouteIpModal")
 
     if errors:
         for err in errors:

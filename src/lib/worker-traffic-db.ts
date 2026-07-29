@@ -1,15 +1,22 @@
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import type { WorkerTrafficKind } from "@/lib/worker-traffic-path";
 import { WORKER_DAILY_REQUEST_LIMIT } from "@/lib/worker-traffic-path";
+import {
+  avgHitsPerSecond,
+  beijingSecondsSinceQuotaReset,
+  peakHourHitsPerSecond,
+} from "@/lib/worker-traffic-rate";
 
 let devStoreEnabled = false;
 let schemaReady = false;
 
 type DevHitKey = string;
 type DevHourKey = string;
+type DevIpKey = string;
 
 const devHits = new Map<DevHitKey, number>();
 const devHourlyHits = new Map<DevHourKey, number>();
+const devIpHits = new Map<DevIpKey, number>();
 
 export type WorkerDailyHitInput = {
   statDate: string;
@@ -18,6 +25,8 @@ export type WorkerDailyHitInput = {
   kind: WorkerTrafficKind;
   /** 北京小时 0–23；缺省不写分时（仅测试） */
   hour?: number;
+  /** 客户端 IP（聚合 Top，非逐条日志） */
+  ip?: string | null;
 };
 
 export type WorkerTrafficRouteRow = {
@@ -48,6 +57,11 @@ export type WorkerTrafficDailyTrendPoint = {
   hit_count: number;
 };
 
+export type WorkerTrafficIpRow = {
+  ip: string;
+  hit_count: number;
+};
+
 export type WorkerTrafficDailySummary = {
   stat_date: string;
   total_hits: number;
@@ -60,6 +74,13 @@ export type WorkerTrafficDailySummary = {
   hourly: WorkerTrafficHourlyPoint[];
   /** 近 N 个北京日合计（含 0），看跨日高峰 */
   daily_trend: WorkerTrafficDailyTrendPoint[];
+  /** 距北京 08:00 配额重置已过秒数 */
+  quota_elapsed_sec: number;
+  /** 配额窗口内平均每秒请求 */
+  avg_hits_per_sec: number;
+  /** 当日高峰小时折合每秒 */
+  peak_hour_hits_per_sec: number;
+  peak_hour: number | null;
 };
 
 export const WORKER_TRAFFIC_RETENTION_DAYS = 30;
@@ -82,6 +103,42 @@ function devHitKey(input: WorkerDailyHitInput): DevHitKey {
 
 function devHourKey(statDate: string, hour: number): DevHourKey {
   return `${statDate}\0${hour}`;
+}
+
+function devIpKey(statDate: string, routeKey: string, ip: string): DevIpKey {
+  return `${statDate}\0${routeKey}\0${ip}`;
+}
+
+function normalizeHitIp(ip: string | null | undefined): string | null {
+  const trimmed = (ip || "").trim().slice(0, 128);
+  return trimmed || null;
+}
+
+function attachRateFields(
+  totalHits: number,
+  hourly: WorkerTrafficHourlyPoint[]
+): Pick<
+  WorkerTrafficDailySummary,
+  | "quota_elapsed_sec"
+  | "avg_hits_per_sec"
+  | "peak_hour_hits_per_sec"
+  | "peak_hour"
+> {
+  const elapsed = beijingSecondsSinceQuotaReset();
+  let peakHour: number | null = null;
+  let peakHits = 0;
+  for (const row of hourly) {
+    if (row.hit_count > peakHits) {
+      peakHits = row.hit_count;
+      peakHour = row.hour;
+    }
+  }
+  return {
+    quota_elapsed_sec: elapsed,
+    avg_hits_per_sec: avgHitsPerSecond(totalHits, elapsed),
+    peak_hour_hits_per_sec: peakHourHitsPerSecond(peakHits),
+    peak_hour: peakHits > 0 ? peakHour : null,
+  };
 }
 
 export function enableWorkerTrafficDevStore() {
@@ -126,6 +183,24 @@ async function ensureWorkerDailyHitsSchema(db: D1Database): Promise<void> {
        ON worker_hourly_hits (stat_date)`
     )
     .run();
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS worker_route_ip_hits (
+         stat_date TEXT NOT NULL,
+         route_key TEXT NOT NULL,
+         ip TEXT NOT NULL,
+         hit_count INTEGER NOT NULL DEFAULT 0,
+         updated_at TEXT NOT NULL,
+         PRIMARY KEY (stat_date, route_key, ip)
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_worker_route_ip_hits_route
+       ON worker_route_ip_hits (stat_date, route_key)`
+    )
+    .run();
   schemaReady = true;
 }
 
@@ -138,6 +213,7 @@ export async function incrementWorkerDailyHit(
   const username = input.username.trim();
   const kind = input.kind;
   const hour = clampHour(input.hour);
+  const ip = normalizeHitIp(input.ip);
   const updatedAt = nowIso();
 
   if (devStoreEnabled) {
@@ -147,41 +223,62 @@ export async function incrementWorkerDailyHit(
       const hk = devHourKey(statDate, hour);
       devHourlyHits.set(hk, (devHourlyHits.get(hk) ?? 0) + 1);
     }
+    if (ip) {
+      const ik = devIpKey(statDate, routeKey, ip);
+      devIpHits.set(ik, (devIpHits.get(ik) ?? 0) + 1);
+    }
     return;
   }
 
   await ensureWorkerDailyHitsSchema(db);
-  const dailyStmt = db
-    .prepare(
-      `INSERT INTO worker_daily_hits (
-         stat_date, route_key, username, kind, hit_count, updated_at
-       )
-       VALUES (?1, ?2, ?3, ?4, 1, ?5)
-       ON CONFLICT(stat_date, route_key, username, kind)
-       DO UPDATE SET
-         hit_count = hit_count + 1,
-         updated_at = excluded.updated_at`
-    )
-    .bind(statDate, routeKey, username, kind, updatedAt);
+  const stmts: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO worker_daily_hits (
+           stat_date, route_key, username, kind, hit_count, updated_at
+         )
+         VALUES (?1, ?2, ?3, ?4, 1, ?5)
+         ON CONFLICT(stat_date, route_key, username, kind)
+         DO UPDATE SET
+           hit_count = hit_count + 1,
+           updated_at = excluded.updated_at`
+      )
+      .bind(statDate, routeKey, username, kind, updatedAt),
+  ];
 
-  if (hour == null) {
-    await dailyStmt.run();
-    return;
+  if (hour != null) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO worker_hourly_hits (stat_date, hour, hit_count, updated_at)
+           VALUES (?1, ?2, 1, ?3)
+           ON CONFLICT(stat_date, hour)
+           DO UPDATE SET
+             hit_count = hit_count + 1,
+             updated_at = excluded.updated_at`
+        )
+        .bind(statDate, hour, updatedAt)
+    );
   }
 
-  const hourlyStmt = db
-    .prepare(
-      `INSERT INTO worker_hourly_hits (stat_date, hour, hit_count, updated_at)
-       VALUES (?1, ?2, 1, ?3)
-       ON CONFLICT(stat_date, hour)
-       DO UPDATE SET
-         hit_count = hit_count + 1,
-         updated_at = excluded.updated_at`
-    )
-    .bind(statDate, hour, updatedAt);
+  if (ip) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO worker_route_ip_hits (
+             stat_date, route_key, ip, hit_count, updated_at
+           )
+           VALUES (?1, ?2, ?3, 1, ?4)
+           ON CONFLICT(stat_date, route_key, ip)
+           DO UPDATE SET
+             hit_count = hit_count + 1,
+             updated_at = excluded.updated_at`
+        )
+        .bind(statDate, routeKey, ip, updatedAt)
+    );
+  }
 
-  // 同请求一次 batch，避免每命中多一轮 D1
-  await db.batch([dailyStmt, hourlyStmt]);
+  await db.batch(stmts);
 }
 
 function retentionCutoffDate(
@@ -218,6 +315,13 @@ export async function purgeWorkerDailyHitsOlderThan(
         removed += 1;
       }
     }
+    for (const key of [...devIpHits.keys()]) {
+      const statDate = key.split("\0")[0] ?? "";
+      if (statDate < cutoff) {
+        devIpHits.delete(key);
+        removed += 1;
+      }
+    }
     return removed;
   }
 
@@ -225,6 +329,9 @@ export async function purgeWorkerDailyHitsOlderThan(
   const results = await db.batch([
     db.prepare(`DELETE FROM worker_daily_hits WHERE stat_date < ?1`).bind(cutoff),
     db.prepare(`DELETE FROM worker_hourly_hits WHERE stat_date < ?1`).bind(cutoff),
+    db
+      .prepare(`DELETE FROM worker_route_ip_hits WHERE stat_date < ?1`)
+      .bind(cutoff),
   ]);
   return results.reduce(
     (sum, result) => sum + Number(result.meta?.changes ?? 0),
@@ -385,6 +492,7 @@ export async function getWorkerTrafficDailySummary(
         .slice(0, 40),
       hourly,
       daily_trend,
+      ...attachRateFields(total, hourly),
     };
   }
 
@@ -461,5 +569,45 @@ export async function getWorkerTrafficDailySummary(
     top_pairs: pairResult.results ?? [],
     hourly,
     daily_trend,
+    ...attachRateFields(Number(totalRow?.total ?? 0), hourly),
   };
+}
+
+export async function getWorkerTrafficRouteIps(
+  db: D1Database,
+  opts: { statDate?: string; routeKey: string; limit?: number }
+): Promise<WorkerTrafficIpRow[]> {
+  const date = (opts.statDate || "").trim() || beijingDateString();
+  const routeKey = opts.routeKey.trim() || "/";
+  const limit = Math.min(
+    40,
+    Math.max(1, Math.floor(opts.limit && opts.limit > 0 ? opts.limit : 20))
+  );
+
+  if (devStoreEnabled) {
+    const rows: WorkerTrafficIpRow[] = [];
+    for (const [key, count] of devIpHits.entries()) {
+      const [rowDate, rowRoute, ip] = key.split("\0");
+      if (rowDate !== date || rowRoute !== routeKey) continue;
+      rows.push({ ip: ip || "unknown", hit_count: count });
+    }
+    return rows.sort((a, b) => b.hit_count - a.hit_count).slice(0, limit);
+  }
+
+  await ensureWorkerDailyHitsSchema(db);
+  const { results } = await db
+    .prepare(
+      `SELECT ip, hit_count
+       FROM worker_route_ip_hits
+       WHERE stat_date = ?1 AND route_key = ?2
+       ORDER BY hit_count DESC
+       LIMIT ?3`
+    )
+    .bind(date, routeKey, limit)
+    .all<WorkerTrafficIpRow>();
+
+  return (results ?? []).map((row) => ({
+    ip: row.ip || "unknown",
+    hit_count: Number(row.hit_count ?? 0),
+  }));
 }

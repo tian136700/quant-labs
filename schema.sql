@@ -292,6 +292,26 @@ CREATE TABLE IF NOT EXISTS worker_hourly_hits (
 
 CREATE INDEX IF NOT EXISTS idx_worker_hourly_hits_date ON worker_hourly_hits (stat_date);
 
+-- Worker 接口×IP 聚合（点接口看 Top IP；非逐条 access log）
+CREATE TABLE IF NOT EXISTS worker_route_ip_hits (
+  stat_date  TEXT    NOT NULL,
+  route_key  TEXT    NOT NULL,
+  ip         TEXT    NOT NULL,
+  hit_count  INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT    NOT NULL,
+  PRIMARY KEY (stat_date, route_key, ip)
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_route_ip_hits_route
+  ON worker_route_ip_hits (stat_date, route_key);
+
+-- Worker API 最小间隔限流（如 fill-meaning 每 IP 5s）
+CREATE TABLE IF NOT EXISTS worker_api_rate_limit (
+  bucket_key TEXT PRIMARY KEY,
+  last_at_ms INTEGER NOT NULL,
+  updated_at TEXT    NOT NULL
+);
+
 -- 日语单词抽问：共用参考资料（图片/PDF，多条词条可指向同一 ref_key）
 CREATE TABLE IF NOT EXISTS jp_vocab_ref (
   ref_key    TEXT    PRIMARY KEY,

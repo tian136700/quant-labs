@@ -1,5 +1,6 @@
 import {
   getWorkerTrafficDailySummary,
+  getWorkerTrafficRouteIps,
   purgeWorkerDailyHitsOlderThan,
 } from "@/lib/worker-traffic-db";
 import { requirePermission } from "@/lib/admin-auth";
@@ -31,6 +32,21 @@ export async function GET(request: Request) {
 
     const url = new URL(request.url);
     const statDate = parseStatDate(url.searchParams.get("date"));
+    const routeKey = (url.searchParams.get("route") || "").trim();
+
+    if (routeKey) {
+      const top_ips = await getWorkerTrafficRouteIps(env.DB, {
+        statDate,
+        routeKey,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "route_ips",
+        stat_date: statDate,
+        route_key: routeKey,
+        top_ips,
+      });
+    }
 
     const [summary] = await Promise.all([
       getWorkerTrafficDailySummary(env.DB, statDate),
