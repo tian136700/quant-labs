@@ -87,6 +87,16 @@ def main() -> int:
         raise SystemExit("FAIL: saveJpFillInterval missing in app.js")
     if "/api/jp-vocab-fill/interval" not in app_js:
         raise SystemExit("FAIL: interval API call missing in app.js")
+    if "jpFillIntervalDirty" not in app_js:
+        raise SystemExit("FAIL: jpFillIntervalDirty guard missing (select jumps on poll)")
+    if "document.activeElement === select" not in app_js:
+        raise SystemExit("FAIL: must skip refresh while interval select focused")
+    # 禁止轮询里重建 select.innerHTML（会关菜单/跳）
+    sync_chunk = app_js.split("function syncJpFillIntervalSelect", 1)[1].split(
+        "function setJpFillIntervalMsg", 1
+    )[0]
+    if "innerHTML" in sync_chunk:
+        raise SystemExit("FAIL: syncJpFillIntervalSelect must not rewrite select.innerHTML")
 
     from maintenance_center.jp_vocab_fill_interval import (  # noqa: E402
         ALLOWED_INTERVALS,
