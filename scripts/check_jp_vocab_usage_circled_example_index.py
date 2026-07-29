@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: 有编号用法时例句用二级圈号 ①②；多余例句挂末条用法下。
+"""Regression: 有编号用法时例句用二级圈号 ①②；例句均分到各用法。
 
 不调模型。对照 src/lib/jp-vocab-usage-examples-display.ts。
 """
@@ -25,23 +25,23 @@ def main() -> None:
         "jpVocabCircledExampleIndex",
         "useCircledExampleIndex",
         "0x245f",
-        "examples.length > points.length",
+        "examples.length % points.length === 0",
         "nestedExamples",
+        "按块均分",
     ):
         if needle not in src:
             fail(f"usage-examples-display missing {needle!r}")
 
-    # ① = U+2460；fromCharCode(0x245f + 1)
     if chr(0x2460) != "①":
         fail("unicode sanity")
 
     ui = UI.read_text(encoding="utf-8")
     if "jpVocabCircledExampleIndex" not in ui:
         fail("PairedContent 须用圈号渲染例句序号")
-    if "ni + 1}." in ui.replace(" ", "") and "exampleMark" not in ui:
-        fail("禁止例句仍写死阿拉伯 ni+1.")
+    if "exampleMark" not in ui:
+        fail("PairedContent 须用 exampleMark 渲染例句序号")
 
-    print("OK: circled example index + overflow nest under last usage")
+    print("OK: circled example index + even chunk pairing")
     print("All jp-vocab usage circled-example-index checks passed.")
 
 

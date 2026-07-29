@@ -1,7 +1,8 @@
 /**
  * 日语语法「用法 + 例句」展示配对：第 N 条用法对应第 N 条例句。
  * 单词：仅 1 条用法且多条例句时，全部例句挂在用法 1 下（嵌套 ①②）。
- * 用法多于 1 且例句更多：多余例句挂在最后一条用法下，避免出现「4. 5.」假一级序号。
+ * 多用法且例句数是用法数整数倍（如 2 用法 4 例句）：按块均分到各用法下，避免把「有时候」例句错挂到「た形」用法。
+ * 否则：前 N 条 1:1，余下仍挂末条（兼容旧脏数据）。
  * 存库字段仍分 usage / example_sentences；仅页面合并展示。
  */
 
@@ -22,7 +23,7 @@ export type JpVocabUsageExamplePair = {
   usageLabel: string;
   usageText: string | null;
   example: JpVocabExampleSentenceItem | null;
-  /** 单词单用法多例句 / 末条用法挂多余例句：挂在该用法下的全部例句 */
+  /** 单词单用法多例句 / 多用法均分块：挂在该用法下的全部例句 */
   nestedExamples?: JpVocabExampleSentenceItem[];
 };
 
@@ -93,7 +94,33 @@ export function buildJpVocabUsageExamplePairs(
     };
   }
 
-  // 例句多于用法：1..(N-1) 一对一；末条用法挂「自己的例句 + 全部多余例句」
+  // 例句数是用法数的整数倍（且 >1 倍）：按块均分，如 2 用法×2 例句
+  if (
+    examples.length > points.length &&
+    examples.length % points.length === 0
+  ) {
+    const chunk = examples.length / points.length;
+    const pairs: JpVocabUsageExamplePair[] = points.map((p, i) => {
+      const slice = examples.slice(i * chunk, (i + 1) * chunk);
+      return {
+        index: i + 1,
+        usageLabel: jpVocabUsagePairLabel(i + 1),
+        usageText: p.text ?? null,
+        example: null,
+        nestedExamples: slice.length ? slice : undefined,
+      };
+    });
+    return {
+      pairs,
+      fallbackUsage: null,
+      pairCount: pairs.length,
+      hasContent: pairs.length > 0,
+      useCircledExampleIndex: true,
+      nestExamplesUnderSingleUsage: false,
+    };
+  }
+
+  // 例句多于用法但无法均分：前 N-1 一对一；末条挂自己的 + 余下（兼容脏数据）
   if (examples.length > points.length) {
     const last = points.length - 1;
     const pairs: JpVocabUsageExamplePair[] = [];
