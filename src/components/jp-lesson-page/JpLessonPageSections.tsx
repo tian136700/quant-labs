@@ -240,7 +240,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
               </section>
             );
           })}
-          {/* 搜索时不展示快捷区；点「上课中」看当前时刻窗口内的教案 */}
+          {/* 搜索时不展示快捷区；点「上课中」看开课前/后 10 分钟窗口内的教案 */}
           {searchActive ? null : (
             <section
               className="section etr-panel jp-lesson-status-card jp-lesson-status-card--in_class"

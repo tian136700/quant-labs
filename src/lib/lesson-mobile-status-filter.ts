@@ -2,7 +2,7 @@
 
 export type LessonMobileStatusFilter = "pending" | "learning" | "completed";
 
-/** 日语新课额外快捷 Tab：按上课时间窗口对照北京时间的「上课中」 */
+/** 日语新课额外快捷 Tab：开课前/后各 10 分钟对照北京时间的「上课中」 */
 export type JpLessonListFilter = LessonMobileStatusFilter | "in_class";
 
 export const JP_LESSON_MOBILE_STATUS_FILTER_KEY = "jp-lesson:mobile-status-filter";

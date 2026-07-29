@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: /jp-lesson 「上课中」= 日程上课时间窗口含北京时间 now（不限定老师）。"""
+"""Regression: /jp-lesson 「上课中」= 开课前/后各 10 分钟窗口含北京时间 now（不限定老师）。"""
 
 from __future__ import annotations
 
@@ -28,8 +28,18 @@ def main() -> int:
     shared = (ROOT / "src/lib/jp-lesson-shared.ts").read_text(encoding="utf-8")
     if "export function isJpLessonCurrentlyInClass" not in shared:
         errors.append("jp-lesson-shared.ts missing isJpLessonCurrentlyInClass")
+    if "JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10" not in shared:
+        errors.append(
+            "jp-lesson-shared.ts missing JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10"
+        )
     if "buildJpLessonScheduleEvents(lesson)" not in shared:
         errors.append("isJpLessonCurrentlyInClass should reuse buildJpLessonScheduleEvents")
+    if "event.end.getTime()" in shared.split("export function isJpLessonCurrentlyInClass", 1)[-1].split(
+        "export function flattenJpLessonScheduleEvents", 1
+    )[0]:
+        errors.append(
+            "isJpLessonCurrentlyInClass must use ±10min around class start, not full [start, end)"
+        )
 
     helpers = (
         ROOT / "src/components/jp-lesson-page/jp-lesson-page-helpers.tsx"

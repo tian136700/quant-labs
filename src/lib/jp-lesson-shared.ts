@@ -864,7 +864,14 @@ export function buildJpLessonScheduleEvents(lesson: {
 }
 
 /**
- * 「上课中」：与日程同一套上课时间窗口；北京时间 now 落在 [开始, 结束) 即算正在上课。
+ * 「上课中」可标记 / 展示窗口：相对开课时刻前后各这么多分钟。
+ * 例：10:00 开课 → 09:50～10:10 都算上课中。
+ */
+export const JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10;
+
+/**
+ * 「上课中」：用日程的开课时刻（`class_at`）；北京时间 now 落在
+ * [开课前 N 分钟, 开课后 N 分钟]（N=`JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES`）即算。
  * 不限定老师；未上课（pending）不同步日程，自然不会命中。
  */
 export function isJpLessonCurrentlyInClass(
@@ -872,9 +879,11 @@ export function isJpLessonCurrentlyInClass(
   now: Date = new Date()
 ): boolean {
   const t = now.getTime();
-  return buildJpLessonScheduleEvents(lesson).some(
-    (event) => event.start.getTime() <= t && t < event.end.getTime()
-  );
+  const windowMs = JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES * 60_000;
+  return buildJpLessonScheduleEvents(lesson).some((event) => {
+    const startMs = event.start.getTime();
+    return startMs - windowMs <= t && t <= startMs + windowMs;
+  });
 }
 
 export function flattenJpLessonScheduleEvents(

@@ -71,11 +71,11 @@ export const LESSON_STATUS_SECTIONS: {
   { status: "completed", title: "已完成", emptyHint: "暂无已完成的新课" },
 ];
 
-/** 日语新课第四个快捷 Tab：日程上课时间窗口内（北京时间） */
+/** 日语新课第四个快捷 Tab：开课前/后各 10 分钟窗口（北京时间） */
 export const JP_LESSON_IN_CLASS_SECTION = {
   key: "in_class" as const,
   title: "上课中",
-  emptyHint: "当前没有正在上课的新课",
+  emptyHint: "当前没有开课前/后 10 分钟窗口内的新课",
 };
 
 /** API：学习中 + 开课 18h 内自动启用老师账号的回包摘要 */
