@@ -165,6 +165,13 @@ export const enMessages: Messages = {
         loadFailed: "Failed to load traffic stats.",
         diagnoseHint:
           "Use this panel for Error 1027 (daily quota). Visit logs do not cover API polls.",
+        hourlyHeading: "Hourly (Beijing time)",
+        dailyTrendHeading: "Last 14 days",
+        hourlyHint:
+          "Hourly peaks; dashed line ≈ 08:00 Beijing Cloudflare quota reset. Hourly series starts after this deploy; older days only have daily totals.",
+        hourLabel: "Hour",
+        quotaResetLabel: "Quota reset",
+        dateShort: "Date",
       },
       feedback: {
         heading: "User feedback",
@@ -198,7 +205,7 @@ export const enMessages: Messages = {
       page: {
         title: "Worker traffic monitor",
         subtitle:
-          "Beijing-day quota, top routes, top users, user×route pairs, and anonymous traffic. Use this for Error 1027; visit logs do not count API polling.",
+          "Beijing-day quota, hourly / 14-day charts, top routes, top users, user×route pairs, and anonymous traffic. Use this for Error 1027; visit logs do not count API polling.",
         backToAdmin: "← Back to admin (visit logs)",
       },
       auth: {

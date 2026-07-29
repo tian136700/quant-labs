@@ -148,6 +148,12 @@ export type Messages = {
       empty: string;
       loadFailed: string;
       diagnoseHint: string;
+      hourlyHeading: string;
+      dailyTrendHeading: string;
+      hourlyHint: string;
+      hourLabel: string;
+      quotaResetLabel: string;
+      dateShort: string;
     };
     feedback: {
       heading: string;

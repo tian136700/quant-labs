@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
 import { useI18n } from "@/i18n/I18nProvider";
@@ -12,6 +13,14 @@ import type {
   WorkerTrafficUserRow,
 } from "@/lib/worker-traffic-db";
 import { formatWorkerTrafficDiagnosticReport } from "@/lib/worker-traffic-report";
+
+const AdminWorkerTrafficCharts = dynamic(
+  () =>
+    import("@/components/admin-dashboard/AdminWorkerTrafficCharts").then(
+      (m) => m.AdminWorkerTrafficCharts
+    ),
+  { ssr: false }
+);
 
 function formatNumber(n: number): string {
   return n.toLocaleString();
@@ -188,6 +197,20 @@ export function AdminWorkerTrafficPanel() {
               )}
             </p>
           </div>
+
+          <AdminWorkerTrafficCharts
+            hourly={summary.hourly ?? []}
+            dailyTrend={summary.daily_trend ?? []}
+            labels={{
+              hourlyHeading: labels.hourlyHeading,
+              dailyTrendHeading: labels.dailyTrendHeading,
+              hourlyHint: labels.hourlyHint,
+              hits: labels.hits,
+              hourLabel: labels.hourLabel,
+              quotaResetLabel: labels.quotaResetLabel,
+              dateShort: labels.dateShort,
+            }}
+          />
 
           {summary.total_hits === 0 ? (
             <p className="hint">{labels.empty}</p>

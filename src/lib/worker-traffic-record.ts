@@ -1,7 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import {
+  beijingDateString,
+  beijingHour,
+} from "@/lib/jp-vocab-daily-check";
 import { incrementWorkerDailyHit } from "@/lib/worker-traffic-db";
 import {
   normalizeWorkerTrafficRoute,
@@ -17,9 +20,11 @@ async function recordWorkerTrafficHitNow(request: Request): Promise<void> {
   const username =
     (await getSessionUserFromRequest(env, request.headers.get("cookie")))
       ?.username ?? "";
+  const now = new Date();
 
   await incrementWorkerDailyHit(env.DB, {
-    statDate: beijingDateString(),
+    statDate: beijingDateString(now),
+    hour: beijingHour(now),
     routeKey: normalizeWorkerTrafficRoute(pathname),
     username,
     kind: workerTrafficKind(pathname),

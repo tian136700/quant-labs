@@ -281,6 +281,17 @@ CREATE TABLE IF NOT EXISTS worker_daily_hits (
 
 CREATE INDEX IF NOT EXISTS idx_worker_daily_hits_date ON worker_daily_hits (stat_date);
 
+-- Worker 分时合计（北京小时 0–23；看板折线看高峰；与日表同请求 batch 写入）
+CREATE TABLE IF NOT EXISTS worker_hourly_hits (
+  stat_date  TEXT    NOT NULL,
+  hour       INTEGER NOT NULL,
+  hit_count  INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT    NOT NULL,
+  PRIMARY KEY (stat_date, hour)
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_hourly_hits_date ON worker_hourly_hits (stat_date);
+
 -- 日语单词抽问：共用参考资料（图片/PDF，多条词条可指向同一 ref_key）
 CREATE TABLE IF NOT EXISTS jp_vocab_ref (
   ref_key    TEXT    PRIMARY KEY,

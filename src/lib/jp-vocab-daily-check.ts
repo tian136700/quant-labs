@@ -10,6 +10,22 @@ export function beijingDateString(now = new Date()): string {
   }).format(now);
 }
 
+/** 当前北京时间小时 0–23（Worker 流量分时折线；CF 配额约 08:00 重置） */
+export function beijingHour(now = new Date()): number {
+  const raw =
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Shanghai",
+      hour: "2-digit",
+      hour12: false,
+    })
+      .formatToParts(now)
+      .find((part) => part.type === "hour")?.value ?? "0";
+  const hour = Number(raw);
+  if (!Number.isFinite(hour)) return 0;
+  if (hour === 24) return 0;
+  return Math.min(23, Math.max(0, Math.floor(hour)));
+}
+
 /** 北京时间次日 YYYY-MM-DD（管理员「明日优先抽查」生效日） */
 export function beijingTomorrowDateString(now = new Date()): string {
   return beijingDateString(new Date(now.getTime() + 24 * 60 * 60 * 1000));

@@ -6,14 +6,18 @@ let devStoreEnabled = false;
 let schemaReady = false;
 
 type DevHitKey = string;
+type DevHourKey = string;
 
 const devHits = new Map<DevHitKey, number>();
+const devHourlyHits = new Map<DevHourKey, number>();
 
 export type WorkerDailyHitInput = {
   statDate: string;
   routeKey: string;
   username: string;
   kind: WorkerTrafficKind;
+  /** 北京小时 0–23；缺省不写分时（仅测试） */
+  hour?: number;
 };
 
 export type WorkerTrafficRouteRow = {
@@ -34,6 +38,16 @@ export type WorkerTrafficPairRow = {
   hit_count: number;
 };
 
+export type WorkerTrafficHourlyPoint = {
+  hour: number;
+  hit_count: number;
+};
+
+export type WorkerTrafficDailyTrendPoint = {
+  stat_date: string;
+  hit_count: number;
+};
+
 export type WorkerTrafficDailySummary = {
   stat_date: string;
   total_hits: number;
@@ -42,16 +56,32 @@ export type WorkerTrafficDailySummary = {
   top_routes: WorkerTrafficRouteRow[];
   top_users: WorkerTrafficUserRow[];
   top_pairs: WorkerTrafficPairRow[];
+  /** 当日北京时 0–23 请求数（部署后才有分时；此前为空/全 0） */
+  hourly: WorkerTrafficHourlyPoint[];
+  /** 近 N 个北京日合计（含 0），看跨日高峰 */
+  daily_trend: WorkerTrafficDailyTrendPoint[];
 };
 
 export const WORKER_TRAFFIC_RETENTION_DAYS = 30;
+export const WORKER_TRAFFIC_TREND_DAYS = 14;
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
+function clampHour(hour: number | undefined): number | null {
+  if (hour == null || !Number.isFinite(hour)) return null;
+  const h = Math.floor(hour);
+  if (h < 0 || h > 23) return null;
+  return h;
+}
+
 function devHitKey(input: WorkerDailyHitInput): DevHitKey {
   return `${input.statDate}\0${input.routeKey}\0${input.username}\0${input.kind}`;
+}
+
+function devHourKey(statDate: string, hour: number): DevHourKey {
+  return `${statDate}\0${hour}`;
 }
 
 export function enableWorkerTrafficDevStore() {
@@ -79,6 +109,23 @@ async function ensureWorkerDailyHitsSchema(db: D1Database): Promise<void> {
        ON worker_daily_hits (stat_date)`
     )
     .run();
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS worker_hourly_hits (
+         stat_date TEXT NOT NULL,
+         hour INTEGER NOT NULL,
+         hit_count INTEGER NOT NULL DEFAULT 0,
+         updated_at TEXT NOT NULL,
+         PRIMARY KEY (stat_date, hour)
+       )`
+    )
+    .run();
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_worker_hourly_hits_date
+       ON worker_hourly_hits (stat_date)`
+    )
+    .run();
   schemaReady = true;
 }
 
@@ -90,16 +137,21 @@ export async function incrementWorkerDailyHit(
   const routeKey = input.routeKey.trim() || "/";
   const username = input.username.trim();
   const kind = input.kind;
+  const hour = clampHour(input.hour);
   const updatedAt = nowIso();
 
   if (devStoreEnabled) {
     const key = devHitKey({ statDate, routeKey, username, kind });
     devHits.set(key, (devHits.get(key) ?? 0) + 1);
+    if (hour != null) {
+      const hk = devHourKey(statDate, hour);
+      devHourlyHits.set(hk, (devHourlyHits.get(hk) ?? 0) + 1);
+    }
     return;
   }
 
   await ensureWorkerDailyHitsSchema(db);
-  await db
+  const dailyStmt = db
     .prepare(
       `INSERT INTO worker_daily_hits (
          stat_date, route_key, username, kind, hit_count, updated_at
@@ -110,8 +162,26 @@ export async function incrementWorkerDailyHit(
          hit_count = hit_count + 1,
          updated_at = excluded.updated_at`
     )
-    .bind(statDate, routeKey, username, kind, updatedAt)
-    .run();
+    .bind(statDate, routeKey, username, kind, updatedAt);
+
+  if (hour == null) {
+    await dailyStmt.run();
+    return;
+  }
+
+  const hourlyStmt = db
+    .prepare(
+      `INSERT INTO worker_hourly_hits (stat_date, hour, hit_count, updated_at)
+       VALUES (?1, ?2, 1, ?3)
+       ON CONFLICT(stat_date, hour)
+       DO UPDATE SET
+         hit_count = hit_count + 1,
+         updated_at = excluded.updated_at`
+    )
+    .bind(statDate, hour, updatedAt);
+
+  // 同请求一次 batch，避免每命中多一轮 D1
+  await db.batch([dailyStmt, hourlyStmt]);
 }
 
 function retentionCutoffDate(
@@ -122,6 +192,10 @@ function retentionCutoffDate(
   return beijingDateString(cutoff);
 }
 
+function emptyHourlySeries(): WorkerTrafficHourlyPoint[] {
+  return Array.from({ length: 24 }, (_, hour) => ({ hour, hit_count: 0 }));
+}
+
 export async function purgeWorkerDailyHitsOlderThan(
   db: D1Database,
   retentionDays = WORKER_TRAFFIC_RETENTION_DAYS
@@ -130,10 +204,17 @@ export async function purgeWorkerDailyHitsOlderThan(
 
   if (devStoreEnabled) {
     let removed = 0;
-    for (const key of devHits.keys()) {
+    for (const key of [...devHits.keys()]) {
       const statDate = key.split("\0")[0] ?? "";
       if (statDate < cutoff) {
         devHits.delete(key);
+        removed += 1;
+      }
+    }
+    for (const key of [...devHourlyHits.keys()]) {
+      const statDate = key.split("\0")[0] ?? "";
+      if (statDate < cutoff) {
+        devHourlyHits.delete(key);
         removed += 1;
       }
     }
@@ -141,11 +222,106 @@ export async function purgeWorkerDailyHitsOlderThan(
   }
 
   await ensureWorkerDailyHitsSchema(db);
-  const result = await db
-    .prepare(`DELETE FROM worker_daily_hits WHERE stat_date < ?1`)
-    .bind(cutoff)
-    .run();
-  return Number(result.meta?.changes ?? 0);
+  const results = await db.batch([
+    db.prepare(`DELETE FROM worker_daily_hits WHERE stat_date < ?1`).bind(cutoff),
+    db.prepare(`DELETE FROM worker_hourly_hits WHERE stat_date < ?1`).bind(cutoff),
+  ]);
+  return results.reduce(
+    (sum, result) => sum + Number(result.meta?.changes ?? 0),
+    0
+  );
+}
+
+export async function getWorkerTrafficHourlySeries(
+  db: D1Database,
+  statDate = beijingDateString()
+): Promise<WorkerTrafficHourlyPoint[]> {
+  const date = statDate.trim() || beijingDateString();
+  const series = emptyHourlySeries();
+
+  if (devStoreEnabled) {
+    for (const [key, count] of devHourlyHits.entries()) {
+      const [rowDate, hourRaw] = key.split("\0");
+      if (rowDate !== date) continue;
+      const hour = Number(hourRaw);
+      if (hour >= 0 && hour <= 23) series[hour].hit_count += count;
+    }
+    return series;
+  }
+
+  await ensureWorkerDailyHitsSchema(db);
+  const { results } = await db
+    .prepare(
+      `SELECT hour, hit_count
+       FROM worker_hourly_hits
+       WHERE stat_date = ?1`
+    )
+    .bind(date)
+    .all<{ hour: number; hit_count: number }>();
+
+  for (const row of results ?? []) {
+    const hour = Number(row.hour);
+    if (hour >= 0 && hour <= 23) {
+      series[hour].hit_count = Number(row.hit_count ?? 0);
+    }
+  }
+  return series;
+}
+
+export async function getWorkerTrafficDailyTrend(
+  db: D1Database,
+  endDate = beijingDateString(),
+  trendDays = WORKER_TRAFFIC_TREND_DAYS
+): Promise<WorkerTrafficDailyTrendPoint[]> {
+  const end = endDate.trim() || beijingDateString();
+  const days = Math.max(1, Math.floor(trendDays));
+  const windowStart = beijingDateString(
+    new Date(
+      new Date(`${end}T12:00:00+08:00`).getTime() - (days - 1) * 24 * 60 * 60 * 1000
+    )
+  );
+  const dates: string[] = [];
+  const startMs = new Date(`${windowStart}T12:00:00+08:00`).getTime();
+  const endMs = new Date(`${end}T12:00:00+08:00`).getTime();
+  if (!Number.isNaN(startMs) && !Number.isNaN(endMs)) {
+    for (let t = startMs; t <= endMs; t += 24 * 60 * 60 * 1000) {
+      dates.push(beijingDateString(new Date(t)));
+    }
+  }
+  if (dates.length === 0) dates.push(end);
+
+  const counts = new Map<string, number>();
+
+  if (devStoreEnabled) {
+    for (const [key, count] of devHits.entries()) {
+      const rowDate = key.split("\0")[0] ?? "";
+      if (rowDate < windowStart || rowDate > end) continue;
+      counts.set(rowDate, (counts.get(rowDate) ?? 0) + count);
+    }
+    return dates.map((stat_date) => ({
+      stat_date,
+      hit_count: counts.get(stat_date) ?? 0,
+    }));
+  }
+
+  await ensureWorkerDailyHitsSchema(db);
+  const { results } = await db
+    .prepare(
+      `SELECT stat_date, COALESCE(SUM(hit_count), 0) AS hit_count
+       FROM worker_daily_hits
+       WHERE stat_date >= ?1 AND stat_date <= ?2
+       GROUP BY stat_date`
+    )
+    .bind(windowStart, end)
+    .all<{ stat_date: string; hit_count: number }>();
+
+  for (const row of results ?? []) {
+    counts.set(row.stat_date, Number(row.hit_count ?? 0));
+  }
+  return dates.map((stat_date) => ({
+    stat_date,
+    hit_count: counts.get(stat_date) ?? 0,
+  }));
 }
 
 export async function getWorkerTrafficDailySummary(
@@ -187,6 +363,11 @@ export async function getWorkerTrafficDailySummary(
       });
     }
 
+    const [hourly, daily_trend] = await Promise.all([
+      getWorkerTrafficHourlySeries(db, date),
+      getWorkerTrafficDailyTrend(db, date),
+    ]);
+
     return {
       stat_date: date,
       total_hits: total,
@@ -202,71 +383,83 @@ export async function getWorkerTrafficDailySummary(
       top_pairs: pairRows
         .sort((a, b) => b.hit_count - a.hit_count)
         .slice(0, 40),
+      hourly,
+      daily_trend,
     };
   }
 
   await ensureWorkerDailyHitsSchema(db);
 
-  const totalRow = await db
-    .prepare(
-      `SELECT COALESCE(SUM(hit_count), 0) AS total
-       FROM worker_daily_hits
-       WHERE stat_date = ?1`
-    )
-    .bind(date)
-    .first<{ total: number }>();
-
-  const anonymousRow = await db
-    .prepare(
-      `SELECT COALESCE(SUM(hit_count), 0) AS total
-       FROM worker_daily_hits
-       WHERE stat_date = ?1 AND username = ''`
-    )
-    .bind(date)
-    .first<{ total: number }>();
-
-  const { results: routeRows } = await db
-    .prepare(
-      `SELECT route_key, kind, SUM(hit_count) AS hit_count
-       FROM worker_daily_hits
-       WHERE stat_date = ?1
-       GROUP BY route_key, kind
-       ORDER BY hit_count DESC
-       LIMIT 40`
-    )
-    .bind(date)
-    .all<WorkerTrafficRouteRow>();
-
-  const { results: userRows } = await db
-    .prepare(
-      `SELECT username, SUM(hit_count) AS hit_count
-       FROM worker_daily_hits
-       WHERE stat_date = ?1 AND username != ''
-       GROUP BY username
-       ORDER BY hit_count DESC
-       LIMIT 20`
-    )
-    .bind(date)
-    .all<WorkerTrafficUserRow>();
-
-  const { results: pairRows } = await db
-    .prepare(
-      `SELECT username, route_key, kind, hit_count
-       FROM worker_daily_hits
-       WHERE stat_date = ?1
-       ORDER BY hit_count DESC
-       LIMIT 40`
-    )
-    .bind(date)
-    .all<WorkerTrafficPairRow>();
+  const [
+    totalRow,
+    anonymousRow,
+    routeResult,
+    userResult,
+    pairResult,
+    hourly,
+    daily_trend,
+  ] = await Promise.all([
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(hit_count), 0) AS total
+         FROM worker_daily_hits
+         WHERE stat_date = ?1`
+      )
+      .bind(date)
+      .first<{ total: number }>(),
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(hit_count), 0) AS total
+         FROM worker_daily_hits
+         WHERE stat_date = ?1 AND username = ''`
+      )
+      .bind(date)
+      .first<{ total: number }>(),
+    db
+      .prepare(
+        `SELECT route_key, kind, SUM(hit_count) AS hit_count
+         FROM worker_daily_hits
+         WHERE stat_date = ?1
+         GROUP BY route_key, kind
+         ORDER BY hit_count DESC
+         LIMIT 40`
+      )
+      .bind(date)
+      .all<WorkerTrafficRouteRow>(),
+    db
+      .prepare(
+        `SELECT username, SUM(hit_count) AS hit_count
+         FROM worker_daily_hits
+         WHERE stat_date = ?1 AND username != ''
+         GROUP BY username
+         ORDER BY hit_count DESC
+         LIMIT 20`
+      )
+      .bind(date)
+      .all<WorkerTrafficUserRow>(),
+    db
+      .prepare(
+        `SELECT username, route_key, kind, hit_count
+         FROM worker_daily_hits
+         WHERE stat_date = ?1
+         ORDER BY hit_count DESC
+         LIMIT 40`
+      )
+      .bind(date)
+      .all<WorkerTrafficPairRow>(),
+    getWorkerTrafficHourlySeries(db, date),
+    getWorkerTrafficDailyTrend(db, date),
+  ]);
 
   return {
     stat_date: date,
     total_hits: Number(totalRow?.total ?? 0),
     quota_limit: WORKER_DAILY_REQUEST_LIMIT,
     anonymous_hits: Number(anonymousRow?.total ?? 0),
-    top_routes: routeRows ?? [],
-    top_users: userRows ?? [],
-    top_pairs: pairRows ?? [],
+    top_routes: routeResult.results ?? [],
+    top_users: userResult.results ?? [],
+    top_pairs: pairResult.results ?? [],
+    hourly,
+    daily_trend,
   };
 }

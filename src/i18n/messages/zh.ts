@@ -164,6 +164,13 @@ export const zhMessages: Messages = {
         loadFailed: "加载流量统计失败，请重试。",
         diagnoseHint:
           "定位 Error 1027（日请求顶满）看本看板；访问日志不统计 API 轮询。",
+        hourlyHeading: "分时折线（北京时间）",
+        dailyTrendHeading: "近 14 日趋势",
+        hourlyHint:
+          "按小时看高峰；竖线≈北京 08:00 Cloudflare 日配额重置。分时从本次部署后开始累计，更早只有日合计。",
+        hourLabel: "时刻",
+        quotaResetLabel: "配额重置",
+        dateShort: "日期",
       },
       feedback: {
         heading: "用户反馈",
@@ -197,7 +204,7 @@ export const zhMessages: Messages = {
       page: {
         title: "流量检测看板",
         subtitle:
-          "北京日配额进度、接口 Top、用户 Top、用户×接口交叉与匿名流量。用于定位 Error 1027；访问日志不统计 API 轮询。",
+          "北京日配额进度、分时/近14日折线、接口 Top、用户 Top、用户×接口交叉与匿名流量。用于定位 Error 1027；访问日志不统计 API 轮询。",
         backToAdmin: "← 返回后台管理（访问日志）",
       },
       auth: {
