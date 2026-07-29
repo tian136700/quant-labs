@@ -60,6 +60,15 @@ def main() -> int:
             errors.append("抽问卡无接序数据时仍应随用法/例句区显示接序块")
     if "need_connection" not in fill_usage:
         errors.append("fill-usage list_missing 须含 need_connection")
+    if "listJpVocabGrammarMissingConnection" not in fill_usage:
+        errors.append("fill-usage 须含 listJpVocabGrammarMissingConnection")
+    if "list_missing_connection" not in route:
+        errors.append("fill-usage route 须支持 list_missing_connection")
+    conn_script = (
+        ROOT / "scripts/jp-vocab-fill-grammar-connection-api.py"
+    ).read_text(encoding="utf-8")
+    if "list_missing_connection" not in conn_script:
+        errors.append("接序定时脚本须调 list_missing_connection")
     if "connection" not in script or "split_connection_section" not in script:
         errors.append("Mac 脚本须解析【接序】并写回 connection")
     if "禁止另开定时任务只补接序" not in rule and "另开定时任务只补接序" not in rule:
@@ -92,6 +101,8 @@ def main() -> int:
         errors.append("Mac 脚本须客户端跳过已完成的变形课（防卡队）")
     if "活用课" not in rule or ("有例句即算完成" not in rule and "有例句+接序即算完成" not in rule):
         errors.append("规则须写明变形课有例句即完成、勿卡 list_missing")
+    if "变形课不要接序" not in usage_ai and "不要接序" not in usage_ai:
+        errors.append("usage-ai 须写明变形课不要接序")
     if "禁止任何「用法」" not in usage_ai and "禁止任何用法" not in usage_ai:
         errors.append("变形词条 prompt 须禁止用法、只给例句")
     if "parseJpVocabConjugationExamplesOnly" not in usage_ai:

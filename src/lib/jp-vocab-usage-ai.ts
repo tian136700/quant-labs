@@ -92,7 +92,7 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
 
 /**
  * 语法「用法+例句+接序」是否已齐。
- * 活用变形课：usage 故意为空，有例句+接序即算完成（勿再进 list_missing，否则会卡死队列）。
+ * 活用变形课：不要接序；有例句即算完成（勿再进 list_missing，否则会卡死队列）。
  */
 export function isJpVocabGrammarUsageExamplesPairComplete(
   word: string,
@@ -102,10 +102,10 @@ export function isJpVocabGrammarUsageExamplesPairComplete(
 ): boolean {
   const hasExamples = Boolean(String(examples ?? "").trim());
   const hasUsage = Boolean(String(usage ?? "").trim());
-  if (!hasJpVocabConnection(connection)) return false;
   if (isJpVocabConjugationGrammar(word)) {
     return hasExamples;
   }
+  if (!hasJpVocabConnection(connection)) return false;
   return hasUsage && hasExamples;
 }
 
@@ -153,27 +153,23 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   if (isConjugation) {
     return `${meta}
 
-请为上述「变形/变化规则」词条写例句，并同一次给出接序，供中文母语的 N5 初学者朗读。
+请为上述「变形/变化规则」词条写例句，供中文母语的 N5 初学者朗读。
 
 硬规则（必须遵守）：
 - ❌ 禁止任何「用法」「规则讲解」「标签」「1. 五段动词…」这类中文说明。学生自己记怎么变，你只给例句。
+- ❌ 变形课不要写「接序」段（接续形态由课堂规则讲解，卡片只展示例句）。
 - ✅ 只输出 2～3 条完整短日语例句；每条下一行「译文：」+ 中文。
 - 不要行首编号、不要 markdown、不要总标题、不要箭头对照句（書く→書きます）。
 - 例句必须 N5 左右：极短、口语、日常词；必须自然用到本变形（如ます形出现「ます」、て形出现「て」连接）。
 - 每个汉字后半角括号假名。
-${jpVocabConnectionPromptAppendix("grammar")}
 
-输出格式示例（例句 + 接序，没有用法）：
+输出格式示例（只有例句，没有用法、没有接序）：
 今日(きょう)は学校(がっこう)へ行(い)きます。
 译文：今天去学校。
 朝(あさ)ご飯(はん)を食(た)べます。
 译文：吃早饭。
 友(とも)達(だち)と勉強(べんきょう)します。
-译文：和朋友一起学习。
-【接序】
-一类动词（五段）变ます形：词尾う段→い段＋「ます」
-二类动词（一段）变ます形：去「る」＋「ます」
-三类动词：「する→します」「来る→来ます」`;
+译文：和朋友一起学习。`;
   }
 
   return `${meta}

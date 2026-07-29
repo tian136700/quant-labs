@@ -3,6 +3,7 @@ import "server-only";
 import {
   buildJpVocabConnectionOnlyAiPrompt,
   hasJpVocabConnection,
+  JP_VOCAB_CONNECTION_UPLOAD_SPEC,
   normalizeJpVocabConnectionSource,
   validateJpVocabConnectionAiOutput,
 } from "@/lib/jp-vocab-connection-ai";
@@ -145,11 +146,12 @@ export async function listJpVocabGrammarMissingUsage(
       ) {
         return null;
       }
-      const need_usage = isJpVocabConjugationGrammar(word)
-        ? false
-        : !usage;
+      const isConj = isJpVocabConjugationGrammar(word);
+      const need_usage = isConj ? false : !usage;
       const need_examples = !examples;
-      const need_connection = !hasJpVocabConnection(connection);
+      const need_connection = isConj
+        ? false
+        : !hasJpVocabConnection(connection);
       const onlyConnection =
         need_connection && !need_usage && !need_examples;
       return {
@@ -182,6 +184,136 @@ export async function listJpVocabGrammarMissingUsage(
 
   if (limit == null) return mapped;
   return mapped.slice(0, limit);
+}
+
+export type JpVocabMissingConnectionRow = {
+  id: number;
+  word: string;
+  kind: "grammar";
+  reading: string | null;
+  meaning: string | null;
+  usage: string | null;
+  connection: string | null;
+  prompt: string;
+};
+
+/** 句型语法：用法+例句已有、仅缺接序（不含变形课） */
+export async function listJpVocabGrammarMissingConnection(
+  db: D1Database,
+  options: ListJpVocabMissingUsageOptions = {}
+): Promise<JpVocabMissingConnectionRow[]> {
+  await ensureJpVocabWordSchema(db);
+  const rawLimit =
+    typeof options.limit === "number" &&
+    Number.isFinite(options.limit) &&
+    options.limit > 0
+      ? Math.floor(options.limit)
+      : null;
+  const limit = rawLimit == null ? null : Math.min(rawLimit, 20);
+  const wordId =
+    typeof options.wordId === "number" &&
+    Number.isInteger(options.wordId) &&
+    options.wordId > 0
+      ? options.wordId
+      : null;
+
+  let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences, connection
+       FROM jp_vocab_word
+       WHERE kind = 'grammar'
+         AND (connection IS NULL OR connection = '')
+         AND example_sentences IS NOT NULL AND example_sentences != ''
+         AND usage IS NOT NULL AND usage != ''`;
+  const binds: number[] = [];
+  if (wordId != null) {
+    sql += ` AND id = ?${binds.length + 1}`;
+    binds.push(wordId);
+  }
+  sql += ` ORDER BY id`;
+
+  const stmt = db.prepare(sql);
+  const result = await (
+    binds.length > 0 ? stmt.bind(...binds) : stmt
+  ).all<{
+    id: number;
+    word: string;
+    kind: string;
+    reading: string | null;
+    meaning: string | null;
+    usage: string | null;
+    example_sentences: string | null;
+    connection: string | null;
+  }>();
+
+  const mapped = (result.results ?? [])
+    .map((row) => {
+      const word = String(row.word);
+      if (isJpVocabConjugationGrammar(word)) return null;
+      const reading =
+        row.reading != null ? String(row.reading).trim() || null : null;
+      const meaning =
+        row.meaning != null ? String(row.meaning).trim() || null : null;
+      const usage =
+        row.usage != null ? String(row.usage).trim() || null : null;
+      const examples =
+        row.example_sentences != null
+          ? String(row.example_sentences).trim() || null
+          : null;
+      if (
+        isJpVocabGrammarUsageExamplesPairComplete(
+          word,
+          usage,
+          examples,
+          row.connection
+        )
+      ) {
+        return null;
+      }
+      return {
+        id: Number(row.id),
+        word,
+        kind: "grammar" as const,
+        reading,
+        meaning,
+        usage,
+        connection: null,
+        prompt: buildJpVocabConnectionOnlyAiPrompt({
+          word,
+          kind: "grammar",
+          reading,
+          meaning,
+        }),
+      };
+    })
+    .filter((row): row is JpVocabMissingConnectionRow => row != null);
+
+  if (limit == null) return mapped;
+  return mapped.slice(0, limit);
+}
+
+export async function countJpVocabGrammarMissingConnection(
+  db: D1Database
+): Promise<number> {
+  const rows = await listJpVocabGrammarMissingConnection(db, {});
+  return rows.length;
+}
+
+export async function scanJpVocabGrammarMissingConnection(
+  db: D1Database,
+  options: ListJpVocabMissingUsageOptions = {}
+): Promise<{
+  missing: JpVocabMissingConnectionRow[];
+  total_missing: number;
+  upload_spec: typeof JP_VOCAB_CONNECTION_UPLOAD_SPEC;
+}> {
+  const [missing, total_missing] = await Promise.all([
+    listJpVocabGrammarMissingConnection(db, options),
+    countJpVocabGrammarMissingConnection(db),
+  ]);
+  return {
+    missing,
+    total_missing,
+    upload_spec: JP_VOCAB_CONNECTION_UPLOAD_SPEC,
+  };
 }
 
 export async function scanJpVocabGrammarMissingUsage(
@@ -522,7 +654,7 @@ export async function applyJpVocabUsageUpdates(
       // 付费/自动写回必须成对；人手「手动」可只改用法
       // 变形课：只要例句，用法清空
       const isManual = source === "手动";
-      if (!isManual && !connection) {
+      if (!isManual && !connection && !isConj) {
         skipped.push({
           id: wordId,
           word: String(row.word),

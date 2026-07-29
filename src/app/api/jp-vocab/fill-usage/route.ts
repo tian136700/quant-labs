@@ -3,15 +3,17 @@ import {
   applyJpVocabUsageUpdates,
   clearAllJpVocabGrammarExampleSentences,
   clearJpVocabGrammarPairById,
+  scanJpVocabGrammarMissingConnection,
   scanJpVocabGrammarMissingUsage,
 } from "@/lib/jp-vocab-fill-usage";
 import { verifyUploadAuth } from "@/lib/jp-review";
 import { enforceVocabFillRouteRateLimit } from "@/lib/worker-api-rate-limit";
 
 type FillUsageBody = {
-  /** list_missing | apply | clear_grammar_examples | clear_pair */
+  /** list_missing | list_missing_connection | apply | clear_grammar_examples | clear_pair */
   mode?:
     | "list_missing"
+    | "list_missing_connection"
     | "apply"
     | "clear_grammar_examples"
     | "clear_pair";
@@ -129,6 +131,20 @@ export async function POST(request: Request) {
       body.word_id > 0
         ? Math.floor(body.word_id)
         : undefined;
+
+    if (body.mode === "list_missing_connection") {
+      const result = await scanJpVocabGrammarMissingConnection(env.DB, {
+        limit,
+        wordId,
+      });
+      return jsonResponse({
+        ok: true,
+        mode: "list_missing_connection",
+        missing: result.missing,
+        total_missing: result.total_missing,
+        upload_spec: result.upload_spec,
+      });
+    }
 
     const result = await scanJpVocabGrammarMissingUsage(env.DB, {
       limit,

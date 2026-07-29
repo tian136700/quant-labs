@@ -75,7 +75,7 @@ PAIR_SYSTEM = (
     "❌ 用法行禁止写接序清单（动词て形＋…）；接序只写在文末【接序】段。"
     "每条中文用法句末句号后必须紧跟半角等级括号，如。(N5) 或 .(N4).(N3).(N2).(N1)；按该条用法难度估。"
     "若词条含「变形」「变化规则」「形规则」「变ます」「ます形规则」「ない形」「て形」等活用教学："
-    "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号；文末仍要【接序】。"
+    "禁止任何用法/规则说明；只输出 2～3 条 N5 短句+译文；不要行首编号；不要接序。"
     "只用本词条本身；禁止把其它语法点（如たことがある）塞进本条凑组数。"
     "非变形词条：每一条编号中文用法下面必须立刻跟 1 条短日语例句和 1 行「译文：」。"
     "组数=真实常用用法数：只有 1 种就 1 组，有几种写几组，禁止硬凑 2 组。"
@@ -85,10 +85,9 @@ PAIR_SYSTEM = (
 
 CONJ_PAIR_SYSTEM = (
     "这是日语活用「变形」教学词条。学生自己记怎么变。"
-    "禁止写任何用法、规则说明、中文标签、行首编号。"
+    "禁止写任何用法、规则说明、中文标签、行首编号、接序段。"
     "只输出 2～3 条 N5 口语短句；每条下一行「译文：」+中文。"
     "每个汉字后半角括号假名；不要箭头对照句。"
-    "全部例句后另起一行「【接序】」，写该变形的接续/活用要点（中文+「」短引日语）。"
 )
 
 CONNECTION_ONLY_SYSTEM = (
@@ -114,16 +113,15 @@ def is_conjugation_word(word: str) -> bool:
 
 
 def is_grammar_pair_still_missing(row: dict) -> bool:
-    """活用变形课：有例句+接序即算完成（usage 故意为空）。线上旧 list_missing 会把它们反复排到队首。"""
+    """活用变形课：有例句即算完成（不要接序）。句型课：用法+例句+接序。"""
     word = str(row.get("word") or "")
     need_examples = bool(row.get("need_examples"))
     need_usage = bool(row.get("need_usage"))
     need_connection = bool(row.get("need_connection", True))
-    # 旧 API 无 need_connection 字段时默认视为仍缺，促使补接序
     if "need_connection" not in row:
         need_connection = True
     if is_conjugation_word(word):
-        return need_examples or need_connection
+        return need_examples
     return need_usage or need_examples or need_connection
 
 
@@ -630,7 +628,7 @@ def run_one_pair(
                 + "- 禁止任何用法/规则/中文标签/行首编号。\n"
                 + "- 只输出 2～3 条日语短句，每条下一行「译文：」。\n"
                 + "- 汉字后半角括号假名；N5 口语。\n"
-                + f"- 文末必须有「{CONNECTION_MARKER}」接序段。\n"
+                + "- 不要接序段。\n"
             )
             sys_msg = CONJ_PAIR_SYSTEM
         else:
@@ -671,12 +669,15 @@ def run_one_pair(
             if not connection:
                 return None
             return "", "", connection
+        if is_conj:
+            parsed = parse_conjugation_examples(body or text)
+            if not parsed:
+                return None
+            usage, examples = parsed
+            return usage, examples, None
         if not connection:
             return None
-        if is_conj:
-            parsed = parse_conjugation_examples(body)
-        else:
-            parsed = parse_pair_output(body)
+        parsed = parse_pair_output(body)
         if not parsed:
             return None
         usage, examples = parsed
