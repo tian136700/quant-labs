@@ -1,5 +1,5 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { listJpVocabSharedToday, getJpVocabDailyQuizProgress } from "@/lib/jp-vocab-db";
+import { listJpVocabSharedToday, getJpVocabStudyQuizProgressTarget } from "@/lib/jp-vocab-db";
 import { requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import { redactJpVocabMnemonicForClient } from "@/lib/jp-vocab-mnemonic";
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
     const isAdmin = isAdminSuperuser(user?.role);
     const listPromise = listJpVocabSharedToday(env.DB);
-    const quizPromise = lite ? null : getJpVocabDailyQuizProgress(env.DB);
+    const quizPromise = lite ? null : getJpVocabStudyQuizProgressTarget(env.DB);
     const [{ items, refs }, quiz_progress] = await Promise.all([
       listPromise,
       quizPromise ?? Promise.resolve(null),

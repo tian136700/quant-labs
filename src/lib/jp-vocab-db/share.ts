@@ -584,6 +584,23 @@ export async function getJpVocabDailyQuizProgress(
   };
 }
 
+/**
+ * 学生 `/api/jp-vocab/shared` 用：只回传分母（管理员今日抽查数量）。
+ * 分子由客户端按今日共享列表条数自算（peek 入列表不写 today_check）。
+ */
+export async function getJpVocabStudyQuizProgressTarget(
+  db: D1Database
+): Promise<JpVocabDailyQuizProgress> {
+  const teacherVisibleLimit = await getJpVocabTeacherVisibleLimit(db);
+  const total = Math.max(0, Math.floor(teacherVisibleLimit.quiz_target));
+  return {
+    total,
+    checked: 0,
+    remaining: total,
+    complete: false,
+  };
+}
+
 export async function ensureJpVocabShareRequestSchema(db: D1Database): Promise<void> {
   if (jpVocabDbState.devStoreEnabled) return;
   if (!jpVocabDbState.jpVocabShareRequestSchemaReady) {

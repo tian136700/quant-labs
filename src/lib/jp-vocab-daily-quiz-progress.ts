@@ -40,6 +40,25 @@ export function computeJpVocabDailyQuizProgress(
 }
 
 /**
+ * 学生端「今日日语单词」进度：分子 = 今日共享列表条数；分母 = 管理员设定的今日抽查数量。
+ * 禁止用全库 today_check_count（peek 入列表不会写抽查次数，否则会一直 0/N）。
+ */
+export function computeJpVocabStudyPageQuizProgress(
+  sharedItemCount: number,
+  quizTarget: number
+): JpVocabDailyQuizProgress {
+  const total = Math.max(0, Math.floor(quizTarget));
+  const checked = Math.max(0, Math.floor(sharedItemCount));
+  const remaining = Math.max(0, total - checked);
+  return {
+    total,
+    checked,
+    remaining,
+    complete: total > 0 && checked >= total,
+  };
+}
+
+/**
  * 老师端页面进度：分母 = 待抽查词数（未勾选 + 本会话刚勾选）；
  * 不按 1 小时锁定统计。已勾过的不进分母。完成后只展示「已完成」。
  */
