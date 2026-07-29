@@ -75,6 +75,10 @@ def main() -> int:
         raise SystemExit("FAIL: isJpFillViewActive missing in app.js")
     if 'name === "view-jp-fill"' not in app_js:
         raise SystemExit("FAIL: activate must refresh on view-jp-fill")
+    if "jp-fill-word-copy" not in app_js or "data-copy-word" not in app_js:
+        raise SystemExit("FAIL: word copy button missing in jp-fill feed")
+    if 'button.jp-fill-word-copy[data-copy-word]' not in app_js:
+        raise SystemExit("FAIL: jp-fill word copy click handler missing")
 
     # 同词 running→success 应 UPDATE 成一行，不留下「生成中」幽灵行
     rid = feed.insert_jp_vocab_fill_word_run(
