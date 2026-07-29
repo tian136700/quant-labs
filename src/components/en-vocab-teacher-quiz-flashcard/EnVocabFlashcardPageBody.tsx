@@ -117,16 +117,6 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                     音标待补全
                   </p>
                 ) : null}
-                {w.ref_key ? (
-                  <button
-                    type="button"
-                    className="jp-vocab-teacher-quiz__ref-hint"
-                    title={vocabRef?.title ? `教案：${vocabRef.title}` : "查看教案"}
-                    onClick={() => onOpenRef(w.ref_key!, vocabRef)}
-                  >
-                    （点击查看教案）
-                  </button>
-                ) : null}
               </div>
 
               <section

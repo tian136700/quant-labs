@@ -215,7 +215,6 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
                               >
                                 {w.word}
                               </button>
-                              <span className="jp-vocab-ref-hint">（点击查看教案）</span>
                             </>
                           ) : (
                             <span className="jp-vocab-word-text">{w.word}</span>

@@ -354,7 +354,6 @@ export function JpVocabAdminReviewFlashcardModal({
           onOpenRef={onOpenRef}
           titleId="jp-vocab-admin-review-title"
           hideReading={!contentExpanded}
-          showRefHint={false}
         />
 
         {!contentExpanded ? (

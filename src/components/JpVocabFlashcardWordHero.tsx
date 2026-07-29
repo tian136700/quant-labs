@@ -16,8 +16,6 @@ type Props = {
   titleId?: string;
   /** 复习卡片：先隐藏假名/读音，展开后再显示 */
   hideReading?: boolean;
-  /** 词条下方「（点击查看教案）」提示；管理员端卡片关掉 */
-  showRefHint?: boolean;
 };
 
 export function JpVocabFlashcardWordHero({
@@ -29,7 +27,6 @@ export function JpVocabFlashcardWordHero({
   onOpenRef,
   titleId,
   hideReading = false,
-  showRefHint = true,
 }: Props) {
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const onCopied = useCallback((message: string) => setCopyToast(message), []);
@@ -128,16 +125,6 @@ export function JpVocabFlashcardWordHero({
             />
           </div>
         )}
-        {refKey && showRefHint ? (
-          <button
-            type="button"
-            className="jp-vocab-teacher-quiz__ref-hint"
-            title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-            onClick={() => onOpenRef(refKey, ref)}
-          >
-            （点击查看教案）
-          </button>
-        ) : null}
       </div>
 
       <CopyToast

@@ -82,16 +82,6 @@ export function EnVocabFlashcardWordHero({
           音标待补全
         </p>
       ) : null}
-      {refKey ? (
-        <button
-          type="button"
-          className="jp-vocab-teacher-quiz__ref-hint"
-          title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-          onClick={() => onOpenRef(refKey, ref)}
-        >
-          （点击查看教案）
-        </button>
-      ) : null}
     </div>
   );
 }
