@@ -284,6 +284,7 @@ function AdminUsersPageContent() {
     generateLoginLink,
     copyWithTemplate,
     copyUserCredentials,
+    resetUserPassword,
     deleteUser,
     applyUserUpdate,
     handleUserSaveFailed,
@@ -498,6 +499,7 @@ function AdminUsersPageContent() {
         onBindTeacher={openBindTeacher}
         onEdit={openEditUser}
         onViewLoginHistory={setLoginHistoryUser}
+        onResetPassword={resetUserPassword}
         onCopyCredentials={copyUserCredentials}
         onGenerateLoginLink={generateLoginLink}
         onCopyWithTemplate={openCopyWithTemplatePick}

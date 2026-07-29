@@ -254,6 +254,7 @@ export type AdminUserActionsProps = {
   linkGeneratingWithTemplate: boolean;
   copyingId: number | null;
   onEdit: (row: UserRow) => void;
+  onResetPassword: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
   onGenerateLoginLink: (row: UserRow) => void;
   onCopyWithTemplate: (row: UserRow) => void;
@@ -272,6 +273,7 @@ export function AdminUserActions({
   linkGeneratingWithTemplate,
   copyingId,
   onEdit,
+  onResetPassword,
   onCopyCredentials,
   onGenerateLoginLink,
   onCopyWithTemplate,
@@ -286,6 +288,7 @@ export function AdminUserActions({
   const canDelete = !isSelf && !isAdminUser;
   const canGenerateLink = !row.disabled && !isAdminUser;
   const canCopyCredentials = !isAdminUser;
+  const canResetPassword = !isAdminUser;
   const canToggleNeverDisable = !isAdminUser;
   const busy =
     deletingId === row.id || linkGeneratingId === row.id || copyingId === row.id;
@@ -328,6 +331,27 @@ export function AdminUserActions({
           onClick={() => onEdit(row)}
         >
           {locale === "zh" ? "编辑" : "Edit"}
+        </button>
+      ) : null}
+      {canResetPassword ? (
+        <button
+          type="button"
+          className="btn-rsi-filter btn-rsi-filter--compact admin-user-btn"
+          disabled={busy}
+          onClick={() => void onResetPassword(row)}
+          title={
+            locale === "zh"
+              ? "一键更换密码：旧密码立即失效并踢下线；新密码复制到剪贴板。系统保留账号（李老师 / user1）禁止"
+              : "One-click password reset: old password stops working and sessions are signed out; new password is copied. Bootstrap accounts cannot be random-reset"
+          }
+        >
+          {copyingId === row.id
+            ? locale === "zh"
+              ? "更换中…"
+              : "Resetting…"
+            : locale === "zh"
+              ? "更换密码"
+              : "Reset password"}
         </button>
       ) : null}
       {canCopyCredentials ? (

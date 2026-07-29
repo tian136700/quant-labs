@@ -627,6 +627,64 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setStatusErr(true);
   };
 
+  /** 一键更换密码：旧密码与会话立即失效；新密码写入本机缓存并复制。系统保留账号禁止。 */
+  const resetUserPassword = async (row: UserRow) => {
+    setStatus("");
+    setStatusErr(false);
+
+    const username = row.username;
+    const isBootstrapAccount = isReservedUsername(
+      username,
+      ETR_DEFAULT_ADMIN_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
+    );
+    if (isBootstrapAccount) {
+      setStatus(
+        locale === "zh"
+          ? `「${username}」是系统保留账号，禁止一键随机更换密码。请点「编辑」填写已知密码。`
+          : `"${username}" is a system account and cannot be random-reset. Use Edit to set the password.`
+      );
+      setStatusErr(true);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      locale === "zh"
+        ? `确定更换「${username}」的密码吗？\n旧密码将立即失效，已登录会话会被踢下线。\n新密码会复制到剪贴板。`
+        : `Reset password for "${username}"?\nThe old password will stop working and active sessions will be signed out.\nThe new password will be copied to the clipboard.`
+    );
+    if (!confirmed) return;
+
+    const password = await resolvePasswordForCopy(row);
+    if (!password) return;
+
+    const text = formatAdminUserCredentials(
+      username,
+      password,
+      locale,
+      row.role
+    );
+    const copied = await copyTextToClipboard(text);
+    if (copied) {
+      showCopySuccess();
+      setStatus(
+        locale === "zh"
+          ? `已更换 ${username} 的密码（旧密码与会话已失效），新密码已复制：${password}`
+          : `Password for ${username} reset (old password and sessions invalidated). New password copied: ${password}`
+      );
+      setStatusErr(false);
+      return;
+    }
+    showCopyFailure();
+    setStatus(
+      locale === "zh"
+        ? `已更换 ${username} 的密码，但复制失败，请手动记下：\n${text}`
+        : `Password for ${username} was reset, but copy failed. Save manually:\n${text}`
+    );
+    setStatusErr(true);
+  };
+
   const deleteUser = async (row: UserRow) => {
     const ok = window.confirm(
       locale === "zh"
@@ -745,6 +803,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     generateLoginLink,
     copyWithTemplate,
     copyUserCredentials,
+    resetUserPassword,
     deleteUser,
     applyUserUpdate,
     handleUserSaveFailed,

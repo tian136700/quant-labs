@@ -42,12 +42,55 @@ def main() -> int:
     parsed_fail = extract_result_from_log(SAMPLE_UNIFIED)
     assert parsed_fail and parsed_fail.get("outcome") == "failed", parsed_fail
 
-    snap = __import__(
+    feed = __import__(
         "maintenance_center.jp_vocab_fill_feed",
-        fromlist=["jp_vocab_fill_feed_snapshot"],
-    ).jp_vocab_fill_feed_snapshot(limit=5)
+        fromlist=[
+            "jp_vocab_fill_feed_snapshot",
+            "insert_jp_vocab_fill_word_run",
+            "list_jp_vocab_fill_word_runs",
+        ],
+    )
+    snap = feed.jp_vocab_fill_feed_snapshot(limit=5)
     assert snap.get("ok") is True, snap
     assert "recent" in snap and "current" in snap, snap
+    for row in snap.get("recent") or []:
+        assert row.get("status") not in ("running", "applying"), row
+
+    # 同词 running→success 应 UPDATE 成一行，不留下「生成中」幽灵行
+    rid = feed.insert_jp_vocab_fill_word_run(
+        {
+            "word_id": 900034,
+            "word": "テスト英国",
+            "kind": "word",
+            "status": "running",
+            "started_at": "2099-01-01 00:00:00",
+        }
+    )
+    rid2 = feed.insert_jp_vocab_fill_word_run(
+        {
+            "word_id": 900034,
+            "word": "テスト英国",
+            "kind": "word",
+            "status": "success",
+            "source": "线上 test",
+            "applied": "['word_bundle']",
+            "finished_at": "2099-01-01 00:00:12",
+        }
+    )
+    assert rid == rid2, (rid, rid2)
+    rows = [
+        r
+        for r in feed.list_jp_vocab_fill_word_runs(limit=20)
+        if int(r.get("word_id") or 0) == 900034
+    ]
+    assert len(rows) == 1 and rows[0]["status"] == "success", rows
+
+    # 清掉测试脏数据
+    from maintenance_center.db import get_conn, init_db
+
+    init_db()
+    with get_conn() as conn:
+        conn.execute("DELETE FROM jp_vocab_fill_word_runs WHERE word_id = ?", (900034,))
 
     print("[check_jp_vocab_fill_feed] OK")
     return 0

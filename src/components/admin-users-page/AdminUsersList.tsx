@@ -34,6 +34,7 @@ export type AdminUsersListProps = {
   onBindTeacher: (row: UserRow) => void;
   onEdit: (row: UserRow) => void;
   onViewLoginHistory: (row: UserRow) => void;
+  onResetPassword: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
   onGenerateLoginLink: (row: UserRow) => void;
   onCopyWithTemplate: (row: UserRow) => void;
@@ -64,6 +65,7 @@ export function AdminUsersList({
   onBindTeacher,
   onEdit,
   onViewLoginHistory,
+  onResetPassword,
   onCopyCredentials,
   onGenerateLoginLink,
   onCopyWithTemplate,
@@ -270,6 +272,7 @@ export function AdminUsersList({
                     linkGeneratingWithTemplate={linkGeneratingWithTemplate}
                     copyingId={copyingId}
                     onEdit={onEdit}
+                    onResetPassword={onResetPassword}
                     onCopyCredentials={onCopyCredentials}
                     onGenerateLoginLink={onGenerateLoginLink}
                     onCopyWithTemplate={onCopyWithTemplate}
@@ -390,6 +393,7 @@ export function AdminUsersList({
                           linkGeneratingWithTemplate={linkGeneratingWithTemplate}
                           copyingId={copyingId}
                           onEdit={onEdit}
+                          onResetPassword={onResetPassword}
                           onCopyCredentials={onCopyCredentials}
                           onGenerateLoginLink={onGenerateLoginLink}
                           onCopyWithTemplate={onCopyWithTemplate}
