@@ -4,13 +4,30 @@ import { uploadEnVocabWords } from "@/lib/en-vocab-db";
 import { EN_VOCAB_UPLOAD_SOURCE_API } from "@/lib/en-vocab-upload-source";
 import type { EnVocabUploadInput } from "@/lib/types";
 
+const DUPLICATE_WORD_MESSAGE = "单词重复了，库中已存在，已跳过";
+
+function buildUploadSummaryMessage(
+  added: number,
+  duplicateWords: string[]
+): string {
+  const parts: string[] = [];
+  if (added > 0) parts.push(`成功新增 ${added} 个`);
+  if (duplicateWords.length > 0) {
+    parts.push(
+      `有 ${duplicateWords.length} 个单词重复已跳过：${duplicateWords.join("、")}`
+    );
+  }
+  if (!parts.length) return "没有可写入的单词";
+  return parts.join("；");
+}
+
 /**
  * 本地 STT / 脚本：直接往英语抽背词库推词（不经英语新课）。
  * 自动标记 upload_source=api → 页面显示「通过API接口上传」。
+ * 重复词不覆盖，返回 duplicate_words / duplicates 提示。
  *
  * POST /api/en-vocab/local-upload
  * Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
- * Body: { "words": [ { "word": "condition", "category": "托福词汇" }, … ] }
  */
 export async function POST(request: Request) {
   try {
@@ -57,11 +74,24 @@ export async function POST(request: Request) {
       return jsonResponse({ ok: false, error: result.error }, 400);
     }
 
+    const duplicateWords = result.duplicate_words;
+    const hasDuplicates = duplicateWords.length > 0;
+    const message = buildUploadSummaryMessage(result.added, duplicateWords);
+
     return jsonResponse({
       ok: true,
       added: result.added,
       skipped: result.skipped,
       total: result.total,
+      added_words: result.added_words,
+      duplicate_words: duplicateWords,
+      /** 每条重复词的提示，方便客户端直接展示 */
+      duplicates: duplicateWords.map((word) => ({
+        word,
+        message: DUPLICATE_WORD_MESSAGE,
+      })),
+      has_duplicates: hasDuplicates,
+      message,
       upload_source: EN_VOCAB_UPLOAD_SOURCE_API,
       upload_source_label: "通过API接口上传",
     });

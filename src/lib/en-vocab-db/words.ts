@@ -543,7 +543,16 @@ export async function resetTodayEnVocabRound(
 }
 
 export type UploadEnVocabWordsResult =
-  | { ok: true; added: number; skipped: number; total: number }
+  | {
+      ok: true;
+      added: number;
+      skipped: number;
+      total: number;
+      /** 本次新写入的单词 */
+      added_words: string[];
+      /** 因库中已存在（或本批重复）而跳过的单词 */
+      duplicate_words: string[];
+    }
   | { ok: false; error: string };
 
 export async function uploadEnVocabWords(
@@ -584,10 +593,13 @@ export async function uploadEnVocabWords(
     }
     let added = 0;
     let skipped = 0;
+    const addedWords: string[] = [];
+    const duplicateWords: string[] = [];
     for (const item of cleaned) {
       const exists = enVocabDbState.devWords.some((w) => w.word === item.word);
       if (exists && !replace) {
         skipped++;
+        duplicateWords.push(item.word);
         continue;
       }
       enVocabDbState.devWords.push({
@@ -610,8 +622,16 @@ export async function uploadEnVocabWords(
         updated_at: ts,
       });
       added++;
+      addedWords.push(item.word);
     }
-    return { ok: true, added, skipped, total: enVocabDbState.devWords.length };
+    return {
+      ok: true,
+      added,
+      skipped,
+      total: enVocabDbState.devWords.length,
+      added_words: addedWords,
+      duplicate_words: duplicateWords,
+    };
   }
 
   if (replace) {
@@ -620,6 +640,8 @@ export async function uploadEnVocabWords(
 
   let added = 0;
   let skipped = 0;
+  const addedWords: string[] = [];
+  const duplicateWords: string[] = [];
   const existing = replace
     ? new Set<string>()
     : new Set(
@@ -634,6 +656,7 @@ export async function uploadEnVocabWords(
   for (const item of cleaned) {
     if (existing.has(item.word)) {
       skipped++;
+      duplicateWords.push(item.word);
       continue;
     }
     existing.add(item.word);
@@ -655,6 +678,7 @@ export async function uploadEnVocabWords(
         )
     );
     added++;
+    addedWords.push(item.word);
   }
 
   if (inserts.length) {
@@ -670,6 +694,8 @@ export async function uploadEnVocabWords(
     added,
     skipped,
     total: totalRow?.c ?? 0,
+    added_words: addedWords,
+    duplicate_words: duplicateWords,
   };
 }
 
