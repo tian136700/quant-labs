@@ -481,6 +481,7 @@ def apply_bundle(
                 {
                     "mode": "apply",
                     "allow_overwrite": True,
+                    "validate_format": False,
                     "source": source,
                     "updates": [word_update],
                 },

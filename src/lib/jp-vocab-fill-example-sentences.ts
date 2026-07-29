@@ -170,7 +170,7 @@ export async function countJpVocabWordsMissingExampleSentences(
   options: Pick<ListJpVocabMissingExampleSentencesOptions, "kind"> = {}
 ): Promise<number> {
   const kind = options.kind;
-  // 语法须已有 usage；单词须已有 meaning。单词另含缺接序（例句已有亦可）。
+  // 语法须已有 usage；单词须已有 meaning。单词只看缺例句（接序仅语法条，勿因 connection 空把单词 perpetual 进队）。
   const result =
     kind === "word"
       ? await db
@@ -178,10 +178,7 @@ export async function countJpVocabWordsMissingExampleSentences(
             `SELECT COUNT(*) AS n FROM jp_vocab_word
              WHERE kind = 'word'
                AND meaning IS NOT NULL AND TRIM(meaning) != ''
-               AND (
-                 (example_sentences IS NULL OR TRIM(example_sentences) = '')
-                 OR (connection IS NULL OR TRIM(connection) = '')
-               )`
+               AND (example_sentences IS NULL OR TRIM(example_sentences) = '')`
           )
           .first<{ n: number }>()
       : kind === "grammar"
@@ -205,10 +202,7 @@ export async function countJpVocabWordsMissingExampleSentences(
                  OR (
                    kind = 'word'
                    AND meaning IS NOT NULL AND TRIM(meaning) != ''
-                   AND (
-                     (example_sentences IS NULL OR TRIM(example_sentences) = '')
-                     OR (connection IS NULL OR TRIM(connection) = '')
-                   )
+                   AND (example_sentences IS NULL OR TRIM(example_sentences) = '')
                  )
                )`
             )
@@ -242,10 +236,7 @@ export async function listJpVocabWordsMissingExampleSentences(
            OR (
              kind = 'word'
              AND meaning IS NOT NULL AND TRIM(meaning) != ''
-             AND (
-               (example_sentences IS NULL OR TRIM(example_sentences) = '')
-               OR (connection IS NULL OR TRIM(connection) = '')
-             )
+             AND (example_sentences IS NULL OR TRIM(example_sentences) = '')
            )
          )`;
   const binds: Array<string | number> = [];

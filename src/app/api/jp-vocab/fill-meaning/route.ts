@@ -20,6 +20,8 @@ type FillMeaningBody = {
   source?: string;
   /** 允许覆盖已有 meaning（纠错 / 多读音重跑） */
   allow_overwrite?: boolean;
+  /** apply：false=线上 batch 跳过严格例句校验（仍规范化写库） */
+  validate_format?: boolean;
   updates?: Array<{
     word_id?: number;
     meaning?: string;
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
     if (updates.length > 0 || body.mode === "apply") {
       const result = await applyJpVocabMeaningUpdates(env.DB, updates, {
         dryRun,
-        validateFormat: true,
+        validateFormat: body.validate_format !== false,
         defaultSource: batchSource || null,
         allowOverwrite: Boolean(body.allow_overwrite),
       });
