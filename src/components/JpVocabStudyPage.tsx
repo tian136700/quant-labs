@@ -46,8 +46,11 @@ import {
   type JpVocabStudyApiPayload,
 } from "@/lib/jp-vocab-study-cache";
 import {
+  JP_VOCAB_STUDY_POLL_HIDDEN_MS,
+  JP_VOCAB_STUDY_POLL_MS,
   JP_VOCAB_STUDY_QUIZ_EVERY_N,
 } from "@/lib/jp-vocab-sync";
+import { useVocabStudySharedPoll } from "@/hooks/useVocabStudySharedPoll";
 import { jpVocabSaveQueue } from "@/lib/request-queue";
 import { JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED } from "@/lib/jp-vocab-share-ui";
 import {
@@ -401,6 +404,15 @@ export function JpVocabStudyPage() {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadShared, canViewStudy]);
+
+  /** 跨手机/电脑：同浏览器 BroadcastChannel 无效，须轻量轮询才能及时弹卡 */
+  useVocabStudySharedPoll({
+    enabled: canViewStudy && !checking && Boolean(user),
+    username: user?.username,
+    loadShared,
+    activeMs: JP_VOCAB_STUDY_POLL_MS,
+    hiddenMs: JP_VOCAB_STUDY_POLL_HIDDEN_MS,
+  });
 
   useEffect(() => {
     if (!canViewStudy || !user || !quizProgress || quizProgress.total <= 0) return;

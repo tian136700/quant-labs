@@ -26,6 +26,11 @@ import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQui
 import { useEnVocabStudyPersonalLevels } from "@/hooks/useVocabStudyPersonalLevels";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import {
+  EN_VOCAB_STUDY_POLL_HIDDEN_MS,
+  EN_VOCAB_STUDY_POLL_MS,
+} from "@/lib/en-vocab-sync";
+import { useVocabStudySharedPoll } from "@/hooks/useVocabStudySharedPoll";
+import {
   abortSignalAfter,
   VOCAB_STUDENT_PEEK_TIMEOUT_MS,
 } from "@/lib/vocab-teacher-quiz-live-sync";
@@ -272,6 +277,15 @@ export function EnVocabStudyPage() {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadShared, canViewStudy]);
+
+  /** 跨手机/电脑：同浏览器 BroadcastChannel 无效，须轻量轮询才能及时弹卡 */
+  useVocabStudySharedPoll({
+    enabled: canViewStudy && !checking && Boolean(user),
+    username: user?.username,
+    loadShared,
+    activeMs: EN_VOCAB_STUDY_POLL_MS,
+    hiddenMs: EN_VOCAB_STUDY_POLL_HIDDEN_MS,
+  });
 
   const teacherLiveWordShared =
     teacherLiveWordId != null &&
