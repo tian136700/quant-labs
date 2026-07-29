@@ -37,8 +37,19 @@ export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
     "too_many_major_senses",
     "has_markdown",
     "has_latin_only",
+    "meta_label",
   ],
 } as const;
+
+/** 区块标题 / 提示词壳，曾被误当成释义写库（如字面「【释义】」） */
+const MEANING_META_LABEL_RE =
+  /^(?:【\s*(?:释义|意思|词性|例句)\s*】|#+\s*(?:释义|意思|词性|例句)|释义|意思|词性|例句)$/i;
+
+const MEANING_SECTION_LINE_RE =
+  /^【\s*(释义|词性|例句|意思)\s*】\s*$|^#{1,3}\s*(释义|词性|例句)\s*$/i;
+
+const MEANING_SECTION_PREFIX_RE =
+  /^【\s*(释义|意思)\s*】\s*[:：]?\s*/i;
 
 export type JpVocabMeaningAiInput = {
   word: string;
@@ -135,13 +146,41 @@ export function splitJpVocabMeaningMajorSenses(meaning: string | null | undefine
   return parts.length ? parts : [];
 }
 
+/** 是否为区块标题等无效「释义」（空字段或字面【释义】） */
+export function isJpVocabMeaningMetaLabel(
+  meaning: string | null | undefined
+): boolean {
+  const t = String(meaning ?? "").trim();
+  if (!t) return false;
+  return MEANING_META_LABEL_RE.test(t);
+}
+
+/** 剥掉【释义】标题行 / 同行前缀，避免模型壳写进正文 */
+function stripJpVocabMeaningSectionChrome(raw: string): string {
+  const lines = String(raw || "")
+    .split(/\r?\n/)
+    .map((ln) => ln.trim())
+    .filter(Boolean);
+  const kept: string[] = [];
+  for (const line of lines) {
+    if (MEANING_SECTION_LINE_RE.test(line)) continue;
+    const stripped = line.replace(MEANING_SECTION_PREFIX_RE, "").trim();
+    if (!stripped || MEANING_META_LABEL_RE.test(stripped)) continue;
+    kept.push(stripped);
+  }
+  return kept.join("\n").trim();
+}
+
 /** 规范化单段近义：按 ；/;/,/、 拆开，去重，最多 3 个，再用 ； 拼接 */
 function normalizeJpVocabMeaningSubSenses(raw: string): string {
   const parts: string[] = [];
   const seen = new Set<string>();
   for (const chunk of String(raw || "").split(/[;；、,，|｜]+/)) {
-    const item = chunk.trim().replace(/^[\d]+[.、．)\]]\s*/, "").replace(/[。.]+$/, "");
-    if (!item || seen.has(item)) continue;
+    const item = chunk
+      .trim()
+      .replace(/^[\d]+[.、．)\]]\s*/, "")
+      .replace(/[。.]+$/, "");
+    if (!item || seen.has(item) || MEANING_META_LABEL_RE.test(item)) continue;
     seen.add(item);
     parts.push(item);
     if (parts.length >= JP_VOCAB_MEANING_UPLOAD_SPEC.max_senses) break;
@@ -151,7 +190,8 @@ function normalizeJpVocabMeaningSubSenses(raw: string): string {
 
 /** 规范化：保留 / 大义项；段内用 ； 近义 */
 export function normalizeJpVocabMeaningText(raw: string): string {
-  const majorParts = String(raw || "")
+  const stripped = stripJpVocabMeaningSectionChrome(raw);
+  const majorParts = stripped
     .split(/[/／]/)
     .map((chunk) => normalizeJpVocabMeaningSubSenses(chunk))
     .filter(Boolean);
@@ -166,8 +206,14 @@ const MEANING_MAX_LEN = 96;
 export function validateJpVocabMeaningAiOutput(
   raw: string
 ): { ok: true; text: string } | { ok: false; reason: string } {
+  if (isJpVocabMeaningMetaLabel(raw)) {
+    return { ok: false, reason: "meta_label" };
+  }
   const text = normalizeJpVocabMeaningText(raw);
   if (!text) return { ok: false, reason: "empty" };
+  if (isJpVocabMeaningMetaLabel(text)) {
+    return { ok: false, reason: "meta_label" };
+  }
   if (text.length > MEANING_MAX_LEN) return { ok: false, reason: "too_long" };
   if (MARKDOWN_RE.test(text)) return { ok: false, reason: "has_markdown" };
   if (!HAN_RE.test(text)) return { ok: false, reason: "no_chinese" };

@@ -5,11 +5,16 @@ import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-
 import { normalizeJpVocabExampleSentencesSource } from "@/lib/jp-vocab-example-sentences";
 import {
   buildJpVocabMeaningAiPrompt,
+  isJpVocabMeaningMetaLabel,
   JP_VOCAB_MEANING_UPLOAD_SPEC,
   normalizeJpVocabMeaningText,
   validateJpVocabMeaningAiOutput,
 } from "@/lib/jp-vocab-meaning-ai";
 import { validateJpVocabPosAiOutput } from "@/lib/jp-vocab-pos-ai";
+
+/** 缺释义：NULL/空，或误写入的区块标题壳（【释义】） */
+const JP_VOCAB_MEANING_MISSING_SQL = `(meaning IS NULL OR meaning = ''
+         OR meaning = '【释义】' OR meaning = '【意思】' OR meaning = '释义')`;
 
 export type JpVocabMissingMeaningRow = {
   id: number;
@@ -53,15 +58,20 @@ function isBlankField(value: string | null | undefined): boolean {
   return !(value != null && String(value).trim());
 }
 
+function isMeaningEffectivelyEmpty(value: string | null | undefined): boolean {
+  return isBlankField(value) || isJpVocabMeaningMetaLabel(value);
+}
+
 export async function countJpVocabWordsMissingMeaning(
   db: D1Database
 ): Promise<number> {
   const result = await db
     .prepare(
       // 空释义写入应是 NULL；不用 TRIM，避免 list_missing 热路径全表函数扫
+      // 含误写入的「【释义】」壳，便于自动重补
       `SELECT COUNT(*) AS n FROM jp_vocab_word
        WHERE kind != 'grammar'
-         AND (meaning IS NULL OR meaning = '')`
+         AND ${JP_VOCAB_MEANING_MISSING_SQL}`
     )
     .first<{ n: number }>();
   return Number(result?.n ?? 0);
@@ -84,7 +94,7 @@ export async function listJpVocabWordsMissingMeaning(
 
   let sql = `SELECT id, word, reading, kind, pos, example_sentences FROM jp_vocab_word
        WHERE kind != 'grammar'
-         AND (meaning IS NULL OR meaning = '')
+         AND ${JP_VOCAB_MEANING_MISSING_SQL}
        ORDER BY id`;
   if (limit != null) {
     sql += ` LIMIT ?1`;
@@ -264,7 +274,7 @@ export async function applyJpVocabMeaningUpdates(
       continue;
     }
 
-    const meaningEmpty = isBlankField(row.meaning);
+    const meaningEmpty = isMeaningEffectivelyEmpty(row.meaning);
     const posEmpty = isBlankField(row.pos);
     const examplesEmpty = isBlankField(row.example_sentences);
 
@@ -368,11 +378,11 @@ export async function applyJpVocabMeaningUpdates(
               .prepare(
                 `UPDATE jp_vocab_word
                  SET meaning = CASE
-                       WHEN (meaning IS NULL OR meaning = '') AND ?1 IS NOT NULL THEN ?1
+                       WHEN ${JP_VOCAB_MEANING_MISSING_SQL} AND ?1 IS NOT NULL THEN ?1
                        ELSE meaning
                      END,
                      meaning_source = CASE
-                       WHEN (meaning IS NULL OR meaning = '') AND ?1 IS NOT NULL THEN ?2
+                       WHEN ${JP_VOCAB_MEANING_MISSING_SQL} AND ?1 IS NOT NULL THEN ?2
                        ELSE meaning_source
                      END,
                      pos = CASE

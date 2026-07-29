@@ -277,9 +277,50 @@ def poison_word(word_id: int, reason: str) -> None:
     )
 
 
+MEANING_META_LABEL_RE = re.compile(
+    r"^(?:【\s*(?:释义|意思|词性|例句)\s*】|#+\s*(?:释义|意思|词性|例句)|释义|意思|词性|例句)$",
+    re.I,
+)
+MEANING_SECTION_LINE_RE = re.compile(
+    r"^【\s*(释义|词性|例句|意思)\s*】\s*$|^#{1,3}\s*(释义|词性|例句)\s*$",
+    re.I,
+)
+MEANING_SECTION_PREFIX_RE = re.compile(
+    r"^【\s*(释义|意思)\s*】\s*[:：]?\s*",
+    re.I,
+)
+# 同行「【释义】很多」：标题与正文粘在同一行
+MEANING_SECTION_INLINE_RE = re.compile(
+    r"^【\s*(释义|词性|例句|意思)\s*】\s*[:：]?\s*(.+)$",
+    re.I,
+)
+
+
+def is_meaning_meta_label(raw: str | None) -> bool:
+    t = str(raw or "").strip()
+    return bool(t) and bool(MEANING_META_LABEL_RE.match(t))
+
+
+def strip_meaning_section_chrome(raw: str) -> str:
+    """去掉【释义】标题行 / 同行前缀，避免模型壳写进正文。"""
+    kept: list[str] = []
+    for ln in str(raw or "").splitlines():
+        line = ln.strip()
+        if not line:
+            continue
+        if MEANING_SECTION_LINE_RE.match(line):
+            continue
+        stripped = MEANING_SECTION_PREFIX_RE.sub("", line).strip()
+        if not stripped or is_meaning_meta_label(stripped):
+            continue
+        kept.append(stripped)
+    return "\n".join(kept).strip()
+
+
 def normalize_meaning(raw: str) -> str:
     text = FENCE_RE.sub("", str(raw or "")).strip()
-    # 取首行非空
+    text = strip_meaning_section_chrome(text)
+    # 取首行非空（多行只取释义正文第一行）
     first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     text = first or text
     text = re.sub(r"^(释义|意思|中文)\s*[:：]\s*", "", text).strip()
@@ -292,7 +333,7 @@ def normalize_meaning(raw: str) -> str:
         sub: list[str] = []
         for chunk in re.split(r"[;；、,，|｜]+", major):
             item = LEADING_INDEX_RE.sub("", chunk.strip()).rstrip("。.．")
-            if not item or item in seen:
+            if not item or item in seen or is_meaning_meta_label(item):
                 continue
             seen.add(item)
             sub.append(item)
@@ -306,9 +347,13 @@ def normalize_meaning(raw: str) -> str:
 
 
 def validate_meaning(raw: str) -> tuple[str | None, str | None]:
+    if is_meaning_meta_label(raw):
+        return None, "meta_label"
     text = normalize_meaning(raw)
     if not text:
         return None, "empty"
+    if is_meaning_meta_label(text):
+        return None, "meta_label"
     if len(text) > 96:
         return None, "too_long"
     if MARKDOWN_RE.search(text):
@@ -409,7 +454,17 @@ def parse_combo_output(
             label = m.group(1) or m.group(2) or ""
             current = _section_key(label)
             continue
+        # 同行「【释义】很多」：旧模型偶发把正文粘在标题后
+        inline = MEANING_SECTION_INLINE_RE.match(line)
+        if inline:
+            current = _section_key(inline.group(1) or "")
+            rest = (inline.group(2) or "").strip()
+            if current and rest and not is_meaning_meta_label(rest):
+                buckets[current].append(LEADING_INDEX_RE.sub("", rest))
+            continue
         if not line or current is None:
+            continue
+        if is_meaning_meta_label(line):
             continue
         buckets[current].append(LEADING_INDEX_RE.sub("", line))
 

@@ -51,6 +51,15 @@ def main() -> int:
         if 'body={"mode": "list_missing", "limit": 1}' in script.split("if args.loop")[-1]:
             errors.append("jp-vocab-fill-meaning-api.py --loop 仍每轮二次 list_missing probe")
 
+    if "meta_label" not in ai or "isJpVocabMeaningMetaLabel" not in ai:
+        errors.append("jp-vocab-meaning-ai.ts 须拒区块标题壳 meta_label / isJpVocabMeaningMetaLabel")
+    if "【释义】" not in meaning or "JP_VOCAB_MEANING_MISSING_SQL" not in meaning:
+        errors.append("jp-vocab-fill-meaning.ts list_missing 须把 meaning='【释义】' 当缺释义")
+    if "is_meaning_meta_label" not in script or "meta_label" not in script:
+        errors.append("jp-vocab-fill-meaning-api.py 须拒 is_meaning_meta_label / meta_label")
+    if "MEANING_SECTION_INLINE_RE" not in script:
+        errors.append("脚本须解析同行【释义】正文（MEANING_SECTION_INLINE_RE）")
+
     if errors:
         print("FAIL:")
         for e in errors:
