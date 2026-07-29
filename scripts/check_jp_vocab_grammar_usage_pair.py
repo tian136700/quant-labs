@@ -38,6 +38,21 @@ def main() -> int:
         errors.append("helpers.ts 未确保 usage 列")
     if "usage_source" not in helpers or "WORD_SELECT" not in helpers:
         errors.append("helpers.ts WORD_SELECT/mapRow 缺 usage_source")
+    if "ADD COLUMN connection TEXT" not in helpers:
+        errors.append("helpers.ts 未确保 connection 列")
+    if "connection_source" not in helpers or "connection," not in helpers:
+        errors.append("helpers.ts WORD_SELECT/mapRow 缺 connection")
+    conn_ai = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
+    if "【接序】" not in conn_ai:
+        errors.append("connection-ai 须用【接序】标记段")
+    if "JpVocabConnectionSection" not in flash:
+        errors.append("抽问卡须展示 JpVocabConnectionSection")
+    if "need_connection" not in fill_usage:
+        errors.append("fill-usage list_missing 须含 need_connection")
+    if "connection" not in script or "split_connection_section" not in script:
+        errors.append("Mac 脚本须解析【接序】并写回 connection")
+    if "禁止另开定时任务只补接序" not in rule and "另开定时任务只补接序" not in rule:
+        errors.append("规则须禁止另开定时只补接序")
     if "kind = 'grammar'" not in fill_usage:
         errors.append("fill-usage 须只补 grammar")
     if "clear_grammar_examples" not in route and "clearAllJpVocabGrammarExampleSentences" not in fill_usage:
@@ -64,7 +79,7 @@ def main() -> int:
         errors.append("fill-usage list_missing 须过滤已完成的变形课")
     if "is_grammar_pair_still_missing" not in script:
         errors.append("Mac 脚本须客户端跳过已完成的变形课（防卡队）")
-    if "活用课" not in rule or "有例句即算完成" not in rule:
+    if "活用课" not in rule or ("有例句即算完成" not in rule and "有例句+接序即算完成" not in rule):
         errors.append("规则须写明变形课有例句即完成、勿卡 list_missing")
     if "禁止任何「用法」" not in usage_ai and "禁止任何用法" not in usage_ai:
         errors.append("变形词条 prompt 须禁止用法、只给例句")

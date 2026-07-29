@@ -427,6 +427,7 @@ async function getJpVocabWordByIdLite(
               last_review_level, last_review_at, srs_interval_days, srs_due_date,
               created_at, updated_at,
               example_sentences, example_sentences_source, meaning_source,
+              usage, usage_source, connection, connection_source,
               (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word
        WHERE id = ?1`

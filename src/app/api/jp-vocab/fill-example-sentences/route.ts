@@ -43,6 +43,7 @@ type FillExampleSentencesBody = {
   updates?: Array<{
     word_id?: number;
     example_sentences?: string;
+    connection?: string;
     /** 例句来源，如 DeepSeek / Qwen本地 / 手动 */
     source?: string;
     example_sentences_source?: string;
@@ -83,7 +84,8 @@ export async function POST(request: Request) {
           "";
         return {
           word_id: Number(item.word_id),
-          example_sentences: String(item.example_sentences ?? "").trim(),
+          example_sentences: String(item.example_sentences ?? "").trim() || null,
+          connection: String(item.connection ?? "").trim() || null,
           source: per || null,
         };
       })
@@ -91,7 +93,7 @@ export async function POST(request: Request) {
         (item) =>
           Number.isInteger(item.word_id) &&
           item.word_id > 0 &&
-          item.example_sentences.length > 0
+          (Boolean(item.example_sentences) || Boolean(item.connection))
       );
 
     const kind =

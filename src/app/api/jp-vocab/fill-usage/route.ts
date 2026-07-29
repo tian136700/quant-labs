@@ -24,6 +24,7 @@ type FillUsageBody = {
     word_id?: number;
     usage?: string;
     example_sentences?: string;
+    connection?: string;
     source?: string;
     usage_source?: string;
   }>;
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
           word_id: Number(item.word_id),
           usage: String(item.usage ?? "").trim(),
           example_sentences: String(item.example_sentences ?? "").trim() || null,
+          connection: String(item.connection ?? "").trim() || null,
           source: per || null,
         };
       })
@@ -71,7 +73,9 @@ export async function POST(request: Request) {
         (item) =>
           Number.isInteger(item.word_id) &&
           item.word_id > 0 &&
-          (item.usage.length > 0 || Boolean(item.example_sentences))
+          (item.usage.length > 0 ||
+            Boolean(item.example_sentences) ||
+            Boolean(item.connection))
       );
 
     const limit =

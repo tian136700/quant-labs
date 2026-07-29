@@ -142,7 +142,7 @@ export function hasJpVocabClassNotes(
 
 /**
  * 学生/老师卡按需拉备注后合并词条。
- * lite 列表已有 example_sentences；备注 GET 若漏字段，禁止整词覆盖冲掉例句。
+ * lite 列表已有 example_sentences / usage / connection；备注 GET 若漏字段，禁止整词覆盖冲掉。
  */
 export function mergeJpVocabWordAfterClassNotesFetch(
   base: JpVocabWord,
@@ -157,6 +157,11 @@ export function mergeJpVocabWordAfterClassNotesFetch(
       fetched.example_sentences_source ??
       base.example_sentences_source ??
       null,
+    usage: fetched.usage ?? base.usage ?? null,
+    usage_source: fetched.usage_source ?? base.usage_source ?? null,
+    connection: fetched.connection ?? base.connection ?? null,
+    connection_source:
+      fetched.connection_source ?? base.connection_source ?? null,
     meaning_source: fetched.meaning_source ?? base.meaning_source ?? null,
     class_notes_present: hasJpVocabClassNotes(fetched.class_notes, true),
   };

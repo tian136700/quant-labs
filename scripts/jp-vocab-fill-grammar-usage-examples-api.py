@@ -752,8 +752,8 @@ def run_one_pair(
                     detail=f"apply_skipped:{reason}",
                 )
                 return {"ok": True, "updated": 0, "total_missing": total_missing}
-            usage, examples = parsed2
-            payload = do_apply(usage, examples)
+            usage, examples, connection = parsed2
+            payload = do_apply(usage, examples, connection)
             skipped = payload.get("skipped") or []
             if skipped and not payload.get("updated"):
                 poison_word(word_id, f"apply_skipped:{skipped[0].get('reason')}")
@@ -763,7 +763,7 @@ def run_one_pair(
             poison_word(word_id, f"apply_skipped:{reason}")
 
     updated_n = int(payload.get("updated") or 0)
-    # 客户端判定是否真正搞定（变形课有例句即可；勿因 usage 空反复计数空烧）
+    # 客户端判定是否真正搞定（变形课有例句+接序即可；勿因 usage 空反复计数空烧）
     fixed = False
     fail_detail = "no_update"
     if updated_n > 0 and not (payload.get("skipped") or []):
@@ -772,6 +772,7 @@ def run_one_pair(
                 "word": word,
                 "need_usage": (not str(usage or "").strip()) and not is_conj,
                 "need_examples": not str(examples or "").strip(),
+                "need_connection": not str(connection or "").strip(),
             }
         )
         fixed = not still
@@ -779,7 +780,8 @@ def run_one_pair(
             fail_detail = (
                 "apply_ok_but_still_missing:"
                 f"conj={is_conj} usage_len={len(str(usage or ''))} "
-                f"examples_len={len(str(examples or ''))}"
+                f"examples_len={len(str(examples or ''))} "
+                f"connection_len={len(str(connection or ''))}"
             )
         else:
             fail_detail = "updated"

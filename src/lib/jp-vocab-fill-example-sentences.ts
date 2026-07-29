@@ -572,14 +572,8 @@ export async function applyJpVocabExampleSentenceUpdates(
         continue;
       }
       exampleSentences = validated.text;
-      if (!connection && String(row.kind) === "word") {
-        skipped.push({
-          id: wordId,
-          word: String(row.word),
-          reason: "invalid_format:connection_required",
-        });
-        continue;
-      }
+      // 接序随例句同次写回；暂不硬拒缺接序（旧 Mac/STT 客户端可能尚未拆【接序】）
+      // 有传 connection 则上面已校验；无则 COALESCE 保留库里旧值
     }
 
     const changed = allowOverwrite

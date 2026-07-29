@@ -3,6 +3,11 @@ import "server-only";
 import {
   validateJpVocabExampleSentencesAiOutput,
 } from "@/lib/jp-vocab-example-sentences-ai";
+import {
+  jpVocabConnectionPromptAppendix,
+  splitJpVocabAiOutputConnectionSection,
+  validateJpVocabConnectionAiOutput,
+} from "@/lib/jp-vocab-connection-ai";
 import { callJpVocabPaidLlm } from "@/lib/jp-vocab-paid-llm";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 import {
@@ -24,6 +29,8 @@ export type JpVocabManualFillExamplesResult = {
   example_sentences: string | null;
   usage_source: string | null;
   example_sentences_source: string | null;
+  connection?: string | null;
+  connection_source?: string | null;
   source: string | null;
   error?: string;
 };
@@ -57,8 +64,9 @@ function numberedLineLooksLikeUsage(body: string): boolean {
  */
 export function parseJpVocabWordManualFillOutput(
   raw: string
-): { usage: string | null; example_sentences: string } | null {
-  const lines = stripFenceNoise(raw)
+): { usage: string | null; example_sentences: string; connection: string | null } | null {
+  const split = splitJpVocabAiOutputConnectionSection(raw);
+  const lines = stripFenceNoise(split.body)
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
@@ -102,7 +110,7 @@ export function parseJpVocabWordManualFillOutput(
       ? serializeJpVocabUsagePoints(usagePoints)
       : null;
   if (usage && !parseJpVocabUsagePoints(usage)) return null;
-  return { usage, example_sentences };
+  return { usage, example_sentences, connection: split.connection };
 }
 
 export function buildJpVocabWordManualFillPrompt(input: {
@@ -123,7 +131,7 @@ export function buildJpVocabWordManualFillPrompt(input: {
 
   return `${meta}
 
-请为上述日语单词写「用法 + 例句」，供 N5/N4 初学者复习。这是管理员手动重补（可覆盖旧例句）。
+请为上述日语单词写「用法 + 例句 + 接序」，供 N5/N4 初学者复习。这是管理员手动重补（可覆盖旧例句）。
 
 条数与结构（必须遵守）：
 1. 先判断该词有几种常用用法。
@@ -134,13 +142,16 @@ export function buildJpVocabWordManualFillPrompt(input: {
 6. 句中每一个汉字后立刻半角括号假名；N5 口语短句；必须自然用到该词。
 7. 一句尽量一个「は」；不要叠双は。
 8. 只输出用法行与例句/译文，不要 markdown、不要解释、不要行首给例句再编 1. 2.（用法行才用编号）。
+${jpVocabConnectionPromptAppendix("word")}
 
-格式示例（仅 1 种用法 → 1 行用法 + 2 条例句）：
+格式示例（仅 1 种用法 → 1 行用法 + 2 条例句 + 接序）：
 1. 表示一星期中的星期三
 来週(らいしゅう)の水曜日(すいようび)は忙(いそが)しいです。
 译文：下星期三很忙。
 水曜日(すいようび)に映画(えいが)を見(み)ます。
-译文：我星期三看电影。`;
+译文：我星期三看电影。
+【接序】
+名词／无特殊活用；作时间名词时可直接接助词「に」「は」`;
 }
 
 async function overwriteWordUsageAndExamples(
@@ -149,7 +160,9 @@ async function overwriteWordUsageAndExamples(
   usage: string | null,
   usageSource: string | null,
   exampleSentences: string,
-  exampleSource: string | null
+  exampleSource: string | null,
+  connection: string | null,
+  connectionSource: string | null
 ): Promise<boolean> {
   const result = await db
     .prepare(
@@ -158,14 +171,18 @@ async function overwriteWordUsageAndExamples(
            usage_source = ?2,
            example_sentences = ?3,
            example_sentences_source = ?4,
+           connection = COALESCE(?5, connection),
+           connection_source = COALESCE(?6, connection_source),
            updated_at = datetime('now')
-       WHERE id = ?5`
+       WHERE id = ?7`
     )
     .bind(
       usage,
       usage ? usageSource : null,
       exampleSentences,
       exampleSource,
+      connection?.trim() || null,
+      connection?.trim() ? connectionSource : null,
       wordId
     )
     .run();
@@ -306,13 +323,38 @@ export async function runJpVocabManualFillExamplesForWord(
   const usage = parsed.usage;
   const usageSource = usage ? llm.source : null;
   const exampleSource = llm.source;
+  let connection = parsed.connection;
+  if (connection) {
+    const connOk = validateJpVocabConnectionAiOutput(connection, {
+      word,
+      kind: "word",
+      reading: row.reading,
+      meaning: row.meaning,
+    });
+    if (!connOk.ok) {
+      return {
+        ok: false,
+        word_id: id,
+        word,
+        usage: parsed.usage,
+        example_sentences: validated.text,
+        usage_source: null,
+        example_sentences_source: null,
+        source: llm.source,
+        error: `invalid_format:connection_invalid:${connOk.reason}`,
+      };
+    }
+    connection = connOk.text;
+  }
   await overwriteWordUsageAndExamples(
     env.DB,
     id,
     usage,
     usageSource,
     validated.text,
-    exampleSource
+    exampleSource,
+    connection,
+    connection ? llm.source : null
   );
 
   return {
@@ -323,6 +365,8 @@ export async function runJpVocabManualFillExamplesForWord(
     example_sentences: validated.text,
     usage_source: usageSource,
     example_sentences_source: exampleSource,
+    connection,
+    connection_source: connection ? llm.source : null,
     source: llm.source,
   };
 }

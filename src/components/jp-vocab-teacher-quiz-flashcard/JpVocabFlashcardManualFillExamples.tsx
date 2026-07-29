@@ -25,6 +25,8 @@ type FillResponse = {
   example_sentences?: string | null;
   usage_source?: string | null;
   example_sentences_source?: string | null;
+  connection?: string | null;
+  connection_source?: string | null;
   source?: string | null;
 };
 
@@ -140,6 +142,9 @@ export function JpVocabFlashcardManualFillExamples({
           usage_source: data.usage_source ?? null,
           example_sentences: data.example_sentences ?? null,
           example_sentences_source: data.example_sentences_source ?? null,
+          connection: data.connection ?? word.connection ?? null,
+          connection_source:
+            data.connection_source ?? word.connection_source ?? null,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
