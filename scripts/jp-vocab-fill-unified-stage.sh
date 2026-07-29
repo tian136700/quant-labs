@@ -4,7 +4,7 @@
 # JP_VOCAB_FILL_LLM_BACKEND=1 → jp-vocab-fill-online-batch-api.py（一词一次 tokken）
 # JP_VOCAB_FILL_LLM_BACKEND=0 → 跳过（请用旧分阶段 launchd 或 FORCE=1 手动）
 #
-# launchd：com.infoquests.jp-vocab-fill-unified（每 60s，忙则 skip）
+# launchd：com.infoquests.jp-vocab-fill-unified（每 3 分钟，忙则 skip）
 set -euo pipefail
 
 STAGE="${1:-unified}"

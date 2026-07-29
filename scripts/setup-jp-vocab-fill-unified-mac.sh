@@ -8,7 +8,7 @@ ENV_FILE="${CONFIG_DIR}/jp-vocab-fill.env"
 LOG_DIR="${HOME}/Library/Logs"
 UID_NUM="$(id -u)"
 LABEL="com.infoquests.jp-vocab-fill-unified"
-RUN_INTERVAL="${JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS:-60}"
+RUN_INTERVAL="${JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS:-180}"
 
 # 旧任务（分阶段 / 独立语法 / 读音 Ollama）
 RETIRED=(
