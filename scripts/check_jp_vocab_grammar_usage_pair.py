@@ -123,6 +123,16 @@ def main() -> int:
         errors.append("usage prompt 禁止再写「例句另有阶段」")
     if "一次写完" not in usage_ai and "同一次输出" not in usage_ai:
         errors.append("usage prompt 须要求用法+例句同一次输出")
+    if "严格 1:1" not in usage_ai and "恰好 1 条" not in usage_ai:
+        errors.append("usage prompt 须强调用法↔例句严格 1:1 / 恰好 1 条")
+    if "张冠李戴" not in usage_ai and "对应该条用法" not in usage_ai:
+        errors.append("usage prompt 须要求例句接续对应该条用法（防た形/辞书形错挂）")
+    if "严格 1:1" not in script and "对应该条用法" not in script:
+        errors.append("Mac PAIR_SYSTEM 须含严格 1:1 / 接续对应")
+    if "按块均分" not in display and "examples.length % points.length" not in display:
+        errors.append("展示层须支持多例句按块均分（存量兜底）")
+    if "严格 1:1" not in rule and "恰好 1 条" not in rule:
+        errors.append("grammar-usage 规则须写明严格 1:1 / 接续对应")
     if "clearJpVocabGrammarPairById" not in fill_usage:
         errors.append("fill-usage 缺单条 clear_pair")
     if "clear_pair" not in route:
