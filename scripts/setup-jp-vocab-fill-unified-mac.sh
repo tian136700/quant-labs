@@ -8,6 +8,14 @@ ENV_FILE="${CONFIG_DIR}/jp-vocab-fill.env"
 LOG_DIR="${HOME}/Library/Logs"
 UID_NUM="$(id -u)"
 LABEL="com.infoquests.jp-vocab-fill-unified"
+# 优先：显式环境变量 → 配置文件已存值 → 默认 180
+if [[ -z "${JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS:-}" && -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  _iv="$(grep -E '^JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS=' "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+  if [[ -n "${_iv}" ]]; then
+    JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS="${_iv}"
+  fi
+fi
 RUN_INTERVAL="${JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS:-180}"
 
 # 旧任务（分阶段 / 独立语法 / 读音 Ollama）
@@ -26,6 +34,14 @@ mkdir -p "$CONFIG_DIR" "$LOG_DIR"
 if [[ ! -f "$ENV_FILE" ]]; then
   cp "$ROOT/scripts/jp-vocab-fill.env.example" "$ENV_FILE"
   echo "已创建配置: $ENV_FILE"
+fi
+
+# 把本次间隔写回 env，供维护中心与下次安装共用
+if grep -q '^JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS=' "$ENV_FILE" 2>/dev/null; then
+  sed -i.bak "s/^JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS=.*/JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS=${RUN_INTERVAL}/" "$ENV_FILE"
+  rm -f "${ENV_FILE}.bak"
+else
+  echo "JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS=${RUN_INTERVAL}" >> "$ENV_FILE"
 fi
 
 # 确保线上模式开关

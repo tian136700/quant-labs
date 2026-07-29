@@ -310,6 +310,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 数据库 schema | `schema.sql`（部署迁移；运行时补表见各 `*-db.ts` 内 `ensure*Schema`） |
 | **自动部署**（维护中心 `http://127.0.0.1:17823/`；Cursor `stop` hook 触发；**fingerprint 仅成功 POST 后写入**；忙时入队勿跳过；成功后 Mac 桌面通知优先、已弹则不推 Bark） | `.cursor/hooks/auto-publish-mode1.sh`；`scripts/maintenance_center/server.py`；`bark_notify.py` / `mac_notify.py`；规则 `.cursor/rules/auto-publish-fingerprint.mdc`、`bark-deploy-failure-notify.mdc`；回归 `scripts/check_auto_publish_fingerprint.py` |
 | **定时任务管理**（维护中心页签：精选任务列表 / 运行中定位 / 实时日志与时长；**日语/英语补全熔断状态日志**：同一词调接口 3 次未搞定则暂停全部补全定时并记录原因；**仅本机维护中心**，不上 Cloudflare 线上站） | `scripts/maintenance_center/cron_tasks/registry.py`、`status.py`、`logs.py`、`circuit_breaker.py`；API `GET /api/cron-tasks`、`GET /api/cron-tasks/<id>`、`GET /api/vocab-fill-circuit`、`POST /api/vocab-fill-circuit/resume`；UI `static/index.html` → `view-cron`（`#vocab-fill-circuit-card`）；规则 `.cursor/rules/cron-tasks-registry.mdc`、`.cursor/rules/vocab-fill-circuit-breaker.mdc` |
+| **日语补全 · 最近词条**（维护中心独立页签：统一补全跑过哪些词；**可配置运行间隔** 1～30 分钟，写回 launchd + `~/.config/info-quests/jp-vocab-fill.env`） | UI `view-jp-fill` / `#jp-fill-interval`；`jp_vocab_fill_feed.py`、`jp_vocab_fill_interval.py`；API `GET /api/jp-vocab-fill/recent`、`POST /api/jp-vocab-fill/interval`；安装 `setup-jp-vocab-fill-unified-mac.sh`；回归 `scripts/check_jp_vocab_fill_feed.py`、`check_jp_vocab_fill_unified_interval_config.py` |
 
 ---
 

@@ -79,6 +79,34 @@ def main() -> int:
         raise SystemExit("FAIL: word copy button missing in jp-fill feed")
     if 'button.jp-fill-word-copy[data-copy-word]' not in app_js:
         raise SystemExit("FAIL: jp-fill word copy click handler missing")
+    if 'id="jp-fill-interval"' not in index_html:
+        raise SystemExit("FAIL: missing jp-fill-interval select")
+    if 'id="jp-fill-interval-save"' not in index_html:
+        raise SystemExit("FAIL: missing jp-fill-interval-save button")
+    if "saveJpFillInterval" not in app_js:
+        raise SystemExit("FAIL: saveJpFillInterval missing in app.js")
+    if "/api/jp-vocab-fill/interval" not in app_js:
+        raise SystemExit("FAIL: interval API call missing in app.js")
+
+    from maintenance_center.jp_vocab_fill_interval import (  # noqa: E402
+        ALLOWED_INTERVALS,
+        DEFAULT_INTERVAL,
+        format_interval_label,
+        interval_snapshot,
+    )
+
+    assert 60 in ALLOWED_INTERVALS and DEFAULT_INTERVAL == 180, ALLOWED_INTERVALS
+    assert format_interval_label(60) == "1 分钟"
+    snap_iv = interval_snapshot()
+    assert "interval_seconds" in snap_iv and "allowed_intervals" in snap_iv, snap_iv
+    assert snap.get("interval_seconds") is not None, snap
+    assert "allowed_intervals" in snap, snap
+
+    server_py = (ROOT / "scripts/maintenance_center/server.py").read_text(encoding="utf-8")
+    if 'path == "/api/jp-vocab-fill/interval"' not in server_py:
+        raise SystemExit("FAIL: POST /api/jp-vocab-fill/interval missing in server.py")
+    if "set_unified_interval" not in server_py:
+        raise SystemExit("FAIL: set_unified_interval not wired in server.py")
 
     # 同词 running→success 应 UPDATE 成一行，不留下「生成中」幽灵行
     rid = feed.insert_jp_vocab_fill_word_run(
