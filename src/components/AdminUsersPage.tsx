@@ -65,6 +65,7 @@ function AdminUsersPageContent() {
   const [linkGeneratingId, setLinkGeneratingId] = useState<number | null>(null);
   const [linkGeneratingWithTemplate, setLinkGeneratingWithTemplate] = useState(false);
   const [copyingId, setCopyingId] = useState<number | null>(null);
+  const [resettingId, setResettingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<LoginLinkTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
@@ -329,6 +330,7 @@ function AdminUsersPageContent() {
     setLinkGeneratingId,
     setLinkGeneratingWithTemplate,
     setCopyingId,
+    setResettingId,
     setDeletingId,
   });
 
@@ -496,6 +498,7 @@ function AdminUsersPageContent() {
         linkGeneratingId={linkGeneratingId}
         linkGeneratingWithTemplate={linkGeneratingWithTemplate}
         copyingId={copyingId}
+        resettingId={resettingId}
         onBindTeacher={openBindTeacher}
         onEdit={openEditUser}
         onViewLoginHistory={setLoginHistoryUser}

@@ -64,6 +64,7 @@ export type UseAdminUsersPageActionsOptions = {
   setLinkGeneratingId: Dispatch<SetStateAction<number | null>>;
   setLinkGeneratingWithTemplate: Dispatch<SetStateAction<boolean>>;
   setCopyingId: Dispatch<SetStateAction<number | null>>;
+  setResettingId: Dispatch<SetStateAction<number | null>>;
   setDeletingId: Dispatch<SetStateAction<number | null>>;
 };
 
@@ -109,6 +110,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setLinkGeneratingId,
     setLinkGeneratingWithTemplate,
     setCopyingId,
+    setResettingId,
     setDeletingId,
   } = options;
 
@@ -450,8 +452,11 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setCopyToast(locale === "zh" ? "复制失败" : "Copy failed");
   };
 
-  /** 解析可复制的密码：每次都重置为新密码再复制，保证复制结果与数据库一致。系统保留账号除外。 */
-  const resolvePasswordForCopy = async (row: UserRow): Promise<string | null> => {
+  /** 调用 reset-password API，写入本机缓存；系统保留账号直接拒绝。 */
+  const requestPasswordReset = async (
+    row: UserRow,
+    setBusyId: Dispatch<SetStateAction<number | null>>
+  ): Promise<string | null> => {
     const username = row.username;
     const isBootstrapAccount = isReservedUsername(
       username,
@@ -470,7 +475,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       return null;
     }
 
-    setCopyingId(row.id);
+    setBusyId(row.id);
     try {
       const res = await fetch("/api/admin/users/reset-password", {
         method: "POST",
@@ -510,9 +515,13 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       setStatusErr(true);
       return null;
     } finally {
-      setCopyingId(null);
+      setBusyId(null);
     }
   };
+
+  /** 解析可复制的密码：每次都重置为新密码再复制，保证复制结果与数据库一致。系统保留账号除外。 */
+  const resolvePasswordForCopy = async (row: UserRow): Promise<string | null> =>
+    requestPasswordReset(row, setCopyingId);
 
   const generateLoginLink = async (row: UserRow) => {
     setLinkGeneratingId(row.id);
@@ -656,7 +665,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     );
     if (!confirmed) return;
 
-    const password = await resolvePasswordForCopy(row);
+    const password = await requestPasswordReset(row, setResettingId);
     if (!password) return;
 
     const text = formatAdminUserCredentials(

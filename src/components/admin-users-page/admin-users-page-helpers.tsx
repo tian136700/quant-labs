@@ -253,6 +253,7 @@ export type AdminUserActionsProps = {
   linkGeneratingId: number | null;
   linkGeneratingWithTemplate: boolean;
   copyingId: number | null;
+  resettingId: number | null;
   onEdit: (row: UserRow) => void;
   onResetPassword: (row: UserRow) => void;
   onCopyCredentials: (row: UserRow) => void;
@@ -272,6 +273,7 @@ export function AdminUserActions({
   linkGeneratingId,
   linkGeneratingWithTemplate,
   copyingId,
+  resettingId,
   onEdit,
   onResetPassword,
   onCopyCredentials,
@@ -291,7 +293,10 @@ export function AdminUserActions({
   const canResetPassword = !isAdminUser;
   const canToggleNeverDisable = !isAdminUser;
   const busy =
-    deletingId === row.id || linkGeneratingId === row.id || copyingId === row.id;
+    deletingId === row.id ||
+    linkGeneratingId === row.id ||
+    copyingId === row.id ||
+    resettingId === row.id;
   const neverDisable = Boolean(row.never_disable);
 
   return (
@@ -345,7 +350,7 @@ export function AdminUserActions({
               : "One-click password reset: old password stops working and sessions are signed out; new password is copied. Bootstrap accounts cannot be random-reset"
           }
         >
-          {copyingId === row.id
+          {resettingId === row.id
             ? locale === "zh"
               ? "更换中…"
               : "Resetting…"
