@@ -24,7 +24,8 @@ def fail(msg: str) -> None:
 def expand_breaks(raw: str) -> str:
     t = raw.replace("\r\n", "\n")
     t = re.sub(r"([^\n])\s*(?=用法\s*\d+\s*[：:])", r"\1\n", t)
-    t = re.sub(r"([^\n])\s*(?=(?:否定形|肯定形)\s*[：:])", r"\1\n", t)
+    t = re.sub(r"([^\n])\s*(?=(?:否定形|肯定形|疑问形)\s*[：:「])", r"\1\n", t)
+    t = re.sub(r"([。．])\s*(?=(?:否定形|肯定形|疑问形))", r"\1\n", t)
     return t
 
 
@@ -34,6 +35,7 @@ def main() -> None:
         "parseJpVocabConnectionDisplayParts",
         "expandJpVocabConnectionUsageInlineBreaks",
         "jpVocabConnectionShownInlineWithUsage",
+        "疑问形",
     ):
         if needle not in src:
             fail(f"connection-ai missing {needle!r}")
@@ -63,6 +65,19 @@ def main() -> None:
         fail(f"第一行应为用法1: {lines[0]!r}")
     if not any(ln.startswith("用法2") for ln in lines):
         fail("须含用法2行")
+
+    packed = (
+        "动词て形 + もいい。"
+        "否定形「～なくてもいい」表示「不做也可以」。"
+        "疑问形「～てもいいですか」用于礼貌地请求许可。"
+    )
+    packed_lines = [ln.strip() for ln in expand_breaks(packed).split("\n") if ln.strip()]
+    if len(packed_lines) < 3:
+        fail(f"てもいい 否定/疑问应换行，得到 {packed_lines!r}")
+    if not any("否定形" in ln for ln in packed_lines):
+        fail("须拆出否定形行")
+    if not any("疑问形" in ln for ln in packed_lines):
+        fail("须拆出疑问形行")
 
     print("OK: connection inline under usage")
     print("All jp-vocab connection-inline-with-usage checks passed.")
