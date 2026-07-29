@@ -138,8 +138,8 @@ export const zhMessages: Messages = {
       traffic: {
         heading: "Worker 流量看板",
         refresh: "刷新",
-        dateLabel: "统计日期",
-        quotaLabel: "今日 Worker 请求（全站共用）",
+        dateLabel: "配额日（北京 08:00 起）",
+        quotaLabel: "当前配额日 Worker 请求（全站共用）",
         quotaUsed: "{used} / {limit} 次（{percent}%）",
         anonymousLabel: "匿名",
         anonymousHits: "匿名（未登录 / 定时脚本）: {count}",
@@ -160,10 +160,10 @@ export const zhMessages: Messages = {
         username: "用户名",
         anonymousUser: "未登录",
         unregistered: "暂无已登录用户请求",
-        empty: "该日暂无统计数据（部署后从下一请求开始累计）。",
+        empty: "该配额日暂无统计数据（部署后从下一请求开始累计）。",
         loadFailed: "加载流量统计失败，请重试。",
         diagnoseHint:
-          "定位 Error 1027（日请求顶满）看本看板；访问日志不统计 API 轮询。日语/英语补全接口已硬限每 IP 每路径 5 秒 1 次。",
+          "定位 Error 1027（日请求顶满）看本看板；访问日志不统计 API 轮询。日语/英语补全接口已硬限每 IP 每路径 5 秒 1 次。统计日=北京 08:00→次日 08:00（与 CF 配额一致）。",
         avgPerSec: "配额窗口平均 {rate} 次/秒（自北京 08:00 起已过 {elapsed} 秒）",
         peakPerSec: "高峰 {hour}:00 折合 {rate} 次/秒",
         routeClickHint: "点路径可看该接口 Top IP（聚合次数，非逐条日志）",
@@ -171,13 +171,13 @@ export const zhMessages: Messages = {
         routeIpsHint: "部署后开始按 IP 累计；更早请求可能没有 IP。",
         ip: "IP",
         close: "关闭",
-        hourlyHeading: "分时折线（北京时间）",
-        dailyTrendHeading: "近 14 日趋势",
+        hourlyHeading: "分时折线（配额窗 · 北京时间）",
+        dailyTrendHeading: "近 14 个配额日趋势",
         hourlyHint:
-          "看哪一小时冲高；橙色竖线≈北京 08:00 日配额重置（昨晚 1027 后从这儿重新计数）。分时从部署后开始累计。",
+          "横轴从北京 08:00 起排到次日 07:00（与 CF 日配额窗口一致）；橙色竖线=本配额日起点。分时从部署后开始累计。",
         hourLabel: "时刻",
-        quotaResetLabel: "配额重置≈08:00",
-        dateShort: "日期",
+        quotaResetLabel: "配额日起点≈08:00",
+        dateShort: "配额日",
       },
       feedback: {
         heading: "用户反馈",
@@ -211,7 +211,7 @@ export const zhMessages: Messages = {
       page: {
         title: "流量检测看板",
         subtitle:
-          "北京日配额进度、分时/近14日折线、接口 Top、用户 Top、用户×接口交叉与匿名流量。用于定位 Error 1027；访问日志不统计 API 轮询。",
+          "北京配额日（08:00→次日 08:00）进度、分时/近14日折线、接口 Top、用户 Top、用户×接口交叉与匿名流量。用于定位 Error 1027；访问日志不统计 API 轮询。",
         backToAdmin: "← 返回后台管理（访问日志）",
       },
       auth: {

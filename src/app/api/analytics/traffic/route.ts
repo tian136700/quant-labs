@@ -5,7 +5,7 @@ import {
 } from "@/lib/worker-traffic-db";
 import { requirePermission } from "@/lib/admin-auth";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import { workerQuotaDateString } from "@/lib/worker-traffic-rate";
 
 const ERROR_MSG: Record<"en" | "zh", string> = {
   en: "Admin login required.",
@@ -15,7 +15,7 @@ const ERROR_MSG: Record<"en" | "zh", string> = {
 function parseStatDate(raw: string | null): string {
   const value = (raw ?? "").trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  return beijingDateString();
+  return workerQuotaDateString();
 }
 
 export async function GET(request: Request) {

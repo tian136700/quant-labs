@@ -16,6 +16,7 @@ import type {
   WorkerTrafficDailyTrendPoint,
   WorkerTrafficHourlyPoint,
 } from "@/lib/worker-traffic-db";
+import { WORKER_QUOTA_HOUR_ORDER } from "@/lib/worker-traffic-rate";
 
 type ChartLabels = {
   hourlyHeading: string;
@@ -106,10 +107,10 @@ export function AdminWorkerTrafficCharts({
 }: Props) {
   const layout = useChartLayout();
 
-  // 始终画满 0–23，方便一眼看高峰；无分时数据时为全 0 折线
+  // 配额窗顺序：北京 08→23→次日 00→07（与 CF 日请求窗口一致）
   const hourlyData = useMemo(
     () =>
-      Array.from({ length: 24 }, (_, hour) => {
+      WORKER_QUOTA_HOUR_ORDER.map((hour) => {
         const found = hourly.find((row) => row.hour === hour);
         return {
           hour,

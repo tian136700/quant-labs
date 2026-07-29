@@ -6,7 +6,7 @@ import { CopyToast } from "@/components/CopyToast";
 import { AdminWorkerTrafficRouteIpModal } from "@/components/admin-dashboard/AdminWorkerTrafficRouteIpModal";
 import { useI18n } from "@/i18n/I18nProvider";
 import { copyTextToClipboard } from "@/lib/copy-text";
-import { beijingDateString } from "@/lib/jp-vocab-daily-check";
+import { workerQuotaDateString } from "@/lib/worker-traffic-rate";
 import type {
   WorkerTrafficDailySummary,
   WorkerTrafficPairRow,
@@ -38,7 +38,7 @@ const FILTER_ANON = "__anon__";
 export function AdminWorkerTrafficPanel() {
   const { t } = useI18n();
   const labels = t("adminDashboard").traffic;
-  const [statDate, setStatDate] = useState(() => beijingDateString());
+  const [statDate, setStatDate] = useState(() => workerQuotaDateString());
   const [summary, setSummary] = useState<WorkerTrafficDailySummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

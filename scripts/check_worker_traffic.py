@@ -181,6 +181,34 @@ def main() -> int:
     if "AdminWorkerTrafficRouteIpModal" not in panel:
         errors.append("AdminWorkerTrafficPanel 须挂载 RouteIpModal")
 
+    rate_lib = read("src/lib/worker-traffic-rate.ts")
+    for needle in (
+        "workerQuotaDateString",
+        "WORKER_QUOTA_HOUR_ORDER",
+        "beijingSecondsInQuotaWindow",
+        "WORKER_QUOTA_RESET_BEIJING_HOUR = 8",
+    ):
+        if needle not in rate_lib:
+            errors.append(f"worker-traffic-rate.ts 须含 {needle}")
+
+    record = read("src/lib/worker-traffic-record.ts")
+    if "workerQuotaDateString" not in record:
+        errors.append("worker-traffic-record 写入须用 workerQuotaDateString（勿用日历日）")
+    if "beijingDateString(now)" in record:
+        errors.append("worker-traffic-record 禁止再用 beijingDateString 作 statDate")
+
+    if "workerQuotaDateString" not in panel:
+        errors.append("AdminWorkerTrafficPanel 默认日期须用 workerQuotaDateString")
+
+    if "WORKER_QUOTA_HOUR_ORDER" not in charts:
+        errors.append("AdminWorkerTrafficCharts 分时须按 WORKER_QUOTA_HOUR_ORDER（08→次日07）")
+
+    if "beijingSecondsInQuotaWindow" not in db:
+        errors.append("worker-traffic-db 平均次/秒须用 beijingSecondsInQuotaWindow")
+
+    if "08:00→次日" not in zh and "08:00→次日 08:00" not in zh:
+        errors.append("zh i18n 须说明配额日为北京 08:00→次日 08:00")
+
     if errors:
         for err in errors:
             print(f"FAIL: {err}", file=sys.stderr)

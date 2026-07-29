@@ -2,16 +2,14 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getSessionUserFromRequest } from "@/lib/etr-auth-db";
 import { clientIp } from "@/lib/locale-pref";
-import {
-  beijingDateString,
-  beijingHour,
-} from "@/lib/jp-vocab-daily-check";
+import { beijingHour } from "@/lib/jp-vocab-daily-check";
 import { incrementWorkerDailyHit } from "@/lib/worker-traffic-db";
 import {
   normalizeWorkerTrafficRoute,
   shouldCountWorkerTraffic,
   workerTrafficKind,
 } from "@/lib/worker-traffic-path";
+import { workerQuotaDateString } from "@/lib/worker-traffic-rate";
 
 async function recordWorkerTrafficHitNow(request: Request): Promise<void> {
   const pathname = new URL(request.url).pathname;
@@ -24,7 +22,8 @@ async function recordWorkerTrafficHitNow(request: Request): Promise<void> {
   const now = new Date();
 
   await incrementWorkerDailyHit(env.DB, {
-    statDate: beijingDateString(now),
+    // CF 日配额 = 北京 08:00→次日 08:00；勿用日历日 0 点
+    statDate: workerQuotaDateString(now),
     hour: beijingHour(now),
     routeKey: normalizeWorkerTrafficRoute(pathname),
     username,

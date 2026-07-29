@@ -139,8 +139,8 @@ export const enMessages: Messages = {
       traffic: {
         heading: "Worker traffic",
         refresh: "Refresh",
-        dateLabel: "Date",
-        quotaLabel: "Today's Worker requests (all sites)",
+        dateLabel: "Quota day (from Beijing 08:00)",
+        quotaLabel: "Current quota-day Worker requests (all sites)",
         quotaUsed: "{used} / {limit} ({percent}%)",
         anonymousLabel: "Anonymous",
         anonymousHits: "Anonymous (signed-out / cron): {count}",
@@ -161,10 +161,10 @@ export const enMessages: Messages = {
         username: "Username",
         anonymousUser: "Anonymous",
         unregistered: "No signed-in user traffic yet",
-        empty: "No stats for this date yet (counting starts after deploy).",
+        empty: "No stats for this quota day yet (counting starts after deploy).",
         loadFailed: "Failed to load traffic stats.",
         diagnoseHint:
-          "Use this panel for Error 1027 (daily quota). Visit logs do not cover API polls. JP/EN vocab fill APIs are hard-capped at 1 req / 5s per IP per path.",
+          "Use this panel for Error 1027 (daily quota). Visit logs do not cover API polls. JP/EN vocab fill APIs are hard-capped at 1 req / 5s per IP per path. Stat day = Beijing 08:00→next 08:00 (matches CF quota).",
         avgPerSec:
           "Avg {rate} req/s in quota window ({elapsed}s since Beijing 08:00)",
         peakPerSec: "Peak hour {hour}:00 ≈ {rate} req/s",
@@ -173,13 +173,13 @@ export const enMessages: Messages = {
         routeIpsHint: "IP counts start after this deploy; older hits may lack IP.",
         ip: "IP",
         close: "Close",
-        hourlyHeading: "Hourly (Beijing time)",
-        dailyTrendHeading: "Last 14 days",
+        hourlyHeading: "Hourly (quota window · Beijing)",
+        dailyTrendHeading: "Last 14 quota days",
         hourlyHint:
-          "Spot hourly peaks; orange line ≈ Beijing 08:00 daily quota reset. Hourly counts start after this deploy.",
+          "X-axis runs Beijing 08:00→next-day 07:00 (CF daily quota window); orange line = start of this quota day. Hourly counts start after this deploy.",
         hourLabel: "Hour",
-        quotaResetLabel: "Reset ≈08:00",
-        dateShort: "Date",
+        quotaResetLabel: "Quota start ≈08:00",
+        dateShort: "Quota day",
       },
       feedback: {
         heading: "User feedback",
@@ -213,7 +213,7 @@ export const enMessages: Messages = {
       page: {
         title: "Worker traffic monitor",
         subtitle:
-          "Beijing-day quota, hourly / 14-day charts, top routes, top users, user×route pairs, and anonymous traffic. Use this for Error 1027; visit logs do not count API polling.",
+          "Beijing quota day (08:00→next 08:00), hourly / 14-day charts, top routes, top users, user×route pairs, and anonymous traffic. Use this for Error 1027; visit logs do not count API polling.",
         backToAdmin: "← Back to admin (visit logs)",
       },
       auth: {

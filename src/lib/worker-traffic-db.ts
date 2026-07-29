@@ -3,8 +3,9 @@ import type { WorkerTrafficKind } from "@/lib/worker-traffic-path";
 import { WORKER_DAILY_REQUEST_LIMIT } from "@/lib/worker-traffic-path";
 import {
   avgHitsPerSecond,
-  beijingSecondsSinceQuotaReset,
+  beijingSecondsInQuotaWindow,
   peakHourHitsPerSecond,
+  workerQuotaDateString,
 } from "@/lib/worker-traffic-rate";
 
 let devStoreEnabled = false;
@@ -23,7 +24,7 @@ export type WorkerDailyHitInput = {
   routeKey: string;
   username: string;
   kind: WorkerTrafficKind;
-  /** 北京小时 0–23；缺省不写分时（仅测试） */
+  /** 北京小时 0–23；写入配额日 key；缺省不写分时（仅测试） */
   hour?: number;
   /** 客户端 IP（聚合 Top，非逐条日志） */
   ip?: string | null;
@@ -70,15 +71,15 @@ export type WorkerTrafficDailySummary = {
   top_routes: WorkerTrafficRouteRow[];
   top_users: WorkerTrafficUserRow[];
   top_pairs: WorkerTrafficPairRow[];
-  /** 当日北京时 0–23 请求数（部署后才有分时；此前为空/全 0） */
+  /** 配额日内北京小时 0–23 请求数（08→次日 07；部署后才有分时） */
   hourly: WorkerTrafficHourlyPoint[];
-  /** 近 N 个北京日合计（含 0），看跨日高峰 */
+  /** 近 N 个配额日合计（含 0），看跨日高峰 */
   daily_trend: WorkerTrafficDailyTrendPoint[];
-  /** 距北京 08:00 配额重置已过秒数 */
+  /** 该配额日已过秒数（当前日=距 08:00；过去日=86400） */
   quota_elapsed_sec: number;
   /** 配额窗口内平均每秒请求 */
   avg_hits_per_sec: number;
-  /** 当日高峰小时折合每秒 */
+  /** 配额日高峰小时折合每秒 */
   peak_hour_hits_per_sec: number;
   peak_hour: number | null;
 };
@@ -116,7 +117,8 @@ function normalizeHitIp(ip: string | null | undefined): string | null {
 
 function attachRateFields(
   totalHits: number,
-  hourly: WorkerTrafficHourlyPoint[]
+  hourly: WorkerTrafficHourlyPoint[],
+  statDate: string
 ): Pick<
   WorkerTrafficDailySummary,
   | "quota_elapsed_sec"
@@ -124,7 +126,7 @@ function attachRateFields(
   | "peak_hour_hits_per_sec"
   | "peak_hour"
 > {
-  const elapsed = beijingSecondsSinceQuotaReset();
+  const elapsed = beijingSecondsInQuotaWindow(statDate);
   let peakHour: number | null = null;
   let peakHits = 0;
   for (const row of hourly) {
@@ -208,7 +210,7 @@ export async function incrementWorkerDailyHit(
   db: D1Database,
   input: WorkerDailyHitInput
 ): Promise<void> {
-  const statDate = input.statDate.trim() || beijingDateString();
+  const statDate = input.statDate.trim() || workerQuotaDateString();
   const routeKey = input.routeKey.trim() || "/";
   const username = input.username.trim();
   const kind = input.kind;
@@ -341,9 +343,9 @@ export async function purgeWorkerDailyHitsOlderThan(
 
 export async function getWorkerTrafficHourlySeries(
   db: D1Database,
-  statDate = beijingDateString()
+  statDate = workerQuotaDateString()
 ): Promise<WorkerTrafficHourlyPoint[]> {
-  const date = statDate.trim() || beijingDateString();
+  const date = statDate.trim() || workerQuotaDateString();
   const series = emptyHourlySeries();
 
   if (devStoreEnabled) {
@@ -377,10 +379,10 @@ export async function getWorkerTrafficHourlySeries(
 
 export async function getWorkerTrafficDailyTrend(
   db: D1Database,
-  endDate = beijingDateString(),
+  endDate = workerQuotaDateString(),
   trendDays = WORKER_TRAFFIC_TREND_DAYS
 ): Promise<WorkerTrafficDailyTrendPoint[]> {
-  const end = endDate.trim() || beijingDateString();
+  const end = endDate.trim() || workerQuotaDateString();
   const days = Math.max(1, Math.floor(trendDays));
   const windowStart = beijingDateString(
     new Date(
@@ -433,9 +435,9 @@ export async function getWorkerTrafficDailyTrend(
 
 export async function getWorkerTrafficDailySummary(
   db: D1Database,
-  statDate = beijingDateString()
+  statDate = workerQuotaDateString()
 ): Promise<WorkerTrafficDailySummary> {
-  const date = statDate.trim() || beijingDateString();
+  const date = statDate.trim() || workerQuotaDateString();
 
   if (devStoreEnabled) {
     const routeMap = new Map<string, WorkerTrafficRouteRow>();
@@ -492,7 +494,7 @@ export async function getWorkerTrafficDailySummary(
         .slice(0, 40),
       hourly,
       daily_trend,
-      ...attachRateFields(total, hourly),
+      ...attachRateFields(total, hourly, date),
     };
   }
 
@@ -569,7 +571,7 @@ export async function getWorkerTrafficDailySummary(
     top_pairs: pairResult.results ?? [],
     hourly,
     daily_trend,
-    ...attachRateFields(Number(totalRow?.total ?? 0), hourly),
+    ...attachRateFields(Number(totalRow?.total ?? 0), hourly, date),
   };
 }
 
@@ -577,7 +579,7 @@ export async function getWorkerTrafficRouteIps(
   db: D1Database,
   opts: { statDate?: string; routeKey: string; limit?: number }
 ): Promise<WorkerTrafficIpRow[]> {
-  const date = (opts.statDate || "").trim() || beijingDateString();
+  const date = (opts.statDate || "").trim() || workerQuotaDateString();
   const routeKey = opts.routeKey.trim() || "/";
   const limit = Math.min(
     40,
