@@ -34,7 +34,7 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
 )
-from worker_api_guard import record_worker_unavailable  # noqa: E402
+from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from worker_fill_http import post_worker_fill_api  # noqa: E402
 
 DEFAULT_API_URL = "https://finance.info-quests.com/api/jp-vocab/fill-usage"
@@ -122,14 +122,14 @@ def resolve_poison_sec() -> int:
         return DEFAULT_POISON_SEC
 
 
-def call_api(*, api_url: str, token: str, body: dict) -> dict:
+def call_api(*, api_url: str, token: str, body: dict, retries: int = 6) -> dict:
     return post_worker_fill_api(
-        api_url=api_url,
-        token=token,
-        body=body,
+        api_url,
+        token,
+        body,
         user_agent=HTTP_USER_AGENT,
-        label="jp-grammar-connection",
-        on_rate_limited=record_worker_unavailable,
+        timeout=120,
+        retries=retries,
     )
 
 
@@ -437,6 +437,7 @@ def main() -> int:
 
     api_url = resolve_api_url()
     token = load_token()
+    skip_if_worker_unavailable(api_url, label="jp-grammar-connection")
 
     with run_lock(skip_if_busy=args.skip_if_busy):
         if args.status:

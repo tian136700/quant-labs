@@ -1,0 +1,63 @@
+#!/bin/bash
+# 安装日语统一补全定时（线上 tokken 一词一次；卸掉旧分阶段任务）
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CONFIG_DIR="${HOME}/.config/info-quests"
+ENV_FILE="${CONFIG_DIR}/jp-vocab-fill.env"
+LOG_DIR="${HOME}/Library/Logs"
+UID_NUM="$(id -u)"
+LABEL="com.infoquests.jp-vocab-fill-unified"
+RUN_INTERVAL="${JP_VOCAB_FILL_UNIFIED_INTERVAL_SECONDS:-60}"
+
+# 旧任务（分阶段 / 独立语法 / 读音 Ollama）
+RETIRED=(
+  com.infoquests.jp-vocab-fill-pos
+  com.infoquests.jp-vocab-fill-examples
+  com.infoquests.jp-vocab-fill-reading
+  com.infoquests.jp-vocab-fill-grammar
+  com.infoquests.jp-vocab-fill-grammar-connection
+  com.infoquests.jp-vocab-fill-meaning
+  com.stt.jp_vocab_remote_fill_examples
+)
+
+mkdir -p "$CONFIG_DIR" "$LOG_DIR"
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  cp "$ROOT/scripts/jp-vocab-fill.env.example" "$ENV_FILE"
+  echo "已创建配置: $ENV_FILE"
+fi
+
+# 确保线上模式开关
+if ! grep -q '^JP_VOCAB_FILL_LLM_BACKEND=' "$ENV_FILE" 2>/dev/null; then
+  echo "JP_VOCAB_FILL_LLM_BACKEND=1" >> "$ENV_FILE"
+  echo "已写入 JP_VOCAB_FILL_LLM_BACKEND=1"
+fi
+
+chmod +x "$ROOT/scripts/jp-vocab-fill-unified-stage.sh"
+chmod +x "$ROOT/scripts/jp-vocab-fill-online-batch-api.py"
+
+for old in "${RETIRED[@]}"; do
+  launchctl bootout "gui/${UID_NUM}/${old}" 2>/dev/null || true
+  rm -f "${HOME}/Library/LaunchAgents/${old}.plist"
+  echo "  uninstalled ${old}"
+done
+
+plist_dst="${HOME}/Library/LaunchAgents/${LABEL}.plist"
+sed \
+  -e "s|__REPO_ROOT__|${ROOT}|g" \
+  -e "s|__INTERVAL__|${RUN_INTERVAL}|g" \
+  "$ROOT/scripts/com.infoquests.jp-vocab-fill-unified.plist.example" > "$plist_dst"
+
+launchctl bootout "gui/${UID_NUM}/${LABEL}" 2>/dev/null || true
+launchctl bootstrap "gui/${UID_NUM}" "$plist_dst"
+launchctl enable "gui/${UID_NUM}/${LABEL}"
+
+echo ""
+echo "OK: 日语统一补全 ${LABEL}"
+echo "  间隔: 每 ${RUN_INTERVAL}s；每轮最多 1 词（tokken）"
+echo "  日志: ${LOG_DIR}/com.infoquests.jp-vocab-fill-unified.log"
+echo "  开关: ${ENV_FILE} → JP_VOCAB_FILL_LLM_BACKEND=1"
+echo ""
+echo "手动: FORCE=1 bash $ROOT/scripts/jp-vocab-fill-unified-stage.sh"
+echo "调试: python3 $ROOT/scripts/jp-vocab-fill-online-batch-api.py --dry-run"

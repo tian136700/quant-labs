@@ -69,6 +69,19 @@ export function stripJpVocabParenFurigana(text: string): string {
 const VALID_KANJI_FURIGANA_CHUNK =
   /[\u4E00-\u9FFF々]+[ぁ-んァ-ンヴヵヶー]*[（(][ぁ-んァ-ンヴヵヶー]+[）)]/g;
 
+/** 例句句末 JLPT 等级：(N5) / （N4）→ 规范成 (N5) */
+const EXAMPLE_JLPT_TAIL_RE =
+  /^(.*?)([。！？…])\s*[（(]\s*N\s*([1-5])\s*[）)]\s*$/i;
+
+export function normalizeJpVocabExampleJlptTail(text: string): string | null {
+  const t = String(text || "").trim();
+  const m = EXAMPLE_JLPT_TAIL_RE.exec(t);
+  if (!m) return null;
+  const body = m[1].replace(/\s+$/u, "");
+  if (!body) return null;
+  return `${body}${m[2]}(N${m[3]})`;
+}
+
 /**
  * 展示 / 写回前清洗日语行：
  * 1) 先保护合法「漢字(かな)」；
@@ -107,6 +120,16 @@ export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
     return `\u0000F${idx}\u0000`;
   });
 
+  const jlptTail = normalizeJpVocabExampleJlptTail(s);
+  let jlptSuffix = "";
+  if (jlptTail) {
+    const m = EXAMPLE_JLPT_TAIL_RE.exec(s.trim());
+    if (m) {
+      jlptSuffix = `(N${m[3]})`;
+      s = `${m[1]}${m[2]}`;
+    }
+  }
+
   // 由内向外剥：嵌套时先去掉最内层无括号内容的块
   let prev = "";
   while (prev !== s) {
@@ -122,7 +145,11 @@ export function sanitizeJpVocabExampleJapaneseLine(text: string): string {
       : "";
   });
 
-  return s.replace(/\s{2,}/g, " ").trim();
+  s = s.replace(/\s{2,}/g, " ").trim();
+  if (jlptSuffix && jlptTail) {
+    return `${s}${jlptSuffix}`;
+  }
+  return s;
 }
 
 /** 去掉所有半角/全角括号块（语法点是否出现：勿把括注里的「が」算进去） */
