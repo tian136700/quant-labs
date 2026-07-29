@@ -93,6 +93,17 @@ def main() -> int:
     for needle in ("LineChart", "recharts", "ReferenceLine", "08:00"):
         if needle not in charts:
             errors.append(f"AdminWorkerTrafficCharts 须含 {needle}")
+    # 深色页默认白底 tooltip + 继承浅色字 →「时刻」看不见；须显式 contentStyle/labelStyle
+    for needle in (
+        "TRAFFIC_CHART_TOOLTIP_STYLE",
+        "contentStyle",
+        "labelStyle",
+        'color: "#e7ecf3"',
+    ):
+        if needle not in charts:
+            errors.append(
+                f"AdminWorkerTrafficCharts 须显式 tooltip 对比色（缺 {needle}；对照 CompareChart）"
+            )
     if 'next/dynamic' not in panel and "dynamic(" not in panel:
         errors.append("AdminWorkerTrafficPanel 须 dynamic 懒加载 Charts（recharts 体积）")
 

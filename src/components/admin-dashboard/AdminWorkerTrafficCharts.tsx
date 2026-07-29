@@ -84,6 +84,21 @@ function formatDateTick(date: string): string {
   return m ? `${m[1]}-${m[2]}` : date;
 }
 
+/** 深色页上 Recharts 默认白底 tooltip 会继承浅色字 →「时刻」看不见；须显式定色 */
+const TRAFFIC_CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    background: "#1a2332",
+    border: "1px solid #2d3a4d",
+    borderRadius: 8,
+    color: "#e7ecf3",
+  },
+  labelStyle: { color: "#e7ecf3", fontWeight: 600 },
+  itemStyle: { color: "#c8d4e6" },
+} as const;
+
+const TRAFFIC_CHART_TICK = { fill: "#8b9cb3" } as const;
+const TRAFFIC_CHART_GRID = "rgba(139, 156, 179, 0.28)";
+
 export function AdminWorkerTrafficCharts({
   hourly,
   dailyTrend,
@@ -116,6 +131,10 @@ export function AdminWorkerTrafficCharts({
   );
 
   const hourlyHasData = hourlyData.some((row) => row.hits > 0);
+  const tick = {
+    ...TRAFFIC_CHART_TICK,
+    fontSize: layout.tickFontSize,
+  };
 
   return (
     <div className="admin-traffic-charts">
@@ -133,26 +152,29 @@ export function AdminWorkerTrafficCharts({
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(0,0,0,0.08)"
+                stroke={TRAFFIC_CHART_GRID}
               />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: layout.tickFontSize }}
+                tick={tick}
                 minTickGap={layout.minTickGap}
               />
               <YAxis
                 width={layout.yAxisWidth}
-                tick={{ fontSize: layout.tickFontSize }}
+                tick={tick}
                 allowDecimals={false}
               />
               <Tooltip
+                contentStyle={TRAFFIC_CHART_TOOLTIP_STYLE.contentStyle}
+                labelStyle={TRAFFIC_CHART_TOOLTIP_STYLE.labelStyle}
+                itemStyle={TRAFFIC_CHART_TOOLTIP_STYLE.itemStyle}
                 formatter={(value) => [
                   Number(value).toLocaleString(),
                   labels.hits,
                 ]}
                 labelFormatter={(label) => `${labels.hourLabel} ${label}`}
               />
-              <Legend />
+              <Legend wrapperStyle={{ color: "#8b9cb3", fontSize: 12 }} />
               <ReferenceLine
                 x="08:00"
                 stroke="#c45c26"
@@ -196,19 +218,22 @@ export function AdminWorkerTrafficCharts({
             >
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(0,0,0,0.08)"
+                stroke={TRAFFIC_CHART_GRID}
               />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: layout.tickFontSize }}
+                tick={tick}
                 minTickGap={layout.minTickGap}
               />
               <YAxis
                 width={layout.yAxisWidth}
-                tick={{ fontSize: layout.tickFontSize }}
+                tick={tick}
                 allowDecimals={false}
               />
               <Tooltip
+                contentStyle={TRAFFIC_CHART_TOOLTIP_STYLE.contentStyle}
+                labelStyle={TRAFFIC_CHART_TOOLTIP_STYLE.labelStyle}
+                itemStyle={TRAFFIC_CHART_TOOLTIP_STYLE.itemStyle}
                 formatter={(value) => [
                   Number(value).toLocaleString(),
                   labels.hits,
@@ -220,7 +245,7 @@ export function AdminWorkerTrafficCharts({
                   return `${labels.dateShort} ${full || label}`;
                 }}
               />
-              <Legend />
+              <Legend wrapperStyle={{ color: "#8b9cb3", fontSize: 12 }} />
               <Line
                 type="monotone"
                 dataKey="hits"
