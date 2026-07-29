@@ -17,6 +17,9 @@ export const EN_VOCAB_STUDY_QUIZ_LIVE_POLL_MS = 15_000;
 /** 学生端：后台 live 轮询 */
 export const EN_VOCAB_STUDY_QUIZ_LIVE_POLL_HIDDEN_MS = 45_000;
 
+/** 学生复习页：每隔 N 次列表轮询再拉一次抽查目标（分母） */
+export const EN_VOCAB_STUDY_QUIZ_EVERY_N = 12;
+
 /** 页面可见时增量拉取间隔（备注等多端实时同步） */
 export const JP_VOCAB_POLL_MS = 5_000;
 

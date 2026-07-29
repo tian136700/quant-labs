@@ -1,5 +1,6 @@
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import {
+  getEnVocabStudyQuizProgressTarget,
   getEnVocabTeacherQuizLive,
   listEnVocabSharedToday,
 } from "@/lib/en-vocab-db";
@@ -13,6 +14,7 @@ const AUTH_MSG = {
 
 export async function GET(request: Request) {
   const locale = localeFromRequest(request);
+  const lite = new URL(request.url).searchParams.get("lite") === "1";
 
   try {
     const { env, allowed } = await requireEnVocabStudyAccess(request);
@@ -20,9 +22,13 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
     }
 
-    const [{ items, refs }, live] = await Promise.all([
-      listEnVocabSharedToday(env.DB),
-      getEnVocabTeacherQuizLive(env.DB),
+    const listPromise = listEnVocabSharedToday(env.DB);
+    const quizPromise = lite ? null : getEnVocabStudyQuizProgressTarget(env.DB);
+    const livePromise = getEnVocabTeacherQuizLive(env.DB);
+    const [{ items, refs }, quiz_progress, live] = await Promise.all([
+      listPromise,
+      quizPromise ?? Promise.resolve(null),
+      livePromise,
     ]);
     return jsonResponse(
       {
@@ -32,6 +38,7 @@ export async function GET(request: Request) {
         share_date: beijingDateString(),
         // 学生 peek 按钮灰态须跟「老师当前 live 词」，勿只钉上次 peek 的 id
         teacher_live_word_id: live.word_id,
+        ...(quiz_progress ? { quiz_progress } : {}),
       },
       200,
       { "Cache-Control": "no-store" }

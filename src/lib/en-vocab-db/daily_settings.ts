@@ -568,3 +568,20 @@ export async function getEnVocabDailyQuizProgress(
   };
 }
 
+/**
+ * 学生 `/api/en-vocab/shared` 用：只回传分母（管理员今日抽查数量）。
+ * 分子由客户端按今日共享列表条数自算（peek 入列表不写 today_check）。
+ */
+export async function getEnVocabStudyQuizProgressTarget(
+  db: D1Database
+): Promise<EnVocabDailyQuizProgressDb> {
+  const teacherVisibleLimit = await getEnVocabTeacherVisibleLimit(db);
+  const total = Math.max(0, Math.floor(teacherVisibleLimit.quiz_target));
+  return {
+    total,
+    checked: 0,
+    remaining: total,
+    complete: false,
+  };
+}
+

@@ -7,6 +7,10 @@ import { readApiJson } from "@/lib/api-json";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { beijingDateString, effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { type EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
+import {
+  computeEnVocabStudyPageQuizProgress,
+  type EnVocabDailyQuizProgress,
+} from "@/lib/en-vocab-daily-quiz-progress";
 import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import { parseEnVocabLastUsageLevels } from "@/lib/en-vocab-review";
 import {
@@ -23,11 +27,13 @@ import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
 import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQuizFlashcardModal";
+import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { useEnVocabStudyPersonalLevels } from "@/hooks/useVocabStudyPersonalLevels";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import {
   EN_VOCAB_STUDY_POLL_HIDDEN_MS,
   EN_VOCAB_STUDY_POLL_MS,
+  EN_VOCAB_STUDY_QUIZ_EVERY_N,
 } from "@/lib/en-vocab-sync";
 import { useVocabStudySharedPoll } from "@/hooks/useVocabStudySharedPoll";
 import {
@@ -76,6 +82,8 @@ export function EnVocabStudyPage() {
   const [items, setItems] = useState<EnVocabSharedItem[]>([]);
   const [refs, setRefs] = useState<Record<string, EnVocabRef>>({});
   const [shareDate, setShareDate] = useState("");
+  /** API 只带回分母（今日抽查数量）；分子按下方 items 条数自算 */
+  const [quizTargetTotal, setQuizTargetTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -95,6 +103,13 @@ export function EnVocabStudyPage() {
   const pendingFlashcardWordIdRef = useRef<number | null>(null);
   const knownSharedWordIdsRef = useRef<Set<number>>(new Set());
   const hasLoadedOnceRef = useRef(false);
+  const sharedPollCountRef = useRef(0);
+  const quizTargetTotalRef = useRef(0);
+
+  const quizProgress = useMemo((): EnVocabDailyQuizProgress | null => {
+    if (quizTargetTotal <= 0) return null;
+    return computeEnVocabStudyPageQuizProgress(items.length, quizTargetTotal);
+  }, [items.length, quizTargetTotal]);
 
   const openEnAuth = useCallback(() => {
     openAuthPanel({
@@ -169,6 +184,7 @@ export function EnVocabStudyPage() {
       items: EnVocabSharedItem[];
       refs?: Record<string, EnVocabRef>;
       share_date?: string;
+      quiz_progress?: EnVocabDailyQuizProgress | null;
     }) => {
       const wasLoadedBefore = hasLoadedOnceRef.current;
       const newWordIds = payload.items.map((item) => item.word_id);
@@ -185,12 +201,16 @@ export function EnVocabStudyPage() {
       setItems(payload.items);
       setRefs(payload.refs ?? {});
       setShareDate(payload.share_date ?? beijingDateString());
+      if (payload.quiz_progress && payload.quiz_progress.total > 0) {
+        quizTargetTotalRef.current = payload.quiz_progress.total;
+        setQuizTargetTotal(payload.quiz_progress.total);
+      }
       hasLoadedOnceRef.current = true;
     },
     []
   );
 
-  const loadShared = useCallback(async (opts?: { force?: boolean }) => {
+  const loadShared = useCallback(async (opts?: { force?: boolean; includeQuiz?: boolean }) => {
     if (!canViewStudy) {
       setLoading(false);
       return;
@@ -199,9 +219,21 @@ export function EnVocabStudyPage() {
       if (opts?.force) pendingRefreshRef.current = true;
       return;
     }
+
+    const includeQuiz =
+      opts?.includeQuiz ??
+      (!hasLoadedOnceRef.current ||
+        sharedPollCountRef.current % EN_VOCAB_STUDY_QUIZ_EVERY_N === 0);
+
     pollInFlightRef.current = true;
     try {
-      const res = await fetch("/api/en-vocab/shared", {
+      sharedPollCountRef.current += 1;
+
+      const sharedUrl = includeQuiz
+        ? "/api/en-vocab/shared"
+        : "/api/en-vocab/shared?lite=1";
+
+      const res = await fetch(sharedUrl, {
         headers: { [LOCALE_HEADER]: locale },
         credentials: "include",
         cache: "no-store",
@@ -211,6 +243,7 @@ export function EnVocabStudyPage() {
         items?: EnVocabSharedItem[];
         refs?: Record<string, EnVocabRef>;
         share_date?: string;
+        quiz_progress?: EnVocabDailyQuizProgress;
         teacher_live_word_id?: number | null;
         error?: string;
       }>(res);
@@ -225,6 +258,8 @@ export function EnVocabStudyPage() {
         setItems([]);
         setRefs({});
         setShareDate(beijingDateString());
+        setQuizTargetTotal(0);
+        quizTargetTotalRef.current = 0;
         setTeacherLiveWordId(null);
         setError("请登录后查看今日英语单词。");
         return;
@@ -232,10 +267,18 @@ export function EnVocabStudyPage() {
       if (!data.ok || !data.items) {
         throw new Error(data.error || "加载失败");
       }
+      const targetTotal =
+        data.quiz_progress && data.quiz_progress.total > 0
+          ? data.quiz_progress.total
+          : quizTargetTotalRef.current;
       applyStudyPayload({
         items: data.items,
         refs: data.refs,
         share_date: data.share_date,
+        quiz_progress:
+          targetTotal > 0
+            ? computeEnVocabStudyPageQuizProgress(data.items.length, targetTotal)
+            : null,
       });
       applyTeacherLiveWordId(data.teacher_live_word_id);
       setError("");
@@ -554,6 +597,10 @@ export function EnVocabStudyPage() {
         <p className="hint" role="status" style={{ marginBottom: "0.75rem", fontSize: "0.875rem" }}>
           {status}
         </p>
+      ) : null}
+
+      {canViewStudy && quizProgress && quizProgress.total > 0 ? (
+        <JpVocabDailyQuizProgressBar progress={quizProgress} variant="study" />
       ) : null}
 
       <section className="section etr-panel" aria-label="今日共享单词">
