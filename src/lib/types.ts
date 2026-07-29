@@ -196,6 +196,13 @@ export interface JpVocabWord {
   usage?: string | null;
   /** 用法来源（如：手动、本地 gemma4:26b、线上 claude-…） */
   usage_source?: string | null;
+  /**
+   * 接序（接续形态）：动词哪一形、一类/二类形容词、名词等如何接该语法；
+   * 单词则为词类与常用活用。与用法/例句同次补全；用法正文不含接序。
+   */
+  connection?: string | null;
+  /** 接序来源（如：手动、线上 claude-…） */
+  connection_source?: string | null;
   /** 例句（课堂带读展示；日语抽问列表不显示，编辑时可填） */
   example_sentences?: string | null;
   /** 例句来源（如：手动、DeepSeek、本地模型名；老师可见，便于纠错与质量对比） */

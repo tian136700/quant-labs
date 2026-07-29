@@ -19,6 +19,7 @@ import {
   buildJpLessonDisplayGroupsById,
   buildLearningClassDayToneMap,
   getJpLessonProgressStatus,
+  isJpLessonCurrentlyInClass,
   type JpLessonDisplayGroup,
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
@@ -51,7 +52,6 @@ import {
   DEFAULT_JP_LESSON_SECTION_SORT,
   buildTeacherById,
   groupLessonsForDisplay,
-  jpLessonAssignedToInClassTeacher,
   readLessonCache,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 
@@ -94,6 +94,12 @@ export function JpLessonPage() {
   const setMobileStatusFilter = useCallback((status: JpLessonListFilter) => {
     setMobileStatusFilterState(status);
     writeStoredJpLessonListFilter(status);
+  }, []);
+  /** 北京时间墙钟：用于「上课中」窗口；与日程页同频 60s 刷新 */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
   const [editingLesson, setEditingLesson] = useState<JpLessonRecord | null>(null);
   const [editingTeacherLesson, setEditingTeacherLesson] = useState<JpLessonRecord | null>(null);
@@ -255,13 +261,10 @@ export function JpLessonPage() {
     return groups;
   }, [lessonsByStatus, sectionSort]);
 
-  /** 「上课中」= 学习中 ∩ 李老师；复用学习中排序与日色 */
+  /** 「上课中」= 日程上课时间窗口含当前北京时间（不限定老师） */
   const inClassLessons = useMemo(
-    () =>
-      lessonsByStatus.learning.filter((lesson) =>
-        jpLessonAssignedToInClassTeacher(lesson, teacherById)
-      ),
-    [lessonsByStatus.learning, teacherById]
+    () => filteredLessons.filter((lesson) => isJpLessonCurrentlyInClass(lesson, now)),
+    [filteredLessons, now]
   );
 
   const inClassDisplayGroups = useMemo(

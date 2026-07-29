@@ -220,6 +220,14 @@ export function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.usage_source != null && String(row.usage_source).trim()
         ? String(row.usage_source).trim()
         : null,
+    connection:
+      row.connection != null && String(row.connection).trim()
+        ? String(row.connection)
+        : null,
+    connection_source:
+      row.connection_source != null && String(row.connection_source).trim()
+        ? String(row.connection_source).trim()
+        : null,
     last_review_level:
       row.last_review_level === "very" ||
       row.last_review_level === "normal" ||
@@ -285,6 +293,14 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("usage_source")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN usage_source TEXT`).run();
   }
+  if (!cols.has("connection")) {
+    await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN connection TEXT`).run();
+  }
+  if (!cols.has("connection_source")) {
+    await db
+      .prepare(`ALTER TABLE jp_vocab_word ADD COLUMN connection_source TEXT`)
+      .run();
+  }
   if (!cols.has("srs_interval_days")) {
     await db
       .prepare(
@@ -305,7 +321,7 @@ export async function ensureJpVocabWordSchema(db: D1Database): Promise<void> {
 
 export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
   cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, example_sentences,
-  example_sentences_source, meaning_source, usage, usage_source,
+  example_sentences_source, meaning_source, usage, usage_source, connection, connection_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
 export function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {

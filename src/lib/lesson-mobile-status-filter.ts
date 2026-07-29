@@ -2,15 +2,12 @@
 
 export type LessonMobileStatusFilter = "pending" | "learning" | "completed";
 
-/** 日语新课额外快捷 Tab：学习中且上课老师为李老师 */
+/** 日语新课额外快捷 Tab：按上课时间窗口对照北京时间的「上课中」 */
 export type JpLessonListFilter = LessonMobileStatusFilter | "in_class";
 
 export const JP_LESSON_MOBILE_STATUS_FILTER_KEY = "jp-lesson:mobile-status-filter";
 
 export const EN_LESSON_MOBILE_STATUS_FILTER_KEY = "en-lesson:mobile-status-filter";
-
-/** 「上课中」快捷 Tab 对应的老师称呼（与人员管理基础名一致） */
-export const JP_LESSON_IN_CLASS_TEACHER_BASE_NAME = "李老师";
 
 function isLessonMobileStatusFilter(value: string | null): value is LessonMobileStatusFilter {
   return value === "pending" || value === "learning" || value === "completed";

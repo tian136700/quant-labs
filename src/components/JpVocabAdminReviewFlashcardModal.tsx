@@ -8,7 +8,9 @@ import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
 import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
+import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
+import { hasJpVocabConnection } from "@/lib/jp-vocab-connection-ai";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
@@ -194,6 +196,8 @@ export function JpVocabAdminReviewFlashcardModal({
     (exampleSentences.length > 0 ||
       Boolean(usageExamplePairs.hasContent) ||
       !isGrammar);
+  const showConnection =
+    contentExpanded && hasJpVocabConnection(w.connection);
   const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
   const notesInline =
     hasNotes && jpVocabTeacherQuizNotesInline(w.class_notes || "");
@@ -457,6 +461,13 @@ export function JpVocabAdminReviewFlashcardModal({
               />
             </div>
           </section>
+        ) : null}
+
+        {showConnection ? (
+          <JpVocabConnectionSection
+            connection={w.connection}
+            connectionSource={w.connection_source}
+          />
         ) : null}
 
         <section className="jp-vocab-teacher-quiz__notes">

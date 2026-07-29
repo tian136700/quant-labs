@@ -863,6 +863,20 @@ export function buildJpLessonScheduleEvents(lesson: {
   return events;
 }
 
+/**
+ * 「上课中」：与日程同一套上课时间窗口；北京时间 now 落在 [开始, 结束) 即算正在上课。
+ * 不限定老师；未上课（pending）不同步日程，自然不会命中。
+ */
+export function isJpLessonCurrentlyInClass(
+  lesson: Parameters<typeof buildJpLessonScheduleEvents>[0],
+  now: Date = new Date()
+): boolean {
+  const t = now.getTime();
+  return buildJpLessonScheduleEvents(lesson).some(
+    (event) => event.start.getTime() <= t && t < event.end.getTime()
+  );
+}
+
 export function flattenJpLessonScheduleEvents(
   lessons: Array<Parameters<typeof buildJpLessonScheduleEvents>[0]>
 ): JpLessonScheduleEvent[] {

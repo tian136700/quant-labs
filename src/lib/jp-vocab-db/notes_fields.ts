@@ -345,6 +345,8 @@ export type JpVocabWordEntryInput = {
   meaning_source?: string | null;
   usage?: string | null;
   usage_source?: string | null;
+  connection?: string | null;
+  connection_source?: string | null;
 };
 
 /** 一次性更新词条可编辑字段，并同步备注到关联新课 */
@@ -443,10 +445,27 @@ export async function updateJpVocabWordEntry(
   let nextUsageSource = current.usage_source ?? null;
   if (input.usage_source !== undefined) {
     nextUsageSource = normalizeJpVocabExampleSentencesSource(input.usage_source);
-  } else if (input.usage !== undefined) {
+  } else   if (input.usage !== undefined) {
     const prevUsage = current.usage ?? null;
     if (nextUsage !== prevUsage) {
       nextUsageSource = nextUsage
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
+  const nextConnection =
+    input.connection !== undefined
+      ? (input.connection || "").trim() || null
+      : current.connection ?? null;
+  let nextConnectionSource = current.connection_source ?? null;
+  if (input.connection_source !== undefined) {
+    nextConnectionSource = normalizeJpVocabExampleSentencesSource(
+      input.connection_source
+    );
+  } else if (input.connection !== undefined) {
+    const prevConnection = current.connection ?? null;
+    if (nextConnection !== prevConnection) {
+      nextConnectionSource = nextConnection
         ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
         : null;
     }
@@ -485,6 +504,8 @@ export async function updateJpVocabWordEntry(
       example_sentences_source: nextExampleSource,
       usage: nextUsage,
       usage_source: nextUsageSource,
+      connection: nextConnection,
+      connection_source: nextConnectionSource,
       updated_at: ts,
     };
     current = jpVocabDbState.devWords[idx];
@@ -492,8 +513,8 @@ export async function updateJpVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE jp_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, class_notes = ?7, mnemonic = ?8, example_sentences = ?9, example_sentences_source = ?10, usage = ?11, usage_source = ?12, updated_at = ?13
-         WHERE id = ?14`
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, class_notes = ?7, mnemonic = ?8, example_sentences = ?9, example_sentences_source = ?10, usage = ?11, usage_source = ?12, connection = ?13, connection_source = ?14, updated_at = ?15
+         WHERE id = ?16`
       )
       .bind(
         nextKind,
@@ -508,6 +529,8 @@ export async function updateJpVocabWordEntry(
         nextExampleSource,
         nextUsage,
         nextUsageSource,
+        nextConnection,
+        nextConnectionSource,
         ts,
         wordId
       )

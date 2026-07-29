@@ -1217,6 +1217,49 @@ export function JpVocabTeacherQuizFlashcardStyles() {
         .jp-vocab-teacher-quiz__examples-body {
           min-width: 0;
         }
+        .jp-vocab-teacher-quiz__connection {
+          padding: 0.55rem 0.7rem;
+          border-radius: 10px;
+          border: 1px solid color-mix(in srgb, var(--border) 70%, var(--accent) 30%);
+          background: color-mix(in srgb, var(--panel) 92%, var(--muted) 8%);
+        }
+        .jp-vocab-teacher-quiz__connection-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.25rem 0.75rem;
+          margin-bottom: 0.35rem;
+        }
+        .jp-vocab-teacher-quiz__connection-title {
+          margin: 0;
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: var(--accent);
+        }
+        .jp-vocab-teacher-quiz__connection-body {
+          min-width: 0;
+        }
+        .jp-vocab-teacher-quiz__connection-text {
+          margin: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          font-family: inherit;
+          font-size: 1.05rem;
+          line-height: 1.65;
+          color: var(--text);
+        }
+        .jp-vocab-teacher-quiz__connection-empty {
+          margin: 0;
+          color: var(--muted);
+          font-size: 0.95rem;
+        }
+        @media (max-width: 767px) {
+          .jp-vocab-teacher-quiz__connection-text {
+            font-size: 1rem;
+            line-height: 1.6;
+          }
+        }
         /* 语法「用法/例句」配对：字号对齐单词例句区，避免 0.9rem 过小 */
         .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-usage),
         .jp-vocab-teacher-quiz__examples-body :global(.jp-usage-ex-paired-fallback) {

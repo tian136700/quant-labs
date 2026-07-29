@@ -38,8 +38,10 @@ import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero"
 import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
 import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
 import { JpVocabUsageExamplesPairedContent } from "@/components/JpVocabUsageExamplesPairedContent";
+import { JpVocabConnectionSection } from "@/components/JpVocabConnectionSection";
 import { buildJpVocabUsageExamplePairs } from "@/lib/jp-vocab-usage-examples-display";
 import { isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
+import { hasJpVocabConnection } from "@/lib/jp-vocab-connection-ai";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
@@ -346,6 +348,7 @@ export function JpVocabTeacherQuizFlashcardModal({
     exampleSentences.length > 0 ||
     Boolean(usageExamplePairs.hasContent) ||
     (canManualFillExamples && !isGrammar);
+  const showConnection = hasJpVocabConnection(w.connection);
   const dailySeq = dailySeqByWordId.get(w.id);
   const sessionUncheckedCount = isCoach
     ? Math.max(0, session.wordIds.length - session.currentIndex - 1)
@@ -666,6 +669,13 @@ export function JpVocabTeacherQuizFlashcardModal({
               />
             </div>
           </section>
+        ) : null}
+
+        {showConnection ? (
+          <JpVocabConnectionSection
+            connection={w.connection}
+            connectionSource={w.connection_source}
+          />
         ) : null}
 
         {hasNotes || canOperate ? (

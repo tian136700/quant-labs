@@ -1,23 +1,30 @@
+import {
+  hasJpVocabConnection,
+  jpVocabConnectionPromptAppendix,
+} from "@/lib/jp-vocab-connection-ai";
+
 /** 日语语法用法上传契约：编号「中文」说明 + 1:1 例句（同一次调用） */
 
 export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
-  version: 4,
+  version: 5,
   count_rule:
-    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 1 条例句",
+    "组数=该语法真实常用用法数（N5～N2）；只有 1 种就 1 组，有几种写几组；禁止硬凑 2 组。每组=中文用法 + 1 条例句；同一次输出末尾必须有【接序】",
   format_example:
-    "1. 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。",
+    "1. 表示原因、理由：前句说明原因，后句说明结果。(N5)\n今日(きょう)は雨(あめ)だから、家(いえ)にいます。\n译文：今天下雨，所以我待在家里。\n【接序】\n动词普通形＋「から」\n一类形容词普通形＋「から」\n二类形容词词干＋だ＋「から」\n名词＋だ＋「から」",
   level: "N5～N2（含 N1 以下；不要超纲冷僻用法）",
   rules: [
     "只补「语法」（单词不走此接口）",
     "用法说明必须是中文（学生要看得懂）；禁止整段日语用法；「」外不要写汉字(假名)括注",
     "可在中文里用「」短引日语形态（如「～てから」「て形」）；「」内也不要假名括注",
+    "❌ 用法行禁止写接序清单（动词て形＋…）；接序只写在文末【接序】段",
     "每条用法句末句号后必须标该用法大概 JLPT 等级：半角括号 (N5)/(N4)/(N3)/(N2)/(N1)，紧贴句末",
     "用法与例句必须同一次输出、一一对应：编号中文用法下一行立刻跟日语例句，再下一行「译文：」",
-    "禁止拆成「先用法、后例句」两次模型调用",
+    "同一次输出末尾必须有【接序】段（动词/一类·二类形容词/名词如何接本语法）",
+    "禁止拆成「先用法、后例句」两次模型调用；禁止另开定时任务只补接序",
     "组数按真实常用义项：1 种→1 组，2 种→2 组，3 种→3 组；不要为了凑数硬写两组",
     "水平限定 N5～N2：最常用排第一；例句只用简单词、不叠更难语法",
     "不要 markdown、不要给例句再编行首号；等级只写在用法句末括号，不要写「JLPT」「能力考」等字样",
-    "写回时请传 source，建议「线上 claude-…」；人手为「手动」",
+    "写回时请传 source，建议「线上 claude-…」；人手为「手动」；接序可同传 connection",
   ],
   source_examples: ["线上 claude-sonnet-4-6", "本地 gemma4:26b", "手动"],
   reject_reasons: [
@@ -31,6 +38,8 @@ export const JP_VOCAB_USAGE_UPLOAD_SPEC = {
     "examples_required",
     "pair_incomplete",
     "examples_invalid",
+    "connection_required",
+    "connection_invalid",
   ],
 } as const;
 
@@ -82,16 +91,18 @@ export function isJpVocabConjugationGrammar(word: string): boolean {
 }
 
 /**
- * 语法「用法+例句」是否已齐。
- * 活用变形课：usage 故意为空，有例句即算完成（勿再进 list_missing，否则会卡死队列）。
+ * 语法「用法+例句+接序」是否已齐。
+ * 活用变形课：usage 故意为空，有例句+接序即算完成（勿再进 list_missing，否则会卡死队列）。
  */
 export function isJpVocabGrammarUsageExamplesPairComplete(
   word: string,
   usage: string | null | undefined,
-  examples: string | null | undefined
+  examples: string | null | undefined,
+  connection?: string | null | undefined
 ): boolean {
   const hasExamples = Boolean(String(examples ?? "").trim());
   const hasUsage = Boolean(String(usage ?? "").trim());
+  if (!hasJpVocabConnection(connection)) return false;
   if (isJpVocabConjugationGrammar(word)) {
     return hasExamples;
   }
@@ -142,7 +153,7 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
   if (isConjugation) {
     return `${meta}
 
-请为上述「变形/变化规则」词条只写例句，供中文母语的 N5 初学者朗读。
+请为上述「变形/变化规则」词条写例句，并同一次给出接序，供中文母语的 N5 初学者朗读。
 
 硬规则（必须遵守）：
 - ❌ 禁止任何「用法」「规则讲解」「标签」「1. 五段动词…」这类中文说明。学生自己记怎么变，你只给例句。
@@ -150,35 +161,47 @@ export function buildJpVocabUsageAiPrompt(input: JpVocabUsageAiInput): string {
 - 不要行首编号、不要 markdown、不要总标题、不要箭头对照句（書く→書きます）。
 - 例句必须 N5 左右：极短、口语、日常词；必须自然用到本变形（如ます形出现「ます」、て形出现「て」连接）。
 - 每个汉字后半角括号假名。
+${jpVocabConnectionPromptAppendix("grammar")}
 
-输出格式示例（只有例句，没有用法）：
+输出格式示例（例句 + 接序，没有用法）：
 今日(きょう)は学校(がっこう)へ行(い)きます。
 译文：今天去学校。
 朝(あさ)ご飯(はん)を食(た)べます。
 译文：吃早饭。
 友(とも)達(だち)と勉強(べんきょう)します。
-译文：和朋友一起学习。`;
+译文：和朋友一起学习。
+【接序】
+一类动词（五段）变ます形：词尾う段→い段＋「ます」
+二类动词（一段）变ます形：去「る」＋「ます」
+三类动词：「する→します」「来る→来ます」`;
   }
 
   return `${meta}
 
-请为上述日语语法一次写完「用法 + 例句」，供中文母语的 N5～N2 学习者复习。
+请为上述日语语法一次写完「用法 + 例句 + 接序」，供中文母语的 N5～N2 学习者复习。
 
 硬规则（必须遵守）：
-- 同一次输出里完成：每条用法下面立刻跟 1 条例句（日语 + 译文）。禁止只写用法、禁止只写例句、禁止拆成两轮。
+- 同一次输出里完成：每条用法下面立刻跟 1 条例句（日语 + 译文）；文末必须有【接序】。禁止只写用法、禁止只写例句、禁止拆成两轮、禁止另开任务只补接序。
 - 组数 = 该语法真实常用用法数（约 N5～N2 / 考试常见）：只有 1 种就写 1 组；有 2 种写 2 组；有 3 种写 3 组。禁止为了凑数硬写两组。
 - 用法说明必须是中文，学生要看得懂。❌ 禁止整段日语用法；❌「」外不要写 漢字(かな) 假名括注。可在中文里用「」短引日语形态（如「冷たい」「～てから」「場所に＋名詞がある」），「」内也不要假名括注。
+- ❌ 用法行禁止写接序清单（如「动词て形＋本语法」）；接序只放在文末【接序】段。
 - 每条中文用法在句末句号后，必须紧跟该用法大概对应的 JLPT 等级，半角括号：。(N5) 或 .(N4) .(N3) .(N2) .(N1)。按该条用法的常见考试难度估，不要整词条只标一个级；不要写「JLPT」「能力考」等字样。
 - 只用本词条本身的用法。❌ 禁止把其它语法点塞进来凑组数（词条「～がある」时，不要写「～たことがある」「～ことがある」等别的句型当独立用法；那些是别的词条）。
 - 每一组必须完整：中文用法（含句末等级） + 日语例句 + 译文：；禁止只输出用法。
 - 例句才是日语：简单词；不要再叠另一个更难的语法；每个汉字后半角括号假名；「译文：」后中文。
 - 不要 markdown、不要给例句再编行首号。
 - 不要写总标题；第一行就必须是「1. …」中文用法。
+${jpVocabConnectionPromptAppendix("grammar")}
 
-输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …）：
+输出格式示例（仅 1 种常用用法时就只输出 1 组；多种用法再继续 2. 3. …；末尾接序）：
 1. 表示原因、理由：前句说明原因，后句说明结果。(N5)
 今日(きょう)は雨(あめ)だから、家(いえ)にいます。
-译文：今天下雨，所以我待在家里。`;
+译文：今天下雨，所以我待在家里。
+【接序】
+动词普通形＋「から」
+一类形容词普通形＋「から」
+二类形容词词干＋だ＋「から」
+名词＋だ＋「から」`;
 }
 
 export type JpVocabGrammarUsageExamplePairParsed = {

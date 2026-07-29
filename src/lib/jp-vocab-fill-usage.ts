@@ -1,5 +1,11 @@
 import "server-only";
 
+import {
+  buildJpVocabConnectionOnlyAiPrompt,
+  hasJpVocabConnection,
+  normalizeJpVocabConnectionSource,
+  validateJpVocabConnectionAiOutput,
+} from "@/lib/jp-vocab-connection-ai";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
 import {
@@ -20,8 +26,11 @@ export type JpVocabMissingUsageRow = {
   meaning: string | null;
   /** 已有用法时仍可成对重写（缺例句） */
   usage: string | null;
+  /** 已有接序 */
+  connection: string | null;
   need_usage: boolean;
   need_examples: boolean;
+  need_connection: boolean;
   prompt: string;
 };
 
@@ -32,6 +41,8 @@ export type JpVocabFillUsageApplied = {
   usage_source: string | null;
   example_sentences?: string | null;
   example_sentences_source?: string | null;
+  connection?: string | null;
+  connection_source?: string | null;
 };
 
 export type JpVocabFillUsageResult = {
@@ -79,13 +90,14 @@ export async function listJpVocabGrammarMissingUsage(
       ? options.wordId
       : null;
 
-  // 先宽查，再在内存过滤「活用变形已有例句」；LIMIT 必须过滤后再裁，否则会被变形课占满
-  let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences
+  // 先宽查，再在内存过滤「活用变形已有例句+接序」；LIMIT 必须过滤后再裁，否则会被变形课占满
+  let sql = `SELECT id, word, kind, reading, meaning, usage, example_sentences, connection
        FROM jp_vocab_word
        WHERE kind = 'grammar'
          AND (
            (usage IS NULL OR usage = '')
            OR (example_sentences IS NULL OR example_sentences = '')
+           OR (connection IS NULL OR connection = '')
          )`;
   const binds: number[] = [];
   if (wordId != null) {
@@ -105,6 +117,7 @@ export async function listJpVocabGrammarMissingUsage(
     meaning: string | null;
     usage: string | null;
     example_sentences: string | null;
+    connection: string | null;
   }>();
 
   const mapped = (result.results ?? [])
@@ -120,13 +133,25 @@ export async function listJpVocabGrammarMissingUsage(
         row.example_sentences != null
           ? String(row.example_sentences).trim() || null
           : null;
-      if (isJpVocabGrammarUsageExamplesPairComplete(word, usage, examples)) {
+      const connection =
+        row.connection != null ? String(row.connection).trim() || null : null;
+      if (
+        isJpVocabGrammarUsageExamplesPairComplete(
+          word,
+          usage,
+          examples,
+          connection
+        )
+      ) {
         return null;
       }
       const need_usage = isJpVocabConjugationGrammar(word)
         ? false
         : !usage;
       const need_examples = !examples;
+      const need_connection = !hasJpVocabConnection(connection);
+      const onlyConnection =
+        need_connection && !need_usage && !need_examples;
       return {
         id: Number(row.id),
         word,
@@ -134,14 +159,23 @@ export async function listJpVocabGrammarMissingUsage(
         reading,
         meaning,
         usage,
+        connection,
         need_usage,
         need_examples,
-        prompt: buildJpVocabUsageAiPrompt({
-          word,
-          kind: "grammar",
-          reading,
-          meaning,
-        }),
+        need_connection,
+        prompt: onlyConnection
+          ? buildJpVocabConnectionOnlyAiPrompt({
+              word,
+              kind: "grammar",
+              reading,
+              meaning,
+            })
+          : buildJpVocabUsageAiPrompt({
+              word,
+              kind: "grammar",
+              reading,
+              meaning,
+            }),
       };
     })
     .filter((row): row is JpVocabMissingUsageRow => row != null);
@@ -265,6 +299,8 @@ export async function clearJpVocabGrammarPairById(
              usage_source = NULL,
              example_sentences = NULL,
              example_sentences_source = NULL,
+             connection = NULL,
+             connection_source = NULL,
              updated_at = datetime('now')
          WHERE id = ?1 AND kind = 'grammar'`
       )
@@ -281,16 +317,36 @@ export async function clearJpVocabGrammarPairById(
   };
 }
 
-async function updateUsageAndExamples(
+async function updateUsageExamplesAndConnection(
   db: D1Database,
   wordId: number,
   usage: string,
   usageSource: string | null,
   exampleSentences: string | null,
   exampleSource: string | null,
-  dryRun: boolean
+  connection: string | null,
+  connectionSource: string | null,
+  dryRun: boolean,
+  options: { connectionOnly?: boolean } = {}
 ): Promise<boolean> {
   if (dryRun) return true;
+  if (options.connectionOnly) {
+    const result = await db
+      .prepare(
+        `UPDATE jp_vocab_word
+         SET connection = ?1,
+             connection_source = ?2,
+             updated_at = datetime('now')
+         WHERE id = ?3 AND kind = 'grammar'`
+      )
+      .bind(
+        connection?.trim() || null,
+        connection?.trim() ? connectionSource : null,
+        wordId
+      )
+      .run();
+    return Number(result.meta?.changes ?? 0) > 0;
+  }
   if (exampleSentences) {
     const result = await db
       .prepare(
@@ -299,14 +355,18 @@ async function updateUsageAndExamples(
              usage_source = ?2,
              example_sentences = ?3,
              example_sentences_source = ?4,
+             connection = COALESCE(?5, connection),
+             connection_source = COALESCE(?6, connection_source),
              updated_at = datetime('now')
-         WHERE id = ?5 AND kind = 'grammar'`
+         WHERE id = ?7 AND kind = 'grammar'`
       )
       .bind(
         usage.trim() || null,
         usage.trim() ? usageSource : null,
         exampleSentences.trim(),
         exampleSource,
+        connection?.trim() || null,
+        connection?.trim() ? connectionSource : null,
         wordId
       )
       .run();
@@ -317,12 +377,20 @@ async function updateUsageAndExamples(
       `UPDATE jp_vocab_word
        SET usage = ?1,
            usage_source = ?2,
+           connection = COALESCE(?3, connection),
+           connection_source = COALESCE(?4, connection_source),
            updated_at = datetime('now')
-       WHERE id = ?3
+       WHERE id = ?5
          AND kind = 'grammar'
          AND (usage IS NULL OR usage = '')`
     )
-    .bind(usage.trim(), usageSource, wordId)
+    .bind(
+      usage.trim(),
+      usageSource,
+      connection?.trim() || null,
+      connection?.trim() ? connectionSource : null,
+      wordId
+    )
     .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
@@ -332,6 +400,8 @@ export type JpVocabUsageUpdateItem = {
   usage: string;
   /** 成对写回：有则一次写 usage+例句 */
   example_sentences?: string | null;
+  /** 接序；与用法/例句同次写回 */
+  connection?: string | null;
   source?: string | null;
 };
 
@@ -357,15 +427,19 @@ export async function applyJpVocabUsageUpdates(
     const wordId = Number(item.word_id);
     let usage = String(item.usage ?? "").trim();
     let examples = String(item.example_sentences ?? "").trim() || null;
+    let connectionRaw = String(item.connection ?? "").trim() || null;
     if (!Number.isInteger(wordId) || wordId <= 0) continue;
-    if (!usage && !examples) continue;
+    const connectionOnly =
+      Boolean(connectionRaw) && !usage && !examples;
+    if (!usage && !examples && !connectionRaw) continue;
 
     const source =
       normalizeJpVocabUsageSource(item.source) ?? defaultSource;
+    const connectionSource = normalizeJpVocabConnectionSource(source);
 
     const row = await db
       .prepare(
-        `SELECT id, word, kind, reading, meaning, usage FROM jp_vocab_word WHERE id = ?1`
+        `SELECT id, word, kind, reading, meaning, usage, connection FROM jp_vocab_word WHERE id = ?1`
       )
       .bind(wordId)
       .first<{
@@ -375,6 +449,7 @@ export async function applyJpVocabUsageUpdates(
         reading: string | null;
         meaning: string | null;
         usage: string | null;
+        connection: string | null;
       }>();
     if (!row) {
       skipped.push({ id: wordId, word: String(wordId), reason: "not_found" });
@@ -390,11 +465,71 @@ export async function applyJpVocabUsageUpdates(
     }
 
     const isConj = isJpVocabConjugationGrammar(String(row.word));
+    let connection: string | null = connectionRaw;
+
+    if (validateFormat && connectionRaw) {
+      const connOk = validateJpVocabConnectionAiOutput(connectionRaw, {
+        word: String(row.word),
+        kind: "grammar",
+        reading: row.reading,
+        meaning: row.meaning,
+      });
+      if (!connOk.ok) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: `invalid_format:connection_invalid:${connOk.reason}`,
+        });
+        continue;
+      }
+      connection = connOk.text;
+    }
+
+    if (connectionOnly) {
+      const changed = await updateUsageExamplesAndConnection(
+        db,
+        wordId,
+        "",
+        null,
+        null,
+        null,
+        connection,
+        connectionSource,
+        dryRun,
+        { connectionOnly: true }
+      );
+      if (changed) {
+        updated += 1;
+        applied.push({
+          id: wordId,
+          word: String(row.word),
+          usage: String(row.usage ?? ""),
+          usage_source: source,
+          connection,
+          connection_source: connection ? connectionSource : null,
+        });
+      } else {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "unchanged",
+        });
+      }
+      continue;
+    }
 
     if (validateFormat) {
       // 付费/自动写回必须成对；人手「手动」可只改用法
       // 变形课：只要例句，用法清空
       const isManual = source === "手动";
+      if (!isManual && !connection) {
+        skipped.push({
+          id: wordId,
+          word: String(row.word),
+          reason: "invalid_format:connection_required",
+        });
+        continue;
+      }
       if (isConj) {
         if (!examples && !isManual) {
           skipped.push({
@@ -483,13 +618,15 @@ export async function applyJpVocabUsageUpdates(
       usage = "";
     }
 
-    const changed = await updateUsageAndExamples(
+    const changed = await updateUsageExamplesAndConnection(
       db,
       wordId,
       usage,
       source,
       examples,
       source,
+      connection,
+      connectionSource,
       dryRun
     );
     if (changed) {
@@ -501,6 +638,8 @@ export async function applyJpVocabUsageUpdates(
         usage_source: source,
         example_sentences: examples,
         example_sentences_source: examples ? source : null,
+        connection,
+        connection_source: connection ? connectionSource : null,
       });
     } else {
       skipped.push({

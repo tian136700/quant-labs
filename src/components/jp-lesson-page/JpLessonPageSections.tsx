@@ -7,7 +7,6 @@ import {
   type JpLessonSectionSort,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 import type { JpLessonListFilter } from "@/lib/lesson-mobile-status-filter";
-import { JP_LESSON_IN_CLASS_TEACHER_BASE_NAME } from "@/lib/lesson-mobile-status-filter";
 import type { JpLessonDisplayGroup, JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import type { JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
 
@@ -171,7 +170,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
               type="button"
               role="tab"
               aria-selected={inClassActive}
-              aria-label={`${JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}正在上课`}
+              aria-label="上课中"
               className={`jp-lesson-mobile-status-tab jp-lesson-mobile-status-tab--in_class${
                 inClassActive ? " is-active" : ""
               }`}
@@ -241,15 +240,15 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
               </section>
             );
           })}
-          {/* 搜索时不展示快捷区；点「上课中」才看李老师学习中教案 */}
+          {/* 搜索时不展示快捷区；点「上课中」看当前时刻窗口内的教案 */}
           {searchActive ? null : (
             <section
               className="section etr-panel jp-lesson-status-card jp-lesson-status-card--in_class"
-              aria-label={`${JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}正在上课`}
+              aria-label="上课中"
             >
               <div className="jp-lesson-status-card-head">
                 <h2 className="jp-lesson-status-card-title">
-                  {JP_LESSON_IN_CLASS_TEACHER_BASE_NAME}正在上课
+                  {JP_LESSON_IN_CLASS_SECTION.title}
                 </h2>
                 <span className="jp-lesson-status-card-count">{inClassCount} 条</span>
               </div>

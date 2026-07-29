@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       mnemonic?: string | null;
       example_sentences?: string | null;
       usage?: string | null;
+      connection?: string | null;
     };
 
     const wordId = Number(body.word_id);
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         class_notes: body.class_notes,
         example_sentences: body.example_sentences,
         usage: body.usage,
+        connection: body.connection,
         ...(isAdmin && body.mnemonic !== undefined
           ? { mnemonic: body.mnemonic }
           : {}),

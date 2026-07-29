@@ -28,6 +28,7 @@ import { JpVocabEditModalStyles } from "@/components/jp-vocab-edit-modal/JpVocab
 import { JpVocabEditBasicFields } from "@/components/jp-vocab-edit-modal/JpVocabEditBasicFields";
 import { JpVocabEditExamplesField } from "@/components/jp-vocab-edit-modal/JpVocabEditExamplesField";
 import { JpVocabEditUsageField } from "@/components/jp-vocab-edit-modal/JpVocabEditUsageField";
+import { JpVocabEditConnectionField } from "@/components/jp-vocab-edit-modal/JpVocabEditConnectionField";
 import { JpVocabEditGrammarPairPreview } from "@/components/jp-vocab-edit-modal/JpVocabEditGrammarPairPreview";
 import { JpVocabEditNotesField } from "@/components/jp-vocab-edit-modal/JpVocabEditNotesField";
 import { JpVocabEditRefField } from "@/components/jp-vocab-edit-modal/JpVocabEditRefField";
@@ -75,6 +76,7 @@ export function JpVocabEditModal({
   const [classNotes, setClassNotes] = useState("");
   const [exampleSentences, setExampleSentences] = useState("");
   const [usage, setUsage] = useState("");
+  const [connection, setConnection] = useState("");
   const [mnemonic, setMnemonic] = useState("");
   const [error, setError] = useState("");
   const [refError, setRefError] = useState("");
@@ -94,6 +96,7 @@ export function JpVocabEditModal({
   const classNotesValueRef = useRef("");
   const exampleSentencesRef = useRef<HTMLTextAreaElement>(null);
   const usageRef = useRef<HTMLTextAreaElement>(null);
+  const connectionRef = useRef<HTMLTextAreaElement>(null);
   const classNotesRef = useRef<HTMLTextAreaElement>(null);
   const editBodyRef = useRef<HTMLDivElement>(null);
   const [bodyCanScroll, setBodyCanScroll] = useState(false);
@@ -137,6 +140,7 @@ export function JpVocabEditModal({
     setClassNotesLoading(notesPresent && !notesBody.trim());
     setExampleSentences(word.example_sentences || "");
     setUsage(word.usage || "");
+    setConnection(word.connection || "");
     setMnemonic(word.mnemonic || "");
     setError("");
     setRefError("");
@@ -244,6 +248,7 @@ export function JpVocabEditModal({
     if (!open) return;
     autoGrowTextarea(exampleSentencesRef.current);
     autoGrowTextarea(usageRef.current);
+    autoGrowTextarea(connectionRef.current);
     autoGrowTextarea(classNotesRef.current);
     const body = editBodyRef.current;
     const raf = requestAnimationFrame(() => {
@@ -269,13 +274,14 @@ export function JpVocabEditModal({
     ro.observe(body);
     if (exampleSentencesRef.current) ro.observe(exampleSentencesRef.current);
     if (usageRef.current) ro.observe(usageRef.current);
+    if (connectionRef.current) ro.observe(connectionRef.current);
     if (classNotesRef.current) ro.observe(classNotesRef.current);
     body.addEventListener("scroll", update, { passive: true });
     return () => {
       ro.disconnect();
       body.removeEventListener("scroll", update);
     };
-  }, [open, exampleSentences, usage, classNotes, word?.id, kind, meaning, pos, mnemonic]);
+  }, [open, exampleSentences, usage, connection, classNotes, word?.id, kind, meaning, pos, mnemonic]);
 
   const applyRefFile = (file: File) => {
     setRefError("");
@@ -595,6 +601,14 @@ export function JpVocabEditModal({
             : null
           : snapshot.usage_source ?? null
         : null;
+    const nextConnection = connection.trim() || null;
+    const prevConnection = (snapshot.connection || "").trim() || null;
+    const nextConnectionSource =
+      nextConnection !== prevConnection
+        ? nextConnection
+          ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+          : null
+        : snapshot.connection_source ?? null;
     const nextMeaning = meaning.trim() || null;
     const prevMeaning = (snapshot.meaning || "").trim() || null;
     const nextMeaningSource =
@@ -615,6 +629,8 @@ export function JpVocabEditModal({
       example_sentences_source: nextExampleSource,
       usage: nextUsage,
       usage_source: nextUsageSource,
+      connection: nextConnection,
+      connection_source: nextConnectionSource,
       ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
     });
 
@@ -640,6 +656,7 @@ export function JpVocabEditModal({
             ...(notesReady ? { class_notes: nextClassNotes } : {}),
             example_sentences: nextExamples,
             usage: nextUsage,
+            connection: nextConnection,
             ...(showMnemonic ? { mnemonic: mnemonic.trim() || null } : {}),
           }),
         });
@@ -747,6 +764,14 @@ export function JpVocabEditModal({
               word={word}
               exampleSentencesRef={exampleSentencesRef}
               onExampleSentencesChange={setExampleSentences}
+            />
+
+            <JpVocabEditConnectionField
+              canEdit={canEdit}
+              connection={connection}
+              word={word}
+              connectionRef={connectionRef}
+              onConnectionChange={setConnection}
             />
 
             {kind === "grammar" ? (

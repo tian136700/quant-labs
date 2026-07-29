@@ -20,14 +20,18 @@ import {
   splitJpVocabMeaningMajorSenses,
 } from "@/lib/jp-vocab-meaning-ai";
 import { countJpVocabUsagePoints, isJpVocabConjugationGrammar } from "@/lib/jp-vocab-usage-ai";
+import {
+  jpVocabConnectionPromptAppendix,
+  splitJpVocabAiOutputConnectionSection,
+} from "@/lib/jp-vocab-connection-ai";
 
 /** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
-  version: 2,
+  version: 3,
   count_rule:
-    "单词：释义含 / 时条数=斜杠段数；否则 max(2, 段内 ； 近义数)。语法：条数=用法点数（须先有 usage；1:1；可为 1）",
+    "单词：释义含 / 时条数=斜杠段数；否则 max(2, 段内 ； 近义数)。语法：条数=用法点数（须先有 usage；1:1；可为 1）。同一次输出末尾须有【接序】",
   format_example:
-    "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。",
+    "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。\n【接序】\n一类动词（五段）／辞书形：「書く」；ます形：「書きます」；て形：「書いて」",
   rules: [
     "存库不要写行首序号（展示层会加 1、2、3…）",
     "每条：日语一行，下一行必须以「译文：」开头的中文（「译文：」后直接中文，禁止「译文：/ …」）",
@@ -44,6 +48,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义已含 / 时：按斜杠分段，每段造 1 句，且须体现该段读音（如 前 的 まえ/ぜん）",
     "从句连接后要加顿号「、」：❌「食べながらテレビを見る」✅「食べながら、テレビを見る」；「によると」同理（❌「によると今日は…」✅「によると、今日は…」）",
     "每条日语须以「。」「！」「？」或「…」结尾，禁止无句末标点或只写单词",
+    "同一次输出末尾必须有【接序】段（词类与活用／语法接续）；禁止另开定时任务只补接序；写回可另传 connection 字段",
     "写回时请传 source，建议「模型名/版本 本地|线上」，如「gemma4:26b 本地」；人手填写为「手动」",
   ],
   reject_reasons: [
@@ -63,6 +68,8 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "missing_clause_touten",
     "missing_sentence_final_punct",
     "usage_required",
+    "connection_required",
+    "connection_invalid",
   ],
 } as const;
 
@@ -213,7 +220,8 @@ ${
    - 「～について話す」→「我来谈谈学校」或「聊聊这个话题」，禁止「关于学校说话」。
    - 「～について知りたい」→「想了解一下…」，不要「关于…想知道」。
    - 释义里的「关于……」只是语法义项提示，不要每句都机械套「关于…」。
-10. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。`;
+10. 只输出「日语」行与下一行「译文：」+中文交替；「译文：」后直接写中文，禁止「译文：/ …」或行首斜杠；不要行首编号、不要 markdown、不要解释、不要额外语法说明。
+${jpVocabConnectionPromptAppendix(input.kind === "grammar" ? "grammar" : "word")}`;
 }
 
 /** 校验 AI 返回的例句块是否可用 */
@@ -221,7 +229,9 @@ export function validateJpVocabExampleSentencesAiOutput(
   raw: string,
   input: JpVocabExampleSentencesAiInput
 ): { ok: true; text: string } | { ok: false; reason: string } {
-  const text = raw.trim();
+  // 接序段不参与例句行数校验；调用方应先 split 出 connection
+  const split = splitJpVocabAiOutputConnectionSection(String(raw ?? ""));
+  const text = split.body.trim();
   if (!text) return { ok: false, reason: "empty" };
 
   if (input.kind === "grammar" && countJpVocabUsagePoints(input.usage) < 1) {
