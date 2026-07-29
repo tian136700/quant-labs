@@ -56,6 +56,26 @@ def main() -> int:
     for row in snap.get("recent") or []:
         assert row.get("status") not in ("running", "applying"), row
 
+    # 维护中心须有独立顶栏「日语补全」，词条卡不在定时任务页里
+    index_html = (ROOT / "scripts/maintenance_center/static/index.html").read_text(
+        encoding="utf-8"
+    )
+    app_js = (ROOT / "scripts/maintenance_center/static/app.js").read_text(encoding="utf-8")
+    if 'data-view="view-jp-fill"' not in index_html:
+        raise SystemExit("FAIL: missing top tab data-view=view-jp-fill")
+    if 'id="view-jp-fill"' not in index_html:
+        raise SystemExit("FAIL: missing section#view-jp-fill")
+    if 'id="jp-vocab-fill-feed-card"' not in index_html:
+        raise SystemExit("FAIL: missing jp-vocab-fill-feed-card")
+    # 词条卡须在 view-jp-fill 内，不在 view-cron 内
+    cron_chunk = index_html.split('id="view-cron"', 1)[1].split('id="view-jp-fill"', 1)[0]
+    if "jp-vocab-fill-feed-card" in cron_chunk:
+        raise SystemExit("FAIL: jp-fill feed still embedded under view-cron")
+    if "function isJpFillViewActive" not in app_js:
+        raise SystemExit("FAIL: isJpFillViewActive missing in app.js")
+    if 'name === "view-jp-fill"' not in app_js:
+        raise SystemExit("FAIL: activate must refresh on view-jp-fill")
+
     # 同词 running→success 应 UPDATE 成一行，不留下「生成中」幽灵行
     rid = feed.insert_jp_vocab_fill_word_run(
         {
