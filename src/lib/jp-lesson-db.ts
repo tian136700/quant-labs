@@ -25,7 +25,6 @@ import {
 } from "@/lib/jp-vocab-annotation";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
-  removeJpVocabLessonWords,
   syncLessonNotesToVocab,
   upsertJpVocabFromLesson,
 } from "@/lib/jp-vocab-db";
@@ -34,6 +33,7 @@ import {
   getClassSchedulesByLessonIds,
   replaceLessonClassSchedules,
 } from "@/lib/jp-lesson-class-schedule-db";
+import { unsyncLessonFromVocab } from "@/lib/jp-lesson-vocab-unsync";
 import type { JpLessonClassScheduleInput } from "@/lib/types";
 
 const SEED_LESSONS: JpLessonUploadInput[] = [
@@ -148,6 +148,19 @@ async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
   await ensureJpLessonGrammarItemCountColumn(db);
   await ensureJpLessonCourseLabelColumn(db);
   await ensureJpLessonCourseGroupIdColumn(db);
+}
+
+export function isJpLessonDevStoreEnabled(): boolean {
+  return devStoreEnabled;
+}
+
+/** 仅供 deleteJpLesson：从内存课表删掉一条。 */
+export function spliceJpLessonDevStore(lessonId: number): boolean {
+  if (!devStoreEnabled) return false;
+  const idx = devLessons.findIndex((l) => l.id === lessonId);
+  if (idx < 0) return false;
+  devLessons.splice(idx, 1);
+  return true;
 }
 
 export function enableJpLessonDevStore() {
@@ -484,31 +497,6 @@ async function syncLessonToVocab(
     refs
   );
   await syncLessonNotesToVocab(db, lesson);
-}
-
-async function unsyncLessonFromVocab(
-  db: D1Database,
-  lesson: JpLessonRecord
-): Promise<void> {
-  const items = parseLessonContent(lesson.content);
-  if (!items.length) return;
-  const itemKinds = resolveJpLessonItemKinds(
-    lesson.kind,
-    items.length,
-    lesson.grammar_item_count
-  );
-  const words: string[] = [];
-  const grammars: string[] = [];
-  items.forEach((word, index) => {
-    if (itemKinds[index] === "grammar") grammars.push(word);
-    else words.push(word);
-  });
-  if (words.length) {
-    await removeJpVocabLessonWords(db, words, lesson.ref_key, "word");
-  }
-  if (grammars.length) {
-    await removeJpVocabLessonWords(db, grammars, lesson.ref_key, "grammar");
-  }
 }
 
 export type CreateJpLessonResult =

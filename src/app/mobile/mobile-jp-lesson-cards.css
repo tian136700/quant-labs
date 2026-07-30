@@ -503,7 +503,7 @@
     display: none !important;
   }
 
-  /* 英语删除仅桌面操作区；手机对齐日语（操作区无删除，避免 2 列网格尾行孤钮） */
+  /* 英语删除仅桌面；日语新课手机操作区保留「删除」 */
   .jp-lesson-page--en .jp-lesson-actions .jp-lesson-action-btn--danger {
     display: none !important;
   }

@@ -12,6 +12,7 @@ import {
 import { lessonScheduleSaveErrorMessage } from "@/lib/lesson-class-schedule-form";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
+  formatLessonContentLines,
   jpLessonProgressToFields,
   normalizeClassDurationMinutes,
   type JpLessonProgressStatus,
@@ -56,14 +57,17 @@ export type UseJpLessonPageActionsOptions = {
   savingId: number | null;
   savingTeacherLessonId: number | null;
   savingNextClassId: number | null;
+  deletingId: number | null;
   batchLessonIds: number[];
   setLessons: Dispatch<SetStateAction<JpLessonRecord[]>>;
   setRefs: Dispatch<SetStateAction<Record<string, JpVocabRef>>>;
+  setNotes: Dispatch<SetStateAction<JpLessonNote[]>>;
   setTeachers: Dispatch<SetStateAction<JpLessonTeacher[]>>;
   setStatus: Dispatch<SetStateAction<string>>;
   setSavingId: Dispatch<SetStateAction<number | null>>;
   setSavingTeacherLessonId: Dispatch<SetStateAction<number | null>>;
   setSavingNextClassId: Dispatch<SetStateAction<number | null>>;
+  setDeletingId: Dispatch<SetStateAction<number | null>>;
   setEditingTeacherLesson: Dispatch<SetStateAction<JpLessonRecord | null>>;
   setEditingTeacherLessonIds: Dispatch<SetStateAction<number[]>>;
   setEditingNextClassLesson: Dispatch<SetStateAction<JpLessonRecord | null>>;
@@ -94,14 +98,17 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     savingId,
     savingTeacherLessonId,
     savingNextClassId,
+    deletingId,
     batchLessonIds,
     setLessons,
     setRefs,
+    setNotes,
     setTeachers,
     setStatus,
     setSavingId,
     setSavingTeacherLessonId,
     setSavingNextClassId,
+    setDeletingId,
     setEditingTeacherLesson,
     setEditingTeacherLessonIds,
     setEditingNextClassLesson,
@@ -727,6 +734,53 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     });
   };
 
+  const deleteLesson = async (lesson: JpLessonRecord) => {
+    if (!canOperate) {
+      if (!user) openJpAuth();
+      else setStatus("您没有日语新课的编辑权限。");
+      return;
+    }
+    if (deletingId === lesson.id) return;
+
+    const preview = formatLessonContentLines(lesson.content, 5).join(" / ");
+    const ok = window.confirm(
+      `确定删除新课 #${lesson.id}（${preview}）？此操作不可恢复。`
+    );
+    if (!ok) return;
+
+    setDeletingId(lesson.id);
+    setStatus("");
+    try {
+      const res = await fetch("/api/jp-lesson", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [LOCALE_HEADER]: locale,
+        },
+        credentials: "include",
+        body: JSON.stringify({ action: "delete", lesson_id: lesson.id }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (!data.ok) {
+        throw new Error(data.error || "删除失败");
+      }
+
+      const nextNotes = notes.filter((n) => n.lesson_id !== lesson.id);
+      setLessons((prev) => {
+        const next = prev.filter((l) => l.id !== lesson.id);
+        persistLessonCache(next, refs, nextNotes, teachers);
+        return next;
+      });
+      setNotes(nextNotes);
+      setBatchLessonIds((prev) => prev.filter((id) => id !== lesson.id));
+      setStatus(`已删除新课 #${lesson.id}`);
+      window.setTimeout(() => setStatus(""), 2500);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return {
     setLessonProgress,
@@ -739,5 +793,6 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     setBatchClassSchedulesAndTeachers,
     handleRefUpdated,
     handleAnnotateSaved,
+    deleteLesson,
   };
 }

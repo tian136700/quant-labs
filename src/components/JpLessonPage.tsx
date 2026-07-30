@@ -89,6 +89,7 @@ export function JpLessonPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [savingTeacherLessonId, setSavingTeacherLessonId] = useState<number | null>(null);
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copiedBatchKey, setCopiedBatchKey] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
@@ -385,6 +386,7 @@ export function JpLessonPage() {
     setBatchClassSchedulesAndTeachers,
     handleRefUpdated,
     handleAnnotateSaved,
+    deleteLesson,
   } = useJpLessonPageActions({
     locale,
     user,
@@ -398,14 +400,17 @@ export function JpLessonPage() {
     savingId,
     savingTeacherLessonId,
     savingNextClassId,
+    deletingId,
     batchLessonIds,
     setLessons,
     setRefs,
+    setNotes,
     setTeachers,
     setStatus,
     setSavingId,
     setSavingTeacherLessonId,
     setSavingNextClassId,
+    setDeletingId,
     setEditingTeacherLesson,
     setEditingTeacherLessonIds,
     setEditingNextClassLesson,
@@ -535,6 +540,7 @@ export function JpLessonPage() {
           canOperate={canOperate}
           savingId={savingId}
           savingNextClassId={savingNextClassId}
+          deletingId={deletingId}
           expandedContentIds={expandedContentIds}
           expandedMeaningsIds={expandedMeaningsIds}
           copiedId={copiedId}
@@ -545,6 +551,7 @@ export function JpLessonPage() {
           setEditingLesson={setEditingLesson}
           setAnnotatingLesson={setAnnotatingLesson}
           setViewingExamples={setViewingExamples}
+          deleteLesson={deleteLesson}
           toggleRecentOperationSort={toggleRecentOperationSort}
           toggleClassTimeSort={toggleClassTimeSort}
           toggleBatchLesson={toggleBatchLesson}

@@ -8,6 +8,7 @@ import {
   updateJpLessonProgress,
   updateJpLessonTeacherAssignment,
 } from "@/lib/jp-lesson-db";
+import { deleteJpLesson } from "@/lib/jp-lesson-db-delete";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
 import { listJpLessonTeachersWithLessonCounts } from "@/lib/jp-lesson-teacher-db";
@@ -154,6 +155,21 @@ export async function POST(request: Request) {
     const { env, user, allowed } = await requireJpLessonOperate(request);
     if (!allowed || !user) {
       return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+    }
+
+    if (body.action === "delete") {
+      const lessonId = Number(body.lesson_id);
+      if (!Number.isInteger(lessonId) || lessonId <= 0) {
+        return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+      }
+
+      const result = await deleteJpLesson(env.DB, lessonId);
+      if (!result.ok) {
+        const status = result.error === "not_found" ? 404 : 400;
+        return jsonResponse({ ok: false, error: result.error }, status);
+      }
+
+      return jsonResponse({ ok: true });
     }
 
     if (body.action === "set_next_class_at" || body.action === "set_class_schedules") {

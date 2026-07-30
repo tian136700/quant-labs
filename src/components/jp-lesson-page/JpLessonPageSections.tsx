@@ -34,6 +34,7 @@ export type JpLessonPageSectionsProps = {
   canOperate: boolean;
   savingId: number | null;
   savingNextClassId: number | null;
+  deletingId: number | null;
   expandedContentIds: Record<number, boolean>;
   expandedMeaningsIds: Record<number, boolean>;
   copiedId: number | null;
@@ -44,6 +45,7 @@ export type JpLessonPageSectionsProps = {
   setEditingLesson: (lesson: JpLessonRecord | null) => void;
   setAnnotatingLesson: (payload: { lesson: JpLessonRecord; ref: JpVocabRef; imageUrl: string } | null) => void;
   setViewingExamples: (target: import("@/components/JpLessonExamplesViewModal").JpLessonExamplesViewTarget | null) => void;
+  deleteLesson: (lesson: JpLessonRecord) => void;
   toggleRecentOperationSort: (status: JpLessonProgressStatus) => void;
   toggleClassTimeSort: (status: JpLessonProgressStatus) => void;
   toggleBatchLesson: (lessonId: number) => void;
@@ -79,6 +81,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     canOperate,
     savingId,
     savingNextClassId,
+    deletingId,
     expandedContentIds,
     expandedMeaningsIds,
     copiedId,
@@ -89,6 +92,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     setEditingLesson,
     setAnnotatingLesson,
     setViewingExamples,
+    deleteLesson,
     toggleRecentOperationSort,
     toggleClassTimeSort,
     toggleBatchLesson,
@@ -115,6 +119,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     expandedMeaningsIds,
     savingId,
     savingNextClassId,
+    deletingId,
     copiedId,
     copiedBatchKey,
     onToggleBatchLesson: toggleBatchLesson,
@@ -126,6 +131,7 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     onAnnotateLesson: setAnnotatingLesson,
     onOpenTeacherEdit: openTeacherEditModal,
     onOpenNextClassEdit: openNextClassEditModal,
+    onDeleteLesson: deleteLesson,
     onLessonLinkCopied: handleLessonLinkCopied,
     onBatchLinkCopied: handleBatchLinkCopied,
     onLessonLinkCopyError: handleLessonLinkCopyError,

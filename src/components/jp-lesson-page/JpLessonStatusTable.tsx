@@ -55,6 +55,7 @@ export type JpLessonStatusTableProps = {
   expandedMeaningsIds: Record<number, boolean>;
   savingId: number | null;
   savingNextClassId: number | null;
+  deletingId: number | null;
   copiedId: number | null;
   copiedBatchKey: string | null;
   onToggleRecentOperationSort: () => void;
@@ -72,6 +73,7 @@ export type JpLessonStatusTableProps = {
   }) => void;
   onOpenTeacherEdit: (lesson: JpLessonRecord, lessonIds?: number[]) => void;
   onOpenNextClassEdit: (lesson: JpLessonRecord) => void;
+  onDeleteLesson: (lesson: JpLessonRecord) => void;
   onLessonLinkCopied: (lessonId: number) => void;
   onBatchLinkCopied: (batchKey: string) => void;
   onLessonLinkCopyError: () => void;
@@ -94,6 +96,7 @@ export function JpLessonStatusTable({
   expandedMeaningsIds,
   savingId,
   savingNextClassId,
+  deletingId,
   copiedId,
   copiedBatchKey,
   onToggleRecentOperationSort,
@@ -107,6 +110,7 @@ export function JpLessonStatusTable({
   onAnnotateLesson,
   onOpenTeacherEdit,
   onOpenNextClassEdit,
+  onDeleteLesson,
   onLessonLinkCopied,
   onBatchLinkCopied,
   onLessonLinkCopyError,
@@ -124,6 +128,19 @@ export function JpLessonStatusTable({
     return null;
   };
 
+  const renderLessonDeleteButton = (lesson: JpLessonRecord) =>
+    canOperate ? (
+      <button
+        key="delete"
+        type="button"
+        className="jp-lesson-action-btn jp-lesson-action-btn--danger"
+        disabled={deletingId === lesson.id}
+        onClick={() => void onDeleteLesson(lesson)}
+      >
+        {deletingId === lesson.id ? "删除中…" : "删除"}
+      </button>
+    ) : null;
+
   const renderLessonActions = (lesson: JpLessonRecord) => {
     const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
     const hasRef = Boolean(lesson.ref_key && ref);
@@ -134,16 +151,19 @@ export function JpLessonStatusTable({
 
     if (!hasRef) {
       return canOperate ? (
-        <button
-          type="button"
-          className="jp-lesson-action-btn"
-          onClick={() => onEditLesson(lesson)}
-        >
-          <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
-            <JpLessonMobileIcon name="upload" />
-          </span>
-          上传教案
-        </button>
+        <div className="jp-lesson-actions">
+          <button
+            type="button"
+            className="jp-lesson-action-btn"
+            onClick={() => onEditLesson(lesson)}
+          >
+            <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+              <JpLessonMobileIcon name="upload" />
+            </span>
+            上传教案
+          </button>
+          {renderLessonDeleteButton(lesson)}
+        </div>
       ) : (
         <span style={{ color: "var(--muted)" }}>—</span>
       );
@@ -219,6 +239,8 @@ export function JpLessonStatusTable({
           onClick={() => onEditLesson(lesson)}
         />
       );
+      const deleteBtn = renderLessonDeleteButton(lesson);
+      if (deleteBtn) actionItems.push(deleteBtn);
     }
     return <div className="jp-lesson-actions">{actionItems}</div>;
   };

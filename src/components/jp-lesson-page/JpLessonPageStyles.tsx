@@ -871,6 +871,16 @@ export function JpLessonPageStyles() {
         :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
         }
+        :global(.jp-lesson-action-btn--danger) {
+          color: var(--rise);
+        }
+        :global(.jp-lesson-action-btn--danger:hover) {
+          background: color-mix(in srgb, var(--rise) 10%, var(--panel));
+        }
+        :global(.jp-lesson-action-btn--danger:disabled) {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
         :global(.jp-lesson-batch-id-row) {
           display: inline-flex;
           flex-direction: column;
