@@ -399,6 +399,75 @@ export type JpVocabRefPaginatedPdfBuild = {
   pageCount: number;
 };
 
+export type JpVocabRefPaginatedPdfPart = {
+  imageUrl: string;
+  filenameBase: string;
+  cropKind?: JpVocabRefCropKind | null;
+};
+
+/** 多张长图按顺序切段后拼成一份 PDF，页码 1…N 连续（整课合并用） */
+export async function buildMergedJpVocabRefPaginatedPdf(
+  parts: JpVocabRefPaginatedPdfPart[],
+  outputFilenameBase: string
+): Promise<JpVocabRefPaginatedPdfBuild> {
+  if (!parts.length) throw new Error("缺少教案图");
+
+  const [{ jsPDF }, ...images] = await Promise.all([
+    import("jspdf"),
+    ...parts.map((p) => loadImage(p.imageUrl)),
+  ]);
+
+  type PageSlice = { img: HTMLImageElement; bounds: LessonSectionBounds };
+  const pages: PageSlice[] = [];
+  for (let pi = 0; pi < parts.length; pi++) {
+    const part = parts[pi];
+    const img = images[pi] as HTMLImageElement;
+    const sections = detectLessonSectionBounds(
+      img,
+      resolveJpVocabRefCropKind(part.filenameBase, part.cropKind)
+    );
+    for (const bounds of sections) {
+      pages.push({ img, bounds });
+    }
+  }
+  if (!pages.length) throw new Error("未能切分教案页");
+
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 12;
+  const maxImgH = pageH * 0.52;
+  const maxImgW = pageW - margin * 2;
+  const total = pages.length;
+
+  for (let i = 0; i < pages.length; i++) {
+    if (i > 0) pdf.addPage();
+    const { img, bounds } = pages[i];
+    const dataUrl = cropSectionToDataUrl(img, bounds);
+    const imgW = img.naturalWidth;
+    const imgH = bounds.y1 - bounds.y0;
+    const { width: drawW, height: drawH } = calcSectionDrawSize(
+      imgW,
+      imgH,
+      maxImgW,
+      maxImgH
+    );
+    const x = (pageW - drawW) / 2;
+    pdf.addImage(dataUrl, "PNG", x, margin, drawW, drawH);
+
+    pdf.setFontSize(10);
+    pdf.setTextColor(130, 130, 130);
+    pdf.text(`${i + 1} / ${total}`, pageW / 2, pageH - 8, {
+      align: "center",
+    });
+  }
+
+  const filename = `${paginatedExportBasename(outputFilenameBase)}-整课分页.pdf`;
+  const arrayBuffer = pdf.output("arraybuffer");
+  const blob = new Blob([arrayBuffer], { type: "application/pdf" });
+  return { blob, filename, pageCount: total };
+}
+
 /** 生成分页 PDF Blob（不触发下载）；供下载 / 复制共用 */
 export async function buildJpVocabRefPaginatedPdf(
   imageUrl: string,

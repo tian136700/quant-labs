@@ -52,6 +52,8 @@ export type JpLessonPageSectionsProps = {
   handleLessonLinkCopied: (lessonId: number) => void;
   handleBatchLinkCopied: (batchKey: string) => void;
   handleLessonLinkCopyError: () => void;
+  mergeBusy?: import("@/components/jp-lesson-page/JpLessonCourseMergeCell").JpLessonCourseMergeBusy;
+  onCopyCourseMerge?: (pair: import("@/lib/jp-lesson-course-pair").JpLessonCoursePair) => void;
 };
 
 export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
@@ -95,6 +97,8 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     handleLessonLinkCopied,
     handleBatchLinkCopied,
     handleLessonLinkCopyError,
+    mergeBusy = null,
+    onCopyCourseMerge,
   } = props;
 
   const inClassCount = inClassLessons.length;
@@ -125,6 +129,8 @@ export function JpLessonPageSections(props: JpLessonPageSectionsProps) {
     onLessonLinkCopied: handleLessonLinkCopied,
     onBatchLinkCopied: handleBatchLinkCopied,
     onLessonLinkCopyError: handleLessonLinkCopyError,
+    mergeBusy,
+    onCopyCourseMerge,
   };
 
   return (

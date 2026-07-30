@@ -8,6 +8,10 @@ import type { JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesVi
 import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import {
+  JpLessonCourseMergeCell,
+  type JpLessonCourseMergeBusy,
+} from "@/components/jp-lesson-page/JpLessonCourseMergeCell";
+import {
   JpLessonContentPreview,
   JpLessonMeaningsPreview,
   JpLessonAnnotationsPreview,
@@ -23,6 +27,12 @@ import {
   renderNextClassLabel,
   type JpLessonSectionSort,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
+import {
+  buildJpLessonCoursePairMap,
+  isJpLessonCourseMobileAnchor,
+  planJpLessonCourseColumns,
+  type JpLessonCoursePair,
+} from "@/lib/jp-lesson-course-pair";
 import {
   getJpLessonProgressStatus,
   getLessonClassDate,
@@ -73,6 +83,8 @@ export type JpLessonStatusTableProps = {
   onLessonLinkCopied: (lessonId: number) => void;
   onBatchLinkCopied: (batchKey: string) => void;
   onLessonLinkCopyError: () => void;
+  mergeBusy?: JpLessonCourseMergeBusy;
+  onCopyCourseMerge?: (pair: JpLessonCoursePair) => void;
 };
 
 export function JpLessonStatusTable({
@@ -106,7 +118,13 @@ export function JpLessonStatusTable({
   onLessonLinkCopied,
   onBatchLinkCopied,
   onLessonLinkCopyError,
+  mergeBusy = null,
+  onCopyCourseMerge,
 }: JpLessonStatusTableProps) {
+  const sectionLessons = displayGroups.flatMap((g) => g.lessons);
+  const courseColPlans = planJpLessonCourseColumns(displayGroups, sectionLessons);
+  const coursePairMap = buildJpLessonCoursePairMap(sectionLessons);
+
   const renderLessonActions = (lesson: JpLessonRecord) => {
     const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
     const hasRef = Boolean(lesson.ref_key && ref);
@@ -508,12 +526,19 @@ export function JpLessonStatusTable({
           </tr>
         </thead>
         <tbody>
-          {displayGroups.map((group) => {
+          {displayGroups.map((group, groupIdx) => {
             const merged = group.lessons.length > 1;
             const stackClass = merged ? " jp-lesson-merged-stack" : "";
             const classDate = getLessonClassDate(group.lessons[0]);
             const dayTone =
               classDate != null ? dayToneByDate?.get(classDate) : undefined;
+            const coursePlan = courseColPlans[groupIdx] ?? { mode: "empty" as const };
+            const skipCourseCol =
+              coursePlan.mode === "pair" && coursePlan.skip;
+            const courseRowSpan =
+              coursePlan.mode === "pair" && !coursePlan.skip
+                ? coursePlan.rowspan
+                : undefined;
             const rowClassName = [
               "jp-lesson-row",
               merged ? "jp-lesson-row--merged" : "",
@@ -569,33 +594,33 @@ export function JpLessonStatusTable({
                     ))}
                   </div>
                 </td>
-                <td data-label="教材" className="jp-lesson-course-col">
-                  <div className={stackClass.trim() || undefined}>
-                    {group.lessons.map((lesson) => (
-                      <div
-                        key={lesson.id}
-                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
-                      >
-                        {lesson.course_label ? (
-                          <span
-                            className="jp-lesson-course-label"
-                            title={
-                              lesson.course_group_id
-                                ? `同一课 ${lesson.course_label}`
-                                : lesson.course_label
-                            }
-                          >
-                            {lesson.course_label}
-                          </span>
-                        ) : (
-                          <span className="jp-lesson-course-label jp-lesson-course-label--empty">
-                            —
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </td>
+                {!skipCourseCol ? (
+                  <td
+                    data-label="教材"
+                    className="jp-lesson-course-col"
+                    rowSpan={courseRowSpan}
+                  >
+                    {coursePlan.mode === "pair" ? (
+                      <JpLessonCourseMergeCell
+                        courseLabel={coursePlan.pair.courseLabel}
+                        pair={coursePlan.pair}
+                        canMerge={canOperate}
+                        mergeBusy={mergeBusy}
+                        onCopyCourseMerge={onCopyCourseMerge}
+                      />
+                    ) : coursePlan.mode === "label-only" ? (
+                      <JpLessonCourseMergeCell
+                        courseLabel={coursePlan.courseLabel}
+                        canMerge={false}
+                        mergeBusy={null}
+                      />
+                    ) : (
+                      <span className="jp-lesson-course-label jp-lesson-course-label--empty">
+                        —
+                      </span>
+                    )}
+                  </td>
+                ) : null}
                 <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
@@ -639,18 +664,26 @@ export function JpLessonStatusTable({
                               >
                                 {jpLessonKindLabel(lesson.kind)}
                               </span>
-                              {lesson.course_label ? (
-                                <span
-                                  className="jp-lesson-course-label jp-lesson-mobile-course-label"
-                                  title={
-                                    lesson.course_group_id
-                                      ? `同一课 ${lesson.course_label}`
-                                      : lesson.course_label
-                                  }
-                                >
-                                  {lesson.course_label}
-                                </span>
-                              ) : null}
+                              {(() => {
+                                const showMobileCourse =
+                                  isJpLessonCourseMobileAnchor(lesson, coursePairMap);
+                                if (!showMobileCourse) return null;
+                                const gid = (lesson.course_group_id || "").trim();
+                                const pair = gid ? coursePairMap.get(gid) : undefined;
+                                const label =
+                                  (pair?.courseLabel || lesson.course_label || "").trim();
+                                if (!label) return null;
+                                return (
+                                  <JpLessonCourseMergeCell
+                                    courseLabel={label}
+                                    pair={pair ?? null}
+                                    canMerge={canOperate}
+                                    mergeBusy={mergeBusy}
+                                    onCopyCourseMerge={onCopyCourseMerge}
+                                    mobile
+                                  />
+                                );
+                              })()}
                             </div>
                             <ul
                               className="jp-lesson-mobile-content-chips"

@@ -1,0 +1,84 @@
+日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
+============================================================
+
+用途
+----
+把同一 `course_group_id` 下单词教案与语法教案在客户端切段合并成一份分页 PDF，
+上传后得到稳定查看路径（供「教材」列「复制整课」写入剪贴板）。
+
+- 合并顺序：先单词切段页，再语法切段页；页码连续 1…N
+- ref_key：`course-{course_group_id}`（幂等覆盖）
+- 首版：客户端只接受两侧均为 **图片** 教案；本接口只收合并后的 PDF
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-lesson/course-merge-ref
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-lesson/course-merge-ref
+
+
+鉴权
+----
+须登录且具备「日语新课 · 编辑/操作」权限（与列表编辑同权）。
+Cookie 会话或站点登录态即可（浏览器内表单上传）。
+
+
+请求体
+------
+multipart/form-data
+
+必填：
+  course_group_id   同一课分组 id（与 upload-mixed 返回一致）
+  file              合并后的分页 PDF（application/pdf，最大 20MB）
+
+选填：
+  course_label      写入 ref 标题；默认等于 course_group_id
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "ref_key": "course-xxxx",
+  "ref_view_path": "/jp-vocab/ref/course-xxxx?v=…",
+  "ref": { "ref_key", "title", "media_type": "pdf", "updated_at", … },
+  "storage": "r2" | "local",
+  "course_group_id": "…",
+  "course_label": "标日初级上册第23课"
+}
+
+完整查看 URL（日语站）：
+  https://japanese.info-quests.com + ref_view_path
+
+
+失败响应
+--------
+401  未登录 / 无操作权限
+400  course_group_id_required / file_required / pdf_required / empty_file
+413  file_too_large
+500  服务器异常
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson/course-merge-ref' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -F 'course_group_id=你的groupId' \
+  -F 'course_label=标日初级上册第23课' \
+  -F 'file=@merged-course.pdf;type=application/pdf'
+
+
+联系 / 改接口时
+--------------
+线上模块：日语新课（japanese.info-quests.com/jp-lesson）
+本说明：POST /api/jp-lesson/course-merge-ref
+实现：src/app/api/jp-lesson/course-merge-ref/route.ts
+      src/lib/jp-lesson-course-merge-pdf.ts
+      src/lib/jp-vocab-ref-shared.ts → jpLessonCourseMergeRefKey
+功能索引：docs/feature-index.md → 日语新课

@@ -158,8 +158,12 @@ print("word_id=", data["word_lesson"]["id"], "grammar_id=", data["grammar_lesson
 1. `/jp-lesson` 出现两条新课（默认未完成）：
    - 类型「单词」+ 教材「标日初级上册第23课」
    - 类型「语法」+ 教材「标日初级上册第23课」
-2. 旧数据（单传 / 历史上传）教材列为空「—」，不受影响。
-3. 分别标「已完成」后：
+2. **教材列按同一 `course_group_id` 合并为一格**；格下「复制整课」：
+   - 客户端按「单词→语法」切段合并分页 PDF（须两侧都有教案图）
+   - `POST /api/jp-lesson/course-merge-ref` 存 `course-{groupId}` 并复制查看链接
+   - 右侧每行原有「复制」仍只复制该行单词或语法（行为不变）
+3. 旧数据（单传 / 历史上传）教材列为空「—」，不受影响。
+4. 分别标「已完成」后：
    - 单词进抽问（不写释义），语法进抽问（写释义）；例句有则写入
    - **course_label 一并写入词条**；抽问/带读/学生/复习卡片**靠后**（熟悉程度/统计之后）显示弱标签，如「标日初级上册第23课」
 
@@ -168,6 +172,7 @@ print("word_id=", data["word_lesson"]["id"], "grammar_id=", data["grammar_lesson
 --------------
 线上模块：日语新课（japanese.info-quests.com/jp-lesson）
 本说明：POST /api/jp-lesson/upload-mixed
+整课合并复制：docs/jp-lesson-course-merge-ref-api.txt（POST /api/jp-lesson/course-merge-ref）
 实现：src/app/api/jp-lesson/upload-mixed/route.ts
       src/lib/jp-lesson-db.ts → createJpLessonMixed
       卡片：JpVocabCourseLabelSection

@@ -105,6 +105,12 @@ export function jpLessonRefKey(lessonId: number): string {
   return `lesson-${lessonId}`;
 }
 
+/** 同一课（course_group_id）合并教案：稳定 ref_key，幂等覆盖 */
+export function jpLessonCourseMergeRefKey(courseGroupId: string): string {
+  const id = normalizeJpVocabRefKey(courseGroupId);
+  return `course-${id || "unknown"}`;
+}
+
 export function jpVocabRefR2Key(refKey: string, mediaType: JpVocabMediaType): string {
   const ext = mediaType === "pdf" ? ".pdf" : ".png";
   return `${JP_VOCAB_REF_R2_PREFIX}${refKey}${ext}`;

@@ -48,6 +48,8 @@ import { useJpLessonPageActions } from "@/components/jp-lesson-page/useJpLessonP
 import { JpLessonPageSections } from "@/components/jp-lesson-page/JpLessonPageSections";
 import { JpLessonPageModals } from "@/components/jp-lesson-page/JpLessonPageModals";
 import { JpLessonApiUploadDocs } from "@/components/jp-lesson-page/JpLessonApiUploadDocs";
+import { useJpLessonCourseMergeCopy } from "@/components/jp-lesson-page/useJpLessonCourseMergeCopy";
+import { CopyToast } from "@/components/CopyToast";
 import {
   DEFAULT_JP_LESSON_SECTION_SORT,
   buildTeacherById,
@@ -89,6 +91,7 @@ export function JpLessonPage() {
   const [savingNextClassId, setSavingNextClassId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [copiedBatchKey, setCopiedBatchKey] = useState<string | null>(null);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
   const [mobileStatusFilter, setMobileStatusFilterState] =
     useState<JpLessonListFilter>(() => readStoredJpLessonListFilter());
   const setMobileStatusFilter = useCallback((status: JpLessonListFilter) => {
@@ -343,7 +346,17 @@ export function JpLessonPage() {
 
   const handleLessonLinkCopyError = useCallback(() => {
     setStatus("复制失败，请手动选择复制");
+    setCopyToast("复制失败");
   }, []);
+
+  const { mergeBusy, copyCourseMerge } = useJpLessonCourseMergeCopy({
+    refs,
+    canOperate,
+    onCopyToast: setCopyToast,
+    onRefSaved: (ref) => {
+      setRefs((prev) => ({ ...prev, [ref.ref_key]: ref }));
+    },
+  });
 
   useEffect(() => {
     setBatchLessonIds((prev) =>
@@ -540,6 +553,8 @@ export function JpLessonPage() {
           handleLessonLinkCopied={handleLessonLinkCopied}
           handleBatchLinkCopied={handleBatchLinkCopied}
           handleLessonLinkCopyError={handleLessonLinkCopyError}
+          mergeBusy={mergeBusy}
+          onCopyCourseMerge={copyCourseMerge}
         />
         </>
       )}
@@ -584,6 +599,7 @@ export function JpLessonPage() {
         </>
       )}
 
+      <CopyToast message={copyToast} onDismiss={() => setCopyToast(null)} />
       <JpLessonPageStyles />
     </main>
   );
