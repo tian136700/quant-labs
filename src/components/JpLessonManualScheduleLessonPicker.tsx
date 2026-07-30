@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { JpLessonManualScheduleLessonPickModal } from "@/components/JpLessonManualScheduleLessonPickModal";
 import {
   formatManualScheduleLessonOptionLabel,
   linkedLessonKey,
@@ -16,10 +17,14 @@ import type { EnLessonRecord, JpLessonRecord } from "@/lib/types";
 type Props = {
   value: ManualScheduleLinkedLesson[];
   onChange: (links: ManualScheduleLinkedLesson[]) => void;
+  /** 选中一本教材后：关联 + 同步到新课学习中（由父级处理进度条/错误） */
+  onPickLesson: (option: ManualScheduleLessonOption) => void | Promise<void>;
   titleSubject: ScheduleTeacherSubjectFromTitle;
   jpLessons: JpLessonRecord[];
   enLessons: EnLessonRecord[];
   disabled?: boolean;
+  /** 正在同步到新课时禁用再选 */
+  syncing?: boolean;
 };
 
 function toOptions(
@@ -37,6 +42,8 @@ function toOptions(
           : "word",
     content: lesson.content,
     title: lesson.title,
+    course_label: lesson.course_label,
+    uploaded_at: lesson.uploaded_at || lesson.created_at || "",
     completed: lesson.completed,
     learning: lesson.learning,
   }));
@@ -79,21 +86,21 @@ function resolveOptionsForSubject(
     ]),
     fieldLabel: "教材（可选，最多 2 个）",
     emptyHint:
-      "选标题「日语」可从日语新课关联；选「英语」从英语新课关联。也可先搜全部教材。",
+      "选标题「日语」可从日语新课关联；选「英语」从英语新课关联。",
   };
 }
 
 export function JpLessonManualScheduleLessonPicker({
   value,
   onChange,
+  onPickLesson,
   titleSubject,
   jpLessons,
   enLessons,
   disabled = false,
+  syncing = false,
 }: Props) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
 
   const { options, fieldLabel, emptyHint } = useMemo(
     () => resolveOptionsForSubject(titleSubject, jpLessons, enLessons),
@@ -125,57 +132,33 @@ export function JpLessonManualScheduleLessonPicker({
     onChange(next);
   }, [titleSubject, value, onChange]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return options.filter((option) => {
-      const key = linkedLessonKey({
-        subject: option.subject,
-        lesson_id: option.id,
-      });
-      if (selectedKeys.has(key)) return false;
-      if (!q) return true;
-      const label = formatManualScheduleLessonOptionLabel(option).toLowerCase();
-      return (
-        label.includes(q) ||
-        String(option.id).includes(q) ||
-        option.content.toLowerCase().includes(q) ||
-        (option.title || "").toLowerCase().includes(q)
-      );
-    });
-  }, [options, query, selectedKeys]);
-
   useEffect(() => {
-    if (!open) return;
-    const onDoc = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
+    if (disabled || syncing || titleSubject === "ko") {
+      setPickOpen(false);
+    }
+  }, [disabled, syncing, titleSubject]);
 
   const canAddMore = value.length < MANUAL_SCHEDULE_LINKED_LESSONS_MAX;
+  const busy = disabled || syncing;
 
-  const addLesson = (option: ManualScheduleLessonOption) => {
-    if (!canAddMore || disabled) return;
+  const removeAt = (index: number) => {
+    if (busy) return;
+    onChange(value.filter((_, i) => i !== index));
+  };
+
+  const handlePick = (option: ManualScheduleLessonOption) => {
+    if (!canAddMore || busy) return;
     const link: ManualScheduleLinkedLesson = {
       subject: option.subject,
       lesson_id: option.id,
     };
     if (selectedKeys.has(linkedLessonKey(link))) return;
-    onChange([...value, link]);
-    setQuery("");
-    setOpen(false);
-  };
-
-  const removeAt = (index: number) => {
-    if (disabled) return;
-    onChange(value.filter((_, i) => i !== index));
+    setPickOpen(false);
+    void onPickLesson(option);
   };
 
   return (
-    <div className="jp-lesson-manual-lesson-picker" ref={rootRef}>
+    <div className="jp-lesson-manual-lesson-picker">
       <span className="jp-lesson-manual-lesson-picker-label">{fieldLabel}</span>
 
       {value.length > 0 ? (
@@ -189,6 +172,8 @@ export function JpLessonManualScheduleLessonPicker({
                 kind: "word" as const,
                 content: "",
                 title: null,
+                course_label: null,
+                uploaded_at: "",
                 completed: false,
               } satisfies ManualScheduleLessonOption);
             return (
@@ -200,7 +185,7 @@ export function JpLessonManualScheduleLessonPicker({
                   type="button"
                   className="jp-lesson-manual-lesson-chip-clear"
                   aria-label="移除教材"
-                  disabled={disabled}
+                  disabled={busy}
                   onClick={() => removeAt(index)}
                 >
                   ×
@@ -211,68 +196,44 @@ export function JpLessonManualScheduleLessonPicker({
         </ul>
       ) : null}
 
-      {canAddMore ? (
-        <div className="jp-lesson-manual-lesson-add-row">
-          <input
-            type="search"
-            className="jp-lesson-next-class-input jp-lesson-manual-lesson-search"
-            value={query}
-            disabled={disabled || titleSubject === "ko"}
-            placeholder={
-              titleSubject === "ko"
-                ? "韩语暂无教材可关联"
-                : value.length
-                  ? "再选一本教材…"
-                  : "搜索并添加教材…"
-            }
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            aria-label="搜索教材"
-            autoComplete="off"
-          />
-        </div>
-      ) : (
+      {canAddMore && titleSubject !== "ko" ? (
+        <button
+          type="button"
+          className="jp-lesson-action-btn jp-lesson-manual-lesson-open"
+          disabled={busy || options.length === 0}
+          onClick={() => setPickOpen(true)}
+        >
+          {value.length ? "再选一本教材…" : "选择教材…"}
+        </button>
+      ) : null}
+
+      {canAddMore && titleSubject === "ko" ? (
+        <p className="jp-lesson-manual-lesson-hint">{emptyHint}</p>
+      ) : null}
+
+      {!canAddMore ? (
         <p className="jp-lesson-manual-lesson-limit-hint">已选满 2 本教材</p>
-      )}
-
-      {open && canAddMore && titleSubject !== "ko" ? (
-        <ul className="jp-lesson-manual-lesson-dropdown" role="listbox">
-          {filtered.length === 0 ? (
-            <li className="jp-lesson-manual-lesson-dropdown-empty">
-              {emptyHint || "没有匹配的教材"}
-            </li>
-          ) : (
-            filtered.slice(0, 40).map((option) => (
-              <li key={linkedLessonKey({ subject: option.subject, lesson_id: option.id })}>
-                <button
-                  type="button"
-                  className="jp-lesson-manual-lesson-option"
-                  disabled={disabled}
-                  onClick={() => addLesson(option)}
-                >
-                  {formatManualScheduleLessonOptionLabel(option)}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
       ) : null}
 
-      {!value.length && emptyHint && titleSubject === "ko" ? (
+      {!value.length && titleSubject !== "ko" && emptyHint && options.length === 0 ? (
         <p className="jp-lesson-manual-lesson-hint">{emptyHint}</p>
       ) : null}
-      {!value.length && !open && titleSubject !== "ko" && emptyHint && options.length === 0 ? (
-        <p className="jp-lesson-manual-lesson-hint">{emptyHint}</p>
-      ) : null}
+
+      <JpLessonManualScheduleLessonPickModal
+        open={pickOpen}
+        options={options}
+        selectedKeys={selectedKeys}
+        emptyHint={emptyHint}
+        fieldLabel={fieldLabel}
+        disabled={busy}
+        onClose={() => setPickOpen(false)}
+        onPick={handlePick}
+      />
 
       <style jsx>{`
         .jp-lesson-manual-lesson-picker {
           display: grid;
           gap: 0.45rem;
-          position: relative;
         }
 
         .jp-lesson-manual-lesson-picker-label {
@@ -319,68 +280,17 @@ export function JpLessonManualScheduleLessonPicker({
           cursor: pointer;
         }
 
-        .jp-lesson-manual-lesson-add-row {
-          display: grid;
+        .jp-lesson-manual-lesson-open {
+          justify-self: start;
+          min-height: 2.25rem;
         }
 
-        .jp-lesson-manual-lesson-search {
-          width: 100%;
-          box-sizing: border-box;
-          padding: 0.55rem 0.65rem;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          background: color-mix(in srgb, var(--bg) 35%, var(--panel));
-          color: inherit;
-          font-size: 0.875rem;
-        }
-
-        .jp-lesson-manual-lesson-dropdown {
-          list-style: none;
-          margin: 0;
-          padding: 0.25rem;
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: calc(100% + 0.2rem);
-          z-index: 20;
-          max-height: 14rem;
-          overflow: auto;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          background: var(--panel);
-          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
-        }
-
-        .jp-lesson-manual-lesson-option {
-          display: block;
-          width: 100%;
-          text-align: left;
-          border: none;
-          background: transparent;
-          color: inherit;
-          padding: 0.55rem 0.6rem;
-          border-radius: 6px;
-          font-size: 0.8125rem;
-          line-height: 1.4;
-          cursor: pointer;
-        }
-
-        .jp-lesson-manual-lesson-option:hover:not(:disabled) {
-          background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-        }
-
-        .jp-lesson-manual-lesson-dropdown-empty,
         .jp-lesson-manual-lesson-hint,
         .jp-lesson-manual-lesson-limit-hint {
           margin: 0;
-          padding: 0.5rem 0.55rem;
           font-size: 0.75rem;
           color: var(--muted);
           line-height: 1.4;
-        }
-
-        .jp-lesson-manual-lesson-limit-hint {
-          padding: 0;
         }
       `}</style>
     </div>

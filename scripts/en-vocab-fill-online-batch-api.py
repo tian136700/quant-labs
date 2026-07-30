@@ -825,7 +825,10 @@ def now_local_str() -> str:
 def report_word_run_to_maintenance_center(payload: dict[str, Any]) -> None:
     """维护中心「词条补全 · 英语」；维护中心未开时静默跳过。"""
     try:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body_obj = dict(payload)
+        if not str(body_obj.get("fill_task") or "").strip():
+            body_obj["fill_task"] = "en-vocab-fill"
+        body = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
             MAINTENANCE_WORD_RUN_URL,
             data=body,

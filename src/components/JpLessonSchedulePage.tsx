@@ -664,6 +664,8 @@ export function JpLessonSchedulePage() {
             : "word") as "word" | "grammar" | "word_grammar",
         content: lesson?.content ?? "",
         title: lesson?.title ?? null,
+        course_label: lesson?.course_label ?? null,
+        uploaded_at: lesson?.uploaded_at || lesson?.created_at || "",
         completed: lesson?.completed ?? false,
         learning: lesson?.learning,
       };
@@ -712,6 +714,7 @@ export function JpLessonSchedulePage() {
     setLessonClassSchedules,
     setEnLessonClassSchedules,
     openLessonReschedule,
+    applyLinkedLessonSynced,
   } = useJpLessonSchedulePageActions({
     locale,
     isAdmin,
@@ -741,6 +744,8 @@ export function JpLessonSchedulePage() {
     setTeachers,
     setEnTeachers,
     setKoTeachers,
+    setLessons,
+    setEnLessons,
     setSavingNextClassId,
     setEditingNextClassLesson,
     setEditingEnNextClassLesson,
@@ -909,6 +914,7 @@ export function JpLessonSchedulePage() {
         selectedDate={selectedDate}
         editingManual={editingManual}
         manualModalMode={manualModalMode}
+        locale={locale}
         teachers={teachers}
         enTeachers={enTeachers}
         koTeachers={koTeachers}
@@ -917,6 +923,7 @@ export function JpLessonSchedulePage() {
         savingManualSchedule={savingManualSchedule}
         closeManualModal={closeManualModal}
         handleSaveManualSchedule={handleSaveManualSchedule}
+        onLinkedLessonSynced={applyLinkedLessonSynced}
         addLessonTeacher={addLessonTeacher}
         addEnLessonTeacher={addEnLessonTeacher}
         addKoLessonTeacher={addKoLessonTeacher}

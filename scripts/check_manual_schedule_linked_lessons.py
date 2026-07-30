@@ -14,6 +14,9 @@ DB = ROOT / "src/lib/jp-lesson-manual-schedule-db.ts"
 TYPES = ROOT / "src/lib/jp-lesson-manual-schedule.ts"
 MODAL = ROOT / "src/components/JpLessonManualScheduleModal.tsx"
 PICKER = ROOT / "src/components/JpLessonManualScheduleLessonPicker.tsx"
+PICK_MODAL = ROOT / "src/components/JpLessonManualScheduleLessonPickModal.tsx"
+SYNC = ROOT / "src/lib/manual-schedule-sync-linked-lesson.ts"
+ACTIONS = ROOT / "src/components/jp-lesson-schedule-page/useJpLessonSchedulePageActions.ts"
 API = ROOT / "src/app/api/jp-lesson/manual-schedules/route.ts"
 LAYOUT = ROOT / "src/components/jp-lesson-schedule-page/JpLessonScheduleLayout.tsx"
 PAGE = ROOT / "src/components/JpLessonSchedulePage.tsx"
@@ -28,6 +31,10 @@ def main() -> int:
         errors.append("linked helper must cap at 2 textbooks")
     if "normalizeManualScheduleLinkedLessons" not in linked:
         errors.append("missing normalizeManualScheduleLinkedLessons")
+    if "manualScheduleLessonDisplayName" not in linked:
+        errors.append("linked helper must expose manualScheduleLessonDisplayName")
+    if "course_label" not in linked or "uploaded_at" not in linked:
+        errors.append("ManualScheduleLessonOption must include course_label + uploaded_at")
 
     db = DB.read_text(encoding="utf-8")
     if "linked_lessons" not in db:
@@ -44,6 +51,10 @@ def main() -> int:
         errors.append("manual schedule modal must render lesson picker")
     if "linked_lessons" not in modal:
         errors.append("modal save draft must include linked_lessons")
+    if "syncManualScheduleLinkedLessonToLearning" not in modal:
+        errors.append("modal must sync picked lesson to learning on select")
+    if "handlePickLesson" not in modal:
+        errors.append("modal must handle pick via handlePickLesson")
 
     picker = PICKER.read_text(encoding="utf-8")
     if "日语新课" not in picker:
@@ -52,6 +63,30 @@ def main() -> int:
         errors.append("picker must filter jp lessons when title subject is jp")
     if "MANUAL_SCHEDULE_LINKED_LESSONS_MAX" not in picker:
         errors.append("picker must enforce max linked lessons")
+    if "JpLessonManualScheduleLessonPickModal" not in picker:
+        errors.append("picker must open JpLessonManualScheduleLessonPickModal")
+    if "jp-lesson-manual-lesson-dropdown" in picker:
+        errors.append("picker must not keep old inline dropdown for lesson select")
+
+    pick_modal = PICK_MODAL.read_text(encoding="utf-8")
+    if "上传" not in pick_modal:
+        errors.append("pick modal must show upload date")
+    if "parseLessonContent" not in pick_modal:
+        errors.append("pick modal must show word content via parseLessonContent")
+    if "manualScheduleLessonDisplayName" not in pick_modal:
+        errors.append("pick modal must show textbook display name")
+
+    sync = SYNC.read_text(encoding="utf-8")
+    if "progress_status" not in sync or '"learning"' not in sync:
+        errors.append("sync helper must set progress_status learning")
+    if "set_class_schedules" not in sync:
+        errors.append("sync helper must set_class_schedules")
+    if "set_teacher" not in sync:
+        errors.append("sync helper must set_teacher")
+
+    actions = ACTIONS.read_text(encoding="utf-8")
+    if "syncManualScheduleLinkedLessonToLearning" not in actions:
+        errors.append("save manual schedule must re-sync linked lessons")
 
     api = API.read_text(encoding="utf-8")
     if "linked_lessons" not in api:
@@ -76,6 +111,8 @@ def main() -> int:
         errors.append("manual linked 教材 must use jpVocabRefViewerPath / enVocabRefViewerPath")
     if "selectedManualLinkedLessons" not in page:
         errors.append("schedule page must build selectedManualLinkedLessons")
+    if "onLinkedLessonSynced={applyLinkedLessonSynced}" not in page:
+        errors.append("schedule page must pass onLinkedLessonSynced to modals")
 
     schema = SCHEMA.read_text(encoding="utf-8")
     if not re.search(r"jp_lesson_manual_schedule[\s\S]*linked_lessons", schema):
@@ -85,7 +122,7 @@ def main() -> int:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
-    print("ok: manual schedule linked lessons (max 2, jp default)")
+    print("ok: manual schedule linked lessons (modal + sync learning)")
     return 0
 
 

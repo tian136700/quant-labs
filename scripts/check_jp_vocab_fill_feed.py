@@ -131,6 +131,30 @@ def main() -> int:
         raise SystemExit("FAIL: jp-fill word copy toast must show which word was copied")
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
+    if "补全内容" not in index_html:
+        raise SystemExit("FAIL: 最近词条表须有「补全内容」列（任务类型+字段）")
+    if "fill_content_label" not in app_js:
+        raise SystemExit("FAIL: 表格须渲染 fill_content_label")
+    if "vocab_fill_applied_label" not in (
+        ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit("FAIL: jp feed 须用 vocab_fill_applied_label")
+    from maintenance_center.vocab_fill_applied_label import (  # noqa: E402
+        format_fill_content_label,
+    )
+
+    sample_label = format_fill_content_label(
+        lang="jp",
+        applied="['reading', 'word_bundle', 'example_sentences']",
+        fill_task="jp-vocab-fill-unified",
+    )
+    if "统一补全" not in sample_label or "读音" not in sample_label:
+        raise SystemExit(f"FAIL: fill content label bad: {sample_label!r}")
+    pos_label = format_fill_content_label(
+        lang="jp", applied="['pos']", fill_task="jp-vocab-fill-pos-online"
+    )
+    if "临时词性" not in pos_label or "词性" not in pos_label:
+        raise SystemExit(f"FAIL: pos fill content label bad: {pos_label!r}")
     if 'id="en-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing en-fill-interval select")
     if 'id="jp-fill-interval-save"' not in index_html:
@@ -281,6 +305,9 @@ def main() -> int:
         if int(r.get("word_id") or 0) == 900034
     ]
     assert len(rows) == 1 and rows[0]["status"] == "success", rows
+    content = str(rows[0].get("fill_content_label") or "")
+    if "释义/词性" not in content:
+        raise SystemExit(f"FAIL: success row missing fill_content_label: {rows[0]}")
 
     # 清掉测试脏数据
     from maintenance_center.db import get_conn, init_db

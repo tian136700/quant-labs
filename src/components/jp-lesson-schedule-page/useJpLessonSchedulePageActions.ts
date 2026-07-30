@@ -24,6 +24,10 @@ import {
   mergeJpLessonTeachersCache,
   readJpLessonTeachersCache,
 } from "@/lib/jp-lesson-teachers-cache";
+import {
+  syncManualScheduleLinkedLessonErrorMessage,
+  syncManualScheduleLinkedLessonToLearning,
+} from "@/lib/manual-schedule-sync-linked-lesson";
 import type {
   EnLessonClassScheduleInput,
   EnLessonRecord,
@@ -73,6 +77,8 @@ export type UseJpLessonSchedulePageActionsOptions = {
   setTeachers: Dispatch<SetStateAction<JpLessonTeacher[]>>;
   setEnTeachers: Dispatch<SetStateAction<EnLessonTeacher[]>>;
   setKoTeachers: Dispatch<SetStateAction<KoLessonTeacher[]>>;
+  setLessons: Dispatch<SetStateAction<JpLessonRecord[]>>;
+  setEnLessons: Dispatch<SetStateAction<EnLessonRecord[]>>;
   setSavingNextClassId: Dispatch<SetStateAction<number | null>>;
   setEditingNextClassLesson: Dispatch<SetStateAction<JpLessonRecord | null>>;
   setEditingEnNextClassLesson: Dispatch<SetStateAction<EnLessonRecord | null>>;
@@ -111,12 +117,49 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     setTeachers,
     setEnTeachers,
     setKoTeachers,
+    setLessons,
+    setEnLessons,
     setSavingNextClassId,
     setEditingNextClassLesson,
     setEditingEnNextClassLesson,
     loadLessons,
     loadEnLessons,
   } = options;
+
+  const applyLinkedLessonSynced = (
+    subject: "jp" | "en",
+    lesson: JpLessonRecord | EnLessonRecord
+  ) => {
+    if (subject === "jp") {
+      setLessons((prev) => {
+        const next = prev.map((item) =>
+          item.id === lesson.id ? (lesson as JpLessonRecord) : item
+        );
+        const cache = readLessonCache();
+        if (cache) {
+          writeClientCache(JP_LESSON_CACHE_KEY, {
+            ...cache,
+            lessons: next,
+          });
+        }
+        return next;
+      });
+      return;
+    }
+    setEnLessons((prev) => {
+      const next = prev.map((item) =>
+        item.id === lesson.id ? (lesson as EnLessonRecord) : item
+      );
+      const cache = readEnLessonCache();
+      if (cache) {
+        writeClientCache(EN_LESSON_CACHE_KEY, {
+          ...cache,
+          lessons: next,
+        });
+      }
+      return next;
+    });
+  };
 
   const openManualModal = (
     manual: JpLessonManualSchedule | null = null,
@@ -161,10 +204,54 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
         syncJpLessonManualScheduleCache(sorted);
         return sorted;
       });
+
+      // 保存后再对齐一次：关联教材 → 学习中 + 时间/老师（防选后改过时间）
+      const linked = saved.linked_lessons || [];
+      if (isAdmin && linked.length > 0) {
+        let syncFailed = "";
+        let syncedJp = false;
+        let syncedEn = false;
+        for (const link of linked) {
+          const teachersForSubject =
+            link.subject === "en" ? enTeachers : teachers;
+          const result = await syncManualScheduleLinkedLessonToLearning({
+            subject: link.subject,
+            lessonId: link.lesson_id,
+            classAt: saved.class_at,
+            durationMinutes: saved.duration_minutes,
+            teacherName: saved.teacher,
+            teachers: teachersForSubject,
+            locale,
+          });
+          if (!result.ok) {
+            syncFailed = syncManualScheduleLinkedLessonErrorMessage(result.error);
+            break;
+          }
+          applyLinkedLessonSynced(link.subject, result.lesson);
+          if (link.subject === "jp") syncedJp = true;
+          else syncedEn = true;
+        }
+        if (syncFailed) {
+          setStatusMessage(
+            (isEditing ? "手动日程已保存" : "手动日程已添加") +
+              `，但教材同步失败：${syncFailed}`
+          );
+        } else {
+          setStatusMessage(
+            isEditing
+              ? "手动日程已保存，教材已同步为学习中"
+              : "手动日程已添加，教材已同步为学习中"
+          );
+          if (syncedJp) void loadLessons({ force: true });
+          if (syncedEn) void loadEnLessons({ force: true });
+        }
+      } else {
+        setStatusMessage(isEditing ? "手动日程已保存" : "手动日程已添加");
+      }
+
       setSelectedEventKey(`manual-${saved.id}`);
       closeManualModal();
-      setStatusMessage(isEditing ? "手动日程已保存" : "手动日程已添加");
-      window.setTimeout(() => setStatusMessage(""), 2500);
+      window.setTimeout(() => setStatusMessage(""), 3500);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -490,5 +577,6 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     setLessonClassSchedules,
     setEnLessonClassSchedules,
     openLessonReschedule,
+    applyLinkedLessonSynced,
   };
 }

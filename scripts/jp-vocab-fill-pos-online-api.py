@@ -131,7 +131,10 @@ def write_status(payload: dict[str, Any]) -> None:
 
 def report_word_run(payload: dict[str, Any]) -> None:
     try:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        body_obj = dict(payload)
+        if not str(body_obj.get("fill_task") or "").strip():
+            body_obj["fill_task"] = "jp-vocab-fill-pos-online"
+        body = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
             MAINTENANCE_WORD_RUN_URL,
             data=body,

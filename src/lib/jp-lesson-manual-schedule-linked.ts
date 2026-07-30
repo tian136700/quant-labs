@@ -74,9 +74,24 @@ export type ManualScheduleLessonOption = {
   kind: "word" | "grammar" | "word_grammar";
   content: string;
   title: string | null;
+  /** 合传教材名（如「标日23课」/「托业词汇」）；展示优先于 title */
+  course_label: string | null;
+  uploaded_at: string;
   completed: boolean;
   learning?: boolean;
 };
+
+/** 弹窗列表用：教材显示名（course_label → title → 内容首词） */
+export function manualScheduleLessonDisplayName(
+  lesson: Pick<ManualScheduleLessonOption, "course_label" | "title" | "content" | "id">
+): string {
+  const label = (lesson.course_label || "").trim();
+  if (label) return label;
+  const title = (lesson.title || "").trim();
+  if (title) return title;
+  const first = formatLessonContentLines(lesson.content, 4)[0]?.trim();
+  return first || `教材 #${lesson.id}`;
+}
 
 export function formatManualScheduleLessonOptionLabel(
   lesson: ManualScheduleLessonOption
@@ -89,9 +104,7 @@ export function formatManualScheduleLessonOptionLabel(
         : "单词";
   const subject =
     lesson.subject === "en" ? "英语" : lesson.subject === "jp" ? "日语" : "";
-  const title = (lesson.title || "").trim();
-  const preview =
-    title || formatLessonContentLines(lesson.content, 4)[0]?.trim() || "（无内容）";
+  const preview = manualScheduleLessonDisplayName(lesson);
   const prefix = subject ? `${subject} · ` : "";
   return `#${lesson.id} ${prefix}${kind} · ${preview}`;
 }

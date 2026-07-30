@@ -3,14 +3,22 @@
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
+import type { Locale } from "@/i18n/messages";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
-import type { EnLessonRecord, EnLessonTeacher, JpLessonRecord, JpLessonTeacher, KoLessonTeacher } from "@/lib/types";
+import type {
+  EnLessonRecord,
+  EnLessonTeacher,
+  JpLessonRecord,
+  JpLessonTeacher,
+  KoLessonTeacher,
+} from "@/lib/types";
 
 export type JpLessonScheduleModalsProps = {
   manualModalOpen: boolean;
   selectedDate: string;
   editingManual: JpLessonManualSchedule | null;
   manualModalMode: "full" | "time";
+  locale: Locale;
   teachers: JpLessonTeacher[];
   enTeachers: EnLessonTeacher[];
   koTeachers: KoLessonTeacher[];
@@ -19,6 +27,10 @@ export type JpLessonScheduleModalsProps = {
   savingManualSchedule: boolean;
   closeManualModal: () => void;
   handleSaveManualSchedule: (...args: any[]) => void;
+  onLinkedLessonSynced: (
+    subject: "jp" | "en",
+    lesson: JpLessonRecord | EnLessonRecord
+  ) => void;
   addLessonTeacher: (...args: any[]) => any;
   addEnLessonTeacher: (...args: any[]) => any;
   addKoLessonTeacher: (...args: any[]) => any;
@@ -33,19 +45,39 @@ export type JpLessonScheduleModalsProps = {
 
 export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
   const {
-    manualModalOpen, selectedDate, editingManual, manualModalMode, teachers, enTeachers, koTeachers,
-    jpLessons, enLessons,
-    savingManualSchedule, closeManualModal, handleSaveManualSchedule, addLessonTeacher, addEnLessonTeacher,
-    addKoLessonTeacher, editingNextClassLesson, editingEnNextClassLesson, savingNextClassId,
-    setEditingNextClassLesson, setEditingEnNextClassLesson, setLessonClassSchedules, setEnLessonClassSchedules,
+    manualModalOpen,
+    selectedDate,
+    editingManual,
+    manualModalMode,
+    locale,
+    teachers,
+    enTeachers,
+    koTeachers,
+    jpLessons,
+    enLessons,
+    savingManualSchedule,
+    closeManualModal,
+    handleSaveManualSchedule,
+    onLinkedLessonSynced,
+    addLessonTeacher,
+    addEnLessonTeacher,
+    addKoLessonTeacher,
+    editingNextClassLesson,
+    editingEnNextClassLesson,
+    savingNextClassId,
+    setEditingNextClassLesson,
+    setEditingEnNextClassLesson,
+    setLessonClassSchedules,
+    setEnLessonClassSchedules,
   } = props;
   return (
     <>
-<JpLessonManualScheduleModal
+      <JpLessonManualScheduleModal
         open={manualModalOpen}
         initialDate={selectedDate}
         editing={editingManual}
         mode={manualModalMode}
+        locale={locale}
         jpTeachers={teachers}
         enTeachers={enTeachers}
         koTeachers={koTeachers}
@@ -54,6 +86,7 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
         onAddJpTeacher={addLessonTeacher}
         onAddEnTeacher={addEnLessonTeacher}
         onAddKoTeacher={addKoLessonTeacher}
+        onLinkedLessonSynced={onLinkedLessonSynced}
         saving={savingManualSchedule}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
