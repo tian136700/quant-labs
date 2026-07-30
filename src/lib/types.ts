@@ -209,6 +209,8 @@ export interface JpVocabWord {
   example_sentences_source?: string | null;
   /** 释义来源（如：手动、DeepSeek、Qwen本地） */
   meaning_source?: string | null;
+  /** 词性来源（如：手动、线上 claude-…） */
+  pos_source?: string | null;
   /** 读音/音标来源（英语 IPA；日语读音亦可复用） */
   reading_source?: string | null;
   /** 最近一次勾选熟悉程度（用于今日内改选修正） */
