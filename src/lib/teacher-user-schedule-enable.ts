@@ -2,7 +2,7 @@ import "server-only";
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import { revokeUserSessions } from "@/lib/etr-auth-db";
-import type { EtrUser } from "@/lib/etr-auth";
+import type { EtrUser, EtrUserRole } from "@/lib/etr-auth";
 import {
   getJpLessonProgressStatus,
   parseBeijingDateTime,
@@ -481,6 +481,18 @@ type LinkedTeacherUser = {
   teacher_id: number;
 };
 
+function linkedRowAsUser(
+  row: LinkedTeacherUser,
+  username: string
+): Pick<EtrUser, "role" | "username" | "never_disable" | "disabled"> {
+  return {
+    role: String(row.role ?? "user") as EtrUserRole,
+    username,
+    never_disable: Number(row.never_disable ?? 0),
+    disabled: Number(row.disabled ?? 0),
+  };
+}
+
 const LINKED_TEACHER_USER_SELECT = `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
               COALESCE(u.disabled, 0) AS disabled,
               COALESCE(u.never_disable, 0) AS never_disable,
@@ -556,13 +568,7 @@ async function enableLinkedTeacherUsers(
     if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
 
     // 列表 JOIN 已带 role/disabled/never_disable，勿再逐条 findUserById（易 1102）
-    const user: Pick<EtrUser, "role" | "username" | "never_disable" | "disabled"> =
-      {
-        role: String(row.role ?? ""),
-        username,
-        never_disable: Number(row.never_disable ?? 0),
-        disabled: Number(row.disabled ?? 0),
-      };
+    const user = linkedRowAsUser(row, username);
 
     if (isExcludedFromTeacherScheduleAutoEnable(user)) {
       skipped.push({
@@ -808,13 +814,7 @@ export async function runTeacherUserPostClassDisable(
     const username = String(row.username ?? "").trim();
     if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
 
-    const user: Pick<EtrUser, "role" | "username" | "never_disable" | "disabled"> =
-      {
-        role: String(row.role ?? ""),
-        username,
-        never_disable: Number(row.never_disable ?? 0),
-        disabled: Number(row.disabled ?? 0),
-      };
+    const user = linkedRowAsUser(row, username);
 
     if (isExcludedFromTeacherScheduleAutoEnable(user)) {
       skipped.push({
