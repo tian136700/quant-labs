@@ -1,6 +1,10 @@
 import "server-only";
 
-import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
+import {
+  ensureEnVocabWordSchema,
+  peekEnVocabDailyDisplayOrderIds,
+} from "@/lib/en-vocab-db";
+import { sortEnVocabFillRowsByDailyOrder } from "@/lib/en-vocab-fill-daily-priority";
 import {
   buildEnVocabMeaningAiPrompt,
   EN_VOCAB_MEANING_UPLOAD_SPEC,
@@ -18,6 +22,8 @@ export type EnVocabMissingMeaningRow = {
   kind: string;
   need_meaning: boolean;
   need_pos: boolean;
+  /** 当日序号（1-based）；不在日序里则为 null */
+  daily_seq?: number | null;
   /** 可直接喂给本地/远程模型的完整 prompt */
   prompt: string;
 };
@@ -72,29 +78,28 @@ export async function listEnVocabWordsMissingMeaningOrPos(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, reading, meaning, pos, kind FROM en_vocab_word
-       WHERE kind != 'grammar'
-         AND (
-           meaning IS NULL OR TRIM(meaning) = ''
-           OR pos IS NULL OR TRIM(pos) = ''
-         )
-       ORDER BY id`;
-  if (limit != null) {
-    sql += ` LIMIT ?1`;
-  }
+  const [orderIds, result] = await Promise.all([
+    peekEnVocabDailyDisplayOrderIds(db),
+    db
+      .prepare(
+        `SELECT id, word, reading, meaning, pos, kind FROM en_vocab_word
+         WHERE kind != 'grammar'
+           AND (
+             meaning IS NULL OR TRIM(meaning) = ''
+             OR pos IS NULL OR TRIM(pos) = ''
+           )`
+      )
+      .all<{
+        id: number;
+        word: string;
+        reading: string | null;
+        meaning: string | null;
+        pos: string | null;
+        kind: string;
+      }>(),
+  ]);
 
-  const result = await (
-    limit != null ? db.prepare(sql).bind(limit) : db.prepare(sql)
-  ).all<{
-    id: number;
-    word: string;
-    reading: string | null;
-    meaning: string | null;
-    pos: string | null;
-    kind: string;
-  }>();
-
-  return (result.results ?? []).map((row) => {
+  const mapped = (result.results ?? []).map((row) => {
     const word = String(row.word);
     const reading =
       row.reading != null ? String(row.reading).trim() || null : null;
@@ -107,15 +112,21 @@ export async function listEnVocabWordsMissingMeaningOrPos(
       kind: String(row.kind),
       need_meaning,
       need_pos,
-      prompt: buildEnVocabMeaningAiPrompt({
-        word,
-        reading,
-        kind: String(row.kind),
-        need_meaning,
-        need_pos,
-      }),
     };
   });
+
+  return sortEnVocabFillRowsByDailyOrder(mapped, orderIds, limit).map(
+    (row) => ({
+      ...row,
+      prompt: buildEnVocabMeaningAiPrompt({
+        word: row.word,
+        reading: row.reading,
+        kind: row.kind,
+        need_meaning: row.need_meaning,
+        need_pos: row.need_pos,
+      }),
+    })
+  );
 }
 
 export async function scanEnVocabWordsMissingMeaning(

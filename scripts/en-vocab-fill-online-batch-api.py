@@ -584,7 +584,10 @@ def fetch_words_from_d1(
 
 
 def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
-    """合并各阶段 list_missing；任一字段缺 → 整词进入刷新队列。"""
+    """合并各阶段 list_missing；任一字段缺 → 整词进入刷新队列。
+
+    排序：优先当日序号（daily_seq）靠前——这些更可能进今日抽查池。
+    """
     by_id: dict[int, dict[str, Any]] = {}
 
     def merge(rows: list) -> None:
@@ -605,6 +608,7 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
                     "category": row.get("category"),
                     "usage": row.get("usage"),
                     "example_sentences": row.get("example_sentences"),
+                    "daily_seq": row.get("daily_seq"),
                     "needs": full_refresh_needs(kind),
                     "triggered": True,
                 }
@@ -612,6 +616,20 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
             for field in ("reading", "meaning", "pos", "category", "usage", "kind", "word"):
                 if row.get(field) and not cur.get(field):
                     cur[field] = row.get(field)
+            # 取各阶段返回里更靠前的当日序号
+            seq = row.get("daily_seq")
+            try:
+                seq_n = int(seq) if seq is not None else None
+            except (TypeError, ValueError):
+                seq_n = None
+            if seq_n is not None and seq_n > 0:
+                prev = cur.get("daily_seq")
+                try:
+                    prev_n = int(prev) if prev is not None else None
+                except (TypeError, ValueError):
+                    prev_n = None
+                if prev_n is None or seq_n < prev_n:
+                    cur["daily_seq"] = seq_n
             # 若后来发现是 grammar，收窄 needs
             if str(cur.get("kind") or "") == "grammar":
                 cur["needs"] = full_refresh_needs("grammar")
@@ -627,7 +645,17 @@ def fetch_candidates(token: str, *, limit: int) -> list[dict[str, Any]]:
         merge(list(data.get("missing") or []))
 
     rows = list(by_id.values())
-    rows.sort(key=lambda r: int(r.get("id") or 0))
+
+    def _daily_sort_key(r: dict[str, Any]) -> tuple[int, int]:
+        try:
+            seq = int(r.get("daily_seq")) if r.get("daily_seq") is not None else 10**9
+        except (TypeError, ValueError):
+            seq = 10**9
+        if seq <= 0:
+            seq = 10**9
+        return (seq, int(r.get("id") or 0))
+
+    rows.sort(key=_daily_sort_key)
     return rows[: max(1, limit)]
 
 

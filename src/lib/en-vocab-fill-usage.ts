@@ -13,7 +13,11 @@ import {
   stripEnVocabUsageExamLabels,
   validateEnVocabUsageAiOutput,
 } from "@/lib/en-vocab-usage-ai";
-import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
+import {
+  ensureEnVocabWordSchema,
+  peekEnVocabDailyDisplayOrderIds,
+} from "@/lib/en-vocab-db";
+import { sortEnVocabFillRowsByDailyOrder } from "@/lib/en-vocab-fill-daily-priority";
 
 export type EnVocabMissingUsageRow = {
   id: number;
@@ -27,6 +31,8 @@ export type EnVocabMissingUsageRow = {
   usage?: string | null;
   /** true=已有用法但缺 [1]～[10]，只需补分值 */
   needs_frequency_only?: boolean;
+  /** 当日序号（1-based）；不在日序里则为 null */
+  daily_seq?: number | null;
   prompt: string;
 };
 
@@ -177,27 +183,24 @@ export async function listEnVocabWordsMissingUsage(
   const useKind = kind === "word" || kind === "grammar";
   if (useKind) binds.push(kind);
 
-  let sql = `SELECT id, word, kind, reading, meaning, pos, category, usage FROM en_vocab_word
-       WHERE ${enVocabUsageMissingWhereSql(useKind ? 1 : null)}
-       ORDER BY id`;
-  if (limit != null) {
-    sql += ` LIMIT ?${binds.length + 1}`;
-    binds.push(limit);
-  }
+  const sql = `SELECT id, word, kind, reading, meaning, pos, category, usage FROM en_vocab_word
+       WHERE ${enVocabUsageMissingWhereSql(useKind ? 1 : null)}`;
 
-  const stmt = db.prepare(sql);
-  const result = await (binds.length > 0 ? stmt.bind(...binds) : stmt).all<{
-    id: number;
-    word: string;
-    kind: string;
-    reading: string | null;
-    meaning: string | null;
-    pos: string | null;
-    category: string | null;
-    usage: string | null;
-  }>();
+  const [orderIds, result] = await Promise.all([
+    peekEnVocabDailyDisplayOrderIds(db),
+    (binds.length > 0 ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all<{
+      id: number;
+      word: string;
+      kind: string;
+      reading: string | null;
+      meaning: string | null;
+      pos: string | null;
+      category: string | null;
+      usage: string | null;
+    }>(),
+  ]);
 
-  return (result.results ?? [])
+  const filtered = (result.results ?? [])
     .map(mapMissingUsageRow)
     .filter((row) => {
       // SQL 粗筛后：若已有用法但其实已齐全（误伤），丢掉
@@ -206,6 +209,8 @@ export async function listEnVocabWordsMissingUsage(
       }
       return true;
     });
+
+  return sortEnVocabFillRowsByDailyOrder(filtered, orderIds, limit);
 }
 
 export async function scanEnVocabWordsMissingUsage(

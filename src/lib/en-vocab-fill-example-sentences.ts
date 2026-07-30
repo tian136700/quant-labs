@@ -12,7 +12,11 @@ import {
   normalizeEnVocabExampleSentencesSource,
   shieldEnVocabExampleSentencesUploadText,
 } from "@/lib/en-vocab-example-sentences";
-import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
+import {
+  ensureEnVocabWordSchema,
+  peekEnVocabDailyDisplayOrderIds,
+} from "@/lib/en-vocab-db";
+import { sortEnVocabFillRowsByDailyOrder } from "@/lib/en-vocab-fill-daily-priority";
 
 /** 缺例句且已有用法（例句阶段门禁） */
 const MISSING_EXAMPLES_WITH_USAGE_SQL = `(example_sentences IS NULL OR TRIM(example_sentences) = '')
@@ -28,6 +32,8 @@ export type EnVocabMissingExampleSentenceRow = {
   usage: string | null;
   /** 与 usage 编号条数一致，供客户端校验 */
   expected_count: number;
+  /** 当日序号（1-based）；不在日序里则为 null */
+  daily_seq?: number | null;
   prompt: string;
 };
 
@@ -91,9 +97,6 @@ export async function listEnVocabWordsMissingExampleSentences(
       ? Math.floor(options.limit)
       : null;
 
-  // 多取一些再按 usage 可解析过滤，避免坏格式 usage 占满 LIMIT
-  const fetchLimit = limit != null ? Math.min(limit * 5, Math.max(limit, 50)) : null;
-
   let sql = `SELECT id, word, kind, reading, meaning, pos, usage FROM en_vocab_word
        WHERE ${MISSING_EXAMPLES_WITH_USAGE_SQL}`;
   const binds: Array<string | number> = [];
@@ -101,24 +104,23 @@ export async function listEnVocabWordsMissingExampleSentences(
     sql += ` AND kind = ?${binds.length + 1}`;
     binds.push(kind);
   }
-  sql += ` ORDER BY id`;
-  if (fetchLimit != null) {
-    sql += ` LIMIT ?${binds.length + 1}`;
-    binds.push(fetchLimit);
-  }
 
-  const stmt = db.prepare(sql);
-  const result = await (binds.length > 0 ? stmt.bind(...binds) : stmt).all<{
-    id: number;
-    word: string;
-    kind: string;
-    reading: string | null;
-    meaning: string | null;
-    pos: string | null;
-    usage: string | null;
-  }>();
+  const [orderIds, result] = await Promise.all([
+    peekEnVocabDailyDisplayOrderIds(db),
+    (binds.length > 0 ? db.prepare(sql).bind(...binds) : db.prepare(sql)).all<{
+      id: number;
+      word: string;
+      kind: string;
+      reading: string | null;
+      meaning: string | null;
+      pos: string | null;
+      usage: string | null;
+    }>(),
+  ]);
 
-  const rows: EnVocabMissingExampleSentenceRow[] = [];
+  const mapped: Array<
+    Omit<EnVocabMissingExampleSentenceRow, "prompt" | "daily_seq">
+  > = [];
   for (const row of result.results ?? []) {
     const usage =
       row.usage != null ? String(row.usage).trim() || null : null;
@@ -132,7 +134,7 @@ export async function listEnVocabWordsMissingExampleSentences(
     const meaning =
       row.meaning != null ? String(row.meaning).trim() || null : null;
     const pos = row.pos != null ? String(row.pos).trim() || null : null;
-    rows.push({
+    mapped.push({
       id: Number(row.id),
       word,
       kind: rowKind,
@@ -141,18 +143,22 @@ export async function listEnVocabWordsMissingExampleSentences(
       pos,
       usage,
       expected_count: expectedCount,
-      prompt: buildEnVocabExampleSentencesAiPrompt({
-        word,
-        kind: rowKind,
-        reading,
-        meaning,
-        pos,
-        usage,
-      }),
     });
-    if (limit != null && rows.length >= limit) break;
   }
-  return rows;
+
+  return sortEnVocabFillRowsByDailyOrder(mapped, orderIds, limit).map(
+    (row) => ({
+      ...row,
+      prompt: buildEnVocabExampleSentencesAiPrompt({
+        word: row.word,
+        kind: row.kind,
+        reading: row.reading,
+        meaning: row.meaning,
+        pos: row.pos,
+        usage: row.usage,
+      }),
+    })
+  );
 }
 
 export async function scanEnVocabWordsMissingExampleSentences(

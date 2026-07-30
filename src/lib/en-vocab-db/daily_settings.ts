@@ -93,6 +93,19 @@ import {
   listEnVocabWords,
 } from "./words";
 
+/**
+ * fill list_missing 专用：只读当日日序 ids，不触发重算 / 可见池物化。
+ * 无当日顺序时返回 []（调用方回退按 id）。
+ */
+export async function peekEnVocabDailyDisplayOrderIds(
+  db: D1Database
+): Promise<number[]> {
+  const stored = await readEnVocabDailyDisplayOrderRaw(db);
+  if (!stored?.ids?.length) return [];
+  if (stored.date !== beijingDateString()) return [];
+  return stored.ids;
+}
+
 async function readEnVocabDailyDisplayOrderRaw(
   db: D1Database
 ): Promise<EnVocabDailyDisplayOrder | null> {

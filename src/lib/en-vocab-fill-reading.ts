@@ -1,6 +1,10 @@
 import "server-only";
 
-import { ensureEnVocabWordSchema } from "@/lib/en-vocab-db";
+import {
+  ensureEnVocabWordSchema,
+  peekEnVocabDailyDisplayOrderIds,
+} from "@/lib/en-vocab-db";
+import { sortEnVocabFillRowsByDailyOrder } from "@/lib/en-vocab-fill-daily-priority";
 import {
   normalizeEnVocabIpa,
   normalizeEnVocabReadingSource,
@@ -11,6 +15,8 @@ export type EnVocabMissingReadingRow = {
   id: number;
   word: string;
   kind: string;
+  /** 当日序号（1-based）；不在日序里则为 null */
+  daily_seq?: number | null;
 };
 
 export type EnVocabFillReadingApplied = {
@@ -58,23 +64,24 @@ export async function listEnVocabWordsMissingReading(
       ? Math.floor(options.limit)
       : null;
 
-  let sql = `SELECT id, word, kind FROM en_vocab_word
-       WHERE kind != 'grammar'
-         AND (reading IS NULL OR TRIM(reading) = '')
-       ORDER BY id`;
-  if (limit != null) {
-    sql += ` LIMIT ?1`;
-  }
+  // 先全量拉缺项，再按当日序号排序后截断；禁止用 id 排序再 LIMIT（会漏掉序号靠前的高 id 词）
+  const [orderIds, result] = await Promise.all([
+    peekEnVocabDailyDisplayOrderIds(db),
+    db
+      .prepare(
+        `SELECT id, word, kind FROM en_vocab_word
+         WHERE kind != 'grammar'
+           AND (reading IS NULL OR TRIM(reading) = '')`
+      )
+      .all<{ id: number; word: string; kind: string }>(),
+  ]);
 
-  const result = await (
-    limit != null ? db.prepare(sql).bind(limit) : db.prepare(sql)
-  ).all<{ id: number; word: string; kind: string }>();
-
-  return (result.results ?? []).map((row) => ({
+  const rows = (result.results ?? []).map((row) => ({
     id: Number(row.id),
     word: String(row.word),
     kind: String(row.kind),
   }));
+  return sortEnVocabFillRowsByDailyOrder(rows, orderIds, limit);
 }
 
 export async function scanEnVocabWordsMissingReading(
