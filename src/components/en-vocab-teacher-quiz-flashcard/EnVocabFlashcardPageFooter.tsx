@@ -24,7 +24,7 @@ type Props = {
   priorityLabel: string;
   riskBadgeTier: string;
   totalDisplay: { label: string; isZero: boolean };
-  risk: number;
+  risk: number | null;
   todayChecks: number;
   hasNotes: boolean;
   onViewRemarks: (w: EnVocabWord) => void;
@@ -178,12 +178,12 @@ export function EnVocabFlashcardPageFooter(props: Props) {
             <span
               className={`jp-vocab-teacher-quiz__risk jp-vocab-teacher-quiz__risk--${riskBadgeTier}`}
               title={
-                totalDisplay.isZero
+                risk == null
                   ? enVocabTotalReviewsZeroHint(locale)
                   : undefined
               }
             >
-              {risk.toFixed(1)}
+              {risk == null ? "—" : risk.toFixed(1)}
             </span>
           </div>
           <div className="jp-vocab-teacher-quiz__stat">

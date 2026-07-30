@@ -20,8 +20,8 @@ import {
   resolveEnVocabUsageDraftLevels,
 } from "@/lib/en-vocab-review";
 import {
+  enVocabFinalQuizScoreOrNull,
   enVocabPriorityLabel,
-  enVocabRiskIndex,
   formatEnVocabTotalReviewsDisplay,
 } from "@/lib/en-vocab-shared";
 import {
@@ -315,7 +315,8 @@ export function EnVocabTeacherQuizFlashcardModal({
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
 
   const isStudy = isStudyMode;
-  const w = notesWord ?? word;
+  // 换词后 notesWord 可能仍是上一词：禁止拿旧备注盖住新词正文（否则像「下一个不出现」）
+  const w = notesWord?.id === word.id ? notesWord : word;
   const ref = w.ref_key ? refs[w.ref_key] : undefined;
   const readingTrim = (w.reading || "").trim();
   const wordTrim = w.word.trim();
@@ -327,8 +328,9 @@ export function EnVocabTeacherQuizFlashcardModal({
   const isQueued = syncPhase === "queued";
   const isSyncing = syncPhase === "syncing";
   const isSaving = savingWordId === w.id;
-  const risk = enVocabRiskIndex(w);
-  const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+  const risk = enVocabFinalQuizScoreOrNull(w);
+  const riskBadgeTier =
+    risk == null ? "never" : risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
   const todayChecks = effectiveTodayCheckCount(
     w.today_check_count ?? 0,
     w.today_check_date
@@ -478,7 +480,8 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedHint(true);
       return;
     }
-    if (saveBusy) return;
+    // 与日语一致：仅写库中短暂禁用；后台同步给学生时仍可点「下一个」，勿卡死在「同步中…」
+    if (isSaving) return;
     // 「下一个」跳过已勾选词，避免漏掉中间未勾选却卡在最后一词点「完成」无反应
     const nextUnchecked = findFirstUncheckedEnVocabTeacherQuizIndex(
       session,
@@ -624,7 +627,7 @@ export function EnVocabTeacherQuizFlashcardModal({
             <button
               type="button"
               className="btn-rsi-filter jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--prev"
-              disabled={!canGoPrev || saveBusy}
+              disabled={!canGoPrev}
               onClick={() => onNavigate(session.currentIndex - 1)}
             >
               <span className="jp-vocab-teacher-quiz__nav-btn-main">上一个</span>
@@ -637,7 +640,7 @@ export function EnVocabTeacherQuizFlashcardModal({
                 ? " jp-vocab-teacher-quiz__nav-btn--blocked"
                 : ""
             }${isStudy ? " jp-vocab-teacher-quiz__nav-btn--study-close" : ""}`}
-            disabled={saveBusy}
+            disabled={isSaving}
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
@@ -645,15 +648,15 @@ export function EnVocabTeacherQuizFlashcardModal({
                 ? "关闭"
                 : previewMode
                   ? "关闭预览"
-                  : saveBusy
-                    ? "同步中…"
+                  : isSaving
+                    ? "保存中…"
                     : sessionComplete
                       ? "完成抽查"
                       : isLast
                         ? "完成抽查"
                         : "下一个"}
             </span>
-            {!isLast && !isStudy && !sessionComplete && !previewMode && !saveBusy ? (
+            {!isLast && !isStudy && !sessionComplete && !previewMode && !isSaving ? (
               <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
             ) : null}
           </button>

@@ -42,6 +42,8 @@ import {
 import {
   appendEnVocabDailyDisplayOrderId,
   computeEnVocabDailyDisplayOrder,
+  EN_VOCAB_DAILY_ORDER_ALGO,
+  enVocabDailyOrderAlgoCurrent,
   markEnVocabRoundChecked,
   mergeEnVocabDailyDisplayOrder,
   normalizeEnVocabRoundCheckedIds,
@@ -75,6 +77,7 @@ import {
   EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
   materializeEnVocabTeacherVisible,
   normalizeEnVocabTeacherVisibleLimit,
+  pickEnVocabVisibleIds,
   withEnVocabTargetAdjustmentMarker,
   type EnVocabTeacherVisibleLimit,
 } from "@/lib/en-vocab-teacher-visible";
@@ -113,6 +116,9 @@ async function readEnVocabDailyDisplayOrderRaw(
       date: parsed.date,
       ids: parsed.ids.map((id) => Number(id)).filter((id) => id > 0),
     };
+    if (typeof parsed.order_algo === "string" && parsed.order_algo.trim()) {
+      order.order_algo = parsed.order_algo.trim();
+    }
     if (Object.prototype.hasOwnProperty.call(parsed, "round_checked_ids")) {
       order.round_checked_ids = normalizeEnVocabRoundCheckedIds(
         parsed.round_checked_ids
@@ -146,7 +152,7 @@ export async function saveEnVocabDailyDisplayOrder(
     .run();
 }
 
-/** 当日已有顺序则沿用（仅合并增删词条）；跨日则按抽查优先级重排 */
+/** 当日已有顺序且算法版本匹配则沿用（仅合并增删词条）；跨日 / 算法升级则按日语优先级重排 */
 export async function ensureEnVocabDailyDisplayOrder(
   db: D1Database,
   words: EnVocabWord[]
@@ -154,7 +160,11 @@ export async function ensureEnVocabDailyDisplayOrder(
   const today = beijingDateString();
   const stored = await readEnVocabDailyDisplayOrderRaw(db);
 
-  if (stored?.date === today && stored.ids.length > 0) {
+  if (
+    stored?.date === today &&
+    stored.ids.length > 0 &&
+    enVocabDailyOrderAlgoCurrent(stored)
+  ) {
     const merged = mergeEnVocabDailyDisplayOrder(stored.ids, words);
     const round_checked_ids =
       stored.round_checked_ids ??
@@ -167,25 +177,28 @@ export async function ensureEnVocabDailyDisplayOrder(
             ) > 0
         )
         .map((w) => w.id);
-    const order = {
+    const order: EnVocabDailyDisplayOrder = {
       date: today,
       ids: merged,
       round_checked_ids,
+      order_algo: EN_VOCAB_DAILY_ORDER_ALGO,
     };
     if (
       merged.length !== stored.ids.length ||
       merged.some((id, i) => id !== stored.ids[i]) ||
-      stored.round_checked_ids === undefined
+      stored.round_checked_ids === undefined ||
+      stored.order_algo !== EN_VOCAB_DAILY_ORDER_ALGO
     ) {
       await saveEnVocabDailyDisplayOrder(db, order);
     }
     return order;
   }
 
-  const order = {
+  const order: EnVocabDailyDisplayOrder = {
     date: today,
     ids: computeEnVocabDailyDisplayOrder(words),
     round_checked_ids: [] as number[],
+    order_algo: EN_VOCAB_DAILY_ORDER_ALGO,
   };
   await saveEnVocabDailyDisplayOrder(db, order);
   return order;
@@ -196,10 +209,11 @@ export async function refreshEnVocabDailyDisplayOrder(
   db: D1Database,
   words: EnVocabWord[]
 ): Promise<EnVocabDailyDisplayOrder> {
-  const order = {
+  const order: EnVocabDailyDisplayOrder = {
     date: beijingDateString(),
     ids: computeEnVocabDailyDisplayOrder(words),
     round_checked_ids: [] as number[],
+    order_algo: EN_VOCAB_DAILY_ORDER_ALGO,
   };
   await saveEnVocabDailyDisplayOrder(db, order);
   return order;
@@ -414,11 +428,16 @@ export async function ensureEnVocabTeacherVisibleLimit(
     return saveEnVocabTeacherVisibleLimit(db, empty);
   }
 
-  if (
+  const quiz_target = current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT;
+  const expectedIds = pickEnVocabVisibleIds(words, quiz_target, display_order.ids);
+  const poolMatchesOrder =
     current.date === today &&
-    current.visible_ids?.length &&
-    current.released_today
-  ) {
+    current.released_today &&
+    !!current.visible_ids?.length &&
+    current.visible_ids.length === expectedIds.length &&
+    current.visible_ids.every((id, i) => id === expectedIds[i]);
+  // 日序算法升级后 display_order 已重排：须重物化 visible_ids，勿沿用旧池
+  if (poolMatchesOrder) {
     return current;
   }
 
@@ -426,7 +445,7 @@ export async function ensureEnVocabTeacherVisibleLimit(
     {
       ...current,
       date: today,
-      quiz_target: current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
+      quiz_target,
     },
     words,
     display_order

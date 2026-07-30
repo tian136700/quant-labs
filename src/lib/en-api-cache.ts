@@ -6,6 +6,7 @@ import {
 } from "@/lib/en-vocab-daily-quiz-style";
 import {
   computeEnVocabDailyDisplayOrder,
+  EN_VOCAB_DAILY_ORDER_ALGO,
   normalizeEnVocabRoundCheckedIds,
   type EnVocabDailyDisplayOrder,
 } from "@/lib/en-vocab-daily-order";
@@ -62,6 +63,11 @@ export function parseEnVocabApi(json: unknown): EnVocabApiPayload {
       ? {
           date: data.display_order.date,
           ids: data.display_order.ids.map((id) => Number(id)).filter((id) => id > 0),
+          order_algo:
+            typeof data.display_order.order_algo === "string" &&
+            data.display_order.order_algo.trim()
+              ? data.display_order.order_algo.trim()
+              : undefined,
           round_checked_ids: Object.prototype.hasOwnProperty.call(
             data.display_order,
             "round_checked_ids"
@@ -83,6 +89,7 @@ export function parseEnVocabApi(json: unknown): EnVocabApiPayload {
           date: beijingDateString(),
           ids: computeEnVocabDailyDisplayOrder(words),
           round_checked_ids: [],
+          order_algo: EN_VOCAB_DAILY_ORDER_ALGO,
         };
   return {
     words,

@@ -20,8 +20,8 @@ import {
 } from "@/lib/en-vocab-page-helpers";
 import { effectiveEnVocabDisplayLevel } from "@/lib/en-vocab-review";
 import {
+  enVocabFinalQuizScoreOrNull,
   enVocabPriorityLabel,
-  enVocabRiskIndex,
   formatEnVocabTotalReviewsDisplay,
   enVocabTotalReviewsZeroHint,
   type EnVocabStatSortKey,
@@ -394,7 +394,7 @@ export function EnVocabWordTable({
                   );
                   const isSaving = savingId === w.id;
                   const ref = w.ref_key ? refs[w.ref_key] : undefined;
-                  const risk = enVocabRiskIndex(w);
+                  const risk = enVocabFinalQuizScoreOrNull(w);
                   const todayChecks = effectiveTodayCheckCount(
                     w.today_check_count ?? 0,
                     w.today_check_date
@@ -407,7 +407,13 @@ export function EnVocabWordTable({
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
                   const riskBadgeTier =
-                    risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
+                    risk == null
+                      ? "never"
+                      : risk >= 2
+                        ? "high"
+                        : risk <= 0
+                          ? "low"
+                          : "mid";
 
                   return (
                     <tr
@@ -591,11 +597,20 @@ export function EnVocabWordTable({
                         </td>
                       ) : null}
                       <td className="jp-vocab-risk-col" data-label="优先级">
-                        <span
-                          className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
-                        >
-                          {risk.toFixed(1)}
-                        </span>
+                        {risk == null ? (
+                          <span
+                            className="jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--never"
+                            title="从未抽查：不按优先级计分，日序默认置顶"
+                          >
+                            —
+                          </span>
+                        ) : (
+                          <span
+                            className={`jp-vocab-risk-value jp-vocab-risk-badge jp-vocab-risk-badge--${riskBadgeTier}`}
+                          >
+                            {risk.toFixed(1)}
+                          </span>
+                        )}
                       </td>
                       <td className="jp-vocab-level-col" data-label="熟悉程度">
                         {!inQuizTarget && teacherQuizLocksTable ? (

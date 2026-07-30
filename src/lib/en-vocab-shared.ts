@@ -1,6 +1,17 @@
 import { parseStoredUtcDateTimeMs } from "@/lib/format-datetime";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
+import {
+  isJpVocabWordEligibleNeverQuizzedForFront,
+  isJpVocabWordHistNeverQuizzed,
+  isJpVocabWordSameDayNewNeverQuizzed,
+} from "@/lib/jp-vocab-daily-check";
+import {
+  JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  jpVocabFinalQuizScore,
+  jpVocabFinalQuizScoreOrNull,
+  normalizeJpVocabQuizTimeWeight,
+} from "@/lib/jp-vocab-quiz-score";
 import { listEnVocabUsagePointsForDisplay } from "@/lib/en-vocab-usage-examples-display";
 import type { EnVocabWord } from "@/lib/types";
 
@@ -34,6 +45,8 @@ export const JP_VOCAB_DEFAULT_STAT_SORT: {
 
 export type EnVocabStatSortOptions = {
   dailySeqByWordId?: ReadonlyMap<number, number>;
+  now?: Date;
+  timeWeight?: number;
 };
 
 export function enVocabPriorityLabel(locale: "zh" | "en" = "zh"): string {
@@ -64,10 +77,22 @@ export function enVocabTotalReviewsZeroHint(locale: "zh" | "en" = "zh"): string 
   return locale === "zh" ? "从未抽查过" : "Never checked";
 }
 
-/** 抽查优先级 = 一般×1 + 不熟悉×2 − 非常熟悉×0.3，保留 1 位小数 */
+/** 抽查优先级（原始分）= 一般×1 + 不熟悉×2 − 非常熟悉×0.3，保留 1 位小数 */
 export function enVocabRiskIndex(word: EnVocabWord): number {
   const raw = word.cnt_normal * 1 + word.cnt_weak * 2 - word.cnt_very * 0.3;
   return Math.round(raw * 10) / 10;
+}
+
+/**
+ * 最终抽问得分（与日语同公式）：priority + 距上次抽问天数 × 0.1。
+ * 从未抽查 → null（不算分，日序靠置顶桶）。
+ */
+export function enVocabFinalQuizScoreOrNull(
+  word: EnVocabWord,
+  timeWeight: number = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT,
+  now = new Date()
+): number | null {
+  return jpVocabFinalQuizScoreOrNull(word, timeWeight, now);
 }
 
 function updatedAtSortMs(word: EnVocabWord): number {
@@ -107,19 +132,16 @@ export function sortEnVocabWords(words: EnVocabWord[]): EnVocabWord[] {
   });
 }
 
-function compareZeroTotalFirst(a: EnVocabWord, b: EnVocabWord): number {
-  const aZero = enVocabTotalReviews(a) === 0;
-  const bZero = enVocabTotalReviews(b) === 0;
-  if (aZero === bZero) return 0;
-  return aZero ? -1 : 1;
-}
-
 function compareEnVocabStat(
   a: EnVocabWord,
   b: EnVocabWord,
   key: EnVocabStatSortKey,
   opts?: EnVocabStatSortOptions
 ): number {
+  const now = opts?.now ?? new Date();
+  const timeWeight = normalizeJpVocabQuizTimeWeight(
+    opts?.timeWeight ?? JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+  );
   switch (key) {
     case "seq": {
       const seqMap = opts?.dailySeqByWordId;
@@ -156,8 +178,18 @@ function compareEnVocabStat(
       return a.cnt_weak - b.cnt_weak;
     case "total":
       return enVocabTotalReviews(a) - enVocabTotalReviews(b);
-    case "risk":
-      return enVocabRiskIndex(a) - enVocabRiskIndex(b);
+    case "risk": {
+      // 与日语一致：从未抽查按 +∞（desc 置顶）；已抽查用 final_score
+      const aNever = isJpVocabWordHistNeverQuizzed(a);
+      const bNever = isJpVocabWordHistNeverQuizzed(b);
+      if (aNever && bNever) return 0;
+      if (aNever) return Number.POSITIVE_INFINITY;
+      if (bNever) return Number.NEGATIVE_INFINITY;
+      return (
+        jpVocabFinalQuizScore(a, timeWeight, now) -
+        jpVocabFinalQuizScore(b, timeWeight, now)
+      );
+    }
     case "level":
       return levelSortRank(a) - levelSortRank(b);
     case "today":
@@ -190,12 +222,35 @@ export function sortEnVocabWordsByStat(
   });
 }
 
-/** 每日固定序号用：从未抽查置顶，其余按抽查优先级降序 */
-export function sortEnVocabWordsForDailyOrder(words: EnVocabWord[]): EnVocabWord[] {
+/**
+ * 每日固定序号（与日语 / 韩语同一套算法）：
+ * 1. 可置顶的从未抽查（入库日早于今日）在前 —— 不算 final_score
+ * 2. 已抽查：final_score = priority + days × 0.1 降序
+ * 3. 今日刚入库且从未抽查沉底（今天不进前 N 池，次日再置顶）
+ */
+export function sortEnVocabWordsForDailyOrder(
+  words: EnVocabWord[],
+  now = new Date(),
+  timeWeight: number = JP_VOCAB_DEFAULT_QUIZ_TIME_WEIGHT
+): EnVocabWord[] {
+  const weight = normalizeJpVocabQuizTimeWeight(timeWeight);
   return [...words].sort((a, b) => {
-    const zeroCmp = compareZeroTotalFirst(a, b);
-    if (zeroCmp !== 0) return zeroCmp;
-    const diff = enVocabRiskIndex(b) - enVocabRiskIndex(a);
+    const aDefer = isJpVocabWordSameDayNewNeverQuizzed(a, now);
+    const bDefer = isJpVocabWordSameDayNewNeverQuizzed(b, now);
+    if (aDefer !== bDefer) return aDefer ? 1 : -1;
+
+    const aFront = isJpVocabWordEligibleNeverQuizzedForFront(a, now);
+    const bFront = isJpVocabWordEligibleNeverQuizzedForFront(b, now);
+    if (aFront !== bFront) return aFront ? -1 : 1;
+
+    // 从未抽查桶内：不算分，只按词名稳定排序
+    if (aFront || bFront || aDefer || bDefer) {
+      return a.word.localeCompare(b.word, "en");
+    }
+
+    const diff =
+      jpVocabFinalQuizScore(b, weight, now) -
+      jpVocabFinalQuizScore(a, weight, now);
     if (diff !== 0) return diff;
     return a.word.localeCompare(b.word, "en");
   });
