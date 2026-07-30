@@ -70,8 +70,8 @@ def main() -> int:
         errors.append("app.js 须刷新熔断状态")
     if "renderVocabFillCircuitAlert" not in appjs:
         errors.append("app.js 须渲染词条补全熔断红字提示")
-    if "因熔断停机" not in appjs:
-        errors.append("熔断时定时状态须写明「因熔断停机」")
+    if "熔断已停" not in appjs and "因熔断停机" not in appjs:
+        errors.append("熔断时定时状态须写明「熔断已停」")
     if "buildCircuitDiagText" not in appjs or "copyCircuitDiag" not in appjs:
         errors.append("熔断须提供复制诊断信息（buildCircuitDiagText / copyCircuitDiag）")
     if 'id="vocab-fill-circuit-copy"' not in html:
@@ -85,8 +85,24 @@ def main() -> int:
         errors.append("熔断提示须用 --err 红色")
     if "com.infoquests.jp-vocab-fill-grammar" not in br:
         errors.append("KILL 列表须含 jp-vocab-fill-grammar")
+    if "com.infoquests.jp-vocab-fill-unified" not in br:
+        errors.append("KILL 列表须含 jp-vocab-fill-unified（线上统一补全）")
+    if "com.infoquests.jp-vocab-fill-pos-online" not in br:
+        errors.append("KILL 列表须含 jp-vocab-fill-pos-online（临时词性）")
     if "com.infoquests.en-vocab-fill" not in br:
         errors.append("KILL 列表须含 en-vocab-fill")
+
+    online = (ROOT / "scripts/jp-vocab-fill-online-batch-api.py").read_text(
+        encoding="utf-8"
+    )
+    if "EXAMPLES_URL" not in online or 'done.append("example_sentences")' not in online:
+        errors.append("线上统一补全须单独 apply 例句到 fill-example-sentences")
+    if "examples_not_applied" not in online and "example_sentences" not in online:
+        errors.append("线上统一补全须在例句未写回时 fixed=False")
+    if 'fixed=True' in online and "example_sentences" in online:
+        # 假成功清零：禁止仅凭 word_bundle/reading 就算 fixed
+        if "examples_ok" not in online and "examples_not_applied" not in online:
+            errors.append("线上统一补全禁止 reading/word_bundle 假成功清零熔断")
     if "vocab_fill_circuit_assert_not_killed" not in sh:
         errors.append("缺 bash 熔断门禁")
     if "after_attempt" not in grammar or "assert_not_killed" not in grammar:
@@ -105,6 +121,38 @@ def main() -> int:
         errors.append("规则须写恢复命令")
     if "原因" not in rule and "history" not in rule:
         errors.append("规则须写明记录每次失败原因")
+    if "付费" not in rule and "Cloud" not in rule and "tokken" not in rule:
+        errors.append("规则须写明适用于付费/Cloud 定时")
+
+    hooks_json = (ROOT / ".cursor/hooks.json").read_text(encoding="utf-8")
+    pre_hook = ROOT / ".cursor/hooks/remind-vocab-fill-circuit-breaker.py"
+    after_hook = (
+        ROOT / ".cursor/hooks/remind-vocab-fill-circuit-breaker-after-edit.py"
+    )
+    if not pre_hook.is_file():
+        errors.append("缺前置钩子 remind-vocab-fill-circuit-breaker.py")
+    elif "remind-vocab-fill-circuit-breaker.py" not in hooks_json:
+        errors.append("hooks.json 须注册 preToolUse 熔断提醒钩子")
+    if "preToolUse" not in hooks_json:
+        errors.append("hooks.json 须有 preToolUse（付费三次熔断前置提醒）")
+    if not after_hook.is_file():
+        errors.append("缺 afterFileEdit 熔断提醒钩子")
+    elif "remind-vocab-fill-circuit-breaker-after-edit.py" not in hooks_json:
+        errors.append("hooks.json 须注册 afterFileEdit 熔断提醒钩子")
+    if pre_hook.is_file():
+        pre_src = pre_hook.read_text(encoding="utf-8")
+        if "3 次" not in pre_src and "三次" not in pre_src:
+            errors.append("前置钩子文案须写明 3 次熔断")
+        if "after_attempt" not in pre_src:
+            errors.append("前置钩子须点名 after_attempt")
+        if "Bark" not in pre_src and "bark" not in pre_src:
+            errors.append("前置钩子须写明熔断后 Bark 通知")
+    if "_try_bark" not in br:
+        errors.append("熔断须调用 _try_bark 推手机")
+    if "补全熔断" not in br:
+        errors.append("Bark 标题须含「补全熔断」")
+    if 'level": "active"' not in br and "level=active" not in br:
+        errors.append("熔断 Bark 须 level=active（勿 silent/critical）")
 
     if errors:
         print("check_vocab_fill_circuit_breaker: FAIL", file=sys.stderr)

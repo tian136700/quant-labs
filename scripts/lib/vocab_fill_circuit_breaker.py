@@ -37,6 +37,16 @@ DEFAULT_MAX_ATTEMPTS = 3
 # label → 中文名（维护中心日志用）
 FILL_TASKS: tuple[dict[str, str], ...] = (
     {
+        "label": "com.infoquests.jp-vocab-fill-unified",
+        "id": "jp-vocab-fill-unified",
+        "title": "日语统一补全（线上）",
+    },
+    {
+        "label": "com.infoquests.jp-vocab-fill-pos-online",
+        "id": "jp-vocab-fill-pos-online",
+        "title": "临时词性补全（线上）",
+    },
+    {
         "label": "com.infoquests.jp-vocab-fill-grammar",
         "id": "jp-vocab-fill-grammar",
         "title": "日语语法用法+例句补全",
@@ -310,14 +320,14 @@ def build_fill_task_status_rows(
             line = f"{title}：已暂停（原因：{detail[:200]}）"
         elif label in loaded:
             state = "running_ok"
-            state_label = "正常运行"
-            detail = "定时任务已加载，按调度检测/补全"
-            line = f"{title}：正常运行"
+            state_label = "正在运行"
+            detail = "定时任务已开启，按间隔检测/补全"
+            line = f"{title}：正在运行"
         else:
             state = "not_loaded"
-            state_label = "未加载"
-            detail = "LaunchAgent 未加载（未安装或已卸下）"
-            line = f"{title}：未加载"
+            state_label = "未运行"
+            detail = "定时任务未开启（未安装或已卸下）"
+            line = f"{title}：未运行"
         rows.append(
             {
                 "id": tid,
@@ -509,31 +519,93 @@ def trip_kill_switch(
         "All jp/en vocab fill launchd stopped. "
         "Resume: bash scripts/vocab-fill-circuit-resume.sh"
     )
-    _try_bark(f"{word}×{attempts}次未搞定，已停JP/EN补全定时")
+    bark_detail = (
+        f"{word}（id={word_id} scope={scope}）×{attempts}次未搞定，"
+        f"已停全部 JP/EN 补全定时"
+    )
+    if detail:
+        bark_detail += f"；末次：{detail[:80]}"
+    _try_bark(bark_detail)
 
 
 def _try_bark(reason: str) -> None:
-    """尽力推 Bark；失败忽略（不能挡熔断）。"""
+    """熔断后必须推 Bark（未配置则安静 skip；失败不挡熔断）。
+
+    约定：用户要立刻知道付费定时已停；level=active + sound（勿 critical/call）。
+    """
     try:
         env_path = Path.home() / ".config" / "bark" / "env"
-        key = os.environ.get("BARK_DEVICE_KEY", "").strip()
-        if not key and env_path.is_file():
+        file_env: dict[str, str] = {}
+        if env_path.is_file():
             for line in env_path.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
-                if line.startswith("BARK_DEVICE_KEY="):
-                    key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-        if not key:
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                file_env[k.strip()] = v.strip().strip('"').strip("'")
+
+        enabled = (
+            os.environ.get("BARK_ENABLED") or file_env.get("BARK_ENABLED") or "1"
+        ).strip().lower()
+        if enabled in {"0", "false", "no", "off"}:
+            _log("bark skip: BARK_ENABLED off")
             return
-        import urllib.parse
+
+        key = (os.environ.get("BARK_DEVICE_KEY") or file_env.get("BARK_DEVICE_KEY") or "").strip()
+        push_url = (
+            os.environ.get("BARK_PUSH_URL") or file_env.get("BARK_PUSH_URL") or ""
+        ).strip()
+        if not key and push_url:
+            # https://api.day.app/<key>…
+            parts = push_url.rstrip("/").split("/")
+            if parts:
+                key = parts[-1].split("?")[0].strip()
+        if not key:
+            _log("bark skip: no BARK_DEVICE_KEY")
+            return
+
+        import json as _json
         import urllib.request
 
-        title = urllib.parse.quote("补全熔断：已停JP/EN定时")
-        body = urllib.parse.quote(reason[:200])
-        url = f"https://api.day.app/{key}/{title}/{body}?level=timeSensitive"
-        urllib.request.urlopen(url, timeout=8).read()
-    except Exception:  # noqa: BLE001
-        pass
+        server = (
+            os.environ.get("BARK_SERVER")
+            or file_env.get("BARK_SERVER")
+            or "https://api.day.app"
+        ).rstrip("/")
+        sound = (
+            os.environ.get("BARK_SOUND_CIRCUIT")
+            or file_env.get("BARK_SOUND_CIRCUIT")
+            or os.environ.get("BARK_SOUND_DEPLOY_FAIL")
+            or file_env.get("BARK_SOUND_DEPLOY_FAIL")
+            or "shake"
+        )
+        title = "补全熔断"
+        body = (
+            f"改动：词条补全三次熔断已停定时\n"
+            f"项目：strategy-compare-cloud\n"
+            f"状态：失败（熔断）\n"
+            f"详情：{reason[:180]}"
+        )
+        payload = _json.dumps(
+            {
+                "title": title,
+                "body": body,
+                "group": "strategy-compare-cloud",
+                "level": "active",
+                "sound": sound,
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{server}/{key}",
+            data=payload,
+            headers={"Content-Type": "application/json; charset=utf-8"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=8).read()
+        _log(f"bark ok: {title} | {reason[:120]}")
+    except Exception as exc:  # noqa: BLE001
+        _log(f"bark failed (ignored): {exc}")
 
 
 def after_attempt(

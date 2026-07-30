@@ -12,6 +12,7 @@ import json
 import os
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -65,23 +66,48 @@ _SSL_CONTEXT = build_ssl_context()
 def call_api(*, api_url: str, token: str, dry_run: bool) -> dict:
     payload = {"dry_run": dry_run}
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    request = urllib.request.Request(
-        api_url,
-        data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": HTTP_USER_AGENT,
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=120, context=_SSL_CONTEXT) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as err:
-        detail = err.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"API HTTP {err.code}: {detail}") from err
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": HTTP_USER_AGENT,
+        "Accept": "application/json",
+    }
+    attempts = max(1, int(os.environ.get("TEACHER_USER_PRE_CLASS_ENABLE_RETRIES", "3")))
+    last_msg = "unknown"
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            api_url, data=body, method="POST", headers=headers
+        )
+        try:
+            with urllib.request.urlopen(
+                request, timeout=120, context=_SSL_CONTEXT
+            ) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as err:
+            detail = err.read().decode("utf-8", errors="replace")
+            last_msg = f"API HTTP {err.code}: {detail}"
+            retryable = err.code in (429, 502, 503, 504) or "1102" in detail
+            if not retryable or attempt >= attempts:
+                raise SystemExit(last_msg) from err
+            wait_s = min(30, 5 * attempt)
+            print(
+                f"[teacher-user-pre-class-enable-api] HTTP {err.code}, "
+                f"retry {attempt}/{attempts} in {wait_s}s…",
+                flush=True,
+            )
+            time.sleep(wait_s)
+        except (TimeoutError, urllib.error.URLError) as err:
+            last_msg = f"API request failed: {err}"
+            if attempt >= attempts:
+                raise SystemExit(last_msg) from err
+            wait_s = min(30, 5 * attempt)
+            print(
+                f"[teacher-user-pre-class-enable-api] network error, "
+                f"retry {attempt}/{attempts} in {wait_s}s…",
+                flush=True,
+            )
+            time.sleep(wait_s)
+    raise SystemExit(last_msg)
 
 
 def print_result(payload: dict) -> None:

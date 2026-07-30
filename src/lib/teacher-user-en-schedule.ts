@@ -128,6 +128,7 @@ export type LinkedEnTeacherUser = {
   username: string;
   role: string;
   disabled: number;
+  never_disable: number;
   teacher_id: number;
 };
 
@@ -141,7 +142,9 @@ export async function listLinkedEnTeacherUsersForTeacherIds(
     const result = await db
       .prepare(
         `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
-                COALESCE(u.disabled, 0) AS disabled, link.teacher_id AS teacher_id
+                COALESCE(u.disabled, 0) AS disabled,
+                COALESCE(u.never_disable, 0) AS never_disable,
+                link.teacher_id AS teacher_id
          FROM etr_user_en_lesson_teacher_link link
          INNER JOIN etr_users u ON u.id = link.user_id
          WHERE link.teacher_id IN (${placeholders})`

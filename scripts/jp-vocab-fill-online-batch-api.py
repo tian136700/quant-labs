@@ -72,6 +72,8 @@ WORD_SYSTEM = (
     "N5～N4 短句，焦点在本单词，不要塞难语法。"
     "条数：释义含 / 时每段 1 句；否则 max(2, 常用用法数)。"
     "な形容词「〜だ」造句用词干，不必写「だ」。"
+    "【例句用词】须自然用到该词条：优先写词条汉字（如「貰う」写成 貰(もら)う），"
+    "每个汉字立刻半角括号假名；禁止只用假名读音而完全不出现词条汉字（除非词条本身无汉字）。"
 )
 
 GRAMMAR_SYSTEM = (
@@ -428,13 +430,19 @@ def apply_bundle(
     needs: dict[str, bool],
     source: str,
     dry_run: bool,
-) -> list[str]:
+) -> tuple[list[str], list[str]]:
+    """写回字段。返回 (done, fail_reasons)。
+
+    单词例句必须走 fill-example-sentences；禁止靠 meaning 的「覆写成功」
+    掩盖例句被拒（否则会假成功清零熔断、同一词空烧）。
+    """
     done: list[str] = []
+    fails: list[str] = []
     if dry_run:
         for k in payload:
             if payload.get(k):
                 done.append(f"dry:{k}")
-        return done
+        return done, fails
 
     def _apply(url: str, body: dict) -> dict:
         return call_api(
@@ -458,13 +466,21 @@ def apply_bundle(
             )
             if int(r.get("updated") or 0) > 0:
                 done.append("reading")
+            else:
+                sk = r.get("skipped") or []
+                reason = (
+                    str(sk[0].get("reason") or "reading_apply_none")
+                    if sk
+                    else "reading_apply_none"
+                )
+                fails.append(f"reading:{reason}")
+
         word_update: dict[str, Any] = {"word_id": word_id, "source": source}
         if payload.get("meaning"):
             word_update["meaning"] = payload["meaning"]
         if payload.get("pos"):
             word_update["pos"] = payload["pos"]
-        if payload.get("example_sentences"):
-            word_update["example_sentences"] = payload["example_sentences"]
+        # 例句不走 meaning：避免 updated>0（只覆写释义）却被当成整词搞定
         if len(word_update) > 2:
             r = _apply(
                 MEANING_URL,
@@ -478,7 +494,44 @@ def apply_bundle(
             )
             if int(r.get("updated") or 0) > 0:
                 done.append("word_bundle")
-        return done
+            else:
+                sk = r.get("skipped") or []
+                reason = (
+                    str(sk[0].get("reason") or "meaning_apply_none")
+                    if sk
+                    else "meaning_apply_none"
+                )
+                fails.append(f"meaning:{reason}")
+
+        examples = str(payload.get("example_sentences") or "").strip()
+        if examples:
+            r = _apply(
+                EXAMPLES_URL,
+                {
+                    "mode": "apply",
+                    "allow_overwrite": True,
+                    "source": source,
+                    "updates": [
+                        {
+                            "word_id": word_id,
+                            "example_sentences": examples,
+                        }
+                    ],
+                },
+            )
+            if int(r.get("updated") or 0) > 0:
+                done.append("example_sentences")
+            else:
+                sk = r.get("skipped") or []
+                reason = (
+                    str(sk[0].get("reason") or "examples_apply_none")
+                    if sk
+                    else "examples_apply_none"
+                )
+                fails.append(f"examples:{reason}")
+        else:
+            fails.append("examples:missing_in_payload")
+        return done, fails
 
     if kind == "grammar":
         g_update: dict[str, Any] = {"word_id": word_id, "source": source}
@@ -500,8 +553,18 @@ def apply_bundle(
             )
             if int(r.get("updated") or 0) > 0:
                 done.append("grammar")
+            else:
+                sk = r.get("skipped") or []
+                reason = (
+                    str(sk[0].get("reason") or "grammar_apply_none")
+                    if sk
+                    else "grammar_apply_none"
+                )
+                fails.append(f"grammar:{reason}")
+        else:
+            fails.append("grammar:empty_update")
 
-    return done
+    return done, fails
 
 
 def extract_bundle(data: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]:
@@ -694,7 +757,7 @@ def process_one(
     if dry_run:
         return True
 
-    done = apply_bundle(
+    done, fails = apply_bundle(
         token,
         word_id=wid,
         kind=kind,
@@ -704,28 +767,47 @@ def process_one(
         dry_run=False,
     )
     print(f"    applied={done} source={source}", flush=True)
+    if fails:
+        print(f"    apply_fails={fails}", flush=True)
+
+    # 单词：例句未真正写回 → 未搞定（即使 reading/释义覆写成功）
+    examples_ok = kind != "word" or "example_sentences" in done
+    grammar_ok = kind != "grammar" or "grammar" in done or any(
+        x.startswith("dry:") for x in done
+    )
+    fixed = bool(done) and not fails and examples_ok and grammar_ok
+    fail_detail = (
+        ";".join(fails)
+        if fails
+        else (
+            "examples_not_applied"
+            if kind == "word" and not examples_ok
+            else ("grammar_not_applied" if kind == "grammar" and not grammar_ok else "")
+        )
+    )
+
     preview_text = json.dumps(preview, ensure_ascii=False)
     report_word_run_to_maintenance_center(
         {
             "word_id": wid,
             "word": word,
             "kind": kind,
-            "status": "success" if done else "failed",
+            "status": "success" if fixed else "failed",
             "source": source,
             "applied": str(done),
             "preview": preview_text,
-            "error": "" if done else "apply_none",
+            "error": "" if fixed else (fail_detail or "apply_none"),
             "finished_at": now_local_str(),
         }
     )
-    if not done:
-        mark_poison(wid, word, "apply_none")
+    if not fixed:
+        mark_poison(wid, word, fail_detail or "apply_none")
         after_attempt(
             scope="jp-online",
             word_id=wid,
             word=word,
             fixed=False,
-            detail="apply_none",
+            detail=fail_detail or "apply_none",
         )
         return False
     after_attempt(

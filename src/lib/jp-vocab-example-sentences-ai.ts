@@ -27,6 +27,29 @@ import {
 } from "@/lib/jp-vocab-connection-ai";
 import { validateJpVocabUsageExamplePairAlignment } from "@/lib/jp-vocab-usage-example-pair-align";
 
+/** 例句「是否用到词条」：汉字写法 + 读音假名（貰う / もらう / もらっ… 都算用到）。 */
+function lemmaSurfacesForExampleHit(
+  word: string,
+  reading?: string | null
+): string[] {
+  const out = [...jpVocabExampleLemmaSurfaces(word)];
+  const seen = new Set(out);
+  const push = (s: string) => {
+    const t = s.trim();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    out.push(t);
+  };
+  for (const part of String(reading || "").split("/")) {
+    push(part);
+    // 活用：もらった 不含完整「もらう」，但含词干「もら」
+    if (part.length >= 3) {
+      push(part.slice(0, -1));
+    }
+  }
+  return out;
+}
+
 /** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   version: 3,
@@ -340,7 +363,7 @@ export function validateJpVocabExampleSentencesAiOutput(
     }
     // 「て形变形」等中文教学标题：不硬卡全文出现
   } else {
-    const surfaces = jpVocabExampleLemmaSurfaces(target);
+    const surfaces = lemmaSurfacesForExampleHit(target, input.reading);
     const hit = surfaces.some(
       (s) => combinedPlain.includes(s) || combined.includes(s)
     );
@@ -422,7 +445,7 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     const target = input.word.trim();
     const combined = items.map((item) => item.text).join("");
     const combinedPlain = stripAllJpVocabParenBlocks(combined);
-    const surfaces = jpVocabExampleLemmaSurfaces(target);
+    const surfaces = lemmaSurfacesForExampleHit(target, input.reading);
     const hit = surfaces.some(
       (s) => combinedPlain.includes(s) || combined.includes(s)
     );

@@ -73,8 +73,21 @@ def main() -> int:
         raise SystemExit("FAIL: missing red circuit alert on 词条补全 page")
     if "renderVocabFillCircuitAlert" not in app_js:
         raise SystemExit("FAIL: renderVocabFillCircuitAlert missing (熔断须红字提示)")
-    if "因熔断停机" not in app_js:
-        raise SystemExit("FAIL: schedule line must mention 因熔断停机 when killed")
+    if "熔断已停" not in app_js and "因熔断停机" not in app_js:
+        raise SystemExit("FAIL: schedule line must mention 熔断已停 when killed")
+    if "未运行" not in app_js:
+        raise SystemExit("FAIL: schedule line must use human label 未运行 (not 未加载)")
+    if "定时状态：未加载" in app_js:
+        raise SystemExit("FAIL: must not show 定时状态：未加载")
+    if "开始运行" not in index_html or "开始运行" not in app_js:
+        raise SystemExit("FAIL: 未运行时须有「开始运行」按钮")
+    if "launchd_loaded" not in app_js or "circuitKilled" not in app_js:
+        raise SystemExit("FAIL: 开始运行按钮须按 launchd_loaded / 熔断切换显示")
+    jp_iv = (ROOT / "scripts/maintenance_center/jp_vocab_fill_interval.py").read_text(
+        encoding="utf-8"
+    )
+    if "cleared_circuit" not in jp_iv or "resume_fill_launchd" not in jp_iv:
+        raise SystemExit("FAIL: 开始运行须能解除熔断（resume_unified → resume_fill_launchd）")
     if "copyCircuitDiag" not in app_js or 'id="vocab-fill-circuit-copy"' not in index_html:
         raise SystemExit("FAIL: 熔断红字条须有复制诊断信息按钮")
     if "renderVocabFillCurrentBox" not in app_js or "isVocabFillWaitingCurrent" not in app_js:

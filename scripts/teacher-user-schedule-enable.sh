@@ -30,10 +30,19 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 BEIJING_DATE="$(TZ=Asia/Shanghai date +%F)"
 BEIJING_HOUR="$(TZ=Asia/Shanghai date +%H)"
 FORCE="${TEACHER_USER_SCHEDULE_ENABLE_FORCE:-0}"
+# 05 失败（如 Worker 1102）时，06/07 整点再试；成功后写 last_beijing_date，当日不再打
+RETRY_HOURS="${TEACHER_USER_SCHEDULE_ENABLE_HOURS:-05 06 07}"
 
 if [[ "$FORCE" != "1" ]]; then
-  if [[ "$BEIJING_HOUR" != "05" ]]; then
-    echo "$(date '+%F %T') teacher-user-schedule-enable: Beijing ${BEIJING_DATE} ${BEIJING_HOUR}:xx, skip (runs at 05:xx CST)"
+  hour_ok=0
+  for h in $RETRY_HOURS; do
+    if [[ "$BEIJING_HOUR" == "$h" ]]; then
+      hour_ok=1
+      break
+    fi
+  done
+  if [[ "$hour_ok" != "1" ]]; then
+    echo "$(date '+%F %T') teacher-user-schedule-enable: Beijing ${BEIJING_DATE} ${BEIJING_HOUR}:xx, skip (runs at ${RETRY_HOURS} CST)"
     exit 0
   fi
   if [[ -f "$LAST_BEIJING_DATE_FILE" ]] && [[ "$(cat "$LAST_BEIJING_DATE_FILE")" == "$BEIJING_DATE" ]]; then

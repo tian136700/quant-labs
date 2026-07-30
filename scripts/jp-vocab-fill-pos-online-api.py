@@ -482,6 +482,41 @@ def run_once(*, dry_run: bool, allow_burst: bool) -> int:
         }
     )
     if ok:
+        # 验真：apply 报成功但 list_missing 仍有该 id → 未搞定（计熔断）
+        verify = call_api(
+            API_URL,
+            token,
+            {"mode": "list_missing", "limit": LIST_CANDIDATE_LIMIT},
+            user_agent=HTTP_USER_AGENT,
+        )
+        still = any(
+            int(r.get("id") or 0) == wid
+            for r in (verify.get("missing") or [])
+        )
+        if still:
+            print(
+                f"    apply_ok_but_still_missing id={wid} word={word!r}",
+                flush=True,
+            )
+            mark_poison(wid, word, "apply_ok_but_still_missing")
+            after_attempt(
+                scope="jp-pos-online",
+                word_id=wid,
+                word=word,
+                fixed=False,
+                detail="apply_ok_but_still_missing",
+            )
+            write_status(
+                {
+                    "phase": "failed",
+                    "word_id": wid,
+                    "word": word,
+                    "remaining": total_missing,
+                    "error": "apply_ok_but_still_missing",
+                }
+            )
+            print(f"{now_local_str()} jp-vocab-fill-pos-online: done", flush=True)
+            return 1
         after_attempt(
             scope="jp-pos-online",
             word_id=wid,

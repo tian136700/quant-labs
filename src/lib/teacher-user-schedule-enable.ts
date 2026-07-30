@@ -1,11 +1,7 @@
 import "server-only";
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
-import {
-  findUserById,
-  listJpLessonTeacherNameMapByUserId,
-  revokeUserSessions,
-} from "@/lib/etr-auth-db";
+import { revokeUserSessions } from "@/lib/etr-auth-db";
 import type { EtrUser } from "@/lib/etr-auth";
 import {
   getJpLessonProgressStatus,
@@ -481,20 +477,24 @@ type LinkedTeacherUser = {
   username: string;
   role: string;
   disabled: number;
+  never_disable: number;
   teacher_id: number;
 };
+
+const LINKED_TEACHER_USER_SELECT = `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
+              COALESCE(u.disabled, 0) AS disabled,
+              COALESCE(u.never_disable, 0) AS never_disable,
+              link.teacher_id AS teacher_id`;
 
 async function listLinkedTeacherUsersForTeacherIds(
   db: D1Database,
   teacherIds: number[]
 ): Promise<LinkedTeacherUser[]> {
   if (!teacherIds.length) return [];
-  await listJpLessonTeacherNameMapByUserId(db);
   const placeholders = teacherIds.map((_, i) => `?${i + 1}`).join(", ");
   const result = await db
     .prepare(
-      `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
-              COALESCE(u.disabled, 0) AS disabled, link.teacher_id AS teacher_id
+      `${LINKED_TEACHER_USER_SELECT}
        FROM etr_user_jp_lesson_teacher_link link
        INNER JOIN etr_users u ON u.id = link.user_id
        WHERE link.teacher_id IN (${placeholders})`
@@ -523,8 +523,7 @@ async function listLinkedKoTeacherUsersForTeacherIds(
   const placeholders = teacherIds.map((_, i) => `?${i + 1}`).join(", ");
   const result = await db
     .prepare(
-      `SELECT link.user_id AS user_id, u.username AS username, u.role AS role,
-              COALESCE(u.disabled, 0) AS disabled, link.teacher_id AS teacher_id
+      `${LINKED_TEACHER_USER_SELECT}
        FROM etr_user_ko_lesson_teacher_link link
        INNER JOIN etr_users u ON u.id = link.user_id
        WHERE link.teacher_id IN (${placeholders})`
@@ -556,16 +555,14 @@ async function enableLinkedTeacherUsers(
     const username = String(row.username ?? "").trim();
     if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
 
-    const user = await findUserById(db, userId);
-    if (!user) {
-      skipped.push({
-        user_id: userId,
+    // 列表 JOIN 已带 role/disabled/never_disable，勿再逐条 findUserById（易 1102）
+    const user: Pick<EtrUser, "role" | "username" | "never_disable" | "disabled"> =
+      {
+        role: String(row.role ?? ""),
         username,
-        teacher_id: teacherId,
-        reason: "user_not_found",
-      });
-      continue;
-    }
+        never_disable: Number(row.never_disable ?? 0),
+        disabled: Number(row.disabled ?? 0),
+      };
 
     if (isExcludedFromTeacherScheduleAutoEnable(user)) {
       skipped.push({
@@ -811,21 +808,18 @@ export async function runTeacherUserPostClassDisable(
     const username = String(row.username ?? "").trim();
     if (!Number.isInteger(userId) || userId <= 0 || !username) continue;
 
-    const user = await findUserById(db, userId);
-    if (!user) {
-      skipped.push({
-        user_id: userId,
+    const user: Pick<EtrUser, "role" | "username" | "never_disable" | "disabled"> =
+      {
+        role: String(row.role ?? ""),
         username,
-        teacher_id: teacherId,
-        reason: "user_not_found",
-      });
-      continue;
-    }
+        never_disable: Number(row.never_disable ?? 0),
+        disabled: Number(row.disabled ?? 0),
+      };
 
     if (isExcludedFromTeacherScheduleAutoEnable(user)) {
       skipped.push({
         user_id: userId,
-        username: user.username,
+        username,
         teacher_id: teacherId,
         reason: "excluded_account",
       });
@@ -835,7 +829,7 @@ export async function runTeacherUserPostClassDisable(
     if ((user.disabled ?? 0) !== 0) {
       skipped.push({
         user_id: userId,
-        username: user.username,
+        username,
         teacher_id: teacherId,
         reason: "already_disabled",
       });
@@ -852,7 +846,7 @@ export async function runTeacherUserPostClassDisable(
 
     disabled.push({
       user_id: userId,
-      username: user.username,
+      username,
       teacher_id: teacherId,
     });
   }
