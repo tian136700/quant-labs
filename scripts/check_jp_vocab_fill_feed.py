@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""回归：维护中心「日语补全 · 最近词条」日志解析 + API 快照。"""
+"""回归：维护中心「词条补全 · 最近词条」日语/英语日志解析 + API 快照。"""
 
 from __future__ import annotations
 
@@ -56,20 +56,26 @@ def main() -> int:
     for row in snap.get("recent") or []:
         assert row.get("status") not in ("running", "applying"), row
 
-    # 维护中心须有独立顶栏「日语补全」，词条卡不在定时任务页里
+    # 维护中心须有独立顶栏「词条补全」（原日语补全），词条卡不在定时任务页里
     index_html = (ROOT / "scripts/maintenance_center/static/index.html").read_text(
         encoding="utf-8"
     )
     app_js = (ROOT / "scripts/maintenance_center/static/app.js").read_text(encoding="utf-8")
     if 'data-view="view-jp-fill"' not in index_html:
         raise SystemExit("FAIL: missing top tab data-view=view-jp-fill")
+    if "词条补全" not in index_html:
+        raise SystemExit("FAIL: top tab should be renamed to 词条补全")
     if 'id="view-jp-fill"' not in index_html:
         raise SystemExit("FAIL: missing section#view-jp-fill")
-    if 'id="jp-vocab-fill-feed-card"' not in index_html:
-        raise SystemExit("FAIL: missing jp-vocab-fill-feed-card")
+    if 'id="vocab-fill-feed-card"' not in index_html and 'id="jp-vocab-fill-feed-card"' not in index_html:
+        raise SystemExit("FAIL: missing vocab-fill-feed-card")
+    if 'data-fill-lang="jp"' not in index_html or 'data-fill-lang="en"' not in index_html:
+        raise SystemExit("FAIL: missing 日语/英语 language tabs")
+    if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:
+        raise SystemExit("FAIL: missing English fill panel")
     # 词条卡须在 view-jp-fill 内，不在 view-cron 内
     cron_chunk = index_html.split('id="view-cron"', 1)[1].split('id="view-jp-fill"', 1)[0]
-    if "jp-vocab-fill-feed-card" in cron_chunk:
+    if "vocab-fill-feed-card" in cron_chunk or "jp-vocab-fill-feed-card" in cron_chunk:
         raise SystemExit("FAIL: jp-fill feed still embedded under view-cron")
     if "function isJpFillViewActive" not in app_js:
         raise SystemExit("FAIL: isJpFillViewActive missing in app.js")
@@ -83,22 +89,36 @@ def main() -> int:
         raise SystemExit("FAIL: jp-fill word copy toast must show which word was copied")
     if 'id="jp-fill-interval"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval select")
+    if 'id="en-fill-interval"' not in index_html:
+        raise SystemExit("FAIL: missing en-fill-interval select")
     if 'id="jp-fill-interval-save"' not in index_html:
         raise SystemExit("FAIL: missing jp-fill-interval-save button")
-    if "saveJpFillInterval" not in app_js:
-        raise SystemExit("FAIL: saveJpFillInterval missing in app.js")
+    if "saveJpFillInterval" not in app_js and "saveVocabFillInterval" not in app_js:
+        raise SystemExit("FAIL: saveJpFillInterval/saveVocabFillInterval missing in app.js")
     if "/api/jp-vocab-fill/interval" not in app_js:
         raise SystemExit("FAIL: interval API call missing in app.js")
+    if "/api/en-vocab-fill/interval" not in app_js:
+        raise SystemExit("FAIL: EN interval API call missing in app.js")
     if "jpFillIntervalDirty" not in app_js:
         raise SystemExit("FAIL: jpFillIntervalDirty guard missing (select jumps on poll)")
     if "document.activeElement === select" not in app_js:
         raise SystemExit("FAIL: must skip refresh while interval select focused")
     # 禁止轮询里重建 select.innerHTML（会关菜单/跳）
+    if "function syncJpFillIntervalSelect" not in app_js:
+        raise SystemExit("FAIL: syncJpFillIntervalSelect missing")
+    if "function setJpFillIntervalMsg" not in app_js:
+        raise SystemExit("FAIL: setJpFillIntervalMsg missing")
     sync_chunk = app_js.split("function syncJpFillIntervalSelect", 1)[1].split(
         "function setJpFillIntervalMsg", 1
     )[0]
     if "innerHTML" in sync_chunk:
         raise SystemExit("FAIL: syncJpFillIntervalSelect must not rewrite select.innerHTML")
+    # 真正改 select 的实现也禁止 innerHTML 重建选项
+    sync_impl = app_js.split("function syncVocabFillIntervalSelect", 1)
+    if len(sync_impl) > 1:
+        impl_chunk = sync_impl[1].split("function setVocabFillIntervalMsg", 1)[0]
+        if "innerHTML" in impl_chunk:
+            raise SystemExit("FAIL: syncVocabFillIntervalSelect must not rewrite select.innerHTML")
 
     from maintenance_center.jp_vocab_fill_interval import (  # noqa: E402
         ALLOWED_INTERVALS,
@@ -123,12 +143,73 @@ def main() -> int:
         raise SystemExit("FAIL: POST /api/jp-vocab-fill/pause missing in server.py")
     if 'path == "/api/jp-vocab-fill/resume"' not in server_py:
         raise SystemExit("FAIL: POST /api/jp-vocab-fill/resume missing in server.py")
+    if 'path == "/api/en-vocab-fill/recent"' not in server_py:
+        raise SystemExit("FAIL: GET /api/en-vocab-fill/recent missing in server.py")
+    if 'path == "/api/en-vocab-fill/interval"' not in server_py:
+        raise SystemExit("FAIL: POST /api/en-vocab-fill/interval missing in server.py")
+    if 'path == "/api/en-vocab-fill/pause"' not in server_py:
+        raise SystemExit("FAIL: POST /api/en-vocab-fill/pause missing in server.py")
+    if 'path == "/api/en-vocab-fill/resume"' not in server_py:
+        raise SystemExit("FAIL: POST /api/en-vocab-fill/resume missing in server.py")
     if 'id="jp-fill-pause"' not in index_html or 'id="jp-fill-resume"' not in index_html:
         raise SystemExit("FAIL: pause/resume buttons missing in index.html")
-    if "postJpFillPauseOrResume" not in app_js:
+    if 'id="en-fill-pause"' not in index_html or 'id="en-fill-resume"' not in index_html:
+        raise SystemExit("FAIL: EN pause/resume buttons missing in index.html")
+    if "postJpFillPauseOrResume" not in app_js and "postVocabFillPauseOrResume" not in app_js:
         raise SystemExit("FAIL: postJpFillPauseOrResume missing in app.js")
     if "paused" not in snap:
         raise SystemExit("FAIL: feed snapshot must include paused")
+
+    from maintenance_center.en_vocab_fill_feed import (  # noqa: E402
+        parse_en_vocab_fill_log,
+        en_vocab_fill_feed_snapshot,
+        insert_en_vocab_fill_word_run,
+        list_en_vocab_fill_word_runs,
+    )
+
+    sample_en = """
+2026-07-30 07:00:00 en-vocab-fill-online: start Beijing=2026-07-30
+  [1/1] id=151 word='special' full_refresh=['reading', 'meaning']
+    got={'reading': '/ˈspɛʃ.əl/'}
+    applied=['reading', 'meaning'] source=线上 claude-sonnet-4-6
+2026-07-30 07:00:10 en-vocab-fill-online: done
+"""
+    en_completed, en_current = parse_en_vocab_fill_log(sample_en)
+    assert len(en_completed) == 1 and en_completed[0]["word_id"] == 151, en_completed
+    assert en_completed[0]["status"] == "success", en_completed[0]
+    assert en_current is None, en_current
+    en_snap = en_vocab_fill_feed_snapshot(limit=5)
+    assert en_snap.get("ok") is True and "recent" in en_snap, en_snap
+    assert en_snap.get("task_id") == "en-vocab-fill", en_snap
+    assert "paused" in en_snap, en_snap
+
+    en_rid = insert_en_vocab_fill_word_run(
+        {
+            "word_id": 900151,
+            "word": "special-test",
+            "kind": "word",
+            "status": "running",
+            "started_at": "2099-01-01 00:00:00",
+        }
+    )
+    en_rid2 = insert_en_vocab_fill_word_run(
+        {
+            "word_id": 900151,
+            "word": "special-test",
+            "kind": "word",
+            "status": "success",
+            "source": "线上 test",
+            "applied": "['reading']",
+            "finished_at": "2099-01-01 00:00:12",
+        }
+    )
+    assert en_rid == en_rid2, (en_rid, en_rid2)
+    en_rows = [
+        r
+        for r in list_en_vocab_fill_word_runs(limit=20)
+        if int(r.get("word_id") or 0) == 900151
+    ]
+    assert len(en_rows) == 1 and en_rows[0]["status"] == "success", en_rows
 
     # 同词 running→success 应 UPDATE 成一行，不留下「生成中」幽灵行
     rid = feed.insert_jp_vocab_fill_word_run(
@@ -165,6 +246,7 @@ def main() -> int:
     init_db()
     with get_conn() as conn:
         conn.execute("DELETE FROM jp_vocab_fill_word_runs WHERE word_id = ?", (900034,))
+        conn.execute("DELETE FROM en_vocab_fill_word_runs WHERE word_id = ?", (900151,))
 
     print("[check_jp_vocab_fill_feed] OK")
     return 0
