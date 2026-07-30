@@ -143,3 +143,127 @@ export async function composeAnnotatedPdfBlob(opts: {
 
   return buildPdfBlobFromPageDataUrls(pages);
 }
+
+export type AnnotatePdfImageStrip = {
+  dataUrl: string;
+  width: number;
+  height: number;
+  pageCount: number;
+  pageHeights: number[];
+  destroy: () => void;
+};
+
+/** 整份 PDF 按页转图后拼成一张竖向长图，供随手画一次竖滑批注。 */
+export async function openAnnotatePdfAsImageStrip(
+  url: string,
+  opts?: { onProgress?: (done: number, total: number) => void }
+): Promise<AnnotatePdfImageStrip> {
+  const doc = await openAnnotatePdfFromUrl(url);
+  const total = doc.numPages;
+  opts?.onProgress?.(0, total);
+
+  const pageImages: HTMLImageElement[] = [];
+  const pageHeights: number[] = [];
+  let width = 0;
+
+  try {
+    for (let i = 1; i <= total; i++) {
+      const dataUrl = await doc.getPageDataUrl(i);
+      const img = await loadImageFromDataUrl(dataUrl);
+      pageImages.push(img);
+      pageHeights.push(img.naturalHeight);
+      width = Math.max(width, img.naturalWidth);
+      opts?.onProgress?.(i, total);
+    }
+  } catch (err) {
+    doc.destroy();
+    throw err;
+  }
+
+  const height = pageHeights.reduce((sum, h) => sum + h, 0);
+  if (width < 1 || height < 1) {
+    doc.destroy();
+    throw new Error("PDF 页面无效");
+  }
+
+  const strip = document.createElement("canvas");
+  strip.width = width;
+  strip.height = height;
+  const ctx = strip.getContext("2d");
+  if (!ctx) {
+    doc.destroy();
+    throw new Error("无法拼接 PDF 长图");
+  }
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  let y = 0;
+  for (const img of pageImages) {
+    const x = Math.floor((width - img.naturalWidth) / 2);
+    ctx.drawImage(img, x, y);
+    y += img.naturalHeight;
+  }
+
+  const dataUrl = strip.toDataURL("image/png");
+  doc.destroy();
+
+  return {
+    dataUrl,
+    width,
+    height,
+    pageCount: total,
+    pageHeights,
+    destroy() {
+      /* strip 已导出 dataUrl；无额外资源 */
+    },
+  };
+}
+
+/** 批注后的长图按页高裁回多页 PDF。 */
+export async function splitAnnotatedStripToPdfBlob(opts: {
+  annotatedStrip: CanvasImageSource & { width?: number; height?: number; naturalWidth?: number; naturalHeight?: number };
+  pageHeights: number[];
+  stripWidth: number;
+}): Promise<Blob> {
+  const { annotatedStrip, pageHeights, stripWidth } = opts;
+  if (!pageHeights.length) throw new Error("没有可保存的页");
+  const width = Math.max(
+    1,
+    Math.round(
+      stripWidth ||
+        annotatedStrip.naturalWidth ||
+        annotatedStrip.width ||
+        0
+    )
+  );
+  const pages: Array<{ dataUrl: string; width: number; height: number }> = [];
+  let y = 0;
+  for (const rawH of pageHeights) {
+    const h = Math.max(1, Math.round(rawH));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法裁切 PDF 页");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, h);
+    ctx.drawImage(
+      annotatedStrip,
+      0,
+      y,
+      width,
+      h,
+      0,
+      0,
+      width,
+      h
+    );
+    pages.push({
+      dataUrl: canvas.toDataURL("image/png"),
+      width,
+      height: h,
+    });
+    y += h;
+  }
+  return buildPdfBlobFromPageDataUrls(pages);
+}

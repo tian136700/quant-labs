@@ -1,20 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Stroke } from "@/components/lesson-annotate/lesson-annotate-draw";
 
 export type LessonAnnotateMediaType = "image" | "pdf";
 
-/** 与 lesson-annotate-pdf.AnnotatePdfDoc 对齐；此处本地声明以免静态解析 pdf 模块 */
-type AnnotatePdfDoc = {
-  numPages: number;
-  getPageDataUrl: (pageNumber: number) => Promise<string>;
-  destroy: () => void;
+export type AnnotatePdfStripMeta = {
+  pageCount: number;
+  /** 各页在长图中的像素高度（与 strip 同宽坐标系） */
+  pageHeights: number[];
+  stripWidth: number;
+  stripHeight: number;
 };
 
 /**
- * PDF 教案：按页加载 data URL，并把每页批注缓存在内存（翻页不丢，关窗才清）。
- * pdf 模块用 await import()，禁止静态 import lesson-annotate-pdf 实现（Worker gzip）。
+ * PDF 教案：整份按页渲染后拼成一张可竖滑长图（非单页翻页）。
+ * pdf 模块用 await import()，禁止静态 import lesson-annotate-pdf（Worker gzip）。
  */
 export function useLessonAnnotatePdfPages(opts: {
   open: boolean;
@@ -23,23 +23,20 @@ export function useLessonAnnotatePdfPages(opts: {
 }) {
   const { open, mediaType, sourceUrl } = opts;
   const isPdf = mediaType === "pdf" && Boolean(sourceUrl);
-  const docRef = useRef<AnnotatePdfDoc | null>(null);
-  const strokesByPageRef = useRef<Map<number, Stroke[]>>(new Map());
+  const metaRef = useRef<AnnotatePdfStripMeta | null>(null);
 
-  const [pageIndex, setPageIndex] = useState(0); // 0-based
-  const [pageCount, setPageCount] = useState(0);
   const [pageDataUrl, setPageDataUrl] = useState("");
+  const [pageCount, setPageCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState("");
 
   const reset = useCallback(() => {
-    docRef.current?.destroy();
-    docRef.current = null;
-    strokesByPageRef.current = new Map();
-    setPageIndex(0);
-    setPageCount(0);
+    metaRef.current = null;
     setPageDataUrl("");
+    setPageCount(0);
     setLoading(false);
+    setLoadProgress({ done: 0, total: 0 });
     setError("");
   }, []);
 
@@ -53,25 +50,32 @@ export function useLessonAnnotatePdfPages(opts: {
     setLoading(true);
     setError("");
     setPageDataUrl("");
-    strokesByPageRef.current = new Map();
+    setLoadProgress({ done: 0, total: 0 });
+    metaRef.current = null;
 
     void (async () => {
       try {
-        const { openAnnotatePdfFromUrl } = await import(
+        const { openAnnotatePdfAsImageStrip } = await import(
           "@/components/lesson-annotate/lesson-annotate-pdf"
         );
-        const doc = await openAnnotatePdfFromUrl(sourceUrl);
+        const strip = await openAnnotatePdfAsImageStrip(sourceUrl, {
+          onProgress: (done, total) => {
+            if (!cancelled) setLoadProgress({ done, total });
+          },
+        });
         if (cancelled) {
-          doc.destroy();
+          strip.destroy();
           return;
         }
-        docRef.current?.destroy();
-        docRef.current = doc;
-        setPageCount(doc.numPages);
-        setPageIndex(0);
-        const url = await doc.getPageDataUrl(1);
-        if (cancelled) return;
-        setPageDataUrl(url);
+        metaRef.current = {
+          pageCount: strip.pageCount,
+          pageHeights: strip.pageHeights,
+          stripWidth: strip.width,
+          stripHeight: strip.height,
+        };
+        setPageCount(strip.pageCount);
+        setPageDataUrl(strip.dataUrl);
+        strip.destroy();
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "PDF 加载失败");
@@ -82,63 +86,18 @@ export function useLessonAnnotatePdfPages(opts: {
 
     return () => {
       cancelled = true;
-      docRef.current?.destroy();
-      docRef.current = null;
     };
   }, [open, isPdf, sourceUrl, reset]);
 
-  const stashPageStrokes = useCallback((page: number, strokes: Stroke[]) => {
-    strokesByPageRef.current.set(page, strokes);
-  }, []);
-
-  const strokesForPage = useCallback((page: number): Stroke[] => {
-    return strokesByPageRef.current.get(page) ?? [];
-  }, []);
-
-  const goToPage = useCallback(
-    async (nextIndex: number, currentStrokes: Stroke[]) => {
-      const doc = docRef.current;
-      if (!doc || pageCount < 1) return null;
-      const clamped = Math.max(0, Math.min(pageCount - 1, nextIndex));
-      stashPageStrokes(pageIndex, currentStrokes);
-      setLoading(true);
-      setError("");
-      try {
-        const url = await doc.getPageDataUrl(clamped + 1);
-        setPageIndex(clamped);
-        setPageDataUrl(url);
-        return strokesForPage(clamped);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "翻页失败");
-        return null;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [pageCount, pageIndex, stashPageStrokes, strokesForPage]
-  );
-
-  const getDoc = useCallback(() => docRef.current, []);
-
-  const takeStrokesSnapshot = useCallback(
-    (currentPage: number, currentStrokes: Stroke[]) => {
-      stashPageStrokes(currentPage, currentStrokes);
-      return new Map(strokesByPageRef.current);
-    },
-    [stashPageStrokes]
-  );
+  const getStripMeta = useCallback(() => metaRef.current, []);
 
   return {
     isPdf,
-    pageIndex,
     pageCount,
     pageDataUrl,
     loading,
+    loadProgress,
     error,
-    stashPageStrokes,
-    strokesForPage,
-    goToPage,
-    getDoc,
-    takeStrokesSnapshot,
+    getStripMeta,
   };
 }

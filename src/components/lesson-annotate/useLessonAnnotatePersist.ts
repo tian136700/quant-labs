@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState, type Dispatch, type SetStateAction, type RefObject } from "react";
+import { useCallback, useState, type RefObject } from "react";
 import {
   downloadAnnotateSession,
   saveAnnotateSession,
 } from "@/components/lesson-annotate/lesson-annotate-save";
+import { renderAnnotatedBlob } from "@/components/lesson-annotate/lesson-annotate-draw";
 import type { Stroke } from "@/components/lesson-annotate/lesson-annotate-draw";
 import type { useLessonAnnotatePdfPages } from "@/components/lesson-annotate/useLessonAnnotatePdfPages";
 import type {
@@ -20,12 +21,6 @@ type AnnotateSubject = "jp" | "en";
 export function useLessonAnnotatePersist(opts: {
   pdf: PdfPagesApi;
   strokes: Stroke[];
-  setStrokes: Dispatch<SetStateAction<Stroke[]>>;
-  setSelectedTextIndex: (v: number | null) => void;
-  setPreviewLine: (v: null) => void;
-  setPreviewRect: (v: null) => void;
-  setTextDraft: (v: null) => void;
-  setImgReady: (v: boolean) => void;
   imgRef: RefObject<HTMLImageElement | null>;
   refKey: string;
   lessonId: number;
@@ -41,12 +36,6 @@ export function useLessonAnnotatePersist(opts: {
   const {
     pdf,
     strokes,
-    setStrokes,
-    setSelectedTextIndex,
-    setPreviewLine,
-    setPreviewRect,
-    setTextDraft,
-    setImgReady,
     imgRef,
     refKey,
     lessonId,
@@ -62,29 +51,32 @@ export function useLessonAnnotatePersist(opts: {
   const [saveStatus, setSaveStatus] = useState("");
 
   const buildPdfBlobFromSession = useCallback(async () => {
-    const doc = pdf.getDoc();
-    if (!doc) throw new Error("PDF 未就绪");
-    const strokesByPage = pdf.takeStrokesSnapshot(pdf.pageIndex, strokes);
-    const { composeAnnotatedPdfBlob } = await import(
-      "@/components/lesson-annotate/lesson-annotate-pdf"
-    );
-    return composeAnnotatedPdfBlob({
-      getPageDataUrl: (n) => doc.getPageDataUrl(n),
-      pageCount: pdf.pageCount,
-      strokesByPage,
-    });
-  }, [pdf, strokes]);
-
-  const changePdfPage = async (nextIndex: number) => {
-    const restored = await pdf.goToPage(nextIndex, strokes);
-    if (restored == null) return;
-    setSelectedTextIndex(null);
-    setPreviewLine(null);
-    setPreviewRect(null);
-    setTextDraft(null);
-    setStrokes(restored);
-    setImgReady(false);
-  };
+    const img = imgRef.current;
+    const meta = pdf.getStripMeta();
+    if (!img?.naturalWidth || !meta?.pageHeights.length) {
+      throw new Error("PDF 未就绪");
+    }
+    const annotated = await renderAnnotatedBlob(img, strokes);
+    const objectUrl = URL.createObjectURL(annotated);
+    try {
+      const annotatedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("批注图加载失败"));
+        el.src = objectUrl;
+      });
+      const { splitAnnotatedStripToPdfBlob } = await import(
+        "@/components/lesson-annotate/lesson-annotate-pdf"
+      );
+      return splitAnnotatedStripToPdfBlob({
+        annotatedStrip: annotatedImg,
+        pageHeights: meta.pageHeights,
+        stripWidth: meta.stripWidth || annotatedImg.naturalWidth,
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }, [imgRef, pdf, strokes]);
 
   const downloadAnnotated = async () => {
     const img = imgRef.current;
@@ -116,7 +108,7 @@ export function useLessonAnnotatePersist(opts: {
       return;
     }
     const confirmMsg = pdf.isPdf
-      ? "将用当前各页批注重新合成 PDF 并覆盖线上教案，其他新课不受影响。确定保存吗？"
+      ? "将用当前长图批注按页裁回 PDF 并覆盖线上教案，其他新课不受影响。确定保存吗？"
       : "将用当前批注覆盖线上教案图片，其他新课不受影响。确定保存吗？";
     if (!window.confirm(confirmMsg)) return;
 
@@ -148,7 +140,6 @@ export function useLessonAnnotatePersist(opts: {
     downloading,
     saving,
     saveStatus,
-    changePdfPage,
     downloadAnnotated,
     saveAsLatestRef,
   };

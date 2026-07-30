@@ -22,14 +22,8 @@ export type LessonAnnotateToolbarProps = {
   downloading: boolean;
   saving: boolean;
   saveStatus: string;
-  /** PDF 翻页；非 PDF 时传 null */
-  pdfPager: {
-    pageIndex: number;
-    pageCount: number;
-    busy: boolean;
-    onPrev: () => void;
-    onNext: () => void;
-  } | null;
+  /** PDF 长图页数；0 表示非 PDF */
+  pdfPageCount: number;
   onToolChange: (tool: AnnotateTool) => void;
   onTextFontSizeChange: (size: number) => void;
   onZoomIn: () => void;
@@ -55,7 +49,7 @@ export function LessonAnnotateToolbar({
   downloading,
   saving,
   saveStatus,
-  pdfPager,
+  pdfPageCount,
   onToolChange,
   onTextFontSizeChange,
   onZoomIn,
@@ -77,31 +71,10 @@ export function LessonAnnotateToolbar({
           </span>
         </div>
         <div className="jp-annotate-tools">
-          {pdfPager && pdfPager.pageCount > 1 ? (
-            <>
-              <button
-                type="button"
-                className="jp-annotate-tool"
-                disabled={pdfPager.busy || pdfPager.pageIndex <= 0}
-                onClick={pdfPager.onPrev}
-              >
-                上一页
-              </button>
-              <span className="jp-annotate-text-size-value" aria-live="polite">
-                {pdfPager.pageIndex + 1} / {pdfPager.pageCount}
-              </span>
-              <button
-                type="button"
-                className="jp-annotate-tool"
-                disabled={
-                  pdfPager.busy || pdfPager.pageIndex >= pdfPager.pageCount - 1
-                }
-                onClick={pdfPager.onNext}
-              >
-                下一页
-              </button>
-              <span className="jp-annotate-tool-sep" aria-hidden="true" />
-            </>
+          {pdfPageCount > 1 ? (
+            <span className="jp-annotate-text-size-value" aria-live="polite">
+              共 {pdfPageCount} 页 · 下滑浏览
+            </span>
           ) : null}
           {(
             [
@@ -224,9 +197,9 @@ export function LessonAnnotateToolbar({
 
       <p className="jp-annotate-hint">
         「涂抹」：拖拽框选正方/长方形，松手后用不透明深色盖住原文，并自动写上「此内容由AI生成，经核验不准确，已涂抹」。「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。
-        {pdfPager
-          ? " PDF 教案按页批注，翻页会保留各页未保存笔画；「保存为最新教案」会把全部页重新合成 PDF 覆盖线上文件。"
-          : " 保存为最新教案会覆盖线上图片；关闭后未保存的批注即消失。"}
+        {pdfPageCount > 0
+          ? " PDF 已全部转成竖向长图，可下滑浏览每一页；「保存为最新教案」会按页裁回 PDF 覆盖线上文件。"
+          : " 保存为最新教案会覆盖线上图片。"}
         关闭后未保存的批注即消失。
       </p>
     </>

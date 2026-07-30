@@ -293,7 +293,7 @@ export function LessonAnnotateModal({
     setImgReady(false);
     setImgLoadError(
       pdf.isPdf
-        ? "PDF 页加载失败。请关闭后重试。"
+        ? "PDF 长图加载失败。请关闭后重试。"
         : "教案图片加载失败。请关闭后重试；若仍失败请检查教案是否为图片。"
     );
   }, [pdf.isPdf]);
@@ -735,18 +735,11 @@ export function LessonAnnotateModal({
     downloading,
     saving,
     saveStatus,
-    changePdfPage,
     downloadAnnotated,
     saveAsLatestRef,
   } = useLessonAnnotatePersist({
     pdf,
     strokes,
-    setStrokes,
-    setSelectedTextIndex,
-    setPreviewLine: () => setPreviewLine(null),
-    setPreviewRect: () => setPreviewRect(null),
-    setTextDraft: () => setTextDraft(null),
-    setImgReady,
     imgRef,
     refKey,
     lessonId,
@@ -791,17 +784,7 @@ export function LessonAnnotateModal({
           downloading={downloading}
           saving={saving}
           saveStatus={saveStatus}
-          pdfPager={
-            pdf.isPdf && pdf.pageCount > 0
-              ? {
-                  pageIndex: pdf.pageIndex,
-                  pageCount: pdf.pageCount,
-                  busy: pdf.loading || downloading || saving,
-                  onPrev: () => void changePdfPage(pdf.pageIndex - 1),
-                  onNext: () => void changePdfPage(pdf.pageIndex + 1),
-                }
-              : null
-          }
+          pdfPageCount={pdf.isPdf ? pdf.pageCount : 0}
           onToolChange={setTool}
           onTextFontSizeChange={applyTextFontSize}
           onZoomIn={handleZoomInCenter}
@@ -817,7 +800,11 @@ export function LessonAnnotateModal({
         <div className="jp-annotate-stage" ref={stageRef}>
           {!imgReady && !imgLoadError ? (
             <p className="jp-annotate-loading">
-              {pdf.isPdf ? "PDF 教案加载中…" : "教案加载中…"}
+              {pdf.isPdf
+                ? pdf.loadProgress.total > 0
+                  ? `正在把 PDF 转成图片… ${pdf.loadProgress.done}/${pdf.loadProgress.total} 页`
+                  : "正在把 PDF 转成图片…"
+                : "教案加载中…"}
             </p>
           ) : null}
           {imgLoadError ? (

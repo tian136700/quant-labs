@@ -170,7 +170,20 @@ export function JpLessonStatusTable({
       );
     }
 
-    const actionItems: ReactNode[] = [];
+    const actionItems: ReactNode[] = [
+      <a
+        key="view"
+        href={viewUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="jp-lesson-action-btn"
+      >
+        <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
+          <JpLessonMobileIcon name="view" />
+        </span>
+        查看
+      </a>,
+    ];
     if (ref && (ref.media_type === "image" || ref.media_type === "pdf")) {
       const imageUrl = jpVocabRefApiPath(lesson.ref_key!, { v: ref.updated_at });
       const mediaType = ref.media_type === "pdf" ? "pdf" : "image";
