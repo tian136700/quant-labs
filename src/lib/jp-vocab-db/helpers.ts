@@ -36,6 +36,7 @@ import {
   putJpVocabRefFile,
 } from "@/lib/jp-vocab-ref-server";
 import { sortJpVocabWords } from "@/lib/jp-vocab-shared";
+import { normalizeJpVocabAnnotation } from "@/lib/jp-vocab-annotation";
 import {
   normalizeJpVocabReviewProgress,
   type JpVocabReviewProgress,
@@ -199,6 +200,9 @@ export function mapRow(row: Record<string, unknown>): JpVocabWord {
       row.mnemonic != null && String(row.mnemonic).trim()
         ? String(row.mnemonic)
         : null,
+    annotation: normalizeJpVocabAnnotation(
+      row.annotation != null ? String(row.annotation) : null
+    ),
     example_sentences:
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences)
@@ -318,6 +322,14 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   if (!cols.has("srs_due_date")) {
     await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN srs_due_date TEXT`).run();
   }
+  if (!cols.has("annotation")) {
+    try {
+      await db.prepare(`ALTER TABLE jp_vocab_word ADD COLUMN annotation TEXT`).run();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate column name/i.test(msg)) throw err;
+    }
+  }
   jpVocabDbState.vocabWordSchemaReady = true;
 }
 
@@ -327,7 +339,7 @@ export async function ensureJpVocabWordSchema(db: D1Database): Promise<void> {
 }
 
 export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_key,
-  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, example_sentences,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, mnemonic, annotation, example_sentences,
   example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 

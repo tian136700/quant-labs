@@ -495,6 +495,7 @@ export async function queryJpVocabSharedToday(
               w.created_at, w.updated_at,
               w.example_sentences, w.example_sentences_source, w.meaning_source,
               w.usage, w.usage_source, w.connection, w.connection_source,
+              w.annotation,
               (CASE WHEN w.class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_shared s
        INNER JOIN jp_vocab_word w ON w.id = s.word_id
@@ -531,6 +532,7 @@ export async function queryJpVocabSharedToday(
       usage_source: row.usage_source,
       connection: row.connection,
       connection_source: row.connection_source,
+      annotation: row.annotation,
       has_class_notes: row.has_class_notes,
     });
     return mapSharedRow(row, word);

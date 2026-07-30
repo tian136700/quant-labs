@@ -147,6 +147,10 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.meanings != null && String(row.meanings).trim()
         ? String(row.meanings).trim()
         : null,
+    annotations:
+      row.annotations != null && String(row.annotations).trim()
+        ? String(row.annotations).trim()
+        : null,
     example_sentences:
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences).trim()
@@ -228,6 +232,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       kind: normalizeKind(item.kind),
       content,
       meanings: normalizeLessonMeaningsForStorage(content, item.meanings),
+      annotations: null,
       example_sentences: normalizeLessonExampleSentencesForStorage(
         content,
         item.example_sentences
@@ -493,6 +498,7 @@ export async function createJpLesson(
       kind,
       content: storedContent,
       meanings,
+      annotations: null,
       example_sentences: exampleSentences,
       grammar_item_count: grammarItemCount,
       title,
@@ -617,6 +623,7 @@ export async function createJpLessonMixed(
       kind,
       content: storedContent,
       meanings,
+      annotations: null,
       example_sentences: exampleSentences,
       grammar_item_count: grammarItemCount,
       title,

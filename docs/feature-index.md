@@ -207,6 +207,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **API 上传新课**（`content` + 可选 `meanings` / **`example_sentences`**；`|||` 分隔各词例句；单项「日语 + 译文：」，每词最多 10 条；已完成：**语法类**同步释义到 `/jp-vocab`，**单词类不同步释义**（`fill-meaning` tokken 补）；例句有则写入、已有不覆盖） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-lesson-shared.ts` → `parseLessonMeanings`、`normalizeLessonExampleSentencesForStorage` |
+| **API 合传单词+语法**（同一课同时传；列表类型「单词加语法」；入库 `kind=word_grammar` + `grammar_item_count`；标已完成时单词/语法分别以 `word`/`grammar` 进抽问；可选教案文件） | `POST /api/jp-lesson/upload-mixed`；`createJpLessonMixed`；`resolveJpLessonItemKinds`；对外说明 `docs/jp-lesson-upload-mixed-api.txt`；规则 `.cursor/rules/jp-lesson-upload-mixed.mdc`；回归 `scripts/check_jp_lesson_upload_mixed.py` |
 | **教案下载文件名**（原图 / 分页 PDF / Word：`{id}、单词学习|语法学习 (词1, 词2, …)`；新课列表下载与「查看」页一致） | `jp-vocab-ref-shared.ts` → `jpLessonRefDownloadFilename`；`JpLessonPage.tsx`；`JpVocabRefViewer` + `jp-vocab/ref/[refKey]/page.tsx`；`GET /api/jp-vocab/ref/[refKey]?download=1`；`getJpLessonByRefKey` |
 | **复制分页 PDF**（一步：剪贴板优先 → 系统分享 → 下载兜底；下载菜单 + 复制菜单） | `jp-vocab-ref-pdf-export.ts` → `buildJpVocabRefPaginatedPdf` / `copyJpVocabRefPaginatedPdf`；`JpVocabRefDownloadMenu`；`JpLessonCopyMenu` |
 | **语法分页切段**（左侧序号方块 + 平均色条密度≥0.25，避免例文漫画蓝衣服误切；如 lesson-68） | `jp-vocab-ref-pdf-export.ts` → `detectGrammarSectionPeaks`；规则 `.cursor/rules/vocab-ref-pdf-section-crop.mdc`；`scripts/check_vocab_ref_pdf_grammar_badge_density.py` |

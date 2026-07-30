@@ -1,0 +1,224 @@
+日语新课 · 单词+语法合传 API（给其它项目 / STT 调用）
+====================================================
+
+用途
+----
+同一课（例如标日第 23 课）里**同时有单词和语法**时，用本接口一次上传：
+- 日语新课列表「类型」显示：**单词加语法**
+- 单词侧带类型 word；语法侧带类型 grammar
+- 可选随传教案图片/PDF（与旧接口相同）
+- 在 `/jp-lesson` 标成「已完成」后：单词与语法**一并**同步到日语抽问 `/jp-vocab`
+  （单词不同步释义，由线上 fill-meaning 补；语法会同步释义；例句有则写入、已有不覆盖）
+
+若只要单词、或只要语法，请继续用旧接口：
+  POST /api/jp-lesson/upload   （kind=word 或 kind=grammar）
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-lesson/upload-mixed
+
+说明：
+- 也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+- 日语模块推荐走 japanese 子域。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-lesson/upload-mixed
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+  Content-Type: application/json
+  （multipart 上传文件时不要手写 Content-Type，让客户端自动带 boundary）
+
+token 与现有教案 / 日语上传共用，取环境变量 JP_REVIEW_UPLOAD_TOKEN。
+
+
+请求体（二选一）
+----------------
+
+1）JSON（无教案文件时）
+
+{
+  "title": "标日第23课",
+  "word_content": "東, 西, 南, 北",
+  "word_meanings": "东|西|南|北",
+  "word_example_sentences": "東(ひがし)の空(そら)が明(あか)るいです。\n译文：东边的天空很明亮。|||西(にし)の方(ほう)へ歩(ある)きます。\n译文：往西边走。",
+  "grammar_content": "～によると, ～について",
+  "grammar_meanings": "据……说|关于……",
+  "grammar_example_sentences": "天気予報(てんきよほう)によると、今日(きょう)は晴(は)れです。\n译文：据天气预报说，今天是晴天。|||学校(がっこう)について話(はな)します。\n译文：我来谈谈学校。"
+}
+
+2）multipart/form-data（同时传教案文件，推荐）
+
+字段名与上表一致，另加：
+  file         教案文件（图片或 PDF，最大 20MB）
+  media_type   选填。image（默认）或 pdf；也可靠文件 MIME 推断
+  title        选填。课标题 / 教案标题
+  ref_key      选填。一般**不要传**：带 file 时服务端会自动生成 lesson-{id} 并绑定
+
+
+字段说明
+--------
+word_content                 必填。单词列表，英文/中文逗号或顿号分隔
+word_meanings                选填。与单词一一对应，多项用 | 分隔
+word_example_sentences       选填。与单词一一对应，多项用 ||| 分隔；
+                             单项内「日语句 + 下一行 译文：…」，每词最多 10 条
+grammar_content              必填。语法列表，分隔规则同上
+grammar_meanings             选填。与语法一一对应，| 分隔
+grammar_example_sentences    选填。与语法一一对应，||| 分隔
+title                        选填
+ref_key                      选填；有 file 时忽略，由服务端分配
+file / media_type            选填；有文件则写入教案并绑到本课
+
+注意：
+- word_content 与 grammar_content **都必须非空**（否则 400）。
+- 不要走旧接口硬塞 kind=word_grammar；旧 upload 会拒并提示 use_upload_mixed。
+- 入库后 content = 全部单词 + 全部语法（逗号拼接）；grammar_item_count = 语法项数，
+  用来区分哪一段是单词、哪一段是语法。
+
+
+成功响应示例
+------------
+{
+  "ok": true,
+  "lesson": {
+    "id": 123,
+    "kind": "word_grammar",
+    "content": "東, 西, 南, 北, ～によると, ～について",
+    "meanings": "东|西|南|北|据……说|关于……",
+    "example_sentences": "…|||…",
+    "grammar_item_count": 2,
+    "title": "标日第23课",
+    "ref_key": "lesson-123",
+    "completed": false,
+    "learning": false,
+    "…"
+  },
+  "ref_key": "lesson-123",
+  "ref_view_path": "/api/jp-vocab/ref/lesson-123",
+  "kind": "word_grammar",
+  "kind_label": "单词加语法"
+}
+
+
+失败响应
+--------
+401
+  { "ok": false, "error": "Unauthorized" }
+  → token 错或缺失
+
+400
+  { "ok": false, "error": "word_content_required" }
+  → 未传 word_content
+
+400
+  { "ok": false, "error": "grammar_content_required" }
+  → 未传 grammar_content
+
+400
+  { "ok": false, "error": "word_content_empty" }
+  → word_content 拆不出有效项
+
+400
+  { "ok": false, "error": "grammar_content_empty" }
+  → grammar_content 拆不出有效项
+
+400
+  { "ok": false, "error": "ref_key_not_found" }
+  → 传了不存在的 ref_key（无 file 时）
+
+413
+  { "ok": false, "error": "File too large (max 20MB)" }
+
+500
+  { "ok": false, "error": "…" }
+
+
+curl 示例（带教案图）
+---------------------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson/upload-mixed' \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -F 'title=标日第23课' \
+  -F 'word_content=東, 西, 南, 北' \
+  -F 'word_meanings=东|西|南|北' \
+  -F 'grammar_content=～によると, ～について' \
+  -F 'grammar_meanings=据……说|关于……' \
+  -F 'media_type=image' \
+  -F 'file=@lesson23.png'
+
+
+curl 示例（纯 JSON，无文件）
+----------------------------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson/upload-mixed' \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "title": "标日第23课",
+    "word_content": "東, 西",
+    "grammar_content": "～によると, ～について"
+  }'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.request
+
+URL = "https://japanese.info-quests.com/api/jp-lesson/upload-mixed"
+TOKEN = "你的TOKEN"
+
+payload = {
+    "title": "标日第23课",
+    "word_content": "東, 西, 南, 北",
+    "word_meanings": "东|西|南|北",
+    "grammar_content": "～によると, ～について",
+    "grammar_meanings": "据……说|关于……",
+}
+
+req = urllib.request.Request(
+    URL,
+    data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+    headers={
+        "Authorization": f"Bearer {TOKEN}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+
+with urllib.request.urlopen(req, timeout=60) as resp:
+    data = json.loads(resp.read().decode("utf-8"))
+
+print(data.get("ok"), data.get("kind_label"), data.get("ref_key"))
+print("lesson_id=", (data.get("lesson") or {}).get("id"))
+
+
+上传后页面行为
+--------------
+1. `/jp-lesson` 出现一条新课，类型 = **单词加语法**（默认「未完成」）。
+2. 管理员在列表把状态改成「已完成」后：
+   - 单词以 kind=word 进入 `/jp-vocab`（不写释义）
+   - 语法以 kind=grammar 进入 `/jp-vocab`（写释义，已有不覆盖）
+   - 有例句则写入抽问（已有不覆盖）
+   - 教案 ref_key 一并挂到对应词条
+
+
+与旧 upload 的分工
+------------------
+POST /api/jp-lesson/upload         只传单词 **或** 只传语法（kind=word|grammar）
+POST /api/jp-lesson/upload-mixed   同一课同时传单词 **和** 语法（本说明）
+
+旧接口传 kind=word_grammar 会失败（error=use_upload_mixed），请改走本接口。
+
+
+联系 / 改接口时
+--------------
+线上模块：日语新课（japanese.info-quests.com/jp-lesson）
+本说明对应接口：POST /api/jp-lesson/upload-mixed
+实现：src/app/api/jp-lesson/upload-mixed/route.ts
+      src/lib/jp-lesson-db.ts → createJpLessonMixed / syncLessonToVocab
+功能索引：docs/feature-index.md → 日语新课

@@ -189,6 +189,11 @@ export interface JpVocabWord {
   /** 巧记 / 联想记忆（仅管理员可见与编辑） */
   mnemonic?: string | null;
   /**
+   * 标注：口语常用 / 考试常用 / 口语考试都常用。
+   * 上传或新课同步写入；卡片在备注下方展示。
+   */
+  annotation?: string | null;
+  /**
    * 常用用法编号列表。
    * 英语：考点用法，存库形如 `1. [8] 中文说明`（`[8]`=出现频次 1～10，卡片展示「出现频次 8」）；
    * 日语语法：N5～N2 常用用法（驱动 1:1 例句）；日语单词一般不用。
@@ -240,6 +245,8 @@ export type JpVocabUploadInput = {
   ref_key?: string | null;
   class_notes?: string | null;
   example_sentences?: string | null;
+  /** 口语常用 / 考试常用 / 口语考试都常用 */
+  annotation?: string | null;
 };
 
 /** 学生请求老师发送当前抽查单词（按 request_date 每日清空） */
@@ -346,6 +353,10 @@ export interface JpLessonRecord {
   /** 与 content 各项一一对应的释义，库内用 | 分隔 */
   meanings: string | null;
   /**
+   * 与 content 各项一一对应的标注（口语常用 / 考试常用 / 口语考试都常用），库内用 | 分隔
+   */
+  annotations: string | null;
+  /**
    * 与 content 各项一一对应的例句，库内用 ||| 分隔；
    * 单项内为「日语 + 译文：」多行，最多 10 条例句
    */
@@ -387,6 +398,11 @@ export type JpLessonUploadInput = {
   /** 与 content 各项一一对应，多项用 | 分隔（释义内可含逗号） */
   meanings?: string | null;
   /**
+   * 与 content 各项一一对应的标注，多项用 | 分隔；
+   * 每项为：口语常用 / 考试常用 / 口语考试都常用
+   */
+  annotations?: string | null;
+  /**
    * 与 content 各项一一对应的例句，多项用 ||| 分隔；
    * 单项内换行写「日语 / 译文：」，可选，每词最多 10 条
    */
@@ -401,9 +417,11 @@ export type JpLessonUploadInput = {
 export type JpLessonMixedUploadInput = {
   word_content: string;
   word_meanings?: string | null;
+  word_annotations?: string | null;
   word_example_sentences?: string | null;
   grammar_content: string;
   grammar_meanings?: string | null;
+  grammar_annotations?: string | null;
   grammar_example_sentences?: string | null;
   title?: string | null;
   ref_key?: string | null;

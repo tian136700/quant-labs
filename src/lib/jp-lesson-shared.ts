@@ -39,13 +39,13 @@ export function jpLessonKindLabel(kind: JpLessonKind | string | null | undefined
   return "单词";
 }
 
-/** 桌面窄列短标：词 / 法 / 词+法 */
+/** 桌面窄列短标：词 / 法；合传课显示全称「单词加语法」 */
 export function jpLessonKindShortLabel(
   kind: JpLessonKind | string | null | undefined
 ): string {
   const k = normalizeJpLessonKind(kind);
   if (k === "grammar") return "法";
-  if (k === "word_grammar") return "词+法";
+  if (k === "word_grammar") return "单词加语法";
   return "词";
 }
 

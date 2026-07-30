@@ -18,8 +18,14 @@ def main() -> int:
         errors.append("jp-lesson-db.ts: missing syncLessonToVocab")
     if "alignLessonItemMeanings" not in lesson_text:
         errors.append("jp-lesson-db.ts: must align meanings for grammar sync")
-    if 'lesson.kind === "grammar"' not in lesson_text:
-        errors.append('jp-lesson-db.ts: must gate meaning sync on kind === "grammar"')
+    if "resolveJpLessonItemKinds" not in lesson_text:
+        errors.append(
+            "jp-lesson-db.ts: must resolve per-item kinds (word / grammar / mixed)"
+        )
+    if 'meaning: kind === "grammar"' not in lesson_text:
+        errors.append(
+            'jp-lesson-db.ts: must gate meaning sync per item kind === "grammar"'
+        )
 
     vocab_lesson = ROOT / "src/lib/jp-vocab-db/lesson.ts"
     vocab_text = vocab_lesson.read_text(encoding="utf-8") if vocab_lesson.is_file() else ""

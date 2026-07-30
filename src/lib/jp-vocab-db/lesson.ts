@@ -98,6 +98,7 @@ import {
   type JpVocabDailyQuizProgress,
 } from "@/lib/jp-vocab-daily-quiz-progress";
 import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import { normalizeJpVocabAnnotation } from "@/lib/jp-vocab-annotation";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
 import type { JpLessonRecord } from "@/lib/types";
@@ -114,6 +115,7 @@ import {
   normalizeWord,
   normalizeKind,
   upsertJpVocabRefMetadata,
+  ensureJpVocabWordSchema,
 } from "./helpers";
 import {
   listJpVocabWords, deleteJpVocabWordsByIds,
@@ -133,10 +135,13 @@ export async function upsertJpVocabFromLesson(
     /** 仅语法类同步；单词类由 fill-meaning 补，忽略传入 */
     meaning?: string | null;
     example_sentences?: string | null;
+    /** 口语常用 / 考试常用 / 口语考试都常用；已有不覆盖 */
+    annotation?: string | null;
   }[],
   refs: JpVocabRefUploadInput[] = []
 ): Promise<void> {
   if (!items.length) return;
+  await ensureJpVocabWordSchema(db);
   if (refs.length) await upsertJpVocabRefMetadata(db, refs);
 
   // 新课「已完成」同步：created_at 记北京时间，今天不进抽查池，次日凌晨置顶
@@ -153,6 +158,7 @@ export async function upsertJpVocabFromLesson(
       const exampleSentences = (item.example_sentences || "").trim() || null;
       const meaning =
         kind === "grammar" ? (item.meaning || "").trim() || null : null;
+      const annotation = normalizeJpVocabAnnotation(item.annotation);
       const idx = jpVocabDbState.devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
         const cur = jpVocabDbState.devWords[idx];
@@ -162,9 +168,14 @@ export async function upsertJpVocabFromLesson(
             : cur.example_sentences ?? null;
         const nextMeaning =
           meaning && !cur.meaning?.trim() ? meaning : cur.meaning ?? null;
+        const nextAnnotation =
+          annotation && !cur.annotation?.trim()
+            ? annotation
+            : cur.annotation ?? null;
         if (
           nextExamples !== (cur.example_sentences ?? null) ||
-          nextMeaning !== (cur.meaning ?? null)
+          nextMeaning !== (cur.meaning ?? null) ||
+          nextAnnotation !== (cur.annotation ?? null)
         ) {
           jpVocabDbState.devWords[idx] = {
             ...cur,
@@ -174,6 +185,7 @@ export async function upsertJpVocabFromLesson(
               nextMeaning && !cur.meaning?.trim()
                 ? JP_VOCAB_LESSON_MEANING_SOURCE
                 : cur.meaning_source ?? null,
+            annotation: nextAnnotation,
             updated_at: ts,
           };
         }
@@ -195,6 +207,7 @@ export async function upsertJpVocabFromLesson(
           today_check_count: 0,
           today_check_date: null,
           class_notes: null,
+          annotation,
           example_sentences: exampleSentences,
           meaning_source: meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
           created_at: ts,
@@ -225,16 +238,18 @@ export async function upsertJpVocabFromLesson(
     const exampleSentences = (item.example_sentences || "").trim() || null;
     const meaning =
       kind === "grammar" ? (item.meaning || "").trim() || null : null;
+    const annotation = normalizeJpVocabAnnotation(item.annotation);
 
     const existing = await db
       .prepare(
-        `SELECT id, meaning, example_sentences FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
+        `SELECT id, meaning, example_sentences, annotation FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
       )
       .bind(word)
       .first<{
         id: number;
         meaning: string | null;
         example_sentences: string | null;
+        annotation: string | null;
       }>();
 
     if (existing) {
@@ -244,7 +259,9 @@ export async function upsertJpVocabFromLesson(
           : null;
       const nextMeaning =
         meaning && !(existing.meaning || "").trim() ? meaning : null;
-      if (nextExamples || nextMeaning) {
+      const nextAnnotation =
+        annotation && !(existing.annotation || "").trim() ? annotation : null;
+      if (nextExamples || nextMeaning || nextAnnotation) {
         await db
           .prepare(
             `UPDATE jp_vocab_word
@@ -254,13 +271,15 @@ export async function upsertJpVocabFromLesson(
                    WHEN ?2 IS NOT NULL AND (meaning IS NULL OR meaning = '') THEN ?3
                    ELSE meaning_source
                  END,
-                 updated_at = ?4
-             WHERE id = ?5`
+                 annotation = COALESCE(?4, annotation),
+                 updated_at = ?5
+             WHERE id = ?6`
           )
           .bind(
             nextExamples,
             nextMeaning,
             JP_VOCAB_LESSON_MEANING_SOURCE,
+            nextAnnotation,
             ts,
             existing.id
           )
@@ -272,8 +291,8 @@ export async function upsertJpVocabFromLesson(
     addedNew = true;
     await db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, created_at, updated_at)
-         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?7)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, annotation, created_at, updated_at)
+         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?8, ?8)`
       )
       .bind(
         word,
@@ -282,6 +301,7 @@ export async function upsertJpVocabFromLesson(
         refKey,
         exampleSentences,
         meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
+        annotation,
         ts
       )
       .run();
