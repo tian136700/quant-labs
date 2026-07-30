@@ -8,10 +8,6 @@ import type { JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesVi
 import { JpLessonTeacherDisplay } from "@/components/JpLessonTeacherDisplay";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import {
-  JpLessonCourseMergeCell,
-  type JpLessonCourseMergeBusy,
-} from "@/components/jp-lesson-page/JpLessonCourseMergeCell";
-import {
   JpLessonContentPreview,
   JpLessonMeaningsPreview,
   JpLessonAnnotationsPreview,
@@ -27,12 +23,8 @@ import {
   renderNextClassLabel,
   type JpLessonSectionSort,
 } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
-import {
-  buildJpLessonCoursePairMap,
-  isJpLessonCourseMobileAnchor,
-  planJpLessonCourseColumns,
-  type JpLessonCoursePair,
-} from "@/lib/jp-lesson-course-pair";
+import { buildJpLessonCoursePairMap, type JpLessonCoursePair } from "@/lib/jp-lesson-course-pair";
+import type { JpLessonCourseMergeBusy } from "@/components/JpLessonCopyMenu";
 import {
   getJpLessonProgressStatus,
   getLessonClassDate,
@@ -122,13 +114,23 @@ export function JpLessonStatusTable({
   onCopyCourseMerge,
 }: JpLessonStatusTableProps) {
   const sectionLessons = displayGroups.flatMap((g) => g.lessons);
-  const courseColPlans = planJpLessonCourseColumns(displayGroups, sectionLessons);
   const coursePairMap = buildJpLessonCoursePairMap(sectionLessons);
+
+  const courseSideForLesson = (
+    lesson: JpLessonRecord
+  ): "word" | "grammar" | null => {
+    if (lesson.kind === "grammar") return "grammar";
+    if (lesson.kind === "word" || lesson.kind === "word_grammar") return "word";
+    return null;
+  };
 
   const renderLessonActions = (lesson: JpLessonRecord) => {
     const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
     const hasRef = Boolean(lesson.ref_key && ref);
     const viewUrl = lesson.ref_key ? refViewUrl(lesson.ref_key, ref?.updated_at) : "";
+    const gid = (lesson.course_group_id || "").trim();
+    const coursePair =
+      canOperate && gid ? coursePairMap.get(gid) ?? null : null;
 
     if (!hasRef) {
       return canOperate ? (
@@ -198,6 +200,10 @@ export function JpLessonStatusTable({
         pdfCropKind={
           ref?.media_type === "image" ? jpLessonCropKind(lesson.kind) : null
         }
+        coursePair={coursePair}
+        courseSide={courseSideForLesson(lesson)}
+        mergeBusy={mergeBusy}
+        onCopyCourseMerge={onCopyCourseMerge}
         icon={
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <JpLessonMobileIcon name="copy" />
@@ -526,19 +532,12 @@ export function JpLessonStatusTable({
           </tr>
         </thead>
         <tbody>
-          {displayGroups.map((group, groupIdx) => {
+          {displayGroups.map((group) => {
             const merged = group.lessons.length > 1;
             const stackClass = merged ? " jp-lesson-merged-stack" : "";
             const classDate = getLessonClassDate(group.lessons[0]);
             const dayTone =
               classDate != null ? dayToneByDate?.get(classDate) : undefined;
-            const coursePlan = courseColPlans[groupIdx] ?? { mode: "empty" as const };
-            const skipCourseCol =
-              coursePlan.mode === "pair" && coursePlan.skip;
-            const courseRowSpan =
-              coursePlan.mode === "pair" && !coursePlan.skip
-                ? coursePlan.rowspan
-                : undefined;
             const rowClassName = [
               "jp-lesson-row",
               merged ? "jp-lesson-row--merged" : "",
@@ -594,33 +593,33 @@ export function JpLessonStatusTable({
                     ))}
                   </div>
                 </td>
-                {!skipCourseCol ? (
-                  <td
-                    data-label="教材"
-                    className="jp-lesson-course-col"
-                    rowSpan={courseRowSpan}
-                  >
-                    {coursePlan.mode === "pair" ? (
-                      <JpLessonCourseMergeCell
-                        courseLabel={coursePlan.pair.courseLabel}
-                        pair={coursePlan.pair}
-                        canMerge={canOperate}
-                        mergeBusy={mergeBusy}
-                        onCopyCourseMerge={onCopyCourseMerge}
-                      />
-                    ) : coursePlan.mode === "label-only" ? (
-                      <JpLessonCourseMergeCell
-                        courseLabel={coursePlan.courseLabel}
-                        canMerge={false}
-                        mergeBusy={null}
-                      />
-                    ) : (
-                      <span className="jp-lesson-course-label jp-lesson-course-label--empty">
-                        —
-                      </span>
-                    )}
-                  </td>
-                ) : null}
+                <td data-label="教材" className="jp-lesson-course-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        {lesson.course_label ? (
+                          <span
+                            className="jp-lesson-course-label"
+                            title={
+                              lesson.course_group_id
+                                ? `同一课 ${lesson.course_label}`
+                                : lesson.course_label
+                            }
+                          >
+                            {lesson.course_label}
+                          </span>
+                        ) : (
+                          <span className="jp-lesson-course-label jp-lesson-course-label--empty">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
@@ -664,26 +663,18 @@ export function JpLessonStatusTable({
                               >
                                 {jpLessonKindLabel(lesson.kind)}
                               </span>
-                              {(() => {
-                                const showMobileCourse =
-                                  isJpLessonCourseMobileAnchor(lesson, coursePairMap);
-                                if (!showMobileCourse) return null;
-                                const gid = (lesson.course_group_id || "").trim();
-                                const pair = gid ? coursePairMap.get(gid) : undefined;
-                                const label =
-                                  (pair?.courseLabel || lesson.course_label || "").trim();
-                                if (!label) return null;
-                                return (
-                                  <JpLessonCourseMergeCell
-                                    courseLabel={label}
-                                    pair={pair ?? null}
-                                    canMerge={canOperate}
-                                    mergeBusy={mergeBusy}
-                                    onCopyCourseMerge={onCopyCourseMerge}
-                                    mobile
-                                  />
-                                );
-                              })()}
+                              {lesson.course_label ? (
+                                <span
+                                  className="jp-lesson-course-label jp-lesson-mobile-course-label"
+                                  title={
+                                    lesson.course_group_id
+                                      ? `同一课 ${lesson.course_label}`
+                                      : lesson.course_label
+                                  }
+                                >
+                                  {lesson.course_label}
+                                </span>
+                              ) : null}
                             </div>
                             <ul
                               className="jp-lesson-mobile-content-chips"

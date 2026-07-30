@@ -52,7 +52,7 @@ export type JpLessonPageSectionsProps = {
   handleLessonLinkCopied: (lessonId: number) => void;
   handleBatchLinkCopied: (batchKey: string) => void;
   handleLessonLinkCopyError: () => void;
-  mergeBusy?: import("@/components/jp-lesson-page/JpLessonCourseMergeCell").JpLessonCourseMergeBusy;
+  mergeBusy?: import("@/components/JpLessonCopyMenu").JpLessonCourseMergeBusy;
   onCopyCourseMerge?: (pair: import("@/lib/jp-lesson-course-pair").JpLessonCoursePair) => void;
 };
 

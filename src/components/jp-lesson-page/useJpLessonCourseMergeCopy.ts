@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { JpLessonCourseMergeBusy } from "@/components/jp-lesson-page/JpLessonCourseMergeCell";
+import type { JpLessonCourseMergeBusy } from "@/components/JpLessonCopyMenu";
 import type { JpLessonCoursePair } from "@/lib/jp-lesson-course-pair";
 import { jpLessonCropKind } from "@/lib/jp-lesson-shared";
 import { JP_SITE_URL } from "@/lib/jp-site-host";

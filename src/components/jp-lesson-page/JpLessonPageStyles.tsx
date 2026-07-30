@@ -305,32 +305,10 @@ export function JpLessonPageStyles() {
           color: var(--muted);
           font-weight: 400;
         }
-        :global(.jp-lesson-course-merge) {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.35rem;
-          min-width: 0;
-        }
-        :global(.jp-lesson-course-merge-btn) {
-          appearance: none;
-          border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
-          background: color-mix(in srgb, var(--accent) 10%, transparent);
-          color: var(--accent);
-          font-size: 0.6875rem;
-          font-weight: 600;
-          line-height: 1.2;
-          padding: 0.2rem 0.45rem;
-          border-radius: 0.35rem;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-        :global(.jp-lesson-course-merge-btn:hover) {
-          background: color-mix(in srgb, var(--accent) 18%, transparent);
-        }
-        :global(.jp-lesson-course-merge .jp-vocab-save-progress) {
+        :global(.jp-lesson-copy-merge-progress) {
           width: 100%;
-          margin-top: 0.15rem;
+          margin-top: 0.25rem;
+          grid-column: 1 / -1;
         }
         :global(.jp-lesson-content-col) {
           min-width: 0;
