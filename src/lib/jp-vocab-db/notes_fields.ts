@@ -350,6 +350,7 @@ export type JpVocabWordEntryInput = {
   reading?: string | null;
   meaning?: string | null;
   pos?: string | null;
+  pos_source?: string | null;
   class_notes?: string | null;
   mnemonic?: string | null;
   example_sentences?: string | null;
@@ -522,6 +523,7 @@ export async function updateJpVocabWordEntry(
       meaning: nextMeaning,
       meaning_source: nextMeaningSource,
       pos: nextPos,
+      pos_source: nextPosSource,
       class_notes: nextNotes,
       mnemonic: nextMnemonic,
       example_sentences: nextExampleSentences,
@@ -537,8 +539,8 @@ export async function updateJpVocabWordEntry(
     const result = await db
       .prepare(
         `UPDATE jp_vocab_word
-         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, class_notes = ?7, mnemonic = ?8, example_sentences = ?9, example_sentences_source = ?10, usage = ?11, usage_source = ?12, connection = ?13, connection_source = ?14, updated_at = ?15
-         WHERE id = ?16`
+         SET kind = ?1, word = ?2, reading = ?3, meaning = ?4, meaning_source = ?5, pos = ?6, pos_source = ?7, class_notes = ?8, mnemonic = ?9, example_sentences = ?10, example_sentences_source = ?11, usage = ?12, usage_source = ?13, connection = ?14, connection_source = ?15, updated_at = ?16
+         WHERE id = ?17`
       )
       .bind(
         nextKind,
@@ -547,6 +549,7 @@ export async function updateJpVocabWordEntry(
         nextMeaning,
         nextMeaningSource,
         nextPos,
+        nextPosSource,
         nextNotes,
         nextMnemonic,
         nextExampleSentences,

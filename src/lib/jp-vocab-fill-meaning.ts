@@ -36,6 +36,7 @@ export type JpVocabFillMeaningApplied = {
   pos: string | null;
   example_sentences: string | null;
   meaning_source: string | null;
+  pos_source?: string | null;
 };
 
 export type JpVocabFillMeaningResult = {
@@ -476,6 +477,7 @@ export async function applyJpVocabMeaningUpdates(
       pos: nextPos,
       example_sentences: nextExamples,
       meaning_source: source,
+      pos_source: nextPos ? source : null,
     });
   }
 
