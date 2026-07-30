@@ -3,15 +3,30 @@
 
 用途
 ----
-把线上日语抽问词库里**已有的全部词条**一次拉下来（只含 id / 单词 / 类型），
-方便另一个模块或另一个项目做比对：
+把线上日语词条一次拉下来（只含 id / 单词 / 类型），方便另一个模块或另一个项目做比对：
 
 - 线上已经有的词 → 不必再制作教案
 - 线上没有的词 → 才继续做教案 / 上传
 
+下载内容（按 kind）：
+
+1) **单词（kind=word）**
+   - 日语抽问词库里全部 `kind=word`
+   - **加上**日语新课里「学习中」或「未完成」（尚未标已完成）课次中的**单词**
+   - 合传课（单词加语法）只取单词段；纯语法课不参与
+   - 与词库按词条正文去重后返回（别人拉取的是去重版）
+
+2) **语法（kind=grammar）**
+   - 只下词库里的语法
+   - **暂不**合并日语新课里的语法
+
+3) **全部（不传 kind 或 kind=any）**
+   - 词库单词+语法，再合并未完成新课单词（同上规则）
+
 本接口是「整库下载」；若只想查某一个词是否存在，请用：
   docs/jp-vocab-exists-api.txt
   GET /api/jp-vocab/exists?word=…
+  （exists 与本接口同一去重集合：单词会算上未完成新课）
 
 
 线上地址
@@ -20,6 +35,7 @@ GET https://japanese.info-quests.com/api/jp-vocab/download-all
 
 常用带参：
 GET https://japanese.info-quests.com/api/jp-vocab/download-all?kind=word
+GET https://japanese.info-quests.com/api/jp-vocab/download-all?kind=grammar
 GET https://japanese.info-quests.com/api/jp-vocab/download-all?kind=word&format=txt
 
 说明：
@@ -49,9 +65,9 @@ token 与现有日语/英语上传、exists 接口共用，取环境变量 JP_RE
 请求参数（Query）
 -----------------
 kind     选填。`word` / `grammar` / `any`
-         - 不传或传 `any`：下载全部（单词 + 语法）
-         - 传 `word`：只下载单词（做教案比对通常用这个）
-         - 传 `grammar`：只下载语法
+         - 不传或传 `any`：下载全部（单词 + 语法；单词含未完成新课）
+         - 传 `word`：只下载单词（词库 + 未完成新课单词，做教案比对通常用这个）
+         - 传 `grammar`：只下载词库语法
 
 format   选填。`json`（默认） / `txt`
          - `json`：返回结构化列表
@@ -66,18 +82,18 @@ format   选填。`json`（默认） / `txt`
   "count": 2,
   "words": [
     { "id": 12, "word": "東", "kind": "word" },
-    { "id": 35, "word": "重要", "kind": "word" }
+    { "id": 0, "word": "まだ新课里", "kind": "word" }
   ]
 }
 
 字段说明：
 - ok      固定 true
 - kind    本次筛选：`word` / `grammar` / `any`
-- count   条数
+- count   条数（已去重）
 - words   轻量列表（不含释义、例句、备注等大字段，避免拖垮 Worker）
-  - id    词条 ID
+  - id    词库词条 ID；**仅存在于未完成新课、尚未进词库时为 0**
   - word  词条正文（与库中存法一致，含な形容词词干等）
-  - kind  `word` 或 `grammar`
+  - kind  `word` 或 `grammar`（类型标签，便于另一项目区分）
 
 
 成功响应（format=txt）
@@ -90,7 +106,7 @@ Content-Disposition: attachment; filename="jp-vocab-all-word.txt"（视 kind 而
 重要	word
 ～によると	grammar
 
-说明：列之间是 Tab（\t）；每行末尾有换行。
+说明：列之间是 Tab（\t）；每行末尾有换行；第二列即类型标签。
 
 
 失败响应
@@ -121,13 +137,18 @@ curl -sS \
   -H 'Authorization: Bearer 你的TOKEN' \
   'https://japanese.info-quests.com/api/jp-vocab/download-all?kind=word'
 
-# 2）保存成文本文件（推荐给另一项目做集合比对）
+# 2）只下载语法
+curl -sS \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  'https://japanese.info-quests.com/api/jp-vocab/download-all?kind=grammar'
+
+# 3）保存成文本文件（推荐给另一项目做集合比对）
 curl -sS \
   -H 'Authorization: Bearer 你的TOKEN' \
   -o jp-vocab-all-word.txt \
   'https://japanese.info-quests.com/api/jp-vocab/download-all?kind=word&format=txt'
 
-# 3）全部（单词+语法）JSON
+# 4）全部（单词+语法）JSON
 curl -sS \
   -H 'Authorization: Bearer 你的TOKEN' \
   'https://japanese.info-quests.com/api/jp-vocab/download-all'
@@ -156,7 +177,7 @@ with urllib.request.urlopen(req, timeout=60) as resp:
 print("ok =", data.get("ok"))
 print("count =", data.get("count"))
 
-# 做成集合，方便本地词表差集
+# 做成集合，方便本地词表差集（已含未完成新课单词）
 online = {item["word"].strip() for item in data.get("words") or []}
 
 # 假设本地候选词：
@@ -171,8 +192,10 @@ print("需要做教案的词：", need_lesson)
 2. 另一项目提词后，对每个候选词做 `in online_set` 判断
 3. 若只需「有没有」，也可对单个词调 /api/jp-vocab/exists（见 exists 文档）
 4. 比对时建议两侧都 trim；大小写一般无关紧要（日语），但请与库中原文一致
+5. 需要语法时另拉 `kind=grammar`，或一次拉 `kind=any` 再按 item.kind 过滤
 
 注意：
 - 本接口**故意不返回**释义 / 例句 / 备注 / 教案图，体积小、不易触发 Worker 1102
 - 词条很多时 JSON 仍可能较大，脚本超时建议 ≥60 秒；也可用 format=txt 落盘
 - な形容词在线库存的是词干（如「重要」而非「重要だ」），比对时请用词干
+- 已完成的新课单词会同步进词库，不必再从新课合并；本接口只额外并入**尚未完成**课次的单词

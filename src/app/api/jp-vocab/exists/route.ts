@@ -1,7 +1,7 @@
 import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { requireJpVocabRead } from "@/lib/jp-vocab-auth";
 import { verifyUploadAuth } from "@/lib/jp-review";
-import { existsJpVocabWordByLemma } from "@/lib/jp-vocab-db";
+import { existsJpVocabLemmaForExternalCompare } from "@/lib/jp-vocab-exists-lemma";
 import type { JpVocabKind } from "@/lib/types";
 
 const READ_AUTH_MSG = {
@@ -20,6 +20,8 @@ function parseKind(raw: string | null): JpVocabKind | undefined | null {
 /**
  * 词条存在性查询（给外部项目/脚本做去重）
  * GET /api/jp-vocab/exists?word=...&kind=word|grammar|any
+ *
+ * 与 download-all 同一集合：单词含「学习中/未完成」新课单词；语法仅词库。
  *
  * 鉴权：
  * 1) 登录态（老师/管理员等可读权限）
@@ -49,7 +51,7 @@ export async function GET(request: Request) {
       return jsonResponse({ ok: false, error: "kind_invalid" }, 400);
     }
 
-    const exists = await existsJpVocabWordByLemma(env.DB, word, kind);
+    const exists = await existsJpVocabLemmaForExternalCompare(env.DB, word, kind);
     return jsonResponse(
       {
         ok: true,

@@ -30,6 +30,8 @@ function parseFormat(raw: string | null): "json" | "txt" | null {
  * GET /api/jp-vocab/download-all?kind=word|grammar|any&format=json|txt
  *
  * 用途：外部项目下载后比对，已有词不再制作教案。
+ * - word / any：含词库 + 日语新课「学习中/未完成」单词（去重）；仅新课有的 id=0
+ * - grammar：只含词库语法（不合并新课语法）
  *
  * 鉴权：
  * 1) 登录态（老师/管理员等可读权限）

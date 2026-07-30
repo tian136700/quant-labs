@@ -362,10 +362,19 @@ export interface JpLessonRecord {
    */
   example_sentences: string | null;
   /**
-   * 仅 kind=word_grammar：content 末尾连续多少项是语法（前面为单词）。
-   * word / grammar 课次为 0。
+   * 仅历史 kind=word_grammar：content 末尾连续多少项是语法（前面为单词）。
+   * 新合传改为两条 word/grammar + course_*；此项为 0。
    */
   grammar_item_count: number;
+  /**
+   * 同一课教材名（合传上传写入，如「标日23课」）；旧数据 / 单传为空。
+   * 列表「教材」列展示此文案。
+   */
+  course_label: string | null;
+  /**
+   * 同一课关联 ID（一次 upload-mixed 生成的单词条与语法条共享）。
+   */
+  course_group_id: string | null;
   title: string | null;
   ref_key: string | null;
   completed: boolean;
@@ -407,14 +416,23 @@ export type JpLessonUploadInput = {
    * 单项内换行写「日语 / 译文：」，可选，每词最多 10 条
    */
   example_sentences?: string | null;
-  /** 仅 kind=word_grammar 时有效；一般走 upload-mixed，不必手传 */
+  /** 历史字段；新合传勿用 */
   grammar_item_count?: number | null;
+  /** 同一课教材名；单传一般为空，合传由 upload-mixed 写入 */
+  course_label?: string | null;
+  /** 同一课关联 ID；合传由服务端生成 */
+  course_group_id?: string | null;
   title?: string | null;
   ref_key?: string | null;
 };
 
-/** 日语新课：同一课同时上传单词 + 语法（→ kind=word_grammar） */
+/**
+ * 日语新课合传：一次上传 → 两条课（word + grammar），共享 course_label / course_group_id。
+ * 列表仍分开展示类型「单词」「语法」，「教材」列显示如「标日23课」。
+ */
 export type JpLessonMixedUploadInput = {
+  /** 必填。同一课教材名，如「标日23课」 */
+  course_label: string;
   word_content: string;
   word_meanings?: string | null;
   word_annotations?: string | null;
@@ -423,8 +441,10 @@ export type JpLessonMixedUploadInput = {
   grammar_meanings?: string | null;
   grammar_annotations?: string | null;
   grammar_example_sentences?: string | null;
+  /** 可选；写入两侧 title，默认同 course_label */
   title?: string | null;
-  ref_key?: string | null;
+  word_ref_key?: string | null;
+  grammar_ref_key?: string | null;
 };
 
 export interface JpLessonNote {

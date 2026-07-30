@@ -11,12 +11,6 @@
       "note": ""
     },
     {
-      "path": "src/lib/jp-lesson-db.ts",
-      "lines": 1036,
-      "status": 0,
-      "note": ""
-    },
-    {
       "path": "src/components/JpVocabPage.tsx",
       "lines": 1018,
       "status": 0,
@@ -25,6 +19,12 @@
     {
       "path": "src/components/EnVocabPage.tsx",
       "lines": 1013,
+      "status": 0,
+      "note": ""
+    },
+    {
+      "path": "src/lib/jp-lesson-db.ts",
+      "lines": 1010,
       "status": 0,
       "note": ""
     }
