@@ -75,6 +75,8 @@ def main() -> int:
         raise SystemExit("FAIL: renderVocabFillCircuitAlert missing (熔断须红字提示)")
     if "因熔断停机" not in app_js:
         raise SystemExit("FAIL: schedule line must mention 因熔断停机 when killed")
+    if "copyCircuitDiag" not in app_js or 'id="vocab-fill-circuit-copy"' not in index_html:
+        raise SystemExit("FAIL: 熔断红字条须有复制诊断信息按钮")
     if 'data-fill-lang="jp"' not in index_html or 'data-fill-lang="en"' not in index_html:
         raise SystemExit("FAIL: missing 日语/英语 language tabs")
     if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:

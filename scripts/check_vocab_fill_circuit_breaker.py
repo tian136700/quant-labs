@@ -72,6 +72,12 @@ def main() -> int:
         errors.append("app.js 须渲染词条补全熔断红字提示")
     if "因熔断停机" not in appjs:
         errors.append("熔断时定时状态须写明「因熔断停机」")
+    if "buildCircuitDiagText" not in appjs or "copyCircuitDiag" not in appjs:
+        errors.append("熔断须提供复制诊断信息（buildCircuitDiagText / copyCircuitDiag）")
+    if 'id="vocab-fill-circuit-copy"' not in html:
+        errors.append("词条补全熔断条须有「复制诊断信息」按钮")
+    if 'id="circuit-killed-copy"' not in html:
+        errors.append("定时任务熔断条须有「复制诊断信息」按钮")
     css = (ROOT / "scripts/maintenance_center/static/app.css").read_text(encoding="utf-8")
     if ".vocab-fill-circuit-alert" not in css:
         errors.append("app.css 须有熔断红字样式 .vocab-fill-circuit-alert")
