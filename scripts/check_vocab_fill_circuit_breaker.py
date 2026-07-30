@@ -61,13 +61,26 @@ def main() -> int:
     )
     if "vocab-fill-circuit-card" not in html:
         errors.append("维护中心 UI 须有熔断状态日志卡片")
+    if 'id="vocab-fill-circuit-alert"' not in html:
+        errors.append("词条补全页须有熔断红字提示 #vocab-fill-circuit-alert")
+    if 'id="circuit-killed-banner"' not in html:
+        errors.append("定时任务熔断卡须有 #circuit-killed-banner 红字条")
     appjs = (ROOT / "scripts/maintenance_center/static/app.js").read_text(encoding="utf-8")
     if "refreshCircuitBreaker" not in appjs:
         errors.append("app.js 须刷新熔断状态")
+    if "renderVocabFillCircuitAlert" not in appjs:
+        errors.append("app.js 须渲染词条补全熔断红字提示")
+    if "因熔断停机" not in appjs:
+        errors.append("熔断时定时状态须写明「因熔断停机」")
+    css = (ROOT / "scripts/maintenance_center/static/app.css").read_text(encoding="utf-8")
+    if ".vocab-fill-circuit-alert" not in css:
+        errors.append("app.css 须有熔断红字样式 .vocab-fill-circuit-alert")
+    if "var(--err)" not in css or "vocab-fill-circuit-alert" not in css:
+        errors.append("熔断提示须用 --err 红色")
     if "com.infoquests.jp-vocab-fill-grammar" not in br:
         errors.append("KILL 列表须含 jp-vocab-fill-grammar")
-    if "com.infoquests.en-vocab-fill-examples" not in br:
-        errors.append("KILL 列表须含 en-vocab fill")
+    if "com.infoquests.en-vocab-fill" not in br:
+        errors.append("KILL 列表须含 en-vocab-fill")
     if "vocab_fill_circuit_assert_not_killed" not in sh:
         errors.append("缺 bash 熔断门禁")
     if "after_attempt" not in grammar or "assert_not_killed" not in grammar:

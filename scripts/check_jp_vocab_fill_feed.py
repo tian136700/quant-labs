@@ -69,6 +69,12 @@ def main() -> int:
         raise SystemExit("FAIL: missing section#view-jp-fill")
     if 'id="vocab-fill-feed-card"' not in index_html and 'id="jp-vocab-fill-feed-card"' not in index_html:
         raise SystemExit("FAIL: missing vocab-fill-feed-card")
+    if 'id="vocab-fill-circuit-alert"' not in index_html:
+        raise SystemExit("FAIL: missing red circuit alert on 词条补全 page")
+    if "renderVocabFillCircuitAlert" not in app_js:
+        raise SystemExit("FAIL: renderVocabFillCircuitAlert missing (熔断须红字提示)")
+    if "因熔断停机" not in app_js:
+        raise SystemExit("FAIL: schedule line must mention 因熔断停机 when killed")
     if 'data-fill-lang="jp"' not in index_html or 'data-fill-lang="en"' not in index_html:
         raise SystemExit("FAIL: missing 日语/英语 language tabs")
     if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:

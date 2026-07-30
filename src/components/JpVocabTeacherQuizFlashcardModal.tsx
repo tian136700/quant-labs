@@ -657,11 +657,23 @@ export function JpVocabTeacherQuizFlashcardModal({
                   onWordUpdated?.(next);
                 }}
                 endAction={
-                  <JpVocabUsageExamplesCopyButton
-                    model={usageExamplePairs}
-                    wordLabel={w.word}
-                    connection={w.connection}
-                  />
+                  <>
+                    {canOperate && onEditWord ? (
+                      <button
+                        type="button"
+                        className="btn-rsi-filter btn-rsi-filter--compact btn-rsi-filter--primary jp-vocab-teacher-quiz__action-btn"
+                        title="修改用法与例句（大模型写错或假名不对时可改）"
+                        onClick={() => onEditWord(w)}
+                      >
+                        编辑用法/例句
+                      </button>
+                    ) : null}
+                    <JpVocabUsageExamplesCopyButton
+                      model={usageExamplePairs}
+                      wordLabel={w.word}
+                      connection={w.connection}
+                    />
+                  </>
                 }
               />
             </div>
