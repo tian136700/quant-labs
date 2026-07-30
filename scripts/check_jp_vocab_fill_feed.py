@@ -79,6 +79,17 @@ def main() -> int:
         raise SystemExit("FAIL: schedule line must use human label 未运行 (not 未加载)")
     if "定时状态：未加载" in app_js:
         raise SystemExit("FAIL: must not show 定时状态：未加载")
+    # 禁止含糊「定时状态：正在运行」——须点名统一补全，并与临时词性区分
+    if "function vocabFillScheduleLine" not in app_js:
+        raise SystemExit("FAIL: vocabFillScheduleLine missing")
+    if "日语统一补全定时" not in app_js:
+        raise SystemExit("FAIL: schedule line must name 日语统一补全定时 (not vague 定时状态)")
+    if "按间隔唤醒补下一词" not in app_js:
+        raise SystemExit("FAIL: scheduled idle must say 按间隔唤醒补下一词")
+    if "与下方「日语统一补全定时」无关" not in app_js:
+        raise SystemExit("FAIL: 临时词性已跑完须注明与统一补全定时无关")
+    if "定时状态：" in app_js:
+        raise SystemExit("FAIL: must not use vague label 定时状态： (name the task)")
     if "开始运行" not in index_html or "开始运行" not in app_js:
         raise SystemExit("FAIL: 未运行时须有「开始运行」按钮")
     if "launchd_loaded" not in app_js or "circuitKilled" not in app_js:
