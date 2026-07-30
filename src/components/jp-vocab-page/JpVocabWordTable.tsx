@@ -477,7 +477,10 @@ export function JpVocabWordTable({
                         style={{ color: "var(--muted)" }}
                       >
                         {posTrim ? (
-                          <span className="jp-vocab-pos-badge">{posTrim}</span>
+                          <div className="jp-vocab-pos-cell">
+                            <span className="jp-vocab-pos-badge">{posTrim}</span>
+                            <JpVocabSourceLabel source={w.pos_source} />
+                          </div>
                         ) : null}
                       </td>
                       {isAdmin ? (

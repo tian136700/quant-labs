@@ -12,9 +12,12 @@ type FillPosBody = {
   dry_run?: boolean;
   /** list_missing：最多返回几条（定时建议 1） */
   limit?: number;
+  /** apply：整批默认来源（单条 updates[].source 优先） */
+  source?: string;
   updates?: Array<{
     word_id?: number;
     pos?: string;
+    source?: string;
   }>;
 };
 
@@ -41,11 +44,20 @@ export async function POST(request: Request) {
     }
 
     const dryRun = Boolean(body.dry_run);
+    const batchSource =
+      typeof body.source === "string" ? body.source.trim() : "";
     const updates = (Array.isArray(body.updates) ? body.updates : [])
-      .map((item) => ({
-        word_id: Number(item.word_id),
-        pos: String(item.pos ?? "").trim(),
-      }))
+      .map((item) => {
+        const per =
+          (typeof item.source === "string" && item.source.trim()) ||
+          batchSource ||
+          "";
+        return {
+          word_id: Number(item.word_id),
+          pos: String(item.pos ?? "").trim(),
+          source: per || null,
+        };
+      })
       .filter(
         (item) =>
           Number.isInteger(item.word_id) && item.word_id > 0 && item.pos.length > 0
@@ -60,6 +72,7 @@ export async function POST(request: Request) {
       const result = await applyJpVocabPosUpdates(env.DB, updates, {
         dryRun,
         validateFormat: true,
+        source: batchSource || null,
       });
       return jsonResponse({
         ok: true,

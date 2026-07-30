@@ -271,6 +271,15 @@ export async function updateJpVocabWordFields(
     fields.pos !== undefined
       ? (fields.pos || "").trim() || null
       : current.pos;
+  let nextPosSource = current.pos_source ?? null;
+  if (fields.pos !== undefined) {
+    const prevPos = current.pos ?? null;
+    if (nextPos !== prevPos) {
+      nextPosSource = nextPos
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
 
   if (fields.word !== undefined && !nextWord) {
     return { ok: false, error: "word_required" };
@@ -300,6 +309,7 @@ export async function updateJpVocabWordFields(
       meaning: nextMeaning,
       meaning_source: nextMeaningSource,
       pos: nextPos,
+      pos_source: nextPosSource,
       updated_at: ts,
     };
     return { ok: true, word: jpVocabDbState.devWords[idx] };
@@ -307,7 +317,7 @@ export async function updateJpVocabWordFields(
 
   const result = await db
     .prepare(
-      `UPDATE jp_vocab_word SET word = ?1, reading = ?2, meaning = ?3, meaning_source = ?4, pos = ?5, updated_at = ?6 WHERE id = ?7`
+      `UPDATE jp_vocab_word SET word = ?1, reading = ?2, meaning = ?3, meaning_source = ?4, pos = ?5, pos_source = ?6, updated_at = ?7 WHERE id = ?8`
     )
     .bind(
       nextWord,
@@ -315,6 +325,7 @@ export async function updateJpVocabWordFields(
       nextMeaning,
       nextMeaningSource,
       nextPos,
+      nextPosSource,
       ts,
       wordId
     )
@@ -414,6 +425,17 @@ export async function updateJpVocabWordEntry(
     input.pos !== undefined
       ? (input.pos || "").trim() || null
       : current.pos;
+  let nextPosSource = current.pos_source ?? null;
+  if (input.pos_source !== undefined) {
+    nextPosSource = normalizeJpVocabExampleSentencesSource(input.pos_source);
+  } else if (input.pos !== undefined) {
+    const prevPos = current.pos ?? null;
+    if (nextPos !== prevPos) {
+      nextPosSource = nextPos
+        ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
+        : null;
+    }
+  }
   const nextNotes =
     input.class_notes !== undefined
       ? (input.class_notes || "").trim() || null

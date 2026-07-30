@@ -387,6 +387,10 @@ export async function applyJpVocabMeaningUpdates(
                        ELSE meaning_source
                      END,
                      pos = COALESCE(?3, pos),
+                     pos_source = CASE
+                       WHEN ?3 IS NOT NULL THEN ?2
+                       ELSE pos_source
+                     END,
                      updated_at = datetime('now')
                  WHERE id = ?4 AND kind != 'grammar'`
               )
@@ -406,6 +410,10 @@ export async function applyJpVocabMeaningUpdates(
                      pos = CASE
                        WHEN (pos IS NULL OR TRIM(pos) = '') AND ?3 IS NOT NULL THEN ?3
                        ELSE pos
+                     END,
+                     pos_source = CASE
+                       WHEN (pos IS NULL OR TRIM(pos) = '') AND ?3 IS NOT NULL THEN ?2
+                       ELSE pos_source
                      END,
                      updated_at = datetime('now')
                  WHERE id = ?4 AND kind != 'grammar'`

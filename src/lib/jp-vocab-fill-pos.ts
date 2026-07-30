@@ -2,6 +2,7 @@ import "server-only";
 
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
+import { normalizeJpVocabExampleSentencesSource } from "@/lib/jp-vocab-example-sentences";
 import {
   buildJpVocabPosAiPrompt,
   JP_VOCAB_POS_UPLOAD_SPEC,
@@ -22,6 +23,7 @@ export type JpVocabFillPosApplied = {
   id: number;
   word: string;
   pos: string;
+  pos_source: string | null;
 };
 
 export type JpVocabFillPosResult = {
@@ -96,6 +98,7 @@ async function updatePosIfEmpty(
   db: D1Database,
   wordId: number,
   pos: string,
+  source: string | null,
   dryRun: boolean
 ): Promise<boolean> {
   if (dryRun) return true;
@@ -103,12 +106,13 @@ async function updatePosIfEmpty(
     .prepare(
       `UPDATE jp_vocab_word
        SET pos = ?1,
+           pos_source = COALESCE(?2, pos_source),
            updated_at = datetime('now')
-       WHERE id = ?2
+       WHERE id = ?3
          AND kind != 'grammar'
          AND (pos IS NULL OR TRIM(pos) = '')`
     )
-    .bind(pos.trim(), wordId)
+    .bind(pos.trim(), source, wordId)
     .run();
   return Number(result.meta?.changes ?? 0) > 0;
 }
@@ -135,6 +139,7 @@ export async function scanJpVocabWordsMissingPos(
 export type JpVocabPosUpdateItem = {
   word_id: number;
   pos: string;
+  source?: string | null;
 };
 
 export async function applyJpVocabPosUpdates(
@@ -143,11 +148,15 @@ export async function applyJpVocabPosUpdates(
   options: {
     dryRun?: boolean;
     validateFormat?: boolean;
+    /** 整批默认来源；单条 updates[].source 优先 */
+    source?: string | null;
   } = {}
 ): Promise<JpVocabFillPosResult> {
   await ensureJpVocabWordSchema(db);
   const dryRun = Boolean(options.dryRun);
   const validateFormat = options.validateFormat !== false;
+  const defaultSource =
+    normalizeJpVocabExampleSentencesSource(options.source) ?? null;
   const applied: JpVocabFillPosApplied[] = [];
   const skipped: Array<{ id: number; word: string; reason: string }> = [];
   let updated = 0;
@@ -185,13 +194,17 @@ export async function applyJpVocabPosUpdates(
       pos = normalizeJpVocabPosText(pos) || pos;
     }
 
-    const changed = await updatePosIfEmpty(db, wordId, pos, dryRun);
+    const source =
+      normalizeJpVocabExampleSentencesSource(item.source) ?? defaultSource;
+
+    const changed = await updatePosIfEmpty(db, wordId, pos, source, dryRun);
     if (changed) {
       updated += 1;
       applied.push({
         id: wordId,
         word: String(row.word),
         pos,
+        pos_source: source,
       });
     } else {
       skipped.push({

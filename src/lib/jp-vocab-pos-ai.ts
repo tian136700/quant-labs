@@ -10,9 +10,9 @@ export const JP_VOCAB_POS_UPLOAD_SPEC = {
     "词性用中文：名词、动词、い形容词、な形容词、副词、助词、接続词、感叹词、数词、连体词 等",
     "多词性用斜杠「/」连接，例如：名词/副词",
     "不要编号、不要 markdown、不要释义、不要例句",
-    "写回时请传 source，建议「gemma4:26b 本地」；人手为「手动」",
+    "写回时请传 source，建议「线上 claude-sonnet-4-6」或「本地 gemma4:26b」；人手为「手动」",
   ],
-  source_examples: ["gemma4:26b 本地", "Qwen本地", "手动"],
+  source_examples: ["线上 claude-sonnet-4-6", "本地 gemma4:26b", "Qwen本地", "手动"],
   reject_reasons: ["empty", "too_long", "has_markdown", "invalid_pos", "has_latin_only"],
 } as const;
 
