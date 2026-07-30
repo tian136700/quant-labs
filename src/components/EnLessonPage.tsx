@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { EnEditIconButton } from "@/components/EnEditIconButton";
-import { EnLessonAnnotateModal } from "@/components/EnLessonAnnotateModal";
 import { EnLessonCopyMenu } from "@/components/EnLessonCopyMenu";
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
 import {
@@ -86,6 +86,14 @@ import {
   formatLessonTeacherNamesForCopy,
   mergeEnLessonTeachers,
 } from "@/components/en-lesson-page/en-lesson-page-helpers";
+
+
+/** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
+const EnLessonAnnotateModal = dynamic(
+  () =>
+    import("@/components/EnLessonAnnotateModal").then((m) => m.EnLessonAnnotateModal),
+  { ssr: false }
+);
 
 export function EnLessonPage() {
   const { locale } = useI18n();

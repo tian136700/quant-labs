@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState, type Dispatch, type SetStateAction, type RefObject } from "react";
-import { composeAnnotatedPdfBlob } from "@/components/lesson-annotate/lesson-annotate-pdf";
 import {
   downloadAnnotateSession,
   saveAnnotateSession,
@@ -66,6 +65,9 @@ export function useLessonAnnotatePersist(opts: {
     const doc = pdf.getDoc();
     if (!doc) throw new Error("PDF 未就绪");
     const strokesByPage = pdf.takeStrokesSnapshot(pdf.pageIndex, strokes);
+    const { composeAnnotatedPdfBlob } = await import(
+      "@/components/lesson-annotate/lesson-annotate-pdf"
+    );
     return composeAnnotatedPdfBlob({
       getPageDataUrl: (n) => doc.getPageDataUrl(n),
       pageCount: pdf.pageCount,

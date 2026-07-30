@@ -14,6 +14,10 @@ Fails if:
    (must use @/lib/jp-vocab-export-select for filters; await import export).
 6) tool-dot conversion/convert.ts statically imports docx
    (must await import("docx")).
+7) Jp/En lesson pages statically import *LessonAnnotateModal
+   (must next/dynamic { ssr: false }; PDF 随手画含 pdfjs/jspdf).
+8) lesson-annotate hooks statically import lesson-annotate-pdf
+   (must await import() when opening/saving PDF).
 """
 
 from __future__ import annotations
@@ -162,6 +166,72 @@ def main() -> int:
             "tool-dot/conversion/convert.ts: do not static-import docx; "
             "await import(\"docx\")"
         )
+
+    # 日语/英语新课随手画：含 pdfjs + jspdf，必须客户端懒加载
+    jp_modals = (
+        SRC / "components" / "jp-lesson-page" / "JpLessonPageModals.tsx"
+    ).read_text(encoding="utf-8")
+    if re.search(
+        r"""import\s*\{\s*JpLessonAnnotateModal\s*\}\s*from\s*["']@/components/JpLessonAnnotateModal["']""",
+        jp_modals,
+    ):
+        errs.append(
+            "JpLessonPageModals.tsx: JpLessonAnnotateModal must use "
+            "next/dynamic ({ ssr: false }), not a static import"
+        )
+    if "next/dynamic" not in jp_modals or "JpLessonAnnotateModal" not in jp_modals:
+        errs.append(
+            "JpLessonPageModals.tsx: missing next/dynamic JpLessonAnnotateModal"
+        )
+    if "ssr: false" not in jp_modals:
+        errs.append(
+            "JpLessonPageModals.tsx: JpLessonAnnotateModal dynamic must set "
+            "{ ssr: false }"
+        )
+
+    en_lesson = (SRC / "components" / "EnLessonPage.tsx").read_text(encoding="utf-8")
+    if re.search(
+        r"""import\s*\{\s*EnLessonAnnotateModal\s*\}\s*from\s*["']@/components/EnLessonAnnotateModal["']""",
+        en_lesson,
+    ):
+        errs.append(
+            "EnLessonPage.tsx: EnLessonAnnotateModal must use "
+            "next/dynamic ({ ssr: false }), not a static import"
+        )
+    if "next/dynamic" not in en_lesson or "EnLessonAnnotateModal" not in en_lesson:
+        errs.append(
+            "EnLessonPage.tsx: missing next/dynamic EnLessonAnnotateModal"
+        )
+    if "ssr: false" not in en_lesson:
+        errs.append(
+            "EnLessonPage.tsx: EnLessonAnnotateModal dynamic must set "
+            "{ ssr: false }"
+        )
+
+    for hook_name in (
+        "useLessonAnnotatePdfPages.ts",
+        "useLessonAnnotatePersist.ts",
+    ):
+        hook = (
+            SRC / "components" / "lesson-annotate" / hook_name
+        ).read_text(encoding="utf-8")
+        if re.search(
+            r"""^import\s+(?!type\s)[^;]*from\s*["']@/components/lesson-annotate/lesson-annotate-pdf["']""",
+            hook,
+            flags=re.M,
+        ):
+            errs.append(
+                f"{hook_name}: do not static-import lesson-annotate-pdf; "
+                "await import() when PDF open/save (Worker gzip)"
+            )
+        if (
+            "lesson-annotate-pdf" in hook
+            and "await import(" not in hook
+        ):
+            errs.append(
+                f"{hook_name}: missing await import("
+                "\"@/components/lesson-annotate/lesson-annotate-pdf\")"
+            )
 
     if errs:
         print("check_en_vocab_heavy_lazy_import: FAIL", file=sys.stderr)

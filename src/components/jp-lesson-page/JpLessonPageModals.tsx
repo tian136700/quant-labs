@@ -1,6 +1,6 @@
 "use client";
 
-import { JpLessonAnnotateModal } from "@/components/JpLessonAnnotateModal";
+import dynamic from "next/dynamic";
 import { JpLessonBatchScheduleTeacherModal } from "@/components/JpLessonBatchScheduleTeacherModal";
 import { JpLessonExamplesViewModal, type JpLessonExamplesViewTarget } from "@/components/JpLessonExamplesViewModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
@@ -9,6 +9,13 @@ import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import type { Locale } from "@/i18n/messages";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
+
+/** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
+const JpLessonAnnotateModal = dynamic(
+  () =>
+    import("@/components/JpLessonAnnotateModal").then((m) => m.JpLessonAnnotateModal),
+  { ssr: false }
+);
 
 export type JpLessonPageModalsProps = {
   locale: Locale;

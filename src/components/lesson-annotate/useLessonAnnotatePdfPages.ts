@@ -1,16 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  openAnnotatePdfFromUrl,
-  type AnnotatePdfDoc,
-} from "@/components/lesson-annotate/lesson-annotate-pdf";
 import type { Stroke } from "@/components/lesson-annotate/lesson-annotate-draw";
 
 export type LessonAnnotateMediaType = "image" | "pdf";
 
+/** 与 lesson-annotate-pdf.AnnotatePdfDoc 对齐；此处本地声明以免静态解析 pdf 模块 */
+type AnnotatePdfDoc = {
+  numPages: number;
+  getPageDataUrl: (pageNumber: number) => Promise<string>;
+  destroy: () => void;
+};
+
 /**
  * PDF 教案：按页加载 data URL，并把每页批注缓存在内存（翻页不丢，关窗才清）。
+ * pdf 模块用 await import()，禁止静态 import lesson-annotate-pdf 实现（Worker gzip）。
  */
 export function useLessonAnnotatePdfPages(opts: {
   open: boolean;
@@ -53,6 +57,9 @@ export function useLessonAnnotatePdfPages(opts: {
 
     void (async () => {
       try {
+        const { openAnnotatePdfFromUrl } = await import(
+          "@/components/lesson-annotate/lesson-annotate-pdf"
+        );
         const doc = await openAnnotatePdfFromUrl(sourceUrl);
         if (cancelled) {
           doc.destroy();
