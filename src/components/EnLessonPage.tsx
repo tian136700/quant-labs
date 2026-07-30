@@ -908,6 +908,14 @@ export function EnLessonPage() {
         lessonContent={annotatingLesson?.lesson.content ?? ""}
         locale={locale}
         canSave={canOperate}
+        viewUrl={
+          annotatingLesson?.lesson.ref_key
+            ? refViewUrl(
+                annotatingLesson.lesson.ref_key,
+                annotatingLesson.ref.updated_at
+              )
+            : ""
+        }
         onClose={() => setAnnotatingLesson(null)}
         onSaved={handleAnnotateSaved}
         onNeedAuth={openEnAuth}

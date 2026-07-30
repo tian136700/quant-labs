@@ -33,6 +33,9 @@ import {
   type LessonAnnotateMediaType,
 } from "@/components/lesson-annotate/useLessonAnnotatePdfPages";
 import { useLessonAnnotatePersist } from "@/components/lesson-annotate/useLessonAnnotatePersist";
+import { LessonAnnotatePdfPagePreview } from "@/components/lesson-annotate/LessonAnnotatePdfPagePreview";
+import { LessonAnnotateActiveSurface } from "@/components/lesson-annotate/LessonAnnotateActiveSurface";
+import { LessonAnnotateTextPop } from "@/components/lesson-annotate/LessonAnnotateTextPop";
 import { useLessonAnnotateBrowserBack } from "@/lib/lesson-annotate-browser-back";
 import { LessonAnnotateModalStyles } from "@/components/lesson-annotate/LessonAnnotateModalStyles";
 import { LessonAnnotateToolbar } from "@/components/lesson-annotate/LessonAnnotateToolbar";
@@ -61,6 +64,8 @@ export type LessonAnnotateModalProps = {
   lessonContent: string;
   locale: "en" | "zh";
   canSave: boolean;
+  /** 教案查看页（新标签打开原件） */
+  viewUrl?: string;
   subject: LessonAnnotateSubject;
   onClose: () => void;
   onSaved?: (
@@ -79,6 +84,7 @@ export function LessonAnnotateModal({
   lessonContent,
   locale,
   canSave,
+  viewUrl = "",
   subject,
   onClose,
   onSaved,
@@ -92,7 +98,11 @@ export function LessonAnnotateModal({
     mediaType,
     sourceUrl: imageUrl,
   });
-  const displayUrl = pdf.isPdf ? pdf.pageDataUrl : imageUrl;
+  const [activePdfPage, setActivePdfPage] = useState(0);
+  const strokesByPageRef = useRef<Map<number, Stroke[]>>(new Map());
+  const displayUrl = pdf.isPdf
+    ? pdf.pages[activePdfPage]?.dataUrl ?? ""
+    : imageUrl;
   const [tool, setTool] = useState<Tool>("brush");
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [previewLine, setPreviewLine] = useState<{
@@ -147,6 +157,8 @@ export function LessonAnnotateModal({
     setImgReady(false);
     setImgLoadError("");
     setTool("brush");
+    setActivePdfPage(0);
+    strokesByPageRef.current = new Map();
     setStrokes([]);
     setPreviewLine(null);
     setPreviewRect(null);
@@ -168,21 +180,25 @@ export function LessonAnnotateModal({
   useLessonAnnotateBrowserBack(open, lessonId, onClose);
 
   const computeFitScale = useCallback(() => {
-    const img = imgRef.current;
     const stage = stageRef.current;
-    if (!img?.naturalWidth || !img.naturalHeight || !stage) return 1;
-    // clientWidth/Height = 可见内容区（含 padding）；再扣左右 gutter，避免贴边或默认放大撑爆。
+    if (!stage) return 1;
     const usableW = Math.max(80, stage.clientWidth - FIT_SIDE_GUTTER_PX * 2);
     const usableH = Math.max(80, stage.clientHeight - FIT_VERTICAL_PAD_PX);
+    if (pdf.isPdf && pdf.pages.length > 0) {
+      const maxW = Math.max(...pdf.pages.map((p) => p.width));
+      const widthFit = usableW / Math.max(1, maxW);
+      return Math.min(Math.max(widthFit, 0.08), 4);
+    }
+    const img = imgRef.current;
+    if (!img?.naturalWidth || !img.naturalHeight) return 1;
     const widthFit = usableW / img.naturalWidth;
     const heightFit = usableH / img.naturalHeight;
-    // 矮图：contain；竖长 PDF：按宽贴合，上下滚
     const fitted =
       img.naturalHeight * widthFit <= usableH
         ? Math.min(widthFit, heightFit)
         : widthFit;
     return Math.min(Math.max(fitted, 0.08), 4);
-  }, []);
+  }, [pdf.isPdf, pdf.pages]);
 
   const scrollToKeepCanvasPoint = useCallback(
     (clientX: number, clientY: number, prevZoom: number, nextZoom: number) => {
@@ -313,11 +329,34 @@ export function LessonAnnotateModal({
       setImgLoadError(pdf.error);
       return;
     }
-    if (pdf.loading && !pdf.pageDataUrl) {
+    if (pdf.loading && pdf.pages.length === 0) {
       setImgReady(false);
       setImgLoadError("");
+      return;
     }
-  }, [open, pdf.isPdf, pdf.error, pdf.loading, pdf.pageDataUrl]);
+    if (pdf.pages.length > 0) {
+      setActivePdfPage((prev) =>
+        Math.min(prev, Math.max(0, pdf.pages.length - 1))
+      );
+      setImgLoadError("");
+    }
+  }, [open, pdf.isPdf, pdf.error, pdf.loading, pdf.pages]);
+
+  const selectPdfPage = useCallback(
+    (nextIndex: number) => {
+      if (!pdf.isPdf || nextIndex === activePdfPage) return;
+      if (nextIndex < 0 || nextIndex >= pdf.pages.length) return;
+      strokesByPageRef.current.set(activePdfPage, strokes);
+      setActivePdfPage(nextIndex);
+      setStrokes(strokesByPageRef.current.get(nextIndex) ?? []);
+      setSelectedTextIndex(null);
+      setPreviewLine(null);
+      setPreviewRect(null);
+      setTextDraft(null);
+      setImgReady(false);
+    },
+    [pdf.isPdf, pdf.pages.length, activePdfPage, strokes]
+  );
 
   useEffect(() => {
     if (!open || !imgReady) return;
@@ -738,8 +777,11 @@ export function LessonAnnotateModal({
     downloadAnnotated,
     saveAsLatestRef,
   } = useLessonAnnotatePersist({
-    pdf,
+    isPdf: pdf.isPdf,
+    pdfPages: pdf.pages,
+    activePageIndex: pdf.isPdf ? activePdfPage : 0,
     strokes,
+    strokesByPageRef,
     imgRef,
     refKey,
     lessonId,
@@ -749,6 +791,35 @@ export function LessonAnnotateModal({
     onNeedAuth,
     onSaved,
   });
+
+
+  const handleCanvasPointerLeave = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (tool === "zoom") {
+      if (panSessionRef.current?.pointerId === e.pointerId) {
+        handleZoomPointerUp(e);
+      }
+      return;
+    }
+    if (tool === "text" && dragTextRef.current) {
+      return;
+    }
+    if (tool === "brush" && activeBrushRef.current) {
+      commitBrush();
+    }
+    if (tool === "line" && lineStartRef.current) {
+      lineStartRef.current = null;
+      setPreviewLine(null);
+      redraw(strokes, null);
+    }
+    if (tool === "smear" && smearStartRef.current) {
+      smearStartRef.current = null;
+      setPreviewRect(null);
+      redraw(strokes, null, selectedTextIndex, null);
+    }
+    if (canvasRef.current?.hasPointerCapture(e.pointerId)) {
+      canvasRef.current.releasePointerCapture(e.pointerId);
+    }
+  };
 
   const handleZoomInCenter = () => {
     const canvas = canvasRef.current;
@@ -795,10 +866,12 @@ export function LessonAnnotateModal({
           onDownload={() => void downloadAnnotated()}
           onSave={() => void saveAsLatestRef()}
           onClose={onClose}
+          viewUrl={viewUrl}
         />
 
         <div className="jp-annotate-stage" ref={stageRef}>
-          {!imgReady && !imgLoadError ? (
+          {(pdf.isPdf ? pdf.loading && pdf.pages.length === 0 : !imgReady) &&
+          !imgLoadError ? (
             <p className="jp-annotate-loading">
               {pdf.isPdf
                 ? pdf.loadProgress.total > 0
@@ -812,126 +885,106 @@ export function LessonAnnotateModal({
               {imgLoadError}
             </p>
           ) : null}
-          <div className="jp-annotate-stage-inner">
-            <div
-              ref={wrapRef}
-              className={`jp-annotate-canvas-wrap${imgReady ? " is-ready" : ""}${
-                tool === "zoom" ? " is-zoom-tool" : ""
-              }${zoom > 1.01 ? " is-zoomed" : ""}${
-                tool === "text" ? " is-text-tool" : ""
-              }${tool === "smear" ? " is-smear-tool" : ""}${
-                selectedTextIndex != null ? " is-text-selected" : ""
-              }`}
-              style={
-                imgReady && imgRef.current
-                  ? {
-                      width: imgRef.current.naturalWidth * displayScale,
-                      height: imgRef.current.naturalHeight * displayScale,
-                    }
-                  : undefined
-              }
-            >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {displayUrl ? (
-              <img
-                key={displayUrl}
-                ref={imgRef}
-                src={displayUrl}
-                alt="教案"
-                className="jp-annotate-img"
-                onLoad={syncCanvasSize}
-                onError={handleImgError}
-              />
-            ) : null}
-            <canvas
-              ref={canvasRef}
-              className="jp-annotate-canvas"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={(e) => {
-                if (tool === "zoom") {
-                  if (panSessionRef.current?.pointerId === e.pointerId) {
-                    handleZoomPointerUp(e);
+          <div
+            className={`jp-annotate-stage-inner${
+              pdf.isPdf && pdf.pages.length > 1 ? " is-pdf-stack" : ""
+            }`}
+          >
+            {pdf.isPdf
+              ? pdf.pages.map((page, pageIndex) =>
+                  pageIndex === activePdfPage ? (
+                    <div key={`edit-${pageIndex}`} className="jp-annotate-page is-active">
+                      <div className="jp-annotate-page-tab is-active" aria-current="true">
+                        第 {pageIndex + 1} / {pdf.pageCount} 页 · 正在编辑（可上下滑看其它页）
+                      </div>
+                      <LessonAnnotateActiveSurface
+                        wrapRef={wrapRef}
+                        imgRef={imgRef}
+                        canvasRef={canvasRef}
+                        displayUrl={displayUrl}
+                        alt={`第 ${pageIndex + 1} 页`}
+                        imgReady={imgReady}
+                        tool={tool}
+                        zoom={zoom}
+                        selectedTextIndex={selectedTextIndex}
+                        widthPx={
+                          (imgReady && imgRef.current
+                            ? imgRef.current.naturalWidth
+                            : page.width) * displayScale
+                        }
+                        heightPx={
+                          (imgReady && imgRef.current
+                            ? imgRef.current.naturalHeight
+                            : page.height) * displayScale
+                        }
+                        onImgLoad={syncCanvasSize}
+                        onImgError={handleImgError}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerLeave={handleCanvasPointerLeave}
+                      />
+                    </div>
+                  ) : (
+                    <LessonAnnotatePdfPagePreview
+                      key={`preview-${pageIndex}`}
+                      page={page}
+                      pageIndex={pageIndex}
+                      pageCount={pdf.pageCount}
+                      strokes={strokesByPageRef.current.get(pageIndex) ?? []}
+                      displayScale={displayScale}
+                      onSelect={() => selectPdfPage(pageIndex)}
+                    />
+                  )
+                )
+              : (
+                <LessonAnnotateActiveSurface
+                  wrapRef={wrapRef}
+                  imgRef={imgRef}
+                  canvasRef={canvasRef}
+                  displayUrl={displayUrl}
+                  alt="教案"
+                  imgReady={imgReady}
+                  tool={tool}
+                  zoom={zoom}
+                  selectedTextIndex={selectedTextIndex}
+                  widthPx={
+                    imgReady && imgRef.current
+                      ? imgRef.current.naturalWidth * displayScale
+                      : undefined
                   }
-                  return;
-                }
-                if (tool === "text" && dragTextRef.current) {
-                  return;
-                }
-                if (tool === "brush" && activeBrushRef.current) {
-                  commitBrush();
-                }
-                if (tool === "line" && lineStartRef.current) {
-                  lineStartRef.current = null;
-                  setPreviewLine(null);
-                  redraw(strokes, null);
-                }
-                if (tool === "smear" && smearStartRef.current) {
-                  smearStartRef.current = null;
-                  setPreviewRect(null);
-                  redraw(strokes, null, selectedTextIndex, null);
-                }
-                if (canvasRef.current?.hasPointerCapture(e.pointerId)) {
-                  canvasRef.current.releasePointerCapture(e.pointerId);
-                }
-              }}
-            />
-          </div>
+                  heightPx={
+                    imgReady && imgRef.current
+                      ? imgRef.current.naturalHeight * displayScale
+                      : undefined
+                  }
+                  onImgLoad={syncCanvasSize}
+                  onImgError={handleImgError}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerLeave={handleCanvasPointerLeave}
+                />
+              )}
           </div>
         </div>
 
         {textDraft ? (
-          <div
-            className="jp-annotate-text-pop"
-            style={{ left: textDraft.screenX, top: textDraft.screenY }}
-          >
-            <div
-              className="jp-annotate-text-pop-handle"
-              onPointerDown={handleTextPopDragDown}
-              onPointerMove={handleTextPopDragMove}
-              onPointerUp={handleTextPopDragUp}
-              onPointerCancel={handleTextPopDragUp}
-            >
-              拖动
-            </div>
-            <input
-              ref={textInputRef}
-              type="text"
-              className="jp-annotate-text-input"
-              value={textDraft.value}
-              placeholder="输入文字，Enter 确认"
-              onChange={(e) =>
-                setTextDraft((prev) => (prev ? { ...prev, value: e.target.value } : prev))
-              }
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  confirmText();
-                }
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  setTextDraft(null);
-                  dragTextPopRef.current = null;
-                }
-              }}
-            />
-            <div className="jp-annotate-text-actions">
-              <button type="button" className="jp-annotate-text-btn" onClick={confirmText}>
-                确定
-              </button>
-              <button
-                type="button"
-                className="jp-annotate-text-btn"
-                onClick={() => {
-                  setTextDraft(null);
-                  dragTextPopRef.current = null;
-                }}
-              >
-                取消
-              </button>
-            </div>
-          </div>
+          <LessonAnnotateTextPop
+            draft={textDraft}
+            inputRef={textInputRef}
+            onChange={(value) =>
+              setTextDraft((prev) => (prev ? { ...prev, value } : prev))
+            }
+            onConfirm={confirmText}
+            onCancel={() => {
+              setTextDraft(null);
+              dragTextPopRef.current = null;
+            }}
+            onHandlePointerDown={handleTextPopDragDown}
+            onHandlePointerMove={handleTextPopDragMove}
+            onHandlePointerUp={handleTextPopDragUp}
+          />
         ) : null}
       </div>
 

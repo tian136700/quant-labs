@@ -9,6 +9,7 @@ import { JpVocabRefEditModal } from "@/components/JpVocabRefEditModal";
 import type { Locale } from "@/i18n/messages";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
 import type { JpLessonClassScheduleInput, JpLessonRecord, JpLessonTeacher, JpVocabRef } from "@/lib/types";
+import { refViewUrl } from "@/components/jp-lesson-page/jp-lesson-page-helpers";
 
 /** 含 pdfjs/jspdf：禁止打进 Worker，仅客户端懒加载 */
 const JpLessonAnnotateModal = dynamic(
@@ -184,6 +185,14 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
         lessonContent={annotatingLesson?.lesson.content ?? ""}
         locale={locale}
         canSave={canOperate}
+        viewUrl={
+          annotatingLesson?.lesson.ref_key
+            ? refViewUrl(
+                annotatingLesson.lesson.ref_key,
+                annotatingLesson.ref.updated_at
+              )
+            : ""
+        }
         onClose={() => setAnnotatingLesson(null)}
         onSaved={handleAnnotateSaved}
         onNeedAuth={openJpAuth}

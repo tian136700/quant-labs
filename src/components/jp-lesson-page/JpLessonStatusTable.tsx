@@ -144,13 +144,14 @@ export function JpLessonStatusTable({
 
   const renderLessonActions = (lesson: JpLessonRecord) => {
     const ref = lesson.ref_key ? refs[lesson.ref_key] : undefined;
-    const hasRef = Boolean(lesson.ref_key && ref);
+    const hasRefKey = Boolean(lesson.ref_key);
+    const hasRefMeta = Boolean(lesson.ref_key && ref);
     const viewUrl = lesson.ref_key ? refViewUrl(lesson.ref_key, ref?.updated_at) : "";
     const gid = (lesson.course_group_id || "").trim();
     const coursePair =
       canOperate && gid ? coursePairMap.get(gid) ?? null : null;
 
-    if (!hasRef) {
+    if (!hasRefKey) {
       return canOperate ? (
         <div className="jp-lesson-actions">
           <button
@@ -176,7 +177,7 @@ export function JpLessonStatusTable({
         href={viewUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="jp-lesson-action-btn"
+        className="jp-lesson-action-btn jp-lesson-action-btn--view"
       >
         <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
           <JpLessonMobileIcon name="view" />
@@ -184,7 +185,7 @@ export function JpLessonStatusTable({
         查看
       </a>,
     ];
-    if (ref && (ref.media_type === "image" || ref.media_type === "pdf")) {
+    if (hasRefMeta && ref && (ref.media_type === "image" || ref.media_type === "pdf")) {
       const imageUrl = jpVocabRefApiPath(lesson.ref_key!, { v: ref.updated_at });
       const mediaType = ref.media_type === "pdf" ? "pdf" : "image";
       actionItems.push(

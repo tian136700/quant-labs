@@ -153,69 +153,65 @@ export type AnnotatePdfImageStrip = {
   destroy: () => void;
 };
 
-/** 整份 PDF 按页转图后拼成一张竖向长图，供随手画一次竖滑批注。 */
+export type AnnotatePdfPageImage = {
+  dataUrl: string;
+  width: number;
+  height: number;
+};
+
+/** 整份 PDF 按页转成独立图片（竖滑堆叠用；勿拼超长单图）。 */
+export async function openAnnotatePdfAsPages(
+  url: string,
+  opts?: { onProgress?: (done: number, total: number) => void }
+): Promise<AnnotatePdfPageImage[]> {
+  const doc = await openAnnotatePdfFromUrl(url);
+  const total = doc.numPages;
+  opts?.onProgress?.(0, total);
+  const pages: AnnotatePdfPageImage[] = [];
+  try {
+    for (let i = 1; i <= total; i++) {
+      const dataUrl = await doc.getPageDataUrl(i);
+      const size = await measureDataUrlSize(dataUrl);
+      pages.push({ dataUrl, ...size });
+      opts?.onProgress?.(i, total);
+    }
+  } finally {
+    doc.destroy();
+  }
+  if (!pages.length) throw new Error("PDF 没有可显示的页");
+  return pages;
+}
+
+/** @deprecated 超长单图易触 canvas 上限；请用 openAnnotatePdfAsPages */
 export async function openAnnotatePdfAsImageStrip(
   url: string,
   opts?: { onProgress?: (done: number, total: number) => void }
 ): Promise<AnnotatePdfImageStrip> {
-  const doc = await openAnnotatePdfFromUrl(url);
-  const total = doc.numPages;
-  opts?.onProgress?.(0, total);
-
-  const pageImages: HTMLImageElement[] = [];
-  const pageHeights: number[] = [];
-  let width = 0;
-
-  try {
-    for (let i = 1; i <= total; i++) {
-      const dataUrl = await doc.getPageDataUrl(i);
-      const img = await loadImageFromDataUrl(dataUrl);
-      pageImages.push(img);
-      pageHeights.push(img.naturalHeight);
-      width = Math.max(width, img.naturalWidth);
-      opts?.onProgress?.(i, total);
-    }
-  } catch (err) {
-    doc.destroy();
-    throw err;
-  }
-
+  const pageImages = await openAnnotatePdfAsPages(url, opts);
+  const pageHeights = pageImages.map((p) => p.height);
+  const width = Math.max(1, ...pageImages.map((p) => p.width));
   const height = pageHeights.reduce((sum, h) => sum + h, 0);
-  if (width < 1 || height < 1) {
-    doc.destroy();
-    throw new Error("PDF 页面无效");
-  }
-
   const strip = document.createElement("canvas");
   strip.width = width;
   strip.height = height;
   const ctx = strip.getContext("2d");
-  if (!ctx) {
-    doc.destroy();
-    throw new Error("无法拼接 PDF 长图");
-  }
+  if (!ctx) throw new Error("无法拼接 PDF 长图");
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
-
   let y = 0;
-  for (const img of pageImages) {
+  for (const page of pageImages) {
+    const img = await loadImageFromDataUrl(page.dataUrl);
     const x = Math.floor((width - img.naturalWidth) / 2);
     ctx.drawImage(img, x, y);
     y += img.naturalHeight;
   }
-
-  const dataUrl = strip.toDataURL("image/png");
-  doc.destroy();
-
   return {
-    dataUrl,
+    dataUrl: strip.toDataURL("image/png"),
     width,
     height,
-    pageCount: total,
+    pageCount: pageImages.length,
     pageHeights,
-    destroy() {
-      /* strip 已导出 dataUrl；无额外资源 */
-    },
+    destroy() {},
   };
 }
 

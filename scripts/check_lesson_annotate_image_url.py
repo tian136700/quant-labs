@@ -86,12 +86,13 @@ CHECKS = [
                 r"drawSmearLabel\(",
                 r"tool === \"smear\"",
                 r'subject === "jp" \? "/api/jp-lesson/ref/replace"',
-                r"useLessonAnnotatePdfPages|openAnnotatePdfAsImageStrip",
+                r"useLessonAnnotatePdfPages|openAnnotatePdfAsPages",
+                r"LessonAnnotatePdfPagePreview|is-pdf-stack",
                 r"DEFAULT_OPEN_ZOOM\s*=\s*1",
                 r"ZOOM_MIN\s*=\s*0\.5",
                 r"ZOOM_MAX\s*=\s*2",
                 r"FIT_SIDE_GUTTER_PX",
-                r"splitAnnotatedStripToPdfBlob|composeAnnotatedPdfBlob|saveAnnotateSession",
+                r"composeAnnotatedPdfBlob|saveAnnotateSession",
             ],
             "forbid": [
                 r'SMEAR_COLOR\s*=\s*"#ffffff"',
@@ -100,6 +101,28 @@ CHECKS = [
                 r"DEFAULT_OPEN_ZOOM\s*=\s*Math\.min\(ZOOM_MAX,\s*ZOOM_STEP\s*\*\s*ZOOM_STEP\)",
                 r"ZOOM_MIN\s*=\s*1\b",
             ],
+        },
+    ),
+    (
+        "lesson list + annotate view button",
+        (ROOT / "src/components/jp-lesson-page/JpLessonStatusTable.tsx").read_text(
+            encoding="utf-8"
+        )
+        + "\n"
+        + (ROOT / "src/components/en-lesson-page/EnLessonStatusTable.tsx").read_text(
+            encoding="utf-8"
+        )
+        + "\n"
+        + (ROOT / "src/components/lesson-annotate/LessonAnnotateToolbar.tsx").read_text(
+            encoding="utf-8"
+        ),
+        {
+            "must": [
+                r"jp-lesson-action-btn--view",
+                r"查看",
+                r"viewUrl",
+            ],
+            "forbid": [],
         },
     ),
     (

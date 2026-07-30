@@ -1,20 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type LessonAnnotateMediaType = "image" | "pdf";
 
-export type AnnotatePdfStripMeta = {
-  pageCount: number;
-  /** 各页在长图中的像素高度（与 strip 同宽坐标系） */
-  pageHeights: number[];
-  stripWidth: number;
-  stripHeight: number;
+export type AnnotatePdfPage = {
+  dataUrl: string;
+  width: number;
+  height: number;
 };
 
 /**
- * PDF 教案：整份按页渲染后拼成一张可竖滑长图（非单页翻页）。
- * pdf 模块用 await import()，禁止静态 import lesson-annotate-pdf（Worker gzip）。
+ * PDF 教案：每一页转成独立图片，竖向堆叠下滑（禁止拼成一张超长图，避免 canvas 上限 / 无法翻页浏览）。
+ * pdf 模块 await import()，禁止静态 import lesson-annotate-pdf（Worker gzip）。
  */
 export function useLessonAnnotatePdfPages(opts: {
   open: boolean;
@@ -23,18 +21,14 @@ export function useLessonAnnotatePdfPages(opts: {
 }) {
   const { open, mediaType, sourceUrl } = opts;
   const isPdf = mediaType === "pdf" && Boolean(sourceUrl);
-  const metaRef = useRef<AnnotatePdfStripMeta | null>(null);
 
-  const [pageDataUrl, setPageDataUrl] = useState("");
-  const [pageCount, setPageCount] = useState(0);
+  const [pages, setPages] = useState<AnnotatePdfPage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadProgress, setLoadProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState("");
 
   const reset = useCallback(() => {
-    metaRef.current = null;
-    setPageDataUrl("");
-    setPageCount(0);
+    setPages([]);
     setLoading(false);
     setLoadProgress({ done: 0, total: 0 });
     setError("");
@@ -49,33 +43,21 @@ export function useLessonAnnotatePdfPages(opts: {
     let cancelled = false;
     setLoading(true);
     setError("");
-    setPageDataUrl("");
+    setPages([]);
     setLoadProgress({ done: 0, total: 0 });
-    metaRef.current = null;
 
     void (async () => {
       try {
-        const { openAnnotatePdfAsImageStrip } = await import(
+        const { openAnnotatePdfAsPages } = await import(
           "@/components/lesson-annotate/lesson-annotate-pdf"
         );
-        const strip = await openAnnotatePdfAsImageStrip(sourceUrl, {
+        const loaded = await openAnnotatePdfAsPages(sourceUrl, {
           onProgress: (done, total) => {
             if (!cancelled) setLoadProgress({ done, total });
           },
         });
-        if (cancelled) {
-          strip.destroy();
-          return;
-        }
-        metaRef.current = {
-          pageCount: strip.pageCount,
-          pageHeights: strip.pageHeights,
-          stripWidth: strip.width,
-          stripHeight: strip.height,
-        };
-        setPageCount(strip.pageCount);
-        setPageDataUrl(strip.dataUrl);
-        strip.destroy();
+        if (cancelled) return;
+        setPages(loaded);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "PDF 加载失败");
@@ -89,15 +71,12 @@ export function useLessonAnnotatePdfPages(opts: {
     };
   }, [open, isPdf, sourceUrl, reset]);
 
-  const getStripMeta = useCallback(() => metaRef.current, []);
-
   return {
     isPdf,
-    pageCount,
-    pageDataUrl,
+    pages,
+    pageCount: pages.length,
     loading,
     loadProgress,
     error,
-    getStripMeta,
   };
 }

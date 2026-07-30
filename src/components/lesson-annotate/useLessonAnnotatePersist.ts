@@ -5,9 +5,8 @@ import {
   downloadAnnotateSession,
   saveAnnotateSession,
 } from "@/components/lesson-annotate/lesson-annotate-save";
-import { renderAnnotatedBlob } from "@/components/lesson-annotate/lesson-annotate-draw";
 import type { Stroke } from "@/components/lesson-annotate/lesson-annotate-draw";
-import type { useLessonAnnotatePdfPages } from "@/components/lesson-annotate/useLessonAnnotatePdfPages";
+import type { AnnotatePdfPage } from "@/components/lesson-annotate/useLessonAnnotatePdfPages";
 import type {
   EnLessonRecord,
   EnVocabRef,
@@ -15,12 +14,15 @@ import type {
   JpVocabRef,
 } from "@/lib/types";
 
-type PdfPagesApi = ReturnType<typeof useLessonAnnotatePdfPages>;
 type AnnotateSubject = "jp" | "en";
 
 export function useLessonAnnotatePersist(opts: {
-  pdf: PdfPagesApi;
+  isPdf: boolean;
+  pdfPages: AnnotatePdfPage[];
+  /** 当前编辑页（图片模式恒为 0） */
+  activePageIndex: number;
   strokes: Stroke[];
+  strokesByPageRef: RefObject<Map<number, Stroke[]>>;
   imgRef: RefObject<HTMLImageElement | null>;
   refKey: string;
   lessonId: number;
@@ -34,8 +36,11 @@ export function useLessonAnnotatePersist(opts: {
   ) => void;
 }) {
   const {
-    pdf,
+    isPdf,
+    pdfPages,
+    activePageIndex,
     strokes,
+    strokesByPageRef,
     imgRef,
     refKey,
     lessonId,
@@ -51,32 +56,22 @@ export function useLessonAnnotatePersist(opts: {
   const [saveStatus, setSaveStatus] = useState("");
 
   const buildPdfBlobFromSession = useCallback(async () => {
-    const img = imgRef.current;
-    const meta = pdf.getStripMeta();
-    if (!img?.naturalWidth || !meta?.pageHeights.length) {
-      throw new Error("PDF 未就绪");
-    }
-    const annotated = await renderAnnotatedBlob(img, strokes);
-    const objectUrl = URL.createObjectURL(annotated);
-    try {
-      const annotatedImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const el = new Image();
-        el.onload = () => resolve(el);
-        el.onerror = () => reject(new Error("批注图加载失败"));
-        el.src = objectUrl;
-      });
-      const { splitAnnotatedStripToPdfBlob } = await import(
-        "@/components/lesson-annotate/lesson-annotate-pdf"
-      );
-      return splitAnnotatedStripToPdfBlob({
-        annotatedStrip: annotatedImg,
-        pageHeights: meta.pageHeights,
-        stripWidth: meta.stripWidth || annotatedImg.naturalWidth,
-      });
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  }, [imgRef, pdf, strokes]);
+    if (!pdfPages.length) throw new Error("PDF 未就绪");
+    const map = new Map(strokesByPageRef.current ?? []);
+    map.set(activePageIndex, strokes);
+    const { composeAnnotatedPdfBlob } = await import(
+      "@/components/lesson-annotate/lesson-annotate-pdf"
+    );
+    return composeAnnotatedPdfBlob({
+      getPageDataUrl: async (pageNumber1Based) => {
+        const page = pdfPages[pageNumber1Based - 1];
+        if (!page) throw new Error("页码无效");
+        return page.dataUrl;
+      },
+      pageCount: pdfPages.length,
+      strokesByPage: map,
+    });
+  }, [activePageIndex, pdfPages, strokes, strokesByPageRef]);
 
   const downloadAnnotated = async () => {
     const img = imgRef.current;
@@ -90,8 +85,8 @@ export function useLessonAnnotatePersist(opts: {
         lessonId,
         subject,
         locale,
-        isPdf: pdf.isPdf,
-        buildPdfBlob: pdf.isPdf ? buildPdfBlobFromSession : undefined,
+        isPdf,
+        buildPdfBlob: isPdf ? buildPdfBlobFromSession : undefined,
       });
     } catch {
       window.alert("下载失败，请重试");
@@ -107,8 +102,8 @@ export function useLessonAnnotatePersist(opts: {
       onNeedAuth?.();
       return;
     }
-    const confirmMsg = pdf.isPdf
-      ? "将用当前长图批注按页裁回 PDF 并覆盖线上教案，其他新课不受影响。确定保存吗？"
+    const confirmMsg = isPdf
+      ? "将把各页批注写回 PDF 并覆盖线上教案，其他新课不受影响。确定保存吗？"
       : "将用当前批注覆盖线上教案图片，其他新课不受影响。确定保存吗？";
     if (!window.confirm(confirmMsg)) return;
 
@@ -122,8 +117,8 @@ export function useLessonAnnotatePersist(opts: {
         lessonId,
         subject,
         locale,
-        isPdf: pdf.isPdf,
-        buildPdfBlob: pdf.isPdf ? buildPdfBlobFromSession : undefined,
+        isPdf,
+        buildPdfBlob: isPdf ? buildPdfBlobFromSession : undefined,
         onNeedAuth,
         onSaved,
       });

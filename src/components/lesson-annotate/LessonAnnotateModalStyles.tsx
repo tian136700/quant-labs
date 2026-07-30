@@ -187,6 +187,51 @@ export function LessonAnnotateModalStyles() {
         justify-content: center;
       }
 
+      .jp-annotate-stage-inner.is-pdf-stack {
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 1rem;
+        padding-bottom: 1.5rem;
+      }
+
+      .jp-annotate-page {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+      }
+
+      .jp-annotate-page-tab {
+        min-height: 1.75rem;
+        padding: 0.2rem 0.65rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+
+      .jp-annotate-page-tab.is-active,
+      .jp-annotate-page.is-active .jp-annotate-page-tab {
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+        background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        cursor: default;
+      }
+
+      .jp-annotate-canvas-wrap.is-preview {
+        cursor: pointer;
+        outline: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+      }
+
+      .jp-annotate-canvas-wrap.is-preview .jp-annotate-canvas {
+        pointer-events: none;
+        touch-action: pan-y;
+      }
+
       .jp-annotate-loading {
         position: absolute;
         z-index: 1;

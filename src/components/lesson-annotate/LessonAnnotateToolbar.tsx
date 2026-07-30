@@ -22,8 +22,10 @@ export type LessonAnnotateToolbarProps = {
   downloading: boolean;
   saving: boolean;
   saveStatus: string;
-  /** PDF 长图页数；0 表示非 PDF */
+  /** PDF 页数；0 表示非 PDF */
   pdfPageCount: number;
+  /** 教案查看页 URL；有则显示「查看」 */
+  viewUrl?: string;
   onToolChange: (tool: AnnotateTool) => void;
   onTextFontSizeChange: (size: number) => void;
   onZoomIn: () => void;
@@ -50,6 +52,7 @@ export function LessonAnnotateToolbar({
   saving,
   saveStatus,
   pdfPageCount,
+  viewUrl = "",
   onToolChange,
   onTextFontSizeChange,
   onZoomIn,
@@ -73,8 +76,18 @@ export function LessonAnnotateToolbar({
         <div className="jp-annotate-tools">
           {pdfPageCount > 1 ? (
             <span className="jp-annotate-text-size-value" aria-live="polite">
-              共 {pdfPageCount} 页 · 下滑浏览
+              共 {pdfPageCount} 页 · 下滑切换
             </span>
+          ) : null}
+          {viewUrl ? (
+            <a
+              href={viewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="jp-annotate-tool jp-annotate-tool--accent"
+            >
+              查看
+            </a>
           ) : null}
           {(
             [
@@ -198,7 +211,7 @@ export function LessonAnnotateToolbar({
       <p className="jp-annotate-hint">
         「涂抹」：拖拽框选正方/长方形，松手后用不透明深色盖住原文，并自动写上「此内容由AI生成，经核验不准确，已涂抹」。「文字」下点击空白添加文字，拖动输入框可移到目标位置；点击已有文字可选中并拖动，按 Backspace / Delete 删除选中文字；字号滑条调节新文字或选中文字大小。
         {pdfPageCount > 0
-          ? " PDF 已全部转成竖向长图，可下滑浏览每一页；「保存为最新教案」会按页裁回 PDF 覆盖线上文件。"
+          ? " PDF 每一页已转成独立图片，可上下滑动浏览；点某页可编辑该页。「保存为最新教案」会按页写回 PDF。"
           : " 保存为最新教案会覆盖线上图片。"}
         关闭后未保存的批注即消失。
       </p>
