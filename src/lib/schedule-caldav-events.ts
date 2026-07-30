@@ -10,8 +10,8 @@ import { listJpLessons } from "@/lib/jp-lesson-db";
 import {
   flattenJpLessonScheduleEvents,
   normalizeClassAtForCompare,
-  resolveClassDurationMinutes,
 } from "@/lib/jp-lesson-shared";
+import { resolveManualScheduleDurationMinutes } from "@/lib/jp-lesson-manual-schedule";
 import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
 import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 
@@ -314,7 +314,10 @@ export async function listScheduleCalDavEvents(
         manual.note.trim() || null,
       ]),
       class_at: manual.class_at,
-      duration_minutes: resolveClassDurationMinutes(manual.duration_minutes),
+      duration_minutes: resolveManualScheduleDurationMinutes(
+        manual.title,
+        manual.duration_minutes
+      ),
       teachers,
       title,
       manual_id: manual.id,

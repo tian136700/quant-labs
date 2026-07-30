@@ -50,6 +50,33 @@ def main() -> int:
         errors.append("selecting 闲鱼英语抽查 must auto-fill teacher name")
     if 'setDuration("30")' not in modal and "setDuration('30')" not in modal:
         errors.append("selecting 闲鱼英语抽查 must default duration to 30 minutes")
+    if "DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES" not in modal:
+        errors.append(
+            "manual schedule must import DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES "
+            "for English title default (25)"
+        )
+    if 'preset === "英语"' not in modal and "preset === '英语'" not in modal:
+        errors.append("selecting title 英语 must set English default duration")
+    if "resolveManualScheduleDurationMinutes" not in (
+        ROOT / "src/lib/jp-lesson-manual-schedule.ts"
+    ).read_text(encoding="utf-8"):
+        errors.append(
+            "jp-lesson-manual-schedule must resolve empty English titles to 25 "
+            "via resolveManualScheduleDurationMinutes"
+        )
+    caldav = (ROOT / "src/lib/schedule-caldav-events.ts").read_text(encoding="utf-8")
+    if "resolveManualScheduleDurationMinutes" not in caldav:
+        errors.append(
+            "schedule-caldav-events must use resolveManualScheduleDurationMinutes "
+            "for manual entries (English → 25, not JP 55)"
+        )
+    if re.search(
+        r"resolveClassDurationMinutes\(\s*manual\.duration_minutes\s*\)", caldav
+    ):
+        errors.append(
+            "schedule-caldav-events must not fall back manual duration with "
+            "resolveClassDurationMinutes alone"
+        )
 
     if "addKoLessonTeacher" not in page:
         errors.append("JpLessonSchedulePage must define addKoLessonTeacher")

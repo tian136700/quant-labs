@@ -27,8 +27,10 @@ import {
 } from "@/lib/jp-lesson-teacher-default-duration";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
 import type { EnLessonRecord, JpLessonRecord, JpLessonTeacher } from "@/lib/types";
+import { DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES } from "@/lib/en-lesson-shared";
 import {
   beijingTodayDateString,
+  DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
   formatNextClassHalfHourLabel,
   JP_LESSON_CLASS_DURATION_MINUTES,
   listNextClassHalfHourTimes,
@@ -219,6 +221,11 @@ export function JpLessonManualScheduleModal({
     if (preset === "闲鱼英语抽查") {
       applyTeacherName("闲鱼英语抽查");
       setDuration("30");
+      return;
+    }
+    // 英语课默认 25 分钟（与英语新课一致；勿留空落到日语默认 55）
+    if (preset === "英语") {
+      setDuration(String(DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES));
     }
   };
 
@@ -475,7 +482,11 @@ export function JpLessonManualScheduleModal({
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
                   >
-                    <option value="">默认 55 分钟</option>
+                    <option value="">
+                      {teacherSubject === "en"
+                        ? `默认 ${DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES} 分钟`
+                        : `默认 ${DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES} 分钟`}
+                    </option>
                     {DURATION_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}

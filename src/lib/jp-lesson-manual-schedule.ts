@@ -1,3 +1,4 @@
+import { resolveEnClassDurationMinutes } from "@/lib/en-lesson-shared";
 import {
   parseBeijingDateTime,
   resolveClassDurationMinutes,
@@ -6,6 +7,7 @@ import {
   normalizeManualScheduleLinkedLessons,
   type ManualScheduleLinkedLesson,
 } from "@/lib/jp-lesson-manual-schedule-linked";
+import { detectScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
 
 export const JP_LESSON_MANUAL_SCHEDULE_STORAGE_KEY = "jp-lesson-manual-schedules";
 
@@ -221,12 +223,29 @@ export type JpLessonSchedulePageEvent = {
   manualNote?: string;
 };
 
+/**
+ * 手动日程未填时长时的默认：标题含英语 → 25 分钟；其余 → 日语默认 55。
+ * 网页日程与 CalDAV/ICS 须共用，避免英语手动课被当成 55。
+ */
+export function resolveManualScheduleDurationMinutes(
+  title: string,
+  durationMinutes: number | null | undefined
+): number {
+  if (detectScheduleTeacherSubjectFromTitle(title) === "en") {
+    return resolveEnClassDurationMinutes(durationMinutes);
+  }
+  return resolveClassDurationMinutes(durationMinutes);
+}
+
 export function manualScheduleToPageEvent(
   manual: JpLessonManualSchedule
 ): JpLessonSchedulePageEvent | null {
   const start = parseBeijingDateTime(manual.class_at);
   if (!start) return null;
-  const durationMinutes = resolveClassDurationMinutes(manual.duration_minutes);
+  const durationMinutes = resolveManualScheduleDurationMinutes(
+    manual.title,
+    manual.duration_minutes
+  );
   return {
     key: `manual-${manual.id}`,
     classAt: manual.class_at,
