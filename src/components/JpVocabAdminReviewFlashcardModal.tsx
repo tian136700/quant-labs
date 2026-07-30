@@ -537,7 +537,6 @@ export function JpVocabAdminReviewFlashcardModal({
           )}
         </section>
         <JpVocabAnnotationSection annotation={w.annotation} />
-        <JpVocabCourseLabelSection courseLabel={w.course_label} />
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">
@@ -598,6 +597,8 @@ export function JpVocabAdminReviewFlashcardModal({
             <span className="chg-up">不熟悉 {w.cnt_weak}</span>
           </div>
         </div>
+
+        <JpVocabCourseLabelSection courseLabel={w.course_label} />
 
         <div className="jp-vocab-teacher-quiz__nav">
           <button

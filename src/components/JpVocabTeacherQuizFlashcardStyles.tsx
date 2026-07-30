@@ -1420,23 +1420,25 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           color: var(--text);
         }
         .jp-vocab-teacher-quiz__course-label {
-          padding: 0.3rem 0.55rem;
-          border-radius: 8px;
-          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-          background: color-mix(in srgb, var(--muted) 6%, transparent);
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+          padding: 0.15rem 0.1rem 0.05rem;
+          margin-top: 0.1rem;
         }
-        .jp-vocab-teacher-quiz__course-label-title {
-          margin: 0 0 0.1rem;
+        .jp-vocab-teacher-quiz__course-label-tag {
+          display: inline-block;
+          max-width: 100%;
+          padding: 0.12rem 0.45rem;
+          border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+          background: color-mix(in srgb, var(--muted) 8%, transparent);
+          color: var(--muted);
           font-size: 0.6875rem;
-          font-weight: 600;
-          color: var(--muted);
-        }
-        .jp-vocab-teacher-quiz__course-label-value {
-          margin: 0;
-          font-size: 0.75rem;
+          font-weight: 500;
           line-height: 1.35;
-          color: var(--muted);
           overflow-wrap: anywhere;
+          opacity: 0.9;
         }
         .jp-vocab-teacher-quiz__nav {
           display: flex;

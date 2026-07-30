@@ -3,11 +3,12 @@
 
 用途
 ----
-一次请求同时上传「单词课」和「语法课」（可各带教案），例如标日第 23 课：
+一次请求同时上传「单词课」和「语法课」（可各带教案），例如标日初级上册第 23 课：
 - 日语新课列表里仍是 **两条**：类型分别是「单词」「语法」
-- 新增「教材」列：两边都显示同一课名，如 **标日23课**
+- 新增「教材」列：两边都显示同一课名，如 **标日初级上册第23课**
 - 服务端写入相同的 `course_group_id`，标记属于同一课
 - 各自在列表标「已完成」后，分别同步到日语抽问（与旧单传行为一致）
+- **教材课次会带到词条**：抽问/带读/学生卡片靠后显示小标签（同一 course_label）
 
 旧接口（只传单词 **或** 只传语法）继续用：
   POST /api/jp-lesson/upload
@@ -40,7 +41,7 @@ token 与现有教案 / 日语上传共用（环境变量 JP_REVIEW_UPLOAD_TOKEN
 | 一次传什么 | 单词 **或** 语法 | 单词 **和** 语法 |
 | 列表行数 | 1 条 | **2 条**（word + grammar） |
 | 类型列 | 单词 / 语法 | 仍是单词 / 语法（分开） |
-| 教材列 | 空（—） | 显示 course_label（如标日23课） |
+| 教材列 | 空（—） | 显示 course_label（如标日初级上册第23课） |
 | 教案 | 一个 file | 推荐 word_file + grammar_file 各一份 |
 
 
@@ -50,7 +51,8 @@ token 与现有教案 / 日语上传共用（环境变量 JP_REVIEW_UPLOAD_TOKEN
 1）multipart/form-data（推荐，可带教案图/PDF）
 
 必填：
-  course_label       同一课教材名，如「标日23课」（列表「教材」列展示）
+  course_label       同一课教材名，如「标日初级上册第23课」
+                     （新课「教材」列 + 标已完成后抽问卡片小标签）
   word_content       单词列表，英文/中文逗号或顿号分隔
   grammar_content    语法列表，分隔规则同上
 
@@ -72,7 +74,7 @@ token 与现有教案 / 日语上传共用（环境变量 JP_REVIEW_UPLOAD_TOKEN
 2）JSON（无文件时）
 
 {
-  "course_label": "标日23课",
+  "course_label": "标日初级上册第23课",
   "word_content": "東, 西, 南, 北",
   "word_meanings": "东|西|南|北",
   "grammar_content": "～によると, ～について",
@@ -84,10 +86,10 @@ token 与现有教案 / 日语上传共用（环境变量 JP_REVIEW_UPLOAD_TOKEN
 ------------
 {
   "ok": true,
-  "course_label": "标日23课",
+  "course_label": "标日初级上册第23课",
   "course_group_id": "cg_m5abc_x7k2",
-  "word_lesson": { "id": 101, "kind": "word", "course_label": "标日23课", "…": "…" },
-  "grammar_lesson": { "id": 102, "kind": "grammar", "course_label": "标日23课", "…": "…" },
+  "word_lesson": { "id": 101, "kind": "word", "course_label": "标日初级上册第23课", "…": "…" },
+  "grammar_lesson": { "id": 102, "kind": "grammar", "course_label": "标日初级上册第23课", "…": "…" },
   "lessons": [ /* word_lesson, grammar_lesson */ ],
   "word_ref_key": "lesson-101",
   "grammar_ref_key": "lesson-102",
@@ -109,7 +111,7 @@ curl 示例（单词教案 + 语法教案）
 --------------------------------
 curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson/upload-mixed' \
   -H 'Authorization: Bearer 你的TOKEN' \
-  -F 'course_label=标日23课' \
+  -F 'course_label=标日初级上册第23课' \
   -F 'word_content=東, 西, 南, 北' \
   -F 'word_meanings=东|西|南|北' \
   -F 'grammar_content=～によると, ～について' \
@@ -129,7 +131,7 @@ URL = "https://japanese.info-quests.com/api/jp-lesson/upload-mixed"
 TOKEN = "你的TOKEN"
 
 payload = {
-    "course_label": "标日23课",
+    "course_label": "标日初级上册第23课",
     "word_content": "東, 西, 南, 北",
     "grammar_content": "～によると, ～について",
 }
@@ -159,7 +161,7 @@ print("word_id=", data["word_lesson"]["id"], "grammar_id=", data["grammar_lesson
 2. 旧数据（单传 / 历史上传）教材列为空「—」，不受影响。
 3. 分别标「已完成」后：
    - 单词进抽问（不写释义），语法进抽问（写释义）；例句有则写入
-   - **course_label 一并写入词条**；抽问/带读/学生/复习卡片偏后（标注下方）显示「教材：…」
+   - **course_label 一并写入词条**；抽问/带读/学生/复习卡片**靠后**（熟悉程度/统计之后）显示弱标签，如「标日初级上册第23课」
 
 
 联系 / 改接口时

@@ -749,7 +749,6 @@ export function JpVocabTeacherQuizFlashcardModal({
           </section>
         ) : null}
         <JpVocabAnnotationSection annotation={w.annotation} />
-        <JpVocabCourseLabelSection courseLabel={w.course_label} />
         </div>
 
         <div className="jp-vocab-teacher-quiz__level">
@@ -911,6 +910,9 @@ export function JpVocabTeacherQuizFlashcardModal({
             <span className="chg-up">不熟悉 {w.cnt_weak}</span>
           </div>
         </div>
+
+        {/* 教材课次：次要信息，放在熟悉程度/统计之后 */}
+        <JpVocabCourseLabelSection courseLabel={w.course_label} />
 
         <div className="jp-vocab-teacher-quiz__nav">
           {!isStudy ? (

@@ -1,6 +1,6 @@
 "use client";
 
-/** 抽问/带读/学生/复习卡：偏后展示教材课次（如「标日初级上册第23课」） */
+/** 抽问/带读/学生/复习卡：次要教材课次标签（如「标日初级上册第23课」），靠后弱展示 */
 export function JpVocabCourseLabelSection({
   courseLabel,
 }: {
@@ -10,12 +10,13 @@ export function JpVocabCourseLabelSection({
   if (!value) return null;
 
   return (
-    <section
+    <div
       className="jp-vocab-teacher-quiz__course-label"
-      aria-label="教材"
+      aria-label={`教材：${value}`}
     >
-      <h3 className="jp-vocab-teacher-quiz__course-label-title">教材</h3>
-      <p className="jp-vocab-teacher-quiz__course-label-value">{value}</p>
-    </section>
+      <span className="jp-vocab-teacher-quiz__course-label-tag" title={value}>
+        {value}
+      </span>
+    </div>
   );
 }
