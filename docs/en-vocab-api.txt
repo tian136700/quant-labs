@@ -1,0 +1,195 @@
+英语抽背 · 熟悉程度 / 同步学生 API
+================================
+
+用途
+----
+老师端抽查卡相关写库接口（网页主路径；其它项目也可按同约定调用）：
+
+1) POST /api/en-vocab
+   - 整词勾选：`level`
+   - 或按用法勾齐：`usage_levels`（有编号用法时）
+   → **只写熟悉程度 / 用法档**，不同步学生
+
+2) POST /api/en-vocab/share
+   把该词同步到学生「今日背英语单词」→ **每词今日只成功一次**
+   （产品约定：老师点「下一个」/「完成抽查」时再调；已共享则勿重复发）
+
+说明：勾选 / 用法勾齐 **不会** 再自动 shareToStudy。学生端自动弹卡依赖 share 成功
+（或学生 peek「查看老师正在抽查的单词」）。
+
+
+线上地址
+--------
+POST https://english.info-quests.com/api/en-vocab
+POST https://english.info-quests.com/api/en-vocab/share
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/en-vocab
+POST http://127.0.0.1:3002/api/en-vocab/share
+
+
+鉴权
+----
+须登录 Cookie 会话（英语老师 operate / 管理员）。
+
+Header（可选，影响错误文案语言）：
+  x-locale: zh | en
+  Content-Type: application/json
+
+
+────────────────────────────────
+POST · 勾选熟悉程度（不共享）
+────────────────────────────────
+
+请求体（二选一）
+----------------
+整词三档：
+{
+  "word_id": 45,
+  "level": "weak"   // very | normal | weak
+}
+
+有编号用法（须全部勾齐后再 POST）：
+{
+  "word_id": 45,
+  "usage_levels": ["very", "normal"]
+}
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "word": { "id": 45, "word": "…", "last_review_level": "…",
+            "last_usage_levels": "…", … },
+  "shared": false,
+  "shared_new": false
+}
+
+说明：
+- 当前实现固定 **不** 在勾选时写入今日共享；`shared` / `shared_new` 一般为 false。
+- 勿再假定「勾齐用法 = 已同步给学生」。
+
+
+失败响应
+--------
+401  { "ok": false, "error": "…" }
+400  { "ok": false, "error": "level_invalid" }
+400  { "ok": false, "error": "usage_levels_invalid" }
+400  { "ok": false, "error": "usage_levels_count_mismatch" }
+400  { "ok": false, "error": "review_locked" }   // 勾选已满 1 小时等
+404  { "ok": false, "error": "not_found" }
+
+
+curl 示例
+---------
+# 整词
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":45,"level":"normal"}'
+
+# 按用法（须与编号用法条数一致）
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":45,"usage_levels":["very","normal"]}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.post(
+    f"{BASE}/api/en-vocab",
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    json={"word_id": 45, "level": "normal"},
+    # 或：json={"word_id": 45, "usage_levels": ["very", "normal"]},
+    timeout=60,
+)
+print(r.status_code, r.json())
+
+
+────────────────────────────────
+POST · 同步给学生（今日共享）
+────────────────────────────────
+
+请求体
+------
+{
+  "word_id": 45
+}
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "word": { … },
+  "item": { … }   // 若有，共享列表项
+}
+
+
+失败响应
+--------
+401 / 403  未登录或无权共享
+400  { "ok": false, "error": "word_id_invalid" }
+404  { "ok": false, "error": "not_found" }
+409  { "ok": false, "error": "already_shared_today" }
+     → 今日已共享；产品上视为「不必再发」（网页点下一个会跳过）
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/share' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":45}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.post(
+    f"{BASE}/api/en-vocab/share",
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    json={"word_id": 45},
+    timeout=60,
+)
+print(r.status_code, r.json())
+
+
+推荐调用顺序（对齐老师端抽查卡）
+--------------------------------
+1. 用法/熟悉程度勾完 → POST /api/en-vocab 写库（不共享）
+2. 老师点「下一个」→ 若今日未共享 → POST /api/en-vocab/share
+3. 已共享（或 409 already_shared_today）→ 直接进下一词，勿重复 POST share
+
+
+相关
+----
+- 本地上传词条：docs/en-vocab-local-upload-api.txt
+- 产品规则：.cursor/rules/jp-vocab-share-on-next.mdc、en-vocab-usage-level-aggregate.mdc
+- 实现：src/app/api/en-vocab/route.ts、src/app/api/en-vocab/share/route.ts
