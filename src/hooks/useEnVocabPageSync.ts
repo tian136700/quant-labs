@@ -29,6 +29,7 @@ import {
   subscribeEnVocabAdminReset,
 } from "@/lib/en-vocab-reset-broadcast";
 import {
+  EN_VOCAB_TEACHER_VISIBLE_POLL_MS,
   JP_VOCAB_POLL_MS,
   JP_VOCAB_POLL_HIDDEN_MS,
   maxEnVocabUpdatedAt,
@@ -139,6 +140,55 @@ export function useEnVocabPageSync(options: {
     });
   }, []);
 
+  const applyTeacherVisibleSync = useCallback(
+    (raw: Partial<EnVocabTeacherVisibleLimit> | undefined) => {
+      if (!raw) return;
+      const next = normalizeEnVocabTeacherVisibleLimit(raw);
+      setTeacherVisibleLimit((prev) => {
+        if (shouldRejectStaleEnVocabTeacherVisibleLimit(prev, next)) {
+          return prev;
+        }
+        if (
+          prev.quiz_target === next.quiz_target &&
+          prev.date === next.date &&
+          (prev.visible_ids?.join(",") ?? "") ===
+            (next.visible_ids?.join(",") ?? "") &&
+          (prev.quiz_target_adjusted_at || "") ===
+            (next.quiz_target_adjusted_at || "")
+        ) {
+          return prev;
+        }
+        const cached = readEnVocabPageCache();
+        if (cached) {
+          writeClientCache(JP_VOCAB_CACHE_KEY, {
+            ...cached,
+            teacher_visible_limit: next,
+          });
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  const syncTeacherVisibleLimitFromServer = useCallback(async () => {
+    try {
+      const res = await fetch("/api/en-vocab/teacher-visible", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = (await res.json()) as {
+        ok: boolean;
+        teacher_visible_limit?: Partial<EnVocabTeacherVisibleLimit>;
+      };
+      if (data.ok) {
+        applyTeacherVisibleSync(data.teacher_visible_limit);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [applyTeacherVisibleSync]);
+
   const loadWords = useCallback(async (opts?: { force?: boolean }) => {
     const cached = readEnVocabPageCache();
     const hasCache = cached != null;
@@ -157,6 +207,8 @@ export function useEnVocabPageSync(options: {
       setLoading(true);
     }
 
+    onLoadError("");
+    void syncTeacherVisibleLimitFromServer();
     try {
       const payload = await fetchWithClientCache(
         JP_VOCAB_CACHE_KEY,
@@ -177,7 +229,7 @@ export function useEnVocabPageSync(options: {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [applyVocabPayload, onLoadError]);
+  }, [applyVocabPayload, onLoadError, syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
     if (checking || !user) return;
@@ -262,13 +314,13 @@ export function useEnVocabPageSync(options: {
     return subscribeEnVocabAdminReset(handleRemoteAdminReset);
   }, [checking, user, handleRemoteAdminReset]);
 
-  // 管理员改「今日抽查数量」：同域标签页立刻拉一次（不靠定时轮询）
+  // 管理员改「今日抽查数量」：同域标签页立刻拉轻量配置（勿 force 全库，易 1102）
   useEffect(() => {
     if (checking || !user) return;
     return subscribeEnVocabQuizTargetUpdated(() => {
-      void loadWords({ force: true });
+      void syncTeacherVisibleLimitFromServer();
     });
-  }, [checking, user, loadWords]);
+  }, [checking, user, syncTeacherVisibleLimitFromServer]);
 
   useEffect(() => {
     if (checking || !user) return;
@@ -316,13 +368,12 @@ export function useEnVocabPageSync(options: {
       pollInFlightRef.current = true;
       try {
         const res = await fetch(
-          `/api/en-vocab/sync?since=${encodeURIComponent(since)}`,
-          { credentials: "include" }
+          `/api/en-vocab/sync?since=${encodeURIComponent(since)}&limit=0`,
+          { credentials: "include", cache: "no-store" }
         );
         const data = (await res.json()) as {
           ok: boolean;
           words?: EnVocabWord[];
-          teacher_visible_limit?: EnVocabTeacherVisibleLimit;
         };
         if (data.ok && Array.isArray(data.words) && data.words.length) {
           applySyncPatches(data.words);
@@ -336,34 +387,6 @@ export function useEnVocabPageSync(options: {
             // 多词熟悉程度被清空：多半是今日/全部重置
             onRemoteResetClearSessionRef.current?.();
           }
-        }
-        if (data.ok && data.teacher_visible_limit) {
-          const next = normalizeEnVocabTeacherVisibleLimit(
-            data.teacher_visible_limit
-          );
-          setTeacherVisibleLimit((prev) => {
-            if (shouldRejectStaleEnVocabTeacherVisibleLimit(prev, next)) {
-              return prev;
-            }
-            if (
-              prev.quiz_target === next.quiz_target &&
-              prev.date === next.date &&
-              (prev.visible_ids?.join(",") ?? "") ===
-                (next.visible_ids?.join(",") ?? "") &&
-              (prev.quiz_target_adjusted_at || "") ===
-                (next.quiz_target_adjusted_at || "")
-            ) {
-              return prev;
-            }
-            const cached = readEnVocabPageCache();
-            if (cached) {
-              writeClientCache(JP_VOCAB_CACHE_KEY, {
-                ...cached,
-                teacher_visible_limit: next,
-              });
-            }
-            return next;
-          });
         }
       } catch {
         /* 轮询失败静默，下轮再试 */
@@ -400,6 +423,62 @@ export function useEnVocabPageSync(options: {
     onRemoteResetClearSessionRef,
     enableBackgroundSyncPoll,
     teacherQuizPollIdle,
+  ]);
+
+  // 今日抽查数量：独立低频轮询（对齐日语，勿塞进每 5s 的词条 sync）
+  useEffect(() => {
+    if (checking || !user) return;
+    if (!enableBackgroundSyncPoll) return;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const pollDelay = () => {
+      if (teacherQuizIdleRef?.current) {
+        return resolveVocabPollIntervalMs({
+          activeMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_MS,
+          hiddenMs: VOCAB_TEACHER_QUIZ_SYNC_IDLE_HIDDEN_MS,
+          username: usernameRef.current,
+        });
+      }
+      return resolveVocabPollIntervalMs({
+        activeMs: EN_VOCAB_TEACHER_VISIBLE_POLL_MS,
+        hiddenMs: EN_VOCAB_TEACHER_VISIBLE_POLL_MS,
+        username: usernameRef.current,
+      });
+    };
+
+    const schedule = (delayMs = pollDelay()) => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void syncTeacherVisibleLimitFromServer().finally(() => schedule());
+      }, delayMs);
+    };
+
+    void syncTeacherVisibleLimitFromServer();
+    schedule();
+
+    const onVisibility = () => {
+      if (!document.hidden && !cancelled) {
+        if (timer) clearTimeout(timer);
+        void syncTeacherVisibleLimitFromServer();
+        schedule(300);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [
+    checking,
+    user,
+    enableBackgroundSyncPoll,
+    teacherQuizPollIdle,
+    syncTeacherVisibleLimitFromServer,
+    teacherQuizIdleRef,
   ]);
 
   return {

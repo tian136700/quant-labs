@@ -77,7 +77,6 @@ import {
   EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
   materializeEnVocabTeacherVisible,
   normalizeEnVocabTeacherVisibleLimit,
-  pickEnVocabVisibleIds,
   withEnVocabTargetAdjustmentMarker,
   type EnVocabTeacherVisibleLimit,
 } from "@/lib/en-vocab-teacher-visible";
@@ -201,6 +200,20 @@ export async function ensureEnVocabDailyDisplayOrder(
     order_algo: EN_VOCAB_DAILY_ORDER_ALGO,
   };
   await saveEnVocabDailyDisplayOrder(db, order);
+  // 跨日 / 算法升级：同步重物化老师可见池，避免仍用旧 visible_ids
+  const current = await getEnVocabTeacherVisibleLimit(db, { bypassCache: true });
+  await saveEnVocabTeacherVisibleLimit(
+    db,
+    materializeEnVocabTeacherVisible(
+      {
+        ...current,
+        date: today,
+        quiz_target: current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
+      },
+      words,
+      order
+    )
+  );
   return order;
 }
 
@@ -209,13 +222,27 @@ export async function refreshEnVocabDailyDisplayOrder(
   db: D1Database,
   words: EnVocabWord[]
 ): Promise<EnVocabDailyDisplayOrder> {
+  const today = beijingDateString();
   const order: EnVocabDailyDisplayOrder = {
-    date: beijingDateString(),
+    date: today,
     ids: computeEnVocabDailyDisplayOrder(words),
     round_checked_ids: [] as number[],
     order_algo: EN_VOCAB_DAILY_ORDER_ALGO,
   };
   await saveEnVocabDailyDisplayOrder(db, order);
+  const current = await getEnVocabTeacherVisibleLimit(db, { bypassCache: true });
+  await saveEnVocabTeacherVisibleLimit(
+    db,
+    materializeEnVocabTeacherVisible(
+      {
+        ...current,
+        date: today,
+        quiz_target: current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT,
+      },
+      words,
+      order
+    )
+  );
   return order;
 }
 
@@ -429,15 +456,12 @@ export async function ensureEnVocabTeacherVisibleLimit(
   }
 
   const quiz_target = current.quiz_target || EN_VOCAB_TEACHER_VISIBLE_DEFAULT;
-  const expectedIds = pickEnVocabVisibleIds(words, quiz_target, display_order.ids);
-  const poolMatchesOrder =
+  // 当日已有可见池则沿用（对齐日语）；日序算法升级时由 ensureEnVocabDailyDisplayOrder 强制重物化
+  if (
     current.date === today &&
-    current.released_today &&
-    !!current.visible_ids?.length &&
-    current.visible_ids.length === expectedIds.length &&
-    current.visible_ids.every((id, i) => id === expectedIds[i]);
-  // 日序算法升级后 display_order 已重排：须重物化 visible_ids，勿沿用旧池
-  if (poolMatchesOrder) {
+    current.visible_ids?.length &&
+    current.released_today
+  ) {
     return current;
   }
 

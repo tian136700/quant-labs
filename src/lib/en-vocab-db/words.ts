@@ -158,7 +158,6 @@ export async function listEnVocabWordsChangedSince(
   const marker = since.trim();
   if (!marker) return [];
 
-  await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
 
   if (enVocabDbState.devStoreEnabled) {

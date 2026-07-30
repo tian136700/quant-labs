@@ -26,6 +26,9 @@ export const JP_VOCAB_POLL_MS = 5_000;
 /** 标签页在后台时降频，避免浪费 Worker 配额 */
 export const JP_VOCAB_POLL_HIDDEN_MS = 20_000;
 
+/** 今日抽查目标同步（D1 读取，不必与词条补丁同频；对齐日语 30s） */
+export const EN_VOCAB_TEACHER_VISIBLE_POLL_MS = 30_000;
+
 export function maxEnVocabUpdatedAt(words: EnVocabWord[]): string {
   let max = "";
   for (const w of words) {

@@ -34,8 +34,8 @@ def main() -> int:
         errors.append("order_algo must be jp_priority_v1")
     if "enVocabDailyOrderAlgoCurrent" not in settings:
         errors.append("ensure must recompute when order_algo upgrades")
-    if "pickEnVocabVisibleIds" not in settings:
-        errors.append("ensure teacher visible must rematerialize when order changes")
+    if "materializeEnVocabTeacherVisible" not in settings:
+        errors.append("algo upgrade must rematerialize teacher visible pool")
 
     # 老师端「下一个」不得被整段 saveBusy（含分享同步）卡死
     if "if (saveBusy) return" in modal:
