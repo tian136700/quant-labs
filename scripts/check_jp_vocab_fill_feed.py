@@ -77,6 +77,16 @@ def main() -> int:
         raise SystemExit("FAIL: schedule line must mention 因熔断停机 when killed")
     if "copyCircuitDiag" not in app_js or 'id="vocab-fill-circuit-copy"' not in index_html:
         raise SystemExit("FAIL: 熔断红字条须有复制诊断信息按钮")
+    if "renderVocabFillCurrentBox" not in app_js or "isVocabFillWaitingCurrent" not in app_js:
+        raise SystemExit("FAIL: 正在处理须区分「查询下一词」与真实词条")
+    if "等待 list_missing" in app_js:
+        raise SystemExit("FAIL: UI 不得再展示 list_missing 技术占位")
+    jp_feed = (ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py").read_text(encoding="utf-8")
+    en_feed = (ROOT / "scripts/maintenance_center/en_vocab_fill_feed.py").read_text(encoding="utf-8")
+    if '"（等待 list_missing' in jp_feed or '"（等待 list_missing' in en_feed:
+        raise SystemExit("FAIL: feed 不得把 list_missing 塞进 word 字段")
+    if "waiting_list" not in jp_feed or "waiting_list" not in en_feed:
+        raise SystemExit("FAIL: feed 查询下一词须用 status=waiting_list")
     if 'data-fill-lang="jp"' not in index_html or 'data-fill-lang="en"' not in index_html:
         raise SystemExit("FAIL: missing 日语/英语 language tabs")
     if 'id="vocab-fill-panel-en"' not in index_html or 'id="en-fill-feed-rows"' not in index_html:
