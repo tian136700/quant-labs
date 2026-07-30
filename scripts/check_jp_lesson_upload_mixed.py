@@ -40,12 +40,24 @@ def main() -> int:
     if 'meaning: kind === "grammar"' not in lesson_text:
         errors.append("sync must gate meanings per item kind===grammar")
 
-    shared = ROOT / "src/lib/jp-lesson-shared.ts"
-    shared_text = shared.read_text(encoding="utf-8") if shared.is_file() else ""
-    if "export function resolveJpLessonItemKinds" not in shared_text:
-        errors.append("jp-lesson-shared.ts: missing resolveJpLessonItemKinds")
-    if 'return "单词加语法"' not in shared_text:
-        errors.append("jpLessonKindLabel must return 单词加语法")
+    # 教案 ref 替换：updateJpVocabWordsRefKey 只认 JpVocabKind，禁止把 lesson.kind 直接传入
+    ref_replace = ROOT / "src/app/api/jp-lesson/ref/replace/route.ts"
+    ref_text = ref_replace.read_text(encoding="utf-8") if ref_replace.is_file() else ""
+    if not ref_replace.is_file():
+        errors.append("missing jp-lesson/ref/replace/route.ts")
+    elif "resolveJpLessonItemKinds" not in ref_text:
+        errors.append(
+            "jp-lesson/ref/replace must use resolveJpLessonItemKinds "
+            "(updateJpVocabWordsRefKey cannot take lesson.kind=word_grammar)"
+        )
+    elif "lesson.kind," in ref_text and "updateJpVocabWordsRefKey" in ref_text:
+        # 粗检：调用块里不应再出现 lesson.kind 作为 kind 参数
+        if "updateJpVocabWordsRefKey(\n" in ref_text.replace("\r\n", "\n"):
+            block = ref_text.split("updateJpVocabWordsRefKey", 1)[-1][:400]
+            if "lesson.kind" in block:
+                errors.append(
+                    "jp-lesson/ref/replace must not pass lesson.kind to updateJpVocabWordsRefKey"
+                )
 
     types = ROOT / "src/lib/types.ts"
     types_text = types.read_text(encoding="utf-8") if types.is_file() else ""
@@ -53,6 +65,21 @@ def main() -> int:
         errors.append("types.ts: JpLessonKind must include word_grammar")
     if "JpLessonMixedUploadInput" not in types_text:
         errors.append("types.ts: missing JpLessonMixedUploadInput")
+    # 英语新课不得跟日语合传 kind（否则 updateEnVocabWordsRefKey 类型炸、部署失败）
+    if "export type EnLessonKind = JpLessonKind" in types_text:
+        errors.append(
+            "types.ts: EnLessonKind must stay word|grammar "
+            "(do not alias JpLessonKind which includes word_grammar)"
+        )
+    if 'export type EnLessonKind = "word" | "grammar"' not in types_text:
+        errors.append('types.ts: EnLessonKind must be "word" | "grammar"')
+
+    shared = ROOT / "src/lib/jp-lesson-shared.ts"
+    shared_text = shared.read_text(encoding="utf-8") if shared.is_file() else ""
+    if "export function resolveJpLessonItemKinds" not in shared_text:
+        errors.append("jp-lesson-shared.ts: missing resolveJpLessonItemKinds")
+    if 'return "单词加语法"' not in shared_text:
+        errors.append("jpLessonKindLabel must return 单词加语法")
 
     docs = ROOT / "docs/jp-lesson-upload-mixed-api.txt"
     if not docs.is_file():

@@ -301,6 +301,18 @@
     overflow-wrap: anywhere;
     word-break: break-word;
     white-space: normal;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.12rem;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-content-chip-annotation {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--muted);
   }
 
   .jp-lesson-page--ja .jp-lesson-mobile-content-text ,

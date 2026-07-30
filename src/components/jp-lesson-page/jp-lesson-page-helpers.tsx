@@ -23,6 +23,11 @@ import {
   type JpLessonProgressStatus,
 } from "@/lib/jp-lesson-shared";
 import {
+  alignLessonItemAnnotations,
+  formatLessonAnnotationsLines,
+  JP_VOCAB_ANNOTATION_LABEL,
+} from "@/lib/jp-vocab-annotation";
+import {
   readClientCache,
   writeClientCache,
 } from "@/lib/client-swr-cache";
@@ -226,6 +231,39 @@ export function JpLessonMeaningsPreview({
       ) : null}
     </div>
   );
+}
+
+/** 新课列表：备注级次要信息——口语/考试标注 */
+export function JpLessonAnnotationsPreview({
+  content,
+  annotations,
+}: {
+  content: string;
+  annotations: string | null | undefined;
+}) {
+  const lines = formatLessonAnnotationsLines(content, annotations);
+  if (!lines.length) {
+    return <span className="jp-lesson-examples-empty">—</span>;
+  }
+  return (
+    <div className="jp-lesson-annotations-preview" aria-label={JP_VOCAB_ANNOTATION_LABEL}>
+      <div className="jp-lesson-annotations-lines">
+        {lines.map((line, lineIdx) => (
+          <span key={lineIdx} className="jp-lesson-annotations-line">
+            {line}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function jpLessonItemAnnotation(
+  content: string,
+  annotations: string | null | undefined,
+  index: number
+): string | null {
+  return alignLessonItemAnnotations(content, annotations)[index] ?? null;
 }
 
 export function lessonHasExamples(

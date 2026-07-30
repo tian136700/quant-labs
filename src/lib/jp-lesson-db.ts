@@ -20,6 +20,10 @@ import {
   resolveJpLessonItemKinds,
   JP_LESSON_EXAMPLE_ITEM_SEP,
 } from "@/lib/jp-lesson-shared";
+import {
+  alignLessonItemAnnotations,
+  normalizeLessonAnnotationsForStorage,
+} from "@/lib/jp-vocab-annotation";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -48,6 +52,7 @@ let devNextId = 1;
 let devSeeded = false;
 let jpLessonMeaningsColumnReady = false;
 let jpLessonExampleSentencesColumnReady = false;
+let jpLessonAnnotationsColumnReady = false;
 let jpLessonLinkCopyCountColumnReady = false;
 let jpLessonGrammarItemCountColumnReady = false;
 
@@ -71,6 +76,17 @@ async function ensureJpLessonExampleSentencesColumn(db: D1Database): Promise<voi
     if (!/duplicate column name/i.test(msg)) throw err;
   }
   jpLessonExampleSentencesColumnReady = true;
+}
+
+async function ensureJpLessonAnnotationsColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || jpLessonAnnotationsColumnReady) return;
+  try {
+    await db.prepare(`ALTER TABLE jp_lesson ADD COLUMN annotations TEXT`).run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) throw err;
+  }
+  jpLessonAnnotationsColumnReady = true;
 }
 
 async function ensureJpLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
@@ -104,6 +120,7 @@ async function ensureJpLessonGrammarItemCountColumn(db: D1Database): Promise<voi
 async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
   await ensureJpLessonMeaningsColumn(db);
   await ensureJpLessonExampleSentencesColumn(db);
+  await ensureJpLessonAnnotationsColumn(db);
   await ensureJpLessonLinkCopyCountColumn(db);
   await ensureJpLessonGrammarItemCountColumn(db);
 }
@@ -217,7 +234,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, meanings, example_sentences, grammar_item_count, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, meanings, annotations, example_sentences, grammar_item_count, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -393,6 +410,10 @@ async function syncLessonToVocab(
     lesson.example_sentences
   );
   const itemMeanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
+  const itemAnnotations = alignLessonItemAnnotations(
+    lesson.content,
+    lesson.annotations
+  );
   const itemKinds = resolveJpLessonItemKinds(
     lesson.kind,
     items.length,
@@ -419,6 +440,7 @@ async function syncLessonToVocab(
         ref_key: refKey,
         meaning: kind === "grammar" ? (itemMeanings[index] ?? null) : null,
         example_sentences: itemExamples[index] ?? null,
+        annotation: itemAnnotations[index] ?? null,
       };
     }),
     refs
@@ -480,6 +502,14 @@ export async function createJpLesson(
 
   const title = (input.title || "").trim() || null;
   const meanings = normalizeLessonMeaningsForStorage(content, input.meanings);
+  const annotationsNorm = normalizeLessonAnnotationsForStorage(
+    content,
+    input.annotations
+  );
+  if (!annotationsNorm.ok) {
+    return { ok: false, error: annotationsNorm.error };
+  }
+  const annotations = annotationsNorm.value;
   const exampleSentences = normalizeLessonExampleSentencesForStorage(
     content,
     input.example_sentences
@@ -498,7 +528,7 @@ export async function createJpLesson(
       kind,
       content: storedContent,
       meanings,
-      annotations: null,
+      annotations,
       example_sentences: exampleSentences,
       grammar_item_count: grammarItemCount,
       title,
@@ -529,13 +559,14 @@ export async function createJpLesson(
 
   const result = await db
     .prepare(
-      `INSERT INTO jp_lesson (kind, content, meanings, example_sentences, grammar_item_count, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8, ?8, ?8)`
+      `INSERT INTO jp_lesson (kind, content, meanings, annotations, example_sentences, grammar_item_count, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, 0, ?9, ?9, ?9)`
     )
     .bind(
       kind,
       storedContent,
       meanings,
+      annotations,
       exampleSentences,
       grammarItemCount,
       title,
@@ -588,6 +619,33 @@ export async function createJpLessonMixed(
     "|"
   );
 
+  const wordAnnotationsNorm = normalizeLessonAnnotationsForStorage(
+    wordContentStored,
+    input.word_annotations
+  );
+  if (!wordAnnotationsNorm.ok) {
+    return { ok: false, error: wordAnnotationsNorm.error };
+  }
+  const grammarAnnotationsNorm = normalizeLessonAnnotationsForStorage(
+    grammarContentStored,
+    input.grammar_annotations
+  );
+  if (!grammarAnnotationsNorm.ok) {
+    return { ok: false, error: grammarAnnotationsNorm.error };
+  }
+  const wordAnnotationParts = alignLessonItemAnnotations(
+    wordContentStored,
+    wordAnnotationsNorm.value
+  );
+  const grammarAnnotationParts = alignLessonItemAnnotations(
+    grammarContentStored,
+    grammarAnnotationsNorm.value
+  );
+  const annotations = joinAlignedFieldParts(
+    [...wordAnnotationParts, ...grammarAnnotationParts],
+    "|"
+  );
+
   const wordExamplesNorm = normalizeLessonExampleSentencesForStorage(
     wordContentStored,
     input.word_example_sentences
@@ -623,7 +681,7 @@ export async function createJpLessonMixed(
       kind,
       content: storedContent,
       meanings,
-      annotations: null,
+      annotations,
       example_sentences: exampleSentences,
       grammar_item_count: grammarItemCount,
       title,
@@ -654,13 +712,14 @@ export async function createJpLessonMixed(
 
   const result = await db
     .prepare(
-      `INSERT INTO jp_lesson (kind, content, meanings, example_sentences, grammar_item_count, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8, ?8, ?8)`
+      `INSERT INTO jp_lesson (kind, content, meanings, annotations, example_sentences, grammar_item_count, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, 0, ?9, ?9, ?9)`
     )
     .bind(
       kind,
       storedContent,
       meanings,
+      annotations,
       exampleSentences,
       grammarItemCount,
       title,

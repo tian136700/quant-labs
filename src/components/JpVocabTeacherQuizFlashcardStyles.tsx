@@ -1401,6 +1401,24 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           font-size: 0.8125rem;
           line-height: 1.45;
         }
+        .jp-vocab-teacher-quiz__annotation {
+          padding: 0.35rem 0.6rem;
+          border-radius: 10px;
+          border: 1px dashed var(--border);
+          background: transparent;
+        }
+        .jp-vocab-teacher-quiz__annotation-title {
+          margin: 0 0 0.15rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__annotation-value {
+          margin: 0;
+          font-size: 0.8125rem;
+          line-height: 1.4;
+          color: var(--text);
+        }
         .jp-vocab-teacher-quiz__nav {
           display: flex;
           gap: 0.45rem;

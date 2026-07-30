@@ -29,9 +29,11 @@ export async function POST(request: Request) {
     const contentType = request.headers.get("content-type") || "";
     let wordContent = "";
     let wordMeanings: string | null = null;
+    let wordAnnotations: string | null = null;
     let wordExampleSentences: string | null = null;
     let grammarContent = "";
     let grammarMeanings: string | null = null;
+    let grammarAnnotations: string | null = null;
     let grammarExampleSentences: string | null = null;
     let title: string | null = null;
     let refKey = "";
@@ -42,9 +44,11 @@ export async function POST(request: Request) {
       const form = await request.formData();
       wordContent = String(form.get("word_content") || "").trim();
       wordMeanings = optionalFormText(form, "word_meanings");
+      wordAnnotations = optionalFormText(form, "word_annotations");
       wordExampleSentences = optionalFormText(form, "word_example_sentences");
       grammarContent = String(form.get("grammar_content") || "").trim();
       grammarMeanings = optionalFormText(form, "grammar_meanings");
+      grammarAnnotations = optionalFormText(form, "grammar_annotations");
       grammarExampleSentences = optionalFormText(
         form,
         "grammar_example_sentences"
@@ -66,18 +70,22 @@ export async function POST(request: Request) {
       const body = (await request.json()) as {
         word_content?: string;
         word_meanings?: string | null;
+        word_annotations?: string | null;
         word_example_sentences?: string | null;
         grammar_content?: string;
         grammar_meanings?: string | null;
+        grammar_annotations?: string | null;
         grammar_example_sentences?: string | null;
         title?: string | null;
         ref_key?: string | null;
       };
       wordContent = String(body.word_content || "").trim();
       wordMeanings = (body.word_meanings || "").trim() || null;
+      wordAnnotations = (body.word_annotations || "").trim() || null;
       wordExampleSentences = (body.word_example_sentences || "").trim() || null;
       grammarContent = String(body.grammar_content || "").trim();
       grammarMeanings = (body.grammar_meanings || "").trim() || null;
+      grammarAnnotations = (body.grammar_annotations || "").trim() || null;
       grammarExampleSentences =
         (body.grammar_example_sentences || "").trim() || null;
       title = (body.title || "").trim() || null;
@@ -96,9 +104,11 @@ export async function POST(request: Request) {
     const result = await createJpLessonMixed(env.DB, {
       word_content: wordContent,
       word_meanings: wordMeanings,
+      word_annotations: wordAnnotations,
       word_example_sentences: wordExampleSentences,
       grammar_content: grammarContent,
       grammar_meanings: grammarMeanings,
+      grammar_annotations: grammarAnnotations,
       grammar_example_sentences: grammarExampleSentences,
       title,
       ref_key: hasFile ? null : refKey || null,

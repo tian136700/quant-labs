@@ -11,6 +11,12 @@
       "note": ""
     },
     {
+      "path": "src/lib/jp-lesson-db.ts",
+      "lines": 1036,
+      "status": 0,
+      "note": ""
+    },
+    {
       "path": "src/components/JpVocabPage.tsx",
       "lines": 1018,
       "status": 0,
@@ -27,7 +33,7 @@
   "excluded_over_threshold": [
     {
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
-      "lines": 1701,
+      "lines": 1719,
       "reason": "style_or_data"
     }
   ]

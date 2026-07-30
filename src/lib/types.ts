@@ -463,7 +463,8 @@ export type EnVocabSharedItem = Omit<JpVocabSharedItem, "word"> & {
   word: EnVocabWord;
 };
 export type EnVocabRefUploadInput = JpVocabRefUploadInput;
-export type EnLessonKind = JpLessonKind;
+/** 英语新课仅 word|grammar（无日语合传 word_grammar） */
+export type EnLessonKind = "word" | "grammar";
 export type EnLessonTeacher = JpLessonTeacher;
 export type EnLessonTeacherReviewRecord = JpLessonTeacherReviewRecord;
 export type EnLessonTeacherReviewSortField = JpLessonTeacherReviewSortField;
@@ -475,11 +476,13 @@ export type KoLessonTeacherReviewSummary = JpLessonTeacherReviewSummary;
 export type EnLessonClassSchedule = JpLessonClassSchedule;
 export type EnLessonClassScheduleInput = JpLessonClassScheduleInput;
 /** 英语新课：带分类标签，完成时同步到 en_vocab_word.category */
-export interface EnLessonRecord extends JpLessonRecord {
+export interface EnLessonRecord extends Omit<JpLessonRecord, "kind"> {
+  kind: EnLessonKind;
   /** 分类标签；缺省「雅思托福」 */
   category: string | null;
 }
-export type EnLessonUploadInput = JpLessonUploadInput & {
+export type EnLessonUploadInput = Omit<JpLessonUploadInput, "kind"> & {
+  kind: EnLessonKind;
   /** 分类标签；缺省「雅思托福」 */
   category?: string | null;
 };

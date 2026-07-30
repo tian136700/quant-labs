@@ -309,6 +309,22 @@ export function JpLessonPageStyles() {
           font-size: 0.8125rem;
           word-break: break-word;
         }
+        :global(.jp-lesson-annotations-col) {
+          min-width: 0;
+          width: 9%;
+          color: var(--muted);
+          font-size: 0.75rem;
+          word-break: break-word;
+        }
+        :global(.jp-lesson-annotations-lines) {
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
+        }
+        :global(.jp-lesson-annotations-line) {
+          display: block;
+          line-height: 1.35;
+        }
         :global(.jp-lesson-examples-col) {
           width: 3.4rem;
           min-width: 3.4rem;
@@ -344,6 +360,7 @@ export function JpLessonPageStyles() {
           display: none;
         }
         :global(.jp-lesson-mobile-meanings-inline),
+        :global(.jp-lesson-mobile-annotations-inline),
         :global(.jp-lesson-mobile-examples-inline) {
           display: none;
         }
@@ -495,10 +512,12 @@ export function JpLessonPageStyles() {
             display: inline !important;
           }
           :global(.jp-lesson-page--ja .jp-lesson-meanings-col),
+          :global(.jp-lesson-page--ja .jp-lesson-annotations-col),
           :global(.jp-lesson-page--ja .jp-lesson-examples-col) {
             display: none !important;
           }
           :global(.jp-lesson-page--ja .jp-lesson-mobile-meanings-inline),
+          :global(.jp-lesson-page--ja .jp-lesson-mobile-annotations-inline),
           :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-inline),
           :global(.jp-lesson-page--ja .jp-lesson-mobile-examples-toolbar) {
             display: block;

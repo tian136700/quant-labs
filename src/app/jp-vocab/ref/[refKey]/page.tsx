@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { JpVocabRefViewer } from "@/components/JpVocabRefViewer";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getJpLessonByRefKey } from "@/lib/jp-lesson-db";
+import { jpLessonCropKind } from "@/lib/jp-lesson-shared";
 import { getJpVocabRef } from "@/lib/jp-vocab-db";
 import { jpLessonRefDownloadFilename } from "@/lib/jp-vocab-ref-shared";
 import type { Metadata } from "next";
@@ -45,7 +46,7 @@ export default async function JpVocabRefViewerPage({
       refMeta={ref}
       cacheVersion={v ?? null}
       downloadFilename={downloadFilename}
-      cropKind={lesson?.kind ?? null}
+      cropKind={lesson ? jpLessonCropKind(lesson.kind) : null}
     />
   );
 }

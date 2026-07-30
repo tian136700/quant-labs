@@ -94,6 +94,7 @@ export async function POST(request: Request) {
 
       if (lesson.completed && oldRefKey) {
         const items = parseLessonContent(lesson.content);
+        // EnLessonKind = word|grammar，与 EnVocabKind 一致（勿 alias 成含 word_grammar 的 JpLessonKind）
         await updateEnVocabWordsRefKey(
           env.DB,
           items,

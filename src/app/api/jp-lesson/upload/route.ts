@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     let kind: JpLessonKind = "word";
     let content = "";
     let meanings: string | null = null;
+    let annotations: string | null = null;
     let exampleSentences: string | null = null;
     let title: string | null = null;
     let refKey = "";
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       kind = form.get("kind") === "grammar" ? "grammar" : "word";
       content = String(form.get("content") || "").trim();
       meanings = optionalFormText(form, "meanings");
+      annotations = optionalFormText(form, "annotations");
       exampleSentences = optionalFormText(form, "example_sentences");
       title = optionalFormText(form, "title");
       refKey = normalizeJpVocabRefKey(String(form.get("ref_key") || ""));
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
         kind?: JpLessonKind;
         content?: string;
         meanings?: string | null;
+        annotations?: string | null;
         example_sentences?: string | null;
         title?: string | null;
         ref_key?: string | null;
@@ -62,6 +65,7 @@ export async function POST(request: Request) {
       kind = body.kind === "grammar" ? "grammar" : "word";
       content = String(body.content || "").trim();
       meanings = (body.meanings || "").trim() || null;
+      annotations = (body.annotations || "").trim() || null;
       exampleSentences = (body.example_sentences || "").trim() || null;
       title = (body.title || "").trim() || null;
       refKey = normalizeJpVocabRefKey(String(body.ref_key || ""));
@@ -77,6 +81,7 @@ export async function POST(request: Request) {
       kind,
       content,
       meanings,
+      annotations,
       example_sentences: exampleSentences,
       title,
       ref_key: hasFile ? null : refKey || null,

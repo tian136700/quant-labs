@@ -10,6 +10,8 @@ import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import {
   JpLessonContentPreview,
   JpLessonMeaningsPreview,
+  JpLessonAnnotationsPreview,
+  jpLessonItemAnnotation,
   JpLessonMobileFieldValue,
   JpLessonMobileIcon,
   formatLessonContentOneLine,
@@ -393,6 +395,9 @@ export function JpLessonStatusTable({
               数
             </th>
             <th className="jp-lesson-meanings-col">释义</th>
+            <th className="jp-lesson-annotations-col" title="口语常用 / 考试常用">
+              标注
+            </th>
             <th className="jp-lesson-examples-col">例句</th>
             <th className="jp-lesson-uploaded-col" title="上传日期">上传</th>
             <th
@@ -606,14 +611,28 @@ export function JpLessonStatusTable({
                               className="jp-lesson-mobile-content-chips"
                               aria-label={`课程 #${lesson.id} 学习内容`}
                             >
-                              {chipItems.map((item, itemIdx) => (
+                              {chipItems.map((item, itemIdx) => {
+                                const tag = jpLessonItemAnnotation(
+                                  lesson.content,
+                                  lesson.annotations,
+                                  itemIdx
+                                );
+                                return (
                                 <li
                                   key={`${lesson.id}-c-${itemIdx}`}
                                   className="jp-lesson-mobile-content-chip"
                                 >
-                                  {item}
+                                  <span className="jp-lesson-mobile-content-chip-text">
+                                    {item}
+                                  </span>
+                                  {tag ? (
+                                    <span className="jp-lesson-mobile-content-chip-annotation">
+                                      {tag}
+                                    </span>
+                                  ) : null}
                                 </li>
-                              ))}
+                                );
+                              })}
                             </ul>
                             <p className="jp-lesson-mobile-meanings-inline">
                               <span className="jp-lesson-mobile-meanings-label">释义</span>
@@ -622,6 +641,13 @@ export function JpLessonStatusTable({
                                 meanings={lesson.meanings}
                                 expanded={Boolean(expandedMeaningsIds[lesson.id])}
                                 onToggle={() => onToggleMeaningsExpanded(lesson.id)}
+                              />
+                            </p>
+                            <p className="jp-lesson-mobile-annotations-inline">
+                              <span className="jp-lesson-mobile-meanings-label">标注</span>
+                              <JpLessonAnnotationsPreview
+                                content={lesson.content}
+                                annotations={lesson.annotations}
                               />
                             </p>
                             <div className="jp-lesson-mobile-examples-toolbar">
@@ -683,6 +709,21 @@ export function JpLessonStatusTable({
                           meanings={lesson.meanings}
                           expanded={Boolean(expandedMeaningsIds[lesson.id])}
                           onToggle={() => onToggleMeaningsExpanded(lesson.id)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </td>
+                <td data-label="标注" className="jp-lesson-annotations-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        <JpLessonAnnotationsPreview
+                          content={lesson.content}
+                          annotations={lesson.annotations}
                         />
                       </div>
                     ))}

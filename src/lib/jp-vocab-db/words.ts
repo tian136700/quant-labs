@@ -91,6 +91,7 @@ import {
 } from "@/lib/jp-vocab-teacher-quiz-live";
 import { formatReviewIso, resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
+import { parseJpVocabAnnotationInput } from "@/lib/jp-vocab-annotation";
 import { applyJpVocabReview, isJpVocabWordReviewLocked, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
   computeJpVocabDailyQuizProgress,
@@ -686,11 +687,16 @@ export async function uploadJpVocabWords(
     meaning: string | null;
     kind: JpVocabKind;
     ref_key: string | null;
+    annotation: string | null;
   }> = [];
   for (const w of words) {
     const word = normalizeWord(w.word);
     if (!word) continue;
     const kind = normalizeKind(w.kind);
+    const annotationParsed = parseJpVocabAnnotationInput(w.annotation);
+    if (!annotationParsed.ok) {
+      return { ok: false, error: "invalid_annotation" };
+    }
     cleaned.push({
       word,
       reading: await resolveJpVocabReadingIfMissing(
@@ -701,6 +707,7 @@ export async function uploadJpVocabWords(
       meaning: (w.meaning || "").trim() || null,
       kind,
       ref_key: w.ref_key ? normalizeJpVocabRefKey(w.ref_key) || null : null,
+      annotation: annotationParsed.value,
     });
   }
 
@@ -709,17 +716,8 @@ export async function uploadJpVocabWords(
   }
 
   await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
   const ts = nowIso();
-
-  if (refs.length) {
-    await upsertJpVocabRefMetadata(db, refs);
-  }
-
-  if (jpVocabDbState.devStoreEnabled) {
-    if (replace) {
-      jpVocabDbState.devWords.length = 0;
-      jpVocabDbState.devNextId = 1;
-    }
     let added = 0;
     let skipped = 0;
     for (const item of cleaned) {
@@ -742,6 +740,7 @@ export async function uploadJpVocabWords(
         today_check_count: 0,
         today_check_date: null,
         class_notes: null,
+        annotation: item.annotation,
         created_at: ts,
         updated_at: ts,
       });
@@ -786,8 +785,8 @@ export async function uploadJpVocabWords(
     inserts.push(
       db
         .prepare(
-          `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, created_at, updated_at)
-           VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?6)`
+          `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, annotation, created_at, updated_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 0, 0, NULL, NULL, ?6, ?7, ?7)`
         )
         .bind(
           item.word,
@@ -795,6 +794,7 @@ export async function uploadJpVocabWords(
           item.meaning,
           item.kind,
           item.ref_key,
+          item.annotation,
           ts
         )
     );

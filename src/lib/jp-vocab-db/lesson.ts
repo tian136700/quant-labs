@@ -97,7 +97,10 @@ import {
   JP_VOCAB_DAILY_QUIZ_TOP,
   type JpVocabDailyQuizProgress,
 } from "@/lib/jp-vocab-daily-quiz-progress";
-import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import {
+  parseLessonContent,
+  resolveJpLessonItemKinds,
+} from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabAnnotation } from "@/lib/jp-vocab-annotation";
 import { listJpLessons } from "@/lib/jp-lesson-db";
 import { listJpLessonNotesByLessonId, replaceLessonNotesForItem } from "@/lib/jp-lesson-note-db";
@@ -328,11 +331,17 @@ export async function syncLessonNotesToVocab(
 
   const notes = await listJpLessonNotesByLessonId(db, lesson.id);
   const refKey = lesson.ref_key;
-  const kind = normalizeKind(lesson.kind);
+  // 合传课按项 word/grammar；normalizeKind 只认 JpVocabKind，不能吃 lesson.kind
+  const itemKinds = resolveJpLessonItemKinds(
+    lesson.kind,
+    items.length,
+    lesson.grammar_item_count
+  );
   const ts = nowIso();
 
   if (jpVocabDbState.devStoreEnabled) {
-    for (const item of items) {
+    items.forEach((item, index) => {
+      const kind = itemKinds[index] ?? "word";
       const combined = combineLessonNotes(
         notes.filter((n) => n.item_word === item)
       );
@@ -348,11 +357,13 @@ export async function syncLessonNotesToVocab(
           updated_at: ts,
         };
       }
-    }
+    });
     return;
   }
 
-  for (const item of items) {
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    const kind = itemKinds[index] ?? "word";
     const combined = combineLessonNotes(
       notes.filter((n) => n.item_word === item)
     );

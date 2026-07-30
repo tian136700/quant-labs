@@ -15,6 +15,7 @@ import {
   jpVocabConnectionShownInlineWithUsage,
 } from "@/lib/jp-vocab-connection-ai";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
+import { JpVocabAnnotationSection } from "@/components/JpVocabAnnotationSection";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
 import {
@@ -534,6 +535,7 @@ export function JpVocabAdminReviewFlashcardModal({
             </p>
           )}
         </section>
+        <JpVocabAnnotationSection annotation={w.annotation} />
         </div>
 
         <div className="jp-vocab-teacher-quiz__stats">

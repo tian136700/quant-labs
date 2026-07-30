@@ -4,7 +4,10 @@ import {
   syncJpLessonTitleByRefKey,
   updateJpLessonRefKey,
 } from "@/lib/jp-lesson-db";
-import { parseLessonContent } from "@/lib/jp-lesson-shared";
+import {
+  parseLessonContent,
+  resolveJpLessonItemKinds,
+} from "@/lib/jp-lesson-shared";
 import { requireJpLessonOperate } from "@/lib/jp-lesson-auth";
 import {
   saveJpVocabRefFileMeta,
@@ -93,14 +96,37 @@ export async function POST(request: Request) {
       updatedLesson = next;
 
       if (lesson.completed && oldRefKey) {
+        // updateJpVocabWordsRefKey 只认 JpVocabKind；合传课按项拆成 word/grammar
         const items = parseLessonContent(lesson.content);
-        await updateJpVocabWordsRefKey(
-          env.DB,
-          items,
+        const itemKinds = resolveJpLessonItemKinds(
           lesson.kind,
-          oldRefKey,
-          targetRefKey
+          items.length,
+          lesson.grammar_item_count
         );
+        const words: string[] = [];
+        const grammars: string[] = [];
+        items.forEach((word, index) => {
+          if (itemKinds[index] === "grammar") grammars.push(word);
+          else words.push(word);
+        });
+        if (words.length) {
+          await updateJpVocabWordsRefKey(
+            env.DB,
+            words,
+            "word",
+            oldRefKey,
+            targetRefKey
+          );
+        }
+        if (grammars.length) {
+          await updateJpVocabWordsRefKey(
+            env.DB,
+            grammars,
+            "grammar",
+            oldRefKey,
+            targetRefKey
+          );
+        }
       }
     } else if (title !== lesson.title) {
       await syncJpLessonTitleByRefKey(env.DB, targetRefKey, title);
