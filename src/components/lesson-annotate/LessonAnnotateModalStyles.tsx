@@ -174,7 +174,7 @@ export function LessonAnnotateModalStyles() {
       .jp-annotate-stage {
         flex: 1;
         min-height: 0;
-        padding: 0.75rem;
+        padding: 0.65rem 1.25rem;
         overflow: auto;
         position: relative;
       }
@@ -312,6 +312,10 @@ export function LessonAnnotateModalStyles() {
       }
 
       @media (max-width: 768px) {
+        .jp-annotate-stage {
+          padding: 0.5rem 0.75rem;
+        }
+
         .jp-annotate-bar {
           flex-wrap: wrap;
         }

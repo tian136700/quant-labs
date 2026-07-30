@@ -39,11 +39,14 @@ import { LessonAnnotateToolbar } from "@/components/lesson-annotate/LessonAnnota
 
 type Tool = "brush" | "smear" | "line" | "text" | "zoom";
 
-const ZOOM_MIN = 1;
-const ZOOM_MAX = 4;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2;
 const ZOOM_STEP = 1.35;
-/** 打开时默认相当于连点两次「放大」，少手动缩放 */
-const DEFAULT_OPEN_ZOOM = Math.min(ZOOM_MAX, ZOOM_STEP * ZOOM_STEP);
+/** 打开取 min/max 几何中位（0.5↔2 → 1），可双向放大缩小 */
+const DEFAULT_OPEN_ZOOM = 1;
+/** 相对舞台 clientWidth 左右各留的空白（px） */
+const FIT_SIDE_GUTTER_PX = 40;
+const FIT_VERTICAL_PAD_PX = 16;
 const PAN_THRESHOLD = 6;
 
 export type LessonAnnotateSubject = "jp" | "en";
@@ -168,11 +171,17 @@ export function LessonAnnotateModal({
     const img = imgRef.current;
     const stage = stageRef.current;
     if (!img?.naturalWidth || !img.naturalHeight || !stage) return 1;
-    const stageRect = stage.getBoundingClientRect();
-    // 按舞台宽度铺满（可纵向滚动）；不再用「完整塞进视口」把图压得很小。
-    // 小图允许放大超过 1，避免一进来还要点两次「放大」。
-    const widthFit = (stageRect.width - 24) / img.naturalWidth;
-    return Math.min(Math.max(widthFit, 0.08), 4);
+    // clientWidth/Height = 可见内容区（含 padding）；再扣左右 gutter，避免贴边或默认放大撑爆。
+    const usableW = Math.max(80, stage.clientWidth - FIT_SIDE_GUTTER_PX * 2);
+    const usableH = Math.max(80, stage.clientHeight - FIT_VERTICAL_PAD_PX);
+    const widthFit = usableW / img.naturalWidth;
+    const heightFit = usableH / img.naturalHeight;
+    // 矮图：contain；竖长 PDF：按宽贴合，上下滚
+    const fitted =
+      img.naturalHeight * widthFit <= usableH
+        ? Math.min(widthFit, heightFit)
+        : widthFit;
+    return Math.min(Math.max(fitted, 0.08), 4);
   }, []);
 
   const scrollToKeepCanvasPoint = useCallback(
@@ -777,6 +786,7 @@ export function LessonAnnotateModal({
           zoom={zoom}
           zoomMin={ZOOM_MIN}
           zoomMax={ZOOM_MAX}
+          zoomDefault={DEFAULT_OPEN_ZOOM}
           strokesCount={strokes.length}
           downloading={downloading}
           saving={saving}

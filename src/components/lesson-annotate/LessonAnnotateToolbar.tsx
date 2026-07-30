@@ -16,6 +16,8 @@ export type LessonAnnotateToolbarProps = {
   zoom: number;
   zoomMin: number;
   zoomMax: number;
+  /** 「适应」目标倍率（通常为打开默认 / 中位） */
+  zoomDefault: number;
   strokesCount: number;
   downloading: boolean;
   saving: boolean;
@@ -48,6 +50,7 @@ export function LessonAnnotateToolbar({
   zoom,
   zoomMin,
   zoomMax,
+  zoomDefault,
   strokesCount,
   downloading,
   saving,
@@ -172,7 +175,7 @@ export function LessonAnnotateToolbar({
           <button
             type="button"
             className="jp-annotate-tool"
-            disabled={!imgReady || zoom <= zoomMin}
+            disabled={!imgReady || Math.abs(zoom - zoomDefault) < 0.02}
             onClick={onResetZoom}
           >
             适应
