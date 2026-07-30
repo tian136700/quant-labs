@@ -86,8 +86,16 @@ def main() -> int:
         raise SystemExit("FAIL: schedule line must name 日语统一补全定时 (not vague 定时状态)")
     if "按间隔唤醒补下一词" not in app_js:
         raise SystemExit("FAIL: scheduled idle must say 按间隔唤醒补下一词")
+    if "最近一轮无待补词条" not in app_js:
+        raise SystemExit("FAIL: empty wake must say 最近一轮无待补词条 (not look like stuck)")
+    if "下方表只记实际补过的词" not in app_js:
+        raise SystemExit("FAIL: empty wake must clarify table only logs filled words")
     if "与下方「日语统一补全定时」无关" not in app_js:
         raise SystemExit("FAIL: 临时词性已跑完须注明与统一补全定时无关")
+    if "vocab-fill-panel-sub" in index_html:
+        raise SystemExit("FAIL: remove vocab-fill-panel-sub help paragraphs")
+    if "日语统一补全与英语整词补全：正在跑哪个" in index_html:
+        raise SystemExit("FAIL: remove card-level help paragraph on 词条补全")
     if "定时状态：" in app_js:
         raise SystemExit("FAIL: must not use vague label 定时状态： (name the task)")
     if "开始运行" not in index_html or "开始运行" not in app_js:
@@ -107,6 +115,10 @@ def main() -> int:
         raise SystemExit("FAIL: UI 不得再展示 list_missing 技术占位")
     jp_feed = (ROOT / "scripts/maintenance_center/jp_vocab_fill_feed.py").read_text(encoding="utf-8")
     en_feed = (ROOT / "scripts/maintenance_center/en_vocab_fill_feed.py").read_text(encoding="utf-8")
+    if "def last_wake_from_log" not in jp_feed or "def last_wake_from_log" not in en_feed:
+        raise SystemExit("FAIL: jp/en feed must expose last_wake_from_log")
+    if '"last_wake"' not in jp_feed or '"last_wake"' not in en_feed:
+        raise SystemExit("FAIL: feed snapshot must include last_wake")
     if '"（等待 list_missing' in jp_feed or '"（等待 list_missing' in en_feed:
         raise SystemExit("FAIL: feed 不得把 list_missing 塞进 word 字段")
     if "waiting_list" not in jp_feed or "waiting_list" not in en_feed:
