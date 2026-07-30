@@ -127,12 +127,30 @@ def main() -> int:
         errors.append("usage prompt 须强调用法↔例句严格 1:1 / 恰好 1 条")
     if "张冠李戴" not in usage_ai and "对应该条用法" not in usage_ai:
         errors.append("usage prompt 须要求例句接续对应该条用法（防た形/辞书形错挂）")
+    if "pair_semantic_mismatch" not in usage_ai:
+        errors.append("usage upload_spec 须拒 pair_semantic_mismatch（防语义错挂）")
+    if "语义必须对齐" not in usage_ai and "点名的形态" not in usage_ai:
+        errors.append("usage prompt 须要求用法↔例句语义对齐")
+    align_ts = (
+        ROOT / "src/lib/jp-vocab-usage-example-pair-align.ts"
+    ).read_text(encoding="utf-8")
+    if "validateJpVocabUsageExamplePairAlignment" not in align_ts:
+        errors.append("缺 usage-example pair alignment 模块")
+    ex_ai = (
+        ROOT / "src/lib/jp-vocab-example-sentences-ai.ts"
+    ).read_text(encoding="utf-8")
+    if "validateJpVocabUsageExamplePairAlignment" not in ex_ai:
+        errors.append("example apply 须调用 pair alignment")
     if "严格 1:1" not in script and "对应该条用法" not in script:
         errors.append("Mac PAIR_SYSTEM 须含严格 1:1 / 接续对应")
-    if "按块均分" not in display and "examples.length % points.length" not in display:
-        errors.append("展示层须支持多例句按块均分（存量兜底）")
+    if "语义必须对齐" not in script and "点名的形态" not in script:
+        errors.append("Mac PAIR_SYSTEM 须要求语义对齐")
     if "严格 1:1" not in rule and "恰好 1 条" not in rule:
         errors.append("grammar-usage 规则须写明严格 1:1 / 接续对应")
+    if "pair_semantic_mismatch" not in rule and "语义" not in rule:
+        errors.append("grammar-usage 规则须写 pair_semantic_mismatch / 语义对齐")
+    if "按块均分" not in display and "examples.length % points.length" not in display:
+        errors.append("展示层须支持多例句按块均分（存量兜底）")
     if "clearJpVocabGrammarPairById" not in fill_usage:
         errors.append("fill-usage 缺单条 clear_pair")
     if "clear_pair" not in route:

@@ -25,6 +25,7 @@ import {
   jpVocabConnectionPromptAppendix,
   splitJpVocabAiOutputConnectionSection,
 } from "@/lib/jp-vocab-connection-ai";
+import { validateJpVocabUsageExamplePairAlignment } from "@/lib/jp-vocab-usage-example-pair-align";
 
 /** 上传/本地模型须遵守的例句契约（与 compose 规则一致；list_missing 会原样返回） */
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
@@ -40,7 +41,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "释义栏的「关于……」等只是义项提示，不要每句译文都机械套同一套壳",
     "句中每一个汉字都必须立刻半角括号假名（不能只标词条本身）：如 今日(きょう)は気分(きぶん)がいいです；词尾假名如 静か(しずか)、落(お)ち着(つ)き；括号内只能是假名、不要空格、不要整句读音尾注；禁止句末语法说明括号；页面展示会转成汉字下方小字",
     "N5～N4、口语、短句；必须自然用到该词条 / 语法点",
-    "语法例句：第 N 句对应第 N 条用法；只用简单词、不要叠更难的语法（避免多焦点）",
+    "语法例句：第 N 句对应第 N 条用法（条数与语义都要对：否定推断勿配肯定句、用法括号里点名的形态须出现在该句）；只用简单词、不要叠更难的语法（避免多焦点）",
     "初学者友好：一句尽量只用一个话题助词「は」；时间/场景已用「今は」等时，主语改用「が」或省略，不要叠「今は傘は…」这类双は（语法虽对但 N5 易误判）",
     "语法词条里的「～」「〜」是占位符，禁止原样写进例句；要用具体词：天气预报によると／彼によると…",
     "语法助词（～が / ～は / ～を…）：句中必须出现该助词本身；教「が」时不要写成只有「は」的例句",
@@ -70,6 +71,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "missing_clause_touten",
     "missing_sentence_final_punct",
     "usage_required",
+    "pair_semantic_mismatch",
     "connection_required",
     "connection_invalid",
   ],
@@ -349,6 +351,16 @@ export function validateJpVocabExampleSentencesAiOutput(
         return { ok: false, reason: "word_not_used" };
       }
     }
+  }
+
+  if (input.kind === "grammar" && !isConj) {
+    const align = validateJpVocabUsageExamplePairAlignment({
+      word: target,
+      kind: "grammar",
+      usage: input.usage,
+      example_sentences: serializeJpVocabExampleSentenceItems(cleanedItems),
+    });
+    if (!align.ok) return { ok: false, reason: align.reason };
   }
 
   return {
