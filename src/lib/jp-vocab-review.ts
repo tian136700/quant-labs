@@ -173,17 +173,52 @@ export function resolveJpVocabPreviousLevel(
   return null;
 }
 
+export type ApplyJpVocabReviewOptions = {
+  /**
+   * 是否计入今日抽查名额（写 today_check_*）。
+   * 管理员勾「非常熟悉」跳过今日池时传 false：仍更新熟悉程度 / SRS，但不占 N。
+   */
+  countTowardDailyQuiz?: boolean;
+};
+
+/**
+ * 管理员勾「非常熟悉」且未计入今日抽查名额：
+ * 老师可见池应跳过该词，进度条不占今日目标。
+ */
+export function isJpVocabAdminVerySkipToday(
+  word: Pick<
+    JpVocabWord,
+    | "last_review_level"
+    | "last_review_at"
+    | "today_check_count"
+    | "today_check_date"
+  >,
+  now = new Date()
+): boolean {
+  if (word.last_review_level !== "very") return false;
+  if (!isJpVocabReviewToday(word.last_review_at, now)) return false;
+  return (
+    effectiveTodayCheckCount(
+      word.today_check_count ?? 0,
+      word.today_check_date,
+      now
+    ) <= 0
+  );
+}
+
 /** 应用一次熟悉程度勾选（新抽查 or 今日内改选修正） */
 export function applyJpVocabReview(
   word: JpVocabWord,
   level: JpVocabLevel,
   now = new Date(),
-  previousLevel?: JpVocabLevel | null
+  previousLevel?: JpVocabLevel | null,
+  options?: ApplyJpVocabReviewOptions
 ): { word: JpVocabWord; isCorrection: boolean } {
   const ts = formatReviewIso(now);
   const prev =
     previousLevel ??
     resolveJpVocabPreviousLevel(word, { nowMs: now.getTime() });
+  const countTowardDailyQuiz = options?.countTowardDailyQuiz !== false;
 
   if (prev) {
     if (prev === level) {
@@ -216,12 +251,26 @@ export function applyJpVocabReview(
     };
   }
 
+  const srs = computeJpVocabSrsAfterReview(word, level, { now });
+  if (!countTowardDailyQuiz) {
+    return {
+      word: {
+        ...word,
+        ...adjustLevelCount(word, level, 1),
+        ...srs,
+        last_review_level: level,
+        last_review_at: ts,
+        updated_at: ts,
+      },
+      isCorrection: false,
+    };
+  }
+
   const daily = nextTodayCheckCount(
     word.today_check_count ?? 0,
     word.today_check_date,
     now
   );
-  const srs = computeJpVocabSrsAfterReview(word, level, { now });
   return {
     word: {
       ...word,

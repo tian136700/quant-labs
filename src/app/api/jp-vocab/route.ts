@@ -184,10 +184,14 @@ export async function POST(request: Request) {
 
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
+    // 管理员勾「非常熟悉」：不占今日抽查名额，老师池跳过并从后面序号补足
+    const countTowardDailyQuiz = !(isAdminForReview && level === "very");
+
     const result = await recordJpVocabReview(env.DB, wordId, level, {
       // 勾选只写熟悉程度；整卡同步改到点「下一个」时 POST /share（只同步一次）
       shareToStudy: false,
       sharedBy: user?.username ?? "",
+      countTowardDailyQuiz,
     });
 
     if (!result.ok) {
@@ -212,6 +216,9 @@ export async function POST(request: Request) {
       word: redactJpVocabMnemonicForClient(result.word, isAdminForReview),
       shared: result.shared,
       shared_new: result.shared_new,
+      ...(result.teacher_visible_limit
+        ? { teacher_visible_limit: result.teacher_visible_limit }
+        : {}),
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

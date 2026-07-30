@@ -5,7 +5,11 @@ import {
 } from "@/lib/jp-vocab-daily-order";
 import type { JpVocabDailyDisplayOrder } from "@/lib/jp-vocab-daily-order";
 import { JP_VOCAB_DAILY_QUIZ_TOP } from "@/lib/jp-vocab-daily-quiz-progress";
-import { isJpVocabReviewToday, reviewTimestampMs } from "@/lib/jp-vocab-review";
+import {
+  isJpVocabAdminVerySkipToday,
+  isJpVocabReviewToday,
+  reviewTimestampMs,
+} from "@/lib/jp-vocab-review";
 import type { JpVocabWord } from "@/lib/types";
 
 /** 非管理员老师默认仅可见当日序号 1–20 */
@@ -349,6 +353,8 @@ function buildJpVocabTeacherVisibleReleaseCandidates(
     const word = wordById.get(wordId);
     if (!word) continue;
     if (isJpVocabWordTodayCheckedInDb(word, now)) continue;
+    // 管理员勾「非常熟悉」且未占今日名额：跳过，后面序号补足
+    if (isJpVocabAdminVerySkipToday(word, now)) continue;
     // 今日新入库从未抽查：今天不抽，次日凌晨置顶后再进池
     if (isJpVocabWordSameDayNewNeverQuizzed(word, now)) continue;
     candidates.push({
@@ -366,8 +372,9 @@ function buildJpVocabTeacherVisibleReleaseCandidates(
 /**
  * 选取老师可见批次：
  * 1. 排除今日已抽查（DB today_check_count > 0）
- * 2. 排除今日新入库且从未抽查的词
- * 3. 按当日序号升序取满 releaseCount（正序 1…N）
+ * 2. 排除管理员「非常熟悉」跳过（不占今日名额）
+ * 3. 排除今日新入库且从未抽查的词
+ * 4. 按当日序号升序取满 releaseCount（正序 1…N；跳过若干则实际扫到更后序号）
  */
 export function pickJpVocabTeacherVisibleReleaseIds(
   displayOrder: JpVocabDailyDisplayOrder,
@@ -469,13 +476,32 @@ function jpVocabTeacherVisiblePoolHasExcessUnchecked(
   return uncheckedInPool > remaining;
 }
 
+/** 可见池里仍挂着管理员「非常熟悉」跳过词 → 须重算并往后补 */
+function jpVocabTeacherVisiblePoolHasAdminVerySkip(
+  visibleIds: number[],
+  words: JpVocabWord[],
+  now = new Date()
+): boolean {
+  if (!visibleIds.length) return false;
+  const wordById = new Map(words.map((w) => [w.id, w]));
+  return visibleIds.some((id) => {
+    const word = wordById.get(id);
+    return word ? isJpVocabAdminVerySkipToday(word, now) : false;
+  });
+}
+
 function jpVocabTeacherVisiblePoolNeedsRebuild(
   visibleIds: number[] | undefined,
   todayCheckedIds: number[],
-  target: number
+  target: number,
+  words: JpVocabWord[] = [],
+  now = new Date()
 ): boolean {
   if (!visibleIds?.length) return true;
   if (visibleIds.length !== target) return true;
+  if (jpVocabTeacherVisiblePoolHasAdminVerySkip(visibleIds, words, now)) {
+    return true;
+  }
   if (jpVocabTeacherVisiblePoolMissingTodayChecked(visibleIds, todayCheckedIds, target)) {
     return true;
   }
@@ -561,7 +587,9 @@ export function applyJpVocabQuizTargetVisiblePlan(
   const poolMissingChecked = jpVocabTeacherVisiblePoolNeedsRebuild(
     previousVisible,
     todayCheckedIds,
-    target
+    target,
+    words,
+    now
   );
 
   let visible_ids: number[];
@@ -582,6 +610,12 @@ export function applyJpVocabQuizTargetVisiblePlan(
       if (!word) continue;
       if (
         isJpVocabWordSameDayNewNeverQuizzed(word, now) &&
+        !isJpVocabWordTodayCheckedInDb(word, now)
+      ) {
+        continue;
+      }
+      if (
+        isJpVocabAdminVerySkipToday(word, now) &&
         !isJpVocabWordTodayCheckedInDb(word, now)
       ) {
         continue;
@@ -667,7 +701,9 @@ export function shouldMaterializeJpVocabTeacherVisibleLimit(
   return jpVocabTeacherVisiblePoolNeedsRebuild(
     visibleIds,
     todayCheckedIds,
-    target
+    target,
+    words,
+    now
   );
 }
 

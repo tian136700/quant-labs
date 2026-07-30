@@ -524,6 +524,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     setSessionLevel,
     setSessionReviewAt,
     setSharedTodayWordIds,
+    setTeacherVisibleLimit,
     setHighlightId,
     setStatus,
     openJpAuth,

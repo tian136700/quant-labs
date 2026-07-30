@@ -6,7 +6,7 @@
 # 检查是否清零: python3 scripts/refresh_file_split_queue.py --check
 
 01. [status=0]  1043  src/lib/jp-lesson-shared.ts
-02. [status=0]  1020  src/components/JpVocabPage.tsx
+02. [status=0]  1021  src/components/JpVocabPage.tsx
 03. [status=0]  1015  src/components/EnVocabPage.tsx
 
 # --- 不计入队列（样式/文案/备份，仅供参考）---

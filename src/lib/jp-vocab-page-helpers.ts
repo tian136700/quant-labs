@@ -195,7 +195,9 @@ export const pickRandomJpVocabWord = pickRandomVocabWord<JpVocabWord>;
 export function bumpJpVocabWordReview(
   word: JpVocabWord,
   level: JpVocabLevel,
-  previousLevel?: JpVocabLevel
+  previousLevel?: JpVocabLevel,
+  options?: { countTowardDailyQuiz?: boolean }
 ): JpVocabWord {
-  return applyJpVocabReview(word, level, new Date(), previousLevel).word;
+  return applyJpVocabReview(word, level, new Date(), previousLevel, options)
+    .word;
 }

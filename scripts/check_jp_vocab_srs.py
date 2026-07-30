@@ -13,6 +13,7 @@ REVIEW = ROOT / "src/lib/jp-vocab-review.ts"
 SHARED = ROOT / "src/lib/jp-vocab-shared.ts"
 HELPERS = ROOT / "src/lib/jp-vocab-db/helpers.ts"
 WORDS = ROOT / "src/lib/jp-vocab-db/words.ts"
+REVIEW_RECORD = ROOT / "src/lib/jp-vocab-db/review_record.ts"
 TYPES = ROOT / "src/lib/types.ts"
 RULE = ROOT / ".cursor/rules/jp-vocab-srs.mdc"
 
@@ -67,8 +68,8 @@ def main() -> int:
     must_contain(HELPERS, "srs_due_date", "schema/SELECT 须含到期列")
     must_contain(HELPERS, "ALTER TABLE jp_vocab_word ADD COLUMN srs_interval_days", "须 ALTER 加间隔列")
     must_contain(HELPERS, "ALTER TABLE jp_vocab_word ADD COLUMN srs_due_date", "须 ALTER 加到期列")
-    must_contain(WORDS, "srs_interval_days = ?8", "record review 须写入间隔")
-    must_contain(WORDS, "srs_due_date = ?9", "record review 须写入到期日")
+    must_contain(REVIEW_RECORD, "srs_interval_days = ?8", "record review 须写入间隔")
+    must_contain(REVIEW_RECORD, "srs_due_date = ?9", "record review 须写入到期日")
 
     must_contain(SHARED, "isJpVocabWordSrsDue", "日序须按是否到期排已抽查词")
     must_contain(SHARED, "EligibleNeverQuizzedForFront", "日序仍须从未抽查置顶")

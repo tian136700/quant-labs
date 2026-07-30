@@ -128,7 +128,7 @@ import {
   unmarkJpVocabWordRoundChecked,
   getJpVocabTeacherVisibleLimit,
 } from "./daily_settings";
-import { recordJpVocabReview } from "./words";
+import { recordJpVocabReview } from "./review_record";
 
 export type ShareJpVocabWordResult =
   | { ok: true; item: JpVocabSharedItem; word: JpVocabWord }

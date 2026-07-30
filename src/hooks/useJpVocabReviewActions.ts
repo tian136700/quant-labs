@@ -29,6 +29,8 @@ import {
 } from "@/lib/jp-vocab-page-helpers";
 import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
 import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
+import type { JpVocabTeacherVisibleLimit } from "@/lib/jp-vocab-teacher-visible";
+import { notifyJpVocabQuizTargetUpdated } from "@/lib/jp-vocab-quiz-target-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
 
 export function useJpVocabReviewActions(options: {
@@ -59,6 +61,7 @@ export function useJpVocabReviewActions(options: {
   >;
   setSessionReviewAt: Dispatch<SetStateAction<Record<number, number>>>;
   setSharedTodayWordIds: Dispatch<SetStateAction<Set<number>>>;
+  setTeacherVisibleLimit: Dispatch<SetStateAction<JpVocabTeacherVisibleLimit>>;
   setHighlightId: Dispatch<SetStateAction<number | null>>;
   setStatus: (message: string) => void;
   openJpAuth: () => void;
@@ -96,6 +99,7 @@ export function useJpVocabReviewActions(options: {
     setSessionLevel,
     setSessionReviewAt,
     setSharedTodayWordIds,
+    setTeacherVisibleLimit,
     setHighlightId,
     setStatus,
     openJpAuth,
@@ -225,6 +229,8 @@ export function useJpVocabReviewActions(options: {
         sessionReviewAtMs: prevReviewAt,
         nowMs,
       }) ?? undefined;
+    // 管理员「非常熟悉」不占今日名额（与 API countTowardDailyQuiz:false 一致）
+    const countTowardDailyQuiz = !(isAdminMode && level === "very");
     const displayOrderSnapshot = displayOrderRef.current;
     const sharedIdsSnapshot = [...sharedTodayWordIdsRef.current];
 
@@ -234,12 +240,16 @@ export function useJpVocabReviewActions(options: {
     setHighlightId(wordId);
     setWords((prev) =>
       prev.map((w) =>
-        w.id === wordId ? bumpJpVocabWordReview(w, level, prevLevel) : w
+        w.id === wordId
+          ? bumpJpVocabWordReview(w, level, prevLevel, { countTowardDailyQuiz })
+          : w
       )
     );
     persistCache(
       wordsRef.current.map((w) =>
-        w.id === wordId ? bumpJpVocabWordReview(w, level, prevLevel) : w
+        w.id === wordId
+          ? bumpJpVocabWordReview(w, level, prevLevel, { countTowardDailyQuiz })
+          : w
       ),
       refsRef.current,
       markJpVocabRoundChecked(displayOrderSnapshot, wordId),
@@ -284,6 +294,7 @@ export function useJpVocabReviewActions(options: {
             ok: boolean;
             word?: JpVocabWord;
             error?: string;
+            teacher_visible_limit?: JpVocabTeacherVisibleLimit;
           };
           if (res.status === 401) {
             await refresh();
@@ -303,6 +314,15 @@ export function useJpVocabReviewActions(options: {
           );
           patchShareProgress(wordId, null);
 
+          if (data.teacher_visible_limit) {
+            setTeacherVisibleLimit(data.teacher_visible_limit);
+            notifyJpVocabQuizTargetUpdated({
+              quiz_target: data.teacher_visible_limit.quiz_target,
+              quiz_target_adjusted_at:
+                data.teacher_visible_limit.quiz_target_adjusted_at,
+            });
+          }
+
           setWords((prev) => {
             const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
             persistCache(
@@ -314,9 +334,11 @@ export function useJpVocabReviewActions(options: {
             return next;
           });
           setStatus(
-            source === "flashcard"
-              ? "熟悉程度已保存。点「下一个」时再同步给学生。"
-              : "熟悉程度已保存。"
+            !countTowardDailyQuiz
+              ? "已标记非常熟悉（不占今日抽查名额，老师池已往后补）。"
+              : source === "flashcard"
+                ? "熟悉程度已保存。点「下一个」时再同步给学生。"
+                : "熟悉程度已保存。"
           );
         } finally {
           clearShareTimer(wordId);

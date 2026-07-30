@@ -13,6 +13,7 @@ export {
 } from "./helpers";
 
 export * from "./words";
+export * from "./review_record";
 export * from "./lesson";
 export * from "./notes_fields";
 export * from "./daily_settings";
