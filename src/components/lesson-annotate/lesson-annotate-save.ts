@@ -30,9 +30,24 @@ export async function downloadAnnotatedImage(
   URL.revokeObjectURL(url);
 }
 
-export async function saveAnnotatedLessonRef(params: {
-  img: HTMLImageElement;
-  strokes: Stroke[];
+export async function downloadAnnotatedPdf(
+  blob: Blob,
+  refKey: string,
+  lessonId: number
+): Promise<void> {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${refKey || `lesson-${lessonId}`}-annotate.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function uploadAnnotatedRefFile(params: {
+  file: File;
+  mediaType: "image" | "pdf";
   refKey: string;
   lessonId: number;
   subject: "jp" | "en";
@@ -43,15 +58,20 @@ export async function saveAnnotatedLessonRef(params: {
     lesson: JpLessonRecord | EnLessonRecord
   ) => void;
 }): Promise<void> {
-  const { img, strokes, refKey, lessonId, subject, locale, onNeedAuth, onSaved } = params;
-  const blob = await renderAnnotatedBlob(img, strokes);
-  const file = new File([blob], `${refKey || `lesson-${lessonId}`}.png`, {
-    type: "image/png",
-  });
+  const {
+    file,
+    mediaType,
+    refKey,
+    lessonId,
+    subject,
+    locale,
+    onNeedAuth,
+    onSaved,
+  } = params;
   const form = new FormData();
   form.append("lesson_id", String(lessonId));
   form.append("file", file);
-  form.append("media_type", "image");
+  form.append("media_type", mediaType);
 
   const result = await uploadFormWithProgress({
     url: subject === "jp" ? "/api/jp-lesson/ref/replace" : "/api/en-lesson/ref/replace",
@@ -76,8 +96,68 @@ export async function saveAnnotatedLessonRef(params: {
 
   notifyVocabRefUpdated({
     subject,
-    refKey: data.ref.ref_key,
+    refKey: data.ref.ref_key || refKey,
     updatedAt: data.ref.updated_at,
   });
   onSaved?.(data.ref, data.lesson);
+}
+
+export async function saveAnnotatedLessonRef(params: {
+  img: HTMLImageElement;
+  strokes: Stroke[];
+  refKey: string;
+  lessonId: number;
+  subject: "jp" | "en";
+  locale: "en" | "zh";
+  onNeedAuth?: () => void;
+  onSaved?: (
+    ref: JpVocabRef | EnVocabRef,
+    lesson: JpLessonRecord | EnLessonRecord
+  ) => void;
+}): Promise<void> {
+  const { img, strokes, refKey, lessonId, subject, locale, onNeedAuth, onSaved } =
+    params;
+  const blob = await renderAnnotatedBlob(img, strokes);
+  const file = new File([blob], `${refKey || `lesson-${lessonId}`}.png`, {
+    type: "image/png",
+  });
+  await uploadAnnotatedRefFile({
+    file,
+    mediaType: "image",
+    refKey,
+    lessonId,
+    subject,
+    locale,
+    onNeedAuth,
+    onSaved,
+  });
+}
+
+export async function saveAnnotatedLessonPdfRef(params: {
+  pdfBlob: Blob;
+  refKey: string;
+  lessonId: number;
+  subject: "jp" | "en";
+  locale: "en" | "zh";
+  onNeedAuth?: () => void;
+  onSaved?: (
+    ref: JpVocabRef | EnVocabRef,
+    lesson: JpLessonRecord | EnLessonRecord
+  ) => void;
+}): Promise<void> {
+  const { pdfBlob, refKey, lessonId, subject, locale, onNeedAuth, onSaved } =
+    params;
+  const file = new File([pdfBlob], `${refKey || `lesson-${lessonId}`}.pdf`, {
+    type: "application/pdf",
+  });
+  await uploadAnnotatedRefFile({
+    file,
+    mediaType: "pdf",
+    refKey,
+    lessonId,
+    subject,
+    locale,
+    onNeedAuth,
+    onSaved,
+  });
 }

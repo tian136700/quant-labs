@@ -30,8 +30,15 @@ import {
 } from "@/components/lesson-annotate/lesson-annotate-draw";
 import {
   downloadAnnotatedImage,
+  downloadAnnotatedPdf,
+  saveAnnotatedLessonPdfRef,
   saveAnnotatedLessonRef,
 } from "@/components/lesson-annotate/lesson-annotate-save";
+import { composeAnnotatedPdfBlob } from "@/components/lesson-annotate/lesson-annotate-pdf";
+import {
+  useLessonAnnotatePdfPages,
+  type LessonAnnotateMediaType,
+} from "@/components/lesson-annotate/useLessonAnnotatePdfPages";
 import { useLessonAnnotateBrowserBack } from "@/lib/lesson-annotate-browser-back";
 import { LessonAnnotateModalStyles } from "@/components/lesson-annotate/LessonAnnotateModalStyles";
 import { LessonAnnotateToolbar } from "@/components/lesson-annotate/LessonAnnotateToolbar";
@@ -48,6 +55,8 @@ export type LessonAnnotateSubject = "jp" | "en";
 export type LessonAnnotateModalProps = {
   open: boolean;
   imageUrl: string;
+  /** 教案介质；PDF 按页转图批注后再存回 PDF */
+  mediaType?: LessonAnnotateMediaType;
   refKey: string;
   lessonId: number;
   lessonContent: string;
@@ -65,6 +74,7 @@ export type LessonAnnotateModalProps = {
 export function LessonAnnotateModal({
   open,
   imageUrl,
+  mediaType = "image",
   refKey,
   lessonId,
   lessonContent,
@@ -78,6 +88,12 @@ export function LessonAnnotateModal({
   const [mounted, setMounted] = useState(false);
   const [imgReady, setImgReady] = useState(false);
   const [imgLoadError, setImgLoadError] = useState("");
+  const pdf = useLessonAnnotatePdfPages({
+    open,
+    mediaType,
+    sourceUrl: imageUrl,
+  });
+  const displayUrl = pdf.isPdf ? pdf.pageDataUrl : imageUrl;
   const [tool, setTool] = useState<Tool>("brush");
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [previewLine, setPreviewLine] = useState<{
@@ -160,11 +176,10 @@ export function LessonAnnotateModal({
     const stage = stageRef.current;
     if (!img?.naturalWidth || !img.naturalHeight || !stage) return 1;
     const stageRect = stage.getBoundingClientRect();
-    return Math.min(
-      (stageRect.width - 24) / img.naturalWidth,
-      (stageRect.height - 24) / img.naturalHeight,
-      1
-    );
+    // 按舞台宽度铺满（可纵向滚动）；不再用「完整塞进视口」把图压得很小。
+    // 小图允许放大超过 1，避免一进来还要点两次「放大」。
+    const widthFit = (stageRect.width - 24) / img.naturalWidth;
+    return Math.min(Math.max(widthFit, 0.08), 4);
   }, []);
 
   const scrollToKeepCanvasPoint = useCallback(
@@ -274,16 +289,33 @@ export function LessonAnnotateModal({
 
   const handleImgError = useCallback(() => {
     setImgReady(false);
-    setImgLoadError("教案图片加载失败。请关闭后重试；若仍失败请检查教案是否为图片。");
-  }, []);
+    setImgLoadError(
+      pdf.isPdf
+        ? "PDF 页加载失败。请关闭后重试。"
+        : "教案图片加载失败。请关闭后重试；若仍失败请检查教案是否为图片。"
+    );
+  }, [pdf.isPdf]);
 
   useEffect(() => {
-    if (!open || !imageUrl) return;
+    if (!open || !displayUrl) return;
     const img = imgRef.current;
     if (img?.complete && img.naturalWidth > 0) {
       syncCanvasSize();
     }
-  }, [open, imageUrl, syncCanvasSize]);
+  }, [open, displayUrl, syncCanvasSize]);
+
+  useEffect(() => {
+    if (!open || !pdf.isPdf) return;
+    if (pdf.error) {
+      setImgReady(false);
+      setImgLoadError(pdf.error);
+      return;
+    }
+    if (pdf.loading && !pdf.pageDataUrl) {
+      setImgReady(false);
+      setImgLoadError("");
+    }
+  }, [open, pdf.isPdf, pdf.error, pdf.loading, pdf.pageDataUrl]);
 
   useEffect(() => {
     if (!open || !imgReady) return;
