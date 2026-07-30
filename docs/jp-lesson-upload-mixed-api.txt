@@ -47,9 +47,11 @@ token 与现有教案 / 日语上传共用，取环境变量 JP_REVIEW_UPLOAD_TO
   "title": "标日第23课",
   "word_content": "東, 西, 南, 北",
   "word_meanings": "东|西|南|北",
+  "word_annotations": "口语常用|考试常用|口语考试都常用|口语常用",
   "word_example_sentences": "東(ひがし)の空(そら)が明(あか)るいです。\n译文：东边的天空很明亮。|||西(にし)の方(ほう)へ歩(ある)きます。\n译文：往西边走。",
   "grammar_content": "～によると, ～について",
   "grammar_meanings": "据……说|关于……",
+  "grammar_annotations": "考试常用|口语考试都常用",
   "grammar_example_sentences": "天気予報(てんきよほう)によると、今日(きょう)は晴(は)れです。\n译文：据天气预报说，今天是晴天。|||学校(がっこう)について話(はな)します。\n译文：我来谈谈学校。"
 }
 
@@ -66,10 +68,13 @@ token 与现有教案 / 日语上传共用，取环境变量 JP_REVIEW_UPLOAD_TO
 --------
 word_content                 必填。单词列表，英文/中文逗号或顿号分隔
 word_meanings                选填。与单词一一对应，多项用 | 分隔
+word_annotations             选填。与单词一一对应，| 分隔；每项为：
+                             口语常用 / 考试常用 / 口语考试都常用
 word_example_sentences       选填。与单词一一对应，多项用 ||| 分隔；
                              单项内「日语句 + 下一行 译文：…」，每词最多 10 条
 grammar_content              必填。语法列表，分隔规则同上
 grammar_meanings             选填。与语法一一对应，| 分隔
+grammar_annotations          选填。与语法一一对应，| 分隔（取值同上）
 grammar_example_sentences    选填。与语法一一对应，||| 分隔
 title                        选填
 ref_key                      选填；有 file 时忽略，由服务端分配

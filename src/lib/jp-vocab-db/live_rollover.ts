@@ -420,6 +420,7 @@ async function getJpVocabWordByIdLite(
       class_notes_present: hasNotes,
     };
   }
+  await ensureVocabWordSchema(db);
   const row = await db
     .prepare(
       `SELECT id, word, reading, meaning, pos, kind, ref_key,

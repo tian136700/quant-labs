@@ -718,6 +718,16 @@ export async function uploadJpVocabWords(
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
   const ts = nowIso();
+
+  if (refs.length) {
+    await upsertJpVocabRefMetadata(db, refs);
+  }
+
+  if (jpVocabDbState.devStoreEnabled) {
+    if (replace) {
+      jpVocabDbState.devWords.length = 0;
+      jpVocabDbState.devNextId = 1;
+    }
     let added = 0;
     let skipped = 0;
     for (const item of cleaned) {

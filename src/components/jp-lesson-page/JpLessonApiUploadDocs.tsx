@@ -59,22 +59,26 @@ export function JpLessonApiUploadDocs() {
   -F "title=标日第23课" \\
   -F "word_content=東, 西, 南, 北" \\
   -F "word_meanings=东|西|南|北" \\
+  -F "word_annotations=口语常用|考试常用|口语考试都常用|口语常用" \\
   -F "grammar_content=～によると, ～について" \\
   -F "grammar_meanings=据……说|关于……" \\
+  -F "grammar_annotations=考试常用|口语考试都常用" \\
   -F "media_type=image" \\
   -F "file=@lesson23.png"`}
         </pre>
         <p>
           <code>content</code> 中多个单词/语法用英文或中文逗号分隔；可选 <code>meanings</code> 与
           <code>content</code> 各项一一对应，多项释义用竖线 <code>|</code> 分隔（释义内可含逗号）。
+          可选 <code>annotations</code>（合传为 <code>word_annotations</code> /{" "}
+          <code>grammar_annotations</code>）同样用 <code>|</code> 对齐，每项只能是：口语常用、考试常用、口语考试都常用。
           强烈建议同时传可选 <code>example_sentences</code>：与 <code>content</code> 各项一一对应，多项之间用{" "}
           <code>|||</code> 分隔；每一项里写若干「日语句 + 下一行 <code>译文：…</code>」（也可写{" "}
           <code>1. …</code> 序号，入库时会规范化）。每个单词/语法最多 10 条例句，条数由上传方自定。
           合传接口用 <code>word_content</code> / <code>grammar_content</code>（及对应 meanings /
-          example_sentences）分别传两侧；上传带 <code>file</code> 时，系统会自动生成教案标识（如{" "}
+          annotations / example_sentences）分别传两侧；上传带 <code>file</code> 时，系统会自动生成教案标识（如{" "}
           <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
           上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
-          日语单词抽问并带上教案链接、释义与例句（合传课：单词与语法分别按类型入库）。
+          日语单词抽问并带上教案链接、释义、标注与例句（合传课：单词与语法分别按类型入库）。
         </p>
       </details>
   );
