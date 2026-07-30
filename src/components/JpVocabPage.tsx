@@ -495,6 +495,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     recordLevel,
     tryRecordLevel,
     shareWord,
+    ensureWordSharedBeforeNext,
     unshareWord,
     quizFlashcardSavingWordId,
   } = useJpVocabReviewActions({
@@ -992,6 +993,7 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
         onShare={(wordId) => void shareWord(wordId)}
+        onEnsureSharedBeforeNext={ensureWordSharedBeforeNext}
         onUnshare={(wordId) => void unshareWord(wordId)}
         onWordSaved={handleWordSaved}
         onWordSaveFailed={handleWordSaveFailed}

@@ -53,7 +53,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
                   ? "预览模式：用法旁熟悉程度仅为展示，不会保存"
                   : "预览模式：熟悉程度勾选仅为展示，不会保存"
                 : usePerUsageLevels
-                  ? "请在每条用法旁勾选熟悉程度（全部勾完后才写入并同步给学生）"
+                  ? "请在每条用法旁勾选熟悉程度（全部勾完后，点「下一个」再同步给学生）"
                   : "请根据学生熟悉程度，勾选以下选项"}
           </p>
           <div className="jp-vocab-level-wrap jp-vocab-teacher-quiz__level-wrap">

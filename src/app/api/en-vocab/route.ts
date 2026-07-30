@@ -166,8 +166,8 @@ export async function POST(request: Request) {
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
     const shareOpts = {
-      // 用法齐了 / 整词勾选后整卡同步到学生「今日背英语单词」
-      shareToStudy: true as const,
+      // 勾选只写熟悉程度；整卡同步改到点「下一个」时 POST /share（只同步一次）
+      shareToStudy: false as const,
       sharedBy: user?.username ?? "",
     };
 

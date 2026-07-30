@@ -25,7 +25,6 @@ import {
   formatEnVocabTotalReviewsDisplay,
 } from "@/lib/en-vocab-shared";
 import {
-  findFirstUncheckedEnVocabTeacherQuizIndex,
   mergeEnVocabWordAfterClassNotesFetch,
   type EnVocabTeacherQuizSession,
 } from "@/lib/en-vocab-teacher-quiz";
@@ -48,7 +47,9 @@ import {
   EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED,
   EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT,
   EN_VOCAB_LEVEL_SYNC_HINT_SHORT,
+  EN_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL,
 } from "@/components/en-vocab-teacher-quiz-flashcard/helpers";
+import { advanceEnVocabTeacherQuizNext } from "@/components/en-vocab-teacher-quiz-flashcard/advanceTeacherQuizNext";
 import { EnVocabFlashcardAlerts } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardAlerts";
 import { EnVocabFlashcardPageBody } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageBody";
 import { EnVocabFlashcardPageFooter } from "@/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardPageFooter";
@@ -95,7 +96,9 @@ type Props = {
   onViewRemarks: (word: EnVocabWord) => void;
   onEditRemarks?: (word: EnVocabWord) => void;
   onEditWord?: (word: EnVocabWord) => void;
-  onShare?: (wordId: number) => void;
+  onShare?: (wordId: number) => void | Promise<boolean | void>;
+  /** 点「下一个」前：未共享则同步一次；已共享返回 true */
+  onEnsureSharedBeforeNext?: (wordId: number) => Promise<boolean>;
   onUnshare?: (wordId: number) => void;
   onWordUpdated?: (word: EnVocabWord) => void;
   nestedModalOpen?: boolean;
@@ -132,6 +135,7 @@ export function EnVocabTeacherQuizFlashcardModal({
   onEditRemarks,
   onEditWord,
   onShare,
+  onEnsureSharedBeforeNext,
   onUnshare,
   onWordUpdated,
   nestedModalOpen = false,
@@ -153,6 +157,9 @@ export function EnVocabTeacherQuizFlashcardModal({
   /** 本词从「未勾选」进入时武装计时（已勾选返回上一词则不显示） */
   const [answerTimerArmed, setAnswerTimerArmed] = useState(false);
   const answerTimerStartedAtRef = useRef<number | null>(null);
+  const nextAdvanceBusyRef = useRef(false);
+  /** 保存中点了「下一个」：闲下来后自动继续同步并跳词 */
+  const pendingNextAfterIdleRef = useRef(false);
 
   const currentWordId =
     session && session.wordIds[session.currentIndex] != null
@@ -178,6 +185,8 @@ export function EnVocabTeacherQuizFlashcardModal({
     setNextBlockedHint(false);
     setNextBlockedUsageMessage(null);
     setSyncWaitHint(false);
+    nextAdvanceBusyRef.current = false;
+    pendingNextAfterIdleRef.current = false;
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
   }, [open, word?.id, word?.updated_at, word]);
 
@@ -326,6 +335,72 @@ export function EnVocabTeacherQuizFlashcardModal({
     );
   };
 
+  useEffect(() => {
+    if (currentWordSaveBusy) return;
+    if (!pendingNextAfterIdleRef.current) return;
+    if (!open || !session || !word || previewMode || isStudyMode) return;
+    if (selectedLevel == null) return;
+    pendingNextAfterIdleRef.current = false;
+    setSyncWaitHint(false);
+    const wordId = word.id;
+    const alreadyShared = sharedTodayWordIds?.has(wordId) ?? false;
+    void (async () => {
+      if (nextAdvanceBusyRef.current) return;
+      nextAdvanceBusyRef.current = true;
+      try {
+        if (!alreadyShared && onEnsureSharedBeforeNext) {
+          const ok = await onEnsureSharedBeforeNext(wordId);
+          if (!ok) return;
+        }
+        const sessionChecked = session.wordIds.filter((id) =>
+          wordHasLevel(id)
+        ).length;
+        const sessionUnchecked = Math.max(
+          0,
+          session.wordIds.length - sessionChecked
+        );
+        const useDaily =
+          dailyQuizProgress != null && dailyQuizProgress.total > 0;
+        const unchecked = useDaily
+          ? Math.max(
+              0,
+              dailyQuizProgress!.total -
+                enVocabDailyQuizProgressDisplayChecked(dailyQuizProgress!)
+            )
+          : sessionUnchecked;
+        const complete = useDaily
+          ? Boolean(dailyQuizProgress!.complete) ||
+            (session.wordIds.length > 0 && sessionUnchecked === 0)
+          : session.wordIds.length > 0 && sessionUnchecked === 0;
+        if (complete) {
+          onComplete();
+          return;
+        }
+        advanceEnVocabTeacherQuizNext({
+          session,
+          wordHasLevel,
+          uncheckedCount: unchecked,
+          onNavigate,
+          onComplete,
+          setRemainingUncheckedHint,
+        });
+      } finally {
+        nextAdvanceBusyRef.current = false;
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentWordSaveBusy,
+    open,
+    session,
+    word?.id,
+    selectedLevel,
+    previewMode,
+    isStudyMode,
+    sharedTodayWordIds,
+    onEnsureSharedBeforeNext,
+  ]);
+
   const showUncheckedUsagesBlocked = (
     levels: ReadonlyArray<EnVocabLevel | null | undefined>,
     actionHint: string
@@ -446,31 +521,26 @@ export function EnVocabTeacherQuizFlashcardModal({
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
   const saveBusy = isSharing || isQueued || isSyncing || isSaving;
-  const saveProgressKind: JpVocabSaveProgressKind = isShared
-    ? "save_level"
-    : selected || isSaving
-      ? "sync_to_student"
-      : "share";
-  const saveProgressLabel = jpVocabSaveProgressLabel(
-    isSaving && !isSharing && !isQueued && !isSyncing
-      ? "save_level"
-      : saveProgressKind,
-    {
-      queued: isQueued && !isSyncing,
-    }
-  );
+  const saveProgressKind: JpVocabSaveProgressKind = isSharing
+    ? "sync_to_student"
+    : "save_level";
+  const saveProgressLabel = isSharing
+    ? EN_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL
+    : jpVocabSaveProgressLabel(saveProgressKind, {
+        queued: isQueued && !isSyncing,
+      });
   const saveProgressPercent = isSharing
     ? sharingPercent
     : jpVocabSaveProgressDisplayPercent(null);
   const levelSyncHintShort = isShared
     ? EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT
     : usePerUsageLevels
-      ? "全部用法勾完后同步给学生"
+      ? "点「下一个」时同步给学生"
       : EN_VOCAB_LEVEL_SYNC_HINT_SHORT;
   const levelSyncHint = isShared
     ? EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
     : usePerUsageLevels
-      ? "每条用法都勾完后，才会写入并同步给学生复习查看"
+      ? "每条用法都勾完后，点「下一个」才同步给学生复习查看（每词只同步一次）"
       : EN_VOCAB_LEVEL_SYNC_HINT;
   const canGoPrev = session.currentIndex > 0;
   const isLast = session.currentIndex === session.wordIds.length - 1;
@@ -479,23 +549,49 @@ export function EnVocabTeacherQuizFlashcardModal({
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
+  const runAdvanceAfterShare = () => {
+    if (sessionComplete) {
+      onComplete();
+      return;
+    }
+    advanceEnVocabTeacherQuizNext({
+      session,
+      wordHasLevel,
+      uncheckedCount,
+      onNavigate,
+      onComplete,
+      setRemainingUncheckedHint,
+    });
+  };
+
+  const runShareThenAdvance = async () => {
+    if (nextAdvanceBusyRef.current) return;
+    nextAdvanceBusyRef.current = true;
+    try {
+      if (!isShared && onEnsureSharedBeforeNext) {
+        const ok = await onEnsureSharedBeforeNext(w.id);
+        if (!ok) return;
+      }
+      runAdvanceAfterShare();
+    } finally {
+      nextAdvanceBusyRef.current = false;
+    }
+  };
+
   const tryGoNext = () => {
     if (previewMode || isStudy) {
       onComplete();
       return;
     }
-    if (sessionComplete) {
-      onComplete();
-      return;
-    }
     if (!selected) {
       if (usePerUsageLevels) {
-        // 草稿已齐但写库失败时 selected 仍空：再提交一次，勿误报「未勾选」
         if (
           areEnVocabUsageLevelsComplete(usageDraftLevels, usageSlotCount) &&
           onSelectUsageLevels
         ) {
           onSelectUsageLevels(w.id, usageDraftLevels);
+          pendingNextAfterIdleRef.current = true;
+          setSyncWaitHint(true);
           return;
         }
         showUncheckedUsagesBlocked(usageDraftLevels, "再点「下一个」");
@@ -505,40 +601,13 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedHint(true);
       return;
     }
-    // 同步给学生未完成：禁止跳下一个；点了给出提示（勿静默点不动）
-    if (saveBusy) {
+    if (saveBusy || nextAdvanceBusyRef.current) {
+      pendingNextAfterIdleRef.current = true;
       setSyncWaitHint(true);
       return;
     }
-    // 「下一个」跳过已勾选词，避免漏掉中间未勾选却卡在最后一词点「完成」无反应
-    const nextUnchecked = findFirstUncheckedEnVocabTeacherQuizIndex(
-      session,
-      wordHasLevel,
-      session.currentIndex + 1
-    );
-    if (nextUnchecked >= 0) {
-      onNavigate(nextUnchecked);
-      return;
-    }
-    const remainingUnchecked = findFirstUncheckedEnVocabTeacherQuizIndex(
-      session,
-      wordHasLevel,
-      0
-    );
-    if (remainingUnchecked >= 0) {
-      if (remainingUnchecked !== session.currentIndex) {
-        onNavigate(remainingUnchecked);
-      }
-      setRemainingUncheckedHint(true);
-      return;
-    }
-    // 进度条仍显示剩余，但会话词都已勾选：交给 onComplete 补全队列
-    if (uncheckedCount > 0) {
-      setRemainingUncheckedHint(true);
-      onComplete();
-      return;
-    }
-    onComplete();
+    setSyncWaitHint(false);
+    void runShareThenAdvance();
   };
 
   return createPortal(

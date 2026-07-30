@@ -126,7 +126,7 @@ export function JpVocabTeacherQuizIntroModal({
               <strong>抽问学生</strong>：向学生随机提问（可用中文或日文），学生回答后，请根据实际掌握情况勾选「非常熟悉」「一般」或「不熟悉」。卡片右上角有<strong>计时器</strong>（00:00 起计），可参考学生思考快慢判断熟练度；勾选后计时停住，下一词重新从 00:00 开始。
             </li>
             <li>
-              <strong>同步给学生</strong>：勾选熟悉程度后，该单词会自动同步到学生「今日日语单词」，供学生复习确认。
+              <strong>同步给学生</strong>：勾选熟悉程度后<strong>先不要急着跳词</strong>；点「下一个」时才会把该词同步到学生「今日日语单词」（每词只同步一次；已同步过的不会再发）。同步时卡片会显示进度条，请等同步完成再进入下一词。
             </li>
           </ol>
           <p className="jp-vocab-teacher-quiz-intro-note" role="note">

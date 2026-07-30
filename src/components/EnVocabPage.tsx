@@ -565,6 +565,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     recordLevel,
     recordUsageLevels,
     shareWord,
+    ensureWordSharedBeforeNext,
   } = useEnVocabReviewActions({
     locale,
     canOperate,
@@ -987,6 +988,7 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
         onEditRemarks={setEditingRemarksWord}
         onEditWord={setEditingWord}
         onShare={(wordId) => void shareWord(wordId)}
+        onEnsureSharedBeforeNext={ensureWordSharedBeforeNext}
         onWordSaved={handleWordSaved}
         onWordSaveFailed={handleWordSaveFailed}
         onNeedAuth={openEnAuth}

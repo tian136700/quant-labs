@@ -23,12 +23,17 @@ export const LEVEL_LABEL: Record<EnVocabLevel, string> = {
   weak: "不熟悉",
 };
 
-export const EN_VOCAB_LEVEL_SYNC_HINT_SHORT = "勾选后同步给学生复习查看";
-export const EN_VOCAB_LEVEL_SYNC_HINT = "勾选后，该单词将同步给学生复习查看";
+export const EN_VOCAB_LEVEL_SYNC_HINT_SHORT = "点「下一个」时同步给学生";
+export const EN_VOCAB_LEVEL_SYNC_HINT =
+  "勾选熟悉程度后，点「下一个」才同步给学生复习查看（每词只同步一次）";
 export const EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT =
-  "已共享给学生，勾选仅更新熟悉程度";
+  "已同步过，下一个不会再发";
 export const EN_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED =
-  "已共享给学生，勾选熟悉程度仅更新记录，不会重复发送";
+  "该词今日已同步给学生，点「下一个」不会重复发送";
+
+/** 点「下一个」触发同步时的进度条文案 */
+export const EN_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL =
+  "正在同步该单词给学生，请稍等";
 
 /** 多条历史备注合并为展示用正文（不含时间戳行） */
 export function formatEnVocabClassNotesForDisplay(

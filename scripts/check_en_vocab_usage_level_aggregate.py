@@ -114,11 +114,17 @@ def main() -> int:
     for n in [
         "usage_levels",
         "recordEnVocabReviewWithUsageLevels",
-        "shareToStudy: true",
+        "shareToStudy: false",
         "shared_new",
     ]:
         if n not in route_text:
             errors.append(f"en-vocab/route.ts: missing {n!r}")
+
+    if "shareToStudy: true" in route_text:
+        errors.append(
+            "en-vocab/route.ts: level/usage review must use shareToStudy: false "
+            "(share on「下一个」via /share)"
+        )
 
     hook = ROOT / "src/hooks/useEnVocabReviewActions.ts"
     if not hook.is_file():
@@ -127,15 +133,19 @@ def main() -> int:
         hook_text = hook.read_text(encoding="utf-8")
         for n in [
             "notifyEnVocabSharedUpdated",
-            "shared_new",
+            "ensureWordSharedBeforeNext",
             "今日背英语单词",
             "shareProgressMap",
             "patchShareProgress",
             "JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT",
-            "勿乐观标记",
+            "正在同步该单词给学生，请稍等",
         ]:
             if n not in hook_text:
                 errors.append(f"useEnVocabReviewActions.ts: missing {n!r}")
+        if "已勾选熟悉程度，并同步到学生" in hook_text:
+            errors.append(
+                "useEnVocabReviewActions.ts: must not share-on-check status"
+            )
         # recordUsageLevels / recordLevel 禁止在 await 前 setSharedTodayWordIds(nextSharedIds)
         if (
             "nextSharedIds" in hook_text

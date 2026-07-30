@@ -17,7 +17,6 @@ import {
   jpVocabFinalQuizScoreOrNull,
 } from "@/lib/jp-vocab-quiz-score";
 import {
-  findFirstUncheckedJpVocabTeacherQuizIndex,
   jpVocabTeacherQuizModeLabel,
   jpVocabTeacherQuizNotesInline,
   type JpVocabTeacherQuizSession,
@@ -53,11 +52,13 @@ import { lockBodyScroll } from "@/lib/body-scroll-lock";
 import { JpVocabFlashcardAlerts } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardAlerts";
 import { JpVocabFlashcardHeader } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardHeader";
 import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
+import { useJpVocabTeacherQuizNextAdvance } from "@/components/jp-vocab-teacher-quiz-flashcard/useJpVocabTeacherQuizNextAdvance";
 import {
   JP_VOCAB_LEVEL_SYNC_HINT,
   JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED,
   JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED_SHORT,
   JP_VOCAB_LEVEL_SYNC_HINT_SHORT,
+  JP_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL,
   LEVELS,
   formatJpVocabQuizElapsedLabel,
 } from "@/components/jp-vocab-teacher-quiz-flashcard/helpers";
@@ -99,7 +100,9 @@ type Props = {
   onViewRemarks: (word: JpVocabWord) => void;
   onEditRemarks?: (word: JpVocabWord) => void;
   onEditWord?: (word: JpVocabWord) => void;
-  onShare?: (wordId: number) => void;
+  onShare?: (wordId: number) => void | Promise<boolean | void>;
+  /** 点「下一个」前：未共享则同步一次；已共享返回 true */
+  onEnsureSharedBeforeNext?: (wordId: number) => Promise<boolean>;
   onUnshare?: (wordId: number) => void;
   onWordUpdated?: (word: JpVocabWord) => void;
   nestedModalOpen?: boolean;
@@ -139,6 +142,7 @@ export function JpVocabTeacherQuizFlashcardModal({
   onEditRemarks,
   onEditWord,
   onShare,
+  onEnsureSharedBeforeNext,
   onUnshare,
   onWordUpdated,
   nestedModalOpen = false,
@@ -148,10 +152,6 @@ export function JpVocabTeacherQuizFlashcardModal({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
-  /** 未勾选熟悉程度就点「下一个」 */
-  const [nextBlockedHint, setNextBlockedHint] = useState(false);
-  /** 点「完成抽查」时会话内仍有未勾选词 */
-  const [remainingUncheckedHint, setRemainingUncheckedHint] = useState(false);
   /** 本词答题正计时（秒）；换词归零，勾选熟悉程度后停住 */
   const [answerElapsedSec, setAnswerElapsedSec] = useState(0);
   /** 本词从「未勾选」进入时武装计时（已勾选返回上一词则不显示） */
@@ -169,6 +169,92 @@ export function JpVocabTeacherQuizFlashcardModal({
   const showAnswerTimer =
     open && !previewMode && !isCoachMode && !isStudyMode && word != null;
 
+  const selectedLevel =
+    word && session
+      ? isCoachMode
+        ? sessionLevel[word.id] ?? coachLevelByWordId?.get(word.id)
+        : effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], {
+            displayOrder,
+          })
+      : undefined;
+
+  const wordHasLevel = (wordId: number) => {
+    const item = wordsById.get(wordId);
+    if (!item) return false;
+    return (
+      effectiveJpVocabDisplayLevel(item, sessionLevel[wordId], { displayOrder }) !=
+      null
+    );
+  };
+
+  const syncPhaseForHook =
+    word != null ? wordSyncState[word.id] : undefined;
+  const isSharingForHook =
+    word != null ? word.id in shareProgressMap : false;
+  const saveBusyForHook =
+    isSharingForHook ||
+    syncPhaseForHook === "queued" ||
+    syncPhaseForHook === "syncing";
+  const isSharedForHook =
+    word != null ? (sharedTodayWordIds?.has(word.id) ?? false) : false;
+
+  const sessionCheckedForHook = session
+    ? session.wordIds.filter((id) => wordHasLevel(id)).length
+    : 0;
+  const sessionTotalForHook = session?.wordIds.length ?? 0;
+  const sessionUncheckedForHook = Math.max(
+    0,
+    sessionTotalForHook - sessionCheckedForHook
+  );
+  const useDailyProgressForHook =
+    !isCoachMode && dailyQuizProgress != null && dailyQuizProgress.total > 0;
+  const uncheckedCountForHook = useDailyProgressForHook
+    ? Math.max(
+        0,
+        dailyQuizProgress!.total -
+          jpVocabDailyQuizProgressDisplayChecked(dailyQuizProgress!)
+      )
+    : sessionUncheckedForHook;
+  const sessionCompleteForHook = isCoachMode
+    ? false
+    : dailyQuizProgress != null
+      ? dailyQuizProgress.complete
+      : sessionTotalForHook > 0 && sessionUncheckedForHook === 0;
+
+  const {
+    nextBlockedHint,
+    syncWaitHint,
+    remainingUncheckedHint,
+    setNextBlockedHint,
+    setSyncWaitHint,
+    setRemainingUncheckedHint,
+    tryGoNext,
+  } = useJpVocabTeacherQuizNextAdvance({
+    session: session ?? {
+      mode: "random",
+      wordIds: [],
+      currentIndex: 0,
+    },
+    wordId: word?.id ?? 0,
+    selected: selectedLevel != null,
+    isShared: isSharedForHook,
+    saveBusy: saveBusyForHook,
+    isCoach: isCoachMode,
+    isStudy: isStudyMode,
+    previewMode,
+    isSaving: word != null && savingWordId === word.id,
+    canGoNext: Boolean(
+      session && session.currentIndex < session.wordIds.length - 1
+    ),
+    sessionComplete: sessionCompleteForHook,
+    wordHasLevel,
+    uncheckedCount: uncheckedCountForHook,
+    onNavigate,
+    onComplete,
+    onMarkCoached,
+    onEnsureSharedBeforeNext,
+  });
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -180,10 +266,8 @@ export function JpVocabTeacherQuizFlashcardModal({
       return;
     }
     setNotesWord(word);
-    setNextBlockedHint(false);
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
-  }, [open, word?.id, word?.updated_at, word]);
-
+  }, [open, word?.id, word?.updated_at, word, setRemainingUncheckedHint]);
   useEffect(() => {
     if (!open || !word) return;
     if (!word.class_notes_present || word.class_notes) return;
@@ -226,6 +310,10 @@ export function JpVocabTeacherQuizFlashcardModal({
     if (!open || nestedModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (syncWaitHint) {
+        setSyncWaitHint(false);
+        return;
+      }
       if (nextBlockedHint) {
         setNextBlockedHint(false);
         return;
@@ -238,21 +326,19 @@ export function JpVocabTeacherQuizFlashcardModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, nestedModalOpen, onClose, nextBlockedHint, remainingUncheckedHint]);
+  }, [
+    open,
+    nestedModalOpen,
+    onClose,
+    nextBlockedHint,
+    remainingUncheckedHint,
+    syncWaitHint,
+  ]);
 
   useEffect(() => {
     if (!open) return;
     return lockBodyScroll();
   }, [open]);
-
-  const selectedLevel =
-    word && session
-      ? isCoachMode
-        ? sessionLevel[word.id] ?? coachLevelByWordId?.get(word.id)
-        : effectiveJpVocabDisplayLevel(word, sessionLevel[word.id], {
-            displayOrder,
-          })
-      : undefined;
 
   useEffect(() => {
     if (!showAnswerTimer || !word) {
@@ -294,16 +380,7 @@ export function JpVocabTeacherQuizFlashcardModal({
 
   useEffect(() => {
     if (selectedLevel) setNextBlockedHint(false);
-  }, [selectedLevel]);
-
-  const wordHasLevel = (wordId: number) => {
-    const item = wordsById.get(wordId);
-    if (!item) return false;
-    return (
-      effectiveJpVocabDisplayLevel(item, sessionLevel[wordId], { displayOrder }) !=
-      null
-    );
-  };
+  }, [selectedLevel, setNextBlockedHint]);
 
   if (!open || !mounted || !session || !word || currentWordId == null) return null;
 
@@ -410,14 +487,14 @@ export function JpVocabTeacherQuizFlashcardModal({
   const sharingPercent = shareProgressMap[w.id] ?? 0;
   const isShared = sharedTodayWordIds?.has(w.id) ?? false;
   const saveBusy = isSharing || isQueued || isSyncing;
-  const saveProgressKind: JpVocabSaveProgressKind = isCoach || isShared
-    ? "save_level"
-    : selected
-      ? "sync_to_student"
-      : "share";
-  const saveProgressLabel = jpVocabSaveProgressLabel(saveProgressKind, {
-    queued: isQueued && !isSyncing,
-  });
+  const saveProgressKind: JpVocabSaveProgressKind = isSharing
+    ? "sync_to_student"
+    : "save_level";
+  const saveProgressLabel = isSharing
+    ? JP_VOCAB_SYNC_ON_NEXT_PROGRESS_LABEL
+    : jpVocabSaveProgressLabel(saveProgressKind, {
+        queued: isQueued && !isSyncing,
+      });
   const saveProgressPercent = isSharing
     ? sharingPercent
     : jpVocabSaveProgressDisplayPercent(null);
@@ -428,66 +505,8 @@ export function JpVocabTeacherQuizFlashcardModal({
     ? JP_VOCAB_LEVEL_SYNC_HINT_ALREADY_SHARED
     : JP_VOCAB_LEVEL_SYNC_HINT;
   const canGoPrev = session.currentIndex > 0;
-  const canGoNext = session.currentIndex < session.wordIds.length - 1;
   const isLast = session.currentIndex === session.wordIds.length - 1;
-
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-
-  const tryGoNext = () => {
-    if (previewMode || isStudy) {
-      onComplete();
-      return;
-    }
-    if (!isCoach && sessionComplete) {
-      onComplete();
-      return;
-    }
-    if (!isCoach && !selected) {
-      setNextBlockedHint(true);
-      return;
-    }
-    if (isSaving) return;
-    if (isCoach) {
-      onMarkCoached?.(w.id);
-    }
-    if (!isCoach) {
-      // 「下一个」跳过已勾选词，避免漏掉中间未勾选却卡在最后一词点「完成」无反应
-      const nextUnchecked = findFirstUncheckedJpVocabTeacherQuizIndex(
-        session,
-        wordHasLevel,
-        session.currentIndex + 1
-      );
-      if (nextUnchecked >= 0) {
-        onNavigate(nextUnchecked);
-        return;
-      }
-      const remainingUnchecked = findFirstUncheckedJpVocabTeacherQuizIndex(
-        session,
-        wordHasLevel,
-        0
-      );
-      if (remainingUnchecked >= 0) {
-        if (remainingUnchecked !== session.currentIndex) {
-          onNavigate(remainingUnchecked);
-        }
-        setRemainingUncheckedHint(true);
-        return;
-      }
-      // 进度条仍显示剩余，但会话词都已勾选：交给 onComplete 补全队列（visible_ids 池）
-      if (uncheckedCount > 0) {
-        setRemainingUncheckedHint(true);
-        onComplete();
-        return;
-      }
-      onComplete();
-      return;
-    }
-    if (canGoNext) {
-      onNavigate(session.currentIndex + 1);
-    } else {
-      onComplete();
-    }
-  };
 
   return createPortal(
     <div className="jp-vocab-teacher-quiz-overlay" role="presentation">
@@ -928,11 +947,11 @@ export function JpVocabTeacherQuizFlashcardModal({
           <button
             type="button"
             className={`btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
-              !previewMode && !isCoach && !isStudy && !selected
+              !previewMode && !isCoach && !isStudy && (!selected || saveBusy)
                 ? " jp-vocab-teacher-quiz__nav-btn--blocked"
                 : ""
             }${isStudy ? " jp-vocab-teacher-quiz__nav-btn--study-close" : ""}`}
-            disabled={isSaving}
+            disabled={isCoach ? isSaving : false}
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
@@ -951,7 +970,9 @@ export function JpVocabTeacherQuizFlashcardModal({
                     : "下一个"}
             </span>
             {!isLast && !isCoach && !isStudy && !sessionComplete && !previewMode ? (
-              <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
+              <span className="jp-vocab-teacher-quiz__nav-btn-sub">
+                {saveBusy ? "同步完成后再点" : "勾选后可点"}
+              </span>
             ) : null}
           </button>
         </div>
@@ -959,12 +980,14 @@ export function JpVocabTeacherQuizFlashcardModal({
 
       <JpVocabFlashcardAlerts
         nextBlockedHint={nextBlockedHint}
+        syncWaitHint={syncWaitHint}
         previewMode={previewMode}
         isCoach={isCoach}
         isStudy={isStudy}
         selected={selected}
         remainingUncheckedHint={remainingUncheckedHint}
         onDismissNextBlocked={() => setNextBlockedHint(false)}
+        onDismissSyncWait={() => setSyncWaitHint(false)}
         onDismissRemaining={() => setRemainingUncheckedHint(false)}
         stop={stop}
       />

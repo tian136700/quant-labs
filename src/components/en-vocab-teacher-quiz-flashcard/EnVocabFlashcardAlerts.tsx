@@ -48,13 +48,13 @@ export function EnVocabFlashcardAlerts({
               id="en-vocab-teacher-quiz-sync-title"
               className="jp-vocab-teacher-quiz-alert__title"
             >
-              正在同步给学生
+              正在同步该单词给学生
             </h3>
             <p
               id="en-vocab-teacher-quiz-sync-desc"
               className="jp-vocab-teacher-quiz-alert__desc"
             >
-              正在同步给学生，请稍等。
+              正在同步该单词给学生，请稍等。
             </p>
             <button
               type="button"

@@ -185,8 +185,8 @@ export async function POST(request: Request) {
     const { isAdmin: isAdminForReview } = await requireAdmin(request);
 
     const result = await recordJpVocabReview(env.DB, wordId, level, {
-      // 老师勾选熟悉程度后整卡同步到学生「今日单词」（与手动「发给学生」按钮无关）
-      shareToStudy: true,
+      // 勾选只写熟悉程度；整卡同步改到点「下一个」时 POST /share（只同步一次）
+      shareToStudy: false,
       sharedBy: user?.username ?? "",
     });
 

@@ -23,7 +23,7 @@ type Props = {
   sessionPct: any;
   /** 学生主动「查看老师正在抽查的单词」 */
   studentPeeked: any;
-  /** 老师勾选熟悉程度后已同步到学生「今日背英语单词」 */
+  /** 老师点「下一个」后已同步到学生「今日背英语单词」 */
   wordSynced?: boolean;
 };
 

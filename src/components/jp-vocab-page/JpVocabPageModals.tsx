@@ -114,7 +114,8 @@ type JpVocabPageModalsProps = {
   onOpenRemarks: (word: JpVocabWord) => void;
   onEditRemarks: (word: JpVocabWord | null) => void;
   onEditWord: (word: JpVocabWord | null) => void;
-  onShare: (wordId: number) => void;
+  onShare: (wordId: number) => void | Promise<boolean | void>;
+  onEnsureSharedBeforeNext?: (wordId: number) => Promise<boolean>;
   onUnshare: (wordId: number) => void;
   onWordSaved: (word: JpVocabWord) => void;
   onWordSaveFailed: (wordId: number, snapshot: JpVocabWord, message: string) => void;
@@ -296,6 +297,7 @@ export function JpVocabPageModals(props: JpVocabPageModalsProps) {
         onEditRemarks={props.onEditRemarks}
         onEditWord={props.onEditWord}
         onShare={props.onShare}
+        onEnsureSharedBeforeNext={props.onEnsureSharedBeforeNext}
         onUnshare={props.onUnshare}
         onWordUpdated={props.onWordSaved}
         nestedModalOpen={nestedModalOpen}

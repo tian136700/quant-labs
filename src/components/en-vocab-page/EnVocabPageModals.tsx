@@ -86,7 +86,9 @@ type EnVocabPageModalsProps = {
   onOpenRemarks: (word: EnVocabWord) => void;
   onEditRemarks: (word: EnVocabWord | null) => void;
   onEditWord: (word: EnVocabWord | null) => void;
-  onShare: (wordId: number) => void;
+  onShare: (wordId: number) => void | Promise<boolean | void>;
+  onEnsureSharedBeforeNext?: (wordId: number) => Promise<boolean>;
+  onUnshare?: (wordId: number) => void;
   onWordSaved: (word: EnVocabWord) => void;
   onWordSaveFailed: (wordId: number, snapshot: EnVocabWord, message: string) => void;
   onNeedAuth: () => void;
@@ -191,6 +193,7 @@ export function EnVocabPageModals(props: EnVocabPageModalsProps) {
         onEditRemarks={props.onEditRemarks}
         onEditWord={props.onEditWord}
         onShare={props.onShare}
+        onEnsureSharedBeforeNext={props.onEnsureSharedBeforeNext}
         onWordUpdated={props.onWordSaved}
         nestedModalOpen={nestedModalOpen}
       />
