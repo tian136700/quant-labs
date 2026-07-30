@@ -18,6 +18,9 @@ Fails if:
    (must next/dynamic { ssr: false }; PDF 随手画含 pdfjs/jspdf).
 8) lesson-annotate hooks statically import lesson-annotate-pdf
    (must await import() when opening/saving PDF).
+9) /jp-lesson /en-lesson and /jp-vocab/ref /en-vocab/ref must use
+   *PageClient / *RefViewerClient shells (ssr: false) — same Worker gzip
+   pattern as study pages.
 """
 
 from __future__ import annotations
@@ -30,6 +33,42 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 
 
+def check_ssr_false_shell(
+    errs: list[str],
+    *,
+    client_name: str,
+    inner_name: str,
+    app_page: Path,
+    app_label: str,
+) -> None:
+    """Client shell with next/dynamic({ ssr: false }); route must not static-import inner."""
+    client_path = SRC / "components" / f"{client_name}.tsx"
+    if not client_path.is_file():
+        errs.append(f"{client_name}.tsx: missing (need ssr:false shell for Worker gzip)")
+        return
+    client_src = client_path.read_text(encoding="utf-8")
+    if "ssr: false" not in client_src or inner_name not in client_src:
+        errs.append(
+            f"{client_name}.tsx: must next/dynamic {inner_name} with {{ ssr: false }}"
+        )
+    if not app_page.is_file():
+        errs.append(f"{app_label}: missing")
+        return
+    page_src = app_page.read_text(encoding="utf-8")
+    if client_name not in page_src:
+        errs.append(
+            f"{app_label}: must render {client_name} "
+            "(ssr:false cannot live in Server Component)"
+        )
+    if re.search(
+        rf"""from\s+["']@/components/{inner_name}["']""",
+        page_src,
+    ):
+        errs.append(
+            f"{app_label}: do not static-import {inner_name}; use {client_name}"
+        )
+
+
 def check_study_shell(
     errs: list[str],
     *,
@@ -38,31 +77,14 @@ def check_study_shell(
     page_name: str,
     app_subdir: str,
 ) -> None:
-    client_path = SRC / "components" / f"{client_name}.tsx"
-    if not client_path.is_file():
-        errs.append(f"{client_name}.tsx: missing (need ssr:false shell for Worker gzip)")
-        return
-    study_client = client_path.read_text(encoding="utf-8")
-    if "ssr: false" not in study_client or page_name not in study_client:
-        errs.append(
-            f"{client_name}.tsx: must next/dynamic {page_name} with {{ ssr: false }}"
-        )
-    study_page = (SRC / "app" / app_subdir / "study" / "page.tsx").read_text(
-        encoding="utf-8"
+    del lang  # kept for call-site clarity
+    check_ssr_false_shell(
+        errs,
+        client_name=client_name,
+        inner_name=page_name,
+        app_page=SRC / "app" / app_subdir / "study" / "page.tsx",
+        app_label=f"app/{app_subdir}/study/page.tsx",
     )
-    if client_name not in study_page:
-        errs.append(
-            f"app/{app_subdir}/study/page.tsx: must render {client_name} "
-            "(ssr:false cannot live in Server Component)"
-        )
-    if re.search(
-        rf"""from\s+["']@/components/{page_name}["']""",
-        study_page,
-    ):
-        errs.append(
-            f"app/{app_subdir}/study/page.tsx: do not static-import {page_name}; "
-            f"use {client_name}"
-        )
 
 
 def main() -> int:
@@ -135,6 +157,35 @@ def main() -> int:
         client_name="JpVocabStudyPageClient",
         page_name="JpVocabStudyPage",
         app_subdir="jp-vocab",
+    )
+
+    check_ssr_false_shell(
+        errs,
+        client_name="JpLessonPageClient",
+        inner_name="JpLessonPage",
+        app_page=SRC / "app" / "jp-lesson" / "page.tsx",
+        app_label="app/jp-lesson/page.tsx",
+    )
+    check_ssr_false_shell(
+        errs,
+        client_name="EnLessonPageClient",
+        inner_name="EnLessonPage",
+        app_page=SRC / "app" / "en-lesson" / "page.tsx",
+        app_label="app/en-lesson/page.tsx",
+    )
+    check_ssr_false_shell(
+        errs,
+        client_name="JpVocabRefViewerClient",
+        inner_name="JpVocabRefViewer",
+        app_page=SRC / "app" / "jp-vocab" / "ref" / "[refKey]" / "page.tsx",
+        app_label="app/jp-vocab/ref/[refKey]/page.tsx",
+    )
+    check_ssr_false_shell(
+        errs,
+        client_name="EnVocabRefViewerClient",
+        inner_name="EnVocabRefViewer",
+        app_page=SRC / "app" / "en-vocab" / "ref" / "[refKey]" / "page.tsx",
+        app_label="app/en-vocab/ref/[refKey]/page.tsx",
     )
 
     jp_page = (SRC / "components" / "JpVocabPage.tsx").read_text(encoding="utf-8")

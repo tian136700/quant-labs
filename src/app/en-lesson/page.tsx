@@ -1,4 +1,4 @@
-import { EnLessonPage } from "@/components/EnLessonPage";
+import { EnLessonPageClient } from "@/components/EnLessonPageClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -9,5 +9,5 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default function Page() {
-  return <EnLessonPage />;
+  return <EnLessonPageClient />;
 }

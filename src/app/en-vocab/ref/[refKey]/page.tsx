@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { EnVocabRefViewer } from "@/components/EnVocabRefViewer";
+import { EnVocabRefViewerClient } from "@/components/EnVocabRefViewerClient";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getEnLessonByRefKey } from "@/lib/en-lesson-db";
 import { getEnVocabRef } from "@/lib/en-vocab-db";
@@ -41,7 +41,7 @@ export default async function EnVocabRefViewerPage({
     : undefined;
 
   return (
-    <EnVocabRefViewer
+    <EnVocabRefViewerClient
       refMeta={ref}
       cacheVersion={v ?? null}
       downloadFilename={downloadFilename}

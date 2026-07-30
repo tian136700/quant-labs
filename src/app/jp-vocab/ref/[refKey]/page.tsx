@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { JpVocabRefViewer } from "@/components/JpVocabRefViewer";
+import { JpVocabRefViewerClient } from "@/components/JpVocabRefViewerClient";
 import { getCloudflareEnv } from "@/lib/cloudflare-env";
 import { getJpLessonByRefKey } from "@/lib/jp-lesson-db";
 import { jpLessonCropKind } from "@/lib/jp-lesson-shared";
@@ -42,7 +42,7 @@ export default async function JpVocabRefViewerPage({
     : undefined;
 
   return (
-    <JpVocabRefViewer
+    <JpVocabRefViewerClient
       refMeta={ref}
       cacheVersion={v ?? null}
       downloadFilename={downloadFilename}
