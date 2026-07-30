@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Regression: 开课前 2h 自动启用 + dirlock 定时 + 抽完禁用临近课跳过。"""
+"""Regression: 开课前启用老师账号 — Worker Cron 兜底 + Mac 联装 + 05/06/07 重试 + 失败 Bark。"""
 
 from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,8 +15,10 @@ DISABLE_TS = ROOT / "src/lib/teacher-user-quiz-complete-disable.ts"
 ROUTE_TS = ROOT / "src/app/api/admin/teacher-user-pre-class-enable/route.ts"
 SHELL = ROOT / "scripts/teacher-user-pre-class-enable.sh"
 SCHEDULE_SHELL = ROOT / "scripts/teacher-user-schedule-enable.sh"
+SCHEDULE_SETUP = ROOT / "scripts/setup-teacher-user-schedule-enable-mac.sh"
 PLIST = ROOT / "scripts/com.infoquests.teacher-user-pre-class-enable.plist.example"
 SETUP = ROOT / "scripts/setup-teacher-user-pre-class-enable-mac.sh"
+WORKER = ROOT / "cloudflare-worker.ts"
 
 WITHIN_RE = re.compile(
     r"TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS\s*=\s*2\s*\*\s*60\s*\*\s*60\s*\*\s*1000"
@@ -30,6 +33,21 @@ RETRY_HOURS_RE = re.compile(
 )
 
 
+def _launchd_loaded(label: str) -> bool:
+    uid = os.getuid()
+    try:
+        proc = subprocess.run(
+            ["launchctl", "print", f"gui/{uid}/{label}"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -38,7 +56,9 @@ def main() -> int:
     route = ROUTE_TS.read_text(encoding="utf-8")
     shell = SHELL.read_text(encoding="utf-8")
     schedule_shell = SCHEDULE_SHELL.read_text(encoding="utf-8")
+    schedule_setup = SCHEDULE_SETUP.read_text(encoding="utf-8")
     plist = PLIST.read_text(encoding="utf-8")
+    worker = WORKER.read_text(encoding="utf-8")
 
     if not WITHIN_RE.search(enable):
         errors.append("missing 2h TEACHER_PRE_CLASS_AUTO_ENABLE_WITHIN_MS")
@@ -69,8 +89,38 @@ def main() -> int:
         errors.append(
             "schedule-enable.sh must retry Beijing 05/06/07 if morning 1102 fails"
         )
+    if "notify_schedule_enable_failure" not in schedule_shell:
+        errors.append("schedule-enable.sh must Bark on API failure (silent fail = no open)")
+    if "send_bark_push" not in schedule_shell:
+        errors.append("schedule-enable.sh must call send_bark_push on failure")
+    if "notify_pre_class_failure" not in shell:
+        errors.append("pre-class-enable.sh must Bark on API failure")
+    if "send_bark_push" not in shell:
+        errors.append("pre-class-enable.sh must call send_bark_push on failure")
     if not SETUP.is_file():
         errors.append("missing setup-teacher-user-pre-class-enable-mac.sh")
+    if "setup-teacher-user-pre-class-enable-mac.sh" not in schedule_setup:
+        errors.append(
+            "setup-teacher-user-schedule-enable-mac.sh must also install pre-class "
+            "(联装，防只装 05:00)"
+        )
+
+    # 线上 Cron 兜底：Mac 漏装 / 睡眠 / 早上 1102 仍能开号（与上课 Bark 同 Worker）
+    if "teacher-user-pre-class-enable" not in worker:
+        errors.append(
+            "cloudflare-worker.ts must Cron POST /api/admin/teacher-user-pre-class-enable"
+        )
+    if "PRE_CLASS_ENABLE_PATH" not in worker:
+        errors.append("cloudflare-worker.ts missing PRE_CLASS_ENABLE_PATH")
+    if "minute % 10" not in worker and "minute % 10 === 0" not in worker:
+        errors.append("Worker Cron must run pre-class enable every 10 minutes")
+    if "teacher-user-schedule-enable" not in worker:
+        errors.append(
+            "cloudflare-worker.ts must Cron POST /api/admin/teacher-user-schedule-enable "
+            "at Beijing 05/06/07"
+        )
+    if "SCHEDULE_ENABLE_PATH" not in worker:
+        errors.append("cloudflare-worker.ts missing SCHEDULE_ENABLE_PATH")
 
     en_sched = ROOT / "src/lib/teacher-user-en-schedule.ts"
     if not en_sched.is_file():
@@ -101,14 +151,21 @@ def main() -> int:
             "(闲鱼英语抽查 needs login account)"
         )
 
-    # 本机若已装「今日有课 05:00」却漏装「开课前 2h」→ 抽完禁用后下午课开不了号
+    # 本机：已装「今日有课」则必须装且已加载「开课前 2h」
     if sys.platform == "darwin" and os.environ.get("SKIP_LAUNCHD_AGENT_CHECK") != "1":
         agents = Path.home() / "Library/LaunchAgents"
         schedule_plist = agents / "com.infoquests.teacher-user-schedule-enable.plist"
         pre_plist = agents / "com.infoquests.teacher-user-pre-class-enable.plist"
+        schedule_label = "com.infoquests.teacher-user-schedule-enable"
+        pre_label = "com.infoquests.teacher-user-pre-class-enable"
         if schedule_plist.is_file() and not pre_plist.is_file():
             errors.append(
                 "LaunchAgent schedule-enable installed but pre-class-enable missing — "
+                "run: bash scripts/setup-teacher-user-pre-class-enable-mac.sh"
+            )
+        if _launchd_loaded(schedule_label) and not _launchd_loaded(pre_label):
+            errors.append(
+                "launchctl has schedule-enable loaded but pre-class-enable not loaded — "
                 "run: bash scripts/setup-teacher-user-pre-class-enable-mac.sh"
             )
 

@@ -31,7 +31,7 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST_DST"
 launchctl enable "gui/$(id -u)/${LABEL}"
 
 echo ""
-echo "OK: launchd 已安装（每小时检查；北京时间 05:00–05:59 自动启用今日有课老师，与 Mac 本地时区无关）"
+echo "OK: launchd 已安装（每小时检查；北京 05/06/07 启用今日有课老师；与 Mac 本地时区无关）"
 echo "  plist: $PLIST_DST"
 echo "  日志: ${LOG_DIR}/teacher-user-schedule-enable.log"
 echo ""
@@ -39,3 +39,8 @@ echo "试跑（不写库）:"
 echo "  python3 $ROOT/scripts/teacher-user-schedule-enable-api.py --dry-run"
 echo "立即跑一次（忽略北京时间窗口）:"
 echo "  TEACHER_USER_SCHEDULE_ENABLE_FORCE=1 bash $ROOT/scripts/teacher-user-schedule-enable.sh"
+
+# 必须联装开课前 2h：05:00 若 1102/漏跑，下午课仍靠 pre-class 开号
+echo ""
+echo "联装开课前启用（必装，勿跳过）…"
+bash "$ROOT/scripts/setup-teacher-user-pre-class-enable-mac.sh"
