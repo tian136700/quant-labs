@@ -10,8 +10,8 @@ export function JpLessonApiUploadDocs() {
           固定链接：<code>{JP_SITE_URL}/jp-lesson</code>
         </p>
         <p>
-          上传接口：<code>POST /api/jp-lesson/upload</code>（单词或语法二选一）；同课单词+语法用{" "}
-          <code>POST /api/jp-lesson/upload-mixed</code>（类型显示「单词加语法」；说明见{" "}
+          上传接口：<code>POST /api/jp-lesson/upload</code>（单词或语法二选一）；同一课单词+语法一次上传用{" "}
+          <code>POST /api/jp-lesson/upload-mixed</code>（列表仍分两条，教材列显示如「标日23课」；说明见{" "}
           <code>docs/jp-lesson-upload-mixed-api.txt</code>）。Header{" "}
           <code>Authorization: Bearer &lt;JP_REVIEW_UPLOAD_TOKEN&gt;</code>
         </p>
@@ -56,15 +56,17 @@ export function JpLessonApiUploadDocs() {
         >
 {`curl -X POST "${JP_SITE_URL}/api/jp-lesson/upload-mixed" \\
   -H "Authorization: Bearer <TOKEN>" \\
-  -F "title=标日第23课" \\
+  -F "course_label=标日23课" \\
   -F "word_content=東, 西, 南, 北" \\
   -F "word_meanings=东|西|南|北" \\
   -F "word_annotations=口语常用|考试常用|口语考试都常用|口语常用" \\
   -F "grammar_content=～によると, ～について" \\
   -F "grammar_meanings=据……说|关于……" \\
   -F "grammar_annotations=考试常用|口语考试都常用" \\
-  -F "media_type=image" \\
-  -F "file=@lesson23.png"`}
+  -F "word_media_type=image" \\
+  -F "word_file=@lesson23-words.png" \\
+  -F "grammar_media_type=image" \\
+  -F "grammar_file=@lesson23-grammar.png"`}
         </pre>
         <p>
           <code>content</code> 中多个单词/语法用英文或中文逗号分隔；可选 <code>meanings</code> 与
@@ -74,11 +76,11 @@ export function JpLessonApiUploadDocs() {
           强烈建议同时传可选 <code>example_sentences</code>：与 <code>content</code> 各项一一对应，多项之间用{" "}
           <code>|||</code> 分隔；每一项里写若干「日语句 + 下一行 <code>译文：…</code>」（也可写{" "}
           <code>1. …</code> 序号，入库时会规范化）。每个单词/语法最多 10 条例句，条数由上传方自定。
-          合传接口用 <code>word_content</code> / <code>grammar_content</code>（及对应 meanings /
-          annotations / example_sentences）分别传两侧；上传带 <code>file</code> 时，系统会自动生成教案标识（如{" "}
-          <code>lesson-4</code>）并绑定到该条新课，无需传 <code>ref_key</code>。
-          上传后默认「未完成」；在列表中改为「已完成」后，会同步写入
-          日语单词抽问并带上教案链接、释义、标注与例句（合传课：单词与语法分别按类型入库）。
+          合传接口必填 <code>course_label</code>（如「标日23课」，列表「教材」列展示）+{" "}
+          <code>word_content</code> / <code>grammar_content</code>（及对应 meanings /
+          annotations / example_sentences）；教案推荐 <code>word_file</code> /{" "}
+          <code>grammar_file</code> 分开传。上传后列表出现两条（类型仍是单词 / 语法），共享同一教材名；
+          各自改为「已完成」后分别写入日语抽问。
         </p>
       </details>
   );

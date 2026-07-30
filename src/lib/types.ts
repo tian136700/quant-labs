@@ -194,6 +194,11 @@ export interface JpVocabWord {
    */
   annotation?: string | null;
   /**
+   * 教材课次（如「标日初级上册第23课」）。
+   * 新课 `course_label` 标已完成时同步；卡片偏后（标注下方）展示。
+   */
+  course_label?: string | null;
+  /**
    * 常用用法编号列表。
    * 英语：考点用法，存库形如 `1. [8] 中文说明`（`[8]`=出现频次 1～10，卡片展示「出现频次 8」）；
    * 日语语法：N5～N2 常用用法（驱动 1:1 例句）；日语单词一般不用。

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: jp-lesson upload-mixed (word+grammar) + completed sync per-item kinds."""
+"""Regression: jp-lesson upload-mixed creates two lessons + course_label column."""
 
 from __future__ import annotations
 
@@ -20,66 +20,42 @@ def main() -> int:
         errors.append("upload-mixed must call createJpLessonMixed")
     if "word_content" not in route_text or "grammar_content" not in route_text:
         errors.append("upload-mixed must accept word_content + grammar_content")
-    if "单词加语法" not in route_text:
-        errors.append("upload-mixed response must label 单词加语法")
+    if "course_label" not in route_text:
+        errors.append("upload-mixed must require/accept course_label")
+    if "word_file" not in route_text or "grammar_file" not in route_text:
+        errors.append("upload-mixed must accept word_file + grammar_file")
+    if 'kind: "word_grammar"' in route_text or "单词加语法" in route_text:
+        errors.append(
+            "upload-mixed must NOT return kind=word_grammar / 单词加语法 "
+            "(split into word + grammar rows instead)"
+        )
 
     lesson_db = ROOT / "src/lib/jp-lesson-db.ts"
     lesson_text = lesson_db.read_text(encoding="utf-8") if lesson_db.is_file() else ""
     if "export async function createJpLessonMixed" not in lesson_text:
         errors.append("jp-lesson-db.ts: missing createJpLessonMixed")
-    if 'kind: JpLessonKind = "word_grammar"' not in lesson_text and (
-        'const kind: JpLessonKind = "word_grammar"' not in lesson_text
-    ):
-        errors.append("createJpLessonMixed must store kind=word_grammar")
-    if "grammar_item_count" not in lesson_text:
-        errors.append("jp-lesson-db.ts: must persist grammar_item_count")
+    if 'kind: "word"' not in lesson_text or 'kind: "grammar"' not in lesson_text:
+        errors.append("createJpLessonMixed must create kind=word and kind=grammar")
+    if "course_label" not in lesson_text or "course_group_id" not in lesson_text:
+        errors.append("jp-lesson-db must persist course_label + course_group_id")
     if "use_upload_mixed" not in lesson_text:
         errors.append("createJpLesson must reject word_grammar with use_upload_mixed")
-    if "resolveJpLessonItemKinds" not in lesson_text:
-        errors.append("syncLessonToVocab must use resolveJpLessonItemKinds")
-    if 'meaning: kind === "grammar"' not in lesson_text:
-        errors.append("sync must gate meanings per item kind===grammar")
-
-    # 教案 ref 替换：updateJpVocabWordsRefKey 只认 JpVocabKind，禁止把 lesson.kind 直接传入
-    ref_replace = ROOT / "src/app/api/jp-lesson/ref/replace/route.ts"
-    ref_text = ref_replace.read_text(encoding="utf-8") if ref_replace.is_file() else ""
-    if not ref_replace.is_file():
-        errors.append("missing jp-lesson/ref/replace/route.ts")
-    elif "resolveJpLessonItemKinds" not in ref_text:
-        errors.append(
-            "jp-lesson/ref/replace must use resolveJpLessonItemKinds "
-            "(updateJpVocabWordsRefKey cannot take lesson.kind=word_grammar)"
-        )
-    elif "lesson.kind," in ref_text and "updateJpVocabWordsRefKey" in ref_text:
-        # 粗检：调用块里不应再出现 lesson.kind 作为 kind 参数
-        if "updateJpVocabWordsRefKey(\n" in ref_text.replace("\r\n", "\n"):
-            block = ref_text.split("updateJpVocabWordsRefKey", 1)[-1][:400]
-            if "lesson.kind" in block:
-                errors.append(
-                    "jp-lesson/ref/replace must not pass lesson.kind to updateJpVocabWordsRefKey"
-                )
+    if 'const kind: JpLessonKind = "word_grammar"' in lesson_text:
+        errors.append("createJpLessonMixed must not insert kind=word_grammar anymore")
 
     types = ROOT / "src/lib/types.ts"
     types_text = types.read_text(encoding="utf-8") if types.is_file() else ""
-    if '"word_grammar"' not in types_text:
-        errors.append("types.ts: JpLessonKind must include word_grammar")
+    if "course_label" not in types_text or "course_group_id" not in types_text:
+        errors.append("types.ts: JpLessonRecord must include course_label + course_group_id")
     if "JpLessonMixedUploadInput" not in types_text:
         errors.append("types.ts: missing JpLessonMixedUploadInput")
-    # 英语新课不得跟日语合传 kind（否则 updateEnVocabWordsRefKey 类型炸、部署失败）
-    if "export type EnLessonKind = JpLessonKind" in types_text:
-        errors.append(
-            "types.ts: EnLessonKind must stay word|grammar "
-            "(do not alias JpLessonKind which includes word_grammar)"
-        )
-    if 'export type EnLessonKind = "word" | "grammar"' not in types_text:
-        errors.append('types.ts: EnLessonKind must be "word" | "grammar"')
 
-    shared = ROOT / "src/lib/jp-lesson-shared.ts"
-    shared_text = shared.read_text(encoding="utf-8") if shared.is_file() else ""
-    if "export function resolveJpLessonItemKinds" not in shared_text:
-        errors.append("jp-lesson-shared.ts: missing resolveJpLessonItemKinds")
-    if 'return "单词加语法"' not in shared_text:
-        errors.append("jpLessonKindLabel must return 单词加语法")
+    table = ROOT / "src/components/jp-lesson-page/JpLessonStatusTable.tsx"
+    table_text = table.read_text(encoding="utf-8") if table.is_file() else ""
+    if "jp-lesson-course-col" not in table_text:
+        errors.append("JpLessonStatusTable must render 教材 column")
+    if "course_label" not in table_text:
+        errors.append("JpLessonStatusTable must show lesson.course_label")
 
     docs = ROOT / "docs/jp-lesson-upload-mixed-api.txt"
     if not docs.is_file():
@@ -88,12 +64,18 @@ def main() -> int:
         doc_text = docs.read_text(encoding="utf-8")
         if "/api/jp-lesson/upload-mixed" not in doc_text:
             errors.append("docs must document /api/jp-lesson/upload-mixed")
-        if "单词加语法" not in doc_text:
-            errors.append("docs must mention 单词加语法")
+        if "course_label" not in doc_text or "标日" not in doc_text:
+            errors.append("docs must document course_label (e.g. 标日23课)")
+        if "word_file" not in doc_text:
+            errors.append("docs must document word_file + grammar_file")
 
     rule = ROOT / ".cursor/rules/jp-lesson-upload-mixed.mdc"
     if not rule.is_file():
         errors.append("missing .cursor/rules/jp-lesson-upload-mixed.mdc")
+    else:
+        rule_text = rule.read_text(encoding="utf-8")
+        if "course_label" not in rule_text:
+            errors.append("rule must mention course_label")
 
     if errors:
         print("FAIL: jp-lesson upload-mixed guards")
@@ -101,7 +83,7 @@ def main() -> int:
             print(f"  - {e}")
         return 1
 
-    print("ok: jp-lesson upload-mixed (word+grammar)")
+    print("ok: jp-lesson upload-mixed (two rows + course_label)")
     return 0
 
 

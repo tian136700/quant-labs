@@ -140,6 +140,8 @@ export async function upsertJpVocabFromLesson(
     example_sentences?: string | null;
     /** 口语常用 / 考试常用 / 口语考试都常用；已有不覆盖 */
     annotation?: string | null;
+    /** 教材课次（如标日初级上册第23课）；已有不覆盖 */
+    course_label?: string | null;
   }[],
   refs: JpVocabRefUploadInput[] = []
 ): Promise<void> {
@@ -162,6 +164,10 @@ export async function upsertJpVocabFromLesson(
       const meaning =
         kind === "grammar" ? (item.meaning || "").trim() || null : null;
       const annotation = normalizeJpVocabAnnotation(item.annotation);
+      const courseLabel =
+        item.course_label != null && String(item.course_label).trim()
+          ? String(item.course_label).trim().slice(0, 120)
+          : null;
       const idx = jpVocabDbState.devWords.findIndex((w) => w.word === word);
       if (idx >= 0) {
         const cur = jpVocabDbState.devWords[idx];
@@ -175,10 +181,15 @@ export async function upsertJpVocabFromLesson(
           annotation && !cur.annotation?.trim()
             ? annotation
             : cur.annotation ?? null;
+        const nextCourseLabel =
+          courseLabel && !cur.course_label?.trim()
+            ? courseLabel
+            : cur.course_label ?? null;
         if (
           nextExamples !== (cur.example_sentences ?? null) ||
           nextMeaning !== (cur.meaning ?? null) ||
-          nextAnnotation !== (cur.annotation ?? null)
+          nextAnnotation !== (cur.annotation ?? null) ||
+          nextCourseLabel !== (cur.course_label ?? null)
         ) {
           jpVocabDbState.devWords[idx] = {
             ...cur,
@@ -189,6 +200,7 @@ export async function upsertJpVocabFromLesson(
                 ? JP_VOCAB_LESSON_MEANING_SOURCE
                 : cur.meaning_source ?? null,
             annotation: nextAnnotation,
+            course_label: nextCourseLabel,
             updated_at: ts,
           };
         }
@@ -211,6 +223,7 @@ export async function upsertJpVocabFromLesson(
           today_check_date: null,
           class_notes: null,
           annotation,
+          course_label: courseLabel,
           example_sentences: exampleSentences,
           meaning_source: meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
           created_at: ts,
@@ -242,10 +255,14 @@ export async function upsertJpVocabFromLesson(
     const meaning =
       kind === "grammar" ? (item.meaning || "").trim() || null : null;
     const annotation = normalizeJpVocabAnnotation(item.annotation);
+    const courseLabel =
+      item.course_label != null && String(item.course_label).trim()
+        ? String(item.course_label).trim().slice(0, 120)
+        : null;
 
     const existing = await db
       .prepare(
-        `SELECT id, meaning, example_sentences, annotation FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
+        `SELECT id, meaning, example_sentences, annotation, course_label FROM jp_vocab_word WHERE word = ?1 LIMIT 1`
       )
       .bind(word)
       .first<{
@@ -253,6 +270,7 @@ export async function upsertJpVocabFromLesson(
         meaning: string | null;
         example_sentences: string | null;
         annotation: string | null;
+        course_label: string | null;
       }>();
 
     if (existing) {
@@ -264,7 +282,9 @@ export async function upsertJpVocabFromLesson(
         meaning && !(existing.meaning || "").trim() ? meaning : null;
       const nextAnnotation =
         annotation && !(existing.annotation || "").trim() ? annotation : null;
-      if (nextExamples || nextMeaning || nextAnnotation) {
+      const nextCourseLabel =
+        courseLabel && !(existing.course_label || "").trim() ? courseLabel : null;
+      if (nextExamples || nextMeaning || nextAnnotation || nextCourseLabel) {
         await db
           .prepare(
             `UPDATE jp_vocab_word
@@ -275,14 +295,16 @@ export async function upsertJpVocabFromLesson(
                    ELSE meaning_source
                  END,
                  annotation = COALESCE(?4, annotation),
-                 updated_at = ?5
-             WHERE id = ?6`
+                 course_label = COALESCE(?5, course_label),
+                 updated_at = ?6
+             WHERE id = ?7`
           )
           .bind(
             nextExamples,
             nextMeaning,
             JP_VOCAB_LESSON_MEANING_SOURCE,
             nextAnnotation,
+            nextCourseLabel,
             ts,
             existing.id
           )
@@ -294,8 +316,8 @@ export async function upsertJpVocabFromLesson(
     addedNew = true;
     await db
       .prepare(
-        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, annotation, created_at, updated_at)
-         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?8, ?8)`
+        `INSERT INTO jp_vocab_word (word, reading, meaning, kind, ref_key, cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, class_notes, example_sentences, meaning_source, annotation, course_label, created_at, updated_at)
+         VALUES (?1, NULL, ?2, ?3, ?4, 0, 0, 0, 0, NULL, NULL, ?5, ?6, ?7, ?8, ?9, ?9)`
       )
       .bind(
         word,
@@ -305,6 +327,7 @@ export async function upsertJpVocabFromLesson(
         exampleSentences,
         meaning ? JP_VOCAB_LESSON_MEANING_SOURCE : null,
         annotation,
+        courseLabel,
         ts
       )
       .run();

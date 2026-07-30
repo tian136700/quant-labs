@@ -286,6 +286,25 @@ export function JpLessonPageStyles() {
           padding-right: 0.05rem !important;
           text-align: center;
         }
+        :global(.jp-lesson-course-col) {
+          width: 5.5rem;
+          min-width: 4.5rem;
+          max-width: 7rem;
+          padding-left: 0.2rem !important;
+          padding-right: 0.2rem !important;
+          font-size: 0.75rem;
+          word-break: break-word;
+        }
+        :global(.jp-lesson-course-label) {
+          display: inline-block;
+          color: var(--fg);
+          font-weight: 500;
+          line-height: 1.25;
+        }
+        :global(.jp-lesson-course-label--empty) {
+          color: var(--muted);
+          font-weight: 400;
+        }
         :global(.jp-lesson-content-col) {
           min-width: 0;
           width: 18%;

@@ -21,19 +21,13 @@
       "lines": 1013,
       "status": 0,
       "note": ""
-    },
-    {
-      "path": "src/lib/jp-lesson-db.ts",
-      "lines": 1010,
-      "status": 0,
-      "note": ""
     }
   ],
   "completed_since_last_refresh": [],
   "excluded_over_threshold": [
     {
       "path": "src/components/JpVocabTeacherQuizFlashcardStyles.tsx",
-      "lines": 1719,
+      "lines": 1738,
       "reason": "style_or_data"
     }
   ]

@@ -158,6 +158,8 @@
   .jp-lesson-page--en .jp-lesson-id-col,
   .jp-lesson-page--ja .jp-lesson-kind-col,
   .jp-lesson-page--en .jp-lesson-kind-col,
+  .jp-lesson-page--ja .jp-lesson-course-col,
+  .jp-lesson-page--en .jp-lesson-course-col,
   .jp-lesson-page--ja .jp-lesson-mobile-card-head ,
   .jp-lesson-page--en .jp-lesson-mobile-card-head {
     display: none !important;
@@ -264,6 +266,20 @@
     padding: 0.08rem 0.4rem;
     font-size: 0.6875rem;
     border-radius: 999px;
+  }
+
+  .jp-lesson-page--ja .jp-lesson-mobile-course-label {
+    display: inline-block;
+    margin-left: 0.35rem;
+    padding: 0.08rem 0.45rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   /* 学习内容整块展示：日语每行 5 个；英语词更长每行 3 个；禁止单行省略 */

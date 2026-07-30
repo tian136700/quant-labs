@@ -1,0 +1,31 @@
+对外接口说明 · 复制入口（自动生成）
+================================
+
+用法：打开下面列出的单个 TXT，整份复制给其它项目对接。
+生成：python3 scripts/refresh_external_api_docs_index.py
+约定：.cursor/rules/api-call-docs-txt.mdc
+
+—— 接口调用说明（*-api.txt）——
+
+1. 英语抽背 · 本地上传 API 说明（给 STT / 本地脚本）
+   文件：docs/en-vocab-local-upload-api.txt
+   调用：POST https://english.info-quests.com/api/en-vocab/local-upload
+
+2. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
+   文件：docs/jp-lesson-upload-mixed-api.txt
+   调用：POST https://japanese.info-quests.com/api/jp-lesson/upload-mixed
+
+3. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
+   文件：docs/jp-vocab-download-all-api.txt
+   调用：GET https://japanese.info-quests.com/api/jp-vocab/download-all
+
+4. 日语抽问 · 词条存在性检测 API（给其它项目调用）
+   文件：docs/jp-vocab-exists-api.txt
+   调用：GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
+
+—— 其它跨项目说明（*-howto.txt）——
+
+1. 本机 Bark 推送 — 跨项目复制说明（整段可复制给别的项目 Agent）
+   文件：docs/bark-cross-project-howto.txt
+
+最近相关：日语新课合传 → docs/jp-lesson-upload-mixed-api.txt

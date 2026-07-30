@@ -33,6 +33,7 @@ import {
 } from "@/lib/jp-vocab-save-progress";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabAnnotationSection } from "@/components/JpVocabAnnotationSection";
+import { JpVocabCourseLabelSection } from "@/components/JpVocabCourseLabelSection";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import { JpVocabFlashcardWordHero } from "@/components/JpVocabFlashcardWordHero";
@@ -748,6 +749,7 @@ export function JpVocabTeacherQuizFlashcardModal({
           </section>
         ) : null}
         <JpVocabAnnotationSection annotation={w.annotation} />
+        <JpVocabCourseLabelSection courseLabel={w.course_label} />
         </div>
 
         <div className="jp-vocab-teacher-quiz__level">

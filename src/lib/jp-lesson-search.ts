@@ -63,6 +63,7 @@ export function jpLessonSearchHaystack(
   }
 
   if (lesson.title?.trim()) parts.push(lesson.title.trim());
+  if (lesson.course_label?.trim()) parts.push(lesson.course_label.trim());
   parts.push(
     lesson.kind === "grammar"
       ? "语法"

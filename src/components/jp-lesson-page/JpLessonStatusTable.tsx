@@ -390,6 +390,12 @@ export function JpLessonStatusTable({
             <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
               类
             </th>
+            <th
+              className="jp-lesson-course-col"
+              title="同一课教材（合传上传标记，如标日23课）"
+            >
+              教材
+            </th>
             <th className="jp-lesson-content-col">学习内容</th>
             <th className="jp-lesson-content-count-col" title="按英文/中文逗号分隔统计的词/语法数">
               数
@@ -563,6 +569,33 @@ export function JpLessonStatusTable({
                     ))}
                   </div>
                 </td>
+                <td data-label="教材" className="jp-lesson-course-col">
+                  <div className={stackClass.trim() || undefined}>
+                    {group.lessons.map((lesson) => (
+                      <div
+                        key={lesson.id}
+                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
+                      >
+                        {lesson.course_label ? (
+                          <span
+                            className="jp-lesson-course-label"
+                            title={
+                              lesson.course_group_id
+                                ? `同一课 ${lesson.course_label}`
+                                : lesson.course_label
+                            }
+                          >
+                            {lesson.course_label}
+                          </span>
+                        ) : (
+                          <span className="jp-lesson-course-label jp-lesson-course-label--empty">
+                            —
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">
                   <div className={stackClass.trim() || undefined}>
                     {group.lessons.map((lesson) => {
@@ -606,6 +639,18 @@ export function JpLessonStatusTable({
                               >
                                 {jpLessonKindLabel(lesson.kind)}
                               </span>
+                              {lesson.course_label ? (
+                                <span
+                                  className="jp-lesson-course-label jp-lesson-mobile-course-label"
+                                  title={
+                                    lesson.course_group_id
+                                      ? `同一课 ${lesson.course_label}`
+                                      : lesson.course_label
+                                  }
+                                >
+                                  {lesson.course_label}
+                                </span>
+                              ) : null}
                             </div>
                             <ul
                               className="jp-lesson-mobile-content-chips"

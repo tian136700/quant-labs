@@ -430,6 +430,7 @@ async function getJpVocabWordByIdLite(
               example_sentences, example_sentences_source, meaning_source,
               usage, usage_source, connection, connection_source,
               annotation,
+              course_label,
               (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
        FROM jp_vocab_word
        WHERE id = ?1`

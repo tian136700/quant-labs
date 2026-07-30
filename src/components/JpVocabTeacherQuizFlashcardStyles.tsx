@@ -1419,6 +1419,25 @@ export function JpVocabTeacherQuizFlashcardStyles() {
           line-height: 1.4;
           color: var(--text);
         }
+        .jp-vocab-teacher-quiz__course-label {
+          padding: 0.3rem 0.55rem;
+          border-radius: 8px;
+          border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+          background: color-mix(in srgb, var(--muted) 6%, transparent);
+        }
+        .jp-vocab-teacher-quiz__course-label-title {
+          margin: 0 0 0.1rem;
+          font-size: 0.6875rem;
+          font-weight: 600;
+          color: var(--muted);
+        }
+        .jp-vocab-teacher-quiz__course-label-value {
+          margin: 0;
+          font-size: 0.75rem;
+          line-height: 1.35;
+          color: var(--muted);
+          overflow-wrap: anywhere;
+        }
         .jp-vocab-teacher-quiz__nav {
           display: flex;
           gap: 0.45rem;

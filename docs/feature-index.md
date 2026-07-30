@@ -14,6 +14,8 @@
 
 配置入口：`wrangler.toml` → `[[routes]]` + `NEXT_PUBLIC_JP_SITE_*` / `NEXT_PUBLIC_EN_SITE_*` / `NEXT_PUBLIC_KO_SITE_*`；代码：`src/lib/jp-site-host.ts`、`src/lib/en-site-host.ts`、`src/lib/ko-site-host.ts`。
 
+**给其它项目复制的接口说明**：总目录 `docs/external-apis-for-copy.txt`；单接口 `docs/*-api.txt`（改 API 必须更新，规则 `api-call-docs-txt.mdc`）。
+
 ---
 
 ## 怎么用
@@ -207,7 +209,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | 功能描述 | 改哪里 |
 |----------|--------|
 | **API 上传新课**（`content` + 可选 `meanings` / **`annotations`** / **`example_sentences`**；标注与 content 用 `\|` 对齐：口语常用 / 考试常用 / 口语考试都常用；`|||` 分隔各词例句；单项「日语 + 译文：」，每词最多 10 条；已完成：**语法类**同步释义到 `/jp-vocab`，**单词类不同步释义**（`fill-meaning` tokken 补）；例句与标注有则写入、已有不覆盖） | `POST /api/jp-lesson/upload`；`jp-lesson-db.ts` → `createJpLesson`、`syncLessonToVocab`；`jp-vocab-annotation.ts`；规则 `.cursor/rules/jp-vocab-annotation.mdc`；回归 `scripts/check_jp_vocab_annotation.py` |
-| **API 合传单词+语法**（同一课同时传；列表类型「单词加语法」；入库 `kind=word_grammar` + `grammar_item_count`；可选 `word_annotations` / `grammar_annotations`；标已完成时单词/语法分别以 `word`/`grammar` 进抽问；可选教案文件） | `POST /api/jp-lesson/upload-mixed`；`createJpLessonMixed`；`resolveJpLessonItemKinds`；对外说明 `docs/jp-lesson-upload-mixed-api.txt`；规则 `.cursor/rules/jp-lesson-upload-mixed.mdc`；回归 `scripts/check_jp_lesson_upload_mixed.py` |
+| **API 合传同一课单词+语法**（一次请求 → 列表仍 **两条**：word / grammar；共享 `course_label`（如「标日初级上册第23课」）+ `course_group_id`；「教材」列展示；推荐 `word_file`+`grammar_file`；各自标已完成分别进抽问，**教材课次写入词条并在卡片偏后展示**） | `POST /api/jp-lesson/upload-mixed`；`createJpLessonMixed`；`syncLessonToVocab` → `course_label`；`JpVocabCourseLabelSection`；说明 `docs/jp-lesson-upload-mixed-api.txt`；回归 `scripts/check_jp_lesson_upload_mixed.py`、`check_jp_vocab_course_label.py` |
 | **教案下载文件名**（原图 / 分页 PDF / Word：`{id}、单词学习|语法学习 (词1, 词2, …)`；新课列表下载与「查看」页一致） | `jp-vocab-ref-shared.ts` → `jpLessonRefDownloadFilename`；`JpLessonPage.tsx`；`JpVocabRefViewer` + `jp-vocab/ref/[refKey]/page.tsx`；`GET /api/jp-vocab/ref/[refKey]?download=1`；`getJpLessonByRefKey` |
 | **复制分页 PDF**（一步：剪贴板优先 → 系统分享 → 下载兜底；下载菜单 + 复制菜单） | `jp-vocab-ref-pdf-export.ts` → `buildJpVocabRefPaginatedPdf` / `copyJpVocabRefPaginatedPdf`；`JpVocabRefDownloadMenu`；`JpLessonCopyMenu` |
 | **语法分页切段**（左侧序号方块 + 平均色条密度≥0.25，避免例文漫画蓝衣服误切；如 lesson-68） | `jp-vocab-ref-pdf-export.ts` → `detectGrammarSectionPeaks`；规则 `.cursor/rules/vocab-ref-pdf-section-crop.mdc`；`scripts/check_vocab_ref_pdf_grammar_badge_density.py` |

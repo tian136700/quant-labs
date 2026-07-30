@@ -18,7 +18,6 @@ import {
   alignLessonItemMeanings,
   normalizeJpLessonKind,
   resolveJpLessonItemKinds,
-  JP_LESSON_EXAMPLE_ITEM_SEP,
 } from "@/lib/jp-lesson-shared";
 import {
   alignLessonItemAnnotations,
@@ -466,6 +465,8 @@ async function syncLessonToVocab(
       ]
     : [];
 
+  const courseLabel =
+    (lesson.course_label || lesson.title || "").trim().slice(0, 120) || null;
   await upsertJpVocabFromLesson(
     db,
     items.map((word, index) => {
@@ -477,6 +478,7 @@ async function syncLessonToVocab(
         meaning: kind === "grammar" ? (itemMeanings[index] ?? null) : null,
         example_sentences: itemExamples[index] ?? null,
         annotation: itemAnnotations[index] ?? null,
+        course_label: courseLabel,
       };
     }),
     refs
@@ -512,14 +514,6 @@ async function unsyncLessonFromVocab(
 export type CreateJpLessonResult =
   | { ok: true; lesson: JpLessonRecord }
   | { ok: false; error: string };
-
-function joinAlignedFieldParts(
-  parts: Array<string | null>,
-  sep: string
-): string | null {
-  if (!parts.some((p) => Boolean(p && p.trim()))) return null;
-  return parts.map((p) => (p && p.trim() ? p.trim() : "")).join(sep);
-}
 
 export async function createJpLesson(
   db: D1Database,
@@ -629,11 +623,7 @@ export async function createJpLesson(
   return { ok: true, lesson: mapRow(row) };
 }
 
-/**
- * 同一课合传：写入两条课（word + grammar），共享 course_label / course_group_id。
- * 列表分开展示「单词」「语法」；「教材」列显示如「标日23课」。
- * 各自标已完成后分别 sync 到抽问（与单传相同）。
- */
+/** 合传：两条 word/grammar + 共享 course_label / course_group_id */
 export type CreateJpLessonMixedResult =
   | {
       ok: true;

@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     let annotations: string | null = null;
     let exampleSentences: string | null = null;
     let title: string | null = null;
+    let courseLabel: string | null = null;
     let refKey = "";
     let fileBytes: ArrayBuffer | null = null;
     let mediaType: JpVocabMediaType = "image";
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
       annotations = optionalFormText(form, "annotations");
       exampleSentences = optionalFormText(form, "example_sentences");
       title = optionalFormText(form, "title");
+      courseLabel = optionalFormText(form, "course_label");
       refKey = normalizeJpVocabRefKey(String(form.get("ref_key") || ""));
 
       const file = form.get("file");
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
         annotations?: string | null;
         example_sentences?: string | null;
         title?: string | null;
+        course_label?: string | null;
         ref_key?: string | null;
       };
       kind = body.kind === "grammar" ? "grammar" : "word";
@@ -68,6 +71,7 @@ export async function POST(request: Request) {
       annotations = (body.annotations || "").trim() || null;
       exampleSentences = (body.example_sentences || "").trim() || null;
       title = (body.title || "").trim() || null;
+      courseLabel = (body.course_label || "").trim() || null;
       refKey = normalizeJpVocabRefKey(String(body.ref_key || ""));
     }
 
@@ -84,6 +88,7 @@ export async function POST(request: Request) {
       annotations,
       example_sentences: exampleSentences,
       title,
+      course_label: courseLabel,
       ref_key: hasFile ? null : refKey || null,
     });
 
