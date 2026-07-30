@@ -713,6 +713,10 @@ export function JpLessonPageStyles() {
           border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
           background: color-mix(in srgb, var(--accent) 10%, transparent);
         }
+        :global(.jp-lesson-kind--mixed) {
+          min-width: 2.4rem;
+          letter-spacing: -0.02em;
+        }
         :global(.jp-lesson-complete-wrap) {
           position: relative;
           display: inline-flex;

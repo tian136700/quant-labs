@@ -29,7 +29,12 @@ function toOptions(
   return lessons.map((lesson) => ({
     subject,
     id: lesson.id,
-    kind: lesson.kind === "grammar" ? "grammar" : "word",
+    kind:
+      lesson.kind === "grammar"
+        ? "grammar"
+        : lesson.kind === "word_grammar"
+          ? "word_grammar"
+          : "word",
     content: lesson.content,
     title: lesson.title,
     completed: lesson.completed,

@@ -77,7 +77,9 @@ function formatLessonTeachers(
 }
 
 function normalizeLessonKind(kind: string | null | undefined): LessonKind {
-  return kind === "grammar" ? "grammar" : "word";
+  if (kind === "grammar") return "grammar";
+  // word_grammar 在合并标题时当作两者都有，见 formatScheduleKindLabel
+  return "word";
 }
 
 /** 单词 / 语法 / 单词和语法（有两者时合并文案，与网站同堂展示一致） */
@@ -87,8 +89,14 @@ export function formatScheduleKindLabel(
   let hasWord = false;
   let hasGrammar = false;
   for (const kind of kinds) {
-    if (kind === "grammar") hasGrammar = true;
-    else hasWord = true;
+    if (kind === "word_grammar") {
+      hasWord = true;
+      hasGrammar = true;
+    } else if (kind === "grammar") {
+      hasGrammar = true;
+    } else {
+      hasWord = true;
+    }
   }
   if (hasWord && hasGrammar) return "单词和语法";
   if (hasGrammar) return "语法";

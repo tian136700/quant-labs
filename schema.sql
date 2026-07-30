@@ -460,6 +460,8 @@ CREATE TABLE IF NOT EXISTS jp_lesson (
   meanings    TEXT,
   /** 与 content 各项一一对应的例句，多项用 ||| 分隔；单项内为「日语 + 译文：」多行 */
   example_sentences TEXT,
+  /** kind=word_grammar 时：content 末尾连续多少项是语法；word/grammar 为 0 */
+  grammar_item_count INTEGER NOT NULL DEFAULT 0,
   title       TEXT,
   ref_key     TEXT,
   completed           INTEGER NOT NULL DEFAULT 0,

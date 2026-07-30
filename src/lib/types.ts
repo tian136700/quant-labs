@@ -270,7 +270,8 @@ export type JpVocabRefUploadInput = {
   media_type?: JpVocabMediaType | null;
 };
 
-export type JpLessonKind = "word" | "grammar";
+/** word / grammar 单类型；word_grammar = 同一课同时含单词+语法（日语新课「单词加语法」） */
+export type JpLessonKind = "word" | "grammar" | "word_grammar";
 
 export interface JpLessonTeacherLinkedUser {
   id: number;
@@ -349,6 +350,11 @@ export interface JpLessonRecord {
    * 单项内为「日语 + 译文：」多行，最多 10 条例句
    */
   example_sentences: string | null;
+  /**
+   * 仅 kind=word_grammar：content 末尾连续多少项是语法（前面为单词）。
+   * word / grammar 课次为 0。
+   */
+  grammar_item_count: number;
   title: string | null;
   ref_key: string | null;
   completed: boolean;
@@ -385,6 +391,20 @@ export type JpLessonUploadInput = {
    * 单项内换行写「日语 / 译文：」，可选，每词最多 10 条
    */
   example_sentences?: string | null;
+  /** 仅 kind=word_grammar 时有效；一般走 upload-mixed，不必手传 */
+  grammar_item_count?: number | null;
+  title?: string | null;
+  ref_key?: string | null;
+};
+
+/** 日语新课：同一课同时上传单词 + 语法（→ kind=word_grammar） */
+export type JpLessonMixedUploadInput = {
+  word_content: string;
+  word_meanings?: string | null;
+  word_example_sentences?: string | null;
+  grammar_content: string;
+  grammar_meanings?: string | null;
+  grammar_example_sentences?: string | null;
   title?: string | null;
   ref_key?: string | null;
 };

@@ -54,7 +54,12 @@ export function jpLessonRefDownloadBasename(lesson: {
   kind: JpLessonKind;
   content: string;
 }): string {
-  const kindLabel = lesson.kind === "grammar" ? "语法学习" : "单词学习";
+  const kindLabel =
+    lesson.kind === "grammar"
+      ? "语法学习"
+      : lesson.kind === "word_grammar"
+        ? "单词加语法学习"
+        : "单词学习";
   const prefix = `${lesson.id}、${kindLabel} (`;
   const suffix = ")";
   const itemsBudget = Math.max(

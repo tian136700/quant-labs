@@ -657,7 +657,11 @@ export function JpLessonSchedulePage() {
       const option = {
         subject: link.subject,
         id: link.lesson_id,
-        kind: (lesson?.kind === "grammar" ? "grammar" : "word") as "word" | "grammar",
+        kind: (lesson?.kind === "grammar"
+          ? "grammar"
+          : lesson?.kind === "word_grammar"
+            ? "word_grammar"
+            : "word") as "word" | "grammar" | "word_grammar",
         content: lesson?.content ?? "",
         title: lesson?.title ?? null,
         completed: lesson?.completed ?? false,

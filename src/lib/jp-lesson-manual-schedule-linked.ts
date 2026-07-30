@@ -71,7 +71,7 @@ export function parseManualScheduleLinkedLessonsJson(
 export type ManualScheduleLessonOption = {
   subject: ManualScheduleLinkedLessonSubject;
   id: number;
-  kind: "word" | "grammar";
+  kind: "word" | "grammar" | "word_grammar";
   content: string;
   title: string | null;
   completed: boolean;
@@ -81,7 +81,12 @@ export type ManualScheduleLessonOption = {
 export function formatManualScheduleLessonOptionLabel(
   lesson: ManualScheduleLessonOption
 ): string {
-  const kind = lesson.kind === "grammar" ? "语法" : "单词";
+  const kind =
+    lesson.kind === "grammar"
+      ? "语法"
+      : lesson.kind === "word_grammar"
+        ? "单词加语法"
+        : "单词";
   const subject =
     lesson.subject === "en" ? "英语" : lesson.subject === "jp" ? "日语" : "";
   const title = (lesson.title || "").trim();

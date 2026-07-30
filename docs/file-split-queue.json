@@ -5,6 +5,12 @@
   "threshold": 1000,
   "queue": [
     {
+      "path": "src/lib/jp-lesson-shared.ts",
+      "lines": 1043,
+      "status": 0,
+      "note": ""
+    },
+    {
       "path": "src/components/JpVocabPage.tsx",
       "lines": 1018,
       "status": 0,

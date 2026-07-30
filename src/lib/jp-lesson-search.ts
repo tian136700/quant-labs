@@ -63,7 +63,13 @@ export function jpLessonSearchHaystack(
   }
 
   if (lesson.title?.trim()) parts.push(lesson.title.trim());
-  parts.push(lesson.kind === "grammar" ? "语法" : "单词");
+  parts.push(
+    lesson.kind === "grammar"
+      ? "语法"
+      : lesson.kind === "word_grammar"
+        ? "单词加语法"
+        : "单词"
+  );
 
   const teacherHaystack = jpLessonTeacherSearchHaystack(lesson, teachersById);
   if (teacherHaystack) parts.push(teacherHaystack);

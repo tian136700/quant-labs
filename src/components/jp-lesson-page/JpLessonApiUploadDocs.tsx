@@ -10,7 +10,9 @@ export function JpLessonApiUploadDocs() {
           固定链接：<code>{JP_SITE_URL}/jp-lesson</code>
         </p>
         <p>
-          上传接口：<code>POST /api/jp-lesson/upload</code>，Header{" "}
+          上传接口：<code>POST /api/jp-lesson/upload</code>（单词或语法二选一）；同课单词+语法用{" "}
+          <code>POST /api/jp-lesson/upload-mixed</code>（说明见{" "}
+          <code>docs/jp-lesson-upload-mixed-api.txt</code>）。Header{" "}
           <code>Authorization: Bearer &lt;JP_REVIEW_UPLOAD_TOKEN&gt;</code>
         </p>
         <pre

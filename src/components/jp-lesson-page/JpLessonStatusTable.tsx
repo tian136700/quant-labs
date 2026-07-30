@@ -25,6 +25,9 @@ import {
   getJpLessonProgressStatus,
   getLessonClassDate,
   getLessonClassSchedules,
+  jpLessonCropKind,
+  jpLessonKindLabel,
+  jpLessonKindShortLabel,
   parseLessonContent,
   type JpLessonDisplayGroup,
   type JpLessonProgressStatus,
@@ -151,7 +154,7 @@ export function JpLessonStatusTable({
         primaryClassName="jp-lesson-action-btn jp-lesson-action-btn--download"
         fixedPanel
         allowOriginalDownload={isAdmin}
-        cropKind={lesson.kind}
+        cropKind={jpLessonCropKind(lesson.kind)}
       />
     );
     actionItems.push(
@@ -172,7 +175,9 @@ export function JpLessonStatusTable({
             : null
         }
         pdfFilename={ref?.media_type === "image" ? refFilename(lesson, ref) : null}
-        pdfCropKind={ref?.media_type === "image" ? lesson.kind : null}
+        pdfCropKind={
+          ref?.media_type === "image" ? jpLessonCropKind(lesson.kind) : null
+        }
         icon={
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <JpLessonMobileIcon name="copy" />
@@ -539,11 +544,15 @@ export function JpLessonStatusTable({
                       <div key={lesson.id} className={merged ? "jp-lesson-merged-stack-item" : undefined}>
                         <span
                           className={`jp-lesson-kind${
-                            lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                            lesson.kind === "grammar" || lesson.kind === "word_grammar"
+                              ? " jp-lesson-kind--grammar"
+                              : ""
+                          }${
+                            lesson.kind === "word_grammar" ? " jp-lesson-kind--mixed" : ""
                           }`}
-                          title={lesson.kind === "grammar" ? "语法" : "单词"}
+                          title={jpLessonKindLabel(lesson.kind)}
                         >
-                          {lesson.kind === "grammar" ? "法" : "词"}
+                          {jpLessonKindShortLabel(lesson.kind)}
                         </span>
                       </div>
                     ))}
@@ -580,10 +589,17 @@ export function JpLessonStatusTable({
                               </div>
                               <span
                                 className={`jp-lesson-kind jp-lesson-mobile-kind-tag${
-                                  lesson.kind === "grammar" ? " jp-lesson-kind--grammar" : ""
+                                  lesson.kind === "grammar" ||
+                                  lesson.kind === "word_grammar"
+                                    ? " jp-lesson-kind--grammar"
+                                    : ""
+                                }${
+                                  lesson.kind === "word_grammar"
+                                    ? " jp-lesson-kind--mixed"
+                                    : ""
                                 }`}
                               >
-                                {lesson.kind === "grammar" ? "语法" : "单词"}
+                                {jpLessonKindLabel(lesson.kind)}
                               </span>
                             </div>
                             <ul

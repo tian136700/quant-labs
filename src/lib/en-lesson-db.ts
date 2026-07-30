@@ -109,6 +109,7 @@ function mapRow(row: Record<string, unknown>): EnLessonRecord {
     content: String(row.content),
     meanings: null,
     example_sentences: null,
+    grammar_item_count: 0,
     category: normalizeEnVocabCategory(
       row.category != null ? String(row.category) : null
     ),
@@ -188,6 +189,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
       content: item.content.trim(),
       meanings: null,
       example_sentences: null,
+      grammar_item_count: 0,
       category: normalizeEnVocabCategory(item.category),
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeEnVocabRefKey(item.ref_key) || null : null,
@@ -439,6 +441,7 @@ export async function createEnLesson(
       content: storedContent,
       meanings: null,
       example_sentences: null,
+      grammar_item_count: 0,
       category,
       title,
       ref_key: refKey,

@@ -3,6 +3,7 @@ import {
   parseJpVocabExampleSentenceItems,
   serializeJpVocabExampleSentenceItems,
 } from "@/lib/jp-vocab-example-sentences";
+import type { JpLessonKind, JpVocabKind } from "@/lib/types";
 
 /** 将上传时的 content 拆成单个单词/语法项（与后端入库逻辑一致） */
 export function parseLessonContent(raw: string): string[] {
@@ -10,6 +11,71 @@ export function parseLessonContent(raw: string): string[] {
     .split(/[,，、]/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** 规范化日语新课 kind（含单词加语法） */
+export function normalizeJpLessonKind(raw?: string | null): JpLessonKind {
+  const v = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[+／/]/g, "_");
+  if (v === "grammar") return "grammar";
+  if (
+    v === "word_grammar" ||
+    v === "wordgrammar" ||
+    v === "mixed" ||
+    v === "both"
+  ) {
+    return "word_grammar";
+  }
+  return "word";
+}
+
+/** 列表「类型」文案：单词 / 语法 / 单词加语法 */
+export function jpLessonKindLabel(kind: JpLessonKind | string | null | undefined): string {
+  const k = normalizeJpLessonKind(kind);
+  if (k === "grammar") return "语法";
+  if (k === "word_grammar") return "单词加语法";
+  return "单词";
+}
+
+/** 桌面窄列短标：词 / 法 / 词+法 */
+export function jpLessonKindShortLabel(
+  kind: JpLessonKind | string | null | undefined
+): string {
+  const k = normalizeJpLessonKind(kind);
+  if (k === "grammar") return "法";
+  if (k === "word_grammar") return "词+法";
+  return "词";
+}
+
+/** 教案分页裁切：单词加语法按语法切段（常有序号方块） */
+export function jpLessonCropKind(
+  kind: JpLessonKind | string | null | undefined
+): "word" | "grammar" {
+  return normalizeJpLessonKind(kind) === "word" ? "word" : "grammar";
+}
+
+/**
+ * 按课次 kind + grammar_item_count，给 content 每一项标 word/grammar。
+ * word_grammar：末尾 grammar_item_count 项为语法，前面为单词。
+ */
+export function resolveJpLessonItemKinds(
+  kind: JpLessonKind | string | null | undefined,
+  itemCount: number,
+  grammarItemCount: number | null | undefined
+): JpVocabKind[] {
+  const n = Math.max(0, Math.floor(itemCount) || 0);
+  if (n <= 0) return [];
+  const k = normalizeJpLessonKind(kind);
+  if (k === "grammar") return Array.from({ length: n }, () => "grammar" as const);
+  if (k === "word") return Array.from({ length: n }, () => "word" as const);
+  const g = Math.max(0, Math.min(Math.floor(Number(grammarItemCount) || 0), n));
+  const w = n - g;
+  return [
+    ...Array.from({ length: w }, () => "word" as const),
+    ...Array.from({ length: g }, () => "grammar" as const),
+  ];
 }
 
 /** 将上传时的 meanings 拆成与 content 一一对应的释义（用 | 分隔，避免释义内含逗号） */

@@ -59,7 +59,9 @@ export function persistLessonNotesCache(nextNotes: JpLessonNote[]) {
 }
 
 export function kindLabel(kind: JpLessonKind): string {
-  return kind === "grammar" ? "语法" : "单词";
+  if (kind === "grammar") return "语法";
+  if (kind === "word_grammar") return "单词加语法";
+  return "单词";
 }
 
 export function buildItemFields(

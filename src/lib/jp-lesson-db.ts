@@ -1,7 +1,25 @@
 import "server-only";
 
-import type { JpLessonKind, JpLessonRecord, JpLessonUploadInput } from "@/lib/types";
-import { parseLessonContent, compareJpLessonsByProgress, type JpLessonProgressStatus, jpLessonProgressToFields, normalizeClassDurationMinutes, normalizeLessonMeaningsForStorage, normalizeLessonExampleSentencesForStorage, alignLessonItemExampleSentences, alignLessonItemMeanings } from "@/lib/jp-lesson-shared";
+import type {
+  JpLessonKind,
+  JpLessonMixedUploadInput,
+  JpLessonRecord,
+  JpLessonUploadInput,
+} from "@/lib/types";
+import {
+  parseLessonContent,
+  compareJpLessonsByProgress,
+  type JpLessonProgressStatus,
+  jpLessonProgressToFields,
+  normalizeClassDurationMinutes,
+  normalizeLessonMeaningsForStorage,
+  normalizeLessonExampleSentencesForStorage,
+  alignLessonItemExampleSentences,
+  alignLessonItemMeanings,
+  normalizeJpLessonKind,
+  resolveJpLessonItemKinds,
+  JP_LESSON_EXAMPLE_ITEM_SEP,
+} from "@/lib/jp-lesson-shared";
 import { normalizeJpVocabRefKey } from "@/lib/jp-vocab-ref-shared";
 import {
   removeJpVocabLessonWords,
@@ -31,13 +49,15 @@ let devSeeded = false;
 let jpLessonMeaningsColumnReady = false;
 let jpLessonExampleSentencesColumnReady = false;
 let jpLessonLinkCopyCountColumnReady = false;
+let jpLessonGrammarItemCountColumnReady = false;
 
 async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
   if (devStoreEnabled || jpLessonMeaningsColumnReady) return;
   try {
     await db.prepare(`ALTER TABLE jp_lesson ADD COLUMN meanings TEXT`).run();
-  } catch {
-    /* column may already exist */
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) throw err;
   }
   jpLessonMeaningsColumnReady = true;
 }
@@ -46,8 +66,9 @@ async function ensureJpLessonExampleSentencesColumn(db: D1Database): Promise<voi
   if (devStoreEnabled || jpLessonExampleSentencesColumnReady) return;
   try {
     await db.prepare(`ALTER TABLE jp_lesson ADD COLUMN example_sentences TEXT`).run();
-  } catch {
-    /* column may already exist */
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) throw err;
   }
   jpLessonExampleSentencesColumnReady = true;
 }
@@ -58,16 +79,33 @@ async function ensureJpLessonLinkCopyCountColumn(db: D1Database): Promise<void> 
     await db
       .prepare(`ALTER TABLE jp_lesson ADD COLUMN link_copy_count INTEGER NOT NULL DEFAULT 0`)
       .run();
-  } catch {
-    /* column may already exist */
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) throw err;
   }
   jpLessonLinkCopyCountColumnReady = true;
+}
+
+async function ensureJpLessonGrammarItemCountColumn(db: D1Database): Promise<void> {
+  if (devStoreEnabled || jpLessonGrammarItemCountColumnReady) return;
+  try {
+    await db
+      .prepare(
+        `ALTER TABLE jp_lesson ADD COLUMN grammar_item_count INTEGER NOT NULL DEFAULT 0`
+      )
+      .run();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/duplicate column name/i.test(msg)) throw err;
+  }
+  jpLessonGrammarItemCountColumnReady = true;
 }
 
 async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
   await ensureJpLessonMeaningsColumn(db);
   await ensureJpLessonExampleSentencesColumn(db);
   await ensureJpLessonLinkCopyCountColumn(db);
+  await ensureJpLessonGrammarItemCountColumn(db);
 }
 
 export function enableJpLessonDevStore() {
@@ -80,8 +118,8 @@ function nowIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function normalizeKind(raw?: JpLessonKind | null): JpLessonKind {
-  return raw === "grammar" ? "grammar" : "word";
+function normalizeKind(raw?: JpLessonKind | string | null): JpLessonKind {
+  return normalizeJpLessonKind(raw);
 }
 
 function mapRow(row: Record<string, unknown>): JpLessonRecord {
@@ -92,10 +130,18 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
   const classDurationMinutes = normalizeClassDurationMinutes(
     row.class_duration_minutes != null ? Number(row.class_duration_minutes) : null
   );
+  const kind = normalizeKind(
+    row.kind != null ? String(row.kind) : "word"
+  );
+  const grammarItemCountRaw = Number(row.grammar_item_count);
+  const grammarItemCount =
+    kind === "word_grammar" && Number.isFinite(grammarItemCountRaw)
+      ? Math.max(0, Math.floor(grammarItemCountRaw))
+      : 0;
 
   return {
     id: Number(row.id),
-    kind: row.kind === "grammar" ? "grammar" : "word",
+    kind,
     content: String(row.content),
     meanings:
       row.meanings != null && String(row.meanings).trim()
@@ -105,6 +151,7 @@ function mapRow(row: Record<string, unknown>): JpLessonRecord {
       row.example_sentences != null && String(row.example_sentences).trim()
         ? String(row.example_sentences).trim()
         : null,
+    grammar_item_count: grammarItemCount,
     title: row.title != null ? String(row.title) : null,
     ref_key: row.ref_key != null ? String(row.ref_key) : null,
     completed: Number(row.completed) === 1,
@@ -166,7 +213,7 @@ async function attachTeacherIds(
   });
 }
 
-const LESSON_SELECT = `SELECT id, kind, content, meanings, example_sentences, title, ref_key, completed, learning,
+const LESSON_SELECT = `SELECT id, kind, content, meanings, example_sentences, grammar_item_count, title, ref_key, completed, learning,
   status_updated_at, status_updated_by, teacher_other, next_class_at, class_duration_minutes, link_copy_count, uploaded_at, created_at, updated_at FROM jp_lesson`;
 
 async function seedIfEmpty(_db: D1Database): Promise<void> {
@@ -185,6 +232,7 @@ async function seedIfEmpty(_db: D1Database): Promise<void> {
         content,
         item.example_sentences
       ),
+      grammar_item_count: 0,
       title: (item.title || "").trim() || null,
       ref_key: item.ref_key ? normalizeJpVocabRefKey(item.ref_key) || null : null,
       completed: false,
@@ -339,10 +387,12 @@ async function syncLessonToVocab(
     lesson.content,
     lesson.example_sentences
   );
-  const syncGrammarMeanings = lesson.kind === "grammar";
-  const itemMeanings = syncGrammarMeanings
-    ? alignLessonItemMeanings(lesson.content, lesson.meanings)
-    : [];
+  const itemMeanings = alignLessonItemMeanings(lesson.content, lesson.meanings);
+  const itemKinds = resolveJpLessonItemKinds(
+    lesson.kind,
+    items.length,
+    lesson.grammar_item_count
+  );
   const refKey = lesson.ref_key;
   const refs = refKey
     ? [
@@ -356,13 +406,16 @@ async function syncLessonToVocab(
 
   await upsertJpVocabFromLesson(
     db,
-    items.map((word, index) => ({
-      word,
-      kind: lesson.kind,
-      ref_key: refKey,
-      meaning: syncGrammarMeanings ? (itemMeanings[index] ?? null) : null,
-      example_sentences: itemExamples[index] ?? null,
-    })),
+    items.map((word, index) => {
+      const kind = itemKinds[index] ?? "word";
+      return {
+        word,
+        kind,
+        ref_key: refKey,
+        meaning: kind === "grammar" ? (itemMeanings[index] ?? null) : null,
+        example_sentences: itemExamples[index] ?? null,
+      };
+    }),
     refs
   );
   await syncLessonNotesToVocab(db, lesson);
@@ -374,12 +427,36 @@ async function unsyncLessonFromVocab(
 ): Promise<void> {
   const items = parseLessonContent(lesson.content);
   if (!items.length) return;
-  await removeJpVocabLessonWords(db, items, lesson.ref_key, lesson.kind);
+  const itemKinds = resolveJpLessonItemKinds(
+    lesson.kind,
+    items.length,
+    lesson.grammar_item_count
+  );
+  const words: string[] = [];
+  const grammars: string[] = [];
+  items.forEach((word, index) => {
+    if (itemKinds[index] === "grammar") grammars.push(word);
+    else words.push(word);
+  });
+  if (words.length) {
+    await removeJpVocabLessonWords(db, words, lesson.ref_key, "word");
+  }
+  if (grammars.length) {
+    await removeJpVocabLessonWords(db, grammars, lesson.ref_key, "grammar");
+  }
 }
 
 export type CreateJpLessonResult =
   | { ok: true; lesson: JpLessonRecord }
   | { ok: false; error: string };
+
+function joinAlignedFieldParts(
+  parts: Array<string | null>,
+  sep: string
+): string | null {
+  if (!parts.some((p) => Boolean(p && p.trim()))) return null;
+  return parts.map((p) => (p && p.trim() ? p.trim() : "")).join(sep);
+}
 
 export async function createJpLesson(
   db: D1Database,
@@ -391,7 +468,11 @@ export async function createJpLesson(
     return { ok: false, error: "content_empty" };
   }
 
-  const kind = normalizeKind(input.kind);
+  let kind = normalizeKind(input.kind);
+  if (kind === "word_grammar") {
+    return { ok: false, error: "use_upload_mixed" };
+  }
+
   const title = (input.title || "").trim() || null;
   const meanings = normalizeLessonMeaningsForStorage(content, input.meanings);
   const exampleSentences = normalizeLessonExampleSentencesForStorage(
@@ -403,6 +484,7 @@ export async function createJpLesson(
     : null;
   const ts = nowIso();
   const storedContent = items.join(", ");
+  const grammarItemCount = 0;
 
   if (devStoreEnabled) {
     await seedIfEmpty(db);
@@ -412,6 +494,7 @@ export async function createJpLesson(
       content: storedContent,
       meanings,
       example_sentences: exampleSentences,
+      grammar_item_count: grammarItemCount,
       title,
       ref_key: refKey,
       completed: false,
@@ -440,10 +523,143 @@ export async function createJpLesson(
 
   const result = await db
     .prepare(
-      `INSERT INTO jp_lesson (kind, content, meanings, example_sentences, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0, ?7, ?7, ?7)`
+      `INSERT INTO jp_lesson (kind, content, meanings, example_sentences, grammar_item_count, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8, ?8, ?8)`
     )
-    .bind(kind, storedContent, meanings, exampleSentences, title, refKey, ts)
+    .bind(
+      kind,
+      storedContent,
+      meanings,
+      exampleSentences,
+      grammarItemCount,
+      title,
+      refKey,
+      ts
+    )
+    .run();
+
+  const id = Number(result.meta?.last_row_id);
+  if (!id) return { ok: false, error: "insert_failed" };
+
+  const row = await db
+    .prepare(`${LESSON_SELECT} WHERE id = ?1`)
+    .bind(id)
+    .first<Record<string, unknown>>();
+
+  if (!row) return { ok: false, error: "insert_failed" };
+  return { ok: true, lesson: mapRow(row) };
+}
+
+/** 同一课同时上传单词 + 语法 → kind=word_grammar；完成时分别以 word/grammar 同步到抽问 */
+export async function createJpLessonMixed(
+  db: D1Database,
+  input: JpLessonMixedUploadInput
+): Promise<CreateJpLessonResult> {
+  const wordItems = parseLessonContent(input.word_content || "");
+  const grammarItems = parseLessonContent(input.grammar_content || "");
+  if (!wordItems.length) {
+    return { ok: false, error: "word_content_empty" };
+  }
+  if (!grammarItems.length) {
+    return { ok: false, error: "grammar_content_empty" };
+  }
+
+  const wordContentStored = wordItems.join(", ");
+  const grammarContentStored = grammarItems.join(", ");
+  const storedContent = [...wordItems, ...grammarItems].join(", ");
+  const grammarItemCount = grammarItems.length;
+
+  const wordMeaningsAligned = alignLessonItemMeanings(
+    wordContentStored,
+    input.word_meanings
+  );
+  const grammarMeaningsAligned = alignLessonItemMeanings(
+    grammarContentStored,
+    input.grammar_meanings
+  );
+  const meanings = joinAlignedFieldParts(
+    [...wordMeaningsAligned, ...grammarMeaningsAligned],
+    "|"
+  );
+
+  const wordExamplesNorm = normalizeLessonExampleSentencesForStorage(
+    wordContentStored,
+    input.word_example_sentences
+  );
+  const grammarExamplesNorm = normalizeLessonExampleSentencesForStorage(
+    grammarContentStored,
+    input.grammar_example_sentences
+  );
+  const wordExampleParts = alignLessonItemExampleSentences(
+    wordContentStored,
+    wordExamplesNorm
+  );
+  const grammarExampleParts = alignLessonItemExampleSentences(
+    grammarContentStored,
+    grammarExamplesNorm
+  );
+  const exampleSentences = joinAlignedFieldParts(
+    [...wordExampleParts, ...grammarExampleParts],
+    JP_LESSON_EXAMPLE_ITEM_SEP
+  );
+
+  const title = (input.title || "").trim() || null;
+  const refKey = input.ref_key
+    ? normalizeJpVocabRefKey(input.ref_key) || null
+    : null;
+  const ts = nowIso();
+  const kind: JpLessonKind = "word_grammar";
+
+  if (devStoreEnabled) {
+    await seedIfEmpty(db);
+    const lesson: JpLessonRecord = {
+      id: devNextId++,
+      kind,
+      content: storedContent,
+      meanings,
+      example_sentences: exampleSentences,
+      grammar_item_count: grammarItemCount,
+      title,
+      ref_key: refKey,
+      completed: false,
+      learning: false,
+      status_updated_at: null,
+      status_updated_by: null,
+      teacher_ids: [],
+      teacher_other: null,
+      class_schedules: [],
+      next_class_at: null,
+      class_duration_minutes: null,
+      link_copy_count: 0,
+      uploaded_at: ts,
+      created_at: ts,
+      updated_at: ts,
+    };
+    devLessons.unshift(lesson);
+    return { ok: true, lesson };
+  }
+
+  if (refKey && !(await refKeyExists(db, refKey))) {
+    return { ok: false, error: "ref_key_not_found" };
+  }
+
+  await ensureJpLessonSchemaColumns(db);
+
+  const result = await db
+    .prepare(
+      `INSERT INTO jp_lesson (kind, content, meanings, example_sentences, grammar_item_count, title, ref_key, completed, learning, uploaded_at, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, ?8, ?8, ?8)`
+    )
+    .bind(
+      kind,
+      storedContent,
+      meanings,
+      exampleSentences,
+      grammarItemCount,
+      title,
+      refKey,
+      ts
+    )
     .run();
 
   const id = Number(result.meta?.last_row_id);
