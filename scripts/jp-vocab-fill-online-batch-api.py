@@ -288,20 +288,9 @@ def normalize_example_sentences_block(value: Any) -> str:
 
 
 def parse_json_object(raw: str) -> dict[str, Any]:
-    text = FENCE_RE.sub("", (raw or "").strip()).strip()
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    end = text.rfind("}")
-    if start >= 0 and end > start:
-        data = json.loads(text[start : end + 1])
-        if isinstance(data, dict):
-            return data
-    raise ValueError("model output is not a JSON object")
+    from llm_json_parse import parse_llm_json_object
+
+    return parse_llm_json_object(raw)
 
 
 def required_keys_for_row(row: dict[str, Any]) -> tuple[str, ...]:

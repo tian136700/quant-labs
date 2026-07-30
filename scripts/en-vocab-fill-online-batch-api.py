@@ -31,6 +31,7 @@ from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
 )
+from llm_json_parse import parse_llm_json_object  # noqa: E402
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
@@ -62,7 +63,6 @@ EXAM_LABEL_RE = re.compile(
     r"雅思|托福|四六级|考研|专四|专八|IELTS|TOEFL|ielts|toefl|\bCET\b|\bGRE\b|\bGMAT\b|\bSAT\b",
     re.IGNORECASE,
 )
-FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE | re.MULTILINE)
 LEADING_INDEX_RE = re.compile(r"^\s*\d+[.、．)\]]\s*")
 _IPA_WRAPPED = re.compile(r"^([\[\/])(.+)([\]\/])$")
 _IPA_FIND = re.compile(r"[/\[\]]([^/\\[\]]{1,60})[/\[\]]")
@@ -70,6 +70,8 @@ _IPA_FIND = re.compile(r"[/\[\]]([^/\\[\]]{1,60})[/\[\]]")
 SYSTEM = (
     "You fill English learner flashcards for junior-high / IELTS-TOEFL high-frequency review. "
     "Return ONLY one JSON object. No markdown fences, no commentary. "
+    "All string values MUST use double quotes; escape any \" inside strings as \\\". "
+    "IPA reading MUST be a JSON string like \"/ʌp ˈtuː/\", never a bare /…/ token. "
     "Usage: Chinese numbered 1. 2. …; EACH line MUST include frequency score [1]-[10] "
     "right after the number (e.g. '1. [8] 动词：…'); 10=most common sense for that word; "
     "pick academic-exam-frequent uses; "
@@ -429,20 +431,7 @@ def normalize_example_sentences(value: Any) -> str:
 
 
 def parse_json_object(raw: str) -> dict[str, Any]:
-    text = FENCE_RE.sub("", (raw or "").strip()).strip()
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
-    start = text.find("{")
-    end = text.rfind("}")
-    if start >= 0 and end > start:
-        data = json.loads(text[start : end + 1])
-        if isinstance(data, dict):
-            return data
-    raise ValueError("model output is not a JSON object")
+    return parse_llm_json_object(raw)
 
 
 def build_prompt(row: dict[str, Any], needs: dict[str, bool]) -> str:
@@ -736,15 +725,44 @@ def apply_bundle(
     return done
 
 
+def _log_raw_snippet(raw: str, *, label: str = "raw") -> None:
+    snippet = re.sub(r"\s+", " ", (raw or "").strip())[:280]
+    if snippet:
+        print(f"    {label} snippet: {snippet}", flush=True)
+
+
 def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, Any]:
+    prompt = build_prompt(row, needs)
     raw = call_anthropic(
-        build_prompt(row, needs),
+        prompt,
         system=SYSTEM,
         max_tokens=4500,
         temperature=0.3,
         timeout=180,
     )
-    data = parse_json_object(raw)
+    try:
+        data = parse_json_object(raw)
+    except ValueError as err:
+        # 坏 JSON：再要一次严格输出，避免同一词空烧到熔断
+        _log_raw_snippet(raw, label="bad_json")
+        print(f"    retry generate after JSON error: {err}", flush=True)
+        raw = call_anthropic(
+            prompt
+            + "\n\nCRITICAL: Previous reply was invalid JSON ("
+            + str(err)[:120]
+            + "). Output ONE valid JSON object only. "
+            "Escape every double-quote inside string values. "
+            'reading must be a quoted string like "/ʌp ˈtuː/".',
+            system=SYSTEM,
+            max_tokens=4500,
+            temperature=0.1,
+            timeout=180,
+        )
+        try:
+            data = parse_json_object(raw)
+        except ValueError:
+            _log_raw_snippet(raw, label="bad_json_retry")
+            raise
     out: dict[str, Any] = {}
 
     if needs.get("reading"):
