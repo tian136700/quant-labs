@@ -43,7 +43,12 @@ export type JpLessonPageSectionsProps = {
   openTeacherEditModal: (lesson: JpLessonRecord, lessonIds?: number[]) => void;
   openNextClassEditModal: (lesson: JpLessonRecord) => void;
   setEditingLesson: (lesson: JpLessonRecord | null) => void;
-  setAnnotatingLesson: (payload: { lesson: JpLessonRecord; ref: JpVocabRef; imageUrl: string } | null) => void;
+  setAnnotatingLesson: (payload: {
+    lesson: JpLessonRecord;
+    ref: JpVocabRef;
+    imageUrl: string;
+    mediaType?: "image" | "pdf";
+  } | null) => void;
   setViewingExamples: (target: import("@/components/JpLessonExamplesViewModal").JpLessonExamplesViewTarget | null) => void;
   deleteLesson: (lesson: JpLessonRecord) => void;
   toggleRecentOperationSort: (status: JpLessonProgressStatus) => void;

@@ -31,9 +31,10 @@ CHECKS = [
         {
             "must": [
                 r"jpVocabRefApiPath\(lesson\.ref_key!,\s*\{\s*v:\s*ref\.updated_at\s*\}\)",
-                # page may pass setAnnotatingLesson; table calls onAnnotateLesson
-                r"(?:setAnnotatingLesson|onAnnotateLesson)\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl\s*\}\)",
+                # page may pass setAnnotatingLesson; table calls onAnnotateLesson（可带 mediaType）
+                r"(?:setAnnotatingLesson|onAnnotateLesson)\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl",
                 r"imageUrl=\{annotatingLesson\?\.imageUrl",
+                r'media_type === "pdf"',
             ],
             "forbid": [
                 r"setAnnotatingLesson\(\{[^}]*viewUrl",
@@ -51,8 +52,9 @@ CHECKS = [
         {
             "must": [
                 r"enVocabRefApiPath\(lesson\.ref_key!,\s*\{\s*v:\s*ref\.updated_at\s*\}\)",
-                r"(?:setAnnotatingLesson|onAnnotateLesson)\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl\s*\}\)",
+                r"(?:setAnnotatingLesson|onAnnotateLesson)\(\{\s*lesson,\s*ref:\s*ref!,\s*imageUrl",
                 r"imageUrl=\{annotatingLesson\?\.imageUrl",
+                r'media_type === "pdf"',
             ],
             "forbid": [
                 r"setAnnotatingLesson\(\{[^}]*viewUrl",
@@ -84,6 +86,9 @@ CHECKS = [
                 r"drawSmearLabel\(",
                 r"tool === \"smear\"",
                 r'subject === "jp" \? "/api/jp-lesson/ref/replace"',
+                r"useLessonAnnotatePdfPages|openAnnotatePdfFromUrl",
+                r"DEFAULT_OPEN_ZOOM|ZOOM_STEP \* ZOOM_STEP",
+                r"composeAnnotatedPdfBlob|saveAnnotatedLessonPdfRef|saveAnnotateSession",
             ],
             "forbid": [
                 r'SMEAR_COLOR\s*=\s*"#ffffff"',

@@ -54,7 +54,7 @@ export async function openAnnotatePdfFromUrl(
     },
     destroy() {
       cache.clear();
-      void pdf.destroy();
+      void pdf.cleanup();
     },
   };
 }

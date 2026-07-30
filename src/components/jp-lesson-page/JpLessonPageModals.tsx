@@ -25,7 +25,12 @@ export type JpLessonPageModalsProps = {
   batchSaving: boolean;
   editingLesson: JpLessonRecord | null;
   editingRef: JpVocabRef | undefined;
-  annotatingLesson: { lesson: JpLessonRecord; ref: JpVocabRef; imageUrl: string } | null;
+  annotatingLesson: {
+    lesson: JpLessonRecord;
+    ref: JpVocabRef;
+    imageUrl: string;
+    mediaType?: "image" | "pdf";
+  } | null;
   viewingExamples: JpLessonExamplesViewTarget | null;
   setEditingTeacherLesson: (v: JpLessonRecord | null) => void;
   setEditingTeacherLessonIds: (ids: number[]) => void;
@@ -163,6 +168,10 @@ export function JpLessonPageModals(props: JpLessonPageModalsProps) {
       <JpLessonAnnotateModal
         open={annotatingLesson != null}
         imageUrl={annotatingLesson?.imageUrl ?? ""}
+        mediaType={
+          annotatingLesson?.mediaType ??
+          (annotatingLesson?.ref.media_type === "pdf" ? "pdf" : "image")
+        }
         refKey={annotatingLesson?.lesson.ref_key ?? ""}
         lessonId={annotatingLesson?.lesson.id ?? 0}
         lessonContent={annotatingLesson?.lesson.content ?? ""}

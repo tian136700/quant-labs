@@ -53,6 +53,7 @@ export type EnLessonStatusTableProps = {
     lesson: EnLessonRecord;
     ref: EnVocabRef;
     imageUrl: string;
+    mediaType?: "image" | "pdf";
   }) => void;
   onOpenTeacherEdit: (lesson: EnLessonRecord) => void;
   onOpenNextClassEdit: (lesson: EnLessonRecord) => void;
@@ -139,14 +140,17 @@ export function EnLessonStatusTable({
         查看
       </a>,
     ];
-    if (ref?.media_type === "image") {
+    if (ref && (ref.media_type === "image" || ref.media_type === "pdf")) {
       const imageUrl = enVocabRefApiPath(lesson.ref_key!, { v: ref.updated_at });
+      const mediaType = ref.media_type === "pdf" ? "pdf" : "image";
       actionItems.push(
         <button
           key="annotate"
           type="button"
           className="jp-lesson-action-btn"
-          onClick={() => onAnnotateLesson({ lesson, ref: ref!, imageUrl })}
+          onClick={() =>
+            onAnnotateLesson({ lesson, ref: ref!, imageUrl, mediaType })
+          }
         >
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <EnLessonMobileIcon name="pen" />

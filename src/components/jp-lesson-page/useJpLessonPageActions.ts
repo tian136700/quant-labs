@@ -79,6 +79,7 @@ export type UseJpLessonPageActionsOptions = {
       lesson: JpLessonRecord;
       ref: JpVocabRef;
       imageUrl: string;
+      mediaType?: "image" | "pdf";
     } | null>
   >;
   loadLessons: (opts?: { force?: boolean }) => Promise<void>;
@@ -730,7 +731,12 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
       const imageUrl = jpVocabRefApiPath(ref.ref_key, { v: ref.updated_at });
-      return { lesson, ref, imageUrl };
+      return {
+        lesson,
+        ref,
+        imageUrl,
+        mediaType: ref.media_type === "pdf" ? "pdf" : "image",
+      };
     });
   };
 

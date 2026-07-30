@@ -134,8 +134,9 @@ export function EnLessonPage() {
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: EnLessonRecord;
     ref: EnVocabRef;
-    /** 教案图片 API（随手画 canvas）；勿用查看页 HTML URL */
+    /** 教案文件 API（图片或 PDF）；勿用查看页 HTML URL */
     imageUrl: string;
+    mediaType?: "image" | "pdf";
   } | null>(null);
   const [expandedContentIds, setExpandedContentIds] = useState<Record<number, boolean>>({});
   const [classTimeSortOrder, setClassTimeSortOrder] =
@@ -647,7 +648,12 @@ export function EnLessonPage() {
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
       const imageUrl = enVocabRefApiPath(ref.ref_key, { v: ref.updated_at });
-      return { lesson, ref, imageUrl };
+      return {
+        lesson,
+        ref,
+        imageUrl,
+        mediaType: ref.media_type === "pdf" ? "pdf" : "image",
+      };
     });
   };
 
@@ -885,6 +891,10 @@ export function EnLessonPage() {
       <EnLessonAnnotateModal
         open={annotatingLesson != null}
         imageUrl={annotatingLesson?.imageUrl ?? ""}
+        mediaType={
+          annotatingLesson?.mediaType ??
+          (annotatingLesson?.ref.media_type === "pdf" ? "pdf" : "image")
+        }
         refKey={annotatingLesson?.lesson.ref_key ?? ""}
         lessonId={annotatingLesson?.lesson.id ?? 0}
         lessonContent={annotatingLesson?.lesson.content ?? ""}

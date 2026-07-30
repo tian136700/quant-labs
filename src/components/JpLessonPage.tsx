@@ -115,8 +115,9 @@ export function JpLessonPage() {
   const [annotatingLesson, setAnnotatingLesson] = useState<{
     lesson: JpLessonRecord;
     ref: JpVocabRef;
-    /** 教案图片 API（随手画 canvas）；勿用查看页 HTML URL */
+    /** 教案文件 API（图片或 PDF）；勿用查看页 HTML URL */
     imageUrl: string;
+    mediaType?: "image" | "pdf";
   } | null>(null);
   const [viewingExamples, setViewingExamples] = useState<JpLessonExamplesViewTarget | null>(
     null

@@ -161,3 +161,74 @@ export async function saveAnnotatedLessonPdfRef(params: {
     onSaved,
   });
 }
+
+type PersistCommon = {
+  img: HTMLImageElement;
+  strokes: Stroke[];
+  refKey: string;
+  lessonId: number;
+  subject: "jp" | "en";
+  locale: "en" | "zh";
+  isPdf: boolean;
+  /** PDF：当前页批注写入 map 后合成整份 */
+  buildPdfBlob?: () => Promise<Blob>;
+  onNeedAuth?: () => void;
+  onSaved?: (
+    ref: JpVocabRef | EnVocabRef,
+    lesson: JpLessonRecord | EnLessonRecord
+  ) => void;
+};
+
+/** 下载当前随手画结果（图片页或整份 PDF）。 */
+export async function downloadAnnotateSession(
+  params: PersistCommon
+): Promise<void> {
+  const { img, strokes, refKey, lessonId, isPdf, buildPdfBlob } = params;
+  if (isPdf) {
+    if (!buildPdfBlob) throw new Error("PDF 未就绪");
+    const pdfBlob = await buildPdfBlob();
+    await downloadAnnotatedPdf(pdfBlob, refKey, lessonId);
+    return;
+  }
+  await downloadAnnotatedImage(img, strokes, refKey, lessonId);
+}
+
+/** 保存为最新教案（图片覆盖 / PDF 整份覆盖）。 */
+export async function saveAnnotateSession(params: PersistCommon): Promise<void> {
+  const {
+    img,
+    strokes,
+    refKey,
+    lessonId,
+    subject,
+    locale,
+    isPdf,
+    buildPdfBlob,
+    onNeedAuth,
+    onSaved,
+  } = params;
+  if (isPdf) {
+    if (!buildPdfBlob) throw new Error("PDF 未就绪");
+    const pdfBlob = await buildPdfBlob();
+    await saveAnnotatedLessonPdfRef({
+      pdfBlob,
+      refKey,
+      lessonId,
+      subject,
+      locale,
+      onNeedAuth,
+      onSaved,
+    });
+    return;
+  }
+  await saveAnnotatedLessonRef({
+    img,
+    strokes,
+    refKey,
+    lessonId,
+    subject,
+    locale,
+    onNeedAuth,
+    onSaved,
+  });
+}

@@ -29,16 +29,10 @@ import {
   type Stroke,
 } from "@/components/lesson-annotate/lesson-annotate-draw";
 import {
-  downloadAnnotatedImage,
-  downloadAnnotatedPdf,
-  saveAnnotatedLessonPdfRef,
-  saveAnnotatedLessonRef,
-} from "@/components/lesson-annotate/lesson-annotate-save";
-import { composeAnnotatedPdfBlob } from "@/components/lesson-annotate/lesson-annotate-pdf";
-import {
   useLessonAnnotatePdfPages,
   type LessonAnnotateMediaType,
 } from "@/components/lesson-annotate/useLessonAnnotatePdfPages";
+import { useLessonAnnotatePersist } from "@/components/lesson-annotate/useLessonAnnotatePersist";
 import { useLessonAnnotateBrowserBack } from "@/lib/lesson-annotate-browser-back";
 import { LessonAnnotateModalStyles } from "@/components/lesson-annotate/LessonAnnotateModalStyles";
 import { LessonAnnotateToolbar } from "@/components/lesson-annotate/LessonAnnotateToolbar";
@@ -48,6 +42,8 @@ type Tool = "brush" | "smear" | "line" | "text" | "zoom";
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 4;
 const ZOOM_STEP = 1.35;
+/** 打开时默认相当于连点两次「放大」，少手动缩放 */
+const DEFAULT_OPEN_ZOOM = Math.min(ZOOM_MAX, ZOOM_STEP * ZOOM_STEP);
 const PAN_THRESHOLD = 6;
 
 export type LessonAnnotateSubject = "jp" | "en";
@@ -110,11 +106,8 @@ export function LessonAnnotateModal({
     screenY: number;
     value: string;
   } | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState("");
   const [fitScale, setFitScale] = useState(1);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(DEFAULT_OPEN_ZOOM);
   const [textFontSize, setTextFontSize] = useState(DEFAULT_TEXT_SIZE);
   const [selectedTextIndex, setSelectedTextIndex] = useState<number | null>(null);
 
@@ -156,7 +149,7 @@ export function LessonAnnotateModal({
     setPreviewRect(null);
     setTextDraft(null);
     setFitScale(1);
-    setZoom(1);
+    setZoom(DEFAULT_OPEN_ZOOM);
     setTextFontSize(DEFAULT_TEXT_SIZE);
     setSelectedTextIndex(null);
     lineStartRef.current = null;
@@ -215,7 +208,7 @@ export function LessonAnnotateModal({
   );
 
   const resetZoom = useCallback(() => {
-    setZoom(1);
+    setZoom(DEFAULT_OPEN_ZOOM);
     stageRef.current?.scrollTo({ left: 0, top: 0 });
   }, []);
 
@@ -282,7 +275,7 @@ export function LessonAnnotateModal({
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     setFitScale(computeFitScale());
-    setZoom(1);
+    setZoom(DEFAULT_OPEN_ZOOM);
     setImgLoadError("");
     setImgReady(true);
   }, [computeFitScale]);
@@ -729,55 +722,31 @@ export function LessonAnnotateModal({
     redraw([], null, null, null);
   };
 
-  const downloadAnnotated = async () => {
-    const img = imgRef.current;
-    if (!img || !img.naturalWidth || downloading || saving) return;
-    setDownloading(true);
-    try {
-      await downloadAnnotatedImage(img, strokes, refKey, lessonId);
-    } catch {
-      window.alert("下载失败，请重试");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const saveAsLatestRef = async () => {
-    const img = imgRef.current;
-    if (!img || !img.naturalWidth || downloading || saving) return;
-    if (!canSave) {
-      onNeedAuth?.();
-      return;
-    }
-    if (
-      !window.confirm(
-        "将用当前批注覆盖线上教案图片，其他新课不受影响。确定保存吗？"
-      )
-    ) {
-      return;
-    }
-
-    setSaving(true);
-    setSaveStatus("");
-    try {
-      await saveAnnotatedLessonRef({
-        img,
-        strokes,
-        refKey,
-        lessonId,
-        subject,
-        locale,
-        onNeedAuth,
-        onSaved,
-      });
-      setSaveStatus("已保存为最新教案");
-      window.setTimeout(() => setSaveStatus(""), 2500);
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "保存失败，请重试");
-    } finally {
-      setSaving(false);
-    }
-  };
+  const {
+    downloading,
+    saving,
+    saveStatus,
+    changePdfPage,
+    downloadAnnotated,
+    saveAsLatestRef,
+  } = useLessonAnnotatePersist({
+    pdf,
+    strokes,
+    setStrokes,
+    setSelectedTextIndex,
+    setPreviewLine: () => setPreviewLine(null),
+    setPreviewRect: () => setPreviewRect(null),
+    setTextDraft: () => setTextDraft(null),
+    setImgReady,
+    imgRef,
+    refKey,
+    lessonId,
+    subject,
+    locale,
+    canSave,
+    onNeedAuth,
+    onSaved,
+  });
 
   const handleZoomInCenter = () => {
     const canvas = canvasRef.current;
@@ -812,6 +781,17 @@ export function LessonAnnotateModal({
           downloading={downloading}
           saving={saving}
           saveStatus={saveStatus}
+          pdfPager={
+            pdf.isPdf && pdf.pageCount > 0
+              ? {
+                  pageIndex: pdf.pageIndex,
+                  pageCount: pdf.pageCount,
+                  busy: pdf.loading || downloading || saving,
+                  onPrev: () => void changePdfPage(pdf.pageIndex - 1),
+                  onNext: () => void changePdfPage(pdf.pageIndex + 1),
+                }
+              : null
+          }
           onToolChange={setTool}
           onTextFontSizeChange={applyTextFontSize}
           onZoomIn={handleZoomInCenter}
@@ -826,7 +806,9 @@ export function LessonAnnotateModal({
 
         <div className="jp-annotate-stage" ref={stageRef}>
           {!imgReady && !imgLoadError ? (
-            <p className="jp-annotate-loading">教案加载中…</p>
+            <p className="jp-annotate-loading">
+              {pdf.isPdf ? "PDF 教案加载中…" : "教案加载中…"}
+            </p>
           ) : null}
           {imgLoadError ? (
             <p className="jp-annotate-loading" role="alert">
@@ -838,7 +820,7 @@ export function LessonAnnotateModal({
               ref={wrapRef}
               className={`jp-annotate-canvas-wrap${imgReady ? " is-ready" : ""}${
                 tool === "zoom" ? " is-zoom-tool" : ""
-              }${zoom > 1 ? " is-zoomed" : ""}${
+              }${zoom > 1.01 ? " is-zoomed" : ""}${
                 tool === "text" ? " is-text-tool" : ""
               }${tool === "smear" ? " is-smear-tool" : ""}${
                 selectedTextIndex != null ? " is-text-selected" : ""
@@ -853,15 +835,17 @@ export function LessonAnnotateModal({
               }
             >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={imageUrl}
-              ref={imgRef}
-              src={imageUrl}
-              alt="教案"
-              className="jp-annotate-img"
-              onLoad={syncCanvasSize}
-              onError={handleImgError}
-            />
+            {displayUrl ? (
+              <img
+                key={displayUrl}
+                ref={imgRef}
+                src={displayUrl}
+                alt="教案"
+                className="jp-annotate-img"
+                onLoad={syncCanvasSize}
+                onError={handleImgError}
+              />
+            ) : null}
             <canvas
               ref={canvasRef}
               className="jp-annotate-canvas"

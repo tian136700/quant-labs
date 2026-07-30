@@ -70,6 +70,7 @@ export type JpLessonStatusTableProps = {
     lesson: JpLessonRecord;
     ref: JpVocabRef;
     imageUrl: string;
+    mediaType?: "image" | "pdf";
   }) => void;
   onOpenTeacherEdit: (lesson: JpLessonRecord, lessonIds?: number[]) => void;
   onOpenNextClassEdit: (lesson: JpLessonRecord) => void;
@@ -170,14 +171,17 @@ export function JpLessonStatusTable({
     }
 
     const actionItems: ReactNode[] = [];
-    if (ref?.media_type === "image") {
+    if (ref && (ref.media_type === "image" || ref.media_type === "pdf")) {
       const imageUrl = jpVocabRefApiPath(lesson.ref_key!, { v: ref.updated_at });
+      const mediaType = ref.media_type === "pdf" ? "pdf" : "image";
       actionItems.push(
         <button
           key="annotate"
           type="button"
           className="jp-lesson-action-btn"
-          onClick={() => onAnnotateLesson({ lesson, ref: ref!, imageUrl })}
+          onClick={() =>
+            onAnnotateLesson({ lesson, ref: ref!, imageUrl, mediaType })
+          }
         >
           <span className="jp-lesson-mobile-btn-icon" aria-hidden="true">
             <JpLessonMobileIcon name="pen" />
