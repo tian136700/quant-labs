@@ -5,6 +5,9 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 export const VOCAB_REF_ZOOM_MIN = 0.4;
 export const VOCAB_REF_ZOOM_MAX = 6;
 export const VOCAB_REF_ZOOM_STEP = 1.15;
+/** 长按保存：缩放层 touch-action:none 会拦系统「存储图像」，改走业务回调 */
+export const VOCAB_REF_IMAGE_LONG_PRESS_MS = 550;
+export const VOCAB_REF_IMAGE_LONG_PRESS_MOVE_PX = 12;
 
 type PointerPoint = { x: number; y: number };
 
@@ -28,7 +31,10 @@ export type VocabRefImageZoomApi = {
   onImageLoad: () => void;
 };
 
-export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
+export function useVocabRefImageZoom(
+  mediaKey?: string,
+  onImageLongPress?: () => void
+): VocabRefImageZoomApi {
   const [zoom, setZoom] = useState(1);
   const [fitScale, setFitScale] = useState(1);
   const [imgReady, setImgReady] = useState(false);
@@ -49,6 +55,22 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
     centerX: number;
     centerY: number;
   } | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressOriginRef = useRef<PointerPoint | null>(null);
+  const longPressFiredRef = useRef(false);
+  const onImageLongPressRef = useRef(onImageLongPress);
+  onImageLongPressRef.current = onImageLongPress;
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current != null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => clearLongPressTimer();
+  }, [clearLongPressTimer]);
 
   const displayScale = fitScale * zoom;
 
@@ -72,8 +94,11 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
     activePointersRef.current.clear();
     panSessionRef.current = null;
     pinchSessionRef.current = null;
+    clearLongPressTimer();
+    longPressFiredRef.current = false;
+    longPressOriginRef.current = null;
     stageRef.current?.scrollTo({ left: 0, top: 0 });
-  }, []);
+  }, [clearLongPressTimer]);
 
   const applyZoomAtPointer = useCallback(
     (clientX: number, clientY: number, nextZoom: number) => {
@@ -170,6 +195,9 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
     stage.setPointerCapture(e.pointerId);
 
     if (activePointersRef.current.size === 2) {
+      clearLongPressTimer();
+      longPressOriginRef.current = null;
+      longPressFiredRef.current = false;
       const pts = [...activePointersRef.current.values()];
       panSessionRef.current = null;
       pinchSessionRef.current = {
@@ -183,13 +211,22 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
 
     if (activePointersRef.current.size === 1) {
       pinchSessionRef.current = null;
-      panSessionRef.current = {
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        scrollLeft: stage.scrollLeft,
-        scrollTop: stage.scrollTop,
-      };
+      longPressFiredRef.current = false;
+      // 先不立刻平移：留给长按保存；手指移动超过阈值后再开 pan
+      panSessionRef.current = null;
+      clearLongPressTimer();
+      longPressOriginRef.current = { x: e.clientX, y: e.clientY };
+      if (onImageLongPressRef.current) {
+        const pointerId = e.pointerId;
+        longPressTimerRef.current = setTimeout(() => {
+          longPressTimerRef.current = null;
+          if (!activePointersRef.current.has(pointerId)) return;
+          if (activePointersRef.current.size !== 1) return;
+          longPressFiredRef.current = true;
+          panSessionRef.current = null;
+          onImageLongPressRef.current?.();
+        }, VOCAB_REF_IMAGE_LONG_PRESS_MS);
+      }
     }
   };
 
@@ -201,6 +238,8 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
 
     const pinch = pinchSessionRef.current;
     if (pinch && activePointersRef.current.size >= 2) {
+      clearLongPressTimer();
+      longPressOriginRef.current = null;
       const pts = [...activePointersRef.current.values()];
       const dist = pointerDistance(pts[0], pts[1]);
       if (pinch.startDistance > 0) {
@@ -211,6 +250,30 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
         );
       }
       return;
+    }
+
+    if (longPressFiredRef.current) return;
+
+    if (
+      !panSessionRef.current &&
+      longPressOriginRef.current &&
+      activePointersRef.current.size === 1
+    ) {
+      const origin = longPressOriginRef.current;
+      const moved = Math.hypot(e.clientX - origin.x, e.clientY - origin.y);
+      if (moved >= VOCAB_REF_IMAGE_LONG_PRESS_MOVE_PX) {
+        clearLongPressTimer();
+        longPressOriginRef.current = null;
+        panSessionRef.current = {
+          pointerId: e.pointerId,
+          startX: origin.x,
+          startY: origin.y,
+          scrollLeft: stage.scrollLeft,
+          scrollTop: stage.scrollTop,
+        };
+      } else {
+        return;
+      }
     }
 
     const session = panSessionRef.current;
@@ -224,14 +287,18 @@ export function useVocabRefImageZoom(mediaKey?: string): VocabRefImageZoomApi {
   const endPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const stage = stageRef.current;
     activePointersRef.current.delete(e.pointerId);
+    clearLongPressTimer();
+    longPressOriginRef.current = null;
     if (activePointersRef.current.size < 2) {
       pinchSessionRef.current = null;
     }
     if (activePointersRef.current.size === 0) {
       panSessionRef.current = null;
+      longPressFiredRef.current = false;
     } else if (activePointersRef.current.size === 1 && !pinchSessionRef.current) {
       const remaining = [...activePointersRef.current.entries()][0];
       if (remaining && stage) {
+        longPressFiredRef.current = false;
         panSessionRef.current = {
           pointerId: remaining[0],
           startX: remaining[1].x,

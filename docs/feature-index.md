@@ -39,7 +39,7 @@
 | `/jp-vocab/study` | 今日日语单词、学生复习；**主路径=peek**；「请老师发送」默认关 | `src/app/jp-vocab/study/page.tsx` | `JpVocabStudyPageClient.tsx`（`ssr:false` 壳）→ `JpVocabStudyPage.tsx` | `GET /api/jp-vocab/shared`、`POST /api/jp-vocab/teacher-quiz-live`（peek）；`share-request` 仅当开关开 | 同上 + `jp_vocab_share_request`；开关 `JP_VOCAB_STUDENT_REQUEST_SHARE_ENABLED=false` | `jp_vocab:study` 学生；`admin` 管理员（老师不可见） |
 | `/jp-vocab/review` | **日语复习**（选数量/排序、卡片复习、手动清除进度；卡面同抽问、无熟悉程度；未展开只露汉字） | `src/app/jp-vocab/review/page.tsx` | `JpVocabReviewPage.tsx` | `GET/POST /api/jp-vocab/review` | `jp_vocab_review_done`（跨日不清零） | `admin` 管理员 |
 | `/jp-vocab/coach` | **课堂带读**（合并队列：「一般」「不熟悉」与未带读去重合并；**今日抽查完成弹窗出现时批量写入**；已带读不拉回；**带读卡片与抽问卡同 UI，熟悉程度只展示不可勾选**；备注与抽问同步；**带读卡片显示例句**；列表有例句列、带读状态与操作列「查看该带读卡片」；**已带读北京时间次日凌晨清空**，未带读不过期） | `src/app/jp-vocab/coach/page.tsx` | `JpVocabCoachPage.tsx` | `GET/POST /api/jp-vocab/coach`（`merge_queue` / `mark_coached`） | `jp_vocab_coach_item`（`word_id` 主键 + `coached_at`）；跨日清理见 `daily-rollover` | **`jp_vocab:coach` 或白名单**（当前 `XinXin`=欣欣；李老师/玉老师默认无）；`admin` 全部；抽查完成入队仍用 `jp_vocab:operate` |
-| `/jp-vocab/ref/[refKey]` | 教案/参考资料查看 | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` 等 | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页；下载名见「日语新课 → 教案下载文件名」 |
+| `/jp-vocab/ref/[refKey]` | 教案/参考资料查看（**手机长按 /「保存图片」→ 系统分享「存储图像」进相册**；缩放层会拦系统长按菜单） | `src/app/jp-vocab/ref/[refKey]/page.tsx` | `JpVocabRefViewer` + `VocabRefImageZoom` + `vocab-ref-save-image.ts` | `/api/jp-vocab/ref/*` | `jp_vocab_ref` | 随单词页；下载名见「日语新课 → 教案下载文件名」；规则 `.cursor/rules/vocab-ref-save-image.mdc` |
 
 ### jp-vocab 子功能 → 文件速查
 
@@ -121,7 +121,7 @@
 | `/en-vocab/admin` | 英语抽背-管理员端 | `src/app/en-vocab/admin/page.tsx` | `EnVocabPage variant="admin"` | 全库、设今日抽查数量、导出 Excel、批量删除、重置（**今日/全部重置须同时清 `en_vocab_shared`**，否则仍显示「已共享」）；列表可直接改熟悉程度（不强制进抽查卡片）；熟悉程度锁=勾选后 **1h**（非按共享） |
 | `/en-vocab/study` | 今日英语单词（**列表按 `shared_at` 倒序**：最近抽查/同步的在前，最早的在后） | `src/app/en-vocab/study/page.tsx` | `EnVocabStudyPageClient.tsx`（`ssr:false` 壳）→ `EnVocabStudyPage.tsx` | **管理员 / `en_vocab:study` 学生**（英语老师不可见）；点单词开详情卡；peek「查看老师正在抽查的单词」；老师端 peek→「该学生已查看该单词」、勾选同步→「该单词已同步给学生查看」 |
 | `/en-vocab/review` | **英语复习**（选数量/排序、卡片复习、手动清除进度；卡面同抽问、无熟悉程度；未展开只露单词） | `src/app/en-vocab/review/page.tsx` | `EnVocabReviewPage.tsx` | 仅管理员；`GET/POST /api/en-vocab/review`；`en_vocab_review_done`（跨日不清零）；对齐日语 `/jp-vocab/review` |
-| `/en-vocab/ref/[refKey]` | 英语教案 | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
+| `/en-vocab/ref/[refKey]` | 英语教案（**手机长按 /「保存图片」进相册**，同日语） | `src/app/en-vocab/ref/[refKey]/page.tsx` | `EnVocabRefViewer` + `vocab-ref-save-image.ts`；下载名见「英语新课 → 教案下载文件名」；API：`src/app/api/en-vocab/*`，库：`en_vocab_*` |
 
 RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admin`；`en_vocab:manual_add` 老师角色默认排除。共享开关：`src/lib/en-vocab-share-ui.ts`（`EN_VOCAB_TEACHER_SHARE_ENABLED`）。规则：`.cursor/rules/en-vocab-admin-teacher-split.mdc`。
 
@@ -260,7 +260,7 @@ RBAC：`en_vocab:teacher` → `/en-vocab`；`en_vocab:admin` → `/en-vocab/admi
 | **分类标签**（默认「雅思托福」；上传传 `category`；标已完成时同步到 `en_vocab_word.category`） | `en_lesson.category`；`POST /api/en-lesson/upload`；`createEnLesson` / `syncLessonToVocab`；列表「分类」列；`en-vocab-category.ts`；回归 `scripts/check_en_vocab_category.py` |
 | **手机端卡片布局**（与日语新课同套：状态 Tab（手机+桌面）、内容 chips、底部编辑/老师/时间；根节点 `jp-lesson-page--en`） | `EnLessonPage.tsx`；`mobile.css`（`--ja` / `--en`）；`EN_LESSON_MOBILE_STATUS_FILTER_KEY`；规则 `jp-lesson-mobile-content-layout.mdc`、`jp-lesson-mobile-status-tab.mdc` |
 | **教案下载文件名**（英文：`{id}. Word Learn|Grammar Learn (word1, word2, …)`，空格保留；列表与「查看」页一致；供菲律宾等英语老师识别） | `en-vocab-ref-shared.ts` → `enLessonRefDownloadFilename`；`EnLessonPage.tsx`；`EnVocabRefViewer` + `en-vocab/ref/[refKey]/page.tsx`；`GET /api/en-vocab/ref/[refKey]?download=1`；`getEnLessonByRefKey` |
-| **教案下载格式**（整图 PDF：整张图嵌入一页、不拆分；另保留分页 PDF / Word；管理员可下原图） | `EnVocabRefDownloadMenu.tsx`；`en-vocab-ref-pdf-export.ts` → `exportEnVocabRefFullImagePdf` / `exportEnVocabRefPaginatedPdf` |
+| **教案下载格式**（**保存图片**：全员可用，iPhone 分享「存储图像」；整图 PDF；分页 PDF / Word；管理员另可下原图附件） | `EnVocabRefDownloadMenu.tsx`；`vocab-ref-save-image.ts`；`en-vocab-ref-pdf-export.ts` → `exportEnVocabRefFullImagePdf` / `exportEnVocabRefPaginatedPdf`；规则 `vocab-ref-save-image.mdc` |
 | **随手画 / 涂抹**（与日语同款；`EnLessonAnnotateModal`；imageUrl 用 `enVocabRefApiPath`；保存后 `EnVocabRefViewer` 同套 live 换图） | 见日语新课「随手画」；规则 `lesson-annotate-image-url.mdc`、`vocab-ref-view-live-refresh.mdc` |
 | **复制菜单**（带模板 / 仅链接 / **仅文字**：`发给{上课老师名}老师，谢谢～`；多名各加「老师」；无链接；教材 PDF 另行下载发送；**三种模式成功后复制次数均 +1**） | `EnLessonCopyMenu.tsx` → `buildEnLessonTextOnlyCopy`；`EnLessonPage.tsx` → `record_link_copy`；`incrementEnLessonLinkCopyCount`；规则 `.cursor/rules/en-lesson-copy-count.mdc` |
 

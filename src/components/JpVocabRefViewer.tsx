@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { CopyToast } from "@/components/CopyToast";
 import { JpVocabRefDownloadMenu } from "@/components/JpVocabRefDownloadMenu";
 import {
   useVocabRefImageZoom,
@@ -12,6 +13,7 @@ import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
 } from "@/lib/jp-vocab-ref-shared";
+import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
 import { useVocabRefLiveVersion } from "@/lib/useVocabRefLiveVersion";
 import type { JpVocabRef } from "@/lib/types";
 
@@ -45,7 +47,35 @@ export function JpVocabRefViewer({
     jpVocabRefFilename(refMeta.ref_key, refMeta.media_type);
   const title = refMeta.title?.trim() || refMeta.ref_key;
   const isPdf = refMeta.media_type === "pdf";
-  const zoomApi = useVocabRefImageZoom(isPdf ? undefined : `${refMeta.ref_key}:${v ?? ""}`);
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [savePromptOpen, setSavePromptOpen] = useState(false);
+
+  const saveImage = useCallback(async () => {
+    if (isPdf || saveBusy) return;
+    setSaveBusy(true);
+    setSavePromptOpen(false);
+    try {
+      const result = await saveVocabRefImageToDevice({
+        imageUrl: mediaUrl,
+        filename,
+      });
+      if (result === "shared") {
+        setStatusToast("请在分享面板选择「存储图像」");
+      } else if (result === "downloaded") {
+        setStatusToast("图片已下载");
+      }
+    } catch {
+      setStatusToast("保存失败，请稍后重试");
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [isPdf, saveBusy, mediaUrl, filename]);
+
+  const zoomApi = useVocabRefImageZoom(
+    isPdf ? undefined : `${refMeta.ref_key}:${v ?? ""}`,
+    isPdf ? undefined : () => setSavePromptOpen(true)
+  );
   const [coarsePointer, setCoarsePointer] = useState(false);
 
   useEffect(() => {
@@ -57,7 +87,7 @@ export function JpVocabRefViewer({
   }, []);
 
   const zoomHint = coarsePointer
-    ? "单指拖动 · 双指缩放 · ± 按钮"
+    ? "单指拖动 · 双指缩放 · 长按保存到相册"
     : "拖动/双指滚动 · Ctrl+滚轮缩放 · ± 按钮";
   const subtitle = banner
     ? banner
@@ -90,6 +120,7 @@ export function JpVocabRefViewer({
             className="jp-ref-viewer-download"
             allowOriginalDownload={isAdmin}
             cropKind={cropKind}
+            onStatus={setStatusToast}
           />
         </div>
       </header>
@@ -111,6 +142,34 @@ export function JpVocabRefViewer({
           />
         )}
       </div>
+      <CopyToast
+        message={statusToast}
+        onDismiss={() => setStatusToast(null)}
+        className="copy-toast--above-modal"
+      />
+      {savePromptOpen ? (
+        <div className="jp-ref-save-prompt" role="dialog" aria-label="保存图片">
+          <p className="jp-ref-save-prompt-text">保存教案图片到相册？</p>
+          <div className="jp-ref-save-prompt-actions">
+            <button
+              type="button"
+              className="jp-ref-save-prompt-btn"
+              onClick={() => setSavePromptOpen(false)}
+              disabled={saveBusy}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="jp-ref-save-prompt-btn jp-ref-save-prompt-btn--primary"
+              onClick={() => void saveImage()}
+              disabled={saveBusy}
+            >
+              {saveBusy ? "保存中…" : "保存图片"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <style jsx>{`
         .jp-ref-viewer {
           min-height: 100dvh;
@@ -231,6 +290,7 @@ export function JpVocabRefViewer({
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
           user-select: none;
           -webkit-user-drag: none;
+          -webkit-touch-callout: default;
         }
         .jp-ref-viewer-pdf {
           width: min(100%, 960px);
@@ -239,6 +299,50 @@ export function JpVocabRefViewer({
           border: 1px solid var(--border);
           border-radius: 8px;
           background: #fff;
+        }
+        .jp-ref-save-prompt {
+          position: fixed;
+          left: 50%;
+          bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+          transform: translateX(-50%);
+          z-index: 40;
+          width: min(22rem, calc(100vw - 1.5rem));
+          padding: 0.85rem 1rem;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--panel) 94%, var(--bg));
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+        }
+        .jp-ref-save-prompt-text {
+          margin: 0 0 0.75rem;
+          font-size: 0.9375rem;
+          color: var(--text);
+        }
+        .jp-ref-save-prompt-actions {
+          display: flex;
+          gap: 0.5rem;
+          justify-content: flex-end;
+        }
+        .jp-ref-save-prompt-btn {
+          min-height: 2.5rem;
+          padding: 0 0.9rem;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+        .jp-ref-save-prompt-btn--primary {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+          color: var(--accent);
+          font-weight: 600;
+        }
+        .jp-ref-save-prompt-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
         @media (max-width: 480px) {
           .jp-ref-viewer-toolbar {

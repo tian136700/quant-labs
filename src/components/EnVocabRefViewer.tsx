@@ -1,11 +1,19 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { CopyToast } from "@/components/CopyToast";
 import { EnVocabRefDownloadMenu } from "@/components/EnVocabRefDownloadMenu";
+import {
+  useVocabRefImageZoom,
+  VocabRefImageZoomButtons,
+  VocabRefImageZoomStage,
+} from "@/components/VocabRefImageZoom";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import {
   enVocabRefApiPath,
   enVocabRefFilename,
 } from "@/lib/en-vocab-ref-shared";
+import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
 import { useVocabRefLiveVersion } from "@/lib/useVocabRefLiveVersion";
 import type { EnVocabRef } from "@/lib/types";
 
@@ -38,6 +46,54 @@ export function EnVocabRefViewer({
     downloadFilename?.trim() ||
     enVocabRefFilename(refMeta.ref_key, refMeta.media_type);
   const title = refMeta.title?.trim() || refMeta.ref_key;
+  const isPdf = refMeta.media_type === "pdf";
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [savePromptOpen, setSavePromptOpen] = useState(false);
+
+  const saveImage = useCallback(async () => {
+    if (isPdf || saveBusy) return;
+    setSaveBusy(true);
+    setSavePromptOpen(false);
+    try {
+      const result = await saveVocabRefImageToDevice({
+        imageUrl: mediaUrl,
+        filename,
+      });
+      if (result === "shared") {
+        setStatusToast("请在分享面板选择「存储图像」");
+      } else if (result === "downloaded") {
+        setStatusToast("图片已下载");
+      }
+    } catch {
+      setStatusToast("保存失败，请稍后重试");
+    } finally {
+      setSaveBusy(false);
+    }
+  }, [isPdf, saveBusy, mediaUrl, filename]);
+
+  const zoomApi = useVocabRefImageZoom(
+    isPdf ? undefined : `${refMeta.ref_key}:${v ?? ""}`,
+    isPdf ? undefined : () => setSavePromptOpen(true)
+  );
+  const [coarsePointer, setCoarsePointer] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setCoarsePointer(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  const zoomHint = coarsePointer
+    ? "单指拖动 · 双指缩放 · 长按保存到相册"
+    : "拖动/双指滚动 · Ctrl+滚轮缩放 · ± 按钮";
+  const subtitle = banner
+    ? banner
+    : isPdf
+      ? "教案预览"
+      : `教案预览 · ${zoomHint}`;
 
   return (
     <div className="jp-ref-viewer">
@@ -45,30 +101,75 @@ export function EnVocabRefViewer({
         <div className="jp-ref-viewer-title-wrap">
           <h1 className="jp-ref-viewer-title">{title}</h1>
           <p className={`jp-ref-viewer-subtitle${banner ? " is-live" : ""}`}>
-            {banner ?? "教案预览"}
+            {subtitle}
           </p>
         </div>
-        <EnVocabRefDownloadMenu
-          downloadUrl={downloadUrl}
-          mediaUrl={mediaUrl}
-          filename={filename}
-          mediaType={refMeta.media_type}
-          className="jp-ref-viewer-download"
-          allowOriginalDownload={isAdmin}
-          cropKind={cropKind}
-        />
+        <div className="jp-ref-viewer-actions">
+          {!isPdf ? (
+            <VocabRefImageZoomButtons
+              api={zoomApi}
+              className="jp-ref-viewer-zoom-tools"
+              buttonClassName="jp-ref-viewer-zoom-btn"
+            />
+          ) : null}
+          <EnVocabRefDownloadMenu
+            downloadUrl={downloadUrl}
+            mediaUrl={mediaUrl}
+            filename={filename}
+            mediaType={refMeta.media_type}
+            className="jp-ref-viewer-download"
+            allowOriginalDownload={isAdmin}
+            cropKind={cropKind}
+            onStatus={setStatusToast}
+          />
+        </div>
       </header>
-      <div className="jp-ref-viewer-content">
-        {refMeta.media_type === "pdf" ? (
+      <div className={`jp-ref-viewer-content${isPdf ? "" : " jp-ref-viewer-content--zoom"}`}>
+        {isPdf ? (
           <iframe
             src={mediaUrl}
             title={title}
             className="jp-ref-viewer-pdf"
           />
         ) : (
-          <img src={mediaUrl} alt={title} className="jp-ref-viewer-img" />
+          <VocabRefImageZoomStage
+            api={zoomApi}
+            mediaUrl={mediaUrl}
+            title={title}
+            stageClassName="jp-ref-viewer-zoom-stage"
+            canvasClassName="jp-ref-viewer-zoom-canvas"
+            imageClassName="jp-ref-viewer-img"
+          />
         )}
       </div>
+      <CopyToast
+        message={statusToast}
+        onDismiss={() => setStatusToast(null)}
+        className="copy-toast--above-modal"
+      />
+      {savePromptOpen ? (
+        <div className="jp-ref-save-prompt" role="dialog" aria-label="保存图片">
+          <p className="jp-ref-save-prompt-text">保存教案图片到相册？</p>
+          <div className="jp-ref-save-prompt-actions">
+            <button
+              type="button"
+              className="jp-ref-save-prompt-btn"
+              onClick={() => setSavePromptOpen(false)}
+              disabled={saveBusy}
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              className="jp-ref-save-prompt-btn jp-ref-save-prompt-btn--primary"
+              onClick={() => void saveImage()}
+              disabled={saveBusy}
+            >
+              {saveBusy ? "保存中…" : "保存图片"}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <style jsx>{`
         .jp-ref-viewer {
           min-height: 100dvh;
@@ -109,6 +210,41 @@ export function EnVocabRefViewer({
           color: var(--accent);
           font-weight: 500;
         }
+        .jp-ref-viewer-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem;
+          flex-shrink: 0;
+        }
+        :global(.jp-ref-viewer-zoom-tools) {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+        }
+        :global(.jp-ref-viewer-zoom-btn) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 2rem;
+          height: 2rem;
+          padding: 0 0.55rem;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+        :global(.jp-ref-viewer-zoom-btn:disabled) {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+        :global(.jp-ref-viewer-zoom-btn:not(:disabled):hover) {
+          border-color: var(--accent);
+          color: var(--accent);
+        }
         .jp-ref-viewer-download {
           flex-shrink: 0;
         }
@@ -120,15 +256,41 @@ export function EnVocabRefViewer({
           padding: 1rem;
           min-height: 0;
         }
-        .jp-ref-viewer-img {
+        .jp-ref-viewer-content--zoom {
+          padding: 0;
+          overflow: hidden;
+        }
+        :global(.jp-ref-viewer-zoom-stage) {
+          flex: 1;
+          width: 100%;
+          min-height: 0;
+          overflow: auto;
+          cursor: grab;
+          touch-action: none;
+          -webkit-overflow-scrolling: touch;
+        }
+        :global(.jp-ref-viewer-zoom-stage:active) {
+          cursor: grabbing;
+        }
+        :global(.jp-ref-viewer-zoom-canvas) {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 100%;
+          min-height: 100%;
+          padding: 1rem;
+          box-sizing: border-box;
+        }
+        :global(.jp-ref-viewer-img) {
           display: block;
-          max-width: min(100%, 1200px);
-          width: auto;
-          height: auto;
+          max-width: none;
           border-radius: 8px;
           border: 1px solid var(--border);
           background: #fff;
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+          user-select: none;
+          -webkit-user-drag: none;
+          -webkit-touch-callout: default;
         }
         .jp-ref-viewer-pdf {
           width: min(100%, 960px);
@@ -138,16 +300,72 @@ export function EnVocabRefViewer({
           border-radius: 8px;
           background: #fff;
         }
+        .jp-ref-save-prompt {
+          position: fixed;
+          left: 50%;
+          bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+          transform: translateX(-50%);
+          z-index: 40;
+          width: min(22rem, calc(100vw - 1.5rem));
+          padding: 0.85rem 1rem;
+          border-radius: 12px;
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--panel) 94%, var(--bg));
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+        }
+        .jp-ref-save-prompt-text {
+          margin: 0 0 0.75rem;
+          font-size: 0.9375rem;
+          color: var(--text);
+        }
+        .jp-ref-save-prompt-actions {
+          display: flex;
+          gap: 0.5rem;
+          justify-content: flex-end;
+        }
+        .jp-ref-save-prompt-btn {
+          min-height: 2.5rem;
+          padding: 0 0.9rem;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+          color: var(--text);
+          font: inherit;
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+        .jp-ref-save-prompt-btn--primary {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+          color: var(--accent);
+          font-weight: 600;
+        }
+        .jp-ref-save-prompt-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
         @media (max-width: 480px) {
           .jp-ref-viewer-toolbar {
             padding: 0.75rem;
           }
-          .jp-ref-viewer-content {
-            padding: 0.75rem;
+          .jp-ref-viewer-actions {
+            width: 100%;
+            justify-content: space-between;
+          }
+          :global(.jp-ref-viewer-zoom-btn) {
+            min-width: 2.75rem;
+            height: 2.75rem;
           }
           .jp-ref-viewer-download {
-            width: 100%;
+            flex: 1;
             justify-content: center;
+          }
+          :global(.jp-ref-viewer-zoom-canvas) {
+            padding: 0.75rem;
+          }
+          .jp-ref-viewer-pdf {
+            width: 100%;
+            min-height: calc(100dvh - 6.5rem);
           }
         }
       `}</style>

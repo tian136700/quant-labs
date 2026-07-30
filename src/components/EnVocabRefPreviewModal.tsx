@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { CopyToast } from "@/components/CopyToast";
 import { enVocabRefApiPath } from "@/lib/en-vocab-ref-shared";
+import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
 import type { EnVocabRef } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
@@ -34,6 +36,8 @@ export function EnVocabRefPreviewModal({
   const [fitScale, setFitScale] = useState(1);
   const [imgReady, setImgReady] = useState(false);
   const [coarsePointer, setCoarsePointer] = useState(false);
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [saveBusy, setSaveBusy] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const zoomRef = useRef(1);
@@ -264,8 +268,28 @@ export function EnVocabRefPreviewModal({
   const hint = isPdf
     ? "滚动查看 · Esc 关闭"
     : coarsePointer
-      ? "单指拖动 · 双指缩放 · ± 按钮 · Esc 关闭"
+      ? "单指拖动 · 双指缩放 · 点「保存」进相册 · Esc 关闭"
       : "拖动/双指滚动 · Ctrl+滚轮缩放 · Esc 关闭";
+
+  const saveImage = async () => {
+    if (isPdf || saveBusy || !mediaUrl) return;
+    setSaveBusy(true);
+    try {
+      const result = await saveVocabRefImageToDevice({
+        imageUrl: mediaUrl,
+        filename: `${refMeta.ref_key}.png`,
+      });
+      if (result === "shared") {
+        setStatusToast("请在分享面板选择「存储图像」");
+      } else if (result === "downloaded") {
+        setStatusToast("图片已下载");
+      }
+    } catch {
+      setStatusToast("保存失败，请稍后重试");
+    } finally {
+      setSaveBusy(false);
+    }
+  };
 
   return createPortal(
     <div
@@ -283,6 +307,14 @@ export function EnVocabRefPreviewModal({
         <div className="jp-ref-preview-tools">
           {!isPdf ? (
             <>
+              <button
+                type="button"
+                className="jp-ref-preview-tool-btn"
+                disabled={saveBusy}
+                onClick={() => void saveImage()}
+              >
+                {saveBusy ? "保存中…" : "保存"}
+              </button>
               <button
                 type="button"
                 className="jp-ref-preview-tool-btn"
@@ -376,6 +408,11 @@ export function EnVocabRefPreviewModal({
           </div>
         )}
       </div>
+      <CopyToast
+        message={statusToast}
+        onDismiss={() => setStatusToast(null)}
+        className="copy-toast--above-modal"
+      />
       <style jsx global>{`
         .jp-ref-preview-overlay {
           position: fixed;

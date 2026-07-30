@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { EnVocabMediaType } from "@/lib/types";
+import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
 
 async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
   const url = URL.createObjectURL(blob);
@@ -21,15 +22,17 @@ type Props = {
   primaryClassName?: string;
   /** 表格等滚动容器内用 fixed 定位，避免下拉被裁切 */
   fixedPanel?: boolean;
-  /** 管理员可下载原图；非管理员仅提供整图 PDF / 分页 PDF / Word */
+  /** 管理员可下载原图附件；所有人另有「保存图片」进相册/分享 */
   allowOriginalDownload?: boolean;
   /** 语法/单词分路径切段；不传则从下载名推断 */
   cropKind?: "word" | "grammar" | null;
+  onStatus?: (message: string) => void;
 };
 
 type BusyKind = "image" | "fullPdf" | "pdf" | "word";
 
 function ImageExportFormatMenu({
+  onSaveImage,
   onFullPdf,
   onPaginatedPdf,
   onWord,
@@ -40,6 +43,7 @@ function ImageExportFormatMenu({
   showOriginal,
   onOriginal,
 }: {
+  onSaveImage: () => void;
   onFullPdf: () => void;
   onPaginatedPdf: () => void;
   onWord: () => void;
@@ -88,7 +92,7 @@ function ImageExportFormatMenu({
 
   const label =
     busy === "image"
-      ? "下载中…"
+      ? "保存中…"
       : busy === "fullPdf" || busy === "pdf"
         ? "生成 PDF…"
         : busy === "word"
@@ -116,6 +120,20 @@ function ImageExportFormatMenu({
           style={fixedPanel ? panelStyle : undefined}
           role="menu"
         >
+          <button
+            type="button"
+            role="menuitem"
+            className="jp-ref-download-item"
+            onClick={() => {
+              setOpen(false);
+              onSaveImage();
+            }}
+          >
+            <span className="jp-ref-download-item-title">保存图片</span>
+            <span className="jp-ref-download-item-desc">
+              iPhone 选「存储图像」进相册；也可分享/下载
+            </span>
+          </button>
           {showOriginal && onOriginal ? (
             <button
               type="button"
@@ -126,8 +144,8 @@ function ImageExportFormatMenu({
                 onOriginal();
               }}
             >
-              <span className="jp-ref-download-item-title">原图</span>
-              <span className="jp-ref-download-item-desc">完整教案 PNG</span>
+              <span className="jp-ref-download-item-title">原图附件</span>
+              <span className="jp-ref-download-item-desc">完整教案 PNG（下载文件）</span>
             </button>
           ) : null}
           <button
@@ -183,6 +201,7 @@ export function EnVocabRefDownloadMenu({
   fixedPanel = false,
   allowOriginalDownload = false,
   cropKind = null,
+  onStatus,
 }: Props) {
   const [busy, setBusy] = useState<BusyKind | null>(null);
 
@@ -194,12 +213,33 @@ export function EnVocabRefDownloadMenu({
       if (!res.ok) throw new Error("下载失败");
       const blob = await res.blob();
       await downloadBlobAsFile(blob, filename);
+      onStatus?.("原图已下载");
     } catch {
       window.open(downloadUrl, "_blank", "noopener,noreferrer");
     } finally {
       setBusy(null);
     }
-  }, [busy, downloadUrl, filename]);
+  }, [busy, downloadUrl, filename, onStatus]);
+
+  const saveImage = useCallback(async () => {
+    if (busy) return;
+    setBusy("image");
+    try {
+      const result = await saveVocabRefImageToDevice({
+        imageUrl: mediaUrl,
+        filename,
+      });
+      if (result === "shared") {
+        onStatus?.("请在分享面板选择「存储图像」");
+      } else if (result === "downloaded") {
+        onStatus?.("图片已下载");
+      }
+    } catch {
+      onStatus?.("保存失败，请稍后重试");
+    } finally {
+      setBusy(null);
+    }
+  }, [busy, mediaUrl, filename, onStatus]);
 
   const downloadFullImagePdf = useCallback(async () => {
     if (busy) return;
@@ -255,7 +295,7 @@ export function EnVocabRefDownloadMenu({
   const isImage = mediaType === "image";
   const label =
     busy === "image"
-      ? "下载中…"
+      ? "保存中…"
       : busy === "fullPdf" || busy === "pdf"
         ? "生成 PDF…"
         : busy === "word"
@@ -265,6 +305,7 @@ export function EnVocabRefDownloadMenu({
   if (isImage) {
     return (
       <ImageExportFormatMenu
+        onSaveImage={() => void saveImage()}
         onFullPdf={() => void downloadFullImagePdf()}
         onPaginatedPdf={() => void downloadPaginatedPdf()}
         onWord={() => void downloadPaginatedWord()}
