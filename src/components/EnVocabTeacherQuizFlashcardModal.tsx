@@ -144,6 +144,8 @@ export function EnVocabTeacherQuizFlashcardModal({
   const [nextBlockedUsageMessage, setNextBlockedUsageMessage] = useState<
     string | null
   >(null);
+  /** 同步给学生未完成时点「下一个」 */
+  const [syncWaitHint, setSyncWaitHint] = useState(false);
   /** 点「完成抽查」时会话内仍有未勾选词 */
   const [remainingUncheckedHint, setRemainingUncheckedHint] = useState(false);
   /** 本词答题正计时（秒）；换词归零，勾选熟悉程度后停住 */
@@ -175,6 +177,7 @@ export function EnVocabTeacherQuizFlashcardModal({
     setNotesWord(word);
     setNextBlockedHint(false);
     setNextBlockedUsageMessage(null);
+    setSyncWaitHint(false);
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
   }, [open, word?.id, word?.updated_at, word]);
 
@@ -220,6 +223,10 @@ export function EnVocabTeacherQuizFlashcardModal({
     if (!open || nestedModalOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (syncWaitHint) {
+        setSyncWaitHint(false);
+        return;
+      }
       if (nextBlockedHint) {
         setNextBlockedHint(false);
         setNextBlockedUsageMessage(null);
@@ -233,7 +240,14 @@ export function EnVocabTeacherQuizFlashcardModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, nestedModalOpen, onClose, nextBlockedHint, remainingUncheckedHint]);
+  }, [
+    open,
+    nestedModalOpen,
+    onClose,
+    nextBlockedHint,
+    remainingUncheckedHint,
+    syncWaitHint,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -291,6 +305,17 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedUsageMessage(null);
     }
   }, [selectedLevel]);
+
+  const currentWordSaveBusy =
+    word != null &&
+    (savingWordId === word.id ||
+      Boolean(shareProgressMap && word.id in shareProgressMap) ||
+      wordSyncState[word.id] === "queued" ||
+      wordSyncState[word.id] === "syncing");
+
+  useEffect(() => {
+    if (!currentWordSaveBusy) setSyncWaitHint(false);
+  }, [currentWordSaveBusy]);
 
   const wordHasLevel = (wordId: number) => {
     const item = wordsById.get(wordId);
@@ -480,8 +505,11 @@ export function EnVocabTeacherQuizFlashcardModal({
       setNextBlockedHint(true);
       return;
     }
-    // 与日语一致：仅写库中短暂禁用；后台同步给学生时仍可点「下一个」，勿卡死在「同步中…」
-    if (isSaving) return;
+    // 同步给学生未完成：禁止跳下一个；点了给出提示（勿静默点不动）
+    if (saveBusy) {
+      setSyncWaitHint(true);
+      return;
+    }
     // 「下一个」跳过已勾选词，避免漏掉中间未勾选却卡在最后一词点「完成」无反应
     const nextUnchecked = findFirstUncheckedEnVocabTeacherQuizIndex(
       session,
@@ -636,11 +664,10 @@ export function EnVocabTeacherQuizFlashcardModal({
           <button
             type="button"
             className={`btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz__nav-btn jp-vocab-teacher-quiz__nav-btn--next${
-              !previewMode && !isStudy && !selected
+              !previewMode && !isStudy && (!selected || saveBusy)
                 ? " jp-vocab-teacher-quiz__nav-btn--blocked"
                 : ""
             }${isStudy ? " jp-vocab-teacher-quiz__nav-btn--study-close" : ""}`}
-            disabled={isSaving}
             onClick={tryGoNext}
           >
             <span className="jp-vocab-teacher-quiz__nav-btn-main">
@@ -648,16 +675,18 @@ export function EnVocabTeacherQuizFlashcardModal({
                 ? "关闭"
                 : previewMode
                   ? "关闭预览"
-                  : isSaving
-                    ? "保存中…"
+                  : saveBusy
+                    ? "同步中…"
                     : sessionComplete
                       ? "完成抽查"
                       : isLast
                         ? "完成抽查"
                         : "下一个"}
             </span>
-            {!isLast && !isStudy && !sessionComplete && !previewMode && !isSaving ? (
-              <span className="jp-vocab-teacher-quiz__nav-btn-sub">勾选后可点</span>
+            {!isLast && !isStudy && !sessionComplete && !previewMode ? (
+              <span className="jp-vocab-teacher-quiz__nav-btn-sub">
+                {saveBusy ? "同步完成后再点" : "勾选后可点"}
+              </span>
             ) : null}
           </button>
         </div>
@@ -665,6 +694,7 @@ export function EnVocabTeacherQuizFlashcardModal({
 
       <EnVocabFlashcardAlerts
         nextBlockedHint={nextBlockedHint}
+        syncWaitHint={syncWaitHint}
         previewMode={previewMode}
         isStudy={isStudy}
         selected={selected}
@@ -674,6 +704,7 @@ export function EnVocabTeacherQuizFlashcardModal({
           setNextBlockedHint(false);
           setNextBlockedUsageMessage(null);
         }}
+        onDismissSyncWait={() => setSyncWaitHint(false)}
         onDismissRemaining={() => setRemainingUncheckedHint(false)}
         stop={stop}
       />

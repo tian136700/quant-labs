@@ -2,35 +2,77 @@
 
 type Props = {
   nextBlockedHint: boolean;
+  /** 同步给学生未完成时点「下一个」 */
+  syncWaitHint?: boolean;
   previewMode: boolean;
   isStudy: boolean;
   selected: import("@/lib/types").EnVocabLevel | undefined;
   nextBlockedUsageMessage: string | null;
   remainingUncheckedHint: boolean;
   onDismissNextBlocked: () => void;
+  onDismissSyncWait?: () => void;
   onDismissRemaining: () => void;
   stop: (e: React.MouseEvent) => void;
 };
 
 export function EnVocabFlashcardAlerts({
   nextBlockedHint,
+  syncWaitHint = false,
   previewMode,
   isStudy,
   selected,
   nextBlockedUsageMessage,
   remainingUncheckedHint,
   onDismissNextBlocked,
+  onDismissSyncWait,
   onDismissRemaining,
   stop,
 }: Props) {
   return (
     <>
+      {syncWaitHint && !previewMode && !isStudy ? (
+        <div
+          className="jp-vocab-teacher-quiz-alert-overlay"
+          role="presentation"
+          onClick={() => onDismissSyncWait?.()}
+        >
+          <div
+            className="jp-vocab-teacher-quiz-alert"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="en-vocab-teacher-quiz-sync-title"
+            aria-describedby="en-vocab-teacher-quiz-sync-desc"
+            onClick={stop}
+          >
+            <h3
+              id="en-vocab-teacher-quiz-sync-title"
+              className="jp-vocab-teacher-quiz-alert__title"
+            >
+              正在同步给学生
+            </h3>
+            <p
+              id="en-vocab-teacher-quiz-sync-desc"
+              className="jp-vocab-teacher-quiz-alert__desc"
+            >
+              当前单词正在同步给学生，请等待约 5 秒后再点「下一个」。上方橙色进度条跑完即可继续。
+            </p>
+            <button
+              type="button"
+              className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
+              onClick={() => onDismissSyncWait?.()}
+            >
+              知道了
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {nextBlockedHint && !previewMode && !isStudy && !selected ? (
         <div
           className="jp-vocab-teacher-quiz-alert-overlay"
           role="presentation"
           onClick={() => {
-            onDismissNextBlocked()
+            onDismissNextBlocked();
           }}
         >
           <div
@@ -58,7 +100,7 @@ export function EnVocabFlashcardAlerts({
               type="button"
               className="btn-rsi-filter btn-rsi-filter--primary jp-vocab-teacher-quiz-alert__close"
               onClick={() => {
-                onDismissNextBlocked()
+                onDismissNextBlocked();
               }}
             >
               关闭
@@ -103,7 +145,6 @@ export function EnVocabFlashcardAlerts({
           </div>
         </div>
       ) : null}
-
     </>
   );
 }

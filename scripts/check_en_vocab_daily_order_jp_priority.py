@@ -18,6 +18,9 @@ def main() -> int:
     daily = read("src/lib/en-vocab-daily-order.ts")
     settings = read("src/lib/en-vocab-db/daily_settings.ts")
     modal = read("src/components/EnVocabTeacherQuizFlashcardModal.tsx")
+    alerts = read(
+        "src/components/en-vocab-teacher-quiz-flashcard/EnVocabFlashcardAlerts.tsx"
+    )
     errors: list[str] = []
 
     if "jpVocabFinalQuizScore" not in shared:
@@ -37,11 +40,11 @@ def main() -> int:
     if "materializeEnVocabTeacherVisible" not in settings:
         errors.append("algo upgrade must rematerialize teacher visible pool")
 
-    # 老师端「下一个」不得被整段 saveBusy（含分享同步）卡死
-    if "if (saveBusy) return" in modal:
-        errors.append("tryGoNext must not block on full saveBusy (align JP isSaving)")
-    if "disabled={saveBusy}" in modal:
-        errors.append("nav next must not disable on full saveBusy")
+    # 老师端「下一个」：同步中须拦截并弹提示，禁止静默点不动
+    if "setSyncWaitHint(true)" not in modal:
+        errors.append("tryGoNext must show sync-wait hint while saveBusy")
+    if "正在同步给学生" not in alerts:
+        errors.append("must alert teacher to wait while syncing to student")
     if "notesWord?.id === word.id" not in modal:
         errors.append("must not paint previous notesWord over next card")
 
@@ -50,7 +53,7 @@ def main() -> int:
         for e in errors:
             print(f"  - {e}")
         return 1
-    print("ok: en-vocab daily order aligns JP priority; teacher next not blocked by share sync")
+    print("ok: en-vocab daily order + sync-wait next hint")
     return 0
 
 
