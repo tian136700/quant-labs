@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 # 已知给其它项目调用的接口 → 必须有对应 TXT
 REQUIRED: list[tuple[str, str]] = [
+    ("src/app/api/jp-lesson/route.ts", "docs/jp-lesson-api.txt"),
     ("src/app/api/jp-lesson/upload-mixed/route.ts", "docs/jp-lesson-upload-mixed-api.txt"),
     ("src/app/api/en-vocab/local-upload/route.ts", "docs/en-vocab-local-upload-api.txt"),
     ("src/app/api/jp-vocab/exists/route.ts", "docs/jp-vocab-exists-api.txt"),

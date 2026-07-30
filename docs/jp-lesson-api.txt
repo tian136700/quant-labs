@@ -1,0 +1,225 @@
+日语新课 · 列表与操作 API（含删除）
+================================
+
+用途
+----
+给网页「日语新课」列表、以及其它项目（脚本 / 运维）读写课次：
+
+- GET  拉新课列表 + 教案 refs + 课堂笔记（管理员另含老师列表）
+- POST 按 action 改学习状态 / 老师 / 上课时间 / 记复制次数 / **删除课次**
+
+上传新课（带教案文件）请用专用接口，勿走本路由：
+  POST /api/jp-lesson/upload          → docs 见页面「API 上传说明」
+  POST /api/jp-lesson/upload-mixed    → docs/jp-lesson-upload-mixed-api.txt
+
+
+线上地址
+--------
+GET  https://japanese.info-quests.com/api/jp-lesson
+POST https://japanese.info-quests.com/api/jp-lesson
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET  http://127.0.0.1:3002/api/jp-lesson
+POST http://127.0.0.1:3002/api/jp-lesson
+
+
+鉴权
+----
+须登录 Cookie 会话（与站点老师端同权）。
+
+| 操作 | 权限 |
+|------|------|
+| GET 列表 | 日语新课 · 查看 |
+| POST record_link_copy | 日语新课 · 查看 |
+| POST delete / 改学习状态 | 日语新课 · 编辑/操作 |
+| POST set_teacher / set_class_schedules / set_next_class_at | **管理员** |
+
+Header（可选，影响错误文案语言）：
+  x-locale: zh | en
+
+
+────────────────────────────────
+GET · 列表
+────────────────────────────────
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "lessons": [ { "id", "kind", "content", "course_label", "course_group_id",
+                 "progress…", "ref_key", "class_schedules", … } ],
+  "refs": { "lesson-77": { "ref_key", "media_type", "updated_at", … }, … },
+  "notes": [ … ],
+  "teachers": [ … ]   // 仅管理员
+}
+
+非管理员响应里老师 / 上课时间等字段会被清空（防泄露）。
+
+
+curl 示例
+---------
+curl -sS 'https://japanese.info-quests.com/api/jp-lesson' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+────────────────────────────────
+POST · 通用约定
+────────────────────────────────
+
+Content-Type: application/json
+
+公共字段：
+  action      见下表（改学习状态时可省略，见「改学习状态」）
+  lesson_id   正整数课次 id（必填）
+
+
+action 一览
+-----------
+| action | 谁可调 | 作用 |
+|--------|--------|------|
+| （省略或只传 progress） | 有编辑权 | 改学习状态 pending/learning/completed |
+| delete | 有编辑权 | **删除该课次**（不可恢复） |
+| record_link_copy | 有查看权 | 教案链接复制次数 +1 |
+| set_teacher | 管理员 | 设置上课老师 |
+| set_class_schedules | 管理员 | 设置多段上课时间 |
+| set_next_class_at | 管理员 | 兼容：设单段下次上课时间 |
+
+
+────────────────────────────────
+POST · delete（删除新课）
+────────────────────────────────
+
+用途
+----
+删除一条日语新课（列表「删除」按钮同源）。
+
+副作用：
+- 若该课已是「已完成」，先从日语抽问卸掉本课同步过去的词/语法
+- 删除本课课堂笔记、老师关联、上课时间
+- 若教案 ref_key 没有其它课引用，一并删除 jp_vocab_ref
+
+合传课（同一 course_label 两行）须 **各删一次**（单词行、语法行各一个 lesson_id）。
+接口 **不会** 按 course_group_id 级联删除另一侧。
+
+
+请求体
+------
+{
+  "action": "delete",
+  "lesson_id": 75
+}
+
+
+成功响应
+--------
+{ "ok": true }
+
+
+失败响应
+--------
+401  { "ok": false, "error": "请登录后再操作。" }
+400  { "ok": false, "error": "lesson_id_invalid" }
+404  { "ok": false, "error": "not_found" }
+500  { "ok": false, "error": "…" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://japanese.info-quests.com/api/jp-lesson' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"action":"delete","lesson_id":75}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://japanese.info-quests.com"
+COOKIE = "你的登录 Cookie"  # 浏览器登录后复制
+
+r = requests.post(
+    f"{BASE}/api/jp-lesson",
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    json={"action": "delete", "lesson_id": 75},
+    timeout=60,
+)
+print(r.status_code, r.json())
+
+
+────────────────────────────────
+POST · 改学习状态
+────────────────────────────────
+
+请求体（二选一写法）
+------------------
+{
+  "lesson_id": 77,
+  "progress_status": "completed"   // pending | learning | completed
+}
+
+或兼容旧字段：
+{
+  "lesson_id": 77,
+  "completed": true
+}
+
+成功：{ "ok": true, "lesson": { … }, "teacher_auto_enable": … }
+
+
+────────────────────────────────
+POST · record_link_copy
+────────────────────────────────
+
+{
+  "action": "record_link_copy",
+  "lesson_id": 77
+}
+
+成功：{ "ok": true, "link_copy_count": 3 }
+
+
+────────────────────────────────
+POST · set_teacher（管理员）
+────────────────────────────────
+
+{
+  "action": "set_teacher",
+  "lesson_id": 77,
+  "teacher_ids": [1, 2],
+  "teacher_other": null
+}
+
+
+────────────────────────────────
+POST · set_class_schedules（管理员）
+────────────────────────────────
+
+{
+  "action": "set_class_schedules",
+  "lesson_id": 77,
+  "class_schedules": [
+    { "class_at": "2026-08-01 10:00:00", "duration_minutes": 55 }
+  ]
+}
+
+
+联系 / 改接口时
+--------------
+线上模块：日语新课（japanese.info-quests.com/jp-lesson 或 finance 同路径）
+本说明：GET/POST /api/jp-lesson
+实现：src/app/api/jp-lesson/route.ts
+      src/lib/jp-lesson-db.ts
+      src/lib/jp-lesson-db-delete.ts → deleteJpLesson
+功能索引：docs/feature-index.md → 日语新课 → 删除新课
+上传专用：docs/jp-lesson-upload-mixed-api.txt
