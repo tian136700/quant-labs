@@ -103,6 +103,24 @@ def check_toolbar(path: Path) -> None:
     src = path.read_text(encoding="utf-8")
     if "正序或随机" in src or "选用正序" in src:
         fail(f"{path.name}: toolbar must not advertise sequential/random coin-flip")
+    if 'teacherQuizInProgress ? "继续抽查" : "开始抽查"' not in src:
+        fail(
+            f"{path.name}: quiz button must be 开始抽查 / 继续抽查 "
+            "(not bare 抽查)"
+        )
+    if path.name == "JpVocabPageToolbar.tsx":
+        # Teacher toolbar must not expose 刷新; admin may keep it behind isAdminMode.
+        if re.search(
+            r"\{isAdminMode \? \(\s*<button[\s\S]*?刷新[\s\S]*?\) : null\}",
+            src,
+        ) is None and re.search(
+            r"isAdminMode \?[\s\S]{0,400}刷新",
+            src,
+        ) is None:
+            fail(
+                f"{path.name}: teacher toolbar must hide 刷新 "
+                "(only show under isAdminMode)"
+            )
 
 
 def main() -> None:
