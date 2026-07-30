@@ -54,7 +54,7 @@ export function EnVocabFlashcardAlerts({
               id="en-vocab-teacher-quiz-sync-desc"
               className="jp-vocab-teacher-quiz-alert__desc"
             >
-              当前单词正在同步给学生，请等待约 5 秒后再点「下一个」。上方橙色进度条跑完即可继续。
+              正在同步给学生，请稍等。
             </p>
             <button
               type="button"
