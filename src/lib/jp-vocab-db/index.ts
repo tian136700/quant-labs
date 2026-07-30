@@ -18,3 +18,4 @@ export * from "./notes_fields";
 export * from "./daily_settings";
 export * from "./share";
 export * from "./live_rollover";
+export * from "./export_lemmas";
