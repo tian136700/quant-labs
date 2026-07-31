@@ -5,9 +5,7 @@ import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
 import {
   beijingTodayDateString,
-  formatNextClassHalfHourLabel,
   JP_LESSON_CLASS_DURATION_MINUTES,
-  listNextClassHalfHourTimes,
   nextClassAtFromDatetimeLocalValue,
 } from "@/lib/jp-lesson-shared";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
@@ -40,7 +38,6 @@ type ScheduleRow = {
   duration: string;
 };
 
-const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
 const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   value: String(minutes),
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
@@ -72,15 +69,6 @@ export function JpLessonBatchScheduleTeacherModal({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [teacherQuery, setTeacherQuery] = useState("");
   const [progressStatus, setProgressStatus] = useState<JpLessonProgressStatus | "">("learning");
-
-  const timeOptions = useMemo(
-    () =>
-      HALF_HOUR_OPTIONS.map((value) => ({
-        value,
-        label: formatNextClassHalfHourLabel(value),
-      })),
-    []
-  );
 
   const sortedTeachers = useMemo(
     () => sortJpLessonTeachersByLessonCount(teachers),
@@ -237,7 +225,6 @@ export function JpLessonBatchScheduleTeacherModal({
                   />
                   <JpLessonHalfHourTimeGridPicker
                     value={row.time}
-                    options={timeOptions}
                     disabled={saving}
                     onChange={(time) => updateRow(row.key, { time })}
                   />

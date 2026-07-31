@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: lesson schedule save/compare must not snap to half-hour."""
+"""Regression: lesson schedule time = HM dual-select; save must not snap to half-hour."""
 
 from __future__ import annotations
 
@@ -14,16 +14,10 @@ SHARED = [
     ROOT / "src/lib/en-lesson-shared.ts",
 ]
 
-PICKERS = [
+PICKER = ROOT / "src/components/LessonHmTimeSelect.tsx"
+ALIASES = [
     ROOT / "src/components/JpLessonHalfHourTimeGridPicker.tsx",
     ROOT / "src/components/EnLessonHalfHourTimeGridPicker.tsx",
-]
-
-FORBIDDEN_IN_SHARED = [
-    re.compile(
-        r"export function (?:splitNextClassAtLocalValue|nextClassAtFromDatetimeLocalValue|normalizeClassAtForCompare)\([\s\S]*?snapNextClassTimeToHalfHour",
-        re.M,
-    ),
 ]
 
 
@@ -39,7 +33,6 @@ def main() -> int:
             "nextClassAtFromDatetimeLocalValue",
             "normalizeClassAtForCompare",
         ):
-            # Extract function body roughly until next export function
             m = re.search(
                 rf"export function {fn}\([\s\S]*?(?=export function |\Z)",
                 text,
@@ -57,14 +50,31 @@ def main() -> int:
                     f"{path.relative_to(ROOT)}: {fn} should use normalizeNextClassTimeHm"
                 )
 
-    for path in PICKERS:
-        text = path.read_text(encoding="utf-8")
-        if "自定义时间" not in text:
-            errors.append(f"{path.relative_to(ROOT)}: missing 自定义时间 UI")
+    if not PICKER.is_file():
+        errors.append("missing LessonHmTimeSelect.tsx")
+    else:
+        text = PICKER.read_text(encoding="utf-8")
+        if 'aria-label="小时"' not in text or 'aria-label="分钟"' not in text:
+            errors.append(f"{PICKER.relative_to(ROOT)}: missing hour/minute dual selects")
+        if '"00"' not in text or '"10"' not in text or '"40"' not in text:
+            errors.append(
+                f"{PICKER.relative_to(ROOT)}: minute options should include 00/10/…/40"
+            )
+        if "凌晨" not in text:
+            errors.append(f"{PICKER.relative_to(ROOT)}: early-morning hours should be grouped")
         if 'type="time"' in text:
-            errors.append(f"{path.relative_to(ROOT)}: do not use type=time (may expose seconds)")
+            errors.append(f"{PICKER.relative_to(ROOT)}: do not use type=time (may expose seconds)")
         if re.search(r'aria-label="秒"|秒\s*</', text):
-            errors.append(f"{path.relative_to(ROOT)}: must not expose seconds picker")
+            errors.append(f"{PICKER.relative_to(ROOT)}: must not expose seconds picker")
+        if "jp-lesson-time-grid-tile" in text:
+            errors.append(
+                f"{PICKER.relative_to(ROOT)}: half-hour grid tiles must not be primary UI"
+            )
+
+    for path in ALIASES:
+        text = path.read_text(encoding="utf-8")
+        if "LessonHmTimeSelect" not in text:
+            errors.append(f"{path.relative_to(ROOT)}: should re-export LessonHmTimeSelect")
 
     if errors:
         print("check_lesson_custom_schedule_time FAILED:")

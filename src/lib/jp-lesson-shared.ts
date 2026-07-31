@@ -749,7 +749,7 @@ export function nextClassAtToDatetimeLocalValue(raw: string | null | undefined):
   return match ? `${match[1]}T${match[2]}` : "";
 }
 
-/** 上课时间可选刻度：整点 / 半点（共 48 项） */
+/** 兼容旧半点刻度列表（UI 已改为时+分双下拉，勿再当主入口） */
 export function listNextClassHalfHourTimes(): string[] {
   const slots: string[] = [];
   for (let h = 0; h < 24; h += 1) {

@@ -8,10 +8,8 @@ import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES,
   beijingTodayDateString,
-  formatNextClassHalfHourLabel,
   getLessonClassSchedules,
   JP_LESSON_CLASS_DURATION_MINUTES,
-  listNextClassHalfHourTimes,
   nextClassAtFromDatetimeLocalValue,
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
@@ -39,7 +37,6 @@ type ScheduleRow = {
   duration: string;
 };
 
-const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
 const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   value: String(minutes),
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
@@ -86,15 +83,6 @@ export function EnLessonNextClassEditModal({
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
   const saveProgress = useSaveProgressBar(saving);
-
-  const timeOptions = useMemo(
-    () =>
-      HALF_HOUR_OPTIONS.map((value) => ({
-        value,
-        label: formatNextClassHalfHourLabel(value),
-      })),
-    []
-  );
 
   const duplicateRowKeys = useMemo(
     () =>
@@ -239,7 +227,6 @@ export function EnLessonNextClassEditModal({
                       <span>时间</span>
                       <EnLessonHalfHourTimeGridPicker
                         value={row.time}
-                        options={timeOptions}
                         disabled={saving}
                         onChange={(time) => updateRow(row.key, { time })}
                       />

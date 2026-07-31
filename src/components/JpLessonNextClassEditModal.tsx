@@ -7,10 +7,8 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   beijingTodayDateString,
-  formatNextClassHalfHourLabel,
   getLessonClassSchedules,
   JP_LESSON_CLASS_DURATION_MINUTES,
-  listNextClassHalfHourTimes,
   nextClassAtFromDatetimeLocalValue,
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
@@ -48,7 +46,6 @@ type ScheduleRow = {
   duration: string;
 };
 
-const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
 const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   value: String(minutes),
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
@@ -123,15 +120,6 @@ export function JpLessonNextClassEditModal({
     if (!names.length) return "去设置老师";
     return `上课老师：${names.join("、")}（点击更改）`;
   }, [selectedTeachers]);
-
-  const timeOptions = useMemo(
-    () =>
-      HALF_HOUR_OPTIONS.map((value) => ({
-        value,
-        label: formatNextClassHalfHourLabel(value),
-      })),
-    []
-  );
 
   const duplicateRowKeys = useMemo(
     () => findDuplicateLessonScheduleRowKeys(rows),
@@ -300,7 +288,6 @@ export function JpLessonNextClassEditModal({
                       <span>时间</span>
                       <JpLessonHalfHourTimeGridPicker
                         value={row.time}
-                        options={timeOptions}
                         disabled={saving}
                         onChange={(time) => updateRow(row.key, { time })}
                       />

@@ -38,9 +38,7 @@ import { DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES } from "@/lib/en-lesson-shared
 import {
   beijingTodayDateString,
   DEFAULT_JP_LESSON_CLASS_DURATION_MINUTES,
-  formatNextClassHalfHourLabel,
   JP_LESSON_CLASS_DURATION_MINUTES,
-  listNextClassHalfHourTimes,
   nextClassAtFromDatetimeLocalValue,
   nextClassAtToDatetimeLocalValue,
   splitNextClassAtLocalValue,
@@ -73,7 +71,6 @@ type Props = {
   onSave: (draft: JpLessonManualScheduleDraft) => void;
 };
 
-const HALF_HOUR_OPTIONS = listNextClassHalfHourTimes();
 const DURATION_OPTIONS = JP_LESSON_CLASS_DURATION_MINUTES.map((minutes) => ({
   value: String(minutes),
   label: minutes === 60 ? "1小时" : `${minutes}分钟`,
@@ -185,15 +182,6 @@ export function JpLessonManualScheduleModal({
     }
     return "";
   }, [titleChoice, customTitle]);
-
-  const timeOptions = useMemo(
-    () =>
-      HALF_HOUR_OPTIONS.map((value) => ({
-        value,
-        label: formatNextClassHalfHourLabel(value),
-      })),
-    []
-  );
 
   useEffect(() => {
     setMounted(true);
@@ -540,7 +528,6 @@ export function JpLessonManualScheduleModal({
                   <span>时间</span>
                   <JpLessonHalfHourTimeGridPicker
                     value={time}
-                    options={timeOptions}
                     onChange={setTime}
                   />
                 </div>
