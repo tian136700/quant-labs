@@ -63,6 +63,25 @@ def main() -> None:
         ROOT / "src/components/en-lesson-page/EnLessonStatusTable.tsx",
         "en-lesson-category-col",
     )
+    must_contain(
+        ROOT / "src/components/en-lesson-page/EnLessonStatusTable.tsx",
+        "shortEnVocabCategoryLabel",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        "shortEnVocabCategoryLabel",
+    )
+    must_contain(
+        ROOT / "src/lib/en-vocab-category.ts",
+        'return "托业"',
+    )
+    # iPad must keep category visible (two-char hint), not hide the column
+    styles = (ROOT / "src/components/en-lesson-page/EnLessonPageStyles.tsx").read_text(
+        encoding="utf-8"
+    )
+    tablet = styles.split("max-width: 1024px", 1)[-1] if "max-width: 1024px" in styles else ""
+    if "en-lesson-category-col" in tablet and "display: none" in tablet.split("en-lesson-category-col", 1)[1][:120]:
+        fail("EnLessonPageStyles tablet must NOT hide en-lesson-category-col")
     print("OK: en-vocab / en-lesson category wiring")
 
 

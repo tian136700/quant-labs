@@ -809,6 +809,7 @@ export function JpVocabStudyPage() {
         setEditingWord={setEditingWord}
         setEditingRemarksWord={setEditingRemarksWord}
         openRefPreview={openRefPreview}
+        onViewCard={(item) => setFlashcardItem(item)}
       />
 
       {user && quizProgress ? (

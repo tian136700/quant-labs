@@ -22,6 +22,9 @@ const CATEGORY_ALIASES: Record<string, string> = {
   ielts: EN_VOCAB_DEFAULT_CATEGORY,
   toefl: EN_VOCAB_DEFAULT_CATEGORY,
   "ielts toefl": EN_VOCAB_DEFAULT_CATEGORY,
+  /** 托业单独一类，勿并进雅思托福 */
+  托业: "托业",
+  toeic: "托业",
 };
 
 /**
@@ -38,4 +41,22 @@ export function normalizeEnVocabCategory(raw?: string | null): string {
 /** 列表展示：空则显示默认分类 */
 export function displayEnVocabCategory(raw?: string | null): string {
   return normalizeEnVocabCategory(raw);
+}
+
+/**
+ * 窄列 / iPad 用：至少两个字，方便一眼分辨教材类型（托福 / 托业 / 雅思…）。
+ * 完整名仍用 displayEnVocabCategory + title。
+ */
+export function shortEnVocabCategoryLabel(raw?: string | null): string {
+  const full = displayEnVocabCategory(raw);
+  const key = full.trim().toLowerCase();
+
+  if (key === "雅思托福" || key === "雅思托福单词") return "雅思";
+  if (key === "托福" || key === "toefl") return "托福";
+  if (key === "托业" || key === "toeic") return "托业";
+  if (key === "雅思" || key === "ielts") return "雅思";
+
+  const chars = Array.from(full);
+  if (chars.length <= 2) return full || "—";
+  return chars.slice(0, 2).join("");
 }

@@ -17,6 +17,7 @@ import {
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import { enVocabSaveQueue } from "@/lib/request-queue";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { formatJpVocabSourceDisplay } from "@/lib/jp-vocab-source-display";
 
 type Props = {
   open: boolean;
@@ -400,7 +401,7 @@ export function EnVocabEditModal({
               <p className="jp-vocab-edit-hint">
                 格式：英文句下一行写「译文：…」。列表展示时英文自动带 1、2、3…，译义行不占序号。宜与「用法」条数一一对应。
                 {word?.example_sentences_source?.trim()
-                  ? ` 当前例句来源：${word.example_sentences_source.trim()}（你在此修改并保存后会记为「手动」）。`
+                  ? ` 当前例句来源：${formatJpVocabSourceDisplay(word.example_sentences_source)}（你在此修改并保存后会记为「手动」）。`
                   : " 人手填写并保存后，例句来源记为「手动」。"}
               </p>
             </div>

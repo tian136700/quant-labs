@@ -42,6 +42,13 @@ def main() -> None:
         fail("EnVocabStudyPage must call /api/en-vocab/teacher-quiz-live")
     if "openStudyFlashcard" not in study:
         fail("EnVocabStudyPage must open flashcard from list click (openStudyFlashcard)")
+    study_table = (
+        ROOT / "src/components/en-vocab-study-page/EnVocabStudyPageTable.tsx"
+    ).read_text(encoding="utf-8")
+    if "查看卡片" not in study_table:
+        fail("EnVocabStudyPageTable ops must have 查看卡片")
+    if "onViewCard" not in study_table:
+        fail("EnVocabStudyPageTable must call onViewCard for 查看卡片")
     if "pendingFlashcardWordIdRef" not in study:
         fail("EnVocabStudyPage must auto-open on new shared words")
     if ".scrollIntoView(" in study:

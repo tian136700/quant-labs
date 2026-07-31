@@ -1,17 +1,22 @@
 "use client";
 
-import type { Locale } from "@/i18n/messages";
-import { JpEditIconButton } from "@/components/JpEditIconButton";
+import { EnEditIconButton } from "@/components/EnEditIconButton";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
-import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
-import { effectiveTodayCheckCount } from "@/lib/jp-vocab-daily-check";
-import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
+import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
+import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import {
-  formatJpVocabTotalReviewsDisplay,
-  jpVocabRiskIndex,
-  jpVocabTotalReviewsZeroHint,
-} from "@/lib/jp-vocab-shared";
-import type { JpVocabLevel, JpVocabRef, JpVocabSharedItem, JpVocabWord } from "@/lib/types";
+  formatEnVocabTotalReviewsDisplay,
+  enVocabRiskIndex,
+  enVocabTotalReviewsZeroHint,
+} from "@/lib/en-vocab-shared";
+import type { Locale } from "@/i18n/messages";
+import type { EnVocabLevel, EnVocabSharedItem, EnVocabWord } from "@/lib/types";
+
+const LEVELS: { key: EnVocabLevel; label: string }[] = [
+  { key: "very", label: "非常熟悉" },
+  { key: "normal", label: "一般" },
+  { key: "weak", label: "不熟悉" },
+];
 
 const STAT_COLUMNS = [
   { key: "very", label: "非常熟悉", labelLines: ["非常", "熟悉"] as [string, string], className: "jp-vocab-stat-detail" },
@@ -22,29 +27,20 @@ const STAT_COLUMNS = [
 
 const SHOW_REMARKS_COLUMN = true;
 
-const LEVELS: { key: JpVocabLevel; label: string }[] = [
-  { key: "very", label: "非常熟悉" },
-  { key: "normal", label: "一般" },
-  { key: "weak", label: "不熟悉" },
-];
-
-export type JpVocabStudyPageTableProps = {
+export type EnVocabStudyPageTableProps = {
   locale: Locale;
   loading: boolean;
-  items: JpVocabSharedItem[];
+  items: EnVocabSharedItem[];
   shareDate: string;
   canViewStudy: boolean;
   canOperate: boolean;
-  refs: Record<string, JpVocabRef>;
-  openRemarksWord: (word: JpVocabWord) => void;
-  setEditingWord: (word: JpVocabWord | null) => void;
-  setEditingRemarksWord: (word: JpVocabWord | null) => void;
-  openRefPreview: (refKey: string, ref?: JpVocabRef) => void;
-  /** 打开与老师抽问同款卡片（mode=study） */
-  onViewCard: (item: JpVocabSharedItem) => void;
+  openRemarksWord: (word: EnVocabWord) => void;
+  setEditingWord: (word: EnVocabWord | null) => void;
+  setEditingRemarksWord: (word: EnVocabWord | null) => void;
+  onViewCard: (item: EnVocabSharedItem) => void;
 };
 
-export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
+export function EnVocabStudyPageTable(props: EnVocabStudyPageTableProps) {
   const {
     locale,
     loading,
@@ -52,13 +48,12 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
     shareDate,
     canViewStudy,
     canOperate,
-    refs,
     openRemarksWord,
     setEditingWord,
     setEditingRemarksWord,
-    openRefPreview,
     onViewCard,
   } = props;
+
   return (
       <section className="section etr-panel" aria-label="今日共享单词">
         <div
@@ -156,46 +151,21 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
               <tbody>
                 {items.map((item, index) => {
                   const w = item.word;
-                  const ref = w.ref_key ? refs[w.ref_key] : undefined;
                   const readingTrim = (w.reading || "").trim();
                   const meaningTrim = (w.meaning || "").trim();
                   const posTrim = (w.pos || "").trim();
-                  const selected = resolveJpVocabSharedTeacherLevel(w);
-                  const risk = jpVocabRiskIndex(w);
+                  const selected = item.level;
+                  const risk = enVocabRiskIndex(w);
                   const riskBadgeTier = risk >= 2 ? "high" : risk <= 0 ? "low" : "mid";
                   const todayChecks = effectiveTodayCheckCount(
                     w.today_check_count ?? 0,
                     w.today_check_date
                   );
-                  const hasNotes = hasJpVocabClassNotes(w.class_notes, w.class_notes_present);
-                  const renderNotesActions = () => (
-                    <div className="jp-vocab-notes-actions">
-                      {hasNotes ? (
-                        <button
-                          type="button"
-                          className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-notes-view-btn"
-                          title={canOperate ? "查看并编辑备注" : "查看备注"}
-                          onClick={() => openRemarksWord(w)}
-                        >
-                          查看
-                        </button>
-                      ) : null}
-                      {canOperate ? (
-                        <JpEditIconButton
-                          title="编辑备注"
-                          className="jp-vocab-notes-edit-btn"
-                          onClick={() => setEditingRemarksWord(w)}
-                        />
-                      ) : null}
-                    </div>
-                  );
 
                   return (
                     <tr key={item.id} id={`jp-vocab-study-row-${w.id}`}>
                       <td className="jp-vocab-seq-col" data-label="序号">
-                        <span className="jp-vocab-seq-cell">
-                          <span className="jp-vocab-seq-num">{index + 1}</span>
-                        </span>
+                        {index + 1}
                       </td>
                       <td className="jp-vocab-kind-col" data-label="类型">
                         <span
@@ -208,50 +178,28 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
                       </td>
                       <td className="jp-vocab-word-col" data-label="单词 / 语法">
                         <div className="jp-vocab-word-cell">
-                          {w.ref_key ? (
-                            <>
-                              <button
-                                type="button"
-                                className="jp-vocab-word-link"
-                                title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                                onClick={() => openRefPreview(w.ref_key!, ref)}
-                              >
-                                {w.word}
-                              </button>
-                            </>
-                          ) : (
-                            <span className="jp-vocab-word-text">{w.word}</span>
-                          )}
-                        </div>
-                        <div className="jp-vocab-mobile-reading-row jp-vocab-mobile-only">
-                          {w.kind === "word" ? (
-                            readingTrim ? (
-                              <span className="jp-vocab-reading-text">{readingTrim}</span>
-                            ) : (
-                              <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                                待补全
-                              </span>
-                            )
-                          ) : readingTrim ? (
-                            <span className="jp-vocab-reading-text">{readingTrim}</span>
-                          ) : null}
+                          <button
+                            type="button"
+                            className="jp-vocab-word-link"
+                            title="查看详情卡片"
+                            onClick={() => onViewCard(item)}
+                          >
+                            {w.word}
+                          </button>
+                          <span className="jp-vocab-ref-hint">（点击查看详情卡片）</span>
                         </div>
                       </td>
                       <td
                         className={`jp-vocab-reading-col${
-                          !readingTrim && w.kind !== "word" ? " jp-vocab-field-empty" : ""
+                          !readingTrim ? " jp-vocab-field-empty" : ""
                         }`}
                         data-label="读音"
+                        style={{ color: "var(--muted)" }}
                       >
-                        <div className="jp-vocab-reading-cell">
-                          {readingTrim ? (
-                            <span className="jp-vocab-reading-text">{readingTrim}</span>
-                          ) : w.kind === "word" ? (
-                            <span className="jp-vocab-reading-text jp-vocab-reading-text--pending">
-                              待补全
-                            </span>
-                          ) : null}
-                        </div>
+                        {readingTrim}
+                        {w.reading_source?.trim() ? (
+                          <JpVocabSourceLabel source={w.reading_source} />
+                        ) : null}
                       </td>
                       <td
                         className={`jp-vocab-meaning-col${
@@ -260,30 +208,19 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
                         data-label="释义"
                         style={{ color: "var(--muted)" }}
                       >
-                        {meaningTrim ? (
-                          <div className="jp-vocab-meaning-cell">
-                            <span className="jp-vocab-meaning-desktop">{meaningTrim}</span>
-                            <details className="jp-vocab-meaning-fold jp-vocab-mobile-only">
-                              <summary className="jp-vocab-meaning-fold__summary">
-                                <span className="jp-vocab-fold-label">释义</span>
-                                <span className="jp-vocab-meaning-preview">{meaningTrim}</span>
-                              </summary>
-                              <p className="jp-vocab-meaning-full">{meaningTrim}</p>
-                            </details>
-                            <JpVocabSourceLabel
-                              source={w.meaning_source}
-                            />
-                          </div>
+                        {meaningTrim}
+                        {w.meaning_source?.trim() ? (
+                          <JpVocabSourceLabel source={w.meaning_source} />
                         ) : null}
                       </td>
                       <td
-                        className={`jp-vocab-pos-col${!posTrim ? " jp-vocab-field-empty" : ""}`}
+                        className={`jp-vocab-pos-col${
+                          !posTrim ? " jp-vocab-field-empty" : ""
+                        }`}
                         data-label="词性"
                         style={{ color: "var(--muted)" }}
                       >
-                        {posTrim ? (
-                          <span className="jp-vocab-pos-badge">{posTrim}</span>
-                        ) : null}
+                        {posTrim}
                       </td>
                       <td className="jp-vocab-risk-col" data-label="优先级">
                         <span
@@ -341,12 +278,12 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
                       </td>
                       <td className="jp-vocab-stat-total" data-label="复习合计">
                         {(() => {
-                          const totalDisplay = formatJpVocabTotalReviewsDisplay(w, locale);
+                          const totalDisplay = formatEnVocabTotalReviewsDisplay(w, locale);
                           if (totalDisplay.isZero) {
                             return (
                               <span
                                 className="jp-vocab-total-never"
-                                title={jpVocabTotalReviewsZeroHint(locale)}
+                                title={enVocabTotalReviewsZeroHint(locale)}
                               >
                                 {totalDisplay.labelLines ? (
                                   <>
@@ -375,54 +312,38 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
                       {SHOW_REMARKS_COLUMN ? (
                         <td
                           className={`jp-vocab-notes-col${
-                            !hasNotes && !canOperate ? " jp-vocab-field-empty" : ""
+                            !hasEnVocabClassNotes(w.class_notes, w.class_notes_present) && !canOperate
+                              ? " jp-vocab-field-empty"
+                              : ""
                           }`}
                           data-label="备注"
                         >
-                          <div className="jp-vocab-notes-desktop">{renderNotesActions()}</div>
-                          <details className="jp-vocab-notes-fold jp-vocab-mobile-only">
-                            <summary className="jp-vocab-notes-fold__summary">
-                              <span className="jp-vocab-fold-label">备注</span>
-                              <span className="jp-vocab-notes-fold__hint">
-                                {hasNotes ? "查看 ›" : canOperate ? "编辑 ›" : "—"}
-                              </span>
-                            </summary>
-                            {renderNotesActions()}
-                          </details>
+                          <div className="jp-vocab-notes-actions">
+                            {hasEnVocabClassNotes(w.class_notes, w.class_notes_present) ? (
+                              <button
+                                type="button"
+                                className="btn-rsi-filter btn-rsi-filter--compact"
+                                title={canOperate ? "查看并编辑备注" : "查看备注"}
+                                onClick={() => openRemarksWord(w)}
+                              >
+                                查看
+                              </button>
+                            ) : null}
+                            {canOperate ? (
+                              <EnEditIconButton
+                                title="编辑备注"
+                                onClick={() => setEditingRemarksWord(w)}
+                              />
+                            ) : null}
+                          </div>
                         </td>
                       ) : null}
                       <td className="jp-vocab-action-col" data-label="操作">
                         <div className="jp-vocab-action-buttons">
-                          {w.ref_key ? (
-                            <button
-                              type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn jp-vocab-mobile-action-btn--full jp-vocab-mobile-only"
-                              title={ref?.title ? `教案：${ref.title}` : "查看教案"}
-                              onClick={() => openRefPreview(w.ref_key!, ref)}
-                            >
-                              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                                <path
-                                  d="M4 6.5A2.5 2.5 0 0 1 6.5 4h7A2.5 2.5 0 0 1 16 6.5v7A2.5 2.5 0 0 1 13.5 16h-7A2.5 2.5 0 0 1 4 13.5v-7Z"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                />
-                                <path
-                                  d="M8 10.5l1.5 1.5L12.5 9"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                              查看教案
-                            </button>
-                          ) : null}
                           <div className="jp-vocab-action-row">
                             <button
                               type="button"
-                              className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
+                              className="btn-rsi-filter btn-rsi-filter--compact"
                               title="以老师抽问卡片样式查看本词条"
                               onClick={() => onViewCard(item)}
                             >
@@ -431,18 +352,9 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
                             {canOperate ? (
                               <button
                                 type="button"
-                                className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-mobile-action-btn"
+                                className="btn-rsi-filter btn-rsi-filter--compact"
                                 onClick={() => setEditingWord(w)}
                               >
-                                <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
-                                  <path
-                                    d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5Z"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
                                 编辑
                               </button>
                             ) : null}
@@ -457,5 +369,6 @@ export function JpVocabStudyPageTable(props: JpVocabStudyPageTableProps) {
           </div>
         )}
       </section>
+
   );
 }

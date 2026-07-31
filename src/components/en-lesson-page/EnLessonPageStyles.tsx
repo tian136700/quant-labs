@@ -5,11 +5,12 @@ export function EnLessonPageStyles() {
   return (
     <style jsx global>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
-          max-width: min(1320px, 92vw);
+          max-width: min(1320px, 100%);
         }
         :global(.jp-lesson-page) {
           min-width: 0;
           max-width: 100%;
+          overflow-x: clip;
         }
         .jp-lesson-cards {
           display: flex;
@@ -207,17 +208,29 @@ export function EnLessonPageStyles() {
           text-align: center;
         }
         :global(.en-lesson-category-col) {
-          width: 4.5rem;
-          min-width: 3.75rem;
-          max-width: 5.5rem;
-          padding-left: 0.2rem !important;
-          padding-right: 0.2rem !important;
+          width: 2.75rem;
+          min-width: 2.5rem;
+          max-width: 3.25rem;
+          padding-left: 0.15rem !important;
+          padding-right: 0.15rem !important;
           text-align: center;
           font-size: 0.75rem;
           color: var(--muted);
           white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+        }
+        :global(.en-lesson-category-short) {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        /* 表内固定两字短标签；完整分类见 title */
+        :global(.en-lesson-category-short-label) {
+          display: inline;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 0.02em;
+        }
+        :global(.en-lesson-category-full-label) {
+          display: none;
         }
         :global(.jp-lesson-content-col) {
           min-width: 0;
@@ -483,16 +496,19 @@ export function EnLessonPageStyles() {
         }
         :global(.jp-lesson-notes-col) {
           text-align: center;
+          width: 3.5rem;
+          min-width: 3.25rem;
+          max-width: 3.75rem;
         }
         :global(.jp-lesson-notes-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.35rem;
-          min-height: 2rem;
-          padding: 0.25rem 0.55rem;
-          font-size: 0.8125rem;
-          border-radius: 6px;
+          gap: 0.25rem;
+          min-height: 1.85rem;
+          padding: 0.15rem 0.4rem;
+          font-size: 0.75rem;
+          border-radius: 5px;
           border: 1px solid var(--border);
           background: var(--panel);
           color: var(--accent);
@@ -538,6 +554,9 @@ export function EnLessonPageStyles() {
         }
         :global(.jp-lesson-complete-col) {
           text-align: center;
+          width: 5.25rem;
+          min-width: 5rem;
+          max-width: 5.5rem;
         }
         :global(.jp-lesson-complete-wrap) {
           position: relative;
@@ -594,12 +613,12 @@ export function EnLessonPageStyles() {
         }
         :global(.jp-lesson-complete-select) {
           display: block;
-          min-height: 2rem;
-          width: 6.5rem;
-          min-width: 6.5rem;
+          min-height: 1.85rem;
+          width: 5rem;
+          min-width: 0;
           max-width: 100%;
-          padding: 0.25rem 1.35rem 0.25rem 0.45rem;
-          font-size: 0.8125rem;
+          padding: 0.2rem 1.2rem 0.2rem 0.35rem;
+          font-size: 0.75rem;
           border: none;
           border-radius: 6px;
           background: transparent;
@@ -676,25 +695,50 @@ export function EnLessonPageStyles() {
           :global(.jp-lesson-id-col),
           :global(.jp-lesson-operator-col),
           :global(.jp-lesson-uploaded-col),
-          :global(.jp-lesson-status-at-col),
-          :global(.en-lesson-category-col) {
+          :global(.jp-lesson-status-at-col) {
             display: none;
+          }
+          :global(.en-lesson-category-col) {
+            width: 2.5rem;
+            min-width: 2.35rem;
+            max-width: 2.75rem;
+            font-size: 0.7rem;
           }
           :global(.jp-lesson-actions-col) {
             width: 7.25rem;
             min-width: 0;
             max-width: 8rem;
           }
+          :global(.jp-lesson-notes-col) {
+            width: 2.75rem;
+            min-width: 2.5rem;
+            max-width: 3rem;
+          }
+          :global(.jp-lesson-complete-col) {
+            width: 4.5rem;
+            min-width: 4.25rem;
+            max-width: 4.75rem;
+          }
           :global(.jp-lesson-action-btn) {
             font-size: 0.7rem;
             padding: 0.2rem 0.28rem;
             min-height: 1.85rem;
           }
+          :global(.jp-lesson-notes-btn) {
+            min-height: 1.65rem;
+            padding: 0.1rem 0.28rem;
+            font-size: 0.7rem;
+            gap: 0.15rem;
+          }
           :global(.jp-lesson-complete-select) {
-            width: 5.5rem;
+            width: 4.25rem;
             min-width: 0;
             max-width: 100%;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
+            padding: 0.15rem 1rem 0.15rem 0.25rem;
+          }
+          :global(.jp-lesson-complete-wrap::after) {
+            right: 0.35rem;
           }
         }
       `}</style>

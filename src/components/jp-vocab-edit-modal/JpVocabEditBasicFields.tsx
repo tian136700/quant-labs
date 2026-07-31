@@ -1,4 +1,5 @@
 import type { JpVocabKind, JpVocabWord } from "@/lib/types";
+import { formatJpVocabSourceDisplay } from "@/lib/jp-vocab-source-display";
 import { KIND_OPTIONS } from "@/components/jp-vocab-edit-modal/helpers";
 
 type Props = {
@@ -125,7 +126,7 @@ export function JpVocabEditBasicFields({
         />
         <p className="jp-vocab-edit-hint">
           {word?.meaning_source?.trim()
-            ? `当前释义来源：${word.meaning_source.trim()}（在此修改并保存后记为「手动」）。`
+            ? `当前释义来源：${formatJpVocabSourceDisplay(word.meaning_source)}（在此修改并保存后记为「手动」）。`
             : "人手填写并保存后，释义来源记为「手动」。多义用「；」分隔，最多 3 个常用义。"}
         </p>
       </div>

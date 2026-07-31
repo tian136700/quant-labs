@@ -18,6 +18,7 @@ import {
   hasJpVocabClassNotes,
   mergeJpVocabWordAfterClassNotesFetch,
 } from "@/lib/jp-vocab-class-notes";
+import { formatJpVocabSourceDisplay } from "@/lib/jp-vocab-source-display";
 import {
   formatJpVocabExampleGlossLine,
   parseJpVocabExampleSentenceItems,
@@ -253,7 +254,7 @@ export function JpVocabStudyFlashcardModal({
               <h3 className="jp-vocab-flashcard__examples-title">例句</h3>
               {w.example_sentences_source?.trim() ? (
                 <span className="jp-vocab-flashcard__examples-source">
-                  例句来源：{w.example_sentences_source.trim()}
+                  例句来源：{formatJpVocabSourceDisplay(w.example_sentences_source)}
                 </span>
               ) : null}
             </div>

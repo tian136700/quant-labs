@@ -428,7 +428,7 @@ export function JpLessonPage() {
   return (
     <main
       className="page-wrap jp-lesson-page jp-lesson-page--ja"
-      style={{ maxWidth: "min(1320px, 92vw)", paddingTop: "1.5rem" }}
+      style={{ maxWidth: "min(1320px, 100%)", paddingTop: "1.5rem" }}
     >
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>日语新课</h1>
 

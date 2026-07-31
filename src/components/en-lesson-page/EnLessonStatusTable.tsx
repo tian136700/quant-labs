@@ -26,7 +26,7 @@ import {
   type EnLessonProgressStatus,
 } from "@/lib/en-lesson-shared";
 import { SITE_URL } from "@/lib/site";
-import { displayEnVocabCategory } from "@/lib/en-vocab-category";
+import { displayEnVocabCategory, shortEnVocabCategoryLabel } from "@/lib/en-vocab-category";
 import { enVocabRefApiPath } from "@/lib/en-vocab-ref-shared";
 import type { EnLessonRecord, EnVocabRef } from "@/lib/types";
 
@@ -348,7 +348,7 @@ export function EnLessonStatusTable({
             <th className="jp-lesson-kind-col" title="学习类型：词 / 法">
               类
             </th>
-            <th className="en-lesson-category-col" title="分类标签（如雅思托福）">
+            <th className="en-lesson-category-col" title="分类标签（如雅思 / 托福 / 托业）">
               分类
             </th>
             <th className="jp-lesson-content-col">学习内容</th>
@@ -442,15 +442,27 @@ export function EnLessonStatusTable({
                 </td>
                 <td data-label="分类" className="en-lesson-category-col">
                   <div className={stackClass.trim() || undefined}>
-                    {group.lessons.map((lesson) => (
+                    {group.lessons.map((lesson) => {
+                      const fullCategory = displayEnVocabCategory(lesson.category);
+                      return (
                       <div
                         key={lesson.id}
-                        className={merged ? "jp-lesson-merged-stack-item" : undefined}
-                        title={displayEnVocabCategory(lesson.category)}
+                        className={
+                          merged
+                            ? "jp-lesson-merged-stack-item en-lesson-category-short"
+                            : "en-lesson-category-short"
+                        }
+                        title={fullCategory}
                       >
-                        {displayEnVocabCategory(lesson.category)}
+                        <span className="en-lesson-category-short-label">
+                          {shortEnVocabCategoryLabel(lesson.category)}
+                        </span>
+                        <span className="en-lesson-category-full-label">
+                          {fullCategory}
+                        </span>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </td>
                 <td data-label="学习内容" className="jp-lesson-content-col">

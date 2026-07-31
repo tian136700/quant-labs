@@ -67,7 +67,9 @@
   flex-shrink: 0;
 }
 
-/* Off-flow width ruler: nowrap + max-content so each label reports true width */
+/* Off-flow width ruler: nowrap + max-content so each label reports true width.
+ * height:0 + overflow:hidden keeps max-content from expanding page scrollWidth
+ * (iPad: swipe left shows a huge blank strip on the right). */
 .admin-nav-list--ruler {
   flex-wrap: nowrap;
   position: absolute;
@@ -76,8 +78,8 @@
   width: max-content;
   visibility: hidden;
   pointer-events: none;
-  height: auto;
-  overflow: visible;
+  height: 0;
+  overflow: hidden;
   z-index: -1;
 }
 

@@ -1,4 +1,5 @@
 import type { JpVocabWord } from "@/lib/types";
+import { formatJpVocabSourceDisplay } from "@/lib/jp-vocab-source-display";
 import { autoGrowTextarea } from "@/components/jp-vocab-edit-modal/helpers";
 
 type Props = {
@@ -40,7 +41,7 @@ export function JpVocabEditUsageField({
       <p className="jp-vocab-edit-hint">
         仅语法：半角「1.」「2.」编号中文说明，按常用程度排序；例句须与用法条数一一对应。单词不填此栏。
         {word?.usage_source?.trim()
-          ? ` 当前用法来源：${word.usage_source.trim()}（你在此修改并保存后会记为「手动」）。`
+          ? ` 当前用法来源：${formatJpVocabSourceDisplay(word.usage_source)}（你在此修改并保存后会记为「手动」）。`
           : " 人手填写并保存后，用法来源记为「手动」。"}
       </p>
     </div>

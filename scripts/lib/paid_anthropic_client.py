@@ -101,13 +101,13 @@ def anthropic_model() -> str:
 
 
 def build_online_source_label(model: str | None = None) -> str:
-    """写回 D1 的来源角标：与本地「本地 gemma4:26b」对称 →「线上 claude-sonnet-4-6」。
+    """写回 D1 的来源角标：线上 Claude 补全一律存「Claude」。
 
-    页面 JpVocabSourceLabel 会显示成「来源：claude-sonnet-4-6 · 线上」。
-    模型名取自 API 代理（tokken.cc）实际调用的 ANTHROPIC_MODEL。
+    页面 JpVocabSourceLabel →「来源：Claude」。不写版本长名；Claude ≠ Cloud。
+    model 参数保留给调用方兼容，不再拼进标签。
     """
-    m = (model or anthropic_model()).strip() or DEFAULT_MODEL
-    return f"线上 {m}"
+    _ = model  # 兼容旧调用；展示层不再需要模型名
+    return "Claude"
 
 
 def extract_anthropic_text(data: dict[str, Any]) -> str:

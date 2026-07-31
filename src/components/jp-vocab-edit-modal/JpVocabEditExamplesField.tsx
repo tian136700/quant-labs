@@ -1,4 +1,5 @@
 import type { JpVocabWord } from "@/lib/types";
+import { formatJpVocabSourceDisplay } from "@/lib/jp-vocab-source-display";
 import { autoGrowTextarea } from "@/components/jp-vocab-edit-modal/helpers";
 
 type Props = {
@@ -37,7 +38,7 @@ export function JpVocabEditExamplesField({
       <p className="jp-vocab-edit-hint">
         格式：日语句下一行写「译文：…」。列表展示时日语自动带 1、2、3…，译义行不占序号。两条例句完全相同会在保存前提醒。课堂带读会展示；日语抽问表格不显示此列。
         {word?.example_sentences_source?.trim()
-          ? ` 当前例句来源：${word.example_sentences_source.trim()}（你在此修改并保存后会记为「手动」）。`
+          ? ` 当前例句来源：${formatJpVocabSourceDisplay(word.example_sentences_source)}（你在此修改并保存后会记为「手动」）。`
           : " 人手填写并保存后，例句来源记为「手动」。"}
       </p>
     </div>

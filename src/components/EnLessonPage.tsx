@@ -715,7 +715,7 @@ export function EnLessonPage() {
   const editingRef = editingLesson?.ref_key ? refs[editingLesson.ref_key] : undefined;
 
   return (
-    <main className="page-wrap jp-lesson-page jp-lesson-page--en" style={{ maxWidth: "min(1320px, 92vw)", paddingTop: "1.5rem" }}>
+    <main className="page-wrap jp-lesson-page jp-lesson-page--en" style={{ maxWidth: "min(1320px, 100%)", paddingTop: "1.5rem" }}>
       <h1 style={{ fontSize: "1.5rem", margin: "0 0 0.35rem" }}>英语新课</h1>
 
       <p style={{ color: "var(--muted)", marginBottom: "0.75rem" }}>

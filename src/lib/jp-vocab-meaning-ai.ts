@@ -26,9 +26,9 @@ export const JP_VOCAB_MEANING_UPLOAD_SPEC = {
     "例句：只造比较常用的用法；条数 = max(2, 常用用法数)；释义含 / 时按斜杠段数；每条「日语」下一行「译文：」；汉字后半角括号假名",
     "不要编号、不要 markdown、不要整句解释（释义行不要日语假名）",
     "不要冷僻义挤在前面；不要堆砌词典全义",
-    "写回时请传 source，建议「Jisho」或「模型名 本地|线上」；人手为「手动」",
+    "写回时请传 source，建议「Claude」或「模型名 本地」；人手为「手动」",
   ],
-  source_examples: ["Jisho", "gemma4:26b 本地", "线上 claude-sonnet-4-6", "手动"],
+  source_examples: ["Jisho", "gemma4:26b 本地", "Claude", "手动"],
   reject_reasons: [
     "empty",
     "too_long",

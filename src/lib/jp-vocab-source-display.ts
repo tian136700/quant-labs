@@ -18,10 +18,33 @@ export function uniqueJpVocabSourcesForDisplay(
   return out;
 }
 
-/** 规范化展示：模型名/版本在前，本地|线上|手动在后 */
+/** 线上付费 Claude 补全（含误写成 Cloud / 长模型名）→ 短标 Claude */
+function isOnlineClaudeSource(original: string): boolean {
+  if (/^claude$/i.test(original)) return true;
+  // 曾误标为 Cloud；存量「线上 …」长串
+  if (/^cloud$/i.test(original)) return true;
+  if (original === "线上") return true;
+  if (original.includes("线上")) return true;
+  if (/\bonline\b/i.test(original)) return true;
+  if (/\bcloud\b/i.test(original)) return true;
+  // claude-sonnet-4-6 / Claude 3.5 等模型 id
+  if (/\bclaude\b/i.test(original)) return true;
+  return false;
+}
+
+/**
+ * 规范化展示：
+ * - 线上 Claude 补全 → 一律「Claude」（不展示版本长名；Claude ≠ Cloud）
+ * - 手动 →「手动」
+ * - 本地 →「模型 · 本地」或「本地」
+ */
 export function formatJpVocabSourceDisplay(raw: string | null | undefined): string {
   const original = String(raw ?? "").trim().replace(/\s+/g, " ");
   if (!original) return "";
+
+  if (isOnlineClaudeSource(original)) return "Claude";
+  if (original === "手动") return "手动";
+  if (original === "本地") return "本地";
 
   const tags = ["本地", "线上", "手动"] as const;
   let text = original;
@@ -29,7 +52,7 @@ export function formatJpVocabSourceDisplay(raw: string | null | undefined): stri
 
   for (const tag of tags) {
     if (text === tag) {
-      return tag;
+      return tag === "线上" ? "Claude" : tag;
     }
     const start = new RegExp(`^${tag}\\s+`);
     const end = new RegExp(`\\s+${tag}$`);
@@ -59,6 +82,7 @@ export function formatJpVocabSourceDisplay(raw: string | null | undefined): stri
     }
   }
 
+  if (deploy === "线上") return "Claude";
   if (text && deploy) return `${text} · ${deploy}`;
   if (text) return text;
   if (deploy) return deploy;

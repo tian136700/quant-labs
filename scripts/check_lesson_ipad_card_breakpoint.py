@@ -42,6 +42,24 @@ def main() -> int:
                 "so buttons wrap/shrink instead of overlapping"
             )
 
+    en_styles = (ROOT / "src/components/en-lesson-page/EnLessonPageStyles.tsx").read_text(
+        encoding="utf-8"
+    )
+    if "jp-lesson-notes-col" not in en_styles or "max-width: 3.75rem" not in en_styles:
+        errors.append(
+            "EnLessonPageStyles: notes-col must have a tight max-width (≈3.75rem), "
+            "otherwise iPad wastes space on 课堂笔记"
+        )
+    if "jp-lesson-complete-col" not in en_styles or "max-width: 5.5rem" not in en_styles:
+        errors.append(
+            "EnLessonPageStyles: complete-col must have a tight max-width (≈5.5rem), "
+            "otherwise iPad wastes space on 学习状态"
+        )
+    if re.search(r"\.jp-lesson-complete-select[^{]*\{[^}]*min-width:\s*6\.5rem", en_styles):
+        errors.append(
+            "EnLessonPageStyles: complete-select must not force min-width 6.5rem on iPad"
+        )
+
     if errors:
         print("FAIL: check_lesson_ipad_card_breakpoint.py")
         for e in errors:

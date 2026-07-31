@@ -5,11 +5,12 @@ export function JpLessonPageStyles() {
   return (
     <style jsx global>{`
         :global(.page-wrap:has(.jp-lesson-page)) {
-          max-width: min(1320px, 92vw);
+          max-width: min(1320px, 100%);
         }
         :global(.jp-lesson-page) {
           min-width: 0;
           max-width: 100%;
+          overflow-x: clip;
         }
         .jp-lesson-search {
           display: flex;

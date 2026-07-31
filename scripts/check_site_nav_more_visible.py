@@ -128,6 +128,17 @@ def main() -> int:
     if not re.search(r"\.admin-nav-list--ruler\s*\{[^}]*width:\s*max-content", css, re.S):
         return fail("ruler must be width:max-content for per-label width measure")
 
+    if not re.search(
+        r"\.admin-nav-list--ruler\s*\{[^}]*height:\s*0[^}]*overflow:\s*hidden"
+        r"|\.admin-nav-list--ruler\s*\{[^}]*overflow:\s*hidden[^}]*height:\s*0",
+        css,
+        re.S,
+    ):
+        return fail(
+            "ruler must use height:0 + overflow:hidden so max-content "
+            "does not expand page scrollWidth (iPad blank strip on the right)"
+        )
+
     if not re.search(r"\.admin-nav-more\s*\{[^}]*flex-shrink:\s*0", css, re.S):
         return fail(".admin-nav-more must be flex-shrink:0 so「更多」is not crushed")
 

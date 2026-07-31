@@ -389,8 +389,8 @@ def main() -> int:
         print(f"[fill-example-ai] done, updated=0 skipped={len(skipped)}", flush=True)
         return 0 if not skipped else 1
 
-    # 老师卡片「来源」：模型名 + 线上；勿用「手动」（那是编辑弹窗专用）
-    batch_source = f"{args.model} 线上"[:64]
+    # 老师卡片「来源」：线上 Claude 一律 Claude（勿写版本长名；「手动」仅编辑弹窗）
+    batch_source = "Claude"
 
     if args.dry_run:
         print(
