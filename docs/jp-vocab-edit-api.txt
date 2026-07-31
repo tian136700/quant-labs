@@ -1,0 +1,177 @@
+日语抽问 · 编辑词条 API（老师端编辑弹窗 / 其它项目写回）
+========================================================
+
+用途
+----
+一次性更新日语词库某条词条的可编辑字段（单词或语法）：
+读音、释义、词性、备注、例句、用法、接序、助记等。
+
+网页主路径：`/jp-vocab` 编辑弹窗 → POST 本接口。
+改用法时服务端会校验语法用法格式（中文、编号、句末 (N5)/(N4)…）；
+接续请写在 `connection`，不要塞进 `usage`。
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-vocab/edit
+
+说明：也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-vocab/edit
+
+
+鉴权
+----
+须登录 Cookie 会话，且具备日语词库写权限（`requireJpVocabAccess`：
+operate / teacher / admin 等）。
+
+Header：
+  Content-Type: application/json
+  Cookie: <登录会话>
+  x-locale: zh | en   （选填；影响错误文案语言）
+
+特殊：
+- 字段 `mnemonic`（助记）**仅管理员**可写；非管理员传该字段 → 403 forbidden。
+- 非管理员响应里的 mnemonic 会被脱敏（redact）。
+
+
+请求体
+------
+{
+  "word_id": 123,                 // 必填，正整数
+  "kind": "word",                 // 选填：word | grammar
+  "word": "真面目",                // 选填；改词条正文
+  "reading": "まじめ",             // 选填；grammar 会忽略/置空
+  "meaning": "认真；老实；正经",    // 选填
+  "pos": "な形容词",               // 选填
+  "class_notes": "…",             // 选填；空串存 NULL
+  "example_sentences": "…",       // 选填；空串存 NULL；老师手改来源记「手动」
+  "usage": "1. ……。(N5)",         // 选填；语法用法（见下）
+  "connection": "一类形容词原形＋…", // 选填；接序/接续
+  "mnemonic": "…"                 // 选填；仅管理员
+}
+
+说明：
+- 只传要改的字段即可（未传字段保留库中原值）。
+- な形容词辞书形「〜だ」：改 word/reading 时会剥成词干入库。
+- 手改 meaning / pos / example_sentences / usage / connection 时，
+  对应 `*_source` 会记为「手动」（除非另行走 fill 接口传 source）。
+
+
+语法 usage 校验（非变形课）
+--------------------------
+kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若本次写入了
+非空 `usage`，须通过与补全相同的校验：
+
+- 中文说明（「」内可短引日语形态）
+- 用 `1. 2. …` 编号
+- 每条句末半角等级括号，如 `(N5)` / `(N4)`
+- 用法正文**不要**写「接在…」「构成「…＋…」」等接续句 → 请放 `connection`
+
+变形课（词条名含变形/变化规则等）不强制 usage。
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "word": {
+    "id": 123,
+    "kind": "word",
+    "word": "真面目",
+    "reading": "まじめ",
+    "meaning": "认真；老实；正经",
+    "pos": "な形容词",
+    "example_sentences": "…",
+    "usage": null,
+    "connection": null,
+    "updated_at": "2026-08-01T…",
+    …
+  }
+}
+
+
+失败响应
+--------
+401  { "ok": false, "error": "请登录后再编辑。" }
+403  { "ok": false, "error": "forbidden" }          // 非管理员写 mnemonic
+400  { "ok": false, "error": "word_id_invalid" }
+400  { "ok": false, "error": "单词 / 语法不能为空" }  // word_required
+400  { "ok": false, "error": "该词条已存在" }        // word_duplicate
+400  { "ok": false, "error": "每条用法句末须标注 (N5)/(N4) 等等级" }
+                                                     // usage_missing_level
+400  { "ok": false, "error": "用法须为中文说明" }    // usage_not_chinese
+400  { "ok": false, "error": "用法正文不要写接续；接续请填在接序栏" }
+                                                     // usage_has_connection
+400  { "ok": false, "error": "用法须用 1. 2. 编号" }  // invalid_numbering
+400  { "ok": false, "error": "语法至少写一条用法" }  // need_one_point
+400  { "ok": false, "error": "用法不能为空" }        // empty
+404  { "ok": false, "error": "未找到该词条" }        // not_found
+500  { "ok": false, "error": "…" }
+
+
+curl 示例
+---------
+curl -sS -X POST \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{
+    "word_id": 484,
+    "meaning": "认真；老实；正经",
+    "pos": "な形容词"
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/edit'
+
+# 语法：改用法 + 接序（须过 usage 校验）
+curl -sS -X POST \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{
+    "word_id": 378,
+    "kind": "grammar",
+    "usage": "1. 表示「关于……」。(N4)",
+    "connection": "动词辞书形（动词原形）／名词＋について"
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/edit'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.request
+
+URL = "https://japanese.info-quests.com/api/jp-vocab/edit"
+COOKIE = "你的登录 Cookie"
+
+payload = {
+    "word_id": 484,
+    "meaning": "认真；老实；正经",
+    "pos": "な形容词",
+}
+req = urllib.request.Request(
+    URL,
+    data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(req, timeout=60) as resp:
+    print(json.loads(resp.read().decode("utf-8")))
+
+
+相关
+----
+- 勾选熟悉程度 / 发给学生：docs/jp-vocab-api.txt
+- 课堂备注按需读写：docs/jp-vocab-class-notes-api.txt
+- 例句补全（Bearer）：docs/jp-vocab-fill-example-sentences-api.txt
+- 语法用法规则：.cursor/rules/jp-vocab-grammar-usage.mdc
+- 代码：src/app/api/jp-vocab/edit/route.ts
+        src/lib/jp-vocab-db/notes_fields.ts → updateJpVocabWordEntry

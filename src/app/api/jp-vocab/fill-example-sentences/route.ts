@@ -44,6 +44,11 @@ type FillExampleSentencesBody = {
   normalize_na_adj?: boolean;
   /** 允许覆盖已有 example_sentences（补译义时必开） */
   allow_overwrite?: boolean;
+  /**
+   * apply：默认 true=严格校验；false=线上 normalize
+   * （仍拒 incomplete_kanji_furigana / wrong_jukugo_furigana / bad_furigana_paren）
+   */
+  validate_format?: boolean;
   updates?: Array<{
     word_id?: number;
     example_sentences?: string;

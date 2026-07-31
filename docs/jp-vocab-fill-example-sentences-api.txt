@@ -59,6 +59,8 @@ limit             list_missing：最多返回几条（定时建议 1～15）
 kind              list_missing：只拉 "word" 或 "grammar"
 source            apply：整批默认来源（单条 updates[].source 优先）
 allow_overwrite   apply / 补译义：true 才覆盖已有 example_sentences
+validate_format   apply：默认 true（严格校验）；传 false 走线上 normalize
+                  （仍拒漏标假名 / 熟语错拆 / 非法括注；略宽其它细则）
 updates           apply：数组，见下
 
 
@@ -86,6 +88,7 @@ source 约定：
   译文：他解释了那个理由。
 
 常见拒收（skipped.reason 含 invalid_format:…）：
+  need_four_lines / need_more_lines  行数不够（单词默认至少 2 句=4 行）
   incomplete_kanji_furigana   汉字漏标假名
   wrong_jukugo_furigana       熟语错拆（如 出(で)発(ぱつ) 应为 出発(しゅっぱつ)）
   bad_furigana_paren          非法括注 / 整句尾注
@@ -96,8 +99,12 @@ source 约定：
   lemma_placeholder_in_sentence 例句里残留「～」「〜」
   word_not_used / grammar_not_used 未用到词条
 
-本接口 apply 始终 validateFormat=true（严格校验）。
-线上付费 batch 若走其它 fill 且 validate_format:false，normalize 仍拒漏标汉字与熟语错拆。
+条数：释义含 `/` 时按斜杠大义项数；无斜杠固定 2（`；` 近义不是条数）。
+
+validate_format：
+- 默认 true → validateJpVocabExampleSentencesAiOutput（严格）
+- false → normalizeJpVocabExampleSentencesForOnlineApply（仍拒漏标汉字与熟语错拆）
+定时 / Mac 模型写回请保持默认 true；Agent 应急可传 false。
 
 
 成功响应示例
@@ -180,7 +187,7 @@ curl -sS -X POST \
   -d '{"mode":"scan_incomplete_furigana"}' \
   'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
 
-# 写回（覆盖已有须 allow_overwrite）
+# 写回（覆盖已有须 allow_overwrite；默认严格校验）
 curl -sS -X POST \
   -H 'Authorization: Bearer 你的TOKEN' \
   -H 'Content-Type: application/json' \
@@ -192,6 +199,19 @@ curl -sS -X POST \
       "word_id": 464,
       "example_sentences": "先生(せんせい)が文法(ぶんぽう)を説明(せつめい)します。\n译文：老师说明语法。\n彼(かれ)はその理由(りゆう)を説明(せつめい)しました。\n译文：他解释了那个理由。"
     }]
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
+
+# 应急：略宽 normalize（仍拒漏标假名）
+curl -sS -X POST \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode":"apply",
+    "allow_overwrite": true,
+    "validate_format": false,
+    "source":"Agent现写",
+    "updates":[{"word_id":464,"example_sentences":"…两条完整例句…"}]
   }' \
   'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
 

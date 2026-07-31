@@ -63,15 +63,19 @@
    文件：docs/jp-vocab-download-all-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/download-all
 
-15. 日语抽问 · 词条存在性检测 API（给其它项目调用）
+15. 日语抽问 · 编辑词条 API（老师端编辑弹窗 / 其它项目写回）
+   文件：docs/jp-vocab-edit-api.txt
+   调用：POST https://japanese.info-quests.com/api/jp-vocab/edit
+
+16. 日语抽问 · 词条存在性检测 API（给其它项目调用）
    文件：docs/jp-vocab-exists-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
 
-16. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
+17. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
    文件：docs/jp-vocab-fill-example-sentences-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
 
-17. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
+18. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
    文件：docs/jp-vocab-shared-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/shared
 

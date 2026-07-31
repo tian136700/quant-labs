@@ -6,7 +6,7 @@
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
 export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
-  version: 3,
+  version: 4,
   label: "接序",
   format_example_grammar:
     "用法1: 动词原形＋「ことがある」\n用法2: 动词た形＋「ことがある」\n否定形: ことがない／ことはない",
