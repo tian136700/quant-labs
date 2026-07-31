@@ -9,6 +9,8 @@
 网页主路径：`/jp-vocab` 编辑弹窗 → POST 本接口。
 改用法时服务端会校验语法用法格式（中文、编号、句末 (N5)/(N4)…）；
 接续请写在 `connection`，不要塞进 `usage`。
+本次提交了非空 `example_sentences` 时，会走与补全相同的例句校验
+（拒 ～占位、漏假名、译文夹日语等；通过后写回规范化文本）。
 
 
 线上地址
@@ -59,6 +61,8 @@ Header：
 - な形容词辞书形「〜だ」：改 word/reading 时会剥成词干入库。
 - 手改 meaning / pos / example_sentences / usage / connection 时，
   对应 `*_source` 会记为「手动」（除非另行走 fill 接口传 source）。
+- `example_sentences` 存库格式仍为「日语行 + 译文：…」括号假名；
+  页面展示另转下方小字，勿改成 ruby HTML。
 
 
 语法 usage 校验（非变形课）
@@ -72,6 +76,20 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
 - 用法正文**不要**写「接在…」「构成「…＋…」」等接续句 → 请放 `connection`
 
 变形课（词条名含变形/变化规则等）不强制 usage。
+
+
+例句 example_sentences 校验（本次提交了非空时）
+---------------------------------------------
+与 `POST /api/jp-vocab/fill-example-sentences` apply 同源校验
+（`validateJpVocabExampleSentencesAiOutput`）。常见硬性要求：
+
+- 日语行：汉字旁半角 `漢字(かな)`；句中汉字须全覆盖假名
+- 每条下一行：`译文：` + 自然中文（勿夹日语假名/日语句）
+- 禁止例句里保留词典占位 `～` / `〜`
+- 须有句末标点；语法例句须用到该语法点
+- 条数不够 / 块格式不完整会拒（need_more_japanese_lines / need_four_lines）
+
+未传 `example_sentences`、或传空串清成 NULL：不走上述校验。
 
 
 成功响应
@@ -109,8 +127,25 @@ kind=grammar 且词条**不是**「变形/变化规则」类活用课时，若�
 400  { "ok": false, "error": "用法须用 1. 2. 编号" }  // invalid_numbering
 400  { "ok": false, "error": "语法至少写一条用法" }  // need_one_point
 400  { "ok": false, "error": "用法不能为空" }        // empty
+400  { "ok": false, "error": "译文须为中文，不能夹日语假名或日语句子" }
+                                                     // gloss_not_chinese
+400  { "ok": false, "error": "例句里不能写「～」占位，请换成具体内容" }
+                                                     // lemma_placeholder_in_sentence
+400  { "ok": false, "error": "句中汉字须全部标注假名" }
+                                                     // incomplete_kanji_furigana
+400  { "ok": false, "error": "每条例句下一行须有「译文：」" }
+                                                     // missing_chinese_gloss
+400  { "ok": false, "error": "日语例句须有句末标点" }
+                                                     // missing_sentence_final_punct
+400  { "ok": false, "error": "例句条数不够" }        // need_more_japanese_lines
+400  { "ok": false, "error": "例句格式不完整" }      // need_four_lines
+400  { "ok": false, "error": "例句须用到该语法" }    // grammar_not_used
+400  { "ok": false, "error": "日语例句格式无效" }    // invalid_japanese_line
 404  { "ok": false, "error": "未找到该词条" }        // not_found
 500  { "ok": false, "error": "…" }
+
+说明：失败 `error` 为面向用户的文案（随 `x-locale`）；括号内为服务端
+reason 码（与 fill-example-sentences apply 一致）。
 
 
 curl 示例
@@ -136,6 +171,17 @@ curl -sS -X POST \
     "kind": "grammar",
     "usage": "1. 表示「关于……」。(N4)",
     "connection": "动词辞书形（动词原形）／名词＋について"
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/edit'
+
+# 改例句（须过 example_sentences 校验；禁止 ～ 占位）
+curl -sS -X POST \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{
+    "word_id": 484,
+    "example_sentences": "真面目(まじめ)な人(ひと)です。\n译文：是个认真的人。\n真面目(まじめ)に勉強(べんきょう)しています。\n译文：正在认真地学习。"
   }' \
   'https://japanese.info-quests.com/api/jp-vocab/edit'
 
@@ -173,5 +219,8 @@ with urllib.request.urlopen(req, timeout=60) as resp:
 - 课堂备注按需读写：docs/jp-vocab-class-notes-api.txt
 - 例句补全（Bearer）：docs/jp-vocab-fill-example-sentences-api.txt
 - 语法用法规则：.cursor/rules/jp-vocab-grammar-usage.mdc
+- 造句/例句规则：.cursor/rules/jp-vocab-example-sentences-compose.mdc
 - 代码：src/app/api/jp-vocab/edit/route.ts
         src/lib/jp-vocab-db/notes_fields.ts → updateJpVocabWordEntry
+        （例句校验）jp-vocab-example-sentences-ai.ts
+          → validateJpVocabExampleSentencesAiOutput

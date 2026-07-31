@@ -5,7 +5,8 @@ export const JP_VOCAB_EXAMPLE_SENTENCE_LINE_CHARS = 10;
 export const JP_VOCAB_EXAMPLE_GLOSS_LABEL = "译文：";
 
 const LEADING_INDEX_RE = /^\s*\d+[.、．)\]]\s*/;
-const GLOSS_LABEL_RE = /^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/;
+/** 中/日译义标签（含模型爱写的「訳文：」）；须循环剥，避免「译文：訳文：…」 */
+const GLOSS_LABEL_RE = /^(译文|翻譯|翻译|译|譯|訳文|訳)\s*[:：]\s*/;
 const KANA_RE = /[\u3040-\u309F\u30A0-\u30FF]/g;
 const HAN_RE = /[\u4E00-\u9FFF]/g;
 const LATIN_RE = /[A-Za-z\u00C0-\u024F]/g;
