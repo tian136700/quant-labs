@@ -5,6 +5,7 @@ import { AdminUserBindTeacherModal } from "@/components/AdminUserBindTeacherModa
 import { AdminUserEditModal } from "@/components/AdminUserEditModal";
 import { AdminUserLoginHistoryModal } from "@/components/AdminUserLoginHistoryModal";
 import { AdminUsersAddUserModal } from "@/components/admin-users-page/AdminUsersAddUserModal";
+import { AdminUsersCredentialsConfirmModal } from "@/components/admin-users-page/AdminUsersCredentialsConfirmModal";
 import { AdminUsersTemplatePickModal } from "@/components/admin-users-page/AdminUsersTemplatePickModal";
 import { AdminUsersTemplatesModal } from "@/components/admin-users-page/AdminUsersTemplatesModal";
 import type { Locale } from "@/i18n/messages";
@@ -42,6 +43,7 @@ export type AdminUsersPageModalsProps = {
   editingTemplateId: number | null;
   editTemplateName: string;
   editTemplateBody: string;
+  credentialsConfirm: { username: string; password: string } | null;
   setEditingUser: (v: UserRow | null) => void;
   setLoginHistoryUser: (v: UserRow | null) => void;
   applyUserUpdate: (updated: AdminUserEditRow) => void;
@@ -61,6 +63,9 @@ export type AdminUsersPageModalsProps = {
   createUser: (e: FormEvent) => void;
   setTemplatesOpen: (v: boolean) => void;
   setTemplatePickUser: (v: UserRow | null) => void;
+  setCredentialsConfirm: (
+    v: { username: string; password: string } | null
+  ) => void;
   onPickTemplateForCopy: (template: LoginLinkTemplate) => void | Promise<void>;
   setSelectedTemplateId: (v: number | null) => void;
   setNewTemplateName: (v: string) => void;
@@ -103,6 +108,7 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
     editingTemplateId,
     editTemplateName,
     editTemplateBody,
+    credentialsConfirm,
     setEditingUser,
     setLoginHistoryUser,
     applyUserUpdate,
@@ -122,6 +128,7 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
     createUser,
     setTemplatesOpen,
     setTemplatePickUser,
+    setCredentialsConfirm,
     onPickTemplateForCopy,
     setSelectedTemplateId,
     setNewTemplateName,
@@ -263,6 +270,14 @@ export function AdminUsersPageModals(props: AdminUsersPageModalsProps) {
         user={loginHistoryUser}
         locale={locale === "zh" ? "zh" : "en"}
         onClose={() => setLoginHistoryUser(null)}
+      />
+
+      <AdminUsersCredentialsConfirmModal
+        open={credentialsConfirm != null}
+        mounted={mounted}
+        locale={locale}
+        credentials={credentialsConfirm}
+        onClose={() => setCredentialsConfirm(null)}
       />
     </>
   );

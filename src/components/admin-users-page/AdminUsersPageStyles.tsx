@@ -116,6 +116,52 @@ export function AdminUsersPageStyles() {
           margin-top: 0.9rem;
           flex-wrap: wrap;
         }
+        .admin-users-credentials-confirm-modal .admin-users-modal-body {
+          padding-top: 0.35rem;
+        }
+        .admin-users-credentials-confirm-list {
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+        .admin-users-credentials-confirm-row {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+        }
+        .admin-users-credentials-confirm-row dt {
+          margin: 0;
+          font-size: 0.8125rem;
+          color: var(--muted);
+        }
+        .admin-users-credentials-confirm-row dd {
+          margin: 0;
+        }
+        .admin-users-credentials-confirm-value {
+          display: block;
+          box-sizing: border-box;
+          width: 100%;
+          padding: 0.65rem 0.75rem;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: var(--bg);
+          font-size: 1.05rem;
+          font-weight: 600;
+          line-height: 1.35;
+          word-break: break-all;
+          user-select: all;
+        }
+        .admin-users-credentials-confirm-footer {
+          justify-content: flex-end;
+          padding: 0 1.1rem 1.1rem;
+          margin-top: 0;
+        }
+        @media (max-width: 767px) {
+          .admin-users-credentials-confirm-footer .btn-rsi-filter {
+            width: 100%;
+          }
+        }
         .admin-users-templates-body .admin-login-link-template-select {
           max-width: 24rem;
         }

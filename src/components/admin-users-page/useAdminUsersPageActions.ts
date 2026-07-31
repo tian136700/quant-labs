@@ -44,6 +44,10 @@ export type UseAdminUsersPageActionsOptions = {
   setStatus: Dispatch<SetStateAction<string>>;
   setStatusErr: Dispatch<SetStateAction<boolean>>;
   setCopyToast: Dispatch<SetStateAction<string | null>>;
+  /** 复制账号密码成功后弹出核对框 */
+  setCredentialsConfirm: Dispatch<
+    SetStateAction<{ username: string; password: string } | null>
+  >;
   setAddUserModalError: Dispatch<SetStateAction<string>>;
   setAddUserSubmitAttempted: Dispatch<SetStateAction<boolean>>;
   setNewTeacherId: Dispatch<SetStateAction<number | null>>;
@@ -90,6 +94,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setStatus,
     setStatusErr,
     setCopyToast,
+    setCredentialsConfirm,
     setAddUserModalError,
     setAddUserSubmitAttempted,
     setNewTeacherId,
@@ -452,6 +457,10 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     setCopyToast(locale === "zh" ? "复制失败" : "Copy failed");
   };
 
+  const openCredentialsConfirm = (username: string, password: string) => {
+    setCredentialsConfirm({ username, password });
+  };
+
   /** 调用 reset-password API，写入本机缓存；系统保留账号直接拒绝。 */
   const requestPasswordReset = async (
     row: UserRow,
@@ -616,6 +625,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       const copied = await copyTextToClipboard(text);
       if (copied) {
         showCopySuccess();
+        openCredentialsConfirm(row.username, password);
         setStatus(
           locale === "zh"
             ? `已用模板「${template.name}」复制 ${row.username} 的用户名、密码与抽查链接`
@@ -655,6 +665,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     const copied = await copyTextToClipboard(text);
     if (copied) {
       showCopySuccess();
+      openCredentialsConfirm(row.username, password);
       setStatus(
         locale === "zh"
           ? `已复制 ${row.username} 的用户名与密码`
@@ -714,6 +725,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     const copied = await copyTextToClipboard(text);
     if (copied) {
       showCopySuccess();
+      openCredentialsConfirm(username, password);
       setStatus(
         locale === "zh"
           ? `已更换 ${username} 的密码（旧密码与会话已失效），新密码已复制：${password}`

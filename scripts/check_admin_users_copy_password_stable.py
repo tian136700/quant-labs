@@ -49,6 +49,24 @@ def main() -> int:
     if "isReservedUsername" not in fn:
         return fail("no-cache bootstrap accounts must be blocked in resolvePasswordForCopy")
 
+    # 复制成功后须弹窗核对用户名/密码（勿只 toast）
+    if "openCredentialsConfirm" not in actions:
+        return fail("copy success must openCredentialsConfirm for username/password review")
+    copy_fn = actions.split("const copyUserCredentials", 1)[1].split(
+        "const resetUserPassword", 1
+    )[0]
+    if "openCredentialsConfirm" not in copy_fn:
+        return fail("copyUserCredentials must call openCredentialsConfirm after successful copy")
+
+    modal = ROOT / "src/components/admin-users-page/AdminUsersCredentialsConfirmModal.tsx"
+    if not modal.is_file():
+        return fail("AdminUsersCredentialsConfirmModal.tsx missing")
+    modal_src = modal.read_text(encoding="utf-8")
+    if "确认无误" not in modal_src and "Looks correct" not in modal_src:
+        return fail("credentials confirm modal must show confirm CTA")
+    if "credentials.username" not in modal_src or "credentials.password" not in modal_src:
+        return fail("credentials confirm modal must display username and password")
+
     print("[check_admin_users_copy_password_stable] OK")
     return 0
 

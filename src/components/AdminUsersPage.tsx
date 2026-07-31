@@ -95,6 +95,10 @@ function AdminUsersPageContent() {
   const [status, setStatus] = useState("");
   const [statusErr, setStatusErr] = useState(false);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [credentialsConfirm, setCredentialsConfirm] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
   const [sortField, setSortField] = useState<UserSortField>("last_login_at");
   const [sortDirection, setSortDirection] = useState<UserSortDirection>("desc");
   const [searchQuery, setSearchQuery] = useState("");
@@ -310,6 +314,7 @@ function AdminUsersPageContent() {
     setStatus,
     setStatusErr,
     setCopyToast,
+    setCredentialsConfirm,
     setAddUserModalError,
     setAddUserSubmitAttempted,
     setNewTeacherId,
@@ -340,7 +345,8 @@ function AdminUsersPageContent() {
     templatePickUser != null ||
     editingUser != null ||
     bindingUser != null ||
-    loginHistoryUser != null;
+    loginHistoryUser != null ||
+    credentialsConfirm != null;
   const addUserDisplayedErrors = addUserSubmitAttempted ? addUserSubmitErrors : addUserLiveErrors;
   const templateCopyBusy =
     templatePickUser != null &&
@@ -374,6 +380,10 @@ function AdminUsersPageContent() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing) return;
       if (templateCopyBusy) return;
+      if (credentialsConfirm != null) {
+        setCredentialsConfirm(null);
+        return;
+      }
       if (templatePickUser != null) {
         setTemplatePickUser(null);
         return;
@@ -409,6 +419,7 @@ function AdminUsersPageContent() {
     editingUser,
     bindingUser,
     loginHistoryUser,
+    credentialsConfirm,
     anyModalOpen,
     cancelEditTemplate,
     closeAddUserModal,
@@ -558,6 +569,8 @@ function AdminUsersPageContent() {
         createUser={createUser}
         setTemplatesOpen={setTemplatesOpen}
         setTemplatePickUser={setTemplatePickUser}
+        credentialsConfirm={credentialsConfirm}
+        setCredentialsConfirm={setCredentialsConfirm}
         onPickTemplateForCopy={async (template) => {
           const row = templatePickUser;
           if (!row) return;
