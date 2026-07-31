@@ -28,6 +28,7 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "上传接口自动屏蔽考试名称/标签（雅思、托福、IELTS、TOEFL、四六级、考研等）——直接去掉该词，不拒整段",
     "组数按实需：1 种→1 条，2 种→2 条，3 种→3 条；勿为凑数硬拆/硬凑",
     "同一核心义换对象/场景不算新用法（如 attractive「对客户有吸引力」与「外表好看」须合并为 1 条）",
+    "每条用法必须只标一种词性（动词 / 名词 / 形容词…）；禁止「动词/名词」「形容词/名词」等含糊写法——例句是哪种词性就标哪种；若名词与动词义都常用，拆成两条并各配例句",
     "不要 markdown、不要整段散文、不要造例句（例句另有 fill 阶段）",
     "写回时请传 source，建议「本地 gemma4:26b」；人手为「手动」",
   ],
@@ -37,8 +38,13 @@ export const EN_VOCAB_USAGE_UPLOAD_SPEC = {
     "invalid_numbering",
     "missing_frequency",
     "invalid_frequency",
+    "ambiguous_pos",
   ],
 } as const;
+
+/** 用法行开头禁止「动词/名词」这类含糊词性（须单一词性，或拆成两条） */
+export const EN_VOCAB_USAGE_AMBIGUOUS_POS_RE =
+  /^(?:\[\d{1,2}\]\s*)?(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)\s*[\/／]\s*(?:动词|名词|形容词|副词|介词|连词|代词|数词|感叹词|动词短语|名词短语|形容词短语|系动词|及物动词|不及物动词)/u;
 
 export type EnVocabUsagePoint = {
   n: number;
@@ -102,6 +108,7 @@ ${buildEnVocabUsageCategoryFocusLine(category)}
 - ✅ 只有核心意思真不同时才拆：不同词性（介词 vs 副词）、不同词典义（issue「问题」vs「发行」）、或不同固定结构且意思不同（expect that vs be expected to）。
 - 聚焦该分类语境下的高频用法；托业词优先职场/商务；不要堆冷僻义。
 - 用中文解释；可在引号内保留英文短语或术语。
+- 每条用法开头必须只标一种词性（如「动词：」「名词：」）。❌ 禁止「动词/名词」「形容词/名词」「名词/动词」等含糊写法。例句实际是哪种词性就标哪种（如 file a claim → 名词；claimed that → 动词）。若名词义与动词义都常用且意思不同，拆成两条，各写清词性并稍后各配例句。
 
 出现频次分值（必须）：
 - 每条用法都必须打 1～10 分：10=该词最常见/最核心用法；1=极少见。
@@ -434,6 +441,12 @@ export function validateEnVocabUsageAiOutput(
       if (p.frequency == null) {
         return { ok: false, reason: "missing_frequency" };
       }
+    }
+  }
+
+  for (const p of points) {
+    if (EN_VOCAB_USAGE_AMBIGUOUS_POS_RE.test(p.text.trim())) {
+      return { ok: false, reason: "ambiguous_pos" };
     }
   }
 
