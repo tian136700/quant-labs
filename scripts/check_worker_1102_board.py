@@ -75,6 +75,30 @@ def main() -> int:
     schema = read("schema.sql")
     if "worker_heavy_signals" not in schema:
         errors.append("schema.sql 缺少 worker_heavy_signals")
+    if "worker_1102_client_events" not in schema:
+        errors.append("schema.sql 缺少 worker_1102_client_events")
+
+    if "Worker1102ClientGuard" not in read("src/components/Providers.tsx"):
+        errors.append("Providers 须挂 Worker1102ClientGuard")
+
+    client_api = ROOT / "src/app/api/analytics/worker-1102/client-report/route.ts"
+    if not client_api.exists():
+        errors.append("缺少 POST /api/analytics/worker-1102/client-report")
+    else:
+        text = client_api.read_text(encoding="utf-8")
+        if "recordWorker1102ClientEvent" not in text:
+            errors.append("client-report 须写 recordWorker1102ClientEvent")
+
+    panel = read("src/components/admin-dashboard/AdminWorker1102Panel.tsx")
+    if "client_event_samples" not in panel and "clientSamplesHeading" not in panel:
+        errors.append("AdminWorker1102Panel 须展示客户端现场样本")
+
+    for rel in (
+        "src/components/JpVocabStudyPage.tsx",
+        "src/components/EnVocabStudyPage.tsx",
+    ):
+        if "reportWorker1102SharedFail" not in read(rel):
+            errors.append(f"{rel} 须上报 shared_fail")
 
     path_lib = read("src/lib/locale-path.ts")
     if "adminWorker1102Path" not in path_lib or "isAdminWorker1102Path" not in path_lib:

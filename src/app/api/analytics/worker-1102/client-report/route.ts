@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const locale = localeFromRequest(request);
   try {
     const env = await getCloudflareEnv();
-    const ip = clientIp(request);
+    const ip = clientIp(request) ?? "";
     if (!allowIp(ip)) {
       return jsonResponse(
         {

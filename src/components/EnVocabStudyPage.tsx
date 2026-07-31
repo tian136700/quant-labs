@@ -19,6 +19,7 @@ import { EnVocabRefPreviewModal } from "@/components/EnVocabRefPreviewModal";
 import { resolveEnVocabRefForPreview } from "@/lib/en-vocab-ref-shared";
 import { EnVocabRemarksViewModal } from "@/components/EnVocabRemarksViewModal";
 import { EnVocabTeacherQuizFlashcardModal } from "@/components/EnVocabTeacherQuizFlashcardModal";
+import { reportWorker1102SharedFail } from "@/components/Worker1102ClientGuard";
 import { JpVocabDailyQuizProgressBar } from "@/components/JpVocabDailyQuizProgressBar";
 import { useEnVocabStudyPersonalLevels } from "@/hooks/useVocabStudyPersonalLevels";
 import { subscribeEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
@@ -229,11 +230,20 @@ export function EnVocabStudyPage() {
           cache: "no-store",
         });
 
+      const fetchStarted = Date.now();
       let res = await fetchShared();
       // 手机冷启动易 1102：忙时自动再试一次（isolate 变热后通常即可）
       if (res.status === 500 || res.status === 503) {
         await new Promise((r) => setTimeout(r, 700));
         res = await fetchShared();
+      }
+      if (res.status === 500 || res.status === 503) {
+        reportWorker1102SharedFail({
+          failedUrl: sharedUrl,
+          status: res.status,
+          durationMs: Date.now() - fetchStarted,
+          error: `shared_http_${res.status}`,
+        });
       }
       const parsed = await readApiJson<{
         ok: boolean;
@@ -245,6 +255,12 @@ export function EnVocabStudyPage() {
         error?: string;
       }>(res);
       if (!parsed.ok) {
+        reportWorker1102SharedFail({
+          failedUrl: sharedUrl,
+          status: res.status,
+          durationMs: Date.now() - fetchStarted,
+          error: parsed.error,
+        });
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error || "加载失败");
         }
