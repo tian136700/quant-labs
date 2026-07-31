@@ -38,7 +38,6 @@ import {
   readJpLessonTeachersCache,
 } from "@/lib/jp-lesson-teachers-cache";
 import type {
-  JpLessonNote,
   JpLessonRecord,
   JpLessonTeacher,
   JpVocabRef,
@@ -77,7 +76,9 @@ export function JpLessonPage() {
     });
   }, [openAuthPanel]);
   const [lessons, setLessons] = useState<JpLessonRecord[]>(() => readLessonCache()?.lessons ?? []);
-  const [notes, setNotes] = useState<JpLessonNote[]>(() => readLessonCache()?.notes ?? []);
+  const [noteCounts, setNoteCounts] = useState<Record<number, number>>(
+    () => readLessonCache()?.note_counts ?? {}
+  );
   const [refs, setRefs] = useState<Record<string, JpVocabRef>>(() => readLessonCache()?.refs ?? {});
   const [teachers, setTeachers] = useState<JpLessonTeacher[]>(
     () => readLessonCache()?.teachers ?? []
@@ -183,7 +184,7 @@ export function JpLessonPage() {
 
   const applyLessonPayload = useCallback((payload: JpLessonApiPayload) => {
     setLessons(payload.lessons);
-    setNotes(payload.notes);
+    setNoteCounts(payload.note_counts ?? {});
     setRefs(payload.refs);
     if (payload.teachers) {
       setTeachers(payload.teachers.map((teacher) => normalizeJpLessonTeacher(teacher)));
@@ -289,11 +290,13 @@ export function JpLessonPage() {
 
   const noteCountByLesson = useMemo(() => {
     const map = new Map<number, number>();
-    for (const note of notes) {
-      map.set(note.lesson_id, (map.get(note.lesson_id) ?? 0) + 1);
+    for (const [lessonId, count] of Object.entries(noteCounts)) {
+      const id = Number(lessonId);
+      const cnt = Number(count) || 0;
+      if (id > 0 && cnt > 0) map.set(id, cnt);
     }
     return map;
-  }, [notes]);
+  }, [noteCounts]);
 
   const openTeacherEditModal = useCallback((lesson: JpLessonRecord, lessonIds?: number[]) => {
     setTeachers((prev) => mergeJpLessonTeachersCache(prev, readJpLessonTeachersCache()));
@@ -396,7 +399,7 @@ export function JpLessonPage() {
     openJpAuth,
     lessons,
     refs,
-    notes,
+    noteCounts,
     teachers,
     savingId,
     savingTeacherLessonId,
@@ -405,7 +408,7 @@ export function JpLessonPage() {
     batchLessonIds,
     setLessons,
     setRefs,
-    setNotes,
+    setNoteCounts,
     setTeachers,
     setStatus,
     setSavingId,

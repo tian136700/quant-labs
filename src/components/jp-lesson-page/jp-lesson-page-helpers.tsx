@@ -37,7 +37,6 @@ import {
   jpVocabRefViewerPath,
 } from "@/lib/jp-vocab-ref-shared";
 import type {
-  JpLessonNote,
   JpLessonRecord,
   JpLessonTeacher,
   JpVocabRef,
@@ -56,10 +55,16 @@ export function readLessonCache(): JpLessonApiPayload | null {
 export function persistLessonCache(
   lessons: JpLessonRecord[],
   refs: Record<string, JpVocabRef>,
-  notes: JpLessonNote[],
+  noteCounts: Record<number, number>,
   teachers?: JpLessonTeacher[]
 ) {
-  writeClientCache(JP_LESSON_CACHE_KEY, { lessons, refs, notes, teachers });
+  writeClientCache(JP_LESSON_CACHE_KEY, {
+    lessons,
+    refs,
+    notes: [],
+    note_counts: noteCounts,
+    teachers,
+  });
 }
 
 export function refViewUrl(refKey: string, updatedAt?: string | null): string {

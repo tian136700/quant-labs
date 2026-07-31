@@ -355,6 +355,15 @@ export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_ke
   example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
+/**
+ * 可见池 / 日序 rematerialize 用：禁止扫 class_notes、例句、巧记、用法等大字段。
+ * 管理员勾「非常熟悉」后若用 WORD_SELECT 全表 → 极易 Worker 1102。
+ */
+export const WORD_SELECT_POOL = `SELECT id, word, reading, meaning, pos, kind, ref_key,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date, annotation, course_label,
+  last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at
+  FROM jp_vocab_word`;
+
 export function refsRecord(refs: JpVocabRef[]): Record<string, JpVocabRef> {
   return Object.fromEntries(refs.map((r) => [r.ref_key, r]));
 }

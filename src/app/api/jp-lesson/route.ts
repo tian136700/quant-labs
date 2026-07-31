@@ -10,7 +10,7 @@ import {
 } from "@/lib/jp-lesson-db";
 import { deleteJpLesson } from "@/lib/jp-lesson-db-delete";
 import type { JpLessonProgressStatus } from "@/lib/jp-lesson-shared";
-import { listJpLessonNotes } from "@/lib/jp-lesson-note-db";
+import { listJpLessonNoteCountsByLesson } from "@/lib/jp-lesson-note-db";
 import { listJpLessonTeachersWithLessonCounts } from "@/lib/jp-lesson-teacher-db";
 import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
 import { listJpVocabRefs } from "@/lib/jp-vocab-db";
@@ -84,23 +84,31 @@ export async function GET(request: Request) {
     }
 
     const { isAdmin } = await requireAdmin(request);
-    const [lessons, refs, notes] = await Promise.all([
+    const [lessons, refs, noteCounts] = await Promise.all([
       listJpLessons(env.DB),
       listJpVocabRefs(env.DB),
-      listJpLessonNotes(env.DB),
+      listJpLessonNoteCountsByLesson(env.DB),
     ]);
     const refsMap = Object.fromEntries(refs.map((r) => [r.ref_key, r]));
 
     if (isAdmin) {
       const teachers = await listJpLessonTeachersWithLessonCounts(env.DB);
-      return jsonResponse({ ok: true, lessons, refs: refsMap, notes, teachers });
+      return jsonResponse({
+        ok: true,
+        lessons,
+        refs: refsMap,
+        note_counts: noteCounts,
+        notes: [],
+        teachers,
+      });
     }
 
     return jsonResponse({
       ok: true,
       lessons: stripAdminOnlyFromLessons(lessons),
       refs: refsMap,
-      notes,
+      note_counts: noteCounts,
+      notes: [],
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

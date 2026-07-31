@@ -26,7 +26,7 @@ import { normalizeClassDurationMinutes } from "@/lib/jp-lesson-shared";
 import { normalizeJpLessonTeacher } from "@/lib/jp-lesson-teacher-rate";
 
 export const JP_VOCAB_CACHE_KEY = "jp-api:vocab:v6";
-export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v10";
+export const JP_LESSON_CACHE_KEY = "jp-api:lesson:v11";
 
 /** 词表本地缓存有效期内不重复 GET（多人同时刷新时减轻 Worker 压力） */
 export const JP_VOCAB_REFRESH_TTL_MS = 45_000;
@@ -52,7 +52,10 @@ export type JpVocabApiPayload = {
 export type JpLessonApiPayload = {
   lessons: JpLessonRecord[];
   refs: Record<string, JpVocabRef>;
+  /** @deprecated 列表不再返回正文；兼容旧缓存 */
   notes: JpLessonNote[];
+  /** lesson_id → 笔记条数（列表角标；不含 body） */
+  note_counts: Record<number, number>;
   teachers?: JpLessonTeacher[];
 };
 
@@ -137,11 +140,27 @@ export function parseJpLessonApi(json: unknown): JpLessonApiPayload {
     lessons?: JpLessonRecord[];
     refs?: Record<string, JpVocabRef>;
     notes?: JpLessonNote[];
+    note_counts?: Record<string, number> | Record<number, number>;
     teachers?: JpLessonTeacher[];
     error?: string;
   };
   if (!data.ok || !Array.isArray(data.lessons)) {
     throw new Error(data.error || "加载失败");
+  }
+  const note_counts: Record<number, number> = {};
+  if (data.note_counts && typeof data.note_counts === "object") {
+    for (const [key, value] of Object.entries(data.note_counts)) {
+      const lessonId = Number(key);
+      const cnt = Number(value) || 0;
+      if (lessonId > 0 && cnt > 0) note_counts[lessonId] = cnt;
+    }
+  } else if (Array.isArray(data.notes)) {
+    for (const note of data.notes) {
+      const lessonId = Number(note.lesson_id);
+      if (lessonId > 0) {
+        note_counts[lessonId] = (note_counts[lessonId] ?? 0) + 1;
+      }
+    }
   }
   return {
     lessons: data.lessons.map((lesson) => {
@@ -192,7 +211,8 @@ export function parseJpLessonApi(json: unknown): JpLessonApiPayload {
       };
     }),
     refs: data.refs ?? {},
-    notes: data.notes ?? [],
+    notes: [],
+    note_counts,
     teachers: Array.isArray(data.teachers)
       ? data.teachers.map((teacher) => normalizeJpLessonTeacher(teacher))
       : data.teachers,

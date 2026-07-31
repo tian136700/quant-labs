@@ -115,6 +115,7 @@ import {
   mapRow,
   ensureVocabWordSchema,
   WORD_SELECT,
+  WORD_SELECT_POOL,
   refsRecord,
   upsertJpVocabRefMetadata,
   saveJpVocabRefFileMeta,
@@ -152,6 +153,37 @@ export async function listJpVocabWords(db: D1Database): Promise<JpVocabWord[]> {
   const result = await db
     .prepare(
       `${WORD_SELECT}
+       ORDER BY cnt_weak DESC, cnt_normal DESC, word COLLATE NOCASE ASC`
+    )
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(mapRow);
+}
+
+/** 老师可见池 / 管理员 very 后 rematerialize：轻量列表，不含 class_notes 等正文 */
+export async function listJpVocabWordsForPool(
+  db: D1Database
+): Promise<JpVocabWord[]> {
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+
+  if (jpVocabDbState.devStoreEnabled) {
+    return sortJpVocabWords(jpVocabDbState.devWords).map((w) => ({
+      ...w,
+      class_notes: null,
+      mnemonic: null,
+      example_sentences: null,
+      example_sentences_source: null,
+      usage: null,
+      usage_source: null,
+      connection: null,
+      connection_source: null,
+    }));
+  }
+
+  const result = await db
+    .prepare(
+      `${WORD_SELECT_POOL}
        ORDER BY cnt_weak DESC, cnt_normal DESC, word COLLATE NOCASE ASC`
     )
     .all<Record<string, unknown>>();

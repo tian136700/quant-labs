@@ -31,7 +31,7 @@ import {
   markJpVocabWordRoundChecked,
   saveJpVocabTeacherVisibleLimit,
 } from "./daily_settings";
-import { listJpVocabWords } from "./words";
+import { listJpVocabWordsForPool } from "./words";
 
 async function isWordSharedToday(
   db: D1Database,
@@ -260,7 +260,8 @@ export async function recordJpVocabReview(
 async function rematerializeJpVocabTeacherVisibleAfterAdminVerySkip(
   db: D1Database
 ): Promise<JpVocabTeacherVisibleLimit> {
-  const words = await listJpVocabWords(db);
+  // 必须用 lite 列表：全量 WORD_SELECT（含 class_notes/例句）易 1102
+  const words = await listJpVocabWordsForPool(db);
   const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
   const visible = await getJpVocabTeacherVisibleLimit(db);
   const next = applyJpVocabQuizTargetVisiblePlan(visible, displayOrder, words);

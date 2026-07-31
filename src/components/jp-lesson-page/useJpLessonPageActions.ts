@@ -31,7 +31,6 @@ import {
 } from "@/lib/jp-lesson-teachers-cache";
 import type {
   JpLessonClassScheduleInput,
-  JpLessonNote,
   JpLessonRecord,
   JpLessonTeacher,
   JpVocabRef,
@@ -52,7 +51,7 @@ export type UseJpLessonPageActionsOptions = {
   openJpAuth: () => void;
   lessons: JpLessonRecord[];
   refs: Record<string, JpVocabRef>;
-  notes: JpLessonNote[];
+  noteCounts: Record<number, number>;
   teachers: JpLessonTeacher[];
   savingId: number | null;
   savingTeacherLessonId: number | null;
@@ -61,7 +60,7 @@ export type UseJpLessonPageActionsOptions = {
   batchLessonIds: number[];
   setLessons: Dispatch<SetStateAction<JpLessonRecord[]>>;
   setRefs: Dispatch<SetStateAction<Record<string, JpVocabRef>>>;
-  setNotes: Dispatch<SetStateAction<JpLessonNote[]>>;
+  setNoteCounts: Dispatch<SetStateAction<Record<number, number>>>;
   setTeachers: Dispatch<SetStateAction<JpLessonTeacher[]>>;
   setStatus: Dispatch<SetStateAction<string>>;
   setSavingId: Dispatch<SetStateAction<number | null>>;
@@ -94,7 +93,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     openJpAuth,
     lessons,
     refs,
-    notes,
+    noteCounts,
     teachers,
     savingId,
     savingTeacherLessonId,
@@ -103,7 +102,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     batchLessonIds,
     setLessons,
     setRefs,
-    setNotes,
+    setNoteCounts,
     setTeachers,
     setStatus,
     setSavingId,
@@ -145,7 +144,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
             }
           : l
       );
-      persistLessonCache(next, refs, notes, teachers);
+      persistLessonCache(next, refs, noteCounts, teachers);
       return next;
     });
 
@@ -186,7 +185,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
               server.class_duration_minutes ?? l.class_duration_minutes,
           };
         });
-        persistLessonCache(next, refs, notes, teachers);
+        persistLessonCache(next, refs, noteCounts, teachers);
         return next;
       });
       const autoEnableSuffix = teacherAutoEnableStatusSuffix(
@@ -200,7 +199,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
       if (snapshot) {
         setLessons((prev) => {
           const next = prev.map((l) => (l.id === lessonId ? snapshot : l));
-          persistLessonCache(next, refs, notes, teachers);
+          persistLessonCache(next, refs, noteCounts, teachers);
           return next;
         });
       }
@@ -303,7 +302,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
               server.class_duration_minutes ?? l.class_duration_minutes,
           };
         });
-        persistLessonCache(next, refs, notes, nextTeachers);
+        persistLessonCache(next, refs, noteCounts, nextTeachers);
         return next;
       });
 
@@ -544,7 +543,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
               server.class_duration_minutes ?? l.class_duration_minutes,
           };
         });
-        persistLessonCache(next, refs, notes, teachers);
+        persistLessonCache(next, refs, noteCounts, teachers);
         return next;
       });
       blurActiveElementForLessonModalClose();
@@ -685,7 +684,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
             learning: progressFields?.learning ?? lesson.learning,
           };
         });
-        persistLessonCache(next, refs, notes, teachers);
+        persistLessonCache(next, refs, noteCounts, teachers);
         return next;
       });
       const autoEnableSuffix = teacherAutoEnableStatusSuffix({
@@ -717,7 +716,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
     setRefs(nextRefs);
     setLessons(nextLessons);
-    persistLessonCache(nextLessons, nextRefs, notes, teachers);
+    persistLessonCache(nextLessons, nextRefs, noteCounts, teachers);
     setStatus("教案已更新，仅影响本条新课。");
     window.setTimeout(() => setStatus(""), 2500);
   };
@@ -727,7 +726,7 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
     const nextLessons = lessons.map((l) => (l.id === lesson.id ? lesson : l));
     setRefs(nextRefs);
     setLessons(nextLessons);
-    persistLessonCache(nextLessons, nextRefs, notes, teachers);
+    persistLessonCache(nextLessons, nextRefs, noteCounts, teachers);
     setAnnotatingLesson((prev) => {
       if (!prev || prev.lesson.id !== lesson.id) return prev;
       const imageUrl = jpVocabRefApiPath(ref.ref_key, { v: ref.updated_at });
@@ -771,13 +770,14 @@ export function useJpLessonPageActions(options: UseJpLessonPageActionsOptions) {
         throw new Error(data.error || "删除失败");
       }
 
-      const nextNotes = notes.filter((n) => n.lesson_id !== lesson.id);
+      const nextNoteCounts = { ...noteCounts };
+      delete nextNoteCounts[lesson.id];
       setLessons((prev) => {
         const next = prev.filter((l) => l.id !== lesson.id);
-        persistLessonCache(next, refs, nextNotes, teachers);
+        persistLessonCache(next, refs, nextNoteCounts, teachers);
         return next;
       });
-      setNotes(nextNotes);
+      setNoteCounts(nextNoteCounts);
       setBatchLessonIds((prev) => prev.filter((id) => id !== lesson.id));
       setStatus(`已删除新课 #${lesson.id}`);
       window.setTimeout(() => setStatus(""), 2500);

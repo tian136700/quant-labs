@@ -62,12 +62,53 @@ export async function listJpLessonNotes(db: D1Database): Promise<JpLessonNote[]>
   return (result.results || []).map(mapRow);
 }
 
+/** 新课列表角标：只 COUNT，禁止拉 body（含图时极易 1102） */
+export async function listJpLessonNoteCountsByLesson(
+  db: D1Database
+): Promise<Record<number, number>> {
+  if (devStoreEnabled) {
+    const map: Record<number, number> = {};
+    for (const note of devNotes) {
+      map[note.lesson_id] = (map[note.lesson_id] ?? 0) + 1;
+    }
+    return map;
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT lesson_id, COUNT(*) AS cnt
+       FROM jp_lesson_note
+       GROUP BY lesson_id`
+    )
+    .all<{ lesson_id: number; cnt: number }>();
+
+  const map: Record<number, number> = {};
+  for (const row of result.results || []) {
+    const lessonId = Number(row.lesson_id);
+    const cnt = Number(row.cnt) || 0;
+    if (lessonId > 0 && cnt > 0) map[lessonId] = cnt;
+  }
+  return map;
+}
+
 export async function listJpLessonNotesByLessonId(
   db: D1Database,
   lessonId: number
 ): Promise<JpLessonNote[]> {
-  const all = await listJpLessonNotes(db);
-  return all.filter((n) => n.lesson_id === lessonId);
+  if (!Number.isInteger(lessonId) || lessonId <= 0) return [];
+
+  if (devStoreEnabled) {
+    return (await listJpLessonNotes(db)).filter((n) => n.lesson_id === lessonId);
+  }
+
+  const result = await db
+    .prepare(
+      `${NOTE_SELECT} WHERE lesson_id = ?1 ORDER BY created_at DESC, id DESC`
+    )
+    .bind(lessonId)
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(mapRow);
 }
 
 export type CreateJpLessonNoteResult =
