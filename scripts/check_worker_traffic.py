@@ -196,6 +196,14 @@ def main() -> int:
         errors.append("worker-traffic-record 写入须用 workerQuotaDateString（勿用日历日）")
     if "beijingDateString(now)" in record:
         errors.append("worker-traffic-record 禁止再用 beijingDateString 作 statDate")
+    # 页面 HTML waitUntil 再查 session 易与 SSR 叠出 1102；仅 API 记用户名
+    if 'kind === "api"' not in record and "kind === 'api'" not in record:
+        errors.append(
+            "worker-traffic-record：页面 kind 勿 getSessionUserFromRequest；"
+            "仅 api 查 session（防文档请求 1102）"
+        )
+    if "getSessionUserFromRequest" not in record:
+        errors.append("worker-traffic-record API 路径仍须 getSessionUserFromRequest")
 
     if "workerQuotaDateString" not in panel:
         errors.append("AdminWorkerTrafficPanel 默认日期须用 workerQuotaDateString")

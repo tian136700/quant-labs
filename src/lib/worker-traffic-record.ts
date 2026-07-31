@@ -16,9 +16,14 @@ async function recordWorkerTrafficHitNow(request: Request): Promise<void> {
   if (!shouldCountWorkerTraffic(pathname)) return;
 
   const env = await getCloudflareEnv();
+  const kind = workerTrafficKind(pathname);
+  // 页面 HTML：勿再查 session（与 SSR 同 isolate 的 waitUntil 易叠出 1102）。
+  // 用户维度靠 API 命中 + visit_logs；页面只记路由/IP/小时。
   const username =
-    (await getSessionUserFromRequest(env, request.headers.get("cookie")))
-      ?.username ?? "";
+    kind === "api"
+      ? (await getSessionUserFromRequest(env, request.headers.get("cookie")))
+          ?.username ?? ""
+      : "";
   const now = new Date();
 
   await incrementWorkerDailyHit(env.DB, {
@@ -27,7 +32,7 @@ async function recordWorkerTrafficHitNow(request: Request): Promise<void> {
     hour: beijingHour(now),
     routeKey: normalizeWorkerTrafficRoute(pathname),
     username,
-    kind: workerTrafficKind(pathname),
+    kind,
     ip: clientIp(request),
   });
 }

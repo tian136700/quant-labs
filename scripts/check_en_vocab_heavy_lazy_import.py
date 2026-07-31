@@ -9,7 +9,7 @@ Fails if:
 3) EnVocabPage statically imports EnVocabRiskChartModal
    (must next/dynamic ssr:false; match JpVocabPage).
 4) /en-vocab/study or /jp-vocab/study statically imports *StudyPage
-   (must *StudyPageClient + next/dynamic { ssr: false }).
+   (must *StudyPageClient + next/dynamic { ssr: false } + force-static).
 5) JpVocabPage / jp-vocab-coach statically import @/lib/jp-vocab-export
    (must use @/lib/jp-vocab-export-select for filters; await import export).
 6) tool-dot conversion/convert.ts statically imports docx
@@ -18,9 +18,8 @@ Fails if:
    (must next/dynamic { ssr: false }; PDF 随手画含 pdfjs/jspdf).
 8) lesson-annotate hooks statically import lesson-annotate-pdf
    (must await import() when opening/saving PDF).
-9) /jp-lesson /en-lesson and /jp-vocab/ref /en-vocab/ref must use
-   *PageClient / *RefViewerClient shells (ssr: false) — same Worker gzip
-   pattern as study pages.
+9) /jp-lesson /en-lesson must use *PageClient + force-static; ref pages
+   use *RefViewerClient shells (ssr: false) — same Worker gzip pattern.
 """
 
 from __future__ import annotations
@@ -40,6 +39,7 @@ def check_ssr_false_shell(
     inner_name: str,
     app_page: Path,
     app_label: str,
+    require_force_static: bool = False,
 ) -> None:
     """Client shell with next/dynamic({ ssr: false }); route must not static-import inner."""
     client_path = SRC / "components" / f"{client_name}.tsx"
@@ -67,6 +67,18 @@ def check_ssr_false_shell(
         errs.append(
             f"{app_label}: do not static-import {inner_name}; use {client_name}"
         )
+    # 纯客户端壳再 force-dynamic → 每次文档请求跑重 SSR → 间歇 Error 1102
+    if require_force_static:
+        if 'dynamic = "force-dynamic"' in page_src or "dynamic = 'force-dynamic'" in page_src:
+            errs.append(
+                f"{app_label}: *PageClient shell must use force-static "
+                "(not force-dynamic); avoids Worker 1102 on document requests"
+            )
+        if 'dynamic = "force-static"' not in page_src and "dynamic = 'force-static'" not in page_src:
+            errs.append(
+                f"{app_label}: missing export const dynamic = \"force-static\" "
+                "for ssr:false client shell"
+            )
 
 
 def check_study_shell(
@@ -84,6 +96,7 @@ def check_study_shell(
         inner_name=page_name,
         app_page=SRC / "app" / app_subdir / "study" / "page.tsx",
         app_label=f"app/{app_subdir}/study/page.tsx",
+        require_force_static=True,
     )
 
 
@@ -165,6 +178,7 @@ def main() -> int:
         inner_name="JpLessonPage",
         app_page=SRC / "app" / "jp-lesson" / "page.tsx",
         app_label="app/jp-lesson/page.tsx",
+        require_force_static=True,
     )
     check_ssr_false_shell(
         errs,
@@ -172,6 +186,7 @@ def main() -> int:
         inner_name="EnLessonPage",
         app_page=SRC / "app" / "en-lesson" / "page.tsx",
         app_label="app/en-lesson/page.tsx",
+        require_force_static=True,
     )
     check_ssr_false_shell(
         errs,
