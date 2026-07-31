@@ -183,6 +183,10 @@ def main() -> None:
         fail("接序示例禁止再写「一类动词（五段）」")
     if "禁止「五段" not in src and "❌禁止「五段" not in src and "❌ 禁止「五段" not in src:
         fail("接序 prompt 须禁止五段/一段/カ变术语")
+    if "卡片会自动排表" not in src and "卡片自动排表" not in src and "卡片会把复杂接续自动排成表" not in src:
+        fail("接序 prompt 须要求「；」或多行词类格式以便上表")
+    if "禁止散文" not in src:
+        fail("接序 prompt 须禁止散文罗列词类")
 
 
     quiz = QUIZ.read_text(encoding="utf-8")
