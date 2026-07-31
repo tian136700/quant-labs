@@ -37,8 +37,15 @@ def main() -> int:
         errors.append("GET /api/jp-lesson must not call listJpLessonNotes (full body)")
     if "listJpLessonNoteCountsByLesson" not in route:
         errors.append("GET /api/jp-lesson must use listJpLessonNoteCountsByLesson")
-    if "note_counts" not in route:
-        errors.append("GET /api/jp-lesson must return note_counts")
+    if "listJpLessonNotesByLessonId" not in notes_db:
+        errors.append("must have listJpLessonNotesByLessonId for per-lesson bodies")
+    notes_route = (
+        ROOT / "src/app/api/jp-lesson/notes/route.ts"
+    ).read_text(encoding="utf-8")
+    if "export async function GET" not in notes_route:
+        errors.append("GET /api/jp-lesson/notes must exist for per-lesson bodies")
+    if "listJpLessonNotesByLessonId" not in notes_route:
+        errors.append("notes GET must call listJpLessonNotesByLessonId")
 
     if errors:
         print("check_jp_lesson_list_no_heavy_notes FAILED:")

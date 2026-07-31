@@ -2,14 +2,44 @@ import { getCloudflareEnv, jsonResponse, localeFromRequest } from "@/lib/cloudfl
 import {
   createJpLessonNote,
   deleteJpLessonNote,
+  listJpLessonNotesByLessonId,
   updateJpLessonNote,
 } from "@/lib/jp-lesson-note-db";
-import { requireJpLessonOperate } from "@/lib/jp-lesson-auth";
+import { requireJpLessonOperate, requireJpLessonRead } from "@/lib/jp-lesson-auth";
 
 const AUTH_MSG = {
   en: "Please log in to save notes.",
   zh: "请登录后再编辑课堂笔记。",
 };
+
+const READ_FORBIDDEN = {
+  en: "You do not have permission to view Japanese lessons.",
+  zh: "您没有日语新课的查看权限。",
+};
+
+/** 按课拉取笔记正文（列表 GET /api/jp-lesson 只给 note_counts，正文走这里） */
+export async function GET(request: Request) {
+  const locale = localeFromRequest(request);
+
+  try {
+    const { env, allowed } = await requireJpLessonRead(request);
+    if (!allowed) {
+      return jsonResponse({ ok: false, error: READ_FORBIDDEN[locale] }, 403);
+    }
+
+    const url = new URL(request.url);
+    const lessonId = Number(url.searchParams.get("lesson_id"));
+    if (!Number.isInteger(lessonId) || lessonId <= 0) {
+      return jsonResponse({ ok: false, error: "lesson_id_invalid" }, 400);
+    }
+
+    const notes = await listJpLessonNotesByLessonId(env.DB, lessonId);
+    return jsonResponse({ ok: true, lesson_id: lessonId, notes });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return jsonResponse({ ok: false, error: message }, 500);
+  }
+}
 
 export async function POST(request: Request) {
   const locale = localeFromRequest(request);

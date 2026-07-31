@@ -5,12 +5,15 @@
 ----
 给网页「日语新课」列表、以及其它项目（脚本 / 运维）读写课次：
 
-- GET  拉新课列表 + 教案 refs + 课堂笔记（管理员另含老师列表）
+- GET  拉新课列表 + 教案 refs + **每课笔记条数**（管理员另含老师列表）
 - POST 按 action 改学习状态 / 老师 / 上课时间 / 记复制次数 / **删除课次**
 
 上传新课（带教案文件）请用专用接口，勿走本路由：
   POST /api/jp-lesson/upload          → docs 见页面「API 上传说明」
   POST /api/jp-lesson/upload-mixed    → docs/jp-lesson-upload-mixed-api.txt
+
+课堂笔记正文（含贴图）不要指望本 GET：列表只返回 `note_counts`，
+正文走：GET /api/jp-lesson/notes?lesson_id=（见下文「GET · 按课笔记正文」）。
 
 
 线上地址
@@ -46,6 +49,18 @@ Header（可选，影响错误文案语言）：
 GET · 列表
 ────────────────────────────────
 
+说明（重要）
+------------
+为避免 Worker **Error 1102**（CPU/内存超限），列表 **不再** 返回课堂笔记正文：
+
+| 字段 | 含义 |
+|------|------|
+| note_counts | `{ "<lesson_id>": <条数>, … }`，仅 COUNT，给列表角标 |
+| notes       | 恒为 `[]`（兼容旧客户端字段；勿再依赖正文） |
+
+某课笔记正文：`GET /api/jp-lesson/notes?lesson_id=77`（见下一节）。
+
+
 成功响应（节选）
 ----------------
 {
@@ -53,7 +68,8 @@ GET · 列表
   "lessons": [ { "id", "kind", "content", "course_label", "course_group_id",
                  "progress…", "ref_key", "class_schedules", … } ],
   "refs": { "lesson-77": { "ref_key", "media_type", "updated_at", … }, … },
-  "notes": [ … ],
+  "note_counts": { "77": 3, "80": 1 },
+  "notes": [],
   "teachers": [ … ]   // 仅管理员
 }
 
@@ -65,6 +81,89 @@ curl 示例
 curl -sS 'https://japanese.info-quests.com/api/jp-lesson' \
   -H 'Cookie: 你的登录 Cookie' \
   -H 'x-locale: zh'
+
+
+Python 最小例（列表）
+--------------------
+import requests
+
+BASE = "https://japanese.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/jp-lesson",
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+data = r.json()
+assert data.get("ok")
+# 角标：某课有几条笔记
+print(data.get("note_counts", {}).get("77", 0))
+# 注意：JSON 对象的 key 常是字符串 "77"
+
+
+────────────────────────────────
+GET · 按课笔记正文（/api/jp-lesson/notes）
+────────────────────────────────
+
+用途
+----
+课堂笔记页 `/jp-lesson/notes?id=` 拉某一课的笔记 **正文**（含贴图 markdown）。
+列表接口故意不带 body，避免 1102。
+
+
+线上地址
+--------
+GET https://japanese.info-quests.com/api/jp-lesson/notes?lesson_id=77
+
+也可用 finance.info-quests.com 同路径。
+
+
+鉴权
+----
+与列表相同：日语新课 · 查看（Cookie）。访客可读；已登录无权限则 403。
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "lesson_id": 77,
+  "notes": [
+    {
+      "id": 12,
+      "lesson_id": 77,
+      "item_word": "東",
+      "body": "文字…\n![](/api/jp-vocab/ref/…)",
+      "created_by": "admin",
+      "created_at": "…",
+      "updated_at": "…"
+    }
+  ]
+}
+
+
+curl 示例
+---------
+curl -sS 'https://japanese.info-quests.com/api/jp-lesson/notes?lesson_id=77' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://japanese.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/jp-lesson/notes",
+    params={"lesson_id": 77},
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+print(r.status_code, r.json())
 
 
 ────────────────────────────────
@@ -220,6 +319,8 @@ POST · set_class_schedules（管理员）
 本说明：GET/POST /api/jp-lesson
 实现：src/app/api/jp-lesson/route.ts
       src/lib/jp-lesson-db.ts
+      src/lib/jp-lesson-note-db.ts → listJpLessonNoteCountsByLesson
       src/lib/jp-lesson-db-delete.ts → deleteJpLesson
 功能索引：docs/feature-index.md → 日语新课 → 删除新课
 上传专用：docs/jp-lesson-upload-mixed-api.txt
+防 1102：列表用 note_counts，勿再 SELECT 笔记 body

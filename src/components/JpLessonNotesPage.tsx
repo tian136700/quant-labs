@@ -133,7 +133,6 @@ export function JpLessonNotesPage() {
     const cachedEntry = pickLessonFromCache(lessonId);
     if (cachedEntry) {
       setLesson(cachedEntry.lesson);
-      setNotes(cachedEntry.notes);
       setRefreshing(true);
       setLoading(false);
     } else {
@@ -141,26 +140,39 @@ export function JpLessonNotesPage() {
     }
     setError("");
     try {
-      const payload = await fetchWithClientCache(
-        JP_LESSON_CACHE_KEY,
-        "/api/jp-lesson",
-        parseJpLessonApi,
-        {
-          onCached: (data) => {
-            const found = data.lessons.find((l) => l.id === lessonId);
-            if (found) {
-              setLesson(found);
-              setNotes(data.notes);
-            }
-          },
-        }
-      );
+      const [payload, notesJson] = await Promise.all([
+        fetchWithClientCache(
+          JP_LESSON_CACHE_KEY,
+          "/api/jp-lesson",
+          parseJpLessonApi,
+          {
+            onCached: (data) => {
+              const found = data.lessons.find((l) => l.id === lessonId);
+              if (found) setLesson(found);
+            },
+          }
+        ),
+        fetch(`/api/jp-lesson/notes?lesson_id=${lessonId}`, {
+          credentials: "include",
+          headers: { [LOCALE_HEADER]: locale },
+        }).then(async (res) => {
+          const data = (await res.json()) as {
+            ok?: boolean;
+            notes?: JpLessonNote[];
+            error?: string;
+          };
+          if (!res.ok || !data.ok) {
+            throw new Error(data.error || "加载笔记失败");
+          }
+          return Array.isArray(data.notes) ? data.notes : [];
+        }),
+      ]);
       const found = payload.lessons.find((l) => l.id === lessonId);
       if (!found) {
         throw new Error("未找到该课程");
       }
       setLesson(found);
-      setNotes(payload.notes);
+      setNotes(notesJson);
     } catch (err) {
       if (!cachedEntry) {
         setError(err instanceof Error ? err.message : String(err));
@@ -170,7 +182,7 @@ export function JpLessonNotesPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [lessonId]);
+  }, [lessonId, locale]);
 
   useEffect(() => {
     if (checking) return;
@@ -325,7 +337,7 @@ export function JpLessonNotesPage() {
           ...notes.filter((n) => n.lesson_id !== lesson.id),
         ];
         setNotes(nextNotes);
-        persistLessonNotesCache(nextNotes);
+        persistLessonNotesCache(lesson.id, nextNotes);
 
         if (lesson.completed) {
           const syncRes = await fetch("/api/jp-lesson/notes/sync", {

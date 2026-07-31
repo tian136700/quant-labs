@@ -49,13 +49,23 @@ export function pickLessonFromCache(lessonId: number): {
   if (!cached) return null;
   const lesson = cached.lessons.find((l) => l.id === lessonId);
   if (!lesson) return null;
-  return { lesson, notes: cached.notes };
+  // 列表缓存不再带笔记正文；notes 页须再拉 /api/jp-lesson/notes
+  return { lesson, notes: [] };
 }
 
-export function persistLessonNotesCache(nextNotes: JpLessonNote[]) {
-  patchClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY, (prev) =>
-    prev ? { ...prev, notes: nextNotes } : prev
-  );
+/** 保存后：刷新列表角标 note_counts（不再往列表缓存塞正文） */
+export function persistLessonNotesCache(
+  lessonId: number,
+  lessonNotes: JpLessonNote[]
+) {
+  const count = lessonNotes.filter((n) => n.lesson_id === lessonId).length;
+  patchClientCache<JpLessonApiPayload>(JP_LESSON_CACHE_KEY, (prev) => {
+    if (!prev) return prev;
+    const note_counts = { ...(prev.note_counts ?? {}) };
+    if (count > 0) note_counts[lessonId] = count;
+    else delete note_counts[lessonId];
+    return { ...prev, notes: [], note_counts };
+  });
 }
 
 export function kindLabel(kind: JpLessonKind): string {
