@@ -62,6 +62,7 @@ export function EnVocabStudyPage() {
   const [shareDate, setShareDate] = useState("");
   /** API 只带回分母（今日抽查数量）；分子按下方 items 条数自算 */
   const [quizTargetTotal, setQuizTargetTotal] = useState(0);
+  const [teacherQuizComplete, setTeacherQuizComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -83,11 +84,18 @@ export function EnVocabStudyPage() {
   const hasLoadedOnceRef = useRef(false);
   const sharedPollCountRef = useRef(0);
   const quizTargetTotalRef = useRef(0);
+  const teacherQuizCompleteRef = useRef(false);
+
+  useEffect(() => {
+    teacherQuizCompleteRef.current = teacherQuizComplete;
+  }, [teacherQuizComplete]);
 
   const quizProgress = useMemo((): EnVocabDailyQuizProgress | null => {
     if (quizTargetTotal <= 0) return null;
-    return computeEnVocabStudyPageQuizProgress(items.length, quizTargetTotal);
-  }, [items.length, quizTargetTotal]);
+    return computeEnVocabStudyPageQuizProgress(items.length, quizTargetTotal, {
+      teacherComplete: teacherQuizComplete,
+    });
+  }, [items.length, quizTargetTotal, teacherQuizComplete]);
 
   const openEnAuth = useCallback(() => {
     openAuthPanel({
@@ -182,6 +190,9 @@ export function EnVocabStudyPage() {
       if (payload.quiz_progress && payload.quiz_progress.total > 0) {
         quizTargetTotalRef.current = payload.quiz_progress.total;
         setQuizTargetTotal(payload.quiz_progress.total);
+        const done = Boolean(payload.quiz_progress.complete);
+        teacherQuizCompleteRef.current = done;
+        setTeacherQuizComplete(done);
       }
       hasLoadedOnceRef.current = true;
     },
@@ -238,6 +249,8 @@ export function EnVocabStudyPage() {
         setShareDate(beijingDateString());
         setQuizTargetTotal(0);
         quizTargetTotalRef.current = 0;
+        teacherQuizCompleteRef.current = false;
+        setTeacherQuizComplete(false);
         setTeacherLiveWordId(null);
         setError("请登录后查看今日英语单词。");
         return;
@@ -249,13 +262,19 @@ export function EnVocabStudyPage() {
         data.quiz_progress && data.quiz_progress.total > 0
           ? data.quiz_progress.total
           : quizTargetTotalRef.current;
+      const teacherComplete =
+        data.quiz_progress != null
+          ? Boolean(data.quiz_progress.complete)
+          : teacherQuizCompleteRef.current;
       applyStudyPayload({
         items: data.items,
         refs: data.refs,
         share_date: data.share_date,
         quiz_progress:
           targetTotal > 0
-            ? computeEnVocabStudyPageQuizProgress(data.items.length, targetTotal)
+            ? computeEnVocabStudyPageQuizProgress(data.items.length, targetTotal, {
+                teacherComplete,
+              })
             : null,
       });
       applyTeacherLiveWordId(data.teacher_live_word_id);

@@ -91,7 +91,7 @@ import {
 } from "@/lib/jp-vocab-teacher-quiz-live";
 import { formatReviewIso, resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import { resolveJpVocabReadingIfMissing } from "@/lib/jp-vocab-fill-reading";
-import { applyJpVocabReview, isJpVocabWordReviewLocked, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
+import { applyJpVocabReview, revertJpVocabAutoShareReview } from "@/lib/jp-vocab-review";
 import {
   computeJpVocabDailyQuizProgress,
   JP_VOCAB_DAILY_QUIZ_TOP,
@@ -200,9 +200,7 @@ export async function shareJpVocabWord(
   if (jpVocabDbState.devStoreEnabled) {
     const word = jpVocabDbState.devWords.find((w) => w.id === wordId);
     if (!word) return { ok: false, error: "not_found" };
-    if (isJpVocabWordReviewLocked(word)) {
-      return { ok: false, error: "review_locked" };
-    }
+    // 1h 锁只拦改熟悉程度；点「下一个」同步给学生不受锁影响
     if (await isJpVocabWordSharedToday(db, wordId)) {
       return { ok: false, error: "already_shared_today" };
     }
@@ -239,9 +237,7 @@ export async function shareJpVocabWord(
   if (!wordRow) return { ok: false, error: "not_found" };
 
   const current = mapReviewWordRow(wordRow);
-  if (isJpVocabWordReviewLocked(current)) {
-    return { ok: false, error: "review_locked" };
-  }
+  // 1h 锁只拦改熟悉程度；同步给学生（含迟点「下一个」）不受锁影响
 
   const existingRow = await db
     .prepare(
@@ -594,19 +590,25 @@ export async function getJpVocabDailyQuizProgress(
 }
 
 /**
- * 学生 `/api/jp-vocab/shared` 用：只回传分母（管理员今日抽查数量）。
- * 分子由客户端按今日共享列表条数自算（peek 入列表不写 today_check）。
+ * 学生 `/api/jp-vocab/shared` 用：回传分母（今日抽查数量）+ 老师是否已抽完名额。
+ * 分子仍由客户端按今日共享列表条数自算（peek 入列表不写 today_check）。
+ * `complete=true` 表示老师侧 today_check 已达目标（勿再显示「剩余 N」）。
  */
 export async function getJpVocabStudyQuizProgressTarget(
-  db: D1Database
+  db: D1Database,
+  now = new Date()
 ): Promise<JpVocabDailyQuizProgress> {
-  const teacherVisibleLimit = await getJpVocabTeacherVisibleLimit(db);
+  const [teacherVisibleLimit, checkedToday] = await Promise.all([
+    getJpVocabTeacherVisibleLimit(db),
+    countJpVocabTodayCheckedWords(db, now),
+  ]);
   const total = Math.max(0, Math.floor(teacherVisibleLimit.quiz_target));
+  const teacherComplete = total > 0 && checkedToday >= total;
   return {
     total,
     checked: 0,
     remaining: total,
-    complete: false,
+    complete: teacherComplete,
   };
 }
 

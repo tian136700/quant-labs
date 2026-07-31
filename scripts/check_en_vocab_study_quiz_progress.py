@@ -44,6 +44,8 @@ def check_formula_helper() -> None:
         fail("study progress helper must take sharedItemCount")
     if "today_check" in body or "enVocabTodayCheckStats" in body:
         fail("study progress helper must not use today_check stats")
+    if "teacherComplete" not in body:
+        fail("study progress helper must accept teacherComplete option")
     print("OK: computeEnVocabStudyPageQuizProgress")
 
 
@@ -55,8 +57,13 @@ def check_study_page() -> None:
     )
     must_contain(
         STUDY_PAGE,
-        "computeEnVocabStudyPageQuizProgress(items.length, quizTargetTotal)",
+        "computeEnVocabStudyPageQuizProgress(items.length, quizTargetTotal",
         "numerator = items.length",
+    )
+    must_contain(
+        STUDY_PAGE,
+        "teacherComplete",
+        "pass teacherComplete when teacher quota done",
     )
     must_contain(
         STUDY_PAGE,
@@ -89,8 +96,12 @@ def check_shared_api() -> None:
     )
     if not stub:
         fail("missing getEnVocabStudyQuizProgressTarget body")
-    if "countEnVocabTodayCheckedWords" in stub.group(0):
-        fail("study target helper must not COUNT today-checked words")
+    body = stub.group(0)
+    if "countEnVocabTodayCheckedWords" in body:
+        if "checked: 0" not in body and "checked:0" not in body:
+            fail("study target helper must keep checked:0 for client numerator")
+    if "teacherComplete" not in body and "checkedToday" not in body:
+        fail("study target helper must detect teacherComplete via today checked count")
     print("OK: shared API study target-only")
 
 

@@ -625,19 +625,24 @@ export async function getEnVocabDailyQuizProgress(
 }
 
 /**
- * 学生 `/api/en-vocab/shared` 用：只回传分母（管理员今日抽查数量）。
+ * 学生 `/api/en-vocab/shared` 用：回传分母 + 老师是否已抽完名额。
  * 分子由客户端按今日共享列表条数自算（peek 入列表不写 today_check）。
  */
 export async function getEnVocabStudyQuizProgressTarget(
-  db: D1Database
+  db: D1Database,
+  now = new Date()
 ): Promise<EnVocabDailyQuizProgressDb> {
-  const teacherVisibleLimit = await getEnVocabTeacherVisibleLimit(db);
+  const [teacherVisibleLimit, checkedToday] = await Promise.all([
+    getEnVocabTeacherVisibleLimit(db),
+    countEnVocabTodayCheckedWords(db, now),
+  ]);
   const total = Math.max(0, Math.floor(teacherVisibleLimit.quiz_target));
+  const teacherComplete = total > 0 && checkedToday >= total;
   return {
     total,
     checked: 0,
     remaining: total,
-    complete: false,
+    complete: teacherComplete,
   };
 }
 

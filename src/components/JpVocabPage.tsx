@@ -63,6 +63,7 @@ import { useJpVocabExportActions } from "@/hooks/useJpVocabExportActions";
 import { useJpVocabPageWordHandlers } from "@/hooks/useJpVocabPageWordHandlers";
 import { useJpVocabPageSync } from "@/hooks/useJpVocabPageSync";
 import { useJpVocabReviewActions } from "@/hooks/useJpVocabReviewActions";
+import { useVocabShareBackfillOnComplete } from "@/hooks/useVocabShareBackfillOnComplete";
 import { useJpVocabSearchFreshLoad } from "@/hooks/useJpVocabSearchFreshLoad";
 import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
 import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
@@ -530,6 +531,15 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     openJpAuth,
     refresh,
     persistCache,
+  });
+
+  useVocabShareBackfillOnComplete({
+    enabled: canOperate && !isAdminMode && canShareToStudy,
+    complete: displayQuizProgress.complete || dailyQuizProgress.complete,
+    poolWordIds: quizTargetWords.map((w) => w.id),
+    hasLevel: quizWordHasLevel,
+    isSharedToday: (id) => sharedTodayWordIds.has(id),
+    shareWord,
   });
 
   const {

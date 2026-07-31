@@ -52,6 +52,8 @@ def check_formula_helper() -> None:
         fail("study progress helper must take sharedItemCount")
     if "today_check" in body or "jpVocabTodayCheckStats" in body:
         fail("study progress helper must not use today_check stats")
+    if "teacherComplete" not in body:
+        fail("study progress helper must accept teacherComplete option")
     print("OK: computeJpVocabStudyPageQuizProgress")
 
 
@@ -63,8 +65,13 @@ def check_study_page() -> None:
     )
     must_contain(
         STUDY_PAGE,
-        "computeJpVocabStudyPageQuizProgress(items.length, quizTargetTotal)",
+        "computeJpVocabStudyPageQuizProgress(items.length, quizTargetTotal",
         "numerator = items.length",
+    )
+    must_contain(
+        STUDY_PAGE,
+        "teacherComplete",
+        "pass teacherComplete when teacher quota done",
     )
     print("OK: JpVocabStudyPage uses list length")
 
@@ -93,7 +100,11 @@ def check_shared_api() -> None:
     if not stub:
         fail("missing getJpVocabStudyQuizProgressTarget body")
     if "countJpVocabTodayCheckedWords" in stub.group(0):
-        fail("study target helper must not COUNT today-checked words")
+        # allowed only to set complete=teacherDone; must not expose as checked numerator
+        if "checked: 0" not in stub.group(0) and "checked:0" not in stub.group(0):
+            fail("study target helper must keep checked:0 for client numerator")
+    if "teacherComplete" not in stub.group(0) and "checkedToday" not in stub.group(0):
+        fail("study target helper must detect teacherComplete via today checked count")
     print("OK: shared API study target-only")
 
 

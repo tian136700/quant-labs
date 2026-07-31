@@ -403,10 +403,7 @@ export function useJpVocabReviewActions(options: {
     }
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return false;
-    if (isWordReviewLocked(snapshot, sessionReviewAt[wordId])) {
-      setStatus("勾选已满 1 小时，无法再发给学生。");
-      return false;
-    }
+    // 1h 锁只拦改熟悉程度；点「下一个」同步给学生不受锁影响
     if (wordSyncState[wordId]) {
       setStatus("正在提交，请勿重复提交");
       return false;

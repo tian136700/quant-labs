@@ -92,6 +92,7 @@ import {
   useEnVocabTeacherListView,
 } from "@/hooks/useEnVocabTeacherListView";
 import { useEnVocabReviewActions } from "@/hooks/useEnVocabReviewActions";
+import { useVocabShareBackfillOnComplete } from "@/hooks/useVocabShareBackfillOnComplete";
 import { useEnVocabDailyCompleteEffects } from "@/hooks/useEnVocabDailyCompleteEffects";
 import { useEnVocabTeacherQuiz } from "@/hooks/useEnVocabTeacherQuiz";
 import { useEnVocabAdminActions } from "@/hooks/useEnVocabAdminActions";
@@ -594,6 +595,14 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     persistCache,
   });
 
+  useVocabShareBackfillOnComplete({
+    enabled: canOperate && !isAdminMode,
+    complete: displayQuizProgress.complete || dailyQuizProgress.complete,
+    poolWordIds: quizTargetWords.map((w) => w.id),
+    hasLevel: quizWordHasLevel,
+    isSharedToday: (id) => sharedTodayWordIds.has(id),
+    shareWord,
+  });
 
   /**
    * 老师抽查进行中：不展示单词列表，避免在列表里随意点选。

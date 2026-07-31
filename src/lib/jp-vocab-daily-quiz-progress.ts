@@ -41,20 +41,24 @@ export function computeJpVocabDailyQuizProgress(
 
 /**
  * 学生端「今日日语单词」进度：分子 = 今日共享列表条数；分母 = 管理员设定的今日抽查数量。
- * 禁止用全库 today_check_count（peek 入列表不会写抽查次数，否则会一直 0/N）。
+ * 禁止用全库 today_check_count 当分子（peek 入列表不会写抽查次数，否则会一直 0/N）。
+ * `teacherComplete`：老师侧 today_check 已达目标（共享若漏几条仍显示已完成，勿卡在「剩余 N」）。
  */
 export function computeJpVocabStudyPageQuizProgress(
   sharedItemCount: number,
-  quizTarget: number
+  quizTarget: number,
+  options?: { teacherComplete?: boolean }
 ): JpVocabDailyQuizProgress {
   const total = Math.max(0, Math.floor(quizTarget));
   const checked = Math.max(0, Math.floor(sharedItemCount));
-  const remaining = Math.max(0, total - checked);
+  const teacherComplete = Boolean(options?.teacherComplete);
+  const complete = teacherComplete || (total > 0 && checked >= total);
+  const remaining = complete ? 0 : Math.max(0, total - checked);
   return {
     total,
     checked,
     remaining,
-    complete: total > 0 && checked >= total,
+    complete,
   };
 }
 

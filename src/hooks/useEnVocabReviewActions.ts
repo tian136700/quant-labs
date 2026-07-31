@@ -560,15 +560,7 @@ export function useEnVocabReviewActions(options: {
 
     const snapshot = words.find((w) => w.id === wordId);
     if (!snapshot) return false;
-    if (
-      isEnVocabWordReviewLocked(snapshot, {
-        sessionReviewAtMs: sessionReviewAt[wordId],
-        now: new Date(reviewLockNow),
-      })
-    ) {
-      setStatus("勾选已满 1 小时，无法再发给学生。");
-      return false;
-    }
+    // 1h 锁只拦改熟悉程度；点「下一个」同步给学生不受锁影响
 
     const usageSlotCount = listEnVocabUsagePointsForDisplay(snapshot.usage).points
       .length;

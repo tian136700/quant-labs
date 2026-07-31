@@ -97,6 +97,11 @@ export function JpVocabStudyPage() {
     const cached = readJpVocabStudyCache()?.quiz_progress?.total;
     return cached != null && cached > 0 ? cached : 0;
   });
+  /** 老师侧 today_check 已达目标（API quiz_progress.complete）；漏共享时仍显示已完成 */
+  const [teacherQuizComplete, setTeacherQuizComplete] = useState(() =>
+    Boolean(readJpVocabStudyCache()?.quiz_progress?.complete)
+  );
+  const teacherQuizCompleteRef = useRef(teacherQuizComplete);
   const [showDailyComplete, setShowDailyComplete] = useState(false);
   const dailyCompleteSnapshotRef = useRef<JpVocabDailyCompleteSnapshot | null>(null);
   const [loading, setLoading] = useState(() => readJpVocabStudyCache() == null);
@@ -145,10 +150,16 @@ export function JpVocabStudyPage() {
     })()
   );
 
+  useEffect(() => {
+    teacherQuizCompleteRef.current = teacherQuizComplete;
+  }, [teacherQuizComplete]);
+
   const quizProgress = useMemo((): JpVocabDailyQuizProgress | null => {
     if (quizTargetTotal <= 0) return null;
-    return computeJpVocabStudyPageQuizProgress(items.length, quizTargetTotal);
-  }, [items.length, quizTargetTotal]);
+    return computeJpVocabStudyPageQuizProgress(items.length, quizTargetTotal, {
+      teacherComplete: teacherQuizComplete,
+    });
+  }, [items.length, quizTargetTotal, teacherQuizComplete]);
 
   const openJpAuth = useCallback(() => {
     openAuthPanel({
@@ -181,7 +192,9 @@ export function JpVocabStudyPage() {
         share_date: cached?.share_date || beijingDateString(),
         quiz_progress:
           total > 0
-            ? computeJpVocabStudyPageQuizProgress(nextItems.length, total)
+            ? computeJpVocabStudyPageQuizProgress(nextItems.length, total, {
+                teacherComplete: teacherQuizCompleteRef.current,
+              })
             : cached?.quiz_progress ?? null,
       });
       return nextItems;
@@ -242,6 +255,9 @@ export function JpVocabStudyPage() {
     if (payload.quiz_progress && payload.quiz_progress.total > 0) {
       quizTargetTotalRef.current = payload.quiz_progress.total;
       setQuizTargetTotal(payload.quiz_progress.total);
+      const done = Boolean(payload.quiz_progress.complete);
+      teacherQuizCompleteRef.current = done;
+      setTeacherQuizComplete(done);
     }
     hasLoadedOnceRef.current = true;
   }, []);
@@ -325,6 +341,8 @@ export function JpVocabStudyPage() {
         setShareDate(beijingDateString());
         setQuizTargetTotal(0);
         quizTargetTotalRef.current = 0;
+        teacherQuizCompleteRef.current = false;
+        setTeacherQuizComplete(false);
         setTeacherLiveWordId(null);
         hasLoadedOnceRef.current = false;
         setError("仅管理员或已授权学生可访问今日日语单词。");
@@ -340,13 +358,19 @@ export function JpVocabStudyPage() {
         data.quiz_progress && data.quiz_progress.total > 0
           ? data.quiz_progress.total
           : quizTargetTotalRef.current;
+      const teacherComplete =
+        data.quiz_progress != null
+          ? Boolean(data.quiz_progress.complete)
+          : teacherQuizCompleteRef.current;
       const next: JpVocabStudyApiPayload = {
         items: data.items,
         refs: data.refs ?? {},
         share_date: data.share_date ?? beijingDateString(),
         quiz_progress:
           targetTotal > 0
-            ? computeJpVocabStudyPageQuizProgress(data.items.length, targetTotal)
+            ? computeJpVocabStudyPageQuizProgress(data.items.length, targetTotal, {
+                teacherComplete,
+              })
             : null,
       };
       applyStudyPayload(next);
@@ -562,7 +586,9 @@ export function JpVocabStudyPage() {
           share_date: shareDate || beijingDateString(),
           quiz_progress:
             total > 0
-              ? computeJpVocabStudyPageQuizProgress(nextItems.length, total)
+              ? computeJpVocabStudyPageQuizProgress(nextItems.length, total, {
+                  teacherComplete: teacherQuizCompleteRef.current,
+                })
               : null,
         });
         return nextItems;

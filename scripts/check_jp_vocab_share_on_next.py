@@ -77,6 +77,28 @@ def main() -> int:
         "intro explains share-on-next",
     )
 
+    share_db = read("src/lib/jp-vocab-db/share.ts")
+    if "review_locked" in share_db:
+        raise AssertionError(
+            "shareJpVocabWord must not reject with review_locked "
+            "(1h lock is for level change only)"
+        )
+    must_not_contain(
+        "src/hooks/useJpVocabReviewActions.ts",
+        "无法再发给学生",
+        "client share must not block on 1h review lock",
+    )
+    must_contain(
+        "src/hooks/useVocabShareBackfillOnComplete.ts",
+        "useVocabShareBackfillOnComplete",
+        "backfill unshared checked words after quiz complete",
+    )
+    must_contain(
+        "src/components/JpVocabPage.tsx",
+        "useVocabShareBackfillOnComplete",
+        "teacher page wires share backfill",
+    )
+
     print("OK: jp-vocab share-on-next guards")
     return 0
 

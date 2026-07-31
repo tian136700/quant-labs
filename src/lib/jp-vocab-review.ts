@@ -96,7 +96,7 @@ export function formatReviewIso(now = new Date()): string {
   return beijingDateTimeString(now);
 }
 
-/** 勾选熟悉程度后满 1 小时不可再改、不可发给学生 */
+/** 勾选熟悉程度后满 1 小时不可再改；发给学生 / 点「下一个」同步不受此锁 */
 export const JP_VOCAB_REVIEW_LOCK_MS = 60 * 60 * 1000;
 
 function effectiveReviewTimestampMs(
