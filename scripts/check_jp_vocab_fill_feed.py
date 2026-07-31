@@ -82,7 +82,7 @@ def main() -> int:
     # 禁止含糊「定时状态：正在运行」——须点名统一补全，并与临时词性区分
     if "function vocabFillScheduleLine" not in app_js:
         raise SystemExit("FAIL: vocabFillScheduleLine missing")
-    if "日语统一补全定时" not in app_js:
+    if "日语统一补全" not in app_js or "${name}定时" not in app_js:
         raise SystemExit("FAIL: schedule line must name 日语统一补全定时 (not vague 定时状态)")
     if "按间隔唤醒补下一词" not in app_js:
         raise SystemExit("FAIL: scheduled idle must say 按间隔唤醒补下一词")
@@ -90,8 +90,8 @@ def main() -> int:
         raise SystemExit("FAIL: empty wake must say 最近一轮无待补词条 (not look like stuck)")
     if "下方表只记实际补过的词" not in app_js:
         raise SystemExit("FAIL: empty wake must clarify table only logs filled words")
-    if "与下方「日语统一补全定时」无关" not in app_js:
-        raise SystemExit("FAIL: 临时词性已跑完须注明与统一补全定时无关")
+    if "已跑完并停掉" in app_js:
+        raise SystemExit("FAIL: 临时词性已跑完勿再展示「已跑完并停掉」摘要行")
     if "vocab-fill-panel-sub" in index_html:
         raise SystemExit("FAIL: remove vocab-fill-panel-sub help paragraphs")
     if "日语统一补全与英语整词补全：正在跑哪个" in index_html:

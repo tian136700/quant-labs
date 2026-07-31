@@ -110,6 +110,7 @@ import {
   isJpVocabConjugationGrammar,
   validateJpVocabUsageAiOutput,
 } from "@/lib/jp-vocab-usage-ai";
+import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
 import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
@@ -520,6 +521,24 @@ export async function updateJpVocabWordEntry(
         : null;
     }
   }
+  // 例句：仅当本次提交了 example_sentences 才校验（拒 ～占位、译文夹日语等）
+  let normalizedNextExamples = nextExampleSentences;
+  if (input.example_sentences !== undefined && normalizedNextExamples) {
+    const exOk = validateJpVocabExampleSentencesAiOutput(normalizedNextExamples, {
+      word: nextWord,
+      kind: nextKind,
+      reading: nextReading,
+      meaning: nextMeaning,
+      usage:
+        input.usage !== undefined
+          ? (input.usage || "").trim() || null
+          : current.usage,
+    });
+    if (!exOk.ok) {
+      return { ok: false, error: exOk.reason };
+    }
+    normalizedNextExamples = exOk.text;
+  }
   const nextUsage =
     input.usage !== undefined
       ? (input.usage || "").trim() || null
@@ -601,7 +620,7 @@ export async function updateJpVocabWordEntry(
       pos_source: nextPosSource,
       class_notes: nextNotes,
       mnemonic: nextMnemonic,
-      example_sentences: nextExampleSentences,
+      example_sentences: normalizedNextExamples,
       example_sentences_source: nextExampleSource,
       usage: normalizedNextUsage,
       usage_source: nextUsageSource,
@@ -627,7 +646,7 @@ export async function updateJpVocabWordEntry(
         nextPosSource,
         nextNotes,
         nextMnemonic,
-        nextExampleSentences,
+        normalizedNextExamples,
         nextExampleSource,
         normalizedNextUsage,
         nextUsageSource,

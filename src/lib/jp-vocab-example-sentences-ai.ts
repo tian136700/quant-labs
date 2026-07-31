@@ -93,6 +93,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "bad_furigana_paren",
     "missing_chinese_gloss",
     "literal_chinese_gloss",
+    "gloss_not_chinese",
     "lemma_placeholder_in_sentence",
     "grammar_not_used",
     "word_not_used",
@@ -111,6 +112,26 @@ const LITERAL_NI_TSUITE_HANASU_GLOSS_RE = /关于.+说话/;
 
 /** 词典占位符波浪号，禁止出现在例句正文 */
 const LEMMA_PLACEHOLDER_WAVE_RE = /[～〜]/;
+
+/**
+ * 译文行不得夹日语假名 / 整句日语（曾出现「译文：雨なら傘を忘れた。(あいなら…)」）。
+ * 允许极少量拉丁数字；假名 ≥2 即拒。
+ */
+export function jpVocabExampleGlossLooksNonChinese(glossBody: string): boolean {
+  const body = String(glossBody || "").trim();
+  if (!body) return true;
+  const kana = body.match(/[\u3040-\u30FFー]/g) || [];
+  if (kana.length >= 2) return true;
+  // 「译文：」后直接是日语助词句（无汉字假名括注时的纯假名已在上一档）
+  // 含「なら／です／ます」等常见日语尾巴且汉字较多 → 当把日语塞进译文
+  if (
+    /[\u4E00-\u9FFF]{2,}/.test(body) &&
+    /(?:なら|です|ます|した|して|から|ので|ください)/.test(body)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * 「ながら／によると」后还有内容却未加読点「、」
@@ -332,6 +353,9 @@ export function validateJpVocabExampleSentencesAiOutput(
     if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
       return { ok: false, reason: "literal_chinese_gloss" };
     }
+    if (jpVocabExampleGlossLooksNonChinese(glossBody)) {
+      return { ok: false, reason: "gloss_not_chinese" };
+    }
     if (
       input.kind !== "grammar" &&
       countJpVocabExampleWaTopicMarkers(item.text) >= 2
@@ -462,6 +486,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     );
     if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
       return { ok: false, reason: "literal_chinese_gloss" };
+    }
+    if (jpVocabExampleGlossLooksNonChinese(glossBody)) {
+      return { ok: false, reason: "gloss_not_chinese" };
     }
   }
 

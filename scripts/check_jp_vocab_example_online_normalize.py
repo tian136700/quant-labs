@@ -134,6 +134,8 @@ def main() -> int:
     must_contain(ai, "incomplete_kanji_furigana", "ai online reject bare kanji")
     must_contain(ai, "wrong_jukugo_furigana", "ai online reject wrong jukugo")
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
+    must_contain(ai, "gloss_not_chinese", "ai reject Japanese-in-gloss")
+    must_contain(ai, "jpVocabExampleGlossLooksNonChinese", "ai gloss chinese helper")
     must_not_contain(ai, "不硬拒漏标汉字", "ai must not keep lenient furigana comment")
     must_not_contain(
         ROOT / "src/lib/jp-vocab-meaning-ai.ts",
@@ -151,6 +153,9 @@ def main() -> int:
     must_contain(scan, "listJpVocabWordsIncompleteExampleFurigana", "furigana scan")
     must_contain(examples, "scanJpVocabWordsIncompleteExampleFurigana", "fill scan export")
     must_contain(route, "scan_incomplete_furigana", "route scan mode")
+
+    notes = ROOT / "src/lib/jp-vocab-db/notes_fields.ts"
+    must_contain(notes, "validateJpVocabExampleSentencesAiOutput", "edit must validate examples")
 
     run_node_smoke()
     print("[check_jp_vocab_example_online_normalize] OK")
