@@ -202,6 +202,20 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  // 标签页回到前台再探一次：账号已被定时禁用时立刻进维护页，停掉软刷新/开卡轮询
+  useEffect(() => {
+    const onForeground = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      void refresh();
+    };
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("pageshow", onForeground);
+    return () => {
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("pageshow", onForeground);
+    };
+  }, [refresh]);
+
   const applyUser = useCallback((next: EtrAuthUser | null) => {
     refreshGenRef.current += 1;
     setUser(next);

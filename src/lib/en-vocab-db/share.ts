@@ -291,7 +291,8 @@ export async function queryEnVocabSharedToday(
   db: D1Database,
   now = new Date()
 ): Promise<{ items: EnVocabSharedItem[]; refs: Record<string, EnVocabRef> }> {
-  await ensureVocabWordSchema(db);
+  // 学生端热路径：禁止 ensureVocabWordSchema（冷 isolate 曾全表 TRIM → 1102）。
+  // 词表列已在线上稳定；缺列时 SELECT 会失败，由管理/写入路径补 schema。
   await ensureEnVocabSharedSchema(db);
 
   const today = beijingDateString(now);

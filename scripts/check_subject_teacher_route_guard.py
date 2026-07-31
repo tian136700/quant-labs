@@ -87,6 +87,13 @@ def main() -> None:
         if "setChecking(false)" in cached_block:
             fail("must not setChecking(false) from localStorage cache alone before auth probe")
 
+    # 账号被定时禁用后：回前台须再探 auth，否则标签页仍挂着软刷新/开卡轮询
+    if 'visibilitychange' not in auth or "pageshow" not in auth:
+        fail(
+            "EtrAuthProvider must re-probe auth on visibilitychange/pageshow "
+            "(disabled teacher → maintenance, stop polls)"
+        )
+
     ko = KO_GUARD.read_text(encoding="utf-8")
     if "router.replace(koPronPath())" in ko:
         fail("KoPronTeacherRouteGuard must not actively redirect")

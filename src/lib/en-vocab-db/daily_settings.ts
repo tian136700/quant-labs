@@ -87,7 +87,6 @@ export type { EnVocabTeacherVisibleLimit } from "@/lib/en-vocab-teacher-visible"
 
 import {
   nowIso,
-  ensureVocabWordSchema,
 } from "./helpers";
 import {
   listEnVocabWords,
@@ -587,7 +586,7 @@ export async function countEnVocabTodayCheckedWords(
     return enVocabTodayCheckStats(enVocabDbState.devWords, now).wordCount;
   }
 
-  await ensureVocabWordSchema(db);
+  // 学生 shared 热路径会调到这里：勿 ensureVocabWordSchema（防冷 isolate 1102）
   const today = beijingDateString(now);
   const row = await db
     .prepare(
