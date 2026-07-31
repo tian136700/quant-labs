@@ -194,7 +194,6 @@ export function JpLessonManualScheduleModal({
     setLinkedLessons(next.linked_lessons);
     setError("");
     setAddingTeacher(false);
-    setSyncingLesson(false);
     saveInitiatedRef.current = false;
   }, [open, editing, initialDate]);
 
