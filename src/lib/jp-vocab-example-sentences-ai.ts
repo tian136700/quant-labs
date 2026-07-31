@@ -12,6 +12,10 @@ import {
   stripAllJpVocabParenBlocks,
 } from "@/lib/jp-vocab-example-sentences";
 import {
+  JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT,
+  jpVocabExampleHasWrongJukugoFurigana,
+} from "@/lib/jp-vocab-jukugo-furigana";
+import {
   jpVocabExampleLemmaSurfaces,
   jpVocabNaAdjParts,
   jpVocabNaAdjReadingForStem,
@@ -84,6 +88,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "need_more_japanese_lines",
     "invalid_japanese_line",
     "incomplete_kanji_furigana",
+    "wrong_jukugo_furigana",
     "bad_furigana_paren",
     "missing_chinese_gloss",
     "literal_chinese_gloss",
@@ -238,6 +243,7 @@ ${
    - ✅「友達(ともだち)と話(はな)すと、気分(きぶん)が良(よ)くなります。」
    - 词尾假名也算 base：静か(しずか)、落(お)ち着(つ)きます
    - 禁止整句尾注如「です。(たなかさん げんき です。)」；禁止句末语法说明括号
+5b. ${JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT}
 6. 从句连接后必须加顿号「、」：
    - ❌「食(た)べながらテレビを見(み)る。」→ ✅「食(た)べながら、テレビを見(み)る。」
    - ❌「天気予報(てんきよほう)によると今日(きょう)は晴(は)れです。」→ ✅「…によると、今日(きょう)は…」
@@ -310,6 +316,9 @@ export function validateJpVocabExampleSentencesAiOutput(
     }
     if (jpVocabExampleHasUnannotatedKanji(item.text)) {
       return { ok: false, reason: "incomplete_kanji_furigana" };
+    }
+    if (jpVocabExampleHasWrongJukugoFurigana(item.text)) {
+      return { ok: false, reason: "wrong_jukugo_furigana" };
     }
     if (item.glossLines.length === 0 || !isJpVocabExampleGlossLine(item.glossLines[0])) {
       return { ok: false, reason: "missing_chinese_gloss" };
@@ -435,6 +444,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     }
     if (jpVocabExampleHasUnannotatedKanji(item.text)) {
       return { ok: false, reason: "incomplete_kanji_furigana" };
+    }
+    if (jpVocabExampleHasWrongJukugoFurigana(item.text)) {
+      return { ok: false, reason: "wrong_jukugo_furigana" };
     }
     if (item.glossLines.length === 0) {
       return { ok: false, reason: "missing_chinese_gloss" };

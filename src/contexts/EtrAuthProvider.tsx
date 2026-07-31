@@ -46,6 +46,8 @@ import { PUBLIC_REGISTRATION_ENABLED } from "@/lib/feature-flags";
 import { readApiJson } from "@/lib/api-json";
 
 const AUTH_USER_CACHE_KEY = "etr-auth:user:v1";
+/** 鉴权探测硬超时：弱网 / iPad Safari 挂起时不能永远停在「验证中」 */
+const AUTH_PROBE_TIMEOUT_MS = 10_000;
 
 export type EtrAuthUser = {
   id: number;
@@ -125,11 +127,17 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     const gen = ++refreshGenRef.current;
     const hasCache = readClientCache<EtrAuthUser>(AUTH_USER_CACHE_KEY) != null;
     if (!hasCache) setChecking(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      AUTH_PROBE_TIMEOUT_MS
+    );
     try {
       const locale = readStoredLocale() ?? "en";
       const res = await fetch("/api/english-teacher-review/auth", {
         credentials: "include",
         headers: { [LOCALE_HEADER]: locale },
+        signal: controller.signal,
       });
       const parsed = await readApiJson<{
         ok?: boolean;
@@ -176,6 +184,7 @@ export function EtrAuthProvider({ children }: { children: ReactNode }) {
     } catch {
       if (gen === refreshGenRef.current) setUser(null);
     } finally {
+      window.clearTimeout(timeoutId);
       if (gen === refreshGenRef.current) {
         setChecking(false);
         setAuthProbeDone(true);

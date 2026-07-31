@@ -102,6 +102,7 @@ def main() -> int:
 
     must_contain(ai, "normalizeJpVocabExampleSentencesForOnlineApply", "ai")
     must_contain(ai, "incomplete_kanji_furigana", "ai online reject bare kanji")
+    must_contain(ai, "wrong_jukugo_furigana", "ai online reject wrong jukugo")
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
     must_not_contain(ai, "不硬拒漏标汉字", "ai must not keep lenient furigana comment")
     must_contain(meaning, "normalizeJpVocabExampleSentencesForOnlineApply", "meaning apply")
