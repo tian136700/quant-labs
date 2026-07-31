@@ -39,6 +39,10 @@ def main() -> None:
         fail("usage prompt must forbid splitting one sense by object/scene")
     if "attractive" not in ai:
         fail("usage prompt must give attractive merge anti-example")
+    if "carefully" not in ai:
+        fail("usage prompt must give carefully near-synonym merge anti-example")
+    if "近义微调" not in ai and "近义改写" not in ai:
+        fail("usage prompt must forbid near-synonym nuance splits")
     if "动词/名词" not in ai or "ambiguous_pos" not in ai:
         fail("usage prompt/validate must forbid ambiguous slash POS (动词/名词)")
     if "EN_VOCAB_USAGE_AMBIGUOUS_POS_RE" not in ai:

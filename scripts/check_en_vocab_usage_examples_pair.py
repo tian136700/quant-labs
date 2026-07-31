@@ -147,8 +147,12 @@ def main() -> int:
         errors.append("en-vocab-usage-ai prompt: 须写明禁止硬凑组数")
     if "attractive" not in usage_ai:
         errors.append("en-vocab-usage-ai prompt: 须有 attractive 勿按场景硬拆示例")
+    if "carefully" not in usage_ai:
+        errors.append("en-vocab-usage-ai prompt: 须有 carefully 勿近义微调硬拆示例")
     if "按对象" not in usage_ai and "按修饰对象" not in usage_ai:
         errors.append("en-vocab-usage-ai prompt: 须禁止按对象/场景硬拆同一义")
+    if "近义微调" not in usage_ai:
+        errors.append("en-vocab-usage-ai prompt: 须禁止近义微调硬拆")
 
     fill_rule = (ROOT / ".cursor/rules/en-vocab-fill.mdc").read_text(encoding="utf-8")
     if "至少 2 条（选题按学术考试高频" in fill_rule:
