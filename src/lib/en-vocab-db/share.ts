@@ -84,9 +84,10 @@ export type { EnVocabTeacherVisibleLimit } from "@/lib/en-vocab-teacher-visible"
 
 import {
   nowIso,
-  mapRow,
   ensureVocabWordSchema,
-  WORD_SELECT,
+  WORD_SELECT_LIST,
+  mapReviewWordRow,
+  stripEnVocabWordNotesForList,
   refsRecord,
   listEnVocabRefs,
   listEnVocabRefsByKeys,
@@ -175,7 +176,7 @@ export async function shareEnVocabWord(
     if (await isEnVocabWordSharedToday(db, wordId)) {
       return { ok: false, error: "already_shared_today" };
     }
-    let updatedWord = word;
+    let updatedWord = stripEnVocabWordNotesForList(word);
     if (!isEnVocabWordCheckedToday(word)) {
       const review = await recordEnVocabReview(db, wordId, "weak");
       if (!review.ok) return { ok: false, error: review.error };
@@ -197,8 +198,9 @@ export async function shareEnVocabWord(
     };
   }
 
+  // 必须用 lite 列表：全量 WORD_SELECT（含 class_notes）易 1102
   const wordRow = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
     .bind(wordId)
     .first<Record<string, unknown>>();
   if (!wordRow) return { ok: false, error: "not_found" };
@@ -216,7 +218,7 @@ export async function shareEnVocabWord(
     return { ok: false, error: "already_shared_today" };
   }
 
-  const current = mapRow(wordRow);
+  const current = mapReviewWordRow(wordRow);
   let updatedWord = current;
   if (!isEnVocabWordCheckedToday(current)) {
     const review = await recordEnVocabReview(db, wordId, "weak");
@@ -244,7 +246,7 @@ export async function shareEnVocabWord(
   return {
     ok: true,
     item: mapSharedRow(sharedRow, updatedWord),
-    word: updatedWord,
+    word: stripEnVocabWordNotesForList(updatedWord),
   };
 }
 

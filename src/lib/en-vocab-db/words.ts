@@ -98,6 +98,7 @@ import {
   WORD_SELECT,
   WORD_SELECT_LIST,
   mapEnVocabListWordRow,
+  mapReviewWordRow,
   stripEnVocabWordNotesForList,
   refsRecord,
   upsertEnVocabRefMetadata,
@@ -248,7 +249,12 @@ export async function persistEnVocabReviewUpdate(
     if (shared_new) {
       invalidateEnVocabSharedTodayCache();
     }
-    return { ok: true, word: updated, shared, shared_new };
+    return {
+      ok: true,
+      word: stripEnVocabWordNotesForList(updated),
+      shared,
+      shared_new,
+    };
   }
 
   if (shouldShare) {
@@ -328,7 +334,12 @@ export async function persistEnVocabReviewUpdate(
     invalidateEnVocabSharedTodayCache();
   }
 
-  return { ok: true, word: updated, shared, shared_new };
+  return {
+    ok: true,
+    word: stripEnVocabWordNotesForList(updated),
+    shared,
+    shared_new,
+  };
 }
 
 export async function recordEnVocabReview(
@@ -357,13 +368,14 @@ export async function recordEnVocabReview(
     return persistEnVocabReviewUpdate(db, wordId, current, level, null, options);
   }
 
+  // 必须用 lite 列表：全量 WORD_SELECT（含 class_notes/例句大字段）易 1102
   const row = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
     .bind(wordId)
     .first<Record<string, unknown>>();
 
   if (!row) return { ok: false, error: "not_found" };
-  const current = mapRow(row);
+  const current = mapReviewWordRow(row);
   if (isEnVocabWordReviewLocked(current)) {
     return { ok: false, error: "review_locked" };
   }
@@ -395,14 +407,14 @@ export async function recordEnVocabReviewWithUsageLevels(
   if (enVocabDbState.devStoreEnabled) {
     const idx = enVocabDbState.devWords.findIndex((w) => w.id === wordId);
     if (idx < 0) return { ok: false, error: "not_found" };
-    current = enVocabDbState.devWords[idx];
+    current = stripEnVocabWordNotesForList(enVocabDbState.devWords[idx]);
   } else {
     const row = await db
-      .prepare(`${WORD_SELECT} WHERE id = ?1`)
+      .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
       .bind(wordId)
       .first<Record<string, unknown>>();
     if (!row) return { ok: false, error: "not_found" };
-    current = mapRow(row);
+    current = mapReviewWordRow(row);
   }
 
   if (isEnVocabWordReviewLocked(current)) {

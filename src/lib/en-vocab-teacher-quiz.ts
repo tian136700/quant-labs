@@ -36,14 +36,38 @@ export function enVocabTeacherQuizNotesInline(
   return (notes || "").trim().length <= EN_VOCAB_TEACHER_QUIZ_NOTES_INLINE_MAX;
 }
 
-/** 备注 GET 后合并，避免冲掉例句等列表已有字段 */
+/** 备注 GET 后合并：GET 只回 class_notes（防 1102）；禁止 ...fetched 整词覆盖冲掉例句。 */
 export function mergeEnVocabWordAfterClassNotesFetch(
   base: EnVocabWord,
   fetched: EnVocabWord
 ): EnVocabWord {
   return {
     ...base,
+    class_notes: fetched.class_notes ?? null,
+    class_notes_present:
+      Boolean((fetched.class_notes || "").trim()) ||
+      fetched.class_notes_present === true,
+    updated_at: fetched.updated_at || base.updated_at,
+  };
+}
+
+/**
+ * 勾选熟悉程度 / share 响应合并进列表项：响应常省略 class_notes 正文，勿整词替换冲掉本地已拉备注。
+ */
+export function mergeEnVocabWordAfterReviewResponse(
+  base: EnVocabWord,
+  fetched: EnVocabWord
+): EnVocabWord {
+  return {
+    ...base,
     ...fetched,
+    class_notes: fetched.class_notes ?? base.class_notes ?? null,
+    class_notes_present:
+      fetched.class_notes != null
+        ? Boolean(String(fetched.class_notes).trim())
+        : (fetched.class_notes_present ??
+          base.class_notes_present ??
+          Boolean((base.class_notes || "").trim())),
     example_sentences:
       fetched.example_sentences ?? base.example_sentences ?? null,
     example_sentences_source:
@@ -54,9 +78,9 @@ export function mergeEnVocabWordAfterClassNotesFetch(
     reading_source: fetched.reading_source ?? base.reading_source ?? null,
     usage: fetched.usage ?? base.usage ?? null,
     usage_source: fetched.usage_source ?? base.usage_source ?? null,
-    class_notes_present:
-      Boolean((fetched.class_notes || "").trim()) ||
-      fetched.class_notes_present === true,
+    mnemonic: fetched.mnemonic ?? base.mnemonic ?? null,
+    last_usage_levels:
+      fetched.last_usage_levels ?? base.last_usage_levels ?? null,
   };
 }
 

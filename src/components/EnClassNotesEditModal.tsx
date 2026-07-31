@@ -9,6 +9,7 @@ import {
   upsertEnVocabClassNoteSession,
   type EnVocabClassNoteEntry,
 } from "@/lib/en-vocab-class-notes";
+import { mergeEnVocabWordAfterClassNotesFetch } from "@/lib/en-vocab-teacher-quiz";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
 import {
   buildOptimisticEnVocabWord,
@@ -124,8 +125,12 @@ export function EnClassNotesEditModal({
         (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
       const stampChanged = data.word.updated_at !== local?.updated_at;
       if (notesChanged || stampChanged) {
-        onSaved(data.word);
-        setHistoryEntries(parseEnVocabClassNotes(data.word.class_notes));
+        const merged = mergeEnVocabWordAfterClassNotesFetch(
+          local ?? current,
+          data.word
+        );
+        onSaved(merged);
+        setHistoryEntries(parseEnVocabClassNotes(merged.class_notes));
       }
     } catch {
       /* ignore poll errors */

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n/I18nProvider";
 import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { parseEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
+import { mergeEnVocabWordAfterClassNotesFetch } from "@/lib/en-vocab-teacher-quiz";
 import { closeModalOnBackdropMouseDown } from "@/lib/modal-backdrop";
 import type { EnVocabWord } from "@/lib/types";
 import { EnVocabClassNoteContent } from "@/components/EnVocabClassNoteContent";
@@ -51,12 +52,14 @@ export function EnVocabRemarksViewModal({
       const data = (await res.json()) as { ok: boolean; word?: EnVocabWord };
       if (!data.ok || !data.word) return;
       // Shared/sync list payloads may omit class_notes; hydrate when body differs.
+      const base = displayWord ?? word;
       const notesChanged =
-        (data.word.class_notes ?? null) !== (displayWord?.class_notes ?? null);
-      const stampChanged = data.word.updated_at !== displayWord?.updated_at;
+        (data.word.class_notes ?? null) !== (base?.class_notes ?? null);
+      const stampChanged = data.word.updated_at !== base?.updated_at;
       if (notesChanged || stampChanged) {
-        setDisplayWord(data.word);
-        onWordUpdated?.(data.word);
+        const merged = mergeEnVocabWordAfterClassNotesFetch(base, data.word);
+        setDisplayWord(merged);
+        onWordUpdated?.(merged);
       }
     } catch {
       /* ignore */

@@ -100,6 +100,46 @@ export type UpdateEnVocabClassNotesResult =
   | { ok: true; word: EnVocabWord }
   | { ok: false; error: string };
 
+/** 按需备注：只扫 class_notes，禁止整词 WORD_SELECT（抽查卡连点易 1102） */
+const CLASS_NOTES_SELECT = `SELECT id, class_notes, updated_at,
+  (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes
+  FROM en_vocab_word WHERE id = ?1`;
+
+function mapClassNotesOnlyRow(row: Record<string, unknown>): EnVocabWord {
+  const notes = (row.class_notes as string | null) ?? null;
+  const has = Boolean(Number(row.has_class_notes));
+  return {
+    id: Number(row.id),
+    word: "",
+    reading: null,
+    reading_source: null,
+    meaning: null,
+    meaning_source: null,
+    pos: null,
+    kind: "word",
+    category: "雅思托福",
+    upload_source: "en_lesson",
+    ref_key: null,
+    cnt_very: 0,
+    cnt_normal: 0,
+    cnt_weak: 0,
+    today_check_count: 0,
+    today_check_date: null,
+    class_notes: notes,
+    class_notes_present: has || Boolean(notes && String(notes).trim()),
+    mnemonic: null,
+    usage: null,
+    usage_source: null,
+    example_sentences: null,
+    example_sentences_source: null,
+    last_review_level: null,
+    last_review_at: null,
+    last_usage_levels: null,
+    created_at: "",
+    updated_at: String(row.updated_at ?? ""),
+  };
+}
+
 export async function getEnVocabClassNotes(
   db: D1Database,
   wordId: number
@@ -108,26 +148,34 @@ export async function getEnVocabClassNotes(
     return { ok: false, error: "word_id_invalid" };
   }
 
+  // 按需读备注正文：勿 seedIfEmpty；勿 WORD_SELECT 全字段。
+  // 调用方须 mergeEnVocabWordAfterClassNotesFetch，禁止整词覆盖。
   await ensureVocabWordSchema(db);
 
   if (enVocabDbState.devStoreEnabled) {
     const word = enVocabDbState.devWords.find((w) => w.id === wordId);
     if (!word) return { ok: false, error: "not_found" };
-    return { ok: true, word };
+    return {
+      ok: true,
+      word: {
+        ...mapClassNotesOnlyRow({
+          id: word.id,
+          class_notes: word.class_notes,
+          updated_at: word.updated_at,
+          has_class_notes: word.class_notes ? 1 : 0,
+        }),
+        word: word.word,
+      },
+    };
   }
 
   const row = await db
-    .prepare(
-      `SELECT id, word, reading, meaning, pos, kind, ref_key,
-              cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
-              class_notes, last_review_level, last_review_at, created_at, updated_at
-       FROM en_vocab_word WHERE id = ?1`
-    )
+    .prepare(CLASS_NOTES_SELECT)
     .bind(wordId)
     .first<Record<string, unknown>>();
 
   if (!row) return { ok: false, error: "not_found" };
-  return { ok: true, word: mapRow(row) };
+  return { ok: true, word: mapClassNotesOnlyRow(row) };
 }
 
 /** 更新单词复习页课堂笔记，并同步回关联的新课笔记 */

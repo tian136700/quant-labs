@@ -284,41 +284,47 @@ export async function ensureVocabWordSchema(db: D1Database): Promise<void> {
   await addEnVocabWordColumnIfMissing(db, cols, "usage", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "usage_source", "TEXT");
   await addEnVocabWordColumnIfMissing(db, cols, "last_usage_levels", "TEXT");
+  // 全表 TRIM UPDATE 只在「本 isolate 刚加列」时跑一次；列已存在则跳过，
+  // 避免冷 isolate 每次进抽查页扫全表 → Worker 1102。读路径 normalize* 仍把空值当默认。
+  const hadCategory = cols.has("category");
   await addEnVocabWordColumnIfMissing(
     db,
     cols,
     "category",
     "TEXT NOT NULL DEFAULT '雅思托福'"
   );
+  const hadUploadSource = cols.has("upload_source");
   await addEnVocabWordColumnIfMissing(
     db,
     cols,
     "upload_source",
     `TEXT NOT NULL DEFAULT '${EN_VOCAB_UPLOAD_SOURCE_LESSON}'`
   );
-  // 旧行补默认分类（ALTER 默认值只作用于新插入）
-  try {
-    await db
-      .prepare(
-        `UPDATE en_vocab_word
-         SET category = '雅思托福'
-         WHERE category IS NULL OR TRIM(category) = ''`
-      )
-      .run();
-  } catch {
-    /* ignore if column race */
+  if (!hadCategory) {
+    try {
+      await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET category = '雅思托福'
+           WHERE category IS NULL OR TRIM(category) = ''`
+        )
+        .run();
+    } catch {
+      /* ignore if column race */
+    }
   }
-  // 存量词条一律标为「由英语新课模块同步」
-  try {
-    await db
-      .prepare(
-        `UPDATE en_vocab_word
-         SET upload_source = '${EN_VOCAB_UPLOAD_SOURCE_LESSON}'
-         WHERE upload_source IS NULL OR TRIM(upload_source) = ''`
-      )
-      .run();
-  } catch {
-    /* ignore if column race */
+  if (!hadUploadSource) {
+    try {
+      await db
+        .prepare(
+          `UPDATE en_vocab_word
+           SET upload_source = '${EN_VOCAB_UPLOAD_SOURCE_LESSON}'
+           WHERE upload_source IS NULL OR TRIM(upload_source) = ''`
+        )
+        .run();
+    } catch {
+      /* ignore if column race */
+    }
   }
   enVocabDbState.vocabWordSchemaVersion = EN_VOCAB_WORD_SCHEMA_VERSION;
   enVocabDbState.vocabWordSchemaReady = true;
@@ -341,6 +347,11 @@ export function mapEnVocabListWordRow(row: Record<string, unknown>): EnVocabWord
     class_notes: null,
     class_notes_present: Boolean(Number(row.has_class_notes)),
   };
+}
+
+/** 勾选熟悉程度 / share 读单条：用 LIST 形（无 class_notes 正文），防把备注全文塞回列表 → 1102 */
+export function mapReviewWordRow(row: Record<string, unknown>): EnVocabWord {
+  return mapEnVocabListWordRow(row);
 }
 
 /** dev store 列表与 D1 列表对齐：省略备注正文 */

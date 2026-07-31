@@ -30,6 +30,7 @@ import {
 } from "@/lib/jp-vocab-page-helpers";
 import { JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT } from "@/lib/jp-vocab-save-progress";
 import { notifyEnVocabSharedUpdated } from "@/lib/en-vocab-shared-notify";
+import { mergeEnVocabWordAfterReviewResponse } from "@/lib/en-vocab-teacher-quiz";
 import type { EnVocabRef, EnVocabLevel, EnVocabWord } from "@/lib/types";
 import type { Locale } from "@/i18n/messages";
 
@@ -195,7 +196,11 @@ export function useEnVocabReviewActions(options: {
           : [...sharedTodayWordIdsRef.current];
 
       setWords((prev) => {
-        const next = prev.map((w) => (w.id === data.word.id ? data.word : w));
+        const next = prev.map((w) =>
+          w.id === data.word.id
+            ? mergeEnVocabWordAfterReviewResponse(w, data.word)
+            : w
+        );
         persistCache(next, refs, displayOrderRef.current, nextSharedIds);
         return next;
       });
@@ -665,7 +670,11 @@ export function useEnVocabReviewActions(options: {
       const nextSharedIds = [...sharedTodayWordIdsRef.current, wordId];
       setSharedTodayWordIds(new Set(nextSharedIds));
       setWords((prev) => {
-        const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+        const next = prev.map((w) =>
+          w.id === data.word!.id
+            ? mergeEnVocabWordAfterReviewResponse(w, data.word!)
+            : w
+        );
         persistCache(next, refs, displayOrderRef.current, nextSharedIds);
         return next;
       });
