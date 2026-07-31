@@ -150,7 +150,7 @@ export function EnLessonPageStyles() {
         .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card-head) {
           display: flex;
         }
-        @media (min-width: 1101px) {
+        @media (min-width: 768px) {
           /* Excel 式冻结表头：区内滚动时列名（老师/时间等）始终可见 */
           :global(.jp-lesson-table-wrap) {
             overflow-y: auto;
@@ -665,6 +665,37 @@ export function EnLessonPageStyles() {
         :global(.jp-lesson-action-btn--danger:disabled) {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+        /* 9.7\" iPad 等窄桌面：仍用表格，只压缩列与按钮；禁止套手机卡片（会整页乱） */
+        @media (min-width: 768px) and (max-width: 1024px) {
+          :global(.jp-lesson-table th),
+          :global(.jp-lesson-table td) {
+            padding: 0.35rem 0.28rem;
+            font-size: 0.75rem;
+          }
+          :global(.jp-lesson-id-col),
+          :global(.jp-lesson-operator-col),
+          :global(.jp-lesson-uploaded-col),
+          :global(.jp-lesson-status-at-col),
+          :global(.en-lesson-category-col) {
+            display: none;
+          }
+          :global(.jp-lesson-actions-col) {
+            width: 7.25rem;
+            min-width: 0;
+            max-width: 8rem;
+          }
+          :global(.jp-lesson-action-btn) {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.28rem;
+            min-height: 1.85rem;
+          }
+          :global(.jp-lesson-complete-select) {
+            width: 5.5rem;
+            min-width: 0;
+            max-width: 100%;
+            font-size: 0.75rem;
+          }
         }
       `}</style>
   );

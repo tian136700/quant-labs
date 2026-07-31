@@ -1,5 +1,4 @@
-@media (max-width: 1100px) {
-  /* 含 9.7" iPad 竖/横（≈768/1024）：走卡片，勿用挤爆的桌面宽表 */
+@media (max-width: 767px) {
   /* ── JP Lesson page ── */
   .jp-vocab-page {
     max-width: 100% !important;
