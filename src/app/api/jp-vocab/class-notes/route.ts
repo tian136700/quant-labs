@@ -4,6 +4,7 @@ import {
   updateJpVocabClassNotes,
 } from "@/lib/jp-vocab-db";
 import { requireJpVocabAccess, requireJpVocabRead, requireJpVocabStudyAccess } from "@/lib/jp-vocab-auth";
+import { jsonResponseObserving1102 } from "@/lib/worker-1102-observe";
 
 const AUTH_MSG = {
   en: "Please log in to edit class notes.",
@@ -16,12 +17,18 @@ const READ_MSG = {
 };
 
 export async function GET(request: Request) {
+  const startedAtMs = Date.now();
   const locale = localeFromRequest(request);
 
   try {
     const wordId = Number(new URL(request.url).searchParams.get("word_id"));
     if (!Number.isInteger(wordId) || wordId <= 0) {
-      return jsonResponse({ ok: false, error: "word_id_invalid" }, 400);
+      return jsonResponseObserving1102(
+        request,
+        startedAtMs,
+        { ok: false, error: "word_id_invalid" },
+        400
+      );
     }
 
     const [{ env, allowed: readAllowed }, { allowed: studyAllowed }] = await Promise.all([
@@ -29,23 +36,40 @@ export async function GET(request: Request) {
       requireJpVocabStudyAccess(request),
     ]);
     if (!readAllowed && !studyAllowed) {
-      return jsonResponse({ ok: false, error: READ_MSG[locale] }, 401);
+      return jsonResponseObserving1102(
+        request,
+        startedAtMs,
+        { ok: false, error: READ_MSG[locale] },
+        401
+      );
     }
 
     const result = await getJpVocabClassNotes(env.DB, wordId);
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400;
-      return jsonResponse({ ok: false, error: result.error }, status);
+      return jsonResponseObserving1102(
+        request,
+        startedAtMs,
+        { ok: false, error: result.error },
+        status
+      );
     }
 
-    return jsonResponse(
+    return jsonResponseObserving1102(
+      request,
+      startedAtMs,
       { ok: true, word: result.word },
       200,
       { "Cache-Control": "no-store" }
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ ok: false, error: message }, 500);
+    return jsonResponseObserving1102(
+      request,
+      startedAtMs,
+      { ok: false, error: message },
+      500
+    );
   }
 }
 

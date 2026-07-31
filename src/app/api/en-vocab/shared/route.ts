@@ -1,4 +1,4 @@
-import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
+import { localeFromRequest } from "@/lib/cloudflare-env";
 import {
   getEnVocabStudyQuizProgressTarget,
   getEnVocabTeacherQuizLive,
@@ -6,6 +6,7 @@ import {
 } from "@/lib/en-vocab-db";
 import { requireEnVocabStudyAccess } from "@/lib/en-vocab-auth";
 import { beijingDateString } from "@/lib/en-vocab-daily-check";
+import { jsonResponseObserving1102 } from "@/lib/worker-1102-observe";
 
 const AUTH_MSG = {
   en: "Only Admin or Japanese teachers can access today's vocabulary.",
@@ -13,13 +14,19 @@ const AUTH_MSG = {
 };
 
 export async function GET(request: Request) {
+  const startedAtMs = Date.now();
   const locale = localeFromRequest(request);
   const lite = new URL(request.url).searchParams.get("lite") === "1";
 
   try {
     const { env, allowed } = await requireEnVocabStudyAccess(request);
     if (!allowed) {
-      return jsonResponse({ ok: false, error: AUTH_MSG[locale] }, 401);
+      return jsonResponseObserving1102(
+        request,
+        startedAtMs,
+        { ok: false, error: AUTH_MSG[locale] },
+        401
+      );
     }
 
     const listPromise = listEnVocabSharedToday(env.DB);
@@ -30,13 +37,14 @@ export async function GET(request: Request) {
       quizPromise ?? Promise.resolve(null),
       livePromise,
     ]);
-    return jsonResponse(
+    return jsonResponseObserving1102(
+      request,
+      startedAtMs,
       {
         ok: true,
         items,
         refs,
         share_date: beijingDateString(),
-        // 学生 peek 按钮灰态须跟「老师当前 live 词」，勿只钉上次 peek 的 id
         teacher_live_word_id: live.word_id,
         ...(quiz_progress ? { quiz_progress } : {}),
       },
@@ -45,6 +53,11 @@ export async function GET(request: Request) {
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return jsonResponse({ ok: false, error: message }, 500);
+    return jsonResponseObserving1102(
+      request,
+      startedAtMs,
+      { ok: false, error: message },
+      500
+    );
   }
 }

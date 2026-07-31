@@ -11,6 +11,7 @@ import {
   isAdminRbacPath,
   isAdminTrendsPath,
   isAdminWorkerTrafficPath,
+  isAdminWorker1102Path,
   isAdminToolCodesPath,
   isAdminUsersPath,
   isComparePath,
@@ -318,6 +319,12 @@ export function useSiteNavItems(): SiteNavItem[] {
                     href: navHref("adminWorkerTraffic", locale, navOpts),
                     label: nav.adminWorkerTraffic,
                     active: isAdminWorkerTrafficPath(pathname),
+                  },
+                  {
+                    id: "adminWorker1102",
+                    href: navHref("adminWorker1102", locale, navOpts),
+                    label: nav.adminWorker1102,
+                    active: isAdminWorker1102Path(pathname),
                   },
                 ]
               : []),

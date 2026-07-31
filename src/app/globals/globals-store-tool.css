@@ -547,6 +547,22 @@
   background: var(--rise);
 }
 
+.admin-1102-risk-list {
+  margin: 0.65rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.admin-1102-risk-list li {
+  margin: 0.25rem 0;
+}
+
+.admin-traffic-subhead {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+}
+
 .admin-traffic-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);

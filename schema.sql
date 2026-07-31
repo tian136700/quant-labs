@@ -305,6 +305,21 @@ CREATE TABLE IF NOT EXISTS worker_route_ip_hits (
 CREATE INDEX IF NOT EXISTS idx_worker_route_ip_hits_route
   ON worker_route_ip_hits (stat_date, route_key);
 
+-- Worker 1102 相关重信号聚合（慢/大/5xx；非逐条 access log）
+CREATE TABLE IF NOT EXISTS worker_heavy_signals (
+  stat_date       TEXT    NOT NULL,
+  route_key       TEXT    NOT NULL,
+  signal          TEXT    NOT NULL,
+  hit_count       INTEGER NOT NULL DEFAULT 0,
+  max_duration_ms INTEGER NOT NULL DEFAULT 0,
+  max_bytes       INTEGER NOT NULL DEFAULT 0,
+  updated_at      TEXT    NOT NULL,
+  PRIMARY KEY (stat_date, route_key, signal)
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_heavy_signals_date
+  ON worker_heavy_signals (stat_date);
+
 -- Worker API 最小间隔限流（如 fill-meaning 每 IP 5s）
 CREATE TABLE IF NOT EXISTS worker_api_rate_limit (
   bucket_key TEXT PRIMARY KEY,

@@ -145,6 +145,11 @@ export function adminWorkerTrafficPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/worker-traffic" : "/admin/worker-traffic";
 }
 
+/** Worker 1102 诊断看板（单次请求资源顶满）；与流量检测分开 */
+export function adminWorker1102Path(locale: Locale): string {
+  return locale === "zh" ? "/zh/admin/worker-1102" : "/admin/worker-1102";
+}
+
 export function adminRbacPath(locale: Locale): string {
   return locale === "zh" ? "/zh/admin/rbac" : "/admin/rbac";
 }
@@ -208,6 +213,12 @@ export function isAdminWorkerTrafficPath(pathname: string): boolean {
   );
 }
 
+export function isAdminWorker1102Path(pathname: string): boolean {
+  return (
+    pathname === "/admin/worker-1102" || pathname === "/zh/admin/worker-1102"
+  );
+}
+
 export function isAdminRbacPath(pathname: string): boolean {
   return pathname === "/admin/rbac" || pathname === "/zh/admin/rbac";
 }
@@ -242,6 +253,7 @@ export function isAdminPath(pathname: string): boolean {
   return (
     isAdminDashboardPath(pathname) ||
     isAdminWorkerTrafficPath(pathname) ||
+    isAdminWorker1102Path(pathname) ||
     isAdminTrendsPath(pathname) ||
     isAdminRbacPath(pathname) ||
     isAdminUsersPath(pathname) ||
