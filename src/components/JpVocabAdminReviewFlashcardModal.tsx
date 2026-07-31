@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { readApiJson } from "@/lib/api-json";
-import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { JpVocabClassNoteContent } from "@/components/JpVocabClassNoteContent";
 import { JpVocabFlashcardManualFillExamples } from "@/components/jp-vocab-teacher-quiz-flashcard/JpVocabFlashcardManualFillExamples";
 import { JpVocabUsageExamplesCopyButton } from "@/components/JpVocabUsageExamplesCopyButton";
@@ -26,8 +24,8 @@ import {
 import {
   formatJpVocabClassNotesForDisplay,
   hasJpVocabClassNotes,
-  mergeJpVocabWordAfterClassNotesFetch,
 } from "@/lib/jp-vocab-class-notes";
+import { useJpVocabFlashcardClassNotesFetch } from "@/hooks/useJpVocabFlashcardClassNotesFetch";
 import { parseJpVocabExampleSentenceItems } from "@/lib/jp-vocab-example-sentences";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -83,7 +81,6 @@ export function JpVocabAdminReviewFlashcardModal({
   nestedModalOpen = false,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [notesWord, setNotesWord] = useState<JpVocabWord | null>(null);
   /** 本会话内用户点过「展开」的词条；切词时保留，返回上一个可恢复展开态 */
   const [expandedWordIds, setExpandedWordIds] = useState<ReadonlySet<number>>(
     () => new Set()
@@ -94,6 +91,12 @@ export function JpVocabAdminReviewFlashcardModal({
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
+  const { notesWord, setNotesWord, notesLoading } = useJpVocabFlashcardClassNotesFetch({
+    open,
+    word,
+    locale,
+    onWordUpdated,
+  });
   const sessionWordIdsKey = session?.wordIds.join(",") ?? "";
   const contentExpanded =
     currentWordId != null && expandedWordIds.has(currentWordId);
@@ -109,52 +112,6 @@ export function JpVocabAdminReviewFlashcardModal({
     }
     setExpandedWordIds(new Set());
   }, [open, sessionWordIdsKey]);
-
-  useEffect(() => {
-    if (!open || !word) {
-      setNotesWord(null);
-      return;
-    }
-    setNotesWord(word);
-  }, [open, word?.id, word?.updated_at, word]);
-
-  useEffect(() => {
-    if (!open || !word) return;
-    if (!word.class_notes_present || word.class_notes) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/jp-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
-          {
-            headers: { [LOCALE_HEADER]: locale },
-            credentials: "include",
-            cache: "no-store",
-          }
-        );
-        const parsed = await readApiJson<{ ok: boolean; word?: JpVocabWord }>(res);
-        if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
-        const merged = mergeJpVocabWordAfterClassNotesFetch(word, parsed.data.word);
-        setNotesWord(merged);
-        onWordUpdated?.(merged);
-      } catch {
-        /* ignore */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    open,
-    word?.id,
-    word?.class_notes_present,
-    word?.class_notes,
-    locale,
-    onWordUpdated,
-    word,
-  ]);
 
   useEffect(() => {
     if (!open || nestedModalOpen) return;
@@ -501,7 +458,7 @@ export function JpVocabAdminReviewFlashcardModal({
           <div className="jp-vocab-teacher-quiz__notes-head">
             <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
             <div className="jp-vocab-teacher-quiz__notes-actions">
-              {hasNotes ? (
+              {hasNotes && !notesLoading ? (
                 <button
                   type="button"
                   className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
@@ -520,7 +477,11 @@ export function JpVocabAdminReviewFlashcardModal({
               </button>
             </div>
           </div>
-          {hasNotes ? (
+          {notesLoading ? (
+            <p className="jp-vocab-teacher-quiz__notes-preview" aria-live="polite">
+              正在拉取备注…
+            </p>
+          ) : hasNotes ? (
             notesInline ? (
               <div className="jp-vocab-teacher-quiz__notes-body">
                 <JpVocabClassNoteContent

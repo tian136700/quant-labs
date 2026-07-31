@@ -61,6 +61,10 @@ def main() -> int:
     path_lib = read("src/lib/worker-traffic-path.ts")
     if "shouldCountWorkerTraffic" not in path_lib:
         errors.append("缺少 worker-traffic-path.ts")
+    if "PAGE_HTML_TRAFFIC_SKIP" not in path_lib or '"/jp-vocab/study"' not in path_lib:
+        errors.append(
+            "worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 /jp-vocab/study（防整页 1102）"
+        )
 
     locale = read("src/lib/locale-path.ts")
     if "adminWorkerTrafficPath" not in locale or "isAdminWorkerTrafficPath" not in locale:

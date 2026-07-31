@@ -27,6 +27,7 @@ type Props = {
   risk: number | null;
   todayChecks: number;
   hasNotes: boolean;
+  notesLoading?: boolean;
   onViewRemarks: (w: EnVocabWord) => void;
   onEditRemarks?: (w: EnVocabWord) => void;
   onSelectLevel: (wordId: number, level: EnVocabLevel) => void;
@@ -38,7 +39,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
     canOperate, w, isStudy, previewMode, usePerUsageLevels,
     selected, overallFromUsages, reviewLocked, isSaving, levelSyncHintShort, levelSyncHint,
     locale, priorityLabel, riskBadgeTier,
-    totalDisplay, risk, todayChecks, hasNotes, onViewRemarks, onEditRemarks,
+    totalDisplay, risk, todayChecks, hasNotes, notesLoading = false, onViewRemarks, onEditRemarks,
     onSelectLevel, setNextBlockedHint,
   } = props;
   return (
@@ -221,6 +222,7 @@ export function EnVocabFlashcardPageFooter(props: Props) {
             placement="mobile"
             w={w}
             hasNotes={hasNotes}
+            notesLoading={notesLoading}
             canOperate={canOperate}
             onViewRemarks={onViewRemarks}
             onEditRemarks={onEditRemarks}

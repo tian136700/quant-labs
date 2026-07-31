@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { readApiJson } from "@/lib/api-json";
-import { LOCALE_HEADER } from "@/lib/locale-detect";
 import { hasEnVocabClassNotes } from "@/lib/en-vocab-class-notes";
 import { effectiveTodayCheckCount } from "@/lib/en-vocab-daily-check";
 import { type EnVocabDailyDisplayOrder } from "@/lib/en-vocab-daily-order";
@@ -24,10 +22,7 @@ import {
   enVocabPriorityLabel,
   formatEnVocabTotalReviewsDisplay,
 } from "@/lib/en-vocab-shared";
-import {
-  mergeEnVocabWordAfterClassNotesFetch,
-  type EnVocabTeacherQuizSession,
-} from "@/lib/en-vocab-teacher-quiz";
+import { type EnVocabTeacherQuizSession } from "@/lib/en-vocab-teacher-quiz";
 import {
   buildEnVocabUsageExamplePairs,
   listEnVocabUsagePointsForDisplay,
@@ -41,6 +36,7 @@ import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
 import { JpVocabTeacherQuizFlashcardStyles } from "@/components/JpVocabTeacherQuizFlashcardStyles";
 import type { EnVocabLevel, EnVocabRef, EnVocabWord } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
+import { useEnVocabFlashcardClassNotesFetch } from "@/hooks/useEnVocabFlashcardClassNotesFetch";
 
 import {
   EN_VOCAB_LEVEL_SYNC_HINT,
@@ -141,7 +137,6 @@ export function EnVocabTeacherQuizFlashcardModal({
   nestedModalOpen = false,
 }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [notesWord, setNotesWord] = useState<EnVocabWord | null>(null);
   /** 未勾选熟悉程度就点「下一个」/共享 */
   const [nextBlockedHint, setNextBlockedHint] = useState(false);
   /** 有编号用法未齐时的拦截文案（列出未勾的 N.用法；不滚动定位） */
@@ -166,6 +161,12 @@ export function EnVocabTeacherQuizFlashcardModal({
       ? session.wordIds[session.currentIndex]
       : null;
   const word = currentWordId != null ? wordsById.get(currentWordId) ?? null : null;
+  const { notesWord, notesLoading } = useEnVocabFlashcardClassNotesFetch({
+    open,
+    word,
+    locale,
+    onWordUpdated,
+  });
 
   const isStudyMode = mode === "study";
   const showAnswerTimer =
@@ -177,11 +178,9 @@ export function EnVocabTeacherQuizFlashcardModal({
 
   useEffect(() => {
     if (!open || !word) {
-      setNotesWord(null);
       setRemainingUncheckedHint(false);
       return;
     }
-    setNotesWord(word);
     setNextBlockedHint(false);
     setNextBlockedUsageMessage(null);
     setSyncWaitHint(false);
@@ -189,44 +188,6 @@ export function EnVocabTeacherQuizFlashcardModal({
     pendingNextAfterIdleRef.current = false;
     // 不在换词时清 remainingUncheckedHint：点「完成抽查」跳到未勾选词后需保留提示
   }, [open, word?.id, word?.updated_at, word]);
-
-  useEffect(() => {
-    if (!open || !word) return;
-    if (!word.class_notes_present || word.class_notes) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/en-vocab/class-notes?word_id=${encodeURIComponent(String(word.id))}`,
-          {
-            headers: { [LOCALE_HEADER]: locale },
-            credentials: "include",
-            cache: "no-store",
-          }
-        );
-        const parsed = await readApiJson<{ ok: boolean; word?: EnVocabWord }>(res);
-        if (cancelled || !parsed.ok || !parsed.data.ok || !parsed.data.word) return;
-        const merged = mergeEnVocabWordAfterClassNotesFetch(word, parsed.data.word);
-        setNotesWord(merged);
-        onWordUpdated?.(merged);
-      } catch {
-        /* ignore */
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    open,
-    word?.id,
-    word?.class_notes_present,
-    word?.class_notes,
-    locale,
-    onWordUpdated,
-    word,
-  ]);
 
   useEffect(() => {
     if (!open || nestedModalOpen) return;
@@ -664,6 +625,7 @@ export function EnVocabTeacherQuizFlashcardModal({
             onEditRemarks={onEditRemarks}
             onViewRemarks={onViewRemarks}
             hasNotes={hasNotes}
+            notesLoading={notesLoading}
             shareUiEnabled={shareUiEnabled}
             isStudy={isStudy}
             isShared={isShared}
@@ -704,6 +666,7 @@ export function EnVocabTeacherQuizFlashcardModal({
             risk={risk}
             todayChecks={todayChecks}
             hasNotes={hasNotes}
+            notesLoading={notesLoading}
             onViewRemarks={onViewRemarks}
             onEditRemarks={onEditRemarks}
             onSelectLevel={onSelectLevel}

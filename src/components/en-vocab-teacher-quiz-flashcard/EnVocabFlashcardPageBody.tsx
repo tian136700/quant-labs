@@ -21,6 +21,7 @@ export type EnVocabFlashcardPageBodyProps = {
   onEditRemarks?: (w: EnVocabWord) => void;
   onViewRemarks: (w: EnVocabWord) => void;
   hasNotes: boolean;
+  notesLoading?: boolean;
   shareUiEnabled: boolean;
   isStudy: boolean;
   isShared: boolean;
@@ -51,7 +52,7 @@ export type EnVocabFlashcardPageBodyProps = {
 export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
   const {
     showSideCol, wordTrim, readingTrim, meaningTrim, posTrim, w, vocabRef, onOpenRef,
-    canOperate, onEditWord, onEditRemarks, onViewRemarks, hasNotes, shareUiEnabled,
+    canOperate, onEditWord, onEditRemarks, onViewRemarks, hasNotes, notesLoading = false, shareUiEnabled,
     isStudy, isShared, onUnshare, isSaving, isSharing, reviewLocked, usagesCompleteForShare,
     showUncheckedUsagesBlocked, usageDraftLevels, onShare, showUsageExamples,
     usageExampleModel, usePerUsageLevels, usageLevelDisabled, usageLevelDisabledReason,
@@ -251,6 +252,7 @@ export function EnVocabFlashcardPageBody(props: EnVocabFlashcardPageBodyProps) {
                 placement="desktop"
                 w={w}
                 hasNotes={hasNotes}
+                notesLoading={notesLoading}
                 canOperate={canOperate}
                 onViewRemarks={onViewRemarks}
                 onEditRemarks={onEditRemarks}

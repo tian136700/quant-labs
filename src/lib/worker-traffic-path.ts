@@ -9,6 +9,17 @@ const STATIC_SKIP = new Set([
   "/sitemap.xml",
 ]);
 
+/**
+ * 今日单词等 force-static 壳页：浏览已由 visit_logs 记；
+ * 进页时再 waitUntil 写 worker_*_hits 会与 OpenNext 冷启动抢同一 isolate CPU，易整页 Error 1102。
+ * （API `/api/*/shared` 仍计数。）
+ */
+const PAGE_HTML_TRAFFIC_SKIP = new Set([
+  "/jp-vocab/study",
+  "/en-vocab/study",
+  "/ko-pron/study",
+]);
+
 const PREFIX_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/^\/jp-vocab\/ref\/[^/]+$/, "/jp-vocab/ref/[refKey]"],
   [/^\/en-vocab\/ref\/[^/]+$/, "/en-vocab/ref/[refKey]"],
@@ -46,9 +57,11 @@ export function workerTrafficKind(pathname: string): WorkerTrafficKind {
 
 export function shouldCountWorkerTraffic(pathname: string): boolean {
   if (!pathname) return false;
-  if (STATIC_SKIP.has(pathname)) return false;
-  if (pathname.startsWith("/_next/")) return false;
+  const path = (pathname.split("?")[0] || "/").replace(/\/+$/, "") || "/";
+  if (STATIC_SKIP.has(path) || STATIC_SKIP.has(pathname)) return false;
+  if (PAGE_HTML_TRAFFIC_SKIP.has(path)) return false;
+  if (pathname.startsWith("/_next/") || path.startsWith("/_next/")) return false;
   // 页面浏览已由 visit_logs + ActivityTracker 记录，避免重复噪声
-  if (pathname === "/api/analytics/track") return false;
+  if (path === "/api/analytics/track") return false;
   return true;
 }

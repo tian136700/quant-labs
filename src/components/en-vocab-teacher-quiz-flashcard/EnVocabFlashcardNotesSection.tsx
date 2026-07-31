@@ -9,6 +9,8 @@ export type EnVocabFlashcardNotesSectionProps = {
   placement: "desktop" | "mobile";
   w: EnVocabWord;
   hasNotes: boolean;
+  /** 备注正文/贴图按需拉取中 */
+  notesLoading?: boolean;
   canOperate: boolean;
   onViewRemarks: (w: EnVocabWord) => void;
   onEditRemarks?: (w: EnVocabWord) => void;
@@ -21,9 +23,16 @@ export type EnVocabFlashcardNotesSectionProps = {
 export function EnVocabFlashcardNotesSection(
   props: EnVocabFlashcardNotesSectionProps
 ) {
-  const { placement, w, hasNotes, canOperate, onViewRemarks, onEditRemarks } =
-    props;
-  if (!hasNotes && !canOperate) return null;
+  const {
+    placement,
+    w,
+    hasNotes,
+    notesLoading = false,
+    canOperate,
+    onViewRemarks,
+    onEditRemarks,
+  } = props;
+  if (!hasNotes && !canOperate && !notesLoading) return null;
 
   const placementClass =
     placement === "desktop"
@@ -38,7 +47,7 @@ export function EnVocabFlashcardNotesSection(
       <div className="jp-vocab-teacher-quiz__notes-head">
         <h3 className="jp-vocab-teacher-quiz__notes-title">备注</h3>
         <div className="jp-vocab-teacher-quiz__notes-actions">
-          {hasNotes ? (
+          {hasNotes && !notesLoading ? (
             <button
               type="button"
               className="btn-rsi-filter btn-rsi-filter--compact jp-vocab-teacher-quiz__action-btn"
@@ -60,7 +69,11 @@ export function EnVocabFlashcardNotesSection(
           ) : null}
         </div>
       </div>
-      {hasNotes ? (
+      {notesLoading ? (
+        <p className="jp-vocab-teacher-quiz__notes-preview" aria-live="polite">
+          正在拉取备注…
+        </p>
+      ) : hasNotes ? (
         <div className="jp-vocab-teacher-quiz__notes-body en-vocab-flashcard-page__notes-body">
           <EnVocabClassNoteContent
             content={formatEnVocabClassNotesForDisplay(w.class_notes)}
