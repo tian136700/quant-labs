@@ -393,8 +393,9 @@ export function validateJpVocabExampleSentencesAiOutput(
 }
 
 /**
- * 线上付费 batch 写回：sanitize + 保留 JLPT (N5) 尾标；不硬拒漏标汉字 / 缺顿号等本地 STT 级校验。
- * 本地 Ollama / 老师手改仍走 validateJpVocabExampleSentencesAiOutput。
+ * 线上付费 batch 写回：sanitize + 保留 JLPT (N5) 尾标。
+ * **必须**拒漏标汉字 / 非法括注（与本地 STT 同级）；曾因放行导致页面汉字无下方假名。
+ * 缺顿号等其它本地细则仍可略宽；完整校验走 validateJpVocabExampleSentencesAiOutput。
  */
 export function normalizeJpVocabExampleSentencesForOnlineApply(
   raw: string,
@@ -428,6 +429,12 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
       LEMMA_PLACEHOLDER_WAVE_RE.test(stripAllJpVocabParenBlocks(item.text))
     ) {
       return { ok: false, reason: "lemma_placeholder_in_sentence" };
+    }
+    if (jpVocabExampleHasInvalidFuriganaParen(item.text)) {
+      return { ok: false, reason: "bad_furigana_paren" };
+    }
+    if (jpVocabExampleHasUnannotatedKanji(item.text)) {
+      return { ok: false, reason: "incomplete_kanji_furigana" };
     }
     if (item.glossLines.length === 0) {
       return { ok: false, reason: "missing_chinese_gloss" };

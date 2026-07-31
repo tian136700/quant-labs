@@ -3,6 +3,7 @@ import {
   applyJpVocabExampleSentenceUpdates,
   fillJpVocabExampleSentencesFromCatalog,
   normalizeJpVocabExampleSentencesFormatInDb,
+  scanJpVocabWordsIncompleteExampleFurigana,
   scanJpVocabWordsIncompleteExampleGloss,
   scanJpVocabWordsMissingExampleSentences,
 } from "@/lib/jp-vocab-fill-example-sentences";
@@ -14,13 +15,14 @@ type FillExampleSentencesBody = {
   /**
    * list_missing=拉取缺例句（默认，空 body 亦同）
    * apply=提交 updates 写库（有 updates 时自动）
-   * catalog / scan_incomplete_gloss / normalize_gloss_label=其它运维模式
+   * catalog / scan_incomplete_gloss / scan_incomplete_furigana / normalize_gloss_label=其它运维模式
    */
   mode?:
     | "list_missing"
     | "apply"
     | "catalog"
     | "scan_incomplete_gloss"
+    | "scan_incomplete_furigana"
     | "normalize_gloss_label"
     | "normalize_na_adj";
   dry_run?: boolean;
@@ -34,6 +36,8 @@ type FillExampleSentencesBody = {
   from_catalog?: boolean;
   /** 扫描已有例句但缺中文译义 */
   scan_incomplete_gloss?: boolean;
+  /** 扫描已有例句但汉字漏标假名 */
+  scan_incomplete_furigana?: boolean;
   /** 仅为已有译义补「译文：」前缀 */
   normalize_gloss_label?: boolean;
   /** な形容词「〜だ」剥成词干（词+读音）；list_missing 也会自动跑 */
@@ -123,6 +127,12 @@ export async function POST(request: Request) {
     } else if (body.mode === "scan_incomplete_gloss" || body.scan_incomplete_gloss) {
       mode = "scan_incomplete_gloss";
       result = await scanJpVocabWordsIncompleteExampleGloss(env.DB);
+    } else if (
+      body.mode === "scan_incomplete_furigana" ||
+      body.scan_incomplete_furigana
+    ) {
+      mode = "scan_incomplete_furigana";
+      result = await scanJpVocabWordsIncompleteExampleFurigana(env.DB);
     } else if (body.mode === "catalog" || body.from_catalog) {
       mode = "catalog";
       result = await fillJpVocabExampleSentencesFromCatalog(env.DB, { dryRun });

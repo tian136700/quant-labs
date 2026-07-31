@@ -25,6 +25,10 @@ import {
 } from "@/lib/jp-vocab-example-sentences";
 import { ensureJpVocabWordSchema } from "@/lib/jp-vocab-db";
 import { normalizeJpVocabNaAdjRowsInDb } from "@/lib/jp-vocab-na-adj-db";
+import {
+  listJpVocabWordsIncompleteExampleFurigana,
+  type JpVocabIncompleteFuriganaRow,
+} from "@/lib/jp-vocab-example-furigana-scan";
 
 export type JpVocabMissingExampleSentenceRow = {
   id: number;
@@ -70,6 +74,8 @@ export type JpVocabFillExampleSentencesResult = {
   /** 全库仍缺例句总数（不受 limit 截断） */
   total_missing?: number;
   incomplete_gloss?: JpVocabIncompleteExampleGlossRow[];
+  /** 已有例句但汉字漏标假名 */
+  incomplete_furigana?: JpVocabIncompleteFuriganaRow[];
   catalog_size: number;
   /** 上传格式契约（list_missing / apply 均返回，便于本地客户端） */
   upload_spec?: typeof JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC;
@@ -382,6 +388,21 @@ export async function scanJpVocabWordsIncompleteExampleGloss(
     skipped: [],
     dry_run: true,
     incomplete_gloss,
+    catalog_size: Object.keys(JP_VOCAB_EXAMPLE_SENTENCES_CATALOG).length,
+  };
+}
+
+/** 扫描已有例句但日语行仍有未标假名汉字 */
+export async function scanJpVocabWordsIncompleteExampleFurigana(
+  db: D1Database
+): Promise<JpVocabFillExampleSentencesResult> {
+  const incomplete_furigana = await listJpVocabWordsIncompleteExampleFurigana(db);
+  return {
+    updated: 0,
+    applied: [],
+    skipped: [],
+    dry_run: true,
+    incomplete_furigana,
     catalog_size: Object.keys(JP_VOCAB_EXAMPLE_SENTENCES_CATALOG).length,
   };
 }
