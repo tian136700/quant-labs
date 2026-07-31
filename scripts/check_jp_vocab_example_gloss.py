@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "lib" / "jp-vocab-example-sentences.ts"
 
 GLOSS_LABEL = "译文："
-GLOSS_LABEL_RE = re.compile(r"^(译文|翻譯|翻译|译|譯)\s*[:：]\s*")
+GLOSS_LABEL_RE = re.compile(r"^(译文|翻譯|翻译|译|譯|訳文|訳)\s*[:：]\s*")
 LEADING_SLASH_RE = re.compile(r"^[\s／/]+")
 
 CASES = [
@@ -21,6 +21,8 @@ CASES = [
     ("译文：/ 请按左边的按钮。", "译文：请按左边的按钮。"),
     ("译文：／请按左边的按钮。", "译文：请按左边的按钮。"),
     ("译文：/ 译文：这是一个重要的问题。", "译文：这是一个重要的问题。"),
+    ("译文：訳文：今天非常冷。", "译文：今天非常冷。"),
+    ("訳文：作业多得很，我很头疼。", "译文：作业多得很，我很头疼。"),
     ("/ 右的相反是左。", "译文：右的相反是左。"),
     ("译：/他用左手画画。", "译文：他用左手画画。"),
     ("译文：", ""),
@@ -45,6 +47,13 @@ def main() -> int:
         print(
             "[check_jp_vocab_example_gloss] FAIL: "
             "jp-vocab-example-sentences.ts missing loop strip for /／ + 译文：",
+            file=sys.stderr,
+        )
+        return 1
+    if "訳文" not in src:
+        print(
+            "[check_jp_vocab_example_gloss] FAIL: "
+            "GLOSS_LABEL_RE must strip Japanese 訳文： stacked labels",
             file=sys.stderr,
         )
         return 1

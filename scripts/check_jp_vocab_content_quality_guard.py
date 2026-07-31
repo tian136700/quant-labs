@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""回归：用法/接续/例句/译文防复发钩子与门禁须接线。"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def fail(msg: str) -> None:
+    print(f"FAIL: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def main() -> int:
+    hooks_json = ROOT / ".cursor/hooks.json"
+    data = json.loads(hooks_json.read_text(encoding="utf-8"))
+    hooks = data.get("hooks") or {}
+
+    def commands(event: str) -> list[str]:
+        return [h.get("command", "") for h in hooks.get(event, []) if isinstance(h, dict)]
+
+    need = {
+        "sessionStart": ".cursor/hooks/jp-vocab-content-quality-session.py",
+        "preToolUse": ".cursor/hooks/remind-jp-vocab-content-quality.py",
+        "afterFileEdit": ".cursor/hooks/remind-jp-vocab-content-quality-after-edit.py",
+    }
+    for event, cmd in need.items():
+        if cmd not in commands(event):
+            fail(f"hooks.json {event} 须含 {cmd}")
+
+    for rel in need.values():
+        p = ROOT / rel
+        if not p.is_file():
+            fail(f"missing hook script {rel}")
+        if not p.stat().st_mode & 0o111:
+            fail(f"hook not executable: {rel}")
+
+    rule = ROOT / ".cursor/rules/jp-vocab-content-quality-guard.mdc"
+    if not rule.is_file():
+        fail("missing jp-vocab-content-quality-guard.mdc")
+    rule_text = rule.read_text(encoding="utf-8")
+    for needle in (
+        "只改库不够",
+        "bare_numbered_lines",
+        "gloss_not_chinese",
+        "訳文",
+        "usage_missing_level",
+        "lemma_placeholder",
+    ):
+        if needle not in rule_text:
+            fail(f"rule missing {needle!r}")
+
+    # 核心门禁仍在源码里
+    gloss = (ROOT / "src/lib/jp-vocab-example-sentences.ts").read_text(encoding="utf-8")
+    if "訳文" not in gloss:
+        fail("GLOSS_LABEL_RE 须剥 訳文")
+
+    conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
+    if "bare_numbered_lines" not in conn:
+        fail("connection 须拒 bare_numbered_lines")
+
+    notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
+    if "validateJpVocabExampleSentencesAiOutput" not in notes:
+        fail("编辑写回须校验例句")
+    if "validateJpVocabUsageAiOutput" not in notes:
+        fail("编辑写回须校验用法")
+
+    # smoke: preToolUse hit
+    import subprocess
+
+    smoke = subprocess.run(
+        [sys.executable, str(ROOT / need["preToolUse"])],
+        input=json.dumps({"file_path": "src/lib/jp-vocab-example-sentences-ai.ts"}),
+        capture_output=True,
+        text=True,
+        timeout=10,
+        cwd=ROOT,
+    )
+    if smoke.returncode != 0:
+        fail(f"preToolUse hook exit {smoke.returncode}: {smoke.stderr}")
+    out = json.loads(smoke.stdout or "{}")
+    if out.get("permission") != "allow":
+        fail("preToolUse must allow")
+    if "防复发" not in str(out.get("agent_message", "")):
+        fail("preToolUse should inject agent_message on hit")
+
+    print("OK: jp-vocab content-quality guard hooks + gates")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

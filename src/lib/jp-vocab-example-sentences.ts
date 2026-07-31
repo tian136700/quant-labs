@@ -189,8 +189,8 @@ function countMatches(text: string, re: RegExp): number {
 }
 
 /**
- * 去掉「译文：」等标签后看正文。
- * 循环剥掉行首 `/`／与重复标签（线上曾出现「译文：/ 译文：…」）。
+ * 去掉「译文：」「訳文：」等标签后看正文。
+ * 循环剥掉行首 `/`／与重复标签（线上曾出现「译文：/ 译文：…」「译文：訳文：…」）。
  */
 export function stripJpVocabExampleGlossLabel(text: string): string {
   let body = String(text ?? "").trim();
