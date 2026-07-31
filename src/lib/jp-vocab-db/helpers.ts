@@ -578,6 +578,11 @@ export function mapSharedListWordRow(row: Record<string, unknown>): JpVocabWord 
   };
 }
 
+/** 勾选熟悉程度 / share 读单条：用 LIST 形（无 class_notes 正文），防把备注全文塞回列表 */
+export function mapReviewWordRow(row: Record<string, unknown>): JpVocabWord {
+  return mapSharedListWordRow(row);
+}
+
 export async function seedIfEmpty(db: D1Database): Promise<void> {
   if (jpVocabDbState.devStoreEnabled) {
     if (jpVocabDbState.devSeeded || jpVocabDbState.devWords.length > 0) return;

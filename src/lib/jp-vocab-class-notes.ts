@@ -142,7 +142,7 @@ export function hasJpVocabClassNotes(
 
 /**
  * 学生/老师卡按需拉备注后合并词条。
- * lite 列表已有 example_sentences / usage / connection；备注 GET 若漏字段，禁止整词覆盖冲掉。
+ * GET /class-notes 只回 class_notes（防 1102）；禁止 ...fetched 整词覆盖冲掉例句。
  */
 export function mergeJpVocabWordAfterClassNotesFetch(
   base: JpVocabWord,
@@ -150,7 +150,32 @@ export function mergeJpVocabWordAfterClassNotesFetch(
 ): JpVocabWord {
   return {
     ...base,
+    class_notes: fetched.class_notes ?? null,
+    class_notes_present: hasJpVocabClassNotes(
+      fetched.class_notes,
+      fetched.class_notes_present
+    ),
+    updated_at: fetched.updated_at || base.updated_at,
+  };
+}
+
+/**
+ * 勾选熟悉程度 / share 响应合并进列表项：响应常省略 class_notes 正文，勿整词替换冲掉本地已拉备注。
+ */
+export function mergeJpVocabWordAfterReviewResponse(
+  base: JpVocabWord,
+  fetched: JpVocabWord
+): JpVocabWord {
+  return {
+    ...base,
     ...fetched,
+    class_notes: fetched.class_notes ?? base.class_notes ?? null,
+    class_notes_present:
+      fetched.class_notes != null
+        ? hasJpVocabClassNotes(fetched.class_notes, true)
+        : (fetched.class_notes_present ??
+          base.class_notes_present ??
+          hasJpVocabClassNotes(base.class_notes)),
     example_sentences:
       fetched.example_sentences ?? base.example_sentences ?? null,
     example_sentences_source:
@@ -162,8 +187,7 @@ export function mergeJpVocabWordAfterClassNotesFetch(
     connection: fetched.connection ?? base.connection ?? null,
     connection_source:
       fetched.connection_source ?? base.connection_source ?? null,
-    meaning_source: fetched.meaning_source ?? base.meaning_source ?? null,
-    class_notes_present: hasJpVocabClassNotes(fetched.class_notes, true),
+    mnemonic: fetched.mnemonic ?? base.mnemonic ?? null,
   };
 }
 

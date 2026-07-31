@@ -111,12 +111,12 @@ import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
 import {
   nowIso,
-  mapRow,
   ensureVocabWordSchema,
-  WORD_SELECT,
+  WORD_SELECT_LIST,
   refsRecord,
   listJpVocabRefs,
   listJpVocabRefsByKeys,
+  mapReviewWordRow,
   mapSharedListWordRow,
   seedIfEmpty,
 } from "./helpers";
@@ -233,12 +233,12 @@ export async function shareJpVocabWord(
   }
 
   const wordRow = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
     .bind(wordId)
     .first<Record<string, unknown>>();
   if (!wordRow) return { ok: false, error: "not_found" };
 
-  const current = mapRow(wordRow);
+  const current = mapReviewWordRow(wordRow);
   if (isJpVocabWordReviewLocked(current)) {
     return { ok: false, error: "review_locked" };
   }
@@ -358,7 +358,7 @@ export async function unshareJpVocabWord(
   if (!sharedRow) return { ok: false, error: "not_shared_today" };
 
   const wordRow = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
     .bind(wordId)
     .first<Record<string, unknown>>();
   if (!wordRow) return { ok: false, error: "not_found" };
@@ -368,7 +368,7 @@ export async function unshareJpVocabWord(
     .bind(Number(sharedRow.id))
     .run();
 
-  let updatedWord = mapRow(wordRow);
+  let updatedWord = mapReviewWordRow(wordRow);
   let reverted = false;
   let display_order: JpVocabDailyDisplayOrder | null = null;
   const rawAutoMarked = sharedRow.auto_marked_level;

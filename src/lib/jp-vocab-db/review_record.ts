@@ -18,9 +18,9 @@ import {
   invalidateJpVocabSharedTodayCache,
 } from "./state";
 import {
-  WORD_SELECT,
+  WORD_SELECT_LIST,
   ensureVocabWordSchema,
-  mapRow,
+  mapReviewWordRow,
   nowIso,
   seedIfEmpty,
 } from "./helpers";
@@ -98,7 +98,10 @@ export async function recordJpVocabReview(
 
   await seedIfEmpty(db);
   await ensureVocabWordSchema(db);
-  await ensureJpVocabSharedSchema(db);
+  // 勾选默认不分享：勿每次 ensure shared 表（多余 D1）
+  if (options?.shareToStudy) {
+    await ensureJpVocabSharedSchema(db);
+  }
 
   if (jpVocabDbState.devStoreEnabled) {
     const idx = jpVocabDbState.devWords.findIndex((w) => w.id === wordId);
@@ -161,13 +164,13 @@ export async function recordJpVocabReview(
   }
 
   const row = await db
-    .prepare(`${WORD_SELECT} WHERE id = ?1`)
+    .prepare(`${WORD_SELECT_LIST} WHERE id = ?1`)
     .bind(wordId)
     .first<Record<string, unknown>>();
 
   if (!row) return { ok: false, error: "not_found" };
 
-  const current = mapRow(row);
+  const current = mapReviewWordRow(row);
   if (isJpVocabWordReviewLocked(current)) {
     return { ok: false, error: "review_locked" };
   }

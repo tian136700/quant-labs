@@ -9,6 +9,7 @@ import {
   collectJpVocabClassNoteImageRefKeys,
   jpVocabClassNoteImageRefKeyFromSrc,
   mergeJpVocabClassNoteDraftFromEdit,
+  mergeJpVocabWordAfterClassNotesFetch,
   parseJpVocabClassNoteContent,
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
@@ -190,8 +191,12 @@ export function JpClassNotesEditModal({
         (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
       const stampChanged = data.word.updated_at !== local?.updated_at;
       if (notesChanged || stampChanged) {
-        onSaved(data.word);
-        setHistoryEntries(parseJpVocabClassNotes(data.word.class_notes));
+        const merged = mergeJpVocabWordAfterClassNotesFetch(
+          local ?? current,
+          data.word
+        );
+        onSaved(merged);
+        setHistoryEntries(parseJpVocabClassNotes(merged.class_notes));
       }
     } catch {
       /* ignore poll errors */

@@ -7,6 +7,7 @@ import { LOCALE_HEADER } from "@/lib/locale-detect";
 import {
   parseJpVocabClassNotes,
   removeJpVocabClassNoteAtIndex,
+  mergeJpVocabWordAfterClassNotesFetch,
 } from "@/lib/jp-vocab-class-notes";
 import {
   buildOptimisticJpVocabWord,
@@ -82,8 +83,12 @@ export function JpVocabRemarksViewModal({
         (data.word.class_notes ?? null) !== (local?.class_notes ?? null);
       const stampChanged = data.word.updated_at !== local?.updated_at;
       if (notesChanged || stampChanged) {
-        setDisplayWord(data.word);
-        onWordUpdated?.(data.word);
+        const merged = mergeJpVocabWordAfterClassNotesFetch(
+          local ?? word,
+          data.word
+        );
+        setDisplayWord(merged);
+        onWordUpdated?.(merged);
       }
     } catch {
       /* ignore */

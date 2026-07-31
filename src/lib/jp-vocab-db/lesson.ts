@@ -121,7 +121,9 @@ import {
   ensureJpVocabWordSchema,
 } from "./helpers";
 import {
-  listJpVocabWords, deleteJpVocabWordsByIds,
+  listJpVocabWords,
+  listJpVocabWordsForPool,
+  deleteJpVocabWordsByIds,
 } from "./words";
 import {
   ensureJpVocabDailyDisplayOrder,

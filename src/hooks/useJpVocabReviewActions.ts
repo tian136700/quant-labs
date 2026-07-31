@@ -32,6 +32,7 @@ import type { JpVocabTeacherQuizSession } from "@/lib/jp-vocab-teacher-quiz";
 import type { JpVocabTeacherVisibleLimit } from "@/lib/jp-vocab-teacher-visible";
 import { notifyJpVocabQuizTargetUpdated } from "@/lib/jp-vocab-quiz-target-notify";
 import type { JpVocabLevel, JpVocabRef, JpVocabWord } from "@/lib/types";
+import { mergeJpVocabWordAfterReviewResponse } from "@/lib/jp-vocab-class-notes";
 
 export function useJpVocabReviewActions(options: {
   locale: Locale;
@@ -324,7 +325,11 @@ export function useJpVocabReviewActions(options: {
           }
 
           setWords((prev) => {
-            const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+            const next = prev.map((w) =>
+              w.id === data.word!.id
+                ? mergeJpVocabWordAfterReviewResponse(w, data.word!)
+                : w
+            );
             persistCache(
               next,
               refsRef.current,
@@ -504,7 +509,11 @@ export function useJpVocabReviewActions(options: {
 
       const nextSharedIds = [...sharedTodayWordIdsRef.current, wordId];
       setWords((prev) => {
-        const next = prev.map((w) => (w.id === wordId ? updatedWord : w));
+        const next = prev.map((w) =>
+          w.id === wordId
+            ? mergeJpVocabWordAfterReviewResponse(w, updatedWord)
+            : w
+        );
         persistCache(next, refsRef.current, nextDisplayOrder, nextSharedIds);
         return next;
       });
@@ -597,7 +606,11 @@ export function useJpVocabReviewActions(options: {
         }
 
         setWords((prev) => {
-          const next = prev.map((w) => (w.id === data.word!.id ? data.word! : w));
+          const next = prev.map((w) =>
+            w.id === data.word!.id
+              ? mergeJpVocabWordAfterReviewResponse(w, data.word!)
+              : w
+          );
           persistCache(
             next,
             refsRef.current,
