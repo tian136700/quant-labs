@@ -2,6 +2,7 @@ import {
   getWorker1102DiagnosticSummary,
   purgeWorkerHeavySignalsOlderThan,
 } from "@/lib/worker-1102-db";
+import { purgeWorker1102ClientEventsOlderThan } from "@/lib/worker-1102-client-events";
 import { requirePermission } from "@/lib/admin-auth";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 import { workerQuotaDateString } from "@/lib/worker-traffic-rate";
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
     const [summary] = await Promise.all([
       getWorker1102DiagnosticSummary(env.DB, { quotaStatDate }),
       purgeWorkerHeavySignalsOlderThan(env.DB),
+      purgeWorker1102ClientEventsOlderThan(env.DB),
     ]);
 
     return jsonResponse({ ...summary });

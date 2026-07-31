@@ -9,6 +9,13 @@ import { beijingDateString } from "@/lib/jp-vocab-daily-check";
 import { getWorkerTrafficDailySummary } from "@/lib/worker-traffic-db";
 import { workerQuotaDateString } from "@/lib/worker-traffic-rate";
 import { PAGE_HTML_TRAFFIC_SKIP_PATHS } from "@/lib/worker-traffic-path";
+import {
+  listWorker1102ClientAgg,
+  listWorker1102ClientEventSamples,
+  purgeWorker1102ClientEventsOlderThan,
+  type Worker1102ClientAggRow,
+  type Worker1102ClientEventSample,
+} from "@/lib/worker-1102-client-events";
 
 let schemaReady = false;
 let devStoreEnabled = false;
@@ -73,6 +80,8 @@ export type Worker1102DiagnosticSummary = {
   traffic_total_hits: number;
   traffic_quota_limit: number;
   guardrails: Array<{ id: string; ok: boolean; detail: string }>;
+  client_event_agg: Worker1102ClientAggRow[];
+  client_event_samples: Worker1102ClientEventSample[];
 };
 
 export function enableWorker1102DevStore(): void {
@@ -328,7 +337,8 @@ const RELATED_ROUTE_NEEDLES = [
 
 function buildRiskNotes(
   subjects: Worker1102SubjectRisk[],
-  heavy: WorkerHeavySignalRow[]
+  heavy: WorkerHeavySignalRow[],
+  clientAgg: Worker1102ClientAggRow[]
 ): { level: Worker1102RiskLevel; notes: string[] } {
   const notes: string[] = [];
   let level: Worker1102RiskLevel = "ok";
@@ -389,6 +399,18 @@ function buildRiskNotes(
     bump("warn", `本配额日大响应（≥80KB）较多`);
   }
 
+  const client1102 = clientAgg
+    .filter((r) => r.event_kind === "cf_1102_html")
+    .reduce((a, b) => a + b.hit_count, 0);
+  if (client1102 >= 3) {
+    bump(
+      "critical",
+      `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次（见「客户端现场」）`
+    );
+  } else if (client1102 >= 1) {
+    bump("warn", `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次`);
+  }
+
   if (!notes.length) {
     notes.push("当前快照未见明显 1102 体积/慢请求红灯（不代表线上永不 1102）。");
   }
@@ -410,7 +432,12 @@ function guardrails(): Worker1102DiagnosticSummary["guardrails"] {
       id: "cf_1102_not_self_counted",
       ok: true,
       detail:
-        "真正的 Error 1102 由 Cloudflare 杀进程，本看板记不到那一次请求本身",
+        "硬导航整页 1102 时 Worker 已被杀；靠客户端 fetch/软导航捕获 CF HTML + page_ok 对照",
+    },
+    {
+      id: "client_1102_guard",
+      ok: true,
+      detail: "Providers 挂 Worker1102ClientGuard；上报 /api/analytics/worker-1102/client-report",
     },
     {
       id: "notes_async_expected",
@@ -427,14 +454,17 @@ export async function getWorker1102DiagnosticSummary(
   const shareDate = opts?.shareDate ?? beijingDateString();
   const quotaStatDate = opts?.quotaStatDate ?? workerQuotaDateString();
 
-  const [jp, en, jpHeavy, enHeavy, heavy_signals, traffic] = await Promise.all([
-    subjectRisk(db, "jp", shareDate),
-    subjectRisk(db, "en", shareDate),
-    heaviestNotes(db, "jp", 5),
-    heaviestNotes(db, "en", 5),
-    listWorkerHeavySignals(db, quotaStatDate),
-    getWorkerTrafficDailySummary(db, quotaStatDate).catch(() => null),
-  ]);
+  const [jp, en, jpHeavy, enHeavy, heavy_signals, traffic, client_event_agg, client_event_samples] =
+    await Promise.all([
+      subjectRisk(db, "jp", shareDate),
+      subjectRisk(db, "en", shareDate),
+      heaviestNotes(db, "jp", 5),
+      heaviestNotes(db, "en", 5),
+      listWorkerHeavySignals(db, quotaStatDate),
+      getWorkerTrafficDailySummary(db, quotaStatDate).catch(() => null),
+      listWorker1102ClientAgg(db, quotaStatDate),
+      listWorker1102ClientEventSamples(db, quotaStatDate),
+    ]);
 
   const subjects = [jp, en];
   const heaviest_notes = [...jpHeavy, ...enHeavy]
@@ -449,7 +479,11 @@ export async function getWorker1102DiagnosticSummary(
     )
     .slice(0, 20);
 
-  const { level, notes } = buildRiskNotes(subjects, heavy_signals);
+  const { level, notes } = buildRiskNotes(
+    subjects,
+    heavy_signals,
+    client_event_agg
+  );
 
   return {
     ok: true,
@@ -465,6 +499,8 @@ export async function getWorker1102DiagnosticSummary(
     traffic_total_hits: traffic?.total_hits ?? 0,
     traffic_quota_limit: traffic?.quota_limit ?? 100_000,
     guardrails: guardrails(),
+    client_event_agg,
+    client_event_samples,
   };
 }
 

@@ -19,37 +19,53 @@
    文件：docs/en-vocab-api.txt
    调用：POST https://english.info-quests.com/api/en-vocab
 
-4. 英语抽背 · 本地上传 API 说明（给 STT / 本地脚本）
+4. 英语抽背 · 课堂备注 API（按需拉正文 / 保存）
+   文件：docs/en-vocab-class-notes-api.txt
+   调用：GET  https://english.info-quests.com/api/en-vocab/class-notes?word_id=123
+
+5. 英语抽背 · 本地上传 API 说明（给 STT / 本地脚本）
    文件：docs/en-vocab-local-upload-api.txt
    调用：POST https://english.info-quests.com/api/en-vocab/local-upload
 
-5. 日语新课 · 列表与操作 API（含删除）
+6. 英语抽背 · 今日共享列表 API（学生端 /en-vocab/study）
+   文件：docs/en-vocab-shared-api.txt
+   调用：GET https://english.info-quests.com/api/en-vocab/shared
+
+7. 日语新课 · 列表与操作 API（含删除）
    文件：docs/jp-lesson-api.txt
    调用：GET  https://japanese.info-quests.com/api/jp-lesson
 
-6. 日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
+8. 日语新课 · 整课合并教案 API（同一课单词+语法 → 一份查看链接）
    文件：docs/jp-lesson-course-merge-ref-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/course-merge-ref
 
-7. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
+9. 日语新课 · 同一课合传 API（单词 + 语法一次上传，列表仍分开展示）
    文件：docs/jp-lesson-upload-mixed-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-lesson/upload-mixed
 
-8. 日语抽问 · 熟悉程度 / 同步学生 API
+10. 日语抽问 · 熟悉程度 / 同步学生 API
    文件：docs/jp-vocab-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab
 
-9. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
+11. 日语抽问 · 课堂备注 API（按需拉正文 / 保存）
+   文件：docs/jp-vocab-class-notes-api.txt
+   调用：GET  https://japanese.info-quests.com/api/jp-vocab/class-notes?word_id=123
+
+12. 日语抽问 · 一键下载全部词条 API（给其它项目比对用）
    文件：docs/jp-vocab-download-all-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/download-all
 
-10. 日语抽问 · 词条存在性检测 API（给其它项目调用）
+13. 日语抽问 · 词条存在性检测 API（给其它项目调用）
    文件：docs/jp-vocab-exists-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
 
-11. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
+14. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
    文件：docs/jp-vocab-fill-example-sentences-api.txt
    调用：POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
+
+15. 日语抽问 · 今日共享列表 API（学生端 /jp-vocab/study）
+   文件：docs/jp-vocab-shared-api.txt
+   调用：GET https://japanese.info-quests.com/api/jp-vocab/shared
 
 —— 其它跨项目说明（*-howto.txt）——
 

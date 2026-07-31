@@ -1,0 +1,168 @@
+英语抽背 · 课堂备注 API（按需拉正文 / 保存）
+==========================================
+
+用途
+----
+词表 / shared / sync **列表不返回备注正文**（只带 `class_notes_present`），
+避免贴图备注扫库触发 Worker Error 1102。
+
+要看或改备注正文时：
+
+1) GET  /api/en-vocab/class-notes?word_id=123
+   只读 `id` + `class_notes` + `updated_at` + `class_notes_present`
+   （禁止整词覆盖本地列表；须 merge）
+
+2) POST /api/en-vocab/class-notes
+   老师/管理员写回备注（空串会存成 NULL）
+
+
+线上地址
+--------
+GET  https://english.info-quests.com/api/en-vocab/class-notes?word_id=123
+POST https://english.info-quests.com/api/en-vocab/class-notes
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET  http://127.0.0.1:3002/api/en-vocab/class-notes?word_id=123
+POST http://127.0.0.1:3002/api/en-vocab/class-notes
+
+
+鉴权
+----
+须登录 Cookie 会话（credentials: include）。
+
+GET：须英语词库**读**权限（en_vocab:read / operate，或 en_lesson:operate 等，
+     同 requireEnVocabRead）。
+
+POST：须英语词库写权限（同 requireEnVocabAccess）。
+
+Header（可选）：
+  x-locale: zh | en
+  Content-Type: application/json   （仅 POST）
+
+
+────────────────────────────────
+GET · 按需拉备注正文
+────────────────────────────────
+
+请求参数（Query）
+-----------------
+word_id   必填。正整数词条 id。
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "word": {
+    "id": 123,
+    "class_notes": "……备注正文（可含 ![](/api/en-vocab/ref/…) 贴图）……",
+    "class_notes_present": true,
+    "updated_at": "2026-07-31T12:00:00.000Z",
+    "word": ""
+  }
+}
+
+说明：
+- 响应里其它词条字段多为占位空值；**只信任** id / class_notes /
+  class_notes_present / updated_at。
+- 客户端须 `mergeEnVocabWordAfterClassNotesFetch(base, fetched)`，
+  禁止 `...fetched` 整词覆盖（会冲掉例句 / 用法）。
+
+
+失败响应
+--------
+400  { "ok": false, "error": "word_id_invalid" }
+401  { "ok": false, "error": "请登录后查看课堂笔记。" }
+404  { "ok": false, "error": "not_found" }
+500  { "ok": false, "error": "…" }
+
+
+curl 示例
+---------
+curl -sS \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh' \
+  'https://english.info-quests.com/api/en-vocab/class-notes?word_id=123'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/en-vocab/class-notes",
+    params={"word_id": 123},
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+print(r.status_code, r.json())
+
+
+────────────────────────────────
+POST · 保存备注
+────────────────────────────────
+
+请求体
+------
+{
+  "word_id": 123,
+  "class_notes": "备注正文；空串或仅空白 → 存 NULL（列表 present 标记为无）"
+}
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "word": { "id": 123, "class_notes": "…", "class_notes_present": true, … }
+}
+
+
+失败响应
+--------
+401  { "ok": false, "error": "请登录后再编辑课堂笔记。" }
+400  { "ok": false, "error": "word_id_invalid" }
+404  { "ok": false, "error": "not_found" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://english.info-quests.com/api/en-vocab/class-notes' \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"word_id":123,"class_notes":"今日课堂备注"}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.post(
+    f"{BASE}/api/en-vocab/class-notes",
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    json={"word_id": 123, "class_notes": "今日课堂备注"},
+    timeout=60,
+)
+print(r.status_code, r.json())
+
+
+相关
+----
+- 今日列表：docs/en-vocab-shared-api.txt（无正文，只有 present 标记）
+- 贴图上传：POST /api/en-vocab/class-notes/upload（网页内用；本 TXT 不展开）
+- 1102：GET 成功/失败路径会记重信号（jsonResponseObserving1102）

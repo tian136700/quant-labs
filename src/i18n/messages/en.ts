@@ -244,7 +244,7 @@ export const enMessages: Messages = {
         refreshing: "Refreshing…",
         dateLabel: "Quota day (heavy signals / traffic)",
         diagnoseHint:
-          "Error 1102 = one request blew CPU/memory (not daily quota 1027). Check risk level, heaviest notes, shared list payload; heavy signals accumulate after deploy on shared / class-notes (≥2s / ≥80KB / 5xx).",
+          "Error 1102 = one request blew CPU/memory (not daily quota 1027). Prefer client incident samples (failed URL, Ray, timing). Hard full-page 1102 cannot run page JS; soft-nav/API or other tabs can still catch it. Heavy signals: ≥2s / ≥80KB / 5xx.",
         copyReport: "Copy diagnostic report",
         copySuccess: "Copied",
         copyFailed: "Copy failed",
@@ -289,6 +289,17 @@ export const enMessages: Messages = {
         emptySignals:
           "No slow/large/5xx aggregates for this quota day yet (starts after deploy on shared / class-notes).",
         emptyTraffic: "No related routes in traffic top yet.",
+        clientAggHeading: "Client event totals (browser reports)",
+        clientSamplesHeading: "Client incident samples (failed URL / Ray / timing)",
+        eventKind: "Event",
+        pagePath: "Page",
+        failedUrl: "Failed request",
+        httpStatus: "Status",
+        cfRay: "CF Ray",
+        username: "User",
+        time: "Time",
+        emptyClient:
+          "No client reports yet (after deploy: soft-nav/API sees 1102 HTML, or study page_ok).",
       },
     },
     adminTrends: {

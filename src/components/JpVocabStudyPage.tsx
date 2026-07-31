@@ -18,6 +18,7 @@ import {
   type JpVocabDailyQuizProgress,
 } from "@/lib/jp-vocab-daily-quiz-progress";
 import { hasJpVocabClassNotes } from "@/lib/jp-vocab-class-notes";
+import { reportWorker1102SharedFail } from "@/components/Worker1102ClientGuard";
 import { resolveJpVocabSharedTeacherLevel } from "@/lib/jp-vocab-review";
 import {
   formatJpVocabTotalReviewsDisplay,
@@ -327,15 +328,30 @@ export function JpVocabStudyPage() {
           cache: "no-store",
         });
 
+      const fetchStarted = Date.now();
       let res = await fetchShared();
       // 手机冷启动易 1102：忙时自动再试一次（isolate 变热后通常即可）
       if (res.status === 500 || res.status === 503) {
         await new Promise((r) => setTimeout(r, 700));
         res = await fetchShared();
       }
+      if (res.status === 500 || res.status === 503) {
+        reportWorker1102SharedFail({
+          failedUrl: sharedUrl,
+          status: res.status,
+          durationMs: Date.now() - fetchStarted,
+          error: `shared_http_${res.status}`,
+        });
+      }
       const parsed = await readApiJson<SharedPayload>(res);
 
       if (!parsed.ok) {
+        reportWorker1102SharedFail({
+          failedUrl: sharedUrl,
+          status: res.status,
+          durationMs: Date.now() - fetchStarted,
+          error: parsed.error,
+        });
         if (!hasLoadedOnceRef.current) {
           setError(parsed.error);
         }

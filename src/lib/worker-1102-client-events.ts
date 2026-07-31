@@ -303,19 +303,3 @@ export async function purgeWorker1102ClientEventsOlderThan(
       .bind(cutoffDate),
   ]);
 }
-
-export function parseCf1102FromText(text: string): {
-  is1102: boolean;
-  cfRay: string;
-  snip: string;
-} {
-  const is1102 = /Error\s*1102|Worker exceeded resource limits/i.test(text);
-  const rayMatch =
-    text.match(/Cloudflare Ray ID[:\s]*<[^>]*>([a-f0-9]+)/i) ||
-    text.match(/Ray ID[:\s]*([a-f0-9]{8,})/i);
-  return {
-    is1102,
-    cfRay: rayMatch?.[1] ?? "",
-    snip: text.replace(/\s+/g, " ").trim().slice(0, 280),
-  };
-}

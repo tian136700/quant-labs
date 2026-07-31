@@ -259,6 +259,16 @@ export type Messages = {
       emptyHeavy: string;
       emptySignals: string;
       emptyTraffic: string;
+      clientAggHeading: string;
+      clientSamplesHeading: string;
+      eventKind: string;
+      pagePath: string;
+      failedUrl: string;
+      httpStatus: string;
+      cfRay: string;
+      username: string;
+      time: string;
+      emptyClient: string;
     };
   };
   adminTrends: {

@@ -22,6 +22,22 @@ REQUIRED: list[tuple[str, str]] = [
         "docs/jp-vocab-fill-example-sentences-api.txt",
     ),
     (
+        "src/app/api/jp-vocab/shared/route.ts",
+        "docs/jp-vocab-shared-api.txt",
+    ),
+    (
+        "src/app/api/jp-vocab/class-notes/route.ts",
+        "docs/jp-vocab-class-notes-api.txt",
+    ),
+    (
+        "src/app/api/en-vocab/shared/route.ts",
+        "docs/en-vocab-shared-api.txt",
+    ),
+    (
+        "src/app/api/en-vocab/class-notes/route.ts",
+        "docs/en-vocab-class-notes-api.txt",
+    ),
+    (
         "src/app/api/admin/users/login-link/route.ts",
         "docs/admin-users-login-link-api.txt",
     ),

@@ -17,6 +17,8 @@ export type Worker1102ReportLabels = {
   heavySignalsHeading: string;
   relatedTrafficHeading: string;
   guardrailsHeading: string;
+  clientAggHeading: string;
+  clientSamplesHeading: string;
   signalSlow: string;
   signalLarge: string;
   signalHttp5xx: string;
@@ -86,6 +88,28 @@ export function formatWorker1102DiagnosticReport(
     summary.heavy_signals.forEach((row, i) => {
       lines.push(
         `${i + 1}. ${row.route_key}  ${signalLabel(row.signal, labels)}  hits=${formatNumber(row.hit_count)}  max_ms=${formatNumber(row.max_duration_ms)}  max_bytes=${formatNumber(row.max_bytes)}`
+      );
+    });
+  }
+
+  lines.push("", `${labels.clientAggHeading}:`);
+  if (!summary.client_event_agg?.length) {
+    lines.push("(no client events yet)");
+  } else {
+    summary.client_event_agg.forEach((row, i) => {
+      lines.push(
+        `${i + 1}. ${row.event_kind}  ${row.page_path}  hits=${formatNumber(row.hit_count)}`
+      );
+    });
+  }
+
+  lines.push("", `${labels.clientSamplesHeading}:`);
+  if (!summary.client_event_samples?.length) {
+    lines.push("(no samples)");
+  } else {
+    summary.client_event_samples.slice(0, 25).forEach((row, i) => {
+      lines.push(
+        `${i + 1}. ${row.created_at}  ${row.event_kind}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
       );
     });
   }

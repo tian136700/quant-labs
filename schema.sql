@@ -320,6 +320,34 @@ CREATE TABLE IF NOT EXISTS worker_heavy_signals (
 CREATE INDEX IF NOT EXISTS idx_worker_heavy_signals_date
   ON worker_heavy_signals (stat_date);
 
+-- 1102 客户端现场样本（软导航/API 看到 CF 1102 HTML 等；非逐条 access log）
+CREATE TABLE IF NOT EXISTS worker_1102_client_events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at  TEXT    NOT NULL,
+  stat_date   TEXT    NOT NULL,
+  event_kind  TEXT    NOT NULL,
+  page_path   TEXT    NOT NULL,
+  failed_url  TEXT    NOT NULL DEFAULT '',
+  http_status INTEGER,
+  duration_ms INTEGER,
+  cf_ray      TEXT    NOT NULL DEFAULT '',
+  username    TEXT    NOT NULL DEFAULT '',
+  ip          TEXT    NOT NULL DEFAULT '',
+  detail_json TEXT    NOT NULL DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_1102_client_events_date
+  ON worker_1102_client_events (stat_date, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS worker_1102_client_agg (
+  stat_date   TEXT    NOT NULL,
+  event_kind  TEXT    NOT NULL,
+  page_path   TEXT    NOT NULL,
+  hit_count   INTEGER NOT NULL DEFAULT 0,
+  updated_at  TEXT    NOT NULL,
+  PRIMARY KEY (stat_date, event_kind, page_path)
+);
+
 -- Worker API 最小间隔限流（如 fill-meaning 每 IP 5s）
 CREATE TABLE IF NOT EXISTS worker_api_rate_limit (
   bucket_key TEXT PRIMARY KEY,

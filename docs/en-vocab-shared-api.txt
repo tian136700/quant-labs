@@ -1,0 +1,131 @@
+英语抽背 · 今日共享列表 API（学生端 /en-vocab/study）
+===============================================
+
+用途
+----
+学生「今日英语单词」轮询主接口：拉今日已同步给学生的词条列表，以及老师当前
+live 抽查词 id、抽查目标分母。
+
+**不返回备注正文**（`class_notes` 省略 / null）；用
+`word.class_notes_present` 判断有无备注，正文按需再调
+GET /api/en-vocab/class-notes。
+
+
+线上地址
+--------
+GET https://english.info-quests.com/api/en-vocab/shared
+GET https://english.info-quests.com/api/en-vocab/shared?lite=1
+
+说明：也可用 finance.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/en-vocab/shared
+GET http://127.0.0.1:3002/api/en-vocab/shared?lite=1
+
+
+鉴权
+----
+须登录 Cookie（credentials: include）。
+
+允许：管理员，或持有 en_vocab:study 且**不是**英语老师 operate 的学生。
+英语老师账号默认不可进学生端（对齐日语）。
+
+
+请求参数（Query）
+-----------------
+lite   选填。传 `1` 时不查 quiz_progress（更轻）。
+
+
+成功响应（节选）
+----------------
+{
+  "ok": true,
+  "items": [
+    {
+      "id": 1,
+      "word_id": 123,
+      "shared_by": "teacher1",
+      "shared_at": "2026-07-31T05:30:00.000Z",
+      "share_date": "2026-07-31",
+      "word": {
+        "id": 123,
+        "word": "condition",
+        "reading": "/kən'dɪʃən/",
+        "meaning": "…",
+        "usage": "…",
+        "example_sentences": "…",
+        "class_notes": null,
+        "class_notes_present": true,
+        "…"
+      }
+    }
+  ],
+  "refs": { "ref_key…": { "ref_key": "…", "…" } },
+  "share_date": "2026-07-31",
+  "teacher_live_word_id": 456,
+  "quiz_progress": {
+    "total": 10,
+    "checked": 0,
+    "remaining": 10,
+    "complete": false
+  }
+}
+
+说明：
+- 排序：`shared_at` **倒序**（刚同步的在最前）。
+- `teacher_live_word_id`：老师当前抽查词；学生 peek 按钮灰态用（勿另开
+  teacher-quiz-live 定时轮询）。
+- `quiz_progress`（非 lite）：`total` = 管理员今日抽查数量；
+  `complete=true` 表示老师侧已抽满。学生页进度**分子**用 `items.length`，
+  不要用 API 的 `checked`。
+- 热路径**禁止**再跑 ensureVocabWordSchema 全表 TRIM（易冷 isolate 1102）。
+- Cache-Control: no-store；服务端对今日列表有短缓存。
+
+
+失败响应
+--------
+401  { "ok": false, "error": "仅管理员或英语老师可访问今日背英语单词。" }
+     （文案历史遗留；实际闸门是 admin / en_vocab:study 学生）
+500  { "ok": false, "error": "…" }
+
+
+轮询建议
+--------
+可见约 5s、后台约 45s，走 resolveVocabPollIntervalMs（凌晨 / test 账号降频）。
+禁止 <5s；禁止另开 teacher-quiz-live 定时轮询。
+客户端对 500/503 可自动再 fetch 一次。
+
+
+curl 示例
+---------
+curl -sS \
+  -H 'Cookie: 你的登录 Cookie' \
+  -H 'x-locale: zh' \
+  'https://english.info-quests.com/api/en-vocab/shared?lite=1'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://english.info-quests.com"
+COOKIE = "你的登录 Cookie"
+
+r = requests.get(
+    f"{BASE}/api/en-vocab/shared",
+    params={"lite": "1"},
+    headers={"Cookie": COOKIE, "x-locale": "zh"},
+    timeout=60,
+)
+data = r.json()
+print(r.status_code, data.get("ok"), "items=", len(data.get("items") or []))
+print("live=", data.get("teacher_live_word_id"))
+
+
+相关
+----
+- 备注正文：docs/en-vocab-class-notes-api.txt
+- 老师熟悉程度 / share：docs/en-vocab-api.txt
+- 1102：响应走 jsonResponseObserving1102（诊断看板 /admin/worker-1102）

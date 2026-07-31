@@ -77,6 +77,8 @@ export function AdminWorker1102Panel() {
       heavySignalsHeading: labels.heavySignalsHeading,
       relatedTrafficHeading: labels.relatedTrafficHeading,
       guardrailsHeading: labels.guardrailsHeading,
+      clientAggHeading: labels.clientAggHeading,
+      clientSamplesHeading: labels.clientSamplesHeading,
       signalSlow: labels.signalSlow,
       signalLarge: labels.signalLarge,
       signalHttp5xx: labels.signalHttp5xx,
@@ -263,6 +265,68 @@ export function AdminWorker1102Panel() {
                       <td>{formatNumber(row.hit_count)}</td>
                       <td>{formatNumber(row.max_duration_ms)}</td>
                       <td>{formatNumber(row.max_bytes)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3 className="admin-traffic-subhead">{labels.clientAggHeading}</h3>
+          {(summary.client_event_agg ?? []).length === 0 ? (
+            <p className="muted">{labels.emptyClient}</p>
+          ) : (
+            <div className="admin-visits-table-wrap">
+              <table className="admin-visits-table">
+                <thead>
+                  <tr>
+                    <th>{labels.eventKind}</th>
+                    <th>{labels.pagePath}</th>
+                    <th>{labels.hits}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.client_event_agg.map((row) => (
+                    <tr key={`${row.event_kind}-${row.page_path}`}>
+                      <td>{row.event_kind}</td>
+                      <td>{row.page_path}</td>
+                      <td>{formatNumber(row.hit_count)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h3 className="admin-traffic-subhead">{labels.clientSamplesHeading}</h3>
+          {(summary.client_event_samples ?? []).length === 0 ? (
+            <p className="muted">{labels.emptyClient}</p>
+          ) : (
+            <div className="admin-visits-table-wrap">
+              <table className="admin-visits-table">
+                <thead>
+                  <tr>
+                    <th>{labels.time}</th>
+                    <th>{labels.eventKind}</th>
+                    <th>{labels.pagePath}</th>
+                    <th>{labels.failedUrl}</th>
+                    <th>{labels.httpStatus}</th>
+                    <th>{labels.maxMs}</th>
+                    <th>{labels.cfRay}</th>
+                    <th>{labels.username}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.client_event_samples.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.created_at.replace("T", " ").slice(0, 19)}</td>
+                      <td>{row.event_kind}</td>
+                      <td>{row.page_path}</td>
+                      <td className="admin-1102-url-cell">{row.failed_url || "—"}</td>
+                      <td>{row.http_status ?? "—"}</td>
+                      <td>{row.duration_ms ?? "—"}</td>
+                      <td>{row.cf_ray || "—"}</td>
+                      <td>{row.username || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

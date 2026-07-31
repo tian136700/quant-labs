@@ -221,23 +221,19 @@ export function Worker1102ClientGuard() {
 
 /** 今日单词 shared 拉取最终失败时由页面显式调用 */
 export function reportWorker1102SharedFail(opts: {
+  failedUrl: string;
   status?: number;
   durationMs?: number;
   error?: string;
-  lite?: boolean;
 }): void {
   if (typeof window === "undefined") return;
   postReport({
     event_kind: "shared_fail",
     page_path: window.location.pathname,
     page_href: window.location.href,
-    failed_url: opts.lite
-      ? "/api/jp-vocab/shared?lite=1"
-      : window.location.pathname.includes("en-vocab")
-        ? "/api/en-vocab/shared"
-        : "/api/jp-vocab/shared",
+    failed_url: opts.failedUrl,
     http_status: opts.status,
     duration_ms: opts.durationMs,
-    detail: { error: opts.error ?? null, lite: opts.lite ?? false },
+    detail: { error: opts.error ?? null },
   });
 }
