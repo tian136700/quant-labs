@@ -58,6 +58,24 @@ def main() -> int:
         )
         return 1
 
+    ai = (ROOT / "src" / "lib" / "jp-vocab-example-sentences-ai.ts").read_text(
+        encoding="utf-8"
+    )
+    if "gloss_has_yakuwen_label" not in ai:
+        print(
+            "[check_jp_vocab_example_gloss] FAIL: "
+            "apply must reject gloss_has_yakuwen_label",
+            file=sys.stderr,
+        )
+        return 1
+    if "jpVocabExampleGlossHasYakuwenLabel" not in ai:
+        print(
+            "[check_jp_vocab_example_gloss] FAIL: "
+            "missing jpVocabExampleGlossHasYakuwenLabel",
+            file=sys.stderr,
+        )
+        return 1
+
     for raw, expected in CASES:
         got = format_gloss(raw)
         if got != expected:

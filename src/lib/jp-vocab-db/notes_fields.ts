@@ -111,6 +111,7 @@ import {
   validateJpVocabUsageAiOutput,
 } from "@/lib/jp-vocab-usage-ai";
 import { validateJpVocabExampleSentencesAiOutput } from "@/lib/jp-vocab-example-sentences-ai";
+import { normalizeJpVocabExampleSentencesFormat } from "@/lib/jp-vocab-example-sentences";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
 import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
@@ -522,8 +523,12 @@ export async function updateJpVocabWordEntry(
     }
   }
   // 例句：仅当本次提交了 example_sentences 才校验（拒 ～占位、译文夹日语等）
+  // 先 normalize 剥掉「訳文：」叠标签，避免编辑保存被硬拒；AI apply 仍会拒未剥的脏输入
   let normalizedNextExamples = nextExampleSentences;
   if (input.example_sentences !== undefined && normalizedNextExamples) {
+    normalizedNextExamples =
+      normalizeJpVocabExampleSentencesFormat(normalizedNextExamples) ||
+      normalizedNextExamples;
     const exOk = validateJpVocabExampleSentencesAiOutput(normalizedNextExamples, {
       word: nextWord,
       kind: nextKind,

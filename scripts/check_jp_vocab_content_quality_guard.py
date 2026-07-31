@@ -47,6 +47,7 @@ def main() -> int:
         "只改库不够",
         "bare_numbered_lines",
         "gloss_not_chinese",
+        "gloss_has_yakuwen_label",
         "訳文",
         "usage_missing_level",
         "lemma_placeholder",
@@ -58,6 +59,10 @@ def main() -> int:
     gloss = (ROOT / "src/lib/jp-vocab-example-sentences.ts").read_text(encoding="utf-8")
     if "訳文" not in gloss:
         fail("GLOSS_LABEL_RE 须剥 訳文")
+
+    ai = (ROOT / "src/lib/jp-vocab-example-sentences-ai.ts").read_text(encoding="utf-8")
+    if "gloss_has_yakuwen_label" not in ai:
+        fail("apply 须拒 gloss_has_yakuwen_label")
 
     conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
     if "bare_numbered_lines" not in conn:

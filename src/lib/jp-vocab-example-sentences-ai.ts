@@ -94,6 +94,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
     "missing_chinese_gloss",
     "literal_chinese_gloss",
     "gloss_not_chinese",
+    "gloss_has_yakuwen_label",
     "lemma_placeholder_in_sentence",
     "grammar_not_used",
     "word_not_used",
@@ -130,6 +131,16 @@ export function jpVocabExampleGlossLooksNonChinese(glossBody: string): boolean {
   ) {
     return true;
   }
+  return false;
+}
+
+/** 模型常叠写日文标签「訳文：」→「译文：訳文：…」；写回须拒，展示层另有 strip */
+export function jpVocabExampleGlossHasYakuwenLabel(glossLine: string): boolean {
+  const t = String(glossLine || "").trim();
+  if (!t) return false;
+  if (/訳文\s*[:：]/.test(t)) return true;
+  if (/译文\s*[:：]\s*訳文/.test(t)) return true;
+  if (/^(訳|譯)\s*[:：]/.test(t) && !/^译文\s*[:：]/.test(t)) return true;
   return false;
 }
 
@@ -349,6 +360,9 @@ export function validateJpVocabExampleSentencesAiOutput(
     if (item.glossLines.length === 0 || !isJpVocabExampleGlossLine(item.glossLines[0])) {
       return { ok: false, reason: "missing_chinese_gloss" };
     }
+    if (jpVocabExampleGlossHasYakuwenLabel(item.glossLines[0])) {
+      return { ok: false, reason: "gloss_has_yakuwen_label" };
+    }
     const glossBody = item.glossLines[0].replace(/^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/, "");
     if (LITERAL_NI_TSUITE_HANASU_GLOSS_RE.test(glossBody)) {
       return { ok: false, reason: "literal_chinese_gloss" };
@@ -459,6 +473,14 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     return { ok: false, reason: "need_two_japanese_lines" };
   }
 
+  // 在 format 剥标签之前：原始块若仍含「訳文：」则拒（逼模型别叠日文标签）
+  for (const line of text.split(/\r?\n/)) {
+    const t = line.trim();
+    if (t && jpVocabExampleGlossHasYakuwenLabel(t)) {
+      return { ok: false, reason: "gloss_has_yakuwen_label" };
+    }
+  }
+
   for (const item of items) {
     if (!item.text || !isJpVocabExampleJapaneseLine(item.text)) {
       return { ok: false, reason: "invalid_japanese_line" };
@@ -479,6 +501,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     }
     if (item.glossLines.length === 0) {
       return { ok: false, reason: "missing_chinese_gloss" };
+    }
+    if (jpVocabExampleGlossHasYakuwenLabel(item.glossLines[0])) {
+      return { ok: false, reason: "gloss_has_yakuwen_label" };
     }
     const glossBody = item.glossLines[0].replace(
       /^(译文|翻譯|翻译|译|譯)\s*[:：]\s*/,
