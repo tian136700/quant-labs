@@ -77,7 +77,7 @@ export function JpVocabConnectionSection({
       </div>
       <div className="jp-vocab-teacher-quiz__connection-body">
         {has ? (
-          <JpVocabConnectionBody text={text} showInlineLabel={false} />
+          <JpVocabConnectionBody text={text} showLabel={false} />
         ) : (
           <p className="jp-vocab-teacher-quiz__connection-empty">{emptyText}</p>
         )}

@@ -144,7 +144,7 @@ export function JpVocabUsageExamplesPairedContent({
                 </p>
               ) : null}
               {connText ? (
-                <JpVocabConnectionBody text={connText} showInlineLabel />
+                <JpVocabConnectionBody text={connText} showLabel />
               ) : null}
               {pair.nestedExamples && pair.nestedExamples.length > 0 ? (
                 <ol className="jp-usage-ex-paired-nested">

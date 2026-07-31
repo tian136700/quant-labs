@@ -13,6 +13,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONN = ROOT / "src/lib/jp-vocab-connection-ai.ts"
 UI = ROOT / "src/components/JpVocabUsageExamplesPairedContent.tsx"
+BODY = ROOT / "src/components/JpVocabConnectionBody.tsx"
+SECTION = ROOT / "src/components/JpVocabConnectionSection.tsx"
 QUIZ = ROOT / "src/components/JpVocabTeacherQuizFlashcardModal.tsx"
 
 
@@ -29,22 +31,77 @@ def expand_breaks(raw: str) -> str:
     return t
 
 
+def parse_table_rows(raw: str) -> list[tuple[str, str]] | None:
+    """Mirror parseJpVocabConnectionTableRows (label≤20, skip 用法N)."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    rows: list[tuple[str, str]] = []
+    for line in text.split("\n"):
+        t = line.strip()
+        if not t:
+            continue
+        m = re.match(r"^(.+?)[：:]\s*(.+)$", t)
+        if not m:
+            return None
+        label, body = m.group(1).strip(), m.group(2).strip()
+        if not label or not body:
+            return None
+        if re.match(r"^用法\s*\d+\s*$", label):
+            return None
+        if len(label) > 20:
+            return None
+        rows.append((label, body))
+    return rows if len(rows) >= 2 else None
+
+
 def main() -> None:
     src = CONN.read_text(encoding="utf-8")
     for needle in (
         "parseJpVocabConnectionDisplayParts",
         "expandJpVocabConnectionUsageInlineBreaks",
         "jpVocabConnectionShownInlineWithUsage",
+        "parseJpVocabConnectionTableRows",
         "疑问形",
     ):
         if needle not in src:
             fail(f"connection-ai missing {needle!r}")
 
+    body = BODY.read_text(encoding="utf-8")
+    if "JpVocabConnectionBody" not in body:
+        fail("missing JpVocabConnectionBody component")
+    if "jp-vocab-conn-table" not in body:
+        fail("ConnectionBody 须渲染接续表格")
+    if "overflow-y: clip" not in body:
+        fail("接续表 wrap 须 overflow-y: clip（触控板竖滑）")
+
     ui = UI.read_text(encoding="utf-8")
-    if "接续：" not in ui:
-        fail("PairedContent 须显示「接续：」")
+    if "JpVocabConnectionBody" not in ui:
+        fail("PairedContent 须用 JpVocabConnectionBody")
     if "connectionTextFor" not in ui and "connText" not in ui:
         fail("PairedContent 须按用法挂接续")
+
+    section = SECTION.read_text(encoding="utf-8")
+    if "JpVocabConnectionBody" not in section:
+        fail("ConnectionSection 须用 JpVocabConnectionBody")
+
+    ba_sample = (
+        "动词ば形：五段动词去ない形词尾＋えば；一段动词去る＋れば；カ变「くれば」；サ变「すれば」\n"
+        "一类形容词：去い＋ければ（例：安ければ）\n"
+        "二类形容词：词干＋なら／であれば（例：静かなら）\n"
+        "名词：名词＋なら／であれば\n"
+        "否定：ない形＋なければ（例：行かなければ）"
+    )
+    ba_rows = parse_table_rows(ba_sample)
+    if ba_rows is None or len(ba_rows) < 4:
+        fail(f"～ば 式接续应拆出 ≥4 表行，得到 {ba_rows!r}")
+    if ba_rows[0][0] != "动词ば形":
+        fail(f"首行标签应为动词ば形，得到 {ba_rows[0]!r}")
+
+    single = parse_table_rows("动词て形＋もいい。")
+    if single is not None:
+        fail("单行无「标签：正文」结构不应走表格")
+
 
     quiz = QUIZ.read_text(encoding="utf-8")
     if "inlineConnection" not in quiz:
