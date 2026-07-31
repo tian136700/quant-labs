@@ -106,6 +106,10 @@ import {
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
 import { normalizeJpVocabConnectionText } from "@/lib/jp-vocab-connection-ai";
+import {
+  isJpVocabConjugationGrammar,
+  validateJpVocabUsageAiOutput,
+} from "@/lib/jp-vocab-usage-ai";
 import { normalizeJpVocabNaAdjStoredEntry } from "@/lib/jp-vocab-na-adj";
 import { ensureJpVocabCoachSchema } from "@/lib/jp-vocab-coach-db";
 
@@ -530,6 +534,23 @@ export async function updateJpVocabWordEntry(
         ? JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL
         : null;
     }
+  }
+  // 语法用法：每条须句末 (Nn)；编辑保存也不可漏（含「手动」）
+  let normalizedNextUsage = nextUsage;
+  if (
+    nextKind === "grammar" &&
+    normalizedNextUsage &&
+    !isJpVocabConjugationGrammar(nextWord)
+  ) {
+    const usageOk = validateJpVocabUsageAiOutput(normalizedNextUsage, {
+      word: nextWord,
+      kind: "grammar",
+      requireJlptLevel: true,
+    });
+    if (!usageOk.ok) {
+      return { ok: false, error: usageOk.reason };
+    }
+    normalizedNextUsage = usageOk.text;
   }
   const nextConnection =
     input.connection !== undefined

@@ -700,10 +700,11 @@ export async function applyJpVocabUsageUpdates(
         });
         continue;
       } else if (examples) {
+        // 语法用法句末 (Nn) 一律必填（含「手动」）；缺级会看起来像「例句没标 N 级」
         const usageOk = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),
           kind: "grammar",
-          requireJlptLevel: !isManual,
+          requireJlptLevel: true,
         });
         if (!usageOk.ok) {
           skipped.push({
@@ -734,7 +735,7 @@ export async function applyJpVocabUsageUpdates(
         const validated = validateJpVocabUsageAiOutput(usage, {
           word: String(row.word),
           kind: "grammar",
-          requireJlptLevel: !isManual,
+          requireJlptLevel: true,
         });
         if (!validated.ok) {
           skipped.push({

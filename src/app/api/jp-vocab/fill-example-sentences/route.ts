@@ -115,7 +115,8 @@ export async function POST(request: Request) {
       result = await applyJpVocabExampleSentenceUpdates(env.DB, updates, {
         dryRun,
         allowOverwrite: Boolean(body.allow_overwrite),
-        validateFormat: true,
+        // 默认严格校验；Agent / 线上 batch 可传 validate_format:false 走 online normalize
+        validateFormat: body.validate_format !== false,
         defaultSource: batchSource || null,
       });
     } else if (body.mode === "normalize_na_adj" || body.normalize_na_adj) {

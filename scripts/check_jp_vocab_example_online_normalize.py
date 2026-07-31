@@ -75,6 +75,36 @@ if (!onlineOk.text.includes("(N5)")) {
   console.error("FAIL: JLPT tail missing after online normalize");
   process.exit(1);
 }
+
+// 释义「认真；老实；正经」：；近义不得抬高条数（曾熔断 id=484 真面目）
+import { countJpVocabExampleSentenceTargetFromMeaning } from "./src/lib/jp-vocab-meaning-ai.ts";
+const synonymMeaning = "认真；老实；正经";
+const synonymTarget = countJpVocabExampleSentenceTargetFromMeaning(synonymMeaning, "word");
+if (synonymTarget !== 2) {
+  console.error("FAIL: ；近义 should target 2 examples, got", synonymTarget);
+  process.exit(1);
+}
+const slashTarget = countJpVocabExampleSentenceTargetFromMeaning("前面；以前/预先", "word");
+if (slashTarget !== 2) {
+  console.error("FAIL: two major senses via / should target 2, got", slashTarget);
+  process.exit(1);
+}
+const majime = [
+  "彼(かれ)は真面目(まじめ)な学生(がくせい)です。(N5)",
+  "译文：他是一个认真的学生。",
+  "田中(たなか)さんはいつも真面目(まじめ)に仕事(しごと)をします。(N5)",
+  "译文：田中总是认真地工作。",
+].join("\\n");
+const majimeOk = validateJpVocabExampleSentencesAiOutput(majime, {
+  word: "真面目",
+  kind: "word",
+  reading: "まじめ",
+  meaning: synonymMeaning,
+});
+if (!majimeOk.ok) {
+  console.error("FAIL: 真面目 2 examples with ； synonyms should pass, got", majimeOk.reason);
+  process.exit(1);
+}
 console.log("node smoke ok");
 """,
         ],
@@ -105,6 +135,16 @@ def main() -> int:
     must_contain(ai, "wrong_jukugo_furigana", "ai online reject wrong jukugo")
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
     must_not_contain(ai, "不硬拒漏标汉字", "ai must not keep lenient furigana comment")
+    must_not_contain(
+        ROOT / "src/lib/jp-vocab-meaning-ai.ts",
+        "Math.max(2, sub.length)",
+        "example count must not use ； synonym count",
+    )
+    must_contain(
+        ROOT / "src/lib/jp-vocab-meaning-ai.ts",
+        "只是近义罗列",
+        "example count documents ； ≠ sentence count",
+    )
     must_contain(meaning, "normalizeJpVocabExampleSentencesForOnlineApply", "meaning apply")
     must_contain(examples, "normalizeJpVocabExampleSentencesForOnlineApply", "examples apply")
     must_contain(usage, "normalizeJpVocabExampleSentencesForOnlineApply", "usage apply")

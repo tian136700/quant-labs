@@ -238,7 +238,11 @@ export function validateJpVocabMeaningAiOutput(
   return { ok: true, text };
 }
 
-/** 例句条数：释义含 / 时按大义项数；否则 max(2, 段内 ； 近义数) */
+/**
+ * 例句条数：释义含 `/` 时按大义项数；无斜杠固定 2。
+ * 段内 `；` 只是近义罗列（认真；老实；正经），不是不同用法——勿当条数，
+ * 否则 Claude 造 2 句会被误拒 need_four_lines 并触发熔断。
+ */
 export function countJpVocabExampleSentenceTargetFromMeaning(
   meaning: string | null | undefined,
   kind: string
@@ -246,11 +250,5 @@ export function countJpVocabExampleSentenceTargetFromMeaning(
   if (kind === "grammar") return 2;
   const major = splitJpVocabMeaningMajorSenses(meaning || "");
   if (major.length >= 2) return major.length;
-  if (major.length === 1) {
-    const sub = major[0]
-      .split(JP_VOCAB_MEANING_UPLOAD_SPEC.sub_separator)
-      .filter(Boolean);
-    return Math.max(2, sub.length);
-  }
   return 2;
 }

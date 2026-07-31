@@ -25,16 +25,48 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "否定形/注意等共用说明另起一行（如「否定形: …」）",
     "单词：写词类与常用活用（原形/ます形/て形或一类·二类形容词等）",
     "2～6 行即可；不要 markdown、不要行首 1. 2.（用「用法N:」标签）",
+    "❌ 禁止用「1. 2. 3.」给接序编号——会整段挂到用法1下，把句末 (N4)/(N5) 与对应例句隔开，看起来像「没标级别」",
   ],
-  reject_reasons: ["empty", "too_short", "looks_like_examples"],
+  reject_reasons: [
+    "empty",
+    "too_short",
+    "looks_like_examples",
+    "bare_numbered_lines",
+  ],
 } as const;
 
 const FENCE_RE = /^```(?:\w+)?\s*$/;
 const FURIGANA_PAREN_RE = /\([\u3040-\u309Fー]+\)/;
 const GLOSS_LINE_RE = /^(译文|譯文)\s*[：:]/;
+/** 接序误用「1. 2.」编号（应写成「用法1:」） */
+const CONNECTION_BARE_NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;
 /** 已带「（动词原形）」或半角括号的，归一成全角注解（中/日） */
 const DONGCI_JISHOKEI_RE =
   /(?:动词辞书形|動詞辞書形)(?:（动词原形）|\(动词原形\))?/g;
+
+/**
+ * 把接序里的裸「1. / 2.」改成「用法1: / 用法2:」。
+ * 否则展示层整段 leftover 挂在第一条用法下，等级与例句被接续墙隔开。
+ */
+export function rewriteJpVocabConnectionBareNumberedToUsageTags(
+  raw: string
+): string {
+  return String(raw ?? "")
+    .split("\n")
+    .map((line) => {
+      const t = line.trim();
+      if (!t) return line;
+      if (/^用法\s*\d+\s*[：:]/.test(t)) return line;
+      if (/^(否定形|肯定形|疑问形)\b/.test(t)) return line;
+      const m = CONNECTION_BARE_NUMBERED_LINE_RE.exec(t);
+      if (!m) return line;
+      const n = Number(m[1]);
+      const body = String(m[2] ?? "").trim();
+      if (!Number.isInteger(n) || n < 1 || !body) return line;
+      return `用法${n}: ${body}`;
+    })
+    .join("\n");
+}
 
 /**
  * 「动词辞书形 / 動詞辞書形」一律写成带「（动词原形）」注解；已有则归一、不叠写。
@@ -133,7 +165,9 @@ export type JpVocabConnectionAiInput = {
 export function normalizeJpVocabConnectionText(
   raw: string | null | undefined
 ): string | null {
-  const expanded = expandJpVocabConnectionUsageInlineBreaks(String(raw ?? ""));
+  const expanded = expandJpVocabConnectionUsageInlineBreaks(
+    rewriteJpVocabConnectionBareNumberedToUsageTags(String(raw ?? ""))
+  );
   const lines = expanded
     .split("\n")
     .map((line) => line.trim())
@@ -310,6 +344,24 @@ export function validateJpVocabConnectionAiOutput(
 ): { ok: true; text: string } | { ok: false; reason: string } {
   let text = String(raw ?? "").trim();
   if (!text) return { ok: false, reason: "empty" };
+  // 写回前若仍是裸「1. 2.」——先拒，逼模型改用「用法N:」（normalize 展示层仍会兜底改写）
+  const preCheckBody = text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)
+    ? text.slice(
+        text.indexOf(JP_VOCAB_CONNECTION_SECTION_MARKER) +
+          JP_VOCAB_CONNECTION_SECTION_MARKER.length
+      )
+    : text;
+  const preLines = preCheckBody
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => l !== JP_VOCAB_CONNECTION_SECTION_MARKER);
+  const bareHits = preLines.filter((l) =>
+    CONNECTION_BARE_NUMBERED_LINE_RE.test(l)
+  ).length;
+  if (bareHits >= 2) {
+    return { ok: false, reason: "bare_numbered_lines" };
+  }
   if (text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)) {
     text =
       splitJpVocabAiOutputConnectionSection(text).connection ??

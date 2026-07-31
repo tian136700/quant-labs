@@ -58,7 +58,7 @@ function lemmaSurfacesForExampleHit(
 export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   version: 3,
   count_rule:
-    "单词：释义含 / 时条数=斜杠段数；否则 max(2, 段内 ； 近义数)。语法：条数=用法点数（须先有 usage；1:1；可为 1）。同一次输出末尾须有【接序】",
+    "单词：释义含 / 时条数=斜杠段数；无斜杠固定 2（；近义不是条数）。语法：条数=用法点数（须先有 usage；1:1；可为 1）。同一次输出末尾须有【接序】",
   format_example:
     "電車(でんしゃ)に間(ま)に合(あ)いました。\n译文：我赶上电车了。\nもう少(すこ)し早(はや)く来(き)てください。\n译文：请再早一点来。\n【接序】\n一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」",
   rules: [
@@ -84,6 +84,7 @@ export const JP_VOCAB_EXAMPLE_SENTENCES_UPLOAD_SPEC = {
   reject_reasons: [
     "empty",
     "need_four_lines",
+    "need_more_lines",
     "need_two_japanese_lines",
     "need_more_japanese_lines",
     "invalid_japanese_line",
@@ -203,7 +204,7 @@ export function buildJpVocabExampleSentencesAiPrompt(
       ? `须造 ${targetCount} 句：与上方「用法」一一对应（第 1 句对应用法 1，第 2 句对应用法 2…）`
       : majorSenses.length >= 2
         ? `释义含 ${majorSenses.length} 个斜杠段 → 须造 ${targetCount} 句（每段 1 句，例句须体现对应读音）`
-        : `须造 ${targetCount} 句（无斜杠时 max(2, 近义数)）`;
+        : `须造 ${targetCount} 句（无斜杠时固定 2；释义里的 ； 只是近义，不要按近义数加句）`;
 
   const grammarSimplicity =
     input.kind === "grammar"
@@ -286,7 +287,11 @@ export function validateJpVocabExampleSentencesAiOutput(
       ? Math.max(2, targetCount * 2)
       : Math.max(4, targetCount * 2);
   if (lines.length < minLines) {
-    return { ok: false, reason: "need_four_lines" };
+    // 历史原因码 need_four_lines（单词下限 4 行=2 句）；条数>2 时用更准的名字
+    return {
+      ok: false,
+      reason: minLines <= 4 ? "need_four_lines" : "need_more_lines",
+    };
   }
 
   const items = parseJpVocabExampleSentenceItems(lines.join("\n"));

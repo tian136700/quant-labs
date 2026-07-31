@@ -52,7 +52,7 @@ export type JpVocabUsageAiInput = {
   kind: string;
   reading?: string | null;
   meaning?: string | null;
-  /** 付费/自动写回须句末 (N5)；人手「手动」可省略 */
+  /** 付费/自动/手动写回均须句末 (N5)；缺级一律拒 */
   requireJlptLevel?: boolean;
 };
 
