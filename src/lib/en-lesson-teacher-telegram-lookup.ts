@@ -1,14 +1,14 @@
 import "server-only";
 
-import {
-  listEnLessonTeachers,
-  type EnLessonTeacher,
-} from "@/lib/en-lesson-teacher-db";
+import { listEnLessonTeachers } from "@/lib/en-lesson-teacher-db";
 import {
   listEnLessonTeacherReviews,
   listEnLessonTeacherReviewSummaries,
 } from "@/lib/en-lesson-teacher-review-db";
-import type { EnLessonTeacherReviewRecord } from "@/lib/types";
+import type {
+  EnLessonTeacher,
+  EnLessonTeacherReviewRecord,
+} from "@/lib/types";
 
 /** 去掉尾缀「老师」（机构老师保留） */
 export function normalizeEnTeacherLookupQuery(raw: string): string {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""回归：英语老师 lookup API + 名称匹配（Telegram T老师名）。"""
+"""回归：英语老师 lookup API + 名称匹配（Telegram /t 老师名）。"""
 
 from __future__ import annotations
 
@@ -26,8 +26,14 @@ def main() -> int:
         raise SystemExit("FAIL: missing not-found message")
     if "matchEnLessonTeachersByQuery" not in lib:
         raise SystemExit("FAIL: missing match helper")
+    if 'from "@/lib/types"' not in lib or "EnLessonTeacher" not in lib:
+        raise SystemExit("FAIL: EnLessonTeacher must be imported from @/lib/types")
+    if "type EnLessonTeacher" in lib and 'from "@/lib/en-lesson-teacher-db"' in lib:
+        raise SystemExit("FAIL: do not import EnLessonTeacher type from en-lesson-teacher-db")
     if "en-lesson-teachers/lookup" not in docs:
         raise SystemExit("FAIL: docs must describe lookup URL")
+    if "/t" not in docs:
+        raise SystemExit("FAIL: docs must mention Telegram /t command")
 
     print("[check_en_lesson_teacher_lookup] OK")
     return 0
