@@ -1,0 +1,104 @@
+英语老师评价查询 API（Telegram / 其它项目）
+========================================
+
+用途
+----
+按老师姓名查询「英语」人员管理里的评分与备注评价（你在上课老师管理里打的分/备注）。
+供 Telegram：输入 `T老师名` 或 `T 老师名`。
+
+
+线上地址
+--------
+GET https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name=欣欣
+
+也可用 english.info-quests.com 同路径（同一 Worker / 同一 D1）。
+
+多候选选定后：
+GET https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?teacher_id=12
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/admin/en-lesson-teachers/lookup?name=欣欣
+
+
+鉴权
+----
+Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+（与 schedule-chat-ingest 相同；也可用管理员登录 Cookie。）
+
+
+请求参数（Query）
+-----------------
+name         老师名（与 teacher_id 二选一；可带或不带「老师」后缀）
+teacher_id   精确 id（多候选回复序号后使用）
+
+
+成功：找到
+----------
+{
+  "ok": true,
+  "found": true,
+  "teacher": { "id": 12, "name": "欣欣" },
+  "avg_score": 8.5,
+  "review_count": 3,
+  "latest_remark": "发音清晰，节奏偏快",
+  "latest_class_date": "2026-07-20",
+  "reviews": [
+    { "class_date": "2026-07-20", "score": 9, "remark": "发音清晰，节奏偏快" },
+    { "class_date": "2026-07-10", "score": 8, "remark": null }
+  ]
+}
+
+
+成功：未找到
+------------
+{
+  "ok": true,
+  "found": false,
+  "error": "teacher_not_found",
+  "message": "英语这个模块里面没有这个老师",
+  "query": "不存在的名字"
+}
+
+
+成功：多名匹配
+--------------
+{
+  "ok": true,
+  "found": false,
+  "error": "teacher_ambiguous",
+  "message": "匹配到多个英语老师，请回复序号选择：",
+  "query": "李",
+  "candidates": [
+    { "id": 3, "name": "李老师" },
+    { "id": 8, "name": "李明" }
+  ]
+}
+
+
+失败
+----
+403 { "ok": false, "error": "forbidden" }
+400 { "ok": false, "error": "name_required" }
+
+
+curl 示例
+---------
+curl -sS -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  "https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name=$(python3 -c 'import urllib.parse;print(urllib.parse.quote(\"欣欣\"))')"
+
+
+Python 最小例
+-------------
+import json, os, urllib.parse, urllib.request
+
+token = os.environ["JP_REVIEW_UPLOAD_TOKEN"]
+name = urllib.parse.quote("欣欣")
+req = urllib.request.Request(
+    f"https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name={name}",
+    headers={"Authorization": f"Bearer {token}"},
+)
+with urllib.request.urlopen(req, timeout=30) as resp:
+    print(json.load(resp))

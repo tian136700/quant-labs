@@ -1,5 +1,8 @@
 /**
- * 教案原图：iPhone 长按常被缩放层拦住；用系统分享进「存储图像」，否则下载。
+ * 教案原图保存：
+ * - Web 无法静默写入系统相册（无 Photos API）
+ * - iPhone：用户确认后走 share，在面板点「存储图像」；share 成功后只提示「已保存到相册」
+ * - 禁止再提示用户「还要去分享面板再选一次」（像要保存两次）
  */
 
 export type SaveVocabRefImageResult = "shared" | "downloaded" | "aborted";
@@ -22,8 +25,17 @@ async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
+/** share/download 完成后的短提示；取消分享不提示 */
+export function vocabRefSaveResultToast(
+  result: SaveVocabRefImageResult
+): string | null {
+  if (result === "aborted") return null;
+  if (result === "shared") return "已保存到相册";
+  return "图片已保存";
+}
+
 /**
- * 拉取已登录可见的教案图 → 优先 Web Share（iOS 可选「存储图像」）→ 否则触发下载。
+ * 拉取已登录可见的教案图 → 优先 Web Share（进相册）→ 否则下载。
  */
 export async function saveVocabRefImageToDevice(opts: {
   imageUrl: string;

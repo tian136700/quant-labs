@@ -13,7 +13,7 @@ import {
   jpVocabRefApiPath,
   jpVocabRefFilename,
 } from "@/lib/jp-vocab-ref-shared";
-import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
+import { saveVocabRefImageToDevice, vocabRefSaveResultToast } from "@/lib/vocab-ref-save-image";
 import { useVocabRefLiveVersion } from "@/lib/useVocabRefLiveVersion";
 import type { JpVocabRef } from "@/lib/types";
 
@@ -60,11 +60,8 @@ export function JpVocabRefViewer({
         imageUrl: mediaUrl,
         filename,
       });
-      if (result === "shared") {
-        setStatusToast("请在分享面板选择「存储图像」");
-      } else if (result === "downloaded") {
-        setStatusToast("图片已下载");
-      }
+      const toast = vocabRefSaveResultToast(result);
+      if (toast) setStatusToast(toast);
     } catch {
       setStatusToast("保存失败，请稍后重试");
     } finally {
@@ -148,8 +145,8 @@ export function JpVocabRefViewer({
         className="copy-toast--above-modal"
       />
       {savePromptOpen ? (
-        <div className="jp-ref-save-prompt" role="dialog" aria-label="保存图片">
-          <p className="jp-ref-save-prompt-text">保存教案图片到相册？</p>
+        <div className="jp-ref-save-prompt" role="dialog" aria-label="保存到相册">
+          <p className="jp-ref-save-prompt-text">是否保存到相册？</p>
           <div className="jp-ref-save-prompt-actions">
             <button
               type="button"
@@ -157,7 +154,7 @@ export function JpVocabRefViewer({
               onClick={() => setSavePromptOpen(false)}
               disabled={saveBusy}
             >
-              取消
+              否
             </button>
             <button
               type="button"
@@ -165,7 +162,7 @@ export function JpVocabRefViewer({
               onClick={() => void saveImage()}
               disabled={saveBusy}
             >
-              {saveBusy ? "保存中…" : "保存图片"}
+              {saveBusy ? "保存中…" : "是"}
             </button>
           </div>
         </div>

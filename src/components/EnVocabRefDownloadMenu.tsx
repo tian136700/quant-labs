@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { EnVocabMediaType } from "@/lib/types";
-import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
+import { saveVocabRefImageToDevice, vocabRefSaveResultToast } from "@/lib/vocab-ref-save-image";
 
 async function downloadBlobAsFile(blob: Blob, filename: string): Promise<void> {
   const url = URL.createObjectURL(blob);
@@ -131,7 +131,7 @@ function ImageExportFormatMenu({
           >
             <span className="jp-ref-download-item-title">保存图片</span>
             <span className="jp-ref-download-item-desc">
-              iPhone 选「存储图像」进相册；也可分享/下载
+              确认后保存到相册
             </span>
           </button>
           {showOriginal && onOriginal ? (
@@ -229,11 +229,8 @@ export function EnVocabRefDownloadMenu({
         imageUrl: mediaUrl,
         filename,
       });
-      if (result === "shared") {
-        onStatus?.("请在分享面板选择「存储图像」");
-      } else if (result === "downloaded") {
-        onStatus?.("图片已下载");
-      }
+      const toast = vocabRefSaveResultToast(result);
+      if (toast) onStatus?.(toast);
     } catch {
       onStatus?.("保存失败，请稍后重试");
     } finally {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""教案图保存到相册：helper + 菜单 + 长按确认（防 iOS 长按被缩放层吃掉）。"""
+"""教案图保存到相册：确认一次 + 成功只提示「已保存到相册」（勿二次引导）。"""
 
 from __future__ import annotations
 
@@ -25,20 +25,28 @@ def main() -> int:
             helper,
             [
                 "saveVocabRefImageToDevice",
+                "vocabRefSaveResultToast",
+                "已保存到相册",
                 "navigator.canShare",
                 "navigator.share",
                 "AbortError",
             ],
         ):
             errors.append(f"{helper.relative_to(ROOT)}: missing {n!r}")
+        bad = "请在分享面板选择"
+        if bad in helper.read_text(encoding="utf-8"):
+            errors.append(f"{helper.relative_to(ROOT)}: must not tell user to save twice ({bad!r})")
 
     zoom = ROOT / "src/components/VocabRefImageZoom.tsx"
+    zoom_text = zoom.read_text(encoding="utf-8")
     for n in must_contain(
         zoom,
         [
             "VOCAB_REF_IMAGE_LONG_PRESS_MS",
             "onImageLongPress",
             "longPressTimerRef",
+            "onContextMenu",
+            "WebkitTouchCallout",
         ],
     ):
         errors.append(f"{zoom.relative_to(ROOT)}: missing {n!r}")
@@ -48,45 +56,57 @@ def main() -> int:
         "src/components/EnVocabRefDownloadMenu.tsx",
     ):
         path = ROOT / rel
+        text = path.read_text(encoding="utf-8")
         for n in must_contain(
             path,
             [
                 "saveVocabRefImageToDevice",
+                "vocabRefSaveResultToast",
                 "保存图片",
-                "存储图像",
             ],
         ):
             errors.append(f"{rel}: missing {n!r}")
+        if "请在分享面板选择" in text:
+            errors.append(f"{rel}: must not prompt 请在分享面板选择（二次保存感）")
 
     for rel in (
         "src/components/JpVocabRefViewer.tsx",
         "src/components/EnVocabRefViewer.tsx",
     ):
         path = ROOT / rel
+        text = path.read_text(encoding="utf-8")
         for n in must_contain(
             path,
             [
                 "saveVocabRefImageToDevice",
+                "vocabRefSaveResultToast",
                 "savePromptOpen",
+                "是否保存到相册",
                 "长按保存到相册",
                 "setSavePromptOpen(true)",
             ],
         ):
             errors.append(f"{rel}: missing {n!r}")
+        if "请在分享面板选择" in text:
+            errors.append(f"{rel}: must not prompt 请在分享面板选择")
 
     for rel in (
         "src/components/JpVocabRefPreviewModal.tsx",
         "src/components/EnVocabRefPreviewModal.tsx",
     ):
         path = ROOT / rel
+        text = path.read_text(encoding="utf-8")
         for n in must_contain(
             path,
             [
                 "saveVocabRefImageToDevice",
+                "vocabRefSaveResultToast",
                 "保存",
             ],
         ):
             errors.append(f"{rel}: missing {n!r}")
+        if "请在分享面板选择" in text:
+            errors.append(f"{rel}: must not prompt 请在分享面板选择")
 
     if errors:
         print("check_vocab_ref_save_image FAILED:")

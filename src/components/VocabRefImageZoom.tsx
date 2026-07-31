@@ -413,7 +413,11 @@ export function VocabRefImageZoomStage({
           style={{
             width: imgReady && imgRef.current ? imgRef.current.naturalWidth * displayScale : "auto",
             height: imgReady && imgRef.current ? imgRef.current.naturalHeight * displayScale : "auto",
+            WebkitTouchCallout: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
           }}
+          onContextMenu={(e) => e.preventDefault()}
           onLoad={api.onImageLoad}
         />
       </div>

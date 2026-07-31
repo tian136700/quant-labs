@@ -198,8 +198,8 @@ export function AdminJpLessonTeachersList(props: AdminJpLessonTeachersListProps)
         ) : teachers.length === 0 ? (
           <p className="hint">{locale === "zh" ? "暂无老师" : "No teachers yet"}</p>
         ) : filteredTeachers.length === 0 ? (
-          <p className="hint">
-            {locale === "zh" ? "没有匹配的老师，请调整搜索关键词。" : "No matching teachers."}
+          <p className="hint admin-jpl-search-empty" role="status">
+            {locale === "zh" ? "查无此人" : "No such teacher found."}
           </p>
         ) : (
           <div className="admin-jpl-teachers-table-wrap">

@@ -61,6 +61,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
     width: 100%;
+    align-items: stretch;
   }
 
   .admin-jpl-teachers-toolbar .admin-jpl-subject-select {
@@ -69,7 +70,28 @@
     min-height: 2.75rem;
   }
 
+  /* 搜索组合占满整行，勿与「搜索」按钮挤在同一半格（曾重叠） */
+  .admin-jpl-teachers-toolbar .admin-jpl-search-combo {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    flex: none;
+  }
+
   .admin-jpl-teachers-toolbar .admin-jpl-search-field {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-jpl-teachers-toolbar .admin-jpl-search-field input {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+  }
+
+  /* 「搜索 / 清除」在搜索框下方整行，勿与输入框横排重叠 */
+  .admin-jpl-teachers-toolbar .admin-jpl-search-combo ~ .btn-rsi-filter {
     grid-column: 1 / -1;
   }
 

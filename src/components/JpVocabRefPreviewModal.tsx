@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CopyToast } from "@/components/CopyToast";
 import { jpVocabRefApiPath } from "@/lib/jp-vocab-ref-shared";
-import { saveVocabRefImageToDevice } from "@/lib/vocab-ref-save-image";
+import { saveVocabRefImageToDevice, vocabRefSaveResultToast } from "@/lib/vocab-ref-save-image";
 import type { JpVocabRef } from "@/lib/types";
 import { lockBodyScroll } from "@/lib/body-scroll-lock";
 
@@ -279,11 +279,8 @@ export function JpVocabRefPreviewModal({
         imageUrl: mediaUrl,
         filename: `${refMeta.ref_key}.png`,
       });
-      if (result === "shared") {
-        setStatusToast("请在分享面板选择「存储图像」");
-      } else if (result === "downloaded") {
-        setStatusToast("图片已下载");
-      }
+      const toast = vocabRefSaveResultToast(result);
+      if (toast) setStatusToast(toast);
     } catch {
       setStatusToast("保存失败，请稍后重试");
     } finally {
