@@ -1,0 +1,126 @@
+用户管理 · 生成登录链接 API
+==========================
+
+用途
+----
+为指定用户生成一条**新的**免密登录链接（旧链接与该用户已登录会话失效）。
+网页「用户管理」→「复制登录链接」同源。
+
+链接落在哪个子域名，按**老师身份**决定（与复制账号密码一致）：
+
+| 老师身份（勾选 / 主角色） | 链接域名 |
+|---------------------------|----------|
+| 有日语身份                | https://japanese.info-quests.com |
+| 仅英语                    | https://english.info-quests.com |
+| 仅韩语                    | https://korean.info-quests.com |
+| 普通用户等                | 默认 japanese |
+
+路径形如：`/sign-in/{username}/{slug}`（旧 `/sign-in/{slug}` 仍可用）。
+
+
+线上地址
+--------
+POST https://finance.info-quests.com/api/admin/users/login-link
+
+也可用 japanese / english / korean 同路径（同一 Worker / 同一 D1）；
+**响应里的 url 已按老师身份换成正确子域**，调用方直接用返回的 `url` 即可，不必自己拼域名。
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/admin/users/login-link
+
+
+鉴权
+----
+须**管理员**登录 Cookie 会话（与站点 `/admin/users` 同权）。
+
+Header（可选，影响错误文案语言）：
+  x-locale: zh | en
+  Content-Type: application/json
+
+
+请求体
+------
+{
+  "user_id": 42
+}
+
+user_id 为正整数（目标用户 id）。
+
+
+成功响应
+--------
+{
+  "ok": true,
+  "url": "https://japanese.info-quests.com/sign-in/LiLaoshi/sakura-harbor-kyoto-garden-nara-breeze",
+  "username": "LiLaoshi",
+  "link_expires_at": "2026-08-07 10:00:00",
+  "session_days": 30
+}
+
+说明：
+- url            完整可点开的登录链接（已含正确子域 + 用户名 + slug）
+- username       账号名
+- link_expires_at 链接过期时间（服务端约定）
+- session_days   用此链接登录后会话天数（常见 30）
+
+
+失败响应
+--------
+403  { "ok": false, "error": "需要管理员账号。" }
+400  { "ok": false, "error": "请求数据无效。" }     ← 缺/非法 user_id、JSON 坏
+400  { "ok": false, "error": "用户不存在。" }
+400  { "ok": false, "error": "已禁用账号无法生成登录链接。" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://finance.info-quests.com/api/admin/users/login-link' \
+  -H 'Cookie: 你的管理员登录 Cookie' \
+  -H 'Content-Type: application/json' \
+  -H 'x-locale: zh' \
+  -d '{"user_id":42}'
+
+
+Python 最小例
+-------------
+import requests
+
+BASE = "https://finance.info-quests.com"
+COOKIE = "你的管理员登录 Cookie"
+
+r = requests.post(
+    f"{BASE}/api/admin/users/login-link",
+    headers={
+        "Cookie": COOKIE,
+        "Content-Type": "application/json",
+        "x-locale": "zh",
+    },
+    json={"user_id": 42},
+    timeout=60,
+)
+data = r.json()
+print(r.status_code, data)
+if data.get("ok"):
+    print("发给老师：", data["url"])
+
+
+子域名选择（实现要点）
+--------------------
+loginLinkSiteForTeacher(role, teacher_modules)：
+  有日语勾选 → jp；否则英语 → en；否则韩语 → ko；再回退主 role。
+勿只看 role === "en_vocab"，否则「日语教师」标签也可能被拼成 english 域名。
+
+
+联系 / 改接口时
+--------------
+线上模块：用户管理（/admin/users）
+本说明：POST /api/admin/users/login-link
+实现：src/app/api/admin/users/login-link/route.ts
+      src/lib/login-link-slug.ts → loginLinkSiteForTeacher / buildLoginLinkUrl
+      src/lib/etr-login-link-db.ts → createLoginLink
+功能索引：docs/feature-index.md → admin/users → 复制登录链接
+规则：.cursor/rules/admin-user-credentials-site.mdc
+      .cursor/rules/login-link-username-in-url.mdc
+回归：python3 scripts/check_admin_user_credentials_site.py

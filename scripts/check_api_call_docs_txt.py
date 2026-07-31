@@ -21,6 +21,10 @@ REQUIRED: list[tuple[str, str]] = [
         "src/app/api/jp-vocab/fill-example-sentences/route.ts",
         "docs/jp-vocab-fill-example-sentences-api.txt",
     ),
+    (
+        "src/app/api/admin/users/login-link/route.ts",
+        "docs/admin-users-login-link-api.txt",
+    ),
 ]
 
 
