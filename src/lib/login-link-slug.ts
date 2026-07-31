@@ -3,6 +3,7 @@
 import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
 import { KO_SITE_URL } from "@/lib/ko-site-host";
+import type { RbacTeacherModules } from "@/lib/rbac";
 
 export const LOGIN_LINK_SLUG_WORD_COUNT = 6;
 
@@ -10,11 +11,26 @@ export const LOGIN_LINK_SLUG_PATTERN = /^[a-z]+(?:-[a-z]+){5}$/;
 
 export type LoginLinkSite = "jp" | "en" | "ko";
 
-/** 按账号角色选对外子域名：英文老师用 english，韩语老师用 korean，其余默认 japanese（勿用 finance） */
+/** 仅按主 role（兼容旧调用）；多身份请用 loginLinkSiteForTeacher */
 export function loginLinkSiteForRole(role: string | null | undefined): LoginLinkSite {
   if (role === "en_vocab") return "en";
   if (role === "ko_pron") return "ko";
   return "jp";
+}
+
+/**
+ * 复制凭证 / 登录链接选子域名。
+ * 优先看老师身份勾选（与列表「日语教师」一致）：日语 > 英语 > 韩语；
+ * 全无勾选再回退主 role。避免「标签是日语、链接却是 english」。
+ */
+export function loginLinkSiteForTeacher(
+  role?: string | null,
+  modules?: Partial<RbacTeacherModules> | null
+): LoginLinkSite {
+  if (modules?.jp) return "jp";
+  if (modules?.en) return "en";
+  if (modules?.ko) return "ko";
+  return loginLinkSiteForRole(role);
 }
 
 const JP_ROMAJI_WORDS = [

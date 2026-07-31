@@ -317,7 +317,8 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
           `已添加老师，并自动创建禁用账号：${formatAdminUserCredentials(
             data.user_account.username,
             data.user_account.password,
-            "zh"
+            "zh",
+            "jp_vocab"
           )}`
         );
         window.setTimeout(() => setStatusMessage(""), 4500);

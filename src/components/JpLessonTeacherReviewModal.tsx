@@ -167,12 +167,14 @@ export function JpLessonTeacherReviewModal({
             ? `评分已保存，已创建账号：${formatAdminUserCredentials(
                 data.user_account.username,
                 data.user_account.password,
-                "zh"
+                "zh",
+                "jp_vocab"
               )}`
             : `Saved. Created account: ${formatAdminUserCredentials(
                 data.user_account.username,
                 data.user_account.password,
-                "en"
+                "en",
+                "jp_vocab"
               )}`
         );
         setStatusErr(false);

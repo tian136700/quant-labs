@@ -3,23 +3,29 @@ import { EN_SITE_URL } from "@/lib/en-site-host";
 import { JP_SITE_URL } from "@/lib/jp-site-host";
 import { KO_SITE_URL } from "@/lib/ko-site-host";
 import { enVocabPath, jpVocabPath, koPronPath } from "@/lib/locale-path";
+import { loginLinkSiteForTeacher } from "@/lib/login-link-slug";
+import type { RbacTeacherModules } from "@/lib/rbac";
 
 export const ADMIN_USER_CREDENTIALS_CACHE_KEY = "admin-user-credentials:v1";
 
-/** 复制账号密码 / 带模板复制时附带的抽问入口（按角色选日语/英语/韩语入口） */
-export function adminUserQuizShareUrl(role?: string | null): {
+/** 复制账号密码 / 带模板复制时附带的抽问入口（按老师身份选日语/英语/韩语入口） */
+export function adminUserQuizShareUrl(
+  role?: string | null,
+  modules?: Partial<RbacTeacherModules> | null
+): {
   url: string;
   labelZh: string;
   labelEn: string;
 } {
-  if (role === "en_vocab") {
+  const site = loginLinkSiteForTeacher(role, modules);
+  if (site === "en") {
     return {
       url: `${EN_SITE_URL}${enVocabPath()}`,
       labelZh: "英语抽背",
       labelEn: "EN vocab",
     };
   }
-  if (role === "ko_pron") {
+  if (site === "ko") {
     return {
       url: `${KO_SITE_URL}${koPronPath()}`,
       labelZh: "韩语发音",
@@ -69,9 +75,10 @@ export function formatAdminUserCredentials(
   username: string,
   password: string,
   locale: "en" | "zh",
-  role?: string | null
+  role?: string | null,
+  modules?: Partial<RbacTeacherModules> | null
 ): string {
-  const { url, labelZh, labelEn } = adminUserQuizShareUrl(role);
+  const { url, labelZh, labelEn } = adminUserQuizShareUrl(role, modules);
   if (locale === "zh") {
     return `用户名：${username}\n密码：${password}\n${labelZh}：${url}`;
   }

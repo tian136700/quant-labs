@@ -146,12 +146,14 @@ export function useAdminJpLessonTeachersActions(
             ? `已添加。已自动创建禁用账号：${formatAdminUserCredentials(
                 data.user_account.username,
                 data.user_account.password,
-                locale
+                locale,
+                "jp_vocab"
               )}（请在用户管理中启用后再登录）`
             : `Added. Auto-created disabled account: ${formatAdminUserCredentials(
                 data.user_account.username,
                 data.user_account.password,
-                locale
+                locale,
+                "jp_vocab"
               )} (enable in Users before login)`
         );
       } else {
@@ -333,7 +335,8 @@ export function useAdminJpLessonTeachersActions(
           ? formatAdminUserCredentials(
               data.user.username,
               data.password,
-              locale
+              locale,
+              "jp_vocab"
             )
           : data.user.username;
 

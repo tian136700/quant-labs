@@ -2,8 +2,10 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { createLoginLink } from "@/lib/etr-login-link-db";
 import {
   buildLoginLinkUrl,
-  loginLinkSiteForRole,
+  loginLinkSiteForTeacher,
 } from "@/lib/login-link-slug";
+import { detectTeacherModules } from "@/lib/rbac";
+import { listUserExtraPermissions } from "@/lib/rbac-db";
 import { jsonResponse, localeFromRequest } from "@/lib/cloudflare-env";
 
 const ERR: Record<string, Record<"en" | "zh", string>> = {
@@ -57,9 +59,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const extras = await listUserExtraPermissions(env.DB, userId);
+    const modules = detectTeacherModules(result.role, extras);
     const loginUrl = buildLoginLinkUrl(
       result.token,
-      loginLinkSiteForRole(result.role),
+      loginLinkSiteForTeacher(result.role, modules),
       result.username
     );
 

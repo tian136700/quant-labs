@@ -573,6 +573,7 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       password,
       locale,
       role: row.role,
+      teacherModules: row.teacher_modules,
     });
 
     setLinkGeneratingId(row.id);
@@ -614,7 +615,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       row.username,
       password,
       locale,
-      row.role
+      row.role,
+      row.teacher_modules
     );
     const copied = await copyTextToClipboard(text);
     if (copied) {
@@ -672,7 +674,8 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
       username,
       password,
       locale,
-      row.role
+      row.role,
+      row.teacher_modules
     );
     const copied = await copyTextToClipboard(text);
     if (copied) {

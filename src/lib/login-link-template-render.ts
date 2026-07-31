@@ -2,6 +2,7 @@ import {
   formatAdminUserCredentials,
   adminUserQuizShareUrl,
 } from "@/lib/admin-user-credentials";
+import type { RbacTeacherModules } from "@/lib/rbac";
 
 export type AdminCopyTemplateVars = {
   username?: string | null;
@@ -64,15 +65,17 @@ export function renderAdminTemplateCredentialsCopy(options: {
   password: string;
   locale: "zh" | "en";
   role?: string | null;
+  teacherModules?: Partial<RbacTeacherModules> | null;
 }): string {
-  const { body, username, password, locale, role } = options;
-  const quiz = adminUserQuizShareUrl(role);
+  const { body, username, password, locale, role, teacherModules } = options;
+  const quiz = adminUserQuizShareUrl(role, teacherModules);
   const trimmed = body.trim();
   const credentials = formatAdminUserCredentials(
     username,
     password,
     locale,
-    role
+    role,
+    teacherModules
   );
   if (!trimmed) return credentials;
 
