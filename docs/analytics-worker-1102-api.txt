@@ -1,0 +1,86 @@
+Worker 1102 · 诊断看板汇总 API（管理端）
+======================================
+
+用途
+----
+给「1102 诊断看板」拉一份可分析快照：词库备注体积、今日共享载荷、
+热路径慢/大/5xx 聚合、客户端现场合计与样本、相关流量交叉、防护清单。
+
+前端：/admin/worker-1102 、/zh/admin/worker-1102
+复制报告：formatWorker1102DiagnosticReport
+
+
+线上地址
+--------
+GET https://finance.info-quests.com/api/analytics/worker-1102
+GET https://finance.info-quests.com/api/analytics/worker-1102?date=2026-07-31
+
+说明：
+- date = 配额日 YYYY-MM-DD（北京 08:00→次日 08:00 窗口，与流量检测一致）
+- 不传 date：默认当前配额日
+- japanese / english 等子域同路径可用（同一 Worker / D1）
+
+
+本机开发（可选）
+---------------
+GET http://127.0.0.1:3002/api/analytics/worker-1102
+
+
+鉴权
+----
+须管理员登录 Cookie，且权限含 `admin:dashboard`（或超级管理员）。
+
+未登录 / 无权限：
+401
+{
+  "ok": false,
+  "error": "需要管理员登录。",
+  "auth_required": true
+}
+
+
+成功响应（字段摘要）
+--------------------
+200，主体含：
+  ok                  true
+  generated_at        ISO 时间
+  share_date          北京日历日（共享列表用）
+  quota_stat_date     配额日
+  risk_level          ok | warn | critical
+  risk_notes          字符串数组
+  subjects[]          日语/英语体积快照
+  heaviest_notes[]    备注体积 Top
+  heavy_signals[]     慢/大/5xx 聚合
+  client_event_agg[]  客户端事件合计
+  client_event_samples[]  现场样本（失败 URL / Ray / 耗时等）
+  related_traffic_routes[]  相关热路径流量
+  traffic_total_hits / traffic_quota_limit
+  guardrails[]
+
+
+curl 示例
+---------
+# 先浏览器登录管理员，再带 Cookie（示例）：
+curl -sS 'https://finance.info-quests.com/api/analytics/worker-1102' \
+  -H 'Cookie: <你的 session cookie>'
+
+
+Python 最小例
+-------------
+import urllib.request
+
+url = "https://finance.info-quests.com/api/analytics/worker-1102?date=2026-07-31"
+req = urllib.request.Request(
+    url,
+    headers={"Cookie": "<session cookie>"},
+    method="GET",
+)
+with urllib.request.urlopen(req, timeout=60) as resp:
+    print(resp.read().decode("utf-8")[:2000])
+
+
+相关
+----
+- 客户端上报：docs/analytics-worker-1102-client-report-api.txt
+- 实现：src/app/api/analytics/worker-1102/route.ts
+- 看板：AdminWorker1102Panel

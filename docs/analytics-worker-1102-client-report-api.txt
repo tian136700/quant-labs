@@ -1,0 +1,132 @@
+Worker 1102 · 客户端现场上报 API
+================================
+
+用途
+----
+浏览器（或外部监控脚本）把「疑似 / 已见 Cloudflare Error 1102」相关现场
+写入 D1，供管理端「1102 诊断看板」展示与「复制诊断报告」。
+
+典型事件：
+- cf_1102_html   ：fetch/软导航响应正文含 Error 1102 / Worker exceeded…
+- api_5xx        ：热路径 HTTP ≥500（非 1102 HTML）
+- page_ok        ：今日单词等页成功挂载
+- fetch_network  ：fetch 抛网络错
+- shared_fail    ：今日 shared 列表拉失败（重试后仍失败）
+
+说明：硬刷新整页直接 1102 时本页 JS 跑不到；靠其它标签页/软导航/API 捕获。
+
+
+线上地址
+--------
+POST https://finance.info-quests.com/api/analytics/worker-1102/client-report
+
+说明：
+- japanese / english / korean 子域同路径也可用（同一 Worker / 同一 D1）。
+- Content-Type: application/json
+- 可用 navigator.sendBeacon（Blob type=application/json）或 fetch keepalive
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/analytics/worker-1102/client-report
+
+
+鉴权
+----
+不强制登录。
+
+- 有 Session Cookie 时：服务端写入 username
+- 无 Cookie：username 为空，仍按 IP 记样本
+
+节流（防刷 D1）：
+- 同一 isolate 内：每 IP 约 60 秒最多 30 次
+- 超限：HTTP 429
+
+
+请求体（JSON）
+--------------
+event_kind    必填。见上：cf_1102_html | api_5xx | page_ok | fetch_network | shared_fail
+page_path     必填。当前页 pathname（如 /jp-vocab/study）
+page_href     选填。完整 href
+failed_url    选填。失败的请求 URL（哪个接口/页面炸了）
+http_status   选填。HTTP 状态码
+duration_ms   选填。耗时毫秒
+cf_ray        选填。Cloudflare Ray ID（能从错误页抠出则填）
+detail        选填。对象；服务端会截断约 1800 字符并附带 ua / page_href
+
+
+成功响应
+--------
+200
+{
+  "ok": true
+}
+
+
+失败响应
+--------
+400
+  { "ok": false, "error": "event_kind_invalid" }
+  → event_kind 不在白名单
+
+400
+  { "ok": false, "error": "page_path_required" }
+  → 缺少 page_path
+
+429
+  { "ok": false, "error": "上报过于频繁" }   （中文 locale）
+  { "ok": false, "error": "Too many reports" } （英文）
+
+500
+  { "ok": false, "error": "…" }
+
+
+curl 示例
+---------
+curl -sS -X POST 'https://finance.info-quests.com/api/analytics/worker-1102/client-report' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "event_kind": "cf_1102_html",
+    "page_path": "/jp-vocab/study",
+    "page_href": "https://finance.info-quests.com/jp-vocab/study",
+    "failed_url": "/api/jp-vocab/shared",
+    "http_status": 500,
+    "duration_ms": 8200,
+    "cf_ray": "a23d88845bfefde4",
+    "detail": {
+      "body_snip": "Error 1102 Worker exceeded resource limits",
+      "viewport": "390x844"
+    }
+  }'
+
+
+Python 最小例
+-------------
+import json
+import urllib.request
+
+url = "https://finance.info-quests.com/api/analytics/worker-1102/client-report"
+payload = {
+    "event_kind": "shared_fail",
+    "page_path": "/jp-vocab/study",
+    "failed_url": "/api/jp-vocab/shared",
+    "http_status": 503,
+    "duration_ms": 1500,
+    "detail": {"error": "shared_http_503"},
+}
+req = urllib.request.Request(
+    url,
+    data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+with urllib.request.urlopen(req, timeout=30) as resp:
+    print(resp.read().decode("utf-8"))
+
+
+相关
+----
+- 管理端读看板汇总：docs/analytics-worker-1102-api.txt
+- 看板页：/zh/admin/worker-1102 （需 admin:dashboard）
+- 实现：src/app/api/analytics/worker-1102/client-report/route.ts
+- 浏览器：src/components/Worker1102ClientGuard.tsx
