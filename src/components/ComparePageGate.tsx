@@ -31,33 +31,14 @@ function CompareLogin({
 }
 
 function ComparePageGateInner() {
-  const { user, checking, isAdmin, setUser } = useEtrAuth();
+  const { user, isAdmin, setUser } = useEtrAuth();
   const { locale } = useI18n();
 
-  // 无本地用户时不要卡在「验证中」：force-static 首页会把 Checking 固化进 HTML，
-  // iPad / 弱网若 JS 慢或鉴权挂起，就会一直转圈。访客直接出登录页。
-  if (checking && !user) {
-    return (
-      <CompareLogin
-        locale={locale}
-        onAuthenticated={(next) => setUser(next)}
-      />
-    );
-  }
-
-  if (checking) {
-    return (
-      <div className="maintenance-page">
-        <p>{locale === "zh" ? "验证中…" : "Checking…"}</p>
-      </div>
-    );
-  }
-
+  // 禁止渲染鉴权等待文案：force-static 会把首屏写进 HTML。
+  // iPad / 弱网若 JS 未及时 hydration，用户会一直看到转圈，像「进不去」。
+  // 有缓存用户时也按角色直接落地，鉴权探测在后台刷新即可。
   if (isAdmin) return <ComparePage />;
-
-  if (user) {
-    return <MaintenancePage />;
-  }
+  if (user) return <MaintenancePage />;
 
   return (
     <CompareLogin
