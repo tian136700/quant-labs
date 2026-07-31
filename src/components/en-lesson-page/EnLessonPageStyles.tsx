@@ -150,7 +150,7 @@ export function EnLessonPageStyles() {
         .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card-head) {
           display: flex;
         }
-        @media (min-width: 768px) {
+        @media (min-width: 1101px) {
           /* Excel 式冻结表头：区内滚动时列名（老师/时间等）始终可见 */
           :global(.jp-lesson-table-wrap) {
             overflow-y: auto;
@@ -476,7 +476,7 @@ export function EnLessonPageStyles() {
         :global(.jp-lesson-actions-col) {
           text-align: center;
           width: 8.75rem;
-          min-width: 8.5rem;
+          min-width: 0;
           max-width: 9.25rem;
           white-space: normal;
           vertical-align: middle;
@@ -625,18 +625,22 @@ export function EnLessonPageStyles() {
         }
         :global(.jp-lesson-actions) {
           display: grid;
-          grid-template-columns: repeat(2, max-content);
-          justify-content: center;
-          align-items: center;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          justify-content: stretch;
+          align-items: stretch;
           gap: 0.3rem;
+          width: 100%;
+          max-width: 100%;
           margin-inline: auto;
         }
         :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          min-width: 0;
+          width: 100%;
           min-height: 2rem;
-          padding: 0.25rem 0.55rem;
+          padding: 0.25rem 0.4rem;
           font-size: 0.8125rem;
           border-radius: 6px;
           border: 1px solid var(--border);
@@ -646,6 +650,8 @@ export function EnLessonPageStyles() {
           cursor: pointer;
           font: inherit;
           line-height: 1.3;
+          white-space: normal;
+          overflow-wrap: anywhere;
         }
         :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));

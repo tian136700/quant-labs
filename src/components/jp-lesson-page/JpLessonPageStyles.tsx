@@ -225,7 +225,7 @@ export function JpLessonPageStyles() {
         .jp-lesson-cards.jp-lesson-mobile-filter-search :global(.jp-lesson-status-card-head) {
           display: flex;
         }
-        @media (min-width: 768px) {
+        @media (min-width: 1101px) {
           /* Excel 式冻结表头：区内滚动时列名（老师/时间等）始终可见 */
           :global(.jp-lesson-table-wrap) {
             overflow-y: auto;
@@ -524,7 +524,7 @@ export function JpLessonPageStyles() {
         :global(.jp-lesson-class-duration-dt-compact) {
           display: none;
         }
-        @media (max-width: 767px) {
+        @media (max-width: 1100px) {
           :global(.jp-lesson-page--ja .jp-lesson-dt-full),
           :global(.jp-lesson-page--ja .jp-lesson-next-class-dt-full),
           :global(.jp-lesson-page--ja .jp-lesson-class-duration-dt-full) {
@@ -687,7 +687,7 @@ export function JpLessonPageStyles() {
         :global(.jp-lesson-actions-col) {
           text-align: center;
           width: 8.25rem;
-          min-width: 8rem;
+          min-width: 0;
           max-width: 8.75rem;
           white-space: normal;
           vertical-align: middle;
@@ -846,18 +846,22 @@ export function JpLessonPageStyles() {
         }
         :global(.jp-lesson-actions) {
           display: grid;
-          grid-template-columns: repeat(2, max-content);
-          justify-content: center;
-          align-items: center;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          justify-content: stretch;
+          align-items: stretch;
           gap: 0.25rem;
+          width: 100%;
+          max-width: 100%;
           margin-inline: auto;
         }
         :global(.jp-lesson-action-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          min-width: 0;
+          width: 100%;
           min-height: 1.75rem;
-          padding: 0.15rem 0.4rem;
+          padding: 0.15rem 0.35rem;
           font-size: 0.75rem;
           border-radius: 5px;
           border: 1px solid var(--border);
@@ -867,6 +871,8 @@ export function JpLessonPageStyles() {
           cursor: pointer;
           font: inherit;
           line-height: 1.3;
+          white-space: normal;
+          overflow-wrap: anywhere;
         }
         :global(.jp-lesson-action-btn:hover) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));

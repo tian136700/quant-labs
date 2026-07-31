@@ -1,4 +1,5 @@
-@media (max-width: 767px) {
+@media (max-width: 1100px) {
+  /* 含 9.7" iPad 竖/横（≈768/1024）：走卡片，勿用挤爆的桌面宽表 */
   /* ── 日语/英语新课：手机端卡片（--ja / --en）── */
   .jp-lesson-page--ja .jp-lesson-cards ,
 
