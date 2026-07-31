@@ -1,8 +1,9 @@
 /**
  * Error 1102 诊断数据（聚合 + 风险快照）。
  * CF 1102 在 Worker 被杀时本进程记不到那一次；看板靠：
- * 1) D1 风险快照（备注体积、今日共享载荷）
- * 2) 热路径慢/大/5xx 聚合（非逐条 access log）
+ * 1) 客户端现场（CF 1102 HTML / page_ok / shared_fail）——主信号
+ * 2) 热路径慢/大/5xx 聚合 + 今日 shared 列表字段合计
+ * 3) 备注体积仅次要对照（英语常无备注仍可 1102）
  */
 
 import { beijingDateString } from "@/lib/jp-vocab-daily-check";
@@ -349,39 +350,21 @@ function buildRiskNotes(
     else if (next === "warn" && level === "ok") level = "warn";
   };
 
-  for (const s of subjects) {
-    const label = s.subject === "jp" ? "日语" : "英语";
-    if (s.max_notes_bytes >= 80_000) {
-      bump(
-        "critical",
-        `${label}词库最大备注 ${s.max_notes_bytes} 字节（≥80KB，单次拉备注易顶 1102）`
-      );
-    } else if (s.max_notes_bytes >= 20_000) {
-      bump(
-        "warn",
-        `${label}词库最大备注 ${s.max_notes_bytes} 字节（≥20KB，注意按词异步拉）`
-      );
-    }
-    if (s.today_shared_count >= 80) {
-      bump(
-        "warn",
-        `${label}今日共享 ${s.today_shared_count} 条（列表字段合计约 ${s.today_shared_sum_list_bytes} 字节）`
-      );
-    }
-    if (s.today_shared_sum_list_bytes >= 200_000) {
-      bump(
-        "critical",
-        `${label}今日共享列表字段合计 ${s.today_shared_sum_list_bytes} 字节（过大）`
-      );
-    } else if (s.today_shared_sum_list_bytes >= 80_000) {
-      bump(
-        "warn",
-        `${label}今日共享列表字段合计 ${s.today_shared_sum_list_bytes} 字节`
-      );
-    }
-    if (s.notes_with_image_hint >= 30) {
-      bump("warn", `${label}含贴图提示的备注约 ${s.notes_with_image_hint} 条`);
-    }
+  // 英语也可几乎无备注仍 1102：不要把「备注贴图」当成主因。
+  notes.push(
+    "提示：英语也可无备注仍 1102 → 优先看整页 Worker 冷启动、shared/列表载荷、客户端现场与慢/5xx，备注只是次要对照"
+  );
+
+  const client1102 = clientAgg
+    .filter((r) => r.event_kind === "cf_1102_html")
+    .reduce((a, b) => a + b.hit_count, 0);
+  if (client1102 >= 3) {
+    bump(
+      "critical",
+      `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次（见「客户端现场」）`
+    );
+  } else if (client1102 >= 1) {
+    bump("warn", `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次`);
   }
 
   const slow = heavy.filter((h) => h.signal === "slow");
@@ -399,20 +382,42 @@ function buildRiskNotes(
     bump("warn", `本配额日大响应（≥80KB）较多`);
   }
 
-  const client1102 = clientAgg
-    .filter((r) => r.event_kind === "cf_1102_html")
-    .reduce((a, b) => a + b.hit_count, 0);
-  if (client1102 >= 3) {
-    bump(
-      "critical",
-      `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次（见「客户端现场」）`
-    );
-  } else if (client1102 >= 1) {
-    bump("warn", `客户端已捕获 Cloudflare 1102 HTML ${client1102} 次`);
+  for (const s of subjects) {
+    const label = s.subject === "jp" ? "日语" : "英语";
+    if (s.today_shared_count >= 80) {
+      bump(
+        "warn",
+        `${label}今日共享 ${s.today_shared_count} 条（列表字段合计约 ${s.today_shared_sum_list_bytes} 字节；与是否有备注无关）`
+      );
+    }
+    if (s.today_shared_sum_list_bytes >= 200_000) {
+      bump(
+        "critical",
+        `${label}今日共享列表字段合计 ${s.today_shared_sum_list_bytes} 字节（过大）`
+      );
+    } else if (s.today_shared_sum_list_bytes >= 80_000) {
+      bump(
+        "warn",
+        `${label}今日共享列表字段合计 ${s.today_shared_sum_list_bytes} 字节`
+      );
+    }
+    // 备注：仅次要；阈值抬高，避免英语无备注时仍被误导成「备注问题」
+    if (s.max_notes_bytes >= 200_000) {
+      bump(
+        "warn",
+        `${label}词库最大备注 ${s.max_notes_bytes} 字节（次要：单次按需拉备注仍可能重）`
+      );
+    } else if (s.max_notes_bytes >= 80_000) {
+      notes.push(
+        `${label}词库最大备注 ${s.max_notes_bytes} 字节（次要对照，英语无备注也会 1102）`
+      );
+    }
   }
 
-  if (!notes.length) {
-    notes.push("当前快照未见明显 1102 体积/慢请求红灯（不代表线上永不 1102）。");
+  if (notes.length <= 1) {
+    notes.push(
+      "当前快照未见明显红灯；整页偶发 1102 仍可能是 OpenNext 冷 isolate（与备注无关）。"
+    );
   }
   return { level, notes };
 }
@@ -440,9 +445,10 @@ function guardrails(): Worker1102DiagnosticSummary["guardrails"] {
       detail: "Providers 挂 Worker1102ClientGuard；上报 /api/analytics/worker-1102/client-report",
     },
     {
-      id: "notes_async_expected",
+      id: "notes_not_primary_cause",
       ok: true,
-      detail: "抽查/学生卡备注须按当前词异步拉，UI「正在拉取备注…」",
+      detail:
+        "英语常无备注仍可 1102 → 勿把备注当主因；优先冷启动 / shared 列表 / 客户端现场；日语备注仍按词异步拉",
     },
   ];
 }

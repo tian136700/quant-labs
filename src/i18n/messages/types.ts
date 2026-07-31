@@ -216,6 +216,15 @@ export type Messages = {
       refreshing: string;
       dateLabel: string;
       diagnoseHint: string;
+      guideHeading: string;
+      guideWhat: string;
+      guideWhatDetail: string;
+      guidePriority: string;
+      guidePriorityDetail: string;
+      guideNotes: string;
+      guideNotesDetail: string;
+      guideHardReload: string;
+      guideHardReloadDetail: string;
       copyReport: string;
       copySuccess: string;
       copyFailed: string;
@@ -225,6 +234,7 @@ export type Messages = {
       riskOk: string;
       riskWarn: string;
       riskCritical: string;
+      riskNotesHeading: string;
       shareDate: string;
       quotaDate: string;
       subjectsHeading: string;
@@ -269,6 +279,12 @@ export type Messages = {
       username: string;
       time: string;
       emptyClient: string;
+      colIndex: string;
+      colItem: string;
+      colDetail: string;
+      colStatus: string;
+      statusOk: string;
+      statusFail: string;
     };
   };
   adminTrends: {

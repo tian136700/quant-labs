@@ -60,34 +60,15 @@ export function formatWorker1102DiagnosticReport(
     "",
     ...summary.risk_notes.map((n) => `- ${n}`),
     "",
-    `${labels.subjectsHeading}:`,
+    `${labels.clientSamplesHeading}:`,
   ];
 
-  for (const s of summary.subjects) {
-    const name = s.subject === "jp" ? "jp" : "en";
-    lines.push(
-      `${name}: words=${formatNumber(s.word_count)} notes=${formatNumber(s.notes_count)} max_notes=${formatNumber(s.max_notes_bytes)}B avg_notes=${formatNumber(s.avg_notes_bytes)}B img_hints=${formatNumber(s.notes_with_image_hint)} shared_today=${formatNumber(s.today_shared_count)} shared_sum_list=${formatNumber(s.today_shared_sum_list_bytes)}B shared_max_list=${formatNumber(s.today_shared_max_list_bytes)}B shared_max_notes=${formatNumber(s.today_shared_max_notes_bytes)}B`
-    );
-  }
-
-  lines.push("", `${labels.heaviestHeading}:`);
-  if (!summary.heaviest_notes.length) {
-    lines.push("(none)");
+  if (!summary.client_event_samples?.length) {
+    lines.push("(no samples)");
   } else {
-    summary.heaviest_notes.forEach((row, i) => {
+    summary.client_event_samples.slice(0, 25).forEach((row, i) => {
       lines.push(
-        `${i + 1}. [${row.subject}] #${row.id} ${row.word}  ${formatNumber(row.notes_bytes)}B  ${row.has_image_hint ? labels.withImage : labels.noImage}`
-      );
-    });
-  }
-
-  lines.push("", `${labels.heavySignalsHeading}:`);
-  if (!summary.heavy_signals.length) {
-    lines.push("(none yet — only slow/large/5xx on instrumented hot paths)");
-  } else {
-    summary.heavy_signals.forEach((row, i) => {
-      lines.push(
-        `${i + 1}. ${row.route_key}  ${signalLabel(row.signal, labels)}  hits=${formatNumber(row.hit_count)}  max_ms=${formatNumber(row.max_duration_ms)}  max_bytes=${formatNumber(row.max_bytes)}`
+        `${i + 1}. ${row.created_at}  ${row.event_kind}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
       );
     });
   }
@@ -103,13 +84,32 @@ export function formatWorker1102DiagnosticReport(
     });
   }
 
-  lines.push("", `${labels.clientSamplesHeading}:`);
-  if (!summary.client_event_samples?.length) {
-    lines.push("(no samples)");
+  lines.push("", `${labels.heavySignalsHeading}:`);
+  if (!summary.heavy_signals.length) {
+    lines.push("(none yet — only slow/large/5xx on instrumented hot paths)");
   } else {
-    summary.client_event_samples.slice(0, 25).forEach((row, i) => {
+    summary.heavy_signals.forEach((row, i) => {
       lines.push(
-        `${i + 1}. ${row.created_at}  ${row.event_kind}  page=${row.page_path}  failed=${row.failed_url || "-"}  status=${row.http_status ?? "-"}  ms=${row.duration_ms ?? "-"}  ray=${row.cf_ray || "-"}  user=${row.username || "-"}  detail=${row.detail_json || "{}"}`
+        `${i + 1}. ${row.route_key}  ${signalLabel(row.signal, labels)}  hits=${formatNumber(row.hit_count)}  max_ms=${formatNumber(row.max_duration_ms)}  max_bytes=${formatNumber(row.max_bytes)}`
+      );
+    });
+  }
+
+  lines.push("", `${labels.subjectsHeading}:`);
+  for (const s of summary.subjects) {
+    const name = s.subject === "jp" ? "jp" : "en";
+    lines.push(
+      `${name}: words=${formatNumber(s.word_count)} shared_today=${formatNumber(s.today_shared_count)} shared_sum_list=${formatNumber(s.today_shared_sum_list_bytes)}B shared_max_list=${formatNumber(s.today_shared_max_list_bytes)}B notes=${formatNumber(s.notes_count)} max_notes=${formatNumber(s.max_notes_bytes)}B avg_notes=${formatNumber(s.avg_notes_bytes)}B img_hints=${formatNumber(s.notes_with_image_hint)} shared_max_notes=${formatNumber(s.today_shared_max_notes_bytes)}B`
+    );
+  }
+
+  lines.push("", `${labels.heaviestHeading}:`);
+  if (!summary.heaviest_notes.length) {
+    lines.push("(none — notes secondary; EN often empty)");
+  } else {
+    summary.heaviest_notes.forEach((row, i) => {
+      lines.push(
+        `${i + 1}. [${row.subject}] #${row.id} ${row.word}  ${formatNumber(row.notes_bytes)}B  ${row.has_image_hint ? labels.withImage : labels.noImage}`
       );
     });
   }

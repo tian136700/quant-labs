@@ -37,6 +37,10 @@ def main() -> int:
         "CopyToast",
         "/api/analytics/worker-1102",
         "copyReport",
+        "guideHeading",
+        "riskNotesHeading",
+        "admin-1102-text-table",
+        "EmptyTableRow",
     ):
         if needle not in panel:
             errors.append(f"AdminWorker1102Panel 须含 {needle}")
@@ -54,6 +58,8 @@ def main() -> int:
         "incrementWorkerHeavySignal",
         "heaviest_notes",
         "today_shared_sum_list_bytes",
+        "英语也可无备注仍 1102",
+        "notes_not_primary_cause",
     ):
         if needle not in db:
             errors.append(f"worker-1102-db.ts 须含 {needle}")

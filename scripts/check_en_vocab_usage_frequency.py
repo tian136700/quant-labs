@@ -33,8 +33,12 @@ def main() -> None:
         fail("prompt/label must mention 出现频次")
     if "[8]" not in ai and "[9]" not in ai:
         fail("format_example / prompt must show [score] sample")
-    if "同一核心义项" not in ai:
+    if "同一核心义项" not in ai and "同一核心义" not in ai:
         fail("usage prompt must tell model to merge near-duplicate senses")
+    if "按对象" not in ai and "按修饰对象" not in ai:
+        fail("usage prompt must forbid splitting one sense by object/scene")
+    if "attractive" not in ai:
+        fail("usage prompt must give attractive merge anti-example")
     if "分类：" not in ai or "托业" not in ai:
         fail("usage prompt must adapt exam focus by category")
 
@@ -79,8 +83,10 @@ def main() -> None:
         fail("online batch must normalize_usage (string or array)")
     if "frequency score" not in online.lower() and "[1]-[10]" not in online:
         fail("online SYSTEM/prompt must require frequency scores")
-    if "near-duplicate" not in online and "同一义项" not in online:
+    if "near-duplicate" not in online and "同一义项" not in online and "同一义" not in online:
         fail("online prompt must forbid splitting one core sense into duplicate lines")
+    if "按对象" not in online and "attractive" not in online:
+        fail("online prompt must forbid splitting one sense by object/scene")
     if "category_focus" not in online or "托业" not in online:
         fail("online batch prompt must adapt by category")
 

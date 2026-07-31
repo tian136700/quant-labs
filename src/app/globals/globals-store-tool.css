@@ -565,6 +565,35 @@
   white-space: nowrap;
 }
 
+.admin-1102-text-table .admin-1102-item-cell {
+  width: 7.5rem;
+  min-width: 5.5rem;
+  max-width: 9rem;
+  font-weight: 600;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.admin-1102-text-cell {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.45;
+  vertical-align: top;
+}
+
+@media (max-width: 767px) {
+  .admin-1102-text-table .admin-1102-item-cell {
+    width: 5.5rem;
+    min-width: 4.5rem;
+    max-width: 6.5rem;
+    font-size: 0.85rem;
+  }
+
+  .admin-1102-text-cell {
+    font-size: 0.85rem;
+  }
+}
+
 .admin-traffic-subhead {
   margin: 1.25rem 0 0.5rem;
   font-size: 1rem;

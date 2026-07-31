@@ -145,6 +145,10 @@ def main() -> int:
         errors.append("en-vocab-usage-ai: 校验须允许仅 1 条用法")
     if "禁止为了凑数" not in usage_ai and "硬凑" not in usage_ai:
         errors.append("en-vocab-usage-ai prompt: 须写明禁止硬凑组数")
+    if "attractive" not in usage_ai:
+        errors.append("en-vocab-usage-ai prompt: 须有 attractive 勿按场景硬拆示例")
+    if "按对象" not in usage_ai and "按修饰对象" not in usage_ai:
+        errors.append("en-vocab-usage-ai prompt: 须禁止按对象/场景硬拆同一义")
 
     fill_rule = (ROOT / ".cursor/rules/en-vocab-fill.mdc").read_text(encoding="utf-8")
     if "至少 2 条（选题按学术考试高频" in fill_rule:
