@@ -334,7 +334,7 @@ export async function upsertJpVocabFromLesson(
   }
 
   if (addedNew) {
-    const words = await listJpVocabWords(db);
+    const words = await listJpVocabWordsForPool(db);
     await ensureJpVocabDailyDisplayOrder(db, words);
   }
 }

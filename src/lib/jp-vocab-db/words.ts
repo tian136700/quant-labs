@@ -115,12 +115,14 @@ import {
   mapRow,
   ensureVocabWordSchema,
   WORD_SELECT,
+  WORD_SELECT_LIST,
   WORD_SELECT_POOL,
   refsRecord,
   upsertJpVocabRefMetadata,
   saveJpVocabRefFileMeta,
   getJpVocabRef,
   listJpVocabRefs,
+  mapSharedListWordRow,
   seedIfEmpty,
 } from "./helpers";
 
@@ -160,6 +162,38 @@ export async function listJpVocabWords(db: D1Database): Promise<JpVocabWord[]> {
   return (result.results || []).map(mapRow);
 }
 
+/**
+ * 老师/管理员词表与 sync：不含 class_notes 正文（has_class_notes），防 1102。
+ * 编辑弹窗 / 卡片按需 GET /api/jp-vocab/class-notes。
+ */
+export async function listJpVocabWordsForClientList(
+  db: D1Database
+): Promise<JpVocabWord[]> {
+  await seedIfEmpty(db);
+  await ensureVocabWordSchema(db);
+
+  if (jpVocabDbState.devStoreEnabled) {
+    return sortJpVocabWords(jpVocabDbState.devWords).map((w) => ({
+      ...w,
+      class_notes: null,
+      class_notes_present: hasJpVocabClassNotesPresent(w.class_notes),
+    }));
+  }
+
+  const result = await db
+    .prepare(
+      `${WORD_SELECT_LIST}
+       ORDER BY cnt_weak DESC, cnt_normal DESC, word COLLATE NOCASE ASC`
+    )
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(mapSharedListWordRow);
+}
+
+function hasJpVocabClassNotesPresent(notes: string | null | undefined): boolean {
+  return Boolean(notes && String(notes).trim());
+}
+
 /** 老师可见池 / 管理员 very 后 rematerialize：轻量列表，不含 class_notes 等正文 */
 export async function listJpVocabWordsForPool(
   db: D1Database
@@ -196,13 +230,13 @@ export async function listJpVocabWordsWithRefs(db: D1Database): Promise<{
   refs: Record<string, JpVocabRef>;
 }> {
   const [words, refs] = await Promise.all([
-    listJpVocabWords(db),
+    listJpVocabWordsForClientList(db),
     listJpVocabRefs(db),
   ]);
   return { words, refs: refsRecord(refs) };
 }
 
-/** 增量同步：仅返回 updated_at 晚于 since 的词条（轻量轮询用） */
+/** 增量同步：仅返回 updated_at 晚于 since 的词条（轻量轮询用；不含 class_notes 正文） */
 export async function listJpVocabWordsChangedSince(
   db: D1Database,
   since: string
@@ -215,17 +249,22 @@ export async function listJpVocabWordsChangedSince(
   if (jpVocabDbState.devStoreEnabled) {
     return jpVocabDbState.devWords
       .filter((w) => w.updated_at > marker)
-      .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+      .sort((a, b) => a.updated_at.localeCompare(b.updated_at))
+      .map((w) => ({
+        ...w,
+        class_notes: null,
+        class_notes_present: hasJpVocabClassNotesPresent(w.class_notes),
+      }));
   }
 
   const result = await db
     .prepare(
-      `${WORD_SELECT} WHERE updated_at > ?1 ORDER BY updated_at ASC LIMIT 200`
+      `${WORD_SELECT_LIST} WHERE updated_at > ?1 ORDER BY updated_at ASC LIMIT 200`
     )
     .bind(marker)
     .all<Record<string, unknown>>();
 
-  return (result.results || []).map(mapRow);
+  return (result.results || []).map(mapSharedListWordRow);
 }
 
 export async function existsJpVocabWordByLemma(
@@ -393,7 +432,7 @@ export async function deleteJpVocabWordsByIds(
   await clearJpVocabTeacherQuizLiveIfDeleted(db, idSet);
   await pruneJpVocabQuizPriorityBoostForDeletedWords(db, idSet);
 
-  const words = await listJpVocabWords(db);
+  const words = await listJpVocabWordsForPool(db);
   let display_order = await ensureJpVocabDailyDisplayOrder(db, words);
   const validIds = new Set(words.map((w) => w.id));
   const nextIds = display_order.ids.filter((id) => validIds.has(id));
@@ -510,7 +549,7 @@ export async function resetAllJpVocabReviews(
 
   await clearJpVocabSharedOnReset(db, "all");
 
-  const words = await listJpVocabWords(db);
+  const words = await listJpVocabWordsForClientList(db);
   const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
   const teacher_visible_limit = await getJpVocabTeacherVisibleLimit(db);
   return { ok: true, words, display_order, teacher_visible_limit };
@@ -521,7 +560,7 @@ export async function resetTodayJpVocabRound(
 ): Promise<ResetJpVocabReviewsResult> {
   await seedIfEmpty(db);
   await clearJpVocabSharedOnReset(db, "today");
-  const words = await listJpVocabWords(db);
+  const words = await listJpVocabWordsForClientList(db);
   const display_order = await refreshJpVocabDailyDisplayOrder(db, words);
   const raw = await readJpVocabTeacherVisibleLimitRaw(db);
   const today = beijingDateString();

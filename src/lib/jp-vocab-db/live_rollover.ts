@@ -124,7 +124,7 @@ import {
   ensureJpVocabShareRequestSchema,
 } from "./share";
 import {
-  listJpVocabWords,
+  listJpVocabWordsForPool,
 } from "./words";
 
 export type JpVocabDailyRolloverResult = {
@@ -270,7 +270,7 @@ export async function runJpVocabDailyRolloverInDb(
   }
 
   if (display_order_refreshed) {
-    const words = await listJpVocabWords(db);
+    const words = await listJpVocabWordsForPool(db);
     await refreshJpVocabDailyDisplayOrder(db, words);
   }
 

@@ -111,7 +111,7 @@ import {
   nowIso,
 } from "./helpers";
 import {
-  listJpVocabWords,
+  listJpVocabWordsForPool,
 } from "./words";
 
 async function readJpVocabQuizPriorityBoostRaw(
@@ -179,7 +179,7 @@ export async function boostJpVocabQuizPriority(
   | { ok: false; error: string }
 > {
   const now = options.now ?? new Date();
-  const words = await listJpVocabWords(db);
+  const words = await listJpVocabWordsForPool(db);
   if (!words.some((word) => word.id === wordId)) {
     return { ok: false, error: "not_found" };
   }
@@ -419,7 +419,7 @@ export async function appendJpVocabWordToDailyDisplayOrder(
   // 跨日或空顺序：必须全量 ensure（从未抽查优先重排）。禁止写成 {date:today, ids:[新词]}，
   // 否则同日 merge 会把其余词条按任意顺序堆在后面，序号与今日池严重错位。
   if (!stored?.ids.length || stored.date !== today) {
-    const words = await listJpVocabWords(db);
+    const words = await listJpVocabWordsForPool(db);
     await ensureJpVocabDailyDisplayOrder(db, words);
     return;
   }
@@ -566,7 +566,7 @@ export async function ensureJpVocabTeacherVisibleLimit(
   ctx?: { words: JpVocabWord[]; displayOrder: JpVocabDailyDisplayOrder }
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
-  const words = ctx?.words ?? (await listJpVocabWords(db));
+  const words = ctx?.words ?? (await listJpVocabWordsForPool(db));
   const displayOrder =
     ctx?.displayOrder ?? (await ensureJpVocabDailyDisplayOrder(db, words));
   if (
@@ -641,7 +641,7 @@ export async function expandJpVocabTeacherVisibleLimit(
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
   const addCount = Math.max(1, Math.floor(releaseCount));
-  const words = await listJpVocabWords(db);
+  const words = await listJpVocabWordsForPool(db);
   const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
 
   const previousTotal = current.released_today ? current.release_count : 0;
@@ -687,7 +687,7 @@ export async function setJpVocabDailyQuizTarget(
 ): Promise<JpVocabTeacherVisibleLimit> {
   const current = await getJpVocabTeacherVisibleLimit(db);
   const quiz_target = Math.min(Math.max(1, Math.floor(targetCount)), 999);
-  const words = await listJpVocabWords(db);
+  const words = await listJpVocabWordsForPool(db);
   const displayOrder = await ensureJpVocabDailyDisplayOrder(db, words);
 
   const draft: JpVocabTeacherVisibleLimit = {

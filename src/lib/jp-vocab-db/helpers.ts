@@ -356,6 +356,17 @@ export const WORD_SELECT = `SELECT id, word, reading, meaning, pos, kind, ref_ke
   last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
 
 /**
+ * 老师/管理员词表 GET、sync 增量：保留例句/用法（抽查卡需要），禁止扫 class_notes 正文。
+ * 备注用 has_class_notes；正文走 GET /api/jp-vocab/class-notes?word_id=
+ */
+export const WORD_SELECT_LIST = `SELECT id, word, reading, meaning, pos, kind, ref_key,
+  cnt_very, cnt_normal, cnt_weak, today_check_count, today_check_date,
+  (CASE WHEN class_notes IS NOT NULL THEN 1 ELSE 0 END) AS has_class_notes,
+  mnemonic, annotation, course_label, example_sentences,
+  example_sentences_source, meaning_source, pos_source, usage, usage_source, connection, connection_source,
+  last_review_level, last_review_at, srs_interval_days, srs_due_date, created_at, updated_at FROM jp_vocab_word`;
+
+/**
  * 可见池 / 日序 rematerialize 用：禁止扫 class_notes、例句、巧记、用法等大字段。
  * 管理员勾「非常熟悉」后若用 WORD_SELECT 全表 → 极易 Worker 1102。
  */
