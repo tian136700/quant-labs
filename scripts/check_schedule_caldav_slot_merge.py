@@ -37,6 +37,12 @@ def main() -> int:
         print("listScheduleCalDavEvents must call mergeRawLessonSlotEvents")
         return 1
 
+    if "manualScheduleHasLinkedLessonOnSameSlot" not in text:
+        print(
+            "listScheduleCalDavEvents must skip manuals covered by linked lesson same slot"
+        )
+        return 1
+
     if "hasWord && hasGrammar" not in text:
         print("formatScheduleKindLabel missing word+grammar branch")
         return 1

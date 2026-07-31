@@ -13,6 +13,7 @@ import {
 } from "@/lib/jp-lesson-shared";
 import { resolveManualScheduleDurationMinutes } from "@/lib/jp-lesson-manual-schedule";
 import { listJpLessonManualSchedules } from "@/lib/jp-lesson-manual-schedule-db";
+import { manualScheduleHasLinkedLessonOnSameSlot } from "@/lib/jp-lesson-manual-schedule-linked";
 import { listJpLessonTeachers } from "@/lib/jp-lesson-teacher-db";
 
 export const SCHEDULE_CALDAV_UID_DOMAIN = "info-quests.schedule";
@@ -300,7 +301,17 @@ export async function listScheduleCalDavEvents(
 
   const events: ScheduleCalDavEvent[] = mergeRawLessonSlotEvents(rawLessonEvents);
 
+  const lessonSlots = rawLessonEvents.map((event) => ({
+    subject: event.subject,
+    lessonId: event.lesson_id,
+    classAt: event.class_at,
+  }));
+
   for (const manual of manuals) {
+    // 关联教材已同步进新课同堂 → 日历只保留新课合并事件，勿再推一条「手动」
+    if (manualScheduleHasLinkedLessonOnSameSlot(manual, lessonSlots)) {
+      continue;
+    }
     const title = manual.title.trim() || `手动日程 #${manual.id}`;
     const teachers = manual.teacher.trim() || "未指定";
     events.push({

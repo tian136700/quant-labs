@@ -1,10 +1,11 @@
 "use client";
 
 import { EnLessonNextClassEditModal } from "@/components/EnLessonNextClassEditModal";
+import { JpLessonManualScheduleLinkFromDetailModal } from "@/components/JpLessonManualScheduleLinkFromDetailModal";
 import { JpLessonManualScheduleModal } from "@/components/JpLessonManualScheduleModal";
 import { JpLessonNextClassEditModal } from "@/components/JpLessonNextClassEditModal";
-import type { Locale } from "@/i18n/messages";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
+import type { ManualScheduleLessonOption } from "@/lib/jp-lesson-manual-schedule-linked";
 import type {
   EnLessonRecord,
   EnLessonTeacher,
@@ -18,7 +19,6 @@ export type JpLessonScheduleModalsProps = {
   selectedDate: string;
   editingManual: JpLessonManualSchedule | null;
   manualModalMode: "full" | "time";
-  locale: Locale;
   teachers: JpLessonTeacher[];
   enTeachers: EnLessonTeacher[];
   koTeachers: KoLessonTeacher[];
@@ -27,10 +27,11 @@ export type JpLessonScheduleModalsProps = {
   savingManualSchedule: boolean;
   closeManualModal: () => void;
   handleSaveManualSchedule: (...args: any[]) => void;
-  onLinkedLessonSynced: (
-    subject: "jp" | "en",
-    lesson: JpLessonRecord | EnLessonRecord
-  ) => void;
+  linkLessonPickOpen: boolean;
+  selectedManualSchedule: JpLessonManualSchedule | null;
+  linkingManualLesson: boolean;
+  closeLinkLessonPick: () => void;
+  handleLinkLessonFromDetail: (option: ManualScheduleLessonOption) => void | Promise<void>;
   addLessonTeacher: (...args: any[]) => any;
   addEnLessonTeacher: (...args: any[]) => any;
   addKoLessonTeacher: (...args: any[]) => any;
@@ -49,7 +50,6 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
     selectedDate,
     editingManual,
     manualModalMode,
-    locale,
     teachers,
     enTeachers,
     koTeachers,
@@ -58,7 +58,11 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
     savingManualSchedule,
     closeManualModal,
     handleSaveManualSchedule,
-    onLinkedLessonSynced,
+    linkLessonPickOpen,
+    selectedManualSchedule,
+    linkingManualLesson,
+    closeLinkLessonPick,
+    handleLinkLessonFromDetail,
     addLessonTeacher,
     addEnLessonTeacher,
     addKoLessonTeacher,
@@ -77,7 +81,6 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
         initialDate={selectedDate}
         editing={editingManual}
         mode={manualModalMode}
-        locale={locale}
         jpTeachers={teachers}
         enTeachers={enTeachers}
         koTeachers={koTeachers}
@@ -86,10 +89,19 @@ export function JpLessonScheduleModals(props: JpLessonScheduleModalsProps) {
         onAddJpTeacher={addLessonTeacher}
         onAddEnTeacher={addEnLessonTeacher}
         onAddKoTeacher={addKoLessonTeacher}
-        onLinkedLessonSynced={onLinkedLessonSynced}
         saving={savingManualSchedule}
         onClose={closeManualModal}
         onSave={handleSaveManualSchedule}
+      />
+
+      <JpLessonManualScheduleLinkFromDetailModal
+        open={linkLessonPickOpen}
+        manual={selectedManualSchedule}
+        jpLessons={jpLessons}
+        enLessons={enLessons}
+        syncing={linkingManualLesson}
+        onClose={closeLinkLessonPick}
+        onPick={handleLinkLessonFromDetail}
       />
 
       <JpLessonNextClassEditModal

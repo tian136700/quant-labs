@@ -25,9 +25,21 @@ import {
   readJpLessonTeachersCache,
 } from "@/lib/jp-lesson-teachers-cache";
 import {
+  linkedLessonKey,
+  MANUAL_SCHEDULE_LINKED_LESSONS_MAX,
+  normalizeManualScheduleLinkedLessons,
+  type ManualScheduleLessonOption,
+} from "@/lib/jp-lesson-manual-schedule-linked";
+import { detectScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
+import {
   syncManualScheduleLinkedLessonErrorMessage,
   syncManualScheduleLinkedLessonToLearning,
 } from "@/lib/manual-schedule-sync-linked-lesson";
+import {
+  animateJpVocabSaveProgressTo100,
+  JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT,
+  jpVocabSaveProgressPercent,
+} from "@/lib/jp-vocab-save-progress";
 import type {
   EnLessonClassScheduleInput,
   EnLessonRecord,
@@ -69,6 +81,9 @@ export type UseJpLessonSchedulePageActionsOptions = {
   setManualModalMode: Dispatch<SetStateAction<"full" | "time">>;
   setEditingManual: Dispatch<SetStateAction<JpLessonManualSchedule | null>>;
   setManualModalOpen: Dispatch<SetStateAction<boolean>>;
+  setLinkLessonPickOpen: Dispatch<SetStateAction<boolean>>;
+  setLinkingManualLesson: Dispatch<SetStateAction<boolean>>;
+  setLinkLessonProgressPercent: Dispatch<SetStateAction<number | null>>;
   setSavingManualSchedule: Dispatch<SetStateAction<boolean>>;
   setError: Dispatch<SetStateAction<string>>;
   setManualSchedules: Dispatch<SetStateAction<JpLessonManualSchedule[]>>;
@@ -84,6 +99,7 @@ export type UseJpLessonSchedulePageActionsOptions = {
   setEditingEnNextClassLesson: Dispatch<SetStateAction<EnLessonRecord | null>>;
   loadLessons: (opts?: { force?: boolean }) => Promise<void>;
   loadEnLessons: (opts?: { force?: boolean }) => Promise<void>;
+  linkingManualLessonRef: MutableRefObject<boolean>;
 };
 
 export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageActionsOptions) {
@@ -105,10 +121,14 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     savingNextClassId,
     savingManualScheduleRef,
     savingNextClassRef,
+    linkingManualLessonRef,
 
     setManualModalMode,
     setEditingManual,
     setManualModalOpen,
+    setLinkLessonPickOpen,
+    setLinkingManualLesson,
+    setLinkLessonProgressPercent,
     setSavingManualSchedule,
     setError,
     setManualSchedules,
@@ -174,6 +194,116 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
     setManualModalOpen(false);
     setEditingManual(null);
     setManualModalMode("full");
+  };
+
+  const openLinkLessonPick = () => {
+    if (!selectedManualSchedule) return;
+    if (linkingManualLessonRef.current || savingManualScheduleRef.current) return;
+    const linkedCount = selectedManualSchedule.linked_lessons?.length ?? 0;
+    if (linkedCount >= MANUAL_SCHEDULE_LINKED_LESSONS_MAX) {
+      setStatusMessage("已关联 2 本教材");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+      return;
+    }
+    if (detectScheduleTeacherSubjectFromTitle(selectedManualSchedule.title) === "ko") {
+      setStatusMessage("韩语日程暂无新课教材可关联");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+      return;
+    }
+    setLinkLessonPickOpen(true);
+  };
+
+  const closeLinkLessonPick = () => {
+    if (linkingManualLessonRef.current) return;
+    setLinkLessonPickOpen(false);
+  };
+
+  const handleLinkLessonFromDetail = async (option: ManualScheduleLessonOption) => {
+    const manual = selectedManualSchedule;
+    if (!manual || linkingManualLessonRef.current || savingManualScheduleRef.current) {
+      return;
+    }
+    const key = linkedLessonKey({
+      subject: option.subject,
+      lesson_id: option.id,
+    });
+    const existing = normalizeManualScheduleLinkedLessons(manual.linked_lessons);
+    if (existing.some((link) => linkedLessonKey(link) === key)) {
+      setLinkLessonPickOpen(false);
+      return;
+    }
+    if (existing.length >= MANUAL_SCHEDULE_LINKED_LESSONS_MAX) {
+      setStatusMessage("已关联 2 本教材");
+      window.setTimeout(() => setStatusMessage(""), 2500);
+      setLinkLessonPickOpen(false);
+      return;
+    }
+
+    const nextLinks = normalizeManualScheduleLinkedLessons([
+      ...existing,
+      { subject: option.subject, lesson_id: option.id },
+    ]);
+
+    linkingManualLessonRef.current = true;
+    setLinkingManualLesson(true);
+    setLinkLessonPickOpen(false);
+    setError("");
+    setLinkLessonProgressPercent(JP_VOCAB_SAVE_PROGRESS_QUEUED_PERCENT);
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setLinkLessonProgressPercent(jpVocabSaveProgressPercent(Date.now() - startedAt));
+    }, 120);
+
+    try {
+      const teachersForSubject = option.subject === "en" ? enTeachers : teachers;
+      const syncResult = await syncManualScheduleLinkedLessonToLearning({
+        subject: option.subject,
+        lessonId: option.id,
+        classAt: manual.class_at,
+        durationMinutes: manual.duration_minutes,
+        teacherName: manual.teacher,
+        teachers: teachersForSubject,
+        locale,
+      });
+      if (!syncResult.ok) {
+        throw new Error(syncManualScheduleLinkedLessonErrorMessage(syncResult.error));
+      }
+      applyLinkedLessonSynced(option.subject, syncResult.lesson);
+
+      const saved = await updateJpLessonManualSchedule(manual.id, {
+        title: manual.title,
+        class_at: manual.class_at,
+        duration_minutes: manual.duration_minutes,
+        teacher: manual.teacher,
+        note: manual.note,
+        linked_lessons: nextLinks,
+      });
+      if (!saved) {
+        throw new Error("保存关联教材失败");
+      }
+      setManualSchedules((prev) => {
+        const next = prev.map((item) => (item.id === saved.id ? saved : item));
+        const sorted = next.sort((a, b) => a.class_at.localeCompare(b.class_at));
+        syncJpLessonManualScheduleCache(sorted);
+        return sorted;
+      });
+      setSelectedEventKey(`manual-${saved.id}`);
+      if (option.subject === "jp") void loadLessons({ force: true });
+      else void loadEnLessons({ force: true });
+
+      await animateJpVocabSaveProgressTo100(startedAt, setLinkLessonProgressPercent);
+      setStatusMessage("已关联教材，并同步为新课「学习中」");
+      window.setTimeout(() => setStatusMessage(""), 3500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setStatusMessage(err instanceof Error ? err.message : "关联教材失败");
+      window.setTimeout(() => setStatusMessage(""), 3500);
+    } finally {
+      window.clearInterval(timer);
+      setLinkLessonProgressPercent(null);
+      linkingManualLessonRef.current = false;
+      setLinkingManualLesson(false);
+    }
   };
 
   const handleSaveManualSchedule = async (
@@ -570,6 +700,9 @@ export function useJpLessonSchedulePageActions(options: UseJpLessonSchedulePageA
   return {
     openManualModal,
     closeManualModal,
+    openLinkLessonPick,
+    closeLinkLessonPick,
+    handleLinkLessonFromDetail,
     handleSaveManualSchedule,
     handleDeleteManualSchedule,
     addLessonTeacher,

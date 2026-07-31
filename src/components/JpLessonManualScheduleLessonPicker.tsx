@@ -17,7 +17,7 @@ import type { EnLessonRecord, JpLessonRecord } from "@/lib/types";
 type Props = {
   value: ManualScheduleLinkedLesson[];
   onChange: (links: ManualScheduleLinkedLesson[]) => void;
-  /** 选中一本教材后：关联 + 同步到新课学习中（由父级处理进度条/错误） */
+  /** 选中一本教材：仅加入本地关联列表（编辑弹窗）；详情页「关联教材」由父级一次保存+同步 */
   onPickLesson: (option: ManualScheduleLessonOption) => void | Promise<void>;
   titleSubject: ScheduleTeacherSubjectFromTitle;
   jpLessons: JpLessonRecord[];
@@ -88,6 +88,15 @@ function resolveOptionsForSubject(
     emptyHint:
       "选标题「日语」可从日语新课关联；选「英语」从英语新课关联。",
   };
+}
+
+/** 详情页「关联教材」与编辑弹窗共用同一套科目→教材列表 */
+export function resolveManualScheduleLessonPickOptions(
+  titleSubject: ScheduleTeacherSubjectFromTitle,
+  jpLessons: JpLessonRecord[],
+  enLessons: EnLessonRecord[]
+) {
+  return resolveOptionsForSubject(titleSubject, jpLessons, enLessons);
 }
 
 export function JpLessonManualScheduleLessonPicker({

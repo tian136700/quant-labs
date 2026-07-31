@@ -316,6 +316,21 @@ export function buildLessonEventDedupKey(
   return event.key;
 }
 
+/**
+ * 选中键匹配：关联教材后手动条并入新课，key 从 `manual-*` 变为 `jp-`/`en-`，
+ * 仍用 manualId 续选，避免详情栏跳到别的课。
+ */
+export function scheduleEventMatchesSelectionKey(
+  event: DayScheduleEvent,
+  selectedEventKey: string | null
+): boolean {
+  if (!selectedEventKey) return false;
+  if (event.key === selectedEventKey) return true;
+  if (!selectedEventKey.startsWith("manual-") || event.manualId == null) return false;
+  const manualId = Number(selectedEventKey.slice("manual-".length));
+  return Number.isInteger(manualId) && manualId > 0 && event.manualId === manualId;
+}
+
 /** 合并同堂多教案的词条展示（去重保序） */
 export function mergeLessonDisplayContents(a: string, b: string): string {
   const seen = new Set<string>();

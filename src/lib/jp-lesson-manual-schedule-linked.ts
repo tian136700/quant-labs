@@ -1,6 +1,7 @@
 import {
   formatLessonContentLines,
   jpLessonProgressSortRank,
+  normalizeClassAtForCompare,
 } from "@/lib/jp-lesson-shared";
 
 /** 手动日程可关联的教材科目（韩语暂无对应新课列表） */
@@ -119,4 +120,73 @@ export function sortManualScheduleLessonOptions(
     if (rank !== 0) return rank;
     return b.id - a.id;
   });
+}
+
+/** 新课日程槽（去重前亦可）：用于判断手动关联教材是否已同堂出现 */
+export type ManualScheduleLinkedLessonSlot = {
+  subject: ManualScheduleLinkedLessonSubject;
+  lessonId: number;
+  classAt: string;
+};
+
+/**
+ * 手动日程已选教材，且该教材已在同一上课时间出现在新课日程里 →
+ * 网页/CalDAV 不应再单独画一条「手动」（关联同步会写入新课时间，否则同堂两条）。
+ */
+export function manualScheduleHasLinkedLessonOnSameSlot(
+  manual: {
+    class_at: string;
+    linked_lessons?: ManualScheduleLinkedLesson[] | null;
+  },
+  lessonSlots: ManualScheduleLinkedLessonSlot[]
+): boolean {
+  const links = normalizeManualScheduleLinkedLessons(manual.linked_lessons);
+  if (!links.length || !lessonSlots.length) return false;
+  const manualAt = normalizeClassAtForCompare(manual.class_at);
+  for (const link of links) {
+    for (const slot of lessonSlots) {
+      if (slot.subject !== link.subject) continue;
+      if (slot.lessonId !== link.lesson_id) continue;
+      if (normalizeClassAtForCompare(slot.classAt) === manualAt) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 在已合并的新课事件里，找到应对接该手动日程的那条（同科目 + 同开始时间）。
+ * 用去重前的 slot 判定覆盖，再用去重后事件承接 manualId（单词+语法合并后 lessonId 可能只剩其一）。
+ */
+export function findDedupedLessonEventForManualLinkedCover<
+  T extends { subject: string; classAt: string },
+>(
+  dedupedLessonEvents: T[],
+  manual: {
+    class_at: string;
+    linked_lessons?: ManualScheduleLinkedLesson[] | null;
+  },
+  lessonSlots: ManualScheduleLinkedLessonSlot[]
+): T | null {
+  if (!manualScheduleHasLinkedLessonOnSameSlot(manual, lessonSlots)) return null;
+  const links = normalizeManualScheduleLinkedLessons(manual.linked_lessons);
+  const manualAt = normalizeClassAtForCompare(manual.class_at);
+  const subjects = new Set(
+    lessonSlots
+      .filter(
+        (slot) =>
+          normalizeClassAtForCompare(slot.classAt) === manualAt &&
+          links.some(
+            (link) =>
+              link.subject === slot.subject && link.lesson_id === slot.lessonId
+          )
+      )
+      .map((slot) => slot.subject)
+  );
+  for (const event of dedupedLessonEvents) {
+    if (!subjects.has(event.subject as ManualScheduleLinkedLessonSubject)) {
+      continue;
+    }
+    if (normalizeClassAtForCompare(event.classAt) === manualAt) return event;
+  }
+  return null;
 }

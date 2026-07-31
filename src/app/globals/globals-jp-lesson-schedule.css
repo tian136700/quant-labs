@@ -805,6 +805,16 @@ input.jpls-date-input {
   border-color: color-mix(in srgb, var(--rise) 35%, var(--border)) !important;
   color: var(--rise) !important;
 }
+.jpls-link-lesson-btn {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border)) !important;
+  color: var(--accent) !important;
+}
+.jpls-copy-template-btn {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border)) !important;
+}
+.jpls-detail-link-progress {
+  margin-top: 0.75rem;
+}
 .jpls-today-list ul {
   list-style: none;
   margin: 0;

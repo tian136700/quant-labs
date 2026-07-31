@@ -11,7 +11,6 @@ import {
 } from "@/components/JpLessonTeacherSinglePicker";
 import type { JpLessonTeacherAddInput } from "@/components/JpLessonTeacherEditModal";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
-import type { Locale } from "@/i18n/messages";
 import type { JpLessonManualSchedule, JpLessonManualScheduleDraft } from "@/lib/jp-lesson-manual-schedule";
 import {
   linkedLessonKey,
@@ -29,10 +28,6 @@ import {
   resolveJpLessonTeacherLessonMinutes,
 } from "@/lib/jp-lesson-teacher-default-duration";
 import { findLessonTeacherByPickerName } from "@/lib/lesson-teacher-search";
-import {
-  syncManualScheduleLinkedLessonErrorMessage,
-  syncManualScheduleLinkedLessonToLearning,
-} from "@/lib/manual-schedule-sync-linked-lesson";
 import type { EnLessonRecord, JpLessonRecord, JpLessonTeacher } from "@/lib/types";
 import { DEFAULT_EN_LESSON_CLASS_DURATION_MINUTES } from "@/lib/en-lesson-shared";
 import {
@@ -52,7 +47,6 @@ type Props = {
   initialDate?: string;
   editing?: JpLessonManualSchedule | null;
   mode?: ManualScheduleModalMode;
-  locale?: Locale;
   jpTeachers?: JpLessonTeacher[];
   enTeachers?: JpLessonTeacher[];
   koTeachers?: JpLessonTeacher[];
@@ -61,11 +55,6 @@ type Props = {
   onAddJpTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onAddEnTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
   onAddKoTeacher?: (input: JpLessonTeacherAddInput) => Promise<JpLessonTeacher | null>;
-  /** 选教材同步到新课后，刷新日程页本地课次缓存 */
-  onLinkedLessonSynced?: (
-    subject: "jp" | "en",
-    lesson: JpLessonRecord | EnLessonRecord
-  ) => void;
   saving?: boolean;
   onClose: () => void;
   onSave: (draft: JpLessonManualScheduleDraft) => void;
@@ -144,7 +133,6 @@ export function JpLessonManualScheduleModal({
   initialDate = "",
   editing = null,
   mode = "full",
-  locale = "zh",
   jpTeachers = [],
   enTeachers = [],
   koTeachers = [],
@@ -153,7 +141,6 @@ export function JpLessonManualScheduleModal({
   onAddJpTeacher,
   onAddEnTeacher,
   onAddKoTeacher,
-  onLinkedLessonSynced,
   saving = false,
   onClose,
   onSave,
@@ -169,11 +156,10 @@ export function JpLessonManualScheduleModal({
   const [linkedLessons, setLinkedLessons] = useState<ManualScheduleLinkedLesson[]>([]);
   const [error, setError] = useState("");
   const [addingTeacher, setAddingTeacher] = useState(false);
-  const [syncingLesson, setSyncingLesson] = useState(false);
   const saveInitiatedRef = useRef(false);
   const formInitKeyRef = useRef<string | null>(null);
   const teacherPickerRef = useRef<JpLessonTeacherSinglePickerHandle>(null);
-  const saveProgress = useSaveProgressBar(saving || syncingLesson);
+  const saveProgress = useSaveProgressBar(saving);
 
   const title = useMemo(() => {
     if (titleChoice === "custom") return customTitle;
@@ -324,8 +310,9 @@ export function JpLessonManualScheduleModal({
     }
   };
 
-  const handlePickLesson = async (option: ManualScheduleLessonOption) => {
-    if (saving || addingTeacher || syncingLesson) return;
+  /** 选教材只记入本地；点「保存」时再统一写库并同步到新课（避免选一次、保存又一次） */
+  const handlePickLesson = (option: ManualScheduleLessonOption) => {
+    if (saving || addingTeacher) return;
 
     const key = linkedLessonKey({
       subject: option.subject,
@@ -333,51 +320,17 @@ export function JpLessonManualScheduleModal({
     });
     if (linkedLessons.some((link) => linkedLessonKey(link) === key)) return;
 
-    if (!date.trim() || !time.trim()) {
-      setError("请先选择日期和时间，再选教材（会同步到新课「学习中」）");
-      return;
-    }
-
-    const classAt = nextClassAtFromDatetimeLocalValue(`${date}T${time}`);
-    if (!classAt) {
-      setError("日期或时间无效");
-      return;
-    }
-
-    const nextLinks = normalizeManualScheduleLinkedLessons([
-      ...linkedLessons,
-      { subject: option.subject, lesson_id: option.id },
-    ]);
-    setLinkedLessons(nextLinks);
+    setLinkedLessons(
+      normalizeManualScheduleLinkedLessons([
+        ...linkedLessons,
+        { subject: option.subject, lesson_id: option.id },
+      ])
+    );
     setError("");
-    setSyncingLesson(true);
-
-    try {
-      const teachersForSubject =
-        option.subject === "en" ? enTeachers : jpTeachers;
-      const result = await syncManualScheduleLinkedLessonToLearning({
-        subject: option.subject,
-        lessonId: option.id,
-        classAt,
-        durationMinutes: duration ? Number(duration) : null,
-        teacherName: teacher,
-        teachers: teachersForSubject,
-        locale,
-      });
-      if (!result.ok) {
-        setError(syncManualScheduleLinkedLessonErrorMessage(result.error));
-        return;
-      }
-      onLinkedLessonSynced?.(option.subject, result.lesson);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "同步教材到新课失败");
-    } finally {
-      setSyncingLesson(false);
-    }
   };
 
   const handleSave = async () => {
-    if (saving || addingTeacher || syncingLesson || saveInitiatedRef.current) {
+    if (saving || addingTeacher || saveInitiatedRef.current) {
       setError("正在提交，请勿重复提交");
       return;
     }
@@ -431,7 +384,7 @@ export function JpLessonManualScheduleModal({
       className="jp-lesson-next-class-overlay"
       role="presentation"
       onMouseDown={(event) => {
-        if (!saving && !addingTeacher && !syncingLesson) {
+        if (!saving && !addingTeacher) {
           closeModalOnBackdropMouseDown(event, onClose);
         }
       }}
@@ -454,14 +407,14 @@ export function JpLessonManualScheduleModal({
             type="button"
             className="jp-lesson-next-class-close"
             aria-label="关闭"
-            disabled={saving || syncingLesson}
+            disabled={saving}
             onClick={onClose}
           >
             ×
           </button>
         </div>
 
-        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving || addingTeacher || syncingLesson}>
+        <fieldset className="jp-lesson-next-class-fieldset" disabled={saving || addingTeacher}>
           <legend>
             {showFullFields ? "日程信息（北京时间，整点 / 半点）" : "上课时间（北京时间，整点 / 半点）"}
           </legend>
@@ -583,7 +536,7 @@ export function JpLessonManualScheduleModal({
                         jpLessons={jpLessons}
                         enLessons={enLessons}
                         disabled={saving || addingTeacher}
-                        syncing={syncingLesson}
+                        syncing={false}
                       />
                     </div>
                     <label className="jp-lesson-next-class-field jp-lesson-next-class-field--full">
@@ -607,19 +560,17 @@ export function JpLessonManualScheduleModal({
             </p>
           ) : (
             <p className="jp-lesson-next-class-hint">
-              选教材会打开详情列表；选定后自动标为新课「学习中」，并写入本页的上课时间与老师。
+              选教材只加入本条日程；点「保存」后才会写入，并同步到新课「学习中」（上课时间与老师一并带上）。
             </p>
           )}
         </fieldset>
 
-        {saveProgress.visible || addingTeacher || syncingLesson ? (
+        {saveProgress.visible || addingTeacher ? (
           <JpVocabSaveProgressBar
             label={
-              syncingLesson
-                ? "正在同步到新课「学习中」…"
-                : addingTeacher
-                  ? "正在添加老师…"
-                  : jpVocabSaveProgressLabel("save")
+              addingTeacher
+                ? "正在添加老师…"
+                : jpVocabSaveProgressLabel("save")
             }
             percent={saveProgress.percent}
             fullWidth
@@ -630,7 +581,7 @@ export function JpLessonManualScheduleModal({
           <button
             type="button"
             className="jp-lesson-action-btn"
-            disabled={saving || addingTeacher || syncingLesson}
+            disabled={saving || addingTeacher}
             onClick={onClose}
           >
             取消
@@ -638,7 +589,7 @@ export function JpLessonManualScheduleModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving || addingTeacher || syncingLesson}
+            disabled={saving || addingTeacher}
             onClick={() => void handleSave()}
           >
             保存

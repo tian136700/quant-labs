@@ -35,6 +35,12 @@ def main() -> int:
         errors.append("linked helper must expose manualScheduleLessonDisplayName")
     if "course_label" not in linked or "uploaded_at" not in linked:
         errors.append("ManualScheduleLessonOption must include course_label + uploaded_at")
+    if "manualScheduleHasLinkedLessonOnSameSlot" not in linked:
+        errors.append("linked helper must expose manualScheduleHasLinkedLessonOnSameSlot")
+    if "findDedupedLessonEventForManualLinkedCover" not in linked:
+        errors.append("linked helper must expose findDedupedLessonEventForManualLinkedCover")
+    if "normalizeClassAtForCompare" not in linked:
+        errors.append("linked same-slot cover must compare via normalizeClassAtForCompare")
 
     db = DB.read_text(encoding="utf-8")
     if "linked_lessons" not in db:
@@ -51,8 +57,14 @@ def main() -> int:
         errors.append("manual schedule modal must render lesson picker")
     if "linked_lessons" not in modal:
         errors.append("modal save draft must include linked_lessons")
-    if "syncManualScheduleLinkedLessonToLearning" not in modal:
-        errors.append("modal must sync picked lesson to learning on select")
+    if "syncManualScheduleLinkedLessonToLearning" in modal:
+        errors.append(
+            "edit modal must NOT sync on pick; sync only on Save (avoid double progress)"
+        )
+    if "setLinkedLessons" not in modal and "normalizeManualScheduleLinkedLessons" not in modal:
+        errors.append("modal pick must only update local linked_lessons")
+    if "点「保存」后才会写入" not in modal and "点「保存」" not in modal:
+        errors.append("modal hint must say sync happens on Save, not on pick")
     if "handlePickLesson" not in modal:
         errors.append("modal must handle pick via handlePickLesson")
 
@@ -84,19 +96,9 @@ def main() -> int:
     if "set_teacher" not in sync:
         errors.append("sync helper must set_teacher")
 
-    actions = ACTIONS.read_text(encoding="utf-8")
-    if "syncManualScheduleLinkedLessonToLearning" not in actions:
-        errors.append("save manual schedule must re-sync linked lessons")
-
     api = API.read_text(encoding="utf-8")
     if "linked_lessons" not in api:
         errors.append("manual-schedules API must accept linked_lessons")
-
-    layout = LAYOUT.read_text(encoding="utf-8")
-    if "selectedManualLinkedLessons" not in layout:
-        errors.append("schedule detail must show selectedManualLinkedLessons")
-    if ">教材<" not in layout and "教材" not in layout:
-        errors.append("schedule detail must have 教材 label")
 
     page = PAGE.read_text(encoding="utf-8")
     if "jpLessons={lessons}" not in page:
@@ -111,8 +113,69 @@ def main() -> int:
         errors.append("manual linked 教材 must use jpVocabRefViewerPath / enVocabRefViewerPath")
     if "selectedManualLinkedLessons" not in page:
         errors.append("schedule page must build selectedManualLinkedLessons")
-    if "onLinkedLessonSynced={applyLinkedLessonSynced}" not in page:
-        errors.append("schedule page must pass onLinkedLessonSynced to modals")
+    if "openLinkLessonPick" not in page:
+        errors.append("schedule page must expose openLinkLessonPick for detail 关联教材")
+    if "buildJpLessonSchedulePageAllEvents" not in page:
+        errors.append(
+            "schedule page must merge linked manual into same-slot lesson via buildJpLessonSchedulePageAllEvents"
+        )
+    if "copyTeacherMessageTemplate" not in page:
+        errors.append("schedule page must implement copyTeacherMessageTemplate")
+    if "copyTextToClipboard" not in page:
+        errors.append("schedule copy must use copyTextToClipboard")
+    if "buildScheduleTeacherMessageTemplate" not in page:
+        errors.append("schedule page must build template via helper")
+
+    layout = LAYOUT.read_text(encoding="utf-8")
+    if "selectedManualLinkedLessons" not in layout:
+        errors.append("schedule detail must show selectedManualLinkedLessons")
+    if ">教材<" not in layout and "教材" not in layout:
+        errors.append("schedule detail must have 教材 label")
+    if "关联教材" not in layout or "openLinkLessonPick" not in layout:
+        errors.append("schedule detail must have 关联教材 button calling openLinkLessonPick")
+    if "复制文字模板" not in layout or "copyTeacherMessageTemplate" not in layout:
+        errors.append(
+            "schedule detail must have 复制文字模板 button calling copyTeacherMessageTemplate"
+        )
+
+    msg = (
+        ROOT / "src/lib/jp-lesson-schedule-teacher-message.ts"
+    ).read_text(encoding="utf-8")
+    if "buildScheduleTeacherMessageTemplate" not in msg:
+        errors.append("missing buildScheduleTeacherMessageTemplate")
+    if "北京时间" not in msg:
+        errors.append("teacher message template must include 北京时间")
+    if "教案" not in msg:
+        errors.append("teacher message template must include 教案 link section")
+
+    link_modal = (
+        ROOT / "src/components/JpLessonManualScheduleLinkFromDetailModal.tsx"
+    ).read_text(encoding="utf-8")
+    if "JpLessonManualScheduleLessonPickModal" not in link_modal:
+        errors.append("detail link modal must reuse JpLessonManualScheduleLessonPickModal")
+
+    actions = ACTIONS.read_text(encoding="utf-8")
+    if "syncManualScheduleLinkedLessonToLearning" not in actions:
+        errors.append("save manual schedule must re-sync linked lessons")
+    if "handleLinkLessonFromDetail" not in actions:
+        errors.append("actions must implement handleLinkLessonFromDetail")
+    if "applyLinkedLessonSynced" not in actions:
+        errors.append("actions must keep applyLinkedLessonSynced for save/detail sync")
+
+    caldav = (ROOT / "src/lib/schedule-caldav-events.ts").read_text(encoding="utf-8")
+    if "manualScheduleHasLinkedLessonOnSameSlot" not in caldav:
+        errors.append(
+            "CalDAV must skip manual events already covered by linked lesson same slot"
+        )
+
+    merge = (
+        ROOT
+        / "src/components/jp-lesson-schedule-page/buildJpLessonSchedulePageAllEvents.ts"
+    ).read_text(encoding="utf-8")
+    if "findDedupedLessonEventForManualLinkedCover" not in merge:
+        errors.append(
+            "buildJpLessonSchedulePageAllEvents must merge linked manual into same-slot lesson"
+        )
 
     schema = SCHEMA.read_text(encoding="utf-8")
     if not re.search(r"jp_lesson_manual_schedule[\s\S]*linked_lessons", schema):
@@ -122,7 +185,9 @@ def main() -> int:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
-    print("ok: manual schedule linked lessons (modal + sync learning)")
+    print(
+        "ok: manual schedule linked lessons (modal + sync + same-slot merge + copy template)"
+    )
     return 0
 
 

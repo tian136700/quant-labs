@@ -27,6 +27,13 @@ import {
 } from "@/lib/jp-lesson-shared";
 import type { Locale } from "@/i18n/messages";
 import type { JpLessonManualSchedule } from "@/lib/jp-lesson-manual-schedule";
+import { MANUAL_SCHEDULE_LINKED_LESSONS_MAX } from "@/lib/jp-lesson-manual-schedule-linked";
+import { detectScheduleTeacherSubjectFromTitle } from "@/lib/jp-lesson-teacher-rate";
+import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import {
+  jpVocabSaveProgressDisplayPercent,
+  jpVocabSaveProgressLabel,
+} from "@/lib/jp-vocab-save-progress";
 import type {
   EnLessonRecord,
   EnLessonTeacher,
@@ -75,9 +82,13 @@ export type JpLessonScheduleLayoutProps = {
   locale: Locale;
   todayStr: string;
   copyLessonLink: () => void | Promise<void>;
+  copyTeacherMessageTemplate: () => void | Promise<void>;
   openLessonReschedule: () => void;
   openManualModal: (manual?: JpLessonManualSchedule | null, mode?: "full" | "time") => void;
+  openLinkLessonPick: () => void;
   handleDeleteManualSchedule: () => void;
+  linkingManualLesson?: boolean;
+  linkLessonProgressPercent?: number | null;
 };
 
 export function JpLessonScheduleLayout({
@@ -114,9 +125,13 @@ export function JpLessonScheduleLayout({
   locale,
   todayStr,
   copyLessonLink,
+  copyTeacherMessageTemplate,
   openLessonReschedule,
   openManualModal,
-  handleDeleteManualSchedule
+  openLinkLessonPick,
+  handleDeleteManualSchedule,
+  linkingManualLesson = false,
+  linkLessonProgressPercent = null,
 }: JpLessonScheduleLayoutProps) {
   return (
           <div className="jpls-layout">
@@ -426,27 +441,32 @@ export function JpLessonScheduleLayout({
                           <dd>{selectedEvent.manualNote}</dd>
                         </div>
                       ) : null}
-                      {selectedEvent.source === "manual" &&
-                      selectedManualLinkedLessons.length > 0 ? (
+                      {selectedManualSchedule &&
+                      (selectedEvent.source === "manual" ||
+                        selectedManualLinkedLessons.length > 0) ? (
                         <div>
                           <dt>教材</dt>
                           <dd className="jpls-manual-linked-lessons">
-                            {selectedManualLinkedLessons.map((item) =>
-                              item.href ? (
-                                <a
-                                  key={item.key}
-                                  className="jpls-manual-linked-lesson"
-                                  href={item.href}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  {item.label}
-                                </a>
-                              ) : (
-                                <span key={item.key} className="jpls-manual-linked-lesson">
-                                  {item.label}
-                                </span>
+                            {selectedManualLinkedLessons.length > 0 ? (
+                              selectedManualLinkedLessons.map((item) =>
+                                item.href ? (
+                                  <a
+                                    key={item.key}
+                                    className="jpls-manual-linked-lesson"
+                                    href={item.href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {item.label}
+                                  </a>
+                                ) : (
+                                  <span key={item.key} className="jpls-manual-linked-lesson">
+                                    {item.label}
+                                  </span>
+                                )
                               )
+                            ) : (
+                              <span className="jpls-muted">未关联</span>
                             )}
                           </dd>
                         </div>
@@ -465,33 +485,112 @@ export function JpLessonScheduleLayout({
                         </div>
                       ) : null}
                     </dl>
+                    {linkingManualLesson ? (
+                      <div className="jpls-detail-link-progress">
+                        <JpVocabSaveProgressBar
+                          label={
+                            linkLessonProgressPercent != null &&
+                            linkLessonProgressPercent <= 12
+                              ? jpVocabSaveProgressLabel("save", { queued: true })
+                              : "正在关联教材并同步到新课…"
+                          }
+                          percent={
+                            linkLessonProgressPercent != null
+                              ? linkLessonProgressPercent
+                              : jpVocabSaveProgressDisplayPercent(null)
+                          }
+                          fullWidth
+                        />
+                      </div>
+                    ) : null}
                     <div className="jpls-detail-actions">
-                      {selectedEvent.source === "manual" ? (
+                      {selectedManualSchedule ? (
                         <>
+                          {selectedEvent.source === "manual" ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={linkingManualLesson}
+                                onClick={() => openManualModal(selectedManualSchedule, "full")}
+                              >
+                                编辑
+                              </button>
+                              <button
+                                type="button"
+                                disabled={linkingManualLesson}
+                                onClick={() => openManualModal(selectedManualSchedule, "time")}
+                              >
+                                改时
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={linkingManualLesson}
+                              onClick={openLessonReschedule}
+                            >
+                              改时
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => openManualModal(selectedManualSchedule, "full")}
+                            className="jpls-link-lesson-btn"
+                            disabled={
+                              linkingManualLesson ||
+                              (selectedManualSchedule.linked_lessons?.length ?? 0) >=
+                                MANUAL_SCHEDULE_LINKED_LESSONS_MAX ||
+                              detectScheduleTeacherSubjectFromTitle(
+                                selectedManualSchedule.title
+                              ) === "ko"
+                            }
+                            title={
+                              (selectedManualSchedule.linked_lessons?.length ?? 0) >=
+                              MANUAL_SCHEDULE_LINKED_LESSONS_MAX
+                                ? "已关联 2 本教材"
+                                : detectScheduleTeacherSubjectFromTitle(
+                                      selectedManualSchedule.title
+                                    ) === "ko"
+                                  ? "韩语暂无新课教材可关联"
+                                  : "直接选择教材关联，无需打开编辑"
+                            }
+                            onClick={openLinkLessonPick}
                           >
-                            编辑
+                            关联教材
                           </button>
                           <button
                             type="button"
-                            onClick={() => openManualModal(selectedManualSchedule, "time")}
+                            className="jpls-copy-template-btn"
+                            disabled={linkingManualLesson}
+                            title="复制含时间与教案链接的文字，可直接发给老师"
+                            onClick={() => void copyTeacherMessageTemplate()}
                           >
+                            复制文字模板
+                          </button>
+                          {selectedEvent.source === "manual" ? (
+                            <button
+                              type="button"
+                              className="jpls-manual-delete-btn"
+                              disabled={linkingManualLesson}
+                              onClick={handleDeleteManualSchedule}
+                            >
+                              删除
+                            </button>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" onClick={openLessonReschedule}>
                             改时
                           </button>
                           <button
                             type="button"
-                            className="jpls-manual-delete-btn"
-                            onClick={handleDeleteManualSchedule}
+                            className="jpls-copy-template-btn"
+                            title="复制含时间与教案链接的文字，可直接发给老师"
+                            onClick={() => void copyTeacherMessageTemplate()}
                           >
-                            删除
+                            复制文字模板
                           </button>
                         </>
-                      ) : (
-                        <button type="button" onClick={openLessonReschedule}>
-                          改时
-                        </button>
                       )}
                     </div>
                   </>
@@ -542,7 +641,9 @@ export function JpLessonScheduleLayout({
               </section>
               </div>
 
-              <p className="jpls-tip">提示：点击课程块查看详情，可在右侧直接改时；有教案时可一键复制链接发给老师。</p>
+              <p className="jpls-tip">
+                提示：点击课程块查看详情；可「关联教材」「复制文字模板」直接发给老师上课。
+              </p>
             </aside>
           </div>
   );
