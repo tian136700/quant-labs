@@ -325,13 +325,25 @@
     min-height: 2.75rem;
   }
 
+  /* 搜索框整行拉满；禁止 align-items:flex-end 盖掉后靠右错位 */
   .admin-users-search-bar {
+    display: flex;
     flex-direction: column;
     align-items: stretch;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-users-search-bar .admin-rbac-search-field {
+    width: 100%;
+    flex: none;
+    min-width: 0;
   }
 
   .admin-users-search-bar .admin-rbac-search-input {
     width: 100%;
+    max-width: none;
+    box-sizing: border-box;
     min-height: 2.75rem;
   }
 

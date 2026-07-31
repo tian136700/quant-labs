@@ -20,8 +20,11 @@ export function AdminUsersPageStyles() {
         .admin-users-toolbar-sub {
           margin: 0.25rem 0 0;
         }
-        .admin-users-search-bar {
-          align-items: flex-end;
+        /* 桌面横排才底对齐；手机竖排须 stretch（勿无条件 flex-end，会盖掉 mobile.css） */
+        @media (min-width: 768px) {
+          .admin-users-search-bar {
+            align-items: flex-end;
+          }
         }
         .admin-users-search-meta {
           margin: -0.35rem 0 0.75rem;
