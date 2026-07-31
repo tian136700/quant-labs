@@ -43,6 +43,8 @@ def main() -> None:
         fail("usage prompt must give carefully near-synonym merge anti-example")
     if "近义微调" not in ai and "近义改写" not in ai:
         fail("usage prompt must forbid near-synonym nuance splits")
+    if "几乎可互换" not in ai:
+        fail("usage prompt must self-check interchangeable example sentences")
     if "动词/名词" not in ai or "ambiguous_pos" not in ai:
         fail("usage prompt/validate must forbid ambiguous slash POS (动词/名词)")
     if "EN_VOCAB_USAGE_AMBIGUOUS_POS_RE" not in ai:
@@ -95,6 +97,8 @@ def main() -> None:
         fail("online prompt must forbid splitting one core sense into duplicate lines")
     if "按对象" not in online and "attractive" not in online:
         fail("online prompt must forbid splitting one sense by object/scene")
+    if "几乎可互换" not in online:
+        fail("online prompt must self-check interchangeable example sentences")
     if "category_focus" not in online or "托业" not in online:
         fail("online batch prompt must adapt by category")
 
