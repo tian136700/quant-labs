@@ -1,0 +1,258 @@
+日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
+========================================================
+
+用途
+----
+拉取缺例句词条（含 prompt），或把生成好的例句写回 D1。
+也可运维扫描：缺译义、汉字漏标假名；规范化「译文：」前缀；な形容词剥「だ」。
+
+**禁止在 Worker 内调大模型**——模型在 Mac / 其它项目跑，再经本接口 apply。
+
+
+线上地址
+--------
+POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
+
+说明：
+- 也可用 `finance.info-quests.com` 同路径（同一 Worker / 同一 D1）。
+- 样例客户端：`scripts/jp-vocab-fill-example-sentences-api.py`
+
+
+本机开发（可选）
+---------------
+POST http://127.0.0.1:3002/api/jp-vocab/fill-example-sentences
+
+
+鉴权
+----
+Header:
+  Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
+
+Token 与 jp-review-sync 共用，常见配置：
+  ~/.config/info-quests/jp-review-sync.env → JP_REVIEW_UPLOAD_TOKEN
+
+
+限流
+----
+与其它日语/英语 fill-* 共用：同一 IP×路径约 ≥5s 一次。
+超限返回 429，并带 Retry-After；客户端须等待后重试。
+
+
+mode 一览
+---------
+| mode | 说明 |
+|------|------|
+| list_missing（默认；空 body 亦同） | 拉缺例句；每条含 prompt；响应含 upload_spec |
+| apply | 写回 updates（有 updates 时自动走 apply） |
+| scan_incomplete_gloss | 已有例句但缺中文译义 |
+| scan_incomplete_furigana | 已有例句但日语行汉字漏标假名（只读） |
+| normalize_gloss_label | 仅为已有译义补「译文：」前缀 |
+| normalize_na_adj | な形容词「〜だ」剥成词干（词+读音） |
+| catalog | 按内置 N5 词表填空（不覆盖已有） |
+
+
+公共字段
+--------
+mode              见上表
+dry_run           选填。true=不写库
+limit             list_missing：最多返回几条（定时建议 1～15）
+kind              list_missing：只拉 "word" 或 "grammar"
+source            apply：整批默认来源（单条 updates[].source 优先）
+allow_overwrite   apply / 补译义：true 才覆盖已有 example_sentences
+updates           apply：数组，见下
+
+
+apply · updates[] 字段
+----------------------
+word_id             必填。词条 id
+example_sentences   例句全文（日语行 + 「译文：」交替；勿行首 1. 2.）
+connection          选填。接序；可与例句同次写回
+source              选填。覆盖整批 source（如「本地 gemma4:26b」「Agent现写」）
+example_sentences_source  同 source（兼容旧字段）
+
+source 约定：
+- Mac / 本地模型：如「本地 gemma4:26b」「Qwen本地」
+- Agent 现造句写回：**「Agent现写」**（禁止写「手动」）
+- 老师在编辑框保存：系统记「手动」
+
+
+例句存库格式（强制）
+--------------------
+日语一行，下一行「译文：」+ 中文。句中**每一个汉字**都须半角括号假名：
+
+  先生(せんせい)が文法(ぶんぽう)を説明(せつめい)します。
+  译文：老师说明语法。
+  彼(かれ)はその理由(りゆう)を説明(せつめい)しました。
+  译文：他解释了那个理由。
+
+常见拒收（skipped.reason 含 invalid_format:…）：
+  incomplete_kanji_furigana   汉字漏标假名
+  bad_furigana_paren          非法括注 / 整句尾注
+  missing_chinese_gloss       缺「译文：」
+  double_wa_topic             单词句叠两个话题「は」
+  missing_clause_touten       从句后缺「、」
+  missing_sentence_final_punct 缺句末标点
+  lemma_placeholder_in_sentence 例句里残留「～」「〜」
+  word_not_used / grammar_not_used 未用到词条
+
+本接口 apply 始终 validateFormat=true（严格校验）。
+线上付费 batch 若走其它 fill 且 validate_format:false，normalize 仍拒漏标汉字。
+
+
+成功响应示例
+------------
+1) list_missing
+{
+  "ok": true,
+  "mode": "list_missing",
+  "limit": 1,
+  "kind": "word",
+  "updated": 0,
+  "total_missing": 12,
+  "missing": [
+    {
+      "id": 464,
+      "word": "説明する",
+      "kind": "word",
+      "reading": "せつめいする",
+      "meaning": "说明；解释",
+      "prompt": "…"
+    }
+  ],
+  "upload_spec": { "version": 3, "rules": […], "reject_reasons": […] }
+}
+
+2) apply
+{
+  "ok": true,
+  "mode": "apply",
+  "updated": 1,
+  "applied": [
+    {
+      "id": 464,
+      "word": "説明する",
+      "example_sentences": "先生(せんせい)が…",
+      "example_sentences_source": "Agent现写"
+    }
+  ],
+  "skipped": []
+}
+
+3) scan_incomplete_furigana
+{
+  "ok": true,
+  "mode": "scan_incomplete_furigana",
+  "updated": 0,
+  "incomplete_furigana": [
+    {
+      "id": 464,
+      "word": "説明する",
+      "kind": "word",
+      "incomplete_line_count": 2,
+      "sample_lines": ["先生が文法を説明する（せつめいする）。"],
+      "example_sentences_source": "线上 claude-sonnet-4-6"
+    }
+  ]
+}
+
+
+失败响应
+--------
+401  { "ok": false, "error": "Unauthorized" }
+429  限流（看 Retry-After）
+500  { "ok": false, "error": "…" }
+
+
+curl 示例
+---------
+# 拉缺例句
+curl -sS -X POST \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"list_missing","limit":1,"kind":"word"}' \
+  'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
+
+# 扫汉字漏标假名
+curl -sS -X POST \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"scan_incomplete_furigana"}' \
+  'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
+
+# 写回（覆盖已有须 allow_overwrite）
+curl -sS -X POST \
+  -H 'Authorization: Bearer 你的TOKEN' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "mode":"apply",
+    "allow_overwrite": true,
+    "source":"Agent现写",
+    "updates":[{
+      "word_id": 464,
+      "example_sentences": "先生(せんせい)が文法(ぶんぽう)を説明(せつめい)します。\n译文：老师说明语法。\n彼(かれ)はその理由(りゆう)を説明(せつめい)しました。\n译文：他解释了那个理由。"
+    }]
+  }' \
+  'https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences'
+
+
+Python 最小示例
+---------------
+import json
+import urllib.request
+
+URL = "https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences"
+TOKEN = "你的TOKEN"
+
+
+def call(payload: dict) -> dict:
+    req = urllib.request.Request(
+        URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+# 1) 拉缺
+print(call({"mode": "list_missing", "limit": 1, "kind": "word"}))
+
+# 2) 扫漏标假名
+print(call({"mode": "scan_incomplete_furigana"}))
+
+# 3) 写回
+print(
+    call(
+        {
+            "mode": "apply",
+            "allow_overwrite": True,
+            "source": "Agent现写",
+            "updates": [
+                {
+                    "word_id": 464,
+                    "example_sentences": (
+                        "先生(せんせい)が文法(ぶんぽう)を説明(せつめい)します。\n"
+                        "译文：老师说明语法。\n"
+                        "彼(かれ)はその理由(りゆう)を説明(せつめい)しました。\n"
+                        "译文：他解释了那个理由。"
+                    ),
+                }
+            ],
+        }
+    )
+)
+
+
+相关
+----
+- 造句条数 / 内容：.cursor/rules/jp-vocab-example-sentences-compose.mdc
+- 技术入口：.cursor/rules/jp-vocab-fill-example-sentences.mdc
+- 假名展示：.cursor/rules/jp-vocab-example-furigana-display.mdc
+- 调度门禁：POST /api/jp-vocab/fill-schedule-gate
+- 代码：src/app/api/jp-vocab/fill-example-sentences/route.ts
+        src/lib/jp-vocab-fill-example-sentences.ts
+        src/lib/jp-vocab-example-furigana-scan.ts

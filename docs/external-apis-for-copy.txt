@@ -39,6 +39,10 @@
    文件：docs/jp-vocab-exists-api.txt
    调用：GET https://japanese.info-quests.com/api/jp-vocab/exists?word=東&kind=word
 
+9. 日语抽问 · 例句补全 API（给 Mac 定时 / STT / Agent 调用）
+   文件：docs/jp-vocab-fill-example-sentences-api.txt
+   调用：POST https://japanese.info-quests.com/api/jp-vocab/fill-example-sentences
+
 —— 其它跨项目说明（*-howto.txt）——
 
 1. 本机 Bark 推送 — 跨项目复制说明（整段可复制给别的项目 Agent）

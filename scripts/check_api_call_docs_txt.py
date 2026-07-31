@@ -17,6 +17,10 @@ REQUIRED: list[tuple[str, str]] = [
     ("src/app/api/jp-vocab/route.ts", "docs/jp-vocab-api.txt"),
     ("src/app/api/jp-vocab/exists/route.ts", "docs/jp-vocab-exists-api.txt"),
     ("src/app/api/jp-vocab/download-all/route.ts", "docs/jp-vocab-download-all-api.txt"),
+    (
+        "src/app/api/jp-vocab/fill-example-sentences/route.ts",
+        "docs/jp-vocab-fill-example-sentences-api.txt",
+    ),
 ]
 
 
