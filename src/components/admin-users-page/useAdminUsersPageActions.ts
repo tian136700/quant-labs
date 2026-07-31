@@ -519,9 +519,43 @@ export function useAdminUsersPageActions(options: UseAdminUsersPageActionsOption
     }
   };
 
-  /** 解析可复制的密码：每次都重置为新密码再复制，保证复制结果与数据库一致。系统保留账号除外。 */
-  const resolvePasswordForCopy = async (row: UserRow): Promise<string | null> =>
-    requestPasswordReset(row, setCopyingId);
+  /**
+   * 解析可复制的密码：优先本机缓存（同一密码可反复复制）。
+   * 无缓存时：保留账号只提示去「编辑」；普通账号 confirm 后再重置一次并缓存。
+   * 「更换密码」才是主动换密入口，禁止复制时每次都 reset。
+   */
+  const resolvePasswordForCopy = async (
+    row: UserRow
+  ): Promise<string | null> => {
+    const cached = readAdminUserPassword(row.id);
+    if (cached) return cached;
+
+    const username = row.username;
+    const isBootstrapAccount = isReservedUsername(
+      username,
+      ETR_DEFAULT_ADMIN_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USERNAME,
+      ETR_DEFAULT_JP_VOCAB_USER1_USERNAME
+    );
+    if (isBootstrapAccount) {
+      setStatus(
+        locale === "zh"
+          ? `本机没有「${username}」的密码记录。系统保留账号禁止随机重置，请点「编辑」填写已知密码后再复制。`
+          : `No saved password for "${username}" on this device. System accounts cannot be random-reset; use Edit to store the known password, then copy.`
+      );
+      setStatusErr(true);
+      return null;
+    }
+
+    const confirmed = window.confirm(
+      locale === "zh"
+        ? `本机没有「${username}」的密码记录。\n继续将生成新密码，旧密码立即失效，已登录会话会被踢下线。\n若只想复制现有密码，请取消后点「编辑」填写已知密码。\n是否生成新密码并复制？`
+        : `No saved password for "${username}" on this device.\nContinue will generate a new password, invalidate the old one, and sign out active sessions.\nTo copy the current password, cancel and use Edit to store it.\nGenerate a new password and copy it?`
+    );
+    if (!confirmed) return null;
+
+    return requestPasswordReset(row, setCopyingId);
+  };
 
   const generateLoginLink = async (row: UserRow) => {
     setLinkGeneratingId(row.id);
