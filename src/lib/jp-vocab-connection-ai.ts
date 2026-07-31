@@ -181,17 +181,37 @@ export type JpVocabConnectionTableRow = {
 const CONNECTION_TABLE_ROW_RE = /^(.+?)[：:]\s*(.+)$/;
 /** 「用法1:」留给按用法分挂，不进词类表 */
 const CONNECTION_USAGE_TAG_RE = /^用法\s*\d+\s*$/;
-const CONNECTION_TABLE_LABEL_MAX = 20;
+/** 词类列上限（含「动词普通形（原形／…）」） */
+const CONNECTION_TABLE_LABEL_MAX = 36;
+/** 「词类＋接续」段：左标签 + 全角/半角加号起的接续 */
+const CONNECTION_PLUS_SEGMENT_RE = /^(.+?)([＋+].+)$/;
 
-/**
- * 复杂多行接续（如 ～ば：动词 / 一类 / 二类 / 名词 / 否定）拆成表格行。
- * ≥2 行能拆才返回；否则 null（展示层用纯文本）。
- */
-export function parseJpVocabConnectionTableRows(
-  raw: string | null | undefined
+/** 按 ； 拆段，但不拆全角/半角括号内的顿号（如「前后主语可不同；后项…」） */
+export function splitJpVocabConnectionSemicolonOutsideParens(
+  text: string
+): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let buf = "";
+  for (const ch of String(text ?? "")) {
+    if (ch === "（" || ch === "(") depth += 1;
+    else if (ch === "）" || ch === ")") depth = Math.max(0, depth - 1);
+    if (depth === 0 && (ch === "；" || ch === ";")) {
+      const t = buf.trim();
+      if (t) parts.push(t);
+      buf = "";
+      continue;
+    }
+    buf += ch;
+  }
+  const last = buf.trim();
+  if (last) parts.push(last);
+  return parts;
+}
+
+function tryParseColonConnectionTableRows(
+  text: string
 ): JpVocabConnectionTableRow[] | null {
-  const text = String(raw ?? "").trim();
-  if (!text) return null;
   const rows: JpVocabConnectionTableRow[] = [];
   for (const line of text.split("\n")) {
     const t = line.trim();
@@ -206,6 +226,54 @@ export function parseJpVocabConnectionTableRows(
     rows.push({ label, body });
   }
   return rows.length >= 2 ? rows : null;
+}
+
+/**
+ * 「动词原形＋と；一类形容词词尾い＋と；名词＋だと（…）」→ 表行。
+ * ≥2 段且每段都能拆成「标签＋接续」才返回。
+ */
+function tryParseSemicolonPlusConnectionTableRows(
+  text: string
+): JpVocabConnectionTableRow[] | null {
+  const flat = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("；");
+  if (!/[；;]/.test(flat) || !/[＋+]/.test(flat)) return null;
+  const segments = splitJpVocabConnectionSemicolonOutsideParens(flat);
+  if (segments.length < 2) return null;
+  const rows: JpVocabConnectionTableRow[] = [];
+  for (const seg of segments) {
+    const m = CONNECTION_PLUS_SEGMENT_RE.exec(seg);
+    if (!m) return null;
+    const label = String(m[1] ?? "").trim();
+    const body = String(m[2] ?? "").trim().replace(/^[+]/, "＋");
+    if (!label || !body) return null;
+    if (CONNECTION_USAGE_TAG_RE.test(label)) return null;
+    if (label.length > CONNECTION_TABLE_LABEL_MAX) return null;
+    // 避免把整句说明误当表（标签里不该再有句号长文）
+    if (/[。．]/.test(label)) return null;
+    rows.push({ label, body });
+  }
+  return rows.length >= 2 ? rows : null;
+}
+
+/**
+ * 复杂接续拆成表格行：
+ * 1) 多行「词类：说明」（如 ～ば）
+ * 2) 同行「词类＋接续；…」（如 ～と）
+ * ≥2 行/段才返回；否则 null（展示层用纯文本）。
+ */
+export function parseJpVocabConnectionTableRows(
+  raw: string | null | undefined
+): JpVocabConnectionTableRow[] | null {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  return (
+    tryParseColonConnectionTableRows(text) ??
+    tryParseSemicolonPlusConnectionTableRows(text)
+  );
 }
 
 /** 有编号用法且有接序 → 卡片上接续贴在用法下，不再单独露「接序」块 */

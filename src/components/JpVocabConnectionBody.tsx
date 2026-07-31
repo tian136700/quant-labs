@@ -14,7 +14,7 @@ type Props = {
 };
 
 /**
- * 接续正文：多行「词类：说明」→ 两列表格；否则 pre-wrap 原文。
+ * 接续正文：多行「词类：说明」或「词类＋接续；…」→ 两列表格；否则 pre-wrap 原文。
  */
 export function JpVocabConnectionBody({
   text,

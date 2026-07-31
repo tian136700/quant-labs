@@ -31,25 +31,70 @@ def expand_breaks(raw: str) -> str:
     return t
 
 
+def split_semicolon_outside_parens(text: str) -> list[str]:
+    parts: list[str] = []
+    depth = 0
+    buf = ""
+    for ch in text:
+        if ch in "（(":
+            depth += 1
+        elif ch in "）)":
+            depth = max(0, depth - 1)
+        if depth == 0 and ch in "；;":
+            t = buf.strip()
+            if t:
+                parts.append(t)
+            buf = ""
+            continue
+        buf += ch
+    last = buf.strip()
+    if last:
+        parts.append(last)
+    return parts
+
+
 def parse_table_rows(raw: str) -> list[tuple[str, str]] | None:
-    """Mirror parseJpVocabConnectionTableRows (label≤20, skip 用法N)."""
+    """Mirror parseJpVocabConnectionTableRows (colon lines or 词类＋接续；…)."""
     text = (raw or "").strip()
     if not text:
         return None
-    rows: list[tuple[str, str]] = []
+    # 1) colon multi-line
+    colon_rows: list[tuple[str, str]] = []
+    colon_ok = True
     for line in text.split("\n"):
         t = line.strip()
         if not t:
             continue
         m = re.match(r"^(.+?)[：:]\s*(.+)$", t)
         if not m:
+            colon_ok = False
+            break
+        label, body = m.group(1).strip(), m.group(2).strip()
+        if not label or not body or re.match(r"^用法\s*\d+\s*$", label) or len(label) > 36:
+            colon_ok = False
+            break
+        colon_rows.append((label, body))
+    if colon_ok and len(colon_rows) >= 2:
+        return colon_rows
+
+    # 2) semicolon ＋ segments
+    flat = "；".join(ln.strip() for ln in text.split("\n") if ln.strip())
+    if ("；" not in flat and ";" not in flat) or ("＋" not in flat and "+" not in flat):
+        return None
+    segs = split_semicolon_outside_parens(flat)
+    if len(segs) < 2:
+        return None
+    rows: list[tuple[str, str]] = []
+    for seg in segs:
+        m = re.match(r"^(.+?)([＋+].+)$", seg)
+        if not m:
             return None
         label, body = m.group(1).strip(), m.group(2).strip()
-        if not label or not body:
+        if body.startswith("+"):
+            body = "＋" + body[1:]
+        if not label or not body or len(label) > 36 or "。" in label or "．" in label:
             return None
         if re.match(r"^用法\s*\d+\s*$", label):
-            return None
-        if len(label) > 20:
             return None
         rows.append((label, body))
     return rows if len(rows) >= 2 else None
@@ -103,6 +148,29 @@ def main() -> None:
     single = parse_table_rows("动词て形＋もいい。")
     if single is not None:
         fail("单行无「标签：正文」结构不应走表格")
+
+    to_sample = (
+        "动词原形＋と；一类形容词词尾い＋と；二类形容词词干＋だと；"
+        "名词＋だと（条件句前项不用た形）"
+    )
+    to_rows = parse_table_rows(to_sample)
+    if to_rows is None or len(to_rows) < 4:
+        fail(f"～と 分号接续应拆出 ≥4 表行，得到 {to_rows!r}")
+    if to_rows[0] != ("动词原形", "＋と"):
+        fail(f"～と 首行应为 动词原形 / ＋と，得到 {to_rows[0]!r}")
+    if "条件句前项不用た形" not in to_rows[-1][1]:
+        fail(f"～と 末行须保留括号说明，得到 {to_rows[-1]!r}")
+
+    to_one = parse_table_rows("动词原形＋と（前后主语可不同；后项客观描述）")
+    if to_one is not None:
+        fail("仅 1 段「词类＋接续」不应走表格（括号内分号不拆）")
+
+    for needle in (
+        "splitJpVocabConnectionSemicolonOutsideParens",
+        "tryParseSemicolonPlusConnectionTableRows",
+    ):
+        if needle not in src:
+            fail(f"connection-ai missing semicolon table parse {needle!r}")
 
     for needle in (
         "academic_verb_class_terms",
