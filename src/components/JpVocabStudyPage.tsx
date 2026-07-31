@@ -320,11 +320,19 @@ export function JpVocabStudyPage() {
         ? "/api/jp-vocab/shared"
         : "/api/jp-vocab/shared?lite=1";
 
-      const res = await fetch(sharedUrl, {
-        headers: { [LOCALE_HEADER]: locale },
-        credentials: "include",
-        cache: "no-store",
-      });
+      const fetchShared = () =>
+        fetch(sharedUrl, {
+          headers: { [LOCALE_HEADER]: locale },
+          credentials: "include",
+          cache: "no-store",
+        });
+
+      let res = await fetchShared();
+      // 手机冷启动易 1102：忙时自动再试一次（isolate 变热后通常即可）
+      if (res.status === 500 || res.status === 503) {
+        await new Promise((r) => setTimeout(r, 700));
+        res = await fetchShared();
+      }
       const parsed = await readApiJson<SharedPayload>(res);
 
       if (!parsed.ok) {

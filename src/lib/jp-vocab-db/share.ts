@@ -454,7 +454,8 @@ export async function queryJpVocabSharedToday(
   db: D1Database,
   now = new Date()
 ): Promise<{ items: JpVocabSharedItem[]; refs: Record<string, JpVocabRef> }> {
-  await ensureVocabWordSchema(db);
+  // 学生端热路径：禁止 ensureVocabWordSchema（冷 isolate 叠 PRAGMA/列检查易 1102；
+  // 与英语 queryEnVocabSharedToday 对齐。词表列已在线上稳定；缺列由管理/写入路径补）。
   await ensureJpVocabSharedSchema(db);
 
   const today = beijingDateString(now);
@@ -559,7 +560,7 @@ export async function countJpVocabTodayCheckedWords(
     return jpVocabTodayCheckStats(jpVocabDbState.devWords, now).wordCount;
   }
 
-  await ensureVocabWordSchema(db);
+  // 学生 shared 热路径会调到这里：勿 ensureVocabWordSchema（防冷 isolate 1102）
   const today = beijingDateString(now);
   const row = await db
     .prepare(
