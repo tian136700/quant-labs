@@ -34,6 +34,10 @@ def main() -> int:
         raise SystemExit("FAIL: docs must describe lookup URL")
     if "/t" not in docs:
         raise SystemExit("FAIL: docs must mention Telegram /t command")
+    if "User-Agent" not in docs or "1010" not in docs:
+        raise SystemExit(
+            "FAIL: docs must require User-Agent and warn Cloudflare Error 1010"
+        )
 
     print("[check_en_lesson_teacher_lookup] OK")
     return 0

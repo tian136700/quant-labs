@@ -28,6 +28,10 @@ Authorization: Bearer <JP_REVIEW_UPLOAD_TOKEN>
 
 （与 schedule-chat-ingest 相同；也可用管理员登录 Cookie。）
 
+调用方还必须带浏览器风格 User-Agent。Python urllib 默认
+「Python-urllib/3.x」会被 Cloudflare Error 1010
+（browser_signature_banned）拦掉，与鉴权无关、勿重试换 token。
+
 
 请求参数（Query）
 -----------------
@@ -80,13 +84,15 @@ teacher_id   精确 id（多候选回复序号后使用）
 
 失败
 ----
-403 { "ok": false, "error": "forbidden" }
+403 { "ok": false, "error": "forbidden" }   ← 业务鉴权失败
+403 Cloudflare Error 1010                   ← 缺/被禁 User-Agent（见上）
 400 { "ok": false, "error": "name_required" }
 
 
 curl 示例
 ---------
 curl -sS -H "Authorization: Bearer $JP_REVIEW_UPLOAD_TOKEN" \
+  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
   "https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name=$(python3 -c 'import urllib.parse;print(urllib.parse.quote(\"欣欣\"))')"
 
 
@@ -96,9 +102,16 @@ import json, os, urllib.parse, urllib.request
 
 token = os.environ["JP_REVIEW_UPLOAD_TOKEN"]
 name = urllib.parse.quote("欣欣")
+UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 req = urllib.request.Request(
     f"https://finance.info-quests.com/api/admin/en-lesson-teachers/lookup?name={name}",
-    headers={"Authorization": f"Bearer {token}"},
+    headers={
+        "Authorization": f"Bearer {token}",
+        "User-Agent": UA,  # 必填，否则 CF 1010
+    },
 )
 with urllib.request.urlopen(req, timeout=30) as resp:
     print(json.load(resp))
