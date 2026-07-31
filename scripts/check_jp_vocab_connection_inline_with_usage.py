@@ -86,21 +86,35 @@ def main() -> None:
         fail("ConnectionSection 须用 JpVocabConnectionBody")
 
     ba_sample = (
-        "动词ば形：五段动词去ない形词尾＋えば；一段动词去る＋れば；カ变「くれば」；サ变「すれば」\n"
-        "一类形容词：去い＋ければ（例：安ければ）\n"
-        "二类形容词：词干＋なら／であれば（例：静かなら）\n"
-        "名词：名词＋なら／であれば\n"
-        "否定：ない形＋なければ（例：行かなければ）"
+        "一类动词：词尾う段改え段＋ば（「書く」→「書けば」）\n"
+        "二类动词：去る＋れば（「食べる」→「食べれば」）\n"
+        "三类动词：「来る」→「来れば」；「する」→「すれば」\n"
+        "一类形容词：去い＋ければ（「安い」→「安ければ」）\n"
+        "二类形容词：词干＋であれば（「静か」→「静かであれば」）\n"
+        "名词：名词＋であれば（「学生」→「学生であれば」）\n"
+        "否定：ない→なければ（「行かない」→「行かなければ」）"
     )
     ba_rows = parse_table_rows(ba_sample)
     if ba_rows is None or len(ba_rows) < 4:
         fail(f"～ば 式接续应拆出 ≥4 表行，得到 {ba_rows!r}")
-    if ba_rows[0][0] != "动词ば形":
-        fail(f"首行标签应为动词ば形，得到 {ba_rows[0]!r}")
+    if ba_rows[0][0] != "一类动词":
+        fail(f"首行标签应为一类动词，得到 {ba_rows[0]!r}")
 
     single = parse_table_rows("动词て形＋もいい。")
     if single is not None:
         fail("单行无「标签：正文」结构不应走表格")
+
+    for needle in (
+        "academic_verb_class_terms",
+        "rewriteJpVocabConnectionSchoolVerbClassTerms",
+        "一类动词／二类动词／三类动词",
+    ):
+        if needle not in src:
+            fail(f"connection-ai missing school verb-class guard {needle!r}")
+    if "一类动词（五段）" in src:
+        fail("接序示例禁止再写「一类动词（五段）」")
+    if "禁止「五段" not in src and "❌禁止「五段" not in src and "❌ 禁止「五段" not in src:
+        fail("接序 prompt 须禁止五段/一段/カ变术语")
 
 
     quiz = QUIZ.read_text(encoding="utf-8")

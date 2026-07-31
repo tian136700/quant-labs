@@ -11,13 +11,15 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
   format_example_grammar:
     "用法1: 动词原形＋「ことがある」\n用法2: 动词た形＋「ことがある」\n否定形: ことがない／ことはない",
   format_example_word:
-    "一类动词（五段）／原形：「書く」；ます形：「書きます」；て形：「書いて」",
+    "一类动词／原形：「書く」；ます形：「書きます」；て形：「書いて」",
   rules: [
     "接序单独成段，放在用法/例句之后，以「【接序】」起头",
     "用法说明里禁止再写接序（接续形态）；接序只写在本字段",
     "用中文说明；日语形态用「」短引，禁止 漢字(かな) 假名括注",
     "否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤同一行",
-    "对学生友好：写清词类，如「动词原形／一类形容词原形／二类形容词原形／名词＋本语法」；❌ 禁止只写笼统的「原形＋…」",
+    "对学生友好：写清词类，如「一类动词／二类动词／三类动词／一类形容词／二类形容词／名词＋本语法」；❌ 禁止只写笼统的「原形＋…」",
+    "动词分类只用「一类动词／二类动词／三类动词」（国内教材）；❌ 禁止「五段／一段／カ变／サ变／五段动词／一段动词」",
+    "涉及多种动词接续时优先分行：一类动词: …／二类动词: …／三类动词: …（「来る」「する」）",
     "な形容词／名词有特殊接法时，用短句说清（如「不加だ」「加だ」「＋な」「＋の」）",
     "若仍写「动词辞书形」必须写成「动词辞书形（动词原形）」；不要只写「动词辞书形」",
     "语法若有多条编号用法：接序必须按「用法1:」「用法2:」分行写（与上面 1. 2. 用法一一对应）；同一行禁止串写多个「用法N」",
@@ -32,6 +34,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "too_short",
     "looks_like_examples",
     "bare_numbered_lines",
+    "academic_verb_class_terms",
   ],
 } as const;
 
@@ -43,6 +46,32 @@ const CONNECTION_BARE_NUMBERED_LINE_RE = /^\s*(\d+)\s*[.、．)\]]\s*(.+)$/;
 /** 已带「（动词原形）」或半角括号的，归一成全角注解（中/日） */
 const DONGCI_JISHOKEI_RE =
   /(?:动词辞书形|動詞辞書形)(?:（动词原形）|\(动词原形\))?/g;
+/**
+ * 专业语法术语（五段/一段/カ变…）→ 国内教材「一类/二类/三类动词」。
+ * 学生听不懂「五段」；接序展示与写回统一用教材分类。
+ */
+const ACADEMIC_VERB_CLASS_DETECT_RE =
+  /五段动词|五段|一段动词|カ行変格|サ行変格|カ变动词|サ变动词|カ变|サ变|一段(?=去|词|动|「)/;
+
+export function connectionHasAcademicVerbClassTerms(
+  raw: string | null | undefined
+): boolean {
+  return ACADEMIC_VERB_CLASS_DETECT_RE.test(String(raw ?? ""));
+}
+
+/** 展示/normalize：把专业术语改写成一类/二类/三类动词 */
+export function rewriteJpVocabConnectionSchoolVerbClassTerms(
+  raw: string
+): string {
+  return String(raw ?? "")
+    .replace(/五段动词/g, "一类动词")
+    .replace(/五段/g, "一类动词")
+    .replace(/一段动词/g, "二类动词")
+    .replace(/一段(?=去|词|动|「)/g, "二类动词")
+    .replace(/カ行変格|カ变动词|カ变/g, "三类动词")
+    .replace(/サ行変格|サ变动词|サ变/g, "三类动词");
+}
+
 
 /**
  * 把接序里的裸「1. / 2.」改成「用法1: / 用法2:」。
@@ -203,7 +232,9 @@ export function normalizeJpVocabConnectionText(
   raw: string | null | undefined
 ): string | null {
   const expanded = expandJpVocabConnectionUsageInlineBreaks(
-    rewriteJpVocabConnectionBareNumberedToUsageTags(String(raw ?? ""))
+    rewriteJpVocabConnectionBareNumberedToUsageTags(
+      rewriteJpVocabConnectionSchoolVerbClassTerms(String(raw ?? ""))
+    )
   );
   const lines = expanded
     .split("\n")
@@ -288,32 +319,34 @@ export function jpVocabConnectionPromptAppendix(
 - ✅ 上面写了几条编号用法，接序就尽量用「用法1:」「用法2:」…分行对应（与 1. 2. 一一对应）；禁止把「用法1: …。用法2: …」挤在同一行。
 - ✅ 各用法接续完全相同时，可只写共用形态，不必硬写用法1/2。
 - ✅ 否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤在同一行。
-- ✅ 对学生友好：写清词类：动词原形／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な形容词／名词特殊时用短句（如「不加だ」「加だ」）。
+- ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な形容词／名词特殊时用短句（如「不加だ」「加だ」）。
+- ✅ 动词只用「一类动词／二类动词／三类动词」（国内教材）；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写（一类动词: …／二类动词: …／三类动词: …）。
 - ✅ 若仍写「动词辞书形」，必须写成「动词辞书形（动词原形）」；日语形态用「」短引，不要假名括注。
 - 2～6 行；不要 markdown、不要给接序再编行首 1. 2.。
 
 示例接序段（多用法、接续不同）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-用法1: 动词原形＋「ことがある」
-用法2: 动词た形＋「ことがある」
+用法1: 一类动词／二类动词／三类动词原形＋「ことがある」
+用法2: 一类动词／二类动词／三类动词た形＋「ことがある」
 否定形: ことがない／ことはない
 
 示例接序段（各用法接续相同）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-动词原形＋「～前に」
+一类动词／二类动词／三类动词原形＋「～前に」
 名词＋の＋「前に」`;
   }
   return `
 接序（必须同一次输出，单独成段）：
 - 在全部例句写完后，另起一行写「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面写本词接序/活用要点。
 - ❌ 不要把接序混进例句或译文。
-- ✅ 写词类（一类动词／二类动词／一类形容词／二类形容词／名词等）及常用形（辞书形、ます形、て形等，按本词需要）；日语用「」短引，不要假名括注。
+- ✅ 写词类（一类动词／二类动词／三类动词／一类形容词／二类形容词／名词等）及常用形（辞书形、ます形、て形等，按本词需要）；日语用「」短引，不要假名括注。
+- ✅ 动词只用「一类／二类／三类」；❌禁止「五段／一段／カ变／サ变」。
 - ✅ 若写「动词辞书形」须写成「动词辞书形（动词原形）」。
 - 2～4 行即可。
 
 示例接序段：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」`;
+一类动词／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」`;
 }
 
 /** 仅补接序（用法/例句已有） */
@@ -344,19 +377,20 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 - 第一行必须是「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面 2～6 行接续说明。
 - 若该语法有多条用法且接续不同：必须「用法1:」「用法2:」分行写，禁止挤在同一行。
 - 接续相同时可只写共用形态；否定形／疑问形等必须另起一行。
-- ✅ 对学生友好：写清词类：动词原形／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な／名词特殊时短句说清（不加だ／加だ）。
+- ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な／名词特殊时短句说清（不加だ／加だ）。
+- ✅ 动词只用「一类动词／二类动词／三类动词」；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写。
 - 若仍写「动词辞书形」必须写成「动词辞书形（动词原形）」；日语形态用「」短引；不要假名括注。
 - 不要写用法长文、不要写例句、不要 markdown。
 
 输出示例（接续不同）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-用法1: 动词原形＋「ことがある」
-用法2: 动词た形＋「ことがある」
+用法1: 一类动词／二类动词／三类动词原形＋「ことがある」
+用法2: 一类动词／二类动词／三类动词た形＋「ことがある」
 否定形: ことがない／ことはない
 
 输出示例（接续相同）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-动词原形＋「～前に」
+一类动词／二类动词／三类动词原形＋「～前に」
 名词＋の＋「前に」`;
   }
 
@@ -366,13 +400,13 @@ ${JP_VOCAB_CONNECTION_SECTION_MARKER}
 
 硬规则：
 - 第一行必须是「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面 2～4 行。
-- 写词类与辞书形/ます形/て形等（按本词需要）；日语用「」短引；不要假名括注。
+- 写词类与辞书形/ます形/て形等（按本词需要）；动词用一类／二类／三类；❌禁止五段／一段／カ变／サ变；日语用「」短引；不要假名括注。
 - 若写「动词辞书形」须写成「动词辞书形（动词原形）」。
 - 不要写例句、不要 markdown。
 
 输出示例：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
-一类动词（五段）／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」`;
+一类动词／辞书形（动词原形）：「書く」；ます形：「書きます」；て形：「書いて」`;
 }
 
 export function validateJpVocabConnectionAiOutput(
@@ -398,6 +432,10 @@ export function validateJpVocabConnectionAiOutput(
   ).length;
   if (bareHits >= 2) {
     return { ok: false, reason: "bare_numbered_lines" };
+  }
+  // 写回拒专业术语：学生教材用一类/二类/三类，听不懂五段/カ变
+  if (connectionHasAcademicVerbClassTerms(preCheckBody)) {
+    return { ok: false, reason: "academic_verb_class_terms" };
   }
   if (text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)) {
     text =
