@@ -142,6 +142,50 @@ export function parseJpVocabConnectionDisplayParts(
   return { byUsageIndex, leftover, hasUsageTagged, normalized };
 }
 
+export type JpVocabConnectionTableRow = {
+  /** 左列：词类 / 形态标签 */
+  label: string;
+  /** 右列：接续说明 */
+  body: string;
+};
+
+const CONNECTION_TABLE_LABEL_MAX = 20;
+/** 「词类：接续正文」；排除「用法N:」（用法分挂另走） */
+const CONNECTION_TABLE_ROW_RE = /^(.+?)[：:]\s*(.+)$/;
+
+/**
+ * 复杂多行接续 → 两列表格行（≥2 行才返回；否则 null 走纯文本）。
+ * 例：～ば 的「动词ば形：… / 一类形容词：… / 否定：…」
+ */
+export function parseJpVocabConnectionTableRows(
+  raw: string | null | undefined
+): JpVocabConnectionTableRow[] | null {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  const rows: JpVocabConnectionTableRow[] = [];
+  for (const line of text.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    // 用法N: 整段是挂接到某用法的正文，不作为表行标签
+    if (/^用法\s*\d+\s*[：:]/.test(t)) return null;
+    const m = CONNECTION_TABLE_ROW_RE.exec(t);
+    if (!m) return null;
+    const label = String(m[1] ?? "").trim();
+    const body = String(m[2] ?? "").trim();
+    if (
+      !label ||
+      !body ||
+      label.length > CONNECTION_TABLE_LABEL_MAX ||
+      /[。！？]/.test(label)
+    ) {
+      return null;
+    }
+    rows.push({ label, body });
+  }
+  if (rows.length < 2) return null;
+  return rows;
+}
+
 /** 有编号用法且有接序 → 卡片上接续贴在用法下，不再单独露「接序」块 */
 export function jpVocabConnectionShownInlineWithUsage(
   usage: string | null | undefined,

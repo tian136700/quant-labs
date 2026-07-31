@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
+import { JpVocabConnectionBody } from "@/components/JpVocabConnectionBody";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { copyTextToClipboard } from "@/lib/copy-text";
 import {
@@ -76,7 +77,7 @@ export function JpVocabConnectionSection({
       </div>
       <div className="jp-vocab-teacher-quiz__connection-body">
         {has ? (
-          <pre className="jp-vocab-teacher-quiz__connection-text">{text}</pre>
+          <JpVocabConnectionBody text={text} showInlineLabel={false} />
         ) : (
           <p className="jp-vocab-teacher-quiz__connection-empty">{emptyText}</p>
         )}

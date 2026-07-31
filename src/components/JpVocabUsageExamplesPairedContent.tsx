@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { CopyToast } from "@/components/CopyToast";
+import { JpVocabConnectionBody } from "@/components/JpVocabConnectionBody";
 import { JpVocabFuriganaText } from "@/components/JpVocabFuriganaText";
 import { JpVocabSourceLabel } from "@/components/JpVocabSourceLabel";
 import { copyTextToClipboard } from "@/lib/copy-text";
@@ -143,14 +144,7 @@ export function JpVocabUsageExamplesPairedContent({
                 </p>
               ) : null}
               {connText ? (
-                <p className="jp-usage-ex-paired-connection">
-                  <span className="jp-usage-ex-paired-connection-label">
-                    接续：
-                  </span>
-                  <span className="jp-usage-ex-paired-connection-body">
-                    {connText}
-                  </span>
-                </p>
+                <JpVocabConnectionBody text={connText} showInlineLabel />
               ) : null}
               {pair.nestedExamples && pair.nestedExamples.length > 0 ? (
                 <ol className="jp-usage-ex-paired-nested">
@@ -275,20 +269,6 @@ export function JpVocabUsageExamplesPairedContent({
         .jp-usage-ex-paired-usage-label {
           font-weight: 600;
         }
-        .jp-usage-ex-paired-connection {
-          margin: 0 0 0.45rem;
-          line-height: 1.55;
-          font-size: 0.9375rem;
-          white-space: pre-wrap;
-          word-break: break-word;
-        }
-        .jp-usage-ex-paired-connection-label {
-          font-weight: 600;
-          color: color-mix(in srgb, var(--accent) 75%, var(--muted));
-        }
-        .jp-usage-ex-paired-connection-body {
-          color: var(--muted);
-        }
         .jp-usage-ex-paired-jp {
           margin: 0;
           line-height: 1.8;
@@ -347,9 +327,6 @@ export function JpVocabUsageExamplesPairedContent({
           .jp-usage-ex-paired-usage,
           .jp-usage-ex-paired-fallback {
             font-size: 1.15rem;
-          }
-          .jp-usage-ex-paired-connection {
-            font-size: 0.98rem;
           }
           .jp-usage-ex-paired-jp {
             font-size: 1.15rem;
