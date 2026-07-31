@@ -15,11 +15,23 @@ const ERR = {
     word_required: "Word / grammar cannot be empty",
     word_duplicate: "This entry already exists",
     not_found: "Entry not found",
+    usage_missing_level: "Each usage must end with (N5)/(N4)/…",
+    usage_not_chinese: "Usage notes must be in Chinese",
+    usage_has_connection: "Put conjugation in the connection field, not usage",
+    invalid_numbering: "Usage must be numbered 1. 2. …",
+    need_one_point: "Grammar needs at least one usage",
+    empty: "Usage cannot be empty",
   },
   zh: {
     word_required: "单词 / 语法不能为空",
     word_duplicate: "该词条已存在",
     not_found: "未找到该词条",
+    usage_missing_level: "每条用法句末须标注 (N5)/(N4) 等等级",
+    usage_not_chinese: "用法须为中文说明",
+    usage_has_connection: "用法正文不要写接续；接续请填在接序栏",
+    invalid_numbering: "用法须用 1. 2. 编号",
+    need_one_point: "语法至少写一条用法",
+    empty: "用法不能为空",
   },
 };
 
