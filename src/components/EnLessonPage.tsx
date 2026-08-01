@@ -875,12 +875,30 @@ export function EnLessonPage() {
       <EnLessonNextClassEditModal
         open={editingNextClassLesson != null}
         lesson={editingNextClassLesson}
-        saving={savingNextClassId === editingNextClassLesson?.id}
+        teachers={teachers}
+        saving={
+          savingNextClassId === editingNextClassLesson?.id ||
+          savingTeacherId === editingNextClassLesson?.id
+        }
         onClose={() => setEditingNextClassLesson(null)}
-        onSave={(schedules) => {
-          if (editingNextClassLesson) {
-            void setLessonClassSchedules(editingNextClassLesson.id, schedules);
+        onAddTeacher={addLessonTeacher}
+        onSave={async (schedules, meta) => {
+          if (!editingNextClassLesson) return;
+          const lessonId = editingNextClassLesson.id;
+          if (meta?.teacherIds?.length) {
+            try {
+              await setLessonTeachers(
+                lessonId,
+                meta.teacherIds,
+                null,
+                [],
+                { keepOpen: true }
+              );
+            } catch {
+              return;
+            }
           }
+          void setLessonClassSchedules(lessonId, schedules);
         }}
       />
 

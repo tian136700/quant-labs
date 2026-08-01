@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { JpLessonHalfHourTimeGridPicker } from "@/components/JpLessonHalfHourTimeGridPicker";
 import { JpVocabSaveProgressBar } from "@/components/JpVocabSaveProgressBar";
+import { LessonClassNoticePasteBox } from "@/components/LessonClassNoticePasteBox";
 import { useSaveProgressBar } from "@/hooks/useSaveProgressBar";
 import {
   beijingTodayDateString,
@@ -23,11 +24,19 @@ import {
   hasDuplicateLessonScheduleRows,
   LESSON_SCHEDULE_DUPLICATE_MESSAGE,
 } from "@/lib/lesson-class-schedule-form";
+import {
+  matchLessonTeacherByNoticeName,
+  parseLessonClassNoticeText,
+} from "@/lib/lesson-class-notice-parse";
 import type {
   JpLessonClassScheduleInput,
   JpLessonRecord,
   JpLessonTeacher,
 } from "@/lib/types";
+
+export type JpLessonNextClassSaveMeta = {
+  teacherIds?: number[];
+};
 
 type Props = {
   open: boolean;
@@ -35,8 +44,12 @@ type Props = {
   teachers?: JpLessonTeacher[];
   saving?: boolean;
   onClose: () => void;
-  onSave: (schedules: JpLessonClassScheduleInput[]) => void;
+  onSave: (
+    schedules: JpLessonClassScheduleInput[],
+    meta?: JpLessonNextClassSaveMeta
+  ) => void | Promise<void>;
   onEditTeachers?: () => void;
+  onAddTeacher?: (name: string) => Promise<JpLessonTeacher | null>;
 };
 
 type ScheduleRow = {
@@ -94,10 +107,21 @@ export function JpLessonNextClassEditModal({
   onClose,
   onSave,
   onEditTeachers,
+  onAddTeacher,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [rows, setRows] = useState<ScheduleRow[]>([emptyRow()]);
-  const saveProgress = useSaveProgressBar(saving);
+  const [noticeText, setNoticeText] = useState("");
+  const [noticeFeedback, setNoticeFeedback] = useState<string | null>(null);
+  const [pendingTeacherName, setPendingTeacherName] = useState<string | null>(
+    null
+  );
+  const [resolvedTeacherId, setResolvedTeacherId] = useState<number | null>(
+    null
+  );
+  const [localSaving, setLocalSaving] = useState(false);
+  const saveBusy = saving || localSaving;
+  const saveProgress = useSaveProgressBar(saveBusy);
 
   const selectedTeachers = useMemo(() => {
     if (!lesson) return [] as JpLessonTeacher[];
@@ -115,11 +139,18 @@ export function JpLessonNextClassEditModal({
   );
 
   const teacherJumpLabel = useMemo(() => {
+    if (pendingTeacherName) {
+      if (resolvedTeacherId != null) {
+        const found = teachers.find((t) => t.id === resolvedTeacherId);
+        return `上课老师：${found?.name ?? pendingTeacherName}（已匹配，点击更改）`;
+      }
+      return `上课老师：${pendingTeacherName}（保存时新建，或点击更改）`;
+    }
     if (!selectedTeachers.length) return "去设置老师";
     const names = selectedTeachers.map((teacher) => teacher.name.trim()).filter(Boolean);
     if (!names.length) return "去设置老师";
     return `上课老师：${names.join("、")}（点击更改）`;
-  }, [selectedTeachers]);
+  }, [pendingTeacherName, resolvedTeacherId, selectedTeachers, teachers]);
 
   const duplicateRowKeys = useMemo(
     () => findDuplicateLessonScheduleRowKeys(rows),
@@ -133,6 +164,11 @@ export function JpLessonNextClassEditModal({
   useEffect(() => {
     if (!open || !lesson) return;
     setRows(rowsFromLesson(lesson, defaultDuration));
+    setNoticeText("");
+    setNoticeFeedback(null);
+    setPendingTeacherName(null);
+    setResolvedTeacherId(null);
+    setLocalSaving(false);
     // 仅在打开/切换课程时灌草稿；老师列表晚到用下面 effect 补空时长
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers/defaultDuration snapshot at open
   }, [open, lesson?.id]);
@@ -165,7 +201,39 @@ export function JpLessonNextClassEditModal({
     });
   };
 
-  const handleSave = () => {
+  const applyNoticeText = (raw: string) => {
+    const parsed = parseLessonClassNoticeText(raw);
+    if (!parsed.teacherName && !parsed.date && !parsed.time) {
+      setNoticeFeedback("未识别到老师或上课时间，请检查粘贴内容");
+      return;
+    }
+
+    if (parsed.date || parsed.time) {
+      setRows((prev) => {
+        const base = prev[0] ?? emptyRow(defaultDuration);
+        const nextFirst: ScheduleRow = {
+          ...base,
+          date: parsed.date ?? base.date,
+          time: parsed.time ?? base.time,
+        };
+        return [nextFirst, ...prev.slice(1)];
+      });
+    }
+
+    if (parsed.teacherName) {
+      const match = matchLessonTeacherByNoticeName(teachers, parsed.teacherName);
+      setPendingTeacherName(match?.query ?? parsed.teacherName);
+      setResolvedTeacherId(match?.teacher?.id ?? null);
+    }
+
+    const parts: string[] = [];
+    if (parsed.teacherName) parts.push(`老师 ${parsed.teacherName}`);
+    if (parsed.date) parts.push(`日期 ${parsed.date}`);
+    if (parsed.time) parts.push(`时间 ${parsed.time}`);
+    setNoticeFeedback(`已填入：${parts.join(" · ")}`);
+  };
+
+  const handleSave = async () => {
     if (hasDuplicateLessonScheduleRows(rows)) {
       return;
     }
@@ -187,11 +255,38 @@ export function JpLessonNextClassEditModal({
       });
     }
 
-    onSave(schedules);
+    let teacherIds: number[] | undefined;
+    if (pendingTeacherName) {
+      if (resolvedTeacherId != null) {
+        teacherIds = [resolvedTeacherId];
+      } else if (onAddTeacher) {
+        setLocalSaving(true);
+        try {
+          const created = await onAddTeacher(pendingTeacherName);
+          if (!created) {
+            setNoticeFeedback(`新建老师「${pendingTeacherName}」失败，请稍后重试`);
+            return;
+          }
+          teacherIds = [created.id];
+          setResolvedTeacherId(created.id);
+        } finally {
+          setLocalSaving(false);
+        }
+      }
+    }
+
+    await onSave(
+      schedules,
+      teacherIds?.length ? { teacherIds } : undefined
+    );
   };
 
   const handleClear = () => {
     setRows([emptyRow(defaultDuration)]);
+    setNoticeText("");
+    setNoticeFeedback(null);
+    setPendingTeacherName(null);
+    setResolvedTeacherId(null);
   };
 
   if (!open || !mounted || !lesson) return null;
@@ -201,7 +296,7 @@ export function JpLessonNextClassEditModal({
       className="jp-lesson-next-class-overlay"
       role="presentation"
       onClick={() => {
-        if (!saving) onClose();
+        if (!saveBusy) onClose();
       }}
     >
       <div
@@ -222,7 +317,7 @@ export function JpLessonNextClassEditModal({
             type="button"
             className="jp-lesson-next-class-close"
             aria-label="关闭"
-            disabled={saving}
+            disabled={saveBusy}
             onClick={onClose}
           >
             ×
@@ -234,7 +329,7 @@ export function JpLessonNextClassEditModal({
             <button
               type="button"
               className="jp-lesson-next-class-teacher-jump-btn"
-              disabled={saving}
+              disabled={saveBusy}
               onClick={onEditTeachers}
             >
               {teacherJumpLabel}
@@ -249,7 +344,14 @@ export function JpLessonNextClassEditModal({
         ) : null}
 
         <div className="jp-lesson-next-class-body">
-          <fieldset className="jp-lesson-next-class-fieldset" disabled={saving}>
+          <LessonClassNoticePasteBox
+            value={noticeText}
+            disabled={saveBusy}
+            feedback={noticeFeedback}
+            onChange={setNoticeText}
+            onApply={applyNoticeText}
+          />
+          <fieldset className="jp-lesson-next-class-fieldset" disabled={saveBusy}>
             <legend>上课时间（北京时间，整点 / 半点）</legend>
             <div className="jp-lesson-next-class-rows">
               {rows.map((row, index) => (
@@ -288,7 +390,7 @@ export function JpLessonNextClassEditModal({
                       <span>时间</span>
                       <JpLessonHalfHourTimeGridPicker
                         value={row.time}
-                        disabled={saving}
+                        disabled={saveBusy}
                         onChange={(time) => updateRow(row.key, { time })}
                       />
                     </div>
@@ -321,13 +423,13 @@ export function JpLessonNextClassEditModal({
             <button
               type="button"
               className="jp-lesson-next-class-add"
-              disabled={saving}
+              disabled={saveBusy}
               onClick={addRow}
             >
               + 添加预约
             </button>
             <p className="jp-lesson-next-class-hint">
-              点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。
+              点击时间后在方块网格中选择整点或半点（如 13:00、13:30）；可添加多条预约；全部留空表示未定义。也可上方粘贴签到通知自动填入。
             </p>
           </fieldset>
 
@@ -344,7 +446,7 @@ export function JpLessonNextClassEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn"
-            disabled={saving}
+            disabled={saveBusy}
             onClick={handleClear}
           >
             清除
@@ -352,7 +454,7 @@ export function JpLessonNextClassEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn"
-            disabled={saving}
+            disabled={saveBusy}
             onClick={onClose}
           >
             取消
@@ -360,8 +462,10 @@ export function JpLessonNextClassEditModal({
           <button
             type="button"
             className="jp-lesson-action-btn jp-lesson-action-btn--primary"
-            disabled={saving || duplicateRowKeys.size > 0}
-            onClick={handleSave}
+            disabled={saveBusy || duplicateRowKeys.size > 0}
+            onClick={() => {
+              void handleSave();
+            }}
           >
             保存
           </button>
