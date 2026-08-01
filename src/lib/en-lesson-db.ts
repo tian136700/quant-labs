@@ -30,6 +30,7 @@ let devNextId = 1;
 let devSeeded = false;
 let enLessonLinkCopyCountColumnReady = false;
 let enLessonCategoryColumnReady = false;
+let enLessonSchemaColumnsReady = false;
 
 async function ensureEnLessonLinkCopyCountColumn(db: D1Database): Promise<void> {
   if (devStoreEnabled || enLessonLinkCopyCountColumnReady) return;
@@ -76,8 +77,35 @@ async function ensureEnLessonCategoryColumn(db: D1Database): Promise<void> {
 }
 
 async function ensureEnLessonSchemaColumns(db: D1Database): Promise<void> {
-  await ensureEnLessonLinkCopyCountColumn(db);
-  await ensureEnLessonCategoryColumn(db);
+  if (devStoreEnabled || enLessonSchemaColumnsReady) return;
+  // 一次 PRAGMA 再按需 ALTER，避免冷 isolate 上无谓失败 ALTER 抢 CPU
+  const info = await db
+    .prepare(`PRAGMA table_info(en_lesson)`)
+    .all<{ name: string }>();
+  const names = new Set((info.results || []).map((row) => String(row.name || "")));
+  if (!names.has("link_copy_count")) {
+    await ensureEnLessonLinkCopyCountColumn(db);
+  } else {
+    enLessonLinkCopyCountColumnReady = true;
+  }
+  if (!names.has("category")) {
+    await ensureEnLessonCategoryColumn(db);
+  } else {
+    // 列已在：仍做一次空值回填（幂等），但跳过 ALTER
+    try {
+      await db
+        .prepare(
+          `UPDATE en_lesson
+           SET category = '雅思托福'
+           WHERE category IS NULL OR TRIM(category) = ''`
+        )
+        .run();
+    } catch {
+      /* ignore */
+    }
+    enLessonCategoryColumnReady = true;
+  }
+  enLessonSchemaColumnsReady = true;
 }
 
 export function enableEnLessonDevStore() {

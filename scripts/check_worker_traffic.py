@@ -65,6 +65,10 @@ def main() -> int:
         errors.append(
             "worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 /jp-vocab/study（防整页 1102）"
         )
+    if '"/jp-lesson"' not in path_lib or '"/en-lesson"' not in path_lib:
+        errors.append(
+            "worker-traffic-path 须 PAGE_HTML_TRAFFIC_SKIP 含 /jp-lesson 与 /en-lesson（防整页 1102）"
+        )
 
     locale = read("src/lib/locale-path.ts")
     if "adminWorkerTrafficPath" not in locale or "isAdminWorkerTrafficPath" not in locale:

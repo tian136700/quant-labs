@@ -56,6 +56,64 @@ let jpLessonLinkCopyCountColumnReady = false;
 let jpLessonGrammarItemCountColumnReady = false;
 let jpLessonCourseLabelColumnReady = false;
 let jpLessonCourseGroupIdColumnReady = false;
+/** 热路径 list 用：整表列已核对后跳过逐列 ALTER（冷 isolate 上 7 次失败 ALTER 易顶 1102） */
+let jpLessonSchemaColumnsReady = false;
+
+const JP_LESSON_OPTIONAL_COLUMNS: ReadonlyArray<{
+  name: string;
+  ddl: string;
+  markReady: () => void;
+}> = [
+  {
+    name: "meanings",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN meanings TEXT`,
+    markReady: () => {
+      jpLessonMeaningsColumnReady = true;
+    },
+  },
+  {
+    name: "example_sentences",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN example_sentences TEXT`,
+    markReady: () => {
+      jpLessonExampleSentencesColumnReady = true;
+    },
+  },
+  {
+    name: "annotations",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN annotations TEXT`,
+    markReady: () => {
+      jpLessonAnnotationsColumnReady = true;
+    },
+  },
+  {
+    name: "link_copy_count",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN link_copy_count INTEGER NOT NULL DEFAULT 0`,
+    markReady: () => {
+      jpLessonLinkCopyCountColumnReady = true;
+    },
+  },
+  {
+    name: "grammar_item_count",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN grammar_item_count INTEGER NOT NULL DEFAULT 0`,
+    markReady: () => {
+      jpLessonGrammarItemCountColumnReady = true;
+    },
+  },
+  {
+    name: "course_label",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN course_label TEXT`,
+    markReady: () => {
+      jpLessonCourseLabelColumnReady = true;
+    },
+  },
+  {
+    name: "course_group_id",
+    ddl: `ALTER TABLE jp_lesson ADD COLUMN course_group_id TEXT`,
+    markReady: () => {
+      jpLessonCourseGroupIdColumnReady = true;
+    },
+  },
+];
 
 async function ensureJpLessonMeaningsColumn(db: D1Database): Promise<void> {
   if (devStoreEnabled || jpLessonMeaningsColumnReady) return;
@@ -141,13 +199,25 @@ async function ensureJpLessonCourseGroupIdColumn(db: D1Database): Promise<void> 
 }
 
 async function ensureJpLessonSchemaColumns(db: D1Database): Promise<void> {
-  await ensureJpLessonMeaningsColumn(db);
-  await ensureJpLessonExampleSentencesColumn(db);
-  await ensureJpLessonAnnotationsColumn(db);
-  await ensureJpLessonLinkCopyCountColumn(db);
-  await ensureJpLessonGrammarItemCountColumn(db);
-  await ensureJpLessonCourseLabelColumn(db);
-  await ensureJpLessonCourseGroupIdColumn(db);
+  if (devStoreEnabled || jpLessonSchemaColumnsReady) return;
+  const info = await db
+    .prepare(`PRAGMA table_info(jp_lesson)`)
+    .all<{ name: string }>();
+  const names = new Set((info.results || []).map((row) => String(row.name || "")));
+  for (const col of JP_LESSON_OPTIONAL_COLUMNS) {
+    if (names.has(col.name)) {
+      col.markReady();
+      continue;
+    }
+    try {
+      await db.prepare(col.ddl).run();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/duplicate column name/i.test(msg)) throw err;
+    }
+    col.markReady();
+  }
+  jpLessonSchemaColumnsReady = true;
 }
 
 export function isJpLessonDevStoreEnabled(): boolean {

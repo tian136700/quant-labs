@@ -37,6 +37,13 @@ def main() -> int:
         errors.append("GET /api/jp-lesson must not call listJpLessonNotes (full body)")
     if "listJpLessonNoteCountsByLesson" not in route:
         errors.append("GET /api/jp-lesson must use listJpLessonNoteCountsByLesson")
+    lesson_db = (ROOT / "src/lib/jp-lesson-db.ts").read_text(encoding="utf-8")
+    if "PRAGMA table_info(jp_lesson)" not in lesson_db:
+        errors.append(
+            "jp-lesson-db ensureJpLessonSchemaColumns must PRAGMA table_info（冷启动勿 7 次失败 ALTER）"
+        )
+    if "jpLessonSchemaColumnsReady" not in lesson_db:
+        errors.append("jp-lesson-db must cache schema ready after one PRAGMA pass")
     if "listJpLessonNotesByLessonId" not in notes_db:
         errors.append("must have listJpLessonNotesByLessonId for per-lesson bodies")
     notes_route = (

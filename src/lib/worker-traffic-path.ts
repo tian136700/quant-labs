@@ -10,14 +10,16 @@ const STATIC_SKIP = new Set([
 ]);
 
 /**
- * 今日单词等 force-static 壳页：浏览已由 visit_logs 记；
+ * force-static 壳页：浏览已由 visit_logs 记；
  * 进页时再 waitUntil 写 worker_*_hits 会与 OpenNext 冷启动抢同一 isolate CPU，易整页 Error 1102。
- * （API shared 列表仍计数。）
+ * （API 列表仍计数。）
  */
 export const PAGE_HTML_TRAFFIC_SKIP_PATHS = [
   "/jp-vocab/study",
   "/en-vocab/study",
   "/ko-pron/study",
+  "/jp-lesson",
+  "/en-lesson",
 ] as const;
 
 const PAGE_HTML_TRAFFIC_SKIP = new Set<string>(PAGE_HTML_TRAFFIC_SKIP_PATHS);
