@@ -90,13 +90,33 @@ def main() -> int:
     )
     must_contain(
         "src/hooks/useVocabShareBackfillOnComplete.ts",
+        "excludeWordId",
+        "mid-quiz backfill skips current flashcard word",
+    )
+    must_contain(
+        "src/hooks/useVocabShareBackfillOnComplete.ts",
         "useVocabShareBackfillOnComplete",
-        "backfill unshared checked words after quiz complete",
+        "backfill unshared checked words",
     )
     must_contain(
         "src/components/JpVocabPage.tsx",
         "useVocabShareBackfillOnComplete",
         "teacher page wires share backfill",
+    )
+    must_contain(
+        "src/components/JpVocabPage.tsx",
+        "excludeWordId",
+        "teacher page passes current quiz word exclude",
+    )
+    must_contain(
+        "src/lib/jp-vocab-db/share.ts",
+        "backfillJpVocabCheckedUnsharedShares",
+        "server backfill checked-unshared",
+    )
+    must_contain(
+        "src/app/api/jp-vocab/shared/route.ts",
+        "backfillJpVocabCheckedUnsharedShares",
+        "shared non-lite heals missing shares",
     )
 
     print("OK: jp-vocab share-on-next guards")

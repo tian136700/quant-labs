@@ -617,6 +617,93 @@ export async function getJpVocabStudyQuizProgressTarget(
   };
 }
 
+/**
+ * 补发「今日已抽查但未写入 shared」的词（关卡未点「下一个」等）。
+ * 排除老师当前 live 词，避免学生在答完前看到。
+ * 返回新插入条数；无漏发时 0 次写库。
+ */
+export async function backfillJpVocabCheckedUnsharedShares(
+  db: D1Database,
+  options?: { excludeWordId?: number | null; sharedBy?: string; now?: Date }
+): Promise<number> {
+  const now = options?.now ?? new Date();
+  const today = beijingDateString(now);
+  const excludeWordId =
+    options?.excludeWordId != null &&
+    Number.isInteger(options.excludeWordId) &&
+    options.excludeWordId > 0
+      ? options.excludeWordId
+      : null;
+  const sharedBy = (options?.sharedBy || "share-backfill").trim() || "share-backfill";
+  const ts = beijingDateTimeString(now);
+
+  if (jpVocabDbState.devStoreEnabled) {
+    let n = 0;
+    for (const w of jpVocabDbState.devWords) {
+      if (w.today_check_date !== today || !(w.today_check_count > 0)) continue;
+      if (excludeWordId != null && w.id === excludeWordId) continue;
+      if (
+        jpVocabDbState.devShared.some(
+          (s) => s.share_date === today && s.word_id === w.id
+        )
+      ) {
+        continue;
+      }
+      jpVocabDbState.devShared.push({
+        id: jpVocabDbState.devSharedNextId++,
+        word_id: w.id,
+        shared_by: sharedBy,
+        shared_at: ts,
+        share_date: today,
+        auto_marked_level: null,
+      });
+      n += 1;
+    }
+    if (n > 0) invalidateJpVocabSharedTodayCache();
+    return n;
+  }
+
+  await ensureJpVocabSharedSchema(db);
+
+  const missing = await db
+    .prepare(
+      excludeWordId == null
+        ? `SELECT w.id AS id FROM jp_vocab_word w
+           WHERE w.today_check_date = ?1
+             AND COALESCE(w.today_check_count, 0) > 0
+             AND NOT EXISTS (
+               SELECT 1 FROM jp_vocab_shared s
+               WHERE s.share_date = ?1 AND s.word_id = w.id
+             )`
+        : `SELECT w.id AS id FROM jp_vocab_word w
+           WHERE w.today_check_date = ?1
+             AND COALESCE(w.today_check_count, 0) > 0
+             AND w.id != ?2
+             AND NOT EXISTS (
+               SELECT 1 FROM jp_vocab_shared s
+               WHERE s.share_date = ?1 AND s.word_id = w.id
+             )`
+    )
+    .bind(...(excludeWordId == null ? [today] : [today, excludeWordId]))
+    .all<{ id: number }>();
+
+  const ids = (missing.results ?? [])
+    .map((r) => Number(r.id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return 0;
+
+  const insertSql = `INSERT INTO jp_vocab_shared
+    (word_id, shared_by, shared_at, share_date, auto_marked_level)
+    VALUES (?1, ?2, ?3, ?4, NULL)`;
+  await db.batch(
+    ids.map((id) =>
+      db.prepare(insertSql).bind(id, sharedBy, ts, today)
+    )
+  );
+  invalidateJpVocabSharedTodayCache();
+  return ids.length;
+}
+
 export async function ensureJpVocabShareRequestSchema(db: D1Database): Promise<void> {
   if (jpVocabDbState.devStoreEnabled) return;
   if (!jpVocabDbState.jpVocabShareRequestSchemaReady) {

@@ -602,6 +602,10 @@ export function EnVocabPage({ variant }: EnVocabPageProps) {
     hasLevel: quizWordHasLevel,
     isSharedToday: (id) => sharedTodayWordIds.has(id),
     shareWord,
+    excludeWordId:
+      showQuizFlashcard && quizSession
+        ? quizSession.wordIds[quizSession.currentIndex] ?? null
+        : null,
   });
 
   /**

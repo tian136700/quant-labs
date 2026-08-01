@@ -1,5 +1,6 @@
 import { localeFromRequest } from "@/lib/cloudflare-env";
 import {
+  backfillJpVocabCheckedUnsharedShares,
   getJpVocabTeacherQuizLive,
   listJpVocabSharedToday,
   getJpVocabStudyQuizProgressTarget,
@@ -32,13 +33,18 @@ export async function GET(request: Request) {
     }
 
     const isAdmin = isAdminSuperuser(user?.role);
-    const listPromise = listJpVocabSharedToday(env.DB);
-    const quizPromise = lite ? null : getJpVocabStudyQuizProgressTarget(env.DB);
-    const livePromise = getJpVocabTeacherQuizLive(env.DB);
-    const [{ items, refs }, quiz_progress, live] = await Promise.all([
-      listPromise,
-      quizPromise ?? Promise.resolve(null),
-      livePromise,
+    // 非 lite：先补「已抽未共享」再列表，避免学生端进度 14/35、老师已抽 15 对不上
+    const live = await getJpVocabTeacherQuizLive(env.DB);
+    if (!lite) {
+      await backfillJpVocabCheckedUnsharedShares(env.DB, {
+        excludeWordId: live.word_id,
+      });
+    }
+    const [{ items, refs }, quiz_progress] = await Promise.all([
+      listJpVocabSharedToday(env.DB),
+      lite
+        ? Promise.resolve(null)
+        : getJpVocabStudyQuizProgressTarget(env.DB),
     ]);
     const clientItems = isAdmin
       ? items
