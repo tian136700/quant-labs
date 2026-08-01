@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression: /jp-lesson 「上课中」= 开课前/后各 10 分钟窗口含北京时间 now（不限定老师）。"""
+"""Regression: /jp-lesson 「上课中」= 开课前 10 分钟起至本节课结束；不依赖学习中门禁；不限定老师。"""
 
 from __future__ import annotations
 
@@ -25,20 +25,41 @@ def main() -> int:
             "lesson-mobile-status-filter.ts must not hardcode IN_CLASS teacher name"
         )
 
-    shared = (ROOT / "src/lib/jp-lesson-shared.ts").read_text(encoding="utf-8")
-    if "export function isJpLessonCurrentlyInClass" not in shared:
-        errors.append("jp-lesson-shared.ts missing isJpLessonCurrentlyInClass")
-    if "JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10" not in shared:
+    in_class = (ROOT / "src/lib/jp-lesson-in-class.ts").read_text(encoding="utf-8")
+    if "export function isJpLessonCurrentlyInClass" not in in_class:
+        errors.append("jp-lesson-in-class.ts missing isJpLessonCurrentlyInClass")
+    if "JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10" not in in_class:
         errors.append(
-            "jp-lesson-shared.ts missing JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10"
+            "jp-lesson-in-class.ts missing JP_LESSON_IN_CLASS_MARK_WINDOW_MINUTES = 10"
         )
-    if "buildJpLessonScheduleEvents(lesson)" not in shared:
-        errors.append("isJpLessonCurrentlyInClass should reuse buildJpLessonScheduleEvents")
-    if "event.end.getTime()" in shared.split("export function isJpLessonCurrentlyInClass", 1)[-1].split(
-        "export function flattenJpLessonScheduleEvents", 1
-    )[0]:
+    if "getLessonClassSchedules(lesson)" not in in_class:
         errors.append(
-            "isJpLessonCurrentlyInClass must use ±10min around class start, not full [start, end)"
+            "isJpLessonCurrentlyInClass must use getLessonClassSchedules (not learning gate)"
+        )
+    if "buildJpLessonScheduleEvents(lesson)" in in_class:
+        errors.append(
+            "isJpLessonCurrentlyInClass must NOT use buildJpLessonScheduleEvents "
+            "(that gates on learning/completed and hides schedule-linked lessons)"
+        )
+    # 窗口须覆盖整节课：用 endMs / duration，禁止缩成开课后仅 ±10min
+    fn_body = in_class.split("export function isJpLessonCurrentlyInClass", 1)[-1]
+    if "endMs" not in fn_body or "durationMinutes" not in fn_body:
+        errors.append(
+            "isJpLessonCurrentlyInClass must cover [start-10min, class end), not ±10min only"
+        )
+
+    shared = (ROOT / "src/lib/jp-lesson-shared.ts").read_text(encoding="utf-8")
+    if 'from "@/lib/jp-lesson-in-class"' not in shared and "jp-lesson-in-class" not in shared:
+        errors.append("jp-lesson-shared.ts should re-export isJpLessonCurrentlyInClass")
+
+    route = (ROOT / "src/app/api/jp-lesson/route.ts").read_text(encoding="utf-8")
+    strip_fn = route.split("function stripAdminOnlyFromLessons", 1)[-1].split(
+        "export async function GET", 1
+    )[0]
+    if "class_schedules: []" in strip_fn or "next_class_at: null" in strip_fn:
+        errors.append(
+            "stripAdminOnlyFromLessons must keep class_schedules/next_class_at "
+            "(上课中 Tab needs times for non-admin readers)"
         )
 
     helpers = (
@@ -57,6 +78,8 @@ def main() -> int:
         "inClassLessons",
         "isJpLessonCurrentlyInClass",
         "setInterval(() => setNow(new Date()), 60_000)",
+        'status === "in_class"',
+        "loadLessons({ force: true })",
     ):
         if needle not in page:
             errors.append(f"JpLessonPage.tsx missing: {needle}")

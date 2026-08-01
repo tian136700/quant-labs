@@ -433,6 +433,7 @@ export function JpLessonNotesPage() {
   const markItemDirty = useCallback(
     (item: string) => {
       if (!canEdit) return;
+      dirtyItemsRef.current = new Set(dirtyItemsRef.current).add(item);
       setDirtyItems((prev) => new Set(prev).add(item));
       setItemSaveStatus((prev) => ({ ...prev, [item]: "pending" }));
       setSaveStatus("pending");
@@ -441,12 +442,14 @@ export function JpLessonNotesPage() {
   );
 
   const updateFieldBody = (item: string, key: string, body: string) => {
-    setItemFields((prev) => ({
-      ...prev,
-      [item]: (prev[item] ?? []).map((f) =>
+    const nextFields = {
+      ...itemFieldsRef.current,
+      [item]: (itemFieldsRef.current[item] ?? []).map((f) =>
         f.key === key ? { ...f, body } : f
       ),
-    }));
+    };
+    itemFieldsRef.current = nextFields;
+    setItemFields(nextFields);
     markItemDirty(item);
   };
 
@@ -641,7 +644,7 @@ export function JpLessonNotesPage() {
         </p>
       ) : (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-          每条知识点下方可单独保存；支持粘贴或上传图片（与日语抽问备注相同）。教案标记为「已完成」后，文字与图片会一并同步到抽问卡片备注。
+          每条知识点下方可单独保存；支持粘贴或上传图片（与日语抽问备注相同，上传成功后会自动保存）。教案标记为「已完成」后，文字与图片会一并同步到抽问卡片备注。
         </p>
       )}
 
