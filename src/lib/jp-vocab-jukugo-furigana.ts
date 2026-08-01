@@ -1,9 +1,10 @@
 /**
- * 熟语假名：须整词标注（出発(しゅっぱつ)），禁止训读拆字（出(で)発(ぱつ)）。
+ * 熟语假名：须整词标注（出発(しゅっぱつ)），禁止训读拆字（出(で)発(ぱつ)）；
+ * 且读音须正确（含连浊：入口(いりぐち) 非 いりくち）。
  * apply / 线上 normalize 拒 wrong_jukugo_furigana。
  */
 
-/** N5～N4 常见熟语 → 正确整词读音（平假名） */
+/** N5～N4 常见熟语 → 正确整词读音（平假名；含须连浊者） */
 export const JP_VOCAB_JUKUGO_READING: Record<string, string> = {
   出発: "しゅっぱつ",
   到着: "とうちゃく",
@@ -59,6 +60,21 @@ export const JP_VOCAB_JUKUGO_READING: Record<string, string> = {
   理由: "りゆう",
   準備: "じゅんび",
   約束: "やくそく",
+  // 连浊（浊化）：后字清音 → 浊音；禁止把 くち 硬标成无浊
+  入口: "いりぐち",
+  入り口: "いりぐち",
+  出口: "でぐち",
+  悪口: "わるぐち",
+  窓口: "まどぐち",
+  山口: "やまぐち",
+  手紙: "てがみ",
+  花火: "はなび",
+  金魚: "きんぎょ",
+  鼻血: "はなぢ",
+  川岸: "かわぎし",
+  人々: "ひとびと",
+  時々: "ときどき",
+  国々: "くにぐに",
 };
 
 const SINGLE_KANJI_FURI_CHUNK_RE =
@@ -67,6 +83,10 @@ const SINGLE_KANJI_FURI_CHUNK_RE =
 const CONSEC_SINGLE_KANJI_RUN_RE =
   /(?:[\u4E00-\u9FFF々][（(][ぁ-んァ-ンヴヵヶー]+[）)]){2,}/g;
 
+/** 整词括注：入口(いりくち) / 入口（いりくち） */
+const WHOLE_JUKUGO_FURI_RE =
+  /([\u4E00-\u9FFF々]{2,4})[（(]([ぁ-んァ-ンヴヵヶー]+)[）)]/g;
+
 function toHiragana(text: string): string {
   return String(text || "")
     .replace(/[ァ-ン]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
@@ -74,8 +94,9 @@ function toHiragana(text: string): string {
 }
 
 /**
- * 检测例句日语行是否把熟语错拆成单字假名（读音与整词不符）。
+ * 检测例句日语行是否把熟语错拆成单字假名，或整词标错读（含漏连浊）。
  * 例：出(で)発(ぱつ) → でぱつ ≠ しゅっぱつ
+ * 例：入口(いりくち) ≠ いりぐち
  */
 export function jpVocabExampleHasWrongJukugoFurigana(text: string): boolean {
   const s = String(text || "");
@@ -112,6 +133,16 @@ export function jpVocabExampleHasWrongJukugoFurigana(text: string): boolean {
     }
   }
 
+  // 整词标错：入口(いりくち)、手紙(てかみ)
+  WHOLE_JUKUGO_FURI_RE.lastIndex = 0;
+  for (const wm of s.matchAll(WHOLE_JUKUGO_FURI_RE)) {
+    const surface = wm[1]!;
+    const reading = toHiragana(wm[2]!);
+    const expected = JP_VOCAB_JUKUGO_READING[surface];
+    if (!expected) continue;
+    if (reading !== expected) return true;
+  }
+
   // 消防(しょうぼう)車(しょうぼうしゃ)：后字括注吞掉整词读音
   for (const [surface, reading] of Object.entries(JP_VOCAB_JUKUGO_READING)) {
     if (surface.length < 2) continue;
@@ -131,7 +162,8 @@ function escapeRegExp(text: string): string {
 }
 
 /** prompt / 规则用的短示例 */
-export const JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT = `熟语必须整词标假名，禁止按训读拆开：
+export const JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT = `熟语必须整词标假名，禁止按训读拆开；读音须正确（该连浊的必须浊化）：
    - ✅「出発(しゅっぱつ)」「日本語(にほんご)」「土曜日(どようび)」「図書館(としょかん)」
    - ❌「出(で)発(ぱつ)」（しゅっぱつ 被拆成 で+ぱつ）
-   - ❌「日本(にっぽん)語(ご)」「土曜(どよう)日(ひ)」「消防(しょうぼう)車(しょうぼうしゃ)」`;
+   - ❌「日本(にっぽん)語(ご)」「土曜(どよう)日(ひ)」「消防(しょうぼう)車(しょうぼうしゃ)」
+   - 连浊：✅「入口(いりぐち)」「出口(でぐち)」「手紙(てがみ)」；❌「入口(いりくち)」「出口(でくち)」「手紙(てかみ)」（该浊却标成清音，会误导学生）`;
