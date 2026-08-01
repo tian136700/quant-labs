@@ -30,6 +30,7 @@ from paid_anthropic_client import (  # noqa: E402
     anthropic_model,
     build_online_source_label,
     call_anthropic,
+    poison_seconds_for_generate_error,
 )
 from llm_json_parse import parse_llm_json_object  # noqa: E402
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
@@ -154,15 +155,16 @@ def mark_poison(word_id: int, word: str, reason: str) -> None:
     import time
 
     data = load_poison()
+    sec = poison_seconds_for_generate_error(reason, default_sec=resolve_poison_sec())
     data[str(word_id)] = {
         "word": word,
         "reason": reason,
-        "until": time.time() + resolve_poison_sec(),
+        "until": time.time() + sec,
         "marked_at": time.time(),
     }
     save_poison(data)
     print(
-        f"    poison id={word_id} for {resolve_poison_sec()}s "
+        f"    poison id={word_id} for {sec}s "
         f"(reason={reason}) — 防同一词连环烧钱",
         flush=True,
     )

@@ -187,3 +187,48 @@ def probe_anthropic(*, timeout: int = 15) -> bool:
         return True
     except Exception:
         return False
+
+
+def is_transient_anthropic_error(err: BaseException | str) -> bool:
+    """鉴权/网关抖动：不应对单个 word_id 锁 6 小时 poison。
+
+    词条本身没错；长 poison 会让队首词到下午才重试。
+    """
+    text = str(err or "")
+    if not text:
+        return False
+    lower = text.lower()
+    markers = (
+        "http 401",
+        "http 403",
+        "invalid token",
+        "unauthorized",
+        "http 429",
+        "http 502",
+        "http 503",
+        "http 504",
+        "timed out",
+        "timeout",
+        "temporarily unavailable",
+        "connection reset",
+        "remote end closed",
+        "network is unreachable",
+        "name or service not known",
+    )
+    return any(m in lower for m in markers)
+
+
+# 鉴权/网关类失败：短退避，避免 6h 卡死队首词
+TRANSIENT_ANTHROPIC_POISON_SEC = 10 * 60
+
+
+def poison_seconds_for_generate_error(
+    reason: str, *, default_sec: int
+) -> int:
+    """generate 失败用多久跳过该词：瞬时错误短退避，内容/校验失败用 default。"""
+    if is_transient_anthropic_error(reason):
+        return max(60, int(TRANSIENT_ANTHROPIC_POISON_SEC))
+    try:
+        return max(60, int(default_sec))
+    except (TypeError, ValueError):
+        return max(60, int(TRANSIENT_ANTHROPIC_POISON_SEC))

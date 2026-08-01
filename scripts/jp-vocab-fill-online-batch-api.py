@@ -32,6 +32,7 @@ from jp_vocab_llm_backend import backend_label, is_online_backend  # noqa: E402
 from paid_anthropic_client import (  # noqa: E402
     build_online_source_label,
     call_anthropic,
+    poison_seconds_for_generate_error,
 )
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
@@ -172,14 +173,15 @@ def save_poison(data: dict[str, dict]) -> None:
 
 def mark_poison(word_id: int, word: str, reason: str) -> None:
     data = load_poison()
+    sec = poison_seconds_for_generate_error(reason, default_sec=resolve_poison_sec())
     data[str(word_id)] = {
         "word": word,
         "reason": reason,
-        "until": time.time() + resolve_poison_sec(),
+        "until": time.time() + sec,
     }
     save_poison(data)
     print(
-        f"    poison id={word_id} for {resolve_poison_sec()}s (reason={reason})",
+        f"    poison id={word_id} for {sec}s (reason={reason})",
         flush=True,
     )
 
