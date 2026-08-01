@@ -75,7 +75,8 @@ WORD_SYSTEM = (
     "一词多种读音/大义项（与 reading 斜杠对应）用半角 / 分隔，如「前面；以前/前面的；预先的」。"
     "词性：中文（名词/动词/い形容词/な形容词/副词…），多词性用 /。"
     "例句：字符串（不要 JSON 数组）。每条日语一行（汉字须半角括号假名），"
-    "句末标 JLPT 等级 (N5)/(N4)，下一行「译文：」+自然中文。"
+    "句末标 JLPT 等级 (N5)/(N4)，下一行必须「译文：」+自然中文。"
+    "【译文标签·必守】只用中文「译文：」；禁止日文「訳文：」「訳：」或「译文：訳文：」叠标签。"
     "N5～N4 短句，焦点在本单词，不要塞难语法。"
     "条数：释义含 / 时每段 1 句；否则 max(2, 常用用法数)。"
     "な形容词「〜だ」造句用词干，不必写「だ」。"
@@ -99,8 +100,9 @@ GRAMMAR_SYSTEM = (
     "句型语法字段：usage（编号中文用法，句末 (N5)/(N4)…）、"
     "example_sentences（与用法严格 1:1：每条用法恰好 1 条例句；日语+译文交替纯文本，不要接序段）、"
     "connection（接序正文，不要【接序】标记；写清词类（动词原形／一类形容词…／名词），禁止只写笼统「原形＋」）。"
+    "【译文标签·必守】例句下一行只用「译文：」；禁止「訳文：」「訳：」或叠标签。"
     "组数=真实常用用法数；禁止多造例句；例句接续须对应该条用法（た形／原形／て形勿张冠李戴）。"
-    "例句只用简单词。"
+    "例句只用简单词；句中每个汉字须半角括号假名；译文行禁止写成无标签的中文句（否则会被当成日语漏标）。"
     "【熟语假名·必守】二字以上熟语整词标假名："
     "✅出発(しゅっぱつ)／日本語(にほんご)；❌出(で)発(ぱつ)、❌日本(にっぽん)語(ご)。"
     "若词条是「变形/ます形规则/て形」等活用教学：只输出 example_sentences（2～3 条 N5 短句+译文），"
@@ -282,12 +284,32 @@ def report_word_run_to_maintenance_center(payload: dict[str, Any]) -> None:
         pass
 
 
+GLOSS_LABEL_RE = re.compile(r"^(译文|翻譯|翻译|译|譯|訳文|訳)\s*[:：]\s*")
+LEADING_SLASH_RE = re.compile(r"^[\s／/]+")
+
+
 def normalize_example_jlpt_tail(line: str) -> str:
     text = str(line or "").strip()
     m = EXAMPLE_JLPT_TAIL_RE.match(text)
     if not m:
         return text
     return f"{m.group(1)}{m.group(2)}(N{m.group(3)})"
+
+
+def format_example_gloss_line(line: str) -> str:
+    """剥「訳文：」/叠标签/行首斜杠，统一成「译文：」+中文。
+
+    Claude 常写日文「訳文：」；若不在写库前转成「译文：」，
+    apply 会拒 gloss_has_yakuwen_label 并 6h poison。
+    """
+    body = str(line or "").strip()
+    for _ in range(8):
+        nxt = GLOSS_LABEL_RE.sub("", body)
+        nxt = LEADING_SLASH_RE.sub("", nxt).strip()
+        if nxt == body:
+            break
+        body = nxt
+    return f"译文：{body}" if body else ""
 
 
 def normalize_example_sentences_block(value: Any) -> str:
@@ -301,12 +323,13 @@ def normalize_example_sentences_block(value: Any) -> str:
         line = raw_line.strip()
         if not line:
             continue
-        if line.startswith("译文") or line.startswith("譯文"):
-            lines.append(line if line.startswith("译文：") else f"译文：{line.split('：', 1)[-1]}")
-        elif re.match(r"^(译文|翻譯|翻译)\s*[:：]", line):
-            lines.append(line)
-        else:
-            lines.append(normalize_example_jlpt_tail(line))
+        # 含日文「訳文：」/「訳：」也必须走译文规范化（旧逻辑只认「译文」会漏掉）
+        if GLOSS_LABEL_RE.match(line) or line.startswith(("/", "／")):
+            gloss = format_example_gloss_line(line)
+            if gloss:
+                lines.append(gloss)
+            continue
+        lines.append(normalize_example_jlpt_tail(line))
     return "\n".join(lines).strip()
 
 
@@ -526,11 +549,13 @@ def apply_bundle(
 
         examples = str(payload.get("example_sentences") or "").strip()
         if examples:
+            # 与 meaning 一致：走 online normalize（剥訳文等）；仍拒漏标假名
             r = _apply(
                 EXAMPLES_URL,
                 {
                     "mode": "apply",
                     "allow_overwrite": True,
+                    "validate_format": False,
                     "source": source,
                     "updates": [
                         {

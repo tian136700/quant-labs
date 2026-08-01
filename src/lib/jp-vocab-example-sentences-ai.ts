@@ -479,13 +479,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     return { ok: false, reason: "need_two_japanese_lines" };
   }
 
-  // 在 format 剥标签之前：原始块若仍含「訳文：」则拒（逼模型别叠日文标签）
-  for (const line of text.split(/\r?\n/)) {
-    const t = line.trim();
-    if (t && jpVocabExampleGlossHasYakuwenLabel(t)) {
-      return { ok: false, reason: "gloss_has_yakuwen_label" };
-    }
-  }
+  // 「訳文：」已由 formatJpVocabExampleGlossLine 剥成「译文：」；
+  // 付费 batch 写库前 salvage，勿因标签字面拒掉可用例句（Mac 脚本亦会先 normalize）。
+  // 严格 validate 路径仍拒原始「訳文：」，逼本地模型别叠日文标签。
 
   for (const item of items) {
     if (!item.text || !isJpVocabExampleJapaneseLine(item.text)) {
@@ -510,6 +506,7 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
     if (item.glossLines.length === 0) {
       return { ok: false, reason: "missing_chinese_gloss" };
     }
+    // format 后应为「译文：…」；若仍检出日文标签则异常
     if (jpVocabExampleGlossHasYakuwenLabel(item.glossLines[0])) {
       return { ok: false, reason: "gloss_has_yakuwen_label" };
     }

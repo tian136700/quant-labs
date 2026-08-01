@@ -109,6 +109,29 @@ if (!shumiOnlineOk.ok) {
   process.exit(1);
 }
 
+// 「訳文：」须 online salvage 成「译文：」（曾失败 id=508/512）
+const yakuwenRaw = [
+  "日常(にちじょう)生活(せいかつ)で日本語(にほんご)をよく使(つか)います。(N4)",
+  "訳文：我在日常生活中经常使用日语。",
+  "毎日(まいにち)の日常(にちじょう)が忙(いそが)しいです。(N5)",
+  "訳文：每天的日常都很忙。",
+].join("\\n");
+const yakuwenInput = { word: "日常", kind: "word", reading: "にちじょう", meaning: "日常；平时" };
+const yakuwenOnline = normalizeJpVocabExampleSentencesForOnlineApply(yakuwenRaw, yakuwenInput);
+if (!yakuwenOnline.ok) {
+  console.error("FAIL: online should salvage 訳文： label, got", yakuwenOnline.reason);
+  process.exit(1);
+}
+if (yakuwenOnline.text.includes("訳文") || !yakuwenOnline.text.includes("译文：")) {
+  console.error("FAIL: 訳文 should become 译文：", yakuwenOnline.text);
+  process.exit(1);
+}
+const yakuwenStrict = validateJpVocabExampleSentencesAiOutput(yakuwenRaw, yakuwenInput);
+if (yakuwenStrict.ok || yakuwenStrict.reason !== "gloss_has_yakuwen_label") {
+  console.error("FAIL: strict validate must still reject raw 訳文：", yakuwenStrict);
+  process.exit(1);
+}
+
 // 释义「认真；老实；正经」：；近义不得抬高条数（曾熔断 id=484 真面目）
 import { countJpVocabExampleSentenceTargetFromMeaning } from "./src/lib/jp-vocab-meaning-ai.ts";
 const synonymMeaning = "认真；老实；正经";
@@ -170,6 +193,16 @@ def main() -> int:
         ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
         "私の趣味(しゅみ)",
         "online batch WORD_SYSTEM warns 私 without furigana",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "format_example_gloss_line",
+        "online batch must strip 訳文 before apply",
+    )
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        '"validate_format": False',
+        "online batch examples apply must use online normalize",
     )
     must_contain(ai, "wrong_jukugo_furigana", "ai online reject wrong jukugo")
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
