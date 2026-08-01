@@ -39,6 +39,7 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
     assert_not_killed,
 )
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
+from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
 
 BASE = "https://finance.info-quests.com"
 READING_URL = f"{BASE}/api/jp-vocab/fill-reading"
@@ -833,6 +834,7 @@ def process_one(
 
 def main() -> int:
     assert_not_killed("jp-online-batch")
+    skip_if_quiz_gate_quiet("jp-online-batch")
     if not is_online_backend():
         print(
             "[jp-vocab-fill-online] JP_VOCAB_FILL_LLM_BACKEND≠1，"

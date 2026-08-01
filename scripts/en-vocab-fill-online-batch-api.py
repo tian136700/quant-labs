@@ -34,6 +34,7 @@ from paid_anthropic_client import (  # noqa: E402
 )
 from llm_json_parse import parse_llm_json_object  # noqa: E402
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
+from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
 from vocab_fill_circuit_breaker import (  # noqa: E402
     after_attempt,
     assert_not_killed,
@@ -1002,6 +1003,7 @@ def process_one(
 
 def main() -> int:
     assert_not_killed("en-online-batch")
+    skip_if_quiz_gate_quiet("en-online-batch")
     import os
     import time
 

@@ -41,6 +41,7 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "jp-vocab-fill-reading"
+vocab_fill_assert_quiz_gate_ok "jp-vocab-fill-reading"
 
 # 与例句/释义补全一致：北京时间 08:00–24:00 静默，00:00–08:00 才跑
 # FORCE=1 可强制（手动调试）

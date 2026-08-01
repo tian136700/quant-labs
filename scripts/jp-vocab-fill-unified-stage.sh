@@ -41,6 +41,7 @@ export PYTHONUNBUFFERED=1
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
+vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 # 维护中心「暂停」：有开关则 exit 0（FORCE=1 手动调试可绕过）
 PAUSE_SWITCH="${CONFIG_DIR}/jp-vocab-fill-unified-PAUSE.switch"

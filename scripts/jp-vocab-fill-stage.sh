@@ -69,6 +69,7 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:${PATH:-/usr/bin:/bin}"
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
+vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 # shellcheck source=scripts/lib/dirlock.sh
 source "$ROOT/scripts/lib/dirlock.sh"

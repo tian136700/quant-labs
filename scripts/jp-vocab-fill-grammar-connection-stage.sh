@@ -29,6 +29,7 @@ export PYTHONUNBUFFERED=1
 # shellcheck source=scripts/lib/vocab_fill_circuit_breaker.sh
 source "$ROOT/scripts/lib/vocab_fill_circuit_breaker.sh"
 vocab_fill_circuit_assert_not_killed "$OWNER"
+vocab_fill_assert_quiz_gate_ok "$OWNER"
 
 PYTHON_BIN="${JP_VOCAB_FILL_GRAMMAR_CONNECTION_PYTHON:-/opt/homebrew/bin/python3}"
 if [[ ! -x "$PYTHON_BIN" ]]; then

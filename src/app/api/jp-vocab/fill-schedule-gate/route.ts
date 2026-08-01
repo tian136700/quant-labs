@@ -6,14 +6,15 @@ import {
 import { verifyUploadAuth } from "@/lib/jp-review";
 
 type GateBody = {
-  /** 冷却分钟数；默认 60（最后一词抽查后再等 1 小时） */
+  /** 冷却分钟数；默认 30（最后一词抽查后再等半小时） */
   cooldown_minutes?: number;
 };
 
 /**
- * Mac 例句/释义补全门禁（轻量）：
+ * Mac 日/英语词表补全门禁（轻量）：
  * POST + Bearer = JP_REVIEW_UPLOAD_TOKEN
- * 按「今日最后一次抽查勾选 + 1h」决定是否跳过，替代旧的 08–24 固定静默。
+ * 开始抽查（live）立刻静默；抽查中持续静默；
+ * 最后一词勾选后再等默认 30 分钟才允许跑（日语或英语任一抽查都挡全部 fill）。
  */
 export async function POST(request: Request) {
   try {
