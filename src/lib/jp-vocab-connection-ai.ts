@@ -6,7 +6,7 @@
 export const JP_VOCAB_CONNECTION_SECTION_MARKER = "【接序】";
 
 export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
-  version: 5,
+  version: 6,
   label: "接序",
   format_example_grammar:
     "用法1: 动词原形＋と；一类形容词词尾い＋と；二类形容词词干＋だと；名词＋だと（条件句前项不用た形）\n用法2: 动词原形＋と（前后主语可不同；后项客观描述）",
@@ -15,6 +15,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
   rules: [
     "接序单独成段，放在用法/例句之后，以「【接序】」起头",
     "用法说明里禁止再写接序（接续形态）；接序只写在本字段",
+    "❌ 接序禁止夹用法说明：主语是谁、恩惠流向、强调对方好意／我方获益、意思相近可互换、视角不同等——那些只写在「用法」；接序只留形态公式（词类＋形＋本语法）",
     "用中文说明；日语形态用「」短引，禁止 漢字(かな) 假名括注",
     "否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤同一行",
     "对学生友好：写清词类，如「一类动词／二类动词／三类动词／一类形容词／二类形容词／名词＋本语法」；❌ 禁止只写笼统的「原形＋…」",
@@ -39,6 +40,7 @@ export const JP_VOCAB_CONNECTION_UPLOAD_SPEC = {
     "bare_numbered_lines",
     "academic_verb_class_terms",
     "nested_class_colon_prose",
+    "connection_has_usage",
   ],
 } as const;
 
@@ -401,13 +403,101 @@ export type JpVocabConnectionAiInput = {
   pos?: string | null;
 };
 
+/**
+ * 接序句是否夹带「用法」说明（主语是谁、恩惠流向、视角对比等）。
+ * 形态公式旁的短注解如「（前后主语可不同）」不算噪音。
+ */
+const CONNECTION_USAGE_NOISE_RE =
+  /恩惠(?:流向|从|得到)?|主语是|接受方(?:是|为)|给予方(?:是|为)|意思相近|可互换|视角不同|从外向内|主动接收|说话人一方|强调(?:对方|说话人|我方|该动作|付出|好意|获益|结果)|两句意思|带有感谢|受恩的语气|含有感谢/;
+
+function jpVocabConnectionSegmentIsUsageNoise(seg: string): boolean {
+  const t = String(seg || "").trim().replace(/[。．]+$/u, "");
+  if (!t) return false;
+  if (CONNECTION_USAGE_NOISE_RE.test(t)) return true;
+  // 无「＋」的长中文散文（讲解含义），不是接续公式
+  if (
+    !/[＋+]/.test(t) &&
+    !/^(?:用法\s*\d+|否定形|肯定形|疑问形|注意)\s*[:：]/.test(t) &&
+    !/^(?:一类|二类|三类)(?:动词|形容词)/.test(t) &&
+    t.length >= 18 &&
+    /[\u4e00-\u9fff]{8,}/.test(t) &&
+    /(?:说话人|对方|我方|感谢|受惠|获益|好意|结果)/.test(t)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function jpVocabConnectionSegmentIsFormula(seg: string): boolean {
+  const t = String(seg || "").trim();
+  if (!t) return false;
+  if (/[＋+]/.test(t)) return true;
+  if (/^(?:用法\s*\d+|否定形|肯定形|疑问形|注意)\s*[:：]/.test(t)) return true;
+  if (/^(?:一类|二类|三类)(?:动词|形容词)/.test(t)) return true;
+  return false;
+}
+
+/** 写回拒：接序夹了用法说明 */
+export function connectionHasUsageNoise(
+  raw: string | null | undefined
+): boolean {
+  const text = String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (!text) return false;
+  const body = text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)
+    ? text.slice(
+        text.indexOf(JP_VOCAB_CONNECTION_SECTION_MARKER) +
+          JP_VOCAB_CONNECTION_SECTION_MARKER.length
+      )
+    : text;
+  for (const line of body.split("\n")) {
+    for (const chunk of line.split(/[／/]/u)) {
+      for (const seg of chunk.split(/(?<=[。．])/u)) {
+        if (jpVocabConnectionSegmentIsUsageNoise(seg)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * 展示/normalize：剥掉接序里的用法说明句，只留形态公式。
+ * 例：「くれる：【动词て形】＋くれる。主语是…。／もらう：…」→ 两行公式。
+ */
+export function stripJpVocabConnectionUsageNoise(raw: string): string {
+  const text = String(raw ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim();
+  if (!text) return "";
+  const outLines: string[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    for (const chunk of trimmed.split(/[／/]/u)) {
+      const formulaParts: string[] = [];
+      for (const seg of chunk.split(/(?<=[。．])/u)) {
+        const s = seg.trim().replace(/[。．]+$/u, "").trim();
+        if (!s) continue;
+        if (jpVocabConnectionSegmentIsUsageNoise(s)) continue;
+        if (jpVocabConnectionSegmentIsFormula(s)) formulaParts.push(s);
+      }
+      const joined = formulaParts.join("");
+      if (joined && !outLines.includes(joined)) outLines.push(joined);
+    }
+  }
+  return outLines.join("\n");
+}
+
 export function normalizeJpVocabConnectionText(
   raw: string | null | undefined
 ): string | null {
   const expanded = expandJpVocabConnectionUsageInlineBreaks(
     rewriteJpVocabConnectionBareNumberedToUsageTags(
       rewriteJpVocabConnectionNestedClassColonProse(
-        rewriteJpVocabConnectionSchoolVerbClassTerms(String(raw ?? ""))
+        rewriteJpVocabConnectionSchoolVerbClassTerms(
+          stripJpVocabConnectionUsageNoise(String(raw ?? ""))
+        )
       )
     )
   );
@@ -491,6 +581,7 @@ export function jpVocabConnectionPromptAppendix(
 接序（必须同一次输出，单独成段；卡片会把接续贴在对应「N.用法」下面）：
 - 在全部用法与例句写完后，另起一行写「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面写接续形态。
 - ❌ 禁止把接序写进「用法」行（用法只讲含义/功能，不写「动词て形＋…」这类接续清单）。
+- ❌ 禁止在接序里写用法说明（主语是谁、恩惠流向、强调对方好意／我方获益、意思相近可互换、视角不同等）——那些只写在「用法」；接序只留形态公式。
 - ✅ 上面写了几条编号用法，接序就尽量用「用法1:」「用法2:」…分行对应（与 1. 2. 一一对应）；禁止把「用法1: …。用法2: …」挤在同一行。
 - ✅ 各用法接续完全相同时，可只写共用形态，不必硬写用法1/2。
 - ✅ 否定形／疑问形／肯定形等变体必须另起一行（如「否定形: …」「疑问形: …」），禁止和主接续挤在同一行。
@@ -562,6 +653,7 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 硬规则：
 - 第一行必须是「${JP_VOCAB_CONNECTION_SECTION_MARKER}」，下面 2～6 行接续说明。
 - 若该语法有多条用法且接续不同：必须「用法1:」「用法2:」分行写，禁止挤在同一行。
+- ❌ 禁止写用法说明（主语是谁、恩惠流向、强调好意／获益、意思相近可互换等）——只写接续形态公式。
 - 接续相同时可只写共用形态；否定形／疑问形等必须另起一行。
 - ✅ 对学生友好：写清词类：一类动词／二类动词／三类动词／一类形容词原形／二类形容词原形／名词＋本语法；❌禁止只写笼统「原形＋…」；少用「普通形」「现在肯定为词干」；な／名词特殊时短句说清（不加だ／加だ）。
 - ✅ 动词只用「一类动词／二类动词／三类动词」；❌禁止「五段／一段／カ变／サ变」。多种动词接续时分行写。
@@ -569,6 +661,7 @@ export function buildJpVocabConnectionOnlyAiPrompt(
 - ❌ 禁止括号嵌套散文「…（一类动词：…；二类动词：…）＋…」，须分行上表。
 - 若仍写「动词辞书形」必须写成「动词辞书形（动词原形）」；日语形态用「」短引；不要假名括注。
 - 不要写用法长文、不要写例句、不要 markdown。
+- ❌ 接序≠用法：不要写「主语是…」「恩惠流向…」「强调对方…」；只写「词类＋形＋本语法」。
 
 输出示例（接续不同；用法内多词类用「；」）：
 ${JP_VOCAB_CONNECTION_SECTION_MARKER}
@@ -634,6 +727,10 @@ export function validateJpVocabConnectionAiOutput(
   // 写回拒括号嵌套词类散文（须分行才能上表）；normalize 仍会改写存量展示
   if (connectionHasNestedClassColonProse(preCheckBody)) {
     return { ok: false, reason: "nested_class_colon_prose" };
+  }
+  // 写回拒接序夹用法说明（主语是谁／恩惠流向等）；normalize 会剥存量展示
+  if (connectionHasUsageNoise(preCheckBody)) {
+    return { ok: false, reason: "connection_has_usage" };
   }
   if (text.includes(JP_VOCAB_CONNECTION_SECTION_MARKER)) {
     text =

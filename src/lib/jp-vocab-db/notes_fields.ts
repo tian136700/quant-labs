@@ -105,7 +105,7 @@ import {
   JP_VOCAB_EXAMPLE_SENTENCES_SOURCE_MANUAL,
   normalizeJpVocabExampleSentencesSource,
 } from "@/lib/jp-vocab-example-sentences";
-import { normalizeJpVocabConnectionText } from "@/lib/jp-vocab-connection-ai";
+import { validateJpVocabConnectionAiOutput } from "@/lib/jp-vocab-connection-ai";
 import {
   isJpVocabConjugationGrammar,
   validateJpVocabUsageAiOutput,
@@ -578,11 +578,22 @@ export async function updateJpVocabWordEntry(
     }
     normalizedNextUsage = usageOk.text;
   }
-  const nextConnection =
-    input.connection !== undefined
-      ? normalizeJpVocabConnectionText(input.connection) ??
-        ((input.connection || "").trim() || null)
-      : current.connection ?? null;
+  let nextConnection: string | null = current.connection ?? null;
+  if (input.connection !== undefined) {
+    const rawConn = String(input.connection ?? "").trim();
+    if (!rawConn) {
+      nextConnection = null;
+    } else {
+      const connOk = validateJpVocabConnectionAiOutput(rawConn, {
+        word: nextWord,
+        kind: nextKind,
+      });
+      if (!connOk.ok) {
+        return { ok: false, error: connOk.reason };
+      }
+      nextConnection = connOk.text;
+    }
+  }
   let nextConnectionSource = current.connection_source ?? null;
   if (input.connection_source !== undefined) {
     nextConnectionSource = normalizeJpVocabExampleSentencesSource(

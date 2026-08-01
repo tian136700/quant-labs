@@ -67,12 +67,16 @@ def main() -> int:
     conn = (ROOT / "src/lib/jp-vocab-connection-ai.ts").read_text(encoding="utf-8")
     if "bare_numbered_lines" not in conn:
         fail("connection 须拒 bare_numbered_lines")
+    if "connection_has_usage" not in conn:
+        fail("connection 须拒 connection_has_usage")
 
     notes = (ROOT / "src/lib/jp-vocab-db/notes_fields.ts").read_text(encoding="utf-8")
     if "validateJpVocabExampleSentencesAiOutput" not in notes:
         fail("编辑写回须校验例句")
     if "validateJpVocabUsageAiOutput" not in notes:
         fail("编辑写回须校验用法")
+    if "validateJpVocabConnectionAiOutput" not in notes:
+        fail("编辑写回须校验接序")
 
     # smoke: preToolUse hit
     import subprocess
