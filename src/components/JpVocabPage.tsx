@@ -5,10 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEtrAuth } from "@/contexts/EtrAuthProvider";
 import { useI18n } from "@/i18n/I18nProvider";
 import {
-  JP_VOCAB_DEFAULT_STAT_SORT,
   jpVocabTotalReviews,
   sortJpVocabWordsForDisplay,
-  type JpVocabStatSortKey,
 } from "@/lib/jp-vocab-shared";
 import {
   buildJpVocabDailySeqMap,
@@ -64,6 +62,7 @@ import { useJpVocabPageWordHandlers } from "@/hooks/useJpVocabPageWordHandlers";
 import { useJpVocabPageSync } from "@/hooks/useJpVocabPageSync";
 import { useJpVocabReviewActions } from "@/hooks/useJpVocabReviewActions";
 import { useVocabShareBackfillOnComplete } from "@/hooks/useVocabShareBackfillOnComplete";
+import { useJpVocabPageStatSort } from "@/hooks/useJpVocabPageStatSort";
 import { useJpVocabSearchFreshLoad } from "@/hooks/useJpVocabSearchFreshLoad";
 import { useJpVocabShareRequests } from "@/hooks/useJpVocabShareRequests";
 import { useJpVocabTeacherQuiz } from "@/hooks/useJpVocabTeacherQuiz";
@@ -156,17 +155,14 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     cacheVersion?: string | null;
   } | null>(null);
   const [editingRemarksWord, setEditingRemarksWord] = useState<JpVocabWord | null>(null);
-  const [statSort, setStatSort] = useState<{
-    key: JpVocabStatSortKey;
-    dir: "asc" | "desc";
-  }>(() => JP_VOCAB_DEFAULT_STAT_SORT);
-  const [useDailyRowOrder, setUseDailyRowOrder] = useState(true);
   const [searchQuery, setSearchQuery] = useState(() => readStoredJpVocabSearchQuery());
   const [kindFilter, setKindFilter] = useState<JpVocabKindFilter>(
     () => readStoredJpVocabKindFilter()
   );
   const [page, setPage] = useState(() => readStoredJpVocabPage());
   const [pageSize, setPageSize] = useState(() => readStoredJpVocabPageSize());
+  const { statSort, useDailyRowOrder, toggleStatSort, restoreDailyRowOrder } =
+    useJpVocabPageStatSort({ onSortChange: () => setPage(1) });
   const [showExportChoice, setShowExportChoice] = useState(false);
   const [showRiskChart, setShowRiskChart] = useState(false);
   const [showDailyIntro, setShowDailyIntro] = useState(false);
@@ -284,23 +280,6 @@ export function JpVocabPage({ variant }: JpVocabPageProps) {
     const timer = setInterval(() => setReviewLockNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
-
-  const toggleStatSort = (key: JpVocabStatSortKey) => {
-    setUseDailyRowOrder(false);
-    setPage(1);
-    setStatSort((prev) => {
-      if (prev?.key === key) {
-        return { key, dir: prev.dir === "desc" ? "asc" : "desc" };
-      }
-      return { key, dir: "desc" };
-    });
-  };
-
-  const restoreDailyRowOrder = () => {
-    setUseDailyRowOrder(true);
-    setStatSort(JP_VOCAB_DEFAULT_STAT_SORT);
-    setPage(1);
-  };
 
   const dailySeqByWordId = useMemo(
     () => buildJpVocabDailySeqMap(displayOrder.ids),

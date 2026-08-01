@@ -168,8 +168,43 @@ export function jpVocabExampleHasInvalidFuriganaParen(text: string): boolean {
 
 /** 剥掉合法「漢字(かな)」后是否仍有未标注汉字（apply 须拒 incomplete_kanji_furigana） */
 export function jpVocabExampleHasUnannotatedKanji(text: string): boolean {
+  return listJpVocabUnannotatedKanji(text).length > 0;
+}
+
+/** 列出仍无假名括注的汉字（去重保序）；供拒收 reason 明细与 Mac 回传 Claude */
+export function listJpVocabUnannotatedKanji(text: string): string[] {
   const withoutValid = String(text || "").replace(VALID_KANJI_FURIGANA_CHUNK, "");
-  return /[\u4E00-\u9FFF]/.test(withoutValid);
+  const chars = withoutValid.match(/[\u4E00-\u9FFF々]/g) ?? [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const ch of chars) {
+    if (seen.has(ch)) continue;
+    seen.add(ch);
+    out.push(ch);
+  }
+  return out;
+}
+
+/** 例句块漏标说明：第 N 句缺少假名读音：私、今日 */
+export function describeJpVocabIncompleteFurigana(
+  exampleBlock: string
+): { kanji: string[]; detail: string } | null {
+  const items = parseJpVocabExampleSentenceItems(exampleBlock);
+  const parts: string[] = [];
+  const all: string[] = [];
+  items.forEach((item, i) => {
+    const missing = listJpVocabUnannotatedKanji(item.text);
+    if (missing.length === 0) return;
+    for (const ch of missing) {
+      if (!all.includes(ch)) all.push(ch);
+    }
+    parts.push(`第${i + 1}句缺少假名读音：${missing.join("、")}`);
+  });
+  if (parts.length === 0) return null;
+  return {
+    kanji: all,
+    detail: `漏标汉字合计：${all.join("、")}。${parts.join("；")}。`,
+  };
 }
 
 /** 拆行并去掉行首已有序号 */

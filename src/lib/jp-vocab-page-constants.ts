@@ -49,3 +49,6 @@ export const JP_VOCAB_SEARCH_HISTORY_STORAGE_KEY = "jp_vocab_search_history";
 export const JP_VOCAB_SEARCH_HISTORY_MAX = 8;
 /** 搜索关键词变化后多久强制拉最新词表（绕过本地 SWR TTL） */
 export const JP_VOCAB_SEARCH_FRESH_DEBOUNCE_MS = 400;
+
+/** 表头手动排序（列 + 升/降 + 是否用当日序号）；刷新后恢复 */
+export const JP_VOCAB_STAT_SORT_STORAGE_KEY = "jp_vocab_stat_sort";

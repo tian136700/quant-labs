@@ -40,6 +40,11 @@ from vocab_fill_circuit_breaker import (  # noqa: E402
 )
 from worker_api_guard import skip_if_worker_unavailable  # noqa: E402
 from vocab_fill_quiz_gate import skip_if_quiz_gate_quiet  # noqa: E402
+from jp_vocab_example_furigana import (  # noqa: E402
+    build_furigana_retry_hint,
+    describe_incomplete_furigana,
+    merge_fill_payload,
+)
 
 BASE = "https://finance.info-quests.com"
 READING_URL = f"{BASE}/api/jp-vocab/fill-reading"
@@ -76,6 +81,10 @@ WORD_SYSTEM = (
     "な形容词「〜だ」造句用词干，不必写「だ」。"
     "【例句用词】须自然用到该词条：优先写词条汉字（如「貰う」写成 貰(もら)う），"
     "每个汉字立刻半角括号假名；禁止只用假名读音而完全不出现词条汉字（除非词条本身无汉字）。"
+    "【假名全覆盖·必守】句中每一个汉字都要标，不能只标词条："
+    "❌私の趣味(しゅみ)は…（「私」漏标）→ ✅私(わたし)の趣味(しゅみ)は…；"
+    "常见易漏：私(わたし)、今日(きょう)、音楽(おんがく)、何(なん)/何(なに)、人(ひと)、時(とき)。"
+    "漏标时会退回给你点名缺哪句/哪个字，请整份重写例句后再交，不要只改一个字拼进旧句。"
     "【熟语假名·必守】二字以上熟语必须整词标假名，禁止按训读拆开："
     "✅出発(しゅっぱつ)／日本語(にほんご)／土曜日(どようび)／図書館(としょかん)；"
     "❌出(で)発(ぱつ)（读成でぱつ，错）、❌日本(にっぽん)語(ご)、❌土曜(どよう)日(ひ)、"
@@ -683,6 +692,38 @@ def generate_bundle(row: dict[str, Any], needs: dict[str, bool]) -> dict[str, An
         missing = bundle_missing_keys(payload, row)
         if missing:
             raise ValueError(f"incomplete_bundle:{','.join(missing)}")
+
+    # 假名漏标：点名缺哪句/哪个字，退回 Claude 整份重写例句（最多再试 2 次）
+    # 再与原稿合并：读音/释义等保留，例句以新稿为准
+    for furigana_try in range(1, 3):
+        hint = build_furigana_retry_hint(
+            str(payload.get("example_sentences") or ""),
+            kind=kind,
+        )
+        if not hint:
+            break
+        detail = describe_incomplete_furigana(
+            str(payload.get("example_sentences") or "")
+        )
+        print(
+            f"    furigana retry {furigana_try}/2: {detail}",
+            flush=True,
+        )
+        payload2 = _call(hint)
+        missing2 = bundle_missing_keys(payload2, row)
+        if missing2:
+            print(
+                f"    furigana retry incomplete keys: {','.join(missing2)}",
+                flush=True,
+            )
+            continue
+        payload = merge_fill_payload(payload, payload2)
+
+    still_bad = describe_incomplete_furigana(
+        str(payload.get("example_sentences") or "")
+    )
+    if still_bad:
+        raise ValueError(f"incomplete_kanji_furigana:{still_bad}")
 
     return payload
 

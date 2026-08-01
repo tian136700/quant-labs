@@ -6,6 +6,7 @@ import {
   isJpVocabExampleJapaneseLine,
   jpVocabExampleHasInvalidFuriganaParen,
   jpVocabExampleHasUnannotatedKanji,
+  listJpVocabUnannotatedKanji,
   parseJpVocabExampleSentenceItems,
   sanitizeJpVocabExampleJapaneseLine,
   serializeJpVocabExampleSentenceItems,
@@ -274,6 +275,9 @@ ${
    - ✅「今日(きょう)は気分(きぶん)がいいです。」
    - ❌「友達と話すと、気分(きぶん)が良くなります。」（友達/話/良 漏标）
    - ✅「友達(ともだち)と話(はな)すと、気分(きぶん)が良(よ)くなります。」
+   - ❌「私の趣味(しゅみ)は音楽(おんがく)を聴(き)くことです。」（「私」漏标 → incomplete_kanji_furigana）
+   - ✅「私(わたし)の趣味(しゅみ)は音楽(おんがく)を聴(き)くことです。」
+   - 常见易漏汉字也要标：私(わたし)、今日(きょう)、何(なん)/何(なに)、人(ひと)、時(とき)
    - 词尾假名也算 base：静か(しずか)、落(お)ち着(つ)きます
    - 禁止整句尾注如「です。(たなかさん げんき です。)」；禁止句末语法说明括号
 5b. ${JP_VOCAB_JUKUGO_FURIGANA_PROMPT_HINT}
@@ -352,7 +356,9 @@ export function validateJpVocabExampleSentencesAiOutput(
       return { ok: false, reason: "bad_furigana_paren" };
     }
     if (jpVocabExampleHasUnannotatedKanji(item.text)) {
-      return { ok: false, reason: "incomplete_kanji_furigana" };
+      const missing = listJpVocabUnannotatedKanji(item.text);
+      const suffix = missing.length > 0 ? `:${missing.join("")}` : "";
+      return { ok: false, reason: `incomplete_kanji_furigana${suffix}` };
     }
     if (jpVocabExampleHasWrongJukugoFurigana(item.text)) {
       return { ok: false, reason: "wrong_jukugo_furigana" };
@@ -494,7 +500,9 @@ export function normalizeJpVocabExampleSentencesForOnlineApply(
       return { ok: false, reason: "bad_furigana_paren" };
     }
     if (jpVocabExampleHasUnannotatedKanji(item.text)) {
-      return { ok: false, reason: "incomplete_kanji_furigana" };
+      const missing = listJpVocabUnannotatedKanji(item.text);
+      const suffix = missing.length > 0 ? `:${missing.join("")}` : "";
+      return { ok: false, reason: `incomplete_kanji_furigana${suffix}` };
     }
     if (jpVocabExampleHasWrongJukugoFurigana(item.text)) {
       return { ok: false, reason: "wrong_jukugo_furigana" };

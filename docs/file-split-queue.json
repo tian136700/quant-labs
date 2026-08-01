@@ -11,14 +11,14 @@
       "note": ""
     },
     {
-      "path": "src/components/JpVocabPage.tsx",
-      "lines": 1035,
+      "path": "src/components/EnVocabPage.tsx",
+      "lines": 1028,
       "status": 0,
       "note": ""
     },
     {
-      "path": "src/components/EnVocabPage.tsx",
-      "lines": 1028,
+      "path": "src/components/JpVocabPage.tsx",
+      "lines": 1014,
       "status": 0,
       "note": ""
     }

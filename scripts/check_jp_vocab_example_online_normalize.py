@@ -61,7 +61,7 @@ if (onlineBad.ok) {
   console.error("FAIL: online normalize should reject incomplete furigana, got ok");
   process.exit(1);
 }
-if (onlineBad.reason !== "incomplete_kanji_furigana") {
+if (onlineBad.reason !== "incomplete_kanji_furigana" && !String(onlineBad.reason || "").startsWith("incomplete_kanji_furigana:")) {
   console.error("FAIL: online reason want incomplete_kanji_furigana got", onlineBad.reason);
   process.exit(1);
 }
@@ -73,6 +73,39 @@ if (!onlineOk.ok) {
 }
 if (!onlineOk.text.includes("(N5)")) {
   console.error("FAIL: JLPT tail missing after online normalize");
+  process.exit(1);
+}
+
+// 趣味：只标词条漏标「私」须拒（曾失败 id=502）
+const shumiBad = [
+  "私の趣味(しゅみ)は音楽(おんがく)を聴(き)くことです。(N5)",
+  "译文：我的兴趣是听音乐。",
+  "あなたの趣味(しゅみ)は何(なん)ですか。(N5)",
+  "译文：你的爱好是什么？",
+].join("\\n");
+const shumiOk = [
+  "私(わたし)の趣味(しゅみ)は音楽(おんがく)を聴(き)くことです。(N5)",
+  "译文：我的兴趣是听音乐。",
+  "あなたの趣味(しゅみ)は何(なん)ですか。(N5)",
+  "译文：你的爱好是什么？",
+].join("\\n");
+const shumiInput = { word: "趣味", kind: "word", reading: "しゅみ", meaning: "兴趣；爱好" };
+const shumiOnlineBad = normalizeJpVocabExampleSentencesForOnlineApply(shumiBad, shumiInput);
+if (
+  shumiOnlineBad.ok ||
+  (shumiOnlineBad.reason !== "incomplete_kanji_furigana" &&
+    !String(shumiOnlineBad.reason || "").startsWith("incomplete_kanji_furigana:"))
+) {
+  console.error("FAIL: 私 without furigana must be incomplete_kanji_furigana", shumiOnlineBad);
+  process.exit(1);
+}
+if (!String(shumiOnlineBad.reason || "").includes("私")) {
+  console.error("FAIL: reason should name missing kanji 私, got", shumiOnlineBad.reason);
+  process.exit(1);
+}
+const shumiOnlineOk = normalizeJpVocabExampleSentencesForOnlineApply(shumiOk, shumiInput);
+if (!shumiOnlineOk.ok) {
+  console.error("FAIL: 趣味 full furigana should pass:", shumiOnlineOk.reason);
   process.exit(1);
 }
 
@@ -132,6 +165,12 @@ def main() -> int:
 
     must_contain(ai, "normalizeJpVocabExampleSentencesForOnlineApply", "ai")
     must_contain(ai, "incomplete_kanji_furigana", "ai online reject bare kanji")
+    must_contain(ai, "私の趣味(しゅみ)", "ai prompt warns 私 without furigana")
+    must_contain(
+        ROOT / "scripts/jp-vocab-fill-online-batch-api.py",
+        "私の趣味(しゅみ)",
+        "online batch WORD_SYSTEM warns 私 without furigana",
+    )
     must_contain(ai, "wrong_jukugo_furigana", "ai online reject wrong jukugo")
     must_contain(ai, "bad_furigana_paren", "ai online reject bad paren")
     must_contain(ai, "gloss_not_chinese", "ai reject Japanese-in-gloss")

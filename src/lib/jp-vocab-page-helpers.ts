@@ -26,9 +26,105 @@ import {
   JP_VOCAB_SEARCH_HISTORY_STORAGE_KEY,
   JP_VOCAB_SEARCH_KIND_STORAGE_KEY,
   JP_VOCAB_SEARCH_QUERY_STORAGE_KEY,
+  JP_VOCAB_STAT_SORT_STORAGE_KEY,
 } from "@/lib/jp-vocab-page-constants";
+import {
+  JP_VOCAB_DEFAULT_STAT_SORT,
+  type JpVocabStatSortKey,
+} from "@/lib/jp-vocab-shared";
 import type { JpVocabKindFilter } from "@/lib/jp-vocab-search";
 import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
+
+const JP_VOCAB_STAT_SORT_KEYS: readonly JpVocabStatSortKey[] = [
+  "seq",
+  "kind",
+  "word",
+  "reading",
+  "meaning",
+  "pos",
+  "mnemonic",
+  "very",
+  "normal",
+  "weak",
+  "total",
+  "risk",
+  "level",
+  "today",
+  "notes",
+];
+
+export type JpVocabStoredStatSort = {
+  key: JpVocabStatSortKey;
+  dir: "asc" | "desc";
+  /** true = 当日序号顺序（默认）；false = 按 key/dir 手动排序 */
+  useDailyRowOrder: boolean;
+};
+
+export function defaultJpVocabStoredStatSort(): JpVocabStoredStatSort {
+  return {
+    key: JP_VOCAB_DEFAULT_STAT_SORT.key,
+    dir: JP_VOCAB_DEFAULT_STAT_SORT.dir,
+    useDailyRowOrder: true,
+  };
+}
+
+export function readStoredJpVocabStatSort(): JpVocabStoredStatSort {
+  if (typeof window === "undefined") return defaultJpVocabStoredStatSort();
+  try {
+    const raw = window.localStorage.getItem(JP_VOCAB_STAT_SORT_STORAGE_KEY);
+    if (!raw) return defaultJpVocabStoredStatSort();
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return defaultJpVocabStoredStatSort();
+    }
+    const obj = parsed as Record<string, unknown>;
+    const key = obj.key;
+    const dir = obj.dir;
+    const useDaily =
+      typeof obj.useDailyRowOrder === "boolean" ? obj.useDailyRowOrder : true;
+    if (
+      typeof key !== "string" ||
+      !(JP_VOCAB_STAT_SORT_KEYS as readonly string[]).includes(key)
+    ) {
+      return defaultJpVocabStoredStatSort();
+    }
+    if (dir !== "asc" && dir !== "desc") {
+      return defaultJpVocabStoredStatSort();
+    }
+    return {
+      key: key as JpVocabStatSortKey,
+      dir,
+      useDailyRowOrder: useDaily,
+    };
+  } catch {
+    return defaultJpVocabStoredStatSort();
+  }
+}
+
+export function writeStoredJpVocabStatSort(value: JpVocabStoredStatSort): void {
+  if (typeof window === "undefined") return;
+  try {
+    const defaults = defaultJpVocabStoredStatSort();
+    if (
+      value.useDailyRowOrder &&
+      value.key === defaults.key &&
+      value.dir === defaults.dir
+    ) {
+      window.localStorage.removeItem(JP_VOCAB_STAT_SORT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(
+      JP_VOCAB_STAT_SORT_STORAGE_KEY,
+      JSON.stringify({
+        key: value.key,
+        dir: value.dir,
+        useDailyRowOrder: value.useDailyRowOrder,
+      })
+    );
+  } catch {
+    /* ignore storage errors */
+  }
+}
 
 export { VOCAB_SAVE_ERR as JP_VOCAB_SAVE_ERR };
 
