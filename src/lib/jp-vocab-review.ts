@@ -2,6 +2,7 @@ import type { JpVocabLevel, JpVocabWord } from "@/lib/types";
 import {
   beijingDateString,
   effectiveTodayCheckCount,
+  isJpVocabWordQuizzedToday,
   nextTodayCheckCount,
   beijingDateTimeString,
 } from "@/lib/jp-vocab-daily-check";
@@ -43,7 +44,12 @@ export function resolveJpVocabSharedTeacherLevel(
   return undefined;
 }
 
-/** 表格回显：仅当前轮次（round_checked）且今日勾选显示打勾；跨日/今日重置后清空回显，统计次数保留 */
+/**
+ * 表格 / 抽查卡回显与「是否已勾」：sessionLevel 优先；
+ * 否则须今日已抽。有 displayOrder 时优先 round_checked，
+ * 但今日已计次（today_check）仍认——防 sync/缓存短暂丢 round_checked
+ * 导致调高抽查数量后已勾词又进待抽队列（与英语 effectiveEnVocabDisplayLevel 对齐）。
+ */
 export function effectiveJpVocabDisplayLevel(
   word: JpVocabWord,
   sessionLevel?: JpVocabLevel,
@@ -54,20 +60,26 @@ export function effectiveJpVocabDisplayLevel(
 ): JpVocabLevel | undefined {
   if (sessionLevel) return sessionLevel;
   const now = opts?.now ?? new Date();
+  const level = word.last_review_level;
+  const reviewedToday =
+    Boolean(level) &&
+    JP_VOCAB_LEVELS.includes(level as JpVocabLevel) &&
+    (isJpVocabWordQuizzedToday(word, now) ||
+      isJpVocabReviewToday(word.last_review_at, now));
+  if (!reviewedToday || !level) return undefined;
+
   const order = opts?.displayOrder;
   if (order?.date) {
     if (order.date !== beijingDateString(now)) return undefined;
-    if (!isJpVocabRoundChecked(order, word.id)) return undefined;
+    // 本轮 round_checked；若今日已计次则仍认（防丢 round_checked → 已勾又要再勾）
+    if (
+      !isJpVocabRoundChecked(order, word.id) &&
+      !isJpVocabWordQuizzedToday(word, now)
+    ) {
+      return undefined;
+    }
   }
-  const level = word.last_review_level;
-  if (
-    level &&
-    JP_VOCAB_LEVELS.includes(level) &&
-    isJpVocabReviewToday(word.last_review_at, now)
-  ) {
-    return level;
-  }
-  return undefined;
+  return level;
 }
 
 export function reviewTimestampMs(iso: string | null | undefined): number | null {

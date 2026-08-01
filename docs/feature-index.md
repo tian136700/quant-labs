@@ -103,6 +103,7 @@
 | 管理员设抽查数量后老师列表不对 | `jp-vocab-db.ts` → `setJpVocabDailyQuizTarget`；`JpVocabPage.tsx` → `quizTarget` |
 | 调高目标后老师勾选词条消失 | 老师列表只显示未勾选，管理员仍见全库 |
 | 调高抽查数量后开始抽查仍从序号 1 起、已抽过的还出现在卡片 | `jp-vocab-teacher-quiz.ts` → `filterJpVocabTeacherQuizUncheckedWords`；`JpVocabPage.tsx` → `requestTeacherQuizSession`（队列仅未勾选） |
+| 调高 10→15 后已勾词（如「～なら」）又要再勾一次 | `effectiveJpVocabDisplayLevel` 须在丢 `round_checked` 时仍认今日 `today_check`（对齐英语）；规则 `jp-vocab-display-level-today-check.mdc`；回归 `scripts/check_jp_vocab_display_level_today_check.py` |
 | 抽了 N 个但序号勾选只连到中间某号（如 62）、后面没勾 | 旧 bug：池按从未抽查插队；现应为正序 1…N。查 `visible_ids` 是否等于序号前 N；今日新词应在末尾且不进池，见 `jp-vocab-teacher-quiz-pool.mdc` |
 | 今天刚「已完成」的新课词被马上抽到 / 插到序号最前 | 应次日凌晨才置顶；`created_at` 北京日 ≥ 今日则 `isJpVocabWordSameDayNewNeverQuizzed`；重排见 `sortJpVocabWordsForDailyOrder` |
 | 下午老师看到 3/13（其实只剩 10 没抽） | `teacherPendingWords`：只计未勾选，不按 1 小时锁定 |
