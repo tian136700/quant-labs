@@ -110,13 +110,16 @@ export function EnVocabPageStylesTable() {
         :global(.en-vocab-speak-btn--label) {
           width: auto;
           height: auto;
-          min-height: 2rem;
-          padding: 0.35rem 0.7rem;
-          border-radius: 8px;
-          font-size: 0.8125rem;
-          font-weight: 600;
+          min-height: 2.5rem;
+          padding: 0.5rem 0.95rem;
+          border-radius: 10px;
+          gap: 0.4rem;
+          font-size: 0.9375rem;
+          font-weight: 700;
           line-height: 1.2;
           white-space: nowrap;
+          border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+          background: color-mix(in srgb, var(--accent) 16%, var(--panel));
         }
         :global(.en-vocab-speak-btn:hover:not(:disabled)) {
           background: color-mix(in srgb, var(--accent) 10%, var(--panel));
